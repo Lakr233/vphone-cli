@@ -275,6 +275,8 @@ SHSH saved to 'shsh/206788706982711884-iPhone99,11-26.1.shsh'
 ➜  CFW git:(main) ✗
 ```
 
+> **Note:** If fetching SHSH keeps failing here, you can skip this step and proceed. This might be caused by a mismatched BuildManifest or similar issues. The firmware preparation scripts in the subsequent steps will build the correct manifest. If you don't encounter any issues later, this error can be safely ignored.
+
 ## Unlock VM Firmware
 
 `AVPBooter.vresearch1.bin` needs to be unlocked to accept custom hybrid firmware.
