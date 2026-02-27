@@ -18,7 +18,7 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
-            ],
+            ]
         ),
         // Swift executable
         .executableTarget(
@@ -34,7 +34,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
-            ],
-        ),
-    ],
+            ]
+        )
+    ]
 )

@@ -19,7 +19,7 @@ struct VPhoneCLI: AsyncParsableCommand {
 
         Example:
           vphone-cli --rom firmware/rom.bin --disk firmware/disk.img
-        """,
+        """
     )
 
     @Option(help: "Path to the AVPBooter / ROM binary")
@@ -98,7 +98,7 @@ struct VPhoneCLI: AsyncParsableCommand {
             sepRomURL: sepRomURL,
             serialLogPath: serialLog,
             stopOnPanic: stopOnPanic,
-            stopOnFatalError: stopOnFatalError,
+            stopOnFatalError: stopOnFatalError
         )
 
         let vm = try VPhoneVM(options: options)
