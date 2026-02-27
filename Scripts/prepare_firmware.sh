@@ -89,4 +89,8 @@ python3 "$SCRIPT_DIR/prepare_firmware_build_manifest.py" "$IPHONE_DIR" "$CLOUDOS
 echo "==> Cleaning up ..."
 rm -rf "$CLOUDOS_DIR"
 
+# ── Let's call patch scripts ──────────────────
+echo "==> Patching iPhone restore firmware ..."
+"$SCRIPT_DIR/patch_firmware.py"
+
 echo "==> Done. Restore directory ready: $IPHONE_DIR/"

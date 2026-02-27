@@ -42,8 +42,8 @@ from patch_firmware import (
     patch_txm,
     find_restore_dir,
     find_file,
-    IBOOT_BASE,
 )
+from iboot_patcher import IBootPatcher
 
 # ══════════════════════════════════════════════════════════════════
 # ARM64 assembler
@@ -81,17 +81,9 @@ CFW_DIR = os.path.expanduser(
 # Ramdisk boot-args
 RAMDISK_BOOT_ARGS = b"serial=3 rd=md0 debug=0x2014e -v wdt=-1 %s"
 
-# Normal boot-args (what patch_firmware.py sets) — used to find & replace
-NORMAL_BOOT_ARGS = b"serial=3 -v debug=0x2014e %s"
-
 # IM4P fourccs for restore mode
 TXM_FOURCC = "trxm"
 KERNEL_FOURCC = "rkrn"
-
-# iBEC boot-args patch offsets (vresearch101 26.1)
-IBEC_BOOTARGS_ADRP_OFF = 0x122D4
-IBEC_BOOTARGS_ADD_OFF = 0x122D8
-IBEC_BOOTARGS_STR_OFF = 0x24070
 
 # Files to remove from ramdisk to save space
 RAMDISK_REMOVE = [
@@ -220,32 +212,26 @@ def create_im4p_uncompressed(raw_data, fourcc, description, output_path):
 def patch_ibec_bootargs(data):
     """Replace normal boot-args with ramdisk boot-args in already-patched iBEC.
 
-    Searches for the existing boot-args string and overwrites it.
-    Also patches ADRP+ADD to point to the string at the hardcoded offset,
-    ensuring consistent output regardless of where patch_firmware.py wrote it.
+    Finds the boot-args string written by patch_firmware.py (via IBootPatcher)
+    and overwrites it in-place. No hardcoded offsets needed — the ADRP+ADD
+    instructions already point to the string location.
     """
-    # Patch ADRP+ADD x2 to point to IBEC_BOOTARGS_STR_OFF
-    adrp_pc = IBOOT_BASE + IBEC_BOOTARGS_ADRP_OFF
-    target = IBOOT_BASE + IBEC_BOOTARGS_STR_OFF
-    target_page = target & ~0xFFF
+    normal_args = IBootPatcher.BOOT_ARGS
+    off = data.find(normal_args)
+    if off < 0:
+        print(f"  [-] boot-args: existing string not found ({normal_args.decode()!r})")
+        return False
 
-    adrp_insn = asm_u32(f"adrp x2, 0x{target_page:x}", adrp_pc)
-    add_insn = asm_u32(f"add x2, x2, #{target & 0xFFF}")
-
-    struct.pack_into("<I", data, IBEC_BOOTARGS_ADRP_OFF, adrp_insn)
-    struct.pack_into("<I", data, IBEC_BOOTARGS_ADD_OFF, add_insn)
-
-    # Write ramdisk boot-args string at the hardcoded offset
     args = RAMDISK_BOOT_ARGS + b"\x00"
-    data[IBEC_BOOTARGS_STR_OFF:IBEC_BOOTARGS_STR_OFF + len(args)] = args
+    data[off:off + len(args)] = args
 
-    # Zero out any leftover from a longer previous string
-    end = IBEC_BOOTARGS_STR_OFF + len(args)
+    # Zero out any leftover from the previous string
+    end = off + len(args)
     while end < len(data) and data[end] != 0:
         data[end] = 0
         end += 1
 
-    print(f'  boot-args -> "{RAMDISK_BOOT_ARGS.decode()}" at 0x{IBEC_BOOTARGS_STR_OFF:X}')
+    print(f'  boot-args -> "{RAMDISK_BOOT_ARGS.decode()}" at 0x{off:X}')
     return True
 
 
