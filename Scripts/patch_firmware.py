@@ -527,9 +527,10 @@ COMPONENTS = [
         "Firmware/txm*.raw",
     ], patch_txm, True),
     ("kernelcache", True, [
+        "kernelcache.release.vphone600",
+        "kernelcache.release.vresearch101",
+        "kernelcache.release.v*",
         "kernelcache.research.vphone600",
-        "kernelcache.research.vresearch101",
-        "kernelcache.research.v*",
         "kernelcache*",
     ], patch_kernelcache, True),
 ]

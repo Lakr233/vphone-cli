@@ -1324,25 +1324,92 @@ class KernelPatcher:
         return len(patches)
 
 
-# ── CLI test entry point ─────────────────────────────────────────
+# ── CLI entry point ──────────────────────────────────────────────
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <raw_kernelcache>")
-        sys.exit(1)
+    import sys, argparse
 
-    path = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="Dynamic kernel patcher — find & apply patches on iOS kernelcaches")
+    parser.add_argument("kernelcache", help="Path to raw or IM4P kernelcache")
+    parser.add_argument("-c", "--context", type=int, default=5,
+                        help="Instructions of context before/after each patch (default: 5)")
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="Suppress index-building progress (only show patches)")
+    args = parser.parse_args()
+
+    path = args.kernelcache
     print(f"Loading {path}...")
-    raw = open(path, "rb").read()
-    data = bytearray(raw)
-    print(f"Size: {len(data)} bytes ({len(data)/1024/1024:.1f} MB)\n")
+    file_raw = open(path, "rb").read()
 
-    kp = KernelPatcher(data)
+    # Auto-detect IM4P vs raw Mach-O
+    if file_raw[:4] == b"\xcf\xfa\xed\xfe":
+        payload = file_raw
+        print(f"  format: raw Mach-O")
+    else:
+        try:
+            from pyimg4 import IM4P
+            im4p = IM4P(file_raw)
+            if im4p.payload.compression:
+                im4p.payload.decompress()
+            payload = im4p.payload.data
+            print(f"  format: IM4P (fourcc={im4p.fourcc})")
+        except Exception:
+            payload = file_raw
+            print(f"  format: unknown (treating as raw)")
+
+    data = bytearray(payload)
+    print(f"  size:   {len(data)} bytes ({len(data)/1024/1024:.1f} MB)\n")
+
+    kp = KernelPatcher(data, verbose=not args.quiet)
     patches = kp.find_all()
 
-    print(f"\n{'='*60}")
-    print(f"RESULTS: {len(patches)} patches found")
-    print(f"{'='*60}")
-    for off, patch_bytes, desc in sorted(patches):
-        hex_val = ''.join(f'{b:02x}' for b in patch_bytes)
-        print(f"  0x{off:08X}: {hex_val:8s}  {desc}")
+    # ── Print ranged before / after disassembly for every patch ──
+    ctx = args.context
+
+    print(f"\n{'═'*72}")
+    print(f"  {len(patches)} PATCHES — before / after disassembly (context={ctx})")
+    print(f"{'═'*72}")
+
+    # Apply patches to get the "after" image
+    after = bytearray(kp.raw)  # start from original
+    for off, pb, _ in patches:
+        after[off:off + len(pb)] = pb
+
+    for i, (off, patch_bytes, desc) in enumerate(sorted(patches), 1):
+        n_insns = len(patch_bytes) // 4
+        start = max(off - ctx * 4, 0)
+        end = off + n_insns * 4 + ctx * 4
+        total = (end - start) // 4
+
+        before_insns = kp._disas_n(kp.raw, start, total)
+        after_insns  = kp._disas_n(after,   start, total)
+
+        print(f"\n  ┌{'─'*70}")
+        print(f"  │ [{i:2d}] 0x{off:08X}: {desc}")
+        print(f"  ├{'─'*34}┬{'─'*35}")
+        print(f"  │ {'BEFORE':^33}│ {'AFTER':^34}")
+        print(f"  ├{'─'*34}┼{'─'*35}")
+
+        # Build line pairs
+        max_lines = max(len(before_insns), len(after_insns))
+        for j in range(max_lines):
+            def fmt(insn):
+                if insn is None:
+                    return " " * 33
+                h = insn.bytes.hex()
+                return f"0x{insn.address:07X} {h:8s} {insn.mnemonic:6s} {insn.op_str}"
+
+            bi = before_insns[j] if j < len(before_insns) else None
+            ai = after_insns[j]  if j < len(after_insns)  else None
+
+            bl = fmt(bi)
+            al = fmt(ai)
+
+            # Mark if this address is inside the patched range
+            addr = (bi.address if bi else ai.address) if (bi or ai) else 0
+            in_patch = off <= addr < off + len(patch_bytes)
+            marker = " ◄" if in_patch else "  "
+
+            print(f"  │ {bl:33s}│ {al:33s}{marker}")
+
+        print(f"  └{'─'*34}┴{'─'*35}")
