@@ -1,32 +1,48 @@
 #!/bin/bash
-# prepare_firmware.sh — Download, merge, and generate hybrid restore firmware.
+# prepare_firmware.sh — Download/copy, merge, and generate hybrid restore firmware.
 # Combines cloudOS boot chain with iPhone OS images for vresearch101.
 #
-# Usage: ./prepare_firmware.sh [iphone_ipsw_url] [cloudos_url]
+# Accepts URLs or local file paths. Local paths are copied instead of downloaded.
+#
+# Usage:
+#   ./prepare_firmware.sh [iphone_source] [cloudos_source]
+#
+# Environment variables (override positional args):
+#   IPHONE_SOURCE  — URL or local path to iPhone IPSW
+#   CLOUDOS_SOURCE — URL or local path to cloudOS IPSW
 set -euo pipefail
 cd "$(dirname "$0")"
 
-IPHONE_URL="${1:-https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw}"
-CLOUDOS_URL="${2:-https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349}"
+IPHONE_SOURCE="${IPHONE_SOURCE:-${1:-https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw}}"
+CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-${2:-https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349}}"
 
-IPHONE_IPSW="$(basename "$IPHONE_URL")"
+IPHONE_IPSW="$(basename "$IPHONE_SOURCE")"
 IPHONE_DIR="${IPHONE_IPSW%.ipsw}"
-CLOUDOS_IPSW="pcc-base.ipsw"
-CLOUDOS_DIR="pcc-base"
+CLOUDOS_IPSW="$(basename "$CLOUDOS_SOURCE")"
+# Fallback name if the source basename has no extension (e.g. raw CDN hash URL)
+[[ "$CLOUDOS_IPSW" == *.ipsw ]] || CLOUDOS_IPSW="pcc-base.ipsw"
+CLOUDOS_DIR="${CLOUDOS_IPSW%.ipsw}"
 
-# ── Download ──────────────────────────────────────────────────────────
-download() {
-    local url="$1" out="$2"
+# ── Fetch (download or copy) ─────────────────────────────────────────
+is_local() { [[ "$1" != http://* && "$1" != https://* ]]; }
+
+fetch() {
+    local src="$1" out="$2"
     if [[ -f "$out" ]]; then
-        echo "==> Skipping download: '$out' already exists."
+        echo "==> Skipping: '$out' already exists."
+        return
+    fi
+    if is_local "$src"; then
+        echo "==> Copying $(basename "$src") ..."
+        cp "$src" "$out"
     else
         echo "==> Downloading $out ..."
-        wget -q --show-progress -O "$out" "$url" --no-check-certificate
+        wget -q --show-progress -O "$out" "$src" --no-check-certificate
     fi
 }
 
-download "$IPHONE_URL"  "$IPHONE_IPSW"
-download "$CLOUDOS_URL" "$CLOUDOS_IPSW"
+fetch "$IPHONE_SOURCE"  "$IPHONE_IPSW"
+fetch "$CLOUDOS_SOURCE" "$CLOUDOS_IPSW"
 
 # ── Extract ───────────────────────────────────────────────────────────
 extract() {
