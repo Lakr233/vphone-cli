@@ -60,13 +60,6 @@ iproxy 2222 22
 make cfw_install
 ```
 
-Then halt the device from SSH:
-
-```bash
-ssh root@127.0.0.1 -p2222
-halt
-```
-
 ## Boot
 
 ```bash
