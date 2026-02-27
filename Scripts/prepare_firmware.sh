@@ -3,25 +3,33 @@
 # Combines cloudOS boot chain with iPhone OS images for vresearch101.
 #
 # Accepts URLs or local file paths. Local paths are copied instead of downloaded.
+# All output goes to the current working directory.
 #
 # Usage:
-#   ./prepare_firmware.sh [iphone_source] [cloudos_source]
+#   cd VM && ../Scripts/prepare_firmware.sh [iphone_source] [cloudos_source]
 #
 # Environment variables (override positional args):
 #   IPHONE_SOURCE  — URL or local path to iPhone IPSW
 #   CLOUDOS_SOURCE — URL or local path to cloudOS IPSW
 set -euo pipefail
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 IPHONE_SOURCE="${IPHONE_SOURCE:-${1:-https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw}}"
 CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-${2:-https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349}}"
 
-IPHONE_IPSW="$(basename "$IPHONE_SOURCE")"
+# Derive local filenames from source basename
+IPHONE_IPSW="${IPHONE_SOURCE##*/}"
 IPHONE_DIR="${IPHONE_IPSW%.ipsw}"
-CLOUDOS_IPSW="$(basename "$CLOUDOS_SOURCE")"
+CLOUDOS_IPSW="${CLOUDOS_SOURCE##*/}"
 # Fallback name if the source basename has no extension (e.g. raw CDN hash URL)
 [[ "$CLOUDOS_IPSW" == *.ipsw ]] || CLOUDOS_IPSW="pcc-base.ipsw"
 CLOUDOS_DIR="${CLOUDOS_IPSW%.ipsw}"
+
+echo "=== prepare_firmware ==="
+echo "  iPhone:  $IPHONE_SOURCE"
+echo "  CloudOS: $CLOUDOS_SOURCE"
+echo "  Output:  $(pwd)/$IPHONE_DIR/"
+echo ""
 
 # ── Fetch (download or copy) ─────────────────────────────────────────
 is_local() { [[ "$1" != http://* && "$1" != https://* ]]; }
@@ -33,8 +41,8 @@ fetch() {
         return
     fi
     if is_local "$src"; then
-        echo "==> Copying $(basename "$src") ..."
-        cp "$src" "$out"
+        echo "==> Copying ${src##*/} ..."
+        cp -- "$src" "$out"
     else
         echo "==> Downloading $out ..."
         wget -q --show-progress -O "$out" "$src" --no-check-certificate
