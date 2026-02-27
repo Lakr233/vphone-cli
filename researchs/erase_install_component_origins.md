@@ -1,83 +1,90 @@
 # Erase Install — Component Origins
 
-The erase install firmware is a **hybrid** of Apple PCC (Private Cloud Compute /
-cloudOS / vresearch101ap) and iPhone (iPhone17,3 / 26.1 / 23B85) components.
+The erase install firmware is a **hybrid** of three source sets:
 
-`prepare_firmware.sh` downloads both IPSWs, then **merges cloudOS firmware into
-the iPhone restore directory** — copying kernelcaches, `Firmware/{agx,all_flash,
-ane,dfu,pmp}/*`, and all loose `Firmware/*.im4p` files from cloudOS on top of
-the iPhone tree. `prepare_firmware_build_manifest.py` then generates a hybrid
-`BuildManifest.plist` with 5 build identities.
+1. **PCC vresearch101ap** — boot chain (LLB/iBSS/iBEC/iBoot) and security monitors (SPTM/TXM)
+2. **PCC vphone600ap** — runtime components (DeviceTree, SEP, KernelCache, RecoveryMode)
+3. **iPhone 17,3** — OS image, trust caches, filesystem
+
+The VM hardware identifies as **vresearch101ap** (BDID 0x90) in DFU mode, so the
+BuildManifest identity must use vresearch101ap fields for TSS/SHSH signing. However,
+runtime components use the **vphone600** variant because:
+- Its DeviceTree sets MKB `dt=1` (allows boot without system keybag)
+- Its SEP firmware matches the vphone600 device tree
+- `hardware target` reports as `vphone600ap` → proper iPhone emulation
+
+`fw_prepare.sh` downloads both IPSWs, merges cloudOS firmware into the iPhone
+restore directory, then `fw_manifest.py` generates the hybrid BuildManifest.
 
 ---
 
 ## Component Source Table
 
-### Boot Chain (all from PCC)
+### Boot Chain (from PCC vresearch101ap)
 
-| Component | Source | File Pattern | Patches Applied |
-|-----------|--------|--------------|-----------------|
-| **AVPBooter** | PCC `vresearch1` | `AVPBooter*.bin` (vm dir) | DGST validation bypass (`mov x0, #0`) |
-| **iBSS** | PCC `vresearch101ap` | `Firmware/dfu/iBSS.vresearch101.RELEASE.im4p` | Serial labels + image4 callback bypass |
-| **iBEC** | PCC `vresearch101ap` | `Firmware/dfu/iBEC.vresearch101.RELEASE.im4p` | Serial labels + image4 callback + boot-args |
-| **LLB** | PCC `vresearch101ap` | `Firmware/all_flash/LLB.vresearch101.RELEASE.im4p` | Serial labels + image4 callback + boot-args + rootfs + panic (6 patches) |
-| **SPTM** | PCC `vresearch101ap` | `Firmware/all_flash/` | Not patched (loaded as-is) |
-| **TXM** | PCC `vresearch101ap` | `Firmware/txm.iphoneos.research.im4p` | Trustcache bypass (`mov x0, #0` at 0x2C1F8) |
-| **SEP Firmware** | PCC `vresearch101ap` | `Firmware/all_flash/sep-firmware.vresearch101.RELEASE.im4p` | Not patched |
-| **DeviceTree** | PCC `vphone600ap` | `Firmware/all_flash/DeviceTree.vphone600ap.im4p` | Not patched |
-| **KernelCache** | PCC `vresearch101ap` | `kernelcache.release.vphone600` / `kernelcache.research.vphone600` | 25 dynamic patches via KernelPatcher (APFS, MAC policy, debugger, launch constraints, etc.) |
+| Component | Source Identity | File | Patches Applied |
+|-----------|---------------|------|-----------------|
+| **AVPBooter** | PCC vresearch1 | `AVPBooter*.bin` (vm dir) | DGST validation bypass (`mov x0, #0`) |
+| **iBSS** | PROD (vresearch101ap release) | `Firmware/dfu/iBSS.vresearch101.RELEASE.im4p` | Serial labels + image4 callback bypass |
+| **iBEC** | PROD (vresearch101ap release) | `Firmware/dfu/iBEC.vresearch101.RELEASE.im4p` | Serial labels + image4 callback + boot-args |
+| **LLB** | PROD (vresearch101ap release) | `Firmware/all_flash/LLB.vresearch101.RELEASE.im4p` | Serial labels + image4 callback + boot-args + rootfs + panic (6 patches) |
+| **iBoot** | RES (vresearch101ap research) | `Firmware/all_flash/iBoot.vresearch101.RESEARCH_RELEASE.im4p` | Not patched (only research identity carries iBoot) |
 
-> Note: TXM filename contains "iphoneos" but it is copied from the cloudOS IPSW
-> via `cp ${CLOUDOS_DIR}/Firmware/*.im4p` in `prepare_firmware.sh` line 81.
+### Security Monitors (from PCC, shared across board configs)
 
-### OS / Filesystem (all from iPhone)
+| Component | Source Identity | File | Patches Applied |
+|-----------|---------------|------|-----------------|
+| **Ap,RestoreSecurePageTableMonitor** | PROD | `Firmware/sptm.vresearch1.release.im4p` | Not patched |
+| **Ap,RestoreTrustedExecutionMonitor** | PROD | `Firmware/txm.iphoneos.release.im4p` | Not patched |
+| **Ap,SecurePageTableMonitor** | PROD | `Firmware/sptm.vresearch1.release.im4p` | Not patched |
+| **Ap,TrustedExecutionMonitor** | RES (research) | `Firmware/txm.iphoneos.research.im4p` | Trustcache bypass (`mov x0, #0` at 0x2C1F8) |
+
+### Runtime Components (from PCC vphone600ap)
+
+| Component | Source Identity | File | Patches Applied |
+|-----------|---------------|------|-----------------|
+| **DeviceTree** | VP (vphone600ap release) | `Firmware/all_flash/DeviceTree.vphone600ap.im4p` | Not patched |
+| **RestoreDeviceTree** | VP | `Firmware/all_flash/DeviceTree.vphone600ap.im4p` | Not patched |
+| **SEP** | VP | `Firmware/all_flash/sep-firmware.vphone600.RELEASE.im4p` | Not patched |
+| **RestoreSEP** | VP | `Firmware/all_flash/sep-firmware.vphone600.RELEASE.im4p` | Not patched |
+| **KernelCache** | VPR (vphone600ap research) | `kernelcache.research.vphone600` | 25 dynamic patches via KernelPatcher |
+| **RestoreKernelCache** | VP (vphone600ap release) | `kernelcache.release.vphone600` | Not patched (used during restore only) |
+| **RecoveryMode** | VP | `Firmware/all_flash/recoverymode@2556~iphone-USBc.im4p` | Not patched |
+
+> **Important**: KernelCache (installed to disk, patched) uses the **research** variant.
+> RestoreKernelCache (used during restore process only) uses the **release** variant.
+> Only vphone600ap identities carry RecoveryMode — vresearch101ap does not.
+
+### OS / Filesystem (from iPhone)
 
 | Component | Source | Notes |
 |-----------|--------|-------|
-| **Cryptex1,SystemOS** | iPhone `iPhone17,3` | System volume DMG |
-| **Cryptex1,AppOS** | iPhone `iPhone17,3` | App volume DMG |
-| **OS** | iPhone `iPhone17,3` | iPhone OS image |
-| **SystemVolume** | iPhone `iPhone17,3` | System partition |
-| **StaticTrustCache** | iPhone `iPhone17,3` | Static trust cache |
+| **OS** | iPhone `iPhone17,3` erase identity | iPhone OS image |
+| **SystemVolume** | iPhone erase | Root hash |
+| **StaticTrustCache** | iPhone erase | Static trust cache |
+| **Ap,SystemVolumeCanonicalMetadata** | iPhone erase | Metadata / mtree |
 
-### Ramdisk (depends on identity)
+### Ramdisk (from PCC)
 
-| Component | Identity 0 (Erase) | Identity 1 (Upgrade) |
-|-----------|--------------------|--------------------|
-| **RestoreRamDisk** | PCC (cloudOS PROD erase ramdisk) | iPhone (upgrade ramdisk) |
-| **RestoreTrustCache** | Follows ramdisk source | Follows ramdisk source |
-
-### UI / Misc (from iPhone)
-
-| Component | Source |
-|-----------|--------|
-| **AppleLogo** | iPhone |
-| **RestoreLogo** | iPhone |
-| **RecoveryMode** | iPhone |
-| **Cryptex1 metadata/keys** | iPhone erase identity (merged into PCC identities) |
-
-### Hardware Firmware (from PCC)
-
-| Component | Source |
-|-----------|--------|
-| **agx/** (GPU) | PCC cloudOS |
-| **ane/** (Neural Engine) | PCC cloudOS |
-| **pmp/** (Power Management) | PCC cloudOS |
+| Component | Source | Notes |
+|-----------|--------|-------|
+| **RestoreRamDisk** | PROD (vresearch101ap release) | CloudOS erase ramdisk |
+| **RestoreTrustCache** | PROD | Ramdisk trust cache |
 
 ---
 
 ## Patched Components Summary
 
-All 6 patched components in `patch_firmware.py` come from **PCC (cloudOS)**:
+All 6 patched components in `fw_patch.py` come from **PCC (cloudOS)**:
 
-| # | Component | Source | Patch Count | Purpose |
-|---|-----------|--------|-------------|---------|
-| 1 | AVPBooter | PCC | 1 | Bypass DGST signature validation |
-| 2 | iBSS | PCC | 2 | Enable serial output + bypass image4 verification |
-| 3 | iBEC | PCC | 3 | Enable serial + bypass image4 + inject boot-args |
-| 4 | LLB | PCC | 6 | Serial + image4 + boot-args + rootfs mount + panic handler |
-| 5 | TXM | PCC | 1 | Bypass trustcache validation |
-| 6 | KernelCache | PCC | 25 | APFS seal, MAC policy, debugger, launch constraints, etc. |
+| # | Component | Source Board | Patch Count | Purpose |
+|---|-----------|-------------|-------------|---------|
+| 1 | AVPBooter | vresearch1 | 1 | Bypass DGST signature validation |
+| 2 | iBSS | vresearch101 | 2 | Enable serial output + bypass image4 verification |
+| 3 | iBEC | vresearch101 | 3 | Enable serial + bypass image4 + inject boot-args |
+| 4 | LLB | vresearch101 | 6 | Serial + image4 + boot-args + rootfs mount + panic handler |
+| 5 | TXM | shared (iphoneos) | 1 | Bypass trustcache validation |
+| 6 | KernelCache | vphone600 | 25 | APFS seal, MAC policy, debugger, launch constraints, etc. |
 
 All 4 CFW-patched binaries in `patch_cfw.py` / `install_cfw.sh` come from **iPhone**:
 
@@ -90,24 +97,83 @@ All 4 CFW-patched binaries in `patch_cfw.py` / `install_cfw.sh` come from **iPho
 
 ---
 
-## Build Identities
+## Why vphone600 Runtime Components?
 
-| # | Name | Boot Chain | Ramdisk | Cryptex1 | Variant String |
-|---|------|-----------|---------|----------|----------------|
-| 0 | Erase | PCC RELEASE | PCC erase | iPhone | `Darwin Cloud Customer Erase Install (IPSW)` |
-| 1 | Upgrade | PCC RESEARCH | iPhone upgrade | iPhone | `Darwin Cloud Customer Upgrade Install (IPSW)` |
-| 2 | Research Erase | PCC RESEARCH | PCC erase | None | `Darwin Cloud Customer Research Erase Install (IPSW)` |
-| 3 | Research Upgrade | PCC RESEARCH | iPhone upgrade | None | `Darwin Cloud Customer Research Upgrade Install (IPSW)` |
-| 4 | Recovery | PCC RESEARCH | None | None | `Darwin Cloud Customer Recovery (IPSW)` |
+The vresearch101ap device tree causes a **fatal keybag error** during boot:
+```
+MKB_INIT: dt = 0, bootarg = 0
+MKB_INIT: FATAL KEYBAG ERROR: failed to load system bag
+REBOOTING INTO RECOVERY MODE.
+```
+
+The vphone600ap device tree sets `dt=1`, allowing boot without a pre-existing
+system keybag:
+```
+MKB_INIT: dt = 1, bootarg = 0
+MKB_INIT: No system keybag loaded.
+```
+
+The SEP firmware must match the device tree (vphone600 SEP with vphone600 DT).
+
+---
+
+## Build Identity (Single DFU Erase)
+
+Since vphone-cli always boots via DFU restore, only one Build Identity is needed.
+
+### Identity Metadata (must match DFU hardware for TSS)
+```
+DeviceClass     = vresearch101ap
+Variant         = Darwin Cloud Customer Erase Install (IPSW)
+Ap,ProductType  = ComputeModule14,2
+Ap,Target       = VRESEARCH101AP
+Ap,TargetType   = vresearch101
+ApBoardID       = 0x90
+ApChipID        = 0xFE01
+FDRSupport      = False
+```
+
+### Identity Source Map (fw_manifest.py variables)
+```
+PROD = vresearch101ap release    — boot chain, SPTM, ramdisk
+RES  = vresearch101ap research   — iBoot, TXM (research)
+VP   = vphone600ap release       — DeviceTree, SEP, RestoreKernelCache, RecoveryMode
+VPR  = vphone600ap research      — KernelCache (research, patched by fw_patch.py)
+I_ERASE = iPhone erase identity  — OS image, trust caches, system volume
+```
+
+### Manifest Components (21 total)
+```
+LLB                              ← PROD
+iBSS                             ← PROD
+iBEC                             ← PROD
+iBoot                            ← RES
+Ap,RestoreSecurePageTableMonitor ← PROD
+Ap,RestoreTrustedExecutionMonitor← PROD
+Ap,SecurePageTableMonitor        ← PROD
+Ap,TrustedExecutionMonitor       ← RES
+DeviceTree                       ← VP
+RestoreDeviceTree                ← VP
+SEP                              ← VP
+RestoreSEP                       ← VP
+KernelCache                      ← VPR  (research, patched)
+RestoreKernelCache               ← VP   (release, unpatched)
+RecoveryMode                     ← VP
+RestoreRamDisk                   ← PROD
+RestoreTrustCache                ← PROD
+Ap,SystemVolumeCanonicalMetadata ← I_ERASE
+OS                               ← I_ERASE
+StaticTrustCache                 ← I_ERASE
+SystemVolume                     ← I_ERASE
+```
 
 ---
 
 ## TL;DR
 
-**Boot-chain patches target PCC components; CFW patches target iPhone components.**
+**Boot chain = vresearch101 (matches DFU hardware); runtime = vphone600 (keybag-less boot); OS = iPhone.**
 
-The firmware is a PCC shell (boot chain + kernel + device tree + hardware firmware)
-wrapping an iPhone core (iOS filesystem + Cryptex + OS images). The boot chain is
-patched to disable signature verification and enable debug access; the iPhone
-userland is patched post-install for activation bypass, jailbreak tools, and
-persistent SSH/VNC.
+The firmware is a PCC shell wrapping an iPhone core. The vresearch101 boot chain
+handles DFU/TSS signing. The vphone600 device tree + SEP + kernel provide the
+runtime environment. The iPhone userland is patched post-install for activation
+bypass, jailbreak tools, and persistent SSH/VNC.
