@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Generate hybrid BuildManifest.plist and Restore.plist for vresearch1 restore.
 
-Merges cloudOS boot-chain infrastructure with iPhone OS images into a single
-DFU erase-install Build Identity.  Only one identity is needed because the VM
-always boots via DFU restore (never upgrade / recovery).
+Merges cloudOS boot-chain (vresearch101ap) with vphone600 runtime components
+(device tree, SEP, kernel) and iPhone OS images into a single DFU erase-install
+Build Identity.
 
-idevicerestore selects identities by partial-matching Info.Variant against
-"Erase Install (IPSW)" while excluding variants containing "Research".
-Our Variant "Darwin Cloud Customer Erase Install (IPSW)" satisfies both
-conditions, so a single identity is sufficient.
+The VM hardware identifies as vresearch101ap (BDID 0x90) in DFU mode, so the
+identity fields must match for TSS/SHSH signing.  Runtime components use the
+vphone600 variant because its device tree sets MKB dt=1 (keybag-less boot).
 
 Usage:
-    python3 prepare_firmware_build_manifest.py <iphone_dir> <cloudos_dir>
+    python3 fw_manifest.py <iphone_dir> <cloudos_dir>
 """
 
 import copy, os, plistlib, sys
@@ -36,26 +35,19 @@ def entry(identities, idx, key):
 # ---------------------------------------------------------------------------
 
 def _is_research(bi):
-    """Determine whether a build identity is a research variant.
-
-    Checks the build-style segment in LLB/iBSS/iBEC paths
-    (e.g. ``RELEASE`` vs ``RESEARCH_RELEASE``).
-    Falls back to ``Info.Variant`` if no firmware paths are found.
-    """
+    """Determine whether a build identity is a research variant."""
     for comp in ("LLB", "iBSS", "iBEC"):
         path = bi.get("Manifest", {}).get(comp, {}).get("Info", {}).get("Path", "")
         if not path:
             continue
         parts = os.path.basename(path).split(".")
-        # Expected format: Component.Board.Style.im4p  (4 segments)
         if len(parts) == 4:
             return "RESEARCH" in parts[2]
-    # Fallback: inspect the human-readable Variant string
     variant = bi.get("Info", {}).get("Variant", "")
     return "research" in variant.lower()
 
 
-def find_cloudos(identities, device_class="vresearch101ap"):
+def find_cloudos(identities, device_class):
     """Find release and research identity indices for the given DeviceClass."""
     release = research = None
     for i, bi in enumerate(identities):
@@ -105,23 +97,24 @@ def main():
     I = iphone_bm["BuildIdentities"]
 
     # ── Discover source identities ───────────────────────────────────
+    #   PROD / RES  = vresearch101ap release / research  (boot chain)
+    #   VP   / VPR  = vphone600ap    release / research  (runtime)
     PROD, RES = find_cloudos(C, "vresearch101ap")
-    VP_PROD, VP_RES = find_cloudos(C, "vphone600ap")
+    VP, VPR   = find_cloudos(C, "vphone600ap")
     I_ERASE   = find_iphone_erase(I)
 
     print(f"  cloudOS vresearch101ap: release=#{PROD}, research=#{RES}")
-    print(f"  cloudOS vphone600ap:    release=#{VP_PROD}, research=#{VP_RES}")
+    print(f"  cloudOS vphone600ap:    release=#{VP}, research=#{VPR}")
     print(f"  iPhone  erase: #{I_ERASE}")
 
     # ── Build the single DFU erase identity ──────────────────────────
-    # Base from vphone600ap (iPhone99,11) — its device tree sets the MKB
-    # device-type flag (dt=1) needed for keybag-less boot.
-    # ApBoardID stays 0x90 to match the DFU hardware (vresearch101 AVPBooter).
-    bi = copy.deepcopy(C[VP_PROD])
+    # Identity base from vresearch101ap PROD — must match DFU hardware
+    # (BDID 0x90) for TSS/SHSH signing.
+    bi = copy.deepcopy(C[PROD])
     bi["Manifest"] = {}
-    bi["Ap,ProductType"]   = "iPhone99,11"
-    bi["Ap,Target"]        = "VPHONE600AP"
-    bi["Ap,TargetType"]    = "vphone600"
+    bi["Ap,ProductType"]   = "ComputeModule14,2"
+    bi["Ap,Target"]        = "VRESEARCH101AP"
+    bi["Ap,TargetType"]    = "vresearch101"
     bi["ApBoardID"]        = "0x90"
     bi["ApChipID"]         = "0xFE01"
     bi["ApSecurityDomain"] = "0x01"
@@ -149,30 +142,32 @@ def main():
 
     m = bi["Manifest"]
 
-    # ── RELEASE boot chain (LLB/iBSS/iBEC patched by patch_firmware.py) ──
+    # ── Boot chain (vresearch101 — matches DFU hardware) ─────────────
     m["LLB"]  = entry(C, PROD, "LLB")
     m["iBSS"] = entry(C, PROD, "iBSS")
     m["iBEC"] = entry(C, PROD, "iBEC")
-    # iBoot — only the research identity carries it
-    m["iBoot"] = entry(C, RES, "iBoot")
+    m["iBoot"] = entry(C, RES, "iBoot")       # research iBoot
 
-    # ── Security monitors ────────────────────────────────────────────
+    # ── Security monitors (shared across board configs) ──────────────
     m["Ap,RestoreSecurePageTableMonitor"]  = entry(C, PROD, "Ap,RestoreSecurePageTableMonitor")
     m["Ap,RestoreTrustedExecutionMonitor"] = entry(C, PROD, "Ap,RestoreTrustedExecutionMonitor")
     m["Ap,SecurePageTableMonitor"]         = entry(C, PROD, "Ap,SecurePageTableMonitor")
-    # Research TXM — patched by patch_firmware.py (txm.iphoneos.research.im4p)
     m["Ap,TrustedExecutionMonitor"]        = entry(C, RES,  "Ap,TrustedExecutionMonitor")
 
-    # ── Device tree (vphone600ap — sets dt=1 for keybag-less boot) ───
-    m["DeviceTree"]        = entry(C, VP_PROD, "DeviceTree")
-    m["RestoreDeviceTree"] = entry(C, VP_PROD, "RestoreDeviceTree")
-    # ── SEP (shared across board configs) ─────────────────────────
-    m["SEP"]               = entry(C, PROD, "SEP")
-    m["RestoreSEP"]        = entry(C, PROD, "RestoreSEP")
+    # ── Device tree (vphone600ap — sets MKB dt=1 for keybag-less boot)
+    m["DeviceTree"]        = entry(C, VP, "DeviceTree")
+    m["RestoreDeviceTree"] = entry(C, VP, "RestoreDeviceTree")
 
-    # ── Research kernel (kernelcache.research.vphone600, patched by fw_patch.py)
-    m["KernelCache"] = entry(C, VP_RES, "KernelCache")
-    m["RestoreKernelCache"] = copy.deepcopy(m["KernelCache"])
+    # ── SEP (vphone600 — matches device tree) ────────────────────────
+    m["SEP"]        = entry(C, VP, "SEP")
+    m["RestoreSEP"] = entry(C, VP, "RestoreSEP")
+
+    # ── Kernel (vphone600, patched by fw_patch.py) ────────────────────
+    m["KernelCache"]        = entry(C, VPR, "KernelCache")         # research
+    m["RestoreKernelCache"] = entry(C, VP,  "RestoreKernelCache")  # release
+
+    # ── Recovery mode (vphone600ap carries this entry) ────────────────
+    m["RecoveryMode"] = entry(C, VP, "RecoveryMode")
 
     # ── CloudOS erase ramdisk ────────────────────────────────────────
     m["RestoreRamDisk"]    = entry(C, PROD, "RestoreRamDisk")
@@ -180,36 +175,39 @@ def main():
 
     # ── iPhone OS image ──────────────────────────────────────────────
     m["Ap,SystemVolumeCanonicalMetadata"] = entry(I, I_ERASE, "Ap,SystemVolumeCanonicalMetadata")
-    m["OS"]              = entry(I, I_ERASE, "OS")
+    m["OS"]               = entry(I, I_ERASE, "OS")
     m["StaticTrustCache"] = entry(I, I_ERASE, "StaticTrustCache")
-    m["SystemVolume"]    = entry(I, I_ERASE, "SystemVolume")
+    m["SystemVolume"]     = entry(I, I_ERASE, "SystemVolume")
 
     # ── Assemble BuildManifest ───────────────────────────────────────
     build_manifest = {
-        "BuildIdentities": [bi],
-        "ManifestVersion":     cloudos_bm["ManifestVersion"],
-        "ProductBuildVersion": cloudos_bm["ProductBuildVersion"],
-        "ProductVersion":      cloudos_bm["ProductVersion"],
+        "BuildIdentities":      [bi],
+        "ManifestVersion":      cloudos_bm["ManifestVersion"],
+        "ProductBuildVersion":  cloudos_bm["ProductBuildVersion"],
+        "ProductVersion":       cloudos_bm["ProductVersion"],
         "SupportedProductTypes": ["iPhone99,11"],
     }
 
     # ── Assemble Restore.plist ───────────────────────────────────────
-    restore = copy.deepcopy(cloudos_rp)
-    restore["DeviceMap"] = [iphone_rp["DeviceMap"][0]] + [
-        d for d in cloudos_rp["DeviceMap"]
-        if d["BoardConfig"] in ("vphone600ap", "vresearch101ap")
-    ]
-    restore["SystemRestoreImageFileSystems"] = copy.deepcopy(
-        iphone_rp["SystemRestoreImageFileSystems"])
-    restore["SupportedProductTypeIDs"] = {
-        cat: (iphone_rp["SupportedProductTypeIDs"][cat]
-              + cloudos_rp["SupportedProductTypeIDs"][cat])
-        for cat in ("DFU", "Recovery")
+    restore = {
+        "ProductBuildVersion": cloudos_rp["ProductBuildVersion"],
+        "ProductVersion":      cloudos_rp["ProductVersion"],
+        "DeviceMap": [iphone_rp["DeviceMap"][0]] + [
+            d for d in cloudos_rp["DeviceMap"]
+            if d["BoardConfig"] in ("vphone600ap", "vresearch101ap")
+        ],
+        "SupportedProductTypeIDs": {
+            cat: (iphone_rp["SupportedProductTypeIDs"][cat]
+                  + cloudos_rp["SupportedProductTypeIDs"][cat])
+            for cat in ("DFU", "Recovery")
+        },
+        "SupportedProductTypes": (
+            iphone_rp.get("SupportedProductTypes", [])
+            + cloudos_rp.get("SupportedProductTypes", [])
+        ),
+        "SystemRestoreImageFileSystems": copy.deepcopy(
+            iphone_rp["SystemRestoreImageFileSystems"]),
     }
-    restore["SupportedProductTypes"] = (
-        iphone_rp.get("SupportedProductTypes", [])
-        + cloudos_rp.get("SupportedProductTypes", [])
-    )
 
     # ── Write output ─────────────────────────────────────────────────
     for name, data in [("BuildManifest.plist", build_manifest),
