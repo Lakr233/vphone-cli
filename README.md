@@ -4,6 +4,13 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 
 ![poc](./demo.png)
 
+## Tested Environments
+
+| Record | Host macOS | Host Hardware | iPhone IPSW | CloudOS IPSW |
+|--------|------------|---------------|-------------|--------------|
+| 1 | macOS 26.3 (Tahoe, Build 25D125) | MacBook Air, Apple M4 | `iPhone17,3_26.1_23B85_Restore.ipsw` | `PCC-CloudOS-26.1-23B85.ipsw` |
+| 2 | macOS 26.3 (Tahoe, Build 25D125) | MacBook Air, Apple M4 | `iPhone17,3_26.3_23D127_Restore.ipsw` | `PCC-CloudOS-26.1-23B85.ipsw` |
+
 ## Prerequisites
 
 **Disable SIP and AMFI** — required for private Virtualization.framework entitlements.
