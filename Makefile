@@ -34,7 +34,7 @@ help:
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
-	@echo "  make install                 Build + copy to ../bin/"
+	@echo "  make install                 Build + copy to ./bin/"
 	@echo "  make clean                   Remove .build/"
 	@echo ""
 	@echo "VM management:"
@@ -88,9 +88,9 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "  signed OK"
 
 install: build
-	mkdir -p ../bin
-	cp -f $(BINARY) ../bin/vphone-cli
-	@echo "Installed to ../bin/vphone-cli"
+	mkdir -p ./bin
+	cp -f $(BINARY) ./bin/vphone-cli
+	@echo "Installed to ./bin/vphone-cli"
 
 clean:
 	swift package clean
