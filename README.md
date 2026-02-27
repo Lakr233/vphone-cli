@@ -10,29 +10,33 @@ The VM system used for recovery is a dedicated pcc image, responsible for LLM in
 
 > **Note:** Disabling SIP is not for modifying the system. We can use a custom boot ROM via private APIs, but `Virtualization.framework` checks our binary's entitlements before allowing the launch of a specially configured VM. Therefore, we need to disable SIP to modify boot arguments and disable AMFI checks.
 
-### In recovery mode
+### Reboot into Recovery Mode
 
-On Apple slicon devices, you can boot into recovery mode by long pressing the power button, press until the screen showing "Loading boot options". Then in recovery mode, select Tools on menu bar, which will have an option to select Terminal. Inside terminal, type in the two commands;
+On Apple Silicon devices, you can boot into recovery mode by long pressing the power button until the screen shows "Loading boot options". Then in recovery mode, select Tools on the menu bar, which will show an option to open Terminal. Inside terminal, run the following two commands:
 
 `csrutil disable`
 
 `csrutil allow-research-guests enable`
 
-After runnning these two commands, you can restart into normal macOS.
+After running these two commands, you can restart into normal macOS.
 
-### Set up boot args
+### Reboot into System
 
-After restart into macOS, launch a terminal and run the command:
+After restarting into macOS, launch a terminal and run the command:
 
 `sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"`
 
 Once done, restart the system again.
 
-### Compile libimobiledevice suite
+### Compile libimobiledevice Suite
 
-> Shoutout to [nikias](https://github.com/nikias) for his original all in one script!
+> Shoutout to [nikias](https://github.com/nikias) for the original all-in-one script!
 
-The libimobiledevice suite is required to make the whole installation function. You can run the setup script at `Scripts/compile_all_libimobiledevice_deps.sh`, which clones and builds the upstream libimobiledevice libraries required by this project.
+The libimobiledevice suite is required for the installation to function. Run the setup script at `Scripts/compile_all_libimobiledevice_deps.sh`, which clones and builds the upstream libimobiledevice libraries required by this project.
+
+### Set Up Python Environment
+
+The patch scripts require Python 3 with `capstone`, `keystone-engine`, and `pyimg4`. Run `zsh Scripts/create_venv.sh` to create a virtual environment with all dependencies, then activate it with `source .venv/bin/activate`.
 
 ## Prepare Resource Files
 
@@ -57,9 +61,7 @@ We will prepare the hybrid firmware and modify it later.
 - [https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw](https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipswhttps://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349)
 - [https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349](https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipswhttps://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349)
 
-Please put the downloaded .ipsw files into the Scripts folder.
-
-Or, you can run the `prepare_firmware.sh` script alone which we will handle for you. 
+Place the downloaded `.ipsw` files into the `Scripts` folder, or run `prepare_firmware.sh` which will handle the download and extraction for you.
 
 ## First Boot of the Virtual Machine
 
@@ -216,10 +218,9 @@ If `CPFM` does not match, it can probably be ignored. The smaller the value, the
 
 ### Obtain Restore Firmware Signature
 
-
 **It may be re-obtained later; this step is only to ensure your environment is working properly.** You need to add device adaptation information to `irecovery` for it to work correctly.
 
-> This part could be ignored if you already follow the steps in compile libimobiledevice suite.
+> This step can be skipped if you already followed the Compile libimobiledevice Suite steps above.
 
 `{ "iPhone99,11", "vresearch101ap", 0x90, 0xFE01, "iPhone 99,11" }, `
 
@@ -233,7 +234,7 @@ make -j8
 sudo make install
 ```
 
-If anything goes well, you can query the virtual machine for device hardware information.
+If everything goes well, you can query the virtual machine for device hardware information.
 
 ```bash
 ➜  CFW git:(main) ✗ irecovery -q
@@ -298,21 +299,19 @@ SHSH saved to 'shsh/206788706982711884-iPhone99,11-26.1.shsh'
 
 > **Note:** If fetching SHSH keeps failing here, you can skip this step and proceed. This might be caused by a mismatched BuildManifest or similar issues. The firmware preparation scripts in the subsequent steps will build the correct manifest. If you don't encounter any issues later, this error can be safely ignored.
 
-## Unlock VM Firmware and build CFW
+## Unlock VM Firmware and Build CFW
 
-This part is very tedious, be prepared with patience. 
+This part is very tedious, be prepared with patience.
 
-In order to make the research firmware accepting modded firmware, we need to patch `AVPBooter.vresearch1.bin`.  
+In order to make the research firmware accept modded firmware, we need to patch `AVPBooter.vresearch1.bin`.
 
 ### Obtain Firmware Content
 
-Run it and confirm that the folder `iPhone17,3_26.1_23B85_Restore` **exists** on the Scripts folder. If it doesn't exist, please run `prepare_firmware.sh` first, which will download, extract and patch the ipsw for you.
-
+Run it and confirm that the folder `iPhone17,3_26.1_23B85_Restore` **exists** in the Scripts folder. If it doesn't exist, please run `prepare_firmware.sh` first, which will download, extract, and patch the IPSW for you.
 
 ### Patch Firmware
 
 The patch system of the entire repository involves **41+ modifications**, covering 7 major categories of components.
-
 
 ```bash
   1. AVPBooter — DGST validation bypass via text-search + epilogue walk
@@ -329,7 +328,7 @@ First you need to install some components
 pip3 install keystone-engine capstone pyimg4
 ```
 
-Then run the `patch_firmware.py` on Scripts folder.
+Then run `patch_firmware.py` in the Scripts folder.
 
 ```bash
 ➜  vphone git:(main) ✗   python3 patch_scripts/patch_firmware.py ~/Desktop/vphone-cli/VM
@@ -423,7 +422,7 @@ Then run the `patch_firmware.py` on Scripts folder.
 
 ### Verify patch status
 
-Just execute `./boot_dfu.sh` above once again, it should be boot as expected.
+Just execute `./boot_dfu.sh` once again. It should boot as expected.
 
 ## Fix Boot
 
@@ -446,7 +445,7 @@ idevicerestore -e -y ./iPhone17,3_26.1_23B85_Restore -t
 ➜  VM file shsh/18302609918026364278-iPhone99,11-26.1.shsh
 gzip compressed data, original size modulo 2^32 5897
 ```
-> If you encounter error stating reject for unknwon board model, this is due to the Build.plist it is referencing does not match with the device in DFU mode. Please make sure you have run the `prepare_firmware.sh` script which will patch it.
+> If you encounter an error stating rejection for an unknown board model, this is because the `Build.plist` being referenced does not match the device in DFU mode. Make sure you have run `prepare_firmware.sh`, which will patch it.
 
 Build Ramdisk
 
