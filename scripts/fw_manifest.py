@@ -106,9 +106,11 @@ def main():
 
     # ── Discover source identities ───────────────────────────────────
     PROD, RES = find_cloudos(C, "vresearch101ap")
+    VP_PROD, VP_RES = find_cloudos(C, "vphone600ap")
     I_ERASE   = find_iphone_erase(I)
 
     print(f"  cloudOS vresearch101ap: release=#{PROD}, research=#{RES}")
+    print(f"  cloudOS vphone600ap:    release=#{VP_PROD}, research=#{VP_RES}")
     print(f"  iPhone  erase: #{I_ERASE}")
 
     # ── Build the single DFU erase identity ──────────────────────────
@@ -164,12 +166,9 @@ def main():
     m["SEP"]               = entry(C, PROD, "SEP")
     m["RestoreSEP"]        = entry(C, PROD, "RestoreSEP")
 
-    # ── RELEASE kernel (patched by patch_firmware.py) ────────────────
-    m["RestoreKernelCache"] = entry(C, PROD, "RestoreKernelCache")
-    if "KernelCache" in C[PROD]["Manifest"]:
-        m["KernelCache"] = entry(C, PROD, "KernelCache")
-    else:
-        m["KernelCache"] = copy.deepcopy(m["RestoreKernelCache"])
+    # ── Research kernel (kernelcache.research.vphone600, patched by fw_patch.py)
+    m["KernelCache"] = entry(C, VP_RES, "KernelCache")
+    m["RestoreKernelCache"] = copy.deepcopy(m["KernelCache"])
 
     # ── CloudOS erase ramdisk ────────────────────────────────────────
     m["RestoreRamDisk"]    = entry(C, PROD, "RestoreRamDisk")
