@@ -16,7 +16,7 @@ VENV        := .venv
 LIMD_PREFIX := .limd
 IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
 IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
-PYTHON      := $(VENV)/bin/python3
+PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 
 SWIFT_SOURCES := $(shell find sources -name '*.swift' -o -name '*.m' -o -name '*.h')
 
