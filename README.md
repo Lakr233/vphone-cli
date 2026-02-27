@@ -53,21 +53,10 @@ make ramdisk_build            # build signed SSH ramdisk
 make ramdisk_send             # terminal 2 — send to device
 ```
 
-Connect and prepare the boot disk:
-
-```bash
-iproxy 2222 22
-ssh root@127.0.0.1 -p2222    # password: alpine
-
-# in SSH session:
-mount_apfs -o rw /dev/disk1s1 /mnt1
-snaputil -n $(snaputil -l /mnt1) orig-fs /mnt1
-umount /mnt1
-```
-
 Install CFW (Cryptexes, patched binaries, jailbreak tools, LaunchDaemons):
 
 ```bash
+iproxy 2222 22
 make cfw_install
 ```
 

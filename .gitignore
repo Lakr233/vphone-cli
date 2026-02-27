@@ -309,3 +309,4 @@ __marimo__/
 .streamlit/secrets.toml
 *.resolved
 /VM
+.limd/
