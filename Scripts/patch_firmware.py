@@ -31,6 +31,7 @@ import struct, sys, os, glob, subprocess, tempfile
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
 from pyimg4 import IM4P
+from kernel_patcher import KernelPatcher
 
 # ══════════════════════════════════════════════════════════════════
 # Assembler / disassembler helpers
@@ -451,38 +452,12 @@ def patch_txm(data):
 
 # ── 6. Kernelcache ───────────────────────────────────────────────
 
-KERNEL_PATCHES = [
-    (0x2476964, "nop", "_apfs_vfsop_mount (root snapshot)"),
-    (0x23CFDE4, "nop", "_authapfs_seal_is_broken"),
-    (0x0F6D960, "nop", "_bsd_init (rootvp auth)"),
-    (0x163863C, "mov w0, #0", "_proc_check_launch_constraints"),
-    (0x1638640, "ret", "  ret"),
-    (0x12C8138, "mov x0, #1", "_PE_i_can_has_debugger"),
-    (0x12C813C, "ret", "  ret"),
-    (0xFFAB98, "nop", "post-validation NOP"),
-    (0x16405AC, 0x6B00001F, "postValidation (cmp w0, w0)"),
-    (0x16410BC, "mov w0, #1", "_check_dyld_policy_internal"),
-    (0x16410C8, "mov w0, #1", "_check_dyld_policy_internal"),
-    (0x242011C, "mov w0, #0", "_apfs_graft"),
-    (0x2475044, 0xEB00001F, "_apfs_vfsop_mount (cmp x0, x0)"),
-    (0x2476C00, "mov w0, #0", "_apfs_mount_upgrade_checks"),
-    (0x248C800, "mov w0, #0", "_handle_fsioc_graft"),
-    (0x23AC528, "mov x0, #0", "_hook_file_check_mmap"),
-    (0x23AC52C, "ret", "  ret"),
-    (0x23AAB58, "mov x0, #0", "_hook_mount_check_mount"),
-    (0x23AAB5C, "ret", "  ret"),
-    (0x23AA9A0, "mov x0, #0", "_hook_mount_check_remount"),
-    (0x23AA9A4, "ret", "  ret"),
-    (0x23AA80C, "mov x0, #0", "_hook_mount_check_umount"),
-    (0x23AA810, "ret", "  ret"),
-    (0x23A5514, "mov x0, #0", "_hook_vnode_check_rename"),
-    (0x23A5518, "ret", "  ret"),
-]
-
-
 def patch_kernelcache(data):
-    apply_fixed_patches(data, KERNEL_PATCHES)
-    return True
+    """Dynamically patch kernelcache using KernelPatcher — no hardcoded offsets."""
+    kp = KernelPatcher(data)
+    n = kp.apply()
+    print(f"  [+] {n} kernel patches applied dynamically")
+    return n > 0
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -553,8 +528,8 @@ COMPONENTS = [
     ], patch_txm, True),
     ("kernelcache", True, [
         "kernelcache.research.vphone600",
-        "kernelcache.research.vphone600*",
-        "kernelcache.research.*",
+        "kernelcache.research.vresearch101",
+        "kernelcache.research.v*",
         "kernelcache*",
     ], patch_kernelcache, True),
 ]
