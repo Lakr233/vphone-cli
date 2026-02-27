@@ -69,11 +69,16 @@ make boot
 On first boot, initialize the shell environment:
 
 ```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
 /iosbinpack64/bin/mkdir -p /var/dropbear
 /iosbinpack64/bin/cp /iosbinpack64/etc/profile /var/profile
 /iosbinpack64/bin/cp /iosbinpack64/etc/motd /var/motd
 shutdown -h now
+```
+
+In case you need to use the binpack:
+
+```bash 
+export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
 ```
 
 After subsequent boots, connect via:

@@ -13,6 +13,9 @@ SCRIPTS     := scripts
 BINARY      := .build/release/vphone-cli
 ENTITLEMENTS := vphone.entitlements
 VENV        := .venv
+LIMD_PREFIX := .limd
+IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
+IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
 
 SWIFT_SOURCES := $(shell find sources -name '*.swift' -o -name '*.m' -o -name '*.h')
 
@@ -62,7 +65,7 @@ setup_venv:
 	zsh $(SCRIPTS)/setup_venv.sh
 
 setup_libimobiledevice:
-	zsh $(SCRIPTS)/setup_libimobiledevice.sh
+	bash $(SCRIPTS)/setup_libimobiledevice.sh
 
 # ═══════════════════════════════════════════════════════════════════
 # Build
@@ -141,10 +144,10 @@ fw_patch:
 .PHONY: restore_get_shsh restore
 
 restore_get_shsh:
-	cd $(VM_DIR) && idevicerestore -e -y ./iPhone*_Restore -t
+	cd $(VM_DIR) && "$(CURDIR)/$(IDEVICERESTORE)" -e -y ./iPhone*_Restore -t
 
 restore:
-	cd $(VM_DIR) && idevicerestore -e -y ./iPhone*_Restore
+	cd $(VM_DIR) && "$(CURDIR)/$(IDEVICERESTORE)" -e -y ./iPhone*_Restore
 
 # ═══════════════════════════════════════════════════════════════════
 # Ramdisk
@@ -156,7 +159,7 @@ ramdisk_build:
 	cd $(VM_DIR) && python3 "$(CURDIR)/$(SCRIPTS)/ramdisk_build.py" .
 
 ramdisk_send:
-	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/ramdisk_send.sh"
+	cd $(VM_DIR) && IRECOVERY="$(CURDIR)/$(IRECOVERY)" zsh "$(CURDIR)/$(SCRIPTS)/ramdisk_send.sh"
 
 # ═══════════════════════════════════════════════════════════════════
 # CFW
