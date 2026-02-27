@@ -715,10 +715,18 @@ for I in $COMPONENTS; do
     rm -rf $COMP
     if test "$CVER" != "master"; then
       echo "Cloning $COMP (release $CVER)";
-      git clone -b $CVER https://github.com/libimobiledevice/$COMP 2>/dev/null || error_exit "Failed to clone $COMP"
+      if test "$COMP" == "libirecovery"; then
+        git clone -b $CVER https://github.com/wh1te4ever/libirecovery 2>/dev/null || error_exit "Failed to clone $COMP"
+      else
+        git clone -b $CVER https://github.com/libimobiledevice/$COMP 2>/dev/null || error_exit "Failed to clone $COMP"
+      fi
     else
       echo "Cloning $COMP (master)";
-      git clone https://github.com/libimobiledevice/$COMP 2>/dev/null || error_exit "Failed to clone $COMP"
+      if test "$COMP" == "libirecovery"; then
+        git clone https://github.com/wh1te4ever/libirecovery 2>/dev/null || error_exit "Failed to clone $COMP"
+      else
+        git clone https://github.com/libimobiledevice/$COMP 2>/dev/null || error_exit "Failed to clone $COMP"
+      fi
     fi
   fi
 done
