@@ -189,6 +189,29 @@ sudo hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -owners off
 echo "  Mounting device rootfs rw..."
 remote_mount /dev/disk1s1 /mnt1
 
+# Rename APFS update snapshot to orig-fs (idempotent)
+echo "  Checking APFS snapshots..."
+SNAP_LIST=$(ssh_cmd "snaputil -l /mnt1 2>/dev/null" || true)
+if echo "$SNAP_LIST" | grep -q "^orig-fs$"; then
+    echo "  Snapshot 'orig-fs' already exists, skipping rename"
+else
+    UPDATE_SNAP=$(echo "$SNAP_LIST" | grep "^com\.apple\.os\.update-" | head -1)
+    if [[ -n "$UPDATE_SNAP" ]]; then
+        echo "  Renaming snapshot: $UPDATE_SNAP -> orig-fs"
+        ssh_cmd "snaputil -n '$UPDATE_SNAP' orig-fs /mnt1"
+        # Verify rename succeeded
+        if ! ssh_cmd "snaputil -l /mnt1 2>/dev/null" | grep -q "^orig-fs$"; then
+            die "Failed to rename snapshot to orig-fs"
+        fi
+        echo "  Snapshot renamed, remounting..."
+        ssh_cmd "/sbin/umount /mnt1"
+        remote_mount /dev/disk1s1 /mnt1
+        echo "  [+] Snapshot renamed to orig-fs"
+    else
+        echo "  No com.apple.os.update- snapshot found, skipping"
+    fi
+fi
+
 ssh_cmd "/bin/rm -rf /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
 ssh_cmd "/bin/mkdir -p /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
 ssh_cmd "/bin/chmod 0755 /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
@@ -346,3 +369,6 @@ echo ""
 echo "[+] CFW installation complete!"
 echo "    Reboot the device for changes to take effect."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
+
+ssh_cmd "halt"
+

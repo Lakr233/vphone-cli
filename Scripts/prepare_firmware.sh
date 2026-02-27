@@ -45,7 +45,11 @@ fetch() {
         cp -- "$src" "$out"
     else
         echo "==> Downloading $out ..."
-        wget -q --show-progress -O "$out" "$src" --no-check-certificate
+        if ! wget --no-check-certificate --show-progress -O "$out" "$src"; then
+            echo "ERROR: Failed to download '$src'" >&2
+            rm -f "$out"
+            exit 1
+        fi
     fi
 }
 
@@ -55,10 +59,7 @@ fetch "$CLOUDOS_SOURCE" "$CLOUDOS_IPSW"
 # ── Extract ───────────────────────────────────────────────────────────
 extract() {
     local zip="$1" dir="$2"
-    if [[ -d "$dir" ]]; then
-        echo "==> Skipping extract: '$dir' already exists."
-        return
-    fi
+    rm -rf "$dir"
     echo "==> Extracting $zip ..."
     mkdir -p "$dir"
     unzip -oq "$zip" -d "$dir"
@@ -82,180 +83,7 @@ cp ${CLOUDOS_DIR}/Firmware/*.im4p "$IPHONE_DIR/Firmware"/
 # ── Generate hybrid BuildManifest.plist & Restore.plist ───────────────
 echo "==> Generating hybrid plists ..."
 
-python3 - "$IPHONE_DIR" "$CLOUDOS_DIR" <<'PYEOF'
-import copy, os, plistlib, sys
-
-iphone_dir, cloudos_dir = sys.argv[1], sys.argv[2]
-
-def load(path):
-    with open(path, "rb") as f:
-        return plistlib.load(f)
-
-cloudos_bm = load(os.path.join(cloudos_dir, "BuildManifest.plist"))
-iphone_bm = load(os.path.join(iphone_dir,  "BuildManifest.plist"))
-cloudos_rp = load(os.path.join(cloudos_dir, "Restore.plist"))
-iphone_rp  = load(os.path.join(iphone_dir,  "Restore.plist"))
-
-# Source identities
-# C: [0]j236c [1]j475d [2]vphone600-prod [3]vresearch101-prod [4]vphone600-research [5]vresearch101-research
-# I: [0]Erase [1]Upgrade [2]ResearchErase [3]ResearchUpgrade [4]Recovery
-C = cloudos_bm["BuildIdentities"]
-I = iphone_bm["BuildIdentities"]
-
-def entry(src, idx, key):
-    return copy.deepcopy(src[idx]["Manifest"][key])
-
-# ── Base identity template (vresearch101) ─────────────────────────────
-def make_base():
-    b = copy.deepcopy(C[3])
-    b["Manifest"] = {}
-    b["Ap,ProductType"]    = "ComputeModule14,2"
-    b["Ap,Target"]         = "VRESEARCH101AP"
-    b["Ap,TargetType"]     = "vresearch101"
-    b["ApBoardID"]         = "0x90"
-    b["ApChipID"]          = "0xFE01"
-    b["ApSecurityDomain"]  = "0x01"
-    for k in ("NeRDEpoch", "RestoreAttestationMode"):
-        b.pop(k, None)
-        b.get("Info", {}).pop(k, None)
-    b["Info"]["FDRSupport"] = False
-    b["Info"]["Variant"] = "Darwin Cloud Customer Erase Install (IPSW)"
-    b["Info"]["VariantContents"] = {
-        "BasebandFirmware": "Release",       "DCP": "DarwinProduction",
-        "DFU": "DarwinProduction",           "Firmware": "DarwinProduction",
-        "InitiumBaseband": "Production",     "InstalledKernelCache": "Production",
-        "InstalledSPTM": "Production",       "OS": "Production",
-        "RestoreKernelCache": "Production",  "RestoreRamDisk": "Production",
-        "RestoreSEP": "DarwinProduction",    "RestoreSPTM": "Production",
-        "SEP": "DarwinProduction",           "VinylFirmware": "Release",
-    }
-    return b
-
-# Shared manifest blocks — cloudOS boot infra
-def boot_infra(m, llb_src=3, sep_src=2, boot_variant="release"):
-    """Add SPTM/TXM/DeviceTree/KernelCache/LLB/iBoot/iBEC/iBSS/SEP entries."""
-    research = 4  # cloudOS research identity index
-    m["Ap,RestoreSecurePageTableMonitor"]  = entry(C, 3, "Ap,RestoreSecurePageTableMonitor")
-    m["Ap,RestoreTrustedExecutionMonitor"] = entry(C, 3, "Ap,RestoreTrustedExecutionMonitor")
-    m["Ap,SecurePageTableMonitor"]         = entry(C, 3, "Ap,SecurePageTableMonitor")
-    m["Ap,TrustedExecutionMonitor"]        = entry(C, research, "Ap,TrustedExecutionMonitor")
-    m["DeviceTree"]          = entry(C, 2, "DeviceTree")
-    m["KernelCache"]         = entry(C, research, "KernelCache")
-    idx = 3 if boot_variant == "release" else research
-    m["LLB"]  = entry(C, idx, "LLB")
-    m["iBEC"] = entry(C, idx, "iBEC")
-    m["iBSS"] = entry(C, idx, "iBSS")
-    m["iBoot"] = entry(C, research, "iBoot")
-    m["RecoveryMode"]        = entry(I, 0, "RecoveryMode")
-    m["RestoreDeviceTree"]   = entry(C, 2, "RestoreDeviceTree")
-    m["RestoreKernelCache"]  = entry(C, 2, "RestoreKernelCache")
-    m["RestoreSEP"]          = entry(C, sep_src, "RestoreSEP")
-    m["SEP"]                 = entry(C, sep_src, "SEP")
-
-# Shared manifest block — iPhone OS images
-def iphone_os(m, os_src=0):
-    m["Ap,SystemVolumeCanonicalMetadata"] = entry(I, os_src, "Ap,SystemVolumeCanonicalMetadata")
-    m["OS"]              = entry(I, os_src, "OS")
-    m["StaticTrustCache"] = entry(I, os_src, "StaticTrustCache")
-    m["SystemVolume"]    = entry(I, os_src, "SystemVolume")
-
-# ── 5 Build Identities ───────────────────────────────────────────────
-def identity_0():
-    """Erase — Cryptex1 identity keys, RELEASE LLB/iBEC/iBSS, cloudOS erase ramdisk."""
-    bi = make_base()
-    for k in ("Cryptex1,ChipID", "Cryptex1,NonceDomain", "Cryptex1,PreauthorizationVersion",
-              "Cryptex1,ProductClass", "Cryptex1,SubType", "Cryptex1,Type", "Cryptex1,Version"):
-        bi[k] = I[0][k]
-    bi["Info"]["Cryptex1,AppOSSize"]    = I[0]["Info"]["Cryptex1,AppOSSize"]
-    bi["Info"]["Cryptex1,SystemOSSize"] = I[0]["Info"]["Cryptex1,SystemOSSize"]
-    bi["Info"]["VariantContents"]["Cryptex1,AppOS"]    = "CryptexOne"
-    bi["Info"]["VariantContents"]["Cryptex1,SystemOS"] = "CryptexOne"
-    m = bi["Manifest"]
-    boot_infra(m, llb_src=3, sep_src=2, boot_variant="release")
-    m["RestoreRamDisk"]  = entry(C, 3, "RestoreRamDisk")
-    m["RestoreTrustCache"] = entry(C, 3, "RestoreTrustCache")
-    iphone_os(m)
-    return bi
-
-def identity_1():
-    """Upgrade — Cryptex1 manifest entries, RESEARCH boot chain, iPhone upgrade ramdisk."""
-    bi = make_base()
-    m = bi["Manifest"]
-    boot_infra(m, llb_src=4, sep_src=3, boot_variant="research")
-    m["AppleLogo"]   = entry(C, 4, "AppleLogo")
-    m["RestoreLogo"] = entry(C, 4, "RestoreLogo")
-    for k in ("Cryptex1,AppOS", "Cryptex1,AppTrustCache", "Cryptex1,AppVolume",
-              "Cryptex1,SystemOS", "Cryptex1,SystemTrustCache", "Cryptex1,SystemVolume"):
-        m[k] = entry(I, 0, k)
-    m["RestoreRamDisk"]    = entry(I, 1, "RestoreRamDisk")
-    m["RestoreTrustCache"] = entry(I, 1, "RestoreTrustCache")
-    iphone_os(m)
-    return bi
-
-def identity_2():
-    """Research erase — RESEARCH boot chain, cloudOS erase ramdisk, no Cryptex1."""
-    bi = make_base()
-    m = bi["Manifest"]
-    boot_infra(m, llb_src=4, sep_src=3, boot_variant="research")
-    m["AppleLogo"]       = entry(C, 4, "AppleLogo")
-    m["RestoreLogo"]     = entry(C, 4, "RestoreLogo")
-    m["RestoreRamDisk"]  = entry(C, 3, "RestoreRamDisk")
-    m["RestoreTrustCache"] = entry(C, 3, "RestoreTrustCache")
-    iphone_os(m)
-    return bi
-
-def identity_3():
-    """Research upgrade — same as identity_2 but with iPhone upgrade ramdisk."""
-    bi = identity_2()
-    m = bi["Manifest"]
-    m["RestoreRamDisk"]    = entry(I, 1, "RestoreRamDisk")
-    m["RestoreTrustCache"] = entry(I, 1, "RestoreTrustCache")
-    return bi
-
-def identity_4():
-    """Recovery — stripped down, iPhone Recovery OS."""
-    bi = make_base()
-    m = bi["Manifest"]
-    boot_infra(m, llb_src=4, sep_src=3, boot_variant="research")
-    # Recovery has no RestoreDeviceTree/RestoreSEP/SEP/RecoveryMode/iBoot
-    for k in ("RestoreDeviceTree", "RestoreSEP", "SEP", "RecoveryMode", "iBoot"):
-        m.pop(k, None)
-    m["AppleLogo"]       = entry(C, 4, "AppleLogo")
-    m["RestoreRamDisk"]  = entry(C, 3, "RestoreRamDisk")
-    m["RestoreTrustCache"] = entry(C, 3, "RestoreTrustCache")
-    iphone_os(m, os_src=4)
-    return bi
-
-# ── Assemble BuildManifest ────────────────────────────────────────────
-build_manifest = {
-    "BuildIdentities": [identity_0(), identity_1(), identity_2(), identity_3(), identity_4()],
-    "ManifestVersion": cloudos_bm["ManifestVersion"],
-    "ProductBuildVersion": cloudos_bm["ProductBuildVersion"],
-    "ProductVersion": cloudos_bm["ProductVersion"],
-    "SupportedProductTypes": ["iPhone99,11"],
-}
-
-# ── Assemble Restore.plist ────────────────────────────────────────────
-restore = copy.deepcopy(cloudos_rp)
-restore["DeviceMap"] = [iphone_rp["DeviceMap"][0]] + [
-    d for d in cloudos_rp["DeviceMap"] if d["BoardConfig"] in ("vphone600ap", "vresearch101ap")
-]
-restore["SystemRestoreImageFileSystems"] = copy.deepcopy(iphone_rp["SystemRestoreImageFileSystems"])
-restore["SupportedProductTypeIDs"] = {
-    cat: iphone_rp["SupportedProductTypeIDs"][cat] + cloudos_rp["SupportedProductTypeIDs"][cat]
-    for cat in ("DFU", "Recovery")
-}
-restore["SupportedProductTypes"] = (
-    iphone_rp.get("SupportedProductTypes", []) + cloudos_rp.get("SupportedProductTypes", [])
-)
-
-# ── Write output ──────────────────────────────────────────────────────
-for name, data in [("BuildManifest.plist", build_manifest), ("Restore.plist", restore)]:
-    path = os.path.join(iphone_dir, name)
-    with open(path, "wb") as f:
-        plistlib.dump(data, f, sort_keys=True)
-    print(f"  wrote {name}")
-PYEOF
+python3 "$SCRIPT_DIR/prepare_firmware_build_manifest.py" "$IPHONE_DIR" "$CLOUDOS_DIR"
 
 # ── Cleanup (keep IPSWs, remove intermediate files) ──────────────────
 echo "==> Cleaning up ..."
