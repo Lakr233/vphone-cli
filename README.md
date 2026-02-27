@@ -121,7 +121,9 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 Yes. Override `fw_prepare` with the IPSW URL for the version you want:
 
 ```bash
-IPHONE_SOURCE="https://updates.cdn-apple.com/.../iPhone17,3_XX.X_Restore.ipsw" make fw_prepare
+export IPHONE_SOURCE=/path/to/some_os.ipsw
+export CLOUDOS_SOURCE=/path/to/some_os.ipsw
+make fw_prepare
 make fw_patch
 ```
 
