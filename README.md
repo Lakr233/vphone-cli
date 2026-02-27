@@ -10,15 +10,29 @@ The VM system used for recovery is a dedicated pcc image, responsible for LLM in
 
 > **Note:** Disabling SIP is not for modifying the system. We can use a custom boot ROM via private APIs, but `Virtualization.framework` checks our binary's entitlements before allowing the launch of a specially configured VM. Therefore, we need to disable SIP to modify boot arguments and disable AMFI checks.
 
-### Reboot into Recovery Mode
+### In recovery mode
+
+On Apple slicon devices, you can boot into recovery mode by long pressing the power button, press until the screen showing "Loading boot options". Then in recovery mode, select Tools on menu bar, which will have an option to select Terminal. Inside terminal, type in the two commands;
 
 `csrutil disable`
 
 `csrutil allow-research-guests enable`
 
-### Reboot into System
+After runnning these two commands, you can restart into normal macOS.
+
+### Set up boot args
+
+After restart into macOS, launch a terminal and run the command:
 
 `sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"`
+
+Once done, restart the system again.
+
+### Compile libimobiledevice suite
+
+> Shoutout to [nikias](https://github.com/nikias) for his original all in one script!
+
+The libimobiledevice suite is required to make the whole installation to function. You can run the pre-set up script at `compile_all_libimobiledevice_deps.sh`, which helps you compile all libimobiledevice libraries with vphone support.
 
 ## Prepare Resource Files
 
@@ -42,6 +56,10 @@ We will prepare the hybrid firmware and modify it later.
 
 - [https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw](https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipswhttps://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349)
 - [https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349](https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipswhttps://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349)
+
+Please put the downloaded .ipsw files into the Scripts folder.
+
+Or, you can run the `prepare_firmware.sh` script alone which we will handle for you. 
 
 ## First Boot of the Virtual Machine
 
@@ -198,7 +216,10 @@ If `CPFM` does not match, it can probably be ignored. The smaller the value, the
 
 ### Obtain Restore Firmware Signature
 
+
 **It may be re-obtained later; this step is only to ensure your environment is working properly.** You need to add device adaptation information to `irecovery` for it to work correctly.
+
+> This part could be ignored if you already follow the steps in compile libimobiledevice suite.
 
 `{ "iPhone99,11", "vresearch101ap", 0x90, 0xFE01, "iPhone 99,11" }, `
 
@@ -212,7 +233,7 @@ make -j8
 sudo make install
 ```
 
-At this point, you can query the virtual machine for device hardware information.
+If anything goes well, you can query the virtual machine for device hardware information.
 
 ```bash
 ➜  CFW git:(main) ✗ irecovery -q
@@ -277,127 +298,21 @@ SHSH saved to 'shsh/206788706982711884-iPhone99,11-26.1.shsh'
 
 > **Note:** If fetching SHSH keeps failing here, you can skip this step and proceed. This might be caused by a mismatched BuildManifest or similar issues. The firmware preparation scripts in the subsequent steps will build the correct manifest. If you don't encounter any issues later, this error can be safely ignored.
 
-## Unlock VM Firmware
+## Unlock VM Firmware and build CFW
 
-`AVPBooter.vresearch1.bin` needs to be unlocked to accept custom hybrid firmware.
+This part is very tedious, be prepared with patience. 
 
-### Find all "DGST" (Optional)
-
-`if ( (_DWORD)v8 != 'DGST' )` is the logic for judgment. Taking the ROM on the author's system as an example.
-
-```bash
-__int64 __fastcall sub_102400(__int64 a1, __int64 a2, int a3, __int64 a4)
-
->> if ( (_DWORD)v8 != 'DGST' )
->> v20 = sub_1021EC(0, 'DGST', v82);
-```
-
-### Execute Replacement Script
-
-```bash
-export AVPBOOTER_BIN=/Users/qaq/Desktop/vphone-cli/VM/AVPBooter.vresearch1.bin
-python3 patch_AVPBooter.vresearch1.bin.py
-
-➜  super-tart-vphone-private git:(main) ✗ python3 /Users/qaq/Desktop/vphone-cli/VM/patch_AVPBooter.vresearch1.bin.py
-[*] Loaded /Users/qaq/Desktop/vphone-cli/VM/AVPBooter.vresearch1.bin (251856 bytes)
-[*] Processor: ARM Little-endian, 64-bit (AArch64)
-[*] Base address: 0x100000
-[*] Disassembling full binary ...
-[*] Disassembled 62964 instructions
-[*] Text-search (slow!) for "0x4447" ...
-[*] Found 2 match(es):
-  [+] 0x1026B0: movk w8, #0x4447, lsl #16
-  [+] 0x102860: movk w1, #0x4447, lsl #16
-
-[*] Found epilogue `retab` at 0x102C40
-[*] Return value set at 0x102C20: mov x0, x20
-
-============================================================
-  BEFORE patch (around 0x102C20):
-============================================================
-      0x102BF8: bl       #0x102d5c
-      0x102BFC: add      w0, w8, #0x2f
-      0x102C00: bl       #0x119f7c
-      0x102C04: mov      w20, #-1
-      0x102C08: ldur     x8, [x29, #-0x58]
-      0x102C0C: adrp     x9, #0x70028000
-      0x102C10: add      x9, x9, #0x170
-      0x102C14: ldr      x9, [x9]
-      0x102C18: cmp      x9, x8
-      0x102C1C: b.ne     #0x102cd8
-  >>> 0x102C20: mov      x0, x20
-      0x102C24: ldp      x29, x30, [sp, #0xd0]
-      0x102C28: ldp      x20, x19, [sp, #0xc0]
-      0x102C2C: ldp      x22, x21, [sp, #0xb0]
-      0x102C30: ldp      x24, x23, [sp, #0xa0]
-      0x102C34: ldp      x26, x25, [sp, #0x90]
-      0x102C38: ldp      x28, x27, [sp, #0x80]
-      0x102C3C: add      sp, sp, #0xe0
-      0x102C40: retab
-      0x102C44: mov      w19, #0x11
-      0x102C48: movk     w19, #0x4004, lsl #16
-      0x102C4C: stp      xzr, xzr, [sp, #0x30]
-      0x102C50: add      x9, sp, #0x30
-      0x102C54: add      x1, x8, #6
-      0x102C58: add      x2, sp, #0x30
-      0x102C5C: add      x3, x9, #8
-      0x102C60: mov      x0, x23
-      0x102C64: bl       #0x11bd64
-      0x102C68: cbz      w0, #0x102c78
-
-[+] Patched 0x102C20 (file offset 0x2C20): e00314aa -> 000080d2  (mov x0, x20 -> mov x0, #0)
-
-============================================================
-  AFTER patch (around 0x102C20):
-============================================================
-      0x102BF8: bl       #0x102d5c
-      0x102BFC: add      w0, w8, #0x2f
-      0x102C00: bl       #0x119f7c
-      0x102C04: mov      w20, #-1
-      0x102C08: ldur     x8, [x29, #-0x58]
-      0x102C0C: adrp     x9, #0x70028000
-      0x102C10: add      x9, x9, #0x170
-      0x102C14: ldr      x9, [x9]
-      0x102C18: cmp      x9, x8
-      0x102C1C: b.ne     #0x102cd8
-  >>> 0x102C20: mov      x0, #0
-      0x102C24: ldp      x29, x30, [sp, #0xd0]
-      0x102C28: ldp      x20, x19, [sp, #0xc0]
-      0x102C2C: ldp      x22, x21, [sp, #0xb0]
-      0x102C30: ldp      x24, x23, [sp, #0xa0]
-      0x102C34: ldp      x26, x25, [sp, #0x90]
-      0x102C38: ldp      x28, x27, [sp, #0x80]
-      0x102C3C: add      sp, sp, #0xe0
-      0x102C40: retab
-      0x102C44: mov      w19, #0x11
-      0x102C48: movk     w19, #0x4004, lsl #16
-      0x102C4C: stp      xzr, xzr, [sp, #0x30]
-      0x102C50: add      x9, sp, #0x30
-      0x102C54: add      x1, x8, #6
-      0x102C58: add      x2, sp, #0x30
-      0x102C5C: add      x3, x9, #8
-      0x102C60: mov      x0, x23
-      0x102C64: bl       #0x11bd64
-      0x102C68: cbz      w0, #0x102c78
-
-[+] Patched binary written to /Users/qaq/Desktop/vphone-cli/VM/AVPBooter.vresearch1.patched.bin
-```
-
-### Confirm Correct Boot
-
-Just execute `./boot_dfu.sh` above once again.
-
-## Build CFW
-
-This part is very tedious, be prepared with patience.
+In order to make the research firmware accepting modded firmware, we need to patch `AVPBooter.vresearch1.bin`.  
 
 ### Obtain Firmware Content
 
-Run it and confirm that the folder `iPhone17,3_26.1_23B85_Restore` **exists.**
+Run it and confirm that the folder `iPhone17,3_26.1_23B85_Restore` **exists** on the Scripts folder. If it doesn't exist, please run `prepare_firmware.sh` first, which will download, extract and patch the ipsw for you.
+
 
 ### Patch Firmware
 
 The patch system of the entire repository involves **41+ modifications**, covering 7 major categories of components.
+
 
 ```bash
   1. AVPBooter — DGST validation bypass via text-search + epilogue walk
@@ -414,7 +329,7 @@ First you need to install some components
 pip3 install keystone-engine capstone pyimg4
 ```
 
-Then
+Then run the `patch_firmware.py` on Scripts folder.
 
 ```bash
 ➜  vphone git:(main) ✗   python3 patch_scripts/patch_firmware.py ~/Desktop/vphone-cli/VM
@@ -506,7 +421,9 @@ Then
 ➜  vphone git:(main) ✗
 ```
 
-\
+### Verify patch status
+
+Just execute `./boot_dfu.sh` above once again, it should be boot as expected.
 
 ## Fix Boot
 
@@ -529,6 +446,7 @@ idevicerestore -e -y ./iPhone17,3_26.1_23B85_Restore -t
 ➜  VM file shsh/18302609918026364278-iPhone99,11-26.1.shsh
 gzip compressed data, original size modulo 2^32 5897
 ```
+> If you encounter error stating reject for unknwon board model, this is due to the Build.plist it is referencing does not match with the device in DFU mode. Please make sure you have run the `prepare_firmware.sh` script which will patch it.
 
 Build Ramdisk
 
