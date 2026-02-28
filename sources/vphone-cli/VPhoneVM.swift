@@ -48,7 +48,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         let auxStorage = try VZMacAuxiliaryStorage(
             creatingStorageAt: options.nvramURL,
             hardwareModel: hwModel,
-            options: .allowOverwrite,
+            options: .allowOverwrite
         )
         platform.auxiliaryStorage = auxStorage
         platform.hardwareModel = hwModel
