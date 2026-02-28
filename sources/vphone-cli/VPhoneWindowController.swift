@@ -6,10 +6,11 @@ import Virtualization
 class VPhoneWindowController {
     private var windowController: NSWindowController?
 
-    func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double) {
+    func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double, keyHelper: VPhoneKeyHelper) {
         let view = VPhoneVMView()
         view.virtualMachine = vm
         view.capturesSystemKeys = true
+        view.keyHelper = keyHelper
         let vmView: NSView = view
 
         let scale = CGFloat(screenScale)

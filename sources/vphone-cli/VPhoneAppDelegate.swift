@@ -83,15 +83,17 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         try await vm.start(forceDFU: cli.dfu)
 
         if !cli.noGraphics {
+            let keyHelper = VPhoneKeyHelper(vm: vm.virtualMachine)
             let wc = VPhoneWindowController()
             wc.showWindow(
                 for: vm.virtualMachine,
                 screenWidth: cli.screenWidth,
                 screenHeight: cli.screenHeight,
-                screenScale: cli.screenScale
+                screenScale: cli.screenScale,
+                keyHelper: keyHelper
             )
             windowController = wc
-            menuController = VPhoneMenuController(vm: vm.virtualMachine)
+            menuController = VPhoneMenuController(keyHelper: keyHelper)
         }
     }
 
