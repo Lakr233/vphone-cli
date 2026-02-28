@@ -24,17 +24,14 @@ import glob
 import os
 import plistlib
 import shutil
-import struct
 import subprocess
 import sys
-import tempfile
 
 # Ensure sibling modules (patch_firmware) are importable when run from any CWD
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
 from pyimg4 import IM4P
 
 from fw_patch import (
@@ -47,37 +44,12 @@ from fw_patch import (
 from patchers.iboot import IBootPatcher
 
 # ══════════════════════════════════════════════════════════════════
-# ARM64 assembler
-# ══════════════════════════════════════════════════════════════════
-
-_ks = Ks(KS_ARCH_ARM64, KS_MODE_LE)
-
-
-def asm(s, addr=0):
-    """Assemble an ARM64 instruction string to bytes."""
-    enc, _ = _ks.asm(s, addr)
-    if not enc:
-        raise RuntimeError(f"asm failed: {s}")
-    return bytes(enc)
-
-
-def asm_u32(s, addr=0):
-    """Assemble an ARM64 instruction and return as little-endian u32."""
-    return struct.unpack("<I", asm(s, addr))[0]
-
-
-# ══════════════════════════════════════════════════════════════════
 # Configuration
 # ══════════════════════════════════════════════════════════════════
 
 OUTPUT_DIR = "Ramdisk"
 TEMP_DIR = "ramdisk_builder_temp"
 INPUT_DIR = "ramdisk_input"
-
-# Default location to copy resources from
-CFW_DIR = os.path.expanduser(
-    "~/Documents/GitHub/super-tart-vphone-private/CFW"
-)
 
 # Ramdisk boot-args
 RAMDISK_BOOT_ARGS = b"serial=3 rd=md0 debug=0x2014e -v wdt=-1 %s"
@@ -298,7 +270,9 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         for pattern in SIGN_DIRS:
             for path in glob.glob(os.path.join(mountpoint, pattern)):
                 if os.path.isfile(path) and not os.path.islink(path):
-                    if "Mach-O" in subprocess.getoutput(f'file "{path}"'):
+                    if "Mach-O" in subprocess.run(
+                            ["file", path], capture_output=True, text=True,
+                        ).stdout:
                         subprocess.run(
                             [ldid, "-S", "-M", f"-K{signcert}", path],
                             capture_output=True,

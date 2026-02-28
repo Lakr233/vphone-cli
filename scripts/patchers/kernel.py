@@ -12,13 +12,13 @@ Dependencies:  keystone-engine, capstone
 import struct, plistlib
 from collections import defaultdict
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
-from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
 from capstone.arm64_const import (ARM64_OP_REG, ARM64_OP_IMM,
                                   ARM64_REG_W0, ARM64_REG_X0, ARM64_REG_X8)
 
 # ── Assembly / disassembly helpers ───────────────────────────────
 _ks = Ks(KS_ARCH_ARM64, KS_MODE_LE)
-_cs = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
+_cs = Cs(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN)
 _cs.detail = True
 
 

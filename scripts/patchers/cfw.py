@@ -29,8 +29,8 @@ Dependencies:
 
 import os
 import plistlib
-import re
 import struct
+import subprocess
 import sys
 
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
@@ -660,7 +660,8 @@ def parse_cryptex_paths(manifest_path):
 def inject_daemons(plist_path, daemon_dir):
     """Inject bash/dropbear/trollvnc entries into launchd.plist."""
     # Convert to XML first (macOS binary plist -> XML)
-    os.system(f'plutil -convert xml1 "{plist_path}" 2>/dev/null')
+    subprocess.run(["plutil", "-convert", "xml1", plist_path],
+                   capture_output=True)
 
     with open(plist_path, "rb") as f:
         target = plistlib.load(f)

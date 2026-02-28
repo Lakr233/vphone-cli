@@ -18,7 +18,7 @@ IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
 IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
 PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 
-SWIFT_SOURCES := $(shell find sources -name '*.swift' -o -name '*.m' -o -name '*.h')
+SWIFT_SOURCES := $(shell find sources -name '*.swift')
 
 # ─── Environment — prefer project-local binaries ────────────────
 export PATH := $(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
@@ -111,8 +111,6 @@ boot: build
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
 		--cpu $(CPU) --memory $(MEMORY) \
-		--serial-log ./serial.log \
-		--stop-on-panic --stop-on-fatal-error \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage
 
@@ -122,8 +120,6 @@ boot_dfu: build
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
 		--cpu $(CPU) --memory $(MEMORY) \
-		--serial-log ./serial.log \
-		--stop-on-panic --stop-on-fatal-error \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage \
 		--no-graphics --dfu

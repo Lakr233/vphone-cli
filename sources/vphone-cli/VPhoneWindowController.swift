@@ -43,9 +43,4 @@ class VPhoneWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
-
-    func close() {
-        windowController?.close()
-        windowController = nil
-    }
 }

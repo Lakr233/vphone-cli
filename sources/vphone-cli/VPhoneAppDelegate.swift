@@ -18,9 +18,8 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         signal(SIGINT, SIG_IGN)
         let src = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        src.setEventHandler { [weak self] in
+        src.setEventHandler {
             print("\n[vphone] SIGINT — shutting down")
-            self?.vm?.stopConsoleCapture()
             NSApp.terminate(nil)
         }
         src.activate()
@@ -71,25 +70,17 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             memorySize: UInt64(cli.memory) * 1024 * 1024,
             skipSEP: cli.skipSep,
             sepStorageURL: sepStorageURL,
-            sepRomURL: sepRomURL,
-            serialLogPath: cli.serialLog,
-            stopOnPanic: cli.stopOnPanic,
-            stopOnFatalError: cli.stopOnFatalError
+            sepRomURL: sepRomURL
         )
 
         let vm = try VPhoneVM(options: options)
         self.vm = vm
 
-        vm.onStop = { [weak self] in
-            self?.vm?.stopConsoleCapture()
+        vm.onStop = {
             NSApp.terminate(nil)
         }
 
-        try await vm.start(
-            forceDFU: cli.dfu,
-            stopOnPanic: cli.stopOnPanic,
-            stopOnFatalError: cli.stopOnFatalError
-        )
+        try await vm.start(forceDFU: cli.dfu)
 
         if !cli.noGraphics {
             let wc = VPhoneWindowController()
@@ -102,7 +93,4 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         !cli.noGraphics
     }
 
-    func applicationWillTerminate(_: Notification) {
-        vm?.stopConsoleCapture()
-    }
 }

@@ -310,3 +310,4 @@ __marimo__/
 *.resolved
 /VM
 .limd/
+/.swiftpm
