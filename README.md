@@ -46,53 +46,88 @@ make build                    # build + sign vphone-cli
 make vm_new                   # create vm/ directory (ROMs, disk, SEP storage)
 make fw_prepare               # download IPSWs, extract, merge, generate manifest
 make fw_patch                 # patch boot chain (6 components, 41+ modifications)
-make boot_dfu                 # boot VM in DFU mode
+```
+
+## Restore
+
+You'll need **two terminals** for the restore process. Keep terminal 1 running while using terminal 2.
+
+```bash
+# terminal 1
+make boot_dfu                 # boot VM in DFU mode (keep running)
+```
+
+```bash
+# terminal 2
 make restore_get_shsh         # fetch SHSH blob
 make restore                  # flash firmware via idevicerestore
 ```
 
 ## Ramdisk and CFW
 
-After restoring, boot into DFU again and load the SSH ramdisk:
+Stop the DFU boot in terminal 1 (Ctrl+C), then boot into DFU again for the ramdisk:
 
 ```bash
-make boot_dfu                 # terminal 1
-make ramdisk_build            # build signed SSH ramdisk
-make ramdisk_send             # terminal 2 — send to device
+# terminal 1
+make boot_dfu                 # keep running
 ```
 
-Install CFW (Cryptexes, patched binaries, jailbreak tools, LaunchDaemons):
+```bash
+# terminal 2
+make ramdisk_build            # build signed SSH ramdisk
+make ramdisk_send             # send to device
+```
+
+Once connected, install CFW:
 
 ```bash
+# terminal 2
 iproxy 2222 22
 make cfw_install
 ```
 
-## Boot
+## First Boot
+
+Stop the DFU boot in terminal 1 (Ctrl+C), then:
 
 ```bash
 make boot
 ```
 
-On first boot, initialize the shell environment:
+This gives you a **direct console** on the VM. When you see `bash-4.4#`, press Enter and run these commands to initialize the shell environment and generate SSH host keys:
 
 ```bash
-# binaries are looking for each others via PATH so do not ignore this one
 export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
 
-# call with fullpath
-/iosbinpack64/bin/mkdir -p /var/dropbear
-/iosbinpack64/bin/cp /iosbinpack64/etc/profile /var/profile
-/iosbinpack64/bin/cp /iosbinpack64/etc/motd /var/motd
+mkdir -p /var/dropbear
+cp /iosbinpack64/etc/profile /var/profile
+cp /iosbinpack64/etc/motd /var/motd
+
+# generate SSH host keys (required for SSH to work)
+dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
+dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
+
 shutdown -h now
 ```
 
-After subsequent boots, connect via:
+> **Note:** Without the host key generation step, dropbear (SSH server) will accept connections but immediately close them because it has no keys to perform the SSH handshake.
+
+## Subsequent Boots
+
+```bash
+make boot
+```
+
+In a separate terminal, start iproxy tunnels:
 
 ```bash
 iproxy 22222 22222   # SSH
 iproxy 5901 5901     # VNC
 ```
+
+Connect via:
+- **SSH:** `ssh -p 22222 root@127.0.0.1` (password: `alpine`)
+- **VNC:** `vnc://127.0.0.1:5901`
 
 ## All Make Targets
 
@@ -122,6 +157,23 @@ AMFI is not disabled. Set the boot-arg and restart:
 
 ```bash
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
+```
+
+**Q: I'm stuck on the "Press home to continue" screen.**
+
+Connect via VNC (`vnc://127.0.0.1:5901`) and right-click anywhere on the screen (two-finger click on a Mac trackpad). This simulates the home button press.
+
+**Q: SSH connects but immediately closes (`Connection closed by 127.0.0.1`).**
+
+Dropbear host keys were not generated during first boot. Connect via VNC or the `make boot` console and run:
+
+```bash
+export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
+mkdir -p /var/dropbear
+dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
+dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
+killall dropbear
+dropbear -R -p 22222
 ```
 
 **Q: Can I update to a newer iOS version?**
