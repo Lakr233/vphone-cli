@@ -228,10 +228,9 @@ def patch_seputil(filepath):
 def patch_launchd_cache_loader(filepath):
     """NOP the cache validation check in launchd_cache_loader.
 
-    Anchor strategies (in order):
-    1. Search for "unsecure_cache" substring, resolve to full null-terminated
-       string start, find ADRP+ADD xref to it, NOP the nearby cbz/cbnz branch
-    2. Verified known offset fallback
+    Anchor strategy:
+    Search for "unsecure_cache" substring, resolve to full null-terminated
+    string start, find ADRP+ADD xref to it, NOP the nearby cbz/cbnz branch.
 
     The binary checks boot-arg "launchd_unsecure_cache=" — if not found,
     it skips the unsecure path via a conditional branch. NOPping that branch
@@ -243,7 +242,7 @@ def patch_launchd_cache_loader(filepath):
     text_sec = find_section(sections, "__TEXT,__text")
     if not text_sec:
         print("  [-] __TEXT,__text not found")
-        return _launchd_cache_fallback(filepath, data)
+        return False
 
     text_va, text_size, text_foff = text_sec
 
@@ -318,9 +317,8 @@ def patch_launchd_cache_loader(filepath):
             print(f"  [+] NOPped at 0x{branch_foff:X}")
             return True
 
-    # Strategy 2: Fallback to verified known offset
-    print("  Dynamic anchor not found, trying verified fallback...")
-    return _launchd_cache_fallback(filepath, data)
+    print("  [-] Dynamic anchor not found — all strategies exhausted")
+    return False
 
 
 def _find_cstring_start(data, match_off, section_foff):
@@ -425,31 +423,6 @@ def _find_nearby_branch(data, ref_foff, text_foff, text_size):
     return -1
 
 
-def _launchd_cache_fallback(filepath, data):
-    """Fallback: verify known offset and NOP."""
-    KNOWN_OFF = 0xB58
-
-    if KNOWN_OFF + 4 > len(data):
-        print(f"  [-] Known offset 0x{KNOWN_OFF:X} out of bounds")
-        return False
-
-    insns = disasm_at(data, KNOWN_OFF, 1)
-    if insns:
-        mn = insns[0].mnemonic
-        print(f"  Fallback: {mn} {insns[0].op_str} at 0x{KNOWN_OFF:X}")
-
-        # Verify it's a branch-type instruction (expected for this patch)
-        branch_types = {"cbz", "cbnz", "tbz", "tbnz", "b"}
-        if mn not in branch_types and not mn.startswith("b."):
-            print(f"  [!] Warning: unexpected instruction type '{mn}' at known offset")
-            print(f"      Expected a conditional branch. Proceeding anyway.")
-
-    data[KNOWN_OFF : KNOWN_OFF + 4] = NOP
-    open(filepath, "wb").write(data)
-    print(f"  [+] NOPped at 0x{KNOWN_OFF:X} (fallback)")
-    return True
-
-
 # ══════════════════════════════════════════════════════════════════
 # 3. mobileactivationd — Hackivation bypass
 # ══════════════════════════════════════════════════════════════════
@@ -461,7 +434,6 @@ def patch_mobileactivationd(filepath):
     Anchor strategies (in order):
     1. Search LC_SYMTAB for symbol containing "should_hactivate"
     2. Parse ObjC metadata: methnames -> selrefs -> method_list -> IMP
-    3. Verified known offset fallback
 
     The method determines if the device should self-activate (hackivation).
     Patching it to always return YES bypasses activation lock.
@@ -481,15 +453,15 @@ def patch_mobileactivationd(filepath):
     if imp_foff < 0:
         imp_foff = _find_via_objc_metadata(data)
 
-    # Strategy 3: Fallback
+    # All dynamic strategies exhausted
     if imp_foff < 0:
-        print("  Dynamic anchor not found, trying verified fallback...")
-        return _mobileactivationd_fallback(filepath, data)
+        print("  [-] Dynamic anchor not found — all strategies exhausted")
+        return False
 
     # Verify the target looks like code
     if imp_foff + 8 > len(data):
         print(f"  [-] IMP offset 0x{imp_foff:X} out of bounds")
-        return _mobileactivationd_fallback(filepath, data)
+        return False
 
     insns = disasm_at(data, imp_foff, 4)
     if insns:
@@ -600,26 +572,6 @@ def _find_via_objc_metadata(data):
                     )
 
     return -1
-
-
-def _mobileactivationd_fallback(filepath, data):
-    """Fallback: verify known offset and patch."""
-    KNOWN_OFF = 0x2F5F84
-
-    if KNOWN_OFF + 8 > len(data):
-        print(f"  [-] Known offset 0x{KNOWN_OFF:X} out of bounds (size: {len(data)})")
-        return False
-
-    insns = disasm_at(data, KNOWN_OFF, 4)
-    if insns:
-        print(f"  Fallback: {insns[0].mnemonic} {insns[0].op_str} at 0x{KNOWN_OFF:X}")
-
-    data[KNOWN_OFF : KNOWN_OFF + 4] = MOV_X0_1
-    data[KNOWN_OFF + 4 : KNOWN_OFF + 8] = RET
-
-    open(filepath, "wb").write(data)
-    print(f"  [+] Patched at 0x{KNOWN_OFF:X} (fallback): mov x0, #1; ret")
-    return True
 
 
 # ══════════════════════════════════════════════════════════════════
