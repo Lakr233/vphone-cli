@@ -153,61 +153,83 @@ class VPhoneMenuController {
         print("[menu] Raw event: packed=0x\(String(packed, radix: 16)) down=\(isKeyDown)")
     }
 
+    // MARK: - Send HID Report via _processHIDReports
+
+    /// Call _processHIDReports:forDevice:deviceType: with properly constructed
+    /// std::vector<std::span<const unsigned char>>.
+    ///
+    /// From IDA RE of VZVirtualMachine._processHIDReports (0x2301b2310):
+    ///   void* -> vector{begin*, end*, cap*} -> span[]{data_ptr, length} -> bytes
+    ///   The vector is iterated: each span is encoded via XpcEncoder::encode_data
+    ///   deviceType 0 = keyboard, 1 = pointing device
+    private func sendHIDReport(_ reportBytes: [UInt8], deviceId: UInt32, deviceType: UInt32 = 0) {
+        // Level 1: raw HID report bytes
+        let reportPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: reportBytes.count)
+        for (i, b) in reportBytes.enumerated() { reportPtr[i] = b }
+
+        // Level 2: std::span<const unsigned char> = { data_ptr, length } (16 bytes)
+        let spanPtr = UnsafeMutablePointer<Int>.allocate(capacity: 2)
+        spanPtr[0] = Int(bitPattern: reportPtr)
+        spanPtr[1] = reportBytes.count
+
+        // Level 3: std::vector<span> = { begin, end, cap } (24 bytes)
+        let vecPtr = UnsafeMutablePointer<Int>.allocate(capacity: 3)
+        let spanRaw = UnsafeRawPointer(spanPtr)
+        vecPtr[0] = Int(bitPattern: spanRaw)                   // begin
+        vecPtr[1] = Int(bitPattern: spanRaw.advanced(by: 16))  // end (1 span past begin)
+        vecPtr[2] = Int(bitPattern: spanRaw.advanced(by: 16))  // cap = end
+
+        Dynamic(vm)._processHIDReports(
+            UnsafeRawPointer(vecPtr),
+            forDevice: deviceId,
+            deviceType: deviceType
+        )
+
+        let hex = reportBytes.map { String(format: "0x%02x", $0) }.joined(separator: " ")
+        print("[menu] HID report: [\(hex)] deviceId=\(deviceId) type=\(deviceType)")
+
+        vecPtr.deallocate()
+        spanPtr.deallocate()
+        reportPtr.deallocate()
+    }
+
+    /// Send consumer control press + release via raw HID report.
+    /// Standard USB Consumer Control report: 2-byte little-endian usage value.
+    private func sendConsumerHIDKey(usage: UInt16) {
+        guard let keyboard = firstKeyboard else {
+            print("[menu] No keyboard found")
+            return
+        }
+        let deviceId = keyboardDeviceId(keyboard)
+
+        // Press: usage in LE
+        sendHIDReport([UInt8(usage & 0xFF), UInt8(usage >> 8)], deviceId: deviceId)
+
+        // Release after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [self] in
+            sendHIDReport([0x00, 0x00], deviceId: deviceId)
+        }
+    }
+
     // MARK: - Key Actions (Keyboard Page — via _VZKeyEvent)
 
-    @objc private func sendReturn() {
-        sendKeyPress(keyCode: 0x24)
-    }
+    @objc private func sendReturn() { sendKeyPress(keyCode: 0x24) }
+    @objc private func sendEscape() { sendKeyPress(keyCode: 0x35) }
+    @objc private func sendSpace() { sendKeyPress(keyCode: 0x31) }
+    @objc private func sendTab() { sendKeyPress(keyCode: 0x30) }
+    @objc private func sendDeleteKey() { sendKeyPress(keyCode: 0x33) }
+    @objc private func sendArrowUp() { sendKeyPress(keyCode: 0x7E) }
+    @objc private func sendArrowDown() { sendKeyPress(keyCode: 0x7D) }
+    @objc private func sendArrowLeft() { sendKeyPress(keyCode: 0x7B) }
+    @objc private func sendArrowRight() { sendKeyPress(keyCode: 0x7C) }
+    @objc private func sendShift() { sendKeyPress(keyCode: 0x38) }
+    @objc private func sendCommand() { sendKeyPress(keyCode: 0x37) }
 
-    @objc private func sendEscape() {
-        sendKeyPress(keyCode: 0x35)
-    }
-
-    @objc private func sendSpace() {
-        sendKeyPress(keyCode: 0x31)
-    }
-
-    @objc private func sendTab() {
-        sendKeyPress(keyCode: 0x30)
-    }
-
-    @objc private func sendDeleteKey() {
-        sendKeyPress(keyCode: 0x33)
-    }
-
-    @objc private func sendArrowUp() {
-        sendKeyPress(keyCode: 0x7E)
-    }
-
-    @objc private func sendArrowDown() {
-        sendKeyPress(keyCode: 0x7D)
-    }
-
-    @objc private func sendArrowLeft() {
-        sendKeyPress(keyCode: 0x7B)
-    }
-
-    @objc private func sendArrowRight() {
-        sendKeyPress(keyCode: 0x7C)
-    }
-
-    @objc private func sendShift() {
-        sendKeyPress(keyCode: 0x38)
-    }
-
-    @objc private func sendCommand() {
-        sendKeyPress(keyCode: 0x37)
-    }
-
-    // MARK: - Key Actions (Consumer/System — via Direct Vector Injection)
+    // MARK: - Key Actions (Consumer/System — via Injection)
 
     @objc private func sendHome() {
-        // Home/Menu (Consumer page 0x0C, usage 0x40) has NO intermediate index
-        // in the sendKeyboardEventsHIDReport switch table.
-        // _processHIDReports takes a C++ span (not raw bytes) — can't call safely.
-        // For now, log and skip. Needs further RE of _processHIDReports param format.
-        print("[menu] Home/Menu key not yet supported (no index in keyboard pipeline)")
-        print("[menu] Consumer page 0x0C usage 0x40 has no entry in the VK→HID table")
+        // Consumer page 0x0C, usage 0x40 (Menu) — via raw HID report to _processHIDReports
+        sendConsumerHIDKey(usage: 0x0040)
     }
 
     @objc private func sendPower() {
