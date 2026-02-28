@@ -44,33 +44,36 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         let diskURL = URL(fileURLWithPath: cli.disk)
         let nvramURL = URL(fileURLWithPath: cli.nvram)
+        let machineIDURL = URL(fileURLWithPath: cli.machineId)
+        let sepStorageURL = URL(fileURLWithPath: cli.sepStorage)
+        let sepRomURL = URL(fileURLWithPath: cli.sepRom)
 
         print("=== vphone-cli ===")
         print("ROM   : \(cli.rom)")
         print("Disk  : \(cli.disk)")
         print("NVRAM : \(cli.nvram)")
+        print("MachID: \(cli.machineId)")
         print("CPU   : \(cli.cpu)")
         print("Memory: \(cli.memory) MB")
-
-        let sepStorageURL = cli.sepStorage.map { URL(fileURLWithPath: $0) }
-        let sepRomURL = cli.sepRom.map { URL(fileURLWithPath: $0) }
-
-        print("SEP   : \(cli.skipSep ? "skipped" : "enabled")")
-        if !cli.skipSep {
-            print("  storage: \(cli.sepStorage ?? "(auto)")")
-            if let r = cli.sepRom { print("  rom    : \(r)") }
-        }
+        print("Screen: \(cli.screenWidth)x\(cli.screenHeight) @ \(cli.screenPpi) PPI (scale \(cli.screenScale)x)")
+        print("SEP   : enabled")
+        print("  storage: \(cli.sepStorage)")
+        print("  rom    : \(cli.sepRom)")
         print("")
 
         let options = VPhoneVM.Options(
             romURL: romURL,
             nvramURL: nvramURL,
+            machineIDURL: machineIDURL,
             diskURL: diskURL,
             cpuCount: cli.cpu,
             memorySize: UInt64(cli.memory) * 1024 * 1024,
-            skipSEP: cli.skipSep,
             sepStorageURL: sepStorageURL,
-            sepRomURL: sepRomURL
+            sepRomURL: sepRomURL,
+            screenWidth: cli.screenWidth,
+            screenHeight: cli.screenHeight,
+            screenPPI: cli.screenPpi,
+            screenScale: cli.screenScale
         )
 
         let vm = try VPhoneVM(options: options)
@@ -80,7 +83,12 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         if !cli.noGraphics {
             let wc = VPhoneWindowController()
-            wc.showWindow(for: vm.virtualMachine)
+            wc.showWindow(
+                for: vm.virtualMachine,
+                screenWidth: cli.screenWidth,
+                screenHeight: cli.screenHeight,
+                screenScale: cli.screenScale
+            )
             windowController = wc
         }
     }

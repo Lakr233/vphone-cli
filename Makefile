@@ -4,8 +4,8 @@
 
 # ─── Configuration (override with make VAR=value) ─────────────────
 VM_DIR      ?= vm
-CPU         ?= 4
-MEMORY      ?= 4096
+CPU         ?= 8
+MEMORY      ?= 8192
 DISK_SIZE   ?= 64
 
 # ─── Paths ────────────────────────────────────────────────────────
@@ -110,6 +110,7 @@ boot: build
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
+		--machine-id ./machineIdentifier.bin \
 		--cpu $(CPU) --memory $(MEMORY) \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage
@@ -119,6 +120,7 @@ boot_dfu: build
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
+		--machine-id ./machineIdentifier.bin \
 		--cpu $(CPU) --memory $(MEMORY) \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage \

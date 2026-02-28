@@ -28,23 +28,35 @@ struct VPhoneCLI: ParsableCommand {
     @Option(help: "Path to NVRAM storage (created/overwritten)")
     var nvram: String = "nvram.bin"
 
+    @Option(help: "Path to machineIdentifier file (created if missing)")
+    var machineId: String
+
     @Option(help: "Number of CPU cores")
-    var cpu: Int = 4
+    var cpu: Int = 8
 
     @Option(help: "Memory size in MB")
-    var memory: Int = 4096
-
-    @Flag(help: "Skip SEP coprocessor setup")
-    var skipSep: Bool = false
+    var memory: Int = 8192
 
     @Option(help: "Path to SEP storage file (created if missing)")
-    var sepStorage: String? = nil
+    var sepStorage: String
 
     @Option(help: "Path to SEP ROM binary")
-    var sepRom: String? = nil
+    var sepRom: String
 
     @Flag(help: "Boot into DFU mode")
     var dfu: Bool = false
+
+    @Option(help: "Display width in pixels (default: 1290)")
+    var screenWidth: Int = 1290
+
+    @Option(help: "Display height in pixels (default: 2796)")
+    var screenHeight: Int = 2796
+
+    @Option(help: "Display pixels per inch (default: 460)")
+    var screenPpi: Int = 460
+
+    @Option(help: "Window scale divisor (default: 3.0)")
+    var screenScale: Double = 3.0
 
     @Flag(help: "Run without GUI (headless)")
     var noGraphics: Bool = false

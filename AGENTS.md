@@ -63,7 +63,7 @@ researchs/                        # Component analysis and architecture docs
 - **App lifecycle:** Explicit `main.swift` creates `NSApplication` + `VPhoneAppDelegate`. CLI args parsed before the run loop starts. AppDelegate drives VM start, window, and shutdown.
 - **Configuration:** CLI options parsed via `ArgumentParser`, converted to `VPhoneVM.Options` struct, then used to build `VZVirtualMachineConfiguration`.
 - **Error handling:** `VPhoneError` enum with `CustomStringConvertible` for user-facing messages.
-- **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Touch input translated from mouse events to multi-touch via `VPhoneVMView`.
+- **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Window size derived from configurable screen dimensions and scale factor. Touch input translated from mouse events to multi-touch via `VPhoneVMView`.
 
 ---
 
@@ -239,7 +239,12 @@ Creates a VM directory with:
 - Sparse disk image (default 64 GB)
 - SEP storage (512 KB flat file)
 - AVPBooter + AVPSEPBooter ROMs (copied from `/System/Library/Frameworks/Virtualization.framework/`)
-- NVRAM and machineIdentifier auto-created on first boot
+- machineIdentifier (created on first boot if missing, persisted for stable ECID)
+- NVRAM (created/overwritten each boot)
+
+All paths are passed explicitly via CLI (`--rom`, `--disk`, `--nvram`, `--machine-id`, `--sep-storage`, `--sep-rom`). SEP coprocessor is always enabled.
+
+Display is configurable via `--screen-width`, `--screen-height`, `--screen-ppi`, `--screen-scale` (defaults: 1290x2796 @ 460 PPI, scale 3.0).
 
 Override defaults: `make vm_new VM_DIR=myvm DISK_SIZE=32`.
 

@@ -10,12 +10,16 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     struct Options {
         var romURL: URL
         var nvramURL: URL
+        var machineIDURL: URL
         var diskURL: URL
-        var cpuCount: Int = 4
-        var memorySize: UInt64 = 4 * 1024 * 1024 * 1024
-        var skipSEP: Bool = true
-        var sepStorageURL: URL?
-        var sepRomURL: URL?
+        var cpuCount: Int = 8
+        var memorySize: UInt64 = 8 * 1024 * 1024 * 1024
+        var sepStorageURL: URL
+        var sepRomURL: URL
+        var screenWidth: Int = 1290
+        var screenHeight: Int = 2796
+        var screenPPI: Int = 460
+        var screenScale: Double = 3.0
     }
 
     init(options: Options) throws {
@@ -27,9 +31,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         let platform = VZMacPlatformConfiguration()
 
         // Persist machineIdentifier for stable ECID
-        let machineIDPath = options.nvramURL.deletingLastPathComponent()
-            .appendingPathComponent("machineIdentifier.bin")
-        if let savedData = try? Data(contentsOf: machineIDPath),
+        if let savedData = try? Data(contentsOf: options.machineIDURL),
            let savedID = VZMacMachineIdentifier(dataRepresentation: savedData)
         {
             platform.machineIdentifier = savedID
@@ -37,8 +39,8 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         } else {
             let newID = VZMacMachineIdentifier()
             platform.machineIdentifier = newID
-            try newID.dataRepresentation.write(to: machineIDPath)
-            print("[vphone] Created new machineIdentifier -> \(machineIDPath.lastPathComponent)")
+            try newID.dataRepresentation.write(to: options.machineIDURL)
+            print("[vphone] Created new machineIdentifier -> \(options.machineIDURL.lastPathComponent)")
         }
 
         let auxStorage = try VZMacAuxiliaryStorage(
@@ -69,10 +71,13 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         config.cpuCount = max(options.cpuCount, VZVirtualMachineConfiguration.minimumAllowedCPUCount)
         config.memorySize = max(options.memorySize, VZVirtualMachineConfiguration.minimumAllowedMemorySize)
 
-        // Display (vresearch101: 1290x2796 @ 460 PPI)
+        // Display
         let gfx = VZMacGraphicsDeviceConfiguration()
         gfx.displays = [
-            VZMacGraphicsDisplayConfiguration(widthInPixels: 1290, heightInPixels: 2796, pixelsPerInch: 460),
+            VZMacGraphicsDisplayConfiguration(
+                widthInPixels: options.screenWidth, heightInPixels: options.screenHeight,
+                pixelsPerInch: options.screenPPI
+            ),
         ]
         config.graphicsDevices = [gfx]
 
@@ -104,22 +109,18 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
             print("[vphone] USB touch screen configured")
         }
 
+        config.keyboards = [VZUSBKeyboardConfiguration()]
+
         // GDB debug stub (default init, system-assigned port)
         Dynamic(config)._setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
 
         // Coprocessors
-        if options.skipSEP {
-            print("[vphone] SKIP_SEP=1 — no coprocessor")
-        } else {
-            let sepURL = options.sepStorageURL
-                ?? options.nvramURL.deletingLastPathComponent().appendingPathComponent("sep_storage.bin")
-            let sepConfig = Dynamic._VZSEPCoprocessorConfiguration(storageURL: sepURL)
-            if let romURL = options.sepRomURL { sepConfig.setRomBinaryURL(romURL) }
-            sepConfig.setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
-            if let sepObj = sepConfig.asObject {
-                Dynamic(config)._setCoprocessors([sepObj])
-                print("[vphone] SEP coprocessor enabled (storage: \(sepURL.path))")
-            }
+        let sepConfig = Dynamic._VZSEPCoprocessorConfiguration(storageURL: options.sepStorageURL)
+        sepConfig.setRomBinaryURL(options.sepRomURL)
+        sepConfig.setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
+        if let sepObj = sepConfig.asObject {
+            Dynamic(config)._setCoprocessors([sepObj])
+            print("[vphone] SEP coprocessor enabled (storage: \(options.sepStorageURL.path))")
         }
 
         // Validate
