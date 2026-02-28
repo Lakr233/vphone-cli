@@ -7,9 +7,6 @@ import Virtualization
 class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
 
-    /// Called on the main queue when the guest stops (normally or with an error).
-    var onStop: (() -> Void)?
-
     struct Options {
         var romURL: URL
         var nvramURL: URL
@@ -153,7 +150,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
 
     // MARK: - Delegate
 
-    // VZ delivers delegate callbacks on the thread where the VM was created (main).
+    // VZ delivers delegate callbacks via dispatch source on the main queue.
 
     nonisolated func guestDidStop(_: VZVirtualMachine) {
         print("[vphone] Guest stopped")
@@ -170,5 +167,4 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     {
         print("[vphone] Network error: \(error)")
     }
-
 }

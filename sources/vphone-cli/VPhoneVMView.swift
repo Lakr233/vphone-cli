@@ -12,17 +12,21 @@ struct NormalizedResult {
 
 class VPhoneVMView: VZVirtualMachineView {
     var currentTouchSwipeAim: Int64 = 0
+    private var cachedTouchDevice: AnyObject?
+
+    /// Resolve multi-touch device once, cache for subsequent events.
+    private func touchDevice() -> AnyObject? {
+        if let cached = cachedTouchDevice { return cached }
+        guard let vm = virtualMachine,
+              let devices = multiTouchDevices(vm),
+              devices.count > 0 else { return nil }
+        cachedTouchDevice = devices[0]
+        return cachedTouchDevice
+    }
 
     /// 1. Mouse dragged -> touch phase 1 (moving)
     override func mouseDragged(with event: NSEvent) {
-        handleMouseDragged(event)
-        super.mouseDragged(with: event)
-    }
-
-    private func handleMouseDragged(_ event: NSEvent) {
-        guard let vm = virtualMachine,
-              let devices = multiTouchDevices(vm),
-              devices.count > 0 else { return }
+        guard let device = touchDevice() else { return }
 
         let normalized = normalizeCoordinate(event.locationInWindow)
         let swipeAim = currentTouchSwipeAim
@@ -30,19 +34,12 @@ class VPhoneVMView: VZVirtualMachineView {
         guard let touch = makeTouch(0, 1, normalized.point, Int(swipeAim), event.timestamp) else { return }
         guard let touchEvent = makeMultiTouchEvent([touch]) else { return }
 
-        sendMultiTouchEvents(devices[0], [touchEvent])
+        sendMultiTouchEvents(device, [touchEvent])
     }
 
     /// 2. Mouse down -> touch phase 0 (began)
     override func mouseDown(with event: NSEvent) {
-        handleMouseDown(event)
-        super.mouseDown(with: event)
-    }
-
-    private func handleMouseDown(_ event: NSEvent) {
-        guard let vm = virtualMachine,
-              let devices = multiTouchDevices(vm),
-              devices.count > 0 else { return }
+        guard let device = touchDevice() else { return }
 
         let normalized = normalizeCoordinate(event.locationInWindow)
         let localPoint = convert(event.locationInWindow, from: nil)
@@ -52,19 +49,12 @@ class VPhoneVMView: VZVirtualMachineView {
         guard let touch = makeTouch(0, 0, normalized.point, edgeResult, event.timestamp) else { return }
         guard let touchEvent = makeMultiTouchEvent([touch]) else { return }
 
-        sendMultiTouchEvents(devices[0], [touchEvent])
+        sendMultiTouchEvents(device, [touchEvent])
     }
 
     /// 3. Right mouse down -> two-finger touch began
     override func rightMouseDown(with event: NSEvent) {
-        handleRightMouseDown(event)
-        super.rightMouseDown(with: event)
-    }
-
-    private func handleRightMouseDown(_ event: NSEvent) {
-        guard let vm = virtualMachine,
-              let devices = multiTouchDevices(vm),
-              devices.count > 0 else { return }
+        guard let device = touchDevice() else { return }
 
         let normalized = normalizeCoordinate(event.locationInWindow)
         guard !normalized.isInvalid else { return }
@@ -77,19 +67,12 @@ class VPhoneVMView: VZVirtualMachineView {
               let touch2 = makeTouch(1, 0, normalized.point, edgeResult, event.timestamp) else { return }
         guard let touchEvent = makeMultiTouchEvent([touch, touch2]) else { return }
 
-        sendMultiTouchEvents(devices[0], [touchEvent])
+        sendMultiTouchEvents(device, [touchEvent])
     }
 
     /// 4. Mouse up -> touch phase 3 (ended)
     override func mouseUp(with event: NSEvent) {
-        handleMouseUp(event)
-        super.mouseUp(with: event)
-    }
-
-    private func handleMouseUp(_ event: NSEvent) {
-        guard let vm = virtualMachine,
-              let devices = multiTouchDevices(vm),
-              devices.count > 0 else { return }
+        guard let device = touchDevice() else { return }
 
         let normalized = normalizeCoordinate(event.locationInWindow)
         let swipeAim = currentTouchSwipeAim
@@ -97,19 +80,12 @@ class VPhoneVMView: VZVirtualMachineView {
         guard let touch = makeTouch(0, 3, normalized.point, Int(swipeAim), event.timestamp) else { return }
         guard let touchEvent = makeMultiTouchEvent([touch]) else { return }
 
-        sendMultiTouchEvents(devices[0], [touchEvent])
+        sendMultiTouchEvents(device, [touchEvent])
     }
 
     /// 5. Right mouse up -> two-finger touch ended
     override func rightMouseUp(with event: NSEvent) {
-        handleRightMouseUp(event)
-        super.rightMouseUp(with: event)
-    }
-
-    private func handleRightMouseUp(_ event: NSEvent) {
-        guard let vm = virtualMachine,
-              let devices = multiTouchDevices(vm),
-              devices.count > 0 else { return }
+        guard let device = touchDevice() else { return }
 
         let normalized = normalizeCoordinate(event.locationInWindow)
         guard !normalized.isInvalid else { return }
@@ -120,7 +96,7 @@ class VPhoneVMView: VZVirtualMachineView {
               let touch2 = makeTouch(1, 3, normalized.point, Int(swipeAim), event.timestamp) else { return }
         guard let touchEvent = makeMultiTouchEvent([touch, touch2]) else { return }
 
-        sendMultiTouchEvents(devices[0], [touchEvent])
+        sendMultiTouchEvents(device, [touchEvent])
     }
 }
 

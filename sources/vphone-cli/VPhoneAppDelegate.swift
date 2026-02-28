@@ -76,10 +76,6 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         let vm = try VPhoneVM(options: options)
         self.vm = vm
 
-        vm.onStop = {
-            NSApp.terminate(nil)
-        }
-
         try await vm.start(forceDFU: cli.dfu)
 
         if !cli.noGraphics {
@@ -92,5 +88,4 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         !cli.noGraphics
     }
-
 }
