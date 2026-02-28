@@ -10,8 +10,6 @@ class VPhoneMenuController {
     init(keyHelper: VPhoneKeyHelper) {
         self.keyHelper = keyHelper
         setupMenuBar()
-        
-        
     }
 
     // MARK: - Menu Bar Setup

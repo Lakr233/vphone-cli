@@ -103,29 +103,72 @@ class VPhoneKeyHelper {
 
     // MARK: - Named Key Actions
 
-    // iOS hardware keyboard shortcuts (Cmd-based, Fn has no table entry in _VZKeyEvent)
-    func sendHome() { sendVKCombo(modifierVK: 0x37, keyVK: 0x04) }      // Cmd+H → Home Screen
-    func sendSpotlight() { sendVKCombo(modifierVK: 0x37, keyVK: 0x31) } // Cmd+Space → Spotlight
+    /// iOS hardware keyboard shortcuts (Cmd-based, Fn has no table entry in _VZKeyEvent)
+    func sendHome() {
+        sendVKCombo(modifierVK: 0x37, keyVK: 0x04)
+    } // Cmd+H → Home Screen
+    func sendSpotlight() {
+        sendVKCombo(modifierVK: 0x37, keyVK: 0x31)
+    } // Cmd+Space → Spotlight
 
-    // Standard keyboard keys
-    func sendReturn() { sendKeyPress(keyCode: 0x24) }
-    func sendEscape() { sendKeyPress(keyCode: 0x35) }
-    func sendSpace() { sendKeyPress(keyCode: 0x31) }
-    func sendTab() { sendKeyPress(keyCode: 0x30) }
-    func sendDeleteKey() { sendKeyPress(keyCode: 0x33) }
-    func sendArrowUp() { sendKeyPress(keyCode: 0x7E) }
-    func sendArrowDown() { sendKeyPress(keyCode: 0x7D) }
-    func sendArrowLeft() { sendKeyPress(keyCode: 0x7B) }
-    func sendArrowRight() { sendKeyPress(keyCode: 0x7C) }
-    func sendShift() { sendKeyPress(keyCode: 0x38) }
-    func sendCommand() { sendKeyPress(keyCode: 0x37) }
+    /// Standard keyboard keys
+    func sendReturn() {
+        sendKeyPress(keyCode: 0x24)
+    }
 
-    // Volume (Apple VK codes)
-    func sendVolumeUp() { sendKeyPress(keyCode: 0x48) }
-    func sendVolumeDown() { sendKeyPress(keyCode: 0x49) }
+    func sendEscape() {
+        sendKeyPress(keyCode: 0x35)
+    }
 
-    // Power — no VK code, use vector injection (intermediate index 0x72 = System Wake)
-    func sendPower() { sendRawKeyPress(index: 0x72) }
+    func sendSpace() {
+        sendKeyPress(keyCode: 0x31)
+    }
+
+    func sendTab() {
+        sendKeyPress(keyCode: 0x30)
+    }
+
+    func sendDeleteKey() {
+        sendKeyPress(keyCode: 0x33)
+    }
+
+    func sendArrowUp() {
+        sendKeyPress(keyCode: 0x7E)
+    }
+
+    func sendArrowDown() {
+        sendKeyPress(keyCode: 0x7D)
+    }
+
+    func sendArrowLeft() {
+        sendKeyPress(keyCode: 0x7B)
+    }
+
+    func sendArrowRight() {
+        sendKeyPress(keyCode: 0x7C)
+    }
+
+    func sendShift() {
+        sendKeyPress(keyCode: 0x38)
+    }
+
+    func sendCommand() {
+        sendKeyPress(keyCode: 0x37)
+    }
+
+    /// Volume (Apple VK codes)
+    func sendVolumeUp() {
+        sendKeyPress(keyCode: 0x48)
+    }
+
+    func sendVolumeDown() {
+        sendKeyPress(keyCode: 0x49)
+    }
+
+    /// Power — no VK code, use vector injection (intermediate index 0x72 = System Wake)
+    func sendPower() {
+        sendRawKeyPress(index: 0x72)
+    }
 
     // MARK: - Type ASCII from Clipboard
 
