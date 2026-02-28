@@ -19,12 +19,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         var skipSEP: Bool = true
         var sepStorageURL: URL?
         var sepRomURL: URL?
-        var serialLogPath: String?
-        var stopOnPanic: Bool = false
-        var stopOnFatalError: Bool = false
     }
-
-    private var consoleLogFileHandle: FileHandle?
 
     init(options: Options) throws {
         // --- Hardware model (PV=3) ---
@@ -85,10 +80,11 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         config.graphicsDevices = [gfx]
 
         // Storage
-        if FileManager.default.fileExists(atPath: options.diskURL.path) {
-            let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
-            config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
+        guard FileManager.default.fileExists(atPath: options.diskURL.path) else {
+            throw VPhoneError.diskNotFound(options.diskURL.path)
         }
+        let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
+        config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
         // Network (shared NAT)
         let net = VZVirtioNetworkDeviceConfiguration()
@@ -103,13 +99,6 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
             )
             config.serialPorts = [serialPort]
             print("[vphone] PL011 serial port attached (interactive)")
-        }
-
-        if let logPath = options.serialLogPath {
-            let logURL = URL(fileURLWithPath: logPath)
-            FileManager.default.createFile(atPath: logURL.path, contents: nil)
-            consoleLogFileHandle = FileHandle(forWritingAtPath: logURL.path)
-            print("[vphone] Serial log: \(logPath)")
         }
 
         // Multi-touch (USB touch screen)
@@ -148,7 +137,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     // MARK: - Start
 
     @MainActor
-    func start(forceDFU: Bool, stopOnPanic _: Bool, stopOnFatalError _: Bool) async throws {
+    func start(forceDFU: Bool) async throws {
         let opts = VZMacOSVirtualMachineStartOptions()
         Dynamic(opts)._setForceDFU(forceDFU)
         Dynamic(opts)._setStopInIBootStage1(false)
@@ -182,9 +171,4 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         print("[vphone] Network error: \(error)")
     }
 
-    // MARK: - Cleanup
-
-    func stopConsoleCapture() {
-        consoleLogFileHandle?.closeFile()
-    }
 }

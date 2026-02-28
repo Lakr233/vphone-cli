@@ -3,6 +3,7 @@ import Foundation
 enum VPhoneError: Error, CustomStringConvertible {
     case hardwareModelNotSupported
     case romNotFound(String)
+    case diskNotFound(String)
 
     var description: String {
         switch self {
@@ -16,6 +17,8 @@ enum VPhoneError: Error, CustomStringConvertible {
             """
         case let .romNotFound(p):
             "ROM not found: \(p)"
+        case let .diskNotFound(p):
+            "Disk image not found: \(p)"
         }
     }
 }

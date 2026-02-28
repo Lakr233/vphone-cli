@@ -34,15 +34,6 @@ struct VPhoneCLI: ParsableCommand {
     @Option(help: "Memory size in MB")
     var memory: Int = 4096
 
-    @Option(help: "Path to write serial console log file")
-    var serialLog: String? = nil
-
-    @Flag(help: "Stop VM on guest panic")
-    var stopOnPanic: Bool = false
-
-    @Flag(help: "Stop VM on fatal error")
-    var stopOnFatalError: Bool = false
-
     @Flag(help: "Skip SEP coprocessor setup")
     var skipSep: Bool = false
 
