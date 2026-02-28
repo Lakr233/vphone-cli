@@ -6,11 +6,11 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 
 ## Tested Environments
 
-| Host macOS | Host Hardware | iPhone IPSW | CloudOS IPSW |
-|------------|---------------|-------------|--------------|
-| macOS 26.3 (Tahoe, Build 25D125) | MacBook Air, Apple M4 | `iPhone17,3_26.1_23B85_Restore.ipsw` | `PCC-CloudOS-26.1-23B85.ipsw` |
-| macOS 26.3 (Tahoe, Build 25D125) | MacBook Air, Apple M4 | `iPhone17,3_26.3_23D127_Restore.ipsw` | `PCC-CloudOS-26.1-23B85.ipsw` |
-| macOS 26.3 (Tahoe, Build 25D125) | MacBook Air, Apple M4 | `iPhone17,3_26.3_23D127_Restore.ipsw` | `PCC-CloudOS-26.3-23D128.ipsw` |
+| Host | iPhone | CloudOS |
+|------|--------|---------|
+| Mac16,12 26.3 | `17,3_26.1_23B85` | `26.1-23B85` |
+| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.1-23B85` |
+| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.3-23D128` |
 
 ## Prerequisites
 
