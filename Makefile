@@ -39,7 +39,7 @@ help:
 	@echo ""
 	@echo "VM management:"
 	@echo "  make vm_new                  Create VM directory"
-	@echo "  make boot                    Boot VM (headless)"
+	@echo "  make boot                    Boot VM (GUI)"
 	@echo "  make boot_dfu                Boot VM in DFU mode"
 	@echo ""
 	@echo "Firmware pipeline:"
@@ -114,8 +114,7 @@ boot: build
 		--serial-log ./serial.log \
 		--stop-on-panic --stop-on-fatal-error \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
-		--sep-storage ./SEPStorage \
-		--no-graphics
+		--sep-storage ./SEPStorage
 
 boot_dfu: build
 	cd $(VM_DIR) && "$(CURDIR)/$(BINARY)" \

@@ -1,11 +1,8 @@
-import AppKit
 import ArgumentParser
 import Foundation
-import Virtualization
 
-@main
-struct VPhoneCLI: AsyncParsableCommand {
-    static var configuration = CommandConfiguration(
+struct VPhoneCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
         commandName: "vphone-cli",
         abstract: "Boot a virtual iPhone (PV=3)",
         discussion: """
@@ -61,70 +58,7 @@ struct VPhoneCLI: AsyncParsableCommand {
     @Flag(help: "Run without GUI (headless)")
     var noGraphics: Bool = false
 
-    @MainActor
-    mutating func run() async throws {
-        let romURL = URL(fileURLWithPath: rom)
-        guard FileManager.default.fileExists(atPath: romURL.path) else {
-            throw VPhoneError.romNotFound(rom)
-        }
-
-        let diskURL = URL(fileURLWithPath: disk)
-        let nvramURL = URL(fileURLWithPath: nvram)
-
-        print("=== vphone-cli ===")
-        print("ROM   : \(rom)")
-        print("Disk  : \(disk)")
-        print("NVRAM : \(nvram)")
-        print("CPU   : \(cpu)")
-        print("Memory: \(memory) MB")
-        let sepStorageURL = sepStorage.map { URL(fileURLWithPath: $0) }
-        let sepRomURL = sepRom.map { URL(fileURLWithPath: $0) }
-
-        print("SEP   : \(skipSep ? "skipped" : "enabled")")
-        if !skipSep {
-            print("  storage: \(sepStorage ?? "(auto)")")
-            if let r = sepRom { print("  rom    : \(r)") }
-        }
-        print("")
-
-        let options = VPhoneVM.Options(
-            romURL: romURL,
-            nvramURL: nvramURL,
-            diskURL: diskURL,
-            cpuCount: cpu,
-            memorySize: UInt64(memory) * 1024 * 1024,
-            skipSEP: skipSep,
-            sepStorageURL: sepStorageURL,
-            sepRomURL: sepRomURL,
-            serialLogPath: serialLog,
-            stopOnPanic: stopOnPanic,
-            stopOnFatalError: stopOnFatalError
-        )
-
-        let vm = try VPhoneVM(options: options)
-
-        // Handle Ctrl+C
-        signal(SIGINT, SIG_IGN)
-        let sigintSrc = DispatchSource.makeSignalSource(signal: SIGINT)
-        sigintSrc.setEventHandler {
-            print("\n[vphone] SIGINT — shutting down")
-            vm.stopConsoleCapture()
-            Foundation.exit(0)
-        }
-        sigintSrc.activate()
-
-        // Start VM
-        try await vm.start(forceDFU: dfu, stopOnPanic: stopOnPanic, stopOnFatalError: stopOnFatalError)
-
-        if noGraphics {
-            // Headless: just wait
-            NSApplication.shared.setActivationPolicy(.prohibited)
-            await vm.waitUntilStopped()
-        } else {
-            // GUI: show VM window with touch support
-            let windowController = VPhoneWindowController()
-            windowController.showWindow(for: vm.virtualMachine)
-            await vm.waitUntilStopped()
-        }
-    }
+    /// Execution is driven by VPhoneAppDelegate; main.swift calls parseOrExit()
+    /// and hands the parsed options to the delegate.
+    mutating func run() throws {}
 }

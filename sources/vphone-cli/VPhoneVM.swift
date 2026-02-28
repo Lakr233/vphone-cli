@@ -1,11 +1,14 @@
+import Dynamic
 import Foundation
 import Virtualization
-import VPhoneObjC
 
 /// Minimal VM for booting a vphone (virtual iPhone) in DFU mode.
+@MainActor
 class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
-    private var done = false
+
+    /// Called on the main queue when the guest stops (normally or with an error).
+    var onStop: (() -> Void)?
 
     struct Options {
         var romURL: URL
@@ -16,7 +19,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         var skipSEP: Bool = true
         var sepStorageURL: URL?
         var sepRomURL: URL?
-        var serialLogPath: String? = nil
+        var serialLogPath: String?
         var stopOnPanic: Bool = false
         var stopOnFatalError: Bool = false
     }
@@ -31,11 +34,12 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         // --- Platform ---
         let platform = VZMacPlatformConfiguration()
 
-        // Persist machineIdentifier for stable ECID (same as vrevm)
+        // Persist machineIdentifier for stable ECID
         let machineIDPath = options.nvramURL.deletingLastPathComponent()
             .appendingPathComponent("machineIdentifier.bin")
         if let savedData = try? Data(contentsOf: machineIDPath),
-           let savedID = VZMacMachineIdentifier(dataRepresentation: savedData) {
+           let savedID = VZMacMachineIdentifier(dataRepresentation: savedData)
+        {
             platform.machineIdentifier = savedID
             print("[vphone] Loaded machineIdentifier (ECID stable)")
         } else {
@@ -52,19 +56,19 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         )
         platform.auxiliaryStorage = auxStorage
         platform.hardwareModel = hwModel
-        // platformFusing = prod (same as vrevm config)
 
-        // Set NVRAM boot-args to enable serial output (same as vrevm restore)
+        // Set NVRAM boot-args to enable serial output
         let bootArgs = "serial=3 debug=0x104c04"
         if let bootArgsData = bootArgs.data(using: .utf8) {
-            if VPhoneSetNVRAMVariable(auxStorage, "boot-args", bootArgsData) {
-                print("[vphone] NVRAM boot-args: \(bootArgs)")
-            }
+            let ok = Dynamic(auxStorage)
+                ._setDataValue(bootArgsData, forNVRAMVariableNamed: "boot-args", error: nil)
+                .asBool ?? false
+            if ok { print("[vphone] NVRAM boot-args: \(bootArgs)") }
         }
 
         // --- Boot loader with custom ROM ---
         let bootloader = VZMacOSBootLoader()
-        VPhoneSetBootLoaderROMURL(bootloader, options.romURL)
+        Dynamic(bootloader)._setROMURL(options.romURL)
 
         // --- VM Configuration ---
         let config = VZVirtualMachineConfiguration()
@@ -73,7 +77,7 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         config.cpuCount = max(options.cpuCount, VZVirtualMachineConfiguration.minimumAllowedCPUCount)
         config.memorySize = max(options.memorySize, VZVirtualMachineConfiguration.minimumAllowedMemorySize)
 
-        // Display (vresearch101: 1290x2796 @ 460 PPI — matches vrevm)
+        // Display (vresearch101: 1290x2796 @ 460 PPI)
         let gfx = VZMacGraphicsDeviceConfiguration()
         gfx.displays = [
             VZMacGraphicsDisplayConfiguration(widthInPixels: 1290, heightInPixels: 2796, pixelsPerInch: 460),
@@ -91,45 +95,45 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         net.attachment = VZNATNetworkDeviceAttachment()
         config.networkDevices = [net]
 
-        // Serial port (PL011 UART — always configured)
-        // Connect host stdin/stdout directly for interactive serial console
-        do {
-            if let serialPort = VPhoneCreatePL011SerialPort() {
-                serialPort.attachment = VZFileHandleSerialPortAttachment(
-                    fileHandleForReading: FileHandle.standardInput,
-                    fileHandleForWriting: FileHandle.standardOutput
-                )
-                config.serialPorts = [serialPort]
-                print("[vphone] PL011 serial port attached (interactive)")
-            }
-
-            // Set up log file if requested
-            if let logPath = options.serialLogPath {
-                let logURL = URL(fileURLWithPath: logPath)
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-                self.consoleLogFileHandle = FileHandle(forWritingAtPath: logURL.path)
-                print("[vphone] Serial log: \(logPath)")
-            }
+        // Serial port (PL011 UART — interactive stdin/stdout)
+        if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject as? VZSerialPortConfiguration {
+            serialPort.attachment = VZFileHandleSerialPortAttachment(
+                fileHandleForReading: FileHandle.standardInput,
+                fileHandleForWriting: FileHandle.standardOutput
+            )
+            config.serialPorts = [serialPort]
+            print("[vphone] PL011 serial port attached (interactive)")
         }
 
-        // Multi-touch (USB touch screen for VNC click support)
-        VPhoneConfigureMultiTouch(config)
+        if let logPath = options.serialLogPath {
+            let logURL = URL(fileURLWithPath: logPath)
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            consoleLogFileHandle = FileHandle(forWritingAtPath: logURL.path)
+            print("[vphone] Serial log: \(logPath)")
+        }
 
-        // GDB debug stub (default init, system-assigned port — same as vrevm)
-        VPhoneSetGDBDebugStubDefault(config)
+        // Multi-touch (USB touch screen)
+        if let obj = Dynamic._VZUSBTouchScreenConfiguration().asObject {
+            Dynamic(config)._setMultiTouchDevices([obj])
+            print("[vphone] USB touch screen configured")
+        }
+
+        // GDB debug stub (default init, system-assigned port)
+        Dynamic(config)._setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
 
         // Coprocessors
         if options.skipSEP {
             print("[vphone] SKIP_SEP=1 — no coprocessor")
-        } else if let sepStorageURL = options.sepStorageURL {
-            VPhoneConfigureSEP(config, sepStorageURL, options.sepRomURL)
-            print("[vphone] SEP coprocessor enabled (storage: \(sepStorageURL.path))")
         } else {
-            // Create default SEP storage next to NVRAM
-            let defaultSEPURL = options.nvramURL.deletingLastPathComponent()
-                .appendingPathComponent("sep_storage.bin")
-            VPhoneConfigureSEP(config, defaultSEPURL, options.sepRomURL)
-            print("[vphone] SEP coprocessor enabled (storage: \(defaultSEPURL.path))")
+            let sepURL = options.sepStorageURL
+                ?? options.nvramURL.deletingLastPathComponent().appendingPathComponent("sep_storage.bin")
+            let sepConfig = Dynamic._VZSEPCoprocessorConfiguration(storageURL: sepURL)
+            if let romURL = options.sepRomURL { sepConfig.setRomBinaryURL(romURL) }
+            sepConfig.setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
+            if let sepObj = sepConfig.asObject {
+                Dynamic(config)._setCoprocessors([sepObj])
+                print("[vphone] SEP coprocessor enabled (storage: \(sepURL.path))")
+            }
         }
 
         // Validate
@@ -141,12 +145,14 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         virtualMachine.delegate = self
     }
 
-    // MARK: - DFU start
+    // MARK: - Start
 
     @MainActor
-    func start(forceDFU: Bool, stopOnPanic: Bool, stopOnFatalError: Bool) async throws {
+    func start(forceDFU: Bool, stopOnPanic _: Bool, stopOnFatalError _: Bool) async throws {
         let opts = VZMacOSVirtualMachineStartOptions()
-        VPhoneConfigureStartOptions(opts, forceDFU, stopOnPanic, stopOnFatalError)
+        Dynamic(opts)._setForceDFU(forceDFU)
+        Dynamic(opts)._setStopInIBootStage1(false)
+        Dynamic(opts)._setStopInIBootStage2(false)
         print("[vphone] Starting\(forceDFU ? " DFU" : "")...")
         try await virtualMachine.start(options: opts)
         if forceDFU {
@@ -156,28 +162,22 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         }
     }
 
-    // MARK: - Wait
-
-    func waitUntilStopped() async {
-        while !done {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
-    }
-
     // MARK: - Delegate
 
-    func guestDidStop(_: VZVirtualMachine) {
+    // VZ delivers delegate callbacks on the thread where the VM was created (main).
+
+    nonisolated func guestDidStop(_: VZVirtualMachine) {
         print("[vphone] Guest stopped")
-        done = true
+        exit(EXIT_SUCCESS)
     }
 
-    func virtualMachine(_: VZVirtualMachine, didStopWithError error: Error) {
+    nonisolated func virtualMachine(_: VZVirtualMachine, didStopWithError error: Error) {
         print("[vphone] Stopped with error: \(error)")
-        done = true
+        exit(EXIT_FAILURE)
     }
 
-    func virtualMachine(_: VZVirtualMachine, networkDevice _: VZNetworkDevice,
-                        attachmentWasDisconnectedWithError error: Error)
+    nonisolated func virtualMachine(_: VZVirtualMachine, networkDevice _: VZNetworkDevice,
+                                    attachmentWasDisconnectedWithError error: Error)
     {
         print("[vphone] Network error: \(error)")
     }
@@ -186,27 +186,5 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
 
     func stopConsoleCapture() {
         consoleLogFileHandle?.closeFile()
-    }
-}
-
-// MARK: - Errors
-
-enum VPhoneError: Error, CustomStringConvertible {
-    case hardwareModelNotSupported
-    case romNotFound(String)
-
-    var description: String {
-        switch self {
-        case .hardwareModelNotSupported:
-            """
-            PV=3 hardware model not supported. Check:
-              1. macOS >= 15.0 (Sequoia)
-              2. Signed with com.apple.private.virtualization + \
-            com.apple.private.virtualization.security-research
-              3. SIP/AMFI disabled
-            """
-        case let .romNotFound(p):
-            "ROM not found: \(p)"
-        }
     }
 }

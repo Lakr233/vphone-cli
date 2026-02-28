@@ -1,8 +1,8 @@
+import Dynamic
 import Foundation
 import Virtualization
-import VPhoneObjC
 
-/// Wrapper around the ObjC private API call to create a PV=3 hardware model.
+/// Creates a PV=3 hardware model via private _VZMacHardwareModelDescriptor.
 ///
 /// The Virtualization.framework checks:
 ///   default_configuration_for_platform_version(3) validity byte =
@@ -13,9 +13,17 @@ import VPhoneObjC
 /// Minimum host OS for PV=3: macOS 15.0 (Sequoia)
 ///
 enum VPhoneHardware {
-    /// Create a PV=3 VZMacHardwareModel. Throws if isSupported is false.
     static func createModel() throws -> VZMacHardwareModel {
-        let model = VPhoneCreateHardwareModel()
+        // platformVersion=3, boardID=0x90, ISA=2 matches vresearch101
+        let desc = Dynamic._VZMacHardwareModelDescriptor()
+        desc.setPlatformVersion(NSNumber(value: UInt32(3)))
+        desc.setBoardID(NSNumber(value: UInt32(0x90)))
+        desc.setISA(NSNumber(value: Int64(2)))
+
+        let model = Dynamic.VZMacHardwareModel
+            ._hardwareModelWithDescriptor(desc.asObject)
+            .asObject as! VZMacHardwareModel
+
         guard model.isSupported else {
             throw VPhoneError.hardwareModelNotSupported
         }

@@ -104,7 +104,7 @@ Run `make help` for the full list. Key targets:
 | `vm_new` | Create VM directory |
 | `fw_prepare` | Download/merge IPSWs |
 | `fw_patch` | Patch boot chain |
-| `boot` / `boot_dfu` | Boot VM (normal / DFU) |
+| `boot` / `boot_dfu` | Boot VM (GUI / DFU headless) |
 | `restore_get_shsh` | Fetch SHSH blob |
 | `restore` | Flash firmware |
 | `ramdisk_build` | Build SSH ramdisk |

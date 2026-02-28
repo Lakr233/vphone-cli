@@ -1,4 +1,17 @@
-# AGENTS — vphone-cli
+# vphone-cli
+
+Virtual iPhone boot tool using Apple's Virtualization.framework with PCC research VMs.
+
+## Quick Reference
+
+- **Build:** `make build`
+- **Boot (GUI):** `make boot`
+- **Boot (DFU):** `make boot_dfu`
+- **All targets:** `make help`
+- **Python venv:** `make setup_venv` (installs to `.venv/`, activate with `source .venv/bin/activate`)
+- **Platform:** macOS 14+ (Sequoia), SIP/AMFI disabled
+- **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
+- **Python deps:** `capstone`, `keystone-engine`, `pyimg4` (see `requirements.txt`)
 
 ## Project Overview
 
@@ -10,14 +23,17 @@ CLI tool that boots virtual iPhones (PV=3) via Apple's Virtualization.framework,
 Makefile                          # Single entry point — run `make help`
 
 sources/
-├── vphone-objc/                  # ObjC bridge for private Virtualization.framework APIs
-│   ├── include/VPhoneObjC.h
-│   └── VPhoneObjC.m
-└── vphone-cli/                   # Swift executable
-    ├── VPhoneCLI.swift
-    ├── VPhoneVM.swift
-    ├── VPhoneHardwareModel.swift
-    └── VPhoneVMWindow.swift
+├── vphone.entitlements               # Private API entitlements (5 keys)
+└── vphone-cli/                       # Swift 6.0 executable (pure Swift, no ObjC)
+    ├── main.swift                    # Entry point — NSApplication + AppDelegate
+    ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
+    ├── VPhoneCLI.swift               # ArgumentParser options (no execution logic)
+    ├── VPhoneVM.swift                # @MainActor VM configuration and lifecycle
+    ├── VPhoneHardwareModel.swift     # PV=3 hardware model via Dynamic
+    ├── VPhoneVMView.swift            # Touch-enabled VZVirtualMachineView + helpers
+    ├── VPhoneWindowController.swift  # @MainActor window management
+    ├── VPhoneError.swift             # Error types
+    └── MainActor+Isolated.swift      # MainActor.isolated helper
 
 scripts/
 ├── patchers/                     # Python patcher package
@@ -38,14 +54,13 @@ scripts/
 ├── setup_venv.sh                 # Creates Python venv with native keystone dylib
 └── setup_libimobiledevice.sh     # Builds libimobiledevice toolchain from source
 
-Research/                         # Research notes and verification reports
 researchs/                        # Component analysis and architecture docs
 ```
 
 ### Key Patterns
 
-- **Private API access:** All private Virtualization.framework calls go through the ObjC bridge (`VPhoneObjC`). Swift code never calls private APIs directly.
-- **Function naming:** ObjC bridge functions use the `VPhone` prefix (e.g., `VPhoneCreateHardwareModel`, `VPhoneConfigureSEP`).
+- **Private API access:** Private Virtualization.framework APIs are called via the [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge needed.
+- **App lifecycle:** Explicit `main.swift` creates `NSApplication` + `VPhoneAppDelegate`. CLI args parsed before the run loop starts. AppDelegate drives VM start, window, and shutdown.
 - **Configuration:** CLI options parsed via `ArgumentParser`, converted to `VPhoneVM.Options` struct, then used to build `VZVirtualMachineConfiguration`.
 - **Error handling:** `VPhoneError` enum with `CustomStringConvertible` for user-facing messages.
 - **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Touch input translated from mouse events to multi-touch via `VPhoneVMView`.
@@ -184,17 +199,13 @@ AVPBooter (ROM, PCC)
 
 ### Swift
 
+- **Language:** Swift 6.0 (strict concurrency).
 - **Style:** Pragmatic, minimal. No unnecessary abstractions.
 - **Sections:** Use `// MARK: -` to organize code within files.
 - **Access control:** Default (internal). Only mark `private` when needed for clarity.
-- **Async:** Use `async/await` for VM lifecycle. `@MainActor` for UI and VM start operations.
+- **Concurrency:** `@MainActor` for VM and UI classes. `nonisolated` delegate methods use `MainActor.isolated {}` to hop back safely.
 - **Naming:** Types are `VPhone`-prefixed (`VPhoneVM`, `VPhoneWindowController`). Match Apple framework conventions.
-
-### ObjC Bridge
-
-- All functions are C-style (no ObjC classes exposed to Swift).
-- Return `nil`/`NULL` on failure — caller handles gracefully.
-- Header documents the private API being wrapped in each function's doc comment.
+- **Private APIs:** Use `Dynamic()` for runtime method dispatch. Touch objects use `NSClassFromString` + KVC to avoid designated initializer crashes.
 
 ### Shell Scripts
 
