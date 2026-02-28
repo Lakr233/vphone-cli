@@ -81,6 +81,15 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         ]
         config.graphicsDevices = [gfx]
 
+        // Audio
+        let afg = VZVirtioSoundDeviceConfiguration()
+        let inputAudioStreamConfiguration = VZVirtioSoundDeviceInputStreamConfiguration()
+        let outputAudioStreamConfiguration = VZVirtioSoundDeviceOutputStreamConfiguration()
+        inputAudioStreamConfiguration.source = VZHostAudioInputStreamSource()
+        outputAudioStreamConfiguration.sink = VZHostAudioOutputStreamSink()
+        afg.streams = [inputAudioStreamConfiguration, outputAudioStreamConfiguration]
+        config.audioDevices = [afg]
+
         // Storage
         guard FileManager.default.fileExists(atPath: options.diskURL.path) else {
             throw VPhoneError.diskNotFound(options.diskURL.path)
