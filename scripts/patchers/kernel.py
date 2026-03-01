@@ -485,8 +485,13 @@ class KernelPatcher:
         self._log("\n".join(lines))
 
     def emit(self, off, patch_bytes, desc):
-        """Record a patch and print before/after disassembly context."""
+        """Record a patch and apply it to self.data immediately.
+
+        Writing through to self.data ensures _find_code_cave() sees
+        previously allocated shellcode and won't reuse the same cave.
+        """
         self.patches.append((off, patch_bytes, desc))
+        self.data[off:off + len(patch_bytes)] = patch_bytes
         if self.verbose:
             self._print_patch_context(off, patch_bytes, desc)
 

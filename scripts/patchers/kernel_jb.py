@@ -140,13 +140,14 @@ class KernelJBPatcher(KernelPatcher):
     def _find_code_cave(self, size, align=4):
         """Find a region of zeros/0xFF/UDF in executable memory for shellcode.
         Returns file offset of the cave start, or -1 if not found.
+        Reads from self.data (mutable) so previously allocated caves are skipped.
         """
         needed = (size + align - 1) // align * align
         for rng_start, rng_end in self.code_ranges:
             run_start = -1
             run_len = 0
             for off in range(rng_start, rng_end, 4):
-                val = _rd32(self.raw, off)
+                val = _rd32(self.data, off)
                 if val == 0x00000000 or val == 0xFFFFFFFF or val == 0xD4200000:
                     if run_start < 0:
                         run_start = off
