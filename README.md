@@ -34,6 +34,12 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
+brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
+```
+
+## First setup
+
+```bash
 make setup_libimobiledevice   # build libimobiledevice toolchain
 make setup_venv               # create Python venv
 source .venv/bin/activate

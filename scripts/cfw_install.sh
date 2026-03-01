@@ -45,7 +45,7 @@ SSH_OPTS=(
 die() { echo "[-] $*" >&2; exit 1; }
 
 _sshpass() {
-    "$VM_DIR/$CFW_INPUT/tools/sshpass" -p "$SSH_PASS" "$@"
+    "sshpass" -p "$SSH_PASS" "$@"
 }
 
 ssh_cmd() {
