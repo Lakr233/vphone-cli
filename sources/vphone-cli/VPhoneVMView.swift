@@ -24,6 +24,9 @@ class VPhoneVMView: VZVirtualMachineView {
     // MARK: - Event Handling
 
     override func mouseDown(with event: NSEvent) {
+        // macOS 16+: VZVirtualMachineView handles mouse-to-touch natively
+        if #available(macOS 16.0, *) { super.mouseDown(with: event); return }
+
         let location = self.convert(event.locationInWindow, from: nil)
         
         self.currentTouchSwipeAim = hitTestEdge(at: location)
@@ -36,6 +39,8 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if #available(macOS 16.0, *) { super.mouseDragged(with: event); return }
+
         sendTouchEvent(
             phase: 1, // Moved
             locationInWindow: event.locationInWindow,
@@ -45,6 +50,8 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if #available(macOS 16.0, *) { super.mouseUp(with: event); return }
+
         sendTouchEvent(
             phase: 3, // Ended
             locationInWindow: event.locationInWindow,
@@ -61,7 +68,7 @@ class VPhoneVMView: VZVirtualMachineView {
         keyHelper.sendHome()
     }
 
-    // MARK: - Touch Injection Logic
+    // MARK: - Legacy Touch Injection (macOS 15)
 
     private func sendTouchEvent(phase: Int, locationInWindow: NSPoint, timestamp: TimeInterval) {
         guard let device = multiTouchDevice,

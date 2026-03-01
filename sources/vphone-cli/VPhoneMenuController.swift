@@ -30,6 +30,7 @@ class VPhoneMenuController {
 
         // iOS hardware keyboard shortcuts
         keysMenu.addItem(makeItem("Home Screen (Cmd+H)", action: #selector(sendHome)))
+        keysMenu.addItem(makeItem("Unlock", action: #selector(sendUnlock)))
         keysMenu.addItem(makeItem("Spotlight (Cmd+Space)", action: #selector(sendSpotlight)))
         keysMenu.addItem(NSMenuItem.separator())
         keysMenu.addItem(makeItem("Return", action: #selector(sendReturn)))
@@ -73,6 +74,10 @@ class VPhoneMenuController {
 
     @objc private func sendHome() {
         keyHelper.sendHome()
+    }
+
+    @objc private func sendUnlock() {
+        keyHelper.sendUnlock()
     }
 
     @objc private func sendSpotlight() {

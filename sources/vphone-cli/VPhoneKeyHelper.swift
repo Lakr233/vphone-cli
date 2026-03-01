@@ -8,6 +8,7 @@ import Virtualization
 @MainActor
 class VPhoneKeyHelper {
     private let vm: VZVirtualMachine
+    private let serialWriteHandle: FileHandle?
 
     /// First _VZKeyboard from the VM's internal keyboard array.
     private var firstKeyboard: AnyObject? {
@@ -26,8 +27,9 @@ class VPhoneKeyHelper {
         return 1
     }
 
-    init(vm: VZVirtualMachine) {
+    init(vm: VZVirtualMachine, serialWriteHandle: FileHandle? = nil) {
         self.vm = vm
+        self.serialWriteHandle = serialWriteHandle
     }
 
     // MARK: - Send Key via _VZKeyEvent
@@ -99,6 +101,29 @@ class VPhoneKeyHelper {
         withUnsafeMutablePointer(to: &vec) { vecPtr in
             _ = Dynamic(vm).sendKeyboardEvents(UnsafeMutableRawPointer(vecPtr), keyboardID: deviceId)
         }
+    }
+
+    // MARK: - Unlock via Serial Console
+
+    /// Send unlock command through the serial port to trigger Home button unlock.
+    func sendUnlock() {
+        print("[unlock] Sending unlock via serial console")
+        writeSerial("/var/root/unlock 2>/dev/null || /iosbinpack64/bin/unlock\n")
+    }
+
+    /// Auto-unlock: send unlock once after `delay` seconds via serial.
+    /// The command buffers in the pipe and executes when bash is ready.
+    func autoUnlock(delay: TimeInterval = 8) {
+        print("[unlock] Auto-unlock: sending unlock in \(Int(delay))s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.writeSerial("/var/root/unlock 2>/dev/null || /iosbinpack64/bin/unlock\n")
+        }
+    }
+
+    private func writeSerial(_ command: String) {
+        guard let data = command.data(using: .utf8) else { return }
+        guard let handle = serialWriteHandle else { return }
+        handle.write(data)
     }
 
     // MARK: - Named Key Actions

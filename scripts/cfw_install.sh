@@ -292,6 +292,19 @@ ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
 
 echo "  [+] iosbinpack64 installed"
 
+# ═══════════ 4.5 INSTALL VPHOME (unlock tool) ════════════════
+UNLOCK_BIN="$VM_DIR/unlock"
+if [[ -f "$UNLOCK_BIN" ]]; then
+    echo ""
+    echo "[*] Installing unlock..."
+    scp_to "$UNLOCK_BIN" "/mnt1/iosbinpack64/bin/unlock"
+    ssh_cmd "/bin/chmod 0755 /mnt1/iosbinpack64/bin/unlock"
+    echo "  [+] unlock installed to /iosbinpack64/bin/unlock"
+else
+    echo ""
+    echo "[*] Skipping unlock (not built — run 'make unlock' first)"
+fi
+
 # ═══════════ 5/7 PATCH LAUNCHD_CACHE_LOADER ══════════════════
 echo ""
 echo "[5/7] Patching launchd_cache_loader..."
