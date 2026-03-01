@@ -1425,7 +1425,6 @@ class KernelJBPatcher(KernelPatcher):
         """
         self._log("\n[JB] verifyPermission (NVRAM): NOP")
 
-        foff = -1
         # Try symbol first
         sym_off = self._resolve_symbol(
             "__ZL16verifyPermission16IONVRAMOperationPKhPKcb")
@@ -1434,32 +1433,47 @@ class KernelJBPatcher(KernelPatcher):
                 if "verifyPermission" in sym and "NVRAM" in sym:
                     sym_off = off
                     break
-        if sym_off >= 0:
-            foff = sym_off
-        else:
-            # String anchor: "krn." is referenced early in verifyPermission
-            str_off = self.find_string(b"krn.")
-            if str_off >= 0:
-                refs = self.find_string_refs(str_off)
-                if refs:
-                    foff = self.find_function_start(refs[0][0])
+
+        # String anchor: "krn." is referenced in verifyPermission.
+        # The TBZ/TBNZ guard is immediately before the ADRP+ADD that
+        # loads the "krn." string, so search backward from that ref.
+        str_off = self.find_string(b"krn.")
+        ref_off = -1
+        if str_off >= 0:
+            refs = self.find_string_refs(str_off)
+            if refs:
+                ref_off = refs[0][0]  # ADRP instruction offset
+
+        foff = sym_off if sym_off >= 0 else (
+            self.find_function_start(ref_off) if ref_off >= 0 else -1)
 
         if foff < 0:
             # Fallback: try NVRAM entitlement string
-            str_off = self.find_string(
+            ent_off = self.find_string(
                 b"com.apple.private.iokit.nvram-write-access")
-            if str_off >= 0:
-                refs = self.find_string_refs(str_off)
-                if refs:
-                    foff = self.find_function_start(refs[0][0])
+            if ent_off >= 0:
+                ent_refs = self.find_string_refs(ent_off)
+                if ent_refs:
+                    foff = self.find_function_start(ent_refs[0][0])
 
         if foff < 0:
             self._log("  [-] function not found")
             return False
 
-        func_end = self._find_func_end(foff, 0x400)
+        func_end = self._find_func_end(foff, 0x600)
 
-        for off in range(foff, min(foff + 0x40, func_end), 4):
+        # Strategy 1: search backward from "krn." string ref for
+        # nearest TBZ/TBNZ — the guard branch is typically within
+        # a few instructions before the ADRP that loads "krn.".
+        if ref_off > foff:
+            for off in range(ref_off - 4, max(foff - 4, ref_off - 0x20), -4):
+                d = self._disas_at(off)
+                if d and d[0].mnemonic in ("tbnz", "tbz"):
+                    self.emit(off, NOP, "NOP [verifyPermission NVRAM]")
+                    return True
+
+        # Strategy 2: scan full function for first TBZ/TBNZ
+        for off in range(foff, func_end, 4):
             d = self._disas_at(off)
             if not d:
                 continue
@@ -1509,7 +1523,8 @@ class KernelJBPatcher(KernelPatcher):
 
     def patch_thid_should_crash(self):
         """Zero out _thid_should_crash global variable.
-        Anchor: 'thid_should_crash' string → find data xrefs → zero the variable.
+        Anchor: 'thid_should_crash' string in __DATA → nearby sysctl_oid struct
+        contains a raw pointer (low32 = file offset) to the variable.
         """
         self._log("\n[JB] _thid_should_crash: zero out")
 
@@ -1520,62 +1535,77 @@ class KernelJBPatcher(KernelPatcher):
                       "zero [_thid_should_crash]")
             return True
 
-        # Search for the string "thid_should_crash" in __PRELINK_INFO or data
+        # Find the string in __DATA (sysctl name string)
         str_off = self.find_string(b"thid_should_crash")
         if str_off < 0:
             self._log("  [-] string not found")
             return False
 
-        # Find xrefs to this string in code — it's used as a sysctl name.
-        # The sysctl registration points to the data variable.
+        self._log(f"  [*] string at foff 0x{str_off:X}")
+
+        # The sysctl_oid struct is near the string in __DATA.
+        # It contains 8-byte entries, one of which has its low32 bits
+        # equal to the file offset of the variable (chained fixup encoding).
+        # The variable is a 4-byte int (typically value 1) in __DATA_CONST.
+        #
+        # Search forward from the string for 8-byte values whose low32
+        # points to a valid location holding a small non-zero value.
+        data_const_ranges = [(fo, fo + fs) for name, _, fo, fs, _
+                             in self.all_segments
+                             if name in ("__DATA_CONST",) and fs > 0]
+
+        for delta in range(0, 128, 8):
+            check = str_off + delta
+            if check + 8 > self.size:
+                break
+            val = _rd64(self.raw, check)
+            if val == 0:
+                continue
+            low32 = val & 0xFFFFFFFF
+            # The variable should be in __DATA_CONST or __DATA
+            if low32 == 0 or low32 >= self.size:
+                continue
+            # Check if low32 points to a location holding a small int (1-255)
+            target_val = _rd32(self.raw, low32)
+            if 1 <= target_val <= 255:
+                # Verify it's in a data segment (not code)
+                in_data = any(s <= low32 < e for s, e in data_const_ranges)
+                if not in_data:
+                    # Also accept __DATA segments
+                    in_data = any(
+                        fo <= low32 < fo + fs
+                        for name, _, fo, fs, _ in self.all_segments
+                        if "DATA" in name and fs > 0)
+                if in_data:
+                    self._log(f"  [+] variable at foff 0x{low32:X} "
+                              f"(value={target_val}, found via sysctl_oid "
+                              f"at str+0x{delta:X})")
+                    self.emit(low32, b'\x00\x00\x00\x00',
+                              "zero [_thid_should_crash]")
+                    return True
+
+        # Fallback: if string has code refs, search via ADRP+ADD
         refs = self.find_string_refs(str_off)
-        if not refs:
-            # The string may be in PRELINK_INFO plist, not directly referenced.
-            # Search for the variable by looking for a 4-byte value of 0x00000001
-            # near the code that uses the string.
-            # Alternative: search all DATA segments for the sysctl structure
-            # that references this string.
-            self._log("  [-] no code refs to string, trying pattern search")
-
-            # Search for sysctl_oid structure referencing this string
-            str_va = self.base_va + str_off
-            str_bytes = struct.pack("<Q", str_va)
-            # The sysctl_oid has the name pointer at a known offset
-            pos = 0
-            while pos < self.size:
-                pos = self.raw.find(str_bytes, pos)
-                if pos < 0:
-                    break
-                # The variable pointer should be nearby in the sysctl_oid struct
-                # Check if there's a pointer to a 4-byte value of 1 nearby
-                for delta in range(-64, 64, 8):
-                    check = pos + delta
-                    if 0 <= check < self.size - 8:
-                        val = _rd64(self.raw, check)
-                        decoded = self._decode_chained_ptr(val)
-                        if 0 < decoded < self.size:
-                            # Check if the target holds value 1 (boolean true)
-                            target_val = _rd32(self.raw, decoded)
-                            if target_val == 1:
-                                self.emit(decoded, b'\x00\x00\x00\x00',
-                                          "zero [_thid_should_crash]")
-                                return True
-                pos += 8
-
         if refs:
-            # Find the function that registers the sysctl
             func_start = self.find_function_start(refs[0][0])
             if func_start >= 0:
-                # Search for ADRP+ADD or ADRP+LDR that loads the variable address
                 func_end = self._find_func_end(func_start, 0x200)
-                for off in range(func_start, func_end, 4):
+                for off in range(func_start, func_end - 4, 4):
                     d = self._disas_at(off, 2)
                     if len(d) < 2:
                         continue
                     i0, i1 = d[0], d[1]
-                    if i0.mnemonic == "adrp" and i1.mnemonic in ("add", "ldr"):
-                        # Check target
-                        pass  # complex, skip for now
+                    if i0.mnemonic == "adrp" and i1.mnemonic == "add":
+                        page = (i0.operands[1].imm - self.base_va) & ~0xFFF
+                        imm12 = (i1.operands[2].imm if len(i1.operands) > 2
+                                 else 0)
+                        target = page + imm12
+                        if 0 < target < self.size:
+                            tv = _rd32(self.raw, target)
+                            if 1 <= tv <= 255:
+                                self.emit(target, b'\x00\x00\x00\x00',
+                                          "zero [_thid_should_crash]")
+                                return True
 
         self._log("  [-] variable not found")
         return False
@@ -1867,88 +1897,95 @@ class KernelJBPatcher(KernelPatcher):
         """Redirect _hook_cred_label_update_execve ops table entry to shellcode.
 
         Patches the sandbox MAC ops table entry for cred_label_update_execve
-        to point to custom shellcode that performs vnode_getattr ownership propagation.
+        to point to custom shellcode that performs vnode_getattr ownership
+        propagation.  Instead of calling vfs_context_current (which may not
+        exist as a BL-callable function), we construct a vfs_context on the
+        stack using current_thread (mrs tpidr_el1) and the caller's
+        credential (x0 = old_cred).
         """
         self._log("\n[JB] _hook_cred_label_update_execve: ops table + shellcode")
 
-        # Find vfs_context_current and vnode_getattr
-        vfs_ctx_off = self._resolve_symbol("_vfs_context_current")
+        # ── 1. Find vnode_getattr via string anchor ──────────────
         vnode_getattr_off = self._resolve_symbol("_vnode_getattr")
-
-        # Find by string anchor if symbols unavailable
-        if vfs_ctx_off < 0:
-            # vfs_context_current is a short function. Find it by looking
-            # for a function that returns the current thread's VFS context.
-            # It's typically called from many places in the VFS layer.
-            # Search for BL targets with very high caller count in kern_text.
-            # Alternative: find via "vfs_context_current" string in PRELINK_INFO
-            str_off = self.find_string(b"vfs_context_current")
+        if vnode_getattr_off < 0:
+            str_off = self.find_string(b"vnode_getattr")
             if str_off >= 0:
-                # This might be in __PRELINK_INFO plist, not directly usable
-                # Try to find the function by its pattern: it's very short
-                # and extremely widely called.
-                pass
-
-            # Pattern approach: find a 2-3 instruction function that's called
-            # from many places. vfs_context_current typically does:
-            #   ldr x0, [x0, #offset]  ; get current thread's context
-            #   ret
-            # But there are many such functions. Use caller count.
-            # Find the most-called function in the BSD kernel area.
-            # Actually, we need a more targeted approach.
-            # Try string "Sandbox" to find sandbox module functions first.
-            pass
+                refs = self.find_string_refs(str_off)
+                if refs:
+                    vnode_getattr_off = self.find_function_start(refs[0][0])
+                    if vnode_getattr_off >= 0:
+                        self._log(f"  [+] vnode_getattr at 0x"
+                                  f"{vnode_getattr_off:X} (via string)")
 
         if vnode_getattr_off < 0:
-            # Search by string
-            str_off = self.find_string(b"\x00vnode_getattr\x00")
-            if str_off < 0:
-                str_off = self.find_string(b"vnode_getattr")
-            # The string might be in the symbol stubs, not directly useful
-            pass
-
-        if vfs_ctx_off < 0 or vnode_getattr_off < 0:
-            self._log("  [-] required functions not found "
-                      f"(vfs_context_current={'found' if vfs_ctx_off >= 0 else 'missing'}, "
-                      f"vnode_getattr={'found' if vnode_getattr_off >= 0 else 'missing'})")
+            self._log("  [-] vnode_getattr not found")
             return False
 
-        # Find the original hook function via sandbox ops table
+        # ── 2. Find sandbox ops table ────────────────────────────
         ops_table = self._find_sandbox_ops_table_via_conf()
         if ops_table is None:
             self._log("  [-] sandbox ops table not found")
             return False
 
-        HOOK_INDEX = 16
-        orig_hook = self._read_ops_entry(ops_table, HOOK_INDEX)
-        if orig_hook is None or orig_hook <= 0:
-            self._log(f"  [-] hook entry not found at index {HOOK_INDEX}")
+        # ── 3. Find hook index dynamically ───────────────────────
+        # mpo_cred_label_update_execve is one of the largest sandbox
+        # hooks at an early index (< 30).  Scan for it.
+        hook_index = -1
+        orig_hook = -1
+        best_size = 0
+        for idx in range(0, 30):
+            entry = self._read_ops_entry(ops_table, idx)
+            if entry is None or entry <= 0:
+                continue
+            if not any(s <= entry < e for s, e in self.code_ranges):
+                continue
+            fend = self._find_func_end(entry, 0x2000)
+            fsize = fend - entry
+            if fsize > best_size:
+                best_size = fsize
+                hook_index = idx
+                orig_hook = entry
+
+        if hook_index < 0 or best_size < 1000:
+            self._log("  [-] hook entry not found in ops table "
+                      f"(best: idx={hook_index}, size={best_size})")
             return False
 
-        # Find code cave (~180 bytes)
+        self._log(f"  [+] hook at ops[{hook_index}] = 0x{orig_hook:X} "
+                  f"({best_size} bytes)")
+
+        # ── 4. Find code cave ────────────────────────────────────
         cave = self._find_code_cave(180)
         if cave < 0:
             self._log("  [-] no code cave found")
             return False
+        self._log(f"  [+] code cave at 0x{cave:X}")
 
-        # Encode BL targets
-        vfs_bl_off = cave + 9 * 4
-        vfs_bl = self._encode_bl(vfs_bl_off, vfs_ctx_off)
+        # ── 5. Encode BL to vnode_getattr ────────────────────────
         vnode_bl_off = cave + 17 * 4
         vnode_bl = self._encode_bl(vnode_bl_off, vnode_getattr_off)
-
-        if not vfs_bl or not vnode_bl:
-            self._log("  [-] BL to helpers out of range")
+        if not vnode_bl:
+            self._log("  [-] BL to vnode_getattr out of range")
             return False
 
+        # ── 6. Encode B to original hook ─────────────────────────
         b_back_off = cave + 44 * 4
         b_back = self._encode_b(b_back_off, orig_hook)
         if not b_back:
             self._log("  [-] B to original hook out of range")
             return False
 
+        # ── 7. Build shellcode ───────────────────────────────────
+        # MAC hook args: x0=old_cred, x1=new_cred, x2=proc, x3=vp
+        #
+        # Parts [8-10] construct a vfs_context on the stack instead
+        # of calling vfs_context_current, which may not exist as a
+        # direct BL target in stripped ARM64e kernels.
+        #
+        # struct vfs_context { thread_t vc_thread; kauth_cred_t vc_ucred; }
+        # We place it at [sp, #0x70] (between saved regs and vattr buffer).
         parts = []
-        parts.append(NOP)                                      # 0
+        parts.append(NOP)                                       # 0
         parts.append(asm("cbz x3, #0xa8"))                     # 1
         parts.append(asm("sub sp, sp, #0x400"))                # 2
         parts.append(asm("stp x29, x30, [sp]"))               # 3
@@ -1956,54 +1993,60 @@ class KernelJBPatcher(KernelPatcher):
         parts.append(asm("stp x2, x3, [sp, #32]"))            # 5
         parts.append(asm("stp x4, x5, [sp, #48]"))            # 6
         parts.append(asm("stp x6, x7, [sp, #64]"))            # 7
-        parts.append(NOP)                                       # 8
-        parts.append(vfs_bl)                                    # 9
-        parts.append(asm("mov x2, x0"))                        # 10
-        parts.append(asm("ldr x0, [sp, #0x28]"))              # 11
-        parts.append(asm("add x1, sp, #0x80"))                # 12
-        parts.append(asm("mov w8, #0x380"))                    # 13
-        parts.append(asm("stp xzr, x8, [x1]"))               # 14
-        parts.append(asm("stp xzr, xzr, [x1, #0x10]"))       # 15
+        # Construct vfs_context inline (replaces BL vfs_context_current)
+        parts.append(asm("mrs x8, tpidr_el1"))                 # 8: current_thread
+        parts.append(asm("stp x8, x0, [sp, #0x70]"))          # 9: {thread, cred}
+        parts.append(asm("add x2, sp, #0x70"))                 # 10: ctx = &vfs_ctx
+        # Setup vnode_getattr(vp, &vattr, ctx)
+        parts.append(asm("ldr x0, [sp, #0x28]"))              # 11: x0 = vp
+        parts.append(asm("add x1, sp, #0x80"))                # 12: x1 = &vattr
+        parts.append(asm("mov w8, #0x380"))                    # 13: vattr size
+        parts.append(asm("stp xzr, x8, [x1]"))               # 14: init vattr
+        parts.append(asm("stp xzr, xzr, [x1, #0x10]"))       # 15: init vattr
         parts.append(NOP)                                       # 16
-        parts.append(vnode_bl)                                  # 17
-        parts.append(asm("cbnz x0, #0x50"))                   # 18
-        parts.append(asm("mov w2, #0"))                        # 19
-        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 20
-        parts.append(bytes([0xa8, 0x00, 0x58, 0x36]))          # 21: tbz w8, #11
-        parts.append(asm("ldr w8, [sp, #0xC4]"))              # 22
-        parts.append(asm("ldr x0, [sp, #0x18]"))              # 23
-        parts.append(asm("str w8, [x0, #0x18]"))              # 24
-        parts.append(asm("mov w2, #1"))                        # 25
-        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 26
-        parts.append(bytes([0xa8, 0x00, 0x50, 0x36]))          # 27: tbz w8, #10
-        parts.append(asm("mov w2, #1"))                        # 28
-        parts.append(asm("ldr w8, [sp, #0xC8]"))              # 29
-        parts.append(asm("ldr x0, [sp, #0x18]"))              # 30
-        parts.append(asm("str w8, [x0, #0x28]"))              # 31
-        parts.append(asm("cbz w2, #0x1c"))                     # 32
-        parts.append(asm("ldr x0, [sp, #0x20]"))              # 33
-        parts.append(asm("ldr w8, [x0, #0x454]"))             # 34
-        parts.append(asm("orr w8, w8, #0x100"))               # 35
-        parts.append(asm("str w8, [x0, #0x454]"))             # 36
-        parts.append(asm("ldp x0, x1, [sp, #16]"))            # 37
+        parts.append(vnode_bl)                                  # 17: BL vnode_getattr
+        # Check result + propagate ownership
+        parts.append(asm("cbnz x0, #0x50"))                   # 18: error → skip
+        parts.append(asm("mov w2, #0"))                        # 19: changed = 0
+        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 20: va_mode
+        parts.append(bytes([0xa8, 0x00, 0x58, 0x36]))          # 21: tbz w8,#11
+        parts.append(asm("ldr w8, [sp, #0xC4]"))              # 22: va_uid
+        parts.append(asm("ldr x0, [sp, #0x18]"))              # 23: new_cred
+        parts.append(asm("str w8, [x0, #0x18]"))              # 24: cred->uid
+        parts.append(asm("mov w2, #1"))                        # 25: changed = 1
+        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 26: va_mode
+        parts.append(bytes([0xa8, 0x00, 0x50, 0x36]))          # 27: tbz w8,#10
+        parts.append(asm("mov w2, #1"))                        # 28: changed = 1
+        parts.append(asm("ldr w8, [sp, #0xC8]"))              # 29: va_gid
+        parts.append(asm("ldr x0, [sp, #0x18]"))              # 30: new_cred
+        parts.append(asm("str w8, [x0, #0x28]"))              # 31: cred->gid
+        parts.append(asm("cbz w2, #0x1c"))                     # 32: if !changed
+        parts.append(asm("ldr x0, [sp, #0x20]"))              # 33: proc
+        parts.append(asm("ldr w8, [x0, #0x454]"))             # 34: p_csflags
+        parts.append(asm("orr w8, w8, #0x100"))               # 35: CS_VALID
+        parts.append(asm("str w8, [x0, #0x454]"))             # 36: store
+        parts.append(asm("ldp x0, x1, [sp, #16]"))            # 37: restore
         parts.append(asm("ldp x2, x3, [sp, #32]"))            # 38
         parts.append(asm("ldp x4, x5, [sp, #48]"))            # 39
         parts.append(asm("ldp x6, x7, [sp, #64]"))            # 40
         parts.append(asm("ldp x29, x30, [sp]"))               # 41
         parts.append(asm("add sp, sp, #0x400"))                # 42
         parts.append(NOP)                                       # 43
-        parts.append(b_back)                                    # 44
+        parts.append(b_back)                                    # 44: B orig_hook
 
         for i, part in enumerate(parts):
             self.emit(cave + i * 4, part,
                       f"shellcode+{i*4} [_hook_cred_label_update_execve]")
 
-        # Rewrite ops table entry to point to cave
-        entry_off = ops_table + HOOK_INDEX * 8
-        cave_va = self.base_va + cave
-        self.emit(entry_off, struct.pack("<Q", cave_va),
-                  f"ops_table[{HOOK_INDEX}] = 0x{cave_va:X} "
-                  f"[_hook_cred_label_update_execve -> cave]")
+        # ── 8. Rewrite ops table entry ───────────────────────────
+        # Preserve auth rebase upper 32 bits (PAC key, diversity,
+        # chain next) and replace lower 32 bits with cave foff.
+        entry_off = ops_table + hook_index * 8
+        orig_raw = _rd64(self.raw, entry_off)
+        new_raw = (orig_raw & 0xFFFFFFFF00000000) | (cave & 0xFFFFFFFF)
+        self.emit(entry_off, struct.pack("<Q", new_raw),
+                  f"ops_table[{hook_index}] = cave 0x{cave:X} "
+                  f"[_hook_cred_label_update_execve]")
 
         return True
 
