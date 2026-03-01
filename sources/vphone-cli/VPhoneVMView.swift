@@ -24,32 +24,35 @@ class VPhoneVMView: VZVirtualMachineView {
     // MARK: - Event Handling
 
     override func mouseDown(with event: NSEvent) {
-        let location = self.convert(event.locationInWindow, from: nil)
+        let localPoint = self.convert(event.locationInWindow, from: nil)
         
-        self.currentTouchSwipeAim = hitTestEdge(at: location)
+        self.currentTouchSwipeAim = hitTestEdge(at: localPoint)
         
         sendTouchEvent(
             phase: 0, // Began
-            locationInWindow: event.locationInWindow,
+            localPoint: localPoint,
             timestamp: event.timestamp
         )
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let localPoint = self.convert(event.locationInWindow, from: nil)
         sendTouchEvent(
             phase: 1, // Moved
-            locationInWindow: event.locationInWindow,
+            localPoint: localPoint,
             timestamp: event.timestamp
         )
         super.mouseDragged(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
+        let localPoint = self.convert(event.locationInWindow, from: nil)
         sendTouchEvent(
             phase: 3, // Ended
-            locationInWindow: event.locationInWindow,
+            localPoint: localPoint,
             timestamp: event.timestamp
         )
+        self.currentTouchSwipeAim = 0
         super.mouseUp(with: event)
     }
 
@@ -63,15 +66,15 @@ class VPhoneVMView: VZVirtualMachineView {
 
     // MARK: - Touch Injection Logic
 
-    private func sendTouchEvent(phase: Int, locationInWindow: NSPoint, timestamp: TimeInterval) {
+    private func sendTouchEvent(phase: Int, localPoint: NSPoint, timestamp: TimeInterval) {
         guard let device = multiTouchDevice,
-            let vm = self.virtualMachine
+            self.virtualMachine != nil
         else { return }
 
-        let normalizedPoint = normalizeCoordinate(locationInWindow)
+        let normalizedPoint = normalizeCoordinate(localPoint)
 
         let touch = Dynamic._VZTouch(
-            view: vm,
+            view: self,
             index: 0,
             phase: phase,
             location: normalizedPoint,
@@ -92,8 +95,7 @@ class VPhoneVMView: VZVirtualMachineView {
 
     // MARK: - Coordinate Helpers
 
-    private func normalizeCoordinate(_ locationInWindow: NSPoint) -> CGPoint {
-        let localPoint = self.convert(locationInWindow, from: nil)
+    private func normalizeCoordinate(_ localPoint: NSPoint) -> CGPoint {
         let w = self.bounds.width
         let h = self.bounds.height
 
