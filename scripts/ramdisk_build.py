@@ -22,6 +22,7 @@ Prerequisites:
 import gzip
 import glob
 import os
+import platform
 import plistlib
 import shutil
 import subprocess
@@ -155,6 +156,56 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, check=True, **kwargs)
 
 
+def is_exec_compatible(path):
+    """Return True if an executable is usable on this host arch."""
+    if not path or not os.path.isfile(path) or not os.access(path, os.X_OK):
+        return False
+
+    file_out = subprocess.run(
+        ["file", path], capture_output=True, text=True
+    ).stdout
+
+    # Non-Mach-O executables (scripts/wrappers) are accepted.
+    if "Mach-O" not in file_out:
+        return True
+
+    host_arch = platform.machine()
+    try:
+        archs = subprocess.run(
+            ["lipo", "-archs", path], capture_output=True, text=True, check=True
+        ).stdout.split()
+        return host_arch in archs
+    except Exception:
+        return host_arch in file_out or "universal" in file_out
+
+
+def resolve_tar_extractor(input_dir):
+    """Select tar tool with compatibility fallback and clear diagnostics."""
+    bundled_gtar = os.path.join(input_dir, "tools/gtar")
+    host_gtar = shutil.which("gtar")
+    host_tar = shutil.which("tar")
+    host_arch = platform.machine()
+
+    if is_exec_compatible(bundled_gtar):
+        return bundled_gtar, True, "bundled gtar"
+    if os.path.exists(bundled_gtar):
+        print(f"  [!] Bundled gtar is not compatible with host arch ({host_arch}): {bundled_gtar}")
+
+    if host_gtar and is_exec_compatible(host_gtar):
+        return host_gtar, True, "host gtar"
+    if host_gtar:
+        print(f"  [!] Host gtar is present but incompatible with host arch ({host_arch}): {host_gtar}")
+
+    if host_tar and is_exec_compatible(host_tar):
+        return host_tar, False, "host tar"
+    if host_tar:
+        print(f"  [!] Host tar is present but incompatible with host arch ({host_arch}): {host_tar}")
+
+    print("[-] No compatible tar extractor found.")
+    print("    Install GNU tar with: brew install gnu-tar")
+    sys.exit(1)
+
+
 # ══════════════════════════════════════════════════════════════════
 # Firmware extraction and IM4P creation
 # ══════════════════════════════════════════════════════════════════
@@ -223,6 +274,9 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
     mountpoint = os.path.join(vm_dir, "SSHRD")
     ramdisk_raw = os.path.join(temp_dir, "ramdisk.raw.dmg")
     ramdisk_custom = os.path.join(temp_dir, "ramdisk1.dmg")
+    tar_bin, tar_is_gnu, tar_label = resolve_tar_extractor(input_dir)
+
+    print(f"  Using archive extractor: {tar_label} ({tar_bin})")
 
     # Extract base ramdisk
     print("  Extracting base ramdisk...")
@@ -251,10 +305,12 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
              ramdisk_custom, "-owners", "off"])
 
         print("  Injecting SSH tools...")
-        gtar = os.path.join(input_dir, "tools/gtar")
         ssh_tar = os.path.join(input_dir, "ssh.tar.gz")
-        run(["sudo", gtar, "-x", "--no-overwrite-dir",
-             "-f", ssh_tar, "-C", mountpoint])
+        extract_cmd = ["sudo", tar_bin, "-x", "-f", ssh_tar, "-C", mountpoint]
+        if tar_is_gnu:
+            extract_cmd = ["sudo", tar_bin, "-x", "--no-overwrite-dir",
+                           "-f", ssh_tar, "-C", mountpoint]
+        run(extract_cmd)
 
         # Remove unnecessary files
         for rel_path in RAMDISK_REMOVE:
