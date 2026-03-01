@@ -1288,6 +1288,7 @@ class KernelPatcher:
 
     def find_all(self):
         """Find and record all kernel patches.  Returns list of (offset, bytes, desc)."""
+        self.patches = []
         self.patch_apfs_root_snapshot()               #  1
         self.patch_apfs_seal_broken()                  #  2
         self.patch_bsd_init_rootvp()                   #  3

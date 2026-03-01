@@ -1,5 +1,5 @@
 #!/bin/zsh
-# cfw_install.sh — Install CFW modifications on vphone via SSH ramdisk.
+# cfw_install.sh — Install base CFW modifications on vphone via SSH ramdisk.
 #
 # Installs Cryptexes, patches system binaries, installs jailbreak tools
 # and configures LaunchDaemons for persistent SSH/VNC access.
@@ -19,6 +19,7 @@ set -euo pipefail
 
 VM_DIR="${1:-.}"
 SCRIPT_DIR="${0:a:h}"
+CFW_SKIP_HALT="${CFW_SKIP_HALT:-0}"
 
 # Resolve absolute paths
 VM_DIR="$(cd "$VM_DIR" && pwd)"
@@ -370,5 +371,8 @@ echo "[+] CFW installation complete!"
 echo "    Reboot the device for changes to take effect."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
-ssh_cmd "/sbin/halt" || true
-
+if [[ "$CFW_SKIP_HALT" == "1" ]]; then
+    echo "[*] CFW_SKIP_HALT=1, skipping halt."
+else
+    ssh_cmd "/sbin/halt" || true
+fi

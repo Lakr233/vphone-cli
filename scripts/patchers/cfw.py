@@ -20,8 +20,15 @@ Commands:
     patch-mobileactivationd <binary>
         Patch -[DeviceType should_hactivate] to always return true.
 
+    patch-launchd-jetsam <binary>
+        Patch launchd jetsam panic guard to avoid initproc crash loop.
+
     inject-daemons <launchd.plist> <daemon_dir>
         Inject bash/dropbear/trollvnc into launchd.plist.
+
+    inject-dylib <binary> <dylib_path>
+        Inject LC_LOAD_DYLIB into Mach-O binary (thin or universal).
+        Equivalent to: optool install -c load -p <dylib_path> -t <binary>
 
 Dependencies:
     pip install capstone keystone-engine
@@ -34,6 +41,7 @@ import subprocess
 import sys
 
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
+from capstone.arm64_const import ARM64_OP_IMM
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
 
 # ══════════════════════════════════════════════════════════════════
@@ -49,6 +57,13 @@ def asm(s):
     enc, _ = _ks.asm(s)
     if not enc:
         raise RuntimeError(f"asm failed: {s}")
+    return bytes(enc)
+
+
+def asm_at(s, addr):
+    enc, _ = _ks.asm(s, addr=addr)
+    if not enc:
+        raise RuntimeError(f"asm failed at 0x{addr:X}: {s}")
     return bytes(enc)
 
 
@@ -68,6 +83,14 @@ def wr32(data, off, val):
 def disasm_at(data, off, n=8):
     """Disassemble n instructions at file offset."""
     return list(_cs.disasm(bytes(data[off : off + n * 4]), off))
+
+
+def _log_asm(data, offset, count=5, marker_off=-1):
+    """Log disassembly of `count` instructions at file offset for before/after comparison."""
+    insns = disasm_at(data, offset, count)
+    for insn in insns:
+        tag = " >>>" if insn.address == marker_off else "    "
+        print(f"  {tag} 0x{insn.address:08X}: {insn.mnemonic:8s} {insn.op_str}")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -210,9 +233,13 @@ def patch_seputil(filepath):
     original = bytes(data[offset : offset + len(anchor)])
     print(f"  Found format string at 0x{offset:X}: {original!r}")
 
+    print(f"  Before: {bytes(data[offset:offset+7]).hex(' ')}")
+
     # Replace %s (2 bytes) with AA — turns "/%s.gl" into "/AA.gl"
     data[pct_s_off] = ord("A")
     data[pct_s_off + 1] = ord("A")
+
+    print(f"  After:  {bytes(data[offset:offset+7]).hex(' ')}")
 
     open(filepath, "wb").write(data)
     print(f"  [+] Patched at 0x{pct_s_off:X}: %s -> AA")
@@ -307,12 +334,15 @@ def patch_launchd_cache_loader(filepath):
         # So only search forward from the ref, not backwards.
         branch_foff = _find_nearby_branch(data, ref_foff, text_foff, text_size)
         if branch_foff >= 0:
-            insns = disasm_at(data, branch_foff, 1)
-            if insns:
-                print(
-                    f"  Patching: {insns[0].mnemonic} {insns[0].op_str} -> nop"
-                )
+            ctx_start = max(text_foff, branch_foff - 8)
+            print(f"  Before:")
+            _log_asm(data, ctx_start, 5, branch_foff)
+
             data[branch_foff : branch_foff + 4] = NOP
+
+            print(f"  After:")
+            _log_asm(data, ctx_start, 5, branch_foff)
+
             open(filepath, "wb").write(data)
             print(f"  [+] NOPped at 0x{branch_foff:X}")
             return True
@@ -463,17 +493,158 @@ def patch_mobileactivationd(filepath):
         print(f"  [-] IMP offset 0x{imp_foff:X} out of bounds")
         return False
 
-    insns = disasm_at(data, imp_foff, 4)
-    if insns:
-        print(f"  Original: {insns[0].mnemonic} {insns[0].op_str}")
+    print(f"  Before:")
+    _log_asm(data, imp_foff, 4, imp_foff)
 
     # Patch to: mov x0, #1; ret
     data[imp_foff : imp_foff + 4] = MOV_X0_1
     data[imp_foff + 4 : imp_foff + 8] = RET
 
+    print(f"  After:")
+    _log_asm(data, imp_foff, 4, imp_foff)
+
     open(filepath, "wb").write(data)
     print(f"  [+] Patched at 0x{imp_foff:X}: mov x0, #1; ret")
     return True
+
+
+# ══════════════════════════════════════════════════════════════════
+# 4. launchd — Jetsam panic bypass
+# ══════════════════════════════════════════════════════════════════
+
+
+def _extract_branch_target_off(insn):
+    for op in reversed(insn.operands):
+        if op.type == ARM64_OP_IMM:
+            return op.imm
+    return -1
+
+
+def _is_return_block(data, foff, text_foff, text_size):
+    """Check if foff points to a function return sequence (ret/retab within 8 insns)."""
+    for i in range(8):
+        check = foff + i * 4
+        if check >= text_foff + text_size:
+            break
+        insns = disasm_at(data, check, 1)
+        if not insns:
+            continue
+        if insns[0].mnemonic in ("ret", "retab"):
+            return True
+        # Stop at unconditional branches (different block)
+        if insns[0].mnemonic in ("b", "bl", "br", "blr"):
+            break
+    return False
+
+
+def patch_launchd_jetsam(filepath):
+    """Bypass launchd jetsam panic path via dynamic string-xref branch rewrite.
+
+    Anchor strategy:
+    1. Find jetsam panic string in cstring-like data.
+    2. Find ADRP+ADD xref to the string start in __TEXT,__text.
+    3. Search backward for a conditional branch whose target is the function's
+       return/success path (basic block containing ret/retab).
+    4. Rewrite that conditional branch to unconditional `b <same_target>`,
+       so the function always returns success and never reaches the panic.
+    """
+    data = bytearray(open(filepath, "rb").read())
+    sections = parse_macho_sections(data)
+
+    text_sec = find_section(sections, "__TEXT,__text")
+    if not text_sec:
+        print("  [-] __TEXT,__text not found")
+        return False
+
+    text_va, text_size, text_foff = text_sec
+    code = bytes(data[text_foff : text_foff + text_size])
+
+    cond_mnemonics = {
+        "b.eq", "b.ne", "b.cs", "b.hs", "b.cc", "b.lo",
+        "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls",
+        "b.ge", "b.lt", "b.gt", "b.le",
+        "cbz", "cbnz", "tbz", "tbnz",
+    }
+
+    anchors = [
+        b"jetsam property category (Daemon) is not initialized",
+        b"jetsam property category",
+        b"initproc exited -- exit reason namespace 7 subcode 0x1",
+    ]
+
+    for anchor in anchors:
+        hit_off = data.find(anchor)
+        if hit_off < 0:
+            continue
+
+        sec_foff = -1
+        sec_va = -1
+        for _, (sva, ssz, sfoff) in sections.items():
+            if sfoff <= hit_off < sfoff + ssz:
+                sec_foff = sfoff
+                sec_va = sva
+                break
+        if sec_foff < 0:
+            continue
+
+        str_start_off = _find_cstring_start(data, hit_off, sec_foff)
+        str_start_va = sec_va + (str_start_off - sec_foff)
+
+        ref_va = _find_adrp_add_ref(code, text_va, str_start_va)
+        if ref_va < 0:
+            continue
+        ref_foff = text_foff + (ref_va - text_va)
+
+        print(f"  Found jetsam anchor '{anchor.decode(errors='ignore')}'")
+        print(f"    string start: va:0x{str_start_va:X}")
+        print(f"    xref at foff:0x{ref_foff:X}")
+
+        # Search backward from xref for conditional branches targeting
+        # the function's return path (block containing ret/retab).
+        # Pick the earliest (farthest back) one — it skips the most
+        # jetsam-related code and matches the upstream patch strategy.
+        scan_lo = max(text_foff, ref_foff - 0x300)
+        patch_off = -1
+        patch_target = -1
+
+        for back in range(ref_foff - 4, scan_lo - 1, -4):
+            insns = disasm_at(data, back, 1)
+            if not insns:
+                continue
+            insn = insns[0]
+            if insn.mnemonic not in cond_mnemonics:
+                continue
+
+            tgt = _extract_branch_target_off(insn)
+            if tgt < 0:
+                continue
+            # Target must be a valid file offset within __text
+            if tgt < text_foff or tgt >= text_foff + text_size:
+                continue
+            # Target must be a return block (contains ret/retab)
+            if _is_return_block(data, tgt, text_foff, text_size):
+                patch_off = back
+                patch_target = tgt
+                # Don't break — keep scanning for an earlier match
+
+        if patch_off < 0:
+            continue
+
+        ctx_start = max(text_foff, patch_off - 8)
+        print(f"  Before:")
+        _log_asm(data, ctx_start, 5, patch_off)
+
+        data[patch_off : patch_off + 4] = asm_at(f"b #0x{patch_target:X}", patch_off)
+
+        print(f"  After:")
+        _log_asm(data, ctx_start, 5, patch_off)
+
+        open(filepath, "wb").write(data)
+        print(f"  [+] Patched at 0x{patch_off:X}: jetsam panic guard bypass")
+        return True
+
+    print("  [-] Dynamic jetsam anchor/xref not found")
+    return False
 
 
 def _find_via_objc_metadata(data):
@@ -572,6 +743,235 @@ def _find_via_objc_metadata(data):
                     )
 
     return -1
+
+
+# ══════════════════════════════════════════════════════════════════
+# 5. Mach-O dylib injection (optool replacement)
+# ══════════════════════════════════════════════════════════════════
+
+
+def _align(n, alignment):
+    return (n + alignment - 1) & ~(alignment - 1)
+
+
+def _find_first_section_offset(data):
+    """Find the file offset of the earliest section data in the Mach-O.
+
+    This tells us how much space is available after load commands.
+    For fat/universal binaries, we operate on the first slice.
+    """
+    magic = struct.unpack_from("<I", data, 0)[0]
+    if magic != 0xFEEDFACF:
+        return -1
+
+    ncmds = struct.unpack_from("<I", data, 16)[0]
+    offset = 32  # sizeof(mach_header_64)
+    earliest = len(data)
+
+    for _ in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<II", data, offset)
+        if cmd == 0x19:  # LC_SEGMENT_64
+            nsects = struct.unpack_from("<I", data, offset + 64)[0]
+            sect_off = offset + 72
+            for _ in range(nsects):
+                file_off = struct.unpack_from("<I", data, sect_off + 48)[0]
+                size = struct.unpack_from("<Q", data, sect_off + 40)[0]
+                if file_off > 0 and size > 0 and file_off < earliest:
+                    earliest = file_off
+                sect_off += 80
+        offset += cmdsize
+    return earliest
+
+
+def _get_fat_slices(data):
+    """Parse FAT (universal) binary header and return list of (offset, size) tuples.
+
+    Returns [(0, len(data))] for thin binaries.
+    """
+    magic = struct.unpack_from(">I", data, 0)[0]
+    if magic == 0xCAFEBABE:  # FAT_MAGIC
+        nfat = struct.unpack_from(">I", data, 4)[0]
+        slices = []
+        for i in range(nfat):
+            off = 8 + i * 20
+            slice_off = struct.unpack_from(">I", data, off + 8)[0]
+            slice_size = struct.unpack_from(">I", data, off + 12)[0]
+            slices.append((slice_off, slice_size))
+        return slices
+    elif magic == 0xBEBAFECA:  # FAT_MAGIC_64
+        nfat = struct.unpack_from(">I", data, 4)[0]
+        slices = []
+        for i in range(nfat):
+            off = 8 + i * 32
+            slice_off = struct.unpack_from(">Q", data, off + 8)[0]
+            slice_size = struct.unpack_from(">Q", data, off + 16)[0]
+            slices.append((slice_off, slice_size))
+        return slices
+    else:
+        return [(0, len(data))]
+
+
+def _check_existing_dylib(data, base, dylib_path):
+    """Check if the dylib is already loaded in this Mach-O slice."""
+    magic = struct.unpack_from("<I", data, base)[0]
+    if magic != 0xFEEDFACF:
+        return False
+
+    ncmds = struct.unpack_from("<I", data, base + 16)[0]
+    offset = base + 32
+
+    for _ in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<II", data, offset)
+        if cmd in (0xC, 0xD, 0x18, 0x1F, 0x80000018):
+            # LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB, LC_LAZY_LOAD_DYLIB,
+            # LC_REEXPORT_DYLIB, LC_LOAD_UPWARD_DYLIB
+            name_offset = struct.unpack_from("<I", data, offset + 8)[0]
+            name_end = data.index(0, offset + name_offset)
+            name = data[offset + name_offset : name_end].decode("ascii", errors="replace")
+            if name == dylib_path:
+                return True
+        offset += cmdsize
+    return False
+
+
+def _strip_codesig(data, base):
+    """Strip LC_CODE_SIGNATURE if it's the last load command.
+
+    Zeros out the command bytes and decrements ncmds/sizeofcmds.
+    Returns the cmdsize of the removed command, or 0 if not stripped.
+    Since the binary will be re-signed by ldid, this is always safe.
+    """
+    ncmds = struct.unpack_from("<I", data, base + 16)[0]
+    sizeofcmds = struct.unpack_from("<I", data, base + 20)[0]
+
+    offset = base + 32
+    last_offset = -1
+    last_cmd = 0
+    last_cmdsize = 0
+
+    for i in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<II", data, offset)
+        if i == ncmds - 1:
+            last_offset = offset
+            last_cmd = cmd
+            last_cmdsize = cmdsize
+        offset += cmdsize
+
+    if last_cmd != 0x1D:  # LC_CODE_SIGNATURE
+        return 0
+
+    # Zero out the LC_CODE_SIGNATURE command
+    data[last_offset : last_offset + last_cmdsize] = b"\x00" * last_cmdsize
+
+    # Update header
+    struct.pack_into("<I", data, base + 16, ncmds - 1)
+    struct.pack_into("<I", data, base + 20, sizeofcmds - last_cmdsize)
+
+    print(f"  Stripped LC_CODE_SIGNATURE ({last_cmdsize} bytes freed)")
+    return last_cmdsize
+
+
+def _inject_lc_load_dylib(data, base, dylib_path):
+    """Inject LC_LOAD_DYLIB into a single Mach-O slice starting at `base`.
+
+    Strategy (matches optool/insert_dylib behavior):
+    1. Try to fit new LC in existing zero-padding after load commands.
+    2. If not enough space, strip LC_CODE_SIGNATURE (re-signed by ldid anyway).
+    3. If still not enough, allow header to overflow into section data
+       (same approach as optool — the overwritten bytes are typically stub
+       code that the jailbreak hook replaces).
+
+    Returns True on success.
+    """
+    magic = struct.unpack_from("<I", data, base)[0]
+    if magic != 0xFEEDFACF:
+        print(f"  [-] Not a 64-bit Mach-O at offset 0x{base:X}")
+        return False
+
+    ncmds = struct.unpack_from("<I", data, base + 16)[0]
+    sizeofcmds = struct.unpack_from("<I", data, base + 20)[0]
+
+    # Build the LC_LOAD_DYLIB command
+    name_bytes = dylib_path.encode("ascii") + b"\x00"
+    name_offset_in_cmd = 24  # sizeof(dylib_command) header
+    cmd_size = _align(name_offset_in_cmd + len(name_bytes), 8)
+    lc_data = bytearray(cmd_size)
+
+    struct.pack_into("<I", lc_data, 0, 0xC)  # cmd = LC_LOAD_DYLIB
+    struct.pack_into("<I", lc_data, 4, cmd_size)  # cmdsize
+    struct.pack_into("<I", lc_data, 8, name_offset_in_cmd)  # name offset
+    struct.pack_into("<I", lc_data, 12, 2)  # timestamp
+    struct.pack_into("<I", lc_data, 16, 0)  # current_version
+    struct.pack_into("<I", lc_data, 20, 0)  # compat_version
+    lc_data[name_offset_in_cmd : name_offset_in_cmd + len(name_bytes)] = name_bytes
+
+    # Check available space
+    header_end = base + 32 + sizeofcmds  # end of current load commands
+    first_section = _find_first_section_offset(data[base:])
+    if first_section < 0:
+        print(f"  [-] Could not determine section offsets")
+        return False
+    first_section_abs = base + first_section
+    available = first_section_abs - header_end
+
+    print(f"  Header end: 0x{header_end:X}, first section: 0x{first_section_abs:X}, "
+          f"available: {available}, need: {cmd_size}")
+
+    if available < cmd_size:
+        # Strip LC_CODE_SIGNATURE to reclaim header space (re-signed by ldid)
+        freed = _strip_codesig(data, base)
+        if freed > 0:
+            ncmds = struct.unpack_from("<I", data, base + 16)[0]
+            sizeofcmds = struct.unpack_from("<I", data, base + 20)[0]
+            header_end = base + 32 + sizeofcmds
+            available = first_section_abs - header_end
+            print(f"  After strip: available={available}, need={cmd_size}")
+
+    if available < cmd_size:
+        overflow = cmd_size - available
+        # Allow up to 256 bytes overflow (same behavior as optool/insert_dylib)
+        if overflow > 256:
+            print(f"  [-] Would overflow {overflow} bytes into section data (too much)")
+            return False
+        print(f"  [!] Header overflow: {overflow} bytes into section data "
+              f"(same as optool — binary will be re-signed)")
+
+    # Write the new load command at the end of existing commands
+    data[header_end : header_end + cmd_size] = lc_data
+
+    # Update header: ncmds += 1, sizeofcmds += cmd_size
+    struct.pack_into("<I", data, base + 16, ncmds + 1)
+    struct.pack_into("<I", data, base + 20, sizeofcmds + cmd_size)
+
+    return True
+
+
+def inject_dylib(filepath, dylib_path):
+    """Inject LC_LOAD_DYLIB into a Mach-O binary (thin or universal/FAT).
+
+    Equivalent to: optool install -c load -p <dylib_path> -t <filepath>
+    """
+    data = bytearray(open(filepath, "rb").read())
+    slices = _get_fat_slices(bytes(data))
+
+    injected = 0
+    for slice_off, slice_size in slices:
+        if _check_existing_dylib(data, slice_off, dylib_path):
+            print(f"  [!] Dylib already loaded in slice at 0x{slice_off:X}, skipping")
+            injected += 1
+            continue
+
+        if _inject_lc_load_dylib(data, slice_off, dylib_path):
+            print(f"  [+] Injected LC_LOAD_DYLIB '{dylib_path}' at slice 0x{slice_off:X}")
+            injected += 1
+
+    if injected == len(slices):
+        open(filepath, "wb").write(data)
+        print(f"  [+] Wrote {filepath} ({injected} slice(s) patched)")
+        return True
+    else:
+        print(f"  [-] Only {injected}/{len(slices)} slices patched")
+        return False
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -676,16 +1076,31 @@ def main():
         if not patch_mobileactivationd(sys.argv[2]):
             sys.exit(1)
 
+    elif cmd == "patch-launchd-jetsam":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-launchd-jetsam <binary>")
+            sys.exit(1)
+        if not patch_launchd_jetsam(sys.argv[2]):
+            sys.exit(1)
+
     elif cmd == "inject-daemons":
         if len(sys.argv) < 4:
             print("Usage: patch_cfw.py inject-daemons <launchd.plist> <daemon_dir>")
             sys.exit(1)
         inject_daemons(sys.argv[2], sys.argv[3])
 
+    elif cmd == "inject-dylib":
+        if len(sys.argv) < 4:
+            print("Usage: patch_cfw.py inject-dylib <binary> <dylib_path>")
+            sys.exit(1)
+        if not inject_dylib(sys.argv[2], sys.argv[3]):
+            sys.exit(1)
+
     else:
         print(f"Unknown command: {cmd}")
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader,")
-        print("          patch-mobileactivationd, inject-daemons")
+        print("          patch-mobileactivationd, patch-launchd-jetsam,")
+        print("          inject-daemons, inject-dylib")
         sys.exit(1)
 
 
