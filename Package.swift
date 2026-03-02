@@ -23,6 +23,7 @@ let package = Package(
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
+                .linkedFramework("CoreLocation"),
             ]
         ),
     ]

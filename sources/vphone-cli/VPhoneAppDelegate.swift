@@ -9,6 +9,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: VPhoneWindowController?
     private var menuController: VPhoneMenuController?
     private var fileWindowController: VPhoneFileWindowController?
+    private var locationProvider: VPhoneLocationProvider?
     private var sigintSource: DispatchSourceSignal?
 
     init(cli: VPhoneCLI) {
@@ -93,6 +94,20 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             if FileManager.default.fileExists(atPath: vphonedURL.path) {
                 control.guestBinaryURL = vphonedURL
             }
+
+            let provider = VPhoneLocationProvider(control: control)
+            self.locationProvider = provider
+            control.onConnect = { [weak provider] caps in
+                if caps.contains("location") {
+                    provider?.startForwarding()
+                } else {
+                    print("[location] guest does not support location simulation")
+                }
+            }
+            control.onDisconnect = { [weak provider] in
+                provider?.stopForwarding()
+            }
+
             if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
                 control.connect(device: device)
             }

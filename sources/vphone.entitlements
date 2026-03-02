@@ -10,6 +10,8 @@
 	<true/>
 	<key>com.apple.vm.networking</key>
 	<true/>
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
 	<key>com.apple.security.get-task-allow</key>
 	<true/>
 </dict>

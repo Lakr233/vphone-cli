@@ -12,6 +12,9 @@ CFW_INPUT   ?= cfw_input
 # ─── Paths ────────────────────────────────────────────────────────
 SCRIPTS     := scripts
 BINARY      := .build/release/vphone-cli
+BUNDLE      := .build/vphone-cli.app
+BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
+INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
 LIMD_PREFIX := .limd
@@ -83,7 +86,7 @@ setup_libimobiledevice:
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build install clean
+.PHONY: build install clean bundle
 
 build: $(BINARY)
 
@@ -94,6 +97,13 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "=== Signing with entitlements ==="
 	codesign --force --sign - --entitlements $(ENTITLEMENTS) $@
 	@echo "  signed OK"
+
+bundle: build $(INFO_PLIST)
+	@mkdir -p $(BUNDLE)/Contents/MacOS
+	@cp -f $(BINARY) $(BUNDLE_BIN)
+	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
+	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
+	@echo "  bundled → $(BUNDLE)"
 
 install: build
 	mkdir -p ./bin
@@ -137,8 +147,8 @@ vphoned_sign: $(SCRIPTS)/vphoned/vphoned
 vm_new:
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
 
-boot: build vphoned_sign
-	cd $(VM_DIR) && "$(CURDIR)/$(BINARY)" \
+boot: bundle vphoned_sign
+	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \

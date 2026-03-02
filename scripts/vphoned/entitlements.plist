@@ -11,6 +11,10 @@
 		<string>data-allowed</string>
 		<string>data-allowed-write</string>
 	</array>
+	<key>com.apple.locationd.preauthorized</key>
+	<true/>
+	<key>com.apple.locationd.simulation</key>
+	<true/>
 	<key>com.apple.Pasteboard.background-access</key>
 	<true/>
 	<key>com.apple.Pasteboard.originating-bundle-id-query</key>

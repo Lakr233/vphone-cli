@@ -29,6 +29,8 @@
 #include <dlfcn.h>
 #include <mach/mach_time.h>
 #include <mach-o/dyld.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -248,6 +250,169 @@ static BOOL devmode_arm(BOOL *alreadyEnabled) {
     if (!reply) return NO;
     NSNumber *success = reply[@"success"];
     return success && [success boolValue];
+}
+
+// MARK: - CoreLocation Simulation
+
+static id gSimManager = nil;
+static SEL gSetLocationSel = NULL;
+static SEL gClearLocationsSel = NULL;
+static SEL gFlushSel = NULL;
+static SEL gStartSimSel = NULL;
+static BOOL gLocationLoaded = NO;
+
+static BOOL load_corelocation(void) {
+    void *h = dlopen("/System/Library/Frameworks/CoreLocation.framework/CoreLocation", RTLD_NOW);
+    if (!h) { NSLog(@"vphoned: dlopen CoreLocation failed"); return NO; }
+
+    Class cls = NSClassFromString(@"CLSimulationManager");
+    if (!cls) { NSLog(@"vphoned: CLSimulationManager not found"); return NO; }
+
+    gSimManager = [[cls alloc] init];
+    if (!gSimManager) { NSLog(@"vphoned: CLSimulationManager alloc/init failed"); return NO; }
+
+    // Probe available selectors for setting location
+    SEL candidates[] = {
+        NSSelectorFromString(@"setSimulatedLocation:"),
+        NSSelectorFromString(@"appendSimulatedLocation:"),
+        NSSelectorFromString(@"setLocation:"),
+    };
+    for (int i = 0; i < 3; i++) {
+        if ([gSimManager respondsToSelector:candidates[i]]) {
+            gSetLocationSel = candidates[i];
+            break;
+        }
+    }
+    if (!gSetLocationSel) {
+        NSLog(@"vphoned: no set-location selector found, dumping methods:");
+        unsigned int count = 0;
+        Method *methods = class_copyMethodList([gSimManager class], &count);
+        for (unsigned int i = 0; i < count; i++) {
+            NSLog(@"  %s", sel_getName(method_getName(methods[i])));
+        }
+        free(methods);
+        return NO;
+    }
+
+    // Probe clear selector
+    SEL clearCandidates[] = {
+        NSSelectorFromString(@"clearSimulatedLocations"),
+        NSSelectorFromString(@"stopLocationSimulation"),
+    };
+    for (int i = 0; i < 2; i++) {
+        if ([gSimManager respondsToSelector:clearCandidates[i]]) {
+            gClearLocationsSel = clearCandidates[i];
+            break;
+        }
+    }
+
+    // Probe flush selector
+    SEL flushCandidates[] = {
+        NSSelectorFromString(@"flush"),
+        NSSelectorFromString(@"flushSimulatedLocations"),
+    };
+    for (int i = 0; i < 2; i++) {
+        if ([gSimManager respondsToSelector:flushCandidates[i]]) {
+            gFlushSel = flushCandidates[i];
+            break;
+        }
+    }
+
+    // Probe startLocationSimulation selector
+    SEL startCandidates[] = {
+        NSSelectorFromString(@"startLocationSimulation"),
+        NSSelectorFromString(@"startSimulation"),
+    };
+    for (int i = 0; i < 2; i++) {
+        if ([gSimManager respondsToSelector:startCandidates[i]]) {
+            gStartSimSel = startCandidates[i];
+            break;
+        }
+    }
+
+    // Start simulation session if available
+    if (gStartSimSel) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [gSimManager performSelector:gStartSimSel];
+#pragma clang diagnostic pop
+    }
+
+    NSLog(@"vphoned: CoreLocation simulation loaded (set=%s, clear=%s, flush=%s, start=%s)",
+          sel_getName(gSetLocationSel),
+          gClearLocationsSel ? sel_getName(gClearLocationsSel) : "(none)",
+          gFlushSel ? sel_getName(gFlushSel) : "(none)",
+          gStartSimSel ? sel_getName(gStartSimSel) : "(none)");
+    gLocationLoaded = YES;
+    return YES;
+}
+
+static void simulate_location(double lat, double lon, double alt,
+                              double hacc, double vacc,
+                              double speed, double course) {
+    if (!gLocationLoaded || !gSimManager || !gSetLocationSel) return;
+
+    @try {
+        // CLLocationCoordinate2D is {double latitude, double longitude}
+        typedef struct { double latitude; double longitude; } CLCoord2D;
+        CLCoord2D coord = {lat, lon};
+
+        // Use full CLLocation init including speed and course
+        Class locClass = NSClassFromString(@"CLLocation");
+        id locInst = [locClass alloc];
+        SEL initSel = NSSelectorFromString(
+            @"initWithCoordinate:altitude:horizontalAccuracy:verticalAccuracy:course:speed:timestamp:");
+        if (![locInst respondsToSelector:initSel]) {
+            // Fallback to simpler init
+            initSel = NSSelectorFromString(
+                @"initWithCoordinate:altitude:horizontalAccuracy:verticalAccuracy:timestamp:");
+            typedef id (*InitFunc5)(id, SEL, CLCoord2D, double, double, double, id);
+            id location = ((InitFunc5)objc_msgSend)(locInst, initSel, coord, alt, hacc, vacc, [NSDate date]);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [gSimManager performSelector:gSetLocationSel withObject:location];
+            if (gFlushSel) [gSimManager performSelector:gFlushSel];
+#pragma clang diagnostic pop
+
+            NSLog(@"vphoned: simulate_location lat=%.6f lon=%.6f (fallback init) sel=%s%s",
+                  lat, lon, sel_getName(gSetLocationSel),
+                  gFlushSel ? " (flushed)" : "");
+            return;
+        }
+
+        typedef id (*InitFunc7)(id, SEL, CLCoord2D, double, double, double, double, double, id);
+        id location = ((InitFunc7)objc_msgSend)(locInst, initSel, coord, alt, hacc, vacc, course, speed, [NSDate date]);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [gSimManager performSelector:gSetLocationSel withObject:location];
+        if (gFlushSel) {
+            [gSimManager performSelector:gFlushSel];
+        }
+#pragma clang diagnostic pop
+
+        NSLog(@"vphoned: simulate_location lat=%.6f lon=%.6f alt=%.1f spd=%.1f crs=%.1f sel=%s%s",
+              lat, lon, alt, speed, course, sel_getName(gSetLocationSel),
+              gFlushSel ? " (flushed)" : "");
+    } @catch (NSException *e) {
+        NSLog(@"vphoned: simulate_location exception: %@", e);
+    }
+}
+
+static void clear_simulated_location(void) {
+    if (!gLocationLoaded || !gSimManager) return;
+    @try {
+        if (gClearLocationsSel) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [gSimManager performSelector:gClearLocationsSel];
+#pragma clang diagnostic pop
+            NSLog(@"vphoned: cleared simulated location");
+        }
+    } @catch (NSException *e) {
+        NSLog(@"vphoned: clear_simulated_location exception: %@", e);
+    }
 }
 
 // MARK: - Protocol Framing
@@ -618,6 +783,23 @@ static NSDictionary *handle_command(NSDictionary *msg) {
         return make_response(@"pong", reqId);
     }
 
+    if ([type isEqualToString:@"location"]) {
+        double lat   = [msg[@"lat"] doubleValue];
+        double lon   = [msg[@"lon"] doubleValue];
+        double alt   = [msg[@"alt"] doubleValue];
+        double hacc  = [msg[@"hacc"] doubleValue];
+        double vacc  = [msg[@"vacc"] doubleValue];
+        double speed = [msg[@"speed"] doubleValue];
+        double course = [msg[@"course"] doubleValue];
+        simulate_location(lat, lon, alt, hacc, vacc, speed, course);
+        return make_response(@"ok", reqId);
+    }
+
+    if ([type isEqualToString:@"location_stop"]) {
+        clear_simulated_location();
+        return make_response(@"ok", reqId);
+    }
+
     NSMutableDictionary *r = make_response(@"err", reqId);
     r[@"msg"] = [NSString stringWithFormat:@"unknown type: %@", type];
     return r;
@@ -714,7 +896,7 @@ static BOOL handle_client(int fd) {
             @"v": @PROTOCOL_VERSION,
             @"t": @"hello",
             @"name": @"vphoned",
-            @"caps": @[@"hid", @"devmode", @"file"],
+            @"caps": gLocationLoaded ? @[@"hid", @"devmode", @"file", @"location"] : @[@"hid", @"devmode", @"file"],
         } mutableCopy];
         if (needUpdate) helloResp[@"need_update"] = @YES;
 
@@ -726,6 +908,7 @@ static BOOL handle_client(int fd) {
         while ((msg = read_message(fd)) != nil) {
             @autoreleasepool {
                 NSString *t = msg[@"t"];
+                NSLog(@"vphoned: recv cmd: %@", t);
 
                 if ([t isEqualToString:@"update"]) {
                     NSUInteger size = [msg[@"size"] unsignedIntegerValue];
@@ -780,6 +963,7 @@ int main(int argc, char *argv[]) {
 
         if (!load_iokit()) return 1;
         if (!load_xpc()) NSLog(@"vphoned: XPC unavailable, devmode disabled");
+        load_corelocation();
 
         int sock = socket(AF_VSOCK, SOCK_STREAM, 0);
         if (sock < 0) { perror("vphoned: socket(AF_VSOCK)"); return 1; }
