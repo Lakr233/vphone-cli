@@ -54,12 +54,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }
-                if control.isConnected {
-                    let caps = control.guestCaps.joined(separator: ", ")
-                    window.subtitle = "vphoned: connected [\(caps)]"
-                } else {
-                    window.subtitle = "vphoned: connecting..."
-                }
+                window.subtitle = control.isConnected ? "vphoned connected" : "vphoned connecting..."
             }
         }
     }
