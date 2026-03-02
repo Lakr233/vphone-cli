@@ -26,6 +26,12 @@ class VPhoneControl {
     /// Path to the signed vphoned binary. When set, enables auto-update.
     var guestBinaryURL: URL?
 
+    /// Called when guest is ready (not updating). Receives guest capabilities.
+    var onConnect: (([String]) -> Void)?
+
+    /// Called when the guest disconnects (before reconnect attempt).
+    var onDisconnect: (() -> Void)?
+
     private var guestBinaryData: Data?
     private var guestBinaryHash: String?
     private var nextRequestId: UInt64 = 0
@@ -168,6 +174,7 @@ class VPhoneControl {
                     self.pushUpdate(fd: fd)
                 } else {
                     self.startReadLoop(fd: fd)
+                    self.onConnect?(caps)
                 }
             }
         }
@@ -380,6 +387,38 @@ class VPhoneControl {
         _ = try await sendRequest(["t": "file_rename", "from": from, "to": to])
     }
 
+    // MARK: - Location
+
+    func sendLocation(latitude: Double, longitude: Double, altitude: Double,
+                      horizontalAccuracy: Double, verticalAccuracy: Double,
+                      speed: Double, course: Double) {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "location",
+            "id": String(nextRequestId, radix: 16),
+            "lat": latitude,
+            "lon": longitude,
+            "alt": altitude,
+            "hacc": horizontalAccuracy,
+            "vacc": verticalAccuracy,
+            "speed": speed,
+            "course": course,
+            "ts": Date().timeIntervalSince1970,
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
+            print("[control] sendLocation failed (not connected)")
+            return
+        }
+        print("[control] sendLocation lat=\(latitude) lon=\(longitude)")
+    }
+
+    func sendLocationStop() {
+        nextRequestId += 1
+        let msg: [String: Any] = ["v": Self.protocolVersion, "t": "location_stop", "id": String(nextRequestId, radix: 16)]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
+    }
+
     // MARK: - Disconnect & Reconnect
 
     private func disconnect() {
@@ -391,6 +430,10 @@ class VPhoneControl {
 
         // Fail all pending requests
         failAllPending()
+
+        if wasConnected {
+            onDisconnect?()
+        }
 
         if wasConnected, device != nil {
             print("[control] reconnecting in 3s...")
