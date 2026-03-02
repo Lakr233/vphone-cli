@@ -4,7 +4,7 @@ import Virtualization
 
 class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private let cli: VPhoneCLI
-    private var vm: VPhoneVM?
+    private var vm: VPhoneVirtualMachine?
     private var control: VPhoneControl?
     private var windowController: VPhoneWindowController?
     private var menuController: VPhoneMenuController?
@@ -31,7 +31,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             do {
-                try await self.startVM()
+                try await self.startVirtualMachine()
             } catch {
                 print("[vphone] Fatal: \(error)")
                 NSApp.terminate(nil)
@@ -40,7 +40,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func startVM() async throws {
+    private func startVirtualMachine() async throws {
         let romURL = URL(fileURLWithPath: cli.rom)
         guard FileManager.default.fileExists(atPath: romURL.path) else {
             throw VPhoneError.romNotFound(cli.rom)
@@ -67,7 +67,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         print("  rom    : \(cli.sepRom)")
         print("")
 
-        let options = VPhoneVM.Options(
+        let options = VPhoneVirtualMachine.Options(
             romURL: romURL,
             nvramURL: nvramURL,
             machineIDURL: machineIDURL,
@@ -82,7 +82,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             screenScale: cli.screenScale
         )
 
-        let vm = try VPhoneVM(options: options)
+        let vm = try VPhoneVirtualMachine(options: options)
         self.vm = vm
 
         try await vm.start(forceDFU: cli.dfu)

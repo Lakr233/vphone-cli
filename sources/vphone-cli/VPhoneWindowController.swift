@@ -16,7 +16,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     ) {
         self.control = control
 
-        let view = VPhoneVMView()
+        let view = VPhoneVirtualMachineView()
         view.virtualMachine = vm
         view.capturesSystemKeys = true
         view.keyHelper = keyHelper
@@ -34,6 +34,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
             defer: false
         )
 
+        window.isReleasedWhenClosed = false
         window.contentAspectRatio = windowSize
         window.title = "vphone"
         window.subtitle = "daemon connecting..."

@@ -35,9 +35,9 @@ sources/
     ├── main.swift                    # Entry point — NSApplication + AppDelegate
     ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
     ├── VPhoneCLI.swift               # ArgumentParser options (no execution logic)
-    ├── VPhoneVM.swift                # @MainActor VM configuration and lifecycle
+    ├── VPhoneVirtualMachine.swift                # @MainActor VM configuration and lifecycle
     ├── VPhoneHardwareModel.swift     # PV=3 hardware model via Dynamic
-    ├── VPhoneVMView.swift            # Touch-enabled VZVirtualMachineView + helpers
+    ├── VPhoneVirtualMachineView.swift            # Touch-enabled VZVirtualMachineView + helpers
     ├── VPhoneWindowController.swift  # @MainActor window management
     ├── VPhoneError.swift             # Error types
     └── MainActor+Isolated.swift      # MainActor.isolated helper
@@ -76,9 +76,9 @@ researchs/
 
 - **Private API access:** Private Virtualization.framework APIs are called via the [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge needed.
 - **App lifecycle:** Explicit `main.swift` creates `NSApplication` + `VPhoneAppDelegate`. CLI args parsed before the run loop starts. AppDelegate drives VM start, window, and shutdown.
-- **Configuration:** CLI options parsed via `ArgumentParser`, converted to `VPhoneVM.Options` struct, then used to build `VZVirtualMachineConfiguration`.
+- **Configuration:** CLI options parsed via `ArgumentParser`, converted to `VPhoneVirtualMachine.Options` struct, then used to build `VZVirtualMachineConfiguration`.
 - **Error handling:** `VPhoneError` enum with `CustomStringConvertible` for user-facing messages.
-- **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Window size derived from configurable screen dimensions and scale factor. Touch input translated from mouse events to multi-touch via `VPhoneVMView`.
+- **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Window size derived from configurable screen dimensions and scale factor. Touch input translated from mouse events to multi-touch via `VPhoneVirtualMachineView`.
 
 ---
 
@@ -255,8 +255,9 @@ AVPBooter (ROM, PCC)
 - **Sections:** Use `// MARK: -` to organize code within files.
 - **Access control:** Default (internal). Only mark `private` when needed for clarity.
 - **Concurrency:** `@MainActor` for VM and UI classes. `nonisolated` delegate methods use `MainActor.isolated {}` to hop back safely.
-- **Naming:** Types are `VPhone`-prefixed (`VPhoneVM`, `VPhoneWindowController`). Match Apple framework conventions.
+- **Naming:** Types are `VPhone`-prefixed (`VPhoneVirtualMachine`, `VPhoneWindowController`). Match Apple framework conventions.
 - **Private APIs:** Use `Dynamic()` for runtime method dispatch. Touch objects use `NSClassFromString` + KVC to avoid designated initializer crashes.
+- **NSWindow `isReleasedWhenClosed`:** Always set `window.isReleasedWhenClosed = false` for programmatically created windows managed by an `NSWindowController`. The default is `true`, which causes the window to be released on close while `NSWindowController` and `_NSWindowTransformAnimation` still hold references — `objc_release` crashes on a dangling pointer during CA transaction commit. Nib-loaded windows handled by `NSWindowController` get this set automatically, but programmatic windows do not.
 
 ### Shell Scripts
 

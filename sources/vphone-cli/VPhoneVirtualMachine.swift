@@ -4,7 +4,7 @@ import Virtualization
 
 /// Minimal VM for booting a vphone (virtual iPhone) in DFU mode.
 @MainActor
-class VPhoneVM: NSObject, VZVirtualMachineDelegate {
+class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
     /// Read handle for VM serial output.
     private var serialOutputReadHandle: FileHandle?

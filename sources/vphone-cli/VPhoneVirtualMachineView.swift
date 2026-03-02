@@ -3,7 +3,7 @@ import Dynamic
 import Foundation
 import Virtualization
 
-class VPhoneVMView: VZVirtualMachineView {
+class VPhoneVirtualMachineView: VZVirtualMachineView {
     var keyHelper: VPhoneKeyHelper?
 
     private var currentTouchSwipeAim: Int = 0

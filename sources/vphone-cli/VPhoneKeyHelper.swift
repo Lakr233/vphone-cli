@@ -17,7 +17,7 @@ class VPhoneKeyHelper {
         return arr.object(at: 0) as AnyObject
     }
 
-    init(vm: VPhoneVM, control: VPhoneControl) {
+    init(vm: VPhoneVirtualMachine, control: VPhoneControl) {
         self.vm = vm.virtualMachine
         self.control = control
     }

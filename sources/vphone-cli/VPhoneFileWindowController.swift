@@ -31,6 +31,7 @@ class VPhoneFileWindowController {
         window.contentMinSize = NSSize(width: 500, height: 300)
         window.center()
         window.toolbarStyle = .unified
+        window.isReleasedWhenClosed = false
 
         // Add toolbar so the unified title bar shows
         let toolbar = NSToolbar(identifier: "vphone-files-toolbar")
