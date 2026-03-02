@@ -84,13 +84,15 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         try await vm.start(forceDFU: cli.dfu)
 
         let control = VPhoneControl()
-        let vphonedURL = URL(fileURLWithPath: cli.vphonedBin)
-        if FileManager.default.fileExists(atPath: vphonedURL.path) {
-            control.guestBinaryURL = vphonedURL
-        }
         self.control = control
-        if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
-            control.connect(device: device)
+        if !cli.dfu {
+            let vphonedURL = URL(fileURLWithPath: cli.vphonedBin)
+            if FileManager.default.fileExists(atPath: vphonedURL.path) {
+                control.guestBinaryURL = vphonedURL
+            }
+            if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
+                control.connect(device: device)
+            }
         }
 
         if !cli.noGraphics {
