@@ -124,7 +124,7 @@ vphoned_sign: $(SCRIPTS)/vphoned/vphoned
 	cp $(SCRIPTS)/vphoned/vphoned $(VM_DIR)/.vphoned.signed
 	$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64 \
 		-S$(SCRIPTS)/vphoned/entitlements.plist \
-		-M "-K$(VM_DIR)/$(CFW_INPUT)/signcert.p12" \
+		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
 		$(VM_DIR)/.vphoned.signed
 	@echo "  signed → $(VM_DIR)/.vphoned.signed"
 
