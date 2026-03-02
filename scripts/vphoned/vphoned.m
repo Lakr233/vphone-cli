@@ -203,7 +203,16 @@ static NSDictionary *handle_command(NSDictionary *msg) {
     if ([type isEqualToString:@"hid"]) {
         uint32_t page  = [msg[@"page"] unsignedIntValue];
         uint32_t usage = [msg[@"usage"] unsignedIntValue];
-        press(page, usage);
+        NSNumber *downVal = msg[@"down"];
+        if (downVal != nil) {
+            // Single down or up event (for modifier combos)
+            IOHIDEventRef ev = pKeyboard(kCFAllocatorDefault, mach_absolute_time(),
+                                         page, usage, [downVal boolValue] ? 1 : 0, 0);
+            if (ev) { send_hid_event(ev); CFRelease(ev); }
+        } else {
+            // Full press (down + 100ms + up)
+            press(page, usage);
+        }
         return make_response(@"ok", reqId);
     }
 

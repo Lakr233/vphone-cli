@@ -32,6 +32,7 @@ class VPhoneWindowController {
         controller.showWindow(nil)
         windowController = controller
 
+        keyHelper.window = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

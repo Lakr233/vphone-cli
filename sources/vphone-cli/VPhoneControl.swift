@@ -34,7 +34,8 @@ class VPhoneControl {
 
     private func loadGuestBinary() {
         guard let url = guestBinaryURL,
-              let data = try? Data(contentsOf: url) else {
+              let data = try? Data(contentsOf: url)
+        else {
             guestBinaryData = nil
             guestBinaryHash = nil
             return
@@ -57,10 +58,10 @@ class VPhoneControl {
         device.connect(toPort: Self.vsockPort) { [weak self] (result: Result<VZVirtioSocketConnection, any Error>) in
             Task { @MainActor in
                 switch result {
-                case .success(let conn):
+                case let .success(conn):
                     self?.connection = conn
                     self?.performHandshake(fd: conn.fileDescriptor)
-                case .failure(let error):
+                case let .failure(error):
                     print("[control] vsock: \(error.localizedDescription), retrying...")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         self?.attemptConnect()
@@ -153,19 +154,33 @@ class VPhoneControl {
     // MARK: - Send Commands
 
     func sendHIDPress(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: nil)
+    }
+
+    func sendHIDDown(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: true)
+    }
+
+    func sendHIDUp(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: false)
+    }
+
+    private func sendHID(page: UInt32, usage: UInt32, down: Bool?) {
         nextRequestId += 1
-        let msg: [String: Any] = [
+        var msg: [String: Any] = [
             "v": Self.protocolVersion,
             "t": "hid",
             "id": String(nextRequestId, radix: 16),
             "page": page,
             "usage": usage,
         ]
+        if let down { msg["down"] = down }
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
             print("[control] send failed (not connected)")
             return
         }
-        print("[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))")
+        let suffix = down.map { $0 ? " down" : " up" } ?? ""
+        print("[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)")
     }
 
     func sendPing() {
@@ -234,7 +249,7 @@ class VPhoneControl {
         }
     }
 
-    nonisolated private static func readMessage(fd: Int32) -> [String: Any]? {
+    private nonisolated static func readMessage(fd: Int32) -> [String: Any]? {
         var header: UInt32 = 0
         let hRead = withUnsafeMutableBytes(of: &header) { buf in
             readFully(fd: fd, buf: buf.baseAddress!, count: 4)
@@ -252,7 +267,7 @@ class VPhoneControl {
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
-    nonisolated private static func readFully(fd: Int32, buf: UnsafeMutableRawPointer, count: Int) -> Bool {
+    private nonisolated static func readFully(fd: Int32, buf: UnsafeMutableRawPointer, count: Int) -> Bool {
         var offset = 0
         while offset < count {
             let n = Darwin.read(fd, buf + offset, count - offset)
@@ -262,7 +277,7 @@ class VPhoneControl {
         return true
     }
 
-    nonisolated private static func writeFully(fd: Int32, buf: UnsafeRawPointer, count: Int) -> Bool {
+    private nonisolated static func writeFully(fd: Int32, buf: UnsafeRawPointer, count: Int) -> Bool {
         var offset = 0
         while offset < count {
             let n = Darwin.write(fd, buf + offset, count - offset)

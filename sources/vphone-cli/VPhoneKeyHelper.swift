@@ -9,22 +9,12 @@ import Virtualization
 class VPhoneKeyHelper {
     private let vm: VZVirtualMachine
     private let control: VPhoneControl
+    weak var window: NSWindow?
 
-    /// First _VZKeyboard from the VM's internal keyboard array.
+    /// First _VZKeyboard from the VM's internal keyboard array (used by typeString).
     private var firstKeyboard: AnyObject? {
         guard let arr = Dynamic(vm)._keyboards.asObject as? NSArray, arr.count > 0 else { return nil }
         return arr.object(at: 0) as AnyObject
-    }
-
-    /// Get _deviceIdentifier from _VZKeyboard via KVC (it's an ivar, not a property).
-    private func keyboardDeviceId(_ keyboard: AnyObject) -> UInt32 {
-        if let obj = keyboard as? NSObject,
-           let val = obj.value(forKey: "_deviceIdentifier") as? UInt32
-        {
-            return val
-        }
-        print("[keys] WARNING: Could not read _deviceIdentifier, defaulting to 1")
-        return 1
     }
 
     init(vm: VPhoneVM, control: VPhoneControl) {
@@ -32,78 +22,24 @@ class VPhoneKeyHelper {
         self.control = control
     }
 
-    // MARK: - Send Key via _VZKeyEvent
+    // MARK: - Connection Guard
 
-    /// Send key down + up through _VZKeyEvent → _VZKeyboard.sendKeyEvents: pipeline.
-    private func sendKeyPress(keyCode: UInt16) {
-        guard let keyboard = firstKeyboard else {
-            print("[keys] No keyboard found")
-            return
+    private func requireConnection() -> Bool {
+        if control.isConnected { return true }
+        let alert = NSAlert()
+        alert.messageText = "vphoned Not Connected"
+        alert.informativeText = "The guest agent is not connected. Key injection requires vphoned running inside the VM."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        if let window {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
         }
-
-        let down = Dynamic._VZKeyEvent(type: 0, keyCode: keyCode)
-        let up = Dynamic._VZKeyEvent(type: 1, keyCode: keyCode)
-
-        guard let downObj = down.asAnyObject, let upObj = up.asAnyObject else {
-            print("[keys] Failed to create _VZKeyEvent")
-            return
-        }
-
-        Dynamic(keyboard).sendKeyEvents([downObj, upObj] as NSArray)
-        print("[keys] Sent VK 0x\(String(keyCode, radix: 16)) (down+up)")
+        return false
     }
 
-    // MARK: - Fn+Key Combos (iOS Full Keyboard Access)
-
-    /// Send modifier+key combo via _VZKeyEvent (mod down → key down → key up → mod up).
-    private func sendVKCombo(modifierVK: UInt16, keyVK: UInt16) {
-        guard let keyboard = firstKeyboard else {
-            print("[keys] No keyboard found")
-            return
-        }
-
-        var events: [AnyObject] = []
-        if let obj = Dynamic._VZKeyEvent(type: 0, keyCode: modifierVK).asAnyObject { events.append(obj) }
-        if let obj = Dynamic._VZKeyEvent(type: 0, keyCode: keyVK).asAnyObject { events.append(obj) }
-        if let obj = Dynamic._VZKeyEvent(type: 1, keyCode: keyVK).asAnyObject { events.append(obj) }
-        if let obj = Dynamic._VZKeyEvent(type: 1, keyCode: modifierVK).asAnyObject { events.append(obj) }
-
-        print("[keys] events: \(events)")
-        Dynamic(keyboard).sendKeyEvents(events as NSArray)
-        print("[keys] VK combo: 0x\(String(modifierVK, radix: 16))+0x\(String(keyVK, radix: 16))")
-    }
-
-    // MARK: - Vector Injection (for keys with no VK code)
-
-    /// Bypass _VZKeyEvent by calling sendKeyboardEvents:keyboardID: directly
-    /// with a crafted std::vector<uint64_t>. Packed: (intermediate_index << 32) | is_key_down.
-    private func sendRawKeyPress(index: UInt64) {
-        guard let keyboard = firstKeyboard else {
-            print("[keys] No keyboard found")
-            return
-        }
-        let deviceId = keyboardDeviceId(keyboard)
-
-        sendRawKeyEvent(index: index, isKeyDown: true, deviceId: deviceId)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [self] in
-            sendRawKeyEvent(index: index, isKeyDown: false, deviceId: deviceId)
-        }
-    }
-
-    private func sendRawKeyEvent(index: UInt64, isKeyDown: Bool, deviceId: UInt32) {
-        let packed = (index << 32) | (isKeyDown ? 1 : 0)
-
-        let data = UnsafeMutablePointer<UInt64>.allocate(capacity: 1)
-        defer { data.deallocate() }
-        data.pointee = packed
-
-        var vec = (data, data.advanced(by: 1), data.advanced(by: 1))
-        withUnsafeMutablePointer(to: &vec) { vecPtr in
-            _ = Dynamic(vm).sendKeyboardEvents(UnsafeMutableRawPointer(vecPtr), keyboardID: deviceId)
-        }
-    }
-
-    // MARK: - Unlock via Serial Console
+    // MARK: - Unlock
 
     /// Unlock screen via vsock HID injection (Power to wake + Home to unlock).
     func sendUnlock() {
@@ -126,83 +62,93 @@ class VPhoneKeyHelper {
         }
     }
 
-    // MARK: - Named Key Actions
+    // MARK: - Hardware Keys (Consumer Page 0x0C)
 
-    /// Home button — vsock HID injection if connected, Cmd+H fallback otherwise.
     func sendHome() {
-        if control.isConnected {
-            control.sendHIDPress(page: 0x0C, usage: 0x40)
-        } else {
-            print("[keys] vphoned not connected, falling back to Cmd+H")
-            sendVKCombo(modifierVK: 0x37, keyVK: 0x04)
-        }
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x0C, usage: 0x40)
     }
 
-    func sendSpotlight() {
-        sendVKCombo(modifierVK: 0x37, keyVK: 0x31)
+    func sendPower() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x0C, usage: 0x30)
     }
 
-    /// Standard keyboard keys
-    func sendReturn() {
-        sendKeyPress(keyCode: 0x24)
-    }
-
-    func sendEscape() {
-        sendKeyPress(keyCode: 0x35)
-    }
-
-    func sendSpace() {
-        sendKeyPress(keyCode: 0x31)
-    }
-
-    func sendTab() {
-        sendKeyPress(keyCode: 0x30)
-    }
-
-    func sendDeleteKey() {
-        sendKeyPress(keyCode: 0x33)
-    }
-
-    func sendArrowUp() {
-        sendKeyPress(keyCode: 0x7E)
-    }
-
-    func sendArrowDown() {
-        sendKeyPress(keyCode: 0x7D)
-    }
-
-    func sendArrowLeft() {
-        sendKeyPress(keyCode: 0x7B)
-    }
-
-    func sendArrowRight() {
-        sendKeyPress(keyCode: 0x7C)
-    }
-
-    func sendShift() {
-        sendKeyPress(keyCode: 0x38)
-    }
-
-    func sendCommand() {
-        sendKeyPress(keyCode: 0x37)
-    }
-
-    /// Volume (Apple VK codes)
     func sendVolumeUp() {
-        sendKeyPress(keyCode: 0x48)
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x0C, usage: 0xE9)
     }
 
     func sendVolumeDown() {
-        sendKeyPress(keyCode: 0x49)
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x0C, usage: 0xEA)
     }
 
-    /// Power — vsock HID injection if connected, vector injection fallback.
-    func sendPower() {
-        if control.isConnected {
-            control.sendHIDPress(page: 0x0C, usage: 0x30)
-        } else {
-            sendRawKeyPress(index: 0x72)
-        }
+    // MARK: - Keyboard Keys (Keyboard Page 0x07)
+
+    func sendReturn() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x28)
+    }
+
+    func sendEscape() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x29)
+    }
+
+    func sendSpace() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x2C)
+    }
+
+    func sendTab() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x2B)
+    }
+
+    func sendDeleteKey() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x2A)
+    }
+
+    func sendArrowUp() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x52)
+    }
+
+    func sendArrowDown() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x51)
+    }
+
+    func sendArrowLeft() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x50)
+    }
+
+    func sendArrowRight() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0x4F)
+    }
+
+    func sendShift() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0xE1)
+    }
+
+    func sendCommand() {
+        guard requireConnection() else { return }
+        control.sendHIDPress(page: 0x07, usage: 0xE3)
+    }
+
+    // MARK: - Combos
+
+    func sendSpotlight() {
+        guard requireConnection() else { return }
+        // Cmd+Space: messages are processed sequentially by vphoned
+        control.sendHIDDown(page: 0x07, usage: 0xE3) // Cmd down
+        control.sendHIDPress(page: 0x07, usage: 0x2C) // Space press
+        control.sendHIDUp(page: 0x07, usage: 0xE3) // Cmd up
     }
 
     // MARK: - Type ASCII from Clipboard
