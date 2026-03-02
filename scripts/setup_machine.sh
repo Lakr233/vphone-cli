@@ -26,6 +26,8 @@ BOOT_FIFO=""
 BOOT_FIFO_FD=""
 
 VM_DIR="${VM_DIR:-vm}"
+VM_DIR_ABS="${VM_DIR:A}"
+AUTO_KILL_VM_LOCKS="${AUTO_KILL_VM_LOCKS:-0}"
 
 die() {
   echo "[-] $*" >&2
@@ -35,6 +37,65 @@ die() {
 require_cmd() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Missing required command: $cmd"
+}
+
+collect_vm_lock_pids() {
+  local -a paths pids file_pids
+
+  paths=(
+    "${VM_DIR_ABS}/nvram.bin"
+    "${VM_DIR_ABS}/machineIdentifier.bin"
+    "${VM_DIR_ABS}/Disk.img"
+    "${VM_DIR_ABS}/SEPStorage"
+  )
+
+  for path in "${paths[@]}"; do
+    [[ -e "$path" ]] || continue
+    file_pids=("${(@f)$(lsof -t -- "$path" 2>/dev/null || true)}")
+    for pid in "${file_pids[@]}"; do
+      [[ -n "$pid" ]] && pids+=("$pid")
+    done
+  done
+
+  pids=("${(@u)pids}")
+  (( ${#pids[@]} > 0 )) && print -l -- "${pids[@]}"
+}
+
+check_vm_storage_locks() {
+  if ! command -v lsof >/dev/null 2>&1; then
+    echo "[!] lsof not found; skipping VM lock preflight."
+    return
+  fi
+
+  local -a lock_pids
+  lock_pids=("${(@f)$(collect_vm_lock_pids)}")
+  (( ${#lock_pids[@]} == 0 )) && return
+
+  echo "[-] VM storage files are currently in use: ${VM_DIR_ABS}"
+  echo "    This usually means another vphone process is still running."
+
+  local pid proc_info
+  for pid in "${lock_pids[@]}"; do
+    [[ -z "$pid" || "$pid" == "$$" ]] && continue
+    proc_info="$(ps -o pid=,ppid=,command= -p "$pid" 2>/dev/null || true)"
+    [[ -n "$proc_info" ]] && echo "    $proc_info" || echo "    pid=$pid"
+  done
+
+  if [[ "$AUTO_KILL_VM_LOCKS" == "1" ]]; then
+    echo "[*] AUTO_KILL_VM_LOCKS=1 set; terminating lock holder processes..."
+    for pid in "${lock_pids[@]}"; do
+      [[ -z "$pid" || "$pid" == "$$" ]] && continue
+      kill_descendants "$pid"
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    done
+    sleep 1
+
+    lock_pids=("${(@f)$(collect_vm_lock_pids)}")
+    (( ${#lock_pids[@]} == 0 )) && { echo "[+] Cleared VM storage locks"; return; }
+    echo "[-] VM storage locks still present after AUTO_KILL_VM_LOCKS attempt."
+  fi
+
+  die "Stop those processes and retry. You can also set AUTO_KILL_VM_LOCKS=1."
 }
 
 list_descendants() {
@@ -88,6 +149,8 @@ cleanup() {
 }
 
 start_first_boot() {
+  check_vm_storage_locks
+
   BOOT_FIFO="$(mktemp -u "${TMPDIR:-/tmp}/vphone-first-boot.XXXXXX")"
   mkfifo "$BOOT_FIFO"
 
@@ -184,6 +247,8 @@ start_boot_dfu() {
   if [[ -n "$DFU_PID" ]] && kill -0 "$DFU_PID" 2>/dev/null; then
     return
   fi
+
+  check_vm_storage_locks
 
   : > "$DFU_LOG"
   echo "[*] Starting DFU boot in background..."
