@@ -60,7 +60,7 @@ collect_vm_lock_pids() {
   done
 
   pids=("${(@u)pids}")
-  (( ${#pids[@]} > 0 )) && print -l -- "${pids[@]}"
+  (( ${#pids[@]} > 0 )) && print -l -- "${pids[@]}" || true
 }
 
 check_vm_storage_locks() {
