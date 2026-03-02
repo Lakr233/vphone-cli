@@ -1,4 +1,6 @@
-# vphone-cli（中文版）
+<div align="right"><strong>🇨🇳中文</strong> | <strong><a href="./README.md">🇬🇧English</a></strong></div>
+
+# vphone-cli
 
 通过 Apple 的 Virtualization.framework 使用 PCC 研究虚拟机基础设施引导虚拟 iPhone（iOS 26）。
 
