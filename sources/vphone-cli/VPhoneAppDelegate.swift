@@ -83,7 +83,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         try await vm.start(forceDFU: cli.dfu)
 
         if !cli.noGraphics {
-            let keyHelper = VPhoneKeyHelper(vm: vm.virtualMachine)
+            let keyHelper = VPhoneKeyHelper(vm: vm.virtualMachine, serialWriteHandle: vm.serialWriteHandle)
             let wc = VPhoneWindowController()
             wc.showWindow(
                 for: vm.virtualMachine,
@@ -94,6 +94,10 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             )
             windowController = wc
             menuController = VPhoneMenuController(keyHelper: keyHelper)
+
+            if !cli.dfu {
+                keyHelper.autoUnlock(delay: 8)
+            }
         }
     }
 

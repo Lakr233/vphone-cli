@@ -6,6 +6,10 @@ import Virtualization
 @MainActor
 class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
+    /// Write handle to inject commands into the VM's serial console.
+    private(set) var serialWriteHandle: FileHandle?
+    /// Read handle for VM serial output.
+    private var serialOutputReadHandle: FileHandle?
 
     struct Options {
         var romURL: URL
@@ -102,12 +106,31 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         net.attachment = VZNATNetworkDeviceAttachment()
         config.networkDevices = [net]
 
-        // Serial port (PL011 UART — interactive stdin/stdout)
+        // Serial port (PL011 UART — pipes for input/output with boot detection)
         if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject as? VZSerialPortConfiguration {
+            let inputPipe = Pipe()
+            let outputPipe = Pipe()
+            serialWriteHandle = inputPipe.fileHandleForWriting
+
             serialPort.attachment = VZFileHandleSerialPortAttachment(
-                fileHandleForReading: FileHandle.standardInput,
-                fileHandleForWriting: FileHandle.standardOutput
+                fileHandleForReading: inputPipe.fileHandleForReading,
+                fileHandleForWriting: outputPipe.fileHandleForWriting
             )
+
+            // Forward host stdin → VM serial input
+            let writeHandle = inputPipe.fileHandleForWriting
+            let stdinFD = FileHandle.standardInput.fileDescriptor
+            DispatchQueue.global(qos: .userInteractive).async {
+                var buf = [UInt8](repeating: 0, count: 4096)
+                while true {
+                    let n = read(stdinFD, &buf, buf.count)
+                    if n <= 0 { break }
+                    writeHandle.write(Data(buf[..<n]))
+                }
+            }
+
+            serialOutputReadHandle = outputPipe.fileHandleForReading
+
             config.serialPorts = [serialPort]
             print("[vphone] PL011 serial port attached (interactive)")
         }
@@ -139,6 +162,15 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         virtualMachine = VZVirtualMachine(configuration: config)
         super.init()
         virtualMachine.delegate = self
+
+        // Forward VM serial output → host stdout
+        if let readHandle = serialOutputReadHandle {
+            readHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty { return }
+                FileHandle.standardOutput.write(data)
+            }
+        }
     }
 
     // MARK: - Start

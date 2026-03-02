@@ -5,16 +5,16 @@ import Virtualization
 
 class VPhoneVMView: VZVirtualMachineView {
     var keyHelper: VPhoneKeyHelper?
-    
+
     private var currentTouchSwipeAim: Int = 0
 
     // MARK: - Private API Accessors
 
-    // https://github.com/wh1te4ever/super-tart-vphone-writeup/blob/main/contents/ScreenSharingVNC.swift
+    /// https://github.com/wh1te4ever/super-tart-vphone-writeup/blob/main/contents/ScreenSharingVNC.swift
     private var multiTouchDevice: AnyObject? {
-        guard let vm = self.virtualMachine else { return nil }
+        guard let vm = virtualMachine else { return nil }
         guard let devices = Dynamic(vm)._multiTouchDevices.asObject as? NSArray,
-            devices.count > 0
+              devices.count > 0
         else {
             return nil
         }
@@ -24,10 +24,13 @@ class VPhoneVMView: VZVirtualMachineView {
     // MARK: - Event Handling
 
     override func mouseDown(with event: NSEvent) {
-        let localPoint = self.convert(event.locationInWindow, from: nil)
-        
-        self.currentTouchSwipeAim = hitTestEdge(at: localPoint)
-        
+        // macOS 16+: VZVirtualMachineView handles mouse-to-touch natively
+        if #available(macOS 16.0, *) { super.mouseDown(with: event); return }
+
+        let localPoint = convert(event.locationInWindow, from: nil)
+
+        currentTouchSwipeAim = hitTestEdge(at: localPoint)
+
         sendTouchEvent(
             phase: 0, // Began
             localPoint: localPoint,
@@ -36,7 +39,9 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        let localPoint = self.convert(event.locationInWindow, from: nil)
+        if #available(macOS 16.0, *) { super.mouseDragged(with: event); return }
+
+        let localPoint = convert(event.locationInWindow, from: nil)
         sendTouchEvent(
             phase: 1, // Moved
             localPoint: localPoint,
@@ -46,13 +51,15 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        let localPoint = self.convert(event.locationInWindow, from: nil)
+        if #available(macOS 16.0, *) { super.mouseUp(with: event); return }
+
+        let localPoint = convert(event.locationInWindow, from: nil)
         sendTouchEvent(
             phase: 3, // Ended
             localPoint: localPoint,
             timestamp: event.timestamp
         )
-        self.currentTouchSwipeAim = 0
+        currentTouchSwipeAim = 0
         super.mouseUp(with: event)
     }
 
@@ -64,11 +71,11 @@ class VPhoneVMView: VZVirtualMachineView {
         keyHelper.sendHome()
     }
 
-    // MARK: - Touch Injection Logic
+    // MARK: - Legacy Touch Injection (macOS 15)
 
     private func sendTouchEvent(phase: Int, localPoint: NSPoint, timestamp: TimeInterval) {
         guard let device = multiTouchDevice,
-            self.virtualMachine != nil
+              virtualMachine != nil
         else { return }
 
         let normalizedPoint = normalizeCoordinate(localPoint)
@@ -96,8 +103,8 @@ class VPhoneVMView: VZVirtualMachineView {
     // MARK: - Coordinate Helpers
 
     private func normalizeCoordinate(_ localPoint: NSPoint) -> CGPoint {
-        let w = self.bounds.width
-        let h = self.bounds.height
+        let w = bounds.width
+        let h = bounds.height
 
         guard w > 0, h > 0 else { return .zero }
 
@@ -108,7 +115,7 @@ class VPhoneVMView: VZVirtualMachineView {
         nx = max(0.0, min(1.0, nx))
         ny = max(0.0, min(1.0, ny))
 
-        if !self.isFlipped {
+        if !isFlipped {
             ny = 1.0 - ny
         }
 
@@ -116,15 +123,15 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     private func hitTestEdge(at point: CGPoint) -> Int {
-        let w = self.bounds.width
-        let h = self.bounds.height
-        
+        let w = bounds.width
+        let h = bounds.height
+
         let edgeThreshold: CGFloat = 32.0
-        
+
         let distLeft = point.x
         let distRight = w - point.x
-        let distTop = self.isFlipped ? point.y : (h - point.y)
-        let distBottom = self.isFlipped ? (h - point.y) : point.y
+        let distTop = isFlipped ? point.y : (h - point.y)
+        let distBottom = isFlipped ? (h - point.y) : point.y
 
         var minDist = distLeft
         var edgeCode = 8 // Left
@@ -133,12 +140,12 @@ class VPhoneVMView: VZVirtualMachineView {
             minDist = distRight
             edgeCode = 4 // Right
         }
-        
+
         if distBottom < minDist {
             minDist = distBottom
             edgeCode = 2 // Bottom (Home bar swipe up)
         }
-        
+
         if distTop < minDist {
             minDist = distTop
             edgeCode = 1 // Top (Notification Center)

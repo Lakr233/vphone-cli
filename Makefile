@@ -37,6 +37,8 @@ help:
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make install                 Build + copy to ./bin/"
 	@echo "  make clean                   Remove .build/"
+	@echo "  make unlock                  Cross-compile unlock for arm64-ios"
+	@echo "  make unlock_deploy           Build + deploy unlock to VM via SSH"
 	@echo ""
 	@echo "VM management:"
 	@echo "  make vm_new                  Create VM directory"
@@ -81,7 +83,7 @@ setup_libimobiledevice:
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build install clean
+.PHONY: build install clean unlock unlock_deploy
 
 build: $(BINARY)
 
@@ -101,6 +103,24 @@ install: build
 clean:
 	swift package clean
 	rm -rf .build
+
+unlock:
+	clang -arch arm64 -target arm64-apple-ios15.0 \
+		-o $(VM_DIR)/unlock $(SCRIPTS)/unlock.c
+	$(VM_DIR)/cfw_input/tools/ldid_macosx_arm64 -S$(SCRIPTS)/unlock.entitlements -M -K$(VM_DIR)/cfw_input/signcert.p12 $(VM_DIR)/unlock
+	@echo "Built $(VM_DIR)/unlock (arm64-ios)"
+
+SSHPASS      := $(VM_DIR)/cfw_input/tools/sshpass
+SSH_PASS     := alpine
+VM_SSH_PORT  := 22222
+VM_SSH_HOST  := root@localhost
+VM_SSH_OPTS  := -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -q
+
+unlock_deploy: unlock
+	@echo "[*] Deploying unlock to localhost:/var/root/unlock..."
+	$(SSHPASS) -p $(SSH_PASS) ssh $(VM_SSH_OPTS) -p $(VM_SSH_PORT) $(VM_SSH_HOST) \
+		'/iosbinpack64/bin/cat > /var/root/unlock && /iosbinpack64/bin/chmod +x /var/root/unlock' < $(VM_DIR)/unlock
+	@echo "[+] Deployed"
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management
@@ -177,8 +197,8 @@ ramdisk_send:
 
 .PHONY: cfw_install cfw_install_jb
 
-cfw_install:
+cfw_install: unlock
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
 
-cfw_install_jb:
+cfw_install_jb: unlock
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_jb.sh" .

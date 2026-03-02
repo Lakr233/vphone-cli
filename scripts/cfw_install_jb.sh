@@ -39,6 +39,7 @@ SSH_PORT=2222
 SSH_PASS="alpine"
 SSH_USER="root"
 SSH_HOST="localhost"
+SSHPASS_BIN=""
 SSH_OPTS=(
     -o StrictHostKeyChecking=no
     -o UserKnownHostsFile=/dev/null
@@ -50,8 +51,56 @@ SSH_OPTS=(
 # ── Helpers ─────────────────────────────────────────────────────
 die() { echo "[-] $*" >&2; exit 1; }
 
+is_exec_compatible() {
+    local bin="$1"
+    local host_arch file_out archs
+
+    [[ -x "$bin" ]] || return 1
+    host_arch="$(uname -m)"
+    file_out="$(file "$bin" 2>/dev/null || true)"
+
+    # Non Mach-O executables (scripts/wrappers) are accepted.
+    if [[ "$file_out" != *"Mach-O"* ]]; then
+        return 0
+    fi
+
+    if command -v lipo >/dev/null 2>&1; then
+        archs="$(lipo -archs "$bin" 2>/dev/null || true)"
+        [[ -n "$archs" && " $archs " == *" $host_arch "* ]] && return 0
+        return 1
+    fi
+
+    [[ "$file_out" == *"$host_arch"* || "$file_out" == *"universal"* ]]
+}
+
+resolve_sshpass() {
+    local bundled="$VM_DIR/$CFW_INPUT/tools/sshpass"
+    local host_sshpass
+    host_sshpass="$(command -v sshpass 2>/dev/null || true)"
+
+    if is_exec_compatible "$bundled"; then
+        SSHPASS_BIN="$bundled"
+        echo "[+] Using bundled sshpass: $SSHPASS_BIN"
+        return
+    fi
+
+    if [[ -x "$bundled" ]]; then
+        echo "[!] Bundled sshpass is not compatible with host arch ($(uname -m)): $bundled"
+    fi
+
+    if [[ -n "$host_sshpass" ]] && is_exec_compatible "$host_sshpass"; then
+        SSHPASS_BIN="$host_sshpass"
+        echo "[+] Using host sshpass: $SSHPASS_BIN"
+        return
+    fi
+
+    [[ -n "$host_sshpass" ]] && \
+        echo "[!] Host sshpass is present but incompatible with host arch: $host_sshpass"
+    die "No compatible sshpass found. Install one with: brew install hudochenkov/sshpass/sshpass"
+}
+
 _sshpass() {
-    "sshpass" -p "$SSH_PASS" "$@"
+    "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
 }
 
 ssh_cmd() {
@@ -108,6 +157,7 @@ setup_cfw_jb_input
 JB_INPUT_DIR="$VM_DIR/$CFW_JB_INPUT"
 echo ""
 echo "[+] JB input resources: $JB_INPUT_DIR"
+resolve_sshpass
 
 mkdir -p "$TEMP_DIR"
 
