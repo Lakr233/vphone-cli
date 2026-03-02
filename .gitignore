@@ -317,3 +317,4 @@ __marimo__/
 TODO.md
 /references/
 scripts/vphoned/vphoned
+sources/vphone-cli/VPhoneBuildInfo.swift

@@ -288,6 +288,14 @@ class VPhoneControl {
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
     }
 
+    func sendVersion() {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion, "t": "version", "id": String(nextRequestId, radix: 16),
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
+    }
+
     // MARK: - Async Request-Response
 
     /// Send a request and await the response. Returns the response dict and optional raw data.
@@ -498,6 +506,9 @@ class VPhoneControl {
                     if !detail.isEmpty { print("[vphoned] ok: \(detail)") }
                 case "pong":
                     print("[vphoned] pong")
+                case "version":
+                    let hash = msg["hash"] as? String ?? "unknown"
+                    print("[vphoned] build: \(hash)")
                 case "err":
                     let detail = msg["msg"] as? String ?? "unknown"
                     print("[vphoned] error: \(detail)")

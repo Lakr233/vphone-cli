@@ -12,6 +12,7 @@ extension VPhoneMenuController {
         menu.addItem(makeItem("Enable Developer Mode", action: #selector(devModeEnable)))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Ping", action: #selector(sendPing)))
+        menu.addItem(makeItem("Guest Version", action: #selector(queryGuestVersion)))
         item.submenu = menu
         return item
     }
@@ -30,5 +31,9 @@ extension VPhoneMenuController {
 
     @objc func sendPing() {
         control.sendPing()
+    }
+
+    @objc func queryGuestVersion() {
+        control.sendVersion()
     }
 }

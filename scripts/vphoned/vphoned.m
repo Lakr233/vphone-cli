@@ -33,6 +33,10 @@
 #define VMADDR_CID_ANY   0xFFFFFFFF
 #define VPHONED_PORT     1337
 
+#ifndef VPHONED_BUILD_HASH
+#define VPHONED_BUILD_HASH "unknown"
+#endif
+
 #define INSTALL_PATH "/usr/bin/vphoned"
 #define CACHE_PATH   "/var/root/Library/Caches/vphoned"
 #define CACHE_DIR    "/var/root/Library/Caches"
@@ -190,6 +194,12 @@ static NSDictionary *handle_command(NSDictionary *msg) {
     if ([type isEqualToString:@"location_stop"]) {
         vp_location_clear();
         return vp_make_response(@"ok", reqId);
+    }
+
+    if ([type isEqualToString:@"version"]) {
+        NSMutableDictionary *r = vp_make_response(@"version", reqId);
+        r[@"hash"] = @VPHONED_BUILD_HASH;
+        return r;
     }
 
     NSMutableDictionary *r = vp_make_response(@"err", reqId);

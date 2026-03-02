@@ -26,6 +26,10 @@ class VPhoneMenuController {
         // App menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "vphone")
+        let buildItem = NSMenuItem(title: "Build: \(VPhoneBuildInfo.commitHash)", action: nil, keyEquivalent: "")
+        buildItem.isEnabled = false
+        appMenu.addItem(buildItem)
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(
             withTitle: "Quit vphone", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
         )
