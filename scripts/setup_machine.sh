@@ -232,7 +232,7 @@ wait_for_recovery() {
 start_iproxy_2222() {
   local iproxy_bin
   iproxy_bin="${PROJECT_ROOT}/.limd/bin/iproxy"
-  [[ -n "$iproxy_bin" ]] || die "iproxy not found in PATH"
+  [[ -x "$iproxy_bin" ]] || die "iproxy not found at $iproxy_bin (run: make setup_libimobiledevice)"
 
   mkdir -p "$LOG_DIR"
   : > "$IPROXY_LOG"
@@ -262,6 +262,10 @@ stop_iproxy_2222() {
 }
 
 main() {
+  check_platform
+  install_brew_deps
+  ensure_python_linked
+
   run_make "Project setup" setup_libimobiledevice
   run_make "Project setup" setup_venv
   run_make "Project setup" build
