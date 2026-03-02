@@ -517,7 +517,15 @@
 	<true/>
 	<key>com.apple.usernotifications.legacy-extension</key>
 	<true/>
+	<key>com.apple.security.exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/</string>
+	</array>
 	<key>file-read-data</key>
+	<true/>
+	<key>file-read-metadata</key>
+	<true/>
+	<key>file-write-data</key>
 	<true/>
 	<key>inter-app-audio</key>
 	<true/>

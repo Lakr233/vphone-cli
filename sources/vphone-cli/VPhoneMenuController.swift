@@ -8,6 +8,8 @@ class VPhoneMenuController {
     private let keyHelper: VPhoneKeyHelper
     private let control: VPhoneControl
 
+    var onFilesPressed: (() -> Void)?
+
     init(keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
         self.keyHelper = keyHelper
         self.control = control
@@ -48,6 +50,8 @@ class VPhoneMenuController {
         // vphoned menu — guest agent commands
         let agentMenuItem = NSMenuItem()
         let agentMenu = NSMenu(title: "vphoned")
+        agentMenu.addItem(makeItem("File Browser", action: #selector(openFiles)))
+        agentMenu.addItem(NSMenuItem.separator())
         agentMenu.addItem(makeItem("Developer Mode Status", action: #selector(devModeStatus)))
         agentMenu.addItem(makeItem("Enable Developer Mode", action: #selector(devModeEnable)))
         agentMenu.addItem(NSMenuItem.separator())
@@ -91,6 +95,10 @@ class VPhoneMenuController {
     }
 
     // MARK: - vphoned Agent Commands
+
+    @objc private func openFiles() {
+        onFilesPressed?()
+    }
 
     @objc private func devModeStatus() {
         control.sendDevModeStatus()

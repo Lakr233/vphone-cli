@@ -30,6 +30,52 @@ class VPhoneControl {
     private var guestBinaryHash: String?
     private var nextRequestId: UInt64 = 0
 
+    // MARK: - Pending Requests
+
+    /// Callback for a pending request. Called on the read-loop queue.
+    private struct PendingRequest: @unchecked Sendable {
+        let handler: (Result<([String: Any], Data?), any Error>) -> Void
+    }
+
+    private let pendingLock = NSLock()
+    private nonisolated(unsafe) var pendingRequests: [String: PendingRequest] = [:]
+
+    private nonisolated func addPending(id: String, handler: @escaping (Result<([String: Any], Data?), any Error>) -> Void) {
+        pendingLock.lock()
+        pendingRequests[id] = PendingRequest(handler: handler)
+        pendingLock.unlock()
+    }
+
+    private nonisolated func removePending(id: String) -> PendingRequest? {
+        pendingLock.lock()
+        defer { pendingLock.unlock() }
+        return pendingRequests.removeValue(forKey: id)
+    }
+
+    private nonisolated func failAllPending() {
+        pendingLock.lock()
+        let pending = pendingRequests
+        pendingRequests.removeAll()
+        pendingLock.unlock()
+        for (_, req) in pending {
+            req.handler(.failure(ControlError.notConnected))
+        }
+    }
+
+    enum ControlError: Error, CustomStringConvertible {
+        case notConnected
+        case protocolError(String)
+        case guestError(String)
+
+        var description: String {
+            switch self {
+            case .notConnected: "not connected to vphoned"
+            case .protocolError(let msg): "protocol error: \(msg)"
+            case .guestError(let msg): msg
+            }
+        }
+    }
+
     // MARK: - Guest Binary Hash
 
     private func loadGuestBinary() {
@@ -221,6 +267,104 @@ class VPhoneControl {
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
     }
 
+    // MARK: - Async Request-Response
+
+    /// Send a request and await the response. Returns the response dict and optional raw data.
+    func sendRequest(_ dict: [String: Any]) async throws -> ([String: Any], Data?) {
+        guard let fd = connection?.fileDescriptor else {
+            throw ControlError.notConnected
+        }
+
+        nextRequestId += 1
+        let reqId = String(nextRequestId, radix: 16)
+        var msg = dict
+        msg["v"] = Self.protocolVersion
+        msg["id"] = reqId
+
+        return try await withCheckedThrowingContinuation { continuation in
+            addPending(id: reqId) { result in
+                nonisolated(unsafe) let r = result
+                continuation.resume(with: r)
+            }
+            guard writeMessage(fd: fd, dict: msg) else {
+                _ = removePending(id: reqId)
+                continuation.resume(throwing: ControlError.notConnected)
+                return
+            }
+        }
+    }
+
+    // MARK: - File Operations
+
+    func listFiles(path: String) async throws -> [[String: Any]] {
+        let (resp, _) = try await sendRequest(["t": "file_list", "path": path])
+        guard let entries = resp["entries"] as? [[String: Any]] else {
+            throw ControlError.protocolError("missing entries in response")
+        }
+        return entries
+    }
+
+    func downloadFile(path: String) async throws -> Data {
+        let (_, data) = try await sendRequest(["t": "file_get", "path": path])
+        guard let data else {
+            throw ControlError.protocolError("no file data received")
+        }
+        return data
+    }
+
+    func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
+        guard let fd = connection?.fileDescriptor else {
+            throw ControlError.notConnected
+        }
+
+        nextRequestId += 1
+        let reqId = String(nextRequestId, radix: 16)
+        let header: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "file_put",
+            "id": reqId,
+            "path": path,
+            "size": data.count,
+            "perm": permissions,
+        ]
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            addPending(id: reqId) { result in
+                switch result {
+                case .success: continuation.resume()
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            }
+
+            // Write header + raw data atomically (same pattern as pushUpdate)
+            guard writeMessage(fd: fd, dict: header) else {
+                _ = removePending(id: reqId)
+                continuation.resume(throwing: ControlError.notConnected)
+                return
+            }
+            let ok = data.withUnsafeBytes { buf in
+                Self.writeFully(fd: fd, buf: buf.baseAddress!, count: data.count)
+            }
+            guard ok else {
+                _ = removePending(id: reqId)
+                continuation.resume(throwing: ControlError.protocolError("failed to write file data"))
+                return
+            }
+        }
+    }
+
+    func createDirectory(path: String) async throws {
+        _ = try await sendRequest(["t": "file_mkdir", "path": path])
+    }
+
+    func deleteFile(path: String) async throws {
+        _ = try await sendRequest(["t": "file_delete", "path": path])
+    }
+
+    func renameFile(from: String, to: String) async throws {
+        _ = try await sendRequest(["t": "file_rename", "from": from, "to": to])
+    }
+
     // MARK: - Disconnect & Reconnect
 
     private func disconnect() {
@@ -229,6 +373,9 @@ class VPhoneControl {
         isConnected = false
         guestName = ""
         guestCaps = []
+
+        // Fail all pending requests
+        failAllPending()
 
         if wasConnected, device != nil {
             print("[control] reconnecting in 3s...")
@@ -244,7 +391,43 @@ class VPhoneControl {
     private func startReadLoop(fd: Int32) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             while let msg = Self.readMessage(fd: fd) {
+                guard let self else { break }
                 let type = msg["t"] as? String ?? ""
+                let reqId = msg["id"] as? String
+
+                // Check for pending request callback
+                if let reqId, let pending = self.removePending(id: reqId) {
+                    if type == "err" {
+                        let detail = msg["msg"] as? String ?? "unknown error"
+                        pending.handler(.failure(ControlError.guestError(detail)))
+                        continue
+                    }
+
+                    // For file_data, read inline binary payload
+                    if type == "file_data" {
+                        let size = msg["size"] as? Int ?? 0
+                        if size > 0 {
+                            let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: size)
+                            if Self.readFully(fd: fd, buf: buf, count: size) {
+                                let data = Data(bytes: buf, count: size)
+                                buf.deallocate()
+                                pending.handler(.success((msg, data)))
+                            } else {
+                                buf.deallocate()
+                                pending.handler(.failure(ControlError.protocolError("failed to read file data")))
+                            }
+                        } else {
+                            pending.handler(.success((msg, Data())))
+                        }
+                        continue
+                    }
+
+                    // Normal response (ok, pong, etc.)
+                    pending.handler(.success((msg, nil)))
+                    continue
+                }
+
+                // No pending request — handle as before (fire-and-forget)
                 switch type {
                 case "ok":
                     let detail = msg["msg"] as? String ?? ""

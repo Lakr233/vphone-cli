@@ -22,6 +22,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
+                .linkedFramework("SwiftUI"),
             ]
         ),
     ]

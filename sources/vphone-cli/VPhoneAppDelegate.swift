@@ -8,6 +8,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var control: VPhoneControl?
     private var windowController: VPhoneWindowController?
     private var menuController: VPhoneMenuController?
+    private var fileWindowController: VPhoneFileWindowController?
     private var sigintSource: DispatchSourceSignal?
 
     init(cli: VPhoneCLI) {
@@ -107,7 +108,20 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 control: control
             )
             windowController = wc
-            menuController = VPhoneMenuController(keyHelper: keyHelper, control: control)
+
+            let fileWC = VPhoneFileWindowController()
+            fileWindowController = fileWC
+            wc.onFilesPressed = { [weak fileWC, weak control] in
+                guard let fileWC, let control else { return }
+                fileWC.showWindow(control: control)
+            }
+
+            let mc = VPhoneMenuController(keyHelper: keyHelper, control: control)
+            mc.onFilesPressed = { [weak fileWC, weak control] in
+                guard let fileWC, let control else { return }
+                fileWC.showWindow(control: control)
+            }
+            menuController = mc
         }
     }
 
