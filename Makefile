@@ -7,6 +7,7 @@ VM_DIR      ?= vm
 CPU         ?= 8
 MEMORY      ?= 8192
 DISK_SIZE   ?= 64
+CFW_INPUT   ?= cfw_input
 
 # ─── Paths ────────────────────────────────────────────────────────
 SCRIPTS     := scripts
@@ -35,6 +36,8 @@ help:
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
+	@echo "  make vphoned                 Cross-compile vphoned for iOS"
+	@echo "  make vphoned_sign            Sign vphoned (requires cfw_input)"
 	@echo "  make install                 Build + copy to ./bin/"
 	@echo "  make clean                   Remove .build/"
 	@echo "  make unlock                  Cross-compile unlock for arm64-ios"
@@ -103,6 +106,30 @@ install: build
 clean:
 	swift package clean
 	rm -rf .build
+	rm -f $(SCRIPTS)/vphoned/vphoned
+
+# Cross-compile vphoned daemon for iOS arm64 (installed into VM by cfw_install)
+.PHONY: vphoned
+vphoned: $(SCRIPTS)/vphoned/vphoned
+
+$(SCRIPTS)/vphoned/vphoned: $(SCRIPTS)/vphoned/vphoned.m
+	@echo "=== Building vphoned (arm64, iphoneos) ==="
+	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
+		-o $@ $< -framework Foundation
+	@echo "  built OK"
+
+# Sign vphoned with entitlements using cfw_input tools (requires make cfw_install to have unpacked cfw_input)
+.PHONY: vphoned_sign
+vphoned_sign: $(SCRIPTS)/vphoned/vphoned
+	@test -f "$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64" \
+		|| (echo "Error: ldid not found. Run 'make cfw_install' first to unpack cfw_input." && exit 1)
+	@echo "=== Signing vphoned ==="
+	cp $(SCRIPTS)/vphoned/vphoned $(VM_DIR)/.vphoned.signed
+	$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64 \
+		-S$(SCRIPTS)/vphoned/entitlements.plist \
+		-M "-K$(VM_DIR)/$(CFW_INPUT)/signcert.p12" \
+		$(VM_DIR)/.vphoned.signed
+	@echo "  signed → $(VM_DIR)/.vphoned.signed"
 
 unlock:
 	clang -arch arm64 -target arm64-apple-ios15.0 \
@@ -131,7 +158,7 @@ unlock_deploy: unlock
 vm_new:
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
 
-boot: build
+boot: build vphoned_sign
 	cd $(VM_DIR) && "$(CURDIR)/$(BINARY)" \
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \

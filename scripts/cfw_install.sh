@@ -395,11 +395,33 @@ echo "  [+] mobileactivationd patched"
 echo ""
 echo "[7/7] Installing LaunchDaemons..."
 
+# Install vphoned (vsock HID injector daemon)
+VPHONED_SRC="$SCRIPT_DIR/vphoned"
+VPHONED_BIN="$VPHONED_SRC/vphoned"
+if [[ ! -f "$VPHONED_BIN" ]] || [[ "$VPHONED_SRC/vphoned.m" -nt "$VPHONED_BIN" ]]; then
+    echo "  Building vphoned for arm64..."
+    xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
+        -o "$VPHONED_BIN" "$VPHONED_SRC/vphoned.m" \
+        -framework Foundation
+fi
+cp "$VPHONED_BIN" "$TEMP_DIR/vphoned"
+"$VM_DIR/$CFW_INPUT/tools/ldid_macosx_arm64" \
+    -S"$VPHONED_SRC/entitlements.plist" \
+    -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" \
+    "$TEMP_DIR/vphoned"
+scp_to "$TEMP_DIR/vphoned" "/mnt1/usr/bin/vphoned"
+ssh_cmd "/bin/chmod 0755 /mnt1/usr/bin/vphoned"
+# Keep a copy of the signed binary for host-side auto-update
+cp "$TEMP_DIR/vphoned" "$VM_DIR/.vphoned.signed"
+echo "  [+] vphoned installed (signed copy at .vphoned.signed)"
+
 # Send daemon plists (overwrite on re-run)
 for plist in bash.plist dropbear.plist trollvnc.plist; do
     scp_to "$INPUT_DIR/jb/LaunchDaemons/$plist" "/mnt1/System/Library/LaunchDaemons/"
     ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/$plist"
 done
+scp_to "$VPHONED_SRC/vphoned.plist" "/mnt1/System/Library/LaunchDaemons/"
+ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/vphoned.plist"
 
 # Always patch launchd.plist from .bak (original)
 echo "  Patching launchd.plist..."
@@ -409,6 +431,7 @@ if ! remote_file_exists "/mnt1/System/Library/xpc/launchd.plist.bak"; then
 fi
 
 scp_from "/mnt1/System/Library/xpc/launchd.plist.bak" "$TEMP_DIR/launchd.plist"
+cp "$VPHONED_SRC/vphoned.plist" "$INPUT_DIR/jb/LaunchDaemons/"
 python3 "$SCRIPT_DIR/patchers/cfw.py" inject-daemons "$TEMP_DIR/launchd.plist" "$INPUT_DIR/jb/LaunchDaemons"
 scp_to "$TEMP_DIR/launchd.plist" "/mnt1/System/Library/xpc/launchd.plist"
 ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/xpc/launchd.plist"
@@ -427,6 +450,7 @@ echo "[*] Cleaning up temp binaries..."
 rm -f "$TEMP_DIR/seputil" \
       "$TEMP_DIR/launchd_cache_loader" \
       "$TEMP_DIR/mobileactivationd" \
+      "$TEMP_DIR/vphoned" \
       "$TEMP_DIR/launchd.plist"
 
 echo ""

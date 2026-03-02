@@ -5,6 +5,7 @@ import Virtualization
 class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private let cli: VPhoneCLI
     private var vm: VPhoneVM?
+    private var control: VPhoneControl?
     private var windowController: VPhoneWindowController?
     private var menuController: VPhoneMenuController?
     private var sigintSource: DispatchSourceSignal?
@@ -82,8 +83,18 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         try await vm.start(forceDFU: cli.dfu)
 
+        let control = VPhoneControl()
+        let vphonedURL = URL(fileURLWithPath: cli.vphonedBin)
+        if FileManager.default.fileExists(atPath: vphonedURL.path) {
+            control.guestBinaryURL = vphonedURL
+        }
+        self.control = control
+        if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
+            control.connect(device: device)
+        }
+
         if !cli.noGraphics {
-            let keyHelper = VPhoneKeyHelper(vm: vm.virtualMachine, serialWriteHandle: vm.serialWriteHandle)
+            let keyHelper = VPhoneKeyHelper(vm: vm, control: control)
             let wc = VPhoneWindowController()
             wc.showWindow(
                 for: vm.virtualMachine,

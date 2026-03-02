@@ -64,11 +64,18 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func rightMouseDown(with _: NSEvent) {
-        guard let keyHelper else {
-            print("[keys] keyHelper was not set, no way home!")
-            return
-        }
+        guard let keyHelper else { return }
         keyHelper.sendHome()
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers == "h"
+        {
+            keyHelper?.sendHome()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     // MARK: - Legacy Touch Injection (macOS 15)
