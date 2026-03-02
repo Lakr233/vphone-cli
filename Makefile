@@ -38,6 +38,7 @@ help:
 	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_machine           Full setup through README First Boot"
+	@echo "                              Optional: JB=1 for jailbreak firmware/CFW path"
 	@echo "  make setup_venv              Create Python .venv"
 	@echo "  make setup_libimobiledevice  Build libimobiledevice toolchain"
 	@echo ""
@@ -78,7 +79,7 @@ help:
 .PHONY: setup_machine setup_venv setup_libimobiledevice
 
 setup_machine:
-	zsh $(SCRIPTS)/setup_machine.sh
+	zsh $(SCRIPTS)/setup_machine.sh $(if $(filter 1 true yes YES TRUE,$(JB)),--jb,)
 
 setup_venv:
 	zsh $(SCRIPTS)/setup_venv.sh
