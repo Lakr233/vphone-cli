@@ -96,7 +96,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             }
 
             let provider = VPhoneLocationProvider(control: control)
-            self.locationProvider = provider
+            locationProvider = provider
             control.onConnect = { [weak provider] caps in
                 if caps.contains("location") {
                     provider?.startForwarding()

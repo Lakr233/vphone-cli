@@ -389,9 +389,11 @@ class VPhoneControl {
 
     // MARK: - Location
 
-    func sendLocation(latitude: Double, longitude: Double, altitude: Double,
-                      horizontalAccuracy: Double, verticalAccuracy: Double,
-                      speed: Double, course: Double) {
+    func sendLocation(
+        latitude: Double, longitude: Double, altitude: Double,
+        horizontalAccuracy: Double, verticalAccuracy: Double,
+        speed: Double, course: Double
+    ) {
         nextRequestId += 1
         let msg: [String: Any] = [
             "v": Self.protocolVersion,
@@ -410,12 +412,16 @@ class VPhoneControl {
             print("[control] sendLocation failed (not connected)")
             return
         }
-        print("[control] sendLocation lat=\(latitude) lon=\(longitude)")
+        print("[control] location lat=\(latitude) lon=\(longitude)")
     }
 
     func sendLocationStop() {
         nextRequestId += 1
-        let msg: [String: Any] = ["v": Self.protocolVersion, "t": "location_stop", "id": String(nextRequestId, radix: 16)]
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "location_stop",
+            "id": String(nextRequestId, radix: 16),
+        ]
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
     }
 

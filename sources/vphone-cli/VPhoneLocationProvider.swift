@@ -25,11 +25,11 @@ class VPhoneLocationProvider: NSObject {
                 self?.forward(location)
             }
         }
-        self.delegateProxy = proxy
+        delegateProxy = proxy
         let mgr = CLLocationManager()
         mgr.delegate = proxy
         mgr.desiredAccuracy = kCLLocationAccuracyBest
-        self.locationManager = mgr
+        locationManager = mgr
         print("[location] host location forwarding ready")
     }
 
@@ -86,9 +86,10 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        NSLog("[location] got location: %.6f,%.6f (±%.0fm)",
-              location.coordinate.latitude, location.coordinate.longitude,
-              location.horizontalAccuracy)
+        let c = location.coordinate
+        print(
+            "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (±\(String(format: "%.0f", location.horizontalAccuracy))m)"
+        )
         handler(location)
     }
 
@@ -96,12 +97,12 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
         let clErr = (error as NSError).code
         // kCLErrorLocationUnknown (0) = transient, just waiting for fix
         if clErr == 0 { return }
-        NSLog("[location] CLLocationManager error: %@ (code %ld)", error.localizedDescription, clErr)
+        print("[location] CLLocationManager error: \(error.localizedDescription) (code \(clErr))")
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        NSLog("[location] authorization status: %d", status.rawValue)
+        print("[location] authorization status: \(status.rawValue)")
         if status == .authorized || status == .authorizedAlways {
             manager.startUpdatingLocation()
         }
