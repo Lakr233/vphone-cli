@@ -8,10 +8,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     private var statusTimer: Timer?
     private weak var control: VPhoneControl?
 
-    private nonisolated static let filesItemID = NSToolbarItem.Identifier("files")
     private nonisolated static let homeItemID = NSToolbarItem.Identifier("home")
-
-    var onFilesPressed: (() -> Void)?
 
     func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double, keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
         self.control = control
@@ -66,15 +63,6 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
     nonisolated func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
         MainActor.assumeIsolated {
-            if itemIdentifier == Self.filesItemID {
-                let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-                item.label = "Files"
-                item.toolTip = "File Browser"
-                item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: "Files")
-                item.target = self
-                item.action = #selector(filesPressed)
-                return item
-            }
             if itemIdentifier == Self.homeItemID {
                 let item = NSToolbarItem(itemIdentifier: itemIdentifier)
                 item.label = "Home"
@@ -89,18 +77,14 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     }
 
     nonisolated func toolbarDefaultItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.filesItemID, Self.homeItemID]
+        [.flexibleSpace, Self.homeItemID]
     }
 
     nonisolated func toolbarAllowedItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.filesItemID, Self.homeItemID, .flexibleSpace, .space]
+        [Self.homeItemID, .flexibleSpace, .space]
     }
 
     // MARK: - Actions
-
-    @objc private func filesPressed() {
-        onFilesPressed?()
-    }
 
     @objc private func homePressed() {
         control?.sendHIDPress(page: 0x0C, usage: 0x40)

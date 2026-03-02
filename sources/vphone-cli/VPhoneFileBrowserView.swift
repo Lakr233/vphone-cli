@@ -94,9 +94,7 @@ struct VPhoneFileBrowserView: View {
         HStack(spacing: 6) {
             // Status dot
             Circle()
-                .fill(model.control.isConnected
-                      ? Color(red: 0.290, green: 0.871, blue: 0.502)   // #4ade80
-                      : Color(red: 0.984, green: 0.749, blue: 0.141))  // #fbbf24
+                .fill(model.control.isConnected ? Color.green : Color.orange)
                 .frame(width: 8, height: 8)
 
             Divider()
@@ -108,7 +106,7 @@ struct VPhoneFileBrowserView: View {
                         if crumb.path != "/" || model.breadcrumbs.count == 1 {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.tertiary)
                         }
                         Button(crumb.name) {
                             model.goToBreadcrumb(crumb.path)
@@ -130,7 +128,7 @@ struct VPhoneFileBrowserView: View {
         .padding(.horizontal, 8)
         .frame(height: controlBarHeight)
         .frame(maxWidth: .infinity)
-        .background(Color(nsColor: NSColor(white: 0.14, alpha: 1)))
+        .background(.bar)
     }
 
     // MARK: - Progress Overlay
