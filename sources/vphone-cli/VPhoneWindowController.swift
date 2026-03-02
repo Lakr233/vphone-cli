@@ -8,7 +8,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     private var statusTimer: Timer?
     private weak var control: VPhoneControl?
 
-    nonisolated private static let homeItemID = NSToolbarItem.Identifier("home")
+    private nonisolated static let homeItemID = NSToolbarItem.Identifier("home")
 
     func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double, keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
         self.control = control
@@ -31,7 +31,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
         window.contentAspectRatio = windowSize
         window.title = "vphone"
-        window.subtitle = "vphoned: connecting..."
+        window.subtitle = "daemon connecting..."
         window.contentView = vmView
         window.center()
 
@@ -54,14 +54,14 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }
-                window.subtitle = control.isConnected ? "vphoned connected" : "vphoned connecting..."
+                window.subtitle = control.isConnected ? "daemon connected" : "daemon connecting..."
             }
         }
     }
 
     // MARK: - NSToolbarDelegate
 
-    nonisolated func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+    nonisolated func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
         MainActor.assumeIsolated {
             if itemIdentifier == Self.homeItemID {
                 let item = NSToolbarItem(itemIdentifier: itemIdentifier)
@@ -76,11 +76,11 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         }
     }
 
-    nonisolated func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    nonisolated func toolbarDefaultItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.flexibleSpace, Self.homeItemID]
     }
 
-    nonisolated func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    nonisolated func toolbarAllowedItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.homeItemID, .flexibleSpace, .space]
     }
 
