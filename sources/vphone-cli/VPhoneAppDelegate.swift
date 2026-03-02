@@ -97,16 +97,6 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
             let provider = VPhoneLocationProvider(control: control)
             locationProvider = provider
-            control.onConnect = { [weak provider] caps in
-                if caps.contains("location") {
-                    provider?.startForwarding()
-                } else {
-                    print("[location] guest does not support location simulation")
-                }
-            }
-            control.onDisconnect = { [weak provider] in
-                provider?.stopForwarding()
-            }
 
             if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
                 control.connect(device: device)
@@ -134,7 +124,39 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 guard let fileWC, let control else { return }
                 fileWC.showWindow(control: control)
             }
+            if let provider = locationProvider {
+                mc.locationProvider = provider
+            }
             menuController = mc
+
+            // Wire location toggle through onConnect/onDisconnect
+            control.onConnect = { [weak mc, weak provider = locationProvider] caps in
+                if caps.contains("location") {
+                    mc?.updateLocationCapability(available: true)
+                    // Auto-resume if user had toggle on
+                    if mc?.locationMenuItem?.state == .on {
+                        provider?.startForwarding()
+                    }
+                } else {
+                    print("[location] guest does not support location simulation")
+                }
+            }
+            control.onDisconnect = { [weak mc, weak provider = locationProvider] in
+                provider?.stopForwarding()
+                mc?.updateLocationCapability(available: false)
+            }
+        } else if !cli.dfu {
+            // Headless mode: auto-start location as before (no menu exists)
+            control.onConnect = { [weak provider = locationProvider] caps in
+                if caps.contains("location") {
+                    provider?.startForwarding()
+                } else {
+                    print("[location] guest does not support location simulation")
+                }
+            }
+            control.onDisconnect = { [weak provider = locationProvider] in
+                provider?.stopForwarding()
+            }
         }
     }
 
