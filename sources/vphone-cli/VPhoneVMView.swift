@@ -25,7 +25,10 @@ class VPhoneVMView: VZVirtualMachineView {
 
     override func mouseDown(with event: NSEvent) {
         // macOS 16+: VZVirtualMachineView handles mouse-to-touch natively
-        if #available(macOS 16.0, *) { super.mouseDown(with: event); return }
+        if #available(macOS 16.0, *) {
+            super.mouseDown(with: event)
+            return
+        }
 
         let localPoint = convert(event.locationInWindow, from: nil)
 
@@ -39,7 +42,10 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if #available(macOS 16.0, *) { super.mouseDragged(with: event); return }
+        if #available(macOS 16.0, *) {
+            super.mouseDragged(with: event)
+            return
+        }
 
         let localPoint = convert(event.locationInWindow, from: nil)
         sendTouchEvent(
@@ -51,7 +57,10 @@ class VPhoneVMView: VZVirtualMachineView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if #available(macOS 16.0, *) { super.mouseUp(with: event); return }
+        if #available(macOS 16.0, *) {
+            super.mouseUp(with: event)
+            return
+        }
 
         let localPoint = convert(event.locationInWindow, from: nil)
         sendTouchEvent(

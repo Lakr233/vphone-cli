@@ -24,7 +24,9 @@ class VPhoneMenuController {
         // App menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "vphone")
-        appMenu.addItem(withTitle: "Quit vphone", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(
+            withTitle: "Quit vphone", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
+        )
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
@@ -47,9 +49,9 @@ class VPhoneMenuController {
         typeMenuItem.submenu = typeMenu
         mainMenu.addItem(typeMenuItem)
 
-        // vphoned menu — guest agent commands
+        // Connect menu — guest agent commands
         let agentMenuItem = NSMenuItem()
-        let agentMenu = NSMenu(title: "vphoned")
+        let agentMenu = NSMenu(title: "Connect")
         agentMenu.addItem(makeItem("File Browser", action: #selector(openFiles)))
         agentMenu.addItem(NSMenuItem.separator())
         agentMenu.addItem(makeItem("Developer Mode Status", action: #selector(devModeStatus)))

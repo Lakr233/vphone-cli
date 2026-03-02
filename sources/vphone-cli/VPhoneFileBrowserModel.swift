@@ -18,9 +18,11 @@ class VPhoneFileBrowserModel {
     var transferName: String?
     var transferCurrent: Int64 = 0
     var transferTotal: Int64 = 0
-    var isTransferring: Bool { transferName != nil }
+    var isTransferring: Bool {
+        transferName != nil
+    }
 
-    // Navigation stack
+    /// Navigation stack
     private var pathHistory: [String] = []
 
     init(control: VPhoneControl) {
@@ -30,7 +32,7 @@ class VPhoneFileBrowserModel {
     // MARK: - Computed
 
     var breadcrumbs: [(name: String, path: String)] {
-        var result: [(String, String)] = [("/", "/")]
+        var result = [("/", "/")]
         let components = currentPath.split(separator: "/", omittingEmptySubsequences: true)
         var running = ""
         for c in components {
@@ -84,7 +86,9 @@ class VPhoneFileBrowserModel {
         Task { await refresh() }
     }
 
-    var canGoBack: Bool { !pathHistory.isEmpty }
+    var canGoBack: Bool {
+        !pathHistory.isEmpty
+    }
 
     func openItem(_ file: VPhoneRemoteFile) {
         if file.isDirectory {

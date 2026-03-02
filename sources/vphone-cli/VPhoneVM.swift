@@ -56,9 +56,10 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         // Set NVRAM boot-args to enable serial output
         let bootArgs = "serial=3 debug=0x104c04"
         if let bootArgsData = bootArgs.data(using: .utf8) {
-            let ok = Dynamic(auxStorage)
-                ._setDataValue(bootArgsData, forNVRAMVariableNamed: "boot-args", error: nil)
-                .asBool ?? false
+            let ok =
+                Dynamic(auxStorage)
+                    ._setDataValue(bootArgsData, forNVRAMVariableNamed: "boot-args", error: nil)
+                    .asBool ?? false
             if ok { print("[vphone] NVRAM boot-args: \(bootArgs)") }
         }
 
@@ -71,7 +72,9 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         config.bootLoader = bootloader
         config.platform = platform
         config.cpuCount = max(options.cpuCount, VZVirtualMachineConfiguration.minimumAllowedCPUCount)
-        config.memorySize = max(options.memorySize, VZVirtualMachineConfiguration.minimumAllowedMemorySize)
+        config.memorySize = max(
+            options.memorySize, VZVirtualMachineConfiguration.minimumAllowedMemorySize
+        )
 
         // Display
         let gfx = VZMacGraphicsDeviceConfiguration()
@@ -105,7 +108,9 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         config.networkDevices = [net]
 
         // Serial port (PL011 UART — pipes for input/output with boot detection)
-        if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject as? VZSerialPortConfiguration {
+        if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject
+            as? VZSerialPortConfiguration
+        {
             let inputPipe = Pipe()
             let outputPipe = Pipe()
 
@@ -202,9 +207,10 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         exit(EXIT_FAILURE)
     }
 
-    nonisolated func virtualMachine(_: VZVirtualMachine, networkDevice _: VZNetworkDevice,
-                                    attachmentWasDisconnectedWithError error: Error)
-    {
+    nonisolated func virtualMachine(
+        _: VZVirtualMachine, networkDevice _: VZNetworkDevice,
+        attachmentWasDisconnectedWithError error: Error
+    ) {
         print("[vphone] Network error: \(error)")
     }
 }
