@@ -119,10 +119,14 @@ clean:
 .PHONY: vphoned
 vphoned: $(SCRIPTS)/vphoned/vphoned
 
-$(SCRIPTS)/vphoned/vphoned: $(SCRIPTS)/vphoned/vphoned.m
+VPHONED_SRCS := $(addprefix $(SCRIPTS)/vphoned/, \
+	vphoned.m vphoned_protocol.m vphoned_hid.m \
+	vphoned_devmode.m vphoned_location.m vphoned_files.m)
+$(SCRIPTS)/vphoned/vphoned: $(VPHONED_SRCS)
 	@echo "=== Building vphoned (arm64, iphoneos) ==="
 	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-		-o $@ $< -framework Foundation
+		-I$(SCRIPTS)/vphoned \
+		-o $@ $(VPHONED_SRCS) -framework Foundation
 	@echo "  built OK"
 
 # Sign vphoned with entitlements using cfw_input tools (requires make cfw_install to have unpacked cfw_input)
