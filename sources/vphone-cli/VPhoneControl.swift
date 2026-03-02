@@ -40,7 +40,9 @@ class VPhoneControl {
     private let pendingLock = NSLock()
     private nonisolated(unsafe) var pendingRequests: [String: PendingRequest] = [:]
 
-    private nonisolated func addPending(id: String, handler: @escaping (Result<([String: Any], Data?), any Error>) -> Void) {
+    private nonisolated func addPending(
+        id: String, handler: @escaping (Result<([String: Any], Data?), any Error>) -> Void
+    ) {
         pendingLock.lock()
         pendingRequests[id] = PendingRequest(handler: handler)
         pendingLock.unlock()
@@ -70,8 +72,8 @@ class VPhoneControl {
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
-            case .protocolError(let msg): "protocol error: \(msg)"
-            case .guestError(let msg): msg
+            case let .protocolError(msg): "protocol error: \(msg)"
+            case let .guestError(msg): msg
             }
         }
     }
@@ -88,7 +90,9 @@ class VPhoneControl {
         }
         guestBinaryData = data
         guestBinaryHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        print("[control] vphoned binary: \(url.lastPathComponent) (\(data.count) bytes, \(guestBinaryHash!.prefix(12))...)")
+        print(
+            "[control] vphoned binary: \(url.lastPathComponent) (\(data.count) bytes, \(guestBinaryHash!.prefix(12))...)"
+        )
     }
 
     // MARK: - Connect
@@ -101,7 +105,8 @@ class VPhoneControl {
 
     private func attemptConnect() {
         guard let device else { return }
-        device.connect(toPort: Self.vsockPort) { [weak self] (result: Result<VZVirtioSocketConnection, any Error>) in
+        device.connect(toPort: Self.vsockPort) {
+            [weak self] (result: Result<VZVirtioSocketConnection, any Error>) in
             Task { @MainActor in
                 switch result {
                 case let .success(conn):
@@ -148,7 +153,9 @@ class VPhoneControl {
             Task { @MainActor in
                 guard let self else { return }
                 guard type == "hello", version == Self.protocolVersion else {
-                    print("[control] handshake: version mismatch (guest v\(version), host v\(Self.protocolVersion))")
+                    print(
+                        "[control] handshake: version mismatch (guest v\(version), host v\(Self.protocolVersion))"
+                    )
                     self.disconnect()
                     return
                 }
@@ -177,7 +184,10 @@ class VPhoneControl {
 
         print("[control] pushing update (\(data.count) bytes)...")
         nextRequestId += 1
-        let header: [String: Any] = ["v": Self.protocolVersion, "t": "update", "id": String(nextRequestId, radix: 16), "size": data.count]
+        let header: [String: Any] = [
+            "v": Self.protocolVersion, "t": "update", "id": String(nextRequestId, radix: 16),
+            "size": data.count,
+        ]
         guard writeMessage(fd: fd, dict: header) else {
             print("[control] update: failed to send header")
             disconnect()
@@ -226,7 +236,9 @@ class VPhoneControl {
             return
         }
         let suffix = down.map { $0 ? " down" : " up" } ?? ""
-        print("[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)")
+        print(
+            "[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)"
+        )
     }
 
     // MARK: - Developer Mode
@@ -263,7 +275,9 @@ class VPhoneControl {
 
     func sendPing() {
         nextRequestId += 1
-        let msg: [String: Any] = ["v": Self.protocolVersion, "t": "ping", "id": String(nextRequestId, radix: 16)]
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion, "t": "ping", "id": String(nextRequestId, radix: 16),
+        ]
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
     }
 
@@ -328,11 +342,12 @@ class VPhoneControl {
             "perm": permissions,
         ]
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+        try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<Void, any Error>) in
             addPending(id: reqId) { result in
                 switch result {
                 case .success: continuation.resume()
-                case .failure(let error): continuation.resume(throwing: error)
+                case let .failure(error): continuation.resume(throwing: error)
                 }
             }
 
@@ -396,7 +411,7 @@ class VPhoneControl {
                 let reqId = msg["id"] as? String
 
                 // Check for pending request callback
-                if let reqId, let pending = self.removePending(id: reqId) {
+                if let reqId, let pending = removePending(id: reqId) {
                     if type == "err" {
                         let detail = msg["msg"] as? String ?? "unknown error"
                         pending.handler(.failure(ControlError.guestError(detail)))
@@ -482,7 +497,9 @@ class VPhoneControl {
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
-    private nonisolated static func readFully(fd: Int32, buf: UnsafeMutableRawPointer, count: Int) -> Bool {
+    private nonisolated static func readFully(fd: Int32, buf: UnsafeMutableRawPointer, count: Int)
+        -> Bool
+    {
         var offset = 0
         while offset < count {
             let n = Darwin.read(fd, buf + offset, count - offset)

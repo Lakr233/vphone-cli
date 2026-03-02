@@ -8,10 +8,21 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
     let permissions: String
     let modified: Date
 
-    var id: String { path }
-    var path: String { (dir as NSString).appendingPathComponent(name) }
-    var isDirectory: Bool { type == .directory }
-    var isSymbolicLink: Bool { type == .symbolicLink }
+    var id: String {
+        path
+    }
+
+    var path: String {
+        (dir as NSString).appendingPathComponent(name)
+    }
+
+    var isDirectory: Bool {
+        type == .directory
+    }
+
+    var isSymbolicLink: Bool {
+        type == .symbolicLink
+    }
 
     var displaySize: String {
         if isDirectory || isSymbolicLink { return "—" }
@@ -75,8 +86,8 @@ extension VPhoneRemoteFile {
         self.dir = dir
         self.name = name
         self.type = type
-        self.size = (entry["size"] as? NSNumber)?.uint64Value ?? 0
-        self.permissions = entry["perm"] as? String ?? "---"
-        self.modified = Date(timeIntervalSince1970: (entry["mtime"] as? Double) ?? 0)
+        size = (entry["size"] as? NSNumber)?.uint64Value ?? 0
+        permissions = entry["perm"] as? String ?? "---"
+        modified = Date(timeIntervalSince1970: (entry["mtime"] as? Double) ?? 0)
     }
 }

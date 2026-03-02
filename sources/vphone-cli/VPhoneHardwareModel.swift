@@ -20,9 +20,10 @@ enum VPhoneHardware {
         desc.setBoardID(NSNumber(value: UInt32(0x90)))
         desc.setISA(NSNumber(value: Int64(2)))
 
-        let model = Dynamic.VZMacHardwareModel
-            ._hardwareModelWithDescriptor(desc.asObject)
-            .asObject as! VZMacHardwareModel
+        let model =
+            Dynamic.VZMacHardwareModel
+                ._hardwareModelWithDescriptor(desc.asObject)
+                .asObject as! VZMacHardwareModel
 
         guard model.isSupported else {
             throw VPhoneError.hardwareModelNotSupported

@@ -58,7 +58,9 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         print("MachID: \(cli.machineId)")
         print("CPU   : \(cli.cpu)")
         print("Memory: \(cli.memory) MB")
-        print("Screen: \(cli.screenWidth)x\(cli.screenHeight) @ \(cli.screenPpi) PPI (scale \(cli.screenScale)x)")
+        print(
+            "Screen: \(cli.screenWidth)x\(cli.screenHeight) @ \(cli.screenPpi) PPI (scale \(cli.screenScale)x)"
+        )
         print("SEP   : enabled")
         print("  storage: \(cli.sepStorage)")
         print("  rom    : \(cli.sepRom)")

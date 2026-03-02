@@ -28,10 +28,13 @@ struct VPhoneFileBrowserView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await model.refresh() }
-        .alert("Error", isPresented: .init(
-            get: { model.error != nil },
-            set: { if !$0 { model.error = nil } }
-        )) {
+        .alert(
+            "Error",
+            isPresented: .init(
+                get: { model.error != nil },
+                set: { if !$0 { model.error = nil } }
+            )
+        ) {
             Button("OK") { model.error = nil }
         } message: {
             Text(model.error ?? "")
@@ -186,12 +189,16 @@ struct VPhoneFileBrowserView: View {
             .keyboardShortcut("n", modifiers: .command)
         }
         ToolbarItem {
-            Button { uploadAction() } label: {
+            Button {
+                uploadAction()
+            } label: {
                 Label("Upload", systemImage: "square.and.arrow.up")
             }
         }
         ToolbarItem {
-            Button { downloadAction() } label: {
+            Button {
+                downloadAction()
+            } label: {
                 Label("Download", systemImage: "square.and.arrow.down")
             }
             .disabled(model.selection.isEmpty)
@@ -294,10 +301,15 @@ struct VPhoneFileBrowserView: View {
         Task { @MainActor in
             var urls: [URL] = []
             for provider in validProviders {
-                if let url = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) as? URL {
+                if let url = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier)
+                    as? URL
+                {
                     urls.append(url)
-                } else if let data = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) as? Data,
-                          let url = URL(dataRepresentation: data, relativeTo: nil) {
+                } else if let data = try? await provider.loadItem(
+                    forTypeIdentifier: UTType.fileURL.identifier
+                ) as? Data,
+                    let url = URL(dataRepresentation: data, relativeTo: nil)
+                {
                     urls.append(url)
                 }
             }

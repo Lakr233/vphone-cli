@@ -10,7 +10,10 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
     private nonisolated static let homeItemID = NSToolbarItem.Identifier("home")
 
-    func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double, keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
+    func showWindow(
+        for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double,
+        keyHelper: VPhoneKeyHelper, control: VPhoneControl
+    ) {
         self.control = control
 
         let view = VPhoneVMView()
@@ -20,7 +23,9 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         let vmView: NSView = view
 
         let scale = CGFloat(screenScale)
-        let windowSize = NSSize(width: CGFloat(screenWidth) / scale, height: CGFloat(screenHeight) / scale)
+        let windowSize = NSSize(
+            width: CGFloat(screenWidth) / scale, height: CGFloat(screenHeight) / scale
+        )
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
@@ -51,7 +56,8 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         // Poll vphoned status for subtitle
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self, weak window] _ in
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) {
+            [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }
                 window.subtitle = control.isConnected ? "daemon connected" : "daemon connecting..."
@@ -61,7 +67,10 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
     // MARK: - NSToolbarDelegate
 
-    nonisolated func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
+    nonisolated func toolbar(
+        _: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar _: Bool
+    ) -> NSToolbarItem? {
         MainActor.assumeIsolated {
             if itemIdentifier == Self.homeItemID {
                 let item = NSToolbarItem(itemIdentifier: itemIdentifier)
