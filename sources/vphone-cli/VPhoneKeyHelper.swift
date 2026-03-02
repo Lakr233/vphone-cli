@@ -61,63 +61,6 @@ class VPhoneKeyHelper {
         control.sendHIDPress(page: 0x0C, usage: 0xEA)
     }
 
-    // MARK: - Keyboard Keys (Keyboard Page 0x07)
-
-    func sendReturn() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x28)
-    }
-
-    func sendEscape() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x29)
-    }
-
-    func sendSpace() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x2C)
-    }
-
-    func sendTab() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x2B)
-    }
-
-    func sendDeleteKey() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x2A)
-    }
-
-    func sendArrowUp() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x52)
-    }
-
-    func sendArrowDown() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x51)
-    }
-
-    func sendArrowLeft() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x50)
-    }
-
-    func sendArrowRight() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0x4F)
-    }
-
-    func sendShift() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0xE1)
-    }
-
-    func sendCommand() {
-        guard requireConnection() else { return }
-        control.sendHIDPress(page: 0x07, usage: 0xE3)
-    }
-
     // MARK: - Combos
 
     func sendSpotlight() {

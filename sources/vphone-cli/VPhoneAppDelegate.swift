@@ -108,7 +108,6 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             )
             windowController = wc
             menuController = VPhoneMenuController(keyHelper: keyHelper, control: control)
-
         }
     }
 
