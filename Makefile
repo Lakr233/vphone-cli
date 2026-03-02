@@ -29,6 +29,7 @@ help:
 	@echo "vphone-cli — Virtual iPhone boot tool"
 	@echo ""
 	@echo "Setup (one-time):"
+	@echo "  make setup_machine           Full setup through README First Boot"
 	@echo "  make setup_venv              Create Python .venv"
 	@echo "  make setup_libimobiledevice  Build libimobiledevice toolchain"
 	@echo ""
@@ -65,7 +66,10 @@ help:
 # Setup
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: setup_venv setup_libimobiledevice
+.PHONY: setup_machine setup_venv setup_libimobiledevice
+
+setup_machine:
+	zsh $(SCRIPTS)/setup_machine.sh
 
 setup_venv:
 	zsh $(SCRIPTS)/setup_venv.sh

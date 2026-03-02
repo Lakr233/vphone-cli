@@ -251,9 +251,8 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
              ramdisk_custom, "-owners", "off"])
 
         print("  Injecting SSH tools...")
-        gtar = os.path.join(input_dir, "tools/gtar")
         ssh_tar = os.path.join(input_dir, "ssh.tar.gz")
-        run(["sudo", gtar, "-x", "--no-overwrite-dir",
+        run(["sudo", "gtar", "-x", "--no-overwrite-dir",
              "-f", ssh_tar, "-C", mountpoint])
 
         # Remove unnecessary files

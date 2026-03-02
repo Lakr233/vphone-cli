@@ -34,10 +34,21 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
+brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
+```
+
+## First setup
+
+```bash
+make setup_machine            # full automation through "First Boot" (includes restore/ramdisk/CFW)
+
+# equivalent manual steps:
 make setup_libimobiledevice   # build libimobiledevice toolchain
 make setup_venv               # create Python venv
 source .venv/bin/activate
 ```
+
+`make setup_machine` still requires manual **Recovery-mode SIP/research-guest configuration** and an interactive VM console for the First Boot commands it prints. The script does not validate those security settings.
 
 ## Quick Start
 
