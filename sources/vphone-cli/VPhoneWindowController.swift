@@ -3,10 +3,12 @@ import Foundation
 import Virtualization
 
 @MainActor
-class VPhoneWindowController {
+class VPhoneWindowController: NSObject, NSToolbarDelegate {
     private var windowController: NSWindowController?
     private var statusTimer: Timer?
     private weak var control: VPhoneControl?
+
+    nonisolated private static let homeItemID = NSToolbarItem.Identifier("home")
 
     func showWindow(for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double, keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
         self.control = control
@@ -33,15 +35,12 @@ class VPhoneWindowController {
         window.contentView = vmView
         window.center()
 
-        // Home button in title bar
-        let homeButton = NSButton(title: "Home", target: self, action: #selector(homePressed))
-        homeButton.bezelStyle = .recessed
-        homeButton.controlSize = .small
-        homeButton.setContentHuggingPriority(.required, for: .horizontal)
-        let accessory = NSTitlebarAccessoryViewController()
-        accessory.view = homeButton
-        accessory.layoutAttribute = .trailing
-        window.addTitlebarAccessoryViewController(accessory)
+        // Toolbar with unified style for two-line title
+        let toolbar = NSToolbar(identifier: "vphone-toolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
 
         let controller = NSWindowController(window: window)
         controller.showWindow(nil)
@@ -64,6 +63,33 @@ class VPhoneWindowController {
             }
         }
     }
+
+    // MARK: - NSToolbarDelegate
+
+    nonisolated func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        MainActor.assumeIsolated {
+            if itemIdentifier == Self.homeItemID {
+                let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+                item.label = "Home"
+                item.toolTip = "Home Button"
+                item.image = NSImage(systemSymbolName: "circle.circle", accessibilityDescription: "Home")
+                item.target = self
+                item.action = #selector(homePressed)
+                return item
+            }
+            return nil
+        }
+    }
+
+    nonisolated func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, Self.homeItemID]
+    }
+
+    nonisolated func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.homeItemID, .flexibleSpace, .space]
+    }
+
+    // MARK: - Actions
 
     @objc private func homePressed() {
         control?.sendHIDPress(page: 0x0C, usage: 0x40)
