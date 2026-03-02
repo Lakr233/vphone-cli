@@ -8,7 +8,7 @@ import Virtualization
 @MainActor
 class VPhoneKeyHelper {
     private let vm: VZVirtualMachine
-    private let serialWriteHandle: FileHandle?
+    private let control: VPhoneControl
 
     /// First _VZKeyboard from the VM's internal keyboard array.
     private var firstKeyboard: AnyObject? {
@@ -27,9 +27,9 @@ class VPhoneKeyHelper {
         return 1
     }
 
-    init(vm: VZVirtualMachine, serialWriteHandle: FileHandle? = nil) {
-        self.vm = vm
-        self.serialWriteHandle = serialWriteHandle
+    init(vm: VPhoneVM, control: VPhoneControl) {
+        self.vm = vm.virtualMachine
+        self.control = control
     }
 
     // MARK: - Send Key via _VZKeyEvent
@@ -105,36 +105,42 @@ class VPhoneKeyHelper {
 
     // MARK: - Unlock via Serial Console
 
-    /// Send unlock command through the serial port to trigger Home button unlock.
+    /// Unlock screen via vsock HID injection (Power to wake + Home to unlock).
     func sendUnlock() {
-        print("[unlock] Sending unlock via serial console")
-        writeSerial("/var/root/unlock 2>/dev/null || /iosbinpack64/bin/unlock\n")
-    }
-
-    /// Auto-unlock: send unlock once after `delay` seconds via serial.
-    /// The command buffers in the pipe and executes when bash is ready.
-    func autoUnlock(delay: TimeInterval = 8) {
-        print("[unlock] Auto-unlock: sending unlock in \(Int(delay))s")
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.writeSerial("/var/root/unlock 2>/dev/null || /iosbinpack64/bin/unlock\n")
+        guard control.isConnected else {
+            print("[unlock] vphoned not connected, skipping unlock")
+            return
+        }
+        print("[unlock] Sending unlock via vphoned HID")
+        control.sendHIDPress(page: 0x0C, usage: 0x30) // Power (wake)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.control.sendHIDPress(page: 0x0C, usage: 0x40) // Home (unlock)
         }
     }
 
-    private func writeSerial(_ command: String) {
-        guard let data = command.data(using: .utf8) else { return }
-        guard let handle = serialWriteHandle else { return }
-        handle.write(data)
+    /// Auto-unlock: wait for vphoned connection, then send unlock.
+    func autoUnlock(delay: TimeInterval = 8) {
+        print("[unlock] Auto-unlock: will unlock in \(Int(delay))s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.sendUnlock()
+        }
     }
 
     // MARK: - Named Key Actions
 
-    /// iOS hardware keyboard shortcuts (Cmd-based, Fn has no table entry in _VZKeyEvent)
+    /// Home button — vsock HID injection if connected, Cmd+H fallback otherwise.
     func sendHome() {
-        sendVKCombo(modifierVK: 0x37, keyVK: 0x04)
-    } // Cmd+H → Home Screen
+        if control.isConnected {
+            control.sendHIDPress(page: 0x0C, usage: 0x40)
+        } else {
+            print("[keys] vphoned not connected, falling back to Cmd+H")
+            sendVKCombo(modifierVK: 0x37, keyVK: 0x04)
+        }
+    }
+
     func sendSpotlight() {
         sendVKCombo(modifierVK: 0x37, keyVK: 0x31)
-    } // Cmd+Space → Spotlight
+    }
 
     /// Standard keyboard keys
     func sendReturn() {
@@ -190,9 +196,13 @@ class VPhoneKeyHelper {
         sendKeyPress(keyCode: 0x49)
     }
 
-    /// Power — no VK code, use vector injection (intermediate index 0x72 = System Wake)
+    /// Power — vsock HID injection if connected, vector injection fallback.
     func sendPower() {
-        sendRawKeyPress(index: 0x72)
+        if control.isConnected {
+            control.sendHIDPress(page: 0x0C, usage: 0x30)
+        } else {
+            sendRawKeyPress(index: 0x72)
+        }
     }
 
     // MARK: - Type ASCII from Clipboard

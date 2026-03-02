@@ -6,8 +6,6 @@ import Virtualization
 @MainActor
 class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
-    /// Write handle to inject commands into the VM's serial console.
-    private(set) var serialWriteHandle: FileHandle?
     /// Read handle for VM serial output.
     private var serialOutputReadHandle: FileHandle?
 
@@ -110,7 +108,6 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject as? VZSerialPortConfiguration {
             let inputPipe = Pipe()
             let outputPipe = Pipe()
-            serialWriteHandle = inputPipe.fileHandleForWriting
 
             serialPort.attachment = VZFileHandleSerialPortAttachment(
                 fileHandleForReading: inputPipe.fileHandleForReading,
@@ -142,6 +139,9 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
         }
 
         config.keyboards = [VZUSBKeyboardConfiguration()]
+
+        // Vsock (host ↔ guest control channel, no IP/TCP involved)
+        config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
 
         // GDB debug stub (default init, system-assigned port)
         Dynamic(config)._setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
@@ -191,8 +191,6 @@ class VPhoneVM: NSObject, VZVirtualMachineDelegate {
     }
 
     // MARK: - Delegate
-
-    // VZ delivers delegate callbacks via dispatch source on the main queue.
 
     nonisolated func guestDidStop(_: VZVirtualMachine) {
         print("[vphone] Guest stopped")

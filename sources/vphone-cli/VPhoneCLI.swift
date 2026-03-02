@@ -61,6 +61,9 @@ struct VPhoneCLI: ParsableCommand {
     @Flag(help: "Run without GUI (headless)")
     var noGraphics: Bool = false
 
+    @Option(help: "Path to signed vphoned binary for guest auto-update")
+    var vphonedBin: String = ".vphoned.signed"
+
     /// Execution is driven by VPhoneAppDelegate; main.swift calls parseOrExit()
     /// and hands the parsed options to the delegate.
     mutating func run() throws {}
