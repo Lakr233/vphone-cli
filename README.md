@@ -1,3 +1,5 @@
+<div align="right"><strong><a href="./README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
+
 # vphone-cli
 
 Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC research VM infrastructure.
