@@ -35,14 +35,46 @@ sources/
     ├── main.swift                    # Entry point — NSApplication + AppDelegate
     ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
     ├── VPhoneCLI.swift               # ArgumentParser options (no execution logic)
-    ├── VPhoneVirtualMachine.swift                # @MainActor VM configuration and lifecycle
+    ├── VPhoneBuildInfo.swift         # Auto-generated build-time commit hash
+    │
+    │   # VM core
+    ├── VPhoneVirtualMachine.swift    # @MainActor VM configuration and lifecycle
     ├── VPhoneHardwareModel.swift     # PV=3 hardware model via Dynamic
-    ├── VPhoneVirtualMachineView.swift            # Touch-enabled VZVirtualMachineView + helpers
-    ├── VPhoneWindowController.swift  # @MainActor window management
+    ├── VPhoneVirtualMachineView.swift # Touch-enabled VZVirtualMachineView + helpers
     ├── VPhoneError.swift             # Error types
-    └── MainActor+Isolated.swift      # MainActor.isolated helper
+    │
+    │   # Guest daemon client (vsock)
+    ├── VPhoneControl.swift           # Host-side vsock client for vphoned (length-prefixed JSON)
+    │
+    │   # Window & UI
+    ├── VPhoneWindowController.swift  # @MainActor VM window management + toolbar
+    ├── VPhoneKeyHelper.swift         # Keyboard/hardware key event dispatch to VM
+    ├── VPhoneLocationProvider.swift  # CoreLocation → guest forwarding over vsock
+    │
+    │   # Menu bar (extensions on VPhoneMenuController)
+    ├── VPhoneMenuController.swift    # Menu bar controller (builds Keys, Type, Location, Connect)
+    ├── VPhoneMenuKeys.swift          # Keys menu — home, power, volume, spotlight buttons
+    ├── VPhoneMenuType.swift          # Type menu — paste ASCII text to guest
+    ├── VPhoneMenuLocation.swift      # Location menu — host location sync toggle
+    ├── VPhoneMenuConnect.swift       # Connect menu — devmode, ping, version, file browser
+    │
+    │   # File browser (SwiftUI)
+    ├── VPhoneFileWindowController.swift # File browser window (NSHostingController)
+    ├── VPhoneFileBrowserView.swift   # SwiftUI file browser with search + drag-drop
+    ├── VPhoneFileBrowserModel.swift  # @Observable file browser state + transfers
+    └── VPhoneRemoteFile.swift        # Remote file data model (path, size, permissions)
 
 scripts/
+├── vphoned/                      # Guest daemon (Objective-C, runs inside iOS VM)
+│   ├── vphoned.m                 # Main — vsock listener, message dispatch, auto-update
+│   ├── vphoned_protocol.{h,m}   # Length-prefixed JSON framing (shared with host)
+│   ├── vphoned_hid.{h,m}        # HID event injection (IOHIDEvent)
+│   ├── vphoned_devmode.{h,m}    # Developer Mode query/enable via XPC
+│   ├── vphoned_location.{h,m}   # CLLocationManager spoofing
+│   ├── vphoned_files.{h,m}      # File operations (list, get, put, mkdir, delete, rename)
+│   ├── vphoned.plist             # LaunchDaemon plist
+│   ├── entitlements.plist        # Guest entitlements
+│   └── signcert.p12              # Signing certificate for re-signing
 ├── patchers/                     # Python patcher package
 │   ├── iboot.py                  # Dynamic iBoot patcher (iBSS/iBEC/LLB)
 │   ├── iboot_jb.py               # JB extension iBoot patcher (nonce skip)
@@ -79,6 +111,11 @@ researchs/
 - **Configuration:** CLI options parsed via `ArgumentParser`, converted to `VPhoneVirtualMachine.Options` struct, then used to build `VZVirtualMachineConfiguration`.
 - **Error handling:** `VPhoneError` enum with `CustomStringConvertible` for user-facing messages.
 - **Window management:** `VPhoneWindowController` wraps `NSWindow` + `VZVirtualMachineView`. Window size derived from configurable screen dimensions and scale factor. Touch input translated from mouse events to multi-touch via `VPhoneVirtualMachineView`.
+- **Guest daemon (vphoned):** ObjC daemon running inside the iOS VM as a LaunchDaemon. Communicates with host over vsock port 1337 using length-prefixed JSON (`[uint32 BE length][UTF-8 JSON]`). Handles HID injection, developer mode, location spoofing, and file operations. Host side is `VPhoneControl` which auto-reconnects and supports binary auto-update on connect.
+- **Control protocol:** All commands use async request-response via `VPhoneControl.sendRequest()` with pending request tracking. Menu actions (`VPhoneMenuConnect`) await responses and show results as `NSAlert` sheets on the VM window.
+- **Menu system:** `VPhoneMenuController` owns the menu bar, built from extensions in separate files per menu (Keys, Type, Location, Connect). Each extension has its own `build*Menu()` method.
+- **File browser:** SwiftUI-based (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) hosted in a separate `NSWindow` via `NSHostingController`. Supports search, sort, upload/download, drag-drop. File operations go through `VPhoneControl` async APIs.
+- **Location sync:** `VPhoneLocationProvider` wraps `CLLocationManager`, forwards host Mac's GPS coordinates to the guest over vsock when toggled from the Location menu.
 
 ---
 
