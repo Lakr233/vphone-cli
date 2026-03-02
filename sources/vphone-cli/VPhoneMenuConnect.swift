@@ -22,18 +22,70 @@ extension VPhoneMenuController {
     }
 
     @objc func devModeStatus() {
-        control.sendDevModeStatus()
+        Task {
+            do {
+                let status = try await control.sendDevModeStatus()
+                showAlert(
+                    title: "Developer Mode",
+                    message: status.enabled ? "Developer Mode is enabled." : "Developer Mode is disabled.",
+                    style: .informational
+                )
+            } catch {
+                showAlert(title: "Developer Mode", message: "\(error)", style: .warning)
+            }
+        }
     }
 
     @objc func devModeEnable() {
-        control.sendDevModeEnable()
+        Task {
+            do {
+                let result = try await control.sendDevModeEnable()
+                showAlert(
+                    title: "Developer Mode",
+                    message: result.message.isEmpty
+                        ? (result.alreadyEnabled ? "Developer Mode already enabled." : "Developer Mode enabled.")
+                        : result.message,
+                    style: .informational
+                )
+            } catch {
+                showAlert(title: "Developer Mode", message: "\(error)", style: .warning)
+            }
+        }
     }
 
     @objc func sendPing() {
-        control.sendPing()
+        Task {
+            do {
+                try await control.sendPing()
+                showAlert(title: "Ping", message: "pong", style: .informational)
+            } catch {
+                showAlert(title: "Ping", message: "\(error)", style: .warning)
+            }
+        }
     }
 
     @objc func queryGuestVersion() {
-        control.sendVersion()
+        Task {
+            do {
+                let hash = try await control.sendVersion()
+                showAlert(title: "Guest Version", message: "build: \(hash)", style: .informational)
+            } catch {
+                showAlert(title: "Guest Version", message: "\(error)", style: .warning)
+            }
+        }
+    }
+
+    // MARK: - Alert
+
+    private func showAlert(title: String, message: String, style: NSAlert.Style) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = style
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
     }
 }

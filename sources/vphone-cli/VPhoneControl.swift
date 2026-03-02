@@ -250,50 +250,35 @@ class VPhoneControl {
 
     // MARK: - Developer Mode
 
-    func sendDevModeStatus() {
-        nextRequestId += 1
-        let msg: [String: Any] = [
-            "v": Self.protocolVersion,
-            "t": "devmode",
-            "id": String(nextRequestId, radix: 16),
-            "action": "status",
-        ]
-        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
-            print("[control] send failed (not connected)")
-            return
-        }
-        print("[control] devmode status query sent")
+    struct DevModeStatus {
+        let enabled: Bool
     }
 
-    func sendDevModeEnable() {
-        nextRequestId += 1
-        let msg: [String: Any] = [
-            "v": Self.protocolVersion,
-            "t": "devmode",
-            "id": String(nextRequestId, radix: 16),
-            "action": "enable",
-        ]
-        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
-            print("[control] send failed (not connected)")
-            return
-        }
-        print("[control] devmode enable sent")
+    struct DevModeEnableResult {
+        let alreadyEnabled: Bool
+        let message: String
     }
 
-    func sendPing() {
-        nextRequestId += 1
-        let msg: [String: Any] = [
-            "v": Self.protocolVersion, "t": "ping", "id": String(nextRequestId, radix: 16),
-        ]
-        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
+    func sendDevModeStatus() async throws -> DevModeStatus {
+        let (resp, _) = try await sendRequest(["t": "devmode", "action": "status"])
+        let enabled = resp["enabled"] as? Bool ?? false
+        return DevModeStatus(enabled: enabled)
     }
 
-    func sendVersion() {
-        nextRequestId += 1
-        let msg: [String: Any] = [
-            "v": Self.protocolVersion, "t": "version", "id": String(nextRequestId, radix: 16),
-        ]
-        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else { return }
+    func sendDevModeEnable() async throws -> DevModeEnableResult {
+        let (resp, _) = try await sendRequest(["t": "devmode", "action": "enable"])
+        let alreadyEnabled = resp["already_enabled"] as? Bool ?? false
+        let message = resp["msg"] as? String ?? ""
+        return DevModeEnableResult(alreadyEnabled: alreadyEnabled, message: message)
+    }
+
+    func sendPing() async throws {
+        _ = try await sendRequest(["t": "ping"])
+    }
+
+    func sendVersion() async throws -> String {
+        let (resp, _) = try await sendRequest(["t": "version"])
+        return resp["hash"] as? String ?? "unknown"
     }
 
     // MARK: - Async Request-Response
