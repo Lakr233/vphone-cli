@@ -114,22 +114,61 @@ class VPhoneFileBrowserModel {
     // MARK: - File Operations
 
     func downloadSelected(to directory: URL) async {
-        let selected = files.filter { selection.contains($0.id) && !$0.isDirectory }
+        let selected = files.filter { selection.contains($0.id) }
         for file in selected {
-            transferName = file.name
-            transferTotal = Int64(file.size)
-            transferCurrent = 0
-            do {
-                let data = try await control.downloadFile(path: file.path)
-                transferCurrent = Int64(data.count)
-                let dest = directory.appendingPathComponent(file.name)
-                try data.write(to: dest)
-                print("[files] downloaded \(file.name) (\(data.count) bytes)")
-            } catch {
-                self.error = "Download failed: \(error)"
+            if file.isDirectory {
+                await downloadDirectory(remotePath: file.path, name: file.name, to: directory)
+            } else {
+                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
             }
+            if error != nil { break }
         }
         transferName = nil
+    }
+
+    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: URL) async {
+        transferName = name
+        transferTotal = Int64(size)
+        transferCurrent = 0
+        do {
+            let data = try await control.downloadFile(path: remotePath)
+            transferCurrent = Int64(data.count)
+            let dest = directory.appendingPathComponent(name)
+            try data.write(to: dest)
+            print("[files] downloaded \(remotePath) (\(data.count) bytes)")
+        } catch {
+            self.error = "Download failed: \(error)"
+        }
+    }
+
+    private func downloadDirectory(remotePath: String, name: String, to localParent: URL) async {
+        let localDir = localParent.appendingPathComponent(name)
+        do {
+            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+        } catch {
+            self.error = "Create directory failed: \(error)"
+            return
+        }
+
+        let entries: [[String: Any]]
+        do {
+            entries = try await control.listFiles(path: remotePath)
+        } catch {
+            self.error = "List directory failed: \(error)"
+            return
+        }
+
+        let children = entries.compactMap { VPhoneRemoteFile(dir: remotePath, entry: $0) }
+        for child in children {
+            if child.isDirectory {
+                await downloadDirectory(remotePath: child.path, name: child.name, to: localDir)
+            } else {
+                await downloadFile(
+                    remotePath: child.path, name: child.name, size: child.size, to: localDir
+                )
+            }
+            if error != nil { return }
+        }
     }
 
     func uploadFiles(urls: [URL]) async {
