@@ -22,7 +22,6 @@ Prerequisites:
 import gzip
 import glob
 import os
-import platform
 import plistlib
 import shutil
 import subprocess
@@ -33,7 +32,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from pyimg4 import IM4P
+from pyimg4 import IM4M, IM4P, IMG4
 
 from fw_patch import (
     load_firmware,
@@ -145,31 +144,15 @@ def extract_im4m(shsh_path, im4m_path):
             os.remove(tmp)
 
 
-def sign_img4(im4p_path, img4_path, im4m_path, tag=None, input_dir="."):
-    """Create IMG4 from IM4P + IM4M. Uses tools/img4 for tag override."""
+def sign_img4(im4p_path, img4_path, im4m_path, tag=None):
+    """Create IMG4 from IM4P + IM4M using pyimg4 Python API."""
+    im4p = IM4P(open(im4p_path, "rb").read())
     if tag:
-        img4_tool = os.path.join(input_dir, "tools/img4")
-        subprocess.run(
-            [img4_tool, "-i", im4p_path, "-o", img4_path, "-M", im4m_path, "-T", tag],
-            check=True,
-            capture_output=True,
-        )
-    else:
-        subprocess.run(
-            [
-                "pyimg4",
-                "img4",
-                "create",
-                "-p",
-                im4p_path,
-                "-o",
-                img4_path,
-                "-m",
-                im4m_path,
-            ],
-            check=True,
-            capture_output=True,
-        )
+        im4p.fourcc = tag
+    im4m = IM4M(open(im4m_path, "rb").read())
+    img4 = IMG4(im4p=im4p, im4m=im4m)
+    with open(img4_path, "wb") as f:
+        f.write(img4.output())
 
 
 def run(cmd, **kwargs):
@@ -177,58 +160,18 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, check=True, **kwargs)
 
 
-def is_exec_compatible(path):
-    """Return True if an executable is usable on this host arch."""
-    if not path or not os.path.isfile(path) or not os.access(path, os.X_OK):
-        return False
-
-    file_out = subprocess.run(["file", path], capture_output=True, text=True).stdout
-
-    # Non-Mach-O executables (scripts/wrappers) are accepted.
-    if "Mach-O" not in file_out:
-        return True
-
-    host_arch = platform.machine()
-    try:
-        archs = subprocess.run(
-            ["lipo", "-archs", path], capture_output=True, text=True, check=True
-        ).stdout.split()
-        return host_arch in archs
-    except Exception:
-        return host_arch in file_out or "universal" in file_out
-
-
-def resolve_tar_extractor(input_dir):
-    """Select tar tool with compatibility fallback and clear diagnostics."""
-    bundled_gtar = os.path.join(input_dir, "tools/gtar")
-    host_gtar = shutil.which("gtar")
-    host_tar = shutil.which("tar")
-    host_arch = platform.machine()
-
-    if is_exec_compatible(bundled_gtar):
-        return bundled_gtar, True, "bundled gtar"
-    if os.path.exists(bundled_gtar):
-        print(
-            f"  [!] Bundled gtar is not compatible with host arch ({host_arch}): {bundled_gtar}"
-        )
-
-    if host_gtar and is_exec_compatible(host_gtar):
-        return host_gtar, True, "host gtar"
-    if host_gtar:
-        print(
-            f"  [!] Host gtar is present but incompatible with host arch ({host_arch}): {host_gtar}"
-        )
-
-    if host_tar and is_exec_compatible(host_tar):
-        return host_tar, False, "host tar"
-    if host_tar:
-        print(
-            f"  [!] Host tar is present but incompatible with host arch ({host_arch}): {host_tar}"
-        )
-
-    print("[-] No compatible tar extractor found.")
-    print("    Install GNU tar with: brew install gnu-tar")
-    sys.exit(1)
+def check_prerequisites():
+    """Verify required host tools are available."""
+    missing = []
+    for tool, pkg in [("gtar", "gnu-tar"), ("ldid", "ldid-procursus"), ("trustcache", "trustcache (make setup_tools)")]:
+        if not shutil.which(tool):
+            missing.append(f"  {tool:12s} — {pkg}")
+    if missing:
+        print("[-] Missing required tools:")
+        for m in missing:
+            print(m)
+        print("\n    Run: make setup_tools")
+        sys.exit(1)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -302,9 +245,9 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
     mountpoint = os.path.join(vm_dir, "SSHRD")
     ramdisk_raw = os.path.join(temp_dir, "ramdisk.raw.dmg")
     ramdisk_custom = os.path.join(temp_dir, "ramdisk1.dmg")
-    tar_bin, tar_is_gnu, tar_label = resolve_tar_extractor(input_dir)
-
-    print(f"  Using archive extractor: {tar_label} ({tar_bin})")
+    gtar_bin = shutil.which("gtar")
+    ldid_bin = shutil.which("ldid")
+    tc_bin = shutil.which("trustcache")
 
     # Extract base ramdisk
     print("  Extracting base ramdisk...")
@@ -373,19 +316,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
 
         print("  Injecting SSH tools...")
         ssh_tar = os.path.join(input_dir, "ssh.tar.gz")
-        extract_cmd = ["sudo", tar_bin, "-x", "-f", ssh_tar, "-C", mountpoint]
-        if tar_is_gnu:
-            extract_cmd = [
-                "sudo",
-                tar_bin,
-                "-x",
-                "--no-overwrite-dir",
-                "-f",
-                ssh_tar,
-                "-C",
-                mountpoint,
-            ]
-        run(extract_cmd)
+        run(["sudo", gtar_bin, "-x", "--no-overwrite-dir", "-f", ssh_tar, "-C", mountpoint])
 
         # Remove unnecessary files
         for rel_path in RAMDISK_REMOVE:
@@ -395,7 +326,6 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
 
         # Re-sign Mach-O binaries
         print("  Re-signing Mach-O binaries...")
-        ldid = os.path.join(input_dir, "tools/ldid_macosx_arm64")
         signcert = os.path.join(input_dir, "signcert.p12")
 
         for pattern in SIGN_DIRS:
@@ -410,7 +340,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
                         ).stdout
                     ):
                         subprocess.run(
-                            [ldid, "-S", "-M", f"-K{signcert}", path],
+                            [ldid_bin, "-S", "-M", f"-K{signcert}", path],
                             capture_output=True,
                         )
 
@@ -418,15 +348,14 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         sftp_ents = os.path.join(input_dir, "sftp_server_ents.plist")
         sftp_server = os.path.join(mountpoint, "usr/libexec/sftp-server")
         if os.path.exists(sftp_server):
-            run([ldid, f"-S{sftp_ents}", "-M", f"-K{signcert}", sftp_server])
+            run([ldid_bin, f"-S{sftp_ents}", "-M", f"-K{signcert}", sftp_server])
 
         # Build trustcache
         print("  Building trustcache...")
-        tc_tool = os.path.join(input_dir, "tools/trustcache_macos_arm64")
         tc_raw = os.path.join(temp_dir, "sshrd.raw.tc")
         tc_im4p = os.path.join(temp_dir, "trustcache.im4p")
 
-        run([tc_tool, "create", tc_raw, mountpoint])
+        run([tc_bin, "create", tc_raw, mountpoint])
         run(
             ["pyimg4", "im4p", "create", "-i", tc_raw, "-o", tc_im4p, "-f", "rtsc"],
             capture_output=True,
@@ -435,7 +364,6 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
             tc_im4p,
             os.path.join(output_dir, "trustcache.img4"),
             im4m_path,
-            input_dir=input_dir,
         )
         print(f"  [+] trustcache.img4")
 
@@ -457,7 +385,6 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         rd_im4p,
         os.path.join(output_dir, "ramdisk.img4"),
         im4m_path,
-        input_dir=input_dir,
     )
     print(f"  [+] ramdisk.img4")
 
@@ -488,12 +415,8 @@ def main():
         print(f"[-] No *Restore* directory found in {vm_dir}")
         sys.exit(1)
 
-    # Check pyimg4 CLI
-    try:
-        subprocess.run(["pyimg4", "--help"], capture_output=True, check=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print("[-] pyimg4 CLI not found. Install with: pip install pyimg4")
-        sys.exit(1)
+    # Check host tools
+    check_prerequisites()
 
     # Setup input resources (copy from CFW if needed)
     print(f"[*] Setting up {INPUT_DIR}/...")
@@ -535,7 +458,6 @@ def main():
         ibss_im4p,
         os.path.join(output_dir, "iBSS.vresearch101.RELEASE.img4"),
         im4m_path,
-        input_dir=input_dir,
     )
     print(f"  [+] iBSS.vresearch101.RELEASE.img4")
 
@@ -559,7 +481,6 @@ def main():
         ibec_im4p,
         os.path.join(output_dir, "iBEC.vresearch101.RELEASE.img4"),
         im4m_path,
-        input_dir=input_dir,
     )
     print(f"  [+] iBEC.vresearch101.RELEASE.img4")
 
@@ -579,7 +500,6 @@ def main():
         os.path.join(output_dir, "sptm.vresearch1.release.img4"),
         im4m_path,
         tag="sptm",
-        input_dir=input_dir,
     )
     print(f"  [+] sptm.vresearch1.release.img4")
 
@@ -599,7 +519,6 @@ def main():
         os.path.join(output_dir, "DeviceTree.vphone600ap.img4"),
         im4m_path,
         tag="rdtr",
-        input_dir=input_dir,
     )
     print(f"  [+] DeviceTree.vphone600ap.img4")
 
@@ -619,7 +538,6 @@ def main():
         os.path.join(output_dir, "sep-firmware.vresearch101.RELEASE.img4"),
         im4m_path,
         tag="rsep",
-        input_dir=input_dir,
     )
     print(f"  [+] sep-firmware.vresearch101.RELEASE.img4")
 
@@ -640,7 +558,7 @@ def main():
     txm_im4p = os.path.join(temp_dir, "txm.im4p")
     _save_im4p_with_payp(txm_im4p, TXM_FOURCC, data, original_raw)
     sign_img4(
-        txm_im4p, os.path.join(output_dir, "txm.img4"), im4m_path, input_dir=input_dir
+        txm_im4p, os.path.join(output_dir, "txm.img4"), im4m_path
     )
     print(f"  [+] txm.img4")
 
@@ -661,7 +579,7 @@ def main():
     kc_im4p = os.path.join(temp_dir, "krnl.im4p")
     _save_im4p_with_payp(kc_im4p, KERNEL_FOURCC, data, original_raw)
     sign_img4(
-        kc_im4p, os.path.join(output_dir, "krnl.img4"), im4m_path, input_dir=input_dir
+        kc_im4p, os.path.join(output_dir, "krnl.img4"), im4m_path
     )
     print(f"  [+] krnl.img4")
 

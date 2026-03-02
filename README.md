@@ -36,7 +36,7 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
-brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
 ```
 
 **Git LFS** — this repo uses Git LFS for large resource archives. Install and pull before building:
@@ -52,8 +52,7 @@ git lfs pull
 make setup_machine            # full automation through "First Boot" (includes restore/ramdisk/CFW)
 
 # equivalent manual steps:
-make setup_libimobiledevice   # build libimobiledevice toolchain
-make setup_venv               # create Python venv
+make setup_tools              # install brew deps, build trustcache + libimobiledevice, create Python venv
 source .venv/bin/activate
 ```
 

@@ -344,7 +344,7 @@ Usage: setup_machine.sh [--jb] [--skip-project-setup]
 
 Options:
   --jb                    Use jailbreak firmware patching + jailbreak CFW install.
-  --skip-project-setup    Skip setup_libimobiledevice/setup_venv/build stage.
+  --skip-project-setup    Skip setup_tools/build stage.
 EOF
         exit 0
         ;;
@@ -371,14 +371,13 @@ main() {
   if [[ "$SKIP_PROJECT_SETUP" -eq 1 ]]; then
     echo ""
     echo "=== Project setup ==="
-    echo "[*] Skipping setup_libimobiledevice/setup_venv/build"
+    echo "[*] Skipping setup_tools/build"
   else
     check_platform
     install_brew_deps
     ensure_python_linked
 
-    run_make "Project setup" setup_libimobiledevice
-    run_make "Project setup" setup_venv
+    run_make "Project setup" setup_tools
     run_make "Project setup" build
   fi
 

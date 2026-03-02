@@ -41,116 +41,78 @@ SSH_USER="root"
 SSH_HOST="localhost"
 SSHPASS_BIN=""
 SSH_OPTS=(
-    -o StrictHostKeyChecking=no
-    -o UserKnownHostsFile=/dev/null
-    -o PreferredAuthentications=password
-    -o ConnectTimeout=30
-    -q
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o PreferredAuthentications=password
+  -o ConnectTimeout=30
+  -q
 )
 
 # ── Helpers ─────────────────────────────────────────────────────
 die() {
-    echo "[-] $*" >&2
-    exit 1
+  echo "[-] $*" >&2
+  exit 1
 }
 
-is_exec_compatible() {
-    local bin="$1"
-    local host_arch file_out archs
-
-    [[ -x "$bin" ]] || return 1
-    host_arch="$(uname -m)"
-    file_out="$(file "$bin" 2>/dev/null || true)"
-
-    # Non Mach-O executables (scripts/wrappers) are accepted.
-    if [[ "$file_out" != *"Mach-O"* ]]; then
-        return 0
-    fi
-
-    if command -v lipo >/dev/null 2>&1; then
-        archs="$(lipo -archs "$bin" 2>/dev/null || true)"
-        [[ -n "$archs" && " $archs " == *" $host_arch "* ]] && return 0
-        return 1
-    fi
-
-    [[ "$file_out" == *"$host_arch"* || "$file_out" == *"universal"* ]]
-}
-
-resolve_sshpass() {
-    local bundled="$VM_DIR/$CFW_INPUT/tools/sshpass"
-    local host_sshpass
-    host_sshpass="$(command -v sshpass 2>/dev/null || true)"
-
-    if is_exec_compatible "$bundled"; then
-        SSHPASS_BIN="$bundled"
-        echo "[+] Using bundled sshpass: $SSHPASS_BIN"
-        return
-    fi
-
-    if [[ -x "$bundled" ]]; then
-        echo "[!] Bundled sshpass is not compatible with host arch ($(uname -m)): $bundled"
-    fi
-
-    if [[ -n "$host_sshpass" ]] && is_exec_compatible "$host_sshpass"; then
-        SSHPASS_BIN="$host_sshpass"
-        echo "[+] Using host sshpass: $SSHPASS_BIN"
-        return
-    fi
-
-    [[ -n "$host_sshpass" ]] \
-        && echo "[!] Host sshpass is present but incompatible with host arch: $host_sshpass"
-    die "No compatible sshpass found. Install one with: brew install hudochenkov/sshpass/sshpass"
+check_prerequisites() {
+  local missing=()
+  command -v sshpass &>/dev/null || missing+=("sshpass")
+  command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
+  if ((${#missing[@]} > 0)); then
+    die "Missing required tools: ${missing[*]}. Run: make setup_tools"
+  fi
+  SSHPASS_BIN="$(command -v sshpass)"
 }
 
 _sshpass() {
-    "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
+  "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
 }
 
 ssh_cmd() {
-    _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
+  _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
 }
 
 scp_to() {
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
+  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
 }
 
 scp_from() {
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
+  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
 }
 
 remote_file_exists() {
-    ssh_cmd "test -f '$1'" 2>/dev/null
+  ssh_cmd "test -f '$1'" 2>/dev/null
 }
 
 ldid_sign() {
-    local file="$1" bundle_id="${2:-}"
-    local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    "$VM_DIR/$CFW_INPUT/tools/ldid_macosx_arm64" "${args[@]}" "$file"
+  local file="$1" bundle_id="${2:-}"
+  local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
+  [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
+  ldid "${args[@]}" "$file"
 }
 
 remote_mount() {
-    local dev="$1" mnt="$2" opts="${3:-rw}"
-    ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
+  local dev="$1" mnt="$2" opts="${3:-rw}"
+  ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
 }
 
 get_boot_manifest_hash() {
-    ssh_cmd "/bin/ls /mnt5 2>/dev/null" | awk 'length($0)==96{print; exit}'
+  ssh_cmd "/bin/ls /mnt5 2>/dev/null" | awk 'length($0)==96{print; exit}'
 }
 
 # ── Setup JB input resources ──────────────────────────────────
 setup_cfw_jb_input() {
-    [[ -d "$VM_DIR/$CFW_JB_INPUT" ]] && return
-    local archive
-    for search_dir in "$SCRIPT_DIR/resources" "$SCRIPT_DIR" "$VM_DIR"; do
-        archive="$search_dir/$CFW_JB_ARCHIVE"
-        if [[ -f "$archive" ]]; then
-            echo "  Extracting $CFW_JB_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
-            return
-        fi
-    done
-    die "JB mode: neither $CFW_JB_INPUT/ nor $CFW_JB_ARCHIVE found"
+  [[ -d "$VM_DIR/$CFW_JB_INPUT" ]] && return
+  local archive
+  for search_dir in "$SCRIPT_DIR/resources" "$SCRIPT_DIR" "$VM_DIR"; do
+    archive="$search_dir/$CFW_JB_ARCHIVE"
+    if [[ -f "$archive" ]]; then
+      echo "  Extracting $CFW_JB_ARCHIVE..."
+      tar --zstd -xf "$archive" -C "$VM_DIR"
+      return
+    fi
+  done
+  die "JB mode: neither $CFW_JB_INPUT/ nor $CFW_JB_ARCHIVE found"
 }
 
 # ── Check JB prerequisites ────────────────────────────────────
@@ -160,7 +122,7 @@ setup_cfw_jb_input
 JB_INPUT_DIR="$VM_DIR/$CFW_JB_INPUT"
 echo ""
 echo "[+] JB input resources: $JB_INPUT_DIR"
-resolve_sshpass
+check_prerequisites
 
 mkdir -p "$TEMP_DIR"
 
@@ -172,16 +134,16 @@ echo ""
 echo "[JB-1] Patching launchd (jetsam guard + hook injection)..."
 
 if ! remote_file_exists "/mnt1/sbin/launchd.bak"; then
-    echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/sbin/launchd /mnt1/sbin/launchd.bak"
+  echo "  Creating backup..."
+  ssh_cmd "/bin/cp /mnt1/sbin/launchd /mnt1/sbin/launchd.bak"
 fi
 
 scp_from "/mnt1/sbin/launchd.bak" "$TEMP_DIR/launchd"
 
 # Inject launchdhook.dylib load command (idempotent — skips if already present)
 if [[ -d "$JB_INPUT_DIR/basebin" ]]; then
-    echo "  Injecting LC_LOAD_DYLIB for /cores/launchdhook.dylib..."
-    python3 "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/cores/launchdhook.dylib"
+  echo "  Injecting LC_LOAD_DYLIB for /cores/launchdhook.dylib..."
+  python3 "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/cores/launchdhook.dylib"
 fi
 
 python3 "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
@@ -209,7 +171,7 @@ zstd -d -f "$BOOTSTRAP_ZST" -o "$BOOTSTRAP_TAR"
 
 scp_to "$BOOTSTRAP_TAR" "/mnt5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
 if [[ -f "$SILEO_DEB" ]]; then
-    scp_to "$SILEO_DEB" "/mnt5/$BOOT_HASH/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
+  scp_to "$SILEO_DEB" "/mnt5/$BOOT_HASH/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 fi
 
 ssh_cmd "/bin/mkdir -p /mnt5/$BOOT_HASH/jb-vphone"
@@ -229,23 +191,23 @@ echo "  [+] procursus bootstrap installed"
 # ═══════════ JB-3 DEPLOY BASEBIN HOOKS ═════════════════════════
 BASEBIN_DIR="$JB_INPUT_DIR/basebin"
 if [[ -d "$BASEBIN_DIR" ]]; then
-    echo ""
-    echo "[JB-3] Deploying BaseBin hooks to /cores/..."
+  echo ""
+  echo "[JB-3] Deploying BaseBin hooks to /cores/..."
 
-    ssh_cmd "/bin/mkdir -p /mnt1/cores"
-    ssh_cmd "/bin/chmod 0755 /mnt1/cores"
+  ssh_cmd "/bin/mkdir -p /mnt1/cores"
+  ssh_cmd "/bin/chmod 0755 /mnt1/cores"
 
-    for dylib in "$BASEBIN_DIR"/*.dylib; do
-        [[ -f "$dylib" ]] || continue
-        dylib_name="$(basename "$dylib")"
-        echo "  Installing $dylib_name..."
-        # Re-sign with our certificate before deploying
-        ldid_sign "$dylib"
-        scp_to "$dylib" "/mnt1/cores/$dylib_name"
-        ssh_cmd "/bin/chmod 0755 /mnt1/cores/$dylib_name"
-    done
+  for dylib in "$BASEBIN_DIR"/*.dylib; do
+    [[ -f "$dylib" ]] || continue
+    dylib_name="$(basename "$dylib")"
+    echo "  Installing $dylib_name..."
+    # Re-sign with our certificate before deploying
+    ldid_sign "$dylib"
+    scp_to "$dylib" "/mnt1/cores/$dylib_name"
+    ssh_cmd "/bin/chmod 0755 /mnt1/cores/$dylib_name"
+  done
 
-    echo "  [+] BaseBin hooks deployed"
+  echo "  [+] BaseBin hooks deployed"
 fi
 
 # ═══════════ CLEANUP ═════════════════════════════════════════
@@ -257,7 +219,7 @@ ssh_cmd "/sbin/umount /mnt5 2>/dev/null || true"
 
 echo "[*] Cleaning up temp binaries..."
 rm -f "$TEMP_DIR/launchd" \
-    "$TEMP_DIR/bootstrap-iphoneos-arm64.tar"
+  "$TEMP_DIR/bootstrap-iphoneos-arm64.tar"
 
 echo ""
 echo "[+] CFW + JB installation complete!"

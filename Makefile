@@ -22,6 +22,7 @@ INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
 LIMD_PREFIX := .limd
+TOOLS_PREFIX := .tools
 IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
 IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
 PYTHON      := $(CURDIR)/$(VENV)/bin/python3
@@ -29,7 +30,7 @@ PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 SWIFT_SOURCES := $(shell find sources -name '*.swift')
 
 # ─── Environment — prefer project-local binaries ────────────────
-export PATH := $(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
+export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
 
 # ─── Default ──────────────────────────────────────────────────────
 .PHONY: help
@@ -39,16 +40,17 @@ help:
 	@echo "Setup (one-time):"
 	@echo "  make setup_machine           Full setup through README First Boot"
 	@echo "                               Optional: JB=1 for jailbreak firmware/CFW path"
-	@echo "                               Optional: SKIP_PROJECT_SETUP=1 to skip setup_libimobiledevice/setup_venv/build"
+	@echo "                               Optional: SKIP_PROJECT_SETUP=1 to skip setup_tools/build"
+	@echo "  make setup_tools             Install all tools (brew, trustcache, libimobiledevice, venv)"
 	@echo "  make setup_venv              Create Python .venv"
 	@echo "  make setup_libimobiledevice  Build libimobiledevice toolchain"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make vphoned                 Cross-compile vphoned for iOS"
-	@echo "  make vphoned_sign            Sign vphoned (requires cfw_input)"
+	@echo "  make vphoned_sign            Sign vphoned (requires ldid)"
 	@echo "  make install                 Build + copy to ./bin/"
-	@echo "  make clean                   Remove .build/"
+	@echo "  make clean                   Remove all build artifacts (keeps IPSWs)"
 	@echo ""
 	@echo "VM management:"
 	@echo "  make vm_new                  Create VM directory"
@@ -78,12 +80,15 @@ help:
 # Setup
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: setup_machine setup_venv setup_libimobiledevice
+.PHONY: setup_machine setup_tools setup_venv setup_libimobiledevice
 
 setup_machine:
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
 		$(if $(filter 1 true yes YES TRUE,$(SKIP_PROJECT_SETUP)),--skip-project-setup,)
+
+setup_tools:
+	zsh $(SCRIPTS)/setup_tools.sh
 
 setup_venv:
 	zsh $(SCRIPTS)/setup_venv.sh
@@ -92,10 +97,19 @@ setup_libimobiledevice:
 	bash $(SCRIPTS)/setup_libimobiledevice.sh
 
 # ═══════════════════════════════════════════════════════════════════
+# Clean — remove all untracked/ignored files (preserves IPSWs only)
+# ═══════════════════════════════════════════════════════════════════
+
+.PHONY: clean
+clean:
+	@echo "=== Cleaning all untracked files (preserving IPSWs) ==="
+	git clean -fdx -e '*.ipsw' -e '*_Restore*'
+
+# ═══════════════════════════════════════════════════════════════════
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build install clean bundle
+.PHONY: build install bundle
 
 build: $(BINARY)
 
@@ -121,25 +135,19 @@ install: build
 	cp -f $(BINARY) ./bin/vphone-cli
 	@echo "Installed to ./bin/vphone-cli"
 
-clean:
-	swift package clean
-	rm -rf .build
-	$(MAKE) -C $(SCRIPTS)/vphoned clean
-	rm -f $(BUILD_INFO)
-
 # Cross-compile vphoned daemon for iOS arm64 (installed into VM by cfw_install)
 .PHONY: vphoned
 vphoned:
 	$(MAKE) -C $(SCRIPTS)/vphoned GIT_HASH=$(GIT_HASH)
 
-# Sign vphoned with entitlements using cfw_input tools (requires make cfw_install to have unpacked cfw_input)
+# Sign vphoned with entitlements (requires ldid from brew install ldid-procursus)
 .PHONY: vphoned_sign
 vphoned_sign: vphoned
-	@test -f "$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64" \
-		|| (echo "Error: ldid not found. Run 'make cfw_install' first to unpack cfw_input." && exit 1)
+	@command -v ldid >/dev/null 2>&1 \
+		|| (echo "Error: ldid not found. Run: brew install ldid-procursus" && exit 1)
 	@echo "=== Signing vphoned ==="
 	cp $(SCRIPTS)/vphoned/vphoned $(VM_DIR)/.vphoned.signed
-	$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64 \
+	ldid \
 		-S$(SCRIPTS)/vphoned/entitlements.plist \
 		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
 		$(VM_DIR)/.vphoned.signed

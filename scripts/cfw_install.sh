@@ -35,144 +35,106 @@ SSH_USER="root"
 SSH_HOST="localhost"
 SSHPASS_BIN=""
 SSH_OPTS=(
-    -o StrictHostKeyChecking=no
-    -o UserKnownHostsFile=/dev/null
-    -o PreferredAuthentications=password
-    -o ConnectTimeout=30
-    -q
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o PreferredAuthentications=password
+  -o ConnectTimeout=30
+  -q
 )
 
 # ── Helpers ─────────────────────────────────────────────────────
 die() {
-    echo "[-] $*" >&2
-    exit 1
+  echo "[-] $*" >&2
+  exit 1
 }
 
-is_exec_compatible() {
-    local bin="$1"
-    local host_arch file_out archs
-
-    [[ -x "$bin" ]] || return 1
-    host_arch="$(uname -m)"
-    file_out="$(file "$bin" 2>/dev/null || true)"
-
-    # Non Mach-O executables (scripts/wrappers) are accepted.
-    if [[ "$file_out" != *"Mach-O"* ]]; then
-        return 0
-    fi
-
-    if command -v lipo >/dev/null 2>&1; then
-        archs="$(lipo -archs "$bin" 2>/dev/null || true)"
-        [[ -n "$archs" && " $archs " == *" $host_arch "* ]] && return 0
-        return 1
-    fi
-
-    [[ "$file_out" == *"$host_arch"* || "$file_out" == *"universal"* ]]
-}
-
-resolve_sshpass() {
-    local bundled="$VM_DIR/$CFW_INPUT/tools/sshpass"
-    local host_sshpass
-    host_sshpass="$(command -v sshpass 2>/dev/null || true)"
-
-    if is_exec_compatible "$bundled"; then
-        SSHPASS_BIN="$bundled"
-        echo "[+] Using bundled sshpass: $SSHPASS_BIN"
-        return
-    fi
-
-    if [[ -x "$bundled" ]]; then
-        echo "[!] Bundled sshpass is not compatible with host arch ($(uname -m)): $bundled"
-    fi
-
-    if [[ -n "$host_sshpass" ]] && is_exec_compatible "$host_sshpass"; then
-        SSHPASS_BIN="$host_sshpass"
-        echo "[+] Using host sshpass: $SSHPASS_BIN"
-        return
-    fi
-
-    [[ -n "$host_sshpass" ]] \
-        && echo "[!] Host sshpass is present but incompatible with host arch: $host_sshpass"
-    die "No compatible sshpass found. Install one with: brew install hudochenkov/sshpass/sshpass"
+check_prerequisites() {
+  local missing=()
+  command -v sshpass &>/dev/null || missing+=("sshpass")
+  command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
+  if ((${#missing[@]} > 0)); then
+    die "Missing required tools: ${missing[*]}. Run: make setup_tools"
+  fi
+  SSHPASS_BIN="$(command -v sshpass)"
 }
 
 _sshpass() {
-    "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
+  "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
 }
 
 ssh_cmd() {
-    _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
+  _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
 }
 
 scp_to() {
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
+  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
 }
 
 scp_from() {
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
+  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
 }
 
 remote_file_exists() {
-    ssh_cmd "test -f '$1'" 2>/dev/null
+  ssh_cmd "test -f '$1'" 2>/dev/null
 }
 
 ldid_sign() {
-    local file="$1" bundle_id="${2:-}"
-    local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    "$VM_DIR/$CFW_INPUT/tools/ldid_macosx_arm64" "${args[@]}" "$file"
+  local file="$1" bundle_id="${2:-}"
+  local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
+  [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
+  ldid "${args[@]}" "$file"
 }
 
 # Detach a DMG mountpoint if currently mounted, ignore errors
 safe_detach() {
-    local mnt="$1"
-    if mount | grep -q "$mnt"; then
-        sudo hdiutil detach -force "$mnt" 2>/dev/null || true
-    fi
+  local mnt="$1"
+  if mount | grep -q "$mnt"; then
+    sudo hdiutil detach -force "$mnt" 2>/dev/null || true
+  fi
 }
 
 # Mount device filesystem, tolerate already-mounted
 remote_mount() {
-    local dev="$1" mnt="$2" opts="${3:-rw}"
-    ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
+  local dev="$1" mnt="$2" opts="${3:-rw}"
+  ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
 }
 
 # ── Find restore directory ─────────────────────────────────────
 find_restore_dir() {
-    for dir in "$VM_DIR"/iPhone*_Restore; do
-        [[ -f "$dir/BuildManifest.plist" ]] && echo "$dir" && return
-    done
-    die "No restore directory found in $VM_DIR"
+  for dir in "$VM_DIR"/iPhone*_Restore; do
+    [[ -f "$dir/BuildManifest.plist" ]] && echo "$dir" && return
+  done
+  die "No restore directory found in $VM_DIR"
 }
 
 # ── Setup input resources ──────────────────────────────────────
 setup_cfw_input() {
-    [[ -d "$VM_DIR/$CFW_INPUT" ]] && return
-    local archive
-    for search_dir in "$SCRIPT_DIR/resources" "$SCRIPT_DIR" "$VM_DIR"; do
-        archive="$search_dir/$CFW_ARCHIVE"
-        if [[ -f "$archive" ]]; then
-            echo "  Extracting $CFW_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
-            return
-        fi
-    done
-    die "Neither $CFW_INPUT/ nor $CFW_ARCHIVE found"
+  [[ -d "$VM_DIR/$CFW_INPUT" ]] && return
+  local archive
+  for search_dir in "$SCRIPT_DIR/resources" "$SCRIPT_DIR" "$VM_DIR"; do
+    archive="$search_dir/$CFW_ARCHIVE"
+    if [[ -f "$archive" ]]; then
+      echo "  Extracting $CFW_ARCHIVE..."
+      tar --zstd -xf "$archive" -C "$VM_DIR"
+      return
+    fi
+  done
+  die "Neither $CFW_INPUT/ nor $CFW_ARCHIVE found"
 }
 
 # ── Check prerequisites ────────────────────────────────────────
 check_prereqs() {
-    command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
-    command -v aea >/dev/null 2>&1 || die "'aea' not found (requires macOS 12+)"
-    command -v python3 >/dev/null 2>&1 || die "python3 not found"
-    python3 -c "import capstone, keystone" 2>/dev/null \
-        || die "Missing Python deps. Install: pip install capstone keystone-engine"
+  command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
+  command -v aea >/dev/null 2>&1 || die "'aea' not found (requires macOS 12+)"
+  command -v python3 >/dev/null 2>&1 || die "python3 not found"
+  python3 -c "import capstone, keystone" 2>/dev/null ||
+    die "Missing Python deps. Install: pip install capstone keystone-engine"
 }
 
 # ── Cleanup trap (unmount DMGs on error) ───────────────────────
 cleanup_on_exit() {
-    safe_detach "$TEMP_DIR/mnt_sysos"
-    safe_detach "$TEMP_DIR/mnt_appos"
+  safe_detach "$TEMP_DIR/mnt_sysos"
+  safe_detach "$TEMP_DIR/mnt_appos"
 }
 trap cleanup_on_exit EXIT
 
@@ -189,7 +151,7 @@ echo "[+] Restore directory: $RESTORE_DIR"
 setup_cfw_input
 INPUT_DIR="$VM_DIR/$CFW_INPUT"
 echo "[+] Input resources: $INPUT_DIR"
-resolve_sshpass
+check_prerequisites
 
 mkdir -p "$TEMP_DIR"
 
@@ -213,20 +175,20 @@ MNT_APPOS="$TEMP_DIR/mnt_appos"
 
 # Decrypt SystemOS AEA (cached — skip if already decrypted)
 if [[ ! -f "$SYSOS_DMG" ]]; then
-    echo "  Extracting AEA key..."
-    AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
-    echo "  key: $AEA_KEY"
-    echo "  Decrypting SystemOS..."
-    aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
+  echo "  Extracting AEA key..."
+  AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
+  echo "  key: $AEA_KEY"
+  echo "  Decrypting SystemOS..."
+  aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
 else
-    echo "  Using cached SystemOS DMG"
+  echo "  Using cached SystemOS DMG"
 fi
 
 # Copy AppOS (unencrypted, cached)
 if [[ ! -f "$APPOS_DMG" ]]; then
-    cp "$RESTORE_DIR/$CRYPTEX_APPOS" "$APPOS_DMG"
+  cp "$RESTORE_DIR/$CRYPTEX_APPOS" "$APPOS_DMG"
 else
-    echo "  Using cached AppOS DMG"
+  echo "  Using cached AppOS DMG"
 fi
 
 # Detach any leftover mounts from previous runs
@@ -247,23 +209,23 @@ remote_mount /dev/disk1s1 /mnt1
 echo "  Checking APFS snapshots..."
 SNAP_LIST=$(ssh_cmd "snaputil -l /mnt1 2>/dev/null" || true)
 if echo "$SNAP_LIST" | grep -q "^orig-fs$"; then
-    echo "  Snapshot 'orig-fs' already exists, skipping rename"
+  echo "  Snapshot 'orig-fs' already exists, skipping rename"
 else
-    UPDATE_SNAP=$(echo "$SNAP_LIST" | grep "^com\.apple\.os\.update-" | head -1)
-    if [[ -n "$UPDATE_SNAP" ]]; then
-        echo "  Renaming snapshot: $UPDATE_SNAP -> orig-fs"
-        ssh_cmd "snaputil -n '$UPDATE_SNAP' orig-fs /mnt1"
-        # Verify rename succeeded
-        if ! ssh_cmd "snaputil -l /mnt1 2>/dev/null" | grep -q "^orig-fs$"; then
-            die "Failed to rename snapshot to orig-fs"
-        fi
-        echo "  Snapshot renamed, remounting..."
-        ssh_cmd "/sbin/umount /mnt1"
-        remote_mount /dev/disk1s1 /mnt1
-        echo "  [+] Snapshot renamed to orig-fs"
-    else
-        echo "  No com.apple.os.update- snapshot found, skipping"
+  UPDATE_SNAP=$(echo "$SNAP_LIST" | grep "^com\.apple\.os\.update-" | head -1)
+  if [[ -n "$UPDATE_SNAP" ]]; then
+    echo "  Renaming snapshot: $UPDATE_SNAP -> orig-fs"
+    ssh_cmd "snaputil -n '$UPDATE_SNAP' orig-fs /mnt1"
+    # Verify rename succeeded
+    if ! ssh_cmd "snaputil -l /mnt1 2>/dev/null" | grep -q "^orig-fs$"; then
+      die "Failed to rename snapshot to orig-fs"
     fi
+    echo "  Snapshot renamed, remounting..."
+    ssh_cmd "/sbin/umount /mnt1"
+    remote_mount /dev/disk1s1 /mnt1
+    echo "  [+] Snapshot renamed to orig-fs"
+  else
+    echo "  No com.apple.os.update- snapshot found, skipping"
+  fi
 fi
 
 ssh_cmd "/bin/rm -rf /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
@@ -295,8 +257,8 @@ echo "[2/7] Patching seputil..."
 
 # Always patch from .bak (original unpatched binary)
 if ! remote_file_exists "/mnt1/usr/libexec/seputil.bak"; then
-    echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/usr/libexec/seputil /mnt1/usr/libexec/seputil.bak"
+  echo "  Creating backup..."
+  ssh_cmd "/bin/cp /mnt1/usr/libexec/seputil /mnt1/usr/libexec/seputil.bak"
 fi
 
 scp_from "/mnt1/usr/libexec/seputil.bak" "$TEMP_DIR/seputil"
@@ -351,8 +313,8 @@ echo "[5/7] Patching launchd_cache_loader..."
 
 # Always patch from .bak (original unpatched binary)
 if ! remote_file_exists "/mnt1/usr/libexec/launchd_cache_loader.bak"; then
-    echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/usr/libexec/launchd_cache_loader /mnt1/usr/libexec/launchd_cache_loader.bak"
+  echo "  Creating backup..."
+  ssh_cmd "/bin/cp /mnt1/usr/libexec/launchd_cache_loader /mnt1/usr/libexec/launchd_cache_loader.bak"
 fi
 
 scp_from "/mnt1/usr/libexec/launchd_cache_loader.bak" "$TEMP_DIR/launchd_cache_loader"
@@ -369,8 +331,8 @@ echo "[6/7] Patching mobileactivationd..."
 
 # Always patch from .bak (original unpatched binary)
 if ! remote_file_exists "/mnt1/usr/libexec/mobileactivationd.bak"; then
-    echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/usr/libexec/mobileactivationd /mnt1/usr/libexec/mobileactivationd.bak"
+  echo "  Creating backup..."
+  ssh_cmd "/bin/cp /mnt1/usr/libexec/mobileactivationd /mnt1/usr/libexec/mobileactivationd.bak"
 fi
 
 scp_from "/mnt1/usr/libexec/mobileactivationd.bak" "$TEMP_DIR/mobileactivationd"
@@ -389,36 +351,36 @@ echo "[7/7] Installing LaunchDaemons..."
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
 VPHONED_BIN="$VPHONED_SRC/vphoned"
 VPHONED_SRCS=(
-    "$VPHONED_SRC/vphoned.m"
-    "$VPHONED_SRC/vphoned_protocol.m"
-    "$VPHONED_SRC/vphoned_hid.m"
-    "$VPHONED_SRC/vphoned_devmode.m"
-    "$VPHONED_SRC/vphoned_location.m"
-    "$VPHONED_SRC/vphoned_files.m"
+  "$VPHONED_SRC/vphoned.m"
+  "$VPHONED_SRC/vphoned_protocol.m"
+  "$VPHONED_SRC/vphoned_hid.m"
+  "$VPHONED_SRC/vphoned_devmode.m"
+  "$VPHONED_SRC/vphoned_location.m"
+  "$VPHONED_SRC/vphoned_files.m"
 )
 needs_vphoned_build=0
 if [[ ! -f "$VPHONED_BIN" ]]; then
-    needs_vphoned_build=1
+  needs_vphoned_build=1
 else
-    for src in "${VPHONED_SRCS[@]}"; do
-        if [[ "$src" -nt "$VPHONED_BIN" ]]; then
-            needs_vphoned_build=1
-            break
-        fi
-    done
+  for src in "${VPHONED_SRCS[@]}"; do
+    if [[ "$src" -nt "$VPHONED_BIN" ]]; then
+      needs_vphoned_build=1
+      break
+    fi
+  done
 fi
 if [[ "$needs_vphoned_build" == "1" ]]; then
-    echo "  Building vphoned for arm64..."
-    xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-        -I"$VPHONED_SRC" \
-        -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
-        -framework Foundation
+  echo "  Building vphoned for arm64..."
+  xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
+    -I"$VPHONED_SRC" \
+    -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
+    -framework Foundation
 fi
 cp "$VPHONED_BIN" "$TEMP_DIR/vphoned"
-"$VM_DIR/$CFW_INPUT/tools/ldid_macosx_arm64" \
-    -S"$VPHONED_SRC/entitlements.plist" \
-    -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" \
-    "$TEMP_DIR/vphoned"
+ldid \
+  -S"$VPHONED_SRC/entitlements.plist" \
+  -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" \
+  "$TEMP_DIR/vphoned"
 scp_to "$TEMP_DIR/vphoned" "/mnt1/usr/bin/vphoned"
 ssh_cmd "/bin/chmod 0755 /mnt1/usr/bin/vphoned"
 # Keep a copy of the signed binary for host-side auto-update
@@ -427,8 +389,8 @@ echo "  [+] vphoned installed (signed copy at .vphoned.signed)"
 
 # Send daemon plists (overwrite on re-run)
 for plist in bash.plist dropbear.plist trollvnc.plist rpcserver_ios.plist; do
-    scp_to "$INPUT_DIR/jb/LaunchDaemons/$plist" "/mnt1/System/Library/LaunchDaemons/"
-    ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/$plist"
+  scp_to "$INPUT_DIR/jb/LaunchDaemons/$plist" "/mnt1/System/Library/LaunchDaemons/"
+  ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/$plist"
 done
 scp_to "$VPHONED_SRC/vphoned.plist" "/mnt1/System/Library/LaunchDaemons/"
 ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/vphoned.plist"
@@ -436,8 +398,8 @@ ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/vphoned.plist"
 # Always patch launchd.plist from .bak (original)
 echo "  Patching launchd.plist..."
 if ! remote_file_exists "/mnt1/System/Library/xpc/launchd.plist.bak"; then
-    echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/System/Library/xpc/launchd.plist /mnt1/System/Library/xpc/launchd.plist.bak"
+  echo "  Creating backup..."
+  ssh_cmd "/bin/cp /mnt1/System/Library/xpc/launchd.plist /mnt1/System/Library/xpc/launchd.plist.bak"
 fi
 
 scp_from "/mnt1/System/Library/xpc/launchd.plist.bak" "$TEMP_DIR/launchd.plist"
@@ -458,10 +420,10 @@ ssh_cmd "/sbin/umount /mnt3 2>/dev/null || true"
 # Only remove temp binaries
 echo "[*] Cleaning up temp binaries..."
 rm -f "$TEMP_DIR/seputil" \
-    "$TEMP_DIR/launchd_cache_loader" \
-    "$TEMP_DIR/mobileactivationd" \
-    "$TEMP_DIR/vphoned" \
-    "$TEMP_DIR/launchd.plist"
+  "$TEMP_DIR/launchd_cache_loader" \
+  "$TEMP_DIR/mobileactivationd" \
+  "$TEMP_DIR/vphoned" \
+  "$TEMP_DIR/launchd.plist"
 
 echo ""
 echo "[+] CFW installation complete!"
@@ -469,7 +431,7 @@ echo "    Reboot the device for changes to take effect."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
 if [[ "$CFW_SKIP_HALT" == "1" ]]; then
-    echo "[*] CFW_SKIP_HALT=1, skipping halt."
+  echo "[*] CFW_SKIP_HALT=1, skipping halt."
 else
-    ssh_cmd "/sbin/halt" || true
+  ssh_cmd "/sbin/halt" || true
 fi
