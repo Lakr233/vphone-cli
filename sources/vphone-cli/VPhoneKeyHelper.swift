@@ -39,29 +39,6 @@ class VPhoneKeyHelper {
         return false
     }
 
-    // MARK: - Unlock
-
-    /// Unlock screen via vsock HID injection (Power to wake + Home to unlock).
-    func sendUnlock() {
-        guard control.isConnected else {
-            print("[unlock] vphoned not connected, skipping unlock")
-            return
-        }
-        print("[unlock] Sending unlock via vphoned HID")
-        control.sendHIDPress(page: 0x0C, usage: 0x30) // Power (wake)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.control.sendHIDPress(page: 0x0C, usage: 0x40) // Home (unlock)
-        }
-    }
-
-    /// Auto-unlock: wait for vphoned connection, then send unlock.
-    func autoUnlock(delay: TimeInterval = 8) {
-        print("[unlock] Auto-unlock: will unlock in \(Int(delay))s")
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.sendUnlock()
-        }
-    }
-
     // MARK: - Hardware Keys (Consumer Page 0x0C)
 
     func sendHome() {

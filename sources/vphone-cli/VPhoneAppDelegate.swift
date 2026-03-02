@@ -103,14 +103,12 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 screenWidth: cli.screenWidth,
                 screenHeight: cli.screenHeight,
                 screenScale: cli.screenScale,
-                keyHelper: keyHelper
+                keyHelper: keyHelper,
+                control: control
             )
             windowController = wc
-            menuController = VPhoneMenuController(keyHelper: keyHelper)
+            menuController = VPhoneMenuController(keyHelper: keyHelper, control: control)
 
-            if !cli.dfu {
-                keyHelper.autoUnlock(delay: 8)
-            }
         }
     }
 

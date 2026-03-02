@@ -10,7 +10,8 @@
  * code in main() exec's the cached binary.
  *
  * Capabilities:
- *   hid — inject HID events (Home, Power, Lock, Unlock) via IOKit
+ *   hid     — inject HID events (Home, Power, Lock, Unlock) via IOKit
+ *   devmode — enable developer mode via AMFI XPC
  *
  * Protocol:
  *   Each message: [uint32 big-endian length][UTF-8 JSON payload]
@@ -147,6 +148,108 @@ static void press(uint32_t page, uint32_t usage) {
     CFRelease(up);
 }
 
+// MARK: - Developer Mode (AMFI XPC)
+//
+// Talks to com.apple.amfi.xpc to query / arm developer mode.
+// Reference: TrollStore RootHelper/devmode.m
+// Requires entitlement: com.apple.private.amfi.developer-mode-control
+
+// XPC functions resolved via dlsym to avoid iOS SDK availability
+// guards (xpc_connection_create_mach_service is marked unavailable
+// on iOS but works at runtime with the right entitlements).
+
+typedef void *xpc_conn_t;  // opaque, avoids typedef conflict with SDK
+typedef void *xpc_obj_t;
+
+static xpc_conn_t (*pXpcCreateMach)(const char *, dispatch_queue_t, uint64_t);
+static void (*pXpcSetHandler)(xpc_conn_t, void (^)(xpc_obj_t));
+static void (*pXpcResume)(xpc_conn_t);
+static void (*pXpcCancel)(xpc_conn_t);
+static xpc_obj_t (*pXpcSendSync)(xpc_conn_t, xpc_obj_t);
+static xpc_obj_t (*pXpcDictGet)(xpc_obj_t, const char *);
+static xpc_obj_t (*pCFToXPC)(CFTypeRef);
+static CFTypeRef (*pXPCToCF)(xpc_obj_t);
+
+static BOOL load_xpc(void) {
+    void *libxpc = dlopen("/usr/lib/system/libxpc.dylib", RTLD_NOW);
+    if (!libxpc) { NSLog(@"vphoned: dlopen libxpc failed"); return NO; }
+
+    void *libcf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_NOW);
+    if (!libcf) { NSLog(@"vphoned: dlopen CoreFoundation failed"); return NO; }
+
+    pXpcCreateMach = dlsym(libxpc, "xpc_connection_create_mach_service");
+    pXpcSetHandler = dlsym(libxpc, "xpc_connection_set_event_handler");
+    pXpcResume     = dlsym(libxpc, "xpc_connection_resume");
+    pXpcCancel     = dlsym(libxpc, "xpc_connection_cancel");
+    pXpcSendSync   = dlsym(libxpc, "xpc_connection_send_message_with_reply_sync");
+    pXpcDictGet    = dlsym(libxpc, "xpc_dictionary_get_value");
+    pCFToXPC       = dlsym(libcf, "_CFXPCCreateXPCMessageWithCFObject");
+    pXPCToCF       = dlsym(libcf, "_CFXPCCreateCFObjectFromXPCMessage");
+
+    if (!pXpcCreateMach || !pXpcSetHandler || !pXpcResume || !pXpcCancel ||
+        !pXpcSendSync || !pXpcDictGet || !pCFToXPC || !pXPCToCF) {
+        NSLog(@"vphoned: missing XPC/CF symbols");
+        return NO;
+    }
+
+    NSLog(@"vphoned: XPC loaded");
+    return YES;
+}
+
+typedef enum {
+    kAMFIActionArm    = 0,  // arm developer mode (prompts on next reboot)
+    kAMFIActionDisable = 1, // disable developer mode immediately
+    kAMFIActionStatus = 2,  // query: {success, status, armed}
+} AMFIXPCAction;
+
+static NSDictionary *amfi_send(AMFIXPCAction action) {
+    xpc_conn_t conn = pXpcCreateMach("com.apple.amfi.xpc", NULL, 0);
+    if (!conn) {
+        NSLog(@"vphoned: amfi xpc connection failed");
+        return nil;
+    }
+    pXpcSetHandler(conn, ^(xpc_obj_t event) {});
+    pXpcResume(conn);
+
+    xpc_obj_t msg = pCFToXPC((__bridge CFDictionaryRef)@{@"action": @(action)});
+    xpc_obj_t reply = pXpcSendSync(conn, msg);
+    pXpcCancel(conn);
+    if (!reply) {
+        NSLog(@"vphoned: amfi xpc no reply");
+        return nil;
+    }
+
+    xpc_obj_t cfReply = pXpcDictGet(reply, "cfreply");
+    if (!cfReply) {
+        NSLog(@"vphoned: amfi xpc no cfreply");
+        return nil;
+    }
+
+    NSDictionary *dict = (__bridge_transfer NSDictionary *)pXPCToCF(cfReply);
+    NSLog(@"vphoned: amfi reply: %@", dict);
+    return dict;
+}
+
+static BOOL devmode_status(void) {
+    NSDictionary *reply = amfi_send(kAMFIActionStatus);
+    if (!reply) return NO;
+    NSNumber *success = reply[@"success"];
+    if (!success || ![success boolValue]) return NO;
+    NSNumber *status = reply[@"status"];
+    return [status boolValue];
+}
+
+static BOOL devmode_arm(BOOL *alreadyEnabled) {
+    BOOL enabled = devmode_status();
+    if (alreadyEnabled) *alreadyEnabled = enabled;
+    if (enabled) return YES;
+
+    NSDictionary *reply = amfi_send(kAMFIActionArm);
+    if (!reply) return NO;
+    NSNumber *success = reply[@"success"];
+    return success && [success boolValue];
+}
+
 // MARK: - Protocol Framing
 
 static BOOL read_fully(int fd, void *buf, size_t count) {
@@ -214,6 +317,38 @@ static NSDictionary *handle_command(NSDictionary *msg) {
             press(page, usage);
         }
         return make_response(@"ok", reqId);
+    }
+
+    if ([type isEqualToString:@"devmode"]) {
+        if (!pXpcCreateMach) {
+            NSMutableDictionary *r = make_response(@"err", reqId);
+            r[@"msg"] = @"XPC not available";
+            return r;
+        }
+        NSString *action = msg[@"action"];
+        if ([action isEqualToString:@"status"]) {
+            BOOL enabled = devmode_status();
+            NSMutableDictionary *r = make_response(@"ok", reqId);
+            r[@"enabled"] = @(enabled);
+            return r;
+        }
+        if ([action isEqualToString:@"enable"]) {
+            BOOL alreadyEnabled = NO;
+            BOOL ok = devmode_arm(&alreadyEnabled);
+            NSMutableDictionary *r = make_response(ok ? @"ok" : @"err", reqId);
+            if (ok) {
+                r[@"already_enabled"] = @(alreadyEnabled);
+                r[@"msg"] = alreadyEnabled
+                    ? @"developer mode already enabled"
+                    : @"developer mode armed, reboot to activate";
+            } else {
+                r[@"msg"] = @"failed to arm developer mode";
+            }
+            return r;
+        }
+        NSMutableDictionary *r = make_response(@"err", reqId);
+        r[@"msg"] = [NSString stringWithFormat:@"unknown devmode action: %@", action];
+        return r;
     }
 
     if ([type isEqualToString:@"ping"]) {
@@ -316,7 +451,7 @@ static BOOL handle_client(int fd) {
             @"v": @PROTOCOL_VERSION,
             @"t": @"hello",
             @"name": @"vphoned",
-            @"caps": @[@"hid"],
+            @"caps": @[@"hid", @"devmode"],
         } mutableCopy];
         if (needUpdate) helloResp[@"need_update"] = @YES;
 
@@ -374,6 +509,7 @@ int main(int argc, char *argv[]) {
         NSLog(@"vphoned: starting (pid=%d, path=%s)", getpid(), selfPath ?: "?");
 
         if (!load_iokit()) return 1;
+        if (!load_xpc()) NSLog(@"vphoned: XPC unavailable, devmode disabled");
 
         int sock = socket(AF_VSOCK, SOCK_STREAM, 0);
         if (sock < 0) { perror("vphoned: socket(AF_VSOCK)"); return 1; }

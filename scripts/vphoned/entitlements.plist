@@ -63,6 +63,8 @@
 	<true/>
 	<key>com.apple.private.allow-explicit-graphics-priority</key>
 	<true/>
+	<key>com.apple.private.amfi.developer-mode-control</key>
+	<true/>
 	<key>com.apple.private.hid.client.event-dispatch</key>
 	<true/>
 	<key>com.apple.private.hid.client.event-filter</key>

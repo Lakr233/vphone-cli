@@ -183,6 +183,38 @@ class VPhoneControl {
         print("[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)")
     }
 
+    // MARK: - Developer Mode
+
+    func sendDevModeStatus() {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "devmode",
+            "id": String(nextRequestId, radix: 16),
+            "action": "status",
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
+            print("[control] send failed (not connected)")
+            return
+        }
+        print("[control] devmode status query sent")
+    }
+
+    func sendDevModeEnable() {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "devmode",
+            "id": String(nextRequestId, radix: 16),
+            "action": "enable",
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
+            print("[control] send failed (not connected)")
+            return
+        }
+        print("[control] devmode enable sent")
+    }
+
     func sendPing() {
         nextRequestId += 1
         let msg: [String: Any] = ["v": Self.protocolVersion, "t": "ping", "id": String(nextRequestId, radix: 16)]
