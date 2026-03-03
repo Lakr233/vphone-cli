@@ -24,6 +24,7 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("CoreLocation"),
+                .linkedFramework("AVFoundation"),
             ]
         ),
     ]

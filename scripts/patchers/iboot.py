@@ -33,9 +33,9 @@ def _asm(s):
     return bytes(enc)
 
 
-NOP      = _asm("nop")
+NOP = _asm("nop")
 MOV_X0_0 = _asm("mov x0, #0")
-PACIBSP  = _asm("hint #27")
+PACIBSP = _asm("hint #27")
 
 
 def _rd32(buf, off):
@@ -47,12 +47,12 @@ def _wr32(buf, off, v):
 
 
 def _disasm_one(data, off):
-    insns = list(_cs.disasm(data[off:off + 4], off))
+    insns = list(_cs.disasm(data[off : off + 4], off))
     return insns[0] if insns else None
 
 
 def _disasm_n(data, off, n):
-    return list(_cs.disasm(data[off:off + n * 4], off))
+    return list(_cs.disasm(data[off : off + n * 4], off))
 
 
 def _find_asm_pattern(data, asm_str):
@@ -88,6 +88,7 @@ def _encode_add_imm12(rd, rn, imm12):
 
 # ── IBootPatcher ───────────────────────────────────────────────
 
+
 class IBootPatcher:
     """Dynamic patcher for iBoot binaries (iBSS / iBEC / LLB).
 
@@ -100,12 +101,12 @@ class IBootPatcher:
     BOOT_ARGS = b"serial=3 -v debug=0x2014e %s"
     CHUNK_SIZE, OVERLAP = 0x2000, 0x100
 
-    def __init__(self, data, mode='ibss', label=None, verbose=True):
-        self.data    = data            # bytearray (mutable)
-        self.raw     = bytes(data)     # immutable snapshot
-        self.size    = len(data)
-        self.mode    = mode
-        self.label   = label or f"Loaded {mode.upper()}"
+    def __init__(self, data, mode="ibss", label=None, verbose=True):
+        self.data = data  # bytearray (mutable)
+        self.raw = bytes(data)  # immutable snapshot
+        self.size = len(data)
+        self.mode = mode
+        self.label = label or f"Loaded {mode.upper()}"
         self.verbose = verbose
         self.patches = []
 
@@ -117,7 +118,7 @@ class IBootPatcher:
     def emit(self, off, patch_bytes, desc):
         self.patches.append((off, patch_bytes, desc))
         if self.verbose:
-            original = self.raw[off:off + len(patch_bytes)]
+            original = self.raw[off : off + len(patch_bytes)]
             before_insns = _disasm_n(self.raw, off, len(patch_bytes) // 4)
             after_insns = list(_cs.disasm(patch_bytes, off))
             b_str = "; ".join(f"{i.mnemonic} {i.op_str}" for i in before_insns) or "???"
@@ -129,7 +130,7 @@ class IBootPatcher:
         self.patches.append((off, data_bytes, desc))
         if self.verbose:
             try:
-                txt = data_bytes.decode('ascii')
+                txt = data_bytes.decode("ascii")
             except Exception:
                 txt = data_bytes.hex()
             print(f"  0x{off:06X}: → {repr(txt)}  [{desc}]")
@@ -138,7 +139,7 @@ class IBootPatcher:
         """Find all patches, apply them, return count."""
         self.find_all()
         for off, pb, _ in self.patches:
-            self.data[off:off + len(pb)] = pb
+            self.data[off : off + len(pb)] = pb
 
         if self.verbose and self.patches:
             self._log(f"\n  [{len(self.patches)} {self.mode.upper()} patches applied]")
@@ -151,10 +152,10 @@ class IBootPatcher:
         self.patch_serial_labels()
         self.patch_image4_callback()
 
-        if self.mode in ('ibec', 'llb'):
+        if self.mode in ("ibec", "llb"):
             self.patch_boot_args()
 
-        if self.mode == 'llb':
+        if self.mode == "llb":
             self.patch_rootfs_bypass()
             self.patch_panic_bypass()
 
@@ -168,9 +169,9 @@ class IBootPatcher:
         eq_runs = []
         i = 0
         while i < self.size:
-            if self.raw[i] == ord('='):
+            if self.raw[i] == ord("="):
                 start = i
-                while i < self.size and self.raw[i] == ord('='):
+                while i < self.size and self.raw[i] == ord("="):
                     i += 1
                 if i - start >= 20:
                     eq_runs.append(start)
@@ -196,21 +197,23 @@ class IBootPatcher:
             for i in range(len(insns) - 1):
                 if insns[i].mnemonic != "b.ne":
                     continue
-                if not (insns[i + 1].mnemonic == "mov"
-                        and insns[i + 1].op_str == "x0, x22"):
+                if not (
+                    insns[i + 1].mnemonic == "mov" and insns[i + 1].op_str == "x0, x22"
+                ):
                     continue
                 addr = insns[i].address
-                if not any(insns[j].mnemonic == "cmp"
-                           for j in range(max(0, i - 8), i)):
+                if not any(insns[j].mnemonic == "cmp" for j in range(max(0, i - 8), i)):
                     continue
                 # Prefer candidate with movn w22 (sets -1) earlier
                 neg1 = any(
-                    (insns[j].mnemonic == "movn"
-                     and insns[j].op_str.startswith("w22,"))
-                    or (insns[j].mnemonic == "mov"
+                    (insns[j].mnemonic == "movn" and insns[j].op_str.startswith("w22,"))
+                    or (
+                        insns[j].mnemonic == "mov"
                         and "w22" in insns[j].op_str
-                        and ("#-1" in insns[j].op_str
-                             or "#0xffffffff" in insns[j].op_str))
+                        and (
+                            "#-1" in insns[j].op_str or "#0xffffffff" in insns[j].op_str
+                        )
+                    )
                     for j in range(max(0, i - 64), i)
                 )
                 candidates.append((addr, neg1))
@@ -333,16 +336,20 @@ class IBootPatcher:
         Convert conditional branch to unconditional b to same target."""
         locs = _find_asm_pattern(self.raw, f"mov w8, #{error_code}")
         if len(locs) != 1:
-            self._log(f"  [-] {desc}: expected 1 'mov w8, #{error_code:#x}', "
-                       f"found {len(locs)}")
+            self._log(
+                f"  [-] {desc}: expected 1 'mov w8, #{error_code:#x}', "
+                f"found {len(locs)}"
+            )
             return
 
         err_off = locs[0]
         cbz_off = err_off - 4
         insn = _disasm_one(self.raw, cbz_off)
-        if not insn or insn.mnemonic not in ('cbz', 'cbnz'):
-            self._log(f"  [-] {desc}: expected cbz/cbnz at 0x{cbz_off:X}, "
-                       f"got {insn.mnemonic if insn else '???'}")
+        if not insn or insn.mnemonic not in ("cbz", "cbnz"):
+            self._log(
+                f"  [-] {desc}: expected cbz/cbnz at 0x{cbz_off:X}, "
+                f"got {insn.mnemonic if insn else '???'}"
+            )
             return
 
         # Extract the branch target from the conditional instruction
@@ -354,16 +361,19 @@ class IBootPatcher:
         """Find unique 'cmp x8, #0x400', NOP the b.hs that follows."""
         locs = _find_asm_pattern(self.raw, "cmp x8, #0x400")
         if len(locs) != 1:
-            self._log(f"  [-] rootfs b.hs: expected 1 'cmp x8, #0x400', "
-                       f"found {len(locs)}")
+            self._log(
+                f"  [-] rootfs b.hs: expected 1 'cmp x8, #0x400', found {len(locs)}"
+            )
             return
 
         cmp_off = locs[0]
         bhs_off = cmp_off + 4
         insn = _disasm_one(self.raw, bhs_off)
-        if not insn or insn.mnemonic != 'b.hs':
-            self._log(f"  [-] rootfs b.hs: expected b.hs at 0x{bhs_off:X}, "
-                       f"got {insn.mnemonic if insn else '???'}")
+        if not insn or insn.mnemonic != "b.hs":
+            self._log(
+                f"  [-] rootfs b.hs: expected b.hs at 0x{bhs_off:X}, "
+                f"got {insn.mnemonic if insn else '???'}"
+            )
             return
 
         self.emit(bhs_off, NOP, "rootfs: NOP b.hs size check (0x400)")
@@ -373,8 +383,10 @@ class IBootPatcher:
         NOP the cbz."""
         locs = _find_asm_pattern(self.raw, "mov w8, #0x110")
         if len(locs) != 1:
-            self._log(f"  [-] rootfs null check: expected 1 'mov w8, #0x110', "
-                       f"found {len(locs)}")
+            self._log(
+                f"  [-] rootfs null check: expected 1 'mov w8, #0x110', "
+                f"found {len(locs)}"
+            )
             return
 
         err_off = locs[0]
@@ -382,11 +394,15 @@ class IBootPatcher:
         for scan in range(err_off - 4, max(err_off - 0x300, 0), -4):
             i1 = _disasm_one(self.raw, scan)
             i2 = _disasm_one(self.raw, scan + 4)
-            if (i1 and i2
-                    and i1.mnemonic == 'ldr' and '#0x78' in i1.op_str
-                    and i2.mnemonic == 'cbz' and i2.op_str.startswith('x')):
-                self.emit(scan + 4, NOP,
-                          "rootfs: NOP cbz x8 null check (#0x78)")
+            if (
+                i1
+                and i2
+                and i1.mnemonic == "ldr"
+                and "#0x78" in i1.op_str
+                and i2.mnemonic == "cbz"
+                and i2.op_str.startswith("x")
+            ):
+                self.emit(scan + 4, NOP, "rootfs: NOP cbz x8 null check (#0x78)")
                 return
 
         self._log("  [-] rootfs null check: ldr+cbz #0x78 pattern not found")
@@ -402,20 +418,22 @@ class IBootPatcher:
         for loc in mov328_locs:
             # Verify movk w8, #0x40, lsl #16 follows
             next_insn = _disasm_one(self.raw, loc + 4)
-            if not (next_insn and next_insn.mnemonic == 'movk'
-                    and 'w8' in next_insn.op_str
-                    and '#0x40' in next_insn.op_str
-                    and 'lsl #16' in next_insn.op_str):
+            if not (
+                next_insn
+                and next_insn.mnemonic == "movk"
+                and "w8" in next_insn.op_str
+                and "#0x40" in next_insn.op_str
+                and "lsl #16" in next_insn.op_str
+            ):
                 continue
 
             # Walk forward to find bl; cbnz w0
             for step in range(loc + 8, loc + 32, 4):
                 i = _disasm_one(self.raw, step)
-                if i and i.mnemonic == 'bl':
+                if i and i.mnemonic == "bl":
                     ni = _disasm_one(self.raw, step + 4)
-                    if ni and ni.mnemonic == 'cbnz':
-                        self.emit(step + 4, NOP,
-                                  "panic bypass: NOP cbnz w0")
+                    if ni and ni.mnemonic == "cbnz":
+                        self.emit(step + 4, NOP, "panic bypass: NOP cbnz w0")
                         return
                     break
 
@@ -436,13 +454,19 @@ if __name__ == "__main__":
     import sys, argparse
 
     parser = argparse.ArgumentParser(
-        description="Dynamic iBoot patcher (iBSS / iBEC / LLB)")
+        description="Dynamic iBoot patcher (iBSS / iBEC / LLB)"
+    )
     parser.add_argument("firmware", help="Path to raw or IM4P iBoot image")
-    parser.add_argument("-m", "--mode", choices=["ibss", "ibec", "llb"],
-                        default="llb",
-                        help="Patch mode (default: llb = all patches)")
-    parser.add_argument("-l", "--label", default=None,
-                        help="Serial label text (default: 'Loaded MODE')")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        choices=["ibss", "ibec", "llb"],
+        default="llb",
+        help="Patch mode (default: llb = all patches)",
+    )
+    parser.add_argument(
+        "-l", "--label", default=None, help="Serial label text (default: 'Loaded MODE')"
+    )
     parser.add_argument("-q", "--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -452,6 +476,7 @@ if __name__ == "__main__":
     # Auto-detect IM4P
     try:
         from pyimg4 import IM4P
+
         im4p = IM4P(file_raw)
         if im4p.payload.compression:
             im4p.payload.decompress()
@@ -462,9 +487,10 @@ if __name__ == "__main__":
         print(f"  format: raw")
 
     data = bytearray(payload)
-    print(f"  size:   {len(data)} bytes ({len(data)/1024:.1f} KB)\n")
+    print(f"  size:   {len(data)} bytes ({len(data) / 1024:.1f} KB)\n")
 
-    patcher = IBootPatcher(data, mode=args.mode, label=args.label,
-                           verbose=not args.quiet)
+    patcher = IBootPatcher(
+        data, mode=args.mode, label=args.label, verbose=not args.quiet
+    )
     n = patcher.apply()
     print(f"\n  {n} patches applied.")

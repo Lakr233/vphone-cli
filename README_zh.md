@@ -1,4 +1,4 @@
-<div align="right"><strong>🇨🇳中文</strong> | <strong><a href="./README.md">🇬🇧English</a></strong></div>
+<div align="right"><strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong>🇨🇳中文</strong> | <strong><a href="./README.md">🇬🇧English</a></strong></div>
 
 # vphone-cli
 
@@ -8,10 +8,10 @@
 
 ## 测试环境
 
-| 主机 | iPhone 系统 | CloudOS |
-|------|-------------|---------|
-| Mac16,12 26.3 | `17,3_26.1_23B85` | `26.1-23B85` |
-| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.1-23B85` |
+| 主机          | iPhone 系统        | CloudOS       |
+| ------------- | ------------------ | ------------- |
+| Mac16,12 26.3 | `17,3_26.1_23B85`  | `26.1-23B85`  |
+| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.1-23B85`  |
 | Mac16,12 26.3 | `17,3_26.3_23D127` | `26.3-23D128` |
 
 ## 先决条件
@@ -36,7 +36,14 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 **安装依赖：**
 
 ```bash
-brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
+brew install gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+```
+
+**Git LFS** —— 本仓库使用 Git LFS 存储大型资源文件。构建前请先安装并拉取：
+
+```bash
+git lfs install
+git lfs pull
 ```
 
 ## 第一次设置
@@ -45,8 +52,7 @@ brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
 make setup_machine            # 完全自动化完成“首次启动”流程（包含 restore/ramdisk/CFW）
 
 # 等价的手动步骤：
-make setup_libimobiledevice   # 构建 libimobiledevice 工具链
-make setup_venv               # 创建 Python 虚拟环境
+make setup_tools              # 安装 brew 依赖、构建 trustcache + libimobiledevice、创建 Python 虚拟环境
 source .venv/bin/activate
 ```
 
@@ -151,19 +157,19 @@ iproxy 5901 5901     # VNC
 
 运行 `make help` 获取完整列表。关键目标：
 
-| 目标 | 描述 |
-|------|------|
-| `build` | 构建并签名 vphone-cli |
-| `vm_new` | 创建 VM 目录 |
-| `fw_prepare` | 下载/合并 IPSWs |
-| `fw_patch` | 修补启动链 |
+| 目标                | 描述                      |
+| ------------------- | ------------------------- |
+| `build`             | 构建并签名 vphone-cli     |
+| `vm_new`            | 创建 VM 目录              |
+| `fw_prepare`        | 下载/合并 IPSWs           |
+| `fw_patch`          | 修补启动链                |
 | `boot` / `boot_dfu` | 启动 VM（GUI / 无头 DFU） |
-| `restore_get_shsh` | 获取 SHSH blob |
-| `restore` | 刷写固件 |
-| `ramdisk_build` | 构建 SSH ramdisk |
-| `ramdisk_send` | 发送 ramdisk 到设备 |
-| `cfw_install` | 安装 CFW 修改 |
-| `clean` | 删除构建产物 |
+| `restore_get_shsh`  | 获取 SHSH blob            |
+| `restore`           | 刷写固件                  |
+| `ramdisk_build`     | 构建 SSH ramdisk          |
+| `ramdisk_send`      | 发送 ramdisk 到设备       |
+| `cfw_install`       | 安装 CFW 修改             |
+| `clean`             | 删除构建产物              |
 
 ## 常见问题（FAQ）
 

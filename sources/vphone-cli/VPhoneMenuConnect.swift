@@ -9,7 +9,7 @@ extension VPhoneMenuController {
         menu.addItem(makeItem("File Browser", action: #selector(openFiles)))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Developer Mode Status", action: #selector(devModeStatus)))
-        menu.addItem(makeItem("Enable Developer Mode", action: #selector(devModeEnable)))
+        menu.addItem(makeItem("Enable Developer Mode [WIP]", action: #selector(devModeEnable)))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Ping", action: #selector(sendPing)))
         menu.addItem(makeItem("Guest Version", action: #selector(queryGuestVersion)))
@@ -77,7 +77,7 @@ extension VPhoneMenuController {
 
     // MARK: - Alert
 
-    private func showAlert(title: String, message: String, style: NSAlert.Style) {
+    func showAlert(title: String, message: String, style: NSAlert.Style) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message

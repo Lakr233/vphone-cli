@@ -56,6 +56,7 @@ RET_MNEMONICS = {"ret", "retaa", "retab"}
 # IM4P / raw file helpers — auto-detect format
 # ══════════════════════════════════════════════════════════════════
 
+
 def load_firmware(path):
     """Load firmware file, auto-detecting IM4P vs raw.
 
@@ -93,18 +94,30 @@ def save_firmware(path, im4p_obj, patched_data, was_im4p, original_raw=None):
 
 def _save_im4p_with_payp(path, fourcc, patched_data, original_raw):
     """Repackage as lzfse-compressed IM4P and append PAYP from original."""
-    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_raw, \
-         tempfile.NamedTemporaryFile(suffix=".im4p", delete=False) as tmp_im4p:
+    with (
+        tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_raw,
+        tempfile.NamedTemporaryFile(suffix=".im4p", delete=False) as tmp_im4p,
+    ):
         tmp_raw_path = tmp_raw.name
         tmp_im4p_path = tmp_im4p.name
         tmp_raw.write(bytes(patched_data))
 
     try:
         subprocess.run(
-            ["pyimg4", "im4p", "create",
-             "-i", tmp_raw_path, "-o", tmp_im4p_path,
-             "-f", fourcc, "--lzfse"],
-            check=True, capture_output=True,
+            [
+                "pyimg4",
+                "im4p",
+                "create",
+                "-i",
+                tmp_raw_path,
+                "-o",
+                tmp_im4p_path,
+                "-f",
+                fourcc,
+                "--lzfse",
+            ],
+            check=True,
+            capture_output=True,
         )
         output = bytearray(open(tmp_im4p_path, "rb").read())
     finally:
@@ -113,7 +126,7 @@ def _save_im4p_with_payp(path, fourcc, patched_data, original_raw):
 
     payp_offset = original_raw.rfind(b"PAYP")
     if payp_offset >= 0:
-        payp_data = original_raw[payp_offset - 10:]
+        payp_data = original_raw[payp_offset - 10 :]
         output.extend(payp_data)
         old_len = int.from_bytes(output[2:5], "big")
         output[2:5] = (old_len + len(payp_data)).to_bytes(3, "big")
@@ -174,7 +187,7 @@ def patch_avpbooter(data):
 
     target = insns[x0_idx]
     file_off = target.address
-    data[file_off:file_off + 4] = MOV_X0_0
+    data[file_off : file_off + 4] = MOV_X0_0
     print(f"  0x{file_off:X}: {target.mnemonic} {target.op_str} -> mov x0, #0")
     return True
 
@@ -182,22 +195,23 @@ def patch_avpbooter(data):
 # ── 2–4. iBSS / iBEC / LLB ───────────────────────────────────────
 # Fully dynamic via IBootPatcher — no hardcoded offsets.
 
+
 def patch_ibss(data):
-    p = IBootPatcher(data, mode='ibss', label="Loaded iBSS")
+    p = IBootPatcher(data, mode="ibss", label="Loaded iBSS")
     n = p.apply()
     print(f"  [+] {n} iBSS patches applied dynamically")
     return n > 0
 
 
 def patch_ibec(data):
-    p = IBootPatcher(data, mode='ibec', label="Loaded iBEC")
+    p = IBootPatcher(data, mode="ibec", label="Loaded iBEC")
     n = p.apply()
     print(f"  [+] {n} iBEC patches applied dynamically")
     return n > 0
 
 
 def patch_llb(data):
-    p = IBootPatcher(data, mode='llb', label="Loaded LLB")
+    p = IBootPatcher(data, mode="llb", label="Loaded LLB")
     n = p.apply()
     print(f"  [+] {n} LLB patches applied dynamically")
     return n > 0
@@ -205,6 +219,7 @@ def patch_llb(data):
 
 # ── 5. TXM ───────────────────────────────────────────────────────
 # Fully dynamic via TXMPatcher — no hardcoded offsets.
+
 
 def patch_txm(data):
     p = TXMPatcher(data)
@@ -216,6 +231,7 @@ def patch_txm(data):
 # ── 6. Kernelcache ───────────────────────────────────────────────
 # Fully dynamic via KernelPatcher — no hardcoded offsets.
 
+
 def patch_kernelcache(data):
     kp = KernelPatcher(data)
     n = kp.apply()
@@ -226,6 +242,7 @@ def patch_kernelcache(data):
 # ══════════════════════════════════════════════════════════════════
 # File discovery
 # ══════════════════════════════════════════════════════════════════
+
 
 def find_restore_dir(base_dir):
     for entry in sorted(os.listdir(base_dir)):
@@ -255,7 +272,13 @@ COMPONENTS = [
     ("AVPBooter", False, ["AVPBooter*.bin"], patch_avpbooter, False),
     ("iBSS", True, ["Firmware/dfu/iBSS.vresearch101.RELEASE.im4p"], patch_ibss, False),
     ("iBEC", True, ["Firmware/dfu/iBEC.vresearch101.RELEASE.im4p"], patch_ibec, False),
-    ("LLB", True, ["Firmware/all_flash/LLB.vresearch101.RELEASE.im4p"], patch_llb, False),
+    (
+        "LLB",
+        True,
+        ["Firmware/all_flash/LLB.vresearch101.RELEASE.im4p"],
+        patch_llb,
+        False,
+    ),
     ("TXM", True, ["Firmware/txm.iphoneos.research.im4p"], patch_txm, True),
     ("kernelcache", True, ["kernelcache.research.vphone600"], patch_kernelcache, True),
 ]
@@ -277,8 +300,7 @@ def patch_component(path, patch_fn, name, preserve_payp):
         print(f"  [-] FAILED: {name}")
         sys.exit(1)
 
-    save_firmware(path, im4p, data, was_im4p,
-                  original_raw if preserve_payp else None)
+    save_firmware(path, im4p, data, was_im4p, original_raw if preserve_payp else None)
     print(f"  [+] saved ({fmt})")
 
 

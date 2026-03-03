@@ -30,10 +30,12 @@ class IBootJBPatcher(IBootPatcher):
             self.patch_skip_generate_nonce()
 
         for off, pb, _ in self.patches:
-            self.data[off:off + len(pb)] = pb
+            self.data[off : off + len(pb)] = pb
 
         if self.verbose and self.patches:
-            self._log(f"\n  [{len(self.patches)} {self.mode.upper()} JB patches applied]")
+            self._log(
+                f"\n  [{len(self.patches)} {self.mode.upper()} JB patches applied]"
+            )
         return len(self.patches)
 
     def _find_refs_to_offset(self, target_off):
@@ -85,11 +87,14 @@ class IBootJBPatcher(IBootPatcher):
                     continue
                 if len(i0.operands) < 3:
                     continue
-                if not (i0.operands[0].type == ARM64_OP_REG
-                        and i0.operands[0].reg == ARM64_REG_W0):
+                if not (
+                    i0.operands[0].type == ARM64_OP_REG
+                    and i0.operands[0].reg == ARM64_REG_W0
+                ):
                     continue
-                if not (i0.operands[1].type == ARM64_OP_IMM
-                        and i0.operands[1].imm == 0):
+                if not (
+                    i0.operands[1].type == ARM64_OP_IMM and i0.operands[1].imm == 0
+                ):
                     continue
                 if i1.mnemonic != "mov" or i1.op_str != "w0, #0":
                     continue
@@ -97,8 +102,11 @@ class IBootJBPatcher(IBootPatcher):
                     continue
 
                 target = i0.operands[2].imm
-                self.emit(scan, self._asm_at(f"b #0x{target:X}", scan),
-                          "JB: skip generate_nonce")
+                self.emit(
+                    scan,
+                    self._asm_at(f"b #0x{target:X}", scan),
+                    "JB: skip generate_nonce",
+                )
                 return True
 
         self._log("  [-] iBSS JB: generate_nonce branch pattern not found")

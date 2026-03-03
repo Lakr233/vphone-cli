@@ -127,6 +127,11 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             if let provider = locationProvider {
                 mc.locationProvider = provider
             }
+            mc.screenRecorder = VPhoneScreenRecorder()
+            if let signer = VPhoneSigner() {
+                mc.signer = signer
+                mc.ipaInstaller = VPhoneIPAInstaller(signer: signer)
+            }
             menuController = mc
 
             // Wire location toggle through onConnect/onDisconnect

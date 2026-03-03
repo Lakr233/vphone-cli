@@ -21,8 +21,13 @@ import struct
 from collections import Counter
 
 from capstone.arm64_const import (
-    ARM64_OP_REG, ARM64_OP_IMM, ARM64_OP_MEM,
-    ARM64_REG_X0, ARM64_REG_X1, ARM64_REG_W0, ARM64_REG_X8,
+    ARM64_OP_REG,
+    ARM64_OP_IMM,
+    ARM64_OP_MEM,
+    ARM64_REG_X0,
+    ARM64_REG_X1,
+    ARM64_REG_W0,
+    ARM64_REG_X8,
 )
 
 from .kernel import (
@@ -50,7 +55,7 @@ MOV_X8_XZR = asm("mov x8, xzr")
 class KernelJBPatcher(KernelPatcher):
     """JB-only kernel patcher."""
 
-    def __init__(self, data, verbose=True):
+    def __init__(self, data, verbose=False):
         super().__init__(data, verbose)
         self._build_symbol_table()
 
@@ -115,7 +120,8 @@ class KernelJBPatcher(KernelPatcher):
             if entry_off + 16 > self.size:
                 break
             n_strx, n_type, n_sect, n_desc, n_value = struct.unpack_from(
-                "<IBBHQ", self.raw, entry_off)
+                "<IBBHQ", self.raw, entry_off
+            )
             if n_type & 0x0E != 0x0E:
                 continue
             if n_value == 0:
@@ -123,10 +129,10 @@ class KernelJBPatcher(KernelPatcher):
             name_off = stroff + n_strx
             if name_off >= self.size:
                 continue
-            name_end = self.raw.find(b'\x00', name_off)
+            name_end = self.raw.find(b"\x00", name_off)
             if name_end < 0 or name_end - name_off > 512:
                 continue
-            name = self.raw[name_off:name_end].decode('ascii', errors='replace')
+            name = self.raw[name_off:name_end].decode("ascii", errors="replace")
             foff = n_value - self.base_va
             if 0 <= foff < self.size:
                 self.symbols[name] = foff
@@ -293,7 +299,7 @@ class KernelJBPatcher(KernelPatcher):
     def apply(self):
         patches = self.find_all()
         for off, patch_bytes, _ in patches:
-            self.data[off:off + len(patch_bytes)] = patch_bytes
+            self.data[off : off + len(patch_bytes)] = patch_bytes
         return len(patches)
 
     # ══════════════════════════════════════════════════════════════
@@ -331,32 +337,43 @@ class KernelJBPatcher(KernelPatcher):
                     break
                 insns.append(d[0])
 
-            i1 = _find_after(insns, 0,
-                             lambda x: x.mnemonic == "mov" and x.op_str == "x19, x2")
+            i1 = _find_after(
+                insns, 0, lambda x: x.mnemonic == "mov" and x.op_str == "x19, x2"
+            )
             if i1 < 0:
                 continue
-            i2 = _find_after(insns, i1 + 1,
-                             lambda x: x.mnemonic == "stp"
-                             and x.op_str.startswith("xzr, xzr, [sp"))
+            i2 = _find_after(
+                insns,
+                i1 + 1,
+                lambda x: x.mnemonic == "stp" and x.op_str.startswith("xzr, xzr, [sp"),
+            )
             if i2 < 0:
                 continue
-            i3 = _find_after(insns, i2 + 1,
-                             lambda x: x.mnemonic == "mov" and x.op_str == "x2, sp")
+            i3 = _find_after(
+                insns, i2 + 1, lambda x: x.mnemonic == "mov" and x.op_str == "x2, sp"
+            )
             if i3 < 0:
                 continue
             i4 = _find_after(insns, i3 + 1, lambda x: x.mnemonic == "bl")
             if i4 < 0:
                 continue
-            i5 = _find_after(insns, i4 + 1,
-                             lambda x: x.mnemonic == "mov" and x.op_str == "x20, x0")
+            i5 = _find_after(
+                insns, i4 + 1, lambda x: x.mnemonic == "mov" and x.op_str == "x20, x0"
+            )
             if i5 < 0:
                 continue
-            i6 = _find_after(insns, i5 + 1,
-                             lambda x: x.mnemonic == "cbnz" and x.op_str.startswith("w0,"))
+            i6 = _find_after(
+                insns,
+                i5 + 1,
+                lambda x: x.mnemonic == "cbnz" and x.op_str.startswith("w0,"),
+            )
             if i6 < 0:
                 continue
-            i7 = _find_after(insns, i6 + 1,
-                             lambda x: x.mnemonic == "cbz" and x.op_str.startswith("x19,"))
+            i7 = _find_after(
+                insns,
+                i6 + 1,
+                lambda x: x.mnemonic == "cbz" and x.op_str.startswith("x19,"),
+            )
             if i7 < 0:
                 continue
 
@@ -367,14 +384,10 @@ class KernelJBPatcher(KernelPatcher):
             return False
 
         func_start = hits[0]
-        self.emit(func_start, MOV_X0_1,
-                  "mov x0,#1 [AMFIIsCDHashInTrustCache]")
-        self.emit(func_start + 4, CBZ_X2_8,
-                  "cbz x2,+8 [AMFIIsCDHashInTrustCache]")
-        self.emit(func_start + 8, STR_X0_X2,
-                  "str x0,[x2] [AMFIIsCDHashInTrustCache]")
-        self.emit(func_start + 12, RET,
-                  "ret [AMFIIsCDHashInTrustCache]")
+        self.emit(func_start, MOV_X0_1, "mov x0,#1 [AMFIIsCDHashInTrustCache]")
+        self.emit(func_start + 4, CBZ_X2_8, "cbz x2,+8 [AMFIIsCDHashInTrustCache]")
+        self.emit(func_start + 8, STR_X0_X2, "str x0,[x2] [AMFIIsCDHashInTrustCache]")
+        self.emit(func_start + 12, RET, "ret [AMFIIsCDHashInTrustCache]")
         return True
 
     def patch_amfi_execve_kill_path(self):
@@ -424,8 +437,10 @@ class KernelJBPatcher(KernelPatcher):
                     hits.append(off)
 
             if len(hits) != 2:
-                self._log(f"  [-] execve helper at 0x{func_start:X}: "
-                          f"expected 2 early BL+W0-branch sites, found {len(hits)}")
+                self._log(
+                    f"  [-] execve helper at 0x{func_start:X}: "
+                    f"expected 2 early BL+W0-branch sites, found {len(hits)}"
+                )
                 continue
 
             self.emit(hits[0], MOV_X0_0, "mov x0,#0 [AMFI execve helper A]")
@@ -491,11 +506,14 @@ class KernelJBPatcher(KernelPatcher):
             candidates.append(off)
 
         if len(candidates) != 1:
-            self._log(f"  [-] expected 1 task-conversion guard site, found {len(candidates)}")
+            self._log(
+                f"  [-] expected 1 task-conversion guard site, found {len(candidates)}"
+            )
             return False
 
-        self.emit(candidates[0], CMP_XZR_XZR,
-                  "cmp xzr,xzr [_task_conversion_eval_internal]")
+        self.emit(
+            candidates[0], CMP_XZR_XZR, "cmp xzr,xzr [_task_conversion_eval_internal]"
+        )
         return True
 
     def patch_sandbox_hooks_extended(self):
@@ -615,8 +633,7 @@ class KernelJBPatcher(KernelPatcher):
                         has_bl = True
                         break
                 if has_bl:
-                    self.emit(off, CMP_W0_W0,
-                              f"cmp w0,w0 [postValidation additional]")
+                    self.emit(off, CMP_W0_W0, f"cmp w0,w0 [postValidation additional]")
                     patched += 1
 
         if patched == 0:
@@ -673,7 +690,9 @@ class KernelJBPatcher(KernelPatcher):
             return False
 
         proc_info_end = self._find_func_end(proc_info_func, 0x4000)
-        self._log(f"  [+] _proc_info at 0x{proc_info_func:X} (size 0x{proc_info_end - proc_info_func:X})")
+        self._log(
+            f"  [+] _proc_info at 0x{proc_info_func:X} (size 0x{proc_info_end - proc_info_func:X})"
+        )
 
         # Count BL targets within _proc_info — the most frequent one
         # is _proc_security_policy (called once per switch case)
@@ -716,7 +735,11 @@ class KernelJBPatcher(KernelPatcher):
             hits = []
             for off in range(foff, func_end, 4):
                 d = self._disas_at(off)
-                if d and d[0].mnemonic in ("cbz", "cbnz") and d[0].op_str.startswith("w"):
+                if (
+                    d
+                    and d[0].mnemonic in ("cbz", "cbnz")
+                    and d[0].op_str.startswith("w")
+                ):
                     hits.append(off)
             if len(hits) >= 2:
                 self.emit(hits[0], NOP, "NOP [_proc_pidinfo pid-0 guard A]")
@@ -788,7 +811,9 @@ class KernelJBPatcher(KernelPatcher):
             return False
 
         for adrp_off, add_off, _ in refs:
-            bl_panic = self._find_bl_to_panic_in_range(add_off, min(add_off + 0x40, self.size))
+            bl_panic = self._find_bl_to_panic_in_range(
+                add_off, min(add_off + 0x40, self.size)
+            )
             if bl_panic < 0:
                 continue
             resume_off = bl_panic + 4
@@ -798,9 +823,12 @@ class KernelJBPatcher(KernelPatcher):
                 if target is not None and err_lo <= target <= bl_panic + 4:
                     b_bytes = self._encode_b(back, resume_off)
                     if b_bytes:
-                        self.emit(back, b_bytes,
-                                  f"b #0x{resume_off - back:X} "
-                                  f"[_convert_port_to_map skip panic]")
+                        self.emit(
+                            back,
+                            b_bytes,
+                            f"b #0x{resume_off - back:X} "
+                            f"[_convert_port_to_map skip panic]",
+                        )
                         return True
 
         self._log("  [-] branch site not found")
@@ -871,8 +899,10 @@ class KernelJBPatcher(KernelPatcher):
                     break
                 i1 = d1[0]
                 if i1.mnemonic in ("tbnz", "tbz") and len(i1.operands) >= 2:
-                    if i1.operands[0].type == ARM64_OP_REG and \
-                            i1.operands[0].reg == ARM64_REG_W0:
+                    if (
+                        i1.operands[0].type == ARM64_OP_REG
+                        and i1.operands[0].reg == ARM64_REG_W0
+                    ):
                         return off
         return None
 
@@ -911,8 +941,9 @@ class KernelJBPatcher(KernelPatcher):
                 if target > off:
                     b_bytes = self._encode_b(off, target)
                     if b_bytes:
-                        self.emit(off, b_bytes,
-                                  f"b #0x{target - off:X} [_vm_map_protect]")
+                        self.emit(
+                            off, b_bytes, f"b #0x{target - off:X} [_vm_map_protect]"
+                        )
                         return True
 
         self._log("  [-] patch site not found")
@@ -944,7 +975,10 @@ class KernelJBPatcher(KernelPatcher):
                         mc_end = self._find_func_end(mount_common_func, 0x2000)
                         for off in range(mount_common_func, mc_end, 4):
                             target = self._is_bl(off)
-                            if target >= 0 and self.kern_text[0] <= target < self.kern_text[1]:
+                            if (
+                                target >= 0
+                                and self.kern_text[0] <= target < self.kern_text[1]
+                            ):
                                 # Check if this target contains BL+CBNZ w0 pattern
                                 # (mac check) followed by a mov to x8
                                 te = self._find_func_end(target, 0x1000)
@@ -953,7 +987,11 @@ class KernelJBPatcher(KernelPatcher):
                                     if not d0 or d0[0].mnemonic != "bl":
                                         continue
                                     d1 = self._disas_at(off2 + 4)
-                                    if d1 and d1[0].mnemonic == "cbnz" and d1[0].op_str.startswith("w0,"):
+                                    if (
+                                        d1
+                                        and d1[0].mnemonic == "cbnz"
+                                        and d1[0].op_str.startswith("w0,")
+                                    ):
                                         foff = target
                                         break
                                 if foff >= 0:
@@ -982,8 +1020,7 @@ class KernelJBPatcher(KernelPatcher):
                         continue
                     if d2[0].mnemonic == "mov" and "x8" in d2[0].op_str:
                         if d2[0].op_str != "x8, xzr":
-                            self.emit(off2, MOV_X8_XZR,
-                                      "mov x8,xzr [___mac_mount]")
+                            self.emit(off2, MOV_X8_XZR, "mov x8,xzr [___mac_mount]")
                             patched += 1
                             break
                 break
@@ -1021,7 +1058,9 @@ class KernelJBPatcher(KernelPatcher):
                 # Check BL targets from this function
                 for off in range(caller, caller_end, 4):
                     target = self._is_bl(off)
-                    if target < 0 or not (self.kern_text[0] <= target < self.kern_text[1]):
+                    if target < 0 or not (
+                        self.kern_text[0] <= target < self.kern_text[1]
+                    ):
                         continue
                     te = self._find_func_end(target, 0x400)
                     result = self._find_mac_check_bl(target, te)
@@ -1106,15 +1145,15 @@ class KernelJBPatcher(KernelPatcher):
             return False
 
         # Filter to kern_text range (exclude kexts)
-        kern_candidates = [c for c in candidates
-                           if ks <= c < ke]
+        kern_candidates = [c for c in candidates if ks <= c < ke]
         if not kern_candidates:
             kern_candidates = candidates
 
         # Pick the last one in the kernel (bsd_init is typically late in boot)
         bl_off = kern_candidates[-1]
-        self._log(f"  [+] auth BL at 0x{bl_off:X} "
-                  f"({len(kern_candidates)} kern candidates)")
+        self._log(
+            f"  [+] auth BL at 0x{bl_off:X} ({len(kern_candidates)} kern candidates)"
+        )
         self.emit(bl_off, MOV_X0_0, "mov x0,#0 [_bsd_init auth]")
         return True
 
@@ -1167,12 +1206,11 @@ class KernelJBPatcher(KernelPatcher):
                 if d2[0].mnemonic == "tbnz" and "#1" in d2[0].op_str:
                     # Verify it's a w-register
                     if d2[0].op_str.startswith("w"):
-                        self._log(f"  [+] LDR at 0x{off:X}, "
-                                  f"TBNZ at 0x{off + delta:X}")
-                        self.emit(off, NOP,
-                                  "NOP [_spawn_validate_persona LDR]")
-                        self.emit(off + delta, NOP,
-                                  "NOP [_spawn_validate_persona TBNZ]")
+                        self._log(f"  [+] LDR at 0x{off:X}, TBNZ at 0x{off + delta:X}")
+                        self.emit(off, NOP, "NOP [_spawn_validate_persona LDR]")
+                        self.emit(
+                            off + delta, NOP, "NOP [_spawn_validate_persona TBNZ]"
+                        )
                         return True
 
         self._log("  [-] pattern not found")
@@ -1211,8 +1249,7 @@ class KernelJBPatcher(KernelPatcher):
             func_end = self._find_func_end(foff, 0x800)
             patch_off = self._find_second_ldr490(foff, func_end)
             if patch_off:
-                self.emit(patch_off, NOP,
-                          "NOP [_task_for_pid proc_ro copy]")
+                self.emit(patch_off, NOP, "NOP [_task_for_pid proc_ro copy]")
                 return True
 
         # Pattern search: scan kern_text for functions matching the profile
@@ -1244,12 +1281,18 @@ class KernelJBPatcher(KernelPatcher):
                 i = d[0]
                 if i.mnemonic == "ldadda":
                     ldadda_count += 1
-                elif i.mnemonic == "ldr" and "#0x490" in i.op_str \
-                        and i.op_str.startswith("w"):
+                elif (
+                    i.mnemonic == "ldr"
+                    and "#0x490" in i.op_str
+                    and i.op_str.startswith("w")
+                ):
                     d2 = self._disas_at(o + 4)
-                    if d2 and d2[0].mnemonic == "str" \
-                            and "#0xc" in d2[0].op_str \
-                            and d2[0].op_str.startswith("w"):
+                    if (
+                        d2
+                        and d2[0].mnemonic == "str"
+                        and "#0xc" in d2[0].op_str
+                        and d2[0].op_str.startswith("w")
+                    ):
                         ldr490_count += 1
                         ldr490_offs.append(o)
                 elif i.mnemonic == "movk" and "#0xc8a2" in i.op_str:
@@ -1261,13 +1304,17 @@ class KernelJBPatcher(KernelPatcher):
                     if 500 < n_callers < 8000:
                         has_high_caller_bl = True
 
-            if ldadda_count >= 2 and ldr490_count >= 2 \
-                    and has_movk_c8a2 and has_high_caller_bl:
+            if (
+                ldadda_count >= 2
+                and ldr490_count >= 2
+                and has_movk_c8a2
+                and has_high_caller_bl
+            ):
                 patch_off = ldr490_offs[1]  # NOP the second occurrence
-                self._log(f"  [+] _task_for_pid at 0x{func_start:X}, "
-                          f"patch at 0x{patch_off:X}")
-                self.emit(patch_off, NOP,
-                          "NOP [_task_for_pid proc_ro copy]")
+                self._log(
+                    f"  [+] _task_for_pid at 0x{func_start:X}, patch at 0x{patch_off:X}"
+                )
+                self.emit(patch_off, NOP, "NOP [_task_for_pid proc_ro copy]")
                 return True
 
             off = func_end
@@ -1285,9 +1332,12 @@ class KernelJBPatcher(KernelPatcher):
             if "#0x490" not in d[0].op_str or not d[0].op_str.startswith("w"):
                 continue
             d2 = self._disas_at(off + 4)
-            if d2 and d2[0].mnemonic == "str" \
-                    and "#0xc" in d2[0].op_str \
-                    and d2[0].op_str.startswith("w"):
+            if (
+                d2
+                and d2[0].mnemonic == "str"
+                and "#0xc" in d2[0].op_str
+                and d2[0].op_str.startswith("w")
+            ):
                 count += 1
                 if count == 2:
                     return off
@@ -1314,8 +1364,11 @@ class KernelJBPatcher(KernelPatcher):
                 tst_off, beq_target = result
                 b_bytes = self._encode_b(tst_off, beq_target)
                 if b_bytes:
-                    self.emit(tst_off, b_bytes,
-                              f"b #0x{beq_target - tst_off:X} [_load_dylinker]")
+                    self.emit(
+                        tst_off,
+                        b_bytes,
+                        f"b #0x{beq_target - tst_off:X} [_load_dylinker]",
+                    )
                     return True
 
         # Pattern search: find functions with 3+ TST+B.EQ+MOVK(#0xc8a2)
@@ -1342,11 +1395,13 @@ class KernelJBPatcher(KernelPatcher):
                 if len(d3) < 3:
                     continue
                 i0, i1, i2 = d3[0], d3[1], d3[2]
-                if i0.mnemonic == "tst" \
-                        and "40000000000000" in i0.op_str \
-                        and i1.mnemonic == "b.eq" \
-                        and i2.mnemonic == "movk" \
-                        and "#0xc8a2" in i2.op_str:
+                if (
+                    i0.mnemonic == "tst"
+                    and "40000000000000" in i0.op_str
+                    and i1.mnemonic == "b.eq"
+                    and i2.mnemonic == "movk"
+                    and "#0xc8a2" in i2.op_str
+                ):
                     beq_target = i1.operands[-1].imm
                     triplets.append((o, beq_target))
 
@@ -1355,11 +1410,15 @@ class KernelJBPatcher(KernelPatcher):
                 tst_off, beq_target = triplets[-1]
                 b_bytes = self._encode_b(tst_off, beq_target)
                 if b_bytes:
-                    self._log(f"  [+] rebase func at 0x{func_start:X}, "
-                              f"patch TST at 0x{tst_off:X}")
-                    self.emit(tst_off, b_bytes,
-                              f"b #0x{beq_target - tst_off:X} "
-                              f"[_load_dylinker PAC bypass]")
+                    self._log(
+                        f"  [+] rebase func at 0x{func_start:X}, "
+                        f"patch TST at 0x{tst_off:X}"
+                    )
+                    self.emit(
+                        tst_off,
+                        b_bytes,
+                        f"b #0x{beq_target - tst_off:X} [_load_dylinker PAC bypass]",
+                    )
                     return True
 
             off = func_end
@@ -1375,11 +1434,13 @@ class KernelJBPatcher(KernelPatcher):
             if len(d) < 3:
                 continue
             i0, i1, i2 = d[0], d[1], d[2]
-            if i0.mnemonic == "tst" \
-                    and "40000000000000" in i0.op_str \
-                    and i1.mnemonic == "b.eq" \
-                    and i2.mnemonic == "movk" \
-                    and "#0xc8a2" in i2.op_str:
+            if (
+                i0.mnemonic == "tst"
+                and "40000000000000" in i0.op_str
+                and i1.mnemonic == "b.eq"
+                and i2.mnemonic == "movk"
+                and "#0xc8a2" in i2.op_str
+            ):
                 last = (off, i1.operands[-1].imm)
         return last
 
@@ -1393,7 +1454,8 @@ class KernelJBPatcher(KernelPatcher):
         foff = self._resolve_symbol("_shared_region_map_and_slide_setup")
         if foff < 0:
             foff = self._find_func_by_string(
-                b"/private/preboot/Cryptexes", self.kern_text)
+                b"/private/preboot/Cryptexes", self.kern_text
+            )
         if foff < 0:
             foff = self._find_func_by_string(b"/private/preboot/Cryptexes")
         if foff < 0:
@@ -1413,8 +1475,9 @@ class KernelJBPatcher(KernelPatcher):
             if len(ops) < 2:
                 continue
             if ops[0].type == ARM64_OP_REG and ops[1].type == ARM64_OP_REG:
-                self.emit(off, CMP_X0_X0,
-                          "cmp x0,x0 [_shared_region_map_and_slide_setup]")
+                self.emit(
+                    off, CMP_X0_X0, "cmp x0,x0 [_shared_region_map_and_slide_setup]"
+                )
                 return True
 
         self._log("  [-] CMP+B.NE pattern not found")
@@ -1428,7 +1491,8 @@ class KernelJBPatcher(KernelPatcher):
 
         # Try symbol first
         sym_off = self._resolve_symbol(
-            "__ZL16verifyPermission16IONVRAMOperationPKhPKcb")
+            "__ZL16verifyPermission16IONVRAMOperationPKhPKcb"
+        )
         if sym_off < 0:
             for sym, off in self.symbols.items():
                 if "verifyPermission" in sym and "NVRAM" in sym:
@@ -1445,13 +1509,15 @@ class KernelJBPatcher(KernelPatcher):
             if refs:
                 ref_off = refs[0][0]  # ADRP instruction offset
 
-        foff = sym_off if sym_off >= 0 else (
-            self.find_function_start(ref_off) if ref_off >= 0 else -1)
+        foff = (
+            sym_off
+            if sym_off >= 0
+            else (self.find_function_start(ref_off) if ref_off >= 0 else -1)
+        )
 
         if foff < 0:
             # Fallback: try NVRAM entitlement string
-            ent_off = self.find_string(
-                b"com.apple.private.iokit.nvram-write-access")
+            ent_off = self.find_string(b"com.apple.private.iokit.nvram-write-access")
             if ent_off >= 0:
                 ent_refs = self.find_string_refs(ent_off)
                 if ent_refs:
@@ -1515,8 +1581,9 @@ class KernelJBPatcher(KernelPatcher):
                 if target and target > off:
                     b_bytes = self._encode_b(off, target)
                     if b_bytes:
-                        self.emit(off, b_bytes,
-                                  f"b #0x{target - off:X} [_IOSecureBSDRoot]")
+                        self.emit(
+                            off, b_bytes, f"b #0x{target - off:X} [_IOSecureBSDRoot]"
+                        )
                         return True
 
         self._log("  [-] conditional branch not found")
@@ -1532,8 +1599,7 @@ class KernelJBPatcher(KernelPatcher):
         # Try symbol first
         foff = self._resolve_symbol("_thid_should_crash")
         if foff >= 0:
-            self.emit(foff, b'\x00\x00\x00\x00',
-                      "zero [_thid_should_crash]")
+            self.emit(foff, b"\x00\x00\x00\x00", "zero [_thid_should_crash]")
             return True
 
         # Find the string in __DATA (sysctl name string)
@@ -1551,9 +1617,11 @@ class KernelJBPatcher(KernelPatcher):
         #
         # Search forward from the string for 8-byte values whose low32
         # points to a valid location holding a small non-zero value.
-        data_const_ranges = [(fo, fo + fs) for name, _, fo, fs, _
-                             in self.all_segments
-                             if name in ("__DATA_CONST",) and fs > 0]
+        data_const_ranges = [
+            (fo, fo + fs)
+            for name, _, fo, fs, _ in self.all_segments
+            if name in ("__DATA_CONST",) and fs > 0
+        ]
 
         for delta in range(0, 128, 8):
             check = str_off + delta
@@ -1576,13 +1644,15 @@ class KernelJBPatcher(KernelPatcher):
                     in_data = any(
                         fo <= low32 < fo + fs
                         for name, _, fo, fs, _ in self.all_segments
-                        if "DATA" in name and fs > 0)
+                        if "DATA" in name and fs > 0
+                    )
                 if in_data:
-                    self._log(f"  [+] variable at foff 0x{low32:X} "
-                              f"(value={target_val}, found via sysctl_oid "
-                              f"at str+0x{delta:X})")
-                    self.emit(low32, b'\x00\x00\x00\x00',
-                              "zero [_thid_should_crash]")
+                    self._log(
+                        f"  [+] variable at foff 0x{low32:X} "
+                        f"(value={target_val}, found via sysctl_oid "
+                        f"at str+0x{delta:X})"
+                    )
+                    self.emit(low32, b"\x00\x00\x00\x00", "zero [_thid_should_crash]")
                     return True
 
         # Fallback: if string has code refs, search via ADRP+ADD
@@ -1598,14 +1668,16 @@ class KernelJBPatcher(KernelPatcher):
                     i0, i1 = d[0], d[1]
                     if i0.mnemonic == "adrp" and i1.mnemonic == "add":
                         page = (i0.operands[1].imm - self.base_va) & ~0xFFF
-                        imm12 = (i1.operands[2].imm if len(i1.operands) > 2
-                                 else 0)
+                        imm12 = i1.operands[2].imm if len(i1.operands) > 2 else 0
                         target = page + imm12
                         if 0 < target < self.size:
                             tv = _rd32(self.raw, target)
                             if 1 <= tv <= 255:
-                                self.emit(target, b'\x00\x00\x00\x00',
-                                          "zero [_thid_should_crash]")
+                                self.emit(
+                                    target,
+                                    b"\x00\x00\x00\x00",
+                                    "zero [_thid_should_crash]",
+                                )
                                 return True
 
         self._log("  [-] variable not found")
@@ -1697,14 +1769,18 @@ class KernelJBPatcher(KernelPatcher):
 
         # Assemble shellcode
         shellcode = (
-            asm("ldr x0, [sp, #8]") +         # load cred pointer
-            asm("ldr w1, [x0]") +              # load cs_flags
-            asm("orr w1, w1, #0x4000000") +    # set CS_PLATFORM_BINARY
-            asm("orr w1, w1, #0xF") +          # set CS_VALID|CS_ADHOC|CS_GET_TASK_ALLOW|CS_INSTALLER
-            bytes([0x21, 0x64, 0x12, 0x12]) +  # AND w1, w1, #0xFFFFC0FF (clear CS_HARD|CS_KILL etc)
-            asm("str w1, [x0]") +              # store back
-            asm("mov x0, xzr") +               # return 0
-            bytes([0xFF, 0x0F, 0x5F, 0xD6])    # RETAB
+            asm("ldr x0, [sp, #8]")  # load cred pointer
+            + asm("ldr w1, [x0]")  # load cs_flags
+            + asm("orr w1, w1, #0x4000000")  # set CS_PLATFORM_BINARY
+            + asm(
+                "orr w1, w1, #0xF"
+            )  # set CS_VALID|CS_ADHOC|CS_GET_TASK_ALLOW|CS_INSTALLER
+            + bytes(
+                [0x21, 0x64, 0x12, 0x12]
+            )  # AND w1, w1, #0xFFFFC0FF (clear CS_HARD|CS_KILL etc)
+            + asm("str w1, [x0]")  # store back
+            + asm("mov x0, xzr")  # return 0
+            + bytes([0xFF, 0x0F, 0x5F, 0xD6])  # RETAB
         )
 
         # Find the return site in the function (last RETAB)
@@ -1721,14 +1797,18 @@ class KernelJBPatcher(KernelPatcher):
 
         # Write shellcode to cave
         for i in range(0, len(shellcode), 4):
-            self.emit(cave + i, shellcode[i:i+4],
-                      f"shellcode+{i} [_cred_label_update_execve]")
+            self.emit(
+                cave + i,
+                shellcode[i : i + 4],
+                f"shellcode+{i} [_cred_label_update_execve]",
+            )
 
         # Branch from function return to cave
         b_bytes = self._encode_b(ret_off, cave)
         if b_bytes:
-            self.emit(ret_off, b_bytes,
-                      f"b cave [_cred_label_update_execve -> 0x{cave:X}]")
+            self.emit(
+                ret_off, b_bytes, f"b cave [_cred_label_update_execve -> 0x{cave:X}]"
+            )
         else:
             self._log("  [-] branch to cave out of range")
             return False
@@ -1798,16 +1878,18 @@ class KernelJBPatcher(KernelPatcher):
                 if (val & 0xFC000000) == 0x14000000:
                     imm26 = val & 0x3FFFFFF
                     if imm26 & (1 << 25):
-                        imm26 -= (1 << 26)
+                        imm26 -= 1 << 26
                     target = off + imm26 * 4
                     if self.kern_text[0] <= target < self.kern_text[1]:
                         filter_off = target
                         break
 
         if zalloc_off < 0 or filter_off < 0:
-            self._log(f"  [-] required functions not found "
-                      f"(zalloc={'found' if zalloc_off >= 0 else 'missing'}, "
-                      f"filter={'found' if filter_off >= 0 else 'missing'})")
+            self._log(
+                f"  [-] required functions not found "
+                f"(zalloc={'found' if zalloc_off >= 0 else 'missing'}, "
+                f"filter={'found' if filter_off >= 0 else 'missing'})"
+            )
             return False
 
         # Find code cave (need ~160 bytes)
@@ -1835,46 +1917,49 @@ class KernelJBPatcher(KernelPatcher):
         # Build shellcode
         shellcode_parts = []
         for _ in range(10):
-            shellcode_parts.append(b'\xff\xff\xff\xff')
+            shellcode_parts.append(b"\xff\xff\xff\xff")
 
-        shellcode_parts.append(asm("cbz x2, #0x6c"))       # idx 10
-        shellcode_parts.append(asm("sub sp, sp, #0x40"))    # idx 11
+        shellcode_parts.append(asm("cbz x2, #0x6c"))  # idx 10
+        shellcode_parts.append(asm("sub sp, sp, #0x40"))  # idx 11
         shellcode_parts.append(asm("stp x19, x20, [sp, #0x10]"))  # idx 12
         shellcode_parts.append(asm("stp x21, x22, [sp, #0x20]"))  # idx 13
         shellcode_parts.append(asm("stp x29, x30, [sp, #0x30]"))  # idx 14
-        shellcode_parts.append(asm("mov x19, x0"))          # idx 15
-        shellcode_parts.append(asm("mov x20, x1"))          # idx 16
-        shellcode_parts.append(asm("mov x21, x2"))          # idx 17
-        shellcode_parts.append(asm("mov x22, x3"))          # idx 18
-        shellcode_parts.append(asm("mov x8, #8"))           # idx 19
-        shellcode_parts.append(asm("mov x0, x17"))          # idx 20
-        shellcode_parts.append(asm("mov x1, x21"))          # idx 21
-        shellcode_parts.append(asm("mov x2, #0"))           # idx 22
+        shellcode_parts.append(asm("mov x19, x0"))  # idx 15
+        shellcode_parts.append(asm("mov x20, x1"))  # idx 16
+        shellcode_parts.append(asm("mov x21, x2"))  # idx 17
+        shellcode_parts.append(asm("mov x22, x3"))  # idx 18
+        shellcode_parts.append(asm("mov x8, #8"))  # idx 19
+        shellcode_parts.append(asm("mov x0, x17"))  # idx 20
+        shellcode_parts.append(asm("mov x1, x21"))  # idx 21
+        shellcode_parts.append(asm("mov x2, #0"))  # idx 22
         # adr x3, #-0x5C — encode manually
         adr_delta = -(23 * 4)
         immhi = (adr_delta >> 2) & 0x7FFFF
         immlo = adr_delta & 0x3
         adr_insn = 0x10000003 | (immlo << 29) | (immhi << 5)
         shellcode_parts.append(struct.pack("<I", adr_insn))  # idx 23
-        shellcode_parts.append(asm("udiv x4, x22, x8"))     # idx 24
+        shellcode_parts.append(asm("udiv x4, x22, x8"))  # idx 24
         shellcode_parts.append(asm("msub x10, x4, x8, x22"))  # idx 25
-        shellcode_parts.append(asm("cbz x10, #8"))          # idx 26
-        shellcode_parts.append(asm("add x4, x4, #1"))       # idx 27
-        shellcode_parts.append(zalloc_bl)                    # idx 28
-        shellcode_parts.append(asm("mov x0, x19"))           # idx 29
-        shellcode_parts.append(asm("mov x1, x20"))           # idx 30
-        shellcode_parts.append(asm("mov x2, x21"))           # idx 31
-        shellcode_parts.append(asm("mov x3, x22"))           # idx 32
+        shellcode_parts.append(asm("cbz x10, #8"))  # idx 26
+        shellcode_parts.append(asm("add x4, x4, #1"))  # idx 27
+        shellcode_parts.append(zalloc_bl)  # idx 28
+        shellcode_parts.append(asm("mov x0, x19"))  # idx 29
+        shellcode_parts.append(asm("mov x1, x20"))  # idx 30
+        shellcode_parts.append(asm("mov x2, x21"))  # idx 31
+        shellcode_parts.append(asm("mov x3, x22"))  # idx 32
         shellcode_parts.append(asm("ldp x19, x20, [sp, #0x10]"))  # idx 33
         shellcode_parts.append(asm("ldp x21, x22, [sp, #0x20]"))  # idx 34
         shellcode_parts.append(asm("ldp x29, x30, [sp, #0x30]"))  # idx 35
-        shellcode_parts.append(asm("add sp, sp, #0x40"))    # idx 36
-        shellcode_parts.append(filter_b)                     # idx 37
+        shellcode_parts.append(asm("add sp, sp, #0x40"))  # idx 36
+        shellcode_parts.append(filter_b)  # idx 37
 
         # Write shellcode
         for i, part in enumerate(shellcode_parts):
-            self.emit(cave_base + i * 4, part,
-                      f"shellcode+{i*4} [_syscallmask_apply_to_proc]")
+            self.emit(
+                cave_base + i * 4,
+                part,
+                f"shellcode+{i * 4} [_syscallmask_apply_to_proc]",
+            )
 
         # Redirect original function
         func_end = self._find_func_end(func_off, 0x200)
@@ -1883,12 +1968,18 @@ class KernelJBPatcher(KernelPatcher):
             if not d:
                 continue
             if d[0].mnemonic == "bl":
-                self.emit(off - 4, asm("mov x17, x0"),
-                          "mov x17,x0 [_syscallmask_apply_to_proc inject]")
+                self.emit(
+                    off - 4,
+                    asm("mov x17, x0"),
+                    "mov x17,x0 [_syscallmask_apply_to_proc inject]",
+                )
                 b_to_cave = self._encode_b(off, cave_base + 10 * 4)
                 if b_to_cave:
-                    self.emit(off, b_to_cave,
-                              f"b cave [_syscallmask_apply_to_proc -> 0x{cave_base + 40:X}]")
+                    self.emit(
+                        off,
+                        b_to_cave,
+                        f"b cave [_syscallmask_apply_to_proc -> 0x{cave_base + 40:X}]",
+                    )
                 return True
 
         self._log("  [-] injection point not found")
@@ -1915,8 +2006,10 @@ class KernelJBPatcher(KernelPatcher):
                 if refs:
                     vnode_getattr_off = self.find_function_start(refs[0][0])
                     if vnode_getattr_off >= 0:
-                        self._log(f"  [+] vnode_getattr at 0x"
-                                  f"{vnode_getattr_off:X} (via string)")
+                        self._log(
+                            f"  [+] vnode_getattr at 0x"
+                            f"{vnode_getattr_off:X} (via string)"
+                        )
 
         if vnode_getattr_off < 0:
             self._log("  [-] vnode_getattr not found")
@@ -1948,12 +2041,15 @@ class KernelJBPatcher(KernelPatcher):
                 orig_hook = entry
 
         if hook_index < 0 or best_size < 1000:
-            self._log("  [-] hook entry not found in ops table "
-                      f"(best: idx={hook_index}, size={best_size})")
+            self._log(
+                "  [-] hook entry not found in ops table "
+                f"(best: idx={hook_index}, size={best_size})"
+            )
             return False
 
-        self._log(f"  [+] hook at ops[{hook_index}] = 0x{orig_hook:X} "
-                  f"({best_size} bytes)")
+        self._log(
+            f"  [+] hook at ops[{hook_index}] = 0x{orig_hook:X} ({best_size} bytes)"
+        )
 
         # ── 4. Find code cave ────────────────────────────────────
         cave = self._find_code_cave(180)
@@ -1986,58 +2082,61 @@ class KernelJBPatcher(KernelPatcher):
         # struct vfs_context { thread_t vc_thread; kauth_cred_t vc_ucred; }
         # We place it at [sp, #0x70] (between saved regs and vattr buffer).
         parts = []
-        parts.append(NOP)                                       # 0
-        parts.append(asm("cbz x3, #0xa8"))                     # 1
-        parts.append(asm("sub sp, sp, #0x400"))                # 2
-        parts.append(asm("stp x29, x30, [sp]"))               # 3
-        parts.append(asm("stp x0, x1, [sp, #16]"))            # 4
-        parts.append(asm("stp x2, x3, [sp, #32]"))            # 5
-        parts.append(asm("stp x4, x5, [sp, #48]"))            # 6
-        parts.append(asm("stp x6, x7, [sp, #64]"))            # 7
+        parts.append(NOP)  # 0
+        parts.append(asm("cbz x3, #0xa8"))  # 1
+        parts.append(asm("sub sp, sp, #0x400"))  # 2
+        parts.append(asm("stp x29, x30, [sp]"))  # 3
+        parts.append(asm("stp x0, x1, [sp, #16]"))  # 4
+        parts.append(asm("stp x2, x3, [sp, #32]"))  # 5
+        parts.append(asm("stp x4, x5, [sp, #48]"))  # 6
+        parts.append(asm("stp x6, x7, [sp, #64]"))  # 7
         # Construct vfs_context inline (replaces BL vfs_context_current)
-        parts.append(asm("mrs x8, tpidr_el1"))                 # 8: current_thread
-        parts.append(asm("stp x8, x0, [sp, #0x70]"))          # 9: {thread, cred}
-        parts.append(asm("add x2, sp, #0x70"))                 # 10: ctx = &vfs_ctx
+        parts.append(asm("mrs x8, tpidr_el1"))  # 8: current_thread
+        parts.append(asm("stp x8, x0, [sp, #0x70]"))  # 9: {thread, cred}
+        parts.append(asm("add x2, sp, #0x70"))  # 10: ctx = &vfs_ctx
         # Setup vnode_getattr(vp, &vattr, ctx)
-        parts.append(asm("ldr x0, [sp, #0x28]"))              # 11: x0 = vp
-        parts.append(asm("add x1, sp, #0x80"))                # 12: x1 = &vattr
-        parts.append(asm("mov w8, #0x380"))                    # 13: vattr size
-        parts.append(asm("stp xzr, x8, [x1]"))               # 14: init vattr
-        parts.append(asm("stp xzr, xzr, [x1, #0x10]"))       # 15: init vattr
-        parts.append(NOP)                                       # 16
-        parts.append(vnode_bl)                                  # 17: BL vnode_getattr
+        parts.append(asm("ldr x0, [sp, #0x28]"))  # 11: x0 = vp
+        parts.append(asm("add x1, sp, #0x80"))  # 12: x1 = &vattr
+        parts.append(asm("mov w8, #0x380"))  # 13: vattr size
+        parts.append(asm("stp xzr, x8, [x1]"))  # 14: init vattr
+        parts.append(asm("stp xzr, xzr, [x1, #0x10]"))  # 15: init vattr
+        parts.append(NOP)  # 16
+        parts.append(vnode_bl)  # 17: BL vnode_getattr
         # Check result + propagate ownership
-        parts.append(asm("cbnz x0, #0x50"))                   # 18: error → skip
-        parts.append(asm("mov w2, #0"))                        # 19: changed = 0
-        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 20: va_mode
-        parts.append(bytes([0xa8, 0x00, 0x58, 0x36]))          # 21: tbz w8,#11
-        parts.append(asm("ldr w8, [sp, #0xC4]"))              # 22: va_uid
-        parts.append(asm("ldr x0, [sp, #0x18]"))              # 23: new_cred
-        parts.append(asm("str w8, [x0, #0x18]"))              # 24: cred->uid
-        parts.append(asm("mov w2, #1"))                        # 25: changed = 1
-        parts.append(asm("ldr w8, [sp, #0xCC]"))              # 26: va_mode
-        parts.append(bytes([0xa8, 0x00, 0x50, 0x36]))          # 27: tbz w8,#10
-        parts.append(asm("mov w2, #1"))                        # 28: changed = 1
-        parts.append(asm("ldr w8, [sp, #0xC8]"))              # 29: va_gid
-        parts.append(asm("ldr x0, [sp, #0x18]"))              # 30: new_cred
-        parts.append(asm("str w8, [x0, #0x28]"))              # 31: cred->gid
-        parts.append(asm("cbz w2, #0x1c"))                     # 32: if !changed
-        parts.append(asm("ldr x0, [sp, #0x20]"))              # 33: proc
-        parts.append(asm("ldr w8, [x0, #0x454]"))             # 34: p_csflags
-        parts.append(asm("orr w8, w8, #0x100"))               # 35: CS_VALID
-        parts.append(asm("str w8, [x0, #0x454]"))             # 36: store
-        parts.append(asm("ldp x0, x1, [sp, #16]"))            # 37: restore
-        parts.append(asm("ldp x2, x3, [sp, #32]"))            # 38
-        parts.append(asm("ldp x4, x5, [sp, #48]"))            # 39
-        parts.append(asm("ldp x6, x7, [sp, #64]"))            # 40
-        parts.append(asm("ldp x29, x30, [sp]"))               # 41
-        parts.append(asm("add sp, sp, #0x400"))                # 42
-        parts.append(NOP)                                       # 43
-        parts.append(b_back)                                    # 44: B orig_hook
+        parts.append(asm("cbnz x0, #0x50"))  # 18: error → skip
+        parts.append(asm("mov w2, #0"))  # 19: changed = 0
+        parts.append(asm("ldr w8, [sp, #0xCC]"))  # 20: va_mode
+        parts.append(bytes([0xA8, 0x00, 0x58, 0x36]))  # 21: tbz w8,#11
+        parts.append(asm("ldr w8, [sp, #0xC4]"))  # 22: va_uid
+        parts.append(asm("ldr x0, [sp, #0x18]"))  # 23: new_cred
+        parts.append(asm("str w8, [x0, #0x18]"))  # 24: cred->uid
+        parts.append(asm("mov w2, #1"))  # 25: changed = 1
+        parts.append(asm("ldr w8, [sp, #0xCC]"))  # 26: va_mode
+        parts.append(bytes([0xA8, 0x00, 0x50, 0x36]))  # 27: tbz w8,#10
+        parts.append(asm("mov w2, #1"))  # 28: changed = 1
+        parts.append(asm("ldr w8, [sp, #0xC8]"))  # 29: va_gid
+        parts.append(asm("ldr x0, [sp, #0x18]"))  # 30: new_cred
+        parts.append(asm("str w8, [x0, #0x28]"))  # 31: cred->gid
+        parts.append(asm("cbz w2, #0x1c"))  # 32: if !changed
+        parts.append(asm("ldr x0, [sp, #0x20]"))  # 33: proc
+        parts.append(asm("ldr w8, [x0, #0x454]"))  # 34: p_csflags
+        parts.append(asm("orr w8, w8, #0x100"))  # 35: CS_VALID
+        parts.append(asm("str w8, [x0, #0x454]"))  # 36: store
+        parts.append(asm("ldp x0, x1, [sp, #16]"))  # 37: restore
+        parts.append(asm("ldp x2, x3, [sp, #32]"))  # 38
+        parts.append(asm("ldp x4, x5, [sp, #48]"))  # 39
+        parts.append(asm("ldp x6, x7, [sp, #64]"))  # 40
+        parts.append(asm("ldp x29, x30, [sp]"))  # 41
+        parts.append(asm("add sp, sp, #0x400"))  # 42
+        parts.append(NOP)  # 43
+        parts.append(b_back)  # 44: B orig_hook
 
         for i, part in enumerate(parts):
-            self.emit(cave + i * 4, part,
-                      f"shellcode+{i*4} [_hook_cred_label_update_execve]")
+            self.emit(
+                cave + i * 4,
+                part,
+                f"shellcode+{i * 4} [_hook_cred_label_update_execve]",
+            )
 
         # ── 8. Rewrite ops table entry ───────────────────────────
         # Preserve auth rebase upper 32 bits (PAC key, diversity,
@@ -2045,9 +2144,12 @@ class KernelJBPatcher(KernelPatcher):
         entry_off = ops_table + hook_index * 8
         orig_raw = _rd64(self.raw, entry_off)
         new_raw = (orig_raw & 0xFFFFFFFF00000000) | (cave & 0xFFFFFFFF)
-        self.emit(entry_off, struct.pack("<Q", new_raw),
-                  f"ops_table[{hook_index}] = cave 0x{cave:X} "
-                  f"[_hook_cred_label_update_execve]")
+        self.emit(
+            entry_off,
+            struct.pack("<Q", new_raw),
+            f"ops_table[{hook_index}] = cave 0x{cave:X} "
+            f"[_hook_cred_label_update_execve]",
+        )
 
         return True
 
@@ -2090,7 +2192,8 @@ class KernelJBPatcher(KernelPatcher):
                     val2 = _rd64(self.raw, off + 24)
                     decoded2 = self._decode_chained_ptr(val2)
                     if decoded2 > 0 and any(
-                            s <= decoded2 < e for s, e in self.code_ranges):
+                        s <= decoded2 < e for s, e in self.code_ranges
+                    ):
                         sysent_off = off
                         break
             if sysent_off >= 0:
@@ -2113,60 +2216,71 @@ class KernelJBPatcher(KernelPatcher):
 
         # Build kcall10 shellcode
         parts = [
-            asm("ldr x10, [sp, #0x40]"),     # 0
-            asm("ldp x0, x1, [x10, #0]"),    # 1
-            asm("ldp x2, x3, [x10, #0x10]"), # 2
-            asm("ldp x4, x5, [x10, #0x20]"), # 3
-            asm("ldp x6, x7, [x10, #0x30]"), # 4
-            asm("ldp x8, x9, [x10, #0x40]"), # 5
-            asm("ldr x10, [x10, #0x50]"),    # 6
-            asm("mov x16, x0"),               # 7
-            asm("mov x0, x1"),                # 8
-            asm("mov x1, x2"),                # 9
-            asm("mov x2, x3"),                # 10
-            asm("mov x3, x4"),                # 11
-            asm("mov x4, x5"),                # 12
-            asm("mov x5, x6"),                # 13
-            asm("mov x6, x7"),                # 14
-            asm("mov x7, x8"),                # 15
-            asm("mov x8, x9"),                # 16
-            asm("mov x9, x10"),               # 17
+            asm("ldr x10, [sp, #0x40]"),  # 0
+            asm("ldp x0, x1, [x10, #0]"),  # 1
+            asm("ldp x2, x3, [x10, #0x10]"),  # 2
+            asm("ldp x4, x5, [x10, #0x20]"),  # 3
+            asm("ldp x6, x7, [x10, #0x30]"),  # 4
+            asm("ldp x8, x9, [x10, #0x40]"),  # 5
+            asm("ldr x10, [x10, #0x50]"),  # 6
+            asm("mov x16, x0"),  # 7
+            asm("mov x0, x1"),  # 8
+            asm("mov x1, x2"),  # 9
+            asm("mov x2, x3"),  # 10
+            asm("mov x3, x4"),  # 11
+            asm("mov x4, x5"),  # 12
+            asm("mov x5, x6"),  # 13
+            asm("mov x6, x7"),  # 14
+            asm("mov x7, x8"),  # 15
+            asm("mov x8, x9"),  # 16
+            asm("mov x9, x10"),  # 17
             asm("stp x29, x30, [sp, #-0x10]!"),  # 18
             bytes([0x00, 0x02, 0x3F, 0xD6]),  # 19: BLR x16
-            asm("ldp x29, x30, [sp], #0x10"), # 20
-            asm("ldr x11, [sp, #0x40]"),      # 21
-            NOP,                               # 22
-            asm("stp x0, x1, [x11, #0]"),     # 23
+            asm("ldp x29, x30, [sp], #0x10"),  # 20
+            asm("ldr x11, [sp, #0x40]"),  # 21
+            NOP,  # 22
+            asm("stp x0, x1, [x11, #0]"),  # 23
             asm("stp x2, x3, [x11, #0x10]"),  # 24
             asm("stp x4, x5, [x11, #0x20]"),  # 25
             asm("stp x6, x7, [x11, #0x30]"),  # 26
             asm("stp x8, x9, [x11, #0x40]"),  # 27
-            asm("str x10, [x11, #0x50]"),     # 28
-            asm("mov x0, #0"),                 # 29
-            asm("ret"),                        # 30
-            NOP,                               # 31
+            asm("str x10, [x11, #0x50]"),  # 28
+            asm("mov x0, #0"),  # 29
+            asm("ret"),  # 30
+            NOP,  # 31
         ]
 
         for i, part in enumerate(parts):
-            self.emit(cave + i * 4, part,
-                      f"shellcode+{i*4} [kcall10]")
+            self.emit(cave + i * 4, part, f"shellcode+{i * 4} [kcall10]")
 
         # Patch sysent[439]
         cave_va = self.base_va + cave
-        self.emit(entry_439, struct.pack("<Q", cave_va),
-                  f"sysent[439].sy_call = 0x{cave_va:X} [kcall10]")
+        self.emit(
+            entry_439,
+            struct.pack("<Q", cave_va),
+            f"sysent[439].sy_call = 0x{cave_va:X} [kcall10]",
+        )
 
         if munge_off >= 0:
             munge_va = self.base_va + munge_off
-            self.emit(entry_439 + 8, struct.pack("<Q", munge_va),
-                      f"sysent[439].sy_munge32 = 0x{munge_va:X} [kcall10]")
+            self.emit(
+                entry_439 + 8,
+                struct.pack("<Q", munge_va),
+                f"sysent[439].sy_munge32 = 0x{munge_va:X} [kcall10]",
+            )
 
         # sy_return_type = SYSCALL_RET_UINT64_T (7)
-        self.emit(entry_439 + 16, struct.pack("<I", 7),
-                  "sysent[439].sy_return_type = 7 [kcall10]")
+        self.emit(
+            entry_439 + 16,
+            struct.pack("<I", 7),
+            "sysent[439].sy_return_type = 7 [kcall10]",
+        )
 
         # sy_narg = 8, sy_arg_bytes = 0x20
-        self.emit(entry_439 + 20, struct.pack("<I", 0x200008),
-                  "sysent[439].sy_narg=8,sy_arg_bytes=0x20 [kcall10]")
+        self.emit(
+            entry_439 + 20,
+            struct.pack("<I", 0x200008),
+            "sysent[439].sy_narg=8,sy_arg_bytes=0x20 [kcall10]",
+        )
 
         return True

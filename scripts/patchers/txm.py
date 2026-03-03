@@ -30,7 +30,7 @@ MOV_X0_0 = _asm("mov x0, #0")
 
 
 def _disasm_one(data, off):
-    insns = list(_cs.disasm(data[off:off + 4], off))
+    insns = list(_cs.disasm(data[off : off + 4], off))
     return insns[0] if insns else None
 
 
@@ -50,6 +50,7 @@ def _find_asm_pattern(data, asm_str):
 
 # ── TXMPatcher ─────────────────────────────────────────────────
 
+
 class TXMPatcher:
     """Dynamic patcher for TXM images.
 
@@ -60,9 +61,9 @@ class TXMPatcher:
     """
 
     def __init__(self, data, verbose=True):
-        self.data    = data
-        self.raw     = bytes(data)
-        self.size    = len(data)
+        self.data = data
+        self.raw = bytes(data)
+        self.size = len(data)
         self.verbose = verbose
         self.patches = []
 
@@ -73,18 +74,24 @@ class TXMPatcher:
     def emit(self, off, patch_bytes, desc):
         self.patches.append((off, patch_bytes, desc))
         if self.verbose:
-            before_insns = list(_cs.disasm(self.raw[off:off + 4], off))
+            before_insns = list(_cs.disasm(self.raw[off : off + 4], off))
             after_insns = list(_cs.disasm(patch_bytes, off))
-            b_str = (f"{before_insns[0].mnemonic} {before_insns[0].op_str}"
-                     if before_insns else "???")
-            a_str = (f"{after_insns[0].mnemonic} {after_insns[0].op_str}"
-                     if after_insns else "???")
+            b_str = (
+                f"{before_insns[0].mnemonic} {before_insns[0].op_str}"
+                if before_insns
+                else "???"
+            )
+            a_str = (
+                f"{after_insns[0].mnemonic} {after_insns[0].op_str}"
+                if after_insns
+                else "???"
+            )
             print(f"  0x{off:06X}: {b_str} → {a_str}  [{desc}]")
 
     def apply(self):
         self.find_all()
         for off, pb, _ in self.patches:
-            self.data[off:off + len(pb)] = pb
+            self.data[off : off + len(pb)] = pb
         if self.verbose and self.patches:
             self._log(f"\n  [{len(self.patches)} TXM patches applied]")
         return len(self.patches)
@@ -114,8 +121,7 @@ class TXMPatcher:
         # Step 1: Find the unique function marker (mov w19, #0x2446)
         locs = _find_asm_pattern(self.raw, "mov w19, #0x2446")
         if len(locs) != 1:
-            self._log(f"  [-] TXM: expected 1 'mov w19, #0x2446', "
-                       f"found {len(locs)}")
+            self._log(f"  [-] TXM: expected 1 'mov w19, #0x2446', found {len(locs)}")
             return
         marker_off = locs[0]
 
@@ -123,7 +129,7 @@ class TXMPatcher:
         pacibsp = _asm("hint #27")
         func_start = None
         for scan in range(marker_off & ~3, max(0, marker_off - 0x200), -4):
-            if self.raw[scan:scan + 4] == pacibsp:
+            if self.raw[scan : scan + 4] == pacibsp:
                 func_start = scan
                 break
         if func_start is None:
@@ -135,19 +141,23 @@ class TXMPatcher:
         insns = list(_cs.disasm(self.raw[func_start:func_end], func_start))
 
         for i, ins in enumerate(insns):
-            if not (ins.mnemonic == 'mov' and ins.op_str == 'w2, #0x14'):
+            if not (ins.mnemonic == "mov" and ins.op_str == "w2, #0x14"):
                 continue
             if i + 3 >= len(insns):
                 continue
             bl_ins = insns[i + 1]
             cbz_ins = insns[i + 2]
             tbnz_ins = insns[i + 3]
-            if (bl_ins.mnemonic == 'bl'
-                    and cbz_ins.mnemonic == 'cbz' and 'w0' in cbz_ins.op_str
-                    and tbnz_ins.mnemonic in ('tbnz', 'tbz')
-                    and '#0x1f' in tbnz_ins.op_str):
-                self.emit(bl_ins.address, MOV_X0_0,
-                          "trustcache bypass: bl → mov x0, #0")
+            if (
+                bl_ins.mnemonic == "bl"
+                and cbz_ins.mnemonic == "cbz"
+                and "w0" in cbz_ins.op_str
+                and tbnz_ins.mnemonic in ("tbnz", "tbz")
+                and "#0x1f" in tbnz_ins.op_str
+            ):
+                self.emit(
+                    bl_ins.address, MOV_X0_0, "trustcache bypass: bl → mov x0, #0"
+                )
                 return
 
         self._log("  [-] TXM: binary search pattern not found in function")
@@ -157,8 +167,7 @@ class TXMPatcher:
 if __name__ == "__main__":
     import sys, argparse
 
-    parser = argparse.ArgumentParser(
-        description="Dynamic TXM patcher")
+    parser = argparse.ArgumentParser(description="Dynamic TXM patcher")
     parser.add_argument("txm", help="Path to raw or IM4P TXM image")
     parser.add_argument("-q", "--quiet", action="store_true")
     args = parser.parse_args()
@@ -168,6 +177,7 @@ if __name__ == "__main__":
 
     try:
         from pyimg4 import IM4P
+
         im4p = IM4P(file_raw)
         if im4p.payload.compression:
             im4p.payload.decompress()
@@ -178,7 +188,7 @@ if __name__ == "__main__":
         print(f"  format: raw")
 
     data = bytearray(payload)
-    print(f"  size:   {len(data)} bytes ({len(data)/1024:.1f} KB)\n")
+    print(f"  size:   {len(data)} bytes ({len(data) / 1024:.1f} KB)\n")
 
     patcher = TXMPatcher(data, verbose=not args.quiet)
     n = patcher.apply()

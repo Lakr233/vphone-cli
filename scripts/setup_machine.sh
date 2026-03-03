@@ -27,7 +27,14 @@ BOOT_FIFO_FD=""
 
 VM_DIR="${VM_DIR:-vm}"
 VM_DIR_ABS="${VM_DIR:A}"
-AUTO_KILL_VM_LOCKS="${AUTO_KILL_VM_LOCKS:-0}"
+AUTO_KILL_VM_LOCKS="${AUTO_KILL_VM_LOCKS:-1}"
+POST_RESTORE_KILL_DELAY="${POST_RESTORE_KILL_DELAY:-30}"
+POST_KILL_SETTLE_DELAY="${POST_KILL_SETTLE_DELAY:-5}"
+RAMDISK_SSH_TIMEOUT="${RAMDISK_SSH_TIMEOUT:-60}"
+RAMDISK_SSH_INTERVAL="${RAMDISK_SSH_INTERVAL:-2}"
+RAMDISK_SSH_PORT="${RAMDISK_SSH_PORT:-2222}"
+RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
+RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
 JB_MODE=0
 SKIP_PROJECT_SETUP=0
 
@@ -42,7 +49,9 @@ require_cmd() {
 }
 
 collect_vm_lock_pids() {
-  local -a paths pids file_pids
+  local -a paths pids
+  local path pid
+  typeset -U pids
 
   paths=(
     "${VM_DIR_ABS}/nvram.bin"
@@ -53,14 +62,14 @@ collect_vm_lock_pids() {
 
   for path in "${paths[@]}"; do
     [[ -e "$path" ]] || continue
-    file_pids=("${(@f)$(lsof -t -- "$path" 2>/dev/null || true)}")
-    for pid in "${file_pids[@]}"; do
-      [[ -n "$pid" ]] && pids+=("$pid")
-    done
+    while IFS= read -r pid; do
+      [[ "$pid" == <-> ]] || continue
+      [[ "$pid" == "$$" ]] && continue
+      pids+=("$pid")
+    done < <(lsof -t -- "$path" 2>/dev/null || true)
   done
 
-  pids=("${(@u)pids}")
-  (( ${#pids[@]} > 0 )) && print -l -- "${pids[@]}"
+  (( ${#pids[@]} > 0 )) && print -l -- "${pids[@]}" || true
 }
 
 check_vm_storage_locks() {
@@ -70,7 +79,7 @@ check_vm_storage_locks() {
   fi
 
   local -a lock_pids
-  lock_pids=("${(@f)$(collect_vm_lock_pids)}")
+  lock_pids=(${(@f)$(collect_vm_lock_pids)})
   (( ${#lock_pids[@]} == 0 )) && return
 
   echo "[-] VM storage files are currently in use: ${VM_DIR_ABS}"
@@ -92,7 +101,7 @@ check_vm_storage_locks() {
     done
     sleep 1
 
-    lock_pids=("${(@f)$(collect_vm_lock_pids)}")
+    lock_pids=(${(@f)$(collect_vm_lock_pids)})
     (( ${#lock_pids[@]} == 0 )) && { echo "[+] Cleared VM storage locks"; return; }
     echo "[-] VM storage locks still present after AUTO_KILL_VM_LOCKS attempt."
   fi
@@ -116,6 +125,23 @@ kill_descendants() {
   local -a descendants
   descendants=("${(@f)$(list_descendants "$1")}")
   [[ ${#descendants[@]} -gt 0 ]] && kill -9 "${descendants[@]}" >/dev/null 2>&1 || true
+}
+
+force_release_vm_locks() {
+  local -a lock_pids
+  local pid
+
+  lock_pids=(${(@f)$(collect_vm_lock_pids)})
+  (( ${#lock_pids[@]} == 0 )) && return
+
+  echo "[*] Releasing lingering VM lock holders..."
+  for pid in "${lock_pids[@]}"; do
+    [[ -z "$pid" || "$pid" == "$$" ]] && continue
+    kill_descendants "$pid"
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  done
+
+  sleep 1
 }
 
 cleanup() {
@@ -275,6 +301,32 @@ stop_boot_dfu() {
     wait "$DFU_PID" 2>/dev/null || true
   fi
   DFU_PID=""
+  force_release_vm_locks
+}
+
+wait_for_post_restore_reboot() {
+  local remaining="${POST_RESTORE_KILL_DELAY}"
+  local panic_seen=0
+
+  echo "[*] Restore complete; waiting up to ${POST_RESTORE_KILL_DELAY}s for reboot/panic before stopping DFU..."
+  while (( remaining > 0 )); do
+    if [[ -f "$DFU_LOG" ]] && grep -Eiq 'panic|kernel panic' "$DFU_LOG"; then
+      panic_seen=1
+      break
+    fi
+    if [[ -n "$DFU_PID" ]] && ! kill -0 "$DFU_PID" 2>/dev/null; then
+      echo "[*] DFU process exited during post-restore reboot window."
+      return
+    fi
+    sleep 1
+    (( remaining-- ))
+  done
+
+  if (( panic_seen == 1 )); then
+    echo "[+] Panic marker observed; stopping DFU now."
+  else
+    echo "[*] No panic marker observed in ${POST_RESTORE_KILL_DELAY}s; stopping DFU anyway."
+  fi
 }
 
 wait_for_recovery() {
@@ -298,8 +350,21 @@ wait_for_recovery() {
 
 start_iproxy_2222() {
   local iproxy_bin
+  local -a stale_pids
+  local pid
   iproxy_bin="${PROJECT_ROOT}/.limd/bin/iproxy"
   [[ -x "$iproxy_bin" ]] || die "iproxy not found at $iproxy_bin (run: make setup_libimobiledevice)"
+
+  stale_pids=(${(@f)$(lsof -n -t -iTCP:2222 -sTCP:LISTEN 2>/dev/null || true)})
+  if (( ${#stale_pids[@]} > 0 )); then
+    echo "[*] Found stale listener(s) on tcp/2222, terminating..."
+    for pid in "${stale_pids[@]}"; do
+      [[ -z "$pid" || "$pid" == "$$" ]] && continue
+      kill_descendants "$pid"
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    done
+    sleep 1
+  fi
 
   mkdir -p "$LOG_DIR"
   : > "$IPROXY_LOG"
@@ -316,6 +381,49 @@ start_iproxy_2222() {
   fi
 
   echo "[+] iproxy running (pid=$IPROXY_PID, log=$IPROXY_LOG)"
+}
+
+wait_for_ramdisk_ssh() {
+  local sshpass_bin
+  local waited=0
+
+  [[ "$RAMDISK_SSH_TIMEOUT" == <-> ]] || die "RAMDISK_SSH_TIMEOUT must be an integer (seconds)"
+  [[ "$RAMDISK_SSH_INTERVAL" == <-> ]] || die "RAMDISK_SSH_INTERVAL must be an integer (seconds)"
+  (( RAMDISK_SSH_TIMEOUT > 0 )) || die "RAMDISK_SSH_TIMEOUT must be > 0"
+  (( RAMDISK_SSH_INTERVAL > 0 )) || die "RAMDISK_SSH_INTERVAL must be > 0"
+
+  sshpass_bin="$(command -v sshpass || true)"
+  [[ -x "$sshpass_bin" ]] || die "sshpass not found (run: make setup_tools)"
+
+  echo "[*] Waiting for ramdisk SSH on ${RAMDISK_SSH_USER}@127.0.0.1:${RAMDISK_SSH_PORT} (timeout=${RAMDISK_SSH_TIMEOUT}s)..."
+  while (( waited < RAMDISK_SSH_TIMEOUT )); do
+    if "$sshpass_bin" -p "$RAMDISK_SSH_PASS" ssh \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o ConnectTimeout=5 \
+      -q \
+      -p "$RAMDISK_SSH_PORT" \
+      "${RAMDISK_SSH_USER}@127.0.0.1" "echo ready" >/dev/null 2>&1
+    then
+      echo "[+] Ramdisk SSH is ready"
+      return
+    fi
+
+    if (( waited == 0 || waited % 10 == 0 )); then
+      echo "  waiting... ${waited}s elapsed"
+    fi
+
+    sleep "$RAMDISK_SSH_INTERVAL"
+    (( waited += RAMDISK_SSH_INTERVAL ))
+  done
+
+  echo "[-] Timed out waiting for ramdisk SSH readiness."
+  echo "[-] iproxy log tail:"
+  tail -n 40 "$IPROXY_LOG" 2>/dev/null || true
+  echo "[-] boot_dfu log tail:"
+  tail -n 60 "$DFU_LOG" 2>/dev/null || true
+  die "Ramdisk SSH did not become ready in ${RAMDISK_SSH_TIMEOUT}s."
 }
 
 stop_iproxy_2222() {
@@ -344,7 +452,7 @@ Usage: setup_machine.sh [--jb] [--skip-project-setup]
 
 Options:
   --jb                    Use jailbreak firmware patching + jailbreak CFW install.
-  --skip-project-setup    Skip setup_libimobiledevice/setup_venv/build stage.
+  --skip-project-setup    Skip setup_tools/build stage.
 EOF
         exit 0
         ;;
@@ -371,14 +479,13 @@ main() {
   if [[ "$SKIP_PROJECT_SETUP" -eq 1 ]]; then
     echo ""
     echo "=== Project setup ==="
-    echo "[*] Skipping setup_libimobiledevice/setup_venv/build"
+    echo "[*] Skipping setup_tools/build"
   else
     check_platform
     install_brew_deps
     ensure_python_linked
 
-    run_make "Project setup" setup_libimobiledevice
-    run_make "Project setup" setup_venv
+    run_make "Project setup" setup_tools
     run_make "Project setup" build
   fi
 
@@ -392,7 +499,10 @@ main() {
   wait_for_recovery
   run_make "Restore" restore_get_shsh
   run_make "Restore" restore
+  wait_for_post_restore_reboot
   stop_boot_dfu
+  echo "[*] Waiting ${POST_KILL_SETTLE_DELAY}s for cleanup before ramdisk stage..."
+  sleep "$POST_KILL_SETTLE_DELAY"
 
   echo ""
   echo "=== Ramdisk + CFW phase ==="
@@ -402,11 +512,11 @@ main() {
   run_make "Ramdisk" ramdisk_send
   start_iproxy_2222
 
-  sleep 10 # for some reason there is a statistical faiure here if not enough time is given to initialization
+  wait_for_ramdisk_ssh
 
   run_make "CFW install" "$cfw_install_target"
-  stop_iproxy_2222
   stop_boot_dfu
+  stop_iproxy_2222
 
   echo ""
   echo "=== First boot ==="

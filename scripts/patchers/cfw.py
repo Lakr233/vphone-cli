@@ -118,9 +118,7 @@ def parse_macho_sections(data):
             nsects = struct.unpack_from("<I", data, offset + 64)[0]
             sect_off = offset + 72
             for _ in range(nsects):
-                sectname = (
-                    data[sect_off : sect_off + 16].split(b"\x00")[0].decode()
-                )
+                sectname = data[sect_off : sect_off + 16].split(b"\x00")[0].decode()
                 addr = struct.unpack_from("<Q", data, sect_off + 32)[0]
                 size = struct.unpack_from("<Q", data, sect_off + 40)[0]
                 file_off = struct.unpack_from("<I", data, sect_off + 48)[0]
@@ -233,13 +231,13 @@ def patch_seputil(filepath):
     original = bytes(data[offset : offset + len(anchor)])
     print(f"  Found format string at 0x{offset:X}: {original!r}")
 
-    print(f"  Before: {bytes(data[offset:offset+7]).hex(' ')}")
+    print(f"  Before: {bytes(data[offset : offset + 7]).hex(' ')}")
 
     # Replace %s (2 bytes) with AA — turns "/%s.gl" into "/AA.gl"
     data[pct_s_off] = ord("A")
     data[pct_s_off + 1] = ord("A")
 
-    print(f"  After:  {bytes(data[offset:offset+7]).hex(' ')}")
+    print(f"  After:  {bytes(data[offset : offset + 7]).hex(' ')}")
 
     open(filepath, "wb").write(data)
     print(f"  [+] Patched at 0x{pct_s_off:X}: %s -> AA")
@@ -311,7 +309,9 @@ def patch_launchd_cache_loader(filepath):
             end = data.index(0, str_start_off)
             full_str = data[str_start_off:end].decode("ascii", errors="replace")
             print(f"  Found anchor '{anchor_str.decode()}' inside \"{full_str}\"")
-            print(f"    String start: va:0x{str_start_va:X}  (match at va:0x{substr_va:X})")
+            print(
+                f"    String start: va:0x{str_start_va:X}  (match at va:0x{substr_va:X})"
+            )
         else:
             print(f"  Found anchor '{anchor_str.decode()}' at va:0x{str_start_va:X}")
 
@@ -395,7 +395,11 @@ def _find_adrp_add_ref(code, base_va, target_va):
             if src_reg in adrp_cache:
                 adrp_va, page, adrp_idx = adrp_cache[src_reg]
                 # Only match if ADRP was within 8 instructions
-                if page == target_page and imm == target_pageoff and idx - adrp_idx <= 8:
+                if (
+                    page == target_page
+                    and imm == target_pageoff
+                    and idx - adrp_idx <= 8
+                ):
                     return adrp_va
 
     return -1
@@ -560,10 +564,26 @@ def patch_launchd_jetsam(filepath):
     code = bytes(data[text_foff : text_foff + text_size])
 
     cond_mnemonics = {
-        "b.eq", "b.ne", "b.cs", "b.hs", "b.cc", "b.lo",
-        "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls",
-        "b.ge", "b.lt", "b.gt", "b.le",
-        "cbz", "cbnz", "tbz", "tbnz",
+        "b.eq",
+        "b.ne",
+        "b.cs",
+        "b.hs",
+        "b.cc",
+        "b.lo",
+        "b.mi",
+        "b.pl",
+        "b.vs",
+        "b.vc",
+        "b.hi",
+        "b.ls",
+        "b.ge",
+        "b.lt",
+        "b.gt",
+        "b.le",
+        "cbz",
+        "cbnz",
+        "tbz",
+        "tbnz",
     }
 
     anchors = [
@@ -827,7 +847,9 @@ def _check_existing_dylib(data, base, dylib_path):
             # LC_REEXPORT_DYLIB, LC_LOAD_UPWARD_DYLIB
             name_offset = struct.unpack_from("<I", data, offset + 8)[0]
             name_end = data.index(0, offset + name_offset)
-            name = data[offset + name_offset : name_end].decode("ascii", errors="replace")
+            name = data[offset + name_offset : name_end].decode(
+                "ascii", errors="replace"
+            )
             if name == dylib_path:
                 return True
         offset += cmdsize
@@ -914,8 +936,10 @@ def _inject_lc_load_dylib(data, base, dylib_path):
     first_section_abs = base + first_section
     available = first_section_abs - header_end
 
-    print(f"  Header end: 0x{header_end:X}, first section: 0x{first_section_abs:X}, "
-          f"available: {available}, need: {cmd_size}")
+    print(
+        f"  Header end: 0x{header_end:X}, first section: 0x{first_section_abs:X}, "
+        f"available: {available}, need: {cmd_size}"
+    )
 
     if available < cmd_size:
         # Strip LC_CODE_SIGNATURE to reclaim header space (re-signed by ldid)
@@ -933,8 +957,10 @@ def _inject_lc_load_dylib(data, base, dylib_path):
         if overflow > 256:
             print(f"  [-] Would overflow {overflow} bytes into section data (too much)")
             return False
-        print(f"  [!] Header overflow: {overflow} bytes into section data "
-              f"(same as optool — binary will be re-signed)")
+        print(
+            f"  [!] Header overflow: {overflow} bytes into section data "
+            f"(same as optool — binary will be re-signed)"
+        )
 
     # Write the new load command at the end of existing commands
     data[header_end : header_end + cmd_size] = lc_data
@@ -962,7 +988,9 @@ def inject_dylib(filepath, dylib_path):
             continue
 
         if _inject_lc_load_dylib(data, slice_off, dylib_path):
-            print(f"  [+] Injected LC_LOAD_DYLIB '{dylib_path}' at slice 0x{slice_off:X}")
+            print(
+                f"  [+] Injected LC_LOAD_DYLIB '{dylib_path}' at slice 0x{slice_off:X}"
+            )
             injected += 1
 
     if injected == len(slices):
@@ -999,8 +1027,10 @@ def parse_cryptex_paths(manifest_path):
         if sysos and appos:
             return sysos, appos
 
-    print("[-] Cryptex1,SystemOS/AppOS paths not found in any BuildIdentity",
-          file=sys.stderr)
+    print(
+        "[-] Cryptex1,SystemOS/AppOS paths not found in any BuildIdentity",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -1012,8 +1042,7 @@ def parse_cryptex_paths(manifest_path):
 def inject_daemons(plist_path, daemon_dir):
     """Inject bash/dropbear/trollvnc entries into launchd.plist."""
     # Convert to XML first (macOS binary plist -> XML)
-    subprocess.run(["plutil", "-convert", "xml1", plist_path],
-                   capture_output=True)
+    subprocess.run(["plutil", "-convert", "xml1", plist_path], capture_output=True)
 
     with open(plist_path, "rb") as f:
         target = plistlib.load(f)

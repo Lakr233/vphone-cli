@@ -22,6 +22,7 @@ INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
 LIMD_PREFIX := .limd
+TOOLS_PREFIX := .tools
 IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
 IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
 PYTHON      := $(CURDIR)/$(VENV)/bin/python3
@@ -29,26 +30,26 @@ PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 SWIFT_SOURCES := $(shell find sources -name '*.swift')
 
 # ─── Environment — prefer project-local binaries ────────────────
-export PATH := $(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
+export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
 
 # ─── Default ──────────────────────────────────────────────────────
 .PHONY: help
 help:
 	@echo "vphone-cli — Virtual iPhone boot tool"
 	@echo ""
+	@echo "LazyCat (AIO):"
+	@echo "  make setup_machine                   Full setup through First Boot"
+	@echo "    Options: JB=1                      Jailbreak firmware/CFW path (WIP)"
+	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
+	@echo ""
 	@echo "Setup (one-time):"
-	@echo "  make setup_machine           Full setup through README First Boot"
-	@echo "                              Optional: JB=1 for jailbreak firmware/CFW path"
-	@echo "                              Optional: SKIP_PROJECT_SETUP=1 to skip setup_libimobiledevice/setup_venv/build"
-	@echo "  make setup_venv              Create Python .venv"
-	@echo "  make setup_libimobiledevice  Build libimobiledevice toolchain"
+	@echo "  make setup_tools             Install all tools (brew, trustcache, libimobiledevice, venv)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
-	@echo "  make vphoned                 Cross-compile vphoned for iOS"
-	@echo "  make vphoned_sign            Sign vphoned (requires cfw_input)"
-	@echo "  make install                 Build + copy to ./bin/"
-	@echo "  make clean                   Remove .build/"
+	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
+	@echo "  make clean                   Remove all build artifacts (keeps IPSWs)"
+	@echo ""
 	@echo "VM management:"
 	@echo "  make vm_new                  Create VM directory"
 	@echo "  make boot                    Boot VM (GUI)"
@@ -56,6 +57,8 @@ help:
 	@echo ""
 	@echo "Firmware pipeline:"
 	@echo "  make fw_prepare              Download IPSWs, extract, merge"
+	@echo "    Options: IPHONE_SOURCE=    URL or local path to iPhone IPSW"
+	@echo "             CLOUDOS_SOURCE=   URL or local path to cloudOS IPSW"
 	@echo "  make fw_patch                Patch boot chain (6 components)"
 	@echo "  make fw_patch_jb             Run fw_patch + JB extension patches (WIP)"
 	@echo ""
@@ -77,24 +80,30 @@ help:
 # Setup
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: setup_machine setup_venv setup_libimobiledevice
+.PHONY: setup_machine setup_tools
 
 setup_machine:
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
 		$(if $(filter 1 true yes YES TRUE,$(SKIP_PROJECT_SETUP)),--skip-project-setup,)
 
-setup_venv:
-	zsh $(SCRIPTS)/setup_venv.sh
+setup_tools:
+	zsh $(SCRIPTS)/setup_tools.sh
 
-setup_libimobiledevice:
-	bash $(SCRIPTS)/setup_libimobiledevice.sh
+# ═══════════════════════════════════════════════════════════════════
+# Clean — remove all untracked/ignored files (preserves IPSWs only)
+# ═══════════════════════════════════════════════════════════════════
+
+.PHONY: clean
+clean:
+	@echo "=== Cleaning all untracked files (preserving IPSWs) ==="
+	git clean -fdx -e '*.ipsw' -e '*_Restore*'
 
 # ═══════════════════════════════════════════════════════════════════
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build install clean bundle
+.PHONY: build bundle
 
 build: $(BINARY)
 
@@ -109,46 +118,25 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "  signed OK"
 
 bundle: build $(INFO_PLIST)
-	@mkdir -p $(BUNDLE)/Contents/MacOS
+	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
+	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
+	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
+	@cp -f $$(command -v ideviceinstaller) $(BUNDLE)/Contents/MacOS/ideviceinstaller
+	@cp -f $$(command -v idevice_id) $(BUNDLE)/Contents/MacOS/idevice_id
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
 	@echo "  bundled → $(BUNDLE)"
 
-install: build
-	mkdir -p ./bin
-	cp -f $(BINARY) ./bin/vphone-cli
-	@echo "Installed to ./bin/vphone-cli"
-
-clean:
-	swift package clean
-	rm -rf .build
-	rm -f $(SCRIPTS)/vphoned/vphoned
-	rm -f $(BUILD_INFO)
-
-# Cross-compile vphoned daemon for iOS arm64 (installed into VM by cfw_install)
+# Cross-compile + sign vphoned daemon for iOS arm64 (requires ldid)
 .PHONY: vphoned
-vphoned: $(SCRIPTS)/vphoned/vphoned
-
-VPHONED_SRCS := $(addprefix $(SCRIPTS)/vphoned/, \
-	vphoned.m vphoned_protocol.m vphoned_hid.m \
-	vphoned_devmode.m vphoned_location.m vphoned_files.m)
-$(SCRIPTS)/vphoned/vphoned: $(VPHONED_SRCS)
-	@echo "=== Building vphoned (arm64, iphoneos) ==="
-	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-		-I$(SCRIPTS)/vphoned \
-		-DVPHONED_BUILD_HASH='"$(GIT_HASH)"' \
-		-o $@ $(VPHONED_SRCS) -framework Foundation
-	@echo "  built OK"
-
-# Sign vphoned with entitlements using cfw_input tools (requires make cfw_install to have unpacked cfw_input)
-.PHONY: vphoned_sign
-vphoned_sign: $(SCRIPTS)/vphoned/vphoned
-	@test -f "$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64" \
-		|| (echo "Error: ldid not found. Run 'make cfw_install' first to unpack cfw_input." && exit 1)
+vphoned:
+	@command -v ldid >/dev/null 2>&1 \
+		|| (echo "Error: ldid not found. Run: brew install ldid-procursus" && exit 1)
+	$(MAKE) -C $(SCRIPTS)/vphoned GIT_HASH=$(GIT_HASH)
 	@echo "=== Signing vphoned ==="
 	cp $(SCRIPTS)/vphoned/vphoned $(VM_DIR)/.vphoned.signed
-	$(VM_DIR)/$(CFW_INPUT)/tools/ldid_macosx_arm64 \
+	ldid \
 		-S$(SCRIPTS)/vphoned/entitlements.plist \
 		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
 		$(VM_DIR)/.vphoned.signed
@@ -163,7 +151,7 @@ vphoned_sign: $(SCRIPTS)/vphoned/vphoned
 vm_new:
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
 
-boot: bundle vphoned_sign
+boot: bundle vphoned
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \

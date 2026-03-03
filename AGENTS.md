@@ -146,6 +146,7 @@ The firmware is a **PCC/iPhone hybrid** — PCC boot infrastructure wrapping iPh
 ### Component Origins
 
 The firmware merges two Apple IPSWs:
+
 - **iPhone IPSW:** `iPhone17,3_26.1_23B85_Restore.ipsw` (d47ap)
 - **cloudOS IPSW:** PCC vresearch101ap IPSW (CDN hash URL)
 
@@ -155,28 +156,28 @@ iPhone restore directory (`kernelcache.*`, `Firmware/{agx,all_flash,ane,dfu,pmp}
 
 #### Boot Chain — from PCC (cloudOS / vresearch101ap)
 
-| Component | File | Patched | Patch Purpose |
-|-----------|------|---------|---------------|
-| AVPBooter | `AVPBooter.vresearch1.bin` | Yes (1) | DGST signature validation bypass |
-| LLB | `Firmware/all_flash/LLB.vresearch101.RELEASE.im4p` | Yes (6) | Serial + image4 bypass + boot-args + rootfs + panic |
-| iBSS | `Firmware/dfu/iBSS.vresearch101.RELEASE.im4p` | Yes (2) | Serial labels + image4 callback bypass |
-| iBEC | `Firmware/dfu/iBEC.vresearch101.RELEASE.im4p` | Yes (3) | Serial + image4 bypass + boot-args |
-| SPTM | `Firmware/all_flash/sptm.vresearch1.release.im4p` | No | — |
-| TXM | `Firmware/txm.iphoneos.research.im4p` | Yes (1) | Trustcache validation bypass |
-| SEP Firmware | `Firmware/all_flash/sep-firmware.vresearch101.RELEASE.im4p` | No | — |
-| DeviceTree | `Firmware/all_flash/DeviceTree.vphone600ap.im4p` | No | — |
-| KernelCache | `kernelcache.release.vphone600` | Yes (25) | APFS, MAC, debugger, launch constraints, etc. |
-| GPU/ANE/PMP | `Firmware/{agx,ane,pmp}/*` | No | — |
+| Component    | File                                                        | Patched  | Patch Purpose                                       |
+| ------------ | ----------------------------------------------------------- | -------- | --------------------------------------------------- |
+| AVPBooter    | `AVPBooter.vresearch1.bin`                                  | Yes (1)  | DGST signature validation bypass                    |
+| LLB          | `Firmware/all_flash/LLB.vresearch101.RELEASE.im4p`          | Yes (6)  | Serial + image4 bypass + boot-args + rootfs + panic |
+| iBSS         | `Firmware/dfu/iBSS.vresearch101.RELEASE.im4p`               | Yes (2)  | Serial labels + image4 callback bypass              |
+| iBEC         | `Firmware/dfu/iBEC.vresearch101.RELEASE.im4p`               | Yes (3)  | Serial + image4 bypass + boot-args                  |
+| SPTM         | `Firmware/all_flash/sptm.vresearch1.release.im4p`           | No       | —                                                   |
+| TXM          | `Firmware/txm.iphoneos.research.im4p`                       | Yes (1)  | Trustcache validation bypass                        |
+| SEP Firmware | `Firmware/all_flash/sep-firmware.vresearch101.RELEASE.im4p` | No       | —                                                   |
+| DeviceTree   | `Firmware/all_flash/DeviceTree.vphone600ap.im4p`            | No       | —                                                   |
+| KernelCache  | `kernelcache.release.vphone600`                             | Yes (25) | APFS, MAC, debugger, launch constraints, etc.       |
+| GPU/ANE/PMP  | `Firmware/{agx,ane,pmp}/*`                                  | No       | —                                                   |
 
 > TXM filename says "iphoneos" but is copied from cloudOS IPSW (`fw_prepare.sh` line 81).
 
 #### OS / Filesystem — from iPhone (iPhone17,3)
 
-| Component | Notes |
-|-----------|-------|
-| OS | iPhone OS image |
-| SystemVolume | System partition |
-| StaticTrustCache | Static trust cache |
+| Component                        | Notes                  |
+| -------------------------------- | ---------------------- |
+| OS                               | iPhone OS image        |
+| SystemVolume                     | System partition       |
+| StaticTrustCache                 | Static trust cache     |
 | Ap,SystemVolumeCanonicalMetadata | System volume metadata |
 
 > Cryptex1 components (SystemOS/AppOS DMGs) are **not** included in the BuildManifest.
@@ -187,8 +188,8 @@ iPhone restore directory (`kernelcache.*`, `Firmware/{agx,all_flash,ane,dfu,pmp}
 `fw_manifest.py` generates a **single** DFU erase-install identity (20 components).
 The VM always boots via DFU restore, so only one identity is needed.
 
-| Variant | Boot Chain | Ramdisk |
-|---------|-----------|---------|
+| Variant                                      | Boot Chain                                         | Ramdisk   |
+| -------------------------------------------- | -------------------------------------------------- | --------- |
 | `Darwin Cloud Customer Erase Install (IPSW)` | PCC RELEASE (LLB/iBSS/iBEC) + RESEARCH (iBoot/TXM) | PCC erase |
 
 idevicerestore selects this identity by partial-matching `Info.Variant` against
@@ -198,44 +199,45 @@ idevicerestore selects this identity by partial-matching `Info.Variant` against
 
 **Boot chain patches** (`fw_patch.py`) — all 6 targets from **PCC**:
 
-| Component | Patches | Technique |
-|-----------|---------|-----------|
-| AVPBooter | 1 | `mov x0, #0` (DGST bypass) |
-| iBSS | 2 | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns) |
-| iBEC | 3 | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns) |
-| LLB | 6 | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns) |
-| TXM | 1 | Dynamic via `patchers/txm.py` (trustcache hash lookup bypass) |
-| KernelCache | 25 | Dynamic via `patchers/kernel.py` (string anchors, ADRP+ADD xrefs, BL frequency) |
+| Component   | Patches | Technique                                                                       |
+| ----------- | ------- | ------------------------------------------------------------------------------- |
+| AVPBooter   | 1       | `mov x0, #0` (DGST bypass)                                                      |
+| iBSS        | 2       | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns)          |
+| iBEC        | 3       | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns)          |
+| LLB         | 6       | Dynamic via `patchers/iboot.py` (string anchors, instruction patterns)          |
+| TXM         | 1       | Dynamic via `patchers/txm.py` (trustcache hash lookup bypass)                   |
+| KernelCache | 25      | Dynamic via `patchers/kernel.py` (string anchors, ADRP+ADD xrefs, BL frequency) |
 
 **JB extension patches** (`fw_patch_jb.py`) — runs base patches first, then adds:
 
-| Component | JB Patches | Technique |
-|-----------|-----------|-----------|
-| iBSS | +1 | `patchers/iboot_jb.py` (skip nonce generation) |
-| TXM | +13 | `patchers/txm_jb.py` (CS validation bypass, get-task-allow, debugger ent, dev mode) |
-| KernelCache | +34 | `patchers/kernel_jb.py` (trustcache, execve, sandbox, task/VM, kcall10) |
+| Component   | JB Patches | Technique                                                                           |
+| ----------- | ---------- | ----------------------------------------------------------------------------------- |
+| iBSS        | +1         | `patchers/iboot_jb.py` (skip nonce generation)                                      |
+| TXM         | +13        | `patchers/txm_jb.py` (CS validation bypass, get-task-allow, debugger ent, dev mode) |
+| KernelCache | +34        | `patchers/kernel_jb.py` (trustcache, execve, sandbox, task/VM, kcall10)             |
 
 **CFW patches** (`patchers/cfw.py` / `cfw_install.sh`) — targets from **iPhone** Cryptex SystemOS:
 
-| Binary | Technique | Purpose | Mode |
-|--------|-----------|---------|------|
-| seputil | String patch (`/%s.gl` → `/AA.gl`) | Gigalocker UUID fix | Base |
-| launchd_cache_loader | NOP (disassembly-anchored) | Bypass cache validation | Base |
-| mobileactivationd | Return true (disassembly-anchored) | Skip activation check | Base |
-| launchd.plist | Plist injection | Add bash/dropbear/trollvnc daemons | Base |
-| launchd | Branch (skip jetsam guard) + LC_LOAD_DYLIB injection | Prevent jetsam panic + load launchdhook.dylib | JB |
+| Binary               | Technique                                            | Purpose                                       | Mode |
+| -------------------- | ---------------------------------------------------- | --------------------------------------------- | ---- |
+| seputil              | String patch (`/%s.gl` → `/AA.gl`)                   | Gigalocker UUID fix                           | Base |
+| launchd_cache_loader | NOP (disassembly-anchored)                           | Bypass cache validation                       | Base |
+| mobileactivationd    | Return true (disassembly-anchored)                   | Skip activation check                         | Base |
+| launchd.plist        | Plist injection                                      | Add bash/dropbear/trollvnc daemons            | Base |
+| launchd              | Branch (skip jetsam guard) + LC_LOAD_DYLIB injection | Prevent jetsam panic + load launchdhook.dylib | JB   |
 
 **JB install phases** (`cfw_install_jb.sh` → `cfw_install.sh` with `CFW_JB_MODE=1`):
 
-| Phase | Action |
-|-------|--------|
-| JB-1 | Patch `/mnt1/sbin/launchd`: inject `launchdhook.dylib` LC_LOAD_DYLIB + jetsam guard bypass |
-| JB-2 | Install procursus bootstrap to `/mnt5/<hash>/jb-vphone/procursus` |
-| JB-3 | Deploy BaseBin hooks (`systemhook.dylib`, `launchdhook.dylib`, `libellekit.dylib`) to `/mnt1/cores/` |
+| Phase | Action                                                                                               |
+| ----- | ---------------------------------------------------------------------------------------------------- |
+| JB-1  | Patch `/mnt1/sbin/launchd`: inject `launchdhook.dylib` LC_LOAD_DYLIB + jetsam guard bypass           |
+| JB-2  | Install procursus bootstrap to `/mnt5/<hash>/jb-vphone/procursus`                                    |
+| JB-3  | Deploy BaseBin hooks (`systemhook.dylib`, `launchdhook.dylib`, `libellekit.dylib`) to `/mnt1/cores/` |
 
 ### Boot Flow
 
 **Base** (`fw_patch` + `cfw_install`):
+
 ```
 AVPBooter (ROM, PCC)
   → LLB (PCC, patched)
@@ -248,6 +250,7 @@ AVPBooter (ROM, PCC)
 ```
 
 **Jailbreak** (`fw_patch_jb` + `cfw_install_jb`):
+
 ```
 AVPBooter (ROM, PCC)
   → LLB (PCC, patched)
@@ -269,6 +272,7 @@ AVPBooter (ROM, PCC)
 ### CFW Installation (`cfw_install.sh`)
 
 7 phases (+ 2 JB phases), safe to re-run (idempotent):
+
 1. Decrypt/mount Cryptex SystemOS and AppOS DMGs (`ipsw` + `aea`)
 2. Patch seputil (gigalocker UUID)
 3. Install GPU driver (AppleParavirtGPUMetalIOGPUFamily)
@@ -278,6 +282,7 @@ AVPBooter (ROM, PCC)
 7. Install LaunchDaemons (bash, dropbear SSH, trollvnc)
 
 **JB-only phases** (enabled via `make cfw_install_jb` or `CFW_JB_MODE=1`):
+
 - JB-1: Patch launchd jetsam guard (prevents jetsam panic on boot)
 - JB-2: Install procursus bootstrap + optional Sileo to `/mnt5/<hash>/jb-vphone/`
 
@@ -325,6 +330,7 @@ Always use `make build` — never `swift build` alone, as the unsigned binary wi
 ## VM Creation (`make vm_new`)
 
 Creates a VM directory with:
+
 - Sparse disk image (default 64 GB)
 - SEP storage (512 KB flat file)
 - AVPBooter + AVPSEPBooter ROMs (copied from `/System/Library/Frameworks/Virtualization.framework/`)
@@ -393,40 +399,42 @@ Branch is 8 commits ahead of `main`. All changes are **additive** — non-JB cod
 
 ### Diff vs Main
 
-| File | Change | Impact on non-JB |
-|------|--------|-----------------|
-| `kernel.py` | +1 line: `self.patches = []` reset in `find_all()` | None (harmless init) |
-| `cfw.py` | +`patch-launchd-jetsam`, +`inject-dylib` commands | None (new commands only) |
-| `kernel_jb.py` | **New file** — 2128 lines | N/A |
-| `txm_jb.py` | **New file** — 335 lines | N/A |
-| `iboot_jb.py` | **New file** — 105 lines | N/A |
-| `fw_patch_jb.py` | **New file** — 115 lines (WIP) | N/A |
-| `cfw_install_jb.sh` | **New file** — 214 lines | N/A |
-| `cfw_jb_input.tar.zst` | **New file** — JB resources | N/A |
-| `Makefile` | +JB targets (`fw_patch_jb`, `cfw_install_jb`) | None (additive) |
-| `AGENTS.md` | Documentation updates | N/A |
+| File                   | Change                                             | Impact on non-JB         |
+| ---------------------- | -------------------------------------------------- | ------------------------ |
+| `kernel.py`            | +1 line: `self.patches = []` reset in `find_all()` | None (harmless init)     |
+| `cfw.py`               | +`patch-launchd-jetsam`, +`inject-dylib` commands  | None (new commands only) |
+| `kernel_jb.py`         | **New file** — 2128 lines                          | N/A                      |
+| `txm_jb.py`            | **New file** — 335 lines                           | N/A                      |
+| `iboot_jb.py`          | **New file** — 105 lines                           | N/A                      |
+| `fw_patch_jb.py`       | **New file** — 115 lines (WIP)                     | N/A                      |
+| `cfw_install_jb.sh`    | **New file** — 214 lines                           | N/A                      |
+| `cfw_jb_input.tar.zst` | **New file** — JB resources                        | N/A                      |
+| `Makefile`             | +JB targets (`fw_patch_jb`, `cfw_install_jb`)      | None (additive)          |
+| `AGENTS.md`            | Documentation updates                              | N/A                      |
 
 ### Patch Counts
 
 **Base patcher** (`kernel.py`): **25 patches** — verified identical to main.
 
 **JB patcher** (`kernel_jb.py`): **160 patches** from 22 methods:
+
 - **19 of 22 PASSING** — Groups A (sandbox hooks, AMFI, execve), B (string-anchored), C (shellcode)
 - **3 FAILING** — see below
 
 ### 3 Remaining Failures
 
-| Patch | Upstream Offset | Root Cause | Proposed Strategy |
-|-------|----------------|------------|-------------------|
-| `patch_nvram_verify_permission` | NOP BL at `0x1234034` | 332 identical IOKit methods match structural filter; "krn." string leads to wrong function | Find via "IONVRAMController" string → metaclass ctor → PAC disc `#0xcda1` → search `__DATA_CONST` vtable entries (first entry after 3 nulls) with matching PAC disc + BL to memmove |
-| `patch_thid_should_crash` | Zero `0x67EB50` | String in `__PRELINK_INFO` plist (no code refs); value already `0x00000000` in PCC kernel | Safe to return True (no-op); or find via `sysctl_oid` struct search in `__DATA` |
-| `patch_hook_cred_label_update_execve` | Shellcode at `0xAB17D8` + ops table at `0xA54518` | Needs `_vfs_context_current` (`0xCC5EAC`) and `_vnode_getattr` (`0xCC91C0`) — 0 symbols available | Find via sandbox ops table → original hook func → BL targets by caller count (vfs_context_current = highest, vnode_getattr = near `mov wN, #0x380`) |
+| Patch                                 | Upstream Offset                                   | Root Cause                                                                                        | Proposed Strategy                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `patch_nvram_verify_permission`       | NOP BL at `0x1234034`                             | 332 identical IOKit methods match structural filter; "krn." string leads to wrong function        | Find via "IONVRAMController" string → metaclass ctor → PAC disc `#0xcda1` → search `__DATA_CONST` vtable entries (first entry after 3 nulls) with matching PAC disc + BL to memmove |
+| `patch_thid_should_crash`             | Zero `0x67EB50`                                   | String in `__PRELINK_INFO` plist (no code refs); value already `0x00000000` in PCC kernel         | Safe to return True (no-op); or find via `sysctl_oid` struct search in `__DATA`                                                                                                     |
+| `patch_hook_cred_label_update_execve` | Shellcode at `0xAB17D8` + ops table at `0xA54518` | Needs `_vfs_context_current` (`0xCC5EAC`) and `_vnode_getattr` (`0xCC91C0`) — 0 symbols available | Find via sandbox ops table → original hook func → BL targets by caller count (vfs_context_current = highest, vnode_getattr = near `mov wN, #0x380`)                                 |
 
 ### Key Findings (from `researchs/kernel_jb_remaining_patches.md`)
 
 **All offsets in `kernel.py` are file offsets** — `bl_callers` dict, `_is_bl()`, `_disas_at()`, `find_string_refs()` all use file offsets, not VAs.
 
 **IONVRAMController vtable discovery chain**:
+
 ```
 "IONVRAMController" string @ 0xA2FEB
   → ADRP+ADD refs → metaclass ctor @ 0x125D2C0
@@ -438,6 +446,7 @@ Branch is 8 commits ahead of `main`. All changes are **additive** — non-JB cod
 ```
 
 **vfs_context_current / vnode_getattr resolution**:
+
 ```
 sandbox ops table → entry[16] = original hook @ 0x239A0B4
   → disassemble hook → find BL targets:
@@ -447,16 +456,16 @@ sandbox ops table → entry[16] = original hook @ 0x239A0B4
 
 ### Upstream Reference Offsets (iPhone17,3 26.1)
 
-| Symbol | File Offset | Notes |
-|--------|-------------|-------|
-| kern_text | `0xA74000` — `0x24B0000` | |
-| base_va | `0xFFFFFE0007004000` | |
-| verifyPermission func | `0x1233E40` | vtable @ `0x7410B8` |
-| verifyPermission patch | `0x1234034` | NOP BL to memmove |
-| _thid_should_crash var | `0x67EB50` | already 0 |
-| _vfs_context_current | `0xCC5EAC` | from BL encoding |
-| _vnode_getattr | `0xCC91C0` | from BL encoding |
-| hook_cred_label orig | `0x239A0B4` | from B encoding |
-| sandbox ops entry | `0xA54518` | index 16 |
-| OSMetaClass::OSMetaClass() | `0x10EA790` | 5236 callers |
-| memmove | `0x12CB0D0` | 3114 callers |
+| Symbol                     | File Offset              | Notes               |
+| -------------------------- | ------------------------ | ------------------- |
+| kern_text                  | `0xA74000` — `0x24B0000` |                     |
+| base_va                    | `0xFFFFFE0007004000`     |                     |
+| verifyPermission func      | `0x1233E40`              | vtable @ `0x7410B8` |
+| verifyPermission patch     | `0x1234034`              | NOP BL to memmove   |
+| \_thid_should_crash var    | `0x67EB50`               | already 0           |
+| \_vfs_context_current      | `0xCC5EAC`               | from BL encoding    |
+| \_vnode_getattr            | `0xCC91C0`               | from BL encoding    |
+| hook_cred_label orig       | `0x239A0B4`              | from B encoding     |
+| sandbox ops entry          | `0xA54518`               | index 16            |
+| OSMetaClass::OSMetaClass() | `0x10EA790`              | 5236 callers        |
+| memmove                    | `0x12CB0D0`              | 3114 callers        |

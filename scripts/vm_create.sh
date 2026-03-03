@@ -18,7 +18,7 @@ set -euo pipefail
 # --- Defaults ---
 VM_DIR="vm"
 DISK_SIZE_GB=64
-SEP_STORAGE_SIZE=$((512 * 1024))  # 512 KB (same as vrevm)
+SEP_STORAGE_SIZE=$((512 * 1024)) # 512 KB (same as vrevm)
 
 # Framework-bundled ROMs (vresearch1 / research1 chip)
 FW_ROM_DIR="/System/Library/Frameworks/Virtualization.framework/Versions/A/Resources"
@@ -28,11 +28,23 @@ SEPROM_SRC="${FW_ROM_DIR}/AVPSEPBooter.vresearch1.bin"
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --dir)      VM_DIR="$2";        shift 2 ;;
-        --disk-size) DISK_SIZE_GB="$2"; shift 2 ;;
-        --rom)      ROM_SRC="$2";       shift 2 ;;
-        --seprom)   SEPROM_SRC="$2";    shift 2 ;;
-        -h|--help)
+        --dir)
+            VM_DIR="$2"
+            shift 2
+            ;;
+        --disk-size)
+            DISK_SIZE_GB="$2"
+            shift 2
+            ;;
+        --rom)
+            ROM_SRC="$2"
+            shift 2
+            ;;
+        --seprom)
+            SEPROM_SRC="$2"
+            shift 2
+            ;;
+        -h | --help)
             echo "Usage: $0 [--dir VM] [--disk-size 64] [--rom path] [--seprom path]"
             echo ""
             echo "Options:"
@@ -42,7 +54,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --seprom    Path to AVPSEPBooter ROM (default: framework built-in)"
             exit 0
             ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
     esac
 done
 
@@ -111,14 +126,14 @@ if [[ -f "${ROM_DST}" ]] && cmp -s "${ROM_SRC}" "${ROM_DST}"; then
     echo "  AVPBooter.vresearch1.bin — up to date"
 else
     cp "${ROM_SRC}" "${ROM_DST}"
-    echo "  AVPBooter.vresearch1.bin — copied ($(wc -c < "${ROM_DST}" | tr -d ' ') bytes)"
+    echo "  AVPBooter.vresearch1.bin — copied ($(wc -c <"${ROM_DST}" | tr -d ' ') bytes)"
 fi
 
 if [[ -f "${SEPROM_DST}" ]] && cmp -s "${SEPROM_SRC}" "${SEPROM_DST}"; then
     echo "  AVPSEPBooter.vresearch1.bin — up to date"
 else
     cp "${SEPROM_SRC}" "${SEPROM_DST}"
-    echo "  AVPSEPBooter.vresearch1.bin — copied ($(wc -c < "${SEPROM_DST}" | tr -d ' ') bytes)"
+    echo "  AVPSEPBooter.vresearch1.bin — copied ($(wc -c <"${SEPROM_DST}" | tr -d ' ') bytes)"
 fi
 
 # --- Create .gitkeep ---

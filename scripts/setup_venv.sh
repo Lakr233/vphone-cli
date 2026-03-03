@@ -17,8 +17,8 @@ REQUIREMENTS="${PROJECT_ROOT}/requirements.txt"
 # Use system Python3
 PYTHON="$(command -v python3)"
 if [[ -z "${PYTHON}" ]]; then
-  echo "Error: python3 not found in PATH"
-  exit 1
+    echo "Error: python3 not found in PATH"
+    exit 1
 fi
 
 echo "=== Creating venv ==="
@@ -32,7 +32,7 @@ echo ""
 
 # Activate and install pip packages
 source "${VENV_DIR}/bin/activate"
-pip install --upgrade pip > /dev/null
+pip install --upgrade pip >/dev/null
 pip install -r "${REQUIREMENTS}"
 
 # --- Build keystone native library ---
@@ -43,13 +43,13 @@ echo ""
 echo "=== Building keystone dylib ==="
 KEYSTONE_DIR="/opt/homebrew/Cellar/keystone"
 if [ ! -d "${KEYSTONE_DIR}" ]; then
-  echo "Error: keystone not found. Install with: brew install keystone"
-  exit 1
+    echo "Error: keystone not found. Install with: brew install keystone"
+    exit 1
 fi
 KEYSTONE_STATIC="$(find "${KEYSTONE_DIR}" -name 'libkeystone.a' -type f 2>/dev/null | head -1)"
 if [[ -z "${KEYSTONE_STATIC}" ]]; then
-  echo "Error: libkeystone.a not found. Install with: brew install keystone"
-  exit 1
+    echo "Error: libkeystone.a not found. Install with: brew install keystone"
+    exit 1
 fi
 
 PYVER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
@@ -60,9 +60,9 @@ echo "  static lib: ${KEYSTONE_STATIC}"
 echo "  dylib dest: ${KS_DYLIB}"
 
 clang -shared -o "${KS_DYLIB}" \
-  -Wl,-all_load "${KEYSTONE_STATIC}" \
-  -lc++ \
-  -install_name @rpath/libkeystone.dylib
+    -Wl,-all_load "${KEYSTONE_STATIC}" \
+    -lc++ \
+    -install_name @rpath/libkeystone.dylib
 
 echo "  dylib built OK"
 

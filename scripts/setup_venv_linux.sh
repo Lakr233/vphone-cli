@@ -15,16 +15,16 @@ REQUIREMENTS="${PROJECT_ROOT}/requirements.txt"
 
 echo "=== Installing system deps ==="
 if command -v apt-get &>/dev/null; then
-  apt-get update -qq
-  apt-get install -y -qq python3 python3-venv python3-pip cmake gcc g++ pkg-config 2>/dev/null
+    apt-get update -qq
+    apt-get install -y -qq python3 python3-venv python3-pip cmake gcc g++ pkg-config 2>/dev/null
 elif command -v dnf &>/dev/null; then
-  dnf install -y python3 python3-pip cmake gcc gcc-c++ 2>/dev/null
+    dnf install -y python3 python3-pip cmake gcc gcc-c++ 2>/dev/null
 fi
 
 PYTHON="$(command -v python3)"
 if [[ -z "${PYTHON}" ]]; then
-  echo "Error: python3 not found in PATH"
-  exit 1
+    echo "Error: python3 not found in PATH"
+    exit 1
 fi
 
 echo ""
@@ -37,7 +37,7 @@ echo ""
 "${PYTHON}" -m venv "${VENV_DIR}"
 
 source "${VENV_DIR}/bin/activate"
-pip install --upgrade pip > /dev/null
+pip install --upgrade pip >/dev/null
 pip install -r "${REQUIREMENTS}"
 
 # --- Verify ---

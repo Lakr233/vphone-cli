@@ -1,4 +1,4 @@
-<div align="right"><strong><a href="./README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
+<div align="right"><strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
 
 # vphone-cli
 
@@ -8,10 +8,10 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 
 ## Tested Environments
 
-| Host | iPhone | CloudOS |
-|------|--------|---------|
-| Mac16,12 26.3 | `17,3_26.1_23B85` | `26.1-23B85` |
-| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.1-23B85` |
+| Host          | iPhone             | CloudOS       |
+| ------------- | ------------------ | ------------- |
+| Mac16,12 26.3 | `17,3_26.1_23B85`  | `26.1-23B85`  |
+| Mac16,12 26.3 | `17,3_26.3_23D127` | `26.1-23B85`  |
 | Mac16,12 26.3 | `17,3_26.3_23D127` | `26.3-23D128` |
 
 ## Prerequisites
@@ -36,7 +36,14 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
-brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
+brew install wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+```
+
+**Git LFS** — this repo uses Git LFS for large resource archives. Install and pull before building:
+
+```bash
+git lfs install
+git lfs pull
 ```
 
 ## First setup
@@ -45,8 +52,7 @@ brew install gnu-tar sshpass keystone autoconf automake pkg-config libtool
 make setup_machine            # full automation through "First Boot" (includes restore/ramdisk/CFW)
 
 # equivalent manual steps:
-make setup_libimobiledevice   # build libimobiledevice toolchain
-make setup_venv               # create Python venv
+make setup_tools              # install brew deps, build trustcache + libimobiledevice, create Python venv
 source .venv/bin/activate
 ```
 
@@ -144,6 +150,7 @@ iproxy 5910 5910     # RPC
 ```
 
 Connect via:
+
 - **SSH:** `ssh -p 22222 root@127.0.0.1` (password: `alpine`)
 - **VNC:** `vnc://127.0.0.1:5901`
 - [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
@@ -152,19 +159,19 @@ Connect via:
 
 Run `make help` for the full list. Key targets:
 
-| Target | Description |
-|--------|-------------|
-| `build` | Build + sign vphone-cli |
-| `vm_new` | Create VM directory |
-| `fw_prepare` | Download/merge IPSWs |
-| `fw_patch` | Patch boot chain |
+| Target              | Description                  |
+| ------------------- | ---------------------------- |
+| `build`             | Build + sign vphone-cli      |
+| `vm_new`            | Create VM directory          |
+| `fw_prepare`        | Download/merge IPSWs         |
+| `fw_patch`          | Patch boot chain             |
 | `boot` / `boot_dfu` | Boot VM (GUI / DFU headless) |
-| `restore_get_shsh` | Fetch SHSH blob |
-| `restore` | Flash firmware |
-| `ramdisk_build` | Build SSH ramdisk |
-| `ramdisk_send` | Send ramdisk to device |
-| `cfw_install` | Install CFW mods |
-| `clean` | Remove build artifacts |
+| `restore_get_shsh`  | Fetch SHSH blob              |
+| `restore`           | Flash firmware               |
+| `ramdisk_build`     | Build SSH ramdisk            |
+| `ramdisk_send`      | Send ramdisk to device       |
+| `cfw_install`       | Install CFW mods             |
+| `clean`             | Remove build artifacts       |
 
 ## FAQ
 

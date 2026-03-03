@@ -13,8 +13,13 @@ import struct, plistlib
 from collections import defaultdict
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
-from capstone.arm64_const import (ARM64_OP_REG, ARM64_OP_IMM,
-                                  ARM64_REG_W0, ARM64_REG_X0, ARM64_REG_X8)
+from capstone.arm64_const import (
+    ARM64_OP_REG,
+    ARM64_OP_IMM,
+    ARM64_REG_W0,
+    ARM64_REG_X0,
+    ARM64_REG_X8,
+)
 
 # ── Assembly / disassembly helpers ───────────────────────────────
 _ks = Ks(KS_ARCH_ARM64, KS_MODE_LE)
@@ -29,12 +34,12 @@ def asm(s):
     return bytes(enc)
 
 
-NOP       = asm("nop")
-MOV_X0_0  = asm("mov x0, #0")
-MOV_X0_1  = asm("mov x0, #1")
-MOV_W0_0  = asm("mov w0, #0")
-MOV_W0_1  = asm("mov w0, #1")
-RET       = asm("ret")
+NOP = asm("nop")
+MOV_X0_0 = asm("mov x0, #0")
+MOV_X0_1 = asm("mov x0, #1")
+MOV_W0_0 = asm("mov w0, #0")
+MOV_W0_1 = asm("mov w0, #1")
+RET = asm("ret")
 CMP_W0_W0 = asm("cmp w0, w0")
 CMP_X0_X0 = asm("cmp x0, x0")
 
@@ -48,16 +53,17 @@ def _verify_disas(u32_val, expected_mnemonic):
     """Verify a uint32 encoding disassembles to expected mnemonic via capstone."""
     code = struct.pack("<I", u32_val)
     insns = list(_cs.disasm(code, 0, 1))
-    assert insns and insns[0].mnemonic == expected_mnemonic, \
+    assert insns and insns[0].mnemonic == expected_mnemonic, (
         f"0x{u32_val:08X} disassembles to {insns[0].mnemonic if insns else '???'}, expected {expected_mnemonic}"
+    )
     return u32_val
 
 
 # Named instruction constants (via keystone where possible, capstone-verified otherwise)
-_PACIBSP_U32 = _asm_u32("hint #27")     # keystone doesn't know 'pacibsp'
-_RET_U32     = _asm_u32("ret")
-_RETAA_U32   = _verify_disas(0xD65F0BFF, "retaa")   # keystone can't assemble PAC returns
-_RETAB_U32   = _verify_disas(0xD65F0FFF, "retab")   # verified via capstone disassembly
+_PACIBSP_U32 = _asm_u32("hint #27")  # keystone doesn't know 'pacibsp'
+_RET_U32 = _asm_u32("ret")
+_RETAA_U32 = _verify_disas(0xD65F0BFF, "retaa")  # keystone can't assemble PAC returns
+_RETAB_U32 = _verify_disas(0xD65F0FFF, "retab")  # verified via capstone disassembly
 _FUNC_BOUNDARY_U32S = frozenset((_RET_U32, _RETAA_U32, _RETAB_U32, _PACIBSP_U32))
 
 
@@ -71,15 +77,17 @@ def _rd64(buf, off):
 
 # ── KernelPatcher ────────────────────────────────────────────────
 
+
 class KernelPatcher:
     """Dynamic kernel patcher — all offsets found at runtime."""
 
-    def __init__(self, data, verbose=True):
-        self.data    = data            # bytearray (mutable)
-        self.raw     = bytes(data)     # immutable snapshot for searching
-        self.size    = len(data)
-        self.patches = []              # collected (offset, bytes, description)
+    def __init__(self, data, verbose=False):
+        self.data = data  # bytearray (mutable)
+        self.raw = bytes(data)  # immutable snapshot for searching
+        self.size = len(data)
+        self.patches = []  # collected (offset, bytes, description)
         self.verbose = verbose
+        self._patch_num = 0  # running counter for clean one-liners
 
         self._log("[*] Parsing Mach-O segments …")
         self._parse_macho()
@@ -94,8 +102,10 @@ class KernelPatcher:
         self._build_bl_index()
 
         self._find_panic()
-        self._log(f"[*] _panic at foff 0x{self.panic_off:X}  "
-                  f"({len(self.bl_callers[self.panic_off])} callers)")
+        self._log(
+            f"[*] _panic at foff 0x{self.panic_off:X}  "
+            f"({len(self.bl_callers[self.panic_off])} callers)"
+        )
 
     # ── Logging ──────────────────────────────────────────────────
     def _log(self, msg):
@@ -109,21 +119,21 @@ class KernelPatcher:
         if magic != 0xFEEDFACF:
             raise ValueError(f"Not a 64-bit Mach-O (magic 0x{magic:08X})")
 
-        self.code_ranges  = []   # [(start_foff, end_foff), ...]
-        self.all_segments = []   # [(name, vmaddr, fileoff, filesize, initprot)]
-        self.base_va      = None
+        self.code_ranges = []  # [(start_foff, end_foff), ...]
+        self.all_segments = []  # [(name, vmaddr, fileoff, filesize, initprot)]
+        self.base_va = None
 
         ncmds = struct.unpack_from("<I", self.raw, 16)[0]
         off = 32  # past mach_header_64
         for _ in range(ncmds):
             cmd, cmdsize = struct.unpack_from("<II", self.raw, off)
             if cmd == 0x19:  # LC_SEGMENT_64
-                segname = self.raw[off+8:off+24].split(b'\x00')[0].decode()
+                segname = self.raw[off + 8 : off + 24].split(b"\x00")[0].decode()
                 vmaddr, vmsize, fileoff, filesize = struct.unpack_from(
-                    "<QQQQ", self.raw, off + 24)
+                    "<QQQQ", self.raw, off + 24
+                )
                 initprot = struct.unpack_from("<I", self.raw, off + 60)[0]
-                self.all_segments.append(
-                    (segname, vmaddr, fileoff, filesize, initprot))
+                self.all_segments.append((segname, vmaddr, fileoff, filesize, initprot))
                 if segname == "__TEXT":
                     self.base_va = vmaddr
                 CODE_SEGS = ("__PRELINK_TEXT", "__TEXT_EXEC", "__TEXT_BOOT_EXEC")
@@ -137,7 +147,9 @@ class KernelPatcher:
         self.code_ranges.sort()
         total_mb = sum(e - s for s, e in self.code_ranges) / (1024 * 1024)
         self._log(f"  BASE_VA = 0x{self.base_va:016X}")
-        self._log(f"  {len(self.code_ranges)} executable ranges, total {total_mb:.1f} MB")
+        self._log(
+            f"  {len(self.code_ranges)} executable ranges, total {total_mb:.1f} MB"
+        )
 
     def _va(self, foff):
         return self.base_va + foff
@@ -148,7 +160,7 @@ class KernelPatcher:
     # ── Kext range discovery ─────────────────────────────────────
     def _discover_kext_ranges(self):
         """Parse __PRELINK_INFO + embedded kext Mach-Os to find code section ranges."""
-        self.kext_ranges = {}   # bundle_id -> (text_start, text_end)
+        self.kext_ranges = {}  # bundle_id -> (text_start, text_end)
 
         # Find __PRELINK_INFO segment
         prelink_info = None
@@ -163,7 +175,7 @@ class KernelPatcher:
             return
 
         foff, fsize = prelink_info
-        pdata = self.raw[foff:foff + fsize]
+        pdata = self.raw[foff : foff + fsize]
 
         # Parse the XML plist
         xml_start = pdata.find(b"<?xml")
@@ -173,7 +185,7 @@ class KernelPatcher:
             self._set_fallback_ranges()
             return
 
-        xml = pdata[xml_start:xml_end + len(b"</plist>")]
+        xml = pdata[xml_start : xml_end + len(b"</plist>")]
         pl = plistlib.loads(xml)
         items = pl.get("_PrelinkInfoDictionary", [])
 
@@ -199,8 +211,10 @@ class KernelPatcher:
             text_range = self._parse_kext_text_exec(kext_foff)
             if text_range:
                 self.kext_ranges[tag] = text_range
-                self._log(f"  {tag:10s} __text: 0x{text_range[0]:08X} - 0x{text_range[1]:08X} "
-                          f"({(text_range[1]-text_range[0])//1024} KB)")
+                self._log(
+                    f"  {tag:10s} __text: 0x{text_range[0]:08X} - 0x{text_range[1]:08X} "
+                    f"({(text_range[1] - text_range[0]) // 1024} KB)"
+                )
 
         # Derive the ranges used by patch methods
         self._set_ranges_from_kexts()
@@ -220,7 +234,7 @@ class KernelPatcher:
                 break
             cmd, cmdsize = struct.unpack_from("<II", self.raw, off)
             if cmd == 0x19:  # LC_SEGMENT_64
-                segname = self.raw[off+8:off+24].split(b'\x00')[0].decode()
+                segname = self.raw[off + 8 : off + 24].split(b"\x00")[0].decode()
                 if segname == "__TEXT_EXEC":
                     vmaddr = struct.unpack_from("<Q", self.raw, off + 24)[0]
                     filesize = struct.unpack_from("<Q", self.raw, off + 48)[0]
@@ -230,10 +244,18 @@ class KernelPatcher:
                     for _ in range(nsects):
                         if sect_off + 80 > self.size:
                             break
-                        sectname = self.raw[sect_off:sect_off+16].split(b'\x00')[0].decode()
+                        sectname = (
+                            self.raw[sect_off : sect_off + 16]
+                            .split(b"\x00")[0]
+                            .decode()
+                        )
                         if sectname == "__text":
-                            sect_addr = struct.unpack_from("<Q", self.raw, sect_off + 32)[0]
-                            sect_size = struct.unpack_from("<Q", self.raw, sect_off + 40)[0]
+                            sect_addr = struct.unpack_from(
+                                "<Q", self.raw, sect_off + 32
+                            )[0]
+                            sect_size = struct.unpack_from(
+                                "<Q", self.raw, sect_off + 40
+                            )[0]
                             sect_foff = sect_addr - self.base_va
                             return (sect_foff, sect_foff + sect_size)
                         sect_off += 80
@@ -256,11 +278,11 @@ class KernelPatcher:
             text_exec = (0, self.size)
 
         self.text_exec_range = text_exec
-        self.apfs_text    = self.kext_ranges.get("apfs",    text_exec)
-        self.amfi_text    = self.kext_ranges.get("amfi",    text_exec)
+        self.apfs_text = self.kext_ranges.get("apfs", text_exec)
+        self.amfi_text = self.kext_ranges.get("amfi", text_exec)
         self.sandbox_text = self.kext_ranges.get("sandbox", text_exec)
         # Kernel code = full __TEXT_EXEC (includes all kexts, but that's OK)
-        self.kern_text    = text_exec
+        self.kern_text = text_exec
 
     def _set_fallback_ranges(self):
         """Use __TEXT_EXEC for everything when __PRELINK_INFO is unavailable."""
@@ -273,10 +295,10 @@ class KernelPatcher:
             text_exec = (0, self.size)
 
         self.text_exec_range = text_exec
-        self.apfs_text    = text_exec
-        self.amfi_text    = text_exec
+        self.apfs_text = text_exec
+        self.amfi_text = text_exec
         self.sandbox_text = text_exec
-        self.kern_text    = text_exec
+        self.kern_text = text_exec
 
     # ── Index builders ───────────────────────────────────────────
     def _build_adrp_index(self):
@@ -287,13 +309,13 @@ class KernelPatcher:
                 insn = _rd32(self.raw, off)
                 if (insn & 0x9F000000) != 0x90000000:
                     continue
-                rd    = insn & 0x1F
-                immhi = (insn >> 5)  & 0x7FFFF
+                rd = insn & 0x1F
+                immhi = (insn >> 5) & 0x7FFFF
                 immlo = (insn >> 29) & 0x3
-                imm   = (immhi << 2) | immlo
+                imm = (immhi << 2) | immlo
                 if imm & (1 << 20):
-                    imm -= (1 << 21)
-                pc   = self._va(off)
+                    imm -= 1 << 21
+                pc = self._va(off)
                 page = (pc & ~0xFFF) + (imm << 12)
                 self.adrp_by_page[page].append((off, rd))
 
@@ -310,7 +332,7 @@ class KernelPatcher:
                     continue
                 imm26 = insn & 0x3FFFFFF
                 if imm26 & (1 << 25):
-                    imm26 -= (1 << 26)
+                    imm26 -= 1 << 26
                 target = off + imm26 * 4
                 self.bl_callers[target].append(off)
 
@@ -334,12 +356,12 @@ class KernelPatcher:
                                 immlo = (prev >> 29) & 0x3
                                 imm = (immhi << 2) | immlo
                                 if imm & (1 << 20):
-                                    imm -= (1 << 21)
-                                pc   = self._va(back - 4)
+                                    imm -= 1 << 21
+                                pc = self._va(back - 4)
                                 page = (pc & ~0xFFF) + (imm << 12)
                                 str_foff = self._foff(page + add_imm)
                                 if 0 <= str_foff < self.size - 10:
-                                    snippet = self.raw[str_foff:str_foff + 60]
+                                    snippet = self.raw[str_foff : str_foff + 60]
                                     if b"@%s:%d" in snippet or b"%s:%d" in snippet:
                                         confirmed += 1
                                         break
@@ -372,7 +394,9 @@ class KernelPatcher:
             return False
         i = insns[0]
         if i.mnemonic in ("cbz", "cbnz", "tbz", "tbnz"):
-            return i.operands[0].type == ARM64_OP_REG and i.operands[0].reg == ARM64_REG_W0
+            return (
+                i.operands[0].type == ARM64_OP_REG and i.operands[0].reg == ARM64_REG_W0
+            )
         return False
 
     def find_string(self, s, start=0):
@@ -390,9 +414,9 @@ class KernelPatcher:
 
     def find_string_refs(self, str_off, code_start=None, code_end=None):
         """Find all (adrp_off, add_off, dest_reg) referencing str_off via ADRP+ADD."""
-        target_va   = self._va(str_off)
+        target_va = self._va(str_off)
         target_page = target_va & ~0xFFF
-        page_off    = target_va & 0xFFF
+        page_off = target_va & 0xFFF
 
         refs = []
         for adrp_off, rd in self.adrp_by_page.get(target_page, []):
@@ -406,7 +430,7 @@ class KernelPatcher:
             # ADD (imm) 64-bit: 1001_0001_00_imm12_Rn_Rd
             if (nxt & 0xFFC00000) != 0x91000000:
                 continue
-            add_rn  = (nxt >> 5)  & 0x1F
+            add_rn = (nxt >> 5) & 0x1F
             add_imm = (nxt >> 10) & 0xFFF
             if add_rn == rd and add_imm == page_off:
                 add_rd = nxt & 0x1F
@@ -491,7 +515,9 @@ class KernelPatcher:
         previously allocated shellcode and won't reuse the same cave.
         """
         self.patches.append((off, patch_bytes, desc))
-        self.data[off:off + len(patch_bytes)] = patch_bytes
+        self.data[off : off + len(patch_bytes)] = patch_bytes
+        self._patch_num += 1
+        print(f"  [{self._patch_num:2d}] 0x{off:08X}  {desc}")
         if self.verbose:
             self._print_patch_context(off, patch_bytes, desc)
 
@@ -519,7 +545,7 @@ class KernelPatcher:
             return val & 0xFFFFFFFF
         else:  # non-auth rebase
             target = val & 0x7FFFFFFFFFF  # bits[42:0]
-            high8  = (val >> 43) & 0xFF
+            high8 = (val >> 43) & 0xFF
             full_va = (high8 << 56) | target
             if full_va > self.base_va:
                 return full_va - self.base_va
@@ -534,12 +560,14 @@ class KernelPatcher:
         self._log("\n[1] _apfs_vfsop_mount: root snapshot sealed volume check")
 
         refs = self._find_by_string_in_range(
-            b"Rooting from snapshot with xid",
-            self.apfs_text, "apfs_vfsop_mount log")
+            b"Rooting from snapshot with xid", self.apfs_text, "apfs_vfsop_mount log"
+        )
         if not refs:
             refs = self._find_by_string_in_range(
                 b"Failed to find the root snapshot",
-                self.apfs_text, "root snapshot panic")
+                self.apfs_text,
+                "root snapshot panic",
+            )
             if not refs:
                 return False
 
@@ -553,13 +581,18 @@ class KernelPatcher:
                     continue
                 # Check: tbz/tbnz w8, #5, ...
                 ops = i.operands
-                if (len(ops) >= 2
-                        and ops[0].type == ARM64_OP_REG
-                        and ops[1].type == ARM64_OP_IMM
-                        and ops[1].imm == 5):
-                    self.emit(scan, NOP,
-                              f"NOP {i.mnemonic} {i.op_str} "
-                              "(sealed vol check) [_apfs_vfsop_mount]")
+                if (
+                    len(ops) >= 2
+                    and ops[0].type == ARM64_OP_REG
+                    and ops[1].type == ARM64_OP_IMM
+                    and ops[1].imm == 5
+                ):
+                    self.emit(
+                        scan,
+                        NOP,
+                        f"NOP {i.mnemonic} {i.op_str} "
+                        "(sealed vol check) [_apfs_vfsop_mount]",
+                    )
                     return True
 
         self._log("  [-] tbz/tbnz w8,#5 not found near xref")
@@ -598,20 +631,41 @@ class KernelPatcher:
             for back in range(adrp_off - 4, max(adrp_off - 0x200, 0), -4):
                 target, kind = self._decode_branch_target(back)
                 if target is not None and err_lo <= target <= bl_off + 4:
-                    self.emit(back, NOP,
-                              f"NOP {kind} (seal broken) "
-                              "[_authapfs_seal_is_broken]")
+                    self.emit(
+                        back,
+                        NOP,
+                        f"NOP {kind} (seal broken) [_authapfs_seal_is_broken]",
+                    )
                     return True
 
         self._log("  [-] could not find conditional branch to NOP")
         return False
 
-    _COND_BRANCH_MNEMONICS = frozenset((
-        "b.eq", "b.ne", "b.cs", "b.hs", "b.cc", "b.lo",
-        "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls",
-        "b.ge", "b.lt", "b.gt", "b.le", "b.al",
-        "cbz", "cbnz", "tbz", "tbnz",
-    ))
+    _COND_BRANCH_MNEMONICS = frozenset(
+        (
+            "b.eq",
+            "b.ne",
+            "b.cs",
+            "b.hs",
+            "b.cc",
+            "b.lo",
+            "b.mi",
+            "b.pl",
+            "b.vs",
+            "b.vc",
+            "b.hi",
+            "b.ls",
+            "b.ge",
+            "b.lt",
+            "b.gt",
+            "b.le",
+            "b.al",
+            "cbz",
+            "cbnz",
+            "tbz",
+            "tbnz",
+        )
+    )
 
     def _decode_branch_target(self, off):
         """Decode conditional branch at off via capstone. Returns (target, mnemonic) or (None, None)."""
@@ -655,14 +709,13 @@ class KernelPatcher:
             # Search backwards for a conditional branch whose target is in
             # the error path (the block ending with BL _panic).
             # The error path is typically a few instructions before BL _panic.
-            err_lo = bl_panic_off - 0x40   # error block start (generous)
-            err_hi = bl_panic_off + 4      # error block end
+            err_lo = bl_panic_off - 0x40  # error block start (generous)
+            err_hi = bl_panic_off + 4  # error block end
 
             for back in range(adrp_off - 4, max(adrp_off - 0x400, 0), -4):
                 target, kind = self._decode_branch_target(back)
                 if target is not None and err_lo <= target <= err_hi:
-                    self.emit(back, NOP,
-                              f"NOP {kind} (rootvp auth) [_bsd_init]")
+                    self.emit(back, NOP, f"NOP {kind} (rootvp auth) [_bsd_init]")
                     return True
 
         self._log("  [-] conditional branch into panic path not found")
@@ -692,10 +745,10 @@ class KernelPatcher:
             func_start = self.find_function_start(adrp_off)
             if func_start < 0:
                 continue
-            self.emit(func_start, MOV_W0_0,
-                      "mov w0,#0 [_proc_check_launch_constraints]")
-            self.emit(func_start + 4, RET,
-                      "ret [_proc_check_launch_constraints]")
+            self.emit(
+                func_start, MOV_W0_0, "mov w0,#0 [_proc_check_launch_constraints]"
+            )
+            self.emit(func_start + 4, RET, "ret [_proc_check_launch_constraints]")
             return True
 
         self._log("  [-] function start not found")
@@ -716,7 +769,7 @@ class KernelPatcher:
             if cmd == 0x80000035:  # LC_FILESET_ENTRY
                 vmaddr = struct.unpack_from("<Q", self.raw, off + 8)[0]
                 str_off_in_cmd = struct.unpack_from("<I", self.raw, off + 24)[0]
-                entry_id = self.raw[off + str_off_in_cmd:].split(b'\x00')[0].decode()
+                entry_id = self.raw[off + str_off_in_cmd :].split(b"\x00")[0].decode()
                 if entry_id == "com.apple.kernel":
                     kext_foff = vmaddr - self.base_va
                     text_range = self._parse_kext_text_exec(kext_foff)
@@ -744,7 +797,7 @@ class KernelPatcher:
                 if name == "__LINKEDIT":
                     linkedit = (fileoff, fileoff + filesize)
             if linkedit and linkedit[0] <= str_off < linkedit[1]:
-                name_end = self.raw.find(b'\x00', str_off + 1)
+                name_end = self.raw.find(b"\x00", str_off + 1)
                 if name_end > 0:
                     for probe in range(name_end + 1, min(name_end + 32, self.size - 7)):
                         val = _rd64(self.raw, probe)
@@ -752,10 +805,14 @@ class KernelPatcher:
                         if self.kern_text[0] <= func_foff < self.kern_text[1]:
                             first_insn = _rd32(self.raw, func_foff)
                             if first_insn != 0 and first_insn != 0xD503201F:
-                                self.emit(func_foff, MOV_X0_1,
-                                          "mov x0,#1 [_PE_i_can_has_debugger]")
-                                self.emit(func_foff + 4, RET,
-                                          "ret [_PE_i_can_has_debugger]")
+                                self.emit(
+                                    func_foff,
+                                    MOV_X0_1,
+                                    "mov x0,#1 [_PE_i_can_has_debugger]",
+                                )
+                                self.emit(
+                                    func_foff + 4, RET, "ret [_PE_i_can_has_debugger]"
+                                )
                                 return True
 
         # Strategy 2: code pattern — function starts with ADRP x8,
@@ -786,7 +843,12 @@ class KernelPatcher:
                 if off + k * 4 >= self.size:
                     break
                 dk = self._disas_at(off + k * 4)
-                if dk and dk[0].mnemonic == "ldr" and dk[0].op_str.startswith("w") and "x8" in dk[0].op_str:
+                if (
+                    dk
+                    and dk[0].mnemonic == "ldr"
+                    and dk[0].op_str.startswith("w")
+                    and "x8" in dk[0].op_str
+                ):
                     has_w_load = True
                     break
             if not has_w_load:
@@ -799,7 +861,9 @@ class KernelPatcher:
                 best_off = off
 
         if best_off >= 0:
-            self._log(f"  [+] code pattern match at 0x{best_off:X} ({best_callers} callers)")
+            self._log(
+                f"  [+] code pattern match at 0x{best_off:X} ({best_callers} callers)"
+            )
             self.emit(best_off, MOV_X0_1, "mov x0,#1 [_PE_i_can_has_debugger]")
             self.emit(best_off + 4, RET, "ret [_PE_i_can_has_debugger]")
             return True
@@ -835,9 +899,12 @@ class KernelPatcher:
                 if not insns:
                     continue
                 if insns[0].mnemonic == "tbnz":
-                    self.emit(scan, NOP,
-                              f"NOP {insns[0].mnemonic} {insns[0].op_str} "
-                              "[txm post-validation]")
+                    self.emit(
+                        scan,
+                        NOP,
+                        f"NOP {insns[0].mnemonic} {insns[0].op_str} "
+                        "[txm post-validation]",
+                    )
                     return True
 
         self._log("  [-] TBNZ not found after TXM error string ref")
@@ -909,9 +976,11 @@ class KernelPatcher:
                         break
                 if not has_bl:
                     continue
-                self.emit(off, CMP_W0_W0,
-                          f"cmp w0,w0 (was {i0.mnemonic} {i0.op_str}) "
-                          "[postValidation]")
+                self.emit(
+                    off,
+                    CMP_W0_W0,
+                    f"cmp w0,w0 (was {i0.mnemonic} {i0.op_str}) [postValidation]",
+                )
                 return True
 
         self._log("  [-] CMP+B.NE pattern not found in caller's BL targets")
@@ -928,7 +997,8 @@ class KernelPatcher:
 
         # Anchor: entitlement string referenced from within the function
         str_off = self.find_string(
-            b"com.apple.developer.swift-playgrounds-app.development-build")
+            b"com.apple.developer.swift-playgrounds-app.development-build"
+        )
         if str_off < 0:
             self._log("  [-] swift-playgrounds entitlement string not found")
             return False
@@ -942,7 +1012,7 @@ class KernelPatcher:
 
         for adrp_off, add_off, _ in refs:
             # Walk backward from the ADRP, looking for BL + conditional-on-w0 pairs
-            bls_with_cond = []   # [(bl_off, bl_target), ...]
+            bls_with_cond = []  # [(bl_off, bl_target), ...]
             for back in range(adrp_off - 4, max(adrp_off - 80, 0), -4):
                 bl_target = self._is_bl(back)
                 if bl_target < 0:
@@ -951,17 +1021,23 @@ class KernelPatcher:
                     bls_with_cond.append((back, bl_target))
 
             if len(bls_with_cond) >= 2:
-                bl2_off, bl2_tgt = bls_with_cond[0]   # closer  to ADRP
-                bl1_off, bl1_tgt = bls_with_cond[1]   # farther from ADRP
+                bl2_off, bl2_tgt = bls_with_cond[0]  # closer  to ADRP
+                bl1_off, bl1_tgt = bls_with_cond[1]  # farther from ADRP
                 # The two BLs must call DIFFERENT functions — this
                 # distinguishes _check_dyld_policy_internal from other
                 # functions that repeat calls to the same helper.
                 if bl1_tgt == bl2_tgt:
                     continue
-                self.emit(bl1_off, MOV_W0_1,
-                          "mov w0,#1 (was BL) [_check_dyld_policy_internal @1]")
-                self.emit(bl2_off, MOV_W0_1,
-                          "mov w0,#1 (was BL) [_check_dyld_policy_internal @2]")
+                self.emit(
+                    bl1_off,
+                    MOV_W0_1,
+                    "mov w0,#1 (was BL) [_check_dyld_policy_internal @1]",
+                )
+                self.emit(
+                    bl2_off,
+                    MOV_W0_1,
+                    "mov w0,#1 (was BL) [_check_dyld_policy_internal @2]",
+                )
                 return True
 
         self._log("  [-] _check_dyld_policy_internal BL pair not found")
@@ -1033,7 +1109,9 @@ class KernelPatcher:
 
         refs_upgrade = self._find_by_string_in_range(
             b"apfs_mount_upgrade_checks\x00",
-            self.apfs_text, "apfs_mount_upgrade_checks")
+            self.apfs_text,
+            "apfs_mount_upgrade_checks",
+        )
         if not refs_upgrade:
             return False
 
@@ -1061,7 +1139,11 @@ class KernelPatcher:
                 continue
             # Scan a wider range — the CMP can be 0x800+ bytes before the BL
             caller_func = self.find_function_start(caller_off)
-            scan_start = caller_func if caller_func >= 0 else max(caller_off - 0x800, self.apfs_text[0])
+            scan_start = (
+                caller_func
+                if caller_func >= 0
+                else max(caller_off - 0x800, self.apfs_text[0])
+            )
             scan_end = min(caller_off + 0x100, self.apfs_text[1])
 
             for scan in range(scan_start, scan_end, 4):
@@ -1080,9 +1162,12 @@ class KernelPatcher:
                 # Skip CMP x0, x0 (already patched or trivial)
                 if ops[0].reg == ops[1].reg:
                     continue
-                self.emit(scan, CMP_X0_X0,
-                          f"cmp x0,x0 (was {dis[0].mnemonic} {dis[0].op_str}) "
-                          "[_apfs_vfsop_mount]")
+                self.emit(
+                    scan,
+                    CMP_X0_X0,
+                    f"cmp x0,x0 (was {dis[0].mnemonic} {dis[0].op_str}) "
+                    "[_apfs_vfsop_mount]",
+                )
                 return True
 
         self._log("  [-] CMP x0,Xm not found near mount_upgrade_checks caller")
@@ -1099,7 +1184,9 @@ class KernelPatcher:
 
         refs = self._find_by_string_in_range(
             b"apfs_mount_upgrade_checks\x00",
-            self.apfs_text, "apfs_mount_upgrade_checks")
+            self.apfs_text,
+            "apfs_mount_upgrade_checks",
+        )
         if not refs:
             return False
 
@@ -1134,10 +1221,13 @@ class KernelPatcher:
                 continue
             i = insns[0]
             if i.mnemonic == "tbnz" and len(i.operands) >= 1:
-                if (i.operands[0].type == ARM64_OP_REG and
-                        i.operands[0].reg == ARM64_REG_W0):
-                    self.emit(next_off, MOV_W0_0,
-                              "mov w0,#0 [_apfs_mount_upgrade_checks]")
+                if (
+                    i.operands[0].type == ARM64_OP_REG
+                    and i.operands[0].reg == ARM64_REG_W0
+                ):
+                    self.emit(
+                        next_off, MOV_W0_0, "mov w0,#0 [_apfs_mount_upgrade_checks]"
+                    )
                     return True
 
         self._log("  [-] BL + TBNZ w0 pattern not found")
@@ -1210,8 +1300,10 @@ class KernelPatcher:
         if seatbelt_off < 0 or sandbox_off < 0:
             self._log("  [-] Sandbox/Seatbelt strings not found")
             return None
-        self._log(f"  [*] Sandbox string at foff 0x{sandbox_off:X}, "
-                  f"Seatbelt at 0x{seatbelt_off:X}")
+        self._log(
+            f"  [*] Sandbox string at foff 0x{sandbox_off:X}, "
+            f"Seatbelt at 0x{seatbelt_off:X}"
+        )
 
         data_ranges = []
         for name, vmaddr, fileoff, filesize, prot in self.all_segments:
@@ -1231,8 +1323,10 @@ class KernelPatcher:
                 val_ops = _rd64(self.raw, i + 32)
                 if not (val_ops & (1 << 63)):
                     ops_off = val_ops & 0x7FFFFFFFFFF
-                    self._log(f"  [+] mac_policy_conf at foff 0x{i:X}, "
-                              f"mpc_ops -> 0x{ops_off:X}")
+                    self._log(
+                        f"  [+] mac_policy_conf at foff 0x{i:X}, "
+                        f"mpc_ops -> 0x{ops_off:X}"
+                    )
                     return ops_off
 
         self._log("  [-] mac_policy_conf not found")
@@ -1260,11 +1354,11 @@ class KernelPatcher:
             return False
 
         HOOK_INDICES = {
-            "file_check_mmap":     36,
-            "mount_check_mount":   87,
+            "file_check_mmap": 36,
+            "mount_check_mount": 87,
             "mount_check_remount": 88,
-            "mount_check_umount":  91,
-            "vnode_check_rename":  120,
+            "mount_check_umount": 91,
+            "vnode_check_rename": 120,
         }
 
         sb_start, sb_end = self.sandbox_text
@@ -1276,8 +1370,10 @@ class KernelPatcher:
                 self._log(f"  [-] ops[{idx}] {hook_name}: NULL or invalid")
                 continue
             if not (sb_start <= func_off < sb_end):
-                self._log(f"  [-] ops[{idx}] {hook_name}: foff 0x{func_off:X} "
-                          f"outside Sandbox (0x{sb_start:X}-0x{sb_end:X})")
+                self._log(
+                    f"  [-] ops[{idx}] {hook_name}: foff 0x{func_off:X} "
+                    f"outside Sandbox (0x{sb_start:X}-0x{sb_end:X})"
+                )
                 continue
 
             self.emit(func_off, MOV_X0_0, f"mov x0,#0 [_hook_{hook_name}]")
@@ -1294,39 +1390,30 @@ class KernelPatcher:
     def find_all(self):
         """Find and record all kernel patches.  Returns list of (offset, bytes, desc)."""
         self.patches = []
-        self.patch_apfs_root_snapshot()               #  1
-        self.patch_apfs_seal_broken()                  #  2
-        self.patch_bsd_init_rootvp()                   #  3
-        self.patch_proc_check_launch_constraints()     #  4-5
-        self.patch_PE_i_can_has_debugger()             #  6-7
-        self.patch_post_validation_nop()               #  8
-        self.patch_post_validation_cmp()               #  9
-        self.patch_check_dyld_policy()                 # 10-11
-        self.patch_apfs_graft()                        # 12
-        self.patch_apfs_vfsop_mount_cmp()              # 13
-        self.patch_apfs_mount_upgrade_checks()         # 14
-        self.patch_handle_fsioc_graft()                # 15
-        self.patch_sandbox_hooks()                     # 16-25
+        self._patch_num = 0
+        self.patch_apfs_root_snapshot()  #  1
+        self.patch_apfs_seal_broken()  #  2
+        self.patch_bsd_init_rootvp()  #  3
+        self.patch_proc_check_launch_constraints()  #  4-5
+        self.patch_PE_i_can_has_debugger()  #  6-7
+        self.patch_post_validation_nop()  #  8
+        self.patch_post_validation_cmp()  #  9
+        self.patch_check_dyld_policy()  # 10-11
+        self.patch_apfs_graft()  # 12
+        self.patch_apfs_vfsop_mount_cmp()  # 13
+        self.patch_apfs_mount_upgrade_checks()  # 14
+        self.patch_handle_fsioc_graft()  # 15
+        self.patch_sandbox_hooks()  # 16-25
         return self.patches
 
     def apply(self):
         """Find all patches and apply them to self.data.  Returns patch count."""
+        self._patch_num = 0
         patches = self.find_all()
+        # emit() already writes patches through to self.data,
+        # but re-apply in case subclasses override find_all().
         for off, patch_bytes, desc in patches:
-            self.data[off:off + len(patch_bytes)] = patch_bytes
-
-        if self.verbose and patches:
-            self._log(f"\n{'═'*60}")
-            self._log(f"VERIFICATION: {len(patches)} patches applied")
-            self._log(f"{'═'*60}")
-            for off, patch_bytes, desc in sorted(patches):
-                insns = self._disas_n(self.data, off, len(patch_bytes) // 4)
-                if insns:
-                    dis_str = "; ".join(f"{i.mnemonic} {i.op_str}" for i in insns)
-                else:
-                    dis_str = "???"
-                self._log(f"  0x{off:08X}: {dis_str:40s} — {desc}")
-
+            self.data[off : off + len(patch_bytes)] = patch_bytes
         return len(patches)
 
 
@@ -1335,12 +1422,22 @@ if __name__ == "__main__":
     import sys, argparse
 
     parser = argparse.ArgumentParser(
-        description="Dynamic kernel patcher — find & apply patches on iOS kernelcaches")
+        description="Dynamic kernel patcher — find & apply patches on iOS kernelcaches"
+    )
     parser.add_argument("kernelcache", help="Path to raw or IM4P kernelcache")
-    parser.add_argument("-c", "--context", type=int, default=5,
-                        help="Instructions of context before/after each patch (default: 5)")
-    parser.add_argument("-q", "--quiet", action="store_true",
-                        help="Suppress index-building progress (only show patches)")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show detailed before/after disassembly for each patch",
+    )
+    parser.add_argument(
+        "-c",
+        "--context",
+        type=int,
+        default=5,
+        help="Instructions of context before/after each patch (default: 5, requires -v)",
+    )
     args = parser.parse_args()
 
     path = args.kernelcache
@@ -1354,6 +1451,7 @@ if __name__ == "__main__":
     else:
         try:
             from pyimg4 import IM4P
+
             im4p = IM4P(file_raw)
             if im4p.payload.compression:
                 im4p.payload.decompress()
@@ -1364,58 +1462,61 @@ if __name__ == "__main__":
             print(f"  format: unknown (treating as raw)")
 
     data = bytearray(payload)
-    print(f"  size:   {len(data)} bytes ({len(data)/1024/1024:.1f} MB)\n")
+    print(f"  size:   {len(data)} bytes ({len(data) / 1024 / 1024:.1f} MB)\n")
 
-    kp = KernelPatcher(data, verbose=not args.quiet)
+    kp = KernelPatcher(data, verbose=args.verbose)
     patches = kp.find_all()
+    print(f"\n  {len(patches)} patches found")
 
-    # ── Print ranged before / after disassembly for every patch ──
-    ctx = args.context
+    if args.verbose:
+        # ── Print ranged before / after disassembly for every patch ──
+        ctx = args.context
 
-    print(f"\n{'═'*72}")
-    print(f"  {len(patches)} PATCHES — before / after disassembly (context={ctx})")
-    print(f"{'═'*72}")
+        print(f"\n{'═' * 72}")
+        print(f"  {len(patches)} PATCHES — before / after disassembly (context={ctx})")
+        print(f"{'═' * 72}")
 
-    # Apply patches to get the "after" image
-    after = bytearray(kp.raw)  # start from original
-    for off, pb, _ in patches:
-        after[off:off + len(pb)] = pb
+        # Apply patches to get the "after" image
+        after = bytearray(kp.raw)  # start from original
+        for off, pb, _ in patches:
+            after[off : off + len(pb)] = pb
 
-    for i, (off, patch_bytes, desc) in enumerate(sorted(patches), 1):
-        n_insns = len(patch_bytes) // 4
-        start = max(off - ctx * 4, 0)
-        end = off + n_insns * 4 + ctx * 4
-        total = (end - start) // 4
+        for i, (off, patch_bytes, desc) in enumerate(sorted(patches), 1):
+            n_insns = len(patch_bytes) // 4
+            start = max(off - ctx * 4, 0)
+            end = off + n_insns * 4 + ctx * 4
+            total = (end - start) // 4
 
-        before_insns = kp._disas_n(kp.raw, start, total)
-        after_insns  = kp._disas_n(after,   start, total)
+            before_insns = kp._disas_n(kp.raw, start, total)
+            after_insns = kp._disas_n(after, start, total)
 
-        print(f"\n  ┌{'─'*70}")
-        print(f"  │ [{i:2d}] 0x{off:08X}: {desc}")
-        print(f"  ├{'─'*34}┬{'─'*35}")
-        print(f"  │ {'BEFORE':^33}│ {'AFTER':^34}")
-        print(f"  ├{'─'*34}┼{'─'*35}")
+            print(f"\n  ┌{'─' * 70}")
+            print(f"  │ [{i:2d}] 0x{off:08X}: {desc}")
+            print(f"  ├{'─' * 34}┬{'─' * 35}")
+            print(f"  │ {'BEFORE':^33}│ {'AFTER':^34}")
+            print(f"  ├{'─' * 34}┼{'─' * 35}")
 
-        # Build line pairs
-        max_lines = max(len(before_insns), len(after_insns))
-        for j in range(max_lines):
-            def fmt(insn):
-                if insn is None:
-                    return " " * 33
-                h = insn.bytes.hex()
-                return f"0x{insn.address:07X} {h:8s} {insn.mnemonic:6s} {insn.op_str}"
+            # Build line pairs
+            max_lines = max(len(before_insns), len(after_insns))
+            for j in range(max_lines):
 
-            bi = before_insns[j] if j < len(before_insns) else None
-            ai = after_insns[j]  if j < len(after_insns)  else None
+                def fmt(insn):
+                    if insn is None:
+                        return " " * 33
+                    h = insn.bytes.hex()
+                    return f"0x{insn.address:07X} {h:8s} {insn.mnemonic:6s} {insn.op_str}"
 
-            bl = fmt(bi)
-            al = fmt(ai)
+                bi = before_insns[j] if j < len(before_insns) else None
+                ai = after_insns[j] if j < len(after_insns) else None
 
-            # Mark if this address is inside the patched range
-            addr = (bi.address if bi else ai.address) if (bi or ai) else 0
-            in_patch = off <= addr < off + len(patch_bytes)
-            marker = " ◄" if in_patch else "  "
+                bl = fmt(bi)
+                al = fmt(ai)
 
-            print(f"  │ {bl:33s}│ {al:33s}{marker}")
+                # Mark if this address is inside the patched range
+                addr = (bi.address if bi else ai.address) if (bi or ai) else 0
+                in_patch = off <= addr < off + len(patch_bytes)
+                marker = " ◄" if in_patch else "  "
 
-        print(f"  └{'─'*34}┴{'─'*35}")
+                print(f"  │ {bl:33s}│ {al:33s}{marker}")
+
+            print(f"  └{'─' * 34}┴{'─' * 35}")
