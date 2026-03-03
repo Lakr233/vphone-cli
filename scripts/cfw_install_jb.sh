@@ -69,40 +69,26 @@ _sshpass() {
   "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
 }
 
-ssh_cmd() {
-  local attempt
+_ssh_retry() {
+  local attempt rc
   for attempt in $(seq 1 $SSH_RETRY); do
-    _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@" && return 0
-    local rc=$?
+    "$@" && return 0
+    rc=$?
     [[ $rc -ne 255 ]] && return $rc   # real command failure — don't retry
-    echo "  [ssh] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
+    echo "  [${2}] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
     sleep 3
   done
   return 255
 }
 
-scp_to() {
-  local attempt
-  for attempt in $(seq 1 $SSH_RETRY); do
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2" && return 0
-    local rc=$?
-    [[ $rc -ne 255 ]] && return $rc
-    echo "  [scp] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
-    sleep 3
-  done
-  return 255
+ssh_cmd()  { 
+  _ssh_retry _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"; 
 }
-
-scp_from() {
-  local attempt
-  for attempt in $(seq 1 $SSH_RETRY); do
-    _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2" && return 0
-    local rc=$?
-    [[ $rc -ne 255 ]] && return $rc
-    echo "  [scp] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
-    sleep 3
-  done
-  return 255
+scp_to()   { 
+  _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"; 
+}
+scp_from() { 
+  _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"; 
 }
 
 remote_file_exists() {
