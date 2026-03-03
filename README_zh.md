@@ -36,7 +36,7 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 **安装依赖：**
 
 ```bash
-brew install gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
 ```
 
 **Git LFS** —— 本仓库使用 Git LFS 存储大型资源文件。构建前请先安装并拉取：

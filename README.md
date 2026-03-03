@@ -36,7 +36,7 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
-brew install wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
 ```
 
 **Git LFS** — this repo uses Git LFS for large resource archives. Install and pull before building:

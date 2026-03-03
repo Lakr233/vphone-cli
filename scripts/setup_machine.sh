@@ -228,13 +228,7 @@ install_brew_deps() {
   require_cmd brew
 
   local deps=(
-    autoconf
-    automake
-    cmake
-    git
-    keystone
-    libtool
-    pkg-config
+    ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
     python@3.13
   )
 
