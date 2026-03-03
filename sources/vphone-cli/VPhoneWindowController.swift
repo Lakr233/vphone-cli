@@ -54,6 +54,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
         keyHelper.window = window
         window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(view)
         NSApp.activate(ignoringOtherApps: true)
 
         // Poll vphoned status for subtitle

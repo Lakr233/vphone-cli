@@ -23,53 +23,36 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
     // MARK: - Event Handling
 
+    override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Ensure keyboard events route to VM view right after window attach.
+        window?.makeFirstResponder(self)
+    }
+
     override func mouseDown(with event: NSEvent) {
-        // macOS 16+: VZVirtualMachineView handles mouse-to-touch natively
-        if #available(macOS 16.0, *) {
-            super.mouseDown(with: event)
-            return
-        }
-
+        // Clicking the VM display should always restore keyboard focus.
+        window?.makeFirstResponder(self)
         let localPoint = convert(event.locationInWindow, from: nil)
-
         currentTouchSwipeAim = hitTestEdge(at: localPoint)
-
-        sendTouchEvent(
-            phase: 0, // Began
-            localPoint: localPoint,
-            timestamp: event.timestamp
-        )
+        if sendTouchEvent(phase: 0, localPoint: localPoint, timestamp: event.timestamp) { return }
+        super.mouseDown(with: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if #available(macOS 16.0, *) {
-            super.mouseDragged(with: event)
-            return
-        }
-
         let localPoint = convert(event.locationInWindow, from: nil)
-        sendTouchEvent(
-            phase: 1, // Moved
-            localPoint: localPoint,
-            timestamp: event.timestamp
-        )
+        if sendTouchEvent(phase: 1, localPoint: localPoint, timestamp: event.timestamp) { return }
         super.mouseDragged(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
-        if #available(macOS 16.0, *) {
-            super.mouseUp(with: event)
-            return
-        }
-
         let localPoint = convert(event.locationInWindow, from: nil)
-        sendTouchEvent(
-            phase: 3, // Ended
-            localPoint: localPoint,
-            timestamp: event.timestamp
-        )
+        if !sendTouchEvent(phase: 3, localPoint: localPoint, timestamp: event.timestamp) {
+            super.mouseUp(with: event)
+        }
         currentTouchSwipeAim = 0
-        super.mouseUp(with: event)
     }
 
     override func rightMouseDown(with _: NSEvent) {
@@ -89,10 +72,11 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
     // MARK: - Legacy Touch Injection (macOS 15)
 
-    private func sendTouchEvent(phase: Int, localPoint: NSPoint, timestamp: TimeInterval) {
+    @discardableResult
+    private func sendTouchEvent(phase: Int, localPoint: NSPoint, timestamp: TimeInterval) -> Bool {
         guard let device = multiTouchDevice,
               virtualMachine != nil
-        else { return }
+        else { return false }
 
         let normalizedPoint = normalizeCoordinate(localPoint)
 
@@ -107,13 +91,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
         guard let touchObj = touch.asObject else {
             print("[vphone] Error: Failed to create _VZTouch")
-            return
+            return false
         }
 
         let touchEvent = Dynamic._VZMultiTouchEvent(touches: [touchObj])
-        guard let eventObj = touchEvent.asObject else { return }
+        guard let eventObj = touchEvent.asObject else { return false }
 
         Dynamic(device).sendMultiTouchEvents([eventObj] as NSArray)
+        return true
     }
 
     // MARK: - Coordinate Helpers
