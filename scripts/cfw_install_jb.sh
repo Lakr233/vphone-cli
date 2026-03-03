@@ -39,6 +39,7 @@ SSH_PORT=2222
 SSH_PASS="alpine"
 SSH_USER="root"
 SSH_HOST="localhost"
+SSH_RETRY="${SSH_RETRY:-3}"
 SSHPASS_BIN=""
 SSH_OPTS=(
   -o StrictHostKeyChecking=no
@@ -68,16 +69,27 @@ _sshpass() {
   "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
 }
 
-ssh_cmd() {
-  _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
+_ssh_retry() {
+  local attempt rc label
+  label=${2-cmd}
+  for ((attempt = 1; attempt <= SSH_RETRY; attempt++)); do
+    "$@" && return 0
+    rc=$?
+    [[ $rc -ne 255 ]] && return $rc   # real command failure — don't retry
+    echo "  [${label}] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
+    sleep 3
+  done
+  return 255
 }
 
-scp_to() {
-  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
+ssh_cmd()  { 
+  _ssh_retry _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"; 
 }
-
-scp_from() {
-  _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
+scp_to()   { 
+  _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"; 
+}
+scp_from() { 
+  _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"; 
 }
 
 remote_file_exists() {
