@@ -125,6 +125,9 @@ bundle: build $(INFO_PLIST)
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
 	@cp -f $$(command -v ideviceinstaller) $(BUNDLE)/Contents/MacOS/ideviceinstaller
 	@cp -f $$(command -v idevice_id) $(BUNDLE)/Contents/MacOS/idevice_id
+	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
+	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ideviceinstaller
+	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/idevice_id
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
 	@echo "  bundled → $(BUNDLE)"
 
