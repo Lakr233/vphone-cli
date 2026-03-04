@@ -27,7 +27,7 @@ For any changes applying new patches, also update research/patch_comparison_all_
 | Variant             | Boot Chain |    CFW    | Make Targets                       |
 | ------------------- | :--------: | :-------: | ---------------------------------- |
 | **Regular**         | 38 patches | 10 phases | `fw_patch` + `cfw_install`         |
-| **Development**     | 47 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
+| **Development**     | 49 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
 | **Jailbreak (WIP)** | 84 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
 
 See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
@@ -88,7 +88,7 @@ scripts/
 │   ├── kernel_jb.py             #   JB: kernel patches (~34)
 │   ├── txm.py                   #   TXM patcher
 │   ├── txm_dev.py               #   Dev: TXM entitlements/debugger/dev mode
-│   ├── txm_jb.py                #   JB: TXM CS bypass (~13)
+
 │   └── cfw.py                   #   CFW binary patcher
 ├── resources/                    # Resource archives (git submodule)
 ├── patches/                      # Build-time patches (libirecovery)

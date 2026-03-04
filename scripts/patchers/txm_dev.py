@@ -58,13 +58,14 @@ def _find_asm_pattern(data, asm_str):
 
 
 class TXMPatcher:
-    """Dev-only dynamic patcher for TXM images.
+    """Dev/JB dynamic patcher for TXM images.
 
-    Patches (dev-specific only — base trustcache bypass is in txm.py):
-      1. get-task-allow entitlement check BL → mov x0, #1
-      2. Selector42|29: shellcode hook + manifest flag force
-      3. debugger entitlement check BL → mov w0, #1
-      4. developer-mode guard branch → nop
+    Patches (base trustcache bypass is in txm.py):
+      1. Selector24: force PASS return (mov w0, #0xa1 + b epilogue)
+      2. get-task-allow entitlement check BL → mov x0, #1
+      3. Selector42|29: shellcode hook + manifest flag force
+      4. debugger entitlement check BL → mov w0, #1
+      5. developer-mode guard branch → nop
     """
 
     def __init__(self, data, verbose=True):
@@ -105,6 +106,7 @@ class TXMPatcher:
 
     def find_all(self):
         self.patches = []
+        self.patch_selector24_force_pass()
         self.patch_get_task_allow_force_true()
         self.patch_selector42_29_shellcode()
         self.patch_debugger_entitlement_force_true()
@@ -284,6 +286,90 @@ class TXMPatcher:
                 return
 
         self._log("  [-] TXM: binary search pattern not found in function")
+
+    def patch_selector24_force_pass(self):
+        """Force selector24 handler to return 0xA1 (PASS) immediately.
+
+        Return code semantics (checked by caller via `tst w0, #0xff00`):
+          - 0xA1     (byte 1 = 0x00) → PASS
+          - 0x130A1  (byte 1 = 0x30) → FAIL
+          - 0x22DA1  (byte 1 = 0x2D) → FAIL
+
+        We insert `mov w0, #0xa1 ; b <epilogue>` right after the prologue,
+        skipping all validation logic while preserving the stack frame for
+        clean register restore via the existing epilogue.
+        """
+        for off in range(0, self.size - 4, 4):
+            ins = _disasm_one(self.raw, off)
+            if not (ins and ins.mnemonic == "mov" and ins.op_str == "w0, #0xa1"):
+                continue
+
+            func_start = self._find_func_start(off)
+            if func_start is None:
+                continue
+
+            # Verify this is the selector24 handler by checking for the
+            # characteristic pattern: LDR X1,[Xn,#0x38] / ADD X2,... / BL / LDP
+            for scan in range(func_start, off, 4):
+                i0 = _disasm_one(self.raw, scan)
+                i1 = _disasm_one(self.raw, scan + 4)
+                i2 = _disasm_one(self.raw, scan + 8)
+                i3 = _disasm_one(self.raw, scan + 12)
+                if not all((i0, i1, i2, i3)):
+                    continue
+                if not (
+                    i0.mnemonic == "ldr"
+                    and "x1," in i0.op_str
+                    and "#0x38]" in i0.op_str
+                ):
+                    continue
+                if not (i1.mnemonic == "add" and i1.op_str.startswith("x2,")):
+                    continue
+                if i2.mnemonic != "bl":
+                    continue
+                if i3.mnemonic != "ldp":
+                    continue
+
+                # Find prologue end: scan for `add x29, sp, #imm`
+                body_start = None
+                for p in range(func_start + 4, func_start + 0x30, 4):
+                    pi = _disasm_one(self.raw, p)
+                    if pi and pi.mnemonic == "add" and pi.op_str.startswith("x29, sp,"):
+                        body_start = p + 4
+                        break
+                if body_start is None:
+                    self._log("  [-] TXM: selector24 prologue end not found")
+                    return False
+
+                # Find epilogue: scan for retab/ret, walk back to first ldp x29
+                epilogue = None
+                for r in range(off, min(off + 0x200, self.size), 4):
+                    ri = _disasm_one(self.raw, r)
+                    if ri and ri.mnemonic in ("retab", "ret"):
+                        for e in range(r - 4, max(r - 0x20, func_start), -4):
+                            ei = _disasm_one(self.raw, e)
+                            if ei and ei.mnemonic == "ldp" and "x29, x30" in ei.op_str:
+                                epilogue = e
+                                break
+                        break
+                if epilogue is None:
+                    self._log("  [-] TXM: selector24 epilogue not found")
+                    return False
+
+                self.emit(
+                    body_start,
+                    _asm("mov w0, #0xa1"),
+                    "selector24 bypass: mov w0, #0xa1 (PASS)",
+                )
+                self.emit(
+                    body_start + 4,
+                    self._asm_at(f"b #0x{epilogue:x}", body_start + 4),
+                    "selector24 bypass: b epilogue",
+                )
+                return True
+
+        self._log("  [-] TXM: selector24 handler not found")
+        return False
 
     def patch_get_task_allow_force_true(self):
         """Force get-task-allow entitlement call to return true."""

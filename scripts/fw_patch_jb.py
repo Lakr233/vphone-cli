@@ -24,20 +24,12 @@ from fw_patch import (
 from fw_patch_dev import patch_txm_dev
 from patchers.iboot_jb import IBootJBPatcher
 from patchers.kernel_jb import KernelJBPatcher
-from patchers.txm_jb import TXMJBPatcher
 
 
 def patch_ibss_jb(data):
     p = IBootJBPatcher(data, mode="ibss", label="Loaded iBSS")
     n = p.apply()
     print(f"  [+] {n} iBSS JB patches applied dynamically")
-    return n > 0
-
-
-def patch_txm_jb(data):
-    p = TXMJBPatcher(data, verbose=True)
-    n = p.apply()
-    print(f"  [+] {n} TXM JB patches applied dynamically")
     return n > 0
 
 
@@ -48,7 +40,7 @@ def patch_kernelcache_jb(data):
     return n > 0
 
 
-# Base components — same as fw_patch_dev (dev TXM instead of base TXM).
+# Base components — same as fw_patch_dev (dev TXM includes selector24 bypass).
 COMPONENTS = [
     # (name, search_base_is_restore, search_patterns, patch_function, preserve_payp)
     ("AVPBooter", False, ["AVPBooter*.bin"], patch_avpbooter, False),
@@ -69,14 +61,13 @@ COMPONENTS = [
 JB_COMPONENTS = [
     # (name, search_base_is_restore, search_patterns, patch_function, preserve_payp)
     ("iBSS (JB)", True, ["Firmware/dfu/iBSS.vresearch101.RELEASE.im4p"], patch_ibss_jb, False),
-    ("TXM (JB)", True, ["Firmware/txm.iphoneos.research.im4p"], patch_txm_jb, True),
-    (
-        "kernelcache (JB)",
-        True,
-        ["kernelcache.research.vphone600"],
-        patch_kernelcache_jb,
-        True,
-    ),
+    # (
+    #     "kernelcache (JB)",
+    #     True,
+    #     ["kernelcache.research.vphone600"],
+    #     patch_kernelcache_jb,
+    #     True,
+    # ),
 ]
 
 

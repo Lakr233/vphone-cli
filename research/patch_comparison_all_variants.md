@@ -44,14 +44,14 @@ Three firmware variants are available, each building on the previous:
 
 TXM patch composition by variant:
 - Regular: `txm.py` (1 patch).
-- Dev: `txm_dev.py` (10 patches total).
-- JB: base `txm.py` (1 patch) + `txm_jb.py` extension (11 patches) = 12 total.
+- Dev: `txm.py` (1 patch) + `txm_dev.py` (11 patches) = 12 total.
+- JB: same as Dev (selector24 bypass now in `txm_dev.py`, no separate JB patcher).
 
 | #   | Patch                                             | Purpose                                                     | Regular | Dev | JB  |
 | --- | ------------------------------------------------- | ----------------------------------------------------------- | :-----: | :-: | :-: |
 | 1   | Trustcache binary-search bypass                   | `bl hash_cmp` → `mov x0, #0`                                |    Y    |  Y  |  Y  |
-| 2   | Selector24 hash extraction: NOP LDR X1            | Bypass CS hash flag extraction                              |    —    |  —  |  Y  |
-| 3   | Selector24 hash extraction: NOP BL                | Bypass CS hash flag check                                   |    —    |  —  |  Y  |
+| 2   | Selector24 bypass: `mov w0, #0xa1`                | Return PASS (byte 1 = 0) after prologue                     |    —    |  Y  |  Y  |
+| 3   | Selector24 bypass: `b <epilogue>`                 | Skip validation, jump to register restore                   |    —    |  Y  |  Y  |
 | 4   | get-task-allow (selector 41\|29)                  | `bl` → `mov x0, #1` — allow get-task-allow                  |    —    |  Y  |  Y  |
 | 5   | Selector42\|29 shellcode: branch to cave          | Redirect dispatch stub to shellcode                         |    —    |  Y  |  Y  |
 | 6   | Selector42\|29 shellcode: NOP pad                 | UDF → NOP in code cave                                      |    —    |  Y  |  Y  |
@@ -146,27 +146,27 @@ Regular and Dev share the same 25 base kernel patches. JB adds 34 additional pat
 | iBSS                     |    2    |   2    |   3    |
 | iBEC                     |    3    |   3    |   3    |
 | LLB                      |    6    |   6    |   6    |
-| TXM                      |    1    |   10   |   12   |
+| TXM                      |    1    |   12   |   12   |
 | Kernel                   |   25    |   25   |   59   |
-| **Boot chain total**     | **38**  | **47** | **84** |
+| **Boot chain total**     | **38**  | **49** | **84** |
 |                          |         |        |        |
 | CFW binary patches       |    4    |   5    |   6    |
 | CFW installed components |    6    |   7    |   8    |
 | **CFW total**            | **10**  | **12** | **14** |
 |                          |         |        |        |
-| **Grand total**          | **48**  | **59** | **98** |
+| **Grand total**          | **48**  | **61** | **98** |
 
 ### What each variant adds
 
-**Regular → Dev** (+11 patches):
+**Regular → Dev** (+13 patches):
 
-- TXM: +9 patches (get-task-allow, selector42|29 shellcode, debugger entitlement, developer mode bypass)
+- TXM: +11 patches (selector24 force-pass, get-task-allow, selector42|29 shellcode, debugger entitlement, developer mode bypass)
 - CFW: +1 binary patch (launchd jetsam), +1 component (dev rpcserver_ios overlay)
 
 **Regular → JB** (+50 patches):
 
 - iBSS: +1 (nonce skip)
-- TXM: +11 (hash extraction NOP, get-task-allow, selector42|29 shellcode, debugger entitlement, dev mode bypass)
+- TXM: +11 (same as dev — selector24, get-task-allow, selector42|29 shellcode, debugger entitlement, dev mode bypass)
 - Kernel: +34 (trustcache, execve, sandbox, task/VM, memory, kcall10)
 - CFW: +2 binary patches (launchd jetsam + dylib injection), +2 components (procursus + BaseBin hooks)
 
@@ -186,14 +186,16 @@ Regular and Dev share the same 25 base kernel patches. JB adds 34 additional pat
 
 ## Dynamic Implementation Log (JB Patchers)
 
-### TXM (`txm_jb.py`)
+### TXM (`txm_dev.py`)
 
-All TXM JB patches are implemented with dynamic binary analysis and
+All TXM dev patches are implemented with dynamic binary analysis and
 keystone/capstone-encoded instructions only.
 
-1. `selector24 A1` (2x nop: LDR + BL)
-   - Locator: unique guarded `mov w0,#0xa1` site, scan for `ldr x1,[xN,#0x38] ; add x2 ; bl ; ldp` pattern.
-   - Patch bytes: keystone `nop` on the LDR and the BL.
+1. `selector24 force-pass` (2 instructions after prologue)
+   - Locator: unique guarded `mov w0,#0xa1` site, scan for `ldr x1,[xN,#0x38] ; add x2 ; bl ; ldp` pattern, walk back to PACIBSP.
+   - Patch bytes: `mov w0, #0xa1 ; b <epilogue>` after prologue — returns 0xA1 (PASS) unconditionally.
+   - Return code semantics: caller checks `tst w0, #0xff00` — byte 1 = 0 is PASS, non-zero is FAIL.
+   - History: v1 was 2x NOP (LDR + BL) which broke flags extraction. v2 was `mov w0, #0x30a1; movk; ret` which returned FAIL (0x130A1 has byte 1 = 0x30). v3 (current) returns 0xA1 (byte 1 = 0 = PASS). See `research/txm_selector24_analysis.md`.
 2. `selector41/29 get-task-allow`
    - Locator: xref to `"get-task-allow"` + nearby `bl` followed by `tbnz w0,#0`.
    - Patch bytes: keystone `mov x0, #1`.
@@ -217,7 +219,7 @@ keystone/capstone-encoded instructions only.
 #### TXM Binary-Alignment Validation
 
 - `patch.upstream.raw` generated from upstream-equivalent TXM static patch semantics.
-- `patch.dyn.raw` generated by `TXMJBPatcher` on the same input.
+- `patch.dyn.raw` generated by `TXMPatcher` (txm_dev.py) on the same input.
 - Result: byte-identical (`cmp -s` success, SHA-256 matched).
 
 ### Kernelcache (`kernel_jb.py`)
@@ -282,7 +284,8 @@ Validated using pristine inputs from `updates-cdn/`:
 
 > Note: These emit counts were captured at validation time and may differ from
 > the current source if methods were subsequently refactored. The TXM JB patcher
-> currently has 5 methods emitting 11 patches; the kernel JB patcher has 24
-> methods. Actual emit counts depend on how many dynamic targets resolve per binary.
+> currently has 5 methods emitting 11 patches in txm_dev.py (selector24 force-pass = 2 emits);
+> the kernel JB patcher has 24 methods. Actual emit counts depend on how many
+> dynamic targets resolve per binary.
 
 All patches are applied dynamically via string anchors, instruction patterns, and cross-reference analysis — no hardcoded offsets — ensuring portability across iOS versions.
