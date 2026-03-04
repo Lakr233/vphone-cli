@@ -40,6 +40,7 @@ help:
 	@echo "LazyCat (AIO):"
 	@echo "  make setup_machine                   Full setup through First Boot"
 	@echo "    Options: JB=1                      Jailbreak firmware/CFW path (WIP)"
+	@echo "             DEV=1                     Dev firmware/CFW path (dev TXM + cfw_install_dev)"
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
 	@echo ""
 	@echo "Setup (one-time):"
@@ -60,6 +61,7 @@ help:
 	@echo "    Options: IPHONE_SOURCE=    URL or local path to iPhone IPSW"
 	@echo "             CLOUDOS_SOURCE=   URL or local path to cloudOS IPSW"
 	@echo "  make fw_patch                Patch boot chain (6 components)"
+	@echo "  make fw_patch_dev            Patch boot chain (dev mode TXM patcher)"
 	@echo "  make fw_patch_jb             Run fw_patch + JB extension patches (WIP)"
 	@echo ""
 	@echo "Restore:"
@@ -72,6 +74,7 @@ help:
 	@echo ""
 	@echo "CFW:"
 	@echo "  make cfw_install             Install CFW mods via SSH"
+	@echo "  make cfw_install_dev         Install CFW mods via SSH (dev mode)"
 	@echo "  make cfw_install_jb          Install CFW + JB extensions (jetsam/procursus/basebin)"
 	@echo ""
 	@echo "Variables: VM_DIR=$(VM_DIR) CPU=$(CPU) MEMORY=$(MEMORY) DISK_SIZE=$(DISK_SIZE)"
@@ -83,8 +86,13 @@ help:
 .PHONY: setup_machine setup_tools
 
 setup_machine:
+	@if [ "$(filter 1 true yes YES TRUE,$(JB))" != "" ] && [ "$(filter 1 true yes YES TRUE,$(DEV))" != "" ]; then \
+		echo "Error: JB=1 and DEV=1 are mutually exclusive"; \
+		exit 1; \
+	fi
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
+		$(if $(filter 1 true yes YES TRUE,$(DEV)),--dev,) \
 		$(if $(filter 1 true yes YES TRUE,$(SKIP_PROJECT_SETUP)),--skip-project-setup,)
 
 setup_tools:
@@ -176,13 +184,16 @@ boot_dfu: build
 # Firmware pipeline
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: fw_prepare fw_patch fw_patch_jb
+.PHONY: fw_prepare fw_patch fw_patch_dev fw_patch_jb
 
 fw_prepare:
 	cd $(VM_DIR) && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
 
 fw_patch:
 	cd $(VM_DIR) && $(PYTHON) "$(CURDIR)/$(SCRIPTS)/fw_patch.py" .
+
+fw_patch_dev:
+	cd $(VM_DIR) && $(PYTHON) "$(CURDIR)/$(SCRIPTS)/fw_patch_dev.py" .
 
 fw_patch_jb:
 	cd $(VM_DIR) && $(PYTHON) "$(CURDIR)/$(SCRIPTS)/fw_patch_jb.py" .
@@ -215,10 +226,13 @@ ramdisk_send:
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: cfw_install cfw_install_jb
+.PHONY: cfw_install cfw_install_dev cfw_install_jb
 
 cfw_install:
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
+
+cfw_install_dev:
+	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_dev.sh" .
 
 cfw_install_jb:
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_jb.sh" .
