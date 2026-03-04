@@ -76,7 +76,8 @@ help:
 	@echo "  make testing_ramdisk_send    Send testing boot chain to device"
 	@echo "  make testing_checkpoint_save Save kernel checkpoint for patch testing"
 	@echo "    Options: BASE_PATCH=normal|dev|jb"
-	@echo "  make testing_exec            Quick test flow (prepare -> patch_jb -> build/send -> boot_dfu)"
+	@echo "  make testing_exec            Quick test flow (prepare -> patch_<base> -> build/send -> boot_dfu)"
+	@echo "    Options: BASE_PATCH=normal|dev|jb"
 	@echo ""
 	@echo "CFW:"
 	@echo "  make cfw_install             Install CFW mods via SSH"
@@ -241,7 +242,7 @@ testing_checkpoint_save:
 	VM_DIR="$(VM_DIR)" BASE_PATCH="$(if $(BASE_PATCH),$(BASE_PATCH),jb)" zsh "$(CURDIR)/$(SCRIPTS)/testing_checkpoint_save.sh"
 
 testing_exec:
-	VM_DIR="$(VM_DIR)" zsh "$(CURDIR)/$(SCRIPTS)/testing_exec.sh"
+	VM_DIR="$(VM_DIR)" BASE_PATCH="$(if $(BASE_PATCH),$(BASE_PATCH),jb)" zsh "$(CURDIR)/$(SCRIPTS)/testing_exec.sh"
 
 testing_kernel_patch:
 	@if [ -z "$(strip $(or $(PATCHES),$(PATCH)))" ]; then \
