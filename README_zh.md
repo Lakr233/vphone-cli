@@ -38,14 +38,13 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 **安装依赖：**
 
 ```bash
-brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool
 ```
 
-**Git LFS** —— 本仓库使用 Git LFS 存储大型资源文件。构建前请先安装并拉取：
+**Submodules** —— 本仓库使用 git submodule 存储资源文件。克隆时请使用：
 
 ```bash
-git lfs install
-git lfs pull
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```
 
 ## 第一次设置

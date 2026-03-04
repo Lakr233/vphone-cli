@@ -38,14 +38,13 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
-brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool
 ```
 
-**Git LFS** — this repo uses Git LFS for large resource archives. Install and pull before building:
+**Submodules** — this repo uses a git submodule for resource archives. Clone with:
 
 ```bash
-git lfs install
-git lfs pull
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```
 
 ## First setup
@@ -66,7 +65,9 @@ source .venv/bin/activate
 make build                    # build + sign vphone-cli
 make vm_new                   # create vm/ directory (ROMs, disk, SEP storage)
 make fw_prepare               # download IPSWs, extract, merge, generate manifest
-make fw_patch                 # patch boot chain (6 components, 41+ modifications)
+make fw_patch                 # patch boot chain (regular variant)
+# or: make fw_patch_dev       # dev variant (+ TXM entitlement/debug bypasses)
+# or: make fw_patch_jb        # jailbreak variant (+ full security bypass)
 ```
 
 ## Restore
@@ -216,6 +217,18 @@ make fw_patch
 ```
 
 Our patches are applied via binary analysis, not static offsets, so newer versions should work. If something breaks, ask AI for help.
+
+## Firmware Variants
+
+Three patch variants are available with increasing levels of security bypass:
+
+| Variant | Boot Chain | CFW | Make Targets |
+|---------|:----------:|:---:|-------------|
+| **Regular** | 38 patches | 10 phases | `fw_patch` + `cfw_install` |
+| **Development** | 46 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
+| **Jailbreak** | 86 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb` |
+
+See [researchs/variant_patch_comparison.md](./researchs/variant_patch_comparison.md) for the detailed per-component breakdown.
 
 ## Acknowledgements
 
