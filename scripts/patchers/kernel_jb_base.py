@@ -128,9 +128,21 @@ class KernelJBPatcherBase(KernelPatcher):
         """Find a region of zeros/0xFF/UDF in executable memory for shellcode.
         Returns file offset of the cave start, or -1 if not found.
         Reads from self.data (mutable) so previously allocated caves are skipped.
+
+        Only searches __TEXT_EXEC and __TEXT_BOOT_EXEC segments.
+        __PRELINK_TEXT is excluded because KTRR makes it non-executable at
+        runtime on ARM64e, even though the Mach-O marks it R-X.
         """
+        EXEC_SEGS = ("__TEXT_EXEC", "__TEXT_BOOT_EXEC")
+        exec_ranges = [
+            (foff, foff + fsz)
+            for name, _, foff, fsz, _ in self.all_segments
+            if name in EXEC_SEGS and fsz > 0
+        ]
+        exec_ranges.sort()
+
         needed = (size + align - 1) // align * align
-        for rng_start, rng_end in self.code_ranges:
+        for rng_start, rng_end in exec_ranges:
             run_start = -1
             run_len = 0
             for off in range(rng_start, rng_end, 4):
