@@ -10,7 +10,7 @@ keyboard events flow from the macOS host to the virtual iPhone guest.
 
 There are two pipelines for sending keyboard events to the VM:
 
-### Pipeline 1: _VZKeyEvent -> sendKeyEvents: (Standard Keys)
+### Pipeline 1: \_VZKeyEvent -> sendKeyEvents: (Standard Keys)
 
 ```
 _VZKeyEvent(type, keyCode)
@@ -22,7 +22,7 @@ _VZKeyEvent(type, keyCode)
     -> [fallback]   eventSender.sendKeyboardEvents:keyboardID: (VzCore C++ layer)
 ```
 
-### Pipeline 2: _processHIDReports (Raw HID Reports)
+### Pipeline 2: \_processHIDReports (Raw HID Reports)
 
 ```
 Raw HID report bytes
@@ -35,7 +35,7 @@ Raw HID report bytes
 
 ---
 
-## _VZKeyEvent Structure
+## \_VZKeyEvent Structure
 
 From IDA + LLDB inspection:
 
@@ -52,7 +52,7 @@ Initializer: `_VZKeyEvent(type: Int64, keyCode: UInt16)`
 
 ---
 
-## _VZKeyboard Object Layout
+## \_VZKeyboard Object Layout
 
 From LLDB memory dump:
 
@@ -80,7 +80,7 @@ the entry. The lower 32 bits of combined become the intermediate index.
 ### Sample Table 2 Entries
 
 | Apple VK | Key     | Table2 (Index) | HID Page | HID Usage |
-|----------|---------|----------------|----------|-----------|
+| -------- | ------- | -------------- | -------- | --------- |
 | 0x00     | A       | 0x00           | 7        | 0x04      |
 | 0x01     | S       | 0x12           | 7        | 0x16      |
 | 0x24     | Return  | 0x24           | 7        | 0x28      |
@@ -114,32 +114,32 @@ For type-2 keyboards, the intermediate index is mapped to
 
 ### Standard Keyboard Entries (HID Page 7)
 
-| Index     | HID Page | HID Usage | Meaning          |
-|-----------|----------|-----------|------------------|
-| 0x00-0x19 | 7        | 4-29      | Letters a-z      |
-| 0x1A-0x23 | 7        | 30-39     | Digits 1-0       |
-| 0x24      | 7        | 40        | Return           |
-| 0x25      | 7        | 41        | Escape           |
-| 0x29      | 7        | 44        | Space            |
-| 0x48-0x4B | 7        | 79-82     | Arrow keys       |
+| Index     | HID Page | HID Usage | Meaning              |
+| --------- | -------- | --------- | -------------------- |
+| 0x00-0x19 | 7        | 4-29      | Letters a-z          |
+| 0x1A-0x23 | 7        | 30-39     | Digits 1-0           |
+| 0x24      | 7        | 40        | Return               |
+| 0x25      | 7        | 41        | Escape               |
+| 0x29      | 7        | 44        | Space                |
+| 0x48-0x4B | 7        | 79-82     | Arrow keys           |
 | 0x50-0x53 | 7        | 224-227   | L-Ctrl/Shift/Alt/Cmd |
 
 ### Consumer / System Entries (Non-Standard Pages)
 
-| Index | HID Page | HID Usage | Meaning                   |
-|-------|----------|-----------|---------------------------|
-| 0x6E  | **12**   | 671       | **Consumer Volume Down**  |
-| 0x6F  | **12**   | 674       | **Consumer Volume Up**    |
-| 0x70  | **12**   | 207       | **Consumer Play/Pause**   |
-| 0x71  | **12**   | 545       | **Consumer Snapshot**     |
-| 0x72  | **1**    | 155       | **Generic Desktop Wake**  |
+| Index | HID Page | HID Usage | Meaning                  |
+| ----- | -------- | --------- | ------------------------ |
+| 0x6E  | **12**   | 671       | **Consumer Volume Down** |
+| 0x6F  | **12**   | 674       | **Consumer Volume Up**   |
+| 0x70  | **12**   | 207       | **Consumer Play/Pause**  |
+| 0x71  | **12**   | 545       | **Consumer Snapshot**    |
+| 0x72  | **1**    | 155       | **Generic Desktop Wake** |
 
 **Home/Menu (Consumer page 0x0C, usage 0x40) has NO intermediate index.** It cannot
 be sent through Pipeline 1 at all.
 
 ---
 
-## _processHIDReports Parameter Format
+## \_processHIDReports Parameter Format
 
 From IDA decompilation of
 `VZVirtualMachine._processHIDReports:forDevice:deviceType:` at 0x2301b2310.
@@ -193,7 +193,7 @@ or the framework will dereference invalid pointers.
 
 ## Swift Implementation Notes
 
-### Accessing _VZKeyboard
+### Accessing \_VZKeyboard
 
 ```swift
 // Get keyboards array
@@ -215,7 +215,7 @@ withUnsafeMutablePointer(to: &vec) { vecPtr in
 }
 ```
 
-### Constructing vector<span<unsigned char>> for _processHIDReports
+### Constructing vector<span<unsigned char>> for \_processHIDReports
 
 ```swift
 let reportPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: N)
@@ -242,10 +242,10 @@ Dynamic(vm)._processHIDReports(UnsafeRawPointer(vecPtr), forDevice: deviceId, de
 
 ### Key Functions Analyzed
 
-| Function | Address |
-|----------|---------|
-| `-[_VZKeyboard sendKeyEvents:]` | 0x2301b2f54 |
-| `-[_VZKeyboard sendKeyboardEventsHIDReport:keyboardID:]` | 0x2301b3230 |
+| Function                                                                        | Address     |
+| ------------------------------------------------------------------------------- | ----------- |
+| `-[_VZKeyboard sendKeyEvents:]`                                                 | 0x2301b2f54 |
+| `-[_VZKeyboard sendKeyboardEventsHIDReport:keyboardID:]`                        | 0x2301b3230 |
 | `-[VZVirtualMachine(_VZHIDAdditions) _processHIDReports:forDevice:deviceType:]` | 0x2301b2310 |
-| `-[VZVirtualMachineView _sendKeyEventsToVirtualMachine:]` | -- |
-| `-[_VZHIDEventMonitor getHIDReportsFromHIDEvent:]` | 0x2301b2af0 |
+| `-[VZVirtualMachineView _sendKeyEventsToVirtualMachine:]`                       | --          |
+| `-[_VZHIDEventMonitor getHIDReportsFromHIDEvent:]`                              | 0x2301b2af0 |

@@ -1,14 +1,14 @@
 # TXM Jailbreak Patch Analysis
 
-Analysis of 13 TXM jailbreak patches applied by `txm_jb.py` on the RESEARCH variant
+Analysis of 6 logical TXM jailbreak patches (11 instruction modifications) applied by `txm_jb.py` on the RESEARCH variant
 of TXM from iPhone17,3 / PCC-CloudOS 26.x.
 
 ## Address Mapping
 
-| Segment | VM Address | File Offset | Size |
-|---------|------------|-------------|------|
-| `__TEXT_EXEC` | `0xFFFFFFF017020000` | `0x1c000` | `0x44000` |
-| `__TEXT_BOOT_EXEC` | `0xFFFFFFF017064000` | `0x60000` | `0xc000` |
+| Segment            | VM Address           | File Offset | Size      |
+| ------------------ | -------------------- | ----------- | --------- |
+| `__TEXT_EXEC`      | `0xFFFFFFF017020000` | `0x1c000`   | `0x44000` |
+| `__TEXT_BOOT_EXEC` | `0xFFFFFFF017064000` | `0x60000`   | `0xc000`  |
 
 Conversion: `VA = file_offset - 0x1c000 + 0xFFFFFFF017020000` (for `__TEXT_EXEC`)
 
@@ -20,12 +20,12 @@ All TXM operations enter through a single dispatch function (`sub_FFFFFFF01702AE
 a large switch on the selector number (1–51). Each case validates arguments and calls
 a dedicated handler. Relevant selectors:
 
-| Selector | Handler | Purpose |
-|----------|---------|---------|
-| 24 | `sub_FFFFFFF017024834` → validation chain | CodeSignature validation |
-| 41 | `sub_FFFFFFF017023558` | Process entitlement setup (get-task-allow) |
-| 42 | `sub_FFFFFFF017023368` | Debug memory mapping |
-| — | `sub_FFFFFFF017023A20` | Developer mode configuration (called during init) |
+| Selector | Handler                                   | Purpose                                           |
+| -------- | ----------------------------------------- | ------------------------------------------------- |
+| 24       | `sub_FFFFFFF017024834` → validation chain | CodeSignature validation                          |
+| 41       | `sub_FFFFFFF017023558`                    | Process entitlement setup (get-task-allow)        |
+| 42       | `sub_FFFFFFF017023368`                    | Debug memory mapping                              |
+| —        | `sub_FFFFFFF017023A20`                    | Developer mode configuration (called during init) |
 
 The dispatcher passes raw page pointers through `sub_FFFFFFF0170280A4` (a bounds
 validator that returns the input pointer unchanged) before calling handlers.
@@ -38,10 +38,10 @@ validator that returns the input pointer unchanged) before calling handlers.
 
 ### Addresses
 
-| File Offset | VA | Original Instruction | Patch |
-|---|---|---|---|
-| `0x313ec` | `0xFFFFFFF0170353EC` | `LDR X1, [X20, #0x38]` | NOP |
-| `0x313f4` | `0xFFFFFFF0170353F4` | `BL sub_FFFFFFF0170335F8` | NOP |
+| File Offset | VA                   | Original Instruction      | Patch |
+| ----------- | -------------------- | ------------------------- | ----- |
+| `0x313ec`   | `0xFFFFFFF0170353EC` | `LDR X1, [X20, #0x38]`    | NOP   |
+| `0x313f4`   | `0xFFFFFFF0170353F4` | `BL sub_FFFFFFF0170335F8` | NOP   |
 
 ### Function: `sub_FFFFFFF0170353B8` — CS hash flags validator
 
@@ -98,12 +98,12 @@ falls through to the version checks which return success for version ≤ 5.
 This effectively bypasses CodeSignature hash validation — the hash data exists
 in the blob but the hash-present flag is suppressed, so the consistency check passes.
 
-### `txm_jb.py` dynamic finder: `patch_selector24_hashcmp_calls()`
+### `txm_jb.py` dynamic finder: `patch_selector24_hash_extraction_nop()`
 
-Scans for the instruction pattern `mov w2, #0x14 / bl X / cbz w0, Y` to find
-hashcmp BL callsites, then patches the BL to `mov x0, #0`. This also includes
-`patch_selector24_a1_path()` which NOPs the `b.lo` and `cbz x9` guards around
-the `mov w0, #0xa1` error path.
+Scans for `mov w0, #0xa1` as a unique anchor to locate the CS hash validator function,
+finds PACIBSP to determine function start, then matches the pattern
+`LDR X1,[Xn,#0x38]` / `ADD X2,...` / `BL` / `LDP` within it. NOPs the `LDR X1`
+(arg setup) and the `BL hash_flags_extract` (call).
 
 ---
 
@@ -113,9 +113,9 @@ the `mov w0, #0xa1` error path.
 
 ### Address
 
-| File Offset | VA | Original Instruction | Patch |
-|---|---|---|---|
-| `0x1f5d4` | `0xFFFFFFF0170235D4` | `BL sub_FFFFFFF017022A30` | `MOV X0, #1` |
+| File Offset | VA                   | Original Instruction      | Patch        |
+| ----------- | -------------------- | ------------------------- | ------------ |
+| `0x1f5d4`   | `0xFFFFFFF0170235D4` | `BL sub_FFFFFFF017022A30` | `MOV X0, #1` |
 
 ### Function: `sub_FFFFFFF017023558` — selector 41 handler
 
@@ -195,14 +195,14 @@ Searches for string refs to `"get-task-allow"`, then scans forward for the patte
 
 ### Addresses
 
-| File Offset | VA | Patch |
-|---|---|---|
-| `0x2717c` | `0xFFFFFFF01702B17C` | `B #0x36238` (→ shellcode) |
-| `0x5d3b4` | `0xFFFFFFF0170613B4` | `NOP` (pad) |
-| `0x5d3b8` | `0xFFFFFFF0170613B8` | `MOV X0, #1` |
-| `0x5d3bc` | `0xFFFFFFF0170613BC` | `STRB W0, [X20, #0x30]` |
-| `0x5d3c0` | `0xFFFFFFF0170613C0` | `MOV X0, X20` |
-| `0x5d3c4` | `0xFFFFFFF0170613C4` | `B #-0x36244` (→ 0xB180) |
+| File Offset | VA                   | Patch                      |
+| ----------- | -------------------- | -------------------------- |
+| `0x2717c`   | `0xFFFFFFF01702B17C` | `B #0x36238` (→ shellcode) |
+| `0x5d3b4`   | `0xFFFFFFF0170613B4` | `NOP` (pad)                |
+| `0x5d3b8`   | `0xFFFFFFF0170613B8` | `MOV X0, #1`               |
+| `0x5d3bc`   | `0xFFFFFFF0170613BC` | `STRB W0, [X20, #0x30]`    |
+| `0x5d3c0`   | `0xFFFFFFF0170613C0` | `MOV X0, X20`              |
+| `0x5d3c4`   | `0xFFFFFFF0170613C4` | `B #-0x36244` (→ 0xB180)   |
 
 ### Context: Dispatcher case 42
 
@@ -280,9 +280,9 @@ writes to the correct location.
 
 ### Address
 
-| File Offset | VA | Original Instruction | Patch |
-|---|---|---|---|
-| `0x1f3b8` | `0xFFFFFFF0170233B8` | `BL sub_FFFFFFF017022A30` | `MOV W0, #1` |
+| File Offset | VA                   | Original Instruction      | Patch        |
+| ----------- | -------------------- | ------------------------- | ------------ |
+| `0x1f3b8`   | `0xFFFFFFF0170233B8` | `BL sub_FFFFFFF017022A30` | `MOV W0, #1` |
 
 ### Function: `sub_FFFFFFF017023368` — selector 42 handler (debug memory mapping)
 
@@ -339,9 +339,9 @@ to `MOV W0, #1`.
 
 ### Address
 
-| File Offset | VA | Original Instruction | Patch |
-|---|---|---|---|
-| `0x1FA58` | `0xFFFFFFF017023A58` | `TBNZ W9, #0, loc_FFFFFFF017023A6C` | NOP |
+| File Offset | VA                   | Original Instruction                | Patch |
+| ----------- | -------------------- | ----------------------------------- | ----- |
+| `0x1FA58`   | `0xFFFFFFF017023A58` | `TBNZ W9, #0, loc_FFFFFFF017023A6C` | NOP   |
 
 ### Function: `sub_FFFFFFF017023A20` — developer mode configuration
 
@@ -459,21 +459,22 @@ Patch 6: Developer Mode Bypass
 
 ## Summary Table
 
-| # | File Offset | VA | Function | Patch | Purpose |
-|---|---|---|---|---|---|
-| 1 | `0x313ec` | `0xFFFFFFF0170353EC` | `sub_FFFFFFF0170353B8` (CS hash validator) | NOP | Remove hash flag load |
-| 2 | `0x313f4` | `0xFFFFFFF0170353F4` | `sub_FFFFFFF0170353B8` (CS hash validator) | NOP | Skip hash flag extraction call |
-| 3 | `0x1f5d4` | `0xFFFFFFF0170235D4` | `sub_FFFFFFF017023558` (selector 41) | `MOV X0, #1` | Force get-task-allow = true |
-| 4 | `0x2717c` | `0xFFFFFFF01702B17C` | `sub_FFFFFFF01702AE80` (dispatcher, case 42) | `B shellcode` | Redirect to shellcode cave |
-| 4a | `0x5d3b4` | `0xFFFFFFF0170613B4` | code cave (zeros) | `NOP` | Shellcode padding |
-| 4b | `0x5d3b8` | `0xFFFFFFF0170613B8` | code cave | `MOV X0, #1` | Set value for flag |
-| 4c | `0x5d3bc` | `0xFFFFFFF0170613BC` | code cave | `STRB W0, [X20,#0x30]` | Force get-task-allow flag |
-| 4d | `0x5d3c0` | `0xFFFFFFF0170613C0` | code cave | `MOV X0, X20` | Restore original instruction |
-| 4e | `0x5d3c4` | `0xFFFFFFF0170613C4` | code cave | `B back` | Return to dispatcher |
-| 5 | `0x1f3b8` | `0xFFFFFFF0170233B8` | `sub_FFFFFFF017023368` (selector 42) | `MOV W0, #1` | Force debugger entitlement = true |
-| 6 | `0x1FA58` | `0xFFFFFFF017023A58` | `sub_FFFFFFF017023A20` (devmode init) | NOP | Force developer mode ON |
+| #   | File Offset | VA                   | Function                                     | Patch                  | Purpose                           |
+| --- | ----------- | -------------------- | -------------------------------------------- | ---------------------- | --------------------------------- |
+| 1   | `0x313ec`   | `0xFFFFFFF0170353EC` | `sub_FFFFFFF0170353B8` (CS hash validator)   | NOP                    | Remove hash flag load             |
+| 2   | `0x313f4`   | `0xFFFFFFF0170353F4` | `sub_FFFFFFF0170353B8` (CS hash validator)   | NOP                    | Skip hash flag extraction call    |
+| 3   | `0x1f5d4`   | `0xFFFFFFF0170235D4` | `sub_FFFFFFF017023558` (selector 41)         | `MOV X0, #1`           | Force get-task-allow = true       |
+| 4   | `0x2717c`   | `0xFFFFFFF01702B17C` | `sub_FFFFFFF01702AE80` (dispatcher, case 42) | `B shellcode`          | Redirect to shellcode cave        |
+| 4a  | `0x5d3b4`   | `0xFFFFFFF0170613B4` | code cave (zeros)                            | `NOP`                  | Shellcode padding                 |
+| 4b  | `0x5d3b8`   | `0xFFFFFFF0170613B8` | code cave                                    | `MOV X0, #1`           | Set value for flag                |
+| 4c  | `0x5d3bc`   | `0xFFFFFFF0170613BC` | code cave                                    | `STRB W0, [X20,#0x30]` | Force get-task-allow flag         |
+| 4d  | `0x5d3c0`   | `0xFFFFFFF0170613C0` | code cave                                    | `MOV X0, X20`          | Restore original instruction      |
+| 4e  | `0x5d3c4`   | `0xFFFFFFF0170613C4` | code cave                                    | `B back`               | Return to dispatcher              |
+| 5   | `0x1f3b8`   | `0xFFFFFFF0170233B8` | `sub_FFFFFFF017023368` (selector 42)         | `MOV W0, #1`           | Force debugger entitlement = true |
+| 6   | `0x1FA58`   | `0xFFFFFFF017023A58` | `sub_FFFFFFF017023A20` (devmode init)        | NOP                    | Force developer mode ON           |
 
-**Total**: 6 logical patches, 10 instruction modifications (counting shellcode), enabling:
+**Total**: 6 logical patches, 11 instruction modifications (counting shellcode), enabling:
+
 - CodeSignature bypass (patches 1–2)
 - Universal get-task-allow (patches 3–4)
 - Universal debugger entitlement (patch 5)

@@ -188,6 +188,10 @@ AMFI is not disabled. Set the boot-arg and restart:
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 ```
 
+**Q: System apps (App Store, Messages, etc.) won't download or install.**
+
+During iOS setup, do **not** select **Japan** or **European Union** as your region. These regions enforce additional regulatory checks (e.g., sideloading disclosures, camera shutter requirements) that the virtual machine cannot satisfy, which prevents system apps from being downloaded and installed. Choose any other region (e.g., United States) to avoid this issue.
+
 **Q: I'm stuck on the "Press home to continue" screen.**
 
 Connect via VNC (`vnc://127.0.0.1:5901`) and right-click anywhere on the screen (two-finger click on a Mac trackpad). This simulates the home button press.
@@ -222,11 +226,11 @@ Our patches are applied via binary analysis, not static offsets, so newer versio
 
 Three patch variants are available with increasing levels of security bypass:
 
-| Variant | Boot Chain | CFW | Make Targets |
-|---------|:----------:|:---:|-------------|
-| **Regular** | 38 patches | 10 phases | `fw_patch` + `cfw_install` |
+| Variant         | Boot Chain |    CFW    | Make Targets                       |
+| --------------- | :--------: | :-------: | ---------------------------------- |
+| **Regular**     | 38 patches | 10 phases | `fw_patch` + `cfw_install`         |
 | **Development** | 46 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
-| **Jailbreak** | 86 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb` |
+| **Jailbreak**   | 86 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
 
 See [researchs/variant_patch_comparison.md](./researchs/variant_patch_comparison.md) for the detailed per-component breakdown.
 

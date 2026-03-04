@@ -35,11 +35,11 @@ NSDictionary with a single key:
 
 ### Actions
 
-| Action | Value | Behavior |
-|--------|-------|---------|
-| `kAMFIActionArm` | 0 | Arm developer mode — takes effect on next reboot, user must select "Turn On" |
-| `kAMFIActionDisable` | 1 | Disable developer mode immediately |
-| `kAMFIActionStatus` | 2 | Query current state |
+| Action               | Value | Behavior                                                                     |
+| -------------------- | ----- | ---------------------------------------------------------------------------- |
+| `kAMFIActionArm`     | 0     | Arm developer mode — takes effect on next reboot, user must select "Turn On" |
+| `kAMFIActionDisable` | 1     | Disable developer mode immediately                                           |
+| `kAMFIActionStatus`  | 2     | Query current state                                                          |
 
 ### Response
 
@@ -52,12 +52,12 @@ NSDictionary *dict = _CFXPCCreateCFObjectFromXPCMessage(cfReply);
 
 Response fields:
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `success` | BOOL | Whether the XPC call succeeded |
-| `status` | BOOL | Current developer mode state (for Status action) |
-| `armed` | BOOL | Whether armed for reboot (for Arm action) |
-| `error` | NSString | Error description if success is false |
+| Key       | Type     | Description                                      |
+| --------- | -------- | ------------------------------------------------ |
+| `success` | BOOL     | Whether the XPC call succeeded                   |
+| `status`  | BOOL     | Current developer mode state (for Status action) |
+| `armed`   | BOOL     | Whether armed for reboot (for Arm action)        |
+| `error`   | NSString | Error description if success is false            |
 
 ## Arming Flow
 
@@ -76,6 +76,7 @@ Source: `references/TrollStore/RootHelper/devmode.m`
 TrollStore separates privileges: the main app has no AMFI entitlement; all privileged operations go through RootHelper which has `com.apple.private.amfi.developer-mode-control`.
 
 Key functions:
+
 - `checkDeveloperMode()` — returns current state, YES on iOS <16 (devmode doesn't exist)
 - `armDeveloperMode(BOOL *alreadyEnabled)` — check + arm in one call
 - `startConnection()` — creates and resumes XPC connection to `com.apple.amfi.xpc`
@@ -88,12 +89,14 @@ Added as `devmode` capability in vphoned guest agent:
 ### Protocol Messages
 
 **Status query:**
+
 ```json
 {"t": "devmode", "action": "status"}
 → {"t": "ok", "enabled": true}
 ```
 
 **Enable (arm):**
+
 ```json
 {"t": "devmode", "action": "enable"}
 → {"t": "ok", "already_enabled": false, "msg": "developer mode armed, reboot to activate"}
@@ -102,6 +105,7 @@ Added as `devmode` capability in vphoned guest agent:
 ### Entitlements
 
 Added to `scripts/vphoned/entitlements.plist`:
+
 ```xml
 <key>com.apple.private.amfi.developer-mode-control</key>
 <true/>
@@ -110,8 +114,8 @@ Added to `scripts/vphoned/entitlements.plist`:
 ### Host-Side API (VPhoneControl.swift)
 
 ```swift
-control.sendDevModeStatus()    // query current state
-control.sendDevModeEnable()    // arm developer mode
+let status = try await control.sendDevModeStatus()    // -> DevModeStatus (enabled: Bool)
+let result = try await control.sendDevModeEnable()     // -> DevModeEnableResult (alreadyEnabled: Bool, message: String)
 ```
 
-Responses arrive via the existing read loop and are logged to console.
+Both methods use `sendRequest()` with pending request tracking — the response is returned via `async throws`, not logged to console. Callers (e.g. `VPhoneMenuConnect`) display results as `NSAlert` sheets on the VM window.

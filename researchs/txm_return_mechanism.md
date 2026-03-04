@@ -180,13 +180,13 @@ The function already has a success path at `0x026D30` (reached by case 5 when fl
 
 ### Error Codes
 
-| Return Value | Meaning |
-|---|---|
-| `0x00` | Success (only via case 5 flag path) |
-| `0xA0` | Early flag check failure |
-| `0xA1` | Unknown sub-selector / validation failure |
-| `0x130A1` | Hash mismatch (hash presence != flag) |
-| `0x22DA1` | Version-dependent validation failure |
+| Return Value | Meaning                                   |
+| ------------ | ----------------------------------------- |
+| `0x00`       | Success (only via case 5 flag path)       |
+| `0xA0`       | Early flag check failure                  |
+| `0xA1`       | Unknown sub-selector / validation failure |
+| `0x130A1`    | Hash mismatch (hash presence != flag)     |
+| `0x22DA1`    | Version-dependent validation failure      |
 
 ### Panic Format
 
@@ -198,43 +198,50 @@ non-zero return from the `svc #0` trap and formats the error:
 
 For `0x000130A1`: low=`0xA1`, mid=`0x30`, high=`0x1` → `| 0xA1 | 0x30 | 1`
 
-## Correct Fix: Redirect to Success Path
+## Current Fix: NOP Hash Flags Extraction
 
-Patch 2 instructions at `0x26CBC` (right after `bl #0x29024`):
+> **Historical note:** An earlier approach tried redirecting to the success path by
+> patching 2 instructions at `0x26CBC` (`mov x19, x0` / `b #0x26D30`). This was
+> replaced with the more surgical NOP approach below.
+
+The current implementation in `txm_jb.py` (`patch_selector24_hash_extraction_nop()`)
+disables hash flags extraction while keeping the rest of the function intact:
 
 ```asm
 ; Original:
-0x026CBC: adrp   x8, #0x6c000     ; flag check setup
-0x026CC0: add    x8, x8, #0x5c0   ; flag address
+LDR  X1, [Xn, #0x38]    ; arg setup for hash_flags_extract
+...
+BL   hash_flags_extract  ; extract hash flags from CS blob
 
 ; Patched:
-0x026CBC: mov    x19, x0           ; save context (originally done at 0x26CCC)
-0x026CC0: b      #0x26D30          ; → mov x0,#0; b #0x26db8 (success path)
+NOP                      ; remove arg setup
+...
+NOP                      ; skip hash_flags_extract call entirely
 ```
 
 ### Why This Works
 
-1. **Prologue preserved**: PACIBSP signs LR, stack frame set up, registers saved
-2. **Context initialized**: `bl #0x29024` returns the TXM context pointer in x0
-3. **x19 = context**: Required for `str x9, [x19, #8]` at `0x26DC8`
-4. **Success path**: `x0 = 0` → result processing stores 0 → `csetm x0, ne` → `x0 = 0`
-5. **Normal return**: `bl #0x26c04` → `bl #0x49b40` → `svc #0` → back to SPTM
+1. **Minimal disruption**: Only 2 instructions are NOPed; the rest of the function runs normally
+2. **Hash data lookup preserved**: The second BL (`hash_data_lookup`) is left intact
+3. **Flags default to zero**: Without extraction, the hash-present flag is suppressed,
+   so the consistency check passes trivially
+4. **Normal return path**: Function epilogue and TXM→SPTM return chain are untouched
 
 ### Dynamic Finder Anchor
 
 The function is uniquely identified by `mov w0, #0xa1` (only one instance in TXM).
-Scan back for PACIBSP to find function start, then find `bl` at offset +0x38
-from start (the `bl #0x29024` call). Patch the next 2 instructions.
+Scan back for PACIBSP to find function start, then match the pattern:
+`LDR X1,[Xn,#0x38]` / `ADD X2,...` / `BL` / `LDP`. NOP the `LDR X1` and the `BL`.
 
 ## UUID Canary Verification
 
 To confirm which TXM variant is loaded during boot, XOR the last byte of `LC_UUID`:
 
-| | UUID |
-|---|---|
-| Original research | `0FFA437D-376F-3F8E-AD26-317E2111655D` |
-| Original release | `3C1E0E65-BFE2-3113-9C65-D25926C742B4` |
+|                            | UUID                                   |
+| -------------------------- | -------------------------------------- |
+| Original research          | `0FFA437D-376F-3F8E-AD26-317E2111655D` |
+| Original release           | `3C1E0E65-BFE2-3113-9C65-D25926C742B4` |
 | Canary (research XOR 0x01) | `0FFA437D-376F-3F8E-AD26-317E2111655C` |
 
 Panic log `TXM UUID:` line confirmed canary `...655C` → **patched research TXM IS loaded**.
-The problem was exclusively in the selector24 patch logic (NOP doesn't change return value).
+The problem was exclusively in the selector24 patch logic (the earlier redirect approach did not properly handle the hash validation return value).

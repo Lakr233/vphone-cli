@@ -7,14 +7,14 @@ Analysis of iBoot patches for vresearch101 from PCC-CloudOS 26.3 (23D128).
 All six vresearch101 iBoot variants share just two unique **payload** binaries
 (after IM4P decode/decompress):
 
-| Variant | IM4P Size | Raw Size | Payload SHA256 (first 16) | Fourcc |
-|---------|-----------|----------|---------------------------|--------|
-| iBSS RELEASE | 303068 | 605312 | `4c9e7df663af76fa` | ibss |
-| iBEC RELEASE | 303098 | 605312 | `4c9e7df663af76fa` | ibec |
-| LLB RELEASE | 303068 | 605312 | `4c9e7df663af76fa` | illb |
-| iBSS RESEARCH | 308188 | 622512 | `8c3cc980f25f9027` | ibss |
-| iBEC RESEARCH | 308218 | 622512 | `8c3cc980f25f9027` | ibec |
-| LLB RESEARCH | 308188 | 622512 | `8c3cc980f25f9027` | illb |
+| Variant       | IM4P Size | Raw Size | Payload SHA256 (first 16) | Fourcc |
+| ------------- | --------- | -------- | ------------------------- | ------ |
+| iBSS RELEASE  | 303068    | 605312   | `4c9e7df663af76fa`        | ibss   |
+| iBEC RELEASE  | 303098    | 605312   | `4c9e7df663af76fa`        | ibec   |
+| LLB RELEASE   | 303068    | 605312   | `4c9e7df663af76fa`        | illb   |
+| iBSS RESEARCH | 308188    | 622512   | `8c3cc980f25f9027`        | ibss   |
+| iBEC RESEARCH | 308218    | 622512   | `8c3cc980f25f9027`        | ibec   |
+| LLB RESEARCH  | 308188    | 622512   | `8c3cc980f25f9027`        | illb   |
 
 **Key finding:** This "identical" claim is strictly about the decoded payload bytes.
 At the IM4P container level, iBSS/iBEC/LLB are still different files (different
@@ -36,12 +36,12 @@ each image.
 
 Single flat ROM segment (no Mach-O, no sections):
 
-| Property | RELEASE | RESEARCH |
-|----------|---------|----------|
-| Base VA | `0x7006C000` | `0x7006C000` |
-| Size | 605312 (591.1 KB) | 622512 (607.9 KB) |
-| Compression | BVX2 (LZFSE) | BVX2 (LZFSE) |
-| Encrypted | No | No |
+| Property    | RELEASE           | RESEARCH          |
+| ----------- | ----------------- | ----------------- |
+| Base VA     | `0x7006C000`      | `0x7006C000`      |
+| Size        | 605312 (591.1 KB) | 622512 (607.9 KB) |
+| Compression | BVX2 (LZFSE)      | BVX2 (LZFSE)      |
+| Encrypted   | No                | No                |
 
 File offset = VA − `0x7006C000`.
 
@@ -49,20 +49,20 @@ File offset = VA − `0x7006C000`.
 
 ### Base Patches (`fw_patch.py` via `IBootPatcher`)
 
-| # | Patch | iBSS | iBEC | LLB | Total |
-|---|-------|:----:|:----:|:---:|:-----:|
-| 1 | Serial labels (×2) | ✅ | ✅ | ✅ | 2 |
-| 2 | image4 callback bypass | ✅ | ✅ | ✅ | 2 |
-| 3 | Boot-args redirect | — | ✅ | ✅ | 3 |
-| 4 | Rootfs bypass | — | — | ✅ | 5 |
-| 5 | Panic bypass | — | — | ✅ | 1 |
-| | **Subtotal** | **4** | **7** | **13** | |
+| #   | Patch                  | iBSS  | iBEC  |  LLB   | Total |
+| --- | ---------------------- | :---: | :---: | :----: | :---: |
+| 1   | Serial labels (×2)     |  ✅   |  ✅   |   ✅   |   2   |
+| 2   | image4 callback bypass |  ✅   |  ✅   |   ✅   |   2   |
+| 3   | Boot-args redirect     |   —   |  ✅   |   ✅   |   3   |
+| 4   | Rootfs bypass          |   —   |   —   |   ✅   |   5   |
+| 5   | Panic bypass           |   —   |   —   |   ✅   |   1   |
+|     | **Subtotal**           | **4** | **7** | **13** |       |
 
 ### JB Extension Patch (implemented)
 
-| # | Patch | Base | JB |
-|---|-------|:----:|:--:|
-| 6 | **Skip generate_nonce** (iBSS only) | — | ✅ |
+| #   | Patch                               | Base | JB  |
+| --- | ----------------------------------- | :--: | :-: |
+| 6   | **Skip generate_nonce** (iBSS only) |  —   | ✅  |
 
 Status: implemented in `IBootJBPatcher.patch_skip_generate_nonce()` and applied
 by `fw_patch_jb.py` (JB flow). This follows the current pipeline split where
@@ -79,10 +79,10 @@ serial log identification.
 4 such runs, but only the first 2 are the banners (the other 2 are
 `"Start of %s serial output"` / `"End of %s serial output"` format strings).
 
-| Patch | File Offset | VA | Original | Patched |
-|-------|-------------|-----|----------|---------|
-| Label 1 | `0x084549` | `0x700F0549` | `=====...` | `Loaded iBSS` |
-| Label 2 | `0x0845F4` | `0x700F05F4` | `=====...` | `Loaded iBSS` |
+| Patch   | File Offset | VA           | Original   | Patched       |
+| ------- | ----------- | ------------ | ---------- | ------------- |
+| Label 1 | `0x084549`  | `0x700F0549` | `=====...` | `Loaded iBSS` |
+| Label 2 | `0x0845F4`  | `0x700F05F4` | `=====...` | `Loaded iBSS` |
 
 Label text changes per mode: `Loaded iBSS` / `Loaded iBEC` / `Loaded LLB`.
 
@@ -98,20 +98,22 @@ Dispatches on 4-char property tags (BORD, CHIP, CEPO, CSEC, DICE, BNCH, etc.)
 and validates each against expected values.
 
 **Anchoring pattern:**
+
 1. `B.NE` followed immediately by `MOV X0, X22`
 2. `CMP` within 8 instructions before the `B.NE`
-3. `MOVN W22, #0` (setting error return = -1) within 64 instructions before
+3. `MOVN W22, #0` or `MOV W22, #-1` (setting error return = -1) within 64 instructions before
 
 The `B.NE` is the stack canary check at the function epilogue. `X22` holds the
 computed return value (0 = success, -1 = failure). The patch forces return 0
 regardless of validation results.
 
-| Patch | File Offset | VA | Original | Patched |
-|-------|-------------|-----|----------|---------|
-| NOP b.ne | `0x009D14` | `0x70075D14` | `B.NE 0x70075E50` | `NOP` |
-| Force ret=0 | `0x009D18` | `0x70075D18` | `MOV X0, X22` | `MOV X0, #0` |
+| Patch       | File Offset | VA           | Original          | Patched      |
+| ----------- | ----------- | ------------ | ----------------- | ------------ |
+| NOP b.ne    | `0x009D14`  | `0x70075D14` | `B.NE 0x70075E50` | `NOP`        |
+| Force ret=0 | `0x009D18`  | `0x70075D18` | `MOV X0, X22`     | `MOV X0, #0` |
 
 **Context (function epilogue):**
+
 ```
 70075CFC  MOV     W22, #0xFFFFFFFF      ; error return code
 70075D00  LDUR    X8, [X29, #var_60]    ; load stack canary
@@ -132,30 +134,32 @@ regardless of validation results.
 and debug flags.
 
 **Anchoring:**
+
 1. Find `"rd=md0"` string → search nearby for standalone `"%s"` (NUL-terminated)
 2. Find `ADRP+ADD X2` pair referencing that `"%s"` offset
 3. Write new string to a NUL-padded area, redirect ADRP+ADD to it
 
-| Patch | File Offset | VA | Description |
-|-------|-------------|-----|-------------|
-| String | `0x023F40` | `0x700D5F40` | New boot-args string |
-| ADRP x2 | `0x0122E0` | `0x700DE2E0` | Redirect to new page |
-| ADD x2 | `0x0122E4` | `0x700DE2E4` | Redirect to new offset |
+| Patch   | File Offset | VA           | Description            |
+| ------- | ----------- | ------------ | ---------------------- |
+| String  | `0x023F40`  | `0x700D5F40` | New boot-args string   |
+| ADRP x2 | `0x0122E0`  | `0x700DE2E0` | Redirect to new page   |
+| ADD x2  | `0x0122E4`  | `0x700DE2E4` | Redirect to new offset |
 
 ### Patch 4: Rootfs Bypass (LLB only)
 
 **Purpose:** 5 patches that bypass root filesystem signature verification,
 allowing modified rootfs to boot.
 
-| # | File Offset | VA | Original | Patched | Anchor |
-|---|-------------|-----|----------|---------|--------|
-| 4a | `0x02B068` | `0x700D7068` | `CBZ W0, ...` | `B ...` | error code `0x3B7` |
-| 4b | `0x02AD20` | `0x700D6D20` | `B.HS ...` | `NOP` | `CMP X8, #0x400` |
-| 4c | `0x02B0BC` | `0x700D70BC` | `CBZ W0, ...` | `B ...` | error code `0x3C2` |
-| 4d | `0x02ED6C` | `0x700DAD6C` | `CBZ X8, ...` | `NOP` | `LDR X8, [xN, #0x78]` |
-| 4e | `0x02EF68` | `0x700DAF68` | `CBZ W0, ...` | `B ...` | error code `0x110` |
+| #   | File Offset | VA           | Original      | Patched | Anchor                |
+| --- | ----------- | ------------ | ------------- | ------- | --------------------- |
+| 4a  | `0x02B068`  | `0x700D7068` | `CBZ W0, ...` | `B ...` | error code `0x3B7`    |
+| 4b  | `0x02AD20`  | `0x700D6D20` | `B.HS ...`    | `NOP`   | `CMP X8, #0x400`      |
+| 4c  | `0x02B0BC`  | `0x700D70BC` | `CBZ W0, ...` | `B ...` | error code `0x3C2`    |
+| 4d  | `0x02ED6C`  | `0x700DAD6C` | `CBZ X8, ...` | `NOP`   | `LDR X8, [xN, #0x78]` |
+| 4e  | `0x02EF68`  | `0x700DAF68` | `CBZ W0, ...` | `B ...` | error code `0x110`    |
 
 **Anchoring techniques:**
+
 - **4a, 4c, 4e:** Find unique `MOV W8, #<error>` instruction, the `CBZ` is 4 bytes
   before. Convert conditional branch to unconditional `B` (same target).
 - **4b:** Find unique `CMP X8, #0x400`, NOP the `B.HS` that follows.
@@ -169,9 +173,9 @@ allowing modified rootfs to boot.
 **Anchoring:** Find `MOV W8, #0x328` followed by `MOVK W8, #0x40, LSL #16`
 (forming constant `0x400328`), walk forward to `BL; CBNZ W0`, NOP the `CBNZ`.
 
-| Patch | File Offset | VA | Original | Patched |
-|-------|-------------|-----|----------|---------|
-| NOP cbnz | `0x01A038` | `0x70086038` | `CBNZ W0, ...` | `NOP` |
+| Patch    | File Offset | VA           | Original       | Patched |
+| -------- | ----------- | ------------ | -------------- | ------- |
+| NOP cbnz | `0x01A038`  | `0x70086038` | `CBNZ W0, ...` | `NOP`   |
 
 ### Patch 6: Skip generate_nonce (iBSS only, JB flow)
 
@@ -182,13 +186,14 @@ boot, which can interfere with the restore process.
 **Function:** `sub_70077064` (~0x1C00 bytes) — iBSS platform initialization.
 
 **Anchoring:** Find `"boot-nonce"` string reference via ADRP+ADD, then scan forward
-for: `TBZ W0, #0` + `MOV W0, #0` + `BL` pattern. Convert `TBZ` to unconditional `B`.
+for: `TBZ/TBNZ W0, #0` + `MOV W0, #0` + `BL` pattern. Convert `TBZ/TBNZ` to unconditional `B`.
 
-| Patch | File Offset | VA | Original | Patched |
-|-------|-------------|-----|----------|---------|
-| Skip nonce | `0x00B7B8` | `0x700777B8` | `TBZ W0, #0, 0x700777F0` | `B 0x700777F0` |
+| Patch      | File Offset | VA           | Original                 | Patched        |
+| ---------- | ----------- | ------------ | ------------------------ | -------------- |
+| Skip nonce | `0x00B7B8`  | `0x700777B8` | `TBZ W0, #0, 0x700777F0` | `B 0x700777F0` |
 
 **Disassembly context:**
+
 ```
 70077750  ADD     X8, X8, #("boot-nonce" - ...)   ; 1st ref: read nonce env var
 70077754  BL      sub_70079590                     ; env_get
@@ -222,13 +227,13 @@ deterministic nonce behavior for restore/research scenarios.
 Both variants work with all dynamic patches. Offsets differ but the patcher
 finds them by pattern matching:
 
-| Patch | RELEASE offset | RESEARCH offset |
-|-------|---------------|-----------------|
-| Serial label 1 | `0x084549` | `0x0861C9` |
-| Serial label 2 | `0x0845F4` | `0x086274` |
-| image4 callback (nop) | `0x009D14` | `0x00A0DC` |
-| image4 callback (mov) | `0x009D18` | `0x00A0E0` |
-| Skip generate_nonce *(JB patch)* | `0x00B7B8` | `0x00BC08` |
+| Patch                            | RELEASE offset | RESEARCH offset |
+| -------------------------------- | -------------- | --------------- |
+| Serial label 1                   | `0x084549`     | `0x0861C9`      |
+| Serial label 2                   | `0x0845F4`     | `0x086274`      |
+| image4 callback (nop)            | `0x009D14`     | `0x00A0DC`      |
+| image4 callback (mov)            | `0x009D18`     | `0x00A0E0`      |
+| Skip generate_nonce _(JB patch)_ | `0x00B7B8`     | `0x00BC08`      |
 
 `fw_patch.py` targets RELEASE, matching the BuildManifest identity
 (PCC RELEASE for LLB/iBSS/iBEC). The reference script used RESEARCH_RELEASE.
@@ -239,13 +244,13 @@ Both work — the dynamic patcher is variant-agnostic.
 Reference hardcoded offsets (26.1 RESEARCH_RELEASE) vs dynamic patcher results
 (26.3 RELEASE):
 
-| Patch | 26.1 (hardcoded) | 26.3 RELEASE (dynamic) | 26.3 RESEARCH (dynamic) |
-|-------|-----------------|----------------------|------------------------|
-| Serial label 1 | `0x84349` | `0x84549` | `0x861C9` |
-| Serial label 2 | `0x843F4` | `0x845F4` | `0x86274` |
-| image4 nop | `0x09D10` | `0x09D14` | `0x0A0DC` |
-| image4 mov | `0x09D14` | `0x09D18` | `0x0A0E0` |
-| generate_nonce | `0x1B544` | `0x0B7B8` | `0x0BC08` |
+| Patch          | 26.1 (hardcoded) | 26.3 RELEASE (dynamic) | 26.3 RESEARCH (dynamic) |
+| -------------- | ---------------- | ---------------------- | ----------------------- |
+| Serial label 1 | `0x84349`        | `0x84549`              | `0x861C9`               |
+| Serial label 2 | `0x843F4`        | `0x845F4`              | `0x86274`               |
+| image4 nop     | `0x09D10`        | `0x09D14`              | `0x0A0DC`               |
+| image4 mov     | `0x09D14`        | `0x09D18`              | `0x0A0E0`               |
+| generate_nonce | `0x1B544`        | `0x0B7B8`              | `0x0BC08`               |
 
 Offsets shift significantly between versions and variants, confirming that
 hardcoded offsets would break. The dynamic patcher handles all combinations.
@@ -528,17 +533,17 @@ the `"dram-vendor"` env_get.
 
 Reference: `patch(0x1b544, 0x1400000e)` (26.1 RESEARCH, hardcoded)
 
-| | Reference (26.1) | Dynamic (26.3 RELEASE) | Dynamic (26.3 RESEARCH) |
-|---|---|---|---|
-| **Offset** | `0x1B544` | `0x0B7B8` | `0x0BC08` |
-| **Original** | `TBZ W0, #0, +0x38` | `TBZ W0, #0, +0x38` | `TBZ W0, #0, +0x38` |
-| **Patched** | `B +0x38` | `B +0x38` | `B +0x38` |
-| **Bytes** | `0E 00 00 14` | `0E 00 00 14` | `0E 00 00 14` |
+|              | Reference (26.1)    | Dynamic (26.3 RELEASE) | Dynamic (26.3 RESEARCH) |
+| ------------ | ------------------- | ---------------------- | ----------------------- |
+| **Offset**   | `0x1B544`           | `0x0B7B8`              | `0x0BC08`               |
+| **Original** | `TBZ W0, #0, +0x38` | `TBZ W0, #0, +0x38`    | `TBZ W0, #0, +0x38`     |
+| **Patched**  | `B +0x38`           | `B +0x38`              | `B +0x38`               |
+| **Bytes**    | `0E 00 00 14`       | `0E 00 00 14`          | `0E 00 00 14`           |
 
 All three produce byte-identical `0x1400000E` — same branch delta `+0x38` (14 words)
 across all variants. Only the file offset differs between versions.
 
 ## Status
 
-`patch_skip_generate_nonce()` is active in the rewrite/JB path via
+`patch_skip_generate_nonce()` is active in the JB path via
 `IBootJBPatcher` and `fw_patch_jb.py` (iBSS JB component enabled).
