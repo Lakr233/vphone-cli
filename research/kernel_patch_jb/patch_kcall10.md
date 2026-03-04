@@ -1,97 +1,162 @@
 # C24 `patch_kcall10`
 
-## Status: NOT_BOOT (timeout, no panic)
+## Status: BOOT OK
+
+Previous status: NOT_BOOT (timeout, no panic).
 
 ## How the patch works
 - Source: `scripts/patchers/kernel_jb_patch_kcall10.py`.
 - Locator strategy:
   1. Resolve `_nosys` (symbol or `mov w0,#0x4e; ret` pattern).
-  2. Scan DATA segments for `sysent` table signature (entry decoding points to `_nosys`).
-  3. Compute `sysent[439]` (`SYS_kas_info`) entry offset.
+  2. Scan DATA segments for first entry whose decoded pointer == `_nosys`.
+  3. **Scan backward** in 24-byte steps from the match to find the real table start
+     (entry 0 is the indirect syscall handler, NOT `_nosys`).
+  4. Compute `sysent[439]` (`SYS_kas_info`) entry offset from the real base.
 - Patch action:
-  - Inject `kcall10` shellcode in code cave (argument marshalling + `blr x16` + result write-back).
-  - Rewrite `sysent[439]` fields:
-    - `sy_call` -> cave VA
-    - `sy_munge32` -> `_munge_wwwwwwww` (if resolved)
-    - return type + arg metadata.
+  - Inject `kcall10` shellcode in code cave (argument marshalling + `BLR X16` + result write-back).
+  - Rewrite `sysent[439]` fields using **proper chained fixup encoding**:
+    - `sy_call` → auth rebase pointer to cave (diversity=0xBCAD, key=IA, addrDiv=0)
+    - `sy_munge32` → `_munge_wwwwwwww` (if resolved, same encoding)
+    - return type + arg metadata (non-pointer fields, written directly).
 
-## Patcher output
+## Root cause analysis (completed)
+
+Three bugs were identified, all contributing to the NOT_BOOT failure:
+
+### Bug 1: Wrong sysent table base (CRITICAL)
+
+The old code searched DATA segments for the first entry whose decoded pointer matched
+`_nosys` and treated that as `sysent[0]`. But in XNU, entry 0 is the **indirect syscall
+handler** (`sub_FFFFFE00080073B0`, calls audit then returns ENOSYS) — NOT the simple
+`_nosys` function (`sub_FFFFFE0007F6901C`, just returns 78).
+
+The first `_nosys` match appeared **428 entries** into the table:
+- Old (wrong) sysent base: file 0x73E078, VA 0xFFFFFE0007742078
+- Real sysent base: file 0x73B858, VA 0xFFFFFE000773F858
+
+This meant the patcher was writing to `sysent[439+428] = sysent[867]`, which is way
+past the end of the 558-entry table. The patcher was corrupting unrelated DATA.
+
+**Verification via IDA:**
+- Syscall dispatch function `sub_FFFFFE00081279E4` uses `off_FFFFFE000773F858` as
+  the sysent base: `v26 = &off_FFFFFE000773F858[3 * v25]` (3 qwords = 24 bytes/entry).
+- Dispatch caps syscall number at 0x22E (558 entries max).
+- Real `sysent[439]` at VA 0xFFFFFE0007742180 has `sy_call` = `sub_FFFFFE0008077978`
+  (returns 45 / ENOTSUP = `kas_info` stub).
+
+**Fix:** After finding any `_nosys` match, scan backward in 24-byte steps. Each step
+validates: (a) `sy_call` decodes to a code range, (b) metadata fields are reasonable
+(`narg ≤ 12`, `arg_bytes ≤ 96`). Stop when validation fails or segment boundary reached.
+Limited to 558 entries max to prevent runaway scanning.
+
+### Bug 2: Raw VA written to chained fixup pointer (CRITICAL)
+
+The old code wrote `struct.pack("<Q", cave_va)` — a raw 8-byte virtual address — to
+`sysent[439].sy_call`. On arm64e kernelcaches, DATA segment pointers use **chained fixup
+encoding**, not raw VAs:
+
 ```
-_nosys found
-sysent table at file offset 0x73E078
-Shellcode at file offset 0x00AB1720 (VA 0xFFFFFE0007AB5720)
-sysent[439] at file offset 0x007409A0 (VA 0xFFFFFE00077449A0)
-35 patches emitted (32 shellcode + 3 sysent fields)
-Note: _munge_wwwwwwww NOT found — sy_munge32 field not patched
+DYLD_CHAINED_PTR_64_KERNEL_CACHE auth rebase:
+  bit[63]:     isAuth = 1
+  bits[62:51]: next (12 bits, 4-byte stride delta to next fixup)
+  bits[50:49]: key (0=IA, 1=IB, 2=DA, 3=DB)
+  bit[48]:     addrDiv (1 = address-diversified)
+  bits[47:32]: diversity (16-bit PAC discriminator)
+  bits[31:30]: cacheLevel (0 for single-level)
+  bits[29:0]:  target (file offset)
 ```
 
-## Root cause analysis (in progress)
+Writing a raw VA (e.g., `0xFFFFFE0007AB5720`) produces:
+- `isAuth=1` (bit63 of kernel VA is 1)
+- `next`, `key`, `addrDiv`, `diversity` = **garbage** from VA bits
+- `target` = bits[31:0] of VA = wrong file offset
 
-### Primary suspect: chained fixup pointer format mismatch
+This corrupts the chained fixup chain from `sysent[439]` onward, silently breaking
+all subsequent syscall entries. This explains the NOT_BOOT timeout: no panic because
+the corruption doesn't hit early boot syscalls, but init and daemons use corrupted
+handlers.
 
-The sysent table lives in a DATA segment. On arm64e kernelcaches, DATA segment
-pointers use **chained fixup encoding**, not raw virtual addresses:
+**Fix:** Implemented `_encode_chained_auth_ptr()` that properly encodes:
+- `target` = cave file offset (bits[29:0])
+- `diversity` = 0xBCAD (bits[47:32])
+- `key` = 0/IA (bits[50:49])
+- `addrDiv` = 0 (bit[48])
+- `next` = preserved from original entry (bits[62:51])
+- `isAuth` = 1 (bit[63])
 
-- **Auth rebase** (bit63=1): `file_offset = bits[31:0]`, plus diversity/key metadata
-- **Non-auth rebase** (bit63=0): `VA = (bits[50:43] << 56) | bits[42:0]`
+### Bug 3: Missing PAC signing parameters
 
-The patcher writes `struct.pack("<Q", cave_va)` — a raw 8-byte VA — to `sysent[439].sy_call`.
-This is **not valid chained fixup format**. The kernel's pointer fixup chain will either:
+The syscall dispatch at `0xFFFFFE0008127CC8`:
+```asm
+MOV  X17, #0xBCAD
+BLRAA X8, X17        ; PAC-authenticated indirect call
+```
 
-1. Misinterpret the raw VA as a chained pointer and decode it to a wrong address
-2. Break the fixup chain, corrupting subsequent sysent entries
-3. The pointer simply won't be resolved, leaving a garbage function pointer
+ALL syscall `sy_call` pointers are called via `BLRAA X8, X17` with fixed discriminator
+`X17 = 0xBCAD`. The chained fixup resolver PAC-signs each pointer during boot according
+to its metadata (diversity, key, addrDiv). For the dispatch to authenticate correctly:
+- `diversity` must be `0xBCAD`
+- `key` must be `0` (IA, matching BLRAA = key A)
+- `addrDiv` must be `0` (fixed discriminator, not address-blended)
 
-This explains the NOT_BOOT (timeout) behavior — no panic because the corrupted
-pointer is never dereferenced during early boot (syscall 439 is not called during
-init), but the fixup chain corruption may silently break other syscall entries,
-preventing the system from booting properly.
+The old code didn't set any of these — the raw VA had garbage metadata, so the
+fixup resolver would PAC-sign with wrong parameters, causing BLRAA to fail at runtime.
 
-### Fix approach (TODO)
+**Fix:** `_encode_chained_auth_ptr()` sets all three fields correctly.
 
-1. **Read raw bytes at sysent[0] and sysent[439]** via IDA MCP to confirm the
-   chained fixup pointer format (auth vs non-auth rebase)
-2. **Implement `_encode_chained_ptr()`** that produces the correct encoding:
-   - For auth rebase: set bit63=1, encode file offset in bits[31:0], set
-     appropriate key/diversity fields
-   - For non-auth rebase: encode VA with high8 bits in [50:43] and low43 in [42:0]
-3. **Use encoded pointer** when writing `sy_call` and `sy_munge32`
-4. **Verify the fixup chain** — sysent entries may be part of a linked chain
-   where each entry's `next` field points to the next pointer to fix up.
-   Breaking this chain corrupts all subsequent entries.
+### Non-issue: BLR X16 in shellcode
 
-### Secondary concerns
+The shellcode uses `BLR X16` (raw indirect branch without PAC authentication) to call
+the user-provided kernel function pointer. This is correct:
+- `BLR Xn` strips PAC bits and branches to the resulting address
+- It does NOT authenticate — so it works regardless of whether the pointer is PAC-signed
+- The kernel function pointer is provided from userspace (raw VA), so no PAC involved
 
-- **Missing `_munge_wwwwwwww`**: The symbol wasn't found. Without the correct
-  munge function, the kernel may not properly marshal syscall arguments from
-  userspace. This may cause a panic when the syscall is actually invoked.
-- **Code cave in __TEXT_EXEC**: The shellcode is placed at 0xAB1720 in __TEXT_EXEC.
-  Need to verify this region is executable at runtime (KTRR/CTRR may lock it).
-- **BLR x16 in shellcode**: The shellcode uses `BLR X16` (raw encoding
-  `0xD63F0200`). On PAC-enabled kernels, this may need to be `BLRAAZ X16` or
-  similar authenticated branch to avoid PAC traps.
+### Note: Missing `_munge_wwwwwwww`
 
-### Sysent table structure
+The symbol `_munge_wwwwwwww` was not found in this kernelcache. Without the munge
+function, the kernel won't marshal 32-bit userspace arguments for this syscall.
+This is only relevant for 32-bit callers; 64-bit callers pass arguments directly
+and should work fine. The `sy_munge32` field is left unpatched (original value).
+
+## Sysent table structure
 ```
 struct sysent {
-    sy_call_t   *sy_call;        // +0:  function pointer (8 bytes)
-    munge_t     *sy_arg_munge32; // +8:  argument munge function (8 bytes)
-    int32_t      sy_return_type; // +16: return type (4 bytes)
-    int16_t      sy_narg;        // +20: number of arguments (2 bytes)
-    uint16_t     sy_arg_bytes;   // +22: argument byte count (2 bytes)
-};  // total: 24 bytes per entry
+    sy_call_t   *sy_call;        // +0:  function pointer (8 bytes, chained fixup)
+    munge_t     *sy_arg_munge32; // +8:  argument munge function (8 bytes, chained fixup)
+    int32_t      sy_return_type; // +16: return type (4 bytes, plain int)
+    int16_t      sy_narg;        // +20: number of arguments (2 bytes, plain int)
+    uint16_t     sy_arg_bytes;   // +22: argument byte count (2 bytes, plain int)
+};  // total: 24 bytes per entry, max 558 entries (0x22E)
 ```
 
-### Key addresses
-- sysent table: file 0x73E078, VA 0xFFFFFE0007742078
-- sysent[439]: file 0x7409A0, VA 0xFFFFFE00077449A0
-- Code cave: file 0xAB1720, VA 0xFFFFFE0007AB5720
-- _nosys: found by pattern match
+## Key addresses (corrected)
+- Dispatch function: VA 0xFFFFFE00081279E4 (`sub_FFFFFE00081279E4`)
+- Real sysent base: file 0x73B858, VA 0xFFFFFE000773F858 (`off_FFFFFE000773F858`)
+- Old (wrong) sysent base: file 0x73E078, VA 0xFFFFFE0007742078 (428 entries in)
+- Real sysent[439]: file 0x73E180, VA 0xFFFFFE0007742180
+  - Original `sy_call` = `sub_FFFFFE0008077978` (returns 45/ENOTSUP = kas_info stub)
+- Old (wrong) sysent[439]: file 0x7409A0, VA 0xFFFFFE00077449A0 (actually entry 867)
+- Code cave: file 0xAB1720, VA 0xFFFFFE0007AB5720 (in __TEXT_EXEC)
+- `_nosys`: `sub_FFFFFE0007F6901C` (file offset 0xF6501C), returns 78/ENOSYS
+
+## Chained fixup data (from IDA analysis)
+```
+Dispatch sysent[0]:   sy_call = sub_FFFFFE00080073B0 (indirect syscall, audit+ENOSYS)
+                      sy_munge32 = NULL, ret=1, narg=0, bytes=0
+Dispatch sysent[1]:   sy_call = sub_FFFFFE0007FB0B6C (exit)
+                      sy_munge32 = sub_FFFFFE0007C6AC2C, ret=0, narg=1, bytes=4
+Dispatch sysent[439]: sy_call = sub_FFFFFE0008077978 (kas_info, returns ENOTSUP)
+                      sy_munge32 = sub_FFFFFE0007C6AC4C, ret=1, narg=3, bytes=12
+```
 
 ## Expected outcome
-- Replace syscall 439 handler with arbitrary 10-arg kernel call trampoline behavior.
+- Replace syscall 439 handler with arbitrary 10-arg kernel call trampoline.
+- Proper chained fixup encoding preserves the fixup chain for all subsequent entries.
+- PAC signing with diversity=0xBCAD matches the dispatch's BLRAA authentication.
 
 ## Risk
-- Syscall table rewrite is extremely invasive; wrong pointer encoding breaks
-  the fixup chain and can silently corrupt many syscall handlers.
-- BLR without PAC authentication may cause kernel traps.
+- Syscall table rewrite is invasive, but proper chained fixup encoding and chain
+  preservation should make it safe.
+- Code cave in __TEXT_EXEC is within the KTRR-protected region — already validated
+  as executable in C23 testing.

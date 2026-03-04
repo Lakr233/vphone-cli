@@ -277,6 +277,10 @@ with capstone semantic matching and keystone-generated patch bytes only:
        - Inline trampoline (B cave at function entry) replaces ops table pointer rewrite
        - Ops table pointer modification breaks chained fixup integrity → PAC failures
 24. `kcall10` syscall 439 replacement shellcode
+       - Sysent table base found via backward scan from first `_nosys` match (entry 0 is indirect syscall, not `_nosys`)
+       - `sy_call` encoded as auth rebase chained fixup pointer (diversity=0xBCAD, key=IA, addrDiv=0)
+       - Matches dispatch's `BLRAA X8, X17` with `X17=0xBCAD` PAC authentication
+       - Chain `next` field preserved from original entry to maintain fixup chain integrity
 
 ## Cross-Version Dynamic Snapshot
 
