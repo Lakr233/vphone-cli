@@ -12,7 +12,7 @@
 #   - `ipsw` tool installed (brew install blacktop/tap/ipsw)
 #   - `aea` tool available (macOS 12+)
 #   - Python: make setup_venv && source .venv/bin/activate
-#   - cfw_input/ or resources/cfw_dev_input.tar.zst present
+#   - cfw_input/ or resources/cfw_input.tar.zst + resources/cfw_dev/rpcserver_ios present
 #
 # Usage: make cfw_install_dev
 set -euo pipefail
@@ -26,7 +26,7 @@ VM_DIR="$(cd "$VM_DIR" && pwd)"
 
 # ── Configuration ───────────────────────────────────────────────
 CFW_INPUT="cfw_input"
-CFW_ARCHIVE="cfw_dev_input.tar.zst"
+CFW_ARCHIVE="cfw_input.tar.zst"
 TEMP_DIR="$VM_DIR/.cfw_temp"
 
 SSH_PORT=2222
@@ -134,6 +134,26 @@ setup_cfw_input() {
   die "Neither $CFW_INPUT/ nor $CFW_ARCHIVE found"
 }
 
+# ── Apply dev overlay (replace rpcserver_ios in iosbinpack64) ──
+apply_dev_overlay() {
+  local dev_bin
+  for search_dir in "$SCRIPT_DIR/resources/cfw_dev" "$SCRIPT_DIR/cfw_dev"; do
+    dev_bin="$search_dir/rpcserver_ios"
+    if [[ -f "$dev_bin" ]]; then
+      echo "  Applying dev overlay (rpcserver_ios)..."
+      local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
+      local tmpdir="$VM_DIR/.iosbinpack_tmp"
+      mkdir -p "$tmpdir"
+      tar -xf "$iosbinpack" -C "$tmpdir"
+      cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
+      (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
+      rm -rf "$tmpdir"
+      return
+    fi
+  done
+  die "Dev overlay not found (cfw_dev/rpcserver_ios)"
+}
+
 # ── Check prerequisites ────────────────────────────────────────
 check_prereqs() {
   command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
@@ -161,6 +181,7 @@ RESTORE_DIR=$(find_restore_dir)
 echo "[+] Restore directory: $RESTORE_DIR"
 
 setup_cfw_input
+apply_dev_overlay
 INPUT_DIR="$VM_DIR/$CFW_INPUT"
 echo "[+] Input resources: $INPUT_DIR"
 check_prerequisites
