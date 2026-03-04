@@ -55,7 +55,7 @@ MOV_X8_XZR = asm("mov x8, xzr")
 class KernelJBPatcher(KernelPatcher):
     """JB-only kernel patcher."""
 
-    def __init__(self, data, verbose=True):
+    def __init__(self, data, verbose=False):
         super().__init__(data, verbose)
         self._build_symbol_table()
 

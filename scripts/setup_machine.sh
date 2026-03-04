@@ -3,9 +3,9 @@
 #
 # Runs README flow up to (but not including) "Subsequent Boots":
 # 1) Host deps + project setup/build
-# 2) vm_new + fw_prepare + fw_patch (or fw_patch_jb with --jb)
+# 2) vm_new + fw_prepare + fw_patch (or fw_patch_dev/ fw_patch_jb with --dev/--jb)
 # 3) DFU restore (boot_dfu + restore_get_shsh + restore)
-# 4) Ramdisk + CFW (boot_dfu + ramdisk_build + ramdisk_send + iproxy + cfw_install / cfw_install_jb)
+# 4) Ramdisk + CFW (boot_dfu + ramdisk_build + ramdisk_send + iproxy + cfw_install / cfw_install_dev / cfw_install_jb)
 # 5) First boot launch (`make boot`) with printed in-guest commands
 
 set -euo pipefail
@@ -36,6 +36,7 @@ RAMDISK_SSH_PORT="${RAMDISK_SSH_PORT:-2222}"
 RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
 RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
 JB_MODE=0
+DEV_MODE=0
 SKIP_PROJECT_SETUP=0
 
 die() {
@@ -219,22 +220,19 @@ check_platform() {
 
   local major
   major="$(sw_vers -productVersion | cut -d. -f1)"
-  if [[ -z "$major" || "$major" -lt 14 ]]; then
-    die "macOS 14+ required (detected: $(sw_vers -productVersion))"
+  if [[ -z "$major" || "$major" -lt 15 ]]; then
+    die "macOS 15+ required (detected: $(sw_vers -productVersion))"
   fi
+
+  xcrun -sdk iphoneos --show-sdk-path >/dev/null 2>&1 \
+    || die "iOS SDK not found. Full Xcode is required (Command Line Tools alone does not include the iOS SDK).\n  Install Xcode from the App Store, then run:\n    sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
 }
 
 install_brew_deps() {
   require_cmd brew
 
   local deps=(
-    autoconf
-    automake
-    cmake
-    git
-    keystone
-    libtool
-    pkg-config
+    ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
     python@3.13
   )
 
@@ -443,15 +441,19 @@ parse_args() {
       --jb)
         JB_MODE=1
         ;;
+      --dev)
+        DEV_MODE=1
+        ;;
       --skip-project-setup)
         SKIP_PROJECT_SETUP=1
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: setup_machine.sh [--jb] [--skip-project-setup]
+Usage: setup_machine.sh [--jb] [--dev] [--skip-project-setup]
 
 Options:
   --jb                    Use jailbreak firmware patching + jailbreak CFW install.
+  --dev                   Use dev firmware patching + dev CFW install.
   --skip-project-setup    Skip setup_tools/build stage.
 EOF
         exit 0
@@ -468,13 +470,23 @@ main() {
 
   local fw_patch_target="fw_patch"
   local cfw_install_target="cfw_install"
+  local mode_label="base"
+
+  if [[ "$JB_MODE" -eq 1 && "$DEV_MODE" -eq 1 ]]; then
+    die "--jb and --dev are mutually exclusive"
+  fi
 
   if [[ "$JB_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_jb"
     cfw_install_target="cfw_install_jb"
+    mode_label="jailbreak"
+  elif [[ "$DEV_MODE" -eq 1 ]]; then
+    fw_patch_target="fw_patch_dev"
+    cfw_install_target="cfw_install_dev"
+    mode_label="dev"
   fi
 
-  echo "[*] setup_machine mode: $([[ "$JB_MODE" -eq 1 ]] && echo "jailbreak" || echo "base"), project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run")"
+  echo "[*] setup_machine mode: ${mode_label}, project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run")"
 
   if [[ "$SKIP_PROJECT_SETUP" -eq 1 ]]; then
     echo ""

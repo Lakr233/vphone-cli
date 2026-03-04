@@ -1,4 +1,4 @@
-<div align="right"><strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
+<div align="right"><strong><a href="./docs/README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./docs/README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./docs/README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
 
 # vphone-cli
 
@@ -15,6 +15,8 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 | Mac16,12 26.3 | `17,3_26.3_23D127` | `26.3-23D128` |
 
 ## Prerequisites
+
+**Host OS:** macOS 15+ (Sequoia) is required for PV=3 virtualization.
 
 **Disable SIP and AMFI** — required for private Virtualization.framework entitlements.
 
@@ -36,14 +38,13 @@ Restart once more.
 **Install dependencies:**
 
 ```bash
-brew install wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool
 ```
 
-**Git LFS** — this repo uses Git LFS for large resource archives. Install and pull before building:
+**Submodules** — this repo uses a git submodule for resource archives. Clone with:
 
 ```bash
-git lfs install
-git lfs pull
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```
 
 ## First setup
@@ -64,7 +65,9 @@ source .venv/bin/activate
 make build                    # build + sign vphone-cli
 make vm_new                   # create vm/ directory (ROMs, disk, SEP storage)
 make fw_prepare               # download IPSWs, extract, merge, generate manifest
-make fw_patch                 # patch boot chain (6 components, 41+ modifications)
+make fw_patch                 # patch boot chain (regular variant)
+# or: make fw_patch_dev       # dev variant (+ TXM entitlement/debug bypasses)
+# or: make fw_patch_jb        # jailbreak variant (+ full security bypass)
 ```
 
 ## Restore
@@ -185,6 +188,10 @@ AMFI is not disabled. Set the boot-arg and restart:
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 ```
 
+**Q: System apps (App Store, Messages, etc.) won't download or install.**
+
+During iOS setup, do **not** select **Japan** or **European Union** as your region. These regions enforce additional regulatory checks (e.g., sideloading disclosures, camera shutter requirements) that the virtual machine cannot satisfy, which prevents system apps from being downloaded and installed. Choose any other region (e.g., United States) to avoid this issue.
+
 **Q: I'm stuck on the "Press home to continue" screen.**
 
 Connect via VNC (`vnc://127.0.0.1:5901`) and right-click anywhere on the screen (two-finger click on a Mac trackpad). This simulates the home button press.
@@ -214,6 +221,18 @@ make fw_patch
 ```
 
 Our patches are applied via binary analysis, not static offsets, so newer versions should work. If something breaks, ask AI for help.
+
+## Firmware Variants
+
+Three patch variants are available with increasing levels of security bypass:
+
+| Variant         | Boot Chain |    CFW    | Make Targets                       |
+| --------------- | :--------: | :-------: | ---------------------------------- |
+| **Regular**     | 38 patches | 10 phases | `fw_patch` + `cfw_install`         |
+| **Development** | 47 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
+| **Jailbreak**   | 84 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
+
+See [research/patch_comparison_all_variants.md](./research/patch_comparison_all_variants.md) for the detailed per-component breakdown.
 
 ## Acknowledgements
 

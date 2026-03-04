@@ -1,4 +1,4 @@
-<div align="right"><strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong>🇨🇳中文</strong> | <strong><a href="./README.md">🇬🇧English</a></strong></div>
+<div align="right"><strong><a href="./README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong>🇨🇳中文</strong> | <strong><a href="../README.md">🇬🇧English</a></strong></div>
 
 # vphone-cli
 
@@ -15,6 +15,8 @@
 | Mac16,12 26.3 | `17,3_26.3_23D127` | `26.3-23D128` |
 
 ## 先决条件
+
+**主机系统：** PV=3 虚拟化要求 macOS 15+（Sequoia）。
 
 **禁用 SIP 和 AMFI** —— 需要私有的 Virtualization.framework 权限。
 
@@ -36,14 +38,13 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 **安装依赖：**
 
 ```bash
-brew install gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool
 ```
 
-**Git LFS** —— 本仓库使用 Git LFS 存储大型资源文件。构建前请先安装并拉取：
+**Submodules** —— 本仓库使用 git submodule 存储资源文件。克隆时请使用：
 
 ```bash
-git lfs install
-git lfs pull
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```
 
 ## 第一次设置
@@ -183,7 +184,11 @@ AMFI 未禁用。设置 boot-arg 并重启：
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 ```
 
-**问：卡在“Press home to continue”屏幕。**
+**问：系统应用（App Store、信息等）无法下载或安装。**
+
+在 iOS 初始设置过程中，请**不要**选择**日本**或**欧盟地区**作为你的国家/地区。这些地区要求额外的合规检查（如侧载披露、相机快门声等），虚拟机无法满足这些要求，因此系统应用无法正常下载安装。请选择其他地区（例如美国）以避免此问题。
+
+**问：卡在”Press home to continue”屏幕。**
 
 通过 VNC (`vnc://127.0.0.1:5901`) 连接，并在屏幕上右键单击任意位置（在 Mac 触控板上双指点击）。这会模拟 Home 按钮按下。
 
@@ -210,3 +215,9 @@ export CLOUDOS_SOURCE=/path/to/some_os.ipsw
 make fw_prepare
 make fw_patch
 ```
+
+我们的补丁是通过二进制分析（binary analysis）而非静态偏移（static offsets）应用的，因此更新的版本应该也能正常工作。如果出现问题，可以寻求 AI 的帮助。
+
+## 致谢
+
+- [wh1te4ever/super-tart-vphone-writeup](https://github.com/wh1te4ever/super-tart-vphone-writeup)

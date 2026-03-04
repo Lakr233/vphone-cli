@@ -1,0 +1,3 @@
+[submodule "scripts/resources"]
+	path = scripts/resources
+	url = https://github.com/Lakr233/vphone-cli-storage.git

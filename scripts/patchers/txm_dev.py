@@ -1,39 +1,115 @@
 #!/usr/bin/env python3
 """
-txm_jb.py — Jailbreak extension patcher for TXM images.
+txm_patcher.py — Dynamic patcher for TXM (Trusted Execution Monitor) images.
 
-All patch sites are found dynamically via string xrefs + instruction pattern
-matching. No fixed byte offsets.
+Finds TXM patch sites dynamically and applies trustcache/entitlement/developer
+mode bypasses. NO hardcoded offsets.
+
+Dependencies:  keystone-engine, capstone
 """
 
+import struct
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN as KS_MODE_LE
+from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
 
-from .txm import TXMPatcher, MOV_X0_0, _asm, _disasm_one
-
-
+# ── Assembly / disassembly singletons ──────────────────────────
 _ks = Ks(KS_ARCH_ARM64, KS_MODE_LE)
-NOP = _asm("nop")
+_cs = Cs(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN)
+_cs.detail = True
+_cs.skipdata = True
+
+
+def _asm(s):
+    enc, _ = _ks.asm(s)
+    if not enc:
+        raise RuntimeError(f"asm failed: {s}")
+    return bytes(enc)
+
+
+MOV_X0_0 = _asm("mov x0, #0")
 MOV_X0_1 = _asm("mov x0, #1")
 MOV_W0_1 = _asm("mov w0, #1")
 MOV_X0_X20 = _asm("mov x0, x20")
 STRB_W0_X20_30 = _asm("strb w0, [x20, #0x30]")
+NOP = _asm("nop")
 PACIBSP = _asm("hint #27")
 
 
-class TXMJBPatcher(TXMPatcher):
-    """JB-only TXM patcher."""
+def _disasm_one(data, off):
+    insns = list(_cs.disasm(data[off : off + 4], off))
+    return insns[0] if insns else None
+
+
+def _find_asm_pattern(data, asm_str):
+    enc, _ = _ks.asm(asm_str)
+    pattern = bytes(enc)
+    results = []
+    off = 0
+    while True:
+        idx = data.find(pattern, off)
+        if idx < 0:
+            break
+        results.append(idx)
+        off = idx + 4
+    return results
+
+
+# ── TXMPatcher ─────────────────────────────────────────────────
+
+
+class TXMPatcher:
+    """Dynamic patcher for TXM images.
+
+    Patches:
+      1. Trustcache binary-search BL → mov x0, #0
+         (in the AMFI cert verification function identified by the
+          unique constant 0x20446 loaded into w19)
+      2. Selector24 hash extraction: nop LDR X1 + nop BL
+      3. get-task-allow entitlement check BL → mov x0, #1
+      4. Selector42|29: shellcode hook + manifest flag force
+      5. debugger entitlement check BL → mov w0, #1
+      6. developer-mode guard branch → nop
+    """
+
+    def __init__(self, data, verbose=True):
+        self.data = data
+        self.raw = bytes(data)
+        self.size = len(data)
+        self.verbose = verbose
+        self.patches = []
+
+    def _log(self, msg):
+        if self.verbose:
+            print(msg)
+
+    def emit(self, off, patch_bytes, desc):
+        self.patches.append((off, patch_bytes, desc))
+        if self.verbose:
+            before_insns = list(_cs.disasm(self.raw[off : off + 4], off))
+            after_insns = list(_cs.disasm(patch_bytes, off))
+            b_str = (
+                f"{before_insns[0].mnemonic} {before_insns[0].op_str}"
+                if before_insns
+                else "???"
+            )
+            a_str = (
+                f"{after_insns[0].mnemonic} {after_insns[0].op_str}"
+                if after_insns
+                else "???"
+            )
+            print(f"  0x{off:06X}: {b_str} → {a_str}  [{desc}]")
 
     def apply(self):
         self.find_all()
         for off, pb, _ in self.patches:
             self.data[off : off + len(pb)] = pb
         if self.verbose and self.patches:
-            self._log(f"\n  [{len(self.patches)} TXM JB patches applied]")
+            self._log(f"\n  [{len(self.patches)} TXM patches applied]")
         return len(self.patches)
 
     def find_all(self):
         self.patches = []
-        self.patch_selector24_hash_extraction_nop()
+        self.patch_trustcache_bypass()
         self.patch_get_task_allow_force_true()
         self.patch_selector42_29_shellcode()
         self.patch_debugger_entitlement_force_true()
@@ -53,13 +129,6 @@ class TXMJBPatcher(TXMPatcher):
             if self.raw[scan : scan + 4] == PACIBSP:
                 return scan
         return None
-
-    def _find_func_end(self, func_start, forward=0x1200):
-        end = min(self.size, func_start + forward)
-        for scan in range(func_start + 4, end, 4):
-            if self.raw[scan : scan + 4] == PACIBSP:
-                return scan
-        return end
 
     def _find_refs_to_offset(self, target_off):
         refs = []
@@ -94,14 +163,6 @@ class TXMJBPatcher(TXMPatcher):
                     seen.add(r[0])
                     refs.append((s_off, r[0], r[1]))
         return refs
-
-    def _ref_in_function(self, refs, func_start):
-        out = []
-        for s_off, adrp_off, add_off in refs:
-            fs = self._find_func_start(adrp_off)
-            if fs == func_start:
-                out.append((s_off, adrp_off, add_off))
-        return out
 
     def _find_debugger_gate_func_start(self):
         refs = self._find_string_refs(b"com.apple.private.cs.debugger")
@@ -155,7 +216,7 @@ class TXMJBPatcher(TXMPatcher):
                     "tbz",
                     "tbnz",
                 ):
-                    # Leave 2-word safety gap after the preceding branch
+                    # Leave 2-word safety gap after the preceding branch.
                     padded = off + 8
                     if padded + need <= run:
                         return padded
@@ -168,63 +229,72 @@ class TXMJBPatcher(TXMPatcher):
             off = run + 4 if run > off else off + 4
         return best
 
-    # ── JB patches ───────────────────────────────────────────────
-    def patch_selector24_hash_extraction_nop(self):
-        """NOP the hash flags extraction BL and its LDR X1 arg setup.
+    # ═══════════════════════════════════════════════════════════
+    #  Trustcache bypass
+    #
+    #  The AMFI cert verification function has a unique constant:
+    #    mov w19, #0x2446; movk w19, #2, lsl #16  (= 0x20446)
+    #
+    #  Within that function, a binary search calls a hash-compare
+    #  function with SHA-1 size:
+    #    mov w2, #0x14; bl <hash_cmp>; cbz w0, <match>
+    #  followed by:
+    #    tbnz w0, #0x1f, <lower_half>   (sign bit = search direction)
+    #
+    #  Patch: bl <hash_cmp> → mov x0, #0
+    #    This makes cbz always branch to <match>, bypassing the
+    #    trustcache lookup entirely.
+    # ═══════════════════════════════════════════════════════════
+    def patch_trustcache_bypass(self):
+        # Step 1: Find the unique function marker (mov w19, #0x2446)
+        locs = _find_asm_pattern(self.raw, "mov w19, #0x2446")
+        if len(locs) != 1:
+            self._log(f"  [-] TXM: expected 1 'mov w19, #0x2446', found {len(locs)}")
+            return
+        marker_off = locs[0]
 
-        The CS hash validator function has a distinctive dual-BL pattern:
-            LDR  X0, [Xn, #0x30]     ; blob data
-            LDR  X1, [Xn, #0x38]     ; blob size        <-- NOP
-            ADD  X2, SP, #...        ; output ptr
-            BL   hash_flags_extract  ;                  <-- NOP
-            LDP  X0, X1, [Xn, #0x30] ; reload for 2nd call
-            ADD  X2, SP, #...
-            BL   hash_data_lookup    ; (keep)
+        # Step 2: Find the containing function (scan back for PACIBSP)
+        pacibsp = _asm("hint #27")
+        func_start = None
+        for scan in range(marker_off & ~3, max(0, marker_off - 0x200), -4):
+            if self.raw[scan : scan + 4] == pacibsp:
+                func_start = scan
+                break
+        if func_start is None:
+            self._log("  [-] TXM: function start not found")
+            return
 
-        Found via 'mov w0, #0xa1' anchor unique to this function.
-        """
-        for off in range(0, self.size - 4, 4):
-            ins = _disasm_one(self.raw, off)
-            if not (ins and ins.mnemonic == "mov" and ins.op_str == "w0, #0xa1"):
+        # Step 3: Within the function, find mov w2, #0x14; bl; cbz w0; tbnz w0, #0x1f
+        func_end = min(func_start + 0x2000, self.size)
+        insns = list(_cs.disasm(self.raw[func_start:func_end], func_start))
+
+        for i, ins in enumerate(insns):
+            if not (ins.mnemonic == "mov" and ins.op_str == "w2, #0x14"):
                 continue
-
-            func_start = self._find_func_start(off)
-            if func_start is None:
+            if i + 3 >= len(insns):
                 continue
+            bl_ins = insns[i + 1]
+            cbz_ins = insns[i + 2]
+            tbnz_ins = insns[i + 3]
+            if (
+                bl_ins.mnemonic == "bl"
+                and cbz_ins.mnemonic == "cbz"
+                and "w0" in cbz_ins.op_str
+                and tbnz_ins.mnemonic in ("tbnz", "tbz")
+                and "#0x1f" in tbnz_ins.op_str
+            ):
+                self.emit(
+                    bl_ins.address, MOV_X0_0, "trustcache bypass: bl → mov x0, #0"
+                )
+                return
 
-            # Scan function for: LDR X1,[Xn,#0x38] / ADD X2,... / BL / LDP
-            for scan in range(func_start, off, 4):
-                i0 = _disasm_one(self.raw, scan)
-                i1 = _disasm_one(self.raw, scan + 4)
-                i2 = _disasm_one(self.raw, scan + 8)
-                i3 = _disasm_one(self.raw, scan + 12)
-                if not all((i0, i1, i2, i3)):
-                    continue
-                if not (
-                    i0.mnemonic == "ldr"
-                    and "x1," in i0.op_str
-                    and "#0x38]" in i0.op_str
-                ):
-                    continue
-                if not (i1.mnemonic == "add" and i1.op_str.startswith("x2,")):
-                    continue
-                if i2.mnemonic != "bl":
-                    continue
-                if i3.mnemonic != "ldp":
-                    continue
-
-                self.emit(scan, NOP, "selector24 CS: nop ldr x1,[xN,#0x38]")
-                self.emit(scan + 8, NOP, "selector24 CS: nop bl hash_flags_extract")
-                return True
-
-        self._log("  [-] TXM JB: selector24 hash extraction site not found")
-        return False
+        self._log("  [-] TXM: binary search pattern not found in function")
 
     def patch_get_task_allow_force_true(self):
         """Force get-task-allow entitlement call to return true."""
         refs = self._find_string_refs(b"get-task-allow")
         if not refs:
-            self._log("  [-] TXM JB: get-task-allow string refs not found")
+            self._log("  [-] TXM: get-task-allow string refs not found")
             return False
 
         cands = []
@@ -243,7 +313,7 @@ class TXMJBPatcher(TXMPatcher):
 
         if len(cands) != 1:
             self._log(
-                f"  [-] TXM JB: expected 1 get-task-allow BL site, found {len(cands)}"
+                f"  [-] TXM: expected 1 get-task-allow BL site, found {len(cands)}"
             )
             return False
 
@@ -254,7 +324,7 @@ class TXMJBPatcher(TXMPatcher):
         """Selector 42|29 patch via dynamic cave shellcode + branch redirect."""
         fn = self._find_debugger_gate_func_start()
         if fn is None:
-            self._log("  [-] TXM JB: debugger-gate function not found (selector42|29)")
+            self._log("  [-] TXM: debugger-gate function not found (selector42|29)")
             return False
 
         stubs = []
@@ -287,15 +357,13 @@ class TXMJBPatcher(TXMPatcher):
                 stubs.append(off)
 
         if len(stubs) != 1:
-            self._log(
-                f"  [-] TXM JB: selector42|29 stub expected 1, found {len(stubs)}"
-            )
+            self._log(f"  [-] TXM: selector42|29 stub expected 1, found {len(stubs)}")
             return False
         stub_off = stubs[0]
 
         cave = self._find_udf_cave(min_insns=6, near_off=stub_off)
         if cave is None:
-            self._log("  [-] TXM JB: no UDF cave found for selector42|29 shellcode")
+            self._log("  [-] TXM: no UDF cave found for selector42|29 shellcode")
             return False
 
         self.emit(
@@ -320,7 +388,7 @@ class TXMJBPatcher(TXMPatcher):
         """Force debugger entitlement call to return true."""
         refs = self._find_string_refs(b"com.apple.private.cs.debugger")
         if not refs:
-            self._log("  [-] TXM JB: debugger refs not found")
+            self._log("  [-] TXM: debugger refs not found")
             return False
 
         cands = []
@@ -344,7 +412,7 @@ class TXMJBPatcher(TXMPatcher):
                     cands.append(scan)
 
         if len(cands) != 1:
-            self._log(f"  [-] TXM JB: expected 1 debugger BL site, found {len(cands)}")
+            self._log(f"  [-] TXM: expected 1 debugger BL site, found {len(cands)}")
             return False
 
         self.emit(cands[0], MOV_W0_1, "debugger entitlement: bl -> mov w0,#1")
@@ -356,7 +424,7 @@ class TXMJBPatcher(TXMPatcher):
             b"developer mode enabled due to system policy configuration"
         )
         if not refs:
-            self._log("  [-] TXM JB: developer-mode string ref not found")
+            self._log("  [-] TXM: developer-mode string ref not found")
             return False
 
         cands = []
@@ -373,9 +441,41 @@ class TXMJBPatcher(TXMPatcher):
 
         if len(cands) != 1:
             self._log(
-                f"  [-] TXM JB: expected 1 developer mode guard, found {len(cands)}"
+                f"  [-] TXM: expected 1 developer mode guard, found {len(cands)}"
             )
             return False
 
         self.emit(cands[0], NOP, "developer mode bypass")
         return True
+
+
+# ── CLI entry point ────────────────────────────────────────────
+if __name__ == "__main__":
+    import sys, argparse
+
+    parser = argparse.ArgumentParser(description="Dynamic TXM patcher")
+    parser.add_argument("txm", help="Path to raw or IM4P TXM image")
+    parser.add_argument("-q", "--quiet", action="store_true")
+    args = parser.parse_args()
+
+    print(f"Loading {args.txm}...")
+    file_raw = open(args.txm, "rb").read()
+
+    try:
+        from pyimg4 import IM4P
+
+        im4p = IM4P(file_raw)
+        if im4p.payload.compression:
+            im4p.payload.decompress()
+        payload = im4p.payload.data
+        print(f"  format: IM4P (fourcc={im4p.fourcc})")
+    except Exception:
+        payload = file_raw
+        print(f"  format: raw")
+
+    data = bytearray(payload)
+    print(f"  size:   {len(data)} bytes ({len(data) / 1024:.1f} KB)\n")
+
+    patcher = TXMPatcher(data, verbose=not args.quiet)
+    n = patcher.apply()
+    print(f"\n  {n} patches applied.")

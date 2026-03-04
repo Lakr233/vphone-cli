@@ -19,14 +19,22 @@ from fw_patch import (
     load_firmware,
     save_firmware,
 )
+from patchers.iboot_jb import IBootJBPatcher
 from patchers.kernel_jb import KernelJBPatcher
 from patchers.txm_jb import TXMJBPatcher
 
 
 def patch_kernelcache_jb(data):
-    kp = KernelJBPatcher(data, verbose=True)
+    kp = KernelJBPatcher(data)
     n = kp.apply()
     print(f"  [+] {n} kernel JB patches applied dynamically")
+    return n > 0
+
+
+def patch_ibss_jb(data):
+    p = IBootJBPatcher(data, mode="ibss", label="Loaded iBSS")
+    n = p.apply()
+    print(f"  [+] {n} iBSS JB patches applied dynamically")
     return n > 0
 
 
@@ -39,7 +47,7 @@ def patch_txm_jb(data):
 
 COMPONENTS = [
     # (name, search_base_is_restore, search_patterns, patch_function, preserve_payp)
-    # NOTE: iBSS nonce skip removed — nonce is not required for boot.
+    ("iBSS (JB)", True, ["Firmware/dfu/iBSS.vresearch101.RELEASE.im4p"], patch_ibss_jb, False),
     ("TXM (JB)", True, ["Firmware/txm.iphoneos.research.im4p"], patch_txm_jb, True),
     (
         "kernelcache (JB)",

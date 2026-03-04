@@ -81,12 +81,13 @@ def _rd64(buf, off):
 class KernelPatcher:
     """Dynamic kernel patcher — all offsets found at runtime."""
 
-    def __init__(self, data, verbose=True):
+    def __init__(self, data, verbose=False):
         self.data = data  # bytearray (mutable)
         self.raw = bytes(data)  # immutable snapshot for searching
         self.size = len(data)
         self.patches = []  # collected (offset, bytes, description)
         self.verbose = verbose
+        self._patch_num = 0  # running counter for clean one-liners
 
         self._log("[*] Parsing Mach-O segments …")
         self._parse_macho()
@@ -515,6 +516,8 @@ class KernelPatcher:
         """
         self.patches.append((off, patch_bytes, desc))
         self.data[off : off + len(patch_bytes)] = patch_bytes
+        self._patch_num += 1
+        print(f"  [{self._patch_num:2d}] 0x{off:08X}  {desc}")
         if self.verbose:
             self._print_patch_context(off, patch_bytes, desc)
 
@@ -1387,6 +1390,7 @@ class KernelPatcher:
     def find_all(self):
         """Find and record all kernel patches.  Returns list of (offset, bytes, desc)."""
         self.patches = []
+        self._patch_num = 0
         self.patch_apfs_root_snapshot()  #  1
         self.patch_apfs_seal_broken()  #  2
         self.patch_bsd_init_rootvp()  #  3
@@ -1404,22 +1408,12 @@ class KernelPatcher:
 
     def apply(self):
         """Find all patches and apply them to self.data.  Returns patch count."""
+        self._patch_num = 0
         patches = self.find_all()
+        # emit() already writes patches through to self.data,
+        # but re-apply in case subclasses override find_all().
         for off, patch_bytes, desc in patches:
             self.data[off : off + len(patch_bytes)] = patch_bytes
-
-        if self.verbose and patches:
-            self._log(f"\n{'═' * 60}")
-            self._log(f"VERIFICATION: {len(patches)} patches applied")
-            self._log(f"{'═' * 60}")
-            for off, patch_bytes, desc in sorted(patches):
-                insns = self._disas_n(self.data, off, len(patch_bytes) // 4)
-                if insns:
-                    dis_str = "; ".join(f"{i.mnemonic} {i.op_str}" for i in insns)
-                else:
-                    dis_str = "???"
-                self._log(f"  0x{off:08X}: {dis_str:40s} — {desc}")
-
         return len(patches)
 
 
@@ -1432,17 +1426,17 @@ if __name__ == "__main__":
     )
     parser.add_argument("kernelcache", help="Path to raw or IM4P kernelcache")
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show detailed before/after disassembly for each patch",
+    )
+    parser.add_argument(
         "-c",
         "--context",
         type=int,
         default=5,
-        help="Instructions of context before/after each patch (default: 5)",
-    )
-    parser.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="Suppress index-building progress (only show patches)",
+        help="Instructions of context before/after each patch (default: 5, requires -v)",
     )
     args = parser.parse_args()
 
@@ -1470,57 +1464,59 @@ if __name__ == "__main__":
     data = bytearray(payload)
     print(f"  size:   {len(data)} bytes ({len(data) / 1024 / 1024:.1f} MB)\n")
 
-    kp = KernelPatcher(data, verbose=not args.quiet)
+    kp = KernelPatcher(data, verbose=args.verbose)
     patches = kp.find_all()
+    print(f"\n  {len(patches)} patches found")
 
-    # ── Print ranged before / after disassembly for every patch ──
-    ctx = args.context
+    if args.verbose:
+        # ── Print ranged before / after disassembly for every patch ──
+        ctx = args.context
 
-    print(f"\n{'═' * 72}")
-    print(f"  {len(patches)} PATCHES — before / after disassembly (context={ctx})")
-    print(f"{'═' * 72}")
+        print(f"\n{'═' * 72}")
+        print(f"  {len(patches)} PATCHES — before / after disassembly (context={ctx})")
+        print(f"{'═' * 72}")
 
-    # Apply patches to get the "after" image
-    after = bytearray(kp.raw)  # start from original
-    for off, pb, _ in patches:
-        after[off : off + len(pb)] = pb
+        # Apply patches to get the "after" image
+        after = bytearray(kp.raw)  # start from original
+        for off, pb, _ in patches:
+            after[off : off + len(pb)] = pb
 
-    for i, (off, patch_bytes, desc) in enumerate(sorted(patches), 1):
-        n_insns = len(patch_bytes) // 4
-        start = max(off - ctx * 4, 0)
-        end = off + n_insns * 4 + ctx * 4
-        total = (end - start) // 4
+        for i, (off, patch_bytes, desc) in enumerate(sorted(patches), 1):
+            n_insns = len(patch_bytes) // 4
+            start = max(off - ctx * 4, 0)
+            end = off + n_insns * 4 + ctx * 4
+            total = (end - start) // 4
 
-        before_insns = kp._disas_n(kp.raw, start, total)
-        after_insns = kp._disas_n(after, start, total)
+            before_insns = kp._disas_n(kp.raw, start, total)
+            after_insns = kp._disas_n(after, start, total)
 
-        print(f"\n  ┌{'─' * 70}")
-        print(f"  │ [{i:2d}] 0x{off:08X}: {desc}")
-        print(f"  ├{'─' * 34}┬{'─' * 35}")
-        print(f"  │ {'BEFORE':^33}│ {'AFTER':^34}")
-        print(f"  ├{'─' * 34}┼{'─' * 35}")
+            print(f"\n  ┌{'─' * 70}")
+            print(f"  │ [{i:2d}] 0x{off:08X}: {desc}")
+            print(f"  ├{'─' * 34}┬{'─' * 35}")
+            print(f"  │ {'BEFORE':^33}│ {'AFTER':^34}")
+            print(f"  ├{'─' * 34}┼{'─' * 35}")
 
-        # Build line pairs
-        max_lines = max(len(before_insns), len(after_insns))
-        for j in range(max_lines):
+            # Build line pairs
+            max_lines = max(len(before_insns), len(after_insns))
+            for j in range(max_lines):
 
-            def fmt(insn):
-                if insn is None:
-                    return " " * 33
-                h = insn.bytes.hex()
-                return f"0x{insn.address:07X} {h:8s} {insn.mnemonic:6s} {insn.op_str}"
+                def fmt(insn):
+                    if insn is None:
+                        return " " * 33
+                    h = insn.bytes.hex()
+                    return f"0x{insn.address:07X} {h:8s} {insn.mnemonic:6s} {insn.op_str}"
 
-            bi = before_insns[j] if j < len(before_insns) else None
-            ai = after_insns[j] if j < len(after_insns) else None
+                bi = before_insns[j] if j < len(before_insns) else None
+                ai = after_insns[j] if j < len(after_insns) else None
 
-            bl = fmt(bi)
-            al = fmt(ai)
+                bl = fmt(bi)
+                al = fmt(ai)
 
-            # Mark if this address is inside the patched range
-            addr = (bi.address if bi else ai.address) if (bi or ai) else 0
-            in_patch = off <= addr < off + len(patch_bytes)
-            marker = " ◄" if in_patch else "  "
+                # Mark if this address is inside the patched range
+                addr = (bi.address if bi else ai.address) if (bi or ai) else 0
+                in_patch = off <= addr < off + len(patch_bytes)
+                marker = " ◄" if in_patch else "  "
 
-            print(f"  │ {bl:33s}│ {al:33s}{marker}")
+                print(f"  │ {bl:33s}│ {al:33s}{marker}")
 
-        print(f"  └{'─' * 34}┴{'─' * 35}")
+            print(f"  └{'─' * 34}┴{'─' * 35}")

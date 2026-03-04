@@ -5,41 +5,41 @@ and PCC-CloudOS 26.3 (23D128) IPSWs.
 
 ## Source Files
 
-| Source | Variant | IM4P Size | SHA256 |
-|--------|---------|-----------|--------|
-| cloudos | release | 161025 | `3453eb476cfb53d8...` |
-| cloudos | research | 161028 | `93ad9e382d8c6353...` |
-| iphone | release | 161025 | `3453eb476cfb53d8...` |
-| iphone | research | 161028 | `93ad9e382d8c6353...` |
+| Source  | Variant  | IM4P Size | SHA256                |
+| ------- | -------- | --------- | --------------------- |
+| cloudos | release  | 161025    | `3453eb476cfb53d8...` |
+| cloudos | research | 161028    | `93ad9e382d8c6353...` |
+| iphone  | release  | 161025    | `3453eb476cfb53d8...` |
+| iphone  | research | 161028    | `93ad9e382d8c6353...` |
 
 **Key finding:** Both IPSWs contain identical TXM files (same SHA256).
 The TXM binary is shared across iPhone and cloudOS IPSWs.
 
 ## Decompressed Binary Overview
 
-| Property | RELEASE | RESEARCH |
-|----------|---------|----------|
-| Compressed size | 160726 bytes | 160729 bytes |
-| Decompressed size | 458784 bytes | 458784 bytes |
-| Compression | BVX2 (LZFSE) | BVX2 (LZFSE) |
-| Format | Mach-O 64-bit ARM64 | Mach-O 64-bit ARM64 |
-| SHA256 | `bfc493e3c7b7dc00...` | `62f40b9cd32a2a03...` |
-| File type | 2 (MH_EXECUTE) | 2 (MH_EXECUTE) |
-| Load commands | 11 | 11 |
-| Flags | `0x00200001` | `0x00200001` |
+| Property          | RELEASE               | RESEARCH              |
+| ----------------- | --------------------- | --------------------- |
+| Compressed size   | 160726 bytes          | 160729 bytes          |
+| Decompressed size | 458784 bytes          | 458784 bytes          |
+| Compression       | BVX2 (LZFSE)          | BVX2 (LZFSE)          |
+| Format            | Mach-O 64-bit ARM64   | Mach-O 64-bit ARM64   |
+| SHA256            | `bfc493e3c7b7dc00...` | `62f40b9cd32a2a03...` |
+| File type         | 2 (MH_EXECUTE)        | 2 (MH_EXECUTE)        |
+| Load commands     | 11                    | 11                    |
+| Flags             | `0x00200001`          | `0x00200001`          |
 
 ## Mach-O Segments
 
 Both variants have identical segment layout:
 
-| Segment | VM Address | VM Size | File Offset | File Size |
-|---------|------------|---------|-------------|-----------|
-| `__TEXT` | `0xfffffff017004000` | `0x10000` | `0x0` | `0x10000` |
-| `__DATA_CONST` | `0xfffffff017014000` | `0xc000` | `0x10000` | `0xc000` |
-| `__TEXT_EXEC` | `0xfffffff017020000` | `0x44000` | `0x1c000` | `0x44000` |
-| `__TEXT_BOOT_EXEC` | `0xfffffff017064000` | `0xc000` | `0x60000` | `0xc000` |
-| `__DATA` | `0xfffffff017070000` | `0x4000` | `0x6c000` | `0x4000` |
-| `__LINKEDIT` | `0xfffffff017074000` | `0x4000` | `0x70000` | `0x20` |
+| Segment            | VM Address           | VM Size   | File Offset | File Size |
+| ------------------ | -------------------- | --------- | ----------- | --------- |
+| `__TEXT`           | `0xfffffff017004000` | `0x10000` | `0x0`       | `0x10000` |
+| `__DATA_CONST`     | `0xfffffff017014000` | `0xc000`  | `0x10000`   | `0xc000`  |
+| `__TEXT_EXEC`      | `0xfffffff017020000` | `0x44000` | `0x1c000`   | `0x44000` |
+| `__TEXT_BOOT_EXEC` | `0xfffffff017064000` | `0xc000`  | `0x60000`   | `0xc000`  |
+| `__DATA`           | `0xfffffff017070000` | `0x4000`  | `0x6c000`   | `0x4000`  |
+| `__LINKEDIT`       | `0xfffffff017074000` | `0x4000`  | `0x70000`   | `0x20`    |
 
 Segment layout identical: **True**
 
@@ -50,10 +50,10 @@ Segment layout identical: **True**
 
 ### Diffs by Segment
 
-| Segment | Regions | Bytes Changed | % of Segment |
-|---------|---------|---------------|--------------|
-| `__TEXT` | 3 | 3304 | 5.04% |
-| `__TEXT_EXEC` | 84 | 409 | 0.15% |
+| Segment       | Regions | Bytes Changed | % of Segment |
+| ------------- | ------- | ------------- | ------------ |
+| `__TEXT`      | 3       | 3304          | 5.04%        |
+| `__TEXT_EXEC` | 84      | 409           | 0.15%        |
 
 ## Diff Classification
 
@@ -62,12 +62,13 @@ Segment layout identical: **True**
 The largest diff region (`0x17c5` - `0x2496`, 3282 bytes) is in the `__TEXT` segment
 string/const data area. The key difference is the build variant identifier:
 
-| Offset | RELEASE | RESEARCH |
-|--------|---------|----------|
+| Offset   | RELEASE                                          | RESEARCH                                          |
+| -------- | ------------------------------------------------ | ------------------------------------------------- |
 | `0x17c5` | `lease.TrustedExecutionMonitor_Guarded-182.40.3` | `search.TrustedExecutionMonitor_Guarded-182.40.3` |
-| `0xcb7f` | `lease` | `search` |
+| `0xcb7f` | `lease`                                          | `search`                                          |
 
 Full build string:
+
 - **RELEASE:** `release.TrustedExecutionMonitor_Guarded-182.40.3`
 - **RESEARCH:** `research.TrustedExecutionMonitor_Guarded-182.40.3`
 
@@ -91,8 +92,8 @@ RESEARCH: add  x8, x8, #0x823   ; points to same string, shifted +1
 
 Sample code diffs (first 10):
 
-| Offset | RELEASE instruction | RESEARCH instruction |
-|--------|---------------------|----------------------|
+| Offset    | RELEASE instruction  | RESEARCH instruction |
+| --------- | -------------------- | -------------------- |
 | `0x2572c` | `add x8, x8, #0x822` | `add x8, x8, #0x823` |
 | `0x25794` | `add x8, x8, #0x861` | `add x8, x8, #0x862` |
 | `0x257d8` | `add x0, x0, #0x877` | `add x0, x0, #0x878` |
@@ -104,7 +105,7 @@ Sample code diffs (first 10):
 | `0x25c58` | `add x2, x2, #0x919` | `add x2, x2, #0x91a` |
 | `0x25c98` | `add x0, x0, #0x927` | `add x0, x0, #0x928` |
 
-### 4. Functional Differences
+### 3. Functional Differences
 
 **None.** All code diffs are string pointer adjustments caused by the 1-byte
 shift from `"release"` to `"research"`. The two variants are **functionally
@@ -114,24 +115,24 @@ identical** — same logic, same security policies, same code paths.
 
 Both variants contain identical security-relevant strings:
 
-| Offset | String |
-|--------|--------|
-| `0xd31` | `restricted execution mode` |
-| `0x1919` | `debug-enabled` |
-| `0x1a4e` | `darwinos-security-environment` |
-| `0x1ad0` | `security-mode-change-enable` |
-| `0x1b4b` | `amfi-only-platform-code` |
-| `0x1bd6` | `research-enabled` |
+| Offset   | String                            |
+| -------- | --------------------------------- |
+| `0xd31`  | `restricted execution mode`       |
+| `0x1919` | `debug-enabled`                   |
+| `0x1a4e` | `darwinos-security-environment`   |
+| `0x1ad0` | `security-mode-change-enable`     |
+| `0x1b4b` | `amfi-only-platform-code`         |
+| `0x1bd6` | `research-enabled`                |
 | `0x1c4c` | `sec-research-device-erm-enabled` |
-| `0x1cca` | `vmm-present` |
-| `0x1d33` | `sepfw-load-at-boot` |
-| `0x1de8` | `sepfw-never-boot` |
-| `0x1e85` | `osenvironment` |
-| `0x1ec4` | `device-recovery` |
-| `0x1f81` | `TrustCache` |
-| `0x202a` | `iboot-build-variant` |
-| `0x20a9` | `development` |
-| `0x23da` | `image4 dispatch` |
+| `0x1cca` | `vmm-present`                     |
+| `0x1d33` | `sepfw-load-at-boot`              |
+| `0x1de8` | `sepfw-never-boot`                |
+| `0x1e85` | `osenvironment`                   |
+| `0x1ec4` | `device-recovery`                 |
+| `0x1f81` | `TrustCache`                      |
+| `0x202a` | `iboot-build-variant`             |
+| `0x20a9` | `development`                     |
+| `0x23da` | `image4 dispatch`                 |
 
 ## Implications for Patching
 

@@ -63,18 +63,30 @@ fetch() {
 fetch "$IPHONE_SOURCE" "$IPHONE_IPSW_PATH"
 fetch "$CLOUDOS_SOURCE" "$CLOUDOS_IPSW_PATH"
 
-# ── Extract ───────────────────────────────────────────────────────────
+# ── Extract (cached in IPSW_DIR, cloned to workdir via APFS COW) ─────
+IPHONE_CACHE="${IPSW_DIR}/${IPHONE_DIR}"
+CLOUDOS_CACHE="${IPSW_DIR}/${CLOUDOS_DIR}"
+
 extract() {
-    local zip="$1" dir="$2"
-    rm -rf "$dir"
-    echo "==> Extracting $zip ..."
-    mkdir -p "$dir"
-    unzip -oq "$zip" -d "$dir"
-    chmod -R u+w "$dir"
+    local zip="$1" cache="$2" out="$3"
+    # Extract to cache if not already done
+    if [[ -d "$cache" && -n "$(ls -A "$cache" 2>/dev/null)" ]]; then
+        echo "==> Cached: ${cache##*/}"
+    else
+        rm -rf "$cache"
+        echo "==> Extracting ${zip##*/} ..."
+        mkdir -p "$cache"
+        unzip -oq "$zip" -d "$cache"
+        chmod -R u+w "$cache"
+    fi
+    # Clone from cache to working dir (APFS instant copy-on-write)
+    rm -rf "$out"
+    echo "==> Cloning ${cache##*/} → ${out##*/} ..."
+    cp -cR "$cache" "$out"
 }
 
-extract "$IPHONE_IPSW_PATH" "$IPHONE_DIR"
-extract "$CLOUDOS_IPSW_PATH" "$CLOUDOS_DIR"
+extract "$IPHONE_IPSW_PATH" "$IPHONE_CACHE" "$IPHONE_DIR"
+extract "$CLOUDOS_IPSW_PATH" "$CLOUDOS_CACHE" "$CLOUDOS_DIR"
 
 # ── Merge cloudOS firmware into iPhone restore directory ──────────────
 echo "==> Importing cloudOS firmware components ..."
