@@ -223,6 +223,9 @@ check_platform() {
   if [[ -z "$major" || "$major" -lt 15 ]]; then
     die "macOS 15+ required (detected: $(sw_vers -productVersion))"
   fi
+
+  xcrun -sdk iphoneos --show-sdk-path >/dev/null 2>&1 \
+    || die "iOS SDK not found. Full Xcode is required (Command Line Tools alone does not include the iOS SDK).\n  Install Xcode from the App Store, then run:\n    sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
 }
 
 install_brew_deps() {
