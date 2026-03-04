@@ -16,6 +16,8 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 
 ## 前提条件
 
+**ホストOS:** PV=3 仮想化には macOS 15+（Sequoia）が必要です。
+
 **SIPとAMFIを無効化** — プライベートな Virtualization.framework の entitlement を使うために必要です。
 
 復旧モードで起動し（電源ボタンを長押し）、ターミナルを開いて以下を実行します：

@@ -16,6 +16,8 @@
 
 ## 先决条件
 
+**主机系统：** PV=3 虚拟化要求 macOS 15+（Sequoia）。
+
 **禁用 SIP 和 AMFI** —— 需要私有的 Virtualization.framework 权限。
 
 重启到恢复模式（长按电源键），打开终端：

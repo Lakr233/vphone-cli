@@ -16,6 +16,8 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 
 ## Prerequisites
 
+**Host OS:** macOS 15+ (Sequoia) is required for PV=3 virtualization.
+
 **Disable SIP and AMFI** — required for private Virtualization.framework entitlements.
 
 Boot into Recovery (long press power button), open Terminal:

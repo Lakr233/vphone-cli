@@ -219,8 +219,8 @@ check_platform() {
 
   local major
   major="$(sw_vers -productVersion | cut -d. -f1)"
-  if [[ -z "$major" || "$major" -lt 14 ]]; then
-    die "macOS 14+ required (detected: $(sw_vers -productVersion))"
+  if [[ -z "$major" || "$major" -lt 15 ]]; then
+    die "macOS 15+ required (detected: $(sw_vers -productVersion))"
   fi
 }
 

@@ -16,6 +16,8 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 
 ## 사전 요구 사항
 
+**호스트 OS:** PV=3 가상화를 위해 macOS 15+(Sequoia)가 필요합니다.
+
 **SIP 및 AMFI 비활성화** — Private Virtualization.framework 권한을 사용하기 위해 필요합니다.
 
 복구 모드(전원 버튼 길게 누르기)로 부팅한 후 터미널을 엽니다:
