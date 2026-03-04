@@ -3,6 +3,151 @@
 Analysis of 6 logical TXM jailbreak patches (11 instruction modifications) applied by `txm_jb.py` on the RESEARCH variant
 of TXM from iPhone17,3 / PCC-CloudOS 26.x.
 
+## TXM Execution Model
+
+TXM runs at a guested exception level (GL) under SPTM's supervision:
+
+```
+SPTM (GL2) — Secure Page Table Monitor
+  ↕ svc #0
+TXM (GL1) — Trusted Execution Monitor
+  ↕ trap
+Kernel (EL1/GL0)
+```
+
+SPTM dispatches selector calls into TXM. TXM **cannot** execute SPTM code
+(instruction fetch permission fault). TXM must return to SPTM via `svc #0`.
+
+---
+
+## Return Path: TXM → SPTM
+
+All TXM functions return through this chain:
+
+```
+TXM function
+  → bl return_helper (0x26c04)
+    → bl return_trap_stub (0x49b40)
+      → movk x16, ... (set SPTM return code)
+      → b trampoline (0x60000)
+        → pacibsp
+        → svc #0          ← traps to SPTM
+        → retab            ← resumes after SPTM returns
+```
+
+### Trampoline at 0x60000 (`__TEXT_BOOT_EXEC`)
+
+```asm
+0x060000: pacibsp
+0x060004: svc    #0           ; supervisor call → SPTM handles the trap
+0x060008: retab               ; return after SPTM gives control back
+```
+
+### Return Trap Stub at 0x49B40 (`__TEXT_EXEC`)
+
+```asm
+0x049B40: bti    c
+0x049B44: movk   x16, #0, lsl #48
+0x049B48: movk   x16, #0xfd, lsl #32    ; x16 = 0x000000FD00000000
+0x049B4C: movk   x16, #0, lsl #16       ; (SPTM return code identifier)
+0x049B50: movk   x16, #0
+0x049B54: b      #0x60000               ; → trampoline → svc #0
+```
+
+x16 carries a return code that SPTM uses to identify which TXM operation completed.
+
+### Return Helper at 0x26C04 (`__TEXT_EXEC`)
+
+```asm
+0x026C04: pacibsp
+0x026C08: stp    x20, x19, [sp, #-0x20]!
+0x026C0C: stp    x29, x30, [sp, #0x10]
+0x026C10: add    x29, sp, #0x10
+0x026C14: mov    x19, x0              ; save result code
+0x026C18: bl     #0x29024             ; get TXM context
+0x026C1C: ldrb   w8, [x0]            ; check context flag
+0x026C20: cbz    w8, #0x26c30
+0x026C24: mov    x20, x0
+0x026C28: bl     #0x29010             ; cleanup if flag set
+0x026C2C: strb   wzr, [x20, #0x58]
+0x026C30: mov    x0, x19              ; restore result
+0x026C34: bl     #0x49b40             ; → svc #0 → SPTM
+```
+
+---
+
+## Error Handler
+
+### Error Handler at 0x25924
+
+```asm
+0x025924: pacibsp
+...
+0x025978: stp    x19, x20, [sp]       ; x19=error_code, x20=param
+0x02597C: adrp   x0, #0x1000
+0x025980: add    x0, x0, #0x8d8       ; format string
+0x025984: bl     #0x25744             ; log error → eventually svc #0
+```
+
+### Panic Format
+
+`TXM [Error]: CodeSignature: selector: 24 | 0xA1 | 0x30 | 1`
+
+This is a **kernel-side** message (not in TXM binary). The kernel receives the
+non-zero return from the `svc #0` trap and formats the error:
+`selector: <selector_num> | <low_byte> | <mid_byte> | <high_byte>`
+
+For `0x000130A1`: low=`0xA1`, mid=`0x30`, high=`0x1` → `| 0xA1 | 0x30 | 1`
+
+---
+
+## Why `ret`/`retab` Fails
+
+> **Historical reference:** These three failed attempts document why patching TXM
+> functions to return early via normal return instructions does not work. The only
+> viable path is to let the function proceed through the normal `svc #0` return chain
+> (see [Return Path](#return-path-txm--sptm) above).
+
+### Attempt 1: `mov x0, #0; retab` replacing PACIBSP
+
+```
+0x026C80: mov x0, #0     ; (was pacibsp)
+0x026C84: retab           ; verify PAC on LR → FAIL
+```
+
+**Result**: `[TXM] Unhandled synchronous exception at pc 0x...6C84`
+
+RETAB tries to verify the PAC signature on LR. Since PACIBSP was replaced,
+LR was never signed. RETAB detects the invalid PAC → exception.
+
+### Attempt 2: `mov x0, #0; ret` replacing PACIBSP
+
+```
+0x026C80: mov x0, #0     ; (was pacibsp)
+0x026C84: ret             ; jump to LR (SPTM address)
+```
+
+**Result**: `[TXM] Unhandled synchronous exception at pc 0x...FA88` (SPTM space)
+
+`ret` strips PAC and jumps to clean LR, which points to SPTM code (the caller).
+TXM cannot execute SPTM code → **instruction fetch permission fault** (ESR EC=0x20, IFSC=0xF).
+
+### Attempt 3: `pacibsp; mov x0, #0; retab`
+
+```
+0x026C80: pacibsp         ; signs LR correctly
+0x026C84: mov x0, #0
+0x026C88: retab           ; verifies PAC (OK), jumps to LR (SPTM address)
+```
+
+**Result**: Same permission fault — RETAB succeeds (PAC valid), but the return
+address is in SPTM space. TXM still cannot execute there.
+
+**Conclusion**: No form of `ret`/`retab` works because the **caller is SPTM**
+and TXM cannot return to SPTM via normal returns. The only way back is `svc #0`.
+
+---
+
 ## Address Mapping
 
 | Segment            | VM Address           | File Offset | Size      |
@@ -17,7 +162,7 @@ Conversion: `VA = file_offset - 0x1c000 + 0xFFFFFFF017020000` (for `__TEXT_EXEC`
 ## TXM Selector Dispatch
 
 All TXM operations enter through a single dispatch function (`sub_FFFFFFF01702AE80`),
-a large switch on the selector number (1–51). Each case validates arguments and calls
+a large switch on the selector number (1-51). Each case validates arguments and calls
 a dedicated handler. Relevant selectors:
 
 | Selector | Handler                                   | Purpose                                           |
@@ -25,14 +170,14 @@ a dedicated handler. Relevant selectors:
 | 24       | `sub_FFFFFFF017024834` → validation chain | CodeSignature validation                          |
 | 41       | `sub_FFFFFFF017023558`                    | Process entitlement setup (get-task-allow)        |
 | 42       | `sub_FFFFFFF017023368`                    | Debug memory mapping                              |
-| —        | `sub_FFFFFFF017023A20`                    | Developer mode configuration (called during init) |
+| ---      | `sub_FFFFFFF017023A20`                    | Developer mode configuration (called during init) |
 
 The dispatcher passes raw page pointers through `sub_FFFFFFF0170280A4` (a bounds
 validator that returns the input pointer unchanged) before calling handlers.
 
 ---
 
-## Patch 1–2: CodeSignature Hash Comparison Bypass (selector 24)
+## Patch 1-2: CodeSignature Hash Comparison Bypass (selector 24)
 
 **Error**: `TXM [Error]: CodeSignature: selector: 24 | 0xA1 | 0x30 | 1`
 
@@ -43,7 +188,78 @@ validator that returns the input pointer unchanged) before calling handlers.
 | `0x313ec`   | `0xFFFFFFF0170353EC` | `LDR X1, [X20, #0x38]`    | NOP   |
 | `0x313f4`   | `0xFFFFFFF0170353F4` | `BL sub_FFFFFFF0170335F8` | NOP   |
 
-### Function: `sub_FFFFFFF0170353B8` — CS hash flags validator
+### selector24 Full Control Flow (0x026C80 - 0x026E7C)
+
+The selector 24 handler is the entry point for all CodeSignature validation.
+Understanding its full control flow is essential context for why the NOP approach
+was chosen over earlier redirect-based patches.
+
+```
+0x026C80: pacibsp                          ; prologue
+0x026C84: sub sp, sp, #0x70
+0x026C88-0x026C98: save x19-x30, setup fp
+
+0x026CA0-0x026CB4: save args to x20-x25
+0x026CB8: bl #0x29024                      ; get TXM context → x0
+0x026CBC: adrp x8, #0x6c000               ; flag address (page)
+0x026CC0: add x8, x8, #0x5c0              ; flag address (offset)
+0x026CC4: ldrb w8, [x8]                   ; flag check
+0x026CC8: cbnz w8, #0x26cfc               ; if flag → error 0xA0
+0x026CCC: mov x19, x0                     ; save context
+
+0x026CD4: cmp w25, #2                     ; switch on sub-selector (arg0)
+         b.gt → check 3,4,5
+0x026CDC: cbz w25 → case 0
+0x026CE4: b.eq → case 1
+0x026CEC: b.ne → default (0xA1 error)
+
+         case 0: setup, b 0x26dc0
+         case 1: flag check, setup, b 0x26dfc
+         case 2: bl 0x1e0e8, b 0x26db8
+         case 3: bl 0x1e148, b 0x26db8
+         case 4: bl 0x1e568, b 0x26db8
+         case 5: flag → { mov x0,#0; b 0x26db8 } or { bl 0x1e70c; b 0x26db8 }
+         default: mov w0, #0xa1; b 0x26d00 (error path)
+
+0x026DB8: and w8, w0, #0xffff             ; result processing
+0x026DBC: and x9, x0, #0xffffffffffff0000
+0x026DC0: mov w10, w8
+0x026DC4: orr x9, x9, x10
+0x026DC8: str x9, [x19, #8]              ; store result to context
+0x026DCC: cmp w8, #0
+0x026DD0: csetm x0, ne                   ; x0 = 0 (success) or -1 (error)
+0x026DD4: bl #0x26c04                    ; return via svc #0 ← SUCCESS RETURN
+
+ERROR PATH:
+0x026D00: mov w1, #0
+0x026D04: bl #0x25924                    ; error handler → svc #0
+```
+
+#### Existing Success Path
+
+The function already has a success path at `0x026D30` (reached by case 5 when flag is set):
+
+```asm
+0x026D30: mov    x0, #0         ; success result
+0x026D34: b      #0x26db8       ; → process result → str [x19,#8] → bl return_helper
+```
+
+> **Historical note:** An earlier approach tried redirecting to this success path by
+> patching 2 instructions at `0x26CBC` (`mov x19, x0` / `b #0x26D30`). This was
+> replaced with the more surgical NOP approach below because the redirect did not
+> properly handle the hash validation return value.
+
+#### Error Codes
+
+| Return Value | Meaning                                   |
+| ------------ | ----------------------------------------- |
+| `0x00`       | Success (only via case 5 flag path)       |
+| `0xA0`       | Early flag check failure                  |
+| `0xA1`       | Unknown sub-selector / validation failure |
+| `0x130A1`    | Hash mismatch (hash presence != flag)     |
+| `0x22DA1`    | Version-dependent validation failure      |
+
+### Function: `sub_FFFFFFF0170353B8` --- CS hash flags validator
 
 **Call chain**: selector 24 → `sub_FFFFFFF017024834` (CS handler) →
 `sub_FFFFFFF0170356F8` (CS validation pipeline) → `sub_FFFFFFF017035A00`
@@ -93,9 +309,9 @@ With `sub_FFFFFFF0170335F8` NOPed, `v6` stays at its initialized value of **0**.
 This means `(v6 & 2) >> 1 = 0` (hash-present flag is cleared). As long as
 `sub_FFFFFFF017033718` returns a non-null hash pointer (`v7 != 0`), the comparison
 becomes `(1 == 0)` → **false**, so the `0x130A1` error is skipped. The function
-falls through to the version checks which return success for version ≤ 5.
+falls through to the version checks which return success for version <= 5.
 
-This effectively bypasses CodeSignature hash validation — the hash data exists
+This effectively bypasses CodeSignature hash validation --- the hash data exists
 in the blob but the hash-present flag is suppressed, so the consistency check passes.
 
 ### `txm_jb.py` dynamic finder: `patch_selector24_hash_extraction_nop()`
@@ -104,6 +320,20 @@ Scans for `mov w0, #0xa1` as a unique anchor to locate the CS hash validator fun
 finds PACIBSP to determine function start, then matches the pattern
 `LDR X1,[Xn,#0x38]` / `ADD X2,...` / `BL` / `LDP` within it. NOPs the `LDR X1`
 (arg setup) and the `BL hash_flags_extract` (call).
+
+### UUID Canary Verification
+
+To confirm which TXM variant is loaded during boot, XOR the last byte of `LC_UUID`:
+
+|                            | UUID                                   |
+| -------------------------- | -------------------------------------- |
+| Original research          | `0FFA437D-376F-3F8E-AD26-317E2111655D` |
+| Original release           | `3C1E0E65-BFE2-3113-9C65-D25926C742B4` |
+| Canary (research XOR 0x01) | `0FFA437D-376F-3F8E-AD26-317E2111655C` |
+
+Panic log `TXM UUID:` line confirmed canary `...655C` → **patched research TXM IS loaded**.
+The problem was exclusively in the selector24 patch logic (the earlier redirect approach
+did not properly handle the hash validation return value).
 
 ---
 
@@ -117,7 +347,7 @@ finds PACIBSP to determine function start, then matches the pattern
 | ----------- | -------------------- | ------------------------- | ------------ |
 | `0x1f5d4`   | `0xFFFFFFF0170235D4` | `BL sub_FFFFFFF017022A30` | `MOV X0, #1` |
 
-### Function: `sub_FFFFFFF017023558` — selector 41 handler
+### Function: `sub_FFFFFFF017023558` --- selector 41 handler
 
 **Call chain**: selector 41 → `sub_FFFFFFF0170280A4` (ptr validation) →
 `sub_FFFFFFF017023558`
@@ -249,7 +479,7 @@ there are code paths where selector 42 can be called before selector 41 has run
 for a given manifest. The shellcode ensures the flag is always set at the dispatch
 level before the handler even sees it.
 
-### `sub_FFFFFFF0170280A4` — pointer validator
+### `sub_FFFFFFF0170280A4` --- pointer validator
 
 ```c
 // Validates page alignment and bounds, returns input pointer unchanged
@@ -284,7 +514,7 @@ writes to the correct location.
 | ----------- | -------------------- | ------------------------- | ------------ |
 | `0x1f3b8`   | `0xFFFFFFF0170233B8` | `BL sub_FFFFFFF017022A30` | `MOV W0, #1` |
 
-### Function: `sub_FFFFFFF017023368` — selector 42 handler (debug memory mapping)
+### Function: `sub_FFFFFFF017023368` --- selector 42 handler (debug memory mapping)
 
 ### Assembly at patch site
 
@@ -343,7 +573,7 @@ to `MOV W0, #1`.
 | ----------- | -------------------- | ----------------------------------- | ----- |
 | `0x1FA58`   | `0xFFFFFFF017023A58` | `TBNZ W9, #0, loc_FFFFFFF017023A6C` | NOP   |
 
-### Function: `sub_FFFFFFF017023A20` — developer mode configuration
+### Function: `sub_FFFFFFF017023A20` --- developer mode configuration
 
 Called during TXM initialization to determine and store the developer mode state.
 The result is stored in `byte_FFFFFFF017070F24`, which is the gate flag checked by
@@ -406,7 +636,7 @@ developer mode enabled regardless of the system policy byte. Without this:
 - The normal path checks xART availability, device tree flags, and user configuration
 - On PCC VMs, this can result in developer mode being **disabled**
 
-Developer mode is a **prerequisite** for selectors 41 and 42 — the selector 41
+Developer mode is a **prerequisite** for selectors 41 and 42 --- the selector 41
 handler returns error 27 immediately if `byte_FFFFFFF017070F24` is not set:
 
 ```c
@@ -425,32 +655,32 @@ matching `w9, #0`. NOPs it.
 
 ## Patch Dependency Chain
 
-The patches have a logical ordering — later patches depend on earlier ones:
+The patches have a logical ordering --- later patches depend on earlier ones:
 
 ```
 Patch 6: Developer Mode Bypass
-  │  Forces byte_FFFFFFF017070F24 = 1
-  │
-  ├──► Patch 3: get-task-allow Force True (selector 41)
-  │      Requires developer mode (checks byte_FFFFFFF017070F24)
-  │      Forces manifest[0x30] = 1
-  │
-  ├──► Patch 4: selector 42|29 Shellcode
-  │      Forces manifest[0x30] = 1 at dispatch level
-  │      Safety net for Patch 3 (covers cases where sel 42 runs before sel 41)
-  │
-  ├──► Patch 5: Debugger Entitlement Force True (selector 42)
-  │      Bypasses com.apple.private.cs.debugger check
-  │      Allows debug memory mapping for all processes
-  │
-  └──► Patches 1–2: CodeSignature Hash Bypass (selector 24)
+  |  Forces byte_FFFFFFF017070F24 = 1
+  |
+  |---> Patch 3: get-task-allow Force True (selector 41)
+  |      Requires developer mode (checks byte_FFFFFFF017070F24)
+  |      Forces manifest[0x30] = 1
+  |
+  |---> Patch 4: selector 42|29 Shellcode
+  |      Forces manifest[0x30] = 1 at dispatch level
+  |      Safety net for Patch 3 (covers cases where sel 42 runs before sel 41)
+  |
+  |---> Patch 5: Debugger Entitlement Force True (selector 42)
+  |      Bypasses com.apple.private.cs.debugger check
+  |      Allows debug memory mapping for all processes
+  |
+  └---> Patches 1-2: CodeSignature Hash Bypass (selector 24)
          Independent — bypasses CS hash validation in the signature chain
 ```
 
 ### Boot-time flow
 
 1. TXM initializes → `sub_FFFFFFF017023A20` runs → **Patch 6** forces devmode ON
-2. Process loads → selector 24 validates CodeSignature → **Patches 1–2** skip hash check
+2. Process loads → selector 24 validates CodeSignature → **Patches 1-2** skip hash check
 3. Process requests entitlements → selector 41 → **Patch 3** grants get-task-allow
 4. Debugger attaches → selector 42 → **Patch 4** pre-sets flag + **Patch 5** grants debugger ent
 5. Debug mapping succeeds → LLDB can attach to any process
@@ -475,7 +705,7 @@ Patch 6: Developer Mode Bypass
 
 **Total**: 6 logical patches, 11 instruction modifications (counting shellcode), enabling:
 
-- CodeSignature bypass (patches 1–2)
-- Universal get-task-allow (patches 3–4)
+- CodeSignature bypass (patches 1-2)
+- Universal get-task-allow (patches 3-4)
 - Universal debugger entitlement (patch 5)
 - Forced developer mode (patch 6)

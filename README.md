@@ -1,4 +1,4 @@
-<div align="right"><strong><a href="./README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
+<div align="right"><strong><a href="./docs/README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./docs/README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./docs/README_zh.md">🇨🇳中文</a></strong> | <strong>🇬🇧English</strong></div>
 
 # vphone-cli
 
@@ -229,10 +229,10 @@ Three patch variants are available with increasing levels of security bypass:
 | Variant         | Boot Chain |    CFW    | Make Targets                       |
 | --------------- | :--------: | :-------: | ---------------------------------- |
 | **Regular**     | 38 patches | 10 phases | `fw_patch` + `cfw_install`         |
-| **Development** | 46 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
-| **Jailbreak**   | 86 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
+| **Development** | 47 patches | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
+| **Jailbreak**   | 84 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
 
-See [researchs/variant_patch_comparison.md](./researchs/variant_patch_comparison.md) for the detailed per-component breakdown.
+See [research/patch_comparison_all_variants.md](./research/patch_comparison_all_variants.md) for the detailed per-component breakdown.
 
 ## Acknowledgements
 

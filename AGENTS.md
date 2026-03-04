@@ -99,9 +99,9 @@ scripts/
 ├── setup_venv.sh                 # Creates Python venv with native keystone dylib
 └── setup_libimobiledevice.sh     # Builds libimobiledevice toolchain from source
 
-researchs/
-├── jailbreak_patches.md          # JB vs base patch comparison table
-└── ...                           # Component analysis and architecture docs
+research/
+├── patch_comparison_all_variants.md  # Regular/Dev/JB patch comparison table
+└── ...                               # Component analysis and architecture docs
 ```
 
 ### Key Patterns
@@ -429,7 +429,7 @@ Branch is 8 commits ahead of `main`. All changes are **additive** — non-JB cod
 | `patch_thid_should_crash`             | Zero `0x67EB50`                                   | String in `__PRELINK_INFO` plist (no code refs); value already `0x00000000` in PCC kernel         | Safe to return True (no-op); or find via `sysctl_oid` struct search in `__DATA`                                                                                                     |
 | `patch_hook_cred_label_update_execve` | Shellcode at `0xAB17D8` + ops table at `0xA54518` | Needs `_vfs_context_current` (`0xCC5EAC`) and `_vnode_getattr` (`0xCC91C0`) — 0 symbols available | Find via sandbox ops table → original hook func → BL targets by caller count (vfs_context_current = highest, vnode_getattr = near `mov wN, #0x380`)                                 |
 
-### Key Findings (from `researchs/kernel_jb_remaining_patches.md`)
+### Key Findings (from `research/kernel_jb_patch_notes.md`)
 
 **All offsets in `kernel.py` are file offsets** — `bl_callers` dict, `_is_bl()`, `_disas_at()`, `find_string_refs()` all use file offsets, not VAs.
 

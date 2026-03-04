@@ -1,4 +1,4 @@
-# Erase Install — Component Origins
+# Firmware Manifest & Component Origins
 
 The erase install firmware is a **hybrid** of three source sets:
 
@@ -8,18 +8,59 @@ The erase install firmware is a **hybrid** of three source sets:
 
 The VM hardware identifies as **vresearch101ap** (BDID 0x90) in DFU mode, so the
 BuildManifest identity must use vresearch101ap fields for TSS/SHSH signing. However,
-runtime components use the **vphone600** variant because:
-
-- Its DeviceTree sets MKB `dt=1` (allows boot without system keybag)
-- Its SEP firmware matches the vphone600 device tree
-- `hardware target` reports as `vphone600ap` → proper iPhone emulation
+runtime components use the **vphone600** variant because its DeviceTree sets MKB `dt=1`
+(allows boot without system keybag), its SEP firmware matches the vphone600 device tree,
+and `hardware target` reports as `vphone600ap` for proper iPhone emulation.
 
 `fw_prepare.sh` downloads both IPSWs, merges cloudOS firmware into the iPhone
 restore directory, then `fw_manifest.py` generates the hybrid BuildManifest.
 
 ---
 
-## Component Source Table
+## 1. Multi-Source IPSW Comparison
+
+### Identity Count Overview
+
+| Source         | Identities | DeviceClasses                                           |
+| -------------- | ---------- | ------------------------------------------------------- |
+| iPhone 26.1    | 5          | All d47ap                                               |
+| iPhone 26.3    | 5          | All d47ap                                               |
+| CloudOS 26.1   | 6          | j236cap, j475dap, vphone600ap (x2), vresearch101ap (x2) |
+| KnownWork 26.1 | 5          | All vresearch101ap                                      |
+
+### CloudOS 26.1 Identity Structure (6 identities)
+
+| Index | DeviceClass    | Variant                                             | BuildStyle             | Manifest Keys                |
+| ----- | -------------- | --------------------------------------------------- | ---------------------- | ---------------------------- |
+| [0]   | j236cap        | Darwin Cloud Customer Erase Install (IPSW)          | RELEASE build          | 37 keys (server hardware)    |
+| [1]   | j475dap        | Darwin Cloud Customer Erase Install (IPSW)          | unknown (no path)      | 0 keys (empty placeholder)   |
+| [2]   | vphone600ap    | Darwin Cloud Customer Erase Install (IPSW)          | RELEASE build          | 29 keys (includes UI assets) |
+| [3]   | vresearch101ap | Darwin Cloud Customer Erase Install (IPSW)          | RELEASE build          | 20 keys (no UI assets)       |
+| [4]   | vphone600ap    | Research Darwin Cloud Customer Erase Install (IPSW) | RESEARCH_RELEASE build | 29 keys (research kernel)    |
+| [5]   | vresearch101ap | Research Darwin Cloud Customer Erase Install (IPSW) | RESEARCH_RELEASE build | 20 keys (research kernel)    |
+
+Key distinctions:
+
+- CloudOS[2] vs [4] (vphone600ap): [2] uses RELEASE boot chain + release kernelcache; [4] uses RESEARCH_RELEASE + research kernelcache + txm.iphoneos.research.im4p
+- CloudOS[3] vs [5] (vresearch101ap): Same pattern — [3] is RELEASE, [5] is RESEARCH_RELEASE
+- **vphone600ap has components vresearch101ap lacks**: RecoveryMode, AppleLogo, Battery\*, RestoreLogo, SEP (vphone600 variant)
+- vresearch101ap has only 20 manifest keys (no UI assets, no RecoveryMode)
+
+### vphone600ap vs vresearch101ap Key Differences
+
+| Property       | vphone600ap                         | vresearch101ap                         |
+| -------------- | ----------------------------------- | -------------------------------------- |
+| Ap,ProductType | iPhone99,11                         | ComputeModule14,2                      |
+| Ap,Target      | VPHONE600AP                         | VRESEARCH101AP                         |
+| ApBoardID      | 0x91                                | 0x90                                   |
+| DeviceTree     | DeviceTree.vphone600ap.im4p         | DeviceTree.vresearch101ap.im4p         |
+| SEP            | sep-firmware.vphone600.RELEASE.im4p | sep-firmware.vresearch101.RELEASE.im4p |
+| RecoveryMode   | recoverymode@2556~iphone-USBc.im4p  | **NOT PRESENT**                        |
+| MKB dt flag    | dt=1 (keybag-less boot OK)          | dt=0 (fatal keybag error)              |
+
+---
+
+## 2. Component Source Tracing
 
 ### Boot Chain (from PCC vresearch101ap)
 
@@ -74,7 +115,42 @@ restore directory, then `fw_manifest.py` generates the hybrid BuildManifest.
 
 ---
 
-## Patched Components Summary
+## 3. Why the Hybrid Approach
+
+### Why Not All-vresearch101?
+
+The vresearch101ap device tree sets MKB `dt=0`, causing a **fatal keybag error** during boot:
+
+```
+MKB_INIT: dt = 0, bootarg = 0
+MKB_INIT: FATAL KEYBAG ERROR: failed to load system bag
+REBOOTING INTO RECOVERY MODE.
+```
+
+Also missing the RecoveryMode entry.
+
+### Why Not All-vphone600?
+
+The DFU hardware identifies as BDID 0x90 (vresearch101ap). Using vphone600ap identity
+(BDID 0x91) fails TSS/SHSH signing and idevicerestore identity matching
+(`Unable to find a matching build identity`).
+
+### Solution
+
+vresearch101ap identity fields for DFU/TSS + vphone600 runtime components for a working
+boot environment. The vphone600ap device tree sets `dt=1`, allowing boot without a
+pre-existing system keybag:
+
+```
+MKB_INIT: dt = 1, bootarg = 0
+MKB_INIT: No system keybag loaded.
+```
+
+The SEP firmware must match the device tree (vphone600 SEP with vphone600 DT).
+
+---
+
+## 4. Patched Components Summary
 
 All 6 patched components in `fw_patch.py` come from **PCC (cloudOS)**:
 
@@ -98,56 +174,106 @@ All 4 CFW-patched binaries in `patchers/cfw.py` / `cfw_install.sh` come from **i
 
 ---
 
-## Why vphone600 Runtime Components?
+## 5. idevicerestore Identity Selection
 
-The vresearch101ap device tree causes a **fatal keybag error** during boot:
+Source: `idevicerestore/src/idevicerestore.c` lines 2195-2242
 
+### Matching Algorithm
+
+idevicerestore selects a Build Identity by iterating through all `BuildIdentities` and returning the **first match** based on two fields:
+
+1. **`Info.DeviceClass`** — case-insensitive match against device `hardware_model`
+2. **`Info.Variant`** — substring match against the requested variant string
+
+For DFU erase restore, the search variant is `"Erase Install (IPSW)"` (defined in `idevicerestore.h`).
+
+### Matching Modes
+
+```c
+// Exact match
+if (strcmp(str, variant) == 0) return ident;
+
+// Partial match (when exact=0)
+if (strstr(str, variant) && !strstr(str, "Research")) return ident;
 ```
-MKB_INIT: dt = 0, bootarg = 0
-MKB_INIT: FATAL KEYBAG ERROR: failed to load system bag
-REBOOTING INTO RECOVERY MODE.
-```
 
-The vphone600ap device tree sets `dt=1`, allowing boot without a pre-existing
-system keybag:
+**Critical**: Partial matching **excludes** variants containing `"Research"`. This means:
 
-```
-MKB_INIT: dt = 1, bootarg = 0
-MKB_INIT: No system keybag loaded.
-```
+- `"Darwin Cloud Customer Erase Install (IPSW)"` — matches (contains "Erase Install (IPSW)", no "Research")
+- `"Research Darwin Cloud Customer Erase Install (IPSW)"` — skipped (contains "Research")
 
-The SEP firmware must match the device tree (vphone600 SEP with vphone600 DT).
+### What idevicerestore Does NOT Check
+
+- ApBoardID / ApChipID (used after selection, not for matching)
+- Identity index or count (no hardcoded indices)
+
+### Conclusion for Single Identity
+
+A BuildManifest with **one identity** works fine. The loop iterates once, and if
+DeviceClass and Variant match, it's returned. No minimum identity count required.
 
 ---
 
-## Build Identity (Single DFU Erase)
+## 6. TSS/SHSH Signing
+
+The TSS request sent to `gs.apple.com` includes:
+
+- `ApBoardID = 144` (0x90) — must match vresearch101ap
+- `ApChipID = 65025` (0xFE01)
+- `Ap,ProductType = ComputeModule14,2`
+- `Ap,Target = VRESEARCH101AP`
+- Digests for all 21 manifest components
+
+Apple's TSS server signs based on these identity fields + component digests.
+Using vphone600ap identity (BDID 0x91) would fail because the DFU device
+reports BDID 0x90.
+
+---
+
+## 7. Final Design: Single DFU Erase Identity
 
 Since vphone-cli always boots via DFU restore, only one Build Identity is needed.
 
-### Identity Metadata (must match DFU hardware for TSS)
+### Identity Metadata (fw_manifest.py)
 
 ```
-DeviceClass     = vresearch101ap
+DeviceClass     = vresearch101ap    (from C[PROD] deep copy)
 Variant         = Darwin Cloud Customer Erase Install (IPSW)
 Ap,ProductType  = ComputeModule14,2
 Ap,Target       = VRESEARCH101AP
 Ap,TargetType   = vresearch101
 ApBoardID       = 0x90
 ApChipID        = 0xFE01
+ApSecurityDomain = 0x01
 FDRSupport      = False
 ```
 
-### Identity Source Map (fw_manifest.py variables)
+### Source Variable Map
 
 ```
-PROD = vresearch101ap release    — boot chain, SPTM, ramdisk
-RES  = vresearch101ap research   — iBoot, TXM (research)
-VP   = vphone600ap release       — DeviceTree, SEP, RestoreKernelCache, RecoveryMode
-VPR  = vphone600ap research      — KernelCache (research, patched by fw_patch.py)
-I_ERASE = iPhone erase identity  — OS image, trust caches, system volume
+PROD = C[vresearch101ap release]   — boot chain, SPTM, RestoreTXM, ramdisk, RestoreTrustCache
+RES  = C[vresearch101ap research]  — iBoot, TXM research
+VP   = C[vphone600ap release]      — DeviceTree, RestoreDeviceTree, SEP, RestoreSEP, RestoreKernelCache, RecoveryMode
+VPR  = C[vphone600ap research]     — KernelCache (patched by fw_patch.py)
+I_ERASE = I[iPhone erase]          — OS, trust caches, system volume
 ```
 
-### Manifest Components (21 total)
+### All 21 Manifest Entries
+
+```
+Boot chain (PROD):           LLB, iBSS, iBEC
+Research iBoot (RES):        iBoot
+Security monitors (PROD):   Ap,RestoreSPTM, Ap,RestoreTXM, Ap,SPTM
+Research TXM (RES):          Ap,TXM
+Device tree (VP):            DeviceTree, RestoreDeviceTree
+SEP (VP):                    SEP, RestoreSEP
+Kernel (VPR/VP):             KernelCache (research), RestoreKernelCache (release)
+Recovery (VP):               RecoveryMode
+Ramdisk (PROD):              RestoreRamDisk, RestoreTrustCache
+iPhone OS (I_ERASE):         OS, StaticTrustCache, SystemVolume, Ap,SVC Metadata
+```
+
+### Full Manifest Component List
 
 ```
 LLB                              ← PROD
@@ -171,6 +297,15 @@ Ap,SystemVolumeCanonicalMetadata ← I_ERASE
 OS                               ← I_ERASE
 StaticTrustCache                 ← I_ERASE
 SystemVolume                     ← I_ERASE
+```
+
+---
+
+## 8. Restore.plist
+
+```
+DeviceMap:     [d47ap (iPhone), vphone600ap, vresearch101ap]
+ProductTypes:  [iPhone17,3, ComputeModule14,1, ComputeModule14,2, Mac14,14, iPhone99,11]
 ```
 
 ---
