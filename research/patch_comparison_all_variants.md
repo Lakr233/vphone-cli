@@ -218,11 +218,6 @@ Why `ramdisk_build` still prints patch logs:
 
 - Step 6 patches `Firmware/txm.iphoneos.release.im4p` via `patch_txm()` (1 trustcache-bypass patch), then signs `Ramdisk/txm.img4`.
 - Step 7 may derive `kernelcache.research.vphone600.ramdisk` from pristine CloudOS and apply base `KernelPatcher` (28 patches), then signs `Ramdisk/krnl.ramdisk.img4`.
-
-## Host Tooling Note (2026-03-05)
-
-- Added host-side location simulation UX improvements (`Location` menu presets + route replay controls) in `vphone-cli`.
-- This change does **not** alter firmware patch counts or variant composition above; it uses the existing `vphoned` location protocol.
 - Step 7 also always signs restore kernel as `Ramdisk/krnl.img4`.
 
 | Variant       | Pre-step before `make ramdisk_build` | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                            | `Ramdisk/krnl.img4`                                      | Effective kernel used by `ramdisk_send.sh`            |
