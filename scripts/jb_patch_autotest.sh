@@ -1,5 +1,6 @@
 #!/bin/zsh
 # jb_patch_autotest.sh — run full setup_machine flow for each JB kernel patch method.
+# Strategy: apply each single JB kernel method on top of the dev baseline, one case at a time.
 
 set -euo pipefail
 
@@ -51,9 +52,11 @@ for patch_method in "${PATCH_METHODS[@]}"; do
   } | tee -a "$MASTER_LOG"
 
   set +e
+  # Test matrix assumption: each JB kernel method is validated on top of dev patch baseline.
   SUDO_PASSWORD="${SUDO_PASSWORD:-}" \
   NONE_INTERACTIVE=1 \
   DEV=1 \
+  # Default to skipping host setup for long patch sweeps; override SKIP_PROJECT_SETUP=0 if needed.
   SKIP_PROJECT_SETUP="${SKIP_PROJECT_SETUP:-1}" \
   PATCH="$patch_method" \
   make setup_machine >"$case_log" 2>&1

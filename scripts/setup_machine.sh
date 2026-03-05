@@ -39,7 +39,7 @@ RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
 RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
 BOOT_ANALYSIS_TIMEOUT="${BOOT_ANALYSIS_TIMEOUT:-300}"
 BOOT_PROMPT_FALLBACK_TIMEOUT="${BOOT_PROMPT_FALLBACK_TIMEOUT:-60}"
-BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\\.[0-9]+)+#}"
+BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\.[0-9]+)+#}"
 BOOT_PANIC_REGEX="${BOOT_PANIC_REGEX:-panic|kernel panic|panic\\.apple\\.com|stackshot succeeded}"
 NONE_INTERACTIVE_RAW="${NONE_INTERACTIVE:-0}"
 NONE_INTERACTIVE=0
@@ -59,6 +59,7 @@ require_cmd() {
 
 parse_bool() {
   local raw="${1:-0}"
+  # zsh `${var:l}` lowercases value for tolerant bool parsing.
   case "${raw:l}" in
     1|true|yes|on) return 0 ;;
     *) return 1 ;;

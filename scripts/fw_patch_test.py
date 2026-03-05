@@ -27,12 +27,13 @@ def _build_single_patch_plan(patcher, method_name):
 
 def patch_kernelcache_single(data, method_name):
     patcher = KernelJBPatcher(data)
-    patcher._reset_patch_state()  # pylint: disable=protected-access
-    patcher.patch_timings = []
     plan = _build_single_patch_plan(patcher, method_name)
-    patcher._run_methods(plan)  # pylint: disable=protected-access
-    patches = list(patcher.patches)
-    patcher._print_timing_summary()  # pylint: disable=protected-access
+    original_plan = patcher._PATCH_METHODS
+    patcher._PATCH_METHODS = plan
+    try:
+        patches = list(patcher.find_all())
+    finally:
+        patcher._PATCH_METHODS = original_plan
 
     if not patches:
         print(f"  [-] No patches emitted by method: {method_name}")
@@ -48,7 +49,7 @@ def patch_kernelcache_single(data, method_name):
 def main():
     method_name = os.environ.get("PATCH", "").strip()
     if not method_name:
-        print("[-] PATCH environment variable is required (example: PATCH=patch_amfi_execve_kill_path)")
+        print("[-] PATCH environment variable is required (example: PATCH=<jb_patch_method>)")
         sys.exit(1)
 
     vm_dir = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
