@@ -30,22 +30,42 @@ See [research/patch_comparison_all_variants.md](./research/patch_comparison_all_
 
 **Host OS:** macOS 15+ (Sequoia) is required for PV=3 virtualization.
 
-**Disable SIP and AMFI** — required for private Virtualization.framework entitlements.
+**Configure SIP/AMFI** — required for private Virtualization.framework entitlements and unsigned binary workflows.
 
-Boot into Recovery (long press power button), open Terminal:
+Boot into Recovery (long press power button), open Terminal, then choose one setup path:
 
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
+- **Option 1: Fully disable SIP + AMFI boot-arg (most permissive)**
+  
+  In Recovery:
 
-After restarting into macOS:
+  ```bash
+  csrutil disable
+  csrutil allow-research-guests enable
+  ```
 
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-```
+  After restarting into macOS:
 
-Restart once more.
+  ```bash
+  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
+  ```
+
+  Restart once more.
+
+- **Option 2: Keep SIP mostly enabled, disable only debug restrictions, use [`amfidont`](https://github.com/zqxwce/amfidont)**
+  
+  In Recovery:
+
+  ```bash
+  csrutil enable --without debug
+  csrutil allow-research-guests enable
+  ```
+
+  After restarting into macOS:
+
+  ```bash
+  xcrun python3 -m pip install amfidont
+  sudo amfidont --path [PATH_TO_VPHONE_DIR]
+  ```
 
 **Install dependencies:**
 
@@ -171,11 +191,16 @@ Connect via:
 
 **Q: I get `zsh: killed ./vphone-cli` when trying to run it.**
 
-AMFI is not disabled. Set the boot-arg and restart:
+AMFI/debug restrictions are not bypassed correctly. Choose one setup path:
 
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-```
+- **Option 1 (full AMFI disable):**
+
+  ```bash
+  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
+  ```
+
+- **Option 2 (debug restrictions only):**
+  use Recovery mode `csrutil enable --without debug` (no full SIP disable), then install/load [`amfidont`](https://github.com/zqxwce/amfidont) while keeping AMFI otherwise enabled.
 
 **Q: System apps (App Store, Messages, etc.) won't download or install.**
 
