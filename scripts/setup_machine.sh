@@ -18,12 +18,14 @@ cd "$PROJECT_ROOT"
 LOG_DIR="${PROJECT_ROOT}/setup_logs"
 DFU_LOG="${LOG_DIR}/boot_dfu.log"
 IPROXY_LOG="${LOG_DIR}/iproxy_2222.log"
+BOOT_LOG="${LOG_DIR}/boot.log"
 
 DFU_PID=""
 IPROXY_PID=""
 BOOT_PID=""
 BOOT_FIFO=""
 BOOT_FIFO_FD=""
+SUDO_ASKPASS_SCRIPT=""
 
 VM_DIR="${VM_DIR:-vm}"
 VM_DIR_ABS="${VM_DIR:A}"
@@ -35,6 +37,12 @@ RAMDISK_SSH_INTERVAL="${RAMDISK_SSH_INTERVAL:-2}"
 RAMDISK_SSH_PORT="${RAMDISK_SSH_PORT:-2222}"
 RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
 RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
+BOOT_ANALYSIS_TIMEOUT="${BOOT_ANALYSIS_TIMEOUT:-300}"
+BOOT_PROMPT_FALLBACK_TIMEOUT="${BOOT_PROMPT_FALLBACK_TIMEOUT:-60}"
+BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\\.[0-9]+)+#}"
+BOOT_PANIC_REGEX="${BOOT_PANIC_REGEX:-panic|kernel panic|panic\\.apple\\.com|stackshot succeeded}"
+NONE_INTERACTIVE_RAW="${NONE_INTERACTIVE:-0}"
+NONE_INTERACTIVE=0
 JB_MODE=0
 DEV_MODE=0
 SKIP_PROJECT_SETUP=0
@@ -47,6 +55,32 @@ die() {
 require_cmd() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Missing required command: $cmd"
+}
+
+parse_bool() {
+  local raw="${1:-0}"
+  case "${raw:l}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+setup_sudo_noninteractive() {
+  [[ -n "${SUDO_PASSWORD:-}" ]] || return
+
+  SUDO_ASKPASS_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/vphone-sudo-askpass.XXXXXX")"
+  cat >"$SUDO_ASKPASS_SCRIPT" <<'EOF'
+#!/bin/sh
+printf '%s\n' "${SUDO_PASSWORD:-}"
+EOF
+  chmod 700 "$SUDO_ASKPASS_SCRIPT"
+  export SUDO_ASKPASS="$SUDO_ASKPASS_SCRIPT"
+
+  if sudo -A -v >/dev/null 2>&1; then
+    echo "[+] sudo credential preloaded via SUDO_PASSWORD"
+  else
+    echo "[!] SUDO_PASSWORD provided but sudo -A validation failed; continuing without preload"
+  fi
 }
 
 collect_vm_lock_pids() {
@@ -97,8 +131,7 @@ check_vm_storage_locks() {
     echo "[*] AUTO_KILL_VM_LOCKS=1 set; terminating lock holder processes..."
     for pid in "${lock_pids[@]}"; do
       [[ -z "$pid" || "$pid" == "$$" ]] && continue
-      kill_descendants "$pid"
-      kill -9 "$pid" >/dev/null 2>&1 || true
+      stop_process_tree "$pid"
     done
     sleep 1
 
@@ -128,6 +161,20 @@ kill_descendants() {
   [[ ${#descendants[@]} -gt 0 ]] && kill -9 "${descendants[@]}" >/dev/null 2>&1 || true
 }
 
+stop_process_tree() {
+  local pid="$1"
+  [[ -n "$pid" && "$pid" == <-> ]] || return 0
+  kill -0 "$pid" 2>/dev/null || return 0
+
+  kill_descendants "$pid"
+  kill "$pid" >/dev/null 2>&1 || true
+  sleep 1
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
 force_release_vm_locks() {
   local -a lock_pids
   local pid
@@ -138,8 +185,7 @@ force_release_vm_locks() {
   echo "[*] Releasing lingering VM lock holders..."
   for pid in "${lock_pids[@]}"; do
     [[ -z "$pid" || "$pid" == "$$" ]] && continue
-    kill_descendants "$pid"
-    kill -9 "$pid" >/dev/null 2>&1 || true
+    stop_process_tree "$pid"
   done
 
   sleep 1
@@ -152,9 +198,7 @@ cleanup() {
   fi
 
   if [[ -n "$BOOT_PID" ]] && kill -0 "$BOOT_PID" 2>/dev/null; then
-    kill_descendants "$BOOT_PID"
-    kill -9 "$BOOT_PID" >/dev/null 2>&1 || true
-    wait "$BOOT_PID" 2>/dev/null || true
+    stop_process_tree "$BOOT_PID"
     BOOT_PID=""
   fi
 
@@ -164,26 +208,30 @@ cleanup() {
   fi
 
   if [[ -n "$IPROXY_PID" ]]; then
-    kill -9 "$IPROXY_PID" >/dev/null 2>&1 || true
-    wait "$IPROXY_PID" 2>/dev/null || true
+    stop_process_tree "$IPROXY_PID"
     IPROXY_PID=""
   fi
 
   if [[ -n "$DFU_PID" ]]; then
-    kill_descendants "$DFU_PID"
-    kill -9 "$DFU_PID" >/dev/null 2>&1 || true
-    wait "$DFU_PID" 2>/dev/null || true
+    stop_process_tree "$DFU_PID"
     DFU_PID=""
+  fi
+
+  if [[ -n "$SUDO_ASKPASS_SCRIPT" && -f "$SUDO_ASKPASS_SCRIPT" ]]; then
+    rm -f "$SUDO_ASKPASS_SCRIPT" || true
+    SUDO_ASKPASS_SCRIPT=""
   fi
 }
 
 start_first_boot() {
   check_vm_storage_locks
+  mkdir -p "$LOG_DIR"
+  : > "$BOOT_LOG"
 
   BOOT_FIFO="$(mktemp -u "${TMPDIR:-/tmp}/vphone-first-boot.XXXXXX")"
   mkfifo "$BOOT_FIFO"
 
-  make boot <"$BOOT_FIFO" &
+  (make boot <"$BOOT_FIFO" >"$BOOT_LOG" 2>&1) &
   BOOT_PID=$!
 
   exec {BOOT_FIFO_FD}>"$BOOT_FIFO"
@@ -211,6 +259,102 @@ send_first_boot_commands() {
   for cmd in "${commands[@]}"; do
     print -r -- "$cmd" >&${BOOT_FIFO_FD}
   done
+}
+
+monitor_boot_log_until() {
+  local timeout="$1"
+  local waited=0
+
+  [[ "$timeout" == <-> ]] || die "monitor timeout must be integer seconds"
+  (( timeout > 0 )) || die "monitor timeout must be > 0"
+
+  while (( waited < timeout )); do
+    if [[ -f "$BOOT_LOG" ]] && grep -Eiq "$BOOT_PANIC_REGEX" "$BOOT_LOG"; then
+      echo "panic"
+      return 0
+    fi
+    if [[ -f "$BOOT_LOG" ]] && grep -Eq "$BOOT_BASH_PROMPT_REGEX" "$BOOT_LOG"; then
+      echo "bash"
+      return 0
+    fi
+    if [[ -n "$BOOT_PID" ]] && ! kill -0 "$BOOT_PID" 2>/dev/null; then
+      echo "exited"
+      return 0
+    fi
+    sleep 1
+    (( waited++ ))
+  done
+
+  echo "timeout"
+}
+
+wait_for_first_boot_prompt_auto() {
+  local status
+  status="$(monitor_boot_log_until "$BOOT_PROMPT_FALLBACK_TIMEOUT")"
+  case "$status" in
+    panic)
+      echo "[-] Panic detected while waiting for first-boot shell prompt."
+      tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+      die "First boot panicked before command injection."
+      ;;
+    bash)
+      echo "[+] First-boot shell prompt detected"
+      ;;
+    exited)
+      echo "[-] make boot exited before first-boot command injection."
+      tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+      die "First boot exited before command injection."
+      ;;
+    timeout)
+      echo "[!] Shell prompt not detected within ${BOOT_PROMPT_FALLBACK_TIMEOUT}s; fallback to timed continue."
+      ;;
+  esac
+}
+
+run_boot_analysis() {
+  local status
+
+  check_vm_storage_locks
+  mkdir -p "$LOG_DIR"
+  : > "$BOOT_LOG"
+  (make boot >"$BOOT_LOG" 2>&1) &
+  BOOT_PID=$!
+
+  sleep 2
+  if ! kill -0 "$BOOT_PID" 2>/dev/null; then
+    echo "[-] make boot exited early during boot analysis."
+    tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+    die "Boot analysis failed: process exited early."
+  fi
+
+  status="$(monitor_boot_log_until "$BOOT_ANALYSIS_TIMEOUT")"
+  case "$status" in
+    panic)
+      echo "[-] Boot analysis: panic detected, stopping VM."
+      stop_process_tree "$BOOT_PID"
+      BOOT_PID=""
+      tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+      die "Boot analysis failed: panic detected."
+      ;;
+    bash)
+      echo "[+] Boot analysis: bash prompt detected, boot success."
+      stop_process_tree "$BOOT_PID"
+      BOOT_PID=""
+      ;;
+    exited)
+      echo "[-] Boot analysis: VM process exited before success marker."
+      BOOT_PID=""
+      tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+      die "Boot analysis failed: process exited."
+      ;;
+    timeout)
+      echo "[-] Boot analysis timeout (${BOOT_ANALYSIS_TIMEOUT}s); stopping VM."
+      stop_process_tree "$BOOT_PID"
+      BOOT_PID=""
+      tail -n 80 "$BOOT_LOG" 2>/dev/null || true
+      die "Boot analysis timeout."
+      ;;
+  esac
 }
 
 trap cleanup EXIT INT TERM
@@ -264,6 +408,9 @@ run_make() {
 
   echo ""
   echo "=== ${label} ==="
+  if [[ -n "${SUDO_PASSWORD:-}" ]]; then
+    sudo -A -v >/dev/null 2>&1 || true
+  fi
   make "$@"
 }
 
@@ -294,9 +441,7 @@ start_boot_dfu() {
 stop_boot_dfu() {
   if [[ -n "$DFU_PID" ]] && kill -0 "$DFU_PID" 2>/dev/null; then
     echo "[*] Stopping background DFU boot (pid=$DFU_PID)..."
-    kill_descendants "$DFU_PID"
-    kill -9 "$DFU_PID" >/dev/null 2>&1 || true
-    wait "$DFU_PID" 2>/dev/null || true
+    stop_process_tree "$DFU_PID"
   fi
   DFU_PID=""
   force_release_vm_locks
@@ -358,8 +503,7 @@ start_iproxy_2222() {
     echo "[*] Found stale listener(s) on tcp/2222, terminating..."
     for pid in "${stale_pids[@]}"; do
       [[ -z "$pid" || "$pid" == "$$" ]] && continue
-      kill_descendants "$pid"
-      kill -9 "$pid" >/dev/null 2>&1 || true
+      stop_process_tree "$pid"
     done
     sleep 1
   fi
@@ -441,9 +585,7 @@ wait_for_ramdisk_ssh() {
 stop_iproxy_2222() {
   if [[ -n "$IPROXY_PID" ]] && kill -0 "$IPROXY_PID" 2>/dev/null; then
     echo "[*] Stopping iproxy (pid=$IPROXY_PID)..."
-    kill_descendants "$IPROXY_PID"
-    kill -9 "$IPROXY_PID" >/dev/null 2>&1 || true
-    wait "$IPROXY_PID" 2>/dev/null || true
+    stop_process_tree "$IPROXY_PID"
   fi
   IPROXY_PID=""
 }
@@ -469,6 +611,11 @@ Options:
   --jb                    Use jailbreak firmware patching + jailbreak CFW install.
   --dev                   Use dev firmware patching + dev CFW install.
   --skip-project-setup    Skip setup_tools/build stage.
+
+Environment:
+  NONE_INTERACTIVE=1      Auto-continue first-boot prompts + run final boot analysis.
+  PATCH=patch_xxx         Run `make fw_patch_test` after the main fw_patch target.
+  SUDO_PASSWORD=...       Preload sudo credential via askpass.
 EOF
         exit 0
         ;;
@@ -481,6 +628,10 @@ EOF
 
 main() {
   parse_args "$@"
+  if parse_bool "$NONE_INTERACTIVE_RAW"; then
+    NONE_INTERACTIVE=1
+  fi
+  setup_sudo_noninteractive
 
   local fw_patch_target="fw_patch"
   local cfw_install_target="cfw_install"
@@ -500,7 +651,7 @@ main() {
     mode_label="dev"
   fi
 
-  echo "[*] setup_machine mode: ${mode_label}, project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run")"
+  echo "[*] setup_machine mode: ${mode_label}, project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run"), non_interactive=${NONE_INTERACTIVE}"
 
   if [[ "$SKIP_PROJECT_SETUP" -eq 1 ]]; then
     echo ""
@@ -518,6 +669,9 @@ main() {
   run_make "Firmware prep" vm_new
   run_make "Firmware prep" fw_prepare
   run_make "Firmware patch" "$fw_patch_target"
+  if [[ -n "${PATCH:-}" ]]; then
+    run_make "Firmware patch test" fw_patch_test
+  fi
 
   echo ""
   echo "=== Restore phase ==="
@@ -546,11 +700,19 @@ main() {
 
   echo ""
   echo "=== First boot ==="
-  read -r "?[*] press Enter to start VM, after the VM has finished booting, press Enter again to finish last stage"
+  if [[ "$NONE_INTERACTIVE" -eq 0 ]]; then
+    read -r "?[*] press Enter to start VM, after the VM has finished booting, press Enter again to finish last stage"
+  else
+    echo "[*] NONE_INTERACTIVE=1: auto-starting first boot"
+  fi
 
   start_first_boot
 
-  read -r "?[*] Press Enter once the VM is fully booted"
+  if [[ "$NONE_INTERACTIVE" -eq 0 ]]; then
+    read -r "?[*] Press Enter once the VM is fully booted"
+  else
+    wait_for_first_boot_prompt_auto
+  fi
   send_first_boot_commands
 
   echo "[*] Commands sent. Waiting for VM shutdown..."
@@ -566,8 +728,8 @@ main() {
   echo "=== Done ==="
   echo "Setup completed."
 
-  echo "=== Booting VM ==="
-  run_make "Booting VM" boot
+  echo "=== Boot analysis ==="
+  run_boot_analysis
 }
 
 main "$@"

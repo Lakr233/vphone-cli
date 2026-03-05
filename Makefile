@@ -42,6 +42,9 @@ help:
 	@echo "    Options: JB=1                      Jailbreak firmware/CFW path (WIP)"
 	@echo "             DEV=1                     Dev firmware/CFW path (dev TXM + cfw_install_dev)"
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
+	@echo "             NONE_INTERACTIVE=1        Auto-continue prompts + boot analysis"
+	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
+	@echo "             PATCH=patch_xxx           Apply single JB patch test on top of dev patch"
 	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_tools             Install all tools (brew, trustcache, libimobiledevice, venv)"
@@ -63,6 +66,8 @@ help:
 	@echo "  make fw_patch                Patch boot chain (6 components)"
 	@echo "  make fw_patch_dev            Patch boot chain (dev mode TXM patcher)"
 	@echo "  make fw_patch_jb             Run fw_patch + JB extension patches (WIP)"
+	@echo "  make fw_patch_test PATCH=... Apply one JB kernel patch method (after fw_patch_dev)"
+	@echo "  make jb_patch_autotest       Run setup_machine per JB patch method with logs"
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Fetch SHSH blob from device"
@@ -90,6 +95,9 @@ setup_machine:
 		echo "Error: JB=1 and DEV=1 are mutually exclusive"; \
 		exit 1; \
 	fi
+	SUDO_PASSWORD="$(SUDO_PASSWORD)" \
+	NONE_INTERACTIVE="$(NONE_INTERACTIVE)" \
+	PATCH="$(PATCH)" \
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
 		$(if $(filter 1 true yes YES TRUE,$(DEV)),--dev,) \
@@ -187,7 +195,7 @@ boot_dfu: build
 # Firmware pipeline
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: fw_prepare fw_patch fw_patch_dev fw_patch_jb
+.PHONY: fw_prepare fw_patch fw_patch_dev fw_patch_jb fw_patch_test jb_patch_autotest
 
 fw_prepare:
 	cd $(VM_DIR) && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
@@ -200,6 +208,12 @@ fw_patch_dev:
 
 fw_patch_jb:
 	cd $(VM_DIR) && $(PYTHON) "$(CURDIR)/$(SCRIPTS)/fw_patch_jb.py" .
+
+fw_patch_test:
+	cd $(VM_DIR) && PATCH="$(PATCH)" $(PYTHON) "$(CURDIR)/$(SCRIPTS)/fw_patch_test.py" .
+
+jb_patch_autotest:
+	zsh "$(CURDIR)/$(SCRIPTS)/jb_patch_autotest.sh"
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore
