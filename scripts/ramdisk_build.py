@@ -163,6 +163,31 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, check=True, **kwargs)
 
 
+_SUDO_AVAILABLE = None
+
+
+def _have_passwordless_sudo():
+    global _SUDO_AVAILABLE
+    if _SUDO_AVAILABLE is None:
+        sudo_bin = shutil.which("sudo")
+        if not sudo_bin:
+            _SUDO_AVAILABLE = False
+        else:
+            _SUDO_AVAILABLE = (
+                subprocess.run(
+                    [sudo_bin, "-n", "true"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ).returncode
+                == 0
+            )
+    return _SUDO_AVAILABLE
+
+
+def maybe_sudo(cmd):
+    return ["sudo", *cmd] if _have_passwordless_sudo() else cmd
+
+
 def check_prerequisites():
     """Verify required host tools are available."""
     missing = []
@@ -253,8 +278,15 @@ def derive_ramdisk_kernel_source(kc_src, temp_dir):
 
     print(f"  deriving ramdisk kernel from pristine source: {pristine}")
     im4p_obj, data, was_im4p, original_raw = load_firmware(pristine)
-    kp = KernelPatcher(data)
-    n = kp.apply()
+    try:
+        kp = KernelPatcher(data)
+        n = kp.apply()
+    except Exception as e:
+        print(f"  [!] failed to derive ramdisk kernel variant ({e}); skipping")
+        return None
+    if n <= 0:
+        print("  [!] no kernel patches matched for ramdisk variant; skipping")
+        return None
     print(f"  [+] {n} base kernel patches applied for ramdisk variant")
 
     out_path = os.path.join(temp_dir, f"kernelcache.research.vphone600{RAMDISK_KERNEL_SUFFIX}")
@@ -330,61 +362,67 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         # Mount, create expanded copy
         print("  Mounting base ramdisk...")
         run(
-            [
-                "sudo",
-                "hdiutil",
-                "attach",
-                "-mountpoint",
-                mountpoint,
-                ramdisk_raw,
-                "-owners",
-                "off",
-            ]
+            maybe_sudo(
+                [
+                    "hdiutil",
+                    "attach",
+                    "-mountpoint",
+                    mountpoint,
+                    ramdisk_raw,
+                    "-owners",
+                    "off",
+                ]
+            )
         )
 
         print("  Creating expanded ramdisk (254 MB)...")
+        create_cmd = [
+            "hdiutil",
+            "create",
+            "-size",
+            "254m",
+            "-imagekey",
+            "diskimage-class=CRawDiskImage",
+            "-format",
+            "UDZO",
+            "-fs",
+            "APFS",
+            "-layout",
+            "NONE",
+            "-srcfolder",
+            mountpoint,
+        ]
+        if _have_passwordless_sudo():
+            create_cmd.extend(["-copyuid", "root"])
+        create_cmd.append(ramdisk_custom)
         run(
-            [
-                "sudo",
-                "hdiutil",
-                "create",
-                "-size",
-                "254m",
-                "-imagekey",
-                "diskimage-class=CRawDiskImage",
-                "-format",
-                "UDZO",
-                "-fs",
-                "APFS",
-                "-layout",
-                "NONE",
-                "-srcfolder",
-                mountpoint,
-                "-copyuid",
-                "root",
-                ramdisk_custom,
-            ]
+            maybe_sudo(create_cmd)
         )
-        run(["sudo", "hdiutil", "detach", "-force", mountpoint])
+        run(maybe_sudo(["hdiutil", "detach", "-force", mountpoint]))
 
         # Mount expanded, inject SSH
         print("  Mounting expanded ramdisk...")
         run(
-            [
-                "sudo",
-                "hdiutil",
-                "attach",
-                "-mountpoint",
-                mountpoint,
-                ramdisk_custom,
-                "-owners",
-                "off",
-            ]
+            maybe_sudo(
+                [
+                    "hdiutil",
+                    "attach",
+                    "-mountpoint",
+                    mountpoint,
+                    ramdisk_custom,
+                    "-owners",
+                    "off",
+                ]
+            )
         )
 
         print("  Injecting SSH tools...")
         ssh_tar = os.path.join(input_dir, "ssh.tar.gz")
-        run(["sudo", gtar_bin, "-x", "--no-overwrite-dir", "-f", ssh_tar, "-C", mountpoint])
+        run(
+            maybe_sudo(
+                [gtar_bin, "-x", "--no-overwrite-dir", "-f", ssh_tar, "-C", mountpoint]
+            )
+        )
 
         # Remove unnecessary files
         for rel_path in RAMDISK_REMOVE:
@@ -437,11 +475,12 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
 
     finally:
         subprocess.run(
-            ["sudo", "hdiutil", "detach", "-force", mountpoint], capture_output=True
+            maybe_sudo(["hdiutil", "detach", "-force", mountpoint]),
+            capture_output=True,
         )
 
     # Shrink and sign ramdisk
-    run(["sudo", "hdiutil", "resize", "-sectors", "min", ramdisk_custom])
+    run(maybe_sudo(["hdiutil", "resize", "-sectors", "min", ramdisk_custom]))
 
     print("  Signing ramdisk...")
     rd_im4p = os.path.join(temp_dir, "ramdisk.im4p")

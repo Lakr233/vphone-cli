@@ -260,7 +260,7 @@ testing_c23_bisect:
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: cfw_install cfw_install_dev cfw_install_jb
+.PHONY: cfw_install cfw_install_dev cfw_install_jb ipa_install
 
 cfw_install:
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
@@ -270,3 +270,30 @@ cfw_install_dev:
 
 cfw_install_jb:
 	cd $(VM_DIR) && zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_jb.sh" .
+
+# Install a local IPA onto a running VM (expects SSH/iproxy up)
+# Usage:
+#   make ipa_install VM_DIR=/path/to/vm IPA=/abs/path/app.ipa
+# Optional:
+#   BUNDLE_ID=com.example.app.sideload SSH_PORT=22222 SSH_HOST=127.0.0.1 TMP_DIR=/path MOBILEINSTALL=1
+# Notes:
+#   - MOBILEINSTALL defaults to disabled (rootless container path only), which avoids
+#     expected signature-verification failures for unsigned IPAs.
+ipa_install:
+	@if [ ! -f "$(CURDIR)/$(SCRIPTS)/ipa_install.sh" ]; then \
+		echo "Missing helper: $(CURDIR)/$(SCRIPTS)/ipa_install.sh"; \
+		echo "Add/commit scripts/ipa_install.sh before using this target."; \
+		exit 1; \
+	fi
+	@if [ -z "$(IPA)" ]; then \
+		echo "Usage: make ipa_install VM_DIR=$(VM_DIR) IPA=/abs/path/app.ipa [BUNDLE_ID=...] [SSH_HOST=127.0.0.1] [SSH_PORT=22222] [TMP_DIR=/path] [MOBILEINSTALL=1]"; \
+		exit 1; \
+	fi
+	zsh "$(CURDIR)/$(SCRIPTS)/ipa_install.sh" \
+		--vm-dir "$(VM_DIR)" \
+		--ipa "$(IPA)" \
+		$(if $(BUNDLE_ID),--bundle-id "$(BUNDLE_ID)",) \
+		$(if $(SSH_HOST),--ssh-host "$(SSH_HOST)",) \
+		$(if $(SSH_PORT),--ssh-port "$(SSH_PORT)",) \
+		$(if $(TMP_DIR),--tmp-dir "$(TMP_DIR)",) \
+		$(if $(filter 1 true yes YES TRUE,$(MOBILEINSTALL)),,--skip-mobileinstall)
