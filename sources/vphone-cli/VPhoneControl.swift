@@ -16,6 +16,9 @@ import Virtualization
 class VPhoneControl {
     private static let protocolVersion = 1
     private static let vsockPort: UInt32 = 1337
+    private static let defaultRequestTimeout: TimeInterval = 10
+    private static let slowRequestTimeout: TimeInterval = 30
+    private static let transferRequestTimeout: TimeInterval = 180
 
     private var connection: VZVirtioSocketConnection?
     private weak var device: VZVirtioSocketDevice?
@@ -60,24 +63,29 @@ class VPhoneControl {
         return pendingRequests.removeValue(forKey: id)
     }
 
-    private nonisolated func failAllPending() {
+    private nonisolated func failAllPending(with error: ControlError = .notConnected) {
         pendingLock.lock()
         let pending = pendingRequests
         pendingRequests.removeAll()
         pendingLock.unlock()
         for (_, req) in pending {
-            req.handler(.failure(ControlError.notConnected))
+            req.handler(.failure(error))
         }
     }
 
     enum ControlError: Error, CustomStringConvertible {
         case notConnected
+        case cancelled(String)
+        case requestTimedOut(type: String, seconds: Int)
         case protocolError(String)
         case guestError(String)
 
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
+            case let .cancelled(reason): "request cancelled: \(reason)"
+            case let .requestTimedOut(type, seconds):
+                "request timed out (\(type), \(seconds)s)"
             case let .protocolError(msg): "protocol error: \(msg)"
             case let .guestError(msg): msg
             }
@@ -281,6 +289,11 @@ class VPhoneControl {
         return resp["hash"] as? String ?? "unknown"
     }
 
+    /// Cancel all currently pending request continuations.
+    func cancelPendingRequests(reason: String = "cancelled by host") {
+        failAllPending(with: .cancelled(reason))
+    }
+
     // MARK: - Async Request-Response
 
     /// Send a request and await the response. Returns the response dict and optional raw data.
@@ -294,12 +307,15 @@ class VPhoneControl {
         var msg = dict
         msg["v"] = Self.protocolVersion
         msg["id"] = reqId
+        let requestType = msg["t"] as? String ?? "unknown"
+        let timeout = Self.timeoutForRequest(type: requestType)
 
         return try await withCheckedThrowingContinuation { continuation in
             addPending(id: reqId) { result in
                 nonisolated(unsafe) let r = result
                 continuation.resume(with: r)
             }
+            armRequestTimeout(id: reqId, type: requestType, timeout: timeout)
             guard writeMessage(fd: fd, dict: msg) else {
                 _ = removePending(id: reqId)
                 continuation.resume(throwing: ControlError.notConnected)
@@ -341,6 +357,7 @@ class VPhoneControl {
             "size": data.count,
             "perm": permissions,
         ]
+        let timeout = Self.timeoutForRequest(type: "file_put")
 
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<Void, any Error>) in
@@ -350,6 +367,7 @@ class VPhoneControl {
                 case let .failure(error): continuation.resume(throwing: error)
                 }
             }
+            armRequestTimeout(id: reqId, type: "file_put", timeout: timeout)
 
             // Write header + raw data atomically (same pattern as pushUpdate)
             guard writeMessage(fd: fd, dict: header) else {
@@ -505,6 +523,29 @@ class VPhoneControl {
                 print("[control] read loop ended")
                 self?.disconnect()
             }
+        }
+    }
+
+    // MARK: - Request Timeout
+
+    private static func timeoutForRequest(type: String) -> TimeInterval {
+        switch type {
+        case "file_get", "file_put":
+            transferRequestTimeout
+        case "devmode", "file_list", "file_delete", "file_rename", "file_mkdir":
+            slowRequestTimeout
+        default:
+            defaultRequestTimeout
+        }
+    }
+
+    private func armRequestTimeout(id: String, type: String, timeout: TimeInterval) {
+        guard timeout > 0 else { return }
+        let timeoutSeconds = max(Int(timeout.rounded()), 1)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) { [weak self] in
+            guard let self else { return }
+            guard let pending = self.removePending(id: id) else { return }
+            pending.handler(.failure(ControlError.requestTimedOut(type: type, seconds: timeoutSeconds)))
         }
     }
 
