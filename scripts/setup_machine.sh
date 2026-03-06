@@ -38,7 +38,7 @@ RAMDISK_SSH_PORT="${RAMDISK_SSH_PORT:-}"
 RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
 RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
 IPROXY_UDID="${IPROXY_UDID:-}"
-IPROXY_DEVICE_WAIT_TIMEOUT="${IPROXY_DEVICE_WAIT_TIMEOUT:-45}"
+IPROXY_DEVICE_WAIT_TIMEOUT="${IPROXY_DEVICE_WAIT_TIMEOUT:-90}"
 IPROXY_DEVICE_WAIT_INTERVAL="${IPROXY_DEVICE_WAIT_INTERVAL:-1}"
 RAMDISK_SSH_PORT_EXPLICIT=0
 if [[ -n "$RAMDISK_SSH_PORT" ]]; then
@@ -193,9 +193,8 @@ try_resolve_iproxy_target_udid() {
   fi
 
   if (( ${#usbmux_udids[@]} == 1 )); then
-    IPROXY_TARGET_UDID="${usbmux_udids[1]}"
-    IPROXY_RESOLVE_REASON="single_fallback"
-    return 0
+    IPROXY_RESOLVE_REASON="single_mismatch"
+    return 3
   fi
 
   IPROXY_RESOLVE_REASON="ambiguous"
@@ -229,21 +228,23 @@ wait_for_iproxy_target_udid() {
         ecid_match)
           echo "[+] iproxy target UDID matched ECID substring: ${IPROXY_TARGET_UDID}"
           ;;
-        single_fallback)
-          echo "[!] Restore UDID (${DEVICE_UDID}) is not visible in ramdisk USBMux enumeration."
-          echo "[!] Falling back to the only available USBMux ID: ${IPROXY_TARGET_UDID}"
-          ;;
       esac
       return
     fi
     rc=$?
 
     if (( waited == 0 || waited % 5 == 0 )); then
-      if [[ "$rc" == "2" ]]; then
-        echo "  waiting for USBMux disambiguation... ${waited}s elapsed"
-      else
-        echo "  waiting for USBMux device... ${waited}s elapsed"
-      fi
+      case "$rc" in
+        2)
+          echo "  waiting for USBMux disambiguation... ${waited}s elapsed"
+          ;;
+        3)
+          echo "  waiting for restore UDID/ECID match (strict mode)... ${waited}s elapsed"
+          ;;
+        *)
+          echo "  waiting for USBMux device... ${waited}s elapsed"
+          ;;
+      esac
     fi
 
     sleep "$interval"
@@ -253,6 +254,9 @@ wait_for_iproxy_target_udid() {
   echo "[-] Timed out resolving iproxy target UDID after ${timeout}s."
   echo "[-] USBMux IDs currently visible:"
   print_usbmux_udids
+  if [[ "$IPROXY_RESOLVE_REASON" == "single_mismatch" ]]; then
+    die "Only non-matching USBMux device was visible. Strict identity isolation is enabled; wait for restore UDID/ECID or set IPROXY_UDID explicitly."
+  fi
   if [[ "$IPROXY_RESOLVE_REASON" == "ambiguous" ]]; then
     die "Multiple USBMux devices detected and none uniquely matched restore UDID/ECID. Set IPROXY_UDID explicitly."
   fi
@@ -782,6 +786,15 @@ wait_for_ramdisk_ssh() {
 
   echo "[*] Waiting for ramdisk SSH on ${RAMDISK_SSH_USER}@127.0.0.1:${RAMDISK_SSH_PORT} (timeout=${RAMDISK_SSH_TIMEOUT}s)..."
   while (( waited < RAMDISK_SSH_TIMEOUT )); do
+    if [[ -n "$IPROXY_PID" ]] && ! kill -0 "$IPROXY_PID" 2>/dev/null; then
+      echo "[-] iproxy process exited while waiting for ramdisk SSH."
+      if [[ -n "$IPROXY_LOG" ]]; then
+        echo "[-] iproxy log tail:"
+        tail -n 40 "$IPROXY_LOG" 2>/dev/null || true
+      fi
+      die "iproxy exited before ramdisk SSH became ready."
+    fi
+
     if [[ -f "$DFU_LOG" ]] && grep -Eiq 'panic|kernel panic|stackshot succeeded|panic\.apple\.com' "$DFU_LOG"; then
       echo "[-] Detected panic markers in boot_dfu log while waiting for ramdisk SSH."
       echo "[-] boot_dfu log tail:"

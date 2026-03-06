@@ -178,6 +178,18 @@ def run_sudo(cmd, **kwargs):
     return run(["sudo", *cmd], **kwargs)
 
 
+def ensure_path_within_vm(path, vm_dir, label):
+    """Fail if path escapes vm_dir."""
+    vm_real = os.path.realpath(vm_dir)
+    path_real = os.path.realpath(path)
+    if path_real == vm_real or path_real.startswith(vm_real + os.sep):
+        return
+    print(f"[-] {label} must be inside VM dir")
+    print(f"    VM dir: {vm_real}")
+    print(f"    Path:   {path_real}")
+    sys.exit(1)
+
+
 def check_prerequisites():
     """Verify required host tools are available."""
     missing = []
@@ -383,6 +395,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         capture_output=True,
     )
 
+    ensure_path_within_vm(mountpoint, vm_dir, "Ramdisk mountpoint")
     os.makedirs(mountpoint, exist_ok=True)
 
     try:
@@ -395,6 +408,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
                 "-mountpoint",
                 mountpoint,
                 ramdisk_raw,
+                "-nobrowse",
                 "-owners",
                 "off",
             ]
@@ -433,6 +447,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
                 "-mountpoint",
                 mountpoint,
                 ramdisk_custom,
+                "-nobrowse",
                 "-owners",
                 "off",
             ]
@@ -550,6 +565,8 @@ def main():
     # Create temp and output directories
     temp_dir = os.path.join(vm_dir, TEMP_DIR)
     output_dir = os.path.join(vm_dir, OUTPUT_DIR)
+    ensure_path_within_vm(temp_dir, vm_dir, "Temp directory")
+    ensure_path_within_vm(output_dir, vm_dir, "Output directory")
     for d in (temp_dir, output_dir):
         if os.path.exists(d):
             shutil.rmtree(d)

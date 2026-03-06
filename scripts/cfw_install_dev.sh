@@ -107,9 +107,21 @@ ldid_sign_ent() {
 # Detach a DMG mountpoint if currently mounted, ignore errors
 safe_detach() {
     local mnt="$1"
-    if mount | grep -q "$mnt"; then
+    if mount | grep -Fq " on $mnt "; then
         sudo hdiutil detach -force "$mnt" 2>/dev/null || true
     fi
+}
+
+assert_mount_under_vm() {
+    local mnt="$1" label="${2:-mountpoint}"
+    local abs_vm abs_mnt
+
+    abs_vm="$(cd "$VM_DIR" && pwd -P)"
+    abs_mnt="$(cd "$mnt" && pwd -P)"
+    case "$abs_mnt/" in
+        "$abs_vm/"*) ;;
+        *) die "Unsafe ${label}: ${abs_mnt} (must be inside ${abs_vm})" ;;
+    esac
 }
 
 # Mount device filesystem, tolerate already-mounted
@@ -235,11 +247,13 @@ fi
 safe_detach "$MNT_SYSOS"
 safe_detach "$MNT_APPOS"
 mkdir -p "$MNT_SYSOS" "$MNT_APPOS"
+assert_mount_under_vm "$MNT_SYSOS" "SystemOS mountpoint"
+assert_mount_under_vm "$MNT_APPOS" "AppOS mountpoint"
 
 echo "  Mounting SystemOS..."
-sudo hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -owners off
+sudo hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -nobrowse -owners off
 echo "  Mounting AppOS..."
-sudo hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -owners off
+sudo hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -nobrowse -owners off
 
 # Mount device rootfs (tolerate already-mounted)
 echo "  Mounting device rootfs rw..."
