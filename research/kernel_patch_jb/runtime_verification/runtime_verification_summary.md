@@ -91,6 +91,7 @@
 ### `patch_io_secure_bsd_root`
 
 - `0x0136A1F0` / `0xFFFFFE000836E1F0` / b #0x1A4 [_IOSecureBSDRoot] / bytes `200d0034 -> 69000014`
+- 2026-03-06 reanalysis: this historical hit is real but semantically wrong. It patches the `"SecureRoot"` name-check gate in `AppleARMPE::callPlatformFunction`, not the final `"SecureRootName"` deny return consumed by `IOSecureBSDRoot()`. The implementation was retargeted to `0x0136A464` / `0xFFFFFE000836E464` (`CSEL W22, WZR, W9, NE -> MOV W22, #0`).
 
 ### `patch_kcall10`
 

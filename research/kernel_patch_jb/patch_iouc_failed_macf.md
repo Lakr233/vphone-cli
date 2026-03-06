@@ -1,5 +1,11 @@
 # A5 `patch_iouc_failed_macf`
 
+## Status
+
+- Re-analysis date: `2026-03-06`
+- Current conclusion: the historical repo A5 entry early-return is rejected as over-broad, but A5-v2 is now rebuilt as a narrow branch-level patch at the real post-MACF deny gate.
+- Current repository behavior: `patch_iouc_failed_macf` is active again with the strict A5-v2 matcher.
+
 ## Patch Goal
 
 Bypass the shared IOUserClient MACF deny gate that emits:
@@ -9,25 +15,21 @@ Bypass the shared IOUserClient MACF deny gate that emits:
 
 This gate blocks `mount-phase-1` and `data-protection` (`seputil`) in current JB boot logs.
 
-## Binary Targets (vphone600 research kernel)
+## Historical Repo Hit (rejected)
 
 - Anchor string: `"failed MACF"`
 - Candidate function selected by anchor xref + IOUC co-reference:
   - function start: `0xfffffe000825b0c0`
-- Patch points:
+- Historical patch points:
   - `0xfffffe000825b0c4`
   - `0xfffffe000825b0c8`
 
-## Patch-Site / Byte-Level Change
+## Why The Historical Repo Patch Is Rejected
 
-- At `fn + 0x4`:
-  - before: stack-frame setup (`stp ...`)
-  - after: `mov x0, xzr`
-- At `fn + 0x8`:
-  - before: stack-frame setup (`stp ...`)
-  - after: `retab`
-
-Result: function returns success immediately while preserving entry `PACIBSP`.
+- IDA decompilation shows `0xfffffe000825b0c0` is a large IOUserClient open / setup path, not a tiny standalone MACF helper.
+- That function also prepares output state (`a7` / `a8` in decompilation) before returning to its caller.
+- The historical repo patch overwrote the first two instructions after `PACIBSP` with `mov x0, xzr ; retab`, which forces an immediate success return before that wider setup work happens.
+- Therefore the old patch is broader than the actual MACF deny branch and is not a good upstream-aligned design.
 
 ## Pseudocode (Before)
 
@@ -39,13 +41,25 @@ int iouc_macf_gate(...) {
 }
 ```
 
-## Pseudocode (After)
+## Narrow Branch (current A5-v2 target)
 
 ```c
-int iouc_macf_gate(...) {
-    return 0;
+// inside sub_FFFFFE000825B0C0
+ret = mac_iokit_check_open(...);
+if (ret != 0) {
+    IOLog("IOUC %s failed MACF in process %s\n", ...);
+    error = kIOReturnNotPermitted;
+    goto out;
 }
 ```
+
+Current IDA-validated branch window:
+
+- `0xfffffe000825ba94` — `BL sub_FFFFFE00082EB07C`
+- `0xfffffe000825ba98` — `CBZ W0, loc_FFFFFE000825BB0C`
+- `0xfffffe000825baf8` — `ADRL X0, "IOUC %s failed MACF in process %s\n"`
+
+A5-v2 patches exactly this gate by replacing `CBZ W0, loc_FFFFFE000825BB0C` with unconditional `B loc_FFFFFE000825BB0C`.
 
 ## Why This Patch Was Added
 
@@ -60,13 +74,16 @@ int iouc_macf_gate(...) {
 - Primary patcher module:
   - `scripts/patchers/kernel_jb_patch_iouc_macf.py`
 - JB scheduler status:
-  - enabled in default `_DEFAULT_METHODS` as `patch_iouc_failed_macf`
+  - present in active `_PATCH_METHODS`
+  - patch method emits one branch rewrite when the strict shape matches
 
 ## Validation (static, local)
 
-- Method emitted 2 writes on current kernel:
+- Historical repo dry-run emitted 2 writes on current kernel:
   - `0x012570C4` `mov x0,xzr [IOUC MACF gate low-risk]`
   - `0x012570C8` `retab [IOUC MACF gate low-risk]`
+- Current A5-v2 dry-run emits **1 write** on current kernel:
+  - `0x01257A98` `b #0x74 [IOUC MACF deny → allow]`
 
 ## XNU Reference Cross-Validation (2026-03-06)
 
@@ -90,19 +107,12 @@ What still requires IDA/runtime evidence:
 
 Interpretation:
 
-- This patch has strong source-level support for mechanism (shared IOUC MACF gate),
-  while concrete hit-point selection remains IDA-authoritative per-kernel.
+- The IOUC MACF mechanism itself is real and source-backed.
+- The old repo hit-point was too wide.
+- A5-v2 now follows the narrower branch-level retarget: preserve the IOUserClient open path and only force the post-`mac_iokit_check_open` gate into the allow path.
 
-## Runtime Validation Pending
+## Bottom Line
 
-Need full flow validation after patch install:
-
-1. `make fw_patch_jb`
-2. restore
-3. `make cfw_install_jb`
-4. `make boot`
-
-Expected improvement:
-
-- no `IOUC ... failed MACF` for APFS/SEP user clients
-- `data-protection` should progress past `seputil` timeout path.
+- The old entry early-return was a repo-local experiment and is no longer used.
+- The current A5-v2 implementation patches only the narrow `mac_iokit_check_open` deny gate inside `0xfffffe000825b0c0`.
+- Focused dry-run on `kernelcache.research.vphone600` hits a single branch rewrite at `0x01257A98`, which is much closer to an upstream-style minimal gate patch than the old entry short-circuit.

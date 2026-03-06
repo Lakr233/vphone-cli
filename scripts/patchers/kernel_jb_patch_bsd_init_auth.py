@@ -1,133 +1,137 @@
 """Mixin: KernelJBPatchBsdInitAuthMixin."""
 
-from .kernel_jb_base import MOV_X0_0, _rd32
+from .kernel_jb_base import ARM64_OP_REG, ARM64_REG_W0, ARM64_REG_X0, NOP
 
 
 class KernelJBPatchBsdInitAuthMixin:
-    # ldr x0, [xN, #0x2b8]  (ignore xN/Rn)
-    _LDR_X0_2B8_MASK = 0xFFFFFC1F
-    _LDR_X0_2B8_VAL = 0xF9415C00
-    # cbz {w0|x0}, <label> (mask drops sf bit)
-    _CBZ_X0_MASK = 0x7F00001F
-    _CBZ_X0_VAL = 0x34000000
+    _ROOTVP_PANIC_NEEDLE = b"rootvp not authenticated after mounting"
 
     def patch_bsd_init_auth(self):
-        """Bypass rootvp authentication check in _bsd_init.
-        Pattern: ldr x0, [xN, #0x2b8]; cbz x0, ...; bl AUTH_FUNC
-        Replace the BL with mov x0, #0.
+        """Bypass the real rootvp auth failure branch inside ``_bsd_init``.
+
+        Fresh analysis on ``kernelcache.research.vphone600`` shows the boot gate is
+        the in-function sequence:
+
+            call vnode ioctl handler for ``FSIOC_KERNEL_ROOTAUTH``
+            cbnz w0, panic_path
+            bl imageboot_needed
+
+        The older ``ldr/cbz/bl`` matcher was not semantically tied to ``_bsd_init``
+        and could false-hit unrelated functions. We now resolve the branch using the
+        panic string anchor and the surrounding local control-flow instead.
         """
-        self._log("\n[JB] _bsd_init: mov x0,#0 (auth bypass)")
+        self._log("\n[JB] _bsd_init: ignore FSIOC_KERNEL_ROOTAUTH failure")
 
-        # Try symbol first
-        foff = self._resolve_symbol("_bsd_init")
-        if foff >= 0:
-            func_end = self._find_func_end(foff, 0x2000)
-            result = self._find_auth_bl(foff, func_end)
-            if result:
-                self.emit(result, MOV_X0_0, "mov x0,#0 [_bsd_init auth]")
-                return True
-
-        # Pattern search: ldr x0, [xN, #0x2b8]; cbz x0; bl
-        ks, ke = self.kern_text
-        rootvp_func = self._func_for_rootvp_anchor()
-        if rootvp_func is None:
-            self._log("  [-] rootvp anchor function not found")
+        func_start = self._resolve_symbol("_bsd_init")
+        if func_start < 0:
+            func_start = self._func_for_rootvp_anchor()
+        if func_start is None or func_start < 0:
+            self._log("  [-] _bsd_init not found")
             return False
 
-        # Fast path: scan a narrow window around rootvp/bsd_init region first.
-        near_start = max(ks, rootvp_func - 0x200000)
-        near_end = min(ke, rootvp_func + 0x400000)
-        candidates = self._collect_auth_bl_candidates(near_start, near_end)
-        if not candidates:
-            # Fallback to full kernel text only when needed.
-            candidates = self._collect_auth_bl_candidates(ks, ke)
-
-        if not candidates:
-            self._log("  [-] ldr+cbz+bl pattern not found")
+        site = self._find_bsd_init_rootauth_site(func_start)
+        if site is None:
+            self._log("  [-] rootauth branch site not found")
             return False
 
-        bl_off = self._select_bsd_init_auth_candidate(candidates, rootvp_func)
-        if bl_off is None:
-            self._log("  [-] no safe _bsd_init auth candidate (fail-closed)")
-            return False
+        branch_off, state = site
+        if state == "patched":
+            self._log(f"  [=] rootauth branch already bypassed at 0x{branch_off:X}")
+            return True
 
-        self._log(f"  [+] auth BL at 0x{bl_off:X} (strict candidate)")
-        self.emit(bl_off, MOV_X0_0, "mov x0,#0 [_bsd_init auth]")
+        self.emit(branch_off, NOP, "NOP cbnz (rootvp auth) [_bsd_init]")
         return True
 
-    def _find_auth_bl(self, start, end):
-        """Find ldr x0,[xN,#0x2b8]; cbz x0; bl pattern. Returns BL offset."""
-        cands = self._collect_auth_bl_candidates(start, end)
-        if cands:
-            return cands[0]
+    def _find_bsd_init_rootauth_site(self, func_start):
+        panic_ref = self._rootvp_panic_ref_in_func(func_start)
+        if panic_ref is None:
+            return None
 
-        # Fallback for unexpected instruction variants.
-        for off in range(start, end - 8, 4):
-            d = self._disas_at(off, 3)
-            if len(d) < 3:
-                continue
-            i0, i1, i2 = d[0], d[1], d[2]
-            if i0.mnemonic == "ldr" and i1.mnemonic == "cbz" and i2.mnemonic == "bl":
-                if i0.op_str.startswith("x0,") and "#0x2b8" in i0.op_str:
-                    if i1.op_str.startswith("x0,"):
-                        return off + 8
+        adrp_off, add_off = panic_ref
+        bl_panic_off = self._find_panic_call_near(add_off)
+        if bl_panic_off is None:
+            return None
+
+        err_lo = bl_panic_off - 0x40
+        err_hi = bl_panic_off + 4
+        imageboot_needed = self._resolve_symbol("_imageboot_needed")
+
+        candidates = []
+        scan_start = max(func_start, adrp_off - 0x400)
+        for off in range(scan_start, adrp_off, 4):
+            state = self._match_rootauth_branch_site(off, err_lo, err_hi, imageboot_needed)
+            if state is not None:
+                candidates.append((off, state))
+
+        if not candidates:
+            return None
+
+        if len(candidates) > 1:
+            live = [item for item in candidates if item[1] == "live"]
+            if len(live) == 1:
+                return live[0]
+            return None
+
+        return candidates[0]
+
+    def _rootvp_panic_ref_in_func(self, func_start):
+        str_off = self.find_string(self._ROOTVP_PANIC_NEEDLE)
+        if str_off < 0:
+            return None
+
+        refs = self.find_string_refs(str_off, *self.kern_text)
+        for adrp_off, add_off, _ in refs:
+            if self.find_function_start(adrp_off) == func_start:
+                return adrp_off, add_off
         return None
 
-    def _collect_auth_bl_candidates(self, start, end):
-        """Fast matcher using raw instruction masks (no capstone in hot loop)."""
-        out = []
-        limit = min(end - 8, self.size - 8)
-        for off in range(max(start, 0), limit, 4):
-            i0 = _rd32(self.raw, off)
-            if (i0 & self._LDR_X0_2B8_MASK) != self._LDR_X0_2B8_VAL:
-                continue
+    def _find_panic_call_near(self, add_off):
+        for scan in range(add_off, min(add_off + 0x40, self.size), 4):
+            if self._is_bl(scan) == self.panic_off:
+                return scan
+        return None
 
-            i1 = _rd32(self.raw, off + 4)
-            if (i1 & self._CBZ_X0_MASK) != self._CBZ_X0_VAL:
-                continue
+    def _match_rootauth_branch_site(self, off, err_lo, err_hi, imageboot_needed):
+        insns = self._disas_at(off, 1)
+        if not insns:
+            return None
+        insn = insns[0]
 
-            i2 = _rd32(self.raw, off + 8)
-            if (i2 & 0xFC000000) != 0x94000000:  # BL imm26
-                continue
-
-            out.append(off + 8)
-        return out
-
-    def _select_bsd_init_auth_candidate(self, candidates, rootvp_func):
-        """Select a safe candidate in core kernel code.
-
-        Heuristics (strict, fail-closed):
-        - Stay near the core bsd_init region (anchored by rootvp panic string xref).
-        - Require function context to reference `/dev/null` (boot-path fingerprint).
-        - Prefer lower-caller-count function entries.
-        """
-        # Keep candidates in the same broad kernel neighborhood.
-        core_limit = rootvp_func + 0x400000
-        nearby = [off for off in candidates if off < core_limit]
-        if not nearby:
+        if not self._is_call(off - 4):
+            return None
+        if not self._has_imageboot_call_near(off, imageboot_needed):
             return None
 
-        ranked = []
-        for bl_off in nearby:
-            fn = self.find_function_start(bl_off)
-            if fn < 0:
-                continue
-            fn_end = self._find_func_end(fn, 0x4000)
-            if not self._function_has_string(fn, fn_end, b"/dev/null"):
-                continue
-            callers = len(self.bl_callers.get(fn, []))
-            ranked.append((callers, bl_off, fn))
+        if insn.mnemonic == "nop":
+            return "patched"
 
-        if not ranked:
+        if insn.mnemonic != "cbnz":
+            return None
+        if len(insn.operands) < 2 or insn.operands[0].type != ARM64_OP_REG:
+            return None
+        if insn.operands[0].reg not in (ARM64_REG_W0, ARM64_REG_X0):
             return None
 
-        ranked.sort()
-        best_callers, best_off, _ = ranked[0]
-        # Ambiguous: multiple same-rank hits.
-        same = [item for item in ranked if item[0] == best_callers]
-        if len(same) > 1:
+        target, _ = self._decode_branch_target(off)
+        if target is None or not (err_lo <= target <= err_hi):
             return None
-        return best_off
+
+        return "live"
+
+    def _is_call(self, off):
+        if off < 0:
+            return False
+        insns = self._disas_at(off, 1)
+        return bool(insns) and insns[0].mnemonic.startswith("bl")
+
+    def _has_imageboot_call_near(self, off, imageboot_needed):
+        for scan in range(off + 4, min(off + 0x18, self.size), 4):
+            target = self._is_bl(scan)
+            if target < 0:
+                continue
+            if imageboot_needed < 0 or target == imageboot_needed:
+                return True
+        return False
 
     def _func_for_rootvp_anchor(self):
         needle = b"rootvp not authenticated after mounting @%s:%d"
@@ -139,13 +143,3 @@ class KernelJBPatchBsdInitAuthMixin:
             return None
         fn = self.find_function_start(refs[0][0])
         return fn if fn >= 0 else None
-
-    def _function_has_string(self, func_start, func_end, needle):
-        str_off = self.find_string(needle)
-        if str_off < 0:
-            return False
-        refs = self.find_string_refs(str_off, *self.kern_text)
-        for adrp_off, _, _ in refs:
-            if func_start <= adrp_off < func_end:
-                return True
-        return False

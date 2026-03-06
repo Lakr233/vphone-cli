@@ -149,6 +149,15 @@ research/                         # Detailed firmware/patch documentation
 
 ### Python Scripts
 
+### Kernel patcher guardrails
+
+- For kernel patchers, never hardcode file offsets, virtual addresses, or preassembled instruction bytes inside patch logic.
+- All instruction matching must be derived from Capstone decode results (mnemonic / operands / control-flow), not exact operand-string text when a semantic operand check is possible.
+- All replacement instruction bytes must come from Keystone-backed helpers already used by the project (for example `asm(...)`, `NOP`, `MOV_W0_0`, etc.).
+- Prefer source-backed semantic anchors: in-image symbol lookup, string xrefs, local call-flow, and XNU correlation. Do not depend on repo-exported per-kernel symbol dumps at runtime.
+- When retargeting a patch, write the reveal procedure and validation steps into `TODO.md` before handing off for testing.
+- For `patch_bsd_init_auth` specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
+
 - Patchers use `capstone` (disassembly), `keystone-engine` (assembly), `pyimg4` (IM4P handling).
 - Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.
 - Each patch logged with offset and before/after state.

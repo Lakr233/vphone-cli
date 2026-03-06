@@ -358,9 +358,15 @@ Should have moderate caller count (hundreds).
 
 ### patch_syscallmask_apply_to_proc — FIXED
 
-**Problem**: `bl_callers` key bug: code used `target + self.base_va` but bl_callers is keyed by file offset.
-**Fix**: Changed to `self.bl_callers.get(target, [])` at line ~1661.
-**Status**: Now PASSING (40 patches emitted for shellcode + redirect).
+**Historical problem**: the earlier repo-side “fix” still matched the wrong place. Runtime verification later showed the old hit landed in `_profile_syscallmask_destroy` underflow handling, not the real syscallmask apply wrapper.
+**Current understanding**: faithful upstream C22 is a low-wrapper shellcode patch that mutates the effective Unix/Mach/KOBJ mask bytes to all `0xFF`, then continues into the normal setter. It is not a `NULL`-mask install and not an early-return patch.
+**Current status**: rebuilt structurally as a 3-write retarget (`save selector`, `branch to cave`, `all-ones cave + setter tail`) and separately documented in `research/kernel_patch_jb/patch_syscallmask_apply_to_proc.md`; user reported boot success with the rebuilt C22 on `2026-03-06`.
+
+### patch_iouc_failed_macf — RETARGETED
+
+**Historical repo behavior**: patched `0xFFFFFE000825B0C0` at entry with `mov x0, xzr ; retab` after `PACIBSP`.
+**Problem**: fresh IDA review shows this is a large IOUserClient open/setup path, not a tiny standalone deny helper; entry early-return skips broader work including output-state preparation.
+**Current status**: rebuilt as A5-v2. It now patches only the narrow post-`mac_iokit_check_open` gate in the same function: `0xFFFFFE000825BA98` (`CBZ W0, allow`) becomes unconditional `B allow`. Focused dry-run emits exactly one write at file offset `0x01257A98`.
 
 ### patch_nvram_verify_permission — FIXED
 

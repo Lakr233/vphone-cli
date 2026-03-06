@@ -1,50 +1,39 @@
 """Mixin: KernelJBPatchIoucmacfMixin."""
 
-from .kernel_jb_base import ARM64_OP_IMM, asm
-
 
 class KernelJBPatchIoucmacfMixin:
     def patch_iouc_failed_macf(self):
-        """Bypass IOUserClient MACF deny path at the shared IOUC gate.
+        """Bypass the narrow IOUC MACF deny branch after mac_iokit_check_open.
 
-        Strategy:
-        - Anchor on IOUC "failed MACF"/"failed sandbox" format-string xrefs.
-        - Resolve the shared containing function.
-        - Require a BL call to a MACF dispatcher-like callee:
-          contains `ldr x10, [x10, #0x9e8]` and `blraa/blr x10`.
-        - Apply low-risk early return (keep PACIBSP at +0x0):
-          mov x0, xzr ; retab
+        Upstream-equivalent design goal:
+        - keep the large IOUserClient open/setup path intact
+        - keep entitlement/default-locking/sandbox-resolver flow intact
+        - only force the post-MACF gate onto the allow path
 
-        This bypasses centralized IOUC MACF deny returns (for example
-        AppleAPFSUserClient / AppleSEPUserClient).
+        Local validated shape in `sub_FFFFFE000825B0C0`:
+        - `BL <macf_aggregator>`
+        - `CBZ W0, <allow>`
+        - later `ADRL X0, "IOUC %s failed MACF in process %s\n"`
+
+        Patch action:
+        - replace that `CBZ W0, <allow>` with unconditional `B <allow>`
         """
-        self._log("\n[JB] IOUC MACF gate: low-risk early return")
+        self._log("\n[JB] IOUC MACF gate: branch-level deny bypass")
 
         fail_macf_str = self.find_string(b"IOUC %s failed MACF in process %s")
         if fail_macf_str < 0:
             self._log("  [-] IOUC failed-MACF format string not found")
             return False
 
-        fail_macf_refs = self.find_string_refs(fail_macf_str, *self.kern_text)
-        if not fail_macf_refs:
-            fail_macf_refs = self.find_string_refs(fail_macf_str)
-        if not fail_macf_refs:
+        refs = self.find_string_refs(fail_macf_str, *self.kern_text)
+        if not refs:
             self._log("  [-] no xrefs for IOUC failed-MACF format string")
             return False
 
-        fail_sb_str = self.find_string(b"IOUC %s failed sandbox in process %s")
-        fail_sb_refs = []
-        if fail_sb_str >= 0:
-            fail_sb_refs = self.find_string_refs(fail_sb_str, *self.kern_text)
-            if not fail_sb_refs:
-                fail_sb_refs = self.find_string_refs(fail_sb_str)
-
-        sb_ref_set = {adrp for adrp, _, _ in fail_sb_refs}
-
-        def _has_macf_dispatch_shape(callee_off):
-            callee_end = self._find_func_end(callee_off, 0x600)
-            saw_load = False
-            saw_call = False
+        def _has_macf_aggregator_shape(callee_off):
+            callee_end = self._find_func_end(callee_off, 0x400)
+            saw_slot_load = False
+            saw_indirect_call = False
             for off in range(callee_off, callee_end, 4):
                 d = self._disas_at(off)
                 if not d:
@@ -52,74 +41,66 @@ class KernelJBPatchIoucmacfMixin:
                 ins = d[0]
                 op = ins.op_str.replace(" ", "").lower()
                 if ins.mnemonic == "ldr" and ",#0x9e8]" in op and op.startswith("x10,[x10"):
-                    saw_load = True
+                    saw_slot_load = True
                 if ins.mnemonic in ("blraa", "blrab", "blr") and op.startswith("x10"):
-                    saw_call = True
-                if saw_load and saw_call:
+                    saw_indirect_call = True
+                if saw_slot_load and saw_indirect_call:
                     return True
             return False
 
-        candidates = []
-        for adrp_off, _, _ in fail_macf_refs:
-            fn = self.find_function_start(adrp_off)
-            if fn < 0:
+        for adrp_off, _, _ in refs:
+            func_start = self.find_function_start(adrp_off)
+            if func_start < 0:
                 continue
-            fn_end = self._find_func_end(fn, 0x2000)
-            if fn_end <= fn + 0x20:
-                continue
+            func_end = self._find_func_end(func_start, 0x2000)
 
-            # Require a BL call to a MACF-dispatcher-like function.
-            has_dispatch_call = False
-            for off in range(fn, fn_end, 4):
+            for off in range(max(func_start, adrp_off - 0x120), min(func_end, adrp_off + 4), 4):
+                d0 = self._disas_at(off)
+                d1 = self._disas_at(off + 4)
+                if not d0 or not d1:
+                    continue
+                i0 = d0[0]
+                i1 = d1[0]
+                if i0.mnemonic != "bl" or i1.mnemonic != "cbz":
+                    continue
+                if not i1.op_str.replace(" ", "").startswith("w0,"):
+                    continue
+
                 bl_target = self._is_bl(off)
-                if bl_target < 0:
+                if bl_target < 0 or not _has_macf_aggregator_shape(bl_target):
                     continue
-                if _has_macf_dispatch_shape(bl_target):
-                    has_dispatch_call = True
-                    break
-            if not has_dispatch_call:
-                continue
 
-            # Prefer candidates that also reference the sandbox-fail format string.
-            score = 0
-            for sb_adrp in sb_ref_set:
-                if fn <= sb_adrp < fn_end:
-                    score += 2
+                if len(i1.operands) < 2:
+                    continue
+                allow_target = getattr(i1.operands[-1], 'imm', -1)
+                if not (off < allow_target < func_end):
+                    continue
 
-            # Sanity: should branch on w0 before logging failed-MACF.
-            has_guard = False
-            scan_start = max(fn, adrp_off - 0x100)
-            for off in range(scan_start, adrp_off, 4):
-                d = self._disas_at(off)
-                if not d:
-                    continue
-                ins = d[0]
-                if ins.mnemonic not in ("cbz", "cbnz"):
-                    continue
-                if not ins.op_str.replace(" ", "").startswith("w0,"):
-                    continue
-                target = None
-                for op in reversed(ins.operands):
-                    if op.type == ARM64_OP_IMM:
-                        target = op.imm
+                fail_log_adrp = None
+                for probe in range(off + 8, min(func_end, off + 0x80), 4):
+                    d = self._disas_at(probe)
+                    if not d:
+                        continue
+                    ins = d[0]
+                    if ins.mnemonic == "adrp" and probe == adrp_off:
+                        fail_log_adrp = probe
                         break
-                if target and off < target < fn_end:
-                    has_guard = True
-                    break
-            if not has_guard:
-                continue
+                if fail_log_adrp is None:
+                    continue
 
-            candidates.append((score, fn, adrp_off, fn_end))
+                patch_bytes = self._encode_b(off + 4, allow_target)
+                if not patch_bytes:
+                    continue
 
-        if not candidates:
-            self._log("  [-] no safe IOUC MACF candidate function")
-            return False
+                self._log(
+                    f"  [+] IOUC MACF gate fn=0x{func_start:X}, bl=0x{off:X}, cbz=0x{off + 4:X}, allow=0x{allow_target:X}"
+                )
+                self.emit(
+                    off + 4,
+                    patch_bytes,
+                    f"b #0x{allow_target - (off + 4):X} [IOUC MACF deny → allow]",
+                )
+                return True
 
-        # Deterministic pick: highest score, then lowest function offset.
-        candidates.sort(key=lambda item: (-item[0], item[1]))
-        score, fn, _, _ = candidates[0]
-        self._log(f"  [+] candidate fn=0x{fn:X} (score={score})")
-
-        self.emit(fn + 4, asm("mov x0, xzr"), "mov x0,xzr [IOUC MACF gate low-risk]")
-        self.emit(fn + 8, bytes([0xFF, 0x0F, 0x5F, 0xD6]), "retab [IOUC MACF gate low-risk]")
-        return True
+        self._log("  [-] narrow IOUC MACF deny branch not found")
+        return False

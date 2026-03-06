@@ -1,169 +1,146 @@
 # C23 `patch_hook_cred_label_update_execve`
 
-## Patch Goal
+## Scope
 
-Install an inline trampoline on the sandbox cred-label execve hook, inject ownership-propagation shellcode, and resume original hook flow safely.
+- Kernel analyzed: `kernelcache.research.vphone600`
+- Concrete target image: `ipsws/PCC-CloudOS-26.1-23B85/kernelcache.research.vphone600`
+- Analysis date: `2026-03-06`
+- Method: IDA MCP + local `research/reference/xnu` + focused Python dry-run
+- Trust policy: historical notes for this patch were treated as untrusted and re-derived from the live PCC 26.1 research kernel
 
-## Binary Targets (IDA + Recovered Symbols)
+## Executive Verdict
 
-- Sandbox policy strings/data:
-  - `"Sandbox"` pointer at `0xfffffe0007a66cc0`
-  - `"Seatbelt sandbox policy"` pointer at `0xfffffe0007a66cc8`
-  - `mpc_ops` table at `0xfffffe0007a66d20`
-- Dynamic hook selection (ops[0..29], max size):
-  - selected entry: `ops[18] = 0xfffffe00093d2ce4` (size `0x1070`)
-- Recovered hook symbol (callee in this path):
-  - `_hook_cred_label_update_execve` at `0xfffffe00093d0d0c`
-- `vnode_getattr` resolution by string-near-BL method:
-  - string `%s: vnode_getattr: %d` xref at `0xfffffe00084caa18`
-  - nearest preceding BL target: `0xfffffe0007cd84f8`
+`patch_hook_cred_label_update_execve` should be implemented as a **faithful upstream C23 wrapper trampoline**, not as an early-return patch.
 
-## Call-Stack Analysis
+The correct PCC 26.1 target is the sandbox `mac_policy_ops[18]` entry for `mpo_cred_label_update_execve`. On this kernel that table entry points to the wrapper at `0xfffffe00093bdb64` (`sub_FFFFFE00093BDB64`), not directly to the internal helper at `0xfffffe00093bbbf4` (`sub_FFFFFE00093BBBF4`).
 
-- MAC framework dispatch -> `mac_policy_ops[18]` (`0xfffffe00093d2ce4`) -> internal call to `_hook_cred_label_update_execve` (`0xfffffe00093d0d0c`).
-- No direct code xrefs to `ops[18]` function (expected: data-driven dispatch table call path).
+The rebuilt repo implementation now follows upstream C23 behavior:
 
-## Patch-Site / Byte-Level Change
+- retarget `ops[18]` to a code cave,
+- assemble the cave body via keystone `asm()` instead of hardcoded instruction words,
+- fetch file metadata with `vnode_getattr(vp, &vap, vfs_context_current())`,
+- if `VSUID`/`VSGID` are present, copy owner UID/GID into the pending new credential,
+- set `proc->p_flag |= P_SUGID` when either field changes,
+- then branch back to the original wrapper.
 
-- Trampoline site: `0xfffffe00093d2ce4`
-- Before:
-  - bytes: `7F 23 03 D5`
-  - asm: `PACIBSP`
-- After:
-  - asm: `B cave` (PC-relative, target depends on allocated cave offset)
-- Cave semantics:
-  - slot 0: relocated `PACIBSP`
-  - slot 18: `BL vnode_getattr_target`
-  - tail: restore regs + `B hook+4`
+This means C23 is **not** a direct sandbox-disable patch. It is a compatibility trampoline that preserves exec-time setugid credential state before the normal sandbox wrapper continues.
 
-## Pseudocode (Before)
+## Verified Binary Facts
 
-```c
-int hook_cred_label_update_execve(args...) {
-    // original sandbox hook logic
-    ...
-}
-```
+### 1. The live PCC 26.1 `ops[18]` entry points to the wrapper
 
-## Pseudocode (After)
+Focused dry-run and local pointer decode on `kernelcache.research.vphone600` show:
 
-```c
-int hook_entry(args...) {
-    branch_to_cave();
-}
+- sandbox `mac_policy_conf` at file offset `0x00A54428`
+- `mpc_ops` table at file offset `0x00A54488`
+- `ops[18]` entry at file offset `0x00A54518`
+- original raw chained pointer: `0x8010EC79023B9B64`
+- decoded target file offset: `0x023B9B64`
+- decoded target VA: `0xfffffe00093bdb64`
 
-int cave(args...) {
-    pacibsp();
-    if (vp != NULL) {
-        vnode_getattr(vp, &vap, &ctx);
-        propagate_uid_gid_if_needed(new_cred, vap, proc);
-    }
-    branch_to_hook_plus_4();
-}
-```
+So on this kernel, `ops[18]` is the wrapper `sub_FFFFFE00093BDB64`.
 
-## Symbol Consistency
+### 2. The wrapper calls the internal helper
 
-- `_hook_cred_label_update_execve` symbol is present and aligned with call-path evidence.
-- `ops[18]` wrapper itself has no recovered explicit symbol name; behavior is consistent with sandbox MAC dispatch wrapper.
+IDA MCP on the same PCC 26.1 research kernel shows:
 
-## Patch Metadata
+- wrapper: `sub_FFFFFE00093BDB64`
+- inner helper: `sub_FFFFFE00093BBBF4`
+- call site inside wrapper: `0xfffffe00093be8d0`
 
-- Patch document: `patch_hook_cred_label_update_execve.md` (C23).
-- Primary patcher module: `scripts/patchers/kernel_jb_patch_hook_cred_label.py`.
-- Analysis mode: static binary analysis (IDA-MCP + disassembly + recovered symbols), no runtime patch execution.
+So the runtime call chain is:
 
-## Target Function(s) and Binary Location
+- sandbox policy table `ops[18]`
+- wrapper `sub_FFFFFE00093BDB64`
+- internal helper `sub_FFFFFE00093BBBF4`
 
-- Primary target: hook/trampoline path around `hook_cred_label_update_execve`.
-- Patch hit combines inline branch rewrite plus code-cave logic, with addresses listed below.
+### 3. Faithful upstream C23 branches back to the wrapper, not the helper
 
-## Kernel Source File Location
+The rebuilt C23 cave uses the same high-level structure as upstream:
 
-- Component: sandbox/AMFI hook glue around execve cred-label callback (partially private in KC).
-- Related open-source context: `security/mac_process.c`, `bsd/kern/kern_exec.c`.
-- Confidence: `low`.
+- save argument registers,
+- call `vfs_context_current`,
+- call `vnode_getattr`,
+- update pending credential UID/GID from vnode owner when `VSUID`/`VSGID` are set,
+- set `P_SUGID`,
+- restore registers,
+- branch back to the original wrapper entry.
 
-## Function Call Stack
+For PCC 26.1, the resolved helper targets are:
 
-- Primary traced chain (from `Call-Stack Analysis`):
-- MAC framework dispatch -> `mac_policy_ops[18]` (`0xfffffe00093d2ce4`) -> internal call to `_hook_cred_label_update_execve` (`0xfffffe00093d0d0c`).
-- No direct code xrefs to `ops[18]` function (expected: data-driven dispatch table call path).
-- The upstream entry(s) and patched decision node are linked by direct xref/callsite evidence in this file.
+- `vfs_context_current` body at file offset `0x00B756DC`
+- `vnode_getattr` body at file offset `0x00CC91B4`
+- branch-back target wrapper at file offset `0x023B9B64`
 
-## Patch Hit Points
+## XNU Cross-Reference
 
-- Key patchpoint evidence (from `Patch-Site / Byte-Level Change`):
-- Trampoline site: `0xfffffe00093d2ce4`
-- Before:
-- bytes: `7F 23 03 D5`
-- asm: `PACIBSP`
-- After:
-- asm: `B cave` (PC-relative, target depends on allocated cave offset)
-- The before/after instruction transform is constrained to this validated site.
+Open-source XNU confirms the field semantics used by the faithful C23 shellcode:
 
-## Current Patch Search Logic
+- `VSUID` / `VSGID` are defined in `research/reference/xnu/bsd/sys/vnode.h:807`
+- `struct vnode_attr::{va_uid, va_gid, va_mode}` are defined in `research/reference/xnu/bsd/sys/vnode.h:690`
+- `struct ucred::cr_uid` is defined in `research/reference/xnu/bsd/sys/ucred.h:155`
+- `cr_gid` aliases `cr_groups[0]` in `research/reference/xnu/bsd/sys/ucred.h:211`
+- `P_SUGID` is defined in `research/reference/xnu/bsd/sys/proc.h:177`
+- exec-time MAC label update reaches this area through `kauth_proc_label_update_execve(...)` in `research/reference/xnu/bsd/kern/kern_credential.c:4367`
+- exec path setugid handling is in `exec_handle_sugid(...)` in `research/reference/xnu/bsd/kern/kern_exec.c:6833`
 
-- Implemented in `scripts/patchers/kernel_jb_patch_hook_cred_label.py`.
-- Site resolution uses anchor + opcode-shape + control-flow context; ambiguous candidates are rejected.
-- The patch is applied only after a unique candidate is confirmed in-function.
-- Uses string anchors + instruction-pattern constraints + structural filters (for example callsite shape, branch form, register/imm checks).
+## What C23 Does After Rebuild
 
-## Validation (Static Evidence)
+### Facts
 
-- Verified with IDA-MCP disassembly/decompilation, xrefs, and callgraph context for the selected site.
-- Cross-checked against recovered symbols in `research/kernel_info/json/kernelcache.research.vphone600.bin.symbols.json`.
-- Address-level evidence in this document is consistent with patcher matcher intent.
+The rebuilt C23 now does exactly two writes in focused dry-run, and the cave body is keystone-generated rather than hand-written as raw instruction words:
 
-## Expected Failure/Panic if Unpatched
+1. retarget `ops[18]` from the original wrapper pointer to the code cave
+2. emit a `0xB8`-byte cave implementing the setugid fixup trampoline
 
-- Exec hook path retains ownership/suid propagation restrictions, leading to launch denial or broken privilege state transitions.
+Focused dry-run output on `ipsws/PCC-CloudOS-26.1-23B85/kernelcache.research.vphone600`:
 
-## Risk / Side Effects
+- `0x00A54518` — retarget `ops[18]` to faithful C23 cave
+- `0x00AB1720` — faithful upstream C23 cave body
 
-- This patch weakens a kernel policy gate by design and can broaden behavior beyond stock security assumptions.
-- Potential side effects include reduced diagnostics fidelity and wider privileged surface for patched workflows.
+The patched chained-pointer qword becomes:
 
-## Symbol Consistency Check
+- new raw entry: `0x8010EC7900AB1720`
 
-- Recovered-symbol status in `kernelcache.research.vphone600.bin.symbols.json`: `match`.
-- Canonical symbol hit(s): `_hook_cred_label_update_execve`.
-- Where canonical names are absent, this document relies on address-level control-flow and instruction evidence; analyst aliases are explicitly marked as aliases.
-- IDA-MCP lookup snapshot (2026-03-05): `_hook_cred_label_update_execve` resolved at `0xfffffe00093d0d0c` (size `0x460`).
+### Inference
 
-## Open Questions and Confidence
+C23’s role in the jailbreak patchset is best understood as a **boot-safety / semantic-preservation shim** around exec-time sandbox transition handling.
 
-- Open question: verify future firmware drift does not move this site into an equivalent but semantically different branch.
-- Overall confidence for this patch analysis: `high` (symbol match + control-flow/byte evidence).
+It does **not** directly remove the sandbox wrapper. Instead it ensures that setuid/setgid-derived credential state is already reflected in the pending exec credential before the original sandbox wrapper runs. That is consistent with the historical upstream choice to preserve exec-time credential semantics while other jailbreak patches relax deny decisions elsewhere.
 
-## Evidence Appendix
+## Validation Status
 
-- Detailed addresses, xrefs, and rationale are preserved in the existing analysis sections above.
-- For byte-for-byte patch details, refer to the patch-site and call-trace subsections in this file.
+### Syntax validation
 
-## Runtime + IDA Verification (2026-03-05)
+Passed:
 
-- Verification timestamp (UTC): `2026-03-05T14:55:58.795709+00:00`
-- Kernel input: `/Users/qaq/Documents/Firmwares/PCC-CloudOS-26.3-23D128/kernelcache.research.vphone600`
-- Base VA: `0xFFFFFE0007004000`
-- Runtime status: `hit` (2 patch writes, method_return=True)
-- Included in `KernelJBPatcher.find_all()`: `True`
-- IDA mapping: `2/2` points in recognized functions; `0` points are code-cave/data-table writes.
-- IDA mapping status: `ok` (IDA runtime mapping loaded.)
-- Call-chain mapping status: `ok` (IDA call-chain report loaded.)
-- Call-chain validation: `1` function nodes, `2` patch-point VAs.
-- IDA function sample: `sub_FFFFFE00093D2CE4`
-- Chain function sample: `sub_FFFFFE00093D2CE4`
-- Caller sample: none
-- Callee sample: `__sfree_data`, `_hook_cred_label_update_execve`, `_sb_evaluate_internal`, `persona_put_and_unlock`, `proc_checkdeadrefs`, `sub_FFFFFE0007AC57A0`
-- Verdict: `valid`
-- Recommendation: Keep enabled for this kernel build; continue monitoring for pattern drift.
-- Policy note: method is in the low-risk optimized set (validated hit on this kernel).
-- Key verified points:
-- `0xFFFFFE00093D2CE8` (`sub_FFFFFE00093D2CE4`): mov x0,xzr [_hook_cred_label_update_execve low-risk] | `fc6fbaa9 -> e0031faa`
-- `0xFFFFFE00093D2CEC` (`sub_FFFFFE00093D2CE4`): retab [_hook_cred_label_update_execve low-risk] | `fa6701a9 -> ff0f5fd6`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/runtime_verification_report.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_runtime_patch_points.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_patch_chain_report.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_patch_chain_report.md`
-<!-- END_RUNTIME_IDA_VERIFICATION_2026_03_05 -->
+- `python3 -m py_compile scripts/patchers/kernel_jb_patch_hook_cred_label.py scripts/patchers/kernel_jb.py`
+
+### Focused dry-run validation
+
+Passed in-memory only; no firmware image was written back.
+
+Observed output:
+
+- 2 patches emitted
+- `ops[18]` correctly decoded and retargeted
+- cave placed at `0x00AB1720`
+- cave branches back to wrapper `0x023B9B64`
+- cave encodes BL calls to `vfs_context_current` and `vnode_getattr`
+
+## Repo Status After This Pass
+
+- `scripts/patchers/kernel_jb_patch_hook_cred_label.py` now implements faithful upstream C23 semantics
+- `scripts/patchers/kernel_jb.py` includes `patch_hook_cred_label_update_execve` in the active Group C schedule
+- `research/00_patch_comparison_all_variants.md` should describe C23 as a faithful wrapper trampoline, not as a mis-targeted early-return patch
+
+## Practical Effect
+
+After the rebuild, C23 should provide the following effect on the current PCC 26.1 research kernel:
+
+- preserve exec-time `VSUID` / `VSGID` credential transfer,
+- preserve `P_SUGID` marking,
+- keep the original sandbox wrapper execution path alive,
+- avoid the broader boot-risk of replacing the whole wrapper with an immediate success return.
+
+That is the main reason this direction is safer than the old “return 0 from the hook path” interpretations.

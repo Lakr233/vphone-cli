@@ -1,148 +1,243 @@
 # B13 `patch_bsd_init_auth`
 
-## Patch Goal
+## Scope
 
-Bypass the root volume authentication gate during early BSD init by forcing the auth helper return path to success.
+- Kernel analyzed: `kernelcache.research.vphone600`
+- Symbol handling: prefer in-image LC_SYMTAB if present; otherwise recover `bsd_init` from in-kernel string xrefs and local control-flow.
+- XNU reference: `research/reference/xnu/bsd/kern/bsd_init.c`
+- Analysis basis: IDA-MCP + local XNU source correlation
 
-## Binary Targets (IDA + Recovered Symbols)
+## Bottom Line
 
-- Recovered symbol: `bsd_init` at `0xfffffe0007f7add4`.
-- Anchor string: `"rootvp not authenticated after mounting @%s:%d"` at `0xfffffe000707d6bb`.
-- Anchor xref: `0xfffffe0007f7bc04` inside `sub_FFFFFE0007F7ADD4` (same function as `bsd_init`).
+- Earlier B13 notes are **not trustworthy** as a patch-site guide.
+- The currently documented runtime hit at `0xFFFFFE0007FB09DC` is **not inside `bsd_init`**.
+- The real `bsd_init` root-auth gate is in `bsd_init` at `0xFFFFFE0007F7B988` / `0xFFFFFE0007F7B98C`.
+- If B13 is re-enabled, the patch should target the **`FSIOC_KERNEL_ROOTAUTH` return check in `bsd_init`**, not the `ldr x0,[xN,#0x2b8]; cbz x0; bl` pattern currently used by the patcher.
 
-## Call-Stack Analysis
+## What This Patch Is Actually For
 
-- Static callers of `bsd_init` (`0xfffffe0007f7add4`):
-  - `sub_FFFFFE0007F7ACE0`
-  - `sub_FFFFFE0007B43EE0`
-- The patch point is in the rootvp/authentication decision path inside `bsd_init`, before the panic/report path using the rootvp-not-authenticated string.
+Fact:
 
-## Patch-Site / Byte-Level Change
+- In XNU, `bsd_init()` mounts root, calls `IOSecureBSDRoot(rootdevice)`, resolves `rootvnode`, and then enforces root-volume authentication.
+- The relevant source block in `research/reference/xnu/bsd/kern/bsd_init.c` is:
+  - `if (!bsd_rooted_ramdisk()) {`
+  - `autherr = VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel());`
+  - `if (autherr) panic("rootvp not authenticated after mounting");`
 
-- Patcher intent:
-  - Find `ldr x0, [xN, #0x2b8] ; cbz x0, ... ; bl auth_fn`.
-  - Replace `bl auth_fn` with `mov x0, #0`.
-- Expected replacement bytes:
-  - after: `00 00 80 D2` (`mov x0, #0`)
-- Current IDA image appears already post-variant / non-matching for the exact pre-patch triplet at the old location, so the exact original 4-byte BL at this build-state is not asserted here.
+Inference:
 
-## Pseudocode (Before)
+- The jailbreak purpose of B13 is **not** “generic auth bypass”.
+- Its real purpose is very narrow: **allow boot to continue even when the mounted root volume fails `FSIOC_KERNEL_ROOTAUTH`**.
+- In practice this means permitting a modified / non-sealed / otherwise non-stock root volume to survive the early BSD boot gate.
+
+## Real Control Flow in `bsd_init`
+
+### Confirmed symbols and anchors
+
+- `bsd_init` = `0xFFFFFE0007F7ADD4`
+- Panic string = `"rootvp not authenticated after mounting @%s:%d"` at `0xFFFFFE000707D6BB`
+- String xref inside `bsd_init` = `0xFFFFFE0007F7BC04`
+- Static caller of `bsd_init` = `kernel_bootstrap_thread` at `0xFFFFFE0007B44428`
+
+### Confirmed boot path
+
+Fact, from IDA + XNU correlation:
+
+1. `bsd_init` mounts root via `vfs_mountroot`.
+2. `bsd_init` calls `IOSecureBSDRoot(rootdevice)` at `0xFFFFFE0007F7B7C4`.
+3. `bsd_init` resolves the mounted root vnode and stores it as `rootvnode`.
+4. `bsd_init` calls `bsd_rooted_ramdisk` at `0xFFFFFE0007F7B934`.
+5. If not rooted ramdisk, `bsd_init` constructs a `VNOP_IOCTL` call for `FSIOC_KERNEL_ROOTAUTH`.
+6. The indirect filesystem op is invoked at `0xFFFFFE0007F7B988`.
+7. The return value is checked at `0xFFFFFE0007F7B98C`.
+8. Failure branches to the panic/report block at `0xFFFFFE0007F7BBF4`.
+
+### Exact IDA site
+
+Relevant instructions in `bsd_init`:
+
+```asm
+0xFFFFFE0007F7B934  BL      bsd_rooted_ramdisk
+0xFFFFFE0007F7B938  TBNZ    W0, #0, 0xFFFFFE0007F7B990
+
+0xFFFFFE0007F7B94C  MOV     W10, #0x80046833
+...
+0xFFFFFE0007F7B980  ADD     X0, SP, #var_130
+0xFFFFFE0007F7B984  MOV     X17, #0x307A
+0xFFFFFE0007F7B988  BLRAA   X8, X17
+0xFFFFFE0007F7B98C  CBNZ    W0, 0xFFFFFE0007F7BBF4
+```
+
+And the failure block:
+
+```asm
+0xFFFFFE0007F7BBF4  ADRL    X8, "bsd_init.c"
+0xFFFFFE0007F7BBFC  MOV     W9, #0x3D3
+0xFFFFFE0007F7BC04  ADRL    X0, "rootvp not authenticated after mounting @%s:%d"
+0xFFFFFE0007F7BC0C  BL      sub_FFFFFE0008302368
+```
+
+## Why This Is The Real Site
+
+### Source-to-binary correlation
+
+Fact:
+
+- `FSIOC_KERNEL_ROOTAUTH` is defined in `research/reference/xnu/bsd/sys/fsctl.h`.
+- The binary literal loaded in `bsd_init` is `0x80046833`, which matches `FSIOC_KERNEL_ROOTAUTH`.
+- The call setup happens immediately after `bsd_rooted_ramdisk()` and immediately before the rootvp panic string block.
+
+Inference:
+
+- This is the exact lowered form of:
 
 ```c
-int rc = auth_rootvp(rootvp);
-if (rc != 0) {
-    panic("rootvp not authenticated ...");
+autherr = VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel());
+if (autherr) {
+    panic("rootvp not authenticated after mounting");
 }
 ```
 
-## Pseudocode (After)
+### Call-stack view
 
-```c
-int rc = 0;   // forced success
-if (rc != 0) {
-    panic("rootvp not authenticated ...");
-}
+Useful boot-path stack, expressed semantically rather than as a fake direct symbol chain:
+
+- `kernel_bootstrap_thread`
+- `bsd_init`
+- `vfs_mountroot`
+- `IOSecureBSDRoot`
+- `VFS_ROOT` / `set_rootvnode`
+- `bsd_rooted_ramdisk`
+- `VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel())`
+- failure path -> panic/report block using `"rootvp not authenticated after mounting @%s:%d"`
+
+## Why The Existing B13 Matcher Is Wrong
+
+### Old documented runtime hit is unrelated
+
+Fact:
+
+- Existing runtime-verification artifacts recorded B13 at `0xFFFFFE0007FB09DC`.
+- IDA resolves that site to `exec_handle_sugid`, not `bsd_init`.
+- The surrounding code is:
+
+```asm
+0xFFFFFE0007FB09D4  LDR     X0, [X20,#0x2B8]
+0xFFFFFE0007FB09D8  CBZ     X0, 0xFFFFFE0007FB09E4
+0xFFFFFE0007FB09DC  BL      sub_FFFFFE0007B84C5C
 ```
 
-## Symbol Consistency
+- That is exactly the shape the current patcher searches for.
 
-- `bsd_init` symbol and anchor context are consistent.
-- Exact auth-call instruction bytes require pre-patch image state for strict byte-for-byte confirmation.
+### Why the heuristic false-positive happened
 
-## Patch Metadata
+Fact:
 
-- Patch document: `patch_bsd_init_auth.md` (B13).
-- Primary patcher module: `scripts/patchers/kernel_jb_patch_bsd_init_auth.py`.
-- Analysis mode: static binary analysis (IDA-MCP + disassembly + recovered symbols), no runtime patch execution.
+- `scripts/patchers/kernel_jb_patch_bsd_init_auth.py` looks for:
+  - `ldr x0, [xN, #0x2b8]`
+  - `cbz x0, ...`
+  - `bl ...`
+- It then ranks candidates by:
+  - neighborhood near a `bsd_init` string anchor,
+  - presence of `"/dev/null"` in the function,
+  - low caller count.
 
-## Target Function(s) and Binary Location
+Fact:
 
-- Primary target: recovered symbol `bsd_init` at `0xfffffe0007f7add4`.
-- Auth-check patchpoint is in the rootvp-authentication decision sequence documented in this file.
+- `exec_handle_sugid` also references `"/dev/null"` in the same function.
+- Therefore the heuristic can promote `exec_handle_sugid` even though it is semantically unrelated to root-volume auth.
 
-## Kernel Source File Location
+Conclusion:
 
-- Expected XNU source: `bsd/kern/bsd_init.c`.
-- Confidence: `high`.
+- The current B13 implementation is not “slightly off”; it is targeting the wrong logical site class.
+- This explains why enabling B13 can break boot: it mutates an exec/credential path instead of the early root-auth gate.
 
-## Function Call Stack
+## Correct Patch Candidate(s)
 
-- Primary traced chain (from `Call-Stack Analysis`):
-- Static callers of `bsd_init` (`0xfffffe0007f7add4`):
-- `sub_FFFFFE0007F7ACE0`
-- `sub_FFFFFE0007B43EE0`
-- The patch point is in the rootvp/authentication decision path inside `bsd_init`, before the panic/report path using the rootvp-not-authenticated string.
-- The upstream entry(s) and patched decision node are linked by direct xref/callsite evidence in this file.
+### Preferred candidate: patch the return check, not the call target
 
-## Patch Hit Points
+Patch site:
 
-- Key patchpoint evidence (from `Patch-Site / Byte-Level Change`):
-- Find `ldr x0, [xN, #0x2b8] ; cbz x0, ... ; bl auth_fn`.
-- Expected replacement bytes:
-- after: `00 00 80 D2` (`mov x0, #0`)
-- The before/after instruction transform is constrained to this validated site.
+- `0xFFFFFE0007F7B98C` in `bsd_init`
+- instruction: `CBNZ W0, 0xFFFFFE0007F7BBF4`
 
-## Current Patch Search Logic
+Recommended transform:
 
-- Implemented in `scripts/patchers/kernel_jb_patch_bsd_init_auth.py`.
-- Site resolution uses anchor + opcode-shape + control-flow context; ambiguous candidates are rejected.
-- The patch is applied only after a unique candidate is confirmed in-function.
-- Anchor string: `"rootvp not authenticated after mounting @%s:%d"` at `0xfffffe000707d6bb`.
-- Anchor xref: `0xfffffe0007f7bc04` inside `sub_FFFFFE0007F7ADD4` (same function as `bsd_init`).
+- before: `40 13 00 35`
+- after: `1F 20 03 D5` (`NOP`)
 
-## Validation (Static Evidence)
+Effect:
 
-- Verified with IDA-MCP disassembly/decompilation, xrefs, and callgraph context for the selected site.
-- Cross-checked against recovered symbols in `research/kernel_info/json/kernelcache.research.vphone600.bin.symbols.json`.
-- Address-level evidence in this document is consistent with patcher matcher intent.
+- `VNOP_IOCTL(... FSIOC_KERNEL_ROOTAUTH ...)` still executes.
+- Only the early boot failure gate is removed.
+- This is the narrowest behavioral change that matches the XNU source intent.
 
-## Expected Failure/Panic if Unpatched
+### Secondary candidate: force the ioctl result to success
 
-- Root volume auth check can trigger `"rootvp not authenticated ..."` panic/report path during early BSD init.
+Patch site:
 
-## Risk / Side Effects
+- `0xFFFFFE0007F7B988` in `bsd_init`
+- instruction: `BLRAA X8, X17`
 
-- This patch weakens a kernel policy gate by design and can broaden behavior beyond stock security assumptions.
-- Potential side effects include reduced diagnostics fidelity and wider privileged surface for patched workflows.
+Possible transform:
 
-## Symbol Consistency Check
+- before: `11 09 3F D7`
+- after: `00 00 80 52` (`MOV W0, #0`)
 
-- Recovered-symbol status in `kernelcache.research.vphone600.bin.symbols.json`: `match`.
-- Canonical symbol hit(s): `bsd_init`.
-- Where canonical names are absent, this document relies on address-level control-flow and instruction evidence; analyst aliases are explicitly marked as aliases.
-- IDA-MCP lookup snapshot (2026-03-05): `bsd_init` -> `bsd_init` at `0xfffffe0007f7add4` (size `0xe3c`).
+Effect:
 
-## Open Questions and Confidence
+- Skips the actual filesystem ioctl implementation entirely.
+- More invasive than patching the subsequent `CBNZ`.
 
-- Open question: verify future firmware drift does not move this site into an equivalent but semantically different branch.
-- Overall confidence for this patch analysis: `high` (symbol match + control-flow/byte evidence).
+Assessment:
 
-## Evidence Appendix
+- If we need a first retest candidate, `NOP`-ing `CBNZ W0` is safer than replacing the call.
+- It preserves any filesystem side effects that happen during the auth ioctl and only suppresses the panic gate.
 
-- Detailed addresses, xrefs, and rationale are preserved in the existing analysis sections above.
-- For byte-for-byte patch details, refer to the patch-site and call-trace subsections in this file.
+## What The Patch Does After It Is Correctly Retargeted
 
-## Runtime + IDA Verification (2026-03-05)
+- Allows the system to continue booting even if the mounted root volume is not accepted by `FSIOC_KERNEL_ROOTAUTH`.
+- Helps jailbreak-style boot flows where the root volume is intentionally modified and would otherwise fail the sealed/authenticated-root policy.
+- Does **not** by itself disable MACF, AMFI, persona checks, syscall masks, or other post-boot kernel policy gates.
+- In other words: B13 is a **boot-enablement patch**, not a whole-jailbreak patch.
 
-- Verification timestamp (UTC): `2026-03-05T14:55:58.795709+00:00`
-- Kernel input: `/Users/qaq/Documents/Firmwares/PCC-CloudOS-26.3-23D128/kernelcache.research.vphone600`
-- Base VA: `0xFFFFFE0007004000`
-- Runtime status: `hit` (1 patch writes, method_return=True)
-- Included in `KernelJBPatcher.find_all()`: `False`
-- IDA mapping: `1/1` points in recognized functions; `0` points are code-cave/data-table writes.
-- IDA mapping status: `ok` (IDA runtime mapping loaded.)
-- Call-chain mapping status: `ok` (IDA call-chain report loaded.)
-- Call-chain validation: `1` function nodes, `1` patch-point VAs.
-- IDA function sample: `exec_handle_sugid`
-- Chain function sample: `exec_handle_sugid`
-- Caller sample: `exec_mach_imgact`
-- Callee sample: `exec_handle_sugid`, `sub_FFFFFE0007B0EA64`, `sub_FFFFFE0007B0F4F8`, `sub_FFFFFE0007B1663C`, `sub_FFFFFE0007B1B508`, `sub_FFFFFE0007B1C348`
-- Verdict: `questionable`
-- Recommendation: Hit is valid but patch is inactive in find_all(); enable only after staged validation.
-- Key verified points:
-- `0xFFFFFE0007FB09DC` (`exec_handle_sugid`): mov x0,#0 [_bsd_init auth] | `a050ef97 -> 000080d2`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/runtime_verification_report.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_runtime_patch_points.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_patch_chain_report.json`
-- Artifacts: `research/kernel_patch_jb/runtime_verification/ida_patch_chain_report.md`
-<!-- END_RUNTIME_IDA_VERIFICATION_2026_03_05 -->
+## Risk Notes
+
+- This patch intentionally weakens authenticated-root enforcement during early boot.
+- The most likely safe form is to skip only the panic branch.
+- If downstream code later depends on rootauth state beyond this early gate, more work may still be required elsewhere; this document does **not** claim B13 alone is sufficient for a full JB boot.
+
+## Recommended Retargeting Rule (Design Only, No Code Change Landed)
+
+If B13 is reimplemented, the matcher should anchor on facts unique to this site:
+
+1. Resolve `_bsd_init` / `bsd_init` first.
+2. Stay inside that function only.
+3. Find the post-`bsd_rooted_ramdisk` false path.
+4. Require the literal `0x80046833` (`FSIOC_KERNEL_ROOTAUTH`) in the setup block.
+5. Require the next call to be the indirect vnode-op call.
+6. Patch the following `CBNZ W0, panic_block`.
+7. Optionally verify the failure target reaches the rootvp-auth string at `0xFFFFFE0007F7BC04`.
+
+This rule is materially stronger than the old `ldr x0,[...,#0x2b8]; cbz; bl` shape and should exclude `exec_handle_sugid` entirely.
+
+## Validation Status
+
+- Validation note: on the current reference IM4P kernel, in-image symbol resolution returns `0` symbols, so B13 is currently found by anchor recovery rather than external symbol data.
+- In-memory validation against `/Users/qaq/Documents/Firmwares/PCC-CloudOS-26.3-23D128/kernelcache.research.vphone600` succeeds after IM4P decompression.
+- `KernelJBPatcher._build_method_plan()` now includes `patch_bsd_init_auth`.
+- Live patch hit: `0xFFFFFE0007F7B98C` / file offset `0x00F7798C` / `CBNZ W0, panic` -> `NOP`.
+- Historical false-positive hit `0xFFFFFE0007FB09DC` is no longer selected.
+
+## Implementation Status
+
+- Landed in `scripts/patchers/kernel_jb_patch_bsd_init_auth.py`.
+- Default JB schedule re-enabled in `scripts/patchers/kernel_jb.py`.
+- Implemented form: patch the in-function `CBNZ W0, panic` gate in `bsd_init`.
+- Capstone semantic checks only: no raw-offset targeting and no operand-string/literal hardcoding in the final matcher.
+
+## Confidence
+
+- Confidence that `0xFFFFFE0007F7B988` / `0xFFFFFE0007F7B98C` is the real B13 site: **high**.
+- Confidence that `0xFFFFFE0007FB09DC` is a false-positive site: **high**.
+- Confidence that `NOP CBNZ` is a better first retest than `MOV W0,#0` on the call: **medium**, because APFS-side behavior is closed-source and may have side effects not visible from XNU alone.
