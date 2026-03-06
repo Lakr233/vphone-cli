@@ -21,7 +21,7 @@ enum VPhoneError: Error, CustomStringConvertible {
         case let .diskNotFound(p):
             "Disk image not found: \(p)"
         case let .invalidKernelDebugPort(port):
-            "Invalid kernel debug port: \(port) (expected 1...65535)"
+            "Invalid kernel debug port: \(port) (expected 6000...65535)"
         }
     }
 }

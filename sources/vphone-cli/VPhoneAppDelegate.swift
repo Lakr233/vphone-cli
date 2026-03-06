@@ -62,7 +62,11 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         print(
             "Screen: \(cli.screenWidth)x\(cli.screenHeight) @ \(cli.screenPpi) PPI (scale \(cli.screenScale)x)"
         )
-        print("Kernel debug stub : 127.0.0.1:\(cli.kernelDebugPort)")
+        if let kernelDebugPort = cli.kernelDebugPort {
+            print("Kernel debug stub : 127.0.0.1:\(kernelDebugPort)")
+        } else {
+            print("Kernel debug stub : auto-assigned")
+        }
         print("SEP               : enabled")
         print("  storage         : \(cli.sepStorage)")
         print("  rom             : \(cli.sepRom)")

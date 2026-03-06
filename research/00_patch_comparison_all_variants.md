@@ -1,184 +1,125 @@
-# Patch Comparison: Regular / Development / Jailbreak
+# Binary Patch Matrix: Regular / Development / Jailbreak
 
-## Boot Chain Patches
+Only binary patch items are kept in this document.
+Non-binary content (deployment flow, installed components, runtime defaults, toolchain notes) is intentionally excluded.
+
+## Boot Chain Binary Patches
 
 ### AVPBooter
 
-| #   | Patch        | Purpose                          | Regular | Dev | JB  |
-| --- | ------------ | -------------------------------- | :-----: | :-: | :-: |
-| 1   | `mov x0, #0` | DGST signature validation bypass |    Y    |  Y  |  Y  |
+| # | Patch | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | `mov x0, #0` | DGST signature validation bypass | Y | Y | Y |
 
 ### iBSS
 
-| #   | Patch                               | Purpose                                                       | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------------------------- | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded iBSS" in serial log                                   |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass (`b.ne` -> NOP, `mov x0,x22` -> `mov x0,#0`) |    Y    |  Y  |  Y  |
-| 3   | Skip `generate_nonce`               | Keep apnonce stable for SHSH (`tbz` -> unconditional `b`)     |    -    |  -  |  Y  |
+| # | Patch | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | Serial labels (2x) | `Loaded iBSS` serial marker | Y | Y | Y |
+| 2 | `image4_validate_property_callback` | Signature bypass (`b.ne` -> NOP, `mov x0,x22` -> `mov x0,#0`) | Y | Y | Y |
+| 3 | Skip `generate_nonce` | Keep apnonce stable for SHSH (`tbz` -> unconditional `b`) | - | - | Y |
 
 ### iBEC
 
-| #   | Patch                               | Purpose                                    | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------ | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded iBEC" in serial log                |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass                           |    Y    |  Y  |  Y  |
-| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` |    Y    |  Y  |  Y  |
+| # | Patch | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | Serial labels (2x) | `Loaded iBEC` serial marker | Y | Y | Y |
+| 2 | `image4_validate_property_callback` | Signature bypass | Y | Y | Y |
+| 3 | Boot-args redirect | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` | Y | Y | Y |
 
 ### LLB
 
-| #   | Patch                               | Purpose                                    | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------ | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded LLB" in serial log                 |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass                           |    Y    |  Y  |  Y  |
-| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` |    Y    |  Y  |  Y  |
-| 4   | Rootfs bypass (5 patches)           | Allow edited rootfs loading                |    Y    |  Y  |  Y  |
-| 5   | Panic bypass                        | NOP `cbnz` after `mov w8,#0x328` check     |    Y    |  Y  |  Y  |
+| # | Patch | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | Serial labels (2x) | `Loaded LLB` serial marker | Y | Y | Y |
+| 2 | `image4_validate_property_callback` | Signature bypass | Y | Y | Y |
+| 3 | Boot-args redirect | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` | Y | Y | Y |
+| 4 | Rootfs bypass (5 patches) | Allow edited rootfs loading | Y | Y | Y |
+| 5 | Panic bypass | NOP `cbnz` after `mov w8,#0x328` check | Y | Y | Y |
 
 ### TXM
 
-| #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
-| --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
-| 1   | Trustcache binary-search bypass                   | `bl hash_cmp` -> `mov x0, #0`             |    Y    |  Y  |  Y  |
-| 2   | Selector24 bypass: `mov w0, #0xa1`                | Return PASS (byte 1 = 0) after prologue   |    -    |  Y  |  Y  |
-| 3   | Selector24 bypass: `b <epilogue>`                 | Skip validation, jump to register restore |    -    |  Y  |  Y  |
-| 4   | get-task-allow (selector 41\|29)                  | `bl` -> `mov x0, #1`                      |    -    |  Y  |  Y  |
-| 5   | Selector42\|29 shellcode: branch to cave          | Redirect dispatch stub to shellcode       |    -    |  Y  |  Y  |
-| 6   | Selector42\|29 shellcode: NOP pad                 | UDF -> NOP in code cave                   |    -    |  Y  |  Y  |
-| 7   | Selector42\|29 shellcode: `mov x0, #1`            | Set return value to true                  |    -    |  Y  |  Y  |
-| 8   | Selector42\|29 shellcode: `strb w0, [x20, #0x30]` | Set manifest flag                         |    -    |  Y  |  Y  |
-| 9   | Selector42\|29 shellcode: `mov x0, x20`           | Restore context pointer                   |    -    |  Y  |  Y  |
-| 10  | Selector42\|29 shellcode: branch back             | Return from shellcode to stub+4           |    -    |  Y  |  Y  |
-| 11  | Debugger entitlement (selector 42\|37)            | `bl` -> `mov w0, #1`                      |    -    |  Y  |  Y  |
-| 12  | Developer mode bypass                             | NOP conditional guard before deny path    |    -    |  Y  |  Y  |
+| # | Patch | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | Trustcache binary-search bypass | `bl hash_cmp` -> `mov x0, #0` | Y | Y | Y |
+| 2 | Selector24 bypass: `mov w0, #0xa1` | Return PASS (byte 1 = 0) after prologue | - | Y | Y |
+| 3 | Selector24 bypass: `b <epilogue>` | Skip validation, jump to register restore | - | Y | Y |
+| 4 | get-task-allow (selector 41\|29) | `bl` -> `mov x0, #1` | - | Y | Y |
+| 5 | Selector42\|29 shellcode: branch to cave | Redirect dispatch stub to shellcode | - | Y | Y |
+| 6 | Selector42\|29 shellcode: NOP pad | UDF -> NOP in code cave | - | Y | Y |
+| 7 | Selector42\|29 shellcode: `mov x0, #1` | Set return value to true | - | Y | Y |
+| 8 | Selector42\|29 shellcode: `strb w0, [x20, #0x30]` | Set manifest flag | - | Y | Y |
+| 9 | Selector42\|29 shellcode: `mov x0, x20` | Restore context pointer | - | Y | Y |
+| 10 | Selector42\|29 shellcode: branch back | Return from shellcode to stub+4 | - | Y | Y |
+| 11 | Debugger entitlement (selector 42\|37) | `bl` -> `mov w0, #1` | - | Y | Y |
+| 12 | Developer mode bypass | NOP conditional guard before deny path | - | Y | Y |
 
-## Kernelcache
+## Kernelcache Binary Patches
 
 ### Base Patches (All Variants)
 
-| #     | Patch                      | Function                         | Purpose                                            | Regular | Dev | JB  |
-| ----- | -------------------------- | -------------------------------- | -------------------------------------------------- | :-----: | :-: | :-: |
-| 1     | NOP `tbnz w8,#5`           | `_apfs_vfsop_mount`              | Skip root snapshot sealed-volume check             |    Y    |  Y  |  Y  |
-| 2     | NOP conditional            | `_authapfs_seal_is_broken`       | Skip root volume seal panic                        |    Y    |  Y  |  Y  |
-| 3     | NOP conditional            | `_bsd_init`                      | Skip rootvp not-authenticated panic                |    Y    |  Y  |  Y  |
-| 4-5   | `mov w0,#0; ret`           | `_proc_check_launch_constraints` | Bypass launch constraints                          |    Y    |  Y  |  Y  |
-| 6-7   | `mov x0,#1` (2x)           | `PE_i_can_has_debugger`          | Enable kernel debugger                             |    Y    |  Y  |  Y  |
-| 8     | NOP                        | `_postValidation`                | Skip AMFI post-validation                          |    Y    |  Y  |  Y  |
-| 9     | `cmp w0,w0`                | `_postValidation`                | Force comparison true                              |    Y    |  Y  |  Y  |
-| 10-11 | `mov w0,#1` (2x)           | `_check_dyld_policy_internal`    | Allow dyld loading                                 |    Y    |  Y  |  Y  |
-| 12    | `mov w0,#0`                | `_apfs_graft`                    | Allow APFS graft                                   |    Y    |  Y  |  Y  |
-| 13    | `cmp x0,x0`                | `_apfs_vfsop_mount`              | Skip mount check                                   |    Y    |  Y  |  Y  |
-| 14    | `mov w0,#0`                | `_apfs_mount_upgrade_checks`     | Allow mount upgrade                                |    Y    |  Y  |  Y  |
-| 15    | `mov w0,#0`                | `_handle_fsioc_graft`            | Allow fsioc graft                                  |    Y    |  Y  |  Y  |
-| 16    | NOP (3x)                   | `handle_get_dev_by_role`         | Bypass APFS role-lookup deny gates for boot mounts |    Y    |  Y  |  Y  |
-| 17-26 | `mov x0,#0; ret` (5 hooks) | Sandbox MACF ops table           | Stub 5 sandbox hooks                               |    Y    |  Y  |  Y  |
+| # | Patch | Function | Purpose | Regular | Dev | JB |
+| --- | --- | --- | --- | :---: | :---: | :---: |
+| 1 | NOP `tbnz w8,#5` | `_apfs_vfsop_mount` | Skip root snapshot sealed-volume check | Y | Y | Y |
+| 2 | NOP conditional | `_authapfs_seal_is_broken` | Skip root volume seal panic | Y | Y | Y |
+| 3 | NOP conditional | `_bsd_init` | Skip rootvp not-authenticated panic | Y | Y | Y |
+| 4-5 | `mov w0,#0; ret` | `_proc_check_launch_constraints` | Bypass launch constraints | Y | Y | Y |
+| 6-7 | `mov x0,#1` (2x) | `PE_i_can_has_debugger` | Enable kernel debugger | Y | Y | Y |
+| 8 | NOP | `_postValidation` | Skip AMFI post-validation | Y | Y | Y |
+| 9 | `cmp w0,w0` | `_postValidation` | Force comparison true | Y | Y | Y |
+| 10-11 | `mov w0,#1` (2x) | `_check_dyld_policy_internal` | Allow dyld loading | Y | Y | Y |
+| 12 | `mov w0,#0` | `_apfs_graft` | Allow APFS graft | Y | Y | Y |
+| 13 | `cmp x0,x0` | `_apfs_vfsop_mount` | Skip mount check | Y | Y | Y |
+| 14 | `mov w0,#0` | `_apfs_mount_upgrade_checks` | Allow mount upgrade | Y | Y | Y |
+| 15 | `mov w0,#0` | `_handle_fsioc_graft` | Allow fsioc graft | Y | Y | Y |
+| 16 | NOP (3x) | `handle_get_dev_by_role` | Bypass APFS role-lookup deny gates for boot mounts | Y | Y | Y |
+| 17-26 | `mov x0,#0; ret` (5 hooks) | Sandbox MACF ops table | Stub 5 sandbox hooks | Y | Y | Y |
 
-### JB-Only Kernel Methods (All Enabled by Default)
+### JB-Only Kernel Methods
 
-| #     | Group | Method                                | Function                                   | Purpose                                                 | JB Enabled |
-| ----- | ----- | ------------------------------------- | ------------------------------------------ | ------------------------------------------------------- | :--------: |
-| JB-01 | A     | `patch_amfi_cdhash_in_trustcache`     | `AMFIIsCDHashInTrustCache`                 | Always return true + store hash                         |     Y      |
-| JB-02 | A     | `patch_amfi_execve_kill_path`         | AMFI execve kill return site               | Convert shared kill return from deny to allow           |     Y      |
-| JB-03 | C     | `patch_cred_label_update_execve`      | `_cred_label_update_execve`                | Early-return low-riskized cs_flags path                 |     Y      |
-| JB-04 | C     | `patch_hook_cred_label_update_execve` | `_hook_cred_label_update_execve`           | Low-riskized early-return hook gate                     |     Y      |
-| JB-05 | C     | `patch_kcall10`                       | `sysent[439]` (`SYS_kas_info` replacement) | Kernel arbitrary call from userspace                    |     Y      |
-| JB-06 | B     | `patch_post_validation_additional`    | `_postValidation` (additional)             | Disable SHA256-only hash-type reject                    |     Y      |
-| JB-07 | C     | `patch_syscallmask_apply_to_proc`     | `_syscallmask_apply_to_proc`               | Low-riskized early return for syscall mask gate         |     Y      |
-| JB-08 | A     | `patch_task_conversion_eval_internal` | `_task_conversion_eval_internal`           | Allow task conversion                                   |     Y      |
-| JB-09 | A     | `patch_sandbox_hooks_extended`        | Sandbox MACF ops (extended)                | Stub remaining 30+ sandbox hooks (incl. IOKit 201..210) |     Y      |
-| JB-10 | A     | `patch_iouc_failed_macf`              | IOUC MACF shared gate                      | Bypass shared IOUserClient MACF deny path               |     Y      |
-| JB-11 | B     | `patch_proc_security_policy`          | `_proc_security_policy`                    | Bypass security policy                                  |     Y      |
-| JB-12 | B     | `patch_proc_pidinfo`                  | `_proc_pidinfo`                            | Allow pid 0 info                                        |     Y      |
-| JB-13 | B     | `patch_convert_port_to_map`           | `_convert_port_to_map_with_flavor`         | Skip kernel map panic                                   |     Y      |
-| JB-14 | B     | `patch_bsd_init_auth`                 | `_bsd_init` (2nd auth gate)                | Skip auth at @%s:%d                                     |     Y      |
-| JB-15 | B     | `patch_dounmount`                     | `_dounmount`                               | Allow unmount (strict in-function match)                |     Y      |
-| JB-16 | B     | `patch_io_secure_bsd_root`            | `_IOSecureBSDRoot`                         | Skip secure root check (guard-site filter)              |     Y      |
-| JB-17 | B     | `patch_load_dylinker`                 | `_load_dylinker`                           | Skip strict `LC_LOAD_DYLINKER == "/usr/lib/dyld"` gate  |     Y      |
-| JB-18 | B     | `patch_mac_mount`                     | `___mac_mount`                             | Bypass MAC mount deny path (strict site)                |     Y      |
-| JB-19 | B     | `patch_nvram_verify_permission`       | `_verifyPermission` (NVRAM)                | Allow NVRAM writes                                      |     Y      |
-| JB-20 | B     | `patch_shared_region_map`             | `_shared_region_map_and_slide_setup`       | Force shared region path                                |     Y      |
-| JB-21 | B     | `patch_spawn_validate_persona`        | `_spawn_validate_persona`                  | Skip persona validation                                 |     Y      |
-| JB-22 | B     | `patch_task_for_pid`                  | `_task_for_pid`                            | Allow task_for_pid                                      |     Y      |
-| JB-23 | B     | `patch_thid_should_crash`             | `_thid_should_crash`                       | Prevent GUARD_TYPE_MACH_PORT crash                      |     Y      |
-| JB-24 | B     | `patch_vm_fault_enter_prepare`        | `_vm_fault_enter_prepare`                  | Skip fault check                                        |     Y      |
-| JB-25 | B     | `patch_vm_map_protect`                | `_vm_map_protect`                          | Allow VM protect                                        |     Y      |
+| # | Group | Method | Function | Purpose | JB |
+| --- | --- | --- | --- | --- | :---: |
+| JB-01 | A | `patch_amfi_cdhash_in_trustcache` | `AMFIIsCDHashInTrustCache` | Always return true + store hash | Y |
+| JB-02 | A | `patch_amfi_execve_kill_path` | AMFI execve kill return site | Convert shared kill return from deny to allow | Y |
+| JB-03 | C | `patch_cred_label_update_execve` | `_cred_label_update_execve` | Early-return low-riskized cs_flags path | Y |
+| JB-04 | C | `patch_hook_cred_label_update_execve` | `_hook_cred_label_update_execve` | Low-riskized early-return hook gate | Y |
+| JB-05 | C | `patch_kcall10` | `sysent[439]` (`SYS_kas_info` replacement) | Kernel arbitrary call from userspace | Y |
+| JB-06 | B | `patch_post_validation_additional` | `_postValidation` (additional) | Disable SHA256-only hash-type reject | Y |
+| JB-07 | C | `patch_syscallmask_apply_to_proc` | `_syscallmask_apply_to_proc` | Low-riskized early return for syscall mask gate | Y |
+| JB-08 | A | `patch_task_conversion_eval_internal` | `_task_conversion_eval_internal` | Allow task conversion | Y |
+| JB-09 | A | `patch_sandbox_hooks_extended` | Sandbox MACF ops (extended) | Stub remaining 30+ sandbox hooks (incl. IOKit 201..210) | Y |
+| JB-10 | A | `patch_iouc_failed_macf` | IOUC MACF shared gate | Bypass shared IOUserClient MACF deny path | Y |
+| JB-11 | B | `patch_proc_security_policy` | `_proc_security_policy` | Bypass security policy | Y |
+| JB-12 | B | `patch_proc_pidinfo` | `_proc_pidinfo` | Allow pid 0 info | Y |
+| JB-13 | B | `patch_convert_port_to_map` | `_convert_port_to_map_with_flavor` | Skip kernel map panic | Y |
+| JB-14 | B | `patch_bsd_init_auth` | `_bsd_init` (2nd auth gate) | Skip auth at @%s:%d | Y |
+| JB-15 | B | `patch_dounmount` | `_dounmount` | Allow unmount (strict in-function match) | Y |
+| JB-16 | B | `patch_io_secure_bsd_root` | `_IOSecureBSDRoot` | Skip secure root check (guard-site filter) | Y |
+| JB-17 | B | `patch_load_dylinker` | `_load_dylinker` | Skip strict `LC_LOAD_DYLINKER == "/usr/lib/dyld"` gate | Y |
+| JB-18 | B | `patch_mac_mount` | `___mac_mount` | Bypass MAC mount deny path (strict site) | Y |
+| JB-19 | B | `patch_nvram_verify_permission` | `_verifyPermission` (NVRAM) | Allow NVRAM writes | Y |
+| JB-20 | B | `patch_shared_region_map` | `_shared_region_map_and_slide_setup` | Force shared region path | Y |
+| JB-21 | B | `patch_spawn_validate_persona` | `_spawn_validate_persona` | Skip persona validation | Y |
+| JB-22 | B | `patch_task_for_pid` | `_task_for_pid` | Allow task_for_pid | Y |
+| JB-23 | B | `patch_thid_should_crash` | `_thid_should_crash` | Prevent GUARD_TYPE_MACH_PORT crash | Y |
+| JB-24 | B | `patch_vm_fault_enter_prepare` | `_vm_fault_enter_prepare` | Skip fault check | Y |
+| JB-25 | B | `patch_vm_map_protect` | `_vm_map_protect` | Allow VM protect | Y |
 
-## CFW Installation Patches
+## CFW Binary Patches
 
-### Binary Patches Applied Over SSH Ramdisk
+### Patches Applied Over SSH Ramdisk
 
-| #   | Patch                     | Binary                 | Purpose                                   | Regular | Dev | JB  |
-| --- | ------------------------- | ---------------------- | ----------------------------------------- | :-----: | :-: | :-: |
-| 1   | `/%s.gl` -> `/AA.gl`      | `seputil`              | Gigalocker UUID fix                       |    Y    |  Y  |  Y  |
-| 2   | NOP cache validation      | `launchd_cache_loader` | Allow modified `launchd.plist`            |    Y    |  Y  |  Y  |
-| 3   | `mov x0,#1; ret`          | `mobileactivationd`    | Activation bypass                         |    Y    |  Y  |  Y  |
-| 4   | Plist injection           | `launchd.plist`        | bash/dropbear/trollvnc/vphoned daemons    |    Y    |  Y  |  Y  |
-| 5   | `b` (skip jetsam guard)   | `launchd`              | Prevent jetsam panic on boot              |    -    |  Y  |  Y  |
-| 6   | `LC_LOAD_DYLIB` injection | `launchd`              | Load `/cores/launchdhook.dylib` at launch |    -    |  -  |  Y  |
+| # | Patch | Binary | Purpose | Regular | Dev | JB |
+| --- | --- | --- | --- | :---: | :---: | :---: |
+| 1 | `/%s.gl` -> `/AA.gl` | `seputil` | Gigalocker UUID fix | Y | Y | Y |
+| 2 | NOP cache validation | `launchd_cache_loader` | Allow modified `launchd.plist` | Y | Y | Y |
+| 3 | `mov x0,#1; ret` | `mobileactivationd` | Activation bypass | Y | Y | Y |
+| 4 | Plist injection | `launchd.plist` | Add bash/dropbear/trollvnc/vphoned daemons | Y | Y | Y |
+| 5 | `b` (skip jetsam guard) | `launchd` | Prevent jetsam panic on boot | - | Y | Y |
+| 6 | `LC_LOAD_DYLIB` injection | `launchd` | Load `/cores/launchdhook.dylib` | - | - | Y |
 
-### Installed Components
+## Ramdisk Binary Patch
 
-| #   | Component                  | Description                                                                | Regular | Dev | JB  |
-| --- | -------------------------- | -------------------------------------------------------------------------- | :-----: | :-: | :-: |
-| 1   | Cryptex SystemOS + AppOS   | Decrypt AEA + mount + copy to device                                       |    Y    |  Y  |  Y  |
-| 2   | GPU driver                 | AppleParavirtGPUMetalIOGPUFamily bundle                                    |    Y    |  Y  |  Y  |
-| 3   | `iosbinpack64`             | Jailbreak tools (base set)                                                 |    Y    |  Y  |  Y  |
-| 4   | `iosbinpack64` dev overlay | Replace `rpcserver_ios` with dev build                                     |    -    |  Y  |  -  |
-| 5   | `vphoned`                  | vsock HID/control daemon (built + signed)                                  |    Y    |  Y  |  Y  |
-| 6   | LaunchDaemons              | bash/dropbear/trollvnc/rpcserver_ios/vphoned plists                        |    Y    |  Y  |  Y  |
-| 7   | Procursus bootstrap        | Bootstrap filesystem + optional Sileo deb                                  |    -    |  -  |  Y  |
-| 8   | BaseBin hooks              | `systemhook.dylib` / `launchdhook.dylib` / `libellekit.dylib` -> `/cores/` |    -    |  -  |  Y  |
-
-### CFW Installer Flow Matrix (Script-Level)
-
-| Flow Item                                                         | Regular (`cfw_install.sh`)                    | Dev (`cfw_install_dev.sh`)                      | JB (`cfw_install_jb.sh`)                      |
-| ----------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------- | --------------------------------------------- | ------ | --------------------------------------------- |
-| Base CFW phases (1/7 -> 7/7)                                      | Runs directly                                 | Runs directly                                   | Runs via `CFW_SKIP_HALT=1 zsh cfw_install.sh` |
-| Dev overlay (`rpcserver_ios` replacement)                         | -                                             | Y (`apply_dev_overlay`)                         | -                                             |
-| SSH readiness wait before install                                 | Y (`wait_for_device_ssh_ready`)               | -                                               | Y (inherited from base run)                   |
-| `remote_mount` behavior                                           | Ensures mountpoint and verifies mount success | Best-effort mount only (`mount_apfs ...         |                                               | true`) | Ensures mountpoint and verifies mount success |
-| launchd jetsam patch (`patch-launchd-jetsam`)                     | -                                             | Y (base-flow injection)                         | Y (JB-1)                                      |
-| launchd dylib injection (`inject-dylib /cores/launchdhook.dylib`) | -                                             | -                                               | Y (JB-1)                                      |
-| Procursus bootstrap deployment                                    | -                                             | -                                               | Y (JB-2)                                      |
-| BaseBin hook deployment (`*.dylib` -> `/mnt1/cores`)              | -                                             | -                                               | Y (JB-3)                                      |
-| Additional input resources                                        | `cfw_input`                                   | `cfw_input` + `resources/cfw_dev/rpcserver_ios` | `cfw_input` + `cfw_jb_input`                  |
-| Extra tool requirement beyond base                                | -                                             | -                                               | `zstd`                                        |
-| Halt behavior                                                     | Halts unless `CFW_SKIP_HALT=1`                | Halts unless `CFW_SKIP_HALT=1`                  | Always halts after JB phases                  |
-
-## Summary
-
-| Component                | Regular | Dev |  JB |
-| ------------------------ | ------: | --: | --: |
-| AVPBooter                |       1 |   1 |   1 |
-| iBSS                     |       2 |   2 |   3 |
-| iBEC                     |       3 |   3 |   3 |
-| LLB                      |       6 |   6 |   6 |
-| TXM                      |       1 |  12 |  12 |
-| Kernel                   |      28 |  28 |  53 |
-| Boot chain total         |      41 |  52 |  78 |
-| CFW binary patches       |       4 |   5 |   6 |
-| CFW installed components |       6 |   7 |   8 |
-| CFW total                |      10 |  12 |  14 |
-| Grand total              |      51 |  64 |  92 |
-
-## Ramdisk Variant Matrix
-
-| Variant       | Pre-step            | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                      | `Ramdisk/krnl.img4`                     | Effective kernel used by `ramdisk_send.sh`          |
-| ------------- | ------------------- | -------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------- |
-| `RAMDISK`     | `make fw_patch`     | release TXM + base TXM patch (1) | base kernel (28), legacy `*.ramdisk` preferred else derive from pristine CloudOS | restore kernel from `fw_patch` (28)     | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `DEV+RAMDISK` | `make fw_patch_dev` | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_dev` (28) | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `JB+RAMDISK`  | `make fw_patch_jb`  | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_jb` (53)  | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-
-### Ramdisk Build-Time Identity Patch
-
-| # | Patch Site                                           | Purpose                                                               | Regular | Dev | JB  |
-| - | ---------------------------------------------------- | --------------------------------------------------------------------- | :-----: | :-: | :-: |
-| 1 | `ramdisk_input/ssh/usr/local/bin/restored_external` | Replace default USBMux serial label (`SSHRD_Script ...`) with `UDID` |    Y    |  Y  |  Y  |
-
-## Cross-Version Dynamic Snapshot
-
-| Case                | TXM_JB_PATCHES | KERNEL_JB_PATCHES |
-| ------------------- | -------------: | ----------------: |
-| PCC 26.1 (`23B85`)  |             14 |                59 |
-| PCC 26.3 (`23D128`) |             14 |                59 |
-| iOS 26.1 (`23B85`)  |             14 |                59 |
-| iOS 26.3 (`23D127`) |             14 |                59 |
+| # | Patch Site | Purpose | Regular | Dev | JB |
+| --- | --- | --- | :---: | :---: | :---: |
+| 1 | `ramdisk_input/ssh/usr/local/bin/restored_external` | Replace default USBMux serial label (`SSHRD_Script ...`) with `UDID` | Y | Y | Y |

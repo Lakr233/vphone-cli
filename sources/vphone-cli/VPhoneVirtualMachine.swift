@@ -24,7 +24,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         var screenHeight: Int = 2796
         var screenPPI: Int = 460
         var screenScale: Double = 3.0
-        var kernelDebugPort: Int = 5909
+        var kernelDebugPort: Int?
     }
 
     private struct DeviceIdentity {
@@ -186,15 +186,20 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             print("[vphone] Synthetic battery configured (100%, charging)")
         }
 
-        guard (1 ... 65535).contains(options.kernelDebugPort) else {
-            throw VPhoneError.invalidKernelDebugPort(options.kernelDebugPort)
-        }
-
-        // Kernel GDB debug stub (fixed host port for deterministic LLDB attach)
-        let kernelDebugPort = options.kernelDebugPort
-        if let kernelDebugStub = Dynamic._VZGDBDebugStubConfiguration(port: kernelDebugPort).asObject {
-            Dynamic(config)._setDebugStub(kernelDebugStub)
-            print("[vphone] Kernel GDB debug stub: tcp://127.0.0.1:\(kernelDebugPort)")
+        // Kernel GDB debug stub (auto-assigned by default; fixed when explicitly requested)
+        if let kernelDebugPort = options.kernelDebugPort {
+            guard (6000 ... 65535).contains(kernelDebugPort) else {
+                throw VPhoneError.invalidKernelDebugPort(kernelDebugPort)
+            }
+            if let kernelDebugStub = Dynamic._VZGDBDebugStubConfiguration(port: kernelDebugPort)
+                .asObject
+            {
+                Dynamic(config)._setDebugStub(kernelDebugStub)
+                print("[vphone] Kernel GDB debug stub: tcp://127.0.0.1:\(kernelDebugPort)")
+            } else {
+                Dynamic(config)._setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
+                print("[vphone] Kernel GDB debug stub enabled (system-assigned port)")
+            }
         } else {
             Dynamic(config)._setDebugStub(Dynamic._VZGDBDebugStubConfiguration().asObject)
             print("[vphone] Kernel GDB debug stub enabled (system-assigned port)")
