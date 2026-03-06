@@ -51,6 +51,7 @@ class VPhoneMenuController {
         mainMenu.addItem(buildLocationMenu())
         mainMenu.addItem(buildRecordMenu())
         mainMenu.addItem(buildBatteryMenu())
+        mainMenu.addItem(buildNetworkMenu())
 
         NSApp.mainMenu = mainMenu
     }

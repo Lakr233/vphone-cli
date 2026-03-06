@@ -22,8 +22,9 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         signal(SIGINT, SIG_IGN)
         let src = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        src.setEventHandler {
+        src.setEventHandler { [weak self] in
             print("\n[vphone] SIGINT — shutting down")
+            self?.menuController?.flushNetworkRules()
             NSApp.terminate(nil)
         }
         src.activate()
@@ -176,5 +177,9 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         !cli.noGraphics
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        menuController?.flushNetworkRules()
     }
 }
