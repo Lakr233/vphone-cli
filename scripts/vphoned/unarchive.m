@@ -20,14 +20,15 @@ static int copy_data(struct archive *ar, struct archive *aw) {
     }
 }
 
-int vp_extract_archive(NSString *archivePath, NSString *extractionPath) {
+int vp_extract_archive(NSString *archivePath, NSString *extractionPath, NSString **errorOutput) {
     int flags = ARCHIVE_EXTRACT_TIME
               | ARCHIVE_EXTRACT_PERM
-              | ARCHIVE_EXTRACT_ACL
-              | ARCHIVE_EXTRACT_FFLAGS
-              | ARCHIVE_EXTRACT_SECURE_SYMLINKS
-              | ARCHIVE_EXTRACT_SECURE_NODOTDOT
-              | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS;
+              | ARCHIVE_EXTRACT_SECURE_NODOTDOT;
+
+    // Resolve symlinks in extractionPath (e.g. /tmp -> /private/tmp on iOS)
+    // so ARCHIVE_EXTRACT_SECURE_SYMLINKS doesn't reject trusted system symlinks.
+    NSString *resolvedPath = [extractionPath stringByResolvingSymlinksInPath];
+    NSLog(@"vphoned: extract %@ -> %@ (resolved: %@)", archivePath, extractionPath, resolvedPath);
 
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
@@ -39,6 +40,9 @@ int vp_extract_archive(NSString *archivePath, NSString *extractionPath) {
 
     int ret = 0;
     if (archive_read_open_filename(a, archivePath.fileSystemRepresentation, 10240) != ARCHIVE_OK) {
+        NSString *err = [NSString stringWithFormat:@"archive_read_open failed: %s", archive_error_string(a)];
+        NSLog(@"vphoned: %@", err);
+        if (errorOutput) *errorOutput = err;
         ret = 1;
         goto cleanup;
     }
@@ -48,30 +52,43 @@ int vp_extract_archive(NSString *archivePath, NSString *extractionPath) {
         int r = archive_read_next_header(a, &entry);
         if (r == ARCHIVE_EOF) break;
         if (r < ARCHIVE_OK)
-            fprintf(stderr, "%s\n", archive_error_string(a));
-        if (r < ARCHIVE_WARN) { ret = 1; goto cleanup; }
+            NSLog(@"vphoned: archive_read_next_header: %s", archive_error_string(a));
+        if (r < ARCHIVE_WARN) {
+            if (errorOutput) *errorOutput = [NSString stringWithFormat:@"archive_read_next_header failed: %s", archive_error_string(a)];
+            ret = 1; goto cleanup;
+        }
 
         const char *entryPath = archive_entry_pathname(entry);
         if (!entryPath) { ret = 1; goto cleanup; }
         NSString *currentFile = [NSString stringWithUTF8String:entryPath];
         if (!currentFile) { ret = 1; goto cleanup; }
-        NSString *fullOutputPath = [extractionPath stringByAppendingPathComponent:currentFile];
+        NSString *fullOutputPath = [resolvedPath stringByAppendingPathComponent:currentFile];
         archive_entry_set_pathname(entry, fullOutputPath.fileSystemRepresentation);
 
         r = archive_write_header(ext, entry);
         if (r < ARCHIVE_OK)
-            fprintf(stderr, "%s\n", archive_error_string(ext));
-        else if (archive_entry_size(entry) > 0) {
+            NSLog(@"vphoned: archive_write_header(%@): %s (r=%d)", currentFile, archive_error_string(ext), r);
+        if (r < ARCHIVE_WARN) {
+            if (errorOutput) *errorOutput = [NSString stringWithFormat:@"archive_write_header failed for %@: %s", currentFile, archive_error_string(ext)];
+            ret = 1; goto cleanup;
+        }
+        if (archive_entry_size(entry) > 0) {
             r = copy_data(a, ext);
             if (r < ARCHIVE_OK)
-                fprintf(stderr, "%s\n", archive_error_string(ext));
-            if (r < ARCHIVE_WARN) { ret = 1; goto cleanup; }
+                NSLog(@"vphoned: copy_data(%@): %s (r=%d)", currentFile, archive_error_string(ext), r);
+            if (r < ARCHIVE_WARN) {
+                if (errorOutput) *errorOutput = [NSString stringWithFormat:@"copy_data failed for %@: %s", currentFile, archive_error_string(ext)];
+                ret = 1; goto cleanup;
+            }
         }
 
         r = archive_write_finish_entry(ext);
         if (r < ARCHIVE_OK)
-            fprintf(stderr, "%s\n", archive_error_string(ext));
-        if (r < ARCHIVE_WARN) { ret = 1; goto cleanup; }
+            NSLog(@"vphoned: archive_write_finish_entry(%@): %s (r=%d)", currentFile, archive_error_string(ext), r);
+        if (r < ARCHIVE_WARN) {
+            if (errorOutput) *errorOutput = [NSString stringWithFormat:@"archive_write_finish_entry failed for %@: %s", currentFile, archive_error_string(ext)];
+            ret = 1; goto cleanup;
+        }
     }
 
 cleanup:

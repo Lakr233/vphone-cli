@@ -745,9 +745,10 @@ static int vp_extract_package_to_directory(
     NSString *extractionPath,
     NSString **detailOutput
 ) {
-    int ret = vp_extract_archive(fileToExtract, extractionPath);
+    NSString *archiveError = nil;
+    int ret = vp_extract_archive(fileToExtract, extractionPath, &archiveError);
     if (ret != 0) {
-        if (detailOutput) *detailOutput = @"libarchive extraction failed";
+        if (detailOutput) *detailOutput = archiveError ?: @"libarchive extraction failed";
         return 168;
     }
     return 0;
@@ -796,7 +797,7 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
         certPath = nil;
     }
 
-    NSString *tmpPackagePath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID UUID].UUIDString];
+    NSString *tmpPackagePath = [[NSTemporaryDirectory() stringByResolvingSymlinksInPath] stringByAppendingPathComponent:[NSUUID UUID].UUIDString];
     if (![[NSFileManager defaultManager] createDirectoryAtPath:tmpPackagePath withIntermediateDirectories:NO attributes:nil error:nil]) {
         NSMutableDictionary *response = vp_make_response(@"err", reqId);
         response[@"msg"] = @"failed to create temporary extraction directory";

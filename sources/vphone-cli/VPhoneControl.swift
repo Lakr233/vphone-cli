@@ -531,7 +531,7 @@ class VPhoneControl {
                 if let reqId, let pending = removePending(id: reqId) {
                     if type == "err" {
                         let detail = msg["msg"] as? String ?? "unknown error"
-                        pending.handler(.failure(ControlError.guestError(detail)))
+                        DispatchQueue.main.async { pending.handler(.failure(ControlError.guestError(detail))) }
                         continue
                     }
 
@@ -543,19 +543,19 @@ class VPhoneControl {
                             if Self.readFully(fd: fd, buf: buf, count: size) {
                                 let data = Data(bytes: buf, count: size)
                                 buf.deallocate()
-                                pending.handler(.success((msg, data)))
+                                DispatchQueue.main.async { pending.handler(.success((msg, data))) }
                             } else {
                                 buf.deallocate()
-                                pending.handler(.failure(ControlError.protocolError("failed to read file data")))
+                                DispatchQueue.main.async { pending.handler(.failure(ControlError.protocolError("failed to read file data"))) }
                             }
                         } else {
-                            pending.handler(.success((msg, Data())))
+                            DispatchQueue.main.async { pending.handler(.success((msg, Data()))) }
                         }
                         continue
                     }
 
                     // Normal response (ok, pong, etc.)
-                    pending.handler(.success((msg, nil)))
+                    DispatchQueue.main.async { pending.handler(.success((msg, nil))) }
                     continue
                 }
 
@@ -602,7 +602,7 @@ class VPhoneControl {
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self else { return }
             guard let pending = removePending(id: id) else { return }
-            pending.handler(.failure(ControlError.requestTimedOut(type: type, seconds: timeoutSeconds)))
+            DispatchQueue.main.async { pending.handler(.failure(ControlError.requestTimedOut(type: type, seconds: timeoutSeconds))) }
         }
     }
 
