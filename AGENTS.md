@@ -33,9 +33,9 @@ For any changes applying new patches, also update research/0_binary_patch_compar
 | --------------- | :---------: | :-------: | ------------------------------------------------------------ |
 | **Regular**     | 51 patches  | 10 phases | `fw_patch` + `cfw_install`                                   |
 | **Development** | 64 patches  | 12 phases | `fw_patch_dev` + `cfw_install_dev`                           |
-| **Jailbreak**   | 126 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb` + `cfw_install_jb_finalize` |
+| **Jailbreak**   | 126 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`                             |
 
-> `cfw_install_jb_finalize` requires booting into the full system, not the ramdisk.
+> JB finalization (symlinks, Sileo, apt, TrollStore) runs automatically on first boot via `/cores/vphone_jb_setup.sh` LaunchDaemon. Monitor progress: `/var/log/vphone_jb_setup.log`.
 
 See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
 

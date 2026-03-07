@@ -58,6 +58,25 @@ log "Boot hash: $BOOT_HASH"
 JB_TARGET="/private/preboot/$BOOT_HASH/jb-vphone/procursus"
 [ -d "$JB_TARGET" ] || die "Procursus not found at $JB_TARGET"
 
+# ═══════════ 0/7 WRAP LAUNCHCTL ═══════════════════════════════
+# Procursus launchctl needs _launch_active_user_switch which is missing
+# from PCC VM's libSystem. Wrap it so DYLD_INSERT_LIBRARIES is always set,
+# regardless of how launchctl is invoked (Sileo, dpkg postinst, etc.).
+log "[0/7] Wrapping launchctl with liblaunch_compat loader..."
+LAUNCHCTL="$JB_TARGET/usr/bin/launchctl"
+if [ -f "$LAUNCHCTL" ] && [ ! -f "${LAUNCHCTL}.real" ]; then
+    mv "$LAUNCHCTL" "${LAUNCHCTL}.real"
+    cat > "$LAUNCHCTL" << 'WRAPPER'
+#!/bin/bash
+export DYLD_INSERT_LIBRARIES=/cores/liblaunch_compat.dylib
+exec "$(dirname "$0")/launchctl.real" "$@"
+WRAPPER
+    chmod 755 "$LAUNCHCTL"
+    log "  launchctl wrapped (original -> launchctl.real)"
+else
+    log "  launchctl already wrapped or not found"
+fi
+
 # ═══════════ 1/7 SYMLINK /var/jb ═════════════════════════════
 log "[1/7] Creating /private/var/jb symlink..."
 CURRENT_LINK=$(readlink /private/var/jb 2>/dev/null || true)
