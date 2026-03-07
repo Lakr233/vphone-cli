@@ -92,6 +92,47 @@ class VPhoneControl {
         }
     }
 
+    private static func bundleIdentifier(fromIPA url: URL) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [
+            "-c",
+            """
+import plistlib, sys, zipfile
+ipa_path = sys.argv[1]
+with zipfile.ZipFile(ipa_path, "r") as zf:
+    plist_name = next((name for name in zf.namelist() if name.startswith("Payload/") and name.endswith(".app/Info.plist")), None)
+    if not plist_name:
+        raise SystemExit("missing app Info.plist in IPA")
+    info = plistlib.loads(zf.read(plist_name))
+    bundle_id = info.get("CFBundleIdentifier")
+    if not bundle_id:
+        raise SystemExit("missing CFBundleIdentifier in IPA")
+    print(bundle_id)
+""",
+            url.path,
+        ]
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        let output = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if process.terminationStatus == 0, !output.isEmpty {
+            return output
+        }
+
+        let errorOutput = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let detail = errorOutput.isEmpty ? "failed to parse CFBundleIdentifier from IPA" : errorOutput
+        throw ControlError.protocolError(detail)
+    }
+
     // MARK: - Guest Binary Hash
 
     private func loadGuestBinary() {
@@ -385,6 +426,43 @@ class VPhoneControl {
         _ = try await sendRequest(["t": "file_rename", "from": from, "to": to])
     }
 
+    func installIPAWithTrollStoreLite(localURL: URL) async throws -> String {
+        let data: Data
+        do {
+            data = try Data(contentsOf: localURL)
+        } catch {
+            throw ControlError.protocolError("failed to read IPA: \(error)")
+        }
+        let bundleIdentifier = try Self.bundleIdentifier(fromIPA: localURL)
+
+        let remoteDir = "/var/mobile/Documents/vphone-installs"
+        let remoteName = "\(UUID().uuidString)-\(localURL.lastPathComponent)"
+        let remotePath = "\(remoteDir)/\(remoteName)"
+        defer {
+            Task {
+                try? await deleteFile(path: remotePath)
+            }
+        }
+
+        try await createDirectory(path: remoteDir)
+        try await uploadFile(path: remotePath, data: data)
+
+        do {
+            let (resp, _) = try await sendRequest([
+                "t": "tslite_install",
+                "path": remotePath,
+                "bundle_id": bundleIdentifier,
+                "registration": "User",
+            ])
+            if let detail = resp["msg"] as? String, !detail.isEmpty {
+                return detail
+            }
+            return "Installed \(localURL.lastPathComponent) through TrollStore Lite."
+        } catch {
+            throw error
+        }
+    }
+
     // MARK: - Location
 
     func sendLocation(
@@ -517,7 +595,7 @@ class VPhoneControl {
 
     private static func timeoutForRequest(type: String) -> TimeInterval {
         switch type {
-        case "file_get", "file_put":
+        case "file_get", "file_put", "tslite_install":
             transferRequestTimeout
         case "devmode", "file_list", "file_delete", "file_rename", "file_mkdir":
             slowRequestTimeout

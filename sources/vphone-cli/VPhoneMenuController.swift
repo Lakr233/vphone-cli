@@ -45,6 +45,7 @@ class VPhoneMenuController {
         mainMenu.addItem(buildKeysMenu())
         mainMenu.addItem(buildTypeMenu())
         mainMenu.addItem(buildConnectMenu())
+        mainMenu.addItem(buildInstallMenu())
         mainMenu.addItem(buildLocationMenu())
         mainMenu.addItem(buildRecordMenu())
         mainMenu.addItem(buildBatteryMenu())
