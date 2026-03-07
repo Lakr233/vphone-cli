@@ -486,11 +486,8 @@ send_first_boot_commands() {
 
   local commands=(
     "export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'"
-    "mkdir -p /var/dropbear"
     "cp /iosbinpack64/etc/profile /var/profile"
     "cp /iosbinpack64/etc/motd /var/motd"
-    "dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key"
-    "dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key"
     "shutdown -h now"
   )
 
@@ -1033,53 +1030,9 @@ main() {
   if [[ "$JB_MODE" -eq 1 ]]; then
     echo ""
     echo "=== JB Finalize ==="
-    echo "[*] Booting VM normally for JB bootstrap finalization..."
-
-    check_vm_storage_locks
-    mkdir -p "$LOG_DIR"
-    : > "$BOOT_LOG"
-    (make boot >"$BOOT_LOG" 2>&1) &
-    BOOT_PID=$!
-
-    sleep 2
-    if ! kill -0 "$BOOT_PID" 2>/dev/null; then
-      echo "[-] make boot exited early during JB finalize stage."
-      tail -n 40 "$BOOT_LOG" 2>/dev/null || true
-      die "JB finalize boot failed."
-    fi
-
-    local jb_ssh_port jb_iproxy_pid jb_iproxy_log
-    local iproxy_bin="${PROJECT_ROOT}/.limd/bin/iproxy"
-
-    jb_ssh_port="$(pick_random_ssh_port)" \
-      || die "Failed to allocate a random local SSH port for JB finalize"
-
-    jb_iproxy_log="${LOG_DIR}/iproxy_jb_${jb_ssh_port}.log"
-    : > "$jb_iproxy_log"
-
-    echo "[*] Waiting for device UDID=${DEVICE_UDID} on USBMux..."
-    wait_for_iproxy_target_udid
-
-    echo "[*] Starting iproxy ${jb_ssh_port} -> 22222 (target_udid=${IPROXY_TARGET_UDID})..."
-    ("$iproxy_bin" -u "$IPROXY_TARGET_UDID" "$jb_ssh_port" 22222 >"$jb_iproxy_log" 2>&1) &
-    jb_iproxy_pid=$!
-    sleep 1
-    if ! kill -0 "$jb_iproxy_pid" 2>/dev/null; then
-      echo "[-] iproxy exited early. Log:"
-      tail -n 40 "$jb_iproxy_log" || true
-      die "iproxy for JB finalize failed to start."
-    fi
-    echo "[+] iproxy running (pid=$jb_iproxy_pid, log=$jb_iproxy_log)"
-
-    wait_for_device_ssh "$jb_ssh_port" 120
-
-    run_make "JB finalize" cfw_install_jb_finalize SSH_PORT="$jb_ssh_port"
-
-    halt_device_ssh "$jb_ssh_port"
-    stop_process_tree "$jb_iproxy_pid" 2>/dev/null || true
-    echo "[*] Waiting for VM shutdown..."
-    wait "$BOOT_PID" || true
-    BOOT_PID=""
+    echo "[*] JB finalization will run automatically on first normal boot"
+    echo "    via /cores/vphone_jb_setup.sh (LaunchDaemon)."
+    echo "    Monitor progress via vphoned file browser: /var/log/vphone_jb_setup.log"
   fi
 
   echo ""

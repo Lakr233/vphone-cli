@@ -8,7 +8,7 @@ GIT_HASH ?= unknown
 
 .PHONY: all clean
 
-all: $(OUT)
+all: $(OUT) liblaunch_compat.dylib
 
 $(OUT): $(SRCS) $(wildcard *.h)
 	@echo "=== Building vphoned (arm64, iphoneos) ==="
@@ -23,5 +23,12 @@ $(OUT): $(SRCS) $(wildcard *.h)
 		-framework CoreServices
 	@echo "  built OK"
 
+liblaunch_compat.dylib: liblaunch_compat.c
+	@echo "=== Building liblaunch_compat.dylib (arm64, iphoneos) ==="
+	xcrun -sdk iphoneos clang -arch arm64 -Os -shared \
+		-install_name /cores/liblaunch_compat.dylib \
+		-o $@ $<
+	@echo "  built OK"
+
 clean:
-	rm -f $(OUT)
+	rm -f $(OUT) liblaunch_compat.dylib

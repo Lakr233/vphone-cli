@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.vphone.jb-setup</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/iosbinpack64/bin/bash</string>
+		<string>/cores/vphone_jb_setup.sh</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/var/log/vphone_jb_setup.log</string>
+	<key>StandardErrorPath</key>
+	<string>/var/log/vphone_jb_setup.log</string>
+	<key>UserName</key>
+	<string>root</string>
+	<key>EnablePressuredExit</key>
+	<false/>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>DYLD_INSERT_LIBRARIES</key>
+		<string>/cores/liblaunch_compat.dylib</string>
+	</dict>
+</dict>
+</plist>
