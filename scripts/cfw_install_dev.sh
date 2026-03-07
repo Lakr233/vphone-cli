@@ -437,6 +437,7 @@ echo "[7/7] Installing LaunchDaemons..."
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
 VPHONED_BIN="$VPHONED_SRC/vphoned"
 VPHONED_SRCS=(
+    "$VPHONED_SRC/unarchive.m"
     "$VPHONED_SRC/vphoned.m"
     "$VPHONED_SRC/vphoned_install.m"
     "$VPHONED_SRC/vphoned_protocol.m"
@@ -460,7 +461,9 @@ if [[ "$needs_vphoned_build" == "1" ]]; then
     echo "  Building vphoned for arm64..."
     xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
         -I"$VPHONED_SRC" \
+        -I"$VPHONED_SRC/vendor/libarchive" \
         -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
+        -larchive \
         -framework Foundation \
         -framework Security \
         -framework CoreServices

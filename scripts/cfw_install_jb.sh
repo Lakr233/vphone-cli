@@ -190,9 +190,20 @@ ssh_cmd "/bin/chmod 0755 /mnt1/sbin/launchd"
 
 echo "  [+] launchd patched"
 
-# ═══════════ JB-2 INSTALL PROCURSUS BOOTSTRAP ══════════════════
+# ═══════════ JB-2 INSTALL IOSBINPACK64 ════════════════════════
 echo ""
-echo "[JB-2] Installing procursus bootstrap..."
+echo "[JB-2] Installing iosbinpack64..."
+
+scp_to "$INPUT_DIR/jb/iosbinpack64.tar" "/mnt1"
+ssh_cmd "/usr/bin/tar --preserve-permissions --no-overwrite-dir \
+    -xf /mnt1/iosbinpack64.tar -C /mnt1"
+ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
+
+echo "  [+] iosbinpack64 installed"
+
+# ═══════════ JB-3 INSTALL PROCURSUS BOOTSTRAP ══════════════════
+echo ""
+echo "[JB-3] Installing procursus bootstrap..."
 
 remote_mount /dev/disk1s5 /mnt5
 BOOT_HASH="$(get_boot_manifest_hash)"
@@ -230,12 +241,12 @@ rm -f "$BOOTSTRAP_TAR"
 
 echo "  [+] procursus bootstrap installed"
 
-# ═══════════ JB-3 DEPLOY BASEBIN HOOKS ═════════════════════════
+# ═══════════ JB-4 DEPLOY BASEBIN HOOKS ═════════════════════════
 BASEBIN_DIR="$JB_INPUT_DIR/basebin"
 
 if [[ -d "$BASEBIN_DIR" ]]; then
     echo ""
-    echo "[JB-3] Deploying BaseBin hooks to /cores/..."
+    echo "[JB-4] Deploying BaseBin hooks to /cores/..."
 
     # Clean previous dylibs before re-uploading
     echo "  Cleaning old /cores/ dylibs..."

@@ -1,4 +1,5 @@
 #import "vphoned_install.h"
+#import "unarchive.h"
 
 #import <Security/Security.h>
 #include <dlfcn.h>
@@ -28,37 +29,17 @@ OSStatus SecStaticCodeCreateWithPathAndAttributes(
 OSStatus SecCodeCopySigningInformation(SecStaticCodeRef code, SecCSFlags flags, CFDictionaryRef *information);
 extern CFStringRef kSecCodeInfoEntitlementsDict;
 
-extern NSString *LSInstallTypeKey;
-
-@interface LSBundleProxy : NSObject
-@property (nonatomic, readonly) NSString *bundleIdentifier;
-@property (nonatomic) NSURL *dataContainerURL;
-@property (nonatomic, readonly) NSURL *bundleContainerURL;
-- (NSString *)localizedName;
-@end
-
-@interface LSApplicationProxy : LSBundleProxy
+@interface LSApplicationProxy : NSObject
 + (instancetype)applicationProxyForIdentifier:(NSString *)identifier;
-+ (instancetype)applicationProxyForBundleURL:(NSURL *)bundleURL;
-@property NSURL *bundleURL;
-@property NSString *bundleType;
-@property NSString *canonicalExecutablePath;
-@property (nonatomic, readonly) NSDictionary *groupContainerURLs;
-@property (nonatomic, readonly) NSArray *plugInKitPlugins;
+@property (nonatomic, readonly) NSString *bundleIdentifier;
+@property (nonatomic, readonly) NSURL *bundleURL;
 @property (getter=isInstalled, nonatomic, readonly) BOOL installed;
-@property (getter=isPlaceholder, nonatomic, readonly) BOOL placeholder;
-@property (getter=isRestricted, nonatomic, readonly) BOOL restricted;
-@property (nonatomic, readonly) NSSet *claimedURLSchemes;
-@property (nonatomic, readonly) NSString *applicationType;
 @end
 
 @interface LSApplicationWorkspace : NSObject
 + (instancetype)defaultWorkspace;
 - (BOOL)registerApplicationDictionary:(NSDictionary *)dict;
 - (BOOL)unregisterApplication:(id)arg1;
-- (BOOL)installApplication:(NSURL *)appPackageURL withOptions:(NSDictionary *)options error:(NSError **)error;
-- (BOOL)uninstallApplication:(NSString *)appId withOptions:(NSDictionary *)options;
-- (void)enumerateApplicationsOfType:(NSUInteger)type block:(void (^)(LSApplicationProxy *))block;
 @end
 
 @interface LSEnumerator : NSEnumerator
@@ -242,16 +223,6 @@ static NSString *vp_find_ldid_path(void) {
 }
 
 
-static NSString *vp_find_tar_path(void) {
-    NSFileManager *fm = [NSFileManager defaultManager];
-    for (NSString *path in @[@"/var/jb/usr/bin/tar", @"/usr/bin/tar"]) {
-        if ([fm isExecutableFileAtPath:path]) {
-            return path;
-        }
-    }
-    return nil;
-}
-
 static SecStaticCodeRef vp_get_static_code_ref(NSString *binaryPath) {
     if (binaryPath.length == 0) return NULL;
 
@@ -343,8 +314,7 @@ static int vp_sign_binary(
 }
 
 static int vp_sign_app(NSString *appPath, NSString *certPath, NSString *ldidPath, NSString **errorOutput) {
-    NSDictionary *appInfoDict = vp_info_dictionary_for_app_path(appPath);
-    if (!appInfoDict) {
+    if (!vp_info_dictionary_for_app_path(appPath)) {
         if (errorOutput) *errorOutput = @"missing app Info.plist";
         return 172;
     }
@@ -772,26 +742,12 @@ static int vp_install_app_from_package(
 
 static int vp_extract_package_to_directory(
     NSString *fileToExtract,
-    NSString *packageFormat,
     NSString *extractionPath,
     NSString **detailOutput
 ) {
-    NSString *extractorPath = vp_find_tar_path();
-    if (extractorPath.length == 0) {
-        if (detailOutput) *detailOutput = @"no tar extractor found in guest";
-        return 168;
-    }
-
-    if (packageFormat.length > 0 && ![packageFormat isEqualToString:@"tar"]) {
-        if (detailOutput) *detailOutput = [NSString stringWithFormat:@"unsupported package format: %@", packageFormat];
-        return 168;
-    }
-
-    NSArray<NSString *> *args = @[ @"-xf", fileToExtract, @"-C", extractionPath ];
-    NSString *output = @"";
-    int ret = vp_run_process_with_output(extractorPath, args, &output);
+    int ret = extract(fileToExtract, extractionPath);
     if (ret != 0) {
-        if (detailOutput) *detailOutput = output.length > 0 ? output : @"extractor returned a non-zero exit status";
+        if (detailOutput) *detailOutput = @"libarchive extract() failed";
         return 168;
     }
     return 0;
@@ -799,8 +755,7 @@ static int vp_extract_package_to_directory(
 
 BOOL vp_custom_installer_available(void) {
     vp_load_private_frameworks();
-    return vp_find_tar_path().length > 0
-        && NSClassFromString(@"MCMAppContainer") != Nil
+    return NSClassFromString(@"MCMAppContainer") != Nil
         && NSClassFromString(@"LSApplicationWorkspace") != Nil;
 }
 
@@ -809,7 +764,6 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
     id reqId = msg[@"id"];
     NSString *ipaPath = msg[@"path"];
     NSString *registration = msg[@"registration"];
-    NSString *packageFormat = msg[@"package_format"];
     NSString *certPath = msg[@"cert_path"];
     NSString *ldidPath = vp_find_ldid_path();
     BOOL forceSystem = [registration isEqualToString:@"System"];
@@ -827,7 +781,6 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
     if (!vp_custom_installer_available()) {
         NSMutableDictionary *response = vp_make_response(@"err", reqId);
         NSMutableArray<NSString *> *missing = [NSMutableArray array];
-        if (vp_find_tar_path().length == 0) [missing addObject:@"extractor(tar)"];
         if (NSClassFromString(@"MCMAppContainer") == Nil) [missing addObject:@"MCMAppContainer"];
         if (NSClassFromString(@"LSApplicationWorkspace") == Nil) [missing addObject:@"LSApplicationWorkspace"];
         NSString *detail = missing.count > 0 ? [missing componentsJoinedByString:@", "] : @"unknown";
@@ -851,7 +804,7 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
     }
 
     NSString *detail = @"";
-    int extractRet = vp_extract_package_to_directory(ipaPath, packageFormat, tmpPackagePath, &detail);
+    int extractRet = vp_extract_package_to_directory(ipaPath, tmpPackagePath, &detail);
     int installRet = 0;
     if (extractRet == 0) {
         installRet = vp_install_app_from_package(tmpPackagePath, forceSystem, certPath, ldidPath, &detail);

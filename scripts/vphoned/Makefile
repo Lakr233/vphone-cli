@@ -14,8 +14,10 @@ $(OUT): $(SRCS) $(wildcard *.h)
 	@echo "=== Building vphoned (arm64, iphoneos) ==="
 	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
 		-I. \
+		-Ivendor/libarchive \
 		-DVPHONED_BUILD_HASH='"$(GIT_HASH)"' \
 		-o $@ $(SRCS) \
+		-larchive \
 		-framework Foundation \
 		-framework Security \
 		-framework CoreServices

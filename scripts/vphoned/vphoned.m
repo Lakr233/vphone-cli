@@ -16,10 +16,8 @@
 #import <Foundation/Foundation.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <mach-o/dyld.h>
-#include <spawn.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #import "vphoned_protocol.h"
@@ -81,211 +79,6 @@ static const char *self_executable_path(void) {
     uint32_t size = sizeof(path);
     if (_NSGetExecutablePath(path, &size) != 0) return NULL;
     return path;
-}
-
-// MARK: - TrollStore Lite Install
-
-static NSString *find_trollstore_lite_helper(void) {
-    NSFileManager *fm = [NSFileManager defaultManager];
-
-    NSArray<NSString *> *fixedPaths = @[
-        @"/Applications/TrollStoreLite.app/trollstorehelper",
-        @"/var/jb/Applications/TrollStoreLite.app/trollstorehelper",
-    ];
-    for (NSString *path in fixedPaths) {
-        if ([fm isExecutableFileAtPath:path]) return path;
-    }
-
-    NSString *bundleRoot = @"/var/containers/Bundle/Application";
-    NSDirectoryEnumerator<NSString *> *enumerator = [fm enumeratorAtPath:bundleRoot];
-    for (NSString *relativePath in enumerator) {
-        if ([relativePath hasSuffix:@"TrollStoreLite.app/trollstorehelper"]) {
-            NSString *fullPath = [bundleRoot stringByAppendingPathComponent:relativePath];
-            if ([fm isExecutableFileAtPath:fullPath]) return fullPath;
-        }
-    }
-
-    return nil;
-}
-
-static NSString *trollstore_lite_marker_path_for_container(NSString *containerPath) {
-    return [containerPath stringByAppendingPathComponent:@"_TrollStoreLite"];
-}
-
-static NSDictionary *info_dictionary_for_app_path(NSString *appPath) {
-    if (appPath.length == 0) return nil;
-    return [NSDictionary dictionaryWithContentsOfFile:[appPath stringByAppendingPathComponent:@"Info.plist"]];
-}
-
-static NSString *find_trollstore_lite_app_path_for_bundle_id(NSString *bundleId) {
-    if (bundleId.length == 0) return nil;
-
-    NSFileManager *fm = [NSFileManager defaultManager];
-    NSString *bundleRoot = @"/var/containers/Bundle/Application";
-    NSArray<NSString *> *containers = [fm contentsOfDirectoryAtPath:bundleRoot error:nil];
-    for (NSString *container in containers) {
-        NSString *containerPath = [bundleRoot stringByAppendingPathComponent:container];
-        BOOL isDirectory = NO;
-        if (![fm fileExistsAtPath:containerPath isDirectory:&isDirectory] || !isDirectory) continue;
-        if (![fm fileExistsAtPath:trollstore_lite_marker_path_for_container(containerPath)]) continue;
-
-        NSArray<NSString *> *items = [fm contentsOfDirectoryAtPath:containerPath error:nil];
-        for (NSString *item in items) {
-            if (![item.pathExtension isEqualToString:@"app"]) continue;
-            NSString *appPath = [containerPath stringByAppendingPathComponent:item];
-            NSString *candidateBundleId = info_dictionary_for_app_path(appPath)[@"CFBundleIdentifier"];
-            if ([candidateBundleId isEqualToString:bundleId]) {
-                return appPath;
-            }
-        }
-    }
-
-    return nil;
-}
-
-static NSString *read_all_from_fd(int fd) {
-    NSMutableData *data = [NSMutableData data];
-    uint8_t buf[4096];
-    ssize_t n = 0;
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        [data appendBytes:buf length:(NSUInteger)n];
-    }
-    if (data.length == 0) return @"";
-    NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    return string ?: @"";
-}
-
-static int run_process_with_output(NSString *path, NSArray<NSString *> *args, NSString **output) {
-    NSUInteger argc = args.count + 2;
-    char **argv = calloc(argc, sizeof(char *));
-    if (!argv) return ENOMEM;
-
-    argv[0] = strdup(path.fileSystemRepresentation);
-    for (NSUInteger i = 0; i < args.count; i++) {
-        argv[i + 1] = strdup(args[i].fileSystemRepresentation);
-    }
-    argv[argc - 1] = NULL;
-
-    int pipeFds[2] = {-1, -1};
-    if (pipe(pipeFds) != 0) {
-        for (NSUInteger i = 0; i < argc - 1; i++) free(argv[i]);
-        free(argv);
-        return errno;
-    }
-
-    posix_spawn_file_actions_t actions;
-    posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDERR_FILENO);
-    posix_spawn_file_actions_addclose(&actions, pipeFds[0]);
-
-    pid_t pid = 0;
-    int spawnError = posix_spawn(&pid, path.fileSystemRepresentation, &actions, NULL, argv, NULL);
-
-    posix_spawn_file_actions_destroy(&actions);
-    close(pipeFds[1]);
-
-    NSString *captured = read_all_from_fd(pipeFds[0]);
-    close(pipeFds[0]);
-
-    int status = 0;
-    if (spawnError == 0) {
-        if (waitpid(pid, &status, 0) < 0) {
-            spawnError = errno;
-        }
-    }
-
-    for (NSUInteger i = 0; i < argc - 1; i++) free(argv[i]);
-    free(argv);
-
-    if (output) *output = captured;
-
-    if (spawnError != 0) return spawnError;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
-    return -1;
-}
-
-static NSDictionary *handle_trollstore_install(NSDictionary *msg) {
-    id reqId = msg[@"id"];
-    NSString *ipaPath = msg[@"path"];
-    NSString *bundleId = msg[@"bundle_id"];
-    NSString *registration = msg[@"registration"];
-    if (ipaPath.length == 0) {
-        NSMutableDictionary *r = vp_make_response(@"err", reqId);
-        r[@"msg"] = @"missing ipa path";
-        return r;
-    }
-
-    if (![[NSFileManager defaultManager] fileExistsAtPath:ipaPath]) {
-        NSMutableDictionary *r = vp_make_response(@"err", reqId);
-        r[@"msg"] = [NSString stringWithFormat:@"IPA not found: %@", ipaPath];
-        return r;
-    }
-
-    NSString *helperPath = find_trollstore_lite_helper();
-    if (helperPath.length == 0) {
-        NSMutableDictionary *r = vp_make_response(@"err", reqId);
-        r[@"msg"] = @"TrollStore Lite helper not found in guest";
-        return r;
-    }
-
-    NSString *output = @"";
-    int ret = run_process_with_output(helperPath, @[ @"install", ipaPath ], &output);
-    if (ret != 0) {
-        NSMutableDictionary *r = vp_make_response(@"err", reqId);
-        NSString *trimmed = [output stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (trimmed.length > 4000) {
-            trimmed = [trimmed substringToIndex:4000];
-        }
-        r[@"msg"] = trimmed.length > 0
-            ? [NSString stringWithFormat:@"trollstorehelper returned %d\n%@", ret, trimmed]
-            : [NSString stringWithFormat:@"trollstorehelper returned %d", ret];
-        return r;
-    }
-
-    if ([registration isEqualToString:@"User"] && bundleId.length > 0) {
-        NSString *appPath = nil;
-        for (int attempt = 0; attempt < 10; attempt++) {
-            appPath = find_trollstore_lite_app_path_for_bundle_id(bundleId);
-            if (appPath.length > 0) break;
-            usleep(200 * 1000);
-        }
-
-        if (appPath.length == 0) {
-            NSMutableDictionary *r = vp_make_response(@"err", reqId);
-            r[@"msg"] = [NSString stringWithFormat:@"installed but failed to locate app path for %@", bundleId];
-            return r;
-        }
-
-        NSString *registrationOutput = @"";
-        int registrationRet = run_process_with_output(
-            helperPath,
-            @[ @"modify-registration", appPath, @"User" ],
-            &registrationOutput
-        );
-        if (registrationRet != 0) {
-            NSMutableDictionary *r = vp_make_response(@"err", reqId);
-            NSString *trimmed = [registrationOutput stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            if (trimmed.length > 4000) {
-                trimmed = [trimmed substringToIndex:4000];
-            }
-            r[@"msg"] = trimmed.length > 0
-                ? [NSString stringWithFormat:@"installed, but switch-to-user failed (%d)\n%@", registrationRet, trimmed]
-                : [NSString stringWithFormat:@"installed, but switch-to-user failed (%d)", registrationRet];
-            return r;
-        }
-    }
-
-    [[NSFileManager defaultManager] removeItemAtPath:ipaPath error:nil];
-
-    NSMutableDictionary *r = vp_make_response(@"ok", reqId);
-    if ([registration isEqualToString:@"User"]) {
-        r[@"msg"] = [NSString stringWithFormat:@"Installed via TrollStore Lite and switched to User: %@", ipaPath.lastPathComponent];
-    } else {
-        r[@"msg"] = [NSString stringWithFormat:@"Installed via TrollStore Lite: %@", ipaPath.lastPathComponent];
-    }
-    return r;
 }
 
 // MARK: - Auto-update
@@ -410,10 +203,6 @@ static NSDictionary *handle_command(NSDictionary *msg) {
         return r;
     }
 
-    if ([type isEqualToString:@"tslite_install"]) {
-        return handle_trollstore_install(msg);
-    }
-
     if ([type isEqualToString:@"ipa_install"]) {
         return vp_handle_custom_install(msg);
     }
@@ -468,7 +257,6 @@ static BOOL handle_client(int fd) {
         NSMutableArray *caps = [NSMutableArray arrayWithObjects:@"hid", @"devmode", @"file", nil];
         if (vp_location_available()) [caps addObject:@"location"];
         if (vp_custom_installer_available()) [caps addObject:@"ipa_install"];
-        if (find_trollstore_lite_helper()) [caps addObject:@"tslite_install"];
 
         NSMutableDictionary *helloResp = [@{
             @"v": @PROTOCOL_VERSION,

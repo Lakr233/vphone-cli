@@ -107,43 +107,6 @@ class VPhoneControl {
         return nil
     }
 
-    private static func runHostProcess(executableURL: URL, arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = arguments
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let errorOutput = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        if process.terminationStatus == 0 {
-            return output
-        }
-        let detail = errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        throw ControlError.protocolError(detail.isEmpty ? "host tool failed: \(executableURL.lastPathComponent)" : detail)
-    }
-
-    private static func buildInstallArchive(fromIPA ipaURL: URL) throws -> URL {
-        let fm = FileManager.default
-        let tempRoot = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let extractDir = tempRoot.appendingPathComponent("extract", isDirectory: true)
-        try fm.createDirectory(at: extractDir, withIntermediateDirectories: true)
-
-        let dittoURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        _ = try runHostProcess(executableURL: dittoURL, arguments: ["-x", "-k", ipaURL.path, extractDir.path])
-
-        let tarURL = tempRoot.appendingPathComponent("package.tar")
-        let tarTool = URL(fileURLWithPath: "/usr/bin/tar")
-        _ = try runHostProcess(executableURL: tarTool, arguments: ["-cf", tarURL.path, "-C", extractDir.path, "."])
-        return tarURL
-    }
-
     // MARK: - Guest Binary Hash
 
     private func loadGuestBinary() {
@@ -448,19 +411,15 @@ class VPhoneControl {
     }
 
     private func installIPAWithBuiltInInstaller(localURL: URL) async throws -> String {
-        let archiveURL = try Self.buildInstallArchive(fromIPA: localURL)
         let data: Data
         do {
-            data = try Data(contentsOf: archiveURL)
+            data = try Data(contentsOf: localURL)
         } catch {
-            throw ControlError.protocolError("failed to read install archive: \(error)")
-        }
-        defer {
-            try? FileManager.default.removeItem(at: archiveURL.deletingLastPathComponent())
+            throw ControlError.protocolError("failed to read IPA: \(error)")
         }
 
         let remoteDir = "/var/mobile/Documents/vphone-installs"
-        let remoteName = "\(UUID().uuidString)-\(localURL.deletingPathExtension().lastPathComponent).tar"
+        let remoteName = "\(UUID().uuidString)-\(localURL.lastPathComponent)"
         let remotePath = "\(remoteDir)/\(remoteName)"
 
         var cleanupPaths = [remotePath]
@@ -479,7 +438,6 @@ class VPhoneControl {
             "t": "ipa_install",
             "path": remotePath,
             "registration": "User",
-            "package_format": "tar",
         ]
 
         if let signCertURL = Self.signCertURL() {
