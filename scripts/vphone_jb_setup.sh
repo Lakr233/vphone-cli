@@ -66,15 +66,35 @@ log "[0/7] Wrapping launchctl with liblaunch_compat loader..."
 LAUNCHCTL="$JB_TARGET/usr/bin/launchctl"
 if [ -f "$LAUNCHCTL" ] && [ ! -f "${LAUNCHCTL}.real" ]; then
     mv "$LAUNCHCTL" "${LAUNCHCTL}.real"
+    REAL="$JB_TARGET/usr/bin/launchctl.real"
     cat > "$LAUNCHCTL" << 'WRAPPER'
 #!/bin/bash
 export DYLD_INSERT_LIBRARIES=/cores/liblaunch_compat.dylib
-exec "$(dirname "$0")/launchctl.real" "$@"
+# Timeout prevents hangs when launchd doesn't respond on PCC VMs.
+# Run real launchctl in background, kill after 5s if stuck, always exit 0.
+WRAPPER
+    # Append the real path (needs expansion) and the rest
+    cat >> "$LAUNCHCTL" << WRAPPER
+"$REAL" "\$@" 2>/dev/null &
+_PID=\$!
+(sleep 5 && kill \$_PID 2>/dev/null) &
+wait \$_PID 2>/dev/null
+exit 0
 WRAPPER
     chmod 755 "$LAUNCHCTL"
     log "  launchctl wrapped (original -> launchctl.real)"
 else
     log "  launchctl already wrapped or not found"
+fi
+
+# Ensure /var/jb/bin/launchctl exists (some postinst scripts use this path).
+# Symlink to the wrapped usr/bin version so all paths get the compat shim.
+mkdir -p "$JB_TARGET/bin"
+if [ ! -e "$JB_TARGET/bin/launchctl" ] || [ -L "$JB_TARGET/bin/launchctl" ]; then
+    ln -sf "$JB_TARGET/usr/bin/launchctl" "$JB_TARGET/bin/launchctl"
+    log "  symlinked bin/launchctl -> usr/bin/launchctl"
+else
+    log "  bin/launchctl already exists"
 fi
 
 # ═══════════ 1/7 SYMLINK /var/jb ═════════════════════════════
