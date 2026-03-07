@@ -21,6 +21,13 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         return devices.object(at: 0) as AnyObject
     }
 
+    var recordingGraphicsDisplay: VZGraphicsDisplay? {
+        if let display = Dynamic(self)._graphicsDisplay.asObject as? VZGraphicsDisplay {
+            return display
+        }
+        return virtualMachine?.graphicsDevices.first?.displays.first
+    }
+
     // MARK: - Event Handling
 
     override var acceptsFirstResponder: Bool {

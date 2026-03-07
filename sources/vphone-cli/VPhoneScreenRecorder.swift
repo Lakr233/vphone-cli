@@ -1,18 +1,48 @@
 import AppKit
 import AVFoundation
 import CoreVideo
+import ObjectiveC.runtime
+import Virtualization
 
 // MARK: - Screen Recorder
 
 @MainActor
 class VPhoneScreenRecorder {
+    private enum CaptureError: LocalizedError {
+        case captureFailed
+        case clipboardWriteFailed
+        case pngEncodingFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .captureFailed:
+                "Failed to capture a frame from the virtual machine."
+            case .clipboardWriteFailed:
+                "Failed to copy the screenshot to the pasteboard."
+            case .pngEncodingFailed:
+                "Failed to encode the screenshot as PNG."
+            }
+        }
+    }
+
+    private struct CaptureSource {
+        let graphicsDisplay: VZGraphicsDisplay
+        let description: String
+    }
+
+    private typealias ScreenshotCompletionBlock = @convention(block) (AnyObject?) -> Void
+    private typealias ScreenshotIMP = @convention(c) (AnyObject, Selector, AnyObject) -> Void
+
     private var writer: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var timer: Timer?
     private var frameCount: Int64 = 0
     private var outputURL: URL?
-    private weak var view: NSView?
+    private var graphicsDisplay: VZGraphicsDisplay?
+    private var captureModeDescription = "private VZGraphicsDisplay screenshots"
+    private var screenshotInFlight = false
+    private var didLogCaptureFailure = false
 
     var isRecording: Bool {
         writer?.status == .writing
@@ -21,15 +51,12 @@ class VPhoneScreenRecorder {
     func startRecording(view: NSView) throws {
         guard !isRecording else { return }
 
-        let backingSize = view.convertToBacking(view.bounds.size)
-        let width = Int(backingSize.width)
-        let height = Int(backingSize.height)
+        let source = try resolveCaptureSource(for: view)
+        let captureSize = source.graphicsDisplay.sizeInPixels
+        let width = max(Int(captureSize.width), 1)
+        let height = max(Int(captureSize.height), 1)
 
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-            .replacingOccurrences(of: ":", with: "-")
-        let desktop = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop")
-        let url = desktop.appendingPathComponent("vphone-recording-\(timestamp).mov")
+        let url = recordingOutputURL()
         outputURL = url
 
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
@@ -59,8 +86,11 @@ class VPhoneScreenRecorder {
         self.writer = writer
         videoInput = input
         self.adaptor = adaptor
-        self.view = view
+        graphicsDisplay = source.graphicsDisplay
+        captureModeDescription = source.description
         frameCount = 0
+        screenshotInFlight = false
+        didLogCaptureFailure = false
 
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) {
             [weak self] _ in
@@ -69,7 +99,9 @@ class VPhoneScreenRecorder {
             }
         }
 
-        print("[record] started — \(url.lastPathComponent) (\(width)x\(height))")
+        print(
+            "[record] started — \(url.lastPathComponent) (\(width)x\(height), source: \(captureModeDescription))"
+        )
     }
 
     func stopRecording() async -> URL? {
@@ -86,7 +118,9 @@ class VPhoneScreenRecorder {
         videoInput = nil
         adaptor = nil
         outputURL = nil
-        view = nil
+        graphicsDisplay = nil
+        screenshotInFlight = false
+        didLogCaptureFailure = false
 
         if let url {
             print("[record] saved — \(url.path)")
@@ -94,26 +128,91 @@ class VPhoneScreenRecorder {
         return url
     }
 
+    func copyScreenshotToPasteboard(view: NSView) async throws {
+        let cgImage = try await captureStillImage(from: view)
+        let image = NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects([image]) else {
+            throw CaptureError.clipboardWriteFailed
+        }
+
+        print("[record] screenshot copied to clipboard")
+    }
+
+    func saveScreenshot(view: NSView) async throws -> URL {
+        let cgImage = try await captureStillImage(from: view)
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            throw CaptureError.pngEncodingFailed
+        }
+
+        let url = screenshotOutputURL()
+        try pngData.write(to: url, options: .atomic)
+        print("[record] screenshot saved — \(url.path)")
+        return url
+    }
+
     // MARK: - Frame Capture
 
     private func captureFrame() {
-        guard let view, let adaptor, let input = videoInput,
-              input.isReadyForMoreMediaData
+        guard let adaptor, let input = videoInput,
+              input.isReadyForMoreMediaData,
+              let graphicsDisplay
         else { return }
 
-        // Render view into bitmap at backing (retina) resolution
-        let bounds = view.bounds
-        guard let rep = view.bitmapImageRepForCachingDisplay(in: bounds) else { return }
-        view.cacheDisplay(in: bounds, to: rep)
-        guard let cgImage = rep.cgImage else { return }
+        captureGraphicsDisplayFrame(graphicsDisplay, adaptor: adaptor)
+    }
 
-        // Get pixel buffer from pool
+    private func captureGraphicsDisplayFrame(
+        _ graphicsDisplay: VZGraphicsDisplay,
+        adaptor: AVAssetWriterInputPixelBufferAdaptor
+    ) {
+        guard !screenshotInFlight else { return }
+
+        screenshotInFlight = true
+        takeGraphicsScreenshot(from: graphicsDisplay) { [weak self] cgImage in
+            Task { @MainActor in
+                guard let self else { return }
+
+                self.screenshotInFlight = false
+
+                guard let input = self.videoInput, input.isReadyForMoreMediaData else { return }
+
+                guard let cgImage else {
+                    if !self.didLogCaptureFailure {
+                        print("[record] graphics screenshot returned no image")
+                        self.didLogCaptureFailure = true
+                    }
+                    return
+                }
+
+                self.didLogCaptureFailure = false
+                self.appendFrame(from: adaptor, cgImage: cgImage)
+            }
+        }
+    }
+
+    private func captureStillImage(from view: NSView) async throws -> CGImage {
+        let source = try resolveCaptureSource(for: view)
+        guard let cgImage = await takeGraphicsScreenshot(from: source.graphicsDisplay) else {
+            throw CaptureError.captureFailed
+        }
+        return cgImage
+    }
+
+    private func appendFrame(from adaptor: AVAssetWriterInputPixelBufferAdaptor, cgImage: CGImage) {
+        guard let input = videoInput, input.isReadyForMoreMediaData else { return }
         guard let pool = adaptor.pixelBufferPool else { return }
+
         var pixelBuffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
         guard let pb = pixelBuffer else { return }
 
-        // Draw CGImage into pixel buffer
         CVPixelBufferLockBaseAddress(pb, [])
         let pbWidth = CVPixelBufferGetWidth(pb)
         let pbHeight = CVPixelBufferGetHeight(pb)
@@ -134,5 +233,80 @@ class VPhoneScreenRecorder {
         let time = CMTime(value: frameCount, timescale: 30)
         adaptor.append(pb, withPresentationTime: time)
         frameCount += 1
+    }
+
+    private func resolveCaptureSource(for view: NSView) throws -> CaptureSource {
+        guard let vmView = view as? VPhoneVirtualMachineView,
+              let graphicsDisplay = vmView.recordingGraphicsDisplay
+        else {
+            throw CaptureError.captureFailed
+        }
+
+        return CaptureSource(
+            graphicsDisplay: graphicsDisplay,
+            description: "private VZGraphicsDisplay screenshots"
+        )
+    }
+
+    private func takeGraphicsScreenshot(
+        from graphicsDisplay: VZGraphicsDisplay,
+        completion: @escaping (CGImage?) -> Void
+    ) {
+        let selector = NSSelectorFromString("_takeScreenshotWithCompletionHandler:")
+        guard graphicsDisplay.responds(to: selector),
+              let cls = object_getClass(graphicsDisplay),
+              let method = class_getInstanceMethod(cls, selector)
+        else {
+            completion(nil)
+            return
+        }
+
+        let implementation = method_getImplementation(method)
+        let function = unsafeBitCast(implementation, to: ScreenshotIMP.self)
+
+        let block: ScreenshotCompletionBlock = { [weak self] imageObject in
+            completion(self?.convertScreenshotObject(imageObject))
+        }
+        let blockObject = unsafeBitCast(block, to: AnyObject.self)
+        function(graphicsDisplay, selector, blockObject)
+    }
+
+    private func takeGraphicsScreenshot(from graphicsDisplay: VZGraphicsDisplay) async -> CGImage? {
+        await withCheckedContinuation { continuation in
+            takeGraphicsScreenshot(from: graphicsDisplay) { cgImage in
+                continuation.resume(returning: cgImage)
+            }
+        }
+    }
+
+    private func convertScreenshotObject(_ imageObject: AnyObject?) -> CGImage? {
+        guard let imageObject else { return nil }
+
+        if let nsImage = imageObject as? NSImage {
+            return nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+
+        let cfObject = unsafeBitCast(imageObject, to: CFTypeRef.self)
+        if CFGetTypeID(cfObject) == CGImage.typeID {
+            return unsafeBitCast(cfObject, to: CGImage.self)
+        }
+
+        return nil
+    }
+
+    private func recordingOutputURL() -> URL {
+        desktopDirectory().appendingPathComponent("vphone-recording-\(timestampString()).mov")
+    }
+
+    private func screenshotOutputURL() -> URL {
+        desktopDirectory().appendingPathComponent("vphone-screenshot-\(timestampString()).png")
+    }
+
+    private func timestampString() -> String {
+        ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    }
+
+    private func desktopDirectory() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
     }
 }
