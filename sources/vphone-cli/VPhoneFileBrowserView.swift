@@ -1,3 +1,4 @@
+@preconcurrency import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
