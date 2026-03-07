@@ -20,6 +20,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         view.virtualMachine = vm
         view.capturesSystemKeys = true
         view.keyHelper = keyHelper
+        view.control = control
         let vmView: NSView = view
 
         let scale = CGFloat(screenScale)

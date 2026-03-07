@@ -5,8 +5,10 @@ import Virtualization
 
 class VPhoneVirtualMachineView: VZVirtualMachineView {
     var keyHelper: VPhoneKeyHelper?
+    weak var control: VPhoneControl?
 
     private var currentTouchSwipeAim: Int = 0
+    private var isDragHighlightVisible = false
 
     // MARK: - Private API Accessors
 
@@ -42,6 +44,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         super.viewDidMoveToWindow()
         // Ensure keyboard events route to VM view right after window attach.
         window?.makeFirstResponder(self)
+        registerForDraggedTypes([.fileURL])
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -80,6 +83,88 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    // MARK: - Drag and Drop Install
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard droppedIPAURL(from: sender) != nil else { return [] }
+        updateDragHighlight(true)
+        return .copy
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        _ = sender
+        updateDragHighlight(false)
+    }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        droppedIPAURL(from: sender) != nil
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        updateDragHighlight(false)
+        guard let url = droppedIPAURL(from: sender) else { return false }
+
+        Task { @MainActor in
+            guard let control else {
+                showAlert(title: "Install IPA", message: "Guest is not connected.", style: .warning)
+                return
+            }
+            guard control.isConnected else {
+                showAlert(title: "Install IPA", message: "Guest is not connected.", style: .warning)
+                return
+            }
+            guard control.guestCaps.contains("tslite_install") else {
+                showAlert(
+                    title: "Install IPA",
+                    message: "TrollStore Lite helper is not available in the guest.",
+                    style: .warning
+                )
+                return
+            }
+
+            do {
+                let result = try await control.installIPAWithTrollStoreLite(localURL: url)
+                showAlert(title: "Install IPA", message: result, style: .informational)
+            } catch {
+                showAlert(title: "Install IPA", message: "\(error)", style: .warning)
+            }
+        }
+        return true
+    }
+
+    private func droppedIPAURL(from sender: any NSDraggingInfo) -> URL? {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true,
+        ]
+        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL] else {
+            return nil
+        }
+        return urls.first {
+            let ext = $0.pathExtension.lowercased()
+            return ext == "ipa" || ext == "tipa"
+        }
+    }
+
+    private func updateDragHighlight(_ visible: Bool) {
+        guard isDragHighlightVisible != visible else { return }
+        isDragHighlightVisible = visible
+        wantsLayer = true
+        layer?.borderWidth = visible ? 4 : 0
+        layer?.borderColor = visible ? NSColor.systemGreen.cgColor : NSColor.clear.cgColor
+    }
+
+    private func showAlert(title: String, message: String, style: NSAlert.Style) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = style
+        if let window {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
     }
 
     // MARK: - Legacy Touch Injection (macOS 15)
