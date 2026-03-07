@@ -223,7 +223,7 @@ if [[ -n "$HAVOC_SOURCES" ]]; then
     fi
 else
     ssh_cmd "mkdir -p '${HAVOC_LIST:h}'"
-    ssh_cmd "printf '%s\n' 'deb [trusted=yes] https://havoc.app/ ./' > '$HAVOC_LIST'"
+    ssh_cmd "printf '%s\n' 'deb https://havoc.app/ ./' > '$HAVOC_LIST'"
     echo "  [+] Havoc source added: $HAVOC_LIST"
 fi
 
