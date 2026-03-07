@@ -15,7 +15,10 @@ $(OUT): $(SRCS) $(wildcard *.h)
 	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
 		-I. \
 		-DVPHONED_BUILD_HASH='"$(GIT_HASH)"' \
-		-o $@ $(SRCS) -framework Foundation
+		-o $@ $(SRCS) \
+		-framework Foundation \
+		-framework Security \
+		-framework CoreServices
 	@echo "  built OK"
 
 clean:

@@ -115,18 +115,18 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                 showAlert(title: "Install IPA", message: "Guest is not connected.", style: .warning)
                 return
             }
-            guard control.guestCaps.contains("tslite_install") else {
+            guard control.canInstallIPA else {
                 showAlert(
                     title: "Install IPA",
-                    message: "TrollStore Lite helper is not available in the guest.",
+                    message: VPhoneControl.ipaInstallUnavailableMessage,
                     style: .warning
                 )
                 return
             }
 
             do {
-                let result = try await control.installIPAWithTrollStoreLite(localURL: url)
-                showAlert(title: "Install IPA", message: result, style: .informational)
+                let result = try await control.installIPA(localURL: url)
+                print("[install] \(result)")
             } catch {
                 showAlert(title: "Install IPA", message: "\(error)", style: .warning)
             }

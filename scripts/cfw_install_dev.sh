@@ -438,6 +438,7 @@ VPHONED_SRC="$SCRIPT_DIR/vphoned"
 VPHONED_BIN="$VPHONED_SRC/vphoned"
 VPHONED_SRCS=(
     "$VPHONED_SRC/vphoned.m"
+    "$VPHONED_SRC/vphoned_install.m"
     "$VPHONED_SRC/vphoned_protocol.m"
     "$VPHONED_SRC/vphoned_hid.m"
     "$VPHONED_SRC/vphoned_devmode.m"
@@ -460,7 +461,9 @@ if [[ "$needs_vphoned_build" == "1" ]]; then
     xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
         -I"$VPHONED_SRC" \
         -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
-        -framework Foundation
+        -framework Foundation \
+        -framework Security \
+        -framework CoreServices
 fi
 cp "$VPHONED_BIN" "$TEMP_DIR/vphoned"
 ldid_sign_ent "$TEMP_DIR/vphoned" "$VPHONED_SRC/entitlements.plist"

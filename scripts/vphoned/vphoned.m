@@ -27,6 +27,7 @@
 #import "vphoned_devmode.h"
 #import "vphoned_location.h"
 #import "vphoned_files.h"
+#import "vphoned_install.h"
 
 #ifndef AF_VSOCK
 #define AF_VSOCK 40
@@ -413,6 +414,10 @@ static NSDictionary *handle_command(NSDictionary *msg) {
         return handle_trollstore_install(msg);
     }
 
+    if ([type isEqualToString:@"ipa_install"]) {
+        return vp_handle_custom_install(msg);
+    }
+
     NSMutableDictionary *r = vp_make_response(@"err", reqId);
     r[@"msg"] = [NSString stringWithFormat:@"unknown type: %@", type];
     return r;
@@ -462,6 +467,7 @@ static BOOL handle_client(int fd) {
         // Build capabilities list
         NSMutableArray *caps = [NSMutableArray arrayWithObjects:@"hid", @"devmode", @"file", nil];
         if (vp_location_available()) [caps addObject:@"location"];
+        if (vp_custom_installer_available()) [caps addObject:@"ipa_install"];
         if (find_trollstore_lite_helper()) [caps addObject:@"tslite_install"];
 
         NSMutableDictionary *helloResp = [@{
