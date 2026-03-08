@@ -88,7 +88,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     // MARK: - Drag and Drop Install
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard droppedIPAURL(from: sender) != nil else { return [] }
+        guard droppedInstallPackageURL(from: sender) != nil else { return [] }
         updateDragHighlight(true)
         return .copy
     }
@@ -99,44 +99,49 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        droppedIPAURL(from: sender) != nil
+        droppedInstallPackageURL(from: sender) != nil
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         updateDragHighlight(false)
-        guard let url = droppedIPAURL(from: sender) else { return false }
+        guard let url = droppedInstallPackageURL(from: sender) else { return false }
 
         Task { @MainActor in
             guard let control else {
-                showAlert(title: "Install IPA", message: "Guest is not connected.", style: .warning)
+                showAlert(title: "Install App Package", message: "Guest is not connected.", style: .warning)
                 return
             }
             guard control.isConnected else {
-                showAlert(title: "Install IPA", message: "Guest is not connected.", style: .warning)
+                showAlert(title: "Install App Package", message: "Guest is not connected.", style: .warning)
                 return
             }
 
             do {
                 let result = try await control.installIPA(localURL: url)
                 print("[install] \(result)")
+                showAlert(
+                    title: "Install App Package",
+                    message: VPhoneInstallPackage.successMessage(
+                        for: url.lastPathComponent,
+                        detail: result
+                    ),
+                    style: .informational
+                )
             } catch {
-                showAlert(title: "Install IPA", message: "\(error)", style: .warning)
+                showAlert(title: "Install App Package", message: "\(error)", style: .warning)
             }
         }
         return true
     }
 
-    private func droppedIPAURL(from sender: any NSDraggingInfo) -> URL? {
+    private func droppedInstallPackageURL(from sender: any NSDraggingInfo) -> URL? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [
             .urlReadingFileURLsOnly: true,
         ]
         guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL] else {
             return nil
         }
-        return urls.first {
-            let ext = $0.pathExtension.lowercased()
-            return ext == "ipa" || ext == "tipa"
-        }
+        return urls.first(where: VPhoneInstallPackage.isSupportedFile)
     }
 
     private func updateDragHighlight(_ visible: Bool) {
