@@ -62,7 +62,7 @@ TXM_FOURCC = "trxm"
 KERNEL_FOURCC = "rkrn"
 RAMDISK_KERNEL_SUFFIX = ".ramdisk"
 RAMDISK_KERNEL_IMG4 = "krnl.ramdisk.img4"
-SUDO_PASSWORD = os.environ.get("VPHONE_SUDO_PASSWORD", "alpine")
+SUDO_PASSWORD = os.environ.get("VPHONE_SUDO_PASSWORD", None)
 
 # Files to remove from ramdisk to save space
 RAMDISK_REMOVE = [
