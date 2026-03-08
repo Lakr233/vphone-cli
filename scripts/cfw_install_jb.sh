@@ -141,6 +141,26 @@ setup_cfw_jb_input() {
     die "JB mode: neither $CFW_JB_INPUT/ nor $CFW_JB_ARCHIVE found"
 }
 
+# ── Apply dev overlay (replace rpcserver_ios in iosbinpack64) ──
+apply_dev_overlay() {
+    local dev_bin
+    for search_dir in "$SCRIPT_DIR/resources/cfw_dev" "$SCRIPT_DIR/cfw_dev"; do
+        dev_bin="$search_dir/rpcserver_ios"
+        if [[ -f "$dev_bin" ]]; then
+            echo "  Applying dev overlay (rpcserver_ios)..."
+            local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
+            local tmpdir="$VM_DIR/.iosbinpack_tmp"
+            mkdir -p "$tmpdir"
+            tar -xf "$iosbinpack" -C "$tmpdir"
+            cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
+            (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
+            rm -rf "$tmpdir"
+            return
+        fi
+    done
+    die "Dev overlay not found (cfw_dev/rpcserver_ios)"
+}
+
 # ── Check JB prerequisites ────────────────────────────────────
 command -v zstd >/dev/null 2>&1 || die "'zstd' not found (required for JB bootstrap phase)"
 
