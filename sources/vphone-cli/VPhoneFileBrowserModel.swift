@@ -91,7 +91,7 @@ class VPhoneFileBrowserModel {
     }
 
     func openItem(_ file: VPhoneRemoteFile) {
-        if file.isDirectory {
+        if file.isDirectoryLike {
             navigate(to: file.path)
         }
     }

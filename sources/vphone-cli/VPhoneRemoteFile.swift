@@ -7,6 +7,7 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
     let size: UInt64
     let permissions: String
     let modified: Date
+    let symlinkTargetsDirectory: Bool
 
     var id: String {
         path
@@ -22,6 +23,10 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
 
     var isSymbolicLink: Bool {
         type == .symbolicLink
+    }
+
+    var isDirectoryLike: Bool {
+        isDirectory || symlinkTargetsDirectory
     }
 
     var displaySize: String {
@@ -86,6 +91,7 @@ extension VPhoneRemoteFile {
         self.dir = dir
         self.name = name
         self.type = type
+        symlinkTargetsDirectory = entry["link_target_dir"] as? Bool ?? false
         size = (entry["size"] as? NSNumber)?.uint64Value ?? 0
         permissions = entry["perm"] as? String ?? "---"
         modified = Date(timeIntervalSince1970: (entry["mtime"] as? Double) ?? 0)

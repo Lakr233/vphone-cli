@@ -28,21 +28,30 @@ NSDictionary *vp_handle_file_command(int fd, NSDictionary *msg) {
         NSMutableArray *entries = [NSMutableArray arrayWithCapacity:contents.count];
         for (NSString *name in contents) {
             NSString *full = [path stringByAppendingPathComponent:name];
-            NSDictionary *attrs = [fm attributesOfItemAtPath:full error:nil];
-            if (!attrs) continue;
 
-            NSString *fileType = attrs[NSFileType];
+            struct stat st;
+            if (lstat([full fileSystemRepresentation], &st) != 0) continue;
+
             NSString *typeStr = @"file";
-            if ([fileType isEqualToString:NSFileTypeDirectory]) typeStr = @"dir";
-            else if ([fileType isEqualToString:NSFileTypeSymbolicLink]) typeStr = @"link";
+            if (S_ISDIR(st.st_mode)) typeStr = @"dir";
+            else if (S_ISLNK(st.st_mode)) typeStr = @"link";
 
-            NSNumber *size = attrs[NSFileSize] ?: @0;
-            NSDate *mtime = attrs[NSFileModificationDate];
-            NSNumber *posixPerms = attrs[NSFilePosixPermissions];
+            BOOL linkTargetsDirectory = NO;
+            if (S_ISLNK(st.st_mode)) {
+                struct stat resolved;
+                if (stat([full fileSystemRepresentation], &resolved) == 0) {
+                    linkTargetsDirectory = S_ISDIR(resolved.st_mode);
+                }
+            }
+
+            NSNumber *size = @(st.st_size);
+            NSDate *mtime = [NSDate dateWithTimeIntervalSince1970:st.st_mtimespec.tv_sec];
+            NSNumber *posixPerms = @((unsigned long)st.st_mode & 0777);
 
             [entries addObject:@{
                 @"name": name,
                 @"type": typeStr,
+                @"link_target_dir": @(linkTargetsDirectory),
                 @"size": size,
                 @"perm": [NSString stringWithFormat:@"%lo", [posixPerms unsignedLongValue]],
                 @"mtime": @(mtime ? [mtime timeIntervalSince1970] : 0),
