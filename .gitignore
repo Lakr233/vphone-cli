@@ -319,7 +319,6 @@ __marimo__/
 TODO.md
 /references/
 scripts/vphoned/vphoned
-scripts/vphoned/liblaunch_compat.dylib
 /cfw_input/
 sources/vphone-cli/VPhoneBuildInfo.swift
 setup_logs/

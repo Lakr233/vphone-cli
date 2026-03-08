@@ -277,28 +277,9 @@ if [[ -d "$BASEBIN_DIR" ]]; then
     echo "  [+] BaseBin hooks deployed"
 fi
 
-# ═══════════ JB-5 DEPLOY LIBLAUNCH COMPAT + FIRST-BOOT SETUP ══
+# ═══════════ JB-5 DEPLOY FIRST-BOOT SETUP ══════════════════════
 echo ""
-echo "[JB-5] Deploying liblaunch_compat + first-boot setup..."
-
-LIBLAUNCH_COMPAT="$VM_DIR/liblaunch_compat.dylib"
-if [[ -f "$LIBLAUNCH_COMPAT" ]]; then
-    scp_to "$LIBLAUNCH_COMPAT" "/mnt1/cores/liblaunch_compat.dylib"
-    ssh_cmd "/bin/chmod 0755 /mnt1/cores/liblaunch_compat.dylib"
-    echo "  [+] liblaunch_compat.dylib -> /cores/"
-
-    # Set DYLD_INSERT_LIBRARIES in the default JB profile so all procursus
-    # binaries (launchctl, dpkg postinst scripts, etc.) pick up the stub.
-    PROFILE_LINE='export DYLD_INSERT_LIBRARIES=/cores/liblaunch_compat.dylib'
-    PROFILE_PATH="/mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/etc/profile.d/liblaunch_compat.sh"
-    ssh_cmd "/bin/mkdir -p /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/etc/profile.d"
-    ssh_cmd "printf '%s\n' '$PROFILE_LINE' > $PROFILE_PATH"
-    ssh_cmd "/bin/chmod 0644 $PROFILE_PATH"
-    echo "  [+] DYLD_INSERT_LIBRARIES set in JB profile"
-else
-    echo "  [!] liblaunch_compat.dylib not found at $LIBLAUNCH_COMPAT"
-    echo "      Run 'make vphoned' to build it."
-fi
+echo "[JB-5] Deploying first-boot setup..."
 
 # Deploy first-boot JB setup script + LaunchDaemon
 SETUP_SCRIPT="$SCRIPT_DIR/vphone_jb_setup.sh"

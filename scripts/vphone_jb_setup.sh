@@ -28,7 +28,6 @@ if [ -f "$DONE_MARKER" ]; then
 fi
 
 # ── Environment ──────────────────────────────────────────────
-export DYLD_INSERT_LIBRARIES=/cores/liblaunch_compat.dylib
 export TERM=xterm-256color
 export DEBIAN_FRONTEND=noninteractive
 
@@ -58,43 +57,27 @@ log "Boot hash: $BOOT_HASH"
 JB_TARGET="/private/preboot/$BOOT_HASH/jb-vphone/procursus"
 [ -d "$JB_TARGET" ] || die "Procursus not found at $JB_TARGET"
 
-# ═══════════ 0/7 WRAP LAUNCHCTL ═══════════════════════════════
-# Procursus launchctl needs _launch_active_user_switch which is missing
-# from PCC VM's libSystem. Wrap it so DYLD_INSERT_LIBRARIES is always set,
-# regardless of how launchctl is invoked (Sileo, dpkg postinst, etc.).
-log "[0/7] Wrapping launchctl with liblaunch_compat loader..."
-LAUNCHCTL="$JB_TARGET/usr/bin/launchctl"
-if [ -f "$LAUNCHCTL" ] && [ ! -f "${LAUNCHCTL}.real" ]; then
-    mv "$LAUNCHCTL" "${LAUNCHCTL}.real"
-    REAL="$JB_TARGET/usr/bin/launchctl.real"
-    cat > "$LAUNCHCTL" << 'WRAPPER'
-#!/bin/bash
-export DYLD_INSERT_LIBRARIES=/cores/liblaunch_compat.dylib
-# Timeout prevents hangs when launchd doesn't respond on PCC VMs.
-# Run real launchctl in background, kill after 5s if stuck, always exit 0.
-WRAPPER
-    # Append the real path (needs expansion) and the rest
-    cat >> "$LAUNCHCTL" << WRAPPER
-"$REAL" "\$@" 2>/dev/null &
-_PID=\$!
-(sleep 5 && kill \$_PID 2>/dev/null) &
-wait \$_PID 2>/dev/null
-exit 0
-WRAPPER
-    chmod 755 "$LAUNCHCTL"
-    log "  launchctl wrapped (original -> launchctl.real)"
-else
-    log "  launchctl already wrapped or not found"
-fi
+# ═══════════ 0/7 REPLACE LAUNCHCTL ═════════════════════════════
+# Procursus launchctl crashes (missing _launch_active_user_switch symbol).
+# iosbinpack64's launchctl talks to launchd fine and always exits 0,
+# which is enough for dpkg postinst/prerm script compatibility.
+log "[0/7] Linking iosbinpack64 launchctl into procursus..."
+IOSBINPACK_LAUNCHCTL=""
+for p in /iosbinpack64/bin/launchctl /iosbinpack64/usr/bin/launchctl; do
+    [ -f "$p" ] && IOSBINPACK_LAUNCHCTL="$p" && break
+done
 
-# Ensure /var/jb/bin/launchctl exists (some postinst scripts use this path).
-# Symlink to the wrapped usr/bin version so all paths get the compat shim.
-mkdir -p "$JB_TARGET/bin"
-if [ ! -e "$JB_TARGET/bin/launchctl" ] || [ -L "$JB_TARGET/bin/launchctl" ]; then
-    ln -sf "$JB_TARGET/usr/bin/launchctl" "$JB_TARGET/bin/launchctl"
-    log "  symlinked bin/launchctl -> usr/bin/launchctl"
+if [ -n "$IOSBINPACK_LAUNCHCTL" ]; then
+    if [ -f "$JB_TARGET/usr/bin/launchctl" ] && [ ! -L "$JB_TARGET/usr/bin/launchctl" ] && [ ! -f "$JB_TARGET/usr/bin/launchctl.procursus" ]; then
+        mv "$JB_TARGET/usr/bin/launchctl" "$JB_TARGET/usr/bin/launchctl.procursus"
+        log "  procursus original saved as launchctl.procursus"
+    fi
+    ln -sf "$IOSBINPACK_LAUNCHCTL" "$JB_TARGET/usr/bin/launchctl"
+    mkdir -p "$JB_TARGET/bin"
+    ln -sf "$IOSBINPACK_LAUNCHCTL" "$JB_TARGET/bin/launchctl"
+    log "  linked usr/bin/launchctl + bin/launchctl -> $IOSBINPACK_LAUNCHCTL"
 else
-    log "  bin/launchctl already exists"
+    log "  WARNING: iosbinpack64 launchctl not found"
 fi
 
 # ═══════════ 1/7 SYMLINK /var/jb ═════════════════════════════

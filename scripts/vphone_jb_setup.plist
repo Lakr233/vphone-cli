@@ -19,10 +19,5 @@
 	<string>root</string>
 	<key>EnablePressuredExit</key>
 	<false/>
-	<key>EnvironmentVariables</key>
-	<dict>
-		<key>DYLD_INSERT_LIBRARIES</key>
-		<string>/cores/liblaunch_compat.dylib</string>
-	</dict>
 </dict>
 </plist>

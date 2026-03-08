@@ -159,12 +159,6 @@ vphoned:
 		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
 		$(VM_DIR)/.vphoned.signed
 	@echo "  signed → $(VM_DIR)/.vphoned.signed"
-	@echo "=== Signing liblaunch_compat.dylib ==="
-	cp $(SCRIPTS)/vphoned/liblaunch_compat.dylib $(VM_DIR)/liblaunch_compat.dylib
-	ldid \
-		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
-		$(VM_DIR)/liblaunch_compat.dylib
-	@echo "  signed → $(VM_DIR)/liblaunch_compat.dylib"
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management
