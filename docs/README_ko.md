@@ -22,9 +22,9 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 | -------- | :----------: | :-------: | ------------------------------------------------------------ |
 | **일반** |   41 패치    | 10 페이즈 | `fw_patch` + `cfw_install`                                   |
 | **개발** |   52 패치    | 12 페이즈 | `fw_patch_dev` + `cfw_install_dev`                           |
-| **탈옥** | 66 / 78 패치 | 14 페이즈 | `fw_patch_jb` + `cfw_install_jb` + `cfw_install_jb_finalize` |
+| **탈옥** | 66 / 78 패치 | 14 페이즈 | `fw_patch_jb` + `cfw_install_jb`                             |
 
-> `cfw_install_jb_finalize`는 RAM 디스크가 아닌 전체 시스템으로 부팅해야 합니다.
+> JB 최종 설정(심볼릭 링크, Sileo, apt, TrollStore)은 `/cores/vphone_jb_setup.sh` LaunchDaemon을 통해 첫 번째 부팅 시 자동으로 실행됩니다. 진행 상황 확인: `/var/log/vphone_jb_setup.log`.
 
 컴포넌트별 상세 분류는 [research/0_binary_patch_comparison.md](../research/0_binary_patch_comparison.md)를 참조하세요.
 
@@ -130,40 +130,7 @@ make cfw_install
 make boot
 ```
 
-그러면 VM에서 **direct console**이 나타납니다. `bash-4.4#`이 보이면 엔터를 누르고 다음 명령어를 실행하여 쉘 환경을 초기화하고 SSH 호스트 키를 생성하세요:
-
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-
-mkdir -p /var/dropbear
-cp /iosbinpack64/etc/profile /var/profile
-cp /iosbinpack64/etc/motd /var/motd
-
-# SSH 호스트 키 생성 (SSH 작동에 필수)
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-
-shutdown -h now
-```
-
-> **참고:** 호스트 키 생성 단계를 거치지 않으면 dropbear(SSH 서버)가 연결을 수락하더라도 SSH 핸드셰이크를 수행할 키가 없어 즉시 연결을 종료합니다.
-
-## *(선택) JB 패치 마무리*
-
-```bash
-# 터미널 1 — 계속 실행 유지
-make boot                     # 계속 실행 유지
-```
-
-```bash
-# 터미널 2 — 계속 실행 유지
-iproxy 22222 22222
-```
-
-```bash
-# 터미널 3 — 계속 실행 유지
-make cfw_install_jb_finalize
-```
+`cfw_install_jb` 실행 후 탈옥 변형은 첫 번째 부팅 시 **Sileo**와 **TrollStore**를 사용할 수 있습니다. Sileo에서 `openssh-server`를 설치하여 SSH 접근을 활성화할 수 있습니다.
 
 ## 이후 부팅
 
@@ -174,14 +141,14 @@ make boot
 별도의 터미널에서 iproxy 터널을 시작합니다:
 
 ```bash
-iproxy 22222 22222   # SSH
+iproxy 2222 22       # SSH (Sileo에서 openssh-server 설치 필요)
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
 ```
 
 다음을 통해 연결합니다:
 
-- **SSH:** `ssh -p 22222 root@127.0.0.1` (password: `alpine`)
+- **SSH:** `ssh -p 2222 mobile@127.0.0.1` (password: `alpine`)
 - **VNC:** `vnc://127.0.0.1:5901`
 - [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
 
@@ -205,18 +172,13 @@ iOS 초기 설정 시 지역을 **일본** 또는 **유럽 연합**으로 선택
 
 VNC(`vnc://127.0.0.1:5901`)로 접속하여 화면의 아무 곳이나 우클릭(Mac 트랙패드에서는 두 손가락 클릭)하세요. 이것이 홈 버튼 누르기를 시뮬레이션합니다.
 
-**Q: SSH가 연결되자마자 종료됩니다 (`Connection closed by 127.0.0.1`).**
+**Q: SSH 접근을 활성화하려면?**
 
-첫 부팅 시 Dropbear 호스트 키가 생성되지 않았습니다. VNC나 `make boot` 콘솔을 통해 연결하여 다음을 실행하세요:
+Sileo에서 `openssh-server`를 설치하세요 (탈옥 변형 첫 부팅 후 사용 가능).
 
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-mkdir -p /var/dropbear
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-killall dropbear
-dropbear -R -p 22222
-```
+**Q: openssh-server를 설치했는데 SSH가 작동하지 않습니다.**
+
+VM을 재부팅하세요. 다음 부팅 시 SSH 서버가 자동으로 시작됩니다.
 
 **Q: 최신 iOS 버전으로 업데이트할 수 있나요?**
 

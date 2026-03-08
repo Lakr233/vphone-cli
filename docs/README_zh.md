@@ -22,9 +22,9 @@
 | ---------- | :------------: | :--------: | ------------------------------------------------------------ |
 | **常规版** |   41 个补丁    | 10 个阶段  | `fw_patch` + `cfw_install`                                   |
 | **开发版** |   52 个补丁    | 12 个阶段  | `fw_patch_dev` + `cfw_install_dev`                           |
-| **越狱版** | 66 / 78 个补丁 | 14 个阶段  | `fw_patch_jb` + `cfw_install_jb` + `cfw_install_jb_finalize` |
+| **越狱版** | 66 / 78 个补丁 | 14 个阶段  | `fw_patch_jb` + `cfw_install_jb`                             |
 
-> `cfw_install_jb_finalize` 需要启动到完整系统，而非 ramdisk。
+> 越狱最终配置（符号链接、Sileo、apt、TrollStore）通过 `/cores/vphone_jb_setup.sh` LaunchDaemon 在首次启动时自动运行。查看进度：`/var/log/vphone_jb_setup.log`。
 
 详见 [research/0_binary_patch_comparison.md](../research/0_binary_patch_comparison.md) 了解各组件的详细分项对比。
 
@@ -130,40 +130,7 @@ make cfw_install
 make boot
 ```
 
-这会为你提供 VM 的**直接控制台**。当看到 `bash-4.4#` 时，按回车并运行以下命令以初始化 shell 环境并生成 SSH 主机密钥：
-
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-
-mkdir -p /var/dropbear
-cp /iosbinpack64/etc/profile /var/profile
-cp /iosbinpack64/etc/motd /var/motd
-
-# 生成 SSH 主机密钥（SSH 能正常工作所必需）
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-
-shutdown -h now
-```
-
-> **注意：** 若不执行主机密钥生成步骤，dropbear（SSH 服务器）会接受连接但立刻关闭，因为它没有密钥进行握手。
-
-## *（可选）完成越狱补丁*
-
-```bash
-# 终端 1 —— 保持运行
-make boot                     # 保持运行
-```
-
-```bash
-# 终端 2 —— 保持运行
-iproxy 22222 22222
-```
-
-```bash
-# 终端 3 —— 保持运行
-make cfw_install_jb_finalize
-```
+执行 `cfw_install_jb` 后，越狱变体在首次启动时将提供 **Sileo** 和 **TrollStore**。你可以使用 Sileo 安装 `openssh-server` 以获得 SSH 访问。
 
 ## 后续启动
 
@@ -174,14 +141,14 @@ make boot
 在另一个终端中启动 iproxy 隧道：
 
 ```bash
-iproxy 22222 22222   # SSH
+iproxy 2222 22       # SSH（需要从 Sileo 安装 openssh-server）
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
 ```
 
 连接方式：
 
-- **SSH：** `ssh -p 22222 root@127.0.0.1`（密码：`alpine`）
+- **SSH：** `ssh -p 2222 mobile@127.0.0.1`（密码：`alpine`）
 - **VNC：** `vnc://127.0.0.1:5901`
 - [**RPC：**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
 
@@ -205,18 +172,13 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
 
 通过 VNC (`vnc://127.0.0.1:5901`) 连接，并在屏幕上右键单击任意位置（在 Mac 触控板上双指点击）。这会模拟 Home 按钮按下。
 
-**问：SSH 连接后立即关闭（`Connection closed by 127.0.0.1`）。**
+**问：如何获得 SSH 访问？**
 
-首次启动时未生成 dropbear 主机密钥。通过 VNC 或 `make boot` 控制台连接并运行：
+从 Sileo 安装 `openssh-server`（越狱变体首次启动后可用）。
 
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-mkdir -p /var/dropbear
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-killall dropbear
-dropbear -R -p 22222
-```
+**问：安装 openssh-server 后 SSH 无法使用。**
+
+重启虚拟机。SSH 服务器将在下次启动时自动启动。
 
 **问：可以升级到更新的 iOS 版本吗？**
 
