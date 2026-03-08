@@ -368,5 +368,6 @@ rm -f "$TEMP_DIR/launchd" \
 echo ""
 echo "[+] CFW + JB installation complete!"
 echo "    Reboot the device for changes to take effect."
+echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
 ssh_cmd "/sbin/halt" || true

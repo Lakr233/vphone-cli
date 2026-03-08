@@ -37,14 +37,14 @@ def parse_cryptex_paths(manifest_path):
 
 
 def inject_daemons(plist_path, daemon_dir):
-    """Inject bash/trollvnc entries into launchd.plist."""
+    """Inject bash/dropbear/trollvnc entries into launchd.plist."""
     # Convert to XML first (macOS binary plist -> XML)
     subprocess.run(["plutil", "-convert", "xml1", plist_path], capture_output=True)
 
     with open(plist_path, "rb") as f:
         target = plistlib.load(f)
 
-    for name in ("bash", "trollvnc", "vphoned", "rpcserver_ios"):
+    for name in ("bash", "dropbear", "trollvnc", "vphoned", "rpcserver_ios"):
         src = os.path.join(daemon_dir, f"{name}.plist")
         if not os.path.exists(src):
             print(f"  [!] Missing {src}, skipping")
@@ -64,5 +64,4 @@ def inject_daemons(plist_path, daemon_dir):
 # ══════════════════════════════════════════════════════════════════
 # CLI
 # ══════════════════════════════════════════════════════════════════
-
 

@@ -477,7 +477,7 @@ cp "$TEMP_DIR/vphoned" "$VM_DIR/.vphoned.signed"
 echo "  [+] vphoned installed (signed copy at .vphoned.signed)"
 
 # Send daemon plists (overwrite on re-run)
-for plist in bash.plist trollvnc.plist rpcserver_ios.plist; do
+for plist in bash.plist dropbear.plist trollvnc.plist rpcserver_ios.plist; do
     scp_to "$INPUT_DIR/jb/LaunchDaemons/$plist" "/mnt1/System/Library/LaunchDaemons/"
     ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/$plist"
 done
@@ -517,6 +517,7 @@ rm -f "$TEMP_DIR/seputil" \
 echo ""
 echo "[+] CFW installation complete!"
 echo "    Reboot the device for changes to take effect."
+echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
 if [[ "$CFW_SKIP_HALT" == "1" ]]; then
     echo "[*] CFW_SKIP_HALT=1, skipping halt."

@@ -24,7 +24,7 @@ Commands:
         Patch launchd jetsam panic guard to avoid initproc crash loop.
 
     inject-daemons <launchd.plist> <daemon_dir>
-        Inject bash/trollvnc into launchd.plist.
+        Inject bash/dropbear/trollvnc into launchd.plist.
 
     inject-dylib <binary> <dylib_path>
         Inject LC_LOAD_DYLIB into Mach-O binary (thin or universal).

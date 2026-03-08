@@ -488,6 +488,10 @@ send_first_boot_commands() {
     "export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'"
     "cp /iosbinpack64/etc/profile /var/profile"
     "cp /iosbinpack64/etc/motd /var/motd"
+    # generate SSH host keys (required for SSH to work)
+    mkdir -p /var/dropbear
+    dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
+    dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
     "shutdown -h now"
   )
 

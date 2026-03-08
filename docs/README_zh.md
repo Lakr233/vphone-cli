@@ -181,7 +181,8 @@ make boot
 在另一个终端中启动 iproxy 隧道：
 
 ```bash
-iproxy 2222 22       # SSH（越狱版：需从 Sileo 安装 openssh-server；常规版/开发版：dropbear）
+iproxy 22222 22222   # SSH（dropbear）
+iproxy 2222 22       # SSH（越狱版：在 Sileo 中安装 openssh-server 后）
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
 ```

@@ -181,7 +181,8 @@ make boot
 별도의 터미널에서 iproxy 터널을 시작합니다:
 
 ```bash
-iproxy 2222 22       # SSH (탈옥: Sileo에서 openssh-server 설치 필요; 일반/개발: dropbear)
+iproxy 22222 22222   # SSH (dropbear)
+iproxy 2222 22       # SSH (탈옥: Sileo에서 openssh-server를 설치한 경우)
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
 ```
