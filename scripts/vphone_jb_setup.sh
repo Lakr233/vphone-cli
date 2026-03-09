@@ -186,8 +186,16 @@ if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
     log "  TrollStore Lite already installed"
 else
     apt-get -o APT::Get::AllowUnauthenticated=true \
-        install -y -qq com.opa334.trollstorelite 2>&1 || log "  TrollStore install exited with $?"
-    log "  TrollStore Lite installed"
+        install -y -qq com.opa334.trollstorelite 2>&1
+    trollstore_rc=$?
+    if [ "$trollstore_rc" -ne 0 ]; then
+        die "TrollStore Lite apt install failed with exit code $trollstore_rc"
+    fi
+    if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
+        log "  TrollStore Lite installed"
+    else
+        die "TrollStore Lite install completed without registering package"
+    fi
 fi
 
 uicache -a 2>/dev/null || true
