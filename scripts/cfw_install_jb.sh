@@ -59,6 +59,7 @@ check_prerequisites() {
     local missing=()
     command -v sshpass &>/dev/null || missing+=("sshpass")
     command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
+    command -v xcrun &>/dev/null || missing+=("xcrun (Xcode command line tools)")
     if ((${#missing[@]} > 0)); then
         die "Missing required tools: ${missing[*]}. Run: make setup_tools"
     fi
@@ -108,6 +109,29 @@ ldid_sign_ent() {
     local args=("-S$entitlements_plist" "-K$VM_DIR/$CFW_INPUT/signcert.p12")
     [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
     ldid "${args[@]}" "$file"
+}
+
+build_tweakloader() {
+    local src="$SCRIPT_DIR/tweakloader/TweakLoader.m"
+    local out="$TEMP_DIR/TweakLoader.dylib"
+    local sdk cc
+
+    [[ -f "$src" ]] || die "Missing tweak loader source at $src"
+
+    sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+    cc="$(xcrun --sdk iphoneos -f clang)"
+
+    "$cc" -isysroot "$sdk" \
+        -arch arm64 -arch arm64e \
+        -miphoneos-version-min=15.0 \
+        -dynamiclib \
+        -fobjc-arc -O3 \
+        -framework Foundation \
+        -o "$out" \
+        "$src"
+
+    ldid_sign "$out"
+    echo "$out"
 }
 
 remote_mount() {
@@ -319,6 +343,18 @@ if [[ -d "$BASEBIN_DIR" ]]; then
 
     echo "  [+] BaseBin hooks deployed"
 fi
+
+# ═══════════ JB-4 INSTALL TWEAKLOADER ════════════════════════════
+echo ""
+echo "[JB-4] Building and installing TweakLoader..."
+
+TWEAKLOADER_OUT="$(build_tweakloader)"
+ssh_cmd "/bin/mkdir -p /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib"
+scp_to "$TWEAKLOADER_OUT" "/mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
+ssh_cmd "/usr/sbin/chown 0:0 /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
+ssh_cmd "/bin/chmod 0755 /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
+
+echo "  [+] TweakLoader installed to procursus/usr/lib/TweakLoader.dylib"
 
 # ═══════════ JB-5 DEPLOY FIRST-BOOT SETUP ══════════════════════
 echo ""

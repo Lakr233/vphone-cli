@@ -127,6 +127,7 @@
 | 6   | LaunchDaemons              | bash/dropbear/trollvnc/rpcserver_ios/vphoned plists                                                                |    Y    |  Y  |  Y  |
 | 7   | Procursus bootstrap        | Bootstrap filesystem + optional Sileo deb                                                                          |    -    |  -  |  Y  |
 | 8   | BaseBin hooks              | `systemhook.dylib` / `launchdhook.dylib` / `libellekit.dylib` -> `/cores/` plus `/b` alias for `launchdhook.dylib` |    -    |  -  |  Y  |
+| 9   | `TweakLoader.dylib`        | Lean user-tweak loader built from source and installed to `/var/jb/usr/lib/TweakLoader.dylib`                         |    -    |  -  |  Y  |
 
 ### CFW Installer Flow Matrix (Script-Level)
 
@@ -140,6 +141,7 @@
 
 | Procursus bootstrap deployment | - | - | Y (JB-2) |
 | BaseBin hook deployment (`*.dylib` -> `/mnt1/cores`) | - | - | Y (JB-3) |
+| First-boot JB finalization (`vphone_jb_setup.sh`) | - | - | Y (post-boot; now fails before done marker if TrollStore Lite install does not complete) |
 | Additional input resources | `cfw_input` | `cfw_input` + `resources/cfw_dev/rpcserver_ios` | `cfw_input` + `cfw_jb_input` |
 | Extra tool requirement beyond base | - | - | `zstd` |
 | Halt behavior | Halts unless `CFW_SKIP_HALT=1` | Halts unless `CFW_SKIP_HALT=1` | Always halts after JB phases |
@@ -157,9 +159,9 @@
 | Kernel (JB methods)      |       - |   - |  59 |
 | Boot chain total         |      41 |  52 | 112 |
 | CFW binary patches       |       4 |   5 |   6 |
-| CFW installed components |       6 |   7 |   8 |
-| CFW total                |      10 |  12 |  14 |
-| Grand total              |      51 |  64 | 126 |
+| CFW installed components |       6 |   7 |   9 |
+| CFW total                |      10 |  12 |  15 |
+| Grand total              |      51 |  64 | 127 |
 
 ## Ramdisk Variant Matrix
 
