@@ -123,7 +123,7 @@ class VPhoneKeyHelper {
         }
     }
 
-    // MARK: - ASCII → Apple VK Code (US Layout)
+    // MARK: - ASCII -> Apple VK Code (US Layout)
 
     private func asciiToVK(_ char: Character) -> (UInt16, Bool)? {
         switch char {

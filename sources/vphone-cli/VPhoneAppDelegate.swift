@@ -24,7 +24,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         signal(SIGINT, SIG_IGN)
         let src = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         src.setEventHandler {
-            print("\n[vphone] SIGINT — shutting down")
+            print("\n[vphone] SIGINT - shutting down")
             NSApp.terminate(nil)
         }
         src.activate()

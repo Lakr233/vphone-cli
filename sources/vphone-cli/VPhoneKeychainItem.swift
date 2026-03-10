@@ -38,7 +38,7 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
     }
 
     var displayValue: String {
-        if value.isEmpty { return "—" }
+        if value.isEmpty { return "-" }
         if valueEncoding == "base64" {
             return "[\(ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file)) binary]"
         }
@@ -73,7 +73,7 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
         if let created {
             return Self.dateFormatter.string(from: created)
         }
-        return "—"
+        return "-"
     }
 
     private static let dateFormatter: DateFormatter = {

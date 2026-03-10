@@ -176,7 +176,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         net.attachment = VZNATNetworkDeviceAttachment()
         config.networkDevices = [net]
 
-        // Serial port (PL011 UART — pipes for input/output with boot detection)
+        // Serial port (PL011 UART - pipes for input/output with boot detection)
         if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject
             as? VZSerialPortConfiguration
         {
@@ -188,7 +188,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 fileHandleForWriting: outputPipe.fileHandleForWriting
             )
 
-            // Forward host stdin → VM serial input
+            // Forward host stdin -> VM serial input
             let writeHandle = inputPipe.fileHandleForWriting
             let stdinFD = FileHandle.standardInput.fileDescriptor
             DispatchQueue.global(qos: .userInteractive).async {
@@ -214,10 +214,10 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
         config.keyboards = [VZUSBKeyboardConfiguration()]
 
-        // Vsock (host ↔ guest control channel, no IP/TCP involved)
+        // Vsock (host <-> guest control channel, no IP/TCP involved)
         config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
 
-        // Power source (synthetic battery — guest sees full charge, charging)
+        // Power source (synthetic battery - guest sees full charge, charging)
         let source = Dynamic._VZMacSyntheticBatterySource()
         source.setCharge(100.0)
         source.setConnectivity(1) // 1=charging, 2=disconnected
@@ -265,7 +265,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         super.init()
         virtualMachine.delegate = self
 
-        // Forward VM serial output → host stdout
+        // Forward VM serial output -> host stdout
         if let readHandle = serialOutputReadHandle {
             readHandle.readabilityHandler = { handle in
                 let data = handle.availableData
@@ -328,9 +328,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         nonisolated(unsafe) let vm = virtualMachine
         try await vm.start(options: opts)
         if forceDFU {
-            print("[vphone] VM started in DFU mode — connect with irecovery")
+            print("[vphone] VM started in DFU mode - connect with irecovery")
         } else {
-            print("[vphone] VM started — booting normally")
+            print("[vphone] VM started - booting normally")
         }
 
         // Print auto-assigned debug stub port after VM starts (private API, macOS 26+ only)

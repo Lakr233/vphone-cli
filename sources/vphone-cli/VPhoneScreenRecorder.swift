@@ -100,7 +100,7 @@ class VPhoneScreenRecorder {
         }
 
         print(
-            "[record] started — \(url.lastPathComponent) (\(width)x\(height), source: \(captureModeDescription))"
+            "[record] started - \(url.lastPathComponent) (\(width)x\(height), source: \(captureModeDescription))"
         )
     }
 
@@ -123,7 +123,7 @@ class VPhoneScreenRecorder {
         didLogCaptureFailure = false
 
         if let url {
-            print("[record] saved — \(url.path)")
+            print("[record] saved - \(url.path)")
         }
         return url
     }
@@ -153,7 +153,7 @@ class VPhoneScreenRecorder {
 
         let url = screenshotOutputURL()
         try pngData.write(to: url, options: .atomic)
-        print("[record] screenshot saved — \(url.path)")
+        print("[record] screenshot saved - \(url.path)")
         return url
     }
 
@@ -288,7 +288,7 @@ class VPhoneScreenRecorder {
 
         let cfObject = imageObject as CFTypeRef
         if CFGetTypeID(cfObject) == CGImage.typeID {
-            // CGImage is a CF type, not a Swift class — unsafeDowncast cannot be used here.
+            // CGImage is a CF type, not a Swift class - unsafeDowncast cannot be used here.
             return (cfObject as! CGImage) // swiftlint:disable:this force_cast
         }
 

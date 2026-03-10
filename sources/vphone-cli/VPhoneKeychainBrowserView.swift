@@ -57,21 +57,21 @@ struct VPhoneKeychainBrowserView: View {
             .width(min: 60, ideal: 80, max: 100)
 
             TableColumn("Account", value: \.account) { item in
-                Text(item.account.isEmpty ? "—" : item.account)
+                Text(item.account.isEmpty ? "-" : item.account)
                     .lineLimit(1)
                     .help(item.account)
             }
             .width(min: 80, ideal: 150, max: .infinity)
 
             TableColumn("Service", value: \.service) { item in
-                Text(item.service.isEmpty ? "—" : item.service)
+                Text(item.service.isEmpty ? "-" : item.service)
                     .lineLimit(1)
                     .help(item.service)
             }
             .width(min: 80, ideal: 150, max: .infinity)
 
             TableColumn("Access Group", value: \.accessGroup) { item in
-                Text(item.accessGroup.isEmpty ? "—" : item.accessGroup)
+                Text(item.accessGroup.isEmpty ? "-" : item.accessGroup)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
                     .help(item.accessGroup)
@@ -79,7 +79,7 @@ struct VPhoneKeychainBrowserView: View {
             .width(min: 80, ideal: 160, max: .infinity)
 
             TableColumn("Protection", value: \.protection) { item in
-                Text(item.protection.isEmpty ? "—" : item.protection)
+                Text(item.protection.isEmpty ? "-" : item.protection)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
                     .help(item.protectionDescription)

@@ -607,7 +607,7 @@ class VPhoneControl {
                     continue
                 }
 
-                // No pending request — handle as before (fire-and-forget)
+                // No pending request - handle as before (fire-and-forget)
                 switch type {
                 case "ok":
                     let detail = msg["msg"] as? String ?? ""

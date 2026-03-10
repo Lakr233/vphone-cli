@@ -6,7 +6,7 @@ import Foundation
 /// Uses macOS CoreLocation to track the Mac's real location and forwards
 /// every update to the guest.  Call `startForwarding()` when the guest
 /// reports "location" capability.  Safe to call multiple times (e.g.
-/// after vphoned reconnects) — re-sends the last known position.
+/// after vphoned reconnects) - re-sends the last known position.
 @MainActor
 class VPhoneLocationProvider: NSObject {
     struct ReplayPoint {
@@ -244,7 +244,7 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         let c = location.coordinate
         print(
-            "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (±\(String(format: "%.0f", location.horizontalAccuracy))m)"
+            "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (+/-\(String(format: "%.0f", location.horizontalAccuracy))m)"
         )
         handler(location)
     }
