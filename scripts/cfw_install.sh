@@ -434,17 +434,7 @@ echo "[7/7] Installing LaunchDaemons..."
 # Install vphoned (vsock HID injector daemon)
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
 VPHONED_BIN="$VPHONED_SRC/vphoned"
-VPHONED_SRCS=(
-    "$VPHONED_SRC/unarchive.m"
-    "$VPHONED_SRC/vphoned.m"
-    "$VPHONED_SRC/vphoned_install.m"
-    "$VPHONED_SRC/vphoned_protocol.m"
-    "$VPHONED_SRC/vphoned_hid.m"
-    "$VPHONED_SRC/vphoned_devmode.m"
-    "$VPHONED_SRC/vphoned_location.m"
-    "$VPHONED_SRC/vphoned_files.m"
-    "$VPHONED_SRC/vphoned_keychain.m"
-)
+VPHONED_SRCS=("$VPHONED_SRC"/*.m)
 needs_vphoned_build=0
 if [[ ! -f "$VPHONED_BIN" ]]; then
     needs_vphoned_build=1
