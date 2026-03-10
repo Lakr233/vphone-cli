@@ -81,7 +81,7 @@ extract() {
     # Clone from cache to working dir (APFS instant copy-on-write)
     rm -rf "$out"
     echo "==> Cloning ${cache##*/} → ${out##*/} ..."
-    cp -cR "$cache" "$out"
+    cp -R "$cache" "$out"
 }
 
 extract "$IPHONE_IPSW_PATH" "$IPHONE_CACHE" "$IPHONE_DIR"
