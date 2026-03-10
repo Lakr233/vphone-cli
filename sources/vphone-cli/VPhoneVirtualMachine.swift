@@ -14,9 +14,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     private var batterySource: AnyObject?
 
     struct Options {
+        var configURL: URL
         var romURL: URL
         var nvramURL: URL
-        var machineIDURL: URL
         var diskURL: URL
         var cpuCount: Int = 8
         var memorySize: UInt64 = 8 * 1024 * 1024 * 1024
@@ -40,32 +40,71 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let hwModel = try VPhoneHardware.createModel()
         print("[vphone] PV=3 hardware model: isSupported = true")
 
-        // --- Platform ---
-        let platform = VZMacPlatformConfiguration()
-
-        // Persist machineIdentifier for stable ECID
+        // --- Load or create machineIdentifier from manifest ---
         let machineIdentifier: VZMacMachineIdentifier
-        if let savedData = try? Data(contentsOf: options.machineIDURL),
-           let savedID = VZMacMachineIdentifier(dataRepresentation: savedData)
-        {
-            machineIdentifier = savedID
-            print("[vphone] Loaded machineIdentifier (ECID stable)")
-        } else {
+        var manifest = try VPhoneVirtualMachineManifest.load(from: options.configURL)
+
+        if manifest.machineIdentifier.isEmpty {
+            // Create new machineIdentifier and save to manifest
             let newID = VZMacMachineIdentifier()
             machineIdentifier = newID
-            try newID.dataRepresentation.write(to: options.machineIDURL)
-            print("[vphone] Created new machineIdentifier -> \(options.machineIDURL.lastPathComponent)")
+
+            // Update manifest with new machineIdentifier
+            manifest = VPhoneVirtualMachineManifest(
+                platformType: manifest.platformType,
+                platformFusing: manifest.platformFusing,
+                machineIdentifier: newID.dataRepresentation,
+                cpuCount: manifest.cpuCount,
+                memorySize: manifest.memorySize,
+                screenConfig: manifest.screenConfig,
+                networkConfig: manifest.networkConfig,
+                diskImage: manifest.diskImage,
+                nvramStorage: manifest.nvramStorage,
+                romImages: manifest.romImages,
+                sepStorage: manifest.sepStorage
+            )
+            try manifest.write(to: options.configURL)
+
+            print("[vphone] Created new machineIdentifier -> saved to config.plist")
+        } else if let savedID = VZMacMachineIdentifier(dataRepresentation: manifest.machineIdentifier) {
+            machineIdentifier = savedID
+            print("[vphone] Loaded machineIdentifier from config.plist (ECID stable)")
+        } else {
+            // Invalid data in manifest, create new
+            let newID = VZMacMachineIdentifier()
+            machineIdentifier = newID
+
+            manifest = VPhoneVirtualMachineManifest(
+                platformType: manifest.platformType,
+                platformFusing: manifest.platformFusing,
+                machineIdentifier: newID.dataRepresentation,
+                cpuCount: manifest.cpuCount,
+                memorySize: manifest.memorySize,
+                screenConfig: manifest.screenConfig,
+                networkConfig: manifest.networkConfig,
+                diskImage: manifest.diskImage,
+                nvramStorage: manifest.nvramStorage,
+                romImages: manifest.romImages,
+                sepStorage: manifest.sepStorage
+            )
+            try manifest.write(to: options.configURL)
+
+            print("[vphone] Invalid machineIdentifier in config.plist, created new")
         }
+
+        // --- Platform ---
+        let platform = VZMacPlatformConfiguration()
         platform.machineIdentifier = machineIdentifier
 
         if let identity = Self.resolveDeviceIdentity(machineIdentifier: machineIdentifier) {
             ecidHex = identity.ecidHex
             print("[vphone] ECID: \(ecidHex!)")
             print("[vphone] Predicted UDID: \(identity.udid)")
+            let outputURL = options.configURL.deletingLastPathComponent().appendingPathComponent(
+                "udid-prediction.txt"
+            )
             do {
-                let outputURL = try Self.writeUDIDPrediction(
-                    identity: identity, machineIDURL: options.machineIDURL
-                )
+                try Self.writeUDIDPrediction(identity: identity, to: outputURL)
                 print("[vphone] Wrote UDID prediction: \(outputURL.path)")
             } catch {
                 print("[vphone] Warning: failed to write udid-prediction.txt: \(error)")
@@ -255,18 +294,14 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         return DeviceIdentity(cpidHex: cpidHex, ecidHex: ecidHex, udid: udid)
     }
 
-    private static func writeUDIDPrediction(identity: DeviceIdentity, machineIDURL: URL) throws -> URL {
-        let outputURL = machineIDURL.deletingLastPathComponent().appendingPathComponent(
-            "udid-prediction.txt"
-        )
+    private static func writeUDIDPrediction(identity: DeviceIdentity, to outputURL: URL) throws {
         let content = """
         UDID=\(identity.udid)
         CPID=0x\(identity.cpidHex)
         ECID=0x\(identity.ecidHex)
-        MACHINE_IDENTIFIER=\(machineIDURL.lastPathComponent)
+        MACHINE_IDENTIFIER=config.plist
         """
         try content.write(to: outputURL, atomically: true, encoding: .utf8)
-        return outputURL
     }
 
     // MARK: - Battery

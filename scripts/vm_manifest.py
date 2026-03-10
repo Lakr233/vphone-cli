@@ -37,7 +37,7 @@ def create_manifest(
     manifest = {
         "platformType": "vresearch101",
         "platformFusing": platform_fusing,  # None = auto-detect from host OS
-        "machineIdentifier": b"",  # Empty on creation, filled by vphone-cli on first boot
+        "machineIdentifier": b"",  # Generated on first boot, then persisted to manifest
         "cpuCount": cpu_count,
         "memorySize": memory_bytes,
         "screenConfig": {
@@ -52,7 +52,6 @@ def create_manifest(
         },
         "diskImage": "Disk.img",
         "nvramStorage": "nvram.bin",
-        "machineIDFile": "machineIdentifier.bin",
         "romImages": {
             "avpBooter": rom_file,
             "avpSEPBooter": sep_rom_file,

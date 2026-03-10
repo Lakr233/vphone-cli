@@ -41,9 +41,6 @@ struct VPhoneVirtualMachineManifest: Codable {
     /// NVRAM storage filename
     let nvramStorage: String
 
-    /// Machine identifier filename
-    let machineIDFile: String
-
     // MARK: - ROMs
 
     /// ROM image paths
@@ -110,7 +107,6 @@ struct VPhoneVirtualMachineManifest: Codable {
         networkConfig: NetworkConfig = .default,
         diskImage: String = "Disk.img",
         nvramStorage: String = "nvram.bin",
-        machineIDFile: String = "machineIdentifier.bin",
         romImages: ROMImages,
         sepStorage: String = "SEPStorage"
     ) {
@@ -123,7 +119,6 @@ struct VPhoneVirtualMachineManifest: Codable {
         self.networkConfig = networkConfig
         self.diskImage = diskImage
         self.nvramStorage = nvramStorage
-        self.machineIDFile = machineIDFile
         self.romImages = romImages
         self.sepStorage = sepStorage
     }

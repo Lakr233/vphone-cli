@@ -179,7 +179,6 @@ boot: bundle vphoned
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
-		--machine-id ./machineIdentifier.bin \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage
 
@@ -189,7 +188,6 @@ boot_dfu: build
 		--rom ./AVPBooter.vresearch1.bin \
 		--disk ./Disk.img \
 		--nvram ./nvram.bin \
-		--machine-id ./machineIdentifier.bin \
 		--sep-rom ./AVPSEPBooter.vresearch1.bin \
 		--sep-storage ./SEPStorage \
 		--no-graphics --dfu

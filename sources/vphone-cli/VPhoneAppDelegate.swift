@@ -52,7 +52,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         print("ROM   : \(options.romURL.path)")
         print("Disk  : \(options.diskURL.path)")
         print("NVRAM : \(options.nvramURL.path)")
-        print("MachID: \(options.machineIDURL.path)")
+        print("Config: \(options.configURL.path)")
         print("CPU   : \(options.cpuCount)")
         print("Memory: \(options.memorySize / 1024 / 1024) MB")
         print(

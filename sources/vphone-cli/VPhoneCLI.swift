@@ -20,10 +20,10 @@ struct VPhoneCLI: ParsableCommand {
     )
 
     @Option(
-        help: "Path to VM manifest plist (config.plist). When provided, CPU/memory/screen settings are read from this file.",
+        help: "Path to VM manifest plist (config.plist). Required.",
         transform: URL.init(fileURLWithPath:)
     )
-    var config: URL?
+    var config: URL
 
     @Option(help: "Path to the AVPBooter / ROM binary")
     var rom: String
@@ -33,9 +33,6 @@ struct VPhoneCLI: ParsableCommand {
 
     @Option(help: "Path to NVRAM storage (created/overwritten)")
     var nvram: String = "nvram.bin"
-
-    @Option(help: "Path to machineIdentifier file (created if missing)")
-    var machineId: String
 
     @Option(help: "Number of CPU cores (overridden by --config if present)")
     var cpu: Int?
@@ -79,7 +76,6 @@ struct VPhoneCLI: ParsableCommand {
         let romURL = URL(fileURLWithPath: rom)
         let diskURL = URL(fileURLWithPath: disk)
         let nvramURL = URL(fileURLWithPath: nvram)
-        let machineIDURL = URL(fileURLWithPath: machineId)
         let sepStorageURL = URL(fileURLWithPath: sepStorage)
         let sepRomURL = URL(fileURLWithPath: sepRom)
 
@@ -91,20 +87,17 @@ struct VPhoneCLI: ParsableCommand {
         var resolvedScreenPpi = 460
         var resolvedScreenScale = 3.0
 
-        // Load manifest if provided
-        if let configURL = config {
-            let manifest = try VPhoneVirtualMachineManifest.load(from: configURL)
+        // Load manifest (required)
+        let manifest = try VPhoneVirtualMachineManifest.load(from: config)
+        print("[vphone] Loaded VM manifest from \(config.path)")
 
-            print("[vphone] Loaded VM manifest from \(configURL.path)")
-
-            // Apply manifest settings
-            resolvedCpuCount = Int(manifest.cpuCount)
-            resolvedMemorySize = manifest.memorySize
-            resolvedScreenWidth = manifest.screenConfig.width
-            resolvedScreenHeight = manifest.screenConfig.height
-            resolvedScreenPpi = manifest.screenConfig.pixelsPerInch
-            resolvedScreenScale = manifest.screenConfig.scale
-        }
+        // Apply manifest settings
+        resolvedCpuCount = Int(manifest.cpuCount)
+        resolvedMemorySize = manifest.memorySize
+        resolvedScreenWidth = manifest.screenConfig.width
+        resolvedScreenHeight = manifest.screenConfig.height
+        resolvedScreenPpi = manifest.screenConfig.pixelsPerInch
+        resolvedScreenScale = manifest.screenConfig.scale
 
         // Apply command-line overrides (if provided)
         if let cpuArg = cpu { resolvedCpuCount = cpuArg }
@@ -114,9 +107,9 @@ struct VPhoneCLI: ParsableCommand {
         if let screenPpiArg = screenPpi { resolvedScreenPpi = screenPpiArg }
 
         return VPhoneVirtualMachine.Options(
+            configURL: config,
             romURL: romURL,
             nvramURL: nvramURL,
-            machineIDURL: machineIDURL,
             diskURL: diskURL,
             cpuCount: resolvedCpuCount,
             memorySize: resolvedMemorySize,
