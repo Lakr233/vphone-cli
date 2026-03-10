@@ -36,7 +36,7 @@ def create_manifest(
 
     manifest = {
         "platformType": "vresearch101",
-        "platformFusing": platform_fusing,  # None = auto-detect from host OS
+        # "platformFusing": platform_fusing,  # None = auto-detect from host OS
         "machineIdentifier": b"",  # Generated on first boot, then persisted to manifest
         "cpuCount": cpu_count,
         "memorySize": memory_bytes,
@@ -58,6 +58,9 @@ def create_manifest(
         },
         "sepStorage": "SEPStorage",
     }
+    
+    if platform_fusing is not None:
+        manifest["platformFusing"] = platform_fusing
 
     # Write to config.plist
     config_path = vm_dir / "config.plist"
