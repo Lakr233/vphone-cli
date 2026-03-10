@@ -19,8 +19,11 @@ extension VPhoneMenuController {
     @objc func toggleRecording() {
         if screenRecorder?.isRecording == true {
             Task { @MainActor in
-                _ = await screenRecorder?.stopRecording()
+                let url = await screenRecorder?.stopRecording()
                 recordingItem?.title = "Start Recording"
+                if let url {
+                    showRecordingSavedAlert(url: url)
+                }
             }
         } else {
             guard let view = activeCaptureView() else {
@@ -73,5 +76,27 @@ extension VPhoneMenuController {
     private func activeCaptureView() -> NSView? {
         guard let captureView else { return nil }
         return captureView.window == nil ? nil : captureView
+    }
+
+    private func showRecordingSavedAlert(url: URL) {
+        let alert = NSAlert()
+        alert.messageText = "Recording"
+        alert.informativeText = "Saved to \(url.path)"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Reveal in Finder")
+        alert.addButton(withTitle: "OK")
+
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
+        } else {
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        }
     }
 }
