@@ -16,6 +16,8 @@
 	<string>1.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>NSLocationUsageDescription</key>
 	<string>vphone-cli forwards your location to the guest VM for location simulation.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
