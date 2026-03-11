@@ -234,8 +234,16 @@ boot_dfu: build boot_binary_check
 
 .PHONY: fw_prepare fw_patch fw_patch_dev fw_patch_jb
 
-fw_prepare:
-	cd $(VM_DIR) && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
+fw_prepare: patcher_build
+	cd $(VM_DIR) && \
+		LIST_FIRMWARES="$(LIST_FIRMWARES)" \
+		IPHONE_DEVICE="$(IPHONE_DEVICE)" \
+		IPHONE_VERSION="$(IPHONE_VERSION)" \
+		IPHONE_BUILD="$(IPHONE_BUILD)" \
+		IPHONE_SOURCE="$(IPHONE_SOURCE)" \
+		CLOUDOS_SOURCE="$(CLOUDOS_SOURCE)" \
+		IPSW_DIR="$(IPSW_DIR)" \
+		"$(CURDIR)/$(PATCHER_BINARY)" prepare-firmware --project-root "$(CURDIR)"
 
 fw_patch: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular

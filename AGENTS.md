@@ -92,20 +92,19 @@ scripts/
 │   └── cfw.py                    #   CFW binary patcher entrypoint
 ├── resources/                    # Resource archives (git submodule)
 ├── patches/                      # Build-time patches (libirecovery)
-├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
-├── fw_manifest.py                # Generate hybrid BuildManifest/Restore plists
 ├── ramdisk_build.py              # Build SSH ramdisk with trustcache (reuses Swift patch-component for TXM/base kernel)
 ├── ramdisk_send.sh               # Send ramdisk to device via irecovery
 ├── cfw_install.sh                # Install CFW (regular)
 ├── cfw_install_dev.sh            # Regular + rpcserver daemon
 ├── cfw_install_jb.sh             # Regular + jetsam fix + procursus
-├── vm_create.sh                  # Create VM directory
 ├── setup_machine.sh              # Full automation (setup → first boot)
 ├── setup_tools.sh                # Install deps, build toolchain, create venv
 ├── setup_venv.sh                 # Create Python venv
 ├── setup_venv_linux.sh           # Create Python venv (Linux)
 ├── setup_libimobiledevice.sh     # Build libimobiledevice from source
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
+
+Host-side automation entrypoints that previously lived in shell/Python are being migrated into `sources/vphone-cli/` subcommands such as `vm-create`, `generate-vm-manifest`, `prepare-firmware`, `boot-host-preflight`, and `start-amfidont`.
 
 research/                         # Detailed firmware/patch documentation
 ```

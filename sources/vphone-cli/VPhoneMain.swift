@@ -36,6 +36,9 @@ struct VPhoneMain {
             case var command as GenerateFirmwareManifestCLI:
                 try command.run()
 
+            case var command as PrepareFirmwareCLI:
+                try await command.run()
+
             default:
                 break
             }
