@@ -18,10 +18,6 @@ $(error JB=1 and DEV=1 are mutually exclusive)
 endif
 endif
 
-# ─── Build info ──────────────────────────────────────────────────
-GIT_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_INFO  := sources/vphone-cli/VPhoneBuildInfo.swift
-
 # ─── Paths ────────────────────────────────────────────────────────
 SCRIPTS     := scripts
 BINARY      := .build/release/vphone-cli
@@ -148,31 +144,13 @@ build: $(BINARY)
 patcher_build: $(PATCHER_BINARY)
 
 $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
-	@echo "=== Building vphone-cli patcher ($(GIT_HASH)) ==="
-	@echo '// Auto-generated — do not edit' > $(BUILD_INFO)
-	@echo 'enum VPhoneBuildInfo { static let commitHash = "$(GIT_HASH)" }' >> $(BUILD_INFO)
 	@set -o pipefail; swift build 2>&1 | tail -5
 
-$(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
-	@echo "=== Building vphone-cli ($(GIT_HASH)) ==="
-	@echo '// Auto-generated — do not edit' > $(BUILD_INFO)
-	@echo 'enum VPhoneBuildInfo { static let commitHash = "$(GIT_HASH)" }' >> $(BUILD_INFO)
-	@set -o pipefail; swift build -c release 2>&1 | tail -5
-	@echo ""
-	@echo "=== Signing with entitlements ==="
-	codesign --force --sign - --entitlements $(ENTITLEMENTS) $@
-	@echo "  signed OK"
+$(BINARY): patcher_build $(ENTITLEMENTS)
+	"$(CURDIR)/$(PATCHER_BINARY)" build-host --project-root "$(CURDIR)" --configuration release
 
-bundle: build setup_tools $(INFO_PLIST)
-	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
-	@cp -f $(BINARY) $(BUNDLE_BIN)
-	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
-	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
-	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
-	@cp -f $(CURDIR)/$(TOOLS_PREFIX)/bin/ldid $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
-	@echo "  bundled → $(BUNDLE)"
+bundle: patcher_build setup_tools $(INFO_PLIST)
+	"$(CURDIR)/$(PATCHER_BINARY)" bundle-app --project-root "$(CURDIR)" --bundle-path "$(CURDIR)/$(BUNDLE)"
 
 # Cross-compile + sign vphoned daemon for iOS arm64 via Swift CLI
 .PHONY: vphoned

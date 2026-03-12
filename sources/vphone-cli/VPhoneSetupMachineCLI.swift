@@ -148,15 +148,7 @@ private struct SetupMachineRunner {
     }
 
     var releaseBinary: URL {
-        projectRoot.appendingPathComponent(".build/release/vphone-cli")
-    }
-
-    var entitlementsURL: URL {
-        projectRoot.appendingPathComponent("sources/vphone.entitlements")
-    }
-
-    var buildInfoURL: URL {
-        projectRoot.appendingPathComponent("sources/vphone-cli/VPhoneBuildInfo.swift")
+        HostBuildSupport.releaseBinaryURL(projectRoot: projectRoot)
     }
 
     var vmDirectoryURL: URL {
@@ -262,29 +254,7 @@ private struct SetupMachineRunner {
     func buildHostBinary() async throws {
         print("")
         print("=== Project build ===")
-        let gitHashResult = try await VPhoneHost.runCommand(
-            "git",
-            arguments: ["-C", projectRoot.path, "rev-parse", "--short", "HEAD"],
-            requireSuccess: false
-        )
-        let gitHash = gitHashResult.terminationStatus.isSuccess
-            ? gitHashResult.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-            : "unknown"
-        let buildInfo = """
-        // Auto-generated — do not edit
-        enum VPhoneBuildInfo { static let commitHash = "\(gitHash.isEmpty ? "unknown" : gitHash)" }
-        """
-        try buildInfo.write(to: buildInfoURL, atomically: true, encoding: .utf8)
-        _ = try await VPhoneHost.runCommand(
-            "swift",
-            arguments: ["build", "-c", "release", "--package-path", projectRoot.path],
-            requireSuccess: true
-        )
-        _ = try await VPhoneHost.runCommand(
-            "codesign",
-            arguments: ["--force", "--sign", "-", "--entitlements", entitlementsURL.path, releaseBinary.path],
-            requireSuccess: true
-        )
+        _ = try await HostBuildSupport.buildHostBinary(projectRoot: projectRoot, configuration: .release)
     }
 
     func waitForIdentity(timeout: TimeInterval = 30) async throws -> (udid: String, ecid: String) {
