@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 vm_manifest.py — Generate VM manifest plist for vphone-cli.
 
