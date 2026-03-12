@@ -103,7 +103,7 @@ private struct VPhoneCFWInstaller {
     func checkPrerequisites() async throws {
         var commands = ["ipsw", "aea", "ldid", patcherBinary, "ssh", "scp"]
         if variant == .jb {
-            commands += ["zstd", "xcrun"]
+            commands += ["xcrun"]
         }
         for command in commands {
             guard resolveCommand(command) != nil else {
@@ -144,15 +144,8 @@ private struct VPhoneCFWInstaller {
         for searchDirectory in searchDirectories {
             let archiveURL = searchDirectory.appendingPathComponent(archiveName)
             if FileManager.default.fileExists(atPath: archiveURL.path) {
-                let task = Process()
-                task.executableURL = URL(fileURLWithPath: resolveCommand("tar") ?? "/usr/bin/tar")
-                task.arguments = ["--zstd", "-xf", archiveURL.path, "-C", vmDirectory.path]
-                try task.run()
-                task.waitUntilExit()
-                if task.terminationStatus == 0 {
-                    return
-                }
-                throw ValidationError("Failed to extract \(archiveName)")
+                try VPhoneArchive.extractTarZstdArchive(archiveURL, to: vmDirectory)
+                return
             }
         }
 
@@ -231,23 +224,15 @@ private struct VPhoneCFWInstaller {
         let unpackDirectory = vmDirectory.appendingPathComponent(".iosbinpack_tmp", isDirectory: true)
         try? FileManager.default.removeItem(at: unpackDirectory)
         try FileManager.default.createDirectory(at: unpackDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: unpackDirectory) }
 
-        _ = try await VPhoneHost.runCommand("tar", arguments: ["-xf", iosbinpack.path, "-C", unpackDirectory.path], requireSuccess: true)
+        try VPhoneArchive.extractTarArchive(iosbinpack, to: unpackDirectory)
         let destination = unpackDirectory.appendingPathComponent("iosbinpack64/usr/local/bin/rpcserver_ios")
         if FileManager.default.fileExists(atPath: destination.path) {
             try FileManager.default.removeItem(at: destination)
         }
         try FileManager.default.copyItem(at: rpcserver, to: destination)
-        let process = Process()
-        process.currentDirectoryURL = unpackDirectory
-        process.executableURL = URL(fileURLWithPath: resolveCommand("tar") ?? "/usr/bin/tar")
-        process.arguments = ["-cf", iosbinpack.path, "iosbinpack64"]
-        try process.run()
-        process.waitUntilExit()
-        try? FileManager.default.removeItem(at: unpackDirectory)
-        guard process.terminationStatus == 0 else {
-            throw ValidationError("Failed to rebuild iosbinpack64.tar with dev overlay")
-        }
+        try VPhoneArchive.replaceTarArchive(at: iosbinpack, from: unpackDirectory)
     }
 
     func applyDevExtras() async throws {
@@ -614,8 +599,8 @@ private struct VPhoneCFWInstaller {
         _ = try await VPhoneHost.runCommand("ldid", arguments: ["-e", localBinary.path], requireSuccess: true)
         let extracted = try await VPhoneHost.runCommand("ldid", arguments: ["-e", localBinary.path], requireSuccess: true)
         try extracted.standardOutput.write(to: entitlements, atomically: true, encoding: .utf8)
-        _ = try await VPhoneHost.runCommand("plutil", arguments: ["-remove", "seatbelt-profiles", entitlements.path], requireSuccess: false)
-        _ = try await VPhoneHost.runCommand("plutil", arguments: ["-insert", "task_for_pid-allow", "-bool", "YES", entitlements.path], requireSuccess: false)
+        try VPhonePropertyList.removeValue(at: "seatbelt-profiles", from: entitlements)
+        try VPhonePropertyList.setBool(true, at: "task_for_pid-allow", in: entitlements)
         try await ldidSign(localBinary, entitlements: entitlements, bundleID: nil)
         try await scpTo(localBinary.path, remotePath: "/mnt1/usr/libexec/debugserver")
         _ = try await ssh("/bin/chmod 0755 /mnt1/usr/libexec/debugserver")
@@ -631,7 +616,7 @@ private struct VPhoneCFWInstaller {
         let sileoDeb = jbInputDirectory.appendingPathComponent("jb/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb")
         let bootstrapTar = temporaryDirectory.appendingPathComponent("bootstrap-iphoneos-arm64.tar")
 
-        _ = try await VPhoneHost.runCommand("zstd", arguments: ["-d", "-f", bootstrapArchive.path, "-o", bootstrapTar.path], requireSuccess: true)
+        try VPhoneArchive.decompressZstdFile(at: bootstrapArchive, to: bootstrapTar)
         try await scpTo(bootstrapTar.path, remotePath: "/mnt5/\(bootHash)/bootstrap-iphoneos-arm64.tar")
         if FileManager.default.fileExists(atPath: sileoDeb.path) {
             try await scpTo(sileoDeb.path, remotePath: "/mnt5/\(bootHash)/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb")

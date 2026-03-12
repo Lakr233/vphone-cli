@@ -18,6 +18,8 @@ let package = Package(
         .package(path: "vendor/AppleMobileDevice"),
         .package(path: "vendor/swift-subprocess"),
         .package(path: "vendor/swift-trustcache"),
+        .package(path: "vendor/SWCompression"),
+        .package(path: "vendor/zstd"),
     ],
     targets: [
         .target(
@@ -61,9 +63,11 @@ let package = Package(
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Dynamic", package: "Dynamic"),
                 .product(name: "libirecovery", package: "AppleMobileDeviceLibrary"),
+                .product(name: "SWCompression", package: "SWCompression"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "TrustCache", package: "swift-trustcache"),
                 .product(name: "Img4tool", package: "libimg4-spm"),
+                .product(name: "libzstd", package: "zstd"),
                 "FirmwarePatcher",
                 "MobileRestoreCore",
             ],

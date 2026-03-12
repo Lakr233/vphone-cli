@@ -2,6 +2,7 @@ import ArgumentParser
 import FirmwarePatcher
 import Foundation
 import Img4tool
+import SWCompression
 import TrustCache
 
 struct BuildRamdiskCLI: AsyncParsableCommand {
@@ -22,6 +23,7 @@ struct BuildRamdiskCLI: AsyncParsableCommand {
     private static let kernelFourCC = "rkrn"
     private static let ramdiskKernelSuffix = ".ramdisk"
     private static let ramdiskKernelImageName = "krnl.ramdisk.img4"
+    private static let expandedRamdiskSize = "512m"
     private static let ramdiskRemove = [
         "usr/bin/img4tool",
         "usr/bin/img4",
@@ -180,11 +182,7 @@ private extension BuildRamdiskCLI {
         }
 
         print("[*] Setting up \(Self.inputDirectoryName)/...")
-        _ = try await VPhoneHost.runCommand(
-            "tar",
-            arguments: ["--zstd", "-xf", archiveURL.path, "-C", vmDirectory.path],
-            requireSuccess: true
-        )
+        try VPhoneArchive.extractTarZstdArchive(archiveURL, to: vmDirectory)
         return inputDirectory
     }
 
@@ -208,7 +206,7 @@ private extension BuildRamdiskCLI {
     func extractIM4M(from shshURL: URL) async throws -> Data {
         var data = try Data(contentsOf: shshURL)
         if data.starts(with: [0x1F, 0x8B]) {
-            data = try await VPhoneHost.runCommandData("/usr/bin/gunzip", arguments: ["-c", shshURL.path], requireSuccess: true).standardOutput
+            data = try VPhoneArchive.decompressGzipFile(at: shshURL)
         }
 
         if (try? IM4M(data)) != nil {
@@ -571,11 +569,11 @@ private extension BuildRamdiskCLI {
         print("  Mounting base ramdisk...")
         try await attachDiskImage(ramdiskRawURL, at: mountpoint)
 
-        print("  Creating expanded ramdisk (254 MB)...")
+        print("  Creating expanded ramdisk (\(Self.expandedRamdiskSize))...")
         _ = try await VPhoneHost.runPrivileged(
             "hdiutil",
             arguments: [
-                "create", "-size", "254m",
+                "create", "-size", Self.expandedRamdiskSize,
                 "-imagekey", "diskimage-class=CRawDiskImage",
                 "-format", "UDZO",
                 "-fs", "APFS",
@@ -593,10 +591,9 @@ private extension BuildRamdiskCLI {
             try await attachDiskImage(ramdiskCustomURL, at: mountpoint)
 
             print("  Injecting SSH tools...")
-            _ = try await VPhoneHost.runPrivileged(
-                which("tar") ?? "/usr/bin/tar",
-                arguments: ["-x", "--no-overwrite-dir", "-f", inputDirectory.appendingPathComponent("ssh.tar.gz").path, "-C", mountpoint.path],
-                requireSuccess: true
+            try VPhoneArchive.extractTarGzipArchive(
+                inputDirectory.appendingPathComponent("ssh.tar.gz"),
+                to: mountpoint
             )
             try patchRestoredExternalUSBMuxLabel(mountpoint: mountpoint)
             try removeUnneededFiles(from: mountpoint)

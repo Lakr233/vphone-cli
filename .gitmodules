@@ -34,3 +34,9 @@
 [submodule "vendor/AppleMobileDevice"]
 	path = vendor/AppleMobileDevice
 	url = https://github.com/Lakr233/applemobiledevice.git
+[submodule "vendor/SWCompression"]
+	path = vendor/SWCompression
+	url = https://github.com/tsolomko/SWCompression.git
+[submodule "vendor/zstd"]
+	path = vendor/zstd
+	url = https://github.com/facebook/zstd.git

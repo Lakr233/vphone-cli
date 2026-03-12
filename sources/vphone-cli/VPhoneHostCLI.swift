@@ -234,10 +234,10 @@ struct BootHostPreflightCLI: AsyncParsableCommand {
             arguments: ["SPHardwareDataType"]
         )).split(separator: "\n").first { $0.contains("Model Name:") }?
             .split(separator: ":", maxSplits: 1).last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
-        let hvVmmPresent = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/sbin/sysctl", arguments: ["-n", "kern.hv_vmm_present"]))
+        let hvVmmPresent = try VPhoneSystem.sysctlString("kern.hv_vmm_present").trimmingCharacters(in: .whitespacesAndNewlines)
         let sipStatus = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/bin/csrutil", arguments: ["status"]))
         let researchGuestStatus = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/bin/csrutil", arguments: ["allow-research-guests", "status"]))
-        let currentBootArgs = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/sbin/sysctl", arguments: ["-n", "kern.bootargs"]))
+        let currentBootArgs = try VPhoneSystem.sysctlString("kern.bootargs").trimmingCharacters(in: .whitespacesAndNewlines)
         let nextBootArgs = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/sbin/nvram", arguments: ["boot-args"]))
             .replacingOccurrences(of: "boot-args", with: "")
             .trimmingCharacters(in: .whitespaces)

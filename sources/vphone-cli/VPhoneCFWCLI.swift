@@ -120,8 +120,6 @@ struct CFWInjectDaemonsCLI: AsyncParsableCommand {
     var daemonDirectory: URL
 
     mutating func run() async throws {
-        _ = try? await VPhoneHost.runCommand("/usr/bin/plutil", arguments: ["-convert", "xml1", plistURL.path])
-
         var target = try PropertyListSerialization.propertyList(
             from: Data(contentsOf: plistURL),
             options: [],
