@@ -99,10 +99,9 @@ enum HostBuildSupport {
         )
 
         let binaryURL = builtBinaryURL(projectRoot: projectRoot, configuration: configuration)
-        _ = try await VPhoneHost.runCommand(
-            "codesign",
-            arguments: ["--force", "--sign", "-", "--entitlements", entitlementsURL(projectRoot: projectRoot).path, binaryURL.path],
-            requireSuccess: true
+        try await VPhoneCodeSignature.signAdHoc(
+            binaryURL: binaryURL,
+            entitlementsURL: entitlementsURL(projectRoot: projectRoot)
         )
         return binaryURL
     }
@@ -134,15 +133,10 @@ enum HostBuildSupport {
         try fileManager.copyItem(at: projectRoot.appendingPathComponent("scripts/vphoned/signcert.p12"), to: resourcesURL.appendingPathComponent("signcert.p12"))
         try fileManager.copyItem(at: ldidURL, to: bundledLDIDURL)
 
-        _ = try await VPhoneHost.runCommand(
-            "codesign",
-            arguments: ["--force", "--sign", "-", bundledLDIDURL.path],
-            requireSuccess: true
-        )
-        _ = try await VPhoneHost.runCommand(
-            "codesign",
-            arguments: ["--force", "--sign", "-", "--entitlements", entitlementsURL(projectRoot: projectRoot).path, bundledBinaryURL.path],
-            requireSuccess: true
+        try await VPhoneCodeSignature.signAdHoc(binaryURL: bundledLDIDURL)
+        try await VPhoneCodeSignature.signAdHoc(
+            binaryURL: bundledBinaryURL,
+            entitlementsURL: entitlementsURL(projectRoot: projectRoot)
         )
         return bundleURL
     }

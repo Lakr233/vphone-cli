@@ -14,4 +14,15 @@ enum VPhoneSystem {
         let bytes = buffer.prefix { $0 != 0 }
         return String(decoding: bytes.map(UInt8.init(bitPattern:)), as: UTF8.self)
     }
+
+    static func operatingSystemSummary() throws -> String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let productVersion = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+        let buildVersion = try sysctlString("kern.osversion").trimmingCharacters(in: .whitespacesAndNewlines)
+        return [
+            "ProductName:\t\tmacOS",
+            "ProductVersion:\t\t\(productVersion)",
+            "BuildVersion:\t\t\(buildVersion)",
+        ].joined(separator: "\n")
+    }
 }

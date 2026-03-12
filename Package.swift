@@ -77,6 +77,7 @@ let package = Package(
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("AVFoundation"),
+                .linkedFramework("Security"),
             ]
         ),
         .testTarget(

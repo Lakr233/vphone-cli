@@ -229,11 +229,7 @@ struct BootHostPreflightCLI: AsyncParsableCommand {
             }
         }
 
-        let modelName = VPhoneHost.stringValue(try await VPhoneHost.runCommand(
-            "/usr/sbin/system_profiler",
-            arguments: ["SPHardwareDataType"]
-        )).split(separator: "\n").first { $0.contains("Model Name:") }?
-            .split(separator: ":", maxSplits: 1).last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+        let modelName = try VPhoneSystem.sysctlString("hw.model").trimmingCharacters(in: .whitespacesAndNewlines)
         let hvVmmPresent = try VPhoneSystem.sysctlString("kern.hv_vmm_present").trimmingCharacters(in: .whitespacesAndNewlines)
         let sipStatus = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/bin/csrutil", arguments: ["status"]))
         let researchGuestStatus = VPhoneHost.stringValue(try await VPhoneHost.runCommand("/usr/bin/csrutil", arguments: ["allow-research-guests", "status"]))
@@ -245,8 +241,7 @@ struct BootHostPreflightCLI: AsyncParsableCommand {
 
         printSection("Host")
         if !quiet {
-            let swVers = try await VPhoneHost.runCommand("/usr/bin/sw_vers", requireSuccess: true)
-            print(swVers.standardOutput)
+            print(try VPhoneSystem.operatingSystemSummary())
             print("model: \(modelName)")
             print("kern.hv_vmm_present: \(hvVmmPresent)")
             print("SIP: \(sipStatus)")
@@ -262,8 +257,20 @@ struct BootHostPreflightCLI: AsyncParsableCommand {
 
         printSection("Entitlements")
         if FileManager.default.fileExists(atPath: releaseBinary.path) {
-            let result = try await VPhoneHost.runCommand("/usr/bin/codesign", arguments: ["-d", "--entitlements", ":-", releaseBinary.path])
-            printResult("release_entitlements", result)
+            do {
+                let output = try VPhoneCodeSignature.entitlementsXML(for: releaseBinary)
+                printResult("release_entitlements", VPhoneCommandResult(
+                    terminationStatus: .exited(0),
+                    standardOutput: output,
+                    standardError: ""
+                ))
+            } catch {
+                printResult("release_entitlements", VPhoneCommandResult(
+                    terminationStatus: .exited(1),
+                    standardOutput: "",
+                    standardError: String(describing: error)
+                ))
+            }
         } else if !quiet {
             print("missing release binary: \(releaseBinary.path)")
         }
@@ -286,11 +293,7 @@ struct BootHostPreflightCLI: AsyncParsableCommand {
 
         printSection("Signed Debug Control")
         try FileManager.default.copyItem(at: debugBinary, to: signedDebug)
-        _ = try await VPhoneHost.runCommand(
-            "/usr/bin/codesign",
-            arguments: ["--force", "--sign", "-", "--entitlements", entitlements.path, signedDebug.path],
-            requireSuccess: true
-        )
+        try await VPhoneCodeSignature.signAdHoc(binaryURL: signedDebug, entitlementsURL: entitlements)
         let signedDebugHelp = try await VPhoneHost.runCommand(signedDebug.path, arguments: ["--help"])
         printResult("signed_debug_help", signedDebugHelp)
 
