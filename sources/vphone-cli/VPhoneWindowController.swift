@@ -8,6 +8,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     private var statusTimer: Timer?
     private weak var control: VPhoneControl?
     private weak var virtualMachineView: VPhoneVirtualMachineView?
+    private(set) var touchIDMonitor: VPhoneTouchIDMonitor?
 
     private nonisolated static let homeItemID = NSToolbarItem.Identifier("home")
 
@@ -69,6 +70,10 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
         NSApp.activate(ignoringOtherApps: true)
+
+        let monitor = VPhoneTouchIDMonitor()
+        monitor.start(control: control, window: window)
+        touchIDMonitor = monitor
 
         // Poll vphoned status for title indicator
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) {

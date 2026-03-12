@@ -24,6 +24,10 @@ class VPhoneMenuController {
     var appsOpenURLItem: NSMenuItem?
     var settingsGetItem: NSMenuItem?
     var settingsSetItem: NSMenuItem?
+    var touchIDMonitor: VPhoneTouchIDMonitor? {
+        didSet { touchIDMonitor?.isEnabled = touchIDMenuItem?.state == .on }
+    }
+    var touchIDMenuItem: NSMenuItem?
     var locationProvider: VPhoneLocationProvider?
     var locationMenuItem: NSMenuItem?
     var locationPresetMenuItem: NSMenuItem?

@@ -116,6 +116,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             let mc = VPhoneMenuController(keyHelper: keyHelper, control: control)
             mc.vm = vm
             mc.captureView = wc.captureView
+            mc.touchIDMonitor = wc.touchIDMonitor
             mc.onFilesPressed = { [weak fileWC, weak control] in
                 guard let fileWC, let control else { return }
                 fileWC.showWindow(control: control)
