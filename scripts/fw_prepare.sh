@@ -65,6 +65,46 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "'$1' not found"
 }
 
+source_hash_suffix() {
+    local src="$1"
+    if command -v shasum >/dev/null 2>&1; then
+        printf '%s' "$src" | shasum -a 256 | awk '{print substr($1, 1, 12)}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        printf '%s' "$src" | sha256sum | awk '{print substr($1, 1, 12)}'
+    else
+        python3 - "$src" <<'PY'
+import hashlib
+import sys
+
+print(hashlib.sha256(sys.argv[1].encode("utf-8")).hexdigest()[:12])
+PY
+    fi
+}
+
+derive_cache_ipsw_name() {
+    local src="$1" fallback_stem="$2"
+    local base stem suffix
+    base="${src##*/}"
+    base="${base%%\?*}"
+    base="${base%%\#*}"
+
+    if [[ "$base" == *.ipsw ]]; then
+        printf '%s\n' "$base"
+        return
+    fi
+
+    stem="${base%.*}"
+    [[ -n "$stem" ]] || stem="$fallback_stem"
+    stem="$(printf '%s' "$stem" | tr -cs '[:alnum:]_.-' '_')"
+    [[ -n "$stem" ]] || stem="$fallback_stem"
+    if [[ ${#stem} -gt 48 ]]; then
+        stem="${stem:0:48}"
+    fi
+
+    suffix="$(source_hash_suffix "$src")"
+    printf '%s-%s.ipsw\n' "$stem" "$suffix"
+}
+
 downloadable_ipsw_urls() {
     local device="$1"
     require_command ipsw
@@ -460,8 +500,7 @@ mkdir -p "$IPSW_DIR"
 
 IPHONE_IPSW="${IPHONE_SOURCE##*/}"
 IPHONE_DIR="${IPHONE_IPSW%.ipsw}"
-CLOUDOS_IPSW="${CLOUDOS_SOURCE##*/}"
-[[ "$CLOUDOS_IPSW" == *.ipsw ]] || CLOUDOS_IPSW="pcc-base.ipsw"
+CLOUDOS_IPSW="$(derive_cache_ipsw_name "$CLOUDOS_SOURCE" "pcc-base")"
 CLOUDOS_DIR="${CLOUDOS_IPSW%.ipsw}"
 IPHONE_IPSW_PATH="${IPSW_DIR}/${IPHONE_IPSW}"
 CLOUDOS_IPSW_PATH="${IPSW_DIR}/${CLOUDOS_IPSW}"
