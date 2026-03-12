@@ -325,38 +325,18 @@ private struct SetupMachineRunner {
         return arguments
     }
 
-    func startUSBMuxForward(localPort: Int, serial: String) throws -> ManagedProcess {
-        let process = Process()
-        process.currentDirectoryURL = projectRoot
-        process.executableURL = URL(fileURLWithPath: patcherExecutable)
-        process.arguments = ["usbmux-forward", "--local-port", "\(localPort)", "--serial", serial, "--remote-port", "22"]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        return ManagedProcess(process: process, logHandle: nil)
+    func startUSBMuxForward(localPort: Int, serial: String) throws -> ManagedUSBMuxForward {
+        guard let local = UInt16(exactly: localPort) else {
+            throw ValidationError("Invalid local forward port: \(localPort)")
+        }
+        let service = try USBMuxForwarder.start(localPort: local, serial: serial, remotePort: 22)
+        return ManagedUSBMuxForward(service: service)
     }
 
     func waitForSSH(port: Int, timeout: TimeInterval = 90) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            let result = try await VPhoneHost.runCommand(
-                "ssh",
-                arguments: [
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "PreferredAuthentications=password",
-                    "-o", "NumberOfPasswordPrompts=1",
-                    "-o", "ConnectTimeout=5",
-                    "-q",
-                    "-p", "\(port)",
-                    "root@127.0.0.1",
-                    "echo ready",
-                ],
-                environment: VPhoneHost.sshAskpassEnvironment(password: "alpine"),
-                requireSuccess: false
-            )
-            if result.terminationStatus.isSuccess { return }
+            if VPhoneSSHClient.probe(host: "127.0.0.1", port: port, username: "root", password: "alpine") { return }
             try await Task.sleep(for: .seconds(2))
         }
         throw ValidationError("Timed out waiting for ramdisk SSH on port \(port)")
@@ -466,5 +446,17 @@ private final class ManagedProcess {
             process.waitUntilExit()
         }
         try? logHandle?.close()
+    }
+}
+
+private final class ManagedUSBMuxForward {
+    let service: USBMuxForwardingService
+
+    init(service: USBMuxForwardingService) {
+        self.service = service
+    }
+
+    func terminate() {
+        service.stop()
     }
 }

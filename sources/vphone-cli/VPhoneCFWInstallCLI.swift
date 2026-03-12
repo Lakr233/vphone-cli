@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import Subprocess
 
 struct CFWInstallCLI: AsyncParsableCommand {
     enum Variant: String, ExpressibleByArgument {
@@ -40,7 +41,7 @@ struct CFWInstallCLI: AsyncParsableCommand {
     }
 }
 
-private struct VPhoneCFWInstaller {
+private final class VPhoneCFWInstaller {
     let vmDirectory: URL
     let projectRoot: URL
     let variant: CFWInstallCLI.Variant
@@ -50,12 +51,12 @@ private struct VPhoneCFWInstaller {
     let sshPassword = "alpine"
     let sshUser = "root"
     let sshHost = "localhost"
-    let sshRetry = 3
     let scriptDirectory: URL
     let temporaryDirectory: URL
     let cfwInputDirectory: URL
     let jbInputDirectory: URL
     let patcherBinary: String
+    var sshClient: VPhoneSSHClient?
 
     init(vmDirectory: URL, projectRoot: URL, variant: CFWInstallCLI.Variant, sshPort: Int, skipHalt: Bool) throws {
         self.vmDirectory = vmDirectory
@@ -80,6 +81,13 @@ private struct VPhoneCFWInstaller {
         try await checkPrerequisites()
         try setupInputs()
         try await waitForSSHReady()
+        let sshClient = VPhoneSSHClient(host: sshHost, port: sshPort, username: sshUser, password: sshPassword)
+        try sshClient.connect()
+        self.sshClient = sshClient
+        defer {
+            try? sshClient.shutdown()
+            self.sshClient = nil
+        }
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
 
         switch variant {
@@ -101,7 +109,7 @@ private struct VPhoneCFWInstaller {
     }
 
     func checkPrerequisites() async throws {
-        var commands = ["ipsw", "aea", "ldid", patcherBinary, "ssh", "scp"]
+        var commands = ["ipsw", "aea", "ldid", patcherBinary]
         if variant == .jb {
             commands += ["xcrun"]
         }
@@ -156,8 +164,7 @@ private struct VPhoneCFWInstaller {
         print("[*] Waiting for ramdisk SSH on \(sshUser)@\(sshHost):\(sshPort)...")
         var elapsed = 0
         while elapsed < 60 {
-            let result = try await ssh("echo ready", requireSuccess: false)
-            if result.terminationStatus.isSuccess {
+            if VPhoneSSHClient.probe(host: sshHost, port: sshPort, username: sshUser, password: sshPassword) {
                 print("[+] Ramdisk SSH is reachable")
                 return
             }
@@ -268,74 +275,26 @@ private struct VPhoneCFWInstaller {
         return directory
     }
 
-    func sshBaseArguments() -> [String] {
-        [
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "PreferredAuthentications=password",
-            "-o", "NumberOfPasswordPrompts=1",
-            "-o", "ConnectTimeout=30",
-            "-q",
-            "-p", "\(sshPort)",
-            "\(sshUser)@\(sshHost)",
-        ]
-    }
-
-    func scpBaseArguments() -> [String] {
-        [
-            "-q",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "PreferredAuthentications=password",
-            "-o", "NumberOfPasswordPrompts=1",
-            "-o", "ConnectTimeout=30",
-            "-P", "\(sshPort)",
-        ]
-    }
-
     func ssh(_ command: String, requireSuccess: Bool = true) async throws -> VPhoneCommandResult {
-        var lastError: Error?
-        for _ in 0 ..< sshRetry {
-            do {
-                let result = try await VPhoneHost.runCommand(
-                    "ssh",
-                    arguments: sshBaseArguments() + [command],
-                    environment: VPhoneHost.sshAskpassEnvironment(password: sshPassword, executablePath: patcherBinary),
-                    requireSuccess: requireSuccess
-                )
-                if !requireSuccess || result.terminationStatus.isSuccess || VPhoneHost.exitCode(from: result.terminationStatus) != 255 {
-                    return result
-                }
-            } catch {
-                lastError = error
-            }
-            try await Task.sleep(for: .seconds(3))
-        }
-        throw lastError ?? ValidationError("SSH command failed: \(command)")
+        let result = try requireSSHClient().execute(command, requireSuccess: requireSuccess)
+        return VPhoneCommandResult(
+            terminationStatus: .exited(result.exitStatus),
+            standardOutput: result.standardOutputString.trimmingCharacters(in: .newlines),
+            standardError: result.standardErrorString.trimmingCharacters(in: .newlines)
+        )
     }
 
     func scpTo(_ localPath: String, remotePath: String, recursive: Bool = false) async throws {
-        var arguments = scpBaseArguments()
+        let localURL = URL(fileURLWithPath: localPath).standardizedFileURL
         if recursive {
-            arguments.append("-r")
+            try requireSSHClient().uploadDirectory(localURL: localURL, remotePath: remotePath)
+        } else {
+            try requireSSHClient().uploadFile(localURL: localURL, remotePath: remotePath)
         }
-        arguments += [localPath, "\(sshUser)@\(sshHost):\(remotePath)"]
-        _ = try await VPhoneHost.runCommand(
-            "scp",
-            arguments: arguments,
-            environment: VPhoneHost.sshAskpassEnvironment(password: sshPassword, executablePath: patcherBinary),
-            requireSuccess: true
-        )
     }
 
     func scpFrom(_ remotePath: String, localPath: String) async throws {
-        let arguments = scpBaseArguments() + ["\(sshUser)@\(sshHost):\(remotePath)", localPath]
-        _ = try await VPhoneHost.runCommand(
-            "scp",
-            arguments: arguments,
-            environment: VPhoneHost.sshAskpassEnvironment(password: sshPassword, executablePath: patcherBinary),
-            requireSuccess: true
-        )
+        try requireSSHClient().downloadFile(remotePath: remotePath, localURL: URL(fileURLWithPath: localPath).standardizedFileURL)
     }
 
     func remoteFileExists(_ path: String) async throws -> Bool {
@@ -739,6 +698,13 @@ private struct VPhoneCFWInstaller {
         plist["LaunchDaemons"] = launchDaemons
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: launchdPlist)
+    }
+
+    func requireSSHClient() throws -> VPhoneSSHClient {
+        guard let sshClient else {
+            throw ValidationError("SSH client is not connected")
+        }
+        return sshClient
     }
 
     func unmount(paths: [String]) async throws {

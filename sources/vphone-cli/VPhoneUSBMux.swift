@@ -252,33 +252,17 @@ enum USBMuxClient {
 }
 
 enum USBMuxForwarder {
-    static func run(localPort: UInt16, serial: String, remotePort: UInt16) throws {
+    static func start(localPort: UInt16, serial: String, remotePort: UInt16) throws -> USBMuxForwardingService {
         let device = try USBMuxClient.device(matching: serial)
         let listener = try makeListener(port: localPort)
-        defer { close(listener) }
+        let service = USBMuxForwardingService(listener: listener, device: device, remotePort: remotePort)
+        service.start()
+        return service
+    }
 
-        while true {
-            var address = sockaddr_storage()
-            var length = socklen_t(MemoryLayout<sockaddr_storage>.size)
-            let client = withUnsafeMutablePointer(to: &address) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    Darwin.accept(listener, $0, &length)
-                }
-            }
-            if client < 0 {
-                if errno == EINTR { continue }
-                throw USBMuxError.socketError("accept() failed: \(String(cString: strerror(errno)))")
-            }
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let remote = try USBMuxClient.connect(deviceID: device.deviceID, port: remotePort)
-                    relay(client: client, remote: remote)
-                } catch {
-                    close(client)
-                }
-            }
-        }
+    static func run(localPort: UInt16, serial: String, remotePort: UInt16) throws {
+        _ = try start(localPort: localPort, serial: serial, remotePort: remotePort)
+        dispatchMain()
     }
 
     static func makeListener(port: UInt16) throws -> Int32 {
@@ -347,5 +331,73 @@ enum USBMuxForwarder {
                 written += count
             }
         }
+    }
+}
+
+final class USBMuxForwardingService: @unchecked Sendable {
+    private let listener: Int32
+    private let device: USBMuxDevice
+    private let remotePort: UInt16
+    private let queue = DispatchQueue(label: "com.vphone.usbmux-forward", qos: .userInitiated)
+    private let lock = NSLock()
+    private var stopped = false
+
+    init(listener: Int32, device: USBMuxDevice, remotePort: UInt16) {
+        self.listener = listener
+        self.device = device
+        self.remotePort = remotePort
+    }
+
+    func start() {
+        queue.async { [self] in
+            acceptLoop()
+        }
+    }
+
+    func stop() {
+        lock.lock()
+        let shouldStop = !stopped
+        stopped = true
+        lock.unlock()
+
+        if shouldStop {
+            close(listener)
+        }
+    }
+
+    private func acceptLoop() {
+        while !isStopped {
+            var address = sockaddr_storage()
+            var length = socklen_t(MemoryLayout<sockaddr_storage>.size)
+            let client = withUnsafeMutablePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.accept(listener, $0, &length)
+                }
+            }
+            if client < 0 {
+                if isStopped || errno == EBADF || errno == EINVAL {
+                    break
+                }
+                if errno == EINTR {
+                    continue
+                }
+                break
+            }
+
+            DispatchQueue.global(qos: .userInitiated).async { [device, remotePort] in
+                do {
+                    let remote = try USBMuxClient.connect(deviceID: device.deviceID, port: remotePort)
+                    USBMuxForwarder.relay(client: client, remote: remote)
+                } catch {
+                    close(client)
+                }
+            }
+        }
+    }
+
+    private var isStopped: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopped
     }
 }

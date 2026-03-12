@@ -19,7 +19,9 @@ let package = Package(
         .package(path: "vendor/swift-subprocess"),
         .package(path: "vendor/swift-trustcache"),
         .package(path: "vendor/SWCompression"),
+        .package(path: "vendor/swift-nio-ssh"),
         .package(path: "vendor/zstd"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
     ],
     targets: [
         .target(
@@ -63,6 +65,9 @@ let package = Package(
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Dynamic", package: "Dynamic"),
                 .product(name: "libirecovery", package: "AppleMobileDeviceLibrary"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
                 .product(name: "SWCompression", package: "SWCompression"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "TrustCache", package: "swift-trustcache"),

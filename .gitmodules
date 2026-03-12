@@ -40,3 +40,6 @@
 [submodule "vendor/zstd"]
 	path = vendor/zstd
 	url = https://github.com/facebook/zstd.git
+[submodule "vendor/swift-nio-ssh"]
+	path = vendor/swift-nio-ssh
+	url = https://github.com/apple/swift-nio-ssh.git
