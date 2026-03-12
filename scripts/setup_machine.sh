@@ -89,7 +89,7 @@ load_device_identity() {
       break
     fi
     sleep 1
-    (( ++waited ))
+    waited=$(( waited + 1 ))
   done
 
   [[ -f "$prediction_file" ]] || die "Missing ${prediction_file}. Rebuild and run make boot_dfu to generate it."
@@ -433,7 +433,7 @@ kill_stale_vphone_procs() {
     remaining=(${(@f)$(collect_vm_lock_pids)})
     (( ${#remaining[@]} == 0 )) && break
     sleep 1
-    (( waited++ ))
+    waited=$(( waited + 1 ))
   done
   echo "[+] Stale vphone-cli processes cleared"
 }
@@ -545,7 +545,7 @@ monitor_boot_log_until() {
       return 0
     fi
     sleep 1
-    (( ++waited ))
+    waited=$(( waited + 1 ))
   done
 
   echo "timeout"
@@ -772,7 +772,7 @@ wait_for_post_restore_reboot() {
       return
     fi
     sleep 1
-    (( remaining-- ))
+    remaining=$(( remaining - 1 ))
   done
 
   if (( panic_seen == 1 )); then
