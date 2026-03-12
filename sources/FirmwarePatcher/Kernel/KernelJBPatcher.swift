@@ -13,7 +13,7 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     public let component = "kernelcache_jb"
 
     public func findAll() throws -> [PatchRecord] {
-        try parseMachO()
+        parseMachO()
         buildADRPIndex()
         buildBLIndex()
         buildSymbolTable()

@@ -37,7 +37,7 @@ export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/.build/release:$(PATH)
 # ─── Default ──────────────────────────────────────────────────────
 .PHONY: help
 help: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" workflow-help
+	@"$(CURDIR)/$(PATCHER_BINARY)" workflow-help
 
 # ═══════════════════════════════════════════════════════════════════
 # Setup
@@ -46,7 +46,7 @@ help: patcher_build
 .PHONY: setup_machine setup_tools
 
 setup_machine: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" setup-machine \
+	@"$(CURDIR)/$(PATCHER_BINARY)" setup-machine \
 		--project-root "$(CURDIR)" \
 		--vm-directory "$(VM_DIR)" \
 		--cpu "$(CPU)" \
@@ -63,7 +63,7 @@ setup_machine: patcher_build
 		$(if $(filter 1 true yes YES TRUE,$(NONE_INTERACTIVE)),--non-interactive)
 
 setup_tools: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" setup-tools --project-root "$(CURDIR)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" setup-tools --project-root "$(CURDIR)"
 
 # ═══════════════════════════════════════════════════════════════════
 # Clean — remove all untracked/ignored files (preserves IPSWs only)
@@ -71,7 +71,7 @@ setup_tools: patcher_build
 
 .PHONY: clean
 clean: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" clean-project --project-root "$(CURDIR)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" clean-project --project-root "$(CURDIR)"
 
 # ═══════════════════════════════════════════════════════════════════
 # Build
@@ -84,18 +84,18 @@ build: $(BINARY)
 patcher_build: $(PATCHER_BINARY)
 
 $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
-	swift build
+	@swift build --quiet
 
 $(BINARY): patcher_build $(ENTITLEMENTS)
-	"$(CURDIR)/$(PATCHER_BINARY)" build-host --project-root "$(CURDIR)" --configuration release
+	@"$(CURDIR)/$(PATCHER_BINARY)" build-host --project-root "$(CURDIR)" --configuration release
 
 bundle: patcher_build setup_tools $(INFO_PLIST)
-	"$(CURDIR)/$(PATCHER_BINARY)" bundle-app --project-root "$(CURDIR)" --bundle-path "$(CURDIR)/$(BUNDLE)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" bundle-app --project-root "$(CURDIR)" --bundle-path "$(CURDIR)/$(BUNDLE)"
 
 # Cross-compile + sign vphoned daemon for iOS arm64 via Swift CLI
 .PHONY: vphoned
 vphoned: patcher_build setup_tools
-	"$(CURDIR)/$(PATCHER_BINARY)" build-vphoned --project-root "$(CURDIR)" --vm-directory "$(VM_DIR_ABS)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" build-vphoned --project-root "$(CURDIR)" --vm-directory "$(VM_DIR_ABS)"
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management
@@ -104,24 +104,24 @@ vphoned: patcher_build setup_tools
 .PHONY: vm_new boot_host_preflight boot boot_dfu boot_binary_check
 
 vm_new: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" vm-create \
+	@"$(CURDIR)/$(PATCHER_BINARY)" vm-create \
 		--dir "$(VM_DIR_ABS)" \
 		--disk-size "$(DISK_SIZE)" \
 		--cpu "$(CPU)" \
 		--memory "$(MEMORY)"
 
 boot_host_preflight: build patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" boot-host-preflight --project-root "$(CURDIR)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" boot-host-preflight --project-root "$(CURDIR)"
 
 boot_binary_check: $(BINARY) patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" boot-host-preflight --project-root "$(CURDIR)" --assert-bootable
+	@"$(CURDIR)/$(PATCHER_BINARY)" boot-host-preflight --project-root "$(CURDIR)" --assert-bootable
 
 boot: bundle vphoned boot_binary_check
-	"$(CURDIR)/$(BUNDLE_BIN)" \
+	@"$(CURDIR)/$(BUNDLE_BIN)" \
 		--config "$(VM_DIR_ABS)/config.plist"
 
 boot_dfu: build boot_binary_check
-	"$(CURDIR)/$(BINARY)" \
+	@"$(CURDIR)/$(BINARY)" \
 		--config "$(VM_DIR_ABS)/config.plist" \
 		--dfu
 
@@ -132,7 +132,7 @@ boot_dfu: build boot_binary_check
 .PHONY: fw_prepare fw_patch fw_patch_dev fw_patch_jb
 
 fw_prepare: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" prepare-firmware \
+	@"$(CURDIR)/$(PATCHER_BINARY)" prepare-firmware \
 		--project-root "$(CURDIR)" \
 		--output-dir "$(VM_DIR_ABS)" \
 		$(if $(filter 1 true yes YES TRUE,$(LIST_FIRMWARES)),--list) \
@@ -144,13 +144,13 @@ fw_prepare: patcher_build
 		$(if $(IPSW_DIR),--ipsw-dir "$(IPSW_DIR)")
 
 fw_patch: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular
+	@"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular
 
 fw_patch_dev: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant dev
+	@"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant dev
 
 fw_patch_jb: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant jb
+	@"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant jb
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore
@@ -159,12 +159,12 @@ fw_patch_jb: patcher_build
 .PHONY: restore_get_shsh restore
 
 restore_get_shsh: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" restore-get-shsh "$(VM_DIR_ABS)" \
+	@"$(CURDIR)/$(PATCHER_BINARY)" restore-get-shsh "$(VM_DIR_ABS)" \
 		$(if $(RESTORE_UDID),--udid "$(RESTORE_UDID)") \
 		$(if $(RESTORE_ECID),--ecid "$(RESTORE_ECID)")
 
 restore: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" restore-device "$(VM_DIR_ABS)" \
+	@"$(CURDIR)/$(PATCHER_BINARY)" restore-device "$(VM_DIR_ABS)" \
 		$(if $(RESTORE_UDID),--udid "$(RESTORE_UDID)") \
 		$(if $(RESTORE_ECID),--ecid "$(RESTORE_ECID)")
 
@@ -175,10 +175,10 @@ restore: patcher_build
 .PHONY: ramdisk_build ramdisk_send
 
 ramdisk_build: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" build-ramdisk "$(VM_DIR_ABS)"
+	@"$(CURDIR)/$(PATCHER_BINARY)" build-ramdisk "$(VM_DIR_ABS)"
 
 ramdisk_send: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" send-ramdisk \
+	@"$(CURDIR)/$(PATCHER_BINARY)" send-ramdisk \
 		--ramdisk-dir "$(VM_DIR_ABS)/Ramdisk" \
 		$(if $(RAMDISK_UDID),--udid "$(RAMDISK_UDID)",$(if $(RESTORE_UDID),--udid "$(RESTORE_UDID)")) \
 		$(if $(RAMDISK_ECID),--ecid "$(RAMDISK_ECID)")
@@ -190,10 +190,10 @@ ramdisk_send: patcher_build
 .PHONY: cfw_install cfw_install_dev cfw_install_jb
 
 cfw_install: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant regular $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")
+	@"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant regular $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")
 
 cfw_install_dev: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant dev $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")
+	@"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant dev $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")
 
 cfw_install_jb: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant jb $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")
+	@"$(CURDIR)/$(PATCHER_BINARY)" cfw-install "$(VM_DIR_ABS)" --project-root "$(CURDIR)" --variant jb $(if $(SSH_PORT),--ssh-port "$(SSH_PORT)")

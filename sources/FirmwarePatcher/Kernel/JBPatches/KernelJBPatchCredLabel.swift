@@ -68,7 +68,7 @@ extension KernelJBPatcher {
         }
 
         // 5. Recover csflags stack reload instruction bytes.
-        guard let (csflagsInsn, csflagsDesc) = findCredLabelCSFlagsReload(funcOff: funcOff) else {
+        guard let (csflagsInsn, _) = findCredLabelCSFlagsReload(funcOff: funcOff) else {
             log("  [-] csflags stack reload (ldr x26, [x29, #imm]) not found")
             return
         }
