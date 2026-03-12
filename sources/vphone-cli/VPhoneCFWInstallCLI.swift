@@ -10,7 +10,7 @@ struct CFWInstallCLI: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         commandName: "cfw-install",
-        abstract: "Install CFW payloads from the host without shell automation"
+        abstract: "Install CFW payloads from the host through the Swift workflow"
     )
 
     @Argument(help: "VM directory", transform: URL.init(fileURLWithPath:))

@@ -51,7 +51,7 @@ struct VPhoneBootCLI: ParsableCommand {
         Requires:
           - macOS 15+ (Sequoia or later)
           - SIP/AMFI disabled
-          - Signed with vphone entitlements (done automatically by wrapper script)
+          - Signed with vphone entitlements (done automatically by `make build`)
 
         Example:
           vphone-cli --config ./config.plist

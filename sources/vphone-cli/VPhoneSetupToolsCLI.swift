@@ -4,7 +4,7 @@ import Foundation
 struct SetupToolsCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "setup-tools",
-        abstract: "Install required host tools without shell wrappers"
+        abstract: "Install required host tools for the Swift-only host workflow"
     )
 
     @Option(help: "Project root path", transform: URL.init(fileURLWithPath:))

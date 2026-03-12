@@ -143,7 +143,7 @@ build: $(BINARY)
 patcher_build: $(PATCHER_BINARY)
 
 $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
-	@set -o pipefail; swift build 2>&1 | tail -5
+	swift build
 
 $(BINARY): patcher_build $(ENTITLEMENTS)
 	"$(CURDIR)/$(PATCHER_BINARY)" build-host --project-root "$(CURDIR)" --configuration release

@@ -11,7 +11,7 @@ struct SetupMachineCLI: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         commandName: "setup-machine",
-        abstract: "Run the first-boot automation pipeline without shell wrappers"
+        abstract: "Run the first-boot automation pipeline through Swift subcommands"
     )
 
     @Option(help: "Project root", transform: URL.init(fileURLWithPath:))
