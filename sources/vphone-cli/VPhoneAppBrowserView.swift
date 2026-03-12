@@ -22,6 +22,11 @@ struct VPhoneAppBrowserView: View {
         }
         .searchable(text: $model.searchText, prompt: "Filter by name or bundle ID")
         .task { await model.refresh() }
+        .onChange(of: model.control.isConnected) { _, connected in
+            if connected {
+                Task { await model.refresh() }
+            }
+        }
         .alert(
             "Error",
             isPresented: .init(

@@ -36,6 +36,7 @@ class VPhoneAppBrowserModel {
         defer { isLoading = false }
         do {
             apps = try await control.appList(filter: filter.rawValue)
+            error = nil
         } catch {
             self.error = "\(error)"
         }
