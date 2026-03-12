@@ -41,25 +41,25 @@ struct SendRamdiskCLI: AsyncParsableCommand {
 
         print("[*] Sending ramdisk from \(ramdiskDirectory.path) ...")
         let numericECID = try normalizedECIDValue(ecid)
-        print("[*] Using MobileDevice.framework transport")
+        print("[*] Using libirecovery transport")
 
-        try sendViaMobileDevice(named: "iBSS.vresearch101.RELEASE.img4", step: "1/8", ecid: numericECID, command: nil)
-        try sendViaMobileDevice(named: "iBEC.vresearch101.RELEASE.img4", step: "2/8", ecid: numericECID, command: nil)
+        try sendViaIRecovery(named: "iBSS.vresearch101.RELEASE.img4", step: "1/8", ecid: numericECID, command: nil)
+        try sendViaIRecovery(named: "iBEC.vresearch101.RELEASE.img4", step: "2/8", ecid: numericECID, command: nil)
 
         print("  [*] Waiting for recovery mode transition...")
-        try MobileDeviceRamdiskTransport.waitForRecovery(ecid: numericECID)
+        try VPhoneIRecovery.waitForRecovery(ecid: numericECID)
 
-        try sendViaMobileDevice(named: "sptm.vresearch1.release.img4", step: "3/8", ecid: numericECID, command: "firmware")
-        try sendViaMobileDevice(named: "txm.img4", step: "4/8", ecid: numericECID, command: "firmware")
-        try sendViaMobileDevice(named: "trustcache.img4", step: "5/8", ecid: numericECID, command: "firmware")
-        try sendViaMobileDevice(named: "ramdisk.img4", step: "6/8", ecid: numericECID, command: nil)
-        try MobileDeviceRamdiskTransport.sendRecoveryCommand("ramdisk", ecid: numericECID)
-        try sendViaMobileDevice(named: "DeviceTree.vphone600ap.img4", step: "7/8", ecid: numericECID, command: "devicetree")
-        try sendViaMobileDevice(named: "sep-firmware.vresearch101.RELEASE.img4", step: "8/8", ecid: numericECID, command: "firmware")
+        try sendViaIRecovery(named: "sptm.vresearch1.release.img4", step: "3/8", ecid: numericECID, command: "firmware")
+        try sendViaIRecovery(named: "txm.img4", step: "4/8", ecid: numericECID, command: "firmware")
+        try sendViaIRecovery(named: "trustcache.img4", step: "5/8", ecid: numericECID, command: "firmware")
+        try sendViaIRecovery(named: "ramdisk.img4", step: "6/8", ecid: numericECID, command: nil)
+        try VPhoneIRecovery.sendRecoveryCommand("ramdisk", ecid: numericECID)
+        try sendViaIRecovery(named: "DeviceTree.vphone600ap.img4", step: "7/8", ecid: numericECID, command: "devicetree")
+        try sendViaIRecovery(named: "sep-firmware.vresearch101.RELEASE.img4", step: "8/8", ecid: numericECID, command: "firmware")
 
         print("  [*] Booting kernel...")
-        try MobileDeviceRamdiskTransport.sendRecoveryFile(path: kernelURL.path, ecid: numericECID)
-        try MobileDeviceRamdiskTransport.sendRecoveryCommand("bootx", ecid: numericECID)
+        try VPhoneIRecovery.sendRecoveryFile(path: kernelURL.path, ecid: numericECID)
+        try VPhoneIRecovery.sendRecoveryCommand("bootx", ecid: numericECID)
 
         print("[+] Boot sequence complete. Device should be booting into ramdisk.")
     }
@@ -84,17 +84,17 @@ private extension SendRamdiskCLI {
         return UInt64(normalized.dropFirst(2), radix: 16)
     }
 
-    func sendViaMobileDevice(named fileName: String, step: String, ecid: UInt64?, command: String?) throws {
+    func sendViaIRecovery(named fileName: String, step: String, ecid: UInt64?, command: String?) throws {
         let fileURL = ramdiskDirectory.appendingPathComponent(fileName)
         try VPhoneHost.requireFile(fileURL)
         print("  [\(step)] Loading \(fileName)...")
         if step == "1/8" || step == "2/8" {
-            try MobileDeviceRamdiskTransport.sendDFUFile(path: fileURL.path, ecid: ecid)
+            try VPhoneIRecovery.sendDFUFile(path: fileURL.path, ecid: ecid)
         } else {
-            try MobileDeviceRamdiskTransport.sendRecoveryFile(path: fileURL.path, ecid: ecid)
+            try VPhoneIRecovery.sendRecoveryFile(path: fileURL.path, ecid: ecid)
         }
         if let command {
-            try MobileDeviceRamdiskTransport.sendRecoveryCommand(command, ecid: ecid)
+            try VPhoneIRecovery.sendRecoveryCommand(command, ecid: ecid)
         }
     }
 }

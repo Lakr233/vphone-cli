@@ -165,7 +165,7 @@
 
 ## Ramdisk Variant Matrix
 
-| Variant       | Pre-step            | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                      | `Ramdisk/krnl.img4`                       | Effective kernel used by `ramdisk_send.sh`          |
+| Variant       | Pre-step            | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                      | `Ramdisk/krnl.img4`                       | Effective kernel used by `send-ramdisk`             |
 | ------------- | ------------------- | -------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------- |
 | `RAMDISK`     | `make fw_patch`     | release TXM + base TXM patch (1) | base kernel (28), legacy `*.ramdisk` preferred else derive from pristine CloudOS | restore kernel from `fw_patch` (28)       | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
 | `DEV+RAMDISK` | `make fw_patch_dev` | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_dev` (28)   | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |

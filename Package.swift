@@ -29,16 +29,43 @@ let package = Package(
             ],
             path: "sources/FirmwarePatcher"
         ),
+        .target(
+            name: "MobileRestoreCore",
+            dependencies: [
+                .product(name: "AppleMobileDeviceLibrary", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libimobiledevice", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libimobiledevice_glue", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libirecovery", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libplist", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libtatsu", package: "AppleMobileDeviceLibrary"),
+                .product(name: "libusbmuxd", package: "AppleMobileDeviceLibrary"),
+            ],
+            path: "sources/MobileRestoreCore",
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("."),
+                .headerSearchPath("include"),
+                .define("HAVE_CONFIG_H"),
+                .define("IDEVICERESTORE_NOMAIN"),
+            ],
+            linkerSettings: [
+                .linkedLibrary("curl"),
+                .linkedLibrary("m"),
+                .linkedLibrary("z"),
+            ]
+        ),
         .executableTarget(
             name: "vphone-cli",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Dynamic", package: "Dynamic"),
+                .product(name: "libirecovery", package: "AppleMobileDeviceLibrary"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "TrustCache", package: "swift-trustcache"),
                 .product(name: "Img4tool", package: "libimg4-spm"),
                 "FirmwarePatcher",
+                "MobileRestoreCore",
             ],
             path: "sources/vphone-cli",
             linkerSettings: [
@@ -47,7 +74,6 @@ let package = Package(
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("AVFoundation"),
-                .linkedFramework("IOKit"),
             ]
         ),
         .testTarget(

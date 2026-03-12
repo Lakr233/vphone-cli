@@ -107,8 +107,8 @@ make boot_dfu                 # boot VM in DFU mode (keep running)
 
 ```bash
 # terminal 2
-make restore_get_shsh         # request restore personalization data via MobileDevice.framework
-make restore                  # flash firmware via MobileDevice.framework
+make restore_get_shsh         # request restore personalization data via idevicerestore/libirecovery
+make restore                  # flash firmware via idevicerestore/libirecovery
 ```
 
 ## Install Custom Firmware
@@ -123,7 +123,7 @@ make boot_dfu                 # keep running
 ```bash
 # terminal 2
 sudo make ramdisk_build       # build signed SSH ramdisk
-make ramdisk_send             # send to device via MobileDevice.framework
+make ramdisk_send             # send to device via libirecovery
 ```
 
 Once the ramdisk is running (you should see `Running server` in the output), open a **third terminal** for the USBMux forwarder, then install CFW from terminal 2:

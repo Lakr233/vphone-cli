@@ -4,7 +4,7 @@ import Foundation
 struct RestoreGetSHSHCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "restore-get-shsh",
-        abstract: "Request restore personalization data with MobileDevice.framework"
+        abstract: "Request restore personalization data with idevicerestore/libirecovery"
     )
 
     @Argument(help: "VM directory. Defaults to the current directory.", transform: URL.init(fileURLWithPath:))
@@ -23,36 +23,27 @@ struct RestoreGetSHSHCLI: AsyncParsableCommand {
         let vmDirectory = vmDirectory.standardizedFileURL
         let restoreDirectory = try findRestoreDirectory(in: vmDirectory)
         let shshDirectory = vmDirectory.appendingPathComponent("shsh", isDirectory: true)
-        let personalizedBundleDirectory = shshDirectory.appendingPathComponent(personalizedBundleName(for: normalizedECID), isDirectory: true)
-
         try FileManager.default.createDirectory(at: shshDirectory, withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: personalizedBundleDirectory)
-        try FileManager.default.createDirectory(at: personalizedBundleDirectory, withIntermediateDirectories: true)
 
         print("[*] Requesting personalization data")
         print("    Restore bundle: \(restoreDirectory.path)")
         print("    UDID: \(udid ?? "<unset>")")
         print("    ECID: \(formattedECID(normalizedECID) ?? "<unset>")")
 
-        let ticketURL = try MobileDeviceRestore.requestPersonalization(
+        let ticketURL = try VPhoneRestoreEngine.requestSHSH(
             restoreBundlePath: restoreDirectory.path,
-            personalizedBundlePath: personalizedBundleDirectory.path,
+            cacheDirectory: vmDirectory.path,
+            udid: udid,
             ecid: normalizedECID
         )
-
-        let outputURL = shshDirectory.appendingPathComponent(ticketFileName(for: normalizedECID))
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
-        try FileManager.default.copyItem(at: ticketURL, to: outputURL)
-        print("[+] Saved personalization ticket: \(outputURL.path)")
+        print("[+] Saved personalization ticket: \(ticketURL.path)")
     }
 }
 
 struct RestoreDeviceCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "restore-device",
-        abstract: "Restore firmware with MobileDevice.framework"
+        abstract: "Restore firmware with idevicerestore/libirecovery"
     )
 
     @Argument(help: "VM directory. Defaults to the current directory.", transform: URL.init(fileURLWithPath:))
@@ -70,19 +61,16 @@ struct RestoreDeviceCLI: AsyncParsableCommand {
         let udid = udid ?? env["RESTORE_UDID"]
         let vmDirectory = vmDirectory.standardizedFileURL
         let restoreDirectory = try findRestoreDirectory(in: vmDirectory)
-        let shshDirectory = vmDirectory.appendingPathComponent("shsh", isDirectory: true)
-        let personalizedBundleDirectory = shshDirectory.appendingPathComponent(personalizedBundleName(for: normalizedECID), isDirectory: true)
-        let personalizedPath = FileManager.default.fileExists(atPath: personalizedBundleDirectory.path) ? personalizedBundleDirectory.path : nil
-
         print("[*] Starting DFU restore")
         print("    Restore bundle: \(restoreDirectory.path)")
-        print("    Personalized bundle: \(personalizedPath ?? "<auto>")")
+        print("    SHSH cache: \(vmDirectory.appendingPathComponent("shsh", isDirectory: true).path)")
         print("    UDID: \(udid ?? "<unset>")")
         print("    ECID: \(formattedECID(normalizedECID) ?? "<unset>")")
 
-        try MobileDeviceRestore.restore(
+        try VPhoneRestoreEngine.restore(
             restoreBundlePath: restoreDirectory.path,
-            personalizedBundlePath: personalizedPath,
+            cacheDirectory: vmDirectory.path,
+            udid: udid,
             ecid: normalizedECID
         )
         print("[+] Restore submitted successfully")
@@ -98,14 +86,6 @@ private extension RestoreGetSHSHCLI {
         try RestoreCLIHelpers.findRestoreDirectory(in: vmDirectory)
     }
 
-    func personalizedBundleName(for ecid: UInt64?) -> String {
-        RestoreCLIHelpers.personalizedBundleName(for: ecid)
-    }
-
-    func ticketFileName(for ecid: UInt64?) -> String {
-        RestoreCLIHelpers.ticketFileName(for: ecid)
-    }
-
     func formattedECID(_ ecid: UInt64?) -> String? {
         RestoreCLIHelpers.formattedECID(ecid)
     }
@@ -118,10 +98,6 @@ private extension RestoreDeviceCLI {
 
     func findRestoreDirectory(in vmDirectory: URL) throws -> URL {
         try RestoreCLIHelpers.findRestoreDirectory(in: vmDirectory)
-    }
-
-    func personalizedBundleName(for ecid: UInt64?) -> String {
-        RestoreCLIHelpers.personalizedBundleName(for: ecid)
     }
 
     func formattedECID(_ ecid: UInt64?) -> String? {
@@ -153,20 +129,6 @@ private enum RestoreCLIHelpers {
             throw ValidationError("No *Restore* directory found in \(vmDirectory.path)")
         }
         return restoreDirectory
-    }
-
-    static func personalizedBundleName(for ecid: UInt64?) -> String {
-        if let ecid {
-            return "personalized-\(String(ecid, radix: 16).uppercased())"
-        }
-        return "personalized"
-    }
-
-    static func ticketFileName(for ecid: UInt64?) -> String {
-        if let ecid {
-            return "\(String(ecid, radix: 16).uppercased()).im4m"
-        }
-        return "restore.im4m"
     }
 
     static func formattedECID(_ ecid: UInt64?) -> String? {
