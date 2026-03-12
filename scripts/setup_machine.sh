@@ -89,7 +89,7 @@ load_device_identity() {
       break
     fi
     sleep 1
-    (( waited++ ))
+    (( ++waited ))
   done
 
   [[ -f "$prediction_file" ]] || die "Missing ${prediction_file}. Rebuild and run make boot_dfu to generate it."
