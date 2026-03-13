@@ -78,6 +78,7 @@ class VPhoneControl {
 
     enum ControlError: Error, CustomStringConvertible {
         case notConnected
+        case unsupportedCapability(String)
         case cancelled(String)
         case requestTimedOut(type: String, seconds: Int)
         case protocolError(String)
@@ -86,6 +87,8 @@ class VPhoneControl {
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
+            case let .unsupportedCapability(capability):
+                "guest does not support capability: \(capability)"
             case let .cancelled(reason): "request cancelled: \(reason)"
             case let .requestTimedOut(type, seconds):
                 "request timed out (\(type), \(seconds)s)"
@@ -652,6 +655,9 @@ class VPhoneControl {
     // MARK: - Accessibility
 
     func accessibilityTree(depth: Int = -1) async throws -> [String: Any] {
+        guard guestCaps.contains("accessibility_tree") else {
+            throw ControlError.unsupportedCapability("accessibility_tree")
+        }
         let (resp, _) = try await sendRequest(["t": "accessibility_tree", "depth": depth])
         return resp
     }
