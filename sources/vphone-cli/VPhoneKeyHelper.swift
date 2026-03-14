@@ -26,17 +26,7 @@ class VPhoneKeyHelper {
 
     private func requireConnection() -> Bool {
         if control.isConnected { return true }
-        let alert = NSAlert()
-        alert.messageText = "vphoned Not Connected"
-        alert.informativeText =
-            "The guest agent is not connected. Key injection requires vphoned running inside the VM."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        if let window {
-            alert.beginSheetModal(for: window)
-        } else {
-            alert.runModal()
-        }
+        print("[vphone] vphoned not connected - waiting to establish connection before key injection is available")
         return false
     }
 

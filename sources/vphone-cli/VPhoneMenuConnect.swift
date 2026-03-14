@@ -155,20 +155,45 @@ extension VPhoneMenuController {
     }
 
     @objc func setClipboardText() {
-        let alert = NSAlert()
-        alert.messageText = "Set Clipboard Text"
-        alert.informativeText = "Enter text to set on the guest clipboard:"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Set")
-        alert.addButton(withTitle: "Cancel")
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 150),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Set Clipboard Text"
+        panel.center()
 
-        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 80))
-        input.placeholderString = "Text to copy to clipboard"
-        alert.accessoryView = input
+        let lbl = NSTextField(labelWithString: "Enter text to set on the guest clipboard:")
+        lbl.frame = NSRect(x: 20, y: 110, width: 380, height: 20)
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let text = input.stringValue
-        guard !text.isEmpty else { return }
+        let field = NSTextField(frame: NSRect(x: 20, y: 50, width: 380, height: 50))
+        field.placeholderString = "Text to copy to clipboard"
+
+        let ok = NSButton(frame: NSRect(x: 310, y: 12, width: 90, height: 28))
+        ok.title = "Set"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = self
+        ok.action = #selector(VPhoneMenuController.confirmModal)
+
+        let cancel = NSButton(frame: NSRect(x: 210, y: 12, width: 90, height: 28))
+        cancel.title = "Cancel"
+        cancel.bezelStyle = .rounded
+        cancel.keyEquivalent = "\u{1b}"
+        cancel.target = NSApp
+        cancel.action = #selector(NSApplication.abortModal)
+
+        panel.contentView?.addSubview(lbl)
+        panel.contentView?.addSubview(field)
+        panel.contentView?.addSubview(ok)
+        panel.contentView?.addSubview(cancel)
+
+        let response = NSApp.runModal(for: panel)
+        panel.orderOut(nil)
+
+        guard response == .OK, !field.stringValue.isEmpty else { return }
+        let text = field.stringValue
 
         Task {
             do {
@@ -183,32 +208,50 @@ extension VPhoneMenuController {
     // MARK: - Settings
 
     @objc func readSetting() {
-        let alert = NSAlert()
-        alert.messageText = "Read Setting"
-        alert.informativeText = "Enter preference domain and key:"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Read")
-        alert.addButton(withTitle: "Cancel")
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 160),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Read Setting"
+        panel.center()
 
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 350, height: 56))
-        stack.orientation = .vertical
-        stack.spacing = 8
-
-        let domainField = NSTextField(frame: .zero)
+        let lbl1 = NSTextField(labelWithString: "Domain:")
+        lbl1.frame = NSRect(x: 20, y: 118, width: 380, height: 18)
+        let domainField = NSTextField(frame: NSRect(x: 20, y: 92, width: 380, height: 22))
         domainField.placeholderString = "com.apple.springboard"
-        domainField.translatesAutoresizingMaskIntoConstraints = false
-        domainField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        let keyField = NSTextField(frame: .zero)
+        let lbl2 = NSTextField(labelWithString: "Key (leave empty for all keys):")
+        lbl2.frame = NSRect(x: 20, y: 68, width: 380, height: 18)
+        let keyField = NSTextField(frame: NSRect(x: 20, y: 42, width: 380, height: 22))
         keyField.placeholderString = "Key (leave empty for all keys)"
-        keyField.translatesAutoresizingMaskIntoConstraints = false
-        keyField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        stack.addArrangedSubview(domainField)
-        stack.addArrangedSubview(keyField)
-        alert.accessoryView = stack
+        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
+        ok.title = "Read"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = self
+        ok.action = #selector(VPhoneMenuController.confirmModal)
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
+        cancel.title = "Cancel"
+        cancel.bezelStyle = .rounded
+        cancel.keyEquivalent = "\u{1b}"
+        cancel.target = NSApp
+        cancel.action = #selector(NSApplication.abortModal)
+
+        panel.contentView?.addSubview(lbl1)
+        panel.contentView?.addSubview(domainField)
+        panel.contentView?.addSubview(lbl2)
+        panel.contentView?.addSubview(keyField)
+        panel.contentView?.addSubview(ok)
+        panel.contentView?.addSubview(cancel)
+
+        let response = NSApp.runModal(for: panel)
+        panel.orderOut(nil)
+
+        guard response == .OK else { return }
         let domain = domainField.stringValue
         guard !domain.isEmpty else { return }
         let key: String? = keyField.stringValue.isEmpty ? nil : keyField.stringValue
@@ -238,44 +281,64 @@ extension VPhoneMenuController {
     }
 
     @objc func writeSetting() {
-        let alert = NSAlert()
-        alert.messageText = "Write Setting"
-        alert.informativeText = "Enter preference domain, key, type, and value:"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Write")
-        alert.addButton(withTitle: "Cancel")
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Write Setting"
+        panel.center()
 
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 350, height: 116))
-        stack.orientation = .vertical
-        stack.spacing = 8
-
-        let domainField = NSTextField(frame: .zero)
+        let lbl1 = NSTextField(labelWithString: "Domain:")
+        lbl1.frame = NSRect(x: 20, y: 198, width: 380, height: 18)
+        let domainField = NSTextField(frame: NSRect(x: 20, y: 172, width: 380, height: 22))
         domainField.placeholderString = "com.apple.springboard"
-        domainField.translatesAutoresizingMaskIntoConstraints = false
-        domainField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        let keyField = NSTextField(frame: .zero)
+        let lbl2 = NSTextField(labelWithString: "Key:")
+        lbl2.frame = NSRect(x: 20, y: 148, width: 380, height: 18)
+        let keyField = NSTextField(frame: NSRect(x: 20, y: 122, width: 380, height: 22))
         keyField.placeholderString = "Key"
-        keyField.translatesAutoresizingMaskIntoConstraints = false
-        keyField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        let typeField = NSTextField(frame: .zero)
+        let lbl3 = NSTextField(labelWithString: "Type:")
+        lbl3.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
+        let typeField = NSTextField(frame: NSRect(x: 20, y: 72, width: 380, height: 22))
         typeField.placeholderString = "Type: boolean | string | integer | float"
-        typeField.translatesAutoresizingMaskIntoConstraints = false
-        typeField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        let valueField = NSTextField(frame: .zero)
+        let lbl4 = NSTextField(labelWithString: "Value:")
+        lbl4.frame = NSRect(x: 20, y: 48, width: 380, height: 18)
+        let valueField = NSTextField(frame: NSRect(x: 20, y: 42, width: 220, height: 22))
         valueField.placeholderString = "Value"
-        valueField.translatesAutoresizingMaskIntoConstraints = false
-        valueField.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
-        stack.addArrangedSubview(domainField)
-        stack.addArrangedSubview(keyField)
-        stack.addArrangedSubview(typeField)
-        stack.addArrangedSubview(valueField)
-        alert.accessoryView = stack
+        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
+        ok.title = "Write"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = self
+        ok.action = #selector(VPhoneMenuController.confirmModal)
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
+        cancel.title = "Cancel"
+        cancel.bezelStyle = .rounded
+        cancel.keyEquivalent = "\u{1b}"
+        cancel.target = NSApp
+        cancel.action = #selector(NSApplication.abortModal)
+
+        panel.contentView?.addSubview(lbl1)
+        panel.contentView?.addSubview(domainField)
+        panel.contentView?.addSubview(lbl2)
+        panel.contentView?.addSubview(keyField)
+        panel.contentView?.addSubview(lbl3)
+        panel.contentView?.addSubview(typeField)
+        panel.contentView?.addSubview(lbl4)
+        panel.contentView?.addSubview(valueField)
+        panel.contentView?.addSubview(ok)
+        panel.contentView?.addSubview(cancel)
+
+        let response = NSApp.runModal(for: panel)
+        panel.orderOut(nil)
+
+        guard response == .OK else { return }
         let domain = domainField.stringValue
         let key = keyField.stringValue
         let type = typeField.stringValue
@@ -312,14 +375,31 @@ extension VPhoneMenuController {
     // MARK: - Alert
 
     func showAlert(title: String, message: String, style: NSAlert.Style) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = style
-        if let window = NSApp.keyWindow {
-            alert.beginSheetModal(for: window)
-        } else {
-            alert.runModal()
-        }
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 120),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = title
+        panel.center()
+
+        let msg = NSTextField(labelWithString: message)
+        msg.frame = NSRect(x: 20, y: 50, width: 340, height: 50)
+        msg.lineBreakMode = .byWordWrapping
+        msg.maximumNumberOfLines = 3
+
+        let ok = NSButton(frame: NSRect(x: 280, y: 12, width: 80, height: 28))
+        ok.title = "OK"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = NSApp
+        ok.action = #selector(NSApplication.stopModal(withCode:))
+
+        panel.contentView?.addSubview(msg)
+        panel.contentView?.addSubview(ok)
+
+        NSApp.runModal(for: panel)
+        panel.orderOut(nil)
     }
 }

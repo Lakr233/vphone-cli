@@ -84,20 +84,45 @@ extension VPhoneMenuController {
     }
 
     @objc func openURL() {
-        let alert = NSAlert()
-        alert.messageText = "Open URL"
-        alert.informativeText = "Enter URL to open on the guest:"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Open")
-        alert.addButton(withTitle: "Cancel")
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 110),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Open URL"
+        panel.center()
 
-        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 400, height: 24))
-        input.placeholderString = "https://example.com"
-        alert.accessoryView = input
+        let lbl = NSTextField(labelWithString: "Enter URL to open on the guest:")
+        lbl.frame = NSRect(x: 20, y: 70, width: 380, height: 20)
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let url = input.stringValue
-        guard !url.isEmpty else { return }
+        let field = NSTextField(frame: NSRect(x: 20, y: 42, width: 380, height: 24))
+        field.placeholderString = "https://example.com"
+
+        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
+        ok.title = "Open"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = self
+        ok.action = #selector(VPhoneMenuController.confirmModal)
+
+        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
+        cancel.title = "Cancel"
+        cancel.bezelStyle = .rounded
+        cancel.keyEquivalent = "\u{1b}"
+        cancel.target = NSApp
+        cancel.action = #selector(NSApplication.abortModal)
+
+        panel.contentView?.addSubview(lbl)
+        panel.contentView?.addSubview(field)
+        panel.contentView?.addSubview(ok)
+        panel.contentView?.addSubview(cancel)
+
+        let response = NSApp.runModal(for: panel)
+        panel.orderOut(nil)
+
+        guard response == .OK, !field.stringValue.isEmpty else { return }
+        let url = field.stringValue
 
         Task {
             do {
@@ -107,5 +132,9 @@ extension VPhoneMenuController {
                 showAlert(title: "Open URL", message: "\(error)", style: .warning)
             }
         }
+    }
+
+    @objc func confirmModal() {
+        NSApp.stopModal(withCode: .OK)
     }
 }
