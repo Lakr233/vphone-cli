@@ -131,16 +131,19 @@ class VPhoneScreenRecorder {
 
     func copyScreenshotToPasteboard(view: NSView) async throws {
         let cgImage = try await captureStillImage(from: view)
-        let image = NSImage(
-            cgImage: cgImage,
-            size: NSSize(width: cgImage.width, height: cgImage.height)
-        )
+
+        let data = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil) else {
+            throw CaptureError.clipboardWriteFailed
+        }
+        CGImageDestinationAddImage(dest, cgImage, nil)
+        guard CGImageDestinationFinalize(dest) else {
+            throw CaptureError.clipboardWriteFailed
+        }
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        guard pasteboard.writeObjects([image]) else {
-            throw CaptureError.clipboardWriteFailed
-        }
+        pasteboard.setData(data as Data, forType: .init("public.jpeg"))
 
         print("[record] screenshot copied to clipboard")
     }

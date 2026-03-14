@@ -26,7 +26,34 @@ class VPhoneKeyHelper {
 
     private func requireConnection() -> Bool {
         if control.isConnected { return true }
-        print("[vphone] vphoned not connected - waiting to establish connection before key injection is available")
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 110),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "vphoned Not Connected"
+        panel.center()
+
+        let msg = NSTextField(labelWithString: "Not connected to the VM yet. Please wait until the daemon connects.")
+        msg.frame = NSRect(x: 20, y: 50, width: 340, height: 44)
+        msg.lineBreakMode = .byWordWrapping
+        msg.maximumNumberOfLines = 3
+
+        let ok = NSButton(frame: NSRect(x: 280, y: 12, width: 80, height: 28))
+        ok.title = "OK"
+        ok.bezelStyle = .rounded
+        ok.keyEquivalent = "\r"
+        ok.target = NSApp
+        ok.action = #selector(NSApplication.stopModal(withCode:))
+
+        panel.contentView?.addSubview(msg)
+        panel.contentView?.addSubview(ok)
+
+        NSApp.runModal(for: panel)
+        panel.orderOut(nil)
+
         return false
     }
 
