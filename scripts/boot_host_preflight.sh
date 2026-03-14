@@ -64,7 +64,35 @@ run_capture() {
 MODEL_NAME="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Model Name/ {print $2; exit}')"
 HV_VMM_PRESENT="$(sysctl -n kern.hv_vmm_present 2>/dev/null || true)"
 SIP_STATUS="$(csrutil status)"
-RESEARCH_GUEST_STATUS="$(csrutil allow-research-guests status)"
+RESEARCH_GUEST_STATUS="$(
+  # First pass with EOF stdin — captures the menu without blocking
+  _out=$(csrutil allow-research-guests status </dev/null 2>/dev/null || true)
+  if ! echo "$_out" | grep -q "Pick a macOS installation"; then
+    # Single install or already got a direct answer
+    echo "$_out"
+  else
+    # Multiple installs: try to auto-select "Macintosh HD"
+    _num=$(echo "$_out" | awk '/Macintosh HD/ { match($0, /[0-9]+/); if (RSTART > 0) { print substr($0, RSTART, RLENGTH); exit } }')
+    if [[ -n "$_num" ]]; then
+      _result=$(printf '%s\n' "$_num" | csrutil allow-research-guests status 2>/dev/null \
+        | grep -o 'Allow Research Guests status:.*' || true)
+      if [[ -n "$_result" ]]; then
+        echo "(auto-selected: Macintosh HD) $_result"
+        exit 0
+      fi
+    fi
+    # No Macintosh HD found, or auto-select failed — prompt interactively
+    printf '%s\n' "$_out" >/dev/tty
+    printf 'Pick a macOS installation: ' >/dev/tty
+    read _choice </dev/tty
+    if [[ -n "$_choice" ]]; then
+      printf '%s\n' "$_choice" | csrutil allow-research-guests status 2>/dev/null \
+        | grep -o 'Allow Research Guests status:.*' || echo 'unavailable'
+    else
+      echo 'unavailable'
+    fi
+  fi
+)"
 CURRENT_BOOT_ARGS="$(sysctl -n kern.bootargs 2>/dev/null || true)"
 NEXT_BOOT_ARGS="$(nvram boot-args 2>/dev/null | sed 's/^boot-args[[:space:]]*//')"
 ASSESSMENT_STATUS="$(spctl --status 2>/dev/null || true)"
@@ -102,14 +130,15 @@ if [[ -f "$RELEASE_BIN" ]]; then
 fi
 
 print_section "Unsigned Debug Binary"
+DEBUG_HELP_RC=0
 if [[ ! -f "$DEBUG_BIN" ]]; then
-  echo "missing debug binary: $DEBUG_BIN"
-  exit 1
+  echo "(skipped — debug binary not built; run 'make patcher_build' to include)"
+else
+  set +e
+  run_capture "debug_help" "$DEBUG_BIN" --help
+  DEBUG_HELP_RC=$?
+  set -e
 fi
-set +e
-run_capture "debug_help" "$DEBUG_BIN" --help
-DEBUG_HELP_RC=$?
-set -e
 
 print_section "Signed Release Binary"
 if [[ ! -f "$RELEASE_BIN" ]]; then
@@ -122,12 +151,17 @@ RELEASE_HELP_RC=$?
 set -e
 
 print_section "Signed Debug Control"
-cp "$DEBUG_BIN" "$TMP_SIGNED_DEBUG"
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$TMP_SIGNED_DEBUG" >/dev/null
-set +e
-run_capture "signed_debug_help" "$TMP_SIGNED_DEBUG" --help
-SIGNED_DEBUG_HELP_RC=$?
-set -e
+SIGNED_DEBUG_HELP_RC=0
+if [[ ! -f "$DEBUG_BIN" ]]; then
+  echo "(skipped — debug binary not built)"
+else
+  cp "$DEBUG_BIN" "$TMP_SIGNED_DEBUG"
+  codesign --force --sign - --entitlements "$ENTITLEMENTS" "$TMP_SIGNED_DEBUG" >/dev/null
+  set +e
+  run_capture "signed_debug_help" "$TMP_SIGNED_DEBUG" --help
+  SIGNED_DEBUG_HELP_RC=$?
+  set -e
+fi
 
 print_section "Result"
 echo "If unsigned debug runs but either signed binary exits 137 / signal 9,"
