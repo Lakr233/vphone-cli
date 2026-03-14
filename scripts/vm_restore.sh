@@ -11,6 +11,15 @@ BACKUPS_DIR="${BACKUPS_DIR:-vm.backups}"
 NAME="${NAME:-}"
 FORCE="${FORCE:-0}"
 
+validate_backup_name() {
+    local name="$1"
+    local label="${2:-NAME}"
+    if [[ "$name" == */* || "$name" == .* ]]; then
+        echo "ERROR: ${label} must be a simple identifier (no slashes or leading dots)."
+        exit 1
+    fi
+}
+
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -38,6 +47,8 @@ if [[ -z "${NAME}" ]]; then
     fi
     exit 1
 fi
+
+validate_backup_name "${NAME}"
 
 SRC="${BACKUPS_DIR}/${NAME}"
 

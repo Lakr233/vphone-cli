@@ -13,6 +13,15 @@ BACKUPS_DIR="${BACKUPS_DIR:-vm.backups}"
 NAME="${NAME:-}"
 BACKUP_INCLUDE_IPSW="${BACKUP_INCLUDE_IPSW:-0}"
 
+validate_backup_name() {
+    local name="$1"
+    local label="${2:-NAME}"
+    if [[ "$name" == */* || "$name" == .* ]]; then
+        echo "ERROR: ${label} must be a simple identifier (no slashes or leading dots)."
+        exit 1
+    fi
+}
+
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -40,6 +49,8 @@ if [[ -z "${NAME}" ]]; then
     fi
     exit 1
 fi
+
+validate_backup_name "${NAME}"
 
 TARGET="${BACKUPS_DIR}/${NAME}"
 
@@ -80,6 +91,8 @@ if [[ -d "${VM_DIR}" && -f "${VM_DIR}/config.plist" ]]; then
             exit 1
         fi
     fi
+
+    validate_backup_name "${CURRENT}" "Current VM name"
 
     if [[ "${CURRENT}" == "${NAME}" ]]; then
         echo "'${NAME}' is already the active VM."
