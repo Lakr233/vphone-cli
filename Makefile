@@ -7,6 +7,10 @@ VM_DIR      ?= vm
 CPU         ?= 8          # CPU cores (only used during vm_new)
 MEMORY      ?= 8192       # Memory in MB (only used during vm_new)
 DISK_SIZE   ?= 64         # Disk size in GB (only used during vm_new)
+BACKUPS_DIR ?= vm.backups
+NAME        ?=
+BACKUP_INCLUDE_IPSW ?= 0
+FORCE       ?= 0
 RESTORE_UDID ?=           # UDID for restore operations
 RESTORE_ECID ?=           # ECID for restore operations
 IRECOVERY_ECID ?=         # ECID for irecovery operations
@@ -62,6 +66,12 @@ help:
 	@echo "             CPU=8             CPU cores (stored in manifest)"
 	@echo "             MEMORY=8192       Memory in MB (stored in manifest)"
 	@echo "             DISK_SIZE=64      Disk size in GB (stored in manifest)"
+	@echo "  make vm_backup NAME=<name>   Save current VM as a named backup"
+	@echo "  make vm_restore NAME=<name>  Restore a named backup into vm/"
+	@echo "  make vm_switch NAME=<name>   Save current + restore target (one step)"
+	@echo "  make vm_list                 List available backups"
+	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW dirs in backup"
+	@echo "             FORCE=1                Skip overwrite prompt on restore"
 	@echo "  make amfidont_allow_vphone   Start amfidont for the signed vphone-cli binary"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
@@ -183,11 +193,44 @@ vphoned:
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: vm_new amfidont_allow_vphone boot_host_preflight boot boot_dfu boot_binary_check
+.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfidont_allow_vphone boot_host_preflight boot boot_dfu boot_binary_check
 
 vm_new:
 	CPU="$(CPU)" MEMORY="$(MEMORY)" \
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
+
+vm_backup:
+	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" BACKUP_INCLUDE_IPSW="$(BACKUP_INCLUDE_IPSW)" \
+	zsh $(SCRIPTS)/vm_backup.sh
+
+vm_restore:
+	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" FORCE="$(FORCE)" \
+	zsh $(SCRIPTS)/vm_restore.sh
+
+vm_switch:
+	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" BACKUP_INCLUDE_IPSW="$(BACKUP_INCLUDE_IPSW)" \
+	zsh $(SCRIPTS)/vm_switch.sh
+
+vm_list:
+	@if [ -d "$(BACKUPS_DIR)" ]; then \
+		current=""; \
+		[ -f "$(VM_DIR)/.vm_name" ] && current="$$(cat "$(VM_DIR)/.vm_name")"; \
+		found=0; \
+		for d in "$(BACKUPS_DIR)"/*/; do \
+			[ -f "$${d}config.plist" ] || continue; \
+			name="$$(basename "$$d")"; \
+			size="$$(du -sh "$$d" 2>/dev/null | cut -f1)"; \
+			if [ "$$name" = "$$current" ]; then \
+				echo "  * $$name ($$size) [active]"; \
+			else \
+				echo "    $$name ($$size)"; \
+			fi; \
+			found=1; \
+		done; \
+		[ "$$found" = "0" ] && echo "  (no backups yet — run: make vm_backup NAME=<name>)"; \
+	else \
+		echo "  (no backups yet — run: make vm_backup NAME=<name>)"; \
+	fi
 
 amfidont_allow_vphone: bundle
 	zsh $(SCRIPTS)/start_amfidont_for_vphone.sh

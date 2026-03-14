@@ -218,6 +218,21 @@ Connect via:
 - **VNC:** `vnc://127.0.0.1:5901`
 - [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
 
+## VM Backup & Switch
+
+Save and switch between multiple VM environments (e.g. different iOS builds or firmware variants). Backups are stored in `vm.backups/` using `rsync --sparse` for efficient sparse disk handling.
+
+```bash
+make vm_backup NAME=26.1-clean    # save current VM
+rm -rf vm && make vm_new          # start fresh for a different build
+# ... fw_prepare, fw_patch, restore, cfw_install, boot
+make vm_backup NAME=26.3-jb       # save the new one too
+make vm_list                      # list all saved backups
+make vm_switch NAME=26.1-clean    # swap between them
+```
+
+> **Note:** Always stop the VM before backup/switch/restore.
+
 ## FAQ
 
 > **Before anything else — run `git pull` to make sure you have the latest version.**

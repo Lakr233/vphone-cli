@@ -209,6 +209,21 @@ iproxy 5910 5910     # RPC
 - **VNC：** `vnc://127.0.0.1:5901`
 - [**RPC：**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
 
+## VM 备份与切换
+
+保存并切换多个 VM 环境（例如不同的 iOS 构建版本或固件变体）。备份存储在 `vm.backups/` 下，使用 `rsync --sparse` 高效处理稀疏磁盘镜像。
+
+```bash
+make vm_backup NAME=26.1-clean    # 保存当前 VM
+rm -rf vm && make vm_new          # 清空后从新构建开始
+# ... fw_prepare, fw_patch, restore, cfw_install, boot
+make vm_backup NAME=26.3-jb       # 保存新的 VM
+make vm_list                      # 列出所有备份
+make vm_switch NAME=26.1-clean    # 在不同备份之间切换
+```
+
+> **注意：** 备份/切换/恢复前请先停止 VM。
+
 ## 常见问题（FAQ）
 
 > **在做其他任何事情之前——先运行 `git pull` 确保你有最新版。**
