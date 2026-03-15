@@ -196,7 +196,7 @@ make boot
 別のターミナルで iproxy トンネルを開始します：
 
 ```bash
-iproxy 22222 22222   # SSH（dropbear）
+iproxy 2222 22222   # SSH（dropbear）
 iproxy 2222 22       # SSH（脱獄版：Sileo で openssh-server を入れた場合）
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
