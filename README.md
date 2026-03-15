@@ -207,7 +207,7 @@ make boot
 In a separate terminal, start iproxy tunnels:
 
 ```bash
-iproxy 2222 22222   # SSH (dropbear)
+iproxy 2222 22222    # SSH (dropbear)
 iproxy 2222 22       # SSH (JB: if you install openssh-server from Sileo)
 iproxy 5901 5901     # VNC
 iproxy 5910 5910     # RPC
