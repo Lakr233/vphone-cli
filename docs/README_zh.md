@@ -87,6 +87,8 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```bash
 make setup_machine            # 完全自动化完成"首次启动"流程（包含 restore/ramdisk/CFW）
 # 选项：NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# DEV=1 开发变体（+ TXM 权限/调试绕过）
+# JB=1 越狱变体（dev + 完整安全绕过）
 ```
 
 ## 手动设置
