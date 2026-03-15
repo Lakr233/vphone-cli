@@ -94,7 +94,7 @@ RESEARCH_GUEST_STATUS="$(
   fi
 )"
 CURRENT_BOOT_ARGS="$(sysctl -n kern.bootargs 2>/dev/null || true)"
-NEXT_BOOT_ARGS="$(nvram boot-args 2>/dev/null | sed 's/^boot-args[[:space:]]*//')"
+NEXT_BOOT_ARGS="$({ nvram boot-args 2>/dev/null || true; } | sed 's/^boot-args[[:space:]]*//')"
 ASSESSMENT_STATUS="$(spctl --status 2>/dev/null || true)"
 
 print_section "Host"
