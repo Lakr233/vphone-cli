@@ -82,14 +82,20 @@ RESEARCH_GUEST_STATUS="$(
       fi
     fi
     # No Macintosh HD found, or auto-select failed — prompt interactively
-    printf '%s\n' "$_out" >/dev/tty
-    printf 'Pick a macOS installation: ' >/dev/tty
-    read _choice </dev/tty
-    if [[ -n "$_choice" ]]; then
-      printf '%s\n' "$_choice" | csrutil allow-research-guests status 2>/dev/null \
-        | grep -o 'Allow Research Guests status:.*' || echo 'unavailable'
+    # only when a controlling TTY exists. Non-interactive runs should degrade
+    # cleanly instead of failing on /dev/tty access under set -e.
+    if { : >/dev/tty; } 2>/dev/null; then
+      printf '%s\n' "$_out" >/dev/tty
+      printf 'Pick a macOS installation: ' >/dev/tty
+      read _choice </dev/tty
+      if [[ -n "$_choice" ]]; then
+        printf '%s\n' "$_choice" | csrutil allow-research-guests status 2>/dev/null \
+          | grep -o 'Allow Research Guests status:.*' || echo 'unavailable'
+      else
+        echo 'unavailable'
+      fi
     else
-      echo 'unavailable'
+      echo 'unavailable (multiple installs; no interactive tty)'
     fi
   fi
 )"
