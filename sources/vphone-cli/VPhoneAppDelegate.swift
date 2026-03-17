@@ -152,6 +152,8 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     print("[location] guest does not support location simulation")
                 }
+                mc?.syncBatteryFromHost()
+                mc?.syncLowPowerModeFromHost()
             }
             control.onDisconnect = { [weak mc, weak provider = locationProvider] in
                 mc?.updateConnectAvailability(available: false)
