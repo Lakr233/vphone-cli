@@ -53,6 +53,7 @@ BOOT_ANALYSIS_TIMEOUT="${BOOT_ANALYSIS_TIMEOUT:-300}"
 BOOT_PROMPT_FALLBACK_TIMEOUT="${BOOT_PROMPT_FALLBACK_TIMEOUT:-60}"
 BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\.[0-9]+)+#}"
 BOOT_PANIC_REGEX="${BOOT_PANIC_REGEX:-panic|kernel panic|panic\\.apple\\.com|stackshot succeeded}"
+PMD3_BRIDGE="${PMD3_BRIDGE:-${PROJECT_ROOT}/scripts/pymobiledevice3_bridge.py}"
 NONE_INTERACTIVE_RAW="${NONE_INTERACTIVE:-0}"
 NONE_INTERACTIVE=0
 JB_MODE=0
@@ -67,6 +68,22 @@ die() {
 require_cmd() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Missing required command: $cmd"
+}
+
+find_python_for_pmd3() {
+  local candidate
+  for candidate in \
+    "${PROJECT_ROOT}/.venv/bin/python3" \
+    "$(command -v python3 2>/dev/null || true)"
+  do
+    [[ -n "$candidate" ]] || continue
+    [[ -x "$candidate" ]] || continue
+    if "$candidate" -c "import pymobiledevice3" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
 }
 
 normalize_ecid() {
@@ -124,15 +141,11 @@ load_device_identity() {
 }
 
 list_usbmux_udids() {
-  local idevice_id_bin
-  idevice_id_bin="${PROJECT_ROOT}/.limd/bin/idevice_id"
-
-  if [[ ! -x "$idevice_id_bin" ]]; then
-    idevice_id_bin="$(command -v idevice_id || true)"
-  fi
-  [[ -x "$idevice_id_bin" ]] || return 0
-
-  "$idevice_id_bin" -l 2>/dev/null | tr -d '\r' | sed '/^[[:space:]]*$/d'
+  local pmd3_python
+  pmd3_python="$(find_python_for_pmd3 || true)"
+  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
+  [[ -f "$PMD3_BRIDGE" ]] || die "Missing bridge script: $PMD3_BRIDGE"
+  "$pmd3_python" "$PMD3_BRIDGE" usbmux-list 2>/dev/null | tr -d '\r' | sed '/^[[:space:]]*$/d'
 }
 
 print_usbmux_udids() {
@@ -685,7 +698,7 @@ install_brew_deps() {
   require_cmd brew
 
   local deps=(
-    ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool git-lfs
+    wget gnu-tar openssl@3 ldid-procursus sshpass keystone git-lfs
     python@3.13
   )
 
@@ -783,20 +796,15 @@ wait_for_post_restore_reboot() {
 }
 
 wait_for_recovery() {
-  local irecovery="${PROJECT_ROOT}/.limd/bin/irecovery"
-  local -a query_args
-  [[ -x "$irecovery" ]] || die "irecovery not found at $irecovery"
-
-  if [[ -n "$DEVICE_ECID" ]]; then
-    query_args=(-i "0x${DEVICE_ECID}")
-  else
-    query_args=()
-  fi
+  local pmd3_python
+  pmd3_python="$(find_python_for_pmd3 || true)"
+  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
+  [[ -f "$PMD3_BRIDGE" ]] || die "Missing bridge script: $PMD3_BRIDGE"
 
   echo "[*] Waiting for recovery/DFU endpoint..."
   local i
   for i in {1..90}; do
-    if "$irecovery" "${query_args[@]}" -q >/dev/null 2>&1; then
+    if "$pmd3_python" "$PMD3_BRIDGE" recovery-probe --ecid "0x${DEVICE_ECID}" --timeout 2 >/dev/null 2>&1; then
       echo "[+] Device endpoint is reachable"
       return
     fi
@@ -809,9 +817,6 @@ wait_for_recovery() {
 }
 
 start_iproxy() {
-  local iproxy_bin
-  iproxy_bin="${PROJECT_ROOT}/.limd/bin/iproxy"
-  [[ -x "$iproxy_bin" ]] || die "iproxy not found at $iproxy_bin (run: make setup_libimobiledevice)"
   [[ -n "$DEVICE_UDID" ]] || die "Device UDID is empty; cannot resolve iproxy target"
 
   choose_ramdisk_ssh_port
@@ -829,8 +834,11 @@ start_iproxy() {
   mkdir -p "$LOG_DIR"
   : > "$IPROXY_LOG"
 
-  echo "[*] Starting iproxy ${RAMDISK_SSH_PORT} -> 22 (target_udid=${IPROXY_TARGET_UDID}, restore_udid=${DEVICE_UDID}, ecid=0x${DEVICE_ECID})..."
-  ("$iproxy_bin" -u "$IPROXY_TARGET_UDID" "$RAMDISK_SSH_PORT" 22 >"$IPROXY_LOG" 2>&1) &
+  local pmd3_python
+  pmd3_python="$(find_python_for_pmd3 || true)"
+  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
+  echo "[*] Starting pymobiledevice3 usbmux forward ${RAMDISK_SSH_PORT} -> 22 (target_udid=${IPROXY_TARGET_UDID}, restore_udid=${DEVICE_UDID}, ecid=0x${DEVICE_ECID})..."
+  ("$pmd3_python" -m pymobiledevice3 usbmux forward --serial "$IPROXY_TARGET_UDID" "$RAMDISK_SSH_PORT" 22 >"$IPROXY_LOG" 2>&1) &
   IPROXY_PID=$!
 
   sleep 1

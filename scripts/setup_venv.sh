@@ -73,9 +73,11 @@ python3 -c "
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
 from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN
 from pyimg4 import IM4P
+import pymobiledevice3
 print('  capstone  OK')
 print('  keystone  OK')
 print('  pyimg4    OK')
+print('  pmd3      OK')
 "
 
 echo ""
