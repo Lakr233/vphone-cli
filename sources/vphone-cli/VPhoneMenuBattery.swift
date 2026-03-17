@@ -132,6 +132,7 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.lowPowerMode(enabled: enabled)
+                syncBatteryFromHost()  // refresh status label with updated LPM state
                 print("[battery] sync LPM: \(enabled)")
             } catch {
                 print("[battery] sync LPM failed: \(error)")
@@ -178,7 +179,7 @@ extension VPhoneMenuController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.syncLowPowerModeFromHost()
+            Task { @MainActor in self?.syncLowPowerModeFromHost() }
         }
     }
 

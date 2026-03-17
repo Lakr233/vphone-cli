@@ -385,9 +385,8 @@ static BOOL handle_client(int fd) {
           continue;
         }
 
-        // Power state and Darwin notification commands
-        if ([t isEqualToString:@"low_power_mode"] ||
-            [t isEqualToString:@"darwin_notify"]) {
+        // Low power mode sync
+        if ([t isEqualToString:@"low_power_mode"]) {
           NSDictionary *resp = vp_handle_notify_command(msg);
           if (resp && !vp_write_message(fd, resp))
             break;
