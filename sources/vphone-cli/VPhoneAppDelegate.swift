@@ -13,6 +13,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var appWindowController: VPhoneAppWindowController?
     private var locationProvider: VPhoneLocationProvider?
     private var sigintSource: DispatchSourceSignal?
+    private var didAttemptAutoInstall = false
 
     init(cli: VPhoneBootCLI) {
         self.cli = cli
@@ -154,6 +155,9 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 }
                 mc?.syncBatteryFromHost()
                 mc?.syncLowPowerModeFromHost()
+                Task { @MainActor [weak self] in
+                    await self?.installPackageIfRequested(caps: caps)
+                }
             }
             control.onDisconnect = { [weak mc, weak provider = locationProvider] in
                 mc?.updateConnectAvailability(available: false)
@@ -174,11 +178,50 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     print("[location] guest does not support location simulation")
                 }
+                Task { @MainActor [weak self] in
+                    await self?.installPackageIfRequested(caps: caps)
+                }
             }
             control.onDisconnect = { [weak provider = locationProvider] in
                 provider?.stopReplay()
                 provider?.stopForwarding()
             }
+        }
+    }
+
+    @MainActor
+    private func installPackageIfRequested(caps: [String]) async {
+        guard !didAttemptAutoInstall else { return }
+        guard let packageURL = cli.installPackageURL else { return }
+
+        guard FileManager.default.fileExists(atPath: packageURL.path) else {
+            didAttemptAutoInstall = true
+            print("[install] requested package not found: \(packageURL.path)")
+            return
+        }
+        guard VPhoneInstallPackage.isSupportedFile(packageURL) else {
+            didAttemptAutoInstall = true
+            print("[install] unsupported package type: \(packageURL.path)")
+            return
+        }
+        guard caps.contains("ipa_install") else {
+            print(
+                "[install] guest does not advertise ipa_install; reconnect or reboot the guest so the updated daemon can take over"
+            )
+            return
+        }
+        guard let control else {
+            print("[install] control channel is not ready")
+            return
+        }
+
+        didAttemptAutoInstall = true
+        print("[install] auto-installing \(packageURL.lastPathComponent)")
+        do {
+            let result = try await control.installIPA(localURL: packageURL)
+            print("[install] \(result)")
+        } catch {
+            print("[install] failed: \(error)")
         }
     }
 

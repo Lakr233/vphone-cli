@@ -44,9 +44,19 @@ struct VPhoneBootCLI: ParsableCommand {
     @Option(help: "Path to signed vphoned binary for guest auto-update")
     var vphonedBin: String = ".vphoned.signed"
 
+    @Option(
+        help: "Automatically install the given IPA/TIPA after the guest control channel connects.",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var installIPA: URL?
+
     /// DFU mode runs headless (no GUI).
     var noGraphics: Bool {
         dfu
+    }
+
+    var installPackageURL: URL? {
+        installIPA?.standardizedFileURL
     }
 
     /// Resolve final options by merging manifest values.
