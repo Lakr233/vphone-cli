@@ -87,8 +87,10 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 **Install dependencies:**
 
 ```bash
-brew install ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool cmake
+brew install aria2 ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool cmake
 ```
+
+`scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
 
 **Submodules** — this repo uses git submodules for resources, vendored Swift deps, and toolchain sources under `scripts/repos/`. Clone with:
 
@@ -108,7 +110,7 @@ make setup_machine            # full automation through "First Boot" (includes r
 ## Manual Setup
 
 ```bash
-make setup_tools              # install brew deps, build trustcache + insert_dylib + libimobiledevice from submodule sources, create Python venv
+make setup_tools              # install brew deps (including aria2c), build trustcache + insert_dylib + libimobiledevice from submodule sources, create Python venv
 make build                    # build + sign vphone-cli
 make vm_new                   # create VM directory with manifest (config.plist)
 # options: CPU=8 MEMORY=8192 DISK_SIZE=64
