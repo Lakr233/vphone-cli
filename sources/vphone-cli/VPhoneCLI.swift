@@ -45,7 +45,7 @@ struct VPhoneBootCLI: ParsableCommand {
     var vphonedBin: String = ".vphoned.signed"
 
     @Option(
-        help: "Automatically install the given IPA/TIPA after the guest control channel connects.",
+        help: "Automatically install the given IPA/TIPA after the guest control channel connects. Unavailable with --dfu.",
         transform: URL.init(fileURLWithPath:)
     )
     var installIPA: URL?
@@ -57,6 +57,26 @@ struct VPhoneBootCLI: ParsableCommand {
 
     var installPackageURL: URL? {
         installIPA?.standardizedFileURL
+    }
+
+    mutating func validate() throws {
+        if dfu, let packageURL = installPackageURL {
+            throw ValidationError(
+                "`--install-ipa` is unavailable with `--dfu` because DFU mode does not start the guest control channel: \(packageURL.path)"
+            )
+        }
+
+        guard let packageURL = installPackageURL else { return }
+
+        guard FileManager.default.fileExists(atPath: packageURL.path) else {
+            throw ValidationError("`--install-ipa` file does not exist: \(packageURL.path)")
+        }
+
+        guard VPhoneInstallPackage.isSupportedFile(packageURL) else {
+            throw ValidationError(
+                "`--install-ipa` only supports .ipa or .tipa packages: \(packageURL.lastPathComponent)"
+            )
+        }
     }
 
     /// Resolve final options by merging manifest values.
