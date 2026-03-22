@@ -22,27 +22,3 @@
 [submodule "scripts/repos/insert_dylib"]
 	path = scripts/repos/insert_dylib
 	url = https://github.com/tyilo/insert_dylib.git
-[submodule "scripts/repos/libplist"]
-	path = scripts/repos/libplist
-	url = https://github.com/libimobiledevice/libplist.git
-[submodule "scripts/repos/libimobiledevice-glue"]
-	path = scripts/repos/libimobiledevice-glue
-	url = https://github.com/libimobiledevice/libimobiledevice-glue.git
-[submodule "scripts/repos/libusbmuxd"]
-	path = scripts/repos/libusbmuxd
-	url = https://github.com/libimobiledevice/libusbmuxd.git
-[submodule "scripts/repos/libtatsu"]
-	path = scripts/repos/libtatsu
-	url = https://github.com/libimobiledevice/libtatsu.git
-[submodule "scripts/repos/libimobiledevice"]
-	path = scripts/repos/libimobiledevice
-	url = https://github.com/libimobiledevice/libimobiledevice.git
-[submodule "scripts/repos/libirecovery"]
-	path = scripts/repos/libirecovery
-	url = https://github.com/libimobiledevice/libirecovery.git
-[submodule "scripts/repos/idevicerestore"]
-	path = scripts/repos/idevicerestore
-	url = https://github.com/libimobiledevice/idevicerestore.git
-[submodule "scripts/repos/libzip"]
-	path = scripts/repos/libzip
-	url = https://github.com/nih-at/libzip.git

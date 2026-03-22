@@ -87,7 +87,7 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 **Install dependencies:**
 
 ```bash
-brew install aria2 ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool cmake
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone
 ```
 
 `scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
@@ -110,7 +110,7 @@ make setup_machine            # full automation through "First Boot" (includes r
 ## Manual Setup
 
 ```bash
-make setup_tools              # install brew deps (including aria2c), build trustcache + insert_dylib + libimobiledevice from submodule sources, create Python venv
+make setup_tools              # install brew deps, build trustcache + insert_dylib, create Python venv (pymobiledevice3, aria2c included)
 make build                    # build + sign vphone-cli
 make vm_new                   # create VM directory with manifest (config.plist)
 # options: CPU=8 MEMORY=8192 DISK_SIZE=64
@@ -146,7 +146,7 @@ make boot_dfu                 # boot VM in DFU mode (keep running)
 ```bash
 # terminal 2
 make restore_get_shsh         # fetch SHSH blob
-make restore                  # flash firmware via idevicerestore
+make restore                  # flash firmware via pymobiledevice3 restore backend
 ```
 
 ## Install Custom Firmware
@@ -164,11 +164,11 @@ sudo make ramdisk_build       # build signed SSH ramdisk
 make ramdisk_send             # send to device
 ```
 
-Once the ramdisk is running (you should see `Running server` in the output), open a **third terminal** for the iproxy tunnel, then install CFW from terminal 2:
+Once the ramdisk is running (you should see `Running server` in the output), open a **third terminal** for the usbmux tunnel, then install CFW from terminal 2:
 
 ```bash
 # terminal 3 — keep running
-iproxy 2222 22
+python3 -m pymobiledevice3 usbmux forward 2222 22
 ```
 
 ```bash
@@ -211,13 +211,13 @@ shutdown -h now
 make boot
 ```
 
-In a separate terminal, start iproxy tunnels:
+In a separate terminal, start usbmux forward tunnels:
 
 ```bash
-iproxy 2222 22222    # SSH (dropbear)
-iproxy 2222 22       # SSH (JB: if you install openssh-server from Sileo)
-iproxy 5901 5901     # VNC
-iproxy 5910 5910     # RPC
+python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
+python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (JB: if you install openssh-server from Sileo)
+python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
+python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
 ```
 
 Connect via:

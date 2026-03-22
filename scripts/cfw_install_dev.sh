@@ -227,7 +227,7 @@ mkdir -p "$TEMP_DIR"
 # ── Parse Cryptex paths from BuildManifest ─────────────────────
 echo ""
 echo "[*] Parsing iPhone BuildManifest for Cryptex paths..."
-CRYPTEX_PATHS=$("$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" cryptex-paths "$RESTORE_DIR/BuildManifest-iPhone.plist")
+CRYPTEX_PATHS=$("$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
 CRYPTEX_SYSOS=$(echo "$CRYPTEX_PATHS" | head -1)
 CRYPTEX_APPOS=$(echo "$CRYPTEX_PATHS" | tail -1)
 echo "  SystemOS: $CRYPTEX_SYSOS"

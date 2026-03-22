@@ -634,8 +634,7 @@ def main():
         sys.exit(1)
 
     # Find SHSH
-    shsh_dir = os.path.join(vm_dir, "shsh")
-    shsh_path = find_shsh(shsh_dir)
+    shsh_path = find_shsh(vm_dir)
     if not shsh_path:
         print(f"[-] No SHSH blob found in {shsh_dir}/")
         print("    Place your .shsh file in the shsh/ directory.")

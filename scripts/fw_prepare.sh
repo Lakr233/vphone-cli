@@ -576,7 +576,7 @@ cp "${CLOUDOS_DIR}"/Firmware/*.im4p "$IPHONE_DIR/Firmware"/
 cp -n "${CLOUDOS_DIR}"/*.dmg "$IPHONE_DIR"/ 2>/dev/null || true
 cp -n "${CLOUDOS_DIR}"/Firmware/*.dmg.trustcache "$IPHONE_DIR/Firmware"/ 2>/dev/null || true
 
-cp "$IPHONE_DIR/BuildManifest.plist" "$IPHONE_DIR/BuildManifest-iPhone.plist"
+cp "$IPHONE_DIR/BuildManifest.plist" "$IPHONE_DIR/iPhone-BuildManifest.plist"
 
 echo "==> Generating hybrid plists ..."
 python3 "$SCRIPT_DIR/fw_manifest.py" "$IPHONE_DIR" "$CLOUDOS_DIR"

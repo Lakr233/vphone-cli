@@ -13,7 +13,7 @@ BACKUP_INCLUDE_IPSW ?= 0
 FORCE       ?= 0
 RESTORE_UDID ?=           # UDID for restore operations
 RESTORE_ECID ?=           # ECID for restore operations
-IRECOVERY_ECID ?=         # ECID for irecovery operations
+IRECOVERY_ECID ?=         # ECID for ramdisk send operations
 
 # ─── Build info ──────────────────────────────────────────────────
 GIT_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -28,16 +28,14 @@ BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
-LIMD_PREFIX := .limd
 TOOLS_PREFIX := .tools
-IRECOVERY   := $(LIMD_PREFIX)/bin/irecovery
-IDEVICERESTORE := $(LIMD_PREFIX)/bin/idevicerestore
+PMD3_BRIDGE := $(CURDIR)/$(SCRIPTS)/pymobiledevice3_bridge.py
 PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 
 SWIFT_SOURCES := $(shell find sources -name '*.swift')
 
 # ─── Environment — prefer project-local binaries ────────────────
-export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/$(LIMD_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
+export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
 
 # ─── Default ──────────────────────────────────────────────────────
 .PHONY: help
@@ -53,7 +51,7 @@ help:
 	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
 	@echo ""
 	@echo "Setup (one-time):"
-	@echo "  make setup_tools             Install all tools (brew, submodule-sourced trustcache/insert_dylib/libimobiledevice, venv)"
+	@echo "  make setup_tools             Install all tools (brew, trustcache, insert_dylib, venv+pymobiledevice3)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
@@ -91,7 +89,7 @@ help:
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
-	@echo "  make restore                 idevicerestore to device"
+	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
 	@echo ""
 	@echo "Ramdisk:"
 	@echo "  make ramdisk_build           Build signed SSH ramdisk"
@@ -167,11 +165,7 @@ bundle: build $(INFO_PLIST)
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
-	@cp -f $$(command -v ideviceinstaller) $(BUNDLE)/Contents/MacOS/ideviceinstaller
-	@cp -f $$(command -v idevice_id) $(BUNDLE)/Contents/MacOS/idevice_id
 	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ideviceinstaller
-	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/idevice_id
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
 	@echo "  bundled → $(BUNDLE)"
 
@@ -292,16 +286,16 @@ fw_patch_jb: patcher_build
 .PHONY: restore_get_shsh restore
 
 restore_get_shsh:
-	cd $(VM_DIR) && "$(CURDIR)/$(IDEVICERESTORE)" \
-		$(if $(RESTORE_UDID),-u $(RESTORE_UDID),) \
-		$(if $(RESTORE_ECID),-i $(RESTORE_ECID),) \
-		-e -y ./iPhone*_Restore -t
+	cd $(VM_DIR) && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-get-shsh \
+		--vm-dir . \
+		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
+		$(if $(RESTORE_ECID),--ecid $(RESTORE_ECID),)
 
 restore:
-	cd $(VM_DIR) && "$(CURDIR)/$(IDEVICERESTORE)" \
-		$(if $(RESTORE_UDID),-u $(RESTORE_UDID),) \
-		$(if $(RESTORE_ECID),-i $(RESTORE_ECID),) \
-		-e -y ./iPhone*_Restore
+	cd $(VM_DIR) && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
+		--vm-dir . \
+		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
+		$(if $(RESTORE_ECID),--ecid $(RESTORE_ECID),)
 
 # ═══════════════════════════════════════════════════════════════════
 # Ramdisk
@@ -313,7 +307,7 @@ ramdisk_build: patcher_build
 	cd $(VM_DIR) && RAMDISK_UDID="$(RAMDISK_UDID)" $(PYTHON) "$(CURDIR)/$(SCRIPTS)/ramdisk_build.py" .
 
 ramdisk_send:
-	cd $(VM_DIR) && IRECOVERY="$(CURDIR)/$(IRECOVERY)" IRECOVERY_ECID="$(IRECOVERY_ECID)" RAMDISK_UDID="$(RAMDISK_UDID)" RESTORE_UDID="$(RESTORE_UDID)" \
+	cd $(VM_DIR) && PMD3_BRIDGE="$(PMD3_BRIDGE)" PYTHON="$(PYTHON)" IRECOVERY_ECID="$(IRECOVERY_ECID)" RAMDISK_UDID="$(RAMDISK_UDID)" RESTORE_UDID="$(RESTORE_UDID)" \
 		zsh "$(CURDIR)/$(SCRIPTS)/ramdisk_send.sh"
 
 # ═══════════════════════════════════════════════════════════════════
