@@ -660,6 +660,18 @@ class VPhoneControl {
         }
     }
 
+    // MARK: - Notify Post
+
+    func notifyPost(name: String, state: UInt64? = nil) async throws {
+        var req: [String: Any] = ["t": "notify_post", "name": name]
+        if let state { req["state"] = state }
+        let (resp, _) = try await sendRequest(req)
+        let ok = resp["ok"] as? Bool ?? false
+        if !ok {
+            throw ControlError.guestError("notify_post failed for \(name)")
+        }
+    }
+
     // MARK: - Accessibility
 
     func accessibilityTree(depth: Int = -1) async throws -> [String: Any] {

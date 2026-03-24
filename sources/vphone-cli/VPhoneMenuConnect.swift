@@ -66,6 +66,13 @@ extension VPhoneMenuController {
         menu.addItem(buildLocationSubmenu())
         menu.addItem(buildBatterySubmenu())
 
+        menu.addItem(NSMenuItem.separator())
+
+        let notifyItem = makeItem("Send Darwin Notification...", action: #selector(postNotification))
+        notifyItem.isEnabled = false
+        notifyPostItem = notifyItem
+        menu.addItem(notifyItem)
+
         item.submenu = menu
         return item
     }
