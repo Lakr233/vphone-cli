@@ -87,7 +87,7 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 **Install dependencies:**
 
 ```bash
-brew install aria2 ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool cmake
+brew install aria2 ideviceinstaller wget gnu-tar openssl@3 ldid-procursus sshpass keystone autoconf automake pkg-config libtool cmake ipsw
 ```
 
 `scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
