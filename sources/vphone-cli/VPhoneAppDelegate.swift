@@ -12,6 +12,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var keychainWindowController: VPhoneKeychainWindowController?
     private var appWindowController: VPhoneAppWindowController?
     private var locationProvider: VPhoneLocationProvider?
+    private var hostControl: VPhoneHostControl?
     private var sigintSource: DispatchSourceSignal?
     private var didAttemptAutoInstall = false
 
@@ -133,8 +134,22 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             if let provider = locationProvider {
                 mc.locationProvider = provider
             }
-            mc.screenRecorder = VPhoneScreenRecorder()
+            let recorder = VPhoneScreenRecorder()
+            mc.screenRecorder = recorder
             menuController = mc
+
+            let socketPath = options.configURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("vphone.sock").path
+            let hc = VPhoneHostControl(socketPath: socketPath)
+            hc.start(
+                captureView: wc.captureView!,
+                screenRecorder: recorder,
+                control: control,
+                screenWidth: options.screenWidth,
+                screenHeight: options.screenHeight
+            )
+            hostControl = hc
 
             // Wire location toggle through onConnect/onDisconnect
             control.onConnect = { [weak mc, weak provider = locationProvider] caps in
@@ -223,6 +238,10 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             print("[install] failed: \(error)")
         }
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        hostControl?.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {

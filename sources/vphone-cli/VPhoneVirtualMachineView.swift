@@ -164,6 +164,91 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
     }
 
+    // MARK: - Programmatic Touch (for automation)
+
+    /// Convert screenshot pixel coordinates to NSView local coordinates.
+    private func pixelToLocal(pixelX: Double, pixelY: Double, screenWidth: Int, screenHeight: Int) -> NSPoint {
+        let w = bounds.width
+        let h = bounds.height
+        let localX = pixelX / Double(screenWidth) * w
+        // Screenshot y=0 is top, NSView y=0 is bottom (non-flipped)
+        let localY = (1.0 - pixelY / Double(screenHeight)) * h
+        return NSPoint(x: localX, y: localY)
+    }
+
+    /// Synthesize an NSEvent at a given window point.
+    private func synthesizeMouseEvent(type: NSEvent.EventType, at windowPoint: NSPoint) -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: type,
+            location: windowPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: type == .leftMouseUp ? 0 : 1,
+            pressure: type == .leftMouseUp ? 0.0 : 1.0
+        )
+    }
+
+    /// Inject a tap at pixel coordinates (matching screenshot image dimensions).
+    func injectTap(pixelX: Double, pixelY: Double, screenWidth: Int, screenHeight: Int) {
+        let localPoint = pixelToLocal(pixelX: pixelX, pixelY: pixelY, screenWidth: screenWidth, screenHeight: screenHeight)
+        let windowPoint = convert(localPoint, to: nil)
+
+        if let downEvent = synthesizeMouseEvent(type: .leftMouseDown, at: windowPoint) {
+            mouseDown(with: downEvent)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self else { return }
+            if let upEvent = self.synthesizeMouseEvent(type: .leftMouseUp, at: windowPoint) {
+                self.mouseUp(with: upEvent)
+            }
+        }
+    }
+
+    /// Inject a swipe from one pixel coordinate to another.
+    func injectSwipe(
+        fromX: Double, fromY: Double, toX: Double, toY: Double,
+        screenWidth: Int, screenHeight: Int, durationMs: Int = 300
+    ) {
+        let startLocal = pixelToLocal(pixelX: fromX, pixelY: fromY, screenWidth: screenWidth, screenHeight: screenHeight)
+        let endLocal = pixelToLocal(pixelX: toX, pixelY: toY, screenWidth: screenWidth, screenHeight: screenHeight)
+        let startWindow = convert(startLocal, to: nil)
+        let endWindow = convert(endLocal, to: nil)
+
+        let steps = max(10, durationMs / 16)
+        let stepInterval = Double(durationMs) / Double(steps) / 1000.0
+
+        if let downEvent = synthesizeMouseEvent(type: .leftMouseDown, at: startWindow) {
+            mouseDown(with: downEvent)
+        }
+
+        for i in 1...steps {
+            let t = Double(i) / Double(steps)
+            let x = startWindow.x + (endWindow.x - startWindow.x) * t
+            let y = startWindow.y + (endWindow.y - startWindow.y) * t
+            let pt = NSPoint(x: x, y: y)
+            let delay = stepInterval * Double(i)
+
+            if i < steps {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let self else { return }
+                    if let dragEvent = self.synthesizeMouseEvent(type: .leftMouseDragged, at: pt) {
+                        self.mouseDragged(with: dragEvent)
+                    }
+                }
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let self else { return }
+                    if let upEvent = self.synthesizeMouseEvent(type: .leftMouseUp, at: pt) {
+                        self.mouseUp(with: upEvent)
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Legacy Touch Injection (macOS 15)
 
     @discardableResult

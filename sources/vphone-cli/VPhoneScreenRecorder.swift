@@ -149,11 +149,15 @@ class VPhoneScreenRecorder {
     }
 
     func saveScreenshot(view: NSView) async throws -> URL {
+        try await saveScreenshot(view: view, to: screenshotOutputURL())
+    }
+
+    func saveScreenshot(view: NSView, to url: URL) async throws -> URL {
         let cgImage = try await captureStillImage(from: view)
-        let url = screenshotOutputURL()
+        let utType = url.pathExtension.lowercased() == "png" ? "public.png" : "public.jpeg"
 
         guard let dest = CGImageDestinationCreateWithURL(
-            url as CFURL, "public.jpeg" as CFString, 1, nil
+            url as CFURL, utType as CFString, 1, nil
         ) else {
             throw CaptureError.encodingFailed
         }
