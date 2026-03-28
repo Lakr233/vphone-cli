@@ -733,6 +733,10 @@ start_boot_dfu() {
   kill_stale_vphone_procs
   check_vm_storage_locks
 
+  # Remove stale prediction file so load_device_identity waits for the fresh
+  # one written by this boot, avoiding an ECID mismatch race.
+  rm -f "${VM_DIR_ABS}/udid-prediction.txt"
+
   : > "$DFU_LOG"
   echo "[*] Starting DFU boot in background..."
   (make boot_dfu >"$DFU_LOG" 2>&1) &
