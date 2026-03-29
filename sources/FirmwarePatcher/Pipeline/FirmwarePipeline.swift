@@ -136,6 +136,8 @@ public final class FirmwarePipeline {
                 componentRecords.append(contentsOf: records)
                 if let deviceTreePatcher = patcher as? DeviceTreePatcher {
                     currentData = deviceTreePatcher.patchedData
+                } else if let manifestPatcher = patcher as? ManifestHashPatcher {
+                    currentData = manifestPatcher.patchedData
                 } else {
                     for record in records {
                         let range = record.fileOffset ..< record.fileOffset + record.patchedBytes.count
@@ -277,6 +279,23 @@ public final class FirmwarePipeline {
             patcherFactories: [{ data, verbose in
                 DeviceTreePatcher(data: data, verbose: verbose)
             }]
+        ))
+
+        // 8. Firmware Manifest - Only required when excluding the img4 signature patches.
+        components.append(ComponentDescriptor(
+            name: "Manifest",
+            inRestoreDir: true,
+            searchPatterns: ["BuildManifest.plist"],
+            patcherFactories: {
+                return switch variant {
+                case .regular:
+                    [{ data, verbose in
+                        ManifestHashPatcher(data: data, restoreDir: try? self.findRestoreDirectory(), verbose: verbose)
+                    }]
+                case .dev, .jb:
+                    []
+                }
+            }()
         ))
 
         return components
