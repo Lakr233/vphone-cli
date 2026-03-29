@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 
 // MARK: - Host Control Socket
 
@@ -7,14 +8,20 @@ import Foundation
 /// local processes (e.g. Claude Code via `nc -U`).  One JSON line in, one JSON
 /// line out, then the connection closes.
 ///
+/// Every response includes an `"image"` field with a compact base64-encoded
+/// grayscale JPEG of the current screen (unless `"screen":false` is sent).
+///
 /// Supported commands:
-///   {"t":"screenshot"}                          → save to default Desktop path
+///   {"t":"screenshot"}                          → full-res save to Desktop (or explicit path)
 ///   {"t":"screenshot","path":"/tmp/shot.png"}   → save to explicit path (PNG/JPEG by extension)
-///   {"t":"tap","x":645,"y":1398}                → tap at pixel coordinates (matching screenshot)
-///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400}           → swipe between points
-///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe with duration
-///   {"t":"key","name":"home"}                                     → hardware key (home/power/volup/voldown)
-///   {"t":"type","text":"Hello"}                                   → set guest clipboard + paste
+///   {"t":"tap","x":645,"y":1398}                → tap at pixel coordinates
+///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe
+///   {"t":"key","name":"home"}                   → hardware key (home/power/volup/voldown)
+///   {"t":"type","text":"Hello"}                 → set guest clipboard
+///
+/// All commands except "screenshot" wait briefly then capture a compact screen
+/// image returned as `"image":"<base64>"` in the response.  Pass `"screen":false`
+/// to skip the capture.
 @MainActor
 class VPhoneHostControl {
     private let socketPath: String
@@ -30,11 +37,15 @@ class VPhoneHostControl {
         var path: String?
         var error: String?
         var ok = false
+        var imageBase64: String?
     }
 
     /// Screen pixel dimensions for coordinate mapping.
     private var screenWidth: Int = 1290
     private var screenHeight: Int = 2796
+
+    /// Compact screenshot scale factor (1/3 = 430x932).
+    private static let compactScale = 3
 
     init(socketPath: String) {
         self.socketPath = socketPath
@@ -53,7 +64,6 @@ class VPhoneHostControl {
         self.screenWidth = screenWidth
         self.screenHeight = screenHeight
 
-        // Clean up stale socket from previous run
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -97,7 +107,6 @@ class VPhoneHostControl {
         }
 
         listenFD = fd
-
         print("[hostctl] listening on \(socketPath)")
 
         let capturedFD = fd
@@ -112,6 +121,98 @@ class VPhoneHostControl {
             listenFD = -1
         }
         unlink(socketPath)
+    }
+
+    // MARK: - Compact Screenshot
+
+    /// Capture current screen as a small grayscale JPEG, returned as base64.
+    private func captureCompactScreenshot() async -> String? {
+        guard let recorder = screenRecorder, let view = captureView, view.window != nil else {
+            return nil
+        }
+
+        // Reuse the existing private-API capture
+        guard let cgImage = await captureStillImage(recorder: recorder, view: view) else {
+            return nil
+        }
+
+        let dstW = cgImage.width / Self.compactScale
+        let dstH = cgImage.height / Self.compactScale
+
+        // Draw into grayscale context
+        let gray = CGColorSpaceCreateDeviceGray()
+        guard let ctx = CGContext(
+            data: nil, width: dstW, height: dstH,
+            bitsPerComponent: 8, bytesPerRow: dstW,
+            space: gray, bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return nil }
+
+        // High contrast: bump brightness
+        ctx.setShouldAntialias(true)
+        ctx.interpolationQuality = .high
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: dstW, height: dstH))
+
+        guard let grayImage = ctx.makeImage() else { return nil }
+
+        // Encode as low-quality JPEG
+        let data = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.35]
+        CGImageDestinationAddImage(dest, grayImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+
+        return (data as Data).base64EncodedString()
+    }
+
+    /// Access the recorder's private capture method via the existing async wrapper.
+    private func captureStillImage(recorder: VPhoneScreenRecorder, view: NSView) async -> CGImage? {
+        // Use the public saveScreenshot path but intercept before encoding.
+        // We call the recorder's internal captureStillImage indirectly by
+        // going through saveScreenshot to a temp file, then reading back.
+        // This is suboptimal but avoids exposing internal API.
+        //
+        // Better: use the same private API directly.
+        guard let vmView = view as? VPhoneVirtualMachineView,
+              let display = vmView.recordingGraphicsDisplay
+        else { return nil }
+
+        return await withCheckedContinuation { continuation in
+            let selector = NSSelectorFromString("_takeScreenshotWithCompletionHandler:")
+            guard display.responds(to: selector),
+                  let cls = object_getClass(display),
+                  let method = class_getInstanceMethod(cls, selector)
+            else {
+                continuation.resume(returning: nil)
+                return
+            }
+
+            typealias CompletionBlock = @convention(block) (AnyObject?) -> Void
+            typealias IMP = @convention(c) (AnyObject, Selector, AnyObject) -> Void
+
+            let impl = method_getImplementation(method)
+            let fn = unsafeBitCast(impl, to: IMP.self)
+
+            let block: CompletionBlock = { imageObject in
+                guard let imageObject else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                if let nsImage = imageObject as? NSImage {
+                    continuation.resume(returning: nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil))
+                    return
+                }
+                let cf = imageObject as CFTypeRef
+                if CFGetTypeID(cf) == CGImage.typeID {
+                    continuation.resume(returning: (cf as! CGImage))
+                    return
+                }
+                continuation.resume(returning: nil)
+            }
+            let blockObj = unsafeBitCast(block, to: AnyObject.self)
+            fn(display, selector, blockObj)
+        }
     }
 
     // MARK: - Accept Loop
@@ -137,6 +238,11 @@ class VPhoneHostControl {
             return
         }
 
+        // Whether to include a compact screenshot in the response (default: true)
+        let wantScreen = json["screen"] as? Bool ?? true
+        // Delay before screenshot (ms) — lets animations settle
+        let screenDelay = json["delay"] as? Int ?? 500
+
         switch type {
         case "screenshot":
             let outputPath = json["path"] as? String
@@ -154,22 +260,21 @@ class VPhoneHostControl {
                     return
                 }
                 do {
-                    let url: URL
                     if let outputPath {
-                        url = try await recorder.saveScreenshot(view: view, to: URL(fileURLWithPath: outputPath))
-                    } else {
-                        url = try await recorder.saveScreenshot(view: view)
+                        let url = try await recorder.saveScreenshot(view: view, to: URL(fileURLWithPath: outputPath))
+                        result.path = url.path
                     }
-                    result.path = url.path
+                    // Always include compact image for screenshot command
+                    result.imageBase64 = await controller.captureCompactScreenshot()
+                    result.ok = true
                 } catch {
                     result.error = "\(error)"
                 }
             }
 
             semaphore.wait()
-
-            if let path = result.path {
-                writeResponse(fd, ok: true, path: path)
+            if result.ok {
+                writeResponse(fd, ok: true, path: result.path, image: result.imageBase64)
             } else {
                 writeResponse(fd, ok: false, error: result.error ?? "unknown error")
             }
@@ -193,14 +298,14 @@ class VPhoneHostControl {
                     screenWidth: controller.screenWidth, screenHeight: controller.screenHeight
                 )
                 result.ok = true
+                if wantScreen {
+                    try? await Task.sleep(nanoseconds: UInt64(screenDelay) * 1_000_000)
+                    result.imageBase64 = await controller.captureCompactScreenshot()
+                }
             }
 
             semaphore.wait()
-            if result.ok {
-                writeResponse(fd, ok: true)
-            } else {
-                writeResponse(fd, ok: false, error: result.error ?? "tap failed")
-            }
+            writeResponse(fd, ok: result.ok, error: result.error, image: result.imageBase64)
 
         case "swipe":
             guard let x1 = json["x1"] as? Double, let y1 = json["y1"] as? Double,
@@ -225,14 +330,16 @@ class VPhoneHostControl {
                     durationMs: durationMs
                 )
                 result.ok = true
+                if wantScreen {
+                    // Wait for swipe to finish + settle
+                    let totalDelay = durationMs + screenDelay
+                    try? await Task.sleep(nanoseconds: UInt64(totalDelay) * 1_000_000)
+                    result.imageBase64 = await controller.captureCompactScreenshot()
+                }
             }
 
             semaphore.wait()
-            if result.ok {
-                writeResponse(fd, ok: true)
-            } else {
-                writeResponse(fd, ok: false, error: result.error ?? "swipe failed")
-            }
+            writeResponse(fd, ok: result.ok, error: result.error, image: result.imageBase64)
 
         case "key":
             guard let name = json["name"] as? String else {
@@ -261,14 +368,14 @@ class VPhoneHostControl {
                 }
                 ctl.sendHIDPress(page: key.page, usage: key.usage)
                 result.ok = true
+                if wantScreen {
+                    try? await Task.sleep(nanoseconds: UInt64(screenDelay) * 1_000_000)
+                    result.imageBase64 = await controller.captureCompactScreenshot()
+                }
             }
 
             semaphore.wait()
-            if result.ok {
-                writeResponse(fd, ok: true)
-            } else {
-                writeResponse(fd, ok: false, error: result.error ?? "key failed")
-            }
+            writeResponse(fd, ok: result.ok, error: result.error, image: result.imageBase64)
 
         case "type":
             guard let text = json["text"] as? String else {
@@ -287,17 +394,17 @@ class VPhoneHostControl {
                 do {
                     try await ctl.clipboardSet(text: text)
                     result.ok = true
+                    if wantScreen {
+                        try? await Task.sleep(nanoseconds: UInt64(screenDelay) * 1_000_000)
+                        result.imageBase64 = await controller.captureCompactScreenshot()
+                    }
                 } catch {
                     result.error = "\(error)"
                 }
             }
 
             semaphore.wait()
-            if result.ok {
-                writeResponse(fd, ok: true)
-            } else {
-                writeResponse(fd, ok: false, error: result.error ?? "type failed")
-            }
+            writeResponse(fd, ok: result.ok, error: result.error, image: result.imageBase64)
 
         default:
             writeResponse(fd, ok: false, error: "unknown command: \(type)")
@@ -323,18 +430,28 @@ class VPhoneHostControl {
         return accumulated.isEmpty ? nil : String(data: accumulated, encoding: .utf8)
     }
 
-    private nonisolated static func writeResponse(_ fd: Int32, ok: Bool, path: String? = nil, error: String? = nil) {
+    private nonisolated static func writeResponse(
+        _ fd: Int32, ok: Bool, path: String? = nil, error: String? = nil, image: String? = nil
+    ) {
         var dict: [String: Any] = ["ok": ok]
         if let path { dict["path"] = path }
         if let error { dict["error"] = error }
+        if let image { dict["image"] = image }
 
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               var json = String(data: data, encoding: .utf8)
         else { return }
 
         json += "\n"
-        _ = json.withCString { ptr in
-            write(fd, ptr, strlen(ptr))
+        json.withCString { ptr in
+            var remaining = strlen(ptr)
+            var offset = 0
+            while remaining > 0 {
+                let written = write(fd, ptr.advanced(by: offset), remaining)
+                if written <= 0 { break }
+                offset += written
+                remaining -= written
+            }
         }
     }
 }
