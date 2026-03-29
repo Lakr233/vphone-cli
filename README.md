@@ -303,6 +303,12 @@ make fw_patch
 
 Our patches are applied via binary analysis, not static offsets, so newer versions should work. If something breaks, ask AI for help.
 
+## Automation
+
+vphone-cli exposes a host control socket (`vm/vphone.sock`) for programmatic VM interaction — screenshots, touch injection, swipe gestures, hardware keys, and clipboard. Every action returns a compact grayscale screenshot inline, enabling AI-driven E2E testing workflows.
+
+See [vphone-mcp](https://github.com/pluginslab/vphone-mcp) for an MCP server that wraps this socket with high-level tools (open apps by name, navigate back, scroll, type text) usable from Claude Code or Claude Desktop.
+
 ## Acknowledgements
 
 - [wh1te4ever/super-tart-vphone-writeup](https://github.com/wh1te4ever/super-tart-vphone-writeup)
