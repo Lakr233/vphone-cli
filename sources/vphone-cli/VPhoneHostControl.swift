@@ -14,6 +14,7 @@ import Foundation
 ///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400}           → swipe between points
 ///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe with duration
 ///   {"t":"key","name":"home"}                                     → hardware key (home/power/volup/voldown)
+///   {"t":"type","text":"Hello"}                                   → set guest clipboard + paste
 @MainActor
 class VPhoneHostControl {
     private let socketPath: String
@@ -267,6 +268,35 @@ class VPhoneHostControl {
                 writeResponse(fd, ok: true)
             } else {
                 writeResponse(fd, ok: false, error: result.error ?? "key failed")
+            }
+
+        case "type":
+            guard let text = json["text"] as? String else {
+                writeResponse(fd, ok: false, error: "type requires text")
+                return
+            }
+            let semaphore = DispatchSemaphore(value: 0)
+            let result = ResultBox()
+
+            Task { @MainActor in
+                defer { semaphore.signal() }
+                guard let controller, let ctl = controller.control, ctl.isConnected else {
+                    result.error = "guest not connected"
+                    return
+                }
+                do {
+                    try await ctl.clipboardSet(text: text)
+                    result.ok = true
+                } catch {
+                    result.error = "\(error)"
+                }
+            }
+
+            semaphore.wait()
+            if result.ok {
+                writeResponse(fd, ok: true)
+            } else {
+                writeResponse(fd, ok: false, error: result.error ?? "type failed")
             }
 
         default:
