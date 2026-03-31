@@ -29,6 +29,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let component = "Filesystem"
     public let restoreDir: URL
     public let verbose: Bool
+    let vphoneCliDirectory = URL(filePath: "./")
     
     var buildManiest: Data
     var rebuiltData: Data?
@@ -115,8 +116,17 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Fix Dyld Cache")
             try addDyldSymlinks(targetMount: targetMount)
             
+            let cfwInputOgPath = vphoneCliDirectory.appending(path: "scripts/resources/cfw_input.tar.zst")
+            let cfwInputPath = try createTmpDir()
+            _ = try runProcess("/usr/bin/tar", [
+                "--zstd", "-xf", cfwInputOgPath.path, "-C", cfwInputPath.path
+            ])
+            
             print("- Fix GPU Driver")
-            try addGpuDriver(targetMount: targetMount)
+            try addGpuDriver(targetMount: targetMount, cfwInput: cfwInputPath)
+            
+            print("- Patch Mobile Activation")
+            try patchMobileActivation(targetMount: targetMount, cfwInput: cfwInputPath)
         }
         
         print("- Finalizing merged image")
@@ -133,14 +143,10 @@ public final class CryptexFilesystemPatcher: Patcher {
         return (newDmgPath, finalDestination)
     }
     
-    func addGpuDriver(targetMount: String) throws {
+    func addGpuDriver(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
-        let tmpDir = try createTmpDir()
-        _ = try runProcess("/usr/bin/tar", [
-            "--zstd", "-xf", "./scripts/resources/cfw_input.tar.zst", "-C", tmpDir.path
-        ])
-        
-        let gpuTarPath = tmpDir.appending(path: "cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar")
+
+        let gpuTarPath = cfwInput.appending(path: "cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar")
         _ = try runProcess("/usr/bin/tar", [
             "--preserve-permissions",
             "-xf", gpuTarPath.path,
@@ -165,6 +171,22 @@ public final class CryptexFilesystemPatcher: Patcher {
         ] {
             _ = try runProcess("/bin/chmod", ["0644", path])
         }
+    }
+
+    func patchMobileActivation(targetMount: String, cfwInput: URL) throws {
+        let target = URL.init(filePath: targetMount)
+        let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
+        _ = try runProcess("./.venv/bin/python3", [
+            "./scripts/patchers/cfw.py", "patch-mobileactivationd",
+            mobileActivationdPath.path
+        ])
+        _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
+        
+        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
+        _ = try runProcess("/opt/homebrew/bin/ldid", [
+            "-S", "-M", "-K\(signingCertificatePath.path)",
+            mobileActivationdPath.path
+        ])
     }
     
     func addDyldSymlinks(targetMount: String) throws {

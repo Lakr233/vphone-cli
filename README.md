@@ -21,7 +21,7 @@ Three patch variants are available with increasing levels of security bypass:
 
 | Variant         | Boot Chain  |    CFW    | Make Targets                       |
 | --------------- | :---------: | :-------: | ---------------------------------- |
-| **Regular**     | 0 patches  | 10 phases | `fw_patch` + `cfw_install`         |
+| **Regular**     | 1 patch  | 10 phases | `fw_patch` + `cfw_install`         |
 | **Development** | 52 patches  | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
 | **Jailbreak**   | 112 patches | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
 
