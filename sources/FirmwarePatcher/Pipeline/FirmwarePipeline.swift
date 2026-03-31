@@ -211,38 +211,24 @@ public final class FirmwarePipeline {
             }()
         ))
 
-        // 3. iBEC — The automatic patching is disabled for the patchless variant (you can still just place a custom component there).
+        // 3. iBEC - Not required by the less variant, still added for the serial logs.
         components.append(ComponentDescriptor(
             name: "iBEC",
             inRestoreDir: true,
             searchPatterns: ["Firmware/dfu/iBEC.vresearch101.RELEASE.im4p"],
-            patcherFactories: {
-                return switch variant {
-                case .less:
-                    []
-                case .regular, .dev, .jb:
-                    [{ data, verbose in
-                        IBootPatcher(data: data, mode: .ibec, verbose: verbose)
-                    }]
-                }
-            }()
+            patcherFactories: [{ data, verbose in
+                IBootPatcher(data: data, mode: .ibec, verbose: verbose)
+            }]
         ))
 
-        // 4. LLB — The automatic patching is disabled for the patchless variant (you can still just place a custom component there).
+        // 4. LLB - Not required by the less variant, still added for the serial logs.
         components.append(ComponentDescriptor(
             name: "LLB",
             inRestoreDir: true,
             searchPatterns: ["Firmware/all_flash/LLB.vresearch101.RELEASE.im4p"],
-            patcherFactories: {
-                return switch variant {
-                case .less:
-                    []
-                case .regular, .dev, .jb:
-                    [{ data, verbose in
-                        IBootPatcher(data: data, mode: .llb, verbose: verbose)
-                    }]
-                }
-            }()
+            patcherFactories: [{ data, verbose in
+                IBootPatcher(data: data, mode: .llb, verbose: verbose)
+            }]
         ))
 
         // 5. TXM — dev/jb variants use TXMDevPatcher (adds entitlements, debugger, dev-mode)
