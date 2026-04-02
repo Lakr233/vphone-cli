@@ -12,10 +12,25 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 BUNDLE_BIN="${PROJECT_ROOT}/.build/vphone-cli.app/Contents/MacOS/vphone-cli"
 AMFIDONT_BIN="${HOME}/Library/Python/3.9/bin/amfidont"
+AMFREE_BIN="$(command -v amfree 2>/dev/null || true)"
+
+# ── amfree path (preferred if amfidont is absent) ────────────────
+
+if [[ ! -x "$AMFIDONT_BIN" && -x "$AMFREE_BIN" ]]; then
+  AMFI_PATH="${PROJECT_ROOT}/.build"
+  echo "[*] Project root:      $PROJECT_ROOT"
+  echo "[*] AMFI path:         $AMFI_PATH"
+  echo "[*] Using amfree (amfidont not installed)"
+  sudo "$AMFREE_BIN" --path "$AMFI_PATH"
+  exit $?
+fi
+
+# ── amfidont path ────────────────────────────────────────────────
 
 [[ -x "$AMFIDONT_BIN" ]] || {
-  echo "amfidont not found at $AMFIDONT_BIN" >&2
-  echo "Install it first: xcrun python3 -m pip install --user amfidont" >&2
+  echo "Neither amfidont nor amfree found." >&2
+  echo "Install amfree: brew install amfree" >&2
+  echo "Or install amfidont: xcrun python3 -m pip install --user amfidont" >&2
   exit 1
 }
 

@@ -24,9 +24,9 @@ ensure_repo_submodule() {
 
 # ── Brew packages ──────────────────────────────────────────────
 
-echo "[1/5] Checking brew packages..."
+echo "[1/6] Checking brew packages..."
 
-BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass)
+BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass blacktop/tap/ipsw)
 BREW_MISSING=()
 
 for pkg in "${BREW_PACKAGES[@]}"; do
@@ -44,7 +44,15 @@ fi
 
 # ── Trustcache ─────────────────────────────────────────────────
 
-echo "[2/5] trustcache"
+echo "[2/6] vendor submodules"
+ensure_repo_submodule "vendor/swift-argument-parser"
+ensure_repo_submodule "vendor/Dynamic"
+ensure_repo_submodule "vendor/MachOKit"
+ensure_repo_submodule "vendor/libcapstone-spm"
+ensure_repo_submodule "vendor/libimg4-spm"
+ensure_repo_submodule "scripts/resources"
+
+echo "[3/6] trustcache"
 
 TRUSTCACHE_BIN="$TOOLS_PREFIX/bin/trustcache"
 if [[ -x "$TRUSTCACHE_BIN" ]]; then
@@ -73,7 +81,7 @@ fi
 
 # ── insert_dylib ───────────────────────────────────────────────
 
-echo "[3/5] insert_dylib"
+echo "[4/6] insert_dylib"
 
 INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then
@@ -89,12 +97,12 @@ fi
 
 # ── Libimobiledevice ──────────────────────────────────────────
 
-echo "[4/5] libimobiledevice"
+echo "[5/6] libimobiledevice"
 bash "$SCRIPT_DIR/setup_libimobiledevice.sh"
 
 # ── Python venv ────────────────────────────────────────────────
 
-echo "[5/5] Python venv"
+echo "[6/6] Python venv"
 zsh "$SCRIPT_DIR/setup_venv.sh"
 
 echo ""

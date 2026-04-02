@@ -117,10 +117,10 @@ stage_repo_source "libirecovery"
 
 # PR #150: register iPhone99,11 / vresearch101ap for PCC research VMs
 if ! grep -q 'vresearch101ap' "$SRC/libirecovery/src/libirecovery.c"; then
-    if ! (cd "$SRC/libirecovery" && patch -p1 --batch --forward --dry-run <"$SCRIPT_DIR/patches/libirecovery-pcc-vm.patch" >/dev/null); then
+    if ! (cd "$SRC/libirecovery" && /usr/bin/patch -p1 --batch --forward --dry-run <"$SCRIPT_DIR/patches/libirecovery-pcc-vm.patch" >/dev/null); then
         die "Failed to validate libirecovery PCC patch — check context"
     fi
-    if ! (cd "$SRC/libirecovery" && patch -p1 --batch --forward <"$SCRIPT_DIR/patches/libirecovery-pcc-vm.patch" >"$LOG/libirecovery-pcc-vm.patch.log" 2>&1); then
+    if ! (cd "$SRC/libirecovery" && /usr/bin/patch -p1 --batch --forward <"$SCRIPT_DIR/patches/libirecovery-pcc-vm.patch" >"$LOG/libirecovery-pcc-vm.patch.log" 2>&1); then
         die "Failed to apply libirecovery PCC patch — see $LOG/libirecovery-pcc-vm.patch.log"
     fi
     grep -q 'vresearch101ap' "$SRC/libirecovery/src/libirecovery.c" ||

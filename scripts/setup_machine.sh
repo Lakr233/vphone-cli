@@ -723,12 +723,32 @@ run_make() {
   make "$@"
 }
 
+ensure_amfi_bypass() {
+  # amfree hook is session-scoped; re-activate if not already covering .build.
+  local build_path="${PROJECT_ROOT}/.build"
+  if command -v amfree &>/dev/null; then
+    if amfree --list 2>/dev/null | grep -qF "$build_path"; then
+      echo "[+] AMFI bypass already active for .build"
+      return 0
+    fi
+    echo "[*] Activating AMFI bypass (amfree) for .build..."
+    sudo amfree --path "$build_path" && return 0
+    echo "[!] amfree activation failed; boot may be killed by AMFI" >&2
+    return 0
+  fi
+  # Fall back to make amfidont_allow_vphone (handles amfidont path internally)
+  make amfidont_allow_vphone 2>/dev/null || \
+    echo "[!] amfidont_allow_vphone failed; boot may be killed by AMFI" >&2
+}
+
 start_boot_dfu() {
   mkdir -p "$LOG_DIR"
 
   if [[ -n "$DFU_PID" ]] && kill -0 "$DFU_PID" 2>/dev/null; then
     return
   fi
+
+  ensure_amfi_bypass
 
   kill_stale_vphone_procs
   check_vm_storage_locks
