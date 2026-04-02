@@ -732,8 +732,14 @@ ensure_amfi_bypass() {
       return 0
     fi
     echo "[*] Activating AMFI bypass (amfree) for .build..."
-    sudo amfree --path "$build_path" && return 0
+    if sudo amfree --path "$build_path"; then
+      return 0
+    fi
     echo "[!] amfree activation failed; boot may be killed by AMFI" >&2
+    if [[ "${ALLOW_AMFI_BYPASS_SOFTFAIL:-0}" != "1" ]]; then
+      return 1
+    fi
+    echo "[!] Continuing despite AMFI bypass failure (ALLOW_AMFI_BYPASS_SOFTFAIL=1)" >&2
     return 0
   fi
   # Fall back to amfidont helper script for vphone if amfree is not available.
