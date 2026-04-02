@@ -736,9 +736,15 @@ ensure_amfi_bypass() {
     echo "[!] amfree activation failed; boot may be killed by AMFI" >&2
     return 0
   fi
-  # Fall back to make amfidont_allow_vphone (handles amfidont path internally)
-  make amfidont_allow_vphone 2>/dev/null || \
-    echo "[!] amfidont_allow_vphone failed; boot may be killed by AMFI" >&2
+  # Fall back to amfidont helper script for vphone if amfree is not available.
+  local amfidont_script="${PROJECT_ROOT}/scripts/start_amfidont_for_vphone.sh"
+  if [[ -x "$amfidont_script" ]]; then
+    echo "[*] Activating AMFI bypass (amfidont) for .build via $amfidont_script..."
+    "$amfidont_script" || \
+      echo "[!] amfidont helper script failed; boot may be killed by AMFI" >&2
+  else
+    echo "[!] AMFI bypass helper not found or not executable at $amfidont_script; boot may be killed by AMFI" >&2
+  fi
 }
 
 start_boot_dfu() {
