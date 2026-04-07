@@ -66,7 +66,7 @@
   重新启动回 macOS 后：
 
   ```bash
-  # 使用 amfidont：
+  # amfidont 的通用用法：
   xcrun python3 -m pip install amfidont
   sudo amfidont --path [PATH_TO_VPHONE_DIR]
   
@@ -75,8 +75,18 @@
   sudo amfree --path [PATH_TO_VPHONE_DIR]
   ```
 
-  在本仓库中，可以运行 `make amfidont_allow_vphone` 一次性配置
-  `amfidont` 所需的编码路径与 CDHash 允许项。
+  对本仓库，优先使用下面这个 helper，而不是只手动执行
+  `sudo amfidont --path ...`：
+
+  ```bash
+  make amfidont_allow_vphone
+  ```
+
+  对 `vphone-cli` 来说，单独执行通用的 `sudo amfidont --path ...`
+  不够用。这个 helper 会自动计算当前签名后的
+  `.build/vphone-cli.app/Contents/MacOS/vphone-cli` 的 CDHash，使用
+  `AMFIPathValidator` 实际看到的 `.build` 路径，并以 daemon 模式为
+  `make boot` 真正启动的 bundle binary 配置 allowlist。
 
 **安装依赖：**
 

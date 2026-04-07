@@ -66,7 +66,7 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
   After restarting into macOS:
 
   ```bash
-  # Using amfidont:
+  # Generic amfidont usage:
   xcrun python3 -m pip install amfidont
   sudo amfidont --path [PATH_TO_VPHONE_DIR]
   
@@ -75,14 +75,18 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
   sudo amfree --path [PATH_TO_VPHONE_DIR]
   ```
 
-  Repo helper (for amfidont):
+  For this repo, prefer the helper target instead of calling `amfidont`
+  manually:
 
   ```bash
   make amfidont_allow_vphone
   ```
 
-  This helper computes the current signed `vphone-cli` CDHash and uses the
-  URL-encoded project path form observed by `AMFIPathValidator`.
+  The generic `sudo amfidont --path ...` example is not sufficient for
+  `vphone-cli` by itself. The helper computes the current signed
+  `.build/vphone-cli.app/Contents/MacOS/vphone-cli` CDHash, uses the `.build`
+  path actually observed by `AMFIPathValidator`, and starts `amfidont` in
+  daemon mode for the signed bundle binary that `make boot` launches.
 
 **Install dependencies:**
 
