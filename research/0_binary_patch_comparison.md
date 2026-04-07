@@ -311,4 +311,5 @@
   - docs should also keep the simpler branch documented: when no other Apple USB device is attached to the host, the plain `make restore_get_shsh` / `make restore` path is usually sufficient.
   - Option 2 host setup docs should distinguish generic `amfidont` usage from the repo-specific helper: plain `sudo amfidont --path <repo>` was not sufficient for `vphone-cli`, while `make amfidont_allow_vphone` worked because it derived the signed app-bundle CDHash and used the `.build` path actually evaluated by AMFI.
   - ramdisk usbmux forwarding used the project venv interpreter (`./.venv/bin/python3 -m pymobiledevice3 ...`); bare `python3 -m pymobiledevice3` failed on the host because the system interpreter did not have `pymobiledevice3` installed.
+  - docs were later normalized to use the project venv interpreter for all manual `pymobiledevice3` examples, including subsequent-boot usbmux forwarding commands.
   - `make cfw_install_jb` is not fully unattended on a stock host workflow: it may prompt for the local macOS administrator password while mounting Cryptex images, so docs should direct users to run it in an interactive terminal.

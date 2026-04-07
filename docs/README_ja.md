@@ -162,7 +162,7 @@ Ramdisk が起動したら（出力に `Running server` と表示されるはず
 
 ```bash
 # ターミナル 3 — 実行したままにする
-python3 -m pymobiledevice3 usbmux forward 2222 22
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22
 ```
 
 ```bash
@@ -208,10 +208,10 @@ make boot
 別のターミナルで usbmux 転送トンネルを開始します：
 
 ```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH（dropbear）
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH（脱獄版：Sileo で openssh-server を入れた場合）
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH（dropbear）
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH（脱獄版：Sileo で openssh-server を入れた場合）
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
 ```
 
 以下で接続します：

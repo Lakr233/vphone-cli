@@ -162,7 +162,7 @@ make ramdisk_send             # 장치로 전송
 
 ```bash
 # 터미널 3 — 계속 실행 유지
-python3 -m pymobiledevice3 usbmux forward 2222 22
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22
 ```
 
 ```bash
@@ -208,10 +208,10 @@ make boot
 별도의 터미널에서 usbmux 포워딩 터널을 시작합니다:
 
 ```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (탈옥: Sileo에서 openssh-server를 설치한 경우)
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (탈옥: Sileo에서 openssh-server를 설치한 경우)
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
 ```
 
 다음을 통해 연결합니다:

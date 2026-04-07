@@ -260,10 +260,10 @@ make boot
 在另一个终端中启动 usbmux 转发隧道：
 
 ```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH（dropbear）
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH（越狱版：在 Sileo 中安装 openssh-server 后）
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH（dropbear）
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH（越狱版：在 Sileo 中安装 openssh-server 后）
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
 ```
 
 连接方式：

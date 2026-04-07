@@ -261,10 +261,10 @@ make boot
 In a separate terminal, start usbmux forward tunnels:
 
 ```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (JB: if you install openssh-server from Sileo)
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (JB: if you install openssh-server from Sileo)
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
 ```
 
 Connect via:
