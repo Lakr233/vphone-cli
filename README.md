@@ -138,15 +138,55 @@ The manifest stores all VM settings (CPU, memory, screen, ROMs, storage) and is 
 
 You'll need **two terminals** for the restore process. Keep terminal 1 running while using terminal 2.
 
+Before starting restore, disconnect any other USB-connected iPhone/iPad from the
+host. If another Apple device stays attached, `pymobiledevice3` may target that
+device first unless you pass the predicted restore identity explicitly.
+
 ```bash
 # terminal 1
 make boot_dfu                 # boot VM in DFU mode (keep running)
 ```
 
+If the host has **no other USB-connected Apple devices**, the simple path is
+usually enough:
+
 ```bash
 # terminal 2
-make restore_get_shsh         # fetch SHSH blob
-make restore                  # flash firmware via pymobiledevice3 restore backend
+make restore_get_shsh
+make restore
+```
+
+If the host may also see a real iPhone/iPad over USB, or you want deterministic
+targeting, pass the predicted restore identity explicitly:
+
+```bash
+# terminal 2
+make restore_get_shsh RESTORE_UDID=<predicted-udid> RESTORE_ECID=0x<ecid>
+make restore RESTORE_UDID=<predicted-udid> RESTORE_ECID=0x<ecid>
+```
+
+`make boot_dfu` writes the predicted identity to `vm/udid-prediction.txt`.
+Passing both values avoids accidental targeting of a real USB-connected device
+and makes manual restore runs deterministic.
+
+You can read the values like this:
+
+```bash
+cat vm/udid-prediction.txt
+```
+
+Example:
+
+```bash
+UDID=0000FE01-CEAD3D87FB2DF828
+ECID=CEAD3D87FB2DF828
+```
+
+Then run:
+
+```bash
+make restore_get_shsh RESTORE_UDID=0000FE01-CEAD3D87FB2DF828 RESTORE_ECID=0xCEAD3D87FB2DF828
+make restore RESTORE_UDID=0000FE01-CEAD3D87FB2DF828 RESTORE_ECID=0xCEAD3D87FB2DF828
 ```
 
 ## Install Custom Firmware
@@ -168,7 +208,7 @@ Once the ramdisk is running (you should see `Running server` in the output), ope
 
 ```bash
 # terminal 3 — keep running
-python3 -m pymobiledevice3 usbmux forward 2222 22
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22
 ```
 
 ```bash
@@ -176,6 +216,9 @@ python3 -m pymobiledevice3 usbmux forward 2222 22
 make cfw_install
 # or: make cfw_install_jb        # jailbreak variant
 ```
+
+For `make cfw_install_jb`, prefer an interactive local terminal. The script may
+prompt for your macOS administrator password while mounting Cryptex images.
 
 ## First Boot
 

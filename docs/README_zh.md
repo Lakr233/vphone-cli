@@ -132,15 +132,54 @@ make boot
 
 该过程需要 **两个终端**。保持终端 1 运行，同时在终端 2 操作。
 
+开始 restore 之前，先拔掉宿主机上其他通过 USB 连接的 iPhone / iPad。
+如果同时连着另一台 Apple 设备，而又没有显式指定 restore 目标，
+`pymobiledevice3` 可能会优先选中那台真机。
+
 ```bash
 # 终端 1
 make boot_dfu                 # 以 DFU 模式启动 VM（保持运行）
 ```
 
+如果宿主机上**没有连接其他 Apple USB 设备**，通常可以直接走简化流程：
+
 ```bash
 # 终端 2
-make restore_get_shsh         # 获取 SHSH blob
-make restore                  # 通过 pymobiledevice3 restore 后端刷写固件
+make restore_get_shsh
+make restore
+```
+
+如果宿主机同时可能看到真实 iPhone / iPad，或者你想让 restore 目标完全确定，
+就显式传入预测出来的 restore 身份：
+
+```bash
+# 终端 2
+make restore_get_shsh RESTORE_UDID=<predicted-udid> RESTORE_ECID=0x<ecid>
+make restore RESTORE_UDID=<predicted-udid> RESTORE_ECID=0x<ecid>
+```
+
+`make boot_dfu` 会把预测到的 restore 身份写到 `vm/udid-prediction.txt`。
+手动流程中显式传入这两个参数，可以避免误选到宿主机上真实连接的设备，
+让 restore 目标保持确定。
+
+可以这样查看参数：
+
+```bash
+cat vm/udid-prediction.txt
+```
+
+示例：
+
+```bash
+UDID=0000FE01-CEAD3D87FB2DF828
+ECID=CEAD3D87FB2DF828
+```
+
+然后这样传入：
+
+```bash
+make restore_get_shsh RESTORE_UDID=0000FE01-CEAD3D87FB2DF828 RESTORE_ECID=0xCEAD3D87FB2DF828
+make restore RESTORE_UDID=0000FE01-CEAD3D87FB2DF828 RESTORE_ECID=0xCEAD3D87FB2DF828
 ```
 
 ## 安装自定义固件
@@ -162,7 +201,7 @@ make ramdisk_send             # 发送到设备
 
 ```bash
 # 终端 3 —— 保持运行
-python3 -m pymobiledevice3 usbmux forward 2222 22
+./.venv/bin/python3 -m pymobiledevice3 usbmux forward 2222 22
 ```
 
 ```bash
@@ -170,6 +209,9 @@ python3 -m pymobiledevice3 usbmux forward 2222 22
 make cfw_install
 # 或：make cfw_install_jb        # 越狱变体
 ```
+
+`make cfw_install_jb` 最好在本地可交互终端里执行，因为脚本在挂载 Cryptex
+镜像时可能会请求输入当前 macOS 管理员密码。
 
 ## 首次启动
 
