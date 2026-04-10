@@ -35,6 +35,7 @@ public final class KernelPatcher: KernelPatcherBase, Patcher {
         patchApfsGraft() // 12
         patchApfsMount() // 13-15
         patchSandbox() // 16-25
+        patchExcGuardBehavior() // 26
 
         return patches
     }
