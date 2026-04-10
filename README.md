@@ -89,11 +89,17 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 
 **Install dependencies:**
 
+*You will need both brew dependencies and Git Submodule dependencies.*
+
+1. Brew dependencies:
+
 ```bash
 brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw
 ```
 
 `scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
+
+2. Git Submodules
 
 **Submodules** — this repo uses git submodules for resources, vendored Swift deps, and toolchain sources under `scripts/repos/`. Clone with:
 
