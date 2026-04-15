@@ -1,8 +1,8 @@
 // KernelPatchExcGuard.swift — Disable EXC_GUARD for Mach port guard violations.
 //
 // Research kernels enforce Mach port guard violations as fatal EXC_GUARD exceptions.
-// Any app calling task_swap_exception_ports() on a guarded port (e.g. crash reporting
-// SDKs like Heimdallr, Bugly, Crashlytics) is killed with EXC_GUARD.
+// Any app calling task_swap_exception_ports() on a guarded port is killed with
+// EXC_GUARD. This commonly affects apps that install custom exception handlers.
 // Production iOS kernels do not enforce these fatally.
 //
 // The enforcement path is: guard check → thread_guard_violation() → AST delivery.
