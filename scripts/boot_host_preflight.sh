@@ -128,20 +128,6 @@ if (( ASSERT_BOOTABLE == 1 )); then
   fi
 fi
 
-if (( LESS == 1 && ASSERT_BOOTABLE == 1 )); then
-  case " $CURRENT_BOOT_ARGS " in
-    *" amfi_get_out_of_my_way=0x1 "*)
-      ;;
-    *)
-      (( QUIET == 0 )) && {
-        echo ""
-        echo "Error: The patchless variant requires a disabled AMFI." >&2
-      }
-      exit 3
-      ;;
-  esac
-fi
-
 print_section "Entitlements"
 if [[ -f "$RELEASE_BIN" ]]; then
   codesign -d --entitlements :- "$RELEASE_BIN" 2>/dev/null || true

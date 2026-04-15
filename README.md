@@ -36,8 +36,6 @@ See [research/0_binary_patch_comparison.md](./research/0_binary_patch_comparison
 
 **Configure SIP/AMFI** — required for private Virtualization.framework entitlements and unsigned binary workflows.
 
-The Patchless variant is currently only supported by Option 1.
-
 Boot into Recovery (long press power button), open Terminal, then choose one setup path:
 
 - **Option 1: Fully disable SIP + AMFI boot-arg (most permissive)**
@@ -86,6 +84,8 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 
   This helper computes the current signed `vphone-cli` CDHash and uses the
   URL-encoded project path form observed by `AMFIPathValidator`.
+
+> The Patchless variant requires either the use of option 1 or amfidont with the `-S` flag (`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`)
 
 **Install dependencies:**
 

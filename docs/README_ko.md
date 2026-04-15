@@ -17,13 +17,14 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 
 ## 펌웨어 변형
 
-보안 우회 수준이 다른 3가지 패치 변형을 사용할 수 있습니다:
+보안 우회 수준이 다른 4가지 패치 변형을 사용할 수 있습니다:
 
-| 변형     | 부트 체인 |    CFW    | Make 타겟                          |
-| -------- | :-------: | :-------: | ---------------------------------- |
-| **일반** |  41 패치  | 10 페이즈 | `fw_patch` + `cfw_install`         |
-| **개발** |  52 패치  | 12 페이즈 | `fw_patch_dev` + `cfw_install_dev` |
-| **탈옥** | 112 패치  | 14 페이즈 | `fw_patch_jb` + `cfw_install_jb`   |
+| 변형         | 부트 체인 |    CFW    | Make 타겟                                   |
+| ------------ | :-------: | :-------: | ------------------------------------------- |
+| **Patchless** |  3 패치   | 2 페이즈  | `fw_patch_less` (root) + `boot_less`        |
+| **일반**     |  41 패치  | 10 페이즈 | `fw_patch` + `cfw_install`                  |
+| **개발**     |  52 패치  | 12 페이즈 | `fw_patch_dev` + `cfw_install_dev`          |
+| **탈옥**     | 112 패치  | 14 페이즈 | `fw_patch_jb` + `cfw_install_jb`            |
 
 > JB 최종 설정(심볼릭 링크, Sileo, apt, TrollStore)은 `/cores/vphone_jb_setup.sh` LaunchDaemon을 통해 첫 번째 부팅 시 자동으로 실행됩니다. 진행 상황 확인: `/var/log/vphone_jb_setup.log`.
 
@@ -78,6 +79,8 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
   이 저장소에서는 `make amfidont_allow_vphone`으로 `amfidont`에 필요한
   인코딩 경로와 CDHash 허용 설정을 한 번에 적용할 수 있습니다.
 
+> Patchless 변형은 방법 1 또는 `-S` 플래그를 포함한 amfidont(`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`)가 필요합니다.
+
 **의존성(Dependencies) 설치:**
 
 ```bash
@@ -97,6 +100,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```bash
 make setup_machine            # "First Boot"까지의 전체 과정 자동화 (복원/Ramdisk/커스텀 펌웨어 포함)
 # 옵션: NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# LESS=1 Patchless 변형 (- AMFI, SSV, Img4, TXM 우회)
 # DEV=1 개발 변형 (+ TXM 권한/디버그 우회)
 # JB=1 탈옥 변형 (dev + 전체 보안 우회)
 ```
@@ -110,6 +114,7 @@ make vm_new                   # VM 디렉토리 및 매니페스트(config.plist
 # 옵션: CPU=8 MEMORY=8192 DISK_SIZE=64
 make fw_prepare               # IPSW 다운로드, 추출, 병합, manifest 생성
 make fw_patch                 # 부트 체인 패치 (일반 변형)
+# 또는: sudo make fw_patch_less # Patchless 변형 (- AMFI, SSV, Img4, TXM 우회)
 # 또는: make fw_patch_dev     # 개발 변형 (+ TXM 권한/디버그 우회)
 # 또는: make fw_patch_jb      # 탈옥 변형 (dev + 전체 보안 우회)
 ```

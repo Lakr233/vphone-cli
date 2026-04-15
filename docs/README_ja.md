@@ -17,13 +17,14 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 
 ## ファームウェアバリアント
 
-セキュリティバイパスのレベルが異なる3つのパッチバリアントが利用可能です：
+セキュリティバイパスのレベルが異なる4つのパッチバリアントが利用可能です：
 
-| バリアント | ブートチェーン |     CFW     | Make ターゲット                    |
-| ---------- | :------------: | :---------: | ---------------------------------- |
-| **通常版** |   41 パッチ    | 10 フェーズ | `fw_patch` + `cfw_install`         |
-| **開発版** |   52 パッチ    | 12 フェーズ | `fw_patch_dev` + `cfw_install_dev` |
-| **脱獄版** |   112 パッチ   | 14 フェーズ | `fw_patch_jb` + `cfw_install_jb`   |
+| バリアント | ブートチェーン |     CFW     | Make ターゲット                              |
+| ---------- | :------------: | :---------: | -------------------------------------------- |
+| **Patchless** | 3 パッチ     | 2 フェーズ  | `fw_patch_less` (root) + `boot_less`         |
+| **通常版** |   41 パッチ    | 10 フェーズ | `fw_patch` + `cfw_install`                   |
+| **開発版** |   52 パッチ    | 12 フェーズ | `fw_patch_dev` + `cfw_install_dev`           |
+| **脱獄版** |   112 パッチ   | 14 フェーズ | `fw_patch_jb` + `cfw_install_jb`             |
 
 > JB最終設定（シンボリックリンク、Sileo、apt、TrollStore）は `/cores/vphone_jb_setup.sh` LaunchDaemon により初回起動時に自動実行されます。進捗確認：`/var/log/vphone_jb_setup.log`。
 
@@ -78,6 +79,8 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
   このリポジトリでは、`make amfidont_allow_vphone` を実行すると
   `amfidont` 用のエンコード済みパスと CDHash の許可設定をまとめて行えます。
 
+> Patchless バリアントでは、方法 1 か、`-S` フラグ付きの amfidont（`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`）が必要です。
+
 **依存関係のインストール:**
 
 ```bash
@@ -97,6 +100,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ```bash
 make setup_machine            # 初回起動までを完全自動化（復元/ラムディスク/CFWを含む）
 # オプション：NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# LESS=1 で patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
 # DEV=1 で開発バリアント（+ TXM entitlement/デバッグバイパス）
 # JB=1 で脱獄バリアント（dev + 完全セキュリティバイパス）
 ```
@@ -110,6 +114,7 @@ make vm_new                   # VM ディレクトリとマニフェスト（con
 # オプション：CPU=8 MEMORY=8192 DISK_SIZE=64
 make fw_prepare               # IPSW のダウンロード、抽出、マージ、マニフェスト生成
 make fw_patch                 # ブートチェーンのパッチ当て（通常バリアント）
+# または: sudo make fw_patch_less # patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
 # または: make fw_patch_dev   # 開発バリアント（+ TXM entitlement/デバッグバイパス）
 # または: make fw_patch_jb    # 脱獄バリアント（dev + 完全セキュリティバイパス）
 ```
