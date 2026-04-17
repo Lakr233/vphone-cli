@@ -21,6 +21,20 @@ extension Data {
     var hexString: String {
         self.map { String(format: "%02x", $0) }.joined()
     }
+    
+    init?(fromHexString hex: String) {
+        guard hex.count.isMultiple(of: 2) else {
+            return nil
+        }
+        
+        let chars = hex.map { $0 }
+        let bytes = stride(from: 0, to: chars.count, by: 2)
+            .map { String(chars[$0]) + String(chars[$0 + 1]) }
+            .compactMap { UInt8($0, radix: 16) }
+        
+        guard hex.count / bytes.count == 2 else { return nil }
+        self.init(bytes)
+    }
 }
 
 /// Patcher for the Filesystem payload.
@@ -134,8 +148,8 @@ public final class CryptexFilesystemPatcher: Patcher {
         print("- Finalizing merged image")
         try shrinkImage(dmg: targetImagePath)
         try convertToUDRWImage(input: targetImagePath, output: newDmgPath)
-        let key = try getAeaKey(self.restoreDir.appending(path: osPath))
         let metadata = try getAeaMetadata(self.restoreDir.appending(path: osPath))
+        let key = try getAeaKey(self.restoreDir.appending(path: osPath), metadata: metadata)
         let finalFile = try encryptAeaFile(newDmgPath, key: key, metadata: metadata)
         let finalDestination = self.restoreDir.appending(path: finalFile.lastPathComponent)
         if FileManager.default.fileExists(atPath: finalDestination.path) {
@@ -678,7 +692,17 @@ public final class CryptexFilesystemPatcher: Patcher {
         }
     }
     
-    func getAeaKey(_ path: URL) throws -> String {
+    func getAeaKey(_ path: URL, metadata: [String: String]) throws -> String {
+        if let key = metadata["encryption_key"] {
+            let key = String(key.dropFirst(4))
+            if let unwrapped = Data(fromHexString: key),
+               let encoded = String(data: unwrapped, encoding: .utf8),
+               let data = Data(fromHexString: encoded) {
+                return "base64:\(data.base64EncodedString())"
+            }
+            return key
+        }
+        
         return try runProcess("/opt/homebrew/bin/ipsw", [
             "fw", "aea",
             "--no-color",
