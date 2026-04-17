@@ -215,12 +215,22 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             config.serialPorts = [serialPort]
             print("[vphone] PL011 serial port attached (interactive)")
         }
+        
+        if let obj1 = Dynamic._VZMacVideoToolboxDeviceConfiguration().asObject,
+           let obj2 = Dynamic._VZMacNeuralEngineDeviceConfiguration().asObject {
+            Dynamic(config)._setAcceleratorDevices([obj1,obj2])
+            print("[vphone] Accelerator devices configured")
+        }
 
         // Multi-touch (USB touch screen)
         if let obj = Dynamic._VZUSBTouchScreenConfiguration().asObject {
             Dynamic(config)._setMultiTouchDevices([obj])
             print("[vphone] USB touch screen configured")
         }
+        
+        let obj = VZVirtioEntropyDeviceConfiguration()
+        config.entropyDevices = [obj]
+        print("[vphone] Entropy device configured")
 
         config.keyboards = [VZUSBKeyboardConfiguration()]
 
