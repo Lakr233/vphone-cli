@@ -70,11 +70,11 @@ public final class CryptexFilesystemPatcher: Patcher {
         let trustcachePath = try createTrustcache(filesystem: unencryptedImage)
         
         print("Creating mtree")
-        try removeSpecificSystemFiles(filesystem: unencryptedImage)
+        let didEdit = try removeSpecificSystemFiles(filesystem: unencryptedImage)
         let mtreePath = try createMtree(filesystem: unencryptedImage)
         
         print("Creating DigestDB and Root Hash")
-        let (digestDbPath, rootHashPath) = try createDigestAndHash(filesystem: unencryptedImage, mtree: mtreePath)
+        let (digestDbPath, rootHashPath) = try createDigestAndHash(filesystem: unencryptedImage, mtree: mtreePath, remap: didEdit)
         let metadataPath = try compressCanonicalMetadata(mtree: mtreePath, digestDb: digestDbPath)
         let rootHashContainer = try wrapRootHash(rootHashPath)
         
@@ -339,7 +339,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         return im4pPath
     }
     
-    func createDigestAndHash(filesystem: URL, mtree: URL) throws -> (URL, URL) {
+    func createDigestAndHash(filesystem: URL, mtree: URL, remap: Bool) throws -> (URL, URL) {
         let (device, mount) = try attachImage(path: filesystem)
         defer { try? detachImage(deviceNode: device) }
 
@@ -357,12 +357,14 @@ public final class CryptexFilesystemPatcher: Patcher {
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             <plist version="1.0">
             <dict>
-                <key>MODIFICATION</key>
-                <integer>\(modificationTime)</integer>
+            \(remap ? """
+                    <key>MODIFICATION</key>
+                    <integer>\(modificationTime)</integer>
+                """ : "")
             </dict>
             </plist>
             """
-        print("Used time: \(modificationTime)")
+        print("Used time: \(remap ? modificationTime : "none")")
         FileManager.default.createFile(atPath: mtreeRemapPath.path, contents: remapContent.data(using: .utf8))
 
         try unmount(mount: mount)
@@ -427,18 +429,23 @@ public final class CryptexFilesystemPatcher: Patcher {
         return mtreeFile
     }
     
-    func removeSpecificSystemFiles(filesystem: URL) throws {
+    func removeSpecificSystemFiles(filesystem: URL) throws -> Bool {
         let (device, mount) = try attachImage(path: filesystem, forceRW: true)
         defer { try? detachImage(deviceNode: device) }
         
         let removedPaths = [
-//            "/private/var/MobileAsset/PreinstalledAssets",
+            "/private/var/MobileAsset/PreinstalledAssets",
             "/private/var/MobileAsset/PreinstalledAssetsV2",
             "/private/var/staged_system_apps",
         ]
+        var didEdit = false
         for path in removedPaths {
-            try FileManager.default.removeItem(atPath: mount.appending(path))
+            if FileManager.default.fileExists(atPath: mount.appending(path)) {
+                try FileManager.default.removeItem(atPath: mount.appending(path))
+                didEdit = true
+            }
         }
+        return didEdit
     }
     
     func createTrustcache(filesystem: URL) throws -> URL {
