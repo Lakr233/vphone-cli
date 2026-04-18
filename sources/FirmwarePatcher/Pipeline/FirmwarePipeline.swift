@@ -261,14 +261,18 @@ public final class FirmwarePipeline {
                 return switch variant {
                 case .less:
                     []
-                case .regular, .dev:
+                case .regular:
                     [{ data, verbose in
-                        KernelPatcher(data: data, verbose: verbose)
+                        KernelPatcher(data: data, verbose: verbose, isDev: false)
+                    }]
+                case .dev:
+                    [{ data, verbose in
+                        KernelPatcher(data: data, verbose: verbose, isDev: true)
                     }]
                 case .jb:
                     [
                         { data, verbose in
-                            KernelPatcher(data: data, verbose: verbose)
+                            KernelPatcher(data: data, verbose: verbose, isDev: false)
                         },
                         { data, verbose in
                             KernelJBPatcher(data: data, verbose: verbose)

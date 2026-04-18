@@ -71,7 +71,7 @@
 | 15    | `mov w0,#0`                | `_handle_fsioc_graft`            | Allow fsioc graft                                  |    Y    |  Y  |  Y  |
 | 16    | NOP (3x)                   | `handle_get_dev_by_role`         | Bypass APFS role-lookup deny gates for boot mounts |    Y    |  Y  |  Y  |
 | 17-26 | `mov x0,#0; ret` (5 hooks) | Sandbox MACF ops table           | Stub 5 sandbox hooks                               |    Y    |  Y  |  Y  |
-| 27    | `PACIBSP→RET`              | `_thread_guard_violation`        | Disable EXC_GUARD delivery (match production behavior) |    Y    |  Y  |  Y  |
+| 27    | `PACIBSP→RET`              | `_thread_guard_violation`        | Disable EXC_GUARD delivery (match production behavior) |    -    |  Y  |  -  |
 
 ### JB-Only Kernel Methods (Reference List)
 
@@ -156,21 +156,21 @@
 | iBEC                     |       3 |   3 |   3 |
 | LLB                      |       6 |   6 |   6 |
 | TXM                      |       1 |  12 |  12 |
-| Kernel (base)            |      29 |  29 |  29 |
+| Kernel (base)            |      28 |  29 |  28 |
 | Kernel (JB methods)      |       - |   - |  59 |
-| Boot chain total         |      42 |  53 | 113 |
+| Boot chain total         |      41 |  53 | 112 |
 | CFW binary patches       |       4 |   5 |   6 |
 | CFW installed components |       6 |   7 |   9 |
 | CFW total                |      10 |  12 |  15 |
-| Grand total              |      52 |  65 | 128 |
+| Grand total              |      51 |  65 | 127 |
 
 ## Ramdisk Variant Matrix
 
 | Variant       | Pre-step            | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                      | `Ramdisk/krnl.img4`                       | Effective kernel used by `ramdisk_send.sh`          |
 | ------------- | ------------------- | -------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------- |
-| `RAMDISK`     | `make fw_patch`     | release TXM + base TXM patch (1) | base kernel (29), legacy `*.ramdisk` preferred else derive from pristine CloudOS | restore kernel from `fw_patch` (29)       | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `DEV+RAMDISK` | `make fw_patch_dev` | release TXM + base TXM patch (1) | base kernel (29), same derivation rule                                           | restore kernel from `fw_patch_dev` (29)   | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `JB+RAMDISK`  | `make fw_patch_jb`  | release TXM + base TXM patch (1) | base kernel (29), same derivation rule                                           | restore kernel from `fw_patch_jb` (29+59) | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `RAMDISK`     | `make fw_patch`     | release TXM + base TXM patch (1) | base kernel (28), legacy `*.ramdisk` preferred else derive from pristine CloudOS | restore kernel from `fw_patch` (28)       | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `DEV+RAMDISK` | `make fw_patch_dev` | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_dev` (29)   | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `JB+RAMDISK`  | `make fw_patch_jb`  | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_jb` (28+59) | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
 
 ## Cross-Version Dynamic Snapshot
 
@@ -190,7 +190,7 @@
   - `llb` 13/13
   - `txm` 1/1
   - `txm_dev` 12/12
-  - `kernelcache` 29/29
+  - `kernelcache` 28/28
   - `ibss_jb` 1/1
   - `kernelcache_jb` 84/84
 - JB parity fixes completed in Swift:

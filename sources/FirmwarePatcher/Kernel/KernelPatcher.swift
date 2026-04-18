@@ -1,4 +1,4 @@
-// KernelPatcher.swift — Regular kernel patcher orchestrator (26 patches).
+// KernelPatcher.swift — Regular kernel patcher orchestrator.
 //
 // Historical note: this file replaces the old Python firmware patcher implementation.
 // Each patch method is defined as an extension in its own file under Patches/.
@@ -11,6 +11,14 @@ import Foundation
 /// Each patch method is an extension in a separate file under `Kernel/Patches/`.
 public final class KernelPatcher: KernelPatcherBase, Patcher {
     public let component = "kernelcache"
+
+    /// When true, includes dev-only kernel patches (e.g. EXC_GUARD disable).
+    public var isDev: Bool = false
+
+    public convenience init(data: Data, verbose: Bool = true, isDev: Bool) {
+        self.init(data: data, verbose: verbose)
+        self.isDev = isDev
+    }
 
     // MARK: - Find All
 
@@ -35,7 +43,11 @@ public final class KernelPatcher: KernelPatcherBase, Patcher {
         patchApfsGraft() // 12
         patchApfsMount() // 13-15
         patchSandbox() // 16-25
-        patchExcGuardBehavior() // 26
+
+        // Dev-only patches (not applied to regular or JB variants)
+        if isDev {
+            patchExcGuardBehavior() // 27 (dev only)
+        }
 
         return patches
     }
