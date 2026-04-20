@@ -260,11 +260,11 @@ echo "  [+] launchd patched"
 echo ""
 echo "[JB-2] Installing iosbinpack64..."
 
+apply_dev_overlay
 scp_to "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "/mnt1"
 ssh_cmd "/usr/bin/tar --preserve-permissions --no-overwrite-dir \
     -xf /mnt1/iosbinpack64.tar -C /mnt1"
 ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
-apply_dev_overlay
 
 echo "  [+] iosbinpack64 installed"
 
