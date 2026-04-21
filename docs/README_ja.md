@@ -21,7 +21,7 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 
 | バリアント | ブートチェーン |     CFW     | Make ターゲット                              |
 | ---------- | :------------: | :---------: | -------------------------------------------- |
-| **Patchless** | 3 パッチ     | 2 フェーズ  | `fw_patch_less` (root) + `boot_less`         |
+| **Patchless** | 3 パッチ     | 2 フェーズ  | `fw_patch_less` + `boot_less`              |
 | **通常版** |   41 パッチ    | 10 フェーズ | `fw_patch` + `cfw_install`                   |
 | **開発版** |   52 パッチ    | 12 フェーズ | `fw_patch_dev` + `cfw_install_dev`           |
 | **脱獄版** |   112 パッチ   | 14 フェーズ | `fw_patch_jb` + `cfw_install_jb`             |

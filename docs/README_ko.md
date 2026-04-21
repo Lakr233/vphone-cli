@@ -21,7 +21,7 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 
 | 변형         | 부트 체인 |    CFW    | Make 타겟                                   |
 | ------------ | :-------: | :-------: | ------------------------------------------- |
-| **Patchless** |  3 패치   | 2 페이즈  | `fw_patch_less` (root) + `boot_less`        |
+| **Patchless** |  3 패치   | 2 페이즈  | `fw_patch_less` + `boot_less`             |
 | **일반**     |  41 패치  | 10 페이즈 | `fw_patch` + `cfw_install`                  |
 | **개발**     |  52 패치  | 12 페이즈 | `fw_patch_dev` + `cfw_install_dev`          |
 | **탈옥**     | 112 패치  | 14 페이즈 | `fw_patch_jb` + `cfw_install_jb`            |

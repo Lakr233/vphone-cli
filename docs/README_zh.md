@@ -21,7 +21,7 @@
 
 | 变体          | 启动链     | 自定义固件 | Make 目标                                   |
 | ------------- | :--------: | :--------: | ------------------------------------------- |
-| **Patchless** | 3 个补丁   | 2 个阶段   | `fw_patch_less` (root) + `boot_less`        |
+| **Patchless** | 3 个补丁   | 2 个阶段   | `fw_patch_less` + `boot_less`              |
 | **常规版**    | 41 个补丁  | 10 个阶段  | `fw_patch` + `cfw_install`                  |
 | **开发版**    | 52 个补丁  | 12 个阶段  | `fw_patch_dev` + `cfw_install_dev`          |
 | **越狱版**    | 112 个补丁 | 14 个阶段  | `fw_patch_jb` + `cfw_install_jb`            |

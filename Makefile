@@ -46,6 +46,7 @@ help:
 	@echo "  make setup_machine                   Full setup through First Boot"
 	@echo "    Options: JB=1                      Jailbreak firmware/CFW path"
 	@echo "             DEV=1                     Dev firmware/CFW path (dev TXM + cfw_install_dev)"
+	@echo "             LESS=1                    Build, keeping iOS security mitigations enabled. 
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
 	@echo "             NONE_INTERACTIVE=1        Auto-continue prompts + boot analysis"
 	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
