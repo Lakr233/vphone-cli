@@ -228,7 +228,7 @@ vm_list:
 			fi; \
 			found=1; \
 		done; \
-		[ "$$found" = "0" ] && echo "  (no backups yet — run: make vm_backup NAME=<name>)"; \
+		if [ "$$found" = "0" ]; then echo "  (no backups yet — run: make vm_backup NAME=<name>)"; fi; \
 	else \
 		echo "  (no backups yet — run: make vm_backup NAME=<name>)"; \
 	fi
