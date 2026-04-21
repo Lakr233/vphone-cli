@@ -159,12 +159,16 @@ struct PatchFirmwareCLI: ParsableCommand {
 
     @Flag(name: .customLong("quiet"), help: "Suppress per-component progress output.")
     var quiet: Bool = false
+    
+    @Flag(name: .customLong("no-binpack"), help: "Exclude the SSH, VNC, ... binaries from being installed (patchless-only).")
+    var noBinpack: Bool = false
 
     mutating func run() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: vmDirectory,
             variant: variant.pipelineVariant,
-            verbose: !quiet
+            verbose: !quiet,
+            noBinpack: noBinpack
         )
         let records = try pipeline.patchAll()
 

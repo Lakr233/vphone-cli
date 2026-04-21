@@ -28,6 +28,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let component = "Filesystem"
     public let restoreDir: URL
     public let verbose: Bool
+    public let noBinpack: Bool
     let vphoneCliDirectory = URL(filePath: "./")
     
     var buildManiest: Data
@@ -36,10 +37,11 @@ public final class CryptexFilesystemPatcher: Patcher {
     
     // MARK: - Init
     
-    public init(buildManiest: Data, restoreDir: URL, verbose: Bool = true) {
+    public init(buildManiest: Data, restoreDir: URL, verbose: Bool = true, noBinpack: Bool = false) {
         self.buildManiest = buildManiest
         self.restoreDir = restoreDir
         self.verbose = verbose
+        self.noBinpack = noBinpack
     }
     
     deinit {
@@ -128,6 +130,11 @@ public final class CryptexFilesystemPatcher: Patcher {
             
             print("- Add vphoned")
             try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
+            if !noBinpack {
+                print("- Add binpack")
+                try addExtraServices(targetMount: targetMount, cfwInput: cfwInputPath)
+            }
+            try injectLaunchDaemons(targetMount: targetMount, cfwInput: cfwInputPath, vphoned: true, cfw: !noBinpack)
             try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
         }
         
@@ -165,6 +172,52 @@ public final class CryptexFilesystemPatcher: Patcher {
         ])
     }
     
+    func injectLaunchDaemons(targetMount: String, cfwInput: URL, vphoned: Bool = true, cfw: Bool = true) throws {
+        let target = URL.init(filePath: targetMount)
+        let scriptDir = vphoneCliDirectory.appending(path: "scripts")
+
+        let tmpDir = try createTmpDir()
+        let launchdPath = tmpDir.appending(path: "launchd.plist")
+        let launchDaemonsPath = tmpDir.appending(path: "launchDaemons")
+        let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
+        try FileManager.default.createDirectory(at: launchDaemonsPath, withIntermediateDirectories: false)
+        try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
+        
+        if vphoned {
+            let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
+            let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
+            try FileManager.default.copyItem(at: vphonedLaunchdPlist,
+                                             to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"))
+            try FileManager.default.copyItem(at: vphonedLaunchdPlist, to: launchDaemonsPath.appending(path: vphonedLaunchdPlist.lastPathComponent))
+        }
+        if cfw {
+            let launchDaemonsDir = cfwInput.appending(path: "cfw_input/jb/LaunchDaemons")
+            let launchDaemons = try FileManager.default.contentsOfDirectory(atPath: launchDaemonsDir.path)
+            for filename in launchDaemons {
+                let launchDaemonUrl = launchDaemonsDir.appending(component: filename)
+                let filename = launchDaemonUrl.lastPathComponent
+                let fsTarget = target.appending(path: "System/Library/LaunchDaemons/\(filename)")
+                try FileManager.default.copyItem(at: launchDaemonUrl, to: fsTarget)
+                try FileManager.default.copyItem(at: launchDaemonUrl, to: launchDaemonsPath.appending(path: filename))
+            }
+        }
+        
+        _ = try runProcess(vphoneCliDirectory.appending(path: ".venv/bin/python3").path, [
+            vphoneCliDirectory.appending(path: "scripts/patchers/cfw.py").path, "inject-daemons",
+            launchdPath.path, launchDaemonsPath.path
+        ])
+        try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
+        _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
+    }
+    
+    func addExtraServices(targetMount: String, cfwInput: URL) throws {
+        _ = try runProcess("/usr/bin/tar", [
+            "--preserve-permissions",
+            "-xf", cfwInput.appending(path: "cfw_input/jb/iosbinpack64.tar").path,
+            "-C", targetMount
+        ])
+    }
+    
     func addVphoned(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let scriptDir = vphoneCliDirectory.appending(path: "scripts")
@@ -184,24 +237,6 @@ public final class CryptexFilesystemPatcher: Patcher {
             targetBin.path
         ])
         _ = try runProcess("/bin/chmod", ["0755", targetBin.path])
-        
-        // Register Launch Daemon
-        let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
-        try FileManager.default.copyItem(at: vphonedLaunchdPlist,
-                                         to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"))
-        let tmpDir = try createTmpDir()
-        let launchdPath = tmpDir.appending(path: "launchd.plist")
-        let launchDaemonsPath = tmpDir.appending(path: "launchDaemons")
-        let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
-        try FileManager.default.createDirectory(at: launchDaemonsPath, withIntermediateDirectories: false)
-        try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
-        try FileManager.default.copyItem(at: vphonedLaunchdPlist, to: launchDaemonsPath.appending(path: vphonedLaunchdPlist.lastPathComponent))
-        _ = try runProcess(vphoneCliDirectory.appending(path: ".venv/bin/python3").path, [
-            vphoneCliDirectory.appending(path: "scripts/patchers/cfw.py").path, "inject-daemons",
-            launchdPath.path, launchDaemonsPath.path
-        ])
-        try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
-        _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
     }
     
     func buildVphoned(vphonedSrc: URL, vphonedBin: URL) throws {

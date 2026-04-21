@@ -49,6 +49,7 @@ help:
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
 	@echo "             NONE_INTERACTIVE=1        Auto-continue prompts + boot analysis"
 	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
+	@echo "             NO_BINPACK=1              Excludes the SSH, VNC, ... binaries from being installed (patchless-only, currently)"
 	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_tools             Install all tools (brew, trustcache, insert_dylib, venv+pymobiledevice3)"
@@ -86,6 +87,7 @@ help:
 	@echo "             CLOUDOS_SOURCE=   URL or local path to cloudOS IPSW"
 	@echo "  make fw_patch                Patch boot chain with Swift pipeline (regular variant)"
 	@echo "  make fw_patch_less           Patch boot chain with Swift pipeline (less patches)"
+	@echo "    Options: NO_BINPACK=1              Excludes the SSH, VNC, ... binaries from being installed"
 	@echo "  make fw_patch_dev            Patch boot chain with Swift pipeline (dev mode TXM patches)"
 	@echo "  make fw_patch_jb             Patch boot chain with Swift pipeline (dev + JB extensions)"
 	@echo ""
@@ -121,6 +123,7 @@ setup_machine:
 	fi
 	SUDO_PASSWORD="$(SUDO_PASSWORD)" \
 	NONE_INTERACTIVE="$(NONE_INTERACTIVE)" \
+	NO_BINPACK="$(NO_BINPACK)" \
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
 		$(if $(filter 1 true yes YES TRUE,$(DEV)),--dev,) \
@@ -291,12 +294,17 @@ fw_prepare:
 fw_patch: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant regular
 
+UID := $(shell id -u)
+ifeq ($(UID),0)
 fw_patch_less: patcher_build
-	@sh -c 'if [ "$$(id -u)" -ne 0 ]; then \
-		echo "fw_patch_less must be run via sudo" >&2; \
-		exit 1; \
-	fi; \
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant less'
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" \
+	--variant less \
+	$(if $(filter 1 true yes YES TRUE,$(NO_BINPACK)),--no-binpack,)
+else
+fw_patch_less:
+	@echo "fw_patch_less must be run via sudo"
+	@exit 1
+endif
 
 fw_patch_dev: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant dev
