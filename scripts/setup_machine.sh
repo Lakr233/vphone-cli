@@ -58,6 +58,8 @@ NONE_INTERACTIVE_RAW="${NONE_INTERACTIVE:-0}"
 NONE_INTERACTIVE=0
 NO_BINPACK_RAW="${NO_BINPACK:-0}"
 NO_BINPACK=0
+NO_VPHONED_RAW="${NO_VPHONED:-0}"
+NO_VPHONED=0
 JB_MODE=0
 DEV_MODE=0
 LESS_MODE=0
@@ -980,6 +982,7 @@ Environment:
   NONE_INTERACTIVE=1      Auto-continue first-boot prompts + run final boot analysis.
   SUDO_PASSWORD=...       Preload sudo credential via askpass.
   NO_BINPACK=1            Excludes the SSH, VNC, ... binaries from being installed (patchless-only, currently)
+  NO_VPHONED=1            Excludes vphoned from being installed (patchless-only, currently)
 EOF
         exit 0
         ;;
@@ -997,6 +1000,9 @@ main() {
   fi
   if parse_bool "$NO_BINPACK_RAW"; then
     NO_BINPACK=1
+  fi
+  if parse_bool "$NO_VPHONED_RAW"; then
+    NO_VPHONED=1
   fi
   setup_sudo_noninteractive
 
@@ -1022,7 +1028,7 @@ main() {
     mode_label="less"
   fi
 
-  echo "[*] setup_machine mode: ${mode_label}, project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run"), non_interactive=${NONE_INTERACTIVE}, no_binpack=${NO_BINPACK}"
+  echo "[*] setup_machine mode: ${mode_label}, project_setup=$([[ "$SKIP_PROJECT_SETUP" -eq 1 ]] && echo "skip" || echo "run"), non_interactive=${NONE_INTERACTIVE}, no_binpack=${NO_BINPACK}, no_vphoned=${NO_VPHONED}"
 
   if [[ "$SKIP_PROJECT_SETUP" -eq 1 ]]; then
     echo ""

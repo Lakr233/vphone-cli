@@ -29,6 +29,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let restoreDir: URL
     public let verbose: Bool
     public let noBinpack: Bool
+    public let noVphoned: Bool
     let vphoneCliDirectory = URL(filePath: "./")
     
     var buildManiest: Data
@@ -37,11 +38,12 @@ public final class CryptexFilesystemPatcher: Patcher {
     
     // MARK: - Init
     
-    public init(buildManiest: Data, restoreDir: URL, verbose: Bool = true, noBinpack: Bool = false) {
+    public init(buildManiest: Data, restoreDir: URL, verbose: Bool = true, noBinpack: Bool = false, noVphoned: Bool = false) {
         self.buildManiest = buildManiest
         self.restoreDir = restoreDir
         self.verbose = verbose
         self.noBinpack = noBinpack
+        self.noVphoned = noVphoned
     }
     
     deinit {
@@ -128,14 +130,18 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Patch Mobile Activation")
             try patchMobileActivation(targetMount: targetMount, cfwInput: cfwInputPath)
             
-            print("- Add vphoned")
-            try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
+            if !noVphoned {
+                print("- Add vphoned")
+                try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
+            }
             if !noBinpack {
                 print("- Add binpack")
                 try addExtraServices(targetMount: targetMount, cfwInput: cfwInputPath)
             }
-            try injectLaunchDaemons(targetMount: targetMount, cfwInput: cfwInputPath, vphoned: true, cfw: !noBinpack)
-            try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
+            if !noVphoned || !noBinpack {
+                try injectLaunchDaemons(targetMount: targetMount, cfwInput: cfwInputPath, vphoned: !noVphoned, cfw: !noBinpack)
+                try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
+            }
         }
         
         print("- Finalizing merged image")

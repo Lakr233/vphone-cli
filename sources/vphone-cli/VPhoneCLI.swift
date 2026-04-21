@@ -52,6 +52,9 @@ struct VPhoneBootCLI: ParsableCommand {
         transform: URL.init(fileURLWithPath:)
     )
     var installIPA: URL?
+    
+    @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned usage (patchless-only).")
+    var noVphoned: Bool = false
 
     /// DFU mode runs headless (no GUI).
     var noGraphics: Bool {
@@ -103,7 +106,8 @@ struct VPhoneBootCLI: ParsableCommand {
             screenPPI: manifest.screenConfig.pixelsPerInch,
             screenScale: manifest.screenConfig.scale,
             kernelDebugPort: kernelDebugPort,
-            variant: variant.virtualMachineVariant
+            variant: variant.virtualMachineVariant,
+            noVphoned: self.noVphoned
         )
     }
 
@@ -163,12 +167,16 @@ struct PatchFirmwareCLI: ParsableCommand {
     @Flag(name: .customLong("no-binpack"), help: "Exclude the SSH, VNC, ... binaries from being installed (patchless-only).")
     var noBinpack: Bool = false
 
+    @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned from being installed (patchless-only).")
+    var noVphoned: Bool = false
+
     mutating func run() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: vmDirectory,
             variant: variant.pipelineVariant,
             verbose: !quiet,
-            noBinpack: noBinpack
+            noBinpack: noBinpack,
+            noVphoned: noVphoned
         )
         let records = try pipeline.patchAll()
 

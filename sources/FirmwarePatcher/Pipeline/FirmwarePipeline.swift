@@ -75,6 +75,7 @@ public final class FirmwarePipeline {
     let variant: Variant
     let verbose: Bool
     let noBinpack: Bool
+    let noVphoned: Bool
     let loader: any FirmwareLoader
 
     // MARK: - Init
@@ -84,12 +85,14 @@ public final class FirmwarePipeline {
         variant: Variant = .regular,
         verbose: Bool = true,
         noBinpack: Bool = false,
+        noVphoned: Bool = false,
         loader: (any FirmwareLoader)? = nil
     ) {
         self.vmDirectory = vmDirectory
         self.variant = variant
         self.verbose = verbose
         self.noBinpack = noBinpack
+        self.noVphoned = noVphoned
         self.loader = loader ?? ContainerFirmwareLoader()
     }
 
@@ -304,7 +307,7 @@ public final class FirmwarePipeline {
                 return switch variant {
                 case .less:
                     [{ data, verbose in
-                        CryptexFilesystemPatcher(buildManiest: data, restoreDir: try! self.findRestoreDirectory(), verbose: verbose, noBinpack: self.noBinpack)
+                        CryptexFilesystemPatcher(buildManiest: data, restoreDir: try! self.findRestoreDirectory(), verbose: verbose, noBinpack: self.noBinpack, noVphoned: self.noVphoned)
                     }]
                 case .regular, .dev, .jb:
                     []

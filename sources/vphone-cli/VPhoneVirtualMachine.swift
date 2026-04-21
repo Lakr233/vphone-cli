@@ -35,6 +35,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         var screenScale: Double = 3.0
         var kernelDebugPort: Int?
         var variant: Variant
+        var noVphoned: Bool
     }
 
     private struct DeviceIdentity {
@@ -224,8 +225,10 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
         config.keyboards = [VZUSBKeyboardConfiguration()]
 
-        // Vsock (host <-> guest control channel, no IP/TCP involved)
-        config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+        if !options.noVphoned {
+            // Vsock (host <-> guest control channel, no IP/TCP involved)
+            config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+        }
 
         // Power source (synthetic battery - guest sees full charge, charging)
         let source = Dynamic._VZMacSyntheticBatterySource()
