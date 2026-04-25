@@ -198,12 +198,23 @@ async def cmd_restore_get_shsh(
     print(f"[+] SHSH saved: {out_path}")
 
 
-async def cmd_restore_update(vm_dir: Path, ecid: Optional[int], udid: Optional[str], erase: bool) -> None:
+async def cmd_restore_update(
+    vm_dir: Path,
+    ecid: Optional[int],
+    udid: Optional[str],
+    erase: bool,
+    tss_path: Optional[Path] = None,
+) -> None:
     restore_dir = find_restore_dir(vm_dir)
     ipsw = IPSW.create_from_path(str(restore_dir))
     behavior = Behavior.Erase if erase else Behavior.Update
     device = await resolve_device(ecid, udid)
-    await Restore(ipsw, device, behavior=behavior, ignore_fdr=False).update()
+    tss = None
+    if tss_path is not None:
+        with tss_path.open("rb") as handle:
+            tss = plistlib.load(handle)
+        print(f"[+] Using cached SHSH: {tss_path}")
+    await Restore(ipsw, device, tss=tss, behavior=behavior, ignore_fdr=False).update()
 
 
 def require_ecid(value: str) -> Optional[int]:
@@ -285,8 +296,15 @@ def restore_update_command(
     ecid: Optional[str] = typer.Option(None, help="Hex ECID (with/without 0x)"),
     udid: Optional[str] = typer.Option(None, help="Target USB UDID"),
     erase: bool = typer.Option(True, "--erase/--no-erase", help="Run update-in-place with --no-erase."),
+    tss: Optional[Path] = typer.Option(
+        None,
+        help="Cached SHSH plist for offline restore (skips Apple TSS request).",
+        exists=False,
+        file_okay=True,
+        dir_okay=False,
+    ),
 ) -> Awaitable[None]:
-    return cmd_restore_update(vm_dir, require_ecid(ecid), udid, erase=erase)
+    return cmd_restore_update(vm_dir, require_ecid(ecid), udid, erase=erase, tss_path=tss)
 
 
 async def main(argv: list[str]) -> None:

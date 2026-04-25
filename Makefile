@@ -98,6 +98,7 @@ help:
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
 	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
+	@echo "  make restore_offline         Restore offline — decrypts AEA images in place, uses cached .shsh blob"
 	@echo ""
 	@echo "Ramdisk:"
 	@echo "  make ramdisk_build           Build signed SSH ramdisk"
@@ -324,19 +325,61 @@ fw_patch_jb: patcher_build
 # Restore
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: restore_get_shsh restore
+.PHONY: restore_get_shsh restore restore_offline
+
+# Resolve ECID from RESTORE_ECID or vm/udid-prediction.txt (written by boot_dfu).
+define _resolve_ecid
+	if [ -n "$(RESTORE_ECID)" ]; then \
+		ECID="$(RESTORE_ECID)"; \
+	elif [ -f "$(CURDIR)/$(VM_DIR)/udid-prediction.txt" ]; then \
+		ECID=$$(grep '^ECID=' "$(CURDIR)/$(VM_DIR)/udid-prediction.txt" | head -1 | cut -d= -f2); \
+	fi; \
+	if [ -z "$$ECID" ]; then \
+		echo "[-] Cannot resolve ECID — set RESTORE_ECID or run 'make boot_dfu' first"; \
+		exit 1; \
+	fi
+endef
 
 restore_get_shsh:
-	cd $(VM_DIR) && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-get-shsh \
+	@$(call _resolve_ecid); \
+	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-get-shsh \
 		--vm-dir . \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
-		$(if $(RESTORE_ECID),--ecid $(RESTORE_ECID),)
+		--ecid "$$ECID"
 
 restore:
-	cd $(VM_DIR) && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
+	@$(call _resolve_ecid); \
+	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
 		--vm-dir . \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
-		$(if $(RESTORE_ECID),--ecid $(RESTORE_ECID),)
+		--ecid "$$ECID"
+
+restore_offline:
+	@$(call _resolve_ecid); \
+	SHSH=$$(ls "$(CURDIR)/$(VM_DIR)/"*.shsh 2>/dev/null | head -1); \
+	if [ -z "$$SHSH" ]; then \
+		echo "[-] No .shsh file in $(VM_DIR)/ — run 'make restore_get_shsh' first"; \
+		exit 1; \
+	fi; \
+	RESTORE_SRC=$$(echo "$(CURDIR)/$(VM_DIR)/iPhone"*_Restore); \
+	if [ ! -d "$$RESTORE_SRC" ]; then \
+		echo "[-] No iPhone*_Restore directory in $(VM_DIR)/"; \
+		exit 1; \
+	fi; \
+	echo "[+] Decrypting AEA images in place..."; \
+	for aea in "$$RESTORE_SRC"/*.dmg.aea; do \
+		[ -f "$$aea" ] || continue; \
+		[ "$$(xxd -l 4 -p "$$aea")" = "41454131" ] || continue; \
+		base=$$(basename "$$aea"); \
+		ipsw fw aea -o "$$RESTORE_SRC" "$$aea" 2>/dev/null; \
+		mv -f "$$RESTORE_SRC/$${base%.aea}" "$$aea"; \
+	done; \
+	echo "[+] Restoring offline with SHSH: $$(basename $$SHSH)"; \
+	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
+		--vm-dir . \
+		--tss "$$SHSH" \
+		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
+		--ecid "$$ECID"
 
 # ═══════════════════════════════════════════════════════════════════
 # Ramdisk
