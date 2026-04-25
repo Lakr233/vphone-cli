@@ -92,6 +92,7 @@ help:
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
 	@echo "  make restore                 idevicerestore to device"
+	@echo "  make restore_offline         idevicerestore offline — pre-decrypts AEA images, serves cached .shsh via local TSS"
 	@echo ""
 	@echo "Ramdisk:"
 	@echo "  make ramdisk_build           Build signed SSH ramdisk"
@@ -289,7 +290,7 @@ fw_patch_jb: patcher_build
 # Restore
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: restore_get_shsh restore
+.PHONY: restore_get_shsh restore restore_offline
 
 restore_get_shsh:
 	cd $(VM_DIR) && "$(CURDIR)/$(IDEVICERESTORE)" \
@@ -302,6 +303,38 @@ restore:
 		$(if $(RESTORE_UDID),-u $(RESTORE_UDID),) \
 		$(if $(RESTORE_ECID),-i $(RESTORE_ECID),) \
 		-e -y ./iPhone*_Restore
+
+restore_offline:
+	@SHSH=$$(ls "$(CURDIR)/$(VM_DIR)/shsh/"*.shsh 2>/dev/null | head -1); \
+	if [ -z "$$SHSH" ]; then \
+		echo "[-] No .shsh file in $(VM_DIR)/shsh/ — run 'make restore_get_shsh' first"; \
+		exit 1; \
+	fi; \
+	RESTORE_SRC=$$(echo "$(CURDIR)/$(VM_DIR)/iPhone"*_Restore); \
+	RESTORE_TMP=$$(mktemp -d /tmp/vphone_restore.XXXXXX); \
+	cp -al "$$RESTORE_SRC/." "$$RESTORE_TMP/"; \
+	echo "[+] Decrypting AEA images..."; \
+	for aea in "$$RESTORE_SRC"/*.dmg.aea; do \
+		[ -f "$$aea" ] || continue; \
+		[ "$$(xxd -l 4 -p "$$aea")" = "41454131" ] || continue; \
+		base=$$(basename "$$aea"); \
+		rm "$$RESTORE_TMP/$$base"; \
+		ipsw fw aea -o "$$RESTORE_TMP" "$$aea" 2>/dev/null; \
+		mv "$$RESTORE_TMP/$${base%.aea}" "$$RESTORE_TMP/$$base"; \
+	done; \
+	echo "[+] Restoring offline with SHSH: $$(basename $$SHSH)"; \
+	python3 "$(CURDIR)/$(SCRIPTS)/tss_server.py" 49494 "$$SHSH" & \
+	TSS_PID=$$!; \
+	sleep 1; \
+	"$(CURDIR)/$(IDEVICERESTORE)" \
+		$(if $(RESTORE_UDID),-u $(RESTORE_UDID),) \
+		$(if $(RESTORE_ECID),-i $(RESTORE_ECID),) \
+		-e -y -s "http://127.0.0.1:49494" \
+		"$$RESTORE_TMP"; \
+	STATUS=$$?; \
+	kill $$TSS_PID 2>/dev/null || true; \
+	rm -rf "$$RESTORE_TMP"; \
+	exit $$STATUS
 
 # ═══════════════════════════════════════════════════════════════════
 # Ramdisk
