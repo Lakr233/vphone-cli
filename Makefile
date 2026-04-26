@@ -371,8 +371,18 @@ restore_offline:
 		[ -f "$$aea" ] || continue; \
 		[ "$$(xxd -l 4 -p "$$aea")" = "41454131" ] || continue; \
 		base=$$(basename "$$aea"); \
-		ipsw fw aea -o "$$RESTORE_SRC" "$$aea" 2>/dev/null; \
-		mv -f "$$RESTORE_SRC/$${base%.aea}" "$$aea"; \
+		if ! ipsw fw aea -o "$$RESTORE_SRC" "$$aea"; then \
+			echo "[-] ipsw fw aea failed for $$base — aborting"; \
+			exit 1; \
+		fi; \
+		if ! mv -f "$$RESTORE_SRC/$${base%.aea}" "$$aea"; then \
+			echo "[-] mv failed for $$base — aborting (decrypted file missing?)"; \
+			exit 1; \
+		fi; \
+		if [ "$$(xxd -l 4 -p "$$aea")" = "41454131" ]; then \
+			echo "[-] $$base still AEA1-encrypted after decrypt — aborting"; \
+			exit 1; \
+		fi; \
 	done; \
 	echo "[+] Restoring offline with SHSH: $$(basename $$SHSH)"; \
 	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
