@@ -158,6 +158,8 @@ make boot_dfu                 # boot VM in DFU mode (keep running)
 # terminal 2
 make restore_get_shsh         # fetch SHSH blob
 make restore                  # flash firmware via pymobiledevice3 restore backend
+# or: make restore_offline    # offline restore (decrypts AEA images in place, uses cached .shsh blob)
+                              # for the first time should be ran with internet access for AEA decryption
 ```
 
 ## Install Custom Firmware
@@ -313,6 +315,15 @@ make fw_patch
 ```
 
 Our patches are applied via binary analysis, not static offsets, so newer versions should work. If something breaks, ask AI for help.
+
+**Q: I used `restore_offline` and I am stuck in the setup screen**
+
+The device is trying to contact apple for the setup, and you are probably not connected to the internet if you used `restore_offline`.
+You can bypass most of the setup screen by making the device supervised:
+
+```bash
+python3 -m pymobiledevice3 profile supervise vphone
+```
 
 ## Automation
 

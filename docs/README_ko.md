@@ -146,6 +146,8 @@ make boot_dfu                 # VM을 DFU 모드로 부팅 (계속 실행 유지
 # 터미널 2
 make restore_get_shsh         # SHSH blob 가져오기
 make restore                  # pymobiledevice3 restore 백엔드로 펌웨어 플래싱
+# 또는: make restore_offline    # 오프라인 복원 (AEA 이미지를 제자리에서 복호화하고 캐시된 .shsh blob 사용)
+                              # 최초 1회는 AEA 복호화를 위해 인터넷 연결이 필요합니다
 ```
 
 ## 커스텀 펌웨어 설치
@@ -295,6 +297,15 @@ make fw_patch
 ```
 
 저희의 패치는 정적 오프셋이 아닌 바이너리 분석을 통해 적용되므로, 최신 버전에서도 작동할 것입니다. 만약 문제가 발생하면 AI에게 도움을 요청하세요.
+
+**Q: `restore_offline`를 사용했더니 설정 화면에서 진행이 멈췄습니다**
+
+설정 과정에서 Apple 서버에 연결을 시도하는데, `restore_offline`를 사용한 경우 인터넷에 연결되어 있지 않을 가능성이 큽니다.
+기기를 supervised 상태로 만들면 설정 화면의 대부분을 우회할 수 있습니다:
+
+```bash
+python3 -m pymobiledevice3 profile supervise vphone
+```
 
 ## 감사 인사
 

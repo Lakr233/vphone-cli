@@ -146,6 +146,8 @@ make boot_dfu                 # 以 DFU 模式启动 VM（保持运行）
 # 终端 2
 make restore_get_shsh         # 获取 SHSH blob
 make restore                  # 通过 pymobiledevice3 restore 后端刷写固件
+# 或：make restore_offline    # 离线恢复（就地解密 AEA 镜像，并使用缓存的 .shsh blob）
+                              # 首次运行需要联网以完成 AEA 解密
 ```
 
 ## 安装自定义固件
@@ -295,6 +297,15 @@ make fw_patch
 ```
 
 我们的补丁是通过二进制分析（binary analysis）而非静态偏移（static offsets）应用的，因此更新的版本应该也能正常工作。如果出现问题，可以寻求 AI 的帮助。
+
+**问：使用 `restore_offline` 后卡在设置界面。**
+
+设备在设置过程中会尝试连接 Apple，如果你使用了 `restore_offline`，很可能当前没有联网。
+你可以将设备设为 supervised，以绕过大部分设置界面：
+
+```bash
+python3 -m pymobiledevice3 profile supervise vphone
+```
 
 ## 致谢
 
