@@ -43,6 +43,7 @@ class VPhoneMenuController {
     var powerSourceRunLoopSource: CFRunLoopSource?
     var powerSourceRetainedPtr: UnsafeMutableRawPointer?
     var lowPowerObserver: (any NSObjectProtocol)?
+    var notifyPostItem: NSMenuItem?
 
     init(keyHelper: VPhoneKeyHelper, control: VPhoneControl) {
         self.keyHelper = keyHelper
