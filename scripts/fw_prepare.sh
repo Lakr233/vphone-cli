@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 DEFAULT_IPHONE_DEVICE="iPhone17,3"
 DEFAULT_IPHONE_SOURCE="https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-13864/668EFC0E-5911-454C-96C6-E1063CB80042/iPhone17,3_26.1_23B85_Restore.ipsw"
-DEFAULT_CLOUDOS_SOURCE="https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349"
+DEFAULT_CLOUDOS_DEVICE="ComputeModule14,2"
 README_PATH="${SCRIPT_DIR}/../README.md"
 
 usage() {
@@ -39,7 +39,17 @@ Environment variables:
   IPHONE_BUILD    Build shorthand to resolve to a downloadable IPSW URL
   IPHONE_SOURCE   Direct iPhone IPSW URL or local path
   CLOUDOS_SOURCE  Direct cloudOS IPSW URL or local path
+  CLOUDOS_DEVICE  AppleDB PCC/VM device used for automatic cloudOS lookup
+                 (default: ${DEFAULT_CLOUDOS_DEVICE})
+  CLOUDOS_PAGE_DATA_URL
+                 AppleDB pageData JSON used for automatic cloudOS lookup
   IPSW_DIR        Directory used to cache downloaded/copied IPSWs
+
+If CLOUDOS_SOURCE is omitted, the script derives the iPhone build prefix
+(for example 23D) from the selected IPSW and picks the newest downloadable
+cloudOS IPSW for the PCC VM device (${DEFAULT_CLOUDOS_DEVICE}) with the same
+prefix. IPHONE_DEVICE selects the donor iPhone restore; CLOUDOS_DEVICE selects
+the cloudOS catalog.
 EOF
 }
 
@@ -105,6 +115,106 @@ derive_cache_ipsw_name() {
     printf '%s-%s.ipsw\n' "$stem" "$suffix"
 }
 
+extract_build_prefix() {
+    local build="$1"
+    [[ "$build" =~ ^([0-9]{2}[A-Z]) ]] || return 1
+    printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+extract_build_from_source() {
+    local src="$1"
+    local base
+    base="${src##*/}"
+    base="${base%%\?*}"
+    base="${base%%\#*}"
+    [[ "$base" =~ _([0-9]{2}[A-Z][0-9A-Z]+)_Restore\.ipsw$ ]] || return 1
+    printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+extract_build_from_ipsw() {
+    local ipsw_path="$1"
+    python3 - "$ipsw_path" <<'PY'
+import plistlib
+import sys
+import zipfile
+
+ipsw_path = sys.argv[1]
+
+with zipfile.ZipFile(ipsw_path) as archive:
+    with archive.open("BuildManifest.plist") as handle:
+        manifest = plistlib.load(handle)
+
+build = manifest.get("ProductBuildVersion")
+if not build:
+    raise SystemExit(1)
+
+print(build)
+PY
+}
+
+download_text() {
+    local src="$1"
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --location --silent --show-error "$src"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- "$src"
+    else
+        die "Need 'curl' or 'wget' to fetch metadata from $src"
+    fi
+}
+
+resolve_cloudos_source() {
+    local iphone_build="$1" page_data_url="$2"
+    local build_prefix page_data
+
+    build_prefix="$(extract_build_prefix "$iphone_build")" \
+        || die "Cannot derive cloudOS build prefix from iPhone build '$iphone_build'"
+    page_data="$(download_text "$page_data_url")" \
+        || die "Failed to fetch cloudOS catalog from $page_data_url"
+
+    APPLEDB_PAGE_DATA="$page_data" python3 - "$build_prefix" <<'PY'
+import json
+import os
+import sys
+
+build_prefix = sys.argv[1]
+
+try:
+    data = json.loads(os.environ["APPLEDB_PAGE_DATA"])
+except json.JSONDecodeError as exc:
+    print(f"Invalid AppleDB pageData JSON: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+entries = data.get("frontmatter", {}).get("versionArr", [])
+for entry in entries:
+    if entry.get("osStr") != "cloudOS":
+        continue
+
+    build = entry.get("build", "")
+    if not build.startswith(build_prefix):
+        continue
+
+    downloads = entry.get("filteredDownloads") or entry.get("downloads") or []
+    url = next((item.get("url", "") for item in downloads if item.get("url")), "")
+    if not url:
+        continue
+
+    print(
+        "\t".join(
+            [
+                entry.get("version", ""),
+                build,
+                url,
+                entry.get("releasedStr", "") or entry.get("released", ""),
+            ]
+        )
+    )
+    raise SystemExit(0)
+
+print(f"No downloadable cloudOS IPSW matched build prefix {build_prefix}", file=sys.stderr)
+raise SystemExit(1)
+PY
+}
 downloadable_ipsw_urls() {
     local device="$1"
     require_command ipsw
@@ -416,6 +526,8 @@ IPHONE_VERSION="${IPHONE_VERSION:-}"
 IPHONE_BUILD="${IPHONE_BUILD:-}"
 IPHONE_SOURCE="${IPHONE_SOURCE:-}"
 CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-}"
+CLOUDOS_DEVICE="${CLOUDOS_DEVICE:-$DEFAULT_CLOUDOS_DEVICE}"
+CLOUDOS_PAGE_DATA_URL="${CLOUDOS_PAGE_DATA_URL:-https://appledb.dev/pageData/device/identifier/${CLOUDOS_DEVICE}.json}"
 IPSW_DIR="${IPSW_DIR:-${SCRIPT_DIR}/../ipsws}"
 
 POSITIONAL=()
@@ -515,26 +627,57 @@ if [[ -n "$IPHONE_VERSION" || -n "$IPHONE_BUILD" ]]; then
 fi
 
 IPHONE_SOURCE="${IPHONE_SOURCE:-$DEFAULT_IPHONE_SOURCE}"
-CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-$DEFAULT_CLOUDOS_SOURCE}"
 
 mkdir -p "$IPSW_DIR"
 
 IPHONE_IPSW="${IPHONE_SOURCE##*/}"
 IPHONE_DIR="${IPHONE_IPSW%.ipsw}"
-CLOUDOS_IPSW="$(derive_cache_ipsw_name "$CLOUDOS_SOURCE" "pcc-base")"
-CLOUDOS_DIR="${CLOUDOS_IPSW%.ipsw}"
 IPHONE_IPSW_PATH="${IPSW_DIR}/${IPHONE_IPSW}"
-CLOUDOS_IPSW_PATH="${IPSW_DIR}/${CLOUDOS_IPSW}"
 
 echo "=== prepare_firmware ==="
 echo "  Device:   $IPHONE_DEVICE"
 echo "  iPhone:   $IPHONE_SOURCE"
-echo "  CloudOS:  $CLOUDOS_SOURCE"
+if [[ -n "$CLOUDOS_SOURCE" ]]; then
+    echo "  CloudOS:  $CLOUDOS_SOURCE"
+else
+    echo "  CloudOS:  auto (${CLOUDOS_DEVICE} prefix match via AppleDB)"
+fi
 echo "  IPSWs:    $IPSW_DIR"
 echo "  Output:   $(pwd)/$IPHONE_DIR/"
 echo ""
 
 fetch "$IPHONE_SOURCE" "$IPHONE_IPSW_PATH"
+
+if [[ -z "$CLOUDOS_SOURCE" ]]; then
+    iphone_build="${selected_build:-}"
+    if [[ -z "$iphone_build" ]]; then
+        if ! iphone_build="$(extract_build_from_source "$IPHONE_SOURCE")"; then
+            echo "==> Reading iPhone build from ${IPHONE_IPSW_PATH##*/} ..."
+            iphone_build="$(extract_build_from_ipsw "$IPHONE_IPSW_PATH")" \
+                || die "Could not determine ProductBuildVersion from ${IPHONE_IPSW_PATH##*/}"
+        fi
+    fi
+
+    cloudos_selection="$(resolve_cloudos_source "$iphone_build" "$CLOUDOS_PAGE_DATA_URL")" \
+        || die "Could not resolve a matching cloudOS IPSW for iPhone build $iphone_build"
+    IFS=$'\t' read -r cloudos_version cloudos_build cloudos_url cloudos_released <<<"$cloudos_selection"
+    CLOUDOS_SOURCE="$cloudos_url"
+
+    echo "==> Selected cloudOS firmware:"
+    echo "    Device:   $CLOUDOS_DEVICE"
+    echo "    Prefix:   $(extract_build_prefix "$iphone_build")"
+    echo "    Version:  $cloudos_version"
+    echo "    Build:    $cloudos_build"
+    echo "    URL:      $cloudos_url"
+    if [[ -n "$cloudos_released" ]]; then
+        echo "    Released: $cloudos_released"
+    fi
+fi
+
+CLOUDOS_IPSW="$(derive_cache_ipsw_name "$CLOUDOS_SOURCE" "pcc-base")"
+CLOUDOS_DIR="${CLOUDOS_IPSW%.ipsw}"
+CLOUDOS_IPSW_PATH="${IPSW_DIR}/${CLOUDOS_IPSW}"
+
 fetch "$CLOUDOS_SOURCE" "$CLOUDOS_IPSW_PATH"
 
 IPHONE_CACHE="${IPSW_DIR}/${IPHONE_DIR}"
