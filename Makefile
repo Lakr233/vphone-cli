@@ -59,7 +59,9 @@ help:
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
-	@echo "  make clean                   Remove all build artifacts (keeps IPSWs)"
+	@echo "  make clean                   Remove build/tooling artifacts only"
+	@echo "    Options: CLEAN_VM=1        Also remove VM_DIR=$(VM_DIR) after confirmation"
+	@echo "             CLEAN_IPSW=1      Also remove ipsws/ after confirmation"
 	@echo ""
 	@echo "VM management:"
 	@echo "  make vm_new                  Create VM directory with manifest (config.plist)"
@@ -140,13 +142,41 @@ setup_tools:
 	VARIANT=$(VARIANT) zsh $(SCRIPTS)/setup_tools.sh
 
 # ═══════════════════════════════════════════════════════════════════
-# Clean — remove all untracked/ignored files (preserves IPSWs only)
+# Clean — remove generated build/tooling files by default.
+# Destructive VM/IPSW cleanup is opt-in and requires confirmation.
 # ═══════════════════════════════════════════════════════════════════
 
 .PHONY: clean
 clean:
-	@echo "=== Cleaning all untracked files (preserving IPSWs) ==="
-	git clean -fdx -e '*.ipsw' -e '*_Restore*'
+	@set -e; \
+	echo "=== Cleaning build/tooling artifacts ==="; \
+	echo "Removing: .build .swiftpm .vphoned.signed $(VENV) $(TOOLS_PREFIX)"; \
+	if [ "$(CLEAN_VM)" = "1" ] || [ "$(CLEAN_IPSW)" = "1" ]; then \
+		echo ""; \
+		echo "WARNING: destructive clean requested."; \
+		[ "$(CLEAN_VM)" = "1" ] && echo "  VM directory: $(VM_DIR)/"; \
+		[ "$(CLEAN_IPSW)" = "1" ] && echo "  IPSW cache:   ipsws/"; \
+	fi; \
+	echo "This removes local build output and dependency/tool caches."; \
+	printf "Continue with clean? [y/N] "; \
+	read answer; \
+	case "$$answer" in y|Y|yes|YES) ;; *) \
+		echo "[-] Clean cancelled; no files removed."; \
+		exit 1; \
+	esac; \
+	if [ "$(CLEAN_VM)" = "1" ] || [ "$(CLEAN_IPSW)" = "1" ]; then \
+		printf "Also remove destructive targets above? [y/N] "; \
+		read answer; \
+		case "$$answer" in y|Y|yes|YES) ;; *) \
+			echo "[-] Destructive clean cancelled; no files removed."; \
+			exit 1; \
+		esac; \
+	fi; \
+	rm -rf .build .swiftpm .vphoned.signed "$(VENV)" "$(TOOLS_PREFIX)"; \
+	if [ "$(CLEAN_VM)" = "1" ] || [ "$(CLEAN_IPSW)" = "1" ]; then \
+		if [ "$(CLEAN_VM)" = "1" ]; then rm -rf "$(VM_DIR)"; fi; \
+		if [ "$(CLEAN_IPSW)" = "1" ]; then rm -rf ipsws; fi; \
+	fi
 
 # ═══════════════════════════════════════════════════════════════════
 # Build
