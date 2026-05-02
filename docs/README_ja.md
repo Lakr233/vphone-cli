@@ -119,6 +119,16 @@ make fw_patch                 # ブートチェーンのパッチ当て（通常
 # または: make fw_patch_jb    # 脱獄バリアント（dev + 完全セキュリティバイパス）
 ```
 
+### クリーンアップ
+
+```bash
+make clean                    # 確認後、ビルド/ツール関連の生成物のみ削除
+make clean CLEAN_VM=1         # 2回目の確認後、vm/ も削除
+make clean CLEAN_IPSW=1       # 2回目の確認後、ipsws/ も削除
+```
+
+通常の clean では `vm/` や `ipsws/` は削除されません。
+
 ### VM 設定
 
 v1.0 から、VM 設定は `vm/config.plist` に保存されます。VM 作成時に CPU、メモリ、ディスクサイズを設定します：

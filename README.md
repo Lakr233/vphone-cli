@@ -131,6 +131,16 @@ make fw_patch                 # patch boot chain (regular variant)
 # or: make fw_patch_jb        # jailbreak variant (+ full security bypass)
 ```
 
+### Cleaning
+
+```bash
+make clean                    # asks before removing build/tooling artifacts only
+make clean CLEAN_VM=1         # also remove vm/ after a second confirmation
+make clean CLEAN_IPSW=1       # also remove ipsws/ after a second confirmation
+```
+
+Default clean never removes `vm/` or `ipsws/`.
+
 ### VM Configuration
 
 Starting from v1.0, VM configuration is stored in `vm/config.plist`. Set CPU, memory, and disk size during VM creation:
