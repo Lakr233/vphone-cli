@@ -94,7 +94,7 @@ Boot into Recovery (long press power button), open Terminal, then choose one set
 1. Brew dependencies:
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
 `scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
