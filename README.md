@@ -134,9 +134,9 @@ make fw_patch                 # patch boot chain (regular variant)
 ### Cleaning
 
 ```bash
-make clean                    # asks before removing build/tooling artifacts only
-make clean CLEAN_VM=1         # also remove vm/ after a second confirmation
-make clean CLEAN_IPSW=1       # also remove ipsws/ after a second confirmation
+make clean                    # remove build/tooling artifacts only
+make clean CLEAN_VM=1         # also remove vm/ after confirmation
+make clean CLEAN_IPSW=1       # also remove ipsws/ after confirmation
 ```
 
 Default clean never removes `vm/` or `ipsws/`.

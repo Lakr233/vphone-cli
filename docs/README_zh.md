@@ -122,9 +122,9 @@ make fw_patch                 # 修补启动链（常规变体）
 ### 清理
 
 ```bash
-make clean                    # 确认后仅删除构建/工具链产物
-make clean CLEAN_VM=1         # 二次确认后同时删除 vm/
-make clean CLEAN_IPSW=1       # 二次确认后同时删除 ipsws/
+make clean                    # 仅删除构建/工具链产物
+make clean CLEAN_VM=1         # 确认后同时删除 vm/
+make clean CLEAN_IPSW=1       # 确认后同时删除 ipsws/
 ```
 
 默认清理不会删除 `vm/` 或 `ipsws/`。

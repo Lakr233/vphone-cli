@@ -122,9 +122,9 @@ make fw_patch                 # 부트 체인 패치 (일반 변형)
 ### 정리
 
 ```bash
-make clean                    # 확인 후 빌드/도구 산출물만 삭제
-make clean CLEAN_VM=1         # 두 번째 확인 후 vm/ 도 삭제
-make clean CLEAN_IPSW=1       # 두 번째 확인 후 ipsws/ 도 삭제
+make clean                    # 빌드/도구 산출물만 삭제
+make clean CLEAN_VM=1         # 확인 후 vm/ 도 삭제
+make clean CLEAN_IPSW=1       # 확인 후 ipsws/ 도 삭제
 ```
 
 기본 clean은 `vm/` 또는 `ipsws/` 를 삭제하지 않습니다.

@@ -122,9 +122,9 @@ make fw_patch                 # ブートチェーンのパッチ当て（通常
 ### クリーンアップ
 
 ```bash
-make clean                    # 確認後、ビルド/ツール関連の生成物のみ削除
-make clean CLEAN_VM=1         # 2回目の確認後、vm/ も削除
-make clean CLEAN_IPSW=1       # 2回目の確認後、ipsws/ も削除
+make clean                    # ビルド/ツール関連の生成物のみ削除
+make clean CLEAN_VM=1         # 確認後、vm/ も削除
+make clean CLEAN_IPSW=1       # 確認後、ipsws/ も削除
 ```
 
 通常の clean では `vm/` や `ipsws/` は削除されません。

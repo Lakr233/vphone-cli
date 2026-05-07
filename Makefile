@@ -156,20 +156,11 @@ clean:
 		echo "WARNING: destructive clean requested."; \
 		[ "$(CLEAN_VM)" = "1" ] && echo "  VM directory: $(VM_DIR)/"; \
 		[ "$(CLEAN_IPSW)" = "1" ] && echo "  IPSW cache:   ipsws/"; \
-	fi; \
-	echo "This removes local build output and dependency/tool caches."; \
-	printf "Continue with clean? [y/N] "; \
-	read answer; \
-	case "$$answer" in y|Y|yes|YES) ;; *) \
-		echo "[-] Clean cancelled; no files removed."; \
-		exit 1; \
-	esac; \
-	if [ "$(CLEAN_VM)" = "1" ] || [ "$(CLEAN_IPSW)" = "1" ]; then \
 		printf "Also remove destructive targets above? [y/N] "; \
 		read answer; \
 		case "$$answer" in y|Y|yes|YES) ;; *) \
 			echo "[-] Destructive clean cancelled; no files removed."; \
-			exit 1; \
+			exit 0; \
 		esac; \
 	fi; \
 	rm -rf .build .swiftpm .vphoned.signed "$(VENV)" "$(TOOLS_PREFIX)"; \
