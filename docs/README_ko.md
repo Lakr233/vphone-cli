@@ -84,7 +84,7 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 **의존성(Dependencies) 설치:**
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
 `scripts/fw_prepare.sh` 는 더 빠른 다중 연결 다운로드를 위해 `aria2c` 를 우선 사용하고, 필요하면 `curl` 또는 `wget` 으로 폴백합니다.

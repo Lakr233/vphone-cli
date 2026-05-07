@@ -84,7 +84,7 @@
 **安装依赖：**
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
 `scripts/fw_prepare.sh` 会优先使用 `aria2c` 进行更快的多连接下载，必要时再回退到 `curl` 或 `wget`。

@@ -27,7 +27,7 @@ ensure_repo_submodule() {
 
 echo "[1/5] Checking brew packages..."
 
-BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass)
+BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass zstd)
 BREW_MISSING=()
 
 for pkg in "${BREW_PACKAGES[@]}"; do

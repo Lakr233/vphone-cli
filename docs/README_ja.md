@@ -84,7 +84,7 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 **依存関係のインストール:**
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
 `scripts/fw_prepare.sh` は高速な多重接続ダウンロードのために `aria2c` を優先し、必要に応じて `curl` または `wget` にフォールバックします。
