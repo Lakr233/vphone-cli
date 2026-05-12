@@ -218,8 +218,10 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         }
         
         if let obj1 = Dynamic._VZMacVideoToolboxDeviceConfiguration().asObject,
-           let obj2 = Dynamic._VZMacNeuralEngineDeviceConfiguration().asObject {
-            Dynamic(config)._setAcceleratorDevices([obj1,obj2])
+           let obj2 = Dynamic._VZMacNeuralEngineDeviceConfiguration().asObject,
+           let obj3 = Dynamic._VZMacScalerAcceleratorDeviceConfiguration().asObject
+        {
+            Dynamic(config)._setAcceleratorDevices([obj1,obj2,obj3])
             print("[vphone] Accelerator devices configured")
         }
 
