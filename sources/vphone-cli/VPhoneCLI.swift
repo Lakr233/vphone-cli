@@ -120,6 +120,7 @@ struct PatchFirmwareCLI: ParsableCommand {
         case regular
         case dev
         case jb
+        case exp
 
         var pipelineVariant: FirmwarePipeline.Variant {
             switch self {
@@ -127,15 +128,17 @@ struct PatchFirmwareCLI: ParsableCommand {
             case .regular: .regular
             case .dev: .dev
             case .jb: .jb
+            case .exp: .exp
             }
         }
-        
+
         var virtualMachineVariant: VPhoneVirtualMachine.Variant {
             switch self {
             case .less: .less
             case .regular: .regular
             case .dev: .dev
             case .jb: .jb
+            case .exp: .exp
             }
         }
     }

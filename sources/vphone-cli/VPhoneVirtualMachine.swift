@@ -18,6 +18,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         case regular
         case dev
         case jb
+        case exp
     }
     
     struct Options {

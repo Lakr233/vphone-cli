@@ -46,12 +46,18 @@ help:
 	@echo "  make setup_machine                   Full setup through First Boot"
 	@echo "    Options: JB=1                      Jailbreak firmware/CFW path"
 	@echo "             DEV=1                     Dev firmware/CFW path (dev TXM + cfw_install_dev)"
+	@echo "             EXP=1                     Experimental firmware/CFW path (JB + EXP-only patches:"
+	@echo "                                       kernel hv_vmm rename, DSC byte-5 mangle, watchdogd surgical,"
+	@echo "                                       DT identity properties, post-restore DT rewrite, opt-in build spoof)"
 	@echo "             LESS=1                    Build, keeping iOS security mitigations enabled."
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
 	@echo "             NONE_INTERACTIVE=1        Auto-continue prompts + boot analysis"
 	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
 	@echo "             NO_BINPACK=1              Excludes the SSH, VNC, ... binaries from being installed (patchless-only, currently)"
 	@echo "             NO_VPHONED=1              Excludes vphoned from being installed (patchless-only, currently)"
+	@echo "             SPOOF_BUILD=<id>          (EXP only) Rewrite ProductBuildVersion in SystemVersion.plist to <id>"
+	@echo "                                       e.g. SPOOF_BUILD=23F77 makes Settings -> About show that build."
+	@echo "                                       Omitted/empty -> EXP-JB-7 skipped, build version stays at the IPSW value."
 	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_tools             Install all tools (brew, trustcache, insert_dylib, venv+pymobiledevice3)"
@@ -96,6 +102,7 @@ help:
 	@echo "             NO_VPHONED=1              Excludes vphoned from being installed"
 	@echo "  make fw_patch_dev            Patch boot chain with Swift pipeline (dev mode TXM patches)"
 	@echo "  make fw_patch_jb             Patch boot chain with Swift pipeline (dev + JB extensions)"
+	@echo "  make fw_patch_exp            Patch boot chain with Swift pipeline (JB + EXP experimental)"
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
@@ -110,6 +117,7 @@ help:
 	@echo "  make cfw_install             Install CFW mods via SSH"
 	@echo "  make cfw_install_dev         Install CFW mods via SSH (dev mode)"
 	@echo "  make cfw_install_jb          Install CFW + JB extensions (jetsam/procursus/basebin)"
+	@echo "  make cfw_install_exp         Install CFW + JB + EXP experimental (hv_vmm rename, post-restore DT, build spoof)"
 	@echo ""
 	@echo "Variables: VM_DIR=$(VM_DIR) CPU=$(CPU) MEMORY=$(MEMORY) DISK_SIZE=$(DISK_SIZE)"
 
@@ -123,18 +131,21 @@ setup_machine:
 	@if count=0; \
 	  [ -n "$(filter 1 true yes YES TRUE,$(JB))" ] && count=$$((count+1)); \
 	  [ -n "$(filter 1 true yes YES TRUE,$(DEV))" ] && count=$$((count+1)); \
+	  [ -n "$(filter 1 true yes YES TRUE,$(EXP))" ] && count=$$((count+1)); \
 	  [ -n "$(filter 1 true yes YES TRUE,$(LESS))" ] && count=$$((count+1)); \
 	  [ $$count -gt 1 ]; then \
-		echo "Error: JB=1, DEV=1, and LESS=1 are mutually exclusive"; \
+		echo "Error: JB=1, DEV=1, EXP=1, and LESS=1 are mutually exclusive"; \
 		exit 1; \
 	fi
 	SUDO_PASSWORD="$(SUDO_PASSWORD)" \
 	NONE_INTERACTIVE="$(NONE_INTERACTIVE)" \
 	NO_BINPACK="$(NO_BINPACK)" \
 	NO_VPHONED="$(NO_VPHONED)" \
+	SPOOF_BUILD="$(SPOOF_BUILD)" \
 	zsh $(SCRIPTS)/setup_machine.sh \
 		$(if $(filter 1 true yes YES TRUE,$(JB)),--jb,) \
 		$(if $(filter 1 true yes YES TRUE,$(DEV)),--dev,) \
+		$(if $(filter 1 true yes YES TRUE,$(EXP)),--exp,) \
 		$(if $(filter 1 true yes YES TRUE,$(LESS)),--less,) \
 		$(if $(filter 1 true yes YES TRUE,$(SKIP_PROJECT_SETUP)),--skip-project-setup,)
 
@@ -342,6 +353,9 @@ fw_patch_dev: patcher_build
 fw_patch_jb: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant jb
 
+fw_patch_exp: patcher_build
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant exp
+
 # ═══════════════════════════════════════════════════════════════════
 # Restore
 # ═══════════════════════════════════════════════════════════════════
@@ -429,7 +443,7 @@ ramdisk_send:
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: cfw_install cfw_install_dev cfw_install_jb
+.PHONY: cfw_install cfw_install_dev cfw_install_jb cfw_install_exp
 
 cfw_install:
 	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
@@ -439,3 +453,6 @@ cfw_install_dev:
 
 cfw_install_jb:
 	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_jb.sh" .
+
+cfw_install_exp:
+	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") $(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_exp.sh" .
