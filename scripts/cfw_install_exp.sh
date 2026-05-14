@@ -556,6 +556,55 @@ else
     fi
 fi
 
+# ═══════════ EXP-JB-7 BUILD-VERSION REWRITE (SystemVersion.plist) ══
+#
+# OPT-IN. Only runs when SPOOF_BUILD is set in the environment (e.g.
+# `make setup_machine JB=1 SPOOF_BUILD=23F77` or `make cfw_install_jb
+# SPOOF_BUILD=23F77`). When SPOOF_BUILD is unset/empty the step is
+# skipped entirely and the build identifier stays at whatever the IPSW
+# shipped.
+#
+# What it does (when enabled): flips ProductBuildVersion in the two
+# SystemVersion.plist files iOS reads for "Build" display and
+# MGCopyAnswer("BuildVersion"):
+#   /System/Library/CoreServices/SystemVersion.plist                       (rootfs)
+#   /private/preboot/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist (Cryptex)
+#
+# Both are plain plist files (no Apple signature on individual plists),
+# so no image4 / cdHash / TXM concerns. Both volumes are writable at
+# install time:
+#   /mnt1 (rootfs)  — writable before the install-time seal is established
+#   /mnt5 (preboot) — apfs writable
+#
+# After this, Settings -> About -> Build, MG BuildVersion key, and every
+# framework that reads SystemVersion.plist see the new identifier.
+# `sysctl kern.osversion` still reports the kernel image's own build
+# (e.g. 23B78 from the PCC vphone600/vresearch101 kernel) — that comes
+# from a kernel global populated at boot from boot args, not from this
+# plist.
+if [[ -n "${SPOOF_BUILD:-}" ]]; then
+    echo ""
+    echo "[EXP-JB-7] Rewriting ProductBuildVersion to $SPOOF_BUILD in SystemVersion plists..."
+
+    for jb7_remote in \
+        "/mnt1/System/Library/CoreServices/SystemVersion.plist" \
+        "/mnt5/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist"
+    do
+        if ssh_cmd "test -f '$jb7_remote'" 2>/dev/null; then
+            jb7_local="$TEMP_DIR/$(echo "$jb7_remote" | tr '/' '_').plist"
+            scp_from "$jb7_remote" "$jb7_local"
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_build_version.py" \
+                "$jb7_local" "$SPOOF_BUILD"
+            scp_to "$jb7_local" "$jb7_remote"
+        else
+            echo "  [-] $jb7_remote not found, skipping"
+        fi
+    done
+else
+    echo ""
+    echo "[EXP-JB-7] Skipped — SPOOF_BUILD not set (pass SPOOF_BUILD=<id> to enable)"
+fi
+
 # ═══════════ CLEANUP ═════════════════════════════════════════
 echo ""
 echo "[*] Unmounting device filesystems..."
