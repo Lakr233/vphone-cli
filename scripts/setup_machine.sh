@@ -62,6 +62,7 @@ NO_VPHONED_RAW="${NO_VPHONED:-0}"
 NO_VPHONED=0
 JB_MODE=0
 DEV_MODE=0
+EXP_MODE=0
 LESS_MODE=0
 SKIP_PROJECT_SETUP=0
 
@@ -962,6 +963,9 @@ parse_args() {
       --dev)
         DEV_MODE=1
         ;;
+      --exp)
+        EXP_MODE=1
+        ;;
       --less)
         LESS_MODE=1
         ;;
@@ -970,11 +974,15 @@ parse_args() {
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: setup_machine.sh [--jb] [--dev] [--skip-project-setup]
+Usage: setup_machine.sh [--jb] [--dev] [--exp] [--less] [--skip-project-setup]
 
 Options:
   --jb                    Use jailbreak firmware patching + jailbreak CFW install.
   --dev                   Use dev firmware patching + dev CFW install.
+  --exp                   Use experimental firmware patching + EXP CFW install
+                          (JB + kernel hv_vmm rename, DSC byte-5 mangle, watchdogd
+                          surgical patch, DT identity properties, post-restore DT
+                          rewrite, opt-in build-version spoof via SPOOF_BUILD).
   --less                  Use patchless firmware patching + CFW install.
   --skip-project-setup    Skip setup_tools/build stage.
 
@@ -983,6 +991,8 @@ Environment:
   SUDO_PASSWORD=...       Preload sudo credential via askpass.
   NO_BINPACK=1            Excludes the SSH, VNC, ... binaries from being installed (patchless-only, currently)
   NO_VPHONED=1            Excludes vphoned from being installed (patchless-only, currently)
+  SPOOF_BUILD=<id>        (EXP only) Rewrite SystemVersion.plist ProductBuildVersion
+                          to <id> (e.g. 23F77). Omitted/empty -> skipped.
 EOF
         exit 0
         ;;
@@ -1010,8 +1020,8 @@ main() {
   local cfw_install_target="cfw_install"
   local mode_label="base"
 
-  if (( JB_MODE + DEV_MODE + LESS_MODE > 1 )); then
-    die "--jb, --dev, and --less are mutually exclusive"
+  if (( JB_MODE + DEV_MODE + EXP_MODE + LESS_MODE > 1 )); then
+    die "--jb, --dev, --exp, and --less are mutually exclusive"
   fi
 
   if [[ "$JB_MODE" -eq 1 ]]; then
@@ -1022,6 +1032,10 @@ main() {
     fw_patch_target="fw_patch_dev"
     cfw_install_target="cfw_install_dev"
     mode_label="dev"
+  elif [[ "$EXP_MODE" -eq 1 ]]; then
+    fw_patch_target="fw_patch_exp"
+    cfw_install_target="cfw_install_exp"
+    mode_label="experimental"
   elif [[ "$LESS_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_less"
     cfw_install_target=""
@@ -1118,7 +1132,7 @@ main() {
     BOOT_FIFO=""
   fi
 
-  if [[ "$JB_MODE" -eq 1 ]]; then
+  if [[ "$JB_MODE" -eq 1 || "$EXP_MODE" -eq 1 ]]; then
     echo ""
     echo "=== JB Finalize ==="
     echo "[*] JB finalization will run automatically on first normal boot"
