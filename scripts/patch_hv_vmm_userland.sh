@@ -1,7 +1,7 @@
 #!/bin/zsh
 # patch_hv_vmm_userland.sh — Apply the user-mode hv_vmm_present patch.
 #
-# Two operations, chosen by the first arg:
+# Three operations, chosen by the first arg:
 #
 #   dsc <chunks_dir>
 #       Patch the canonical sysctlbyname("kern.hv_vmm_present", ...) sites
@@ -14,6 +14,15 @@
 #   standalone <binary>
 #       Patch a single standalone Mach-O file in place. Idempotent.
 #       Caller is responsible for re-signing (ldid).
+#
+#   watchdogd <binary>
+#       Surgical 2-instruction patch of /usr/libexec/watchdogd that
+#       forces its cached "am I a VM?" byte to 1 regardless of the
+#       sysctl result. Also re-attests the affected CodeDirectory slot
+#       hash (the binary stays self-consistent for TXM/SHA-256). Do NOT
+#       re-sign with ldid — the patcher leaves the original Apple-issued
+#       code-signing identifier intact, which launchd boot-task identity
+#       checks require.
 #
 # This script is a thin wrapper around `scripts/patchers/cfw.py`. It
 # exists so cfw_install_dev.sh and cfw_install_jb.sh can call a single
@@ -42,6 +51,7 @@ usage() {
 Usage:
   $0 dsc <chunks_dir>
   $0 standalone <binary>
+  $0 watchdogd <binary>
 EOF
     exit 2
 }
@@ -59,6 +69,11 @@ case "$op" in
         (( $# >= 1 )) || usage
         echo "[*] Patching hv_vmm_present consumers in: $1"
         "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-hv-vmm "$1"
+        ;;
+    watchdogd)
+        (( $# >= 1 )) || usage
+        echo "[*] Patching watchdogd hv_vmm_present cache in: $1"
+        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-watchdogd "$1"
         ;;
     *)
         usage

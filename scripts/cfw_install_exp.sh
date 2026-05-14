@@ -357,6 +357,40 @@ ssh_cmd "/bin/chmod 0755 /mnt1/usr/libexec/debugserver"
 echo "  [+] debugserver entitlements patched"
 
 
+# ═══════════ EXP-JB-3.5 PATCH watchdogd hv_vmm_present cache ══
+#
+# Background: the kernel-side OID rename (KernelEXPPatchHvVmmRename)
+# makes sysctlbyname("kern.hv_vmm_present", ...) return ENOENT on this
+# image. watchdogd caches that answer at startup and uses it to decide
+# whether to look for the IOWatchdog kext. The unpatched flow takes
+# the "not on a VM" branch on ENOENT, fails to find the kext (it
+# doesn't exist on the VM), calls _os_crash -> brk #1, and launchd's
+# `_PanicOnCrash` knob in com.apple.watchdogd.plist escalates the
+# resulting SIGTRAP to a kernel panic.
+#
+# Patch shape: two-instruction surgical edit at every site in
+# watchdogd that has the canonical
+#   adrp/add(kern.hv_vmm_present) -> bl _sysctlbyname -> cbnz w0,skip
+#       -> cset wN,ne -> strb wN,[global]
+# shape. The edit forces the cached byte to 1 regardless of the
+# sysctl result, so the downstream branch at +0x58e0 takes watchdogd's
+# pre-existing "detected virtual machine environment" clean-exit path.
+# The patcher also recomputes the affected CodeDirectory slot hashes
+# (cfw_macho_codesign) so TXM still accepts the modified pages on
+# demand-page-in. We deliberately do NOT re-sign with ldid — the
+# Apple-issued code-signing identifier ("com.apple.watchdogd") must be
+# preserved for launchd boot-task identity validation.
+echo ""
+echo "[EXP-JB-3.5] Patching watchdogd hv_vmm_present cache..."
+
+scp_from "/mnt1/usr/libexec/watchdogd" "$TEMP_DIR/watchdogd"
+"$SCRIPT_DIR/patch_hv_vmm_userland.sh" watchdogd "$TEMP_DIR/watchdogd"
+scp_to "$TEMP_DIR/watchdogd" "/mnt1/usr/libexec/watchdogd"
+ssh_cmd "/bin/chmod 0755 /mnt1/usr/libexec/watchdogd"
+
+echo "  [+] watchdogd patched"
+
+
 # ═══════════ JB-4 INSTALL PROCURSUS BOOTSTRAP ══════════════════
 echo ""
 echo "[JB-4] Installing procursus bootstrap..."
