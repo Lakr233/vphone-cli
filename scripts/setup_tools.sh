@@ -25,7 +25,7 @@ ensure_repo_submodule() {
 
 # ── Brew packages ──────────────────────────────────────────────
 
-echo "[1/5] Checking brew packages..."
+echo "[1/4] Checking brew packages..."
 
 BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass zstd)
 BREW_MISSING=()
@@ -45,7 +45,7 @@ fi
 
 # ── Trustcache ─────────────────────────────────────────────────
 
-echo "[2/5] trustcache"
+echo "[2/4] trustcache"
 
 TRUSTCACHE_BIN="$TOOLS_PREFIX/bin/trustcache"
 if [[ -x "$TRUSTCACHE_BIN" ]]; then
@@ -74,7 +74,7 @@ fi
 
 # ── insert_dylib ───────────────────────────────────────────────
 
-echo "[3/5] insert_dylib"
+echo "[3/4] insert_dylib"
 
 INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then
@@ -90,41 +90,8 @@ fi
 
 # ── Python venv ────────────────────────────────────────────────
 
-echo "[4/5] Python venv"
+echo "[4/4] Python venv"
 zsh "$SCRIPT_DIR/setup_venv.sh"
-
-# ── APFS sealvolume (patchless variant only) ──────────────────────
-
-VARIANT="${VARIANT:-}"
-
-if [[ "$VARIANT" == "less" ]]; then
-    echo "[5/5] apfs sealvolume"
-    if [[ -f "$TOOLS_PREFIX/apfs_sealvolume" ]]; then
-        echo "  apfs_sealvolume already present"
-    else
-        TMP_DIR="$(mktemp -d)"
-        ipsw download appledb \
-        --os macOS \
-        --build 25D2140 \
-        --pattern "094-33864-054.dmg" \
-        --output "$TMP_DIR"
-
-        RAMDISK_IM4P="$TMP_DIR/25D2140__MacOS/094-33864-054.dmg"
-        RAMDISK="$TMP_DIR/ramdisk.dmg"
-        ipsw img4 im4p extract --output "$RAMDISK" "$RAMDISK_IM4P"
-
-        MOUNT=$(hdiutil attach -readonly -nobrowse "$RAMDISK" | awk 'END{ print$NF}')
-        cp "$MOUNT/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume" \
-        "$TOOLS_PREFIX/apfs_sealvolume"
-        hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-        rm -rf "$TMP_DIR"
-        echo "  Downloaded: $TOOLS_PREFIX/apfs_sealvolume"
-        echo "  Resigning apfs_sealvolume"
-        codesign --force --sign - "$TOOLS_PREFIX/apfs_sealvolume"
-    fi
-else
-    echo "[5/5] apfs sealvolume (skipped — patchless variant only)"
-fi
 
 echo ""
 echo "All tools installed."

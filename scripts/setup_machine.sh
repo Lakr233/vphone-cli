@@ -1053,11 +1053,7 @@ main() {
     install_brew_deps
     ensure_python_linked
 
-    if [[ "$LESS_MODE" -eq 1 ]]; then
-      VARIANT=less run_make "Project setup" setup_tools
-    else
-      run_make "Project setup" setup_tools
-    fi
+    run_make "Project setup" setup_tools
     run_make "Project setup" build
   fi
 
@@ -1066,10 +1062,11 @@ main() {
   export PATH="$PROJECT_ROOT/.venv/bin:$PATH"
 
   run_make "Firmware prep" vm_new
-  run_make "Firmware prep" fw_prepare
   if [[ "$LESS_MODE" -eq 0 ]]; then
+    run_make "Firmware prep" fw_prepare
     run_make "Firmware patch" "$fw_patch_target"
   else
+    VARIANT=less run_make "Firmware prep" fw_prepare
     run_make_sudo "Firmware patch" "$fw_patch_target"
   fi
 

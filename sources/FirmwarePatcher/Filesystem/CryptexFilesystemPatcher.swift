@@ -394,6 +394,11 @@ public final class CryptexFilesystemPatcher: Patcher {
         return im4pPath
     }
     
+    func identify_apfs_sealvolume() throws -> URL {
+        let iosVersion = try getProductVersion()
+        return self.vphoneCliDirectory.appending(path: ".tools/apfs_sealvolume_\(iosVersion)")
+    }
+    
     func createDigestAndHash(filesystem: URL, mtree: URL, remap: Bool) throws -> (URL, URL) {
         let (device, mount) = try attachImage(path: filesystem)
         defer { try? detachImage(deviceNode: device) }
@@ -423,7 +428,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         FileManager.default.createFile(atPath: mtreeRemapPath.path, contents: remapContent.data(using: .utf8))
 
         try unmount(mount: mount)
-        let sealvolume = self.vphoneCliDirectory.appending(path: ".tools/apfs_sealvolume")
+        let sealvolume = try identify_apfs_sealvolume()
         _ = try runProcess(sealvolume.path, [
             "-R", mtreeRemapPath.path,
             "-U", digestDbPath.path, // Save digest records
@@ -613,6 +618,14 @@ public final class CryptexFilesystemPatcher: Patcher {
 
         let remaining = childPath.dropFirst(basePath.count)
         return remaining.joined(separator: "/")
+    }
+    
+    func getProductVersion() throws -> String {
+        var root = try parsePlist(data: buildManiest)
+        guard let productVersion = root["ProductVersion"] as? String else {
+            throw FirmwareManifest.ManifestError.missingKey("ProductVersion in BuildManifest")
+        }
+        return productVersion
     }
     
     func getTrustcachePath() throws -> String {
