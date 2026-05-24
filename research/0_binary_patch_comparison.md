@@ -36,29 +36,33 @@
 
 ### iBSS
 
-| #   | Patch                               | Purpose                                                       | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------------------------- | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded iBSS" in serial log                                   |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass (`b.ne` -> NOP, `mov x0,x22` -> `mov x0,#0`) |    Y    |  Y  |  Y  |
-| 3   | Skip `generate_nonce`               | Keep apnonce stable for SHSH (`tbz` -> unconditional `b`)     |    -    |  -  |  Y  |
+| #   | Patch                               | Purpose                                                                                                            | Regular | Dev | JB  |
+| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | :-----: | :-: | :-: |
+| 1   | Serial labels (2x)                  | "Loaded iBSS" in serial log                                                                                        |    Y    |  Y  |  Y  |
+| 2   | `image4_validate_property_callback` | Signature bypass (`b.ne` -> NOP, `mov x0,x22` -> `mov x0,#0`)                                                      |    Y    |  Y  |  Y  |
+| 3   | Skip `generate_nonce`               | Keep apnonce stable for SHSH (`tbz` -> unconditional `b`)                                                          |    -    |  -  |  Y  |
+| 4   | Modern bootx-handoff panic bypass   | `IBootPatcher.patchBootxPrecondition` NOPs gate TBZ via structural anchor (no hash/line tied); no-op pre-26.4 |    Y    |  Y  |  Y  |
 
 ### iBEC
 
-| #   | Patch                               | Purpose                                    | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------ | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded iBEC" in serial log                |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass                           |    Y    |  Y  |  Y  |
-| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` |    Y    |  Y  |  Y  |
+| #   | Patch                               | Purpose                                                                                                            | Regular | Dev | JB  |
+| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | :-----: | :-: | :-: |
+| 1   | Serial labels (2x)                  | "Loaded iBEC" in serial log                                                                                        |    Y    |  Y  |  Y  |
+| 2   | `image4_validate_property_callback` | Signature bypass                                                                                                   |    Y    |  Y  |  Y  |
+| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s`                                                                         |    Y    |  Y  |  Y  |
+| 4   | Modern bootx-handoff panic bypass   | `IBootPatcher.patchBootxPrecondition` NOPs gate TBZ via structural anchor (no hash/line tied); no-op pre-26.4      |    Y    |  Y  |  Y  |
+| 5   | Ramdisk boot-args overwrite         | `ramdisk_build.py:patch_ibec_bootargs` rewrites string to `... rd=md0 ... wdt=-1 ...` (ramdisk-send iBEC only)     |    Y    |  Y  |  Y  |
 
 ### LLB
 
-| #   | Patch                               | Purpose                                    | Regular | Dev | JB  |
-| --- | ----------------------------------- | ------------------------------------------ | :-----: | :-: | :-: |
-| 1   | Serial labels (2x)                  | "Loaded LLB" in serial log                 |    Y    |  Y  |  Y  |
-| 2   | `image4_validate_property_callback` | Signature bypass                           |    Y    |  Y  |  Y  |
-| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s` |    Y    |  Y  |  Y  |
-| 4   | Rootfs bypass (5 patches)           | Allow edited rootfs loading                |    Y    |  Y  |  Y  |
-| 5   | Panic bypass                        | NOP `cbnz` after `mov w8,#0x328` check     |    Y    |  Y  |  Y  |
+| #   | Patch                               | Purpose                                                                                                            | Regular | Dev | JB  |
+| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | :-----: | :-: | :-: |
+| 1   | Serial labels (2x)                  | "Loaded LLB" in serial log                                                                                         |    Y    |  Y  |  Y  |
+| 2   | `image4_validate_property_callback` | Signature bypass                                                                                                   |    Y    |  Y  |  Y  |
+| 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s`                                                                         |    Y    |  Y  |  Y  |
+| 4   | Rootfs bypass (5 patches)           | Allow edited rootfs loading                                                                                        |    Y    |  Y  |  Y  |
+| 5   | Panic bypass                        | NOP `cbnz` after `mov w8,#0x328` check                                                                             |    Y    |  Y  |  Y  |
+| 6   | Modern bootx-handoff panic bypass   | `IBootPatcher.patchBootxPrecondition` NOPs gate TBZ via structural anchor (no hash/line tied); no-op pre-26.4 |    Y    |  Y  |  Y  |
 
 ### TXM
 
