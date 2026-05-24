@@ -5,8 +5,8 @@
 //
 // Patch schedule by mode:
 //   ibss — serial labels + image4 callback
-//   ibec — ibss + boot-args + bootx precondition (if present)
-//   llb  — ibec + rootfs bypass (5 patches) + panic bypass
+//   ibec — serial labels + image4 callback + boot-args + bootx precondition (if present)
+//   llb  — serial labels + image4 callback + boot-args + rootfs bypass (5 patches) + panic bypass
 
 import Capstone
 import Foundation

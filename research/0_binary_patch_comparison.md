@@ -41,7 +41,6 @@
 | 1   | Serial labels (2x)                  | "Loaded iBSS" in serial log                                                                                        |    Y    |  Y  |  Y  |
 | 2   | `image4_validate_property_callback` | Signature bypass (`b.ne` -> NOP, `mov x0,x22` -> `mov x0,#0`)                                                      |    Y    |  Y  |  Y  |
 | 3   | Skip `generate_nonce`               | Keep apnonce stable for SHSH (`tbz` -> unconditional `b`)                                                          |    -    |  -  |  Y  |
-| 4   | Modern bootx-handoff panic bypass   | `IBootPatcher.patchBootxPrecondition` NOPs gate TBZ via structural anchor (no hash/line tied); no-op pre-26.4 |    Y    |  Y  |  Y  |
 
 ### iBEC
 
@@ -62,7 +61,6 @@
 | 3   | Boot-args redirect                  | ADRP+ADD -> `serial=3 -v debug=0x2014e %s`                                                                         |    Y    |  Y  |  Y  |
 | 4   | Rootfs bypass (5 patches)           | Allow edited rootfs loading                                                                                        |    Y    |  Y  |  Y  |
 | 5   | Panic bypass                        | NOP `cbnz` after `mov w8,#0x328` check                                                                             |    Y    |  Y  |  Y  |
-| 6   | Modern bootx-handoff panic bypass   | `IBootPatcher.patchBootxPrecondition` NOPs gate TBZ via structural anchor (no hash/line tied); no-op pre-26.4 |    Y    |  Y  |  Y  |
 
 ### TXM
 
@@ -528,7 +526,7 @@ cache rebuild.
 | ---------------------------------- | ------: | --: | --: | --: |
 | AVPBooter                          |       1 |   1 |   1 |   1 |
 | iBSS                               |       2 |   2 |   3 |   3 |
-| iBEC                               |       3 |   3 |   3 |   3 |
+| iBEC                               |       4 |   4 |   4 |   4 |
 | LLB                                |       6 |   6 |   6 |   6 |
 | TXM                                |       1 |  12 |  12 |  12 |
 | Kernel (base)                      |      28 |  29 |  28 |  28 |
@@ -536,12 +534,12 @@ cache rebuild.
 | Kernel (EXP methods, `hv_vmm`)     |       - |   - |   - |   6 |
 | DeviceTree base properties         |       4 |   4 |   4 |   4 |
 | DeviceTree EXP identity properties |       - |   - |   - |   8 |
-| Boot chain total                   |      45 |  57 | 116 | 130 |
+| Boot chain total                   |      46 |  58 | 117 | 131 |
 | CFW binary patches (base)          |       4 |   5 |   6 |   6 |
 | CFW EXP-only steps                 |       - |   - |   - |   4 (DSC pre-patch, watchdogd EXP-JB-3.5, post-restore DT EXP-JB-6, build-version EXP-JB-7 opt-in) |
 | CFW installed components           |       6 |   7 |   9 |   9 |
 | CFW total                          |      10 |  12 |  15 |  19 |
-| Grand total                        |      55 |  69 | 131 | 149 |
+| Grand total                        |      56 |  70 | 132 | 150 |
 
 ## Ramdisk Variant Matrix
 

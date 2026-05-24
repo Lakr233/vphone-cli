@@ -21,11 +21,11 @@ Five patch variants are available with increasing levels of security bypass:
 
 | Variant          | Boot Chain     |    CFW     | Make Targets                        |
 | ---------------- | :------------: | :--------: | ----------------------------------- |
-| **Patchless**    | 3 patches      | 2 phases   | `fw_patch_less` + `boot_less`       |
-| **Regular**      | 41 patches     | 10 phases  | `fw_patch` + `cfw_install`          |
-| **Development**  | 52 patches     | 12 phases  | `fw_patch_dev` + `cfw_install_dev`  |
-| **Jailbreak**    | 112 patches    | 14 phases  | `fw_patch_jb` + `cfw_install_jb`    |
-| **Experimental** | 140 patches    | 18 phases  | `fw_patch_exp` + `cfw_install_exp`  |
+| **Patchless**    | 4 patches      | 2 phases   | `fw_patch_less` + `boot_less`       |
+| **Regular**      | 42 patches     | 10 phases  | `fw_patch` + `cfw_install`          |
+| **Development**  | 53 patches     | 12 phases  | `fw_patch_dev` + `cfw_install_dev`  |
+| **Jailbreak**    | 113 patches    | 14 phases  | `fw_patch_jb` + `cfw_install_jb`    |
+| **Experimental** | 141 patches    | 18 phases  | `fw_patch_exp` + `cfw_install_exp`  |
 
 > JB finalization (symlinks, Sileo, apt, TrollStore) runs automatically on first boot via `/cores/vphone_jb_setup.sh` LaunchDaemon. Monitor progress: `/var/log/vphone_jb_setup.log`.
 

@@ -21,10 +21,10 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 
 | バリアント    | ブートチェーン     |     CFW      | Make ターゲット                              |
 | ------------- | :----------------: | :----------: | -------------------------------------------- |
-| **Patchless** | 3 パッチ           | 2 フェーズ   | `fw_patch_less` + `boot_less`              |
-| **通常版**    | 41 パッチ          | 10 フェーズ  | `fw_patch` + `cfw_install`                   |
-| **開発版**    | 52 パッチ          | 12 フェーズ  | `fw_patch_dev` + `cfw_install_dev`           |
-| **脱獄版**    | 112 パッチ         | 14 フェーズ  | `fw_patch_jb` + `cfw_install_jb`             |
+| **Patchless** | 4 パッチ           | 2 フェーズ   | `fw_patch_less` + `boot_less`              |
+| **通常版**    | 42 パッチ          | 10 フェーズ  | `fw_patch` + `cfw_install`                   |
+| **開発版**    | 53 パッチ          | 12 フェーズ  | `fw_patch_dev` + `cfw_install_dev`           |
+| **脱獄版**    | 113 パッチ         | 14 フェーズ  | `fw_patch_jb` + `cfw_install_jb`             |
 | **実験版**    | 脱獄 + EXP 専用    | 脱獄 + EXP   | `fw_patch_exp` + `cfw_install_exp`           |
 
 > JB最終設定（シンボリックリンク、Sileo、apt、TrollStore）は `/cores/vphone_jb_setup.sh` LaunchDaemon により初回起動時に自動実行されます。進捗確認：`/var/log/vphone_jb_setup.log`。

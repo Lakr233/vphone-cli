@@ -21,10 +21,10 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 
 | 변형           | 부트 체인         |    CFW     | Make 타겟                                   |
 | -------------- | :---------------: | :--------: | ------------------------------------------- |
-| **Patchless**  |  3 패치           | 2 페이즈   | `fw_patch_less` + `boot_less`             |
-| **일반**       |  41 패치          | 10 페이즈  | `fw_patch` + `cfw_install`                  |
-| **개발**       |  52 패치          | 12 페이즈  | `fw_patch_dev` + `cfw_install_dev`          |
-| **탈옥**       | 112 패치          | 14 페이즈  | `fw_patch_jb` + `cfw_install_jb`            |
+| **Patchless**  |  4 패치           | 2 페이즈   | `fw_patch_less` + `boot_less`             |
+| **일반**       |  42 패치          | 10 페이즈  | `fw_patch` + `cfw_install`                  |
+| **개발**       |  53 패치          | 12 페이즈  | `fw_patch_dev` + `cfw_install_dev`          |
+| **탈옥**       | 113 패치          | 14 페이즈  | `fw_patch_jb` + `cfw_install_jb`            |
 | **실험**       | 탈옥 + EXP 전용   | 탈옥 + EXP | `fw_patch_exp` + `cfw_install_exp`          |
 
 > JB 최종 설정(심볼릭 링크, Sileo, apt, TrollStore)은 `/cores/vphone_jb_setup.sh` LaunchDaemon을 통해 첫 번째 부팅 시 자동으로 실행됩니다. 진행 상황 확인: `/var/log/vphone_jb_setup.log`.

@@ -21,10 +21,10 @@
 
 | 变体           | 启动链           | 自定义固件 | Make 目标                                   |
 | -------------- | :--------------: | :--------: | ------------------------------------------- |
-| **Patchless**  | 3 个补丁         | 2 个阶段   | `fw_patch_less` + `boot_less`              |
-| **常规版**     | 41 个补丁        | 10 个阶段  | `fw_patch` + `cfw_install`                  |
-| **开发版**     | 52 个补丁        | 12 个阶段  | `fw_patch_dev` + `cfw_install_dev`          |
-| **越狱版**     | 112 个补丁       | 14 个阶段  | `fw_patch_jb` + `cfw_install_jb`            |
+| **Patchless**  | 4 个补丁         | 2 个阶段   | `fw_patch_less` + `boot_less`              |
+| **常规版**     | 42 个补丁        | 10 个阶段  | `fw_patch` + `cfw_install`                  |
+| **开发版**     | 53 个补丁        | 12 个阶段  | `fw_patch_dev` + `cfw_install_dev`          |
+| **越狱版**     | 113 个补丁       | 14 个阶段  | `fw_patch_jb` + `cfw_install_jb`            |
 | **实验版**     | 越狱 + EXP 专属  | 越狱 + EXP | `fw_patch_exp` + `cfw_install_exp`          |
 
 > 越狱最终配置（符号链接、Sileo、apt、TrollStore）通过 `/cores/vphone_jb_setup.sh` LaunchDaemon 在首次启动时自动运行。查看进度：`/var/log/vphone_jb_setup.log`。
