@@ -4,6 +4,10 @@
 
 # ─── Configuration (override with make VAR=value) ─────────────────
 VM_DIR      ?= vm
+# Absolute VM path: handles both relative (default `vm`) and absolute
+# (e.g. external SSD) VM_DIR values. `abspath` leaves absolute paths intact
+# and joins relative ones against CURDIR — use this for the VM directory arg.
+VM_DIR_ABS  := $(abspath $(VM_DIR))
 CPU         ?= 8          # CPU cores (only used during vm_new)
 MEMORY      ?= 8192       # Memory in MB (only used during vm_new)
 DISK_SIZE   ?= 64         # Disk size in GB (only used during vm_new)
@@ -332,12 +336,12 @@ fw_prepare:
 	cd $(VM_DIR) && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
 
 fw_patch: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant regular
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular
 
 UID := $(shell id -u)
 ifeq ($(UID),0)
 fw_patch_less: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" \
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" \
 	--variant less \
 	$(if $(filter 1 true yes YES TRUE,$(NO_BINPACK)),--no-binpack,)
 	$(if $(filter 1 true yes YES TRUE,$(NO_VPHONED)),--no-vphoned,)
@@ -348,13 +352,13 @@ fw_patch_less:
 endif
 
 fw_patch_dev: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant dev
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant dev
 
 fw_patch_jb: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant jb
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant jb
 
 fw_patch_exp: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(CURDIR)/$(VM_DIR)" --variant exp
+	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant exp
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore
@@ -366,8 +370,8 @@ fw_patch_exp: patcher_build
 define _resolve_ecid
 	if [ -n "$(RESTORE_ECID)" ]; then \
 		ECID="$(RESTORE_ECID)"; \
-	elif [ -f "$(CURDIR)/$(VM_DIR)/udid-prediction.txt" ]; then \
-		ECID=$$(grep '^ECID=' "$(CURDIR)/$(VM_DIR)/udid-prediction.txt" | head -1 | cut -d= -f2); \
+	elif [ -f "$(VM_DIR_ABS)/udid-prediction.txt" ]; then \
+		ECID=$$(grep '^ECID=' "$(VM_DIR_ABS)/udid-prediction.txt" | head -1 | cut -d= -f2); \
 	fi; \
 	if [ -z "$$ECID" ]; then \
 		echo "[-] Cannot resolve ECID — set RESTORE_ECID or run 'make boot_dfu' first"; \
@@ -391,12 +395,12 @@ restore:
 
 restore_offline:
 	@$(call _resolve_ecid); \
-	SHSH=$$(ls "$(CURDIR)/$(VM_DIR)/"*.shsh 2>/dev/null | head -1); \
+	SHSH=$$(ls "$(VM_DIR_ABS)/"*.shsh 2>/dev/null | head -1); \
 	if [ -z "$$SHSH" ]; then \
 		echo "[-] No .shsh file in $(VM_DIR)/ — run 'make restore_get_shsh' first"; \
 		exit 1; \
 	fi; \
-	RESTORE_SRC=$$(echo "$(CURDIR)/$(VM_DIR)/iPhone"*_Restore); \
+	RESTORE_SRC=$$(echo "$(VM_DIR_ABS)/iPhone"*_Restore); \
 	if [ ! -d "$$RESTORE_SRC" ]; then \
 		echo "[-] No iPhone*_Restore directory in $(VM_DIR)/"; \
 		exit 1; \
