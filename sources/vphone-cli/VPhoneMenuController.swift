@@ -35,6 +35,12 @@ class VPhoneMenuController {
     var locationReplayStopItem: NSMenuItem?
     var screenRecorder: VPhoneScreenRecorder?
     var recordingItem: NSMenuItem?
+    var cameraServer: VPhoneCameraServer?
+    var cameraStatusItem: NSMenuItem?
+    var cameraSourceOffItem: NSMenuItem?
+    var cameraSourceTestPatternItem: NSMenuItem?
+    var cameraSourceVideoFileItem: NSMenuItem?
+    var cameraStartStopItem: NSMenuItem?
     weak var captureView: VPhoneVirtualMachineView?
     var batterySyncEnabled = false
     var batterySyncStatusItem: NSMenuItem?
