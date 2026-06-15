@@ -29,6 +29,16 @@ Commands:
         the mounted SystemOS Cryptex). Targets a fixed list of identity,
         store, and consumer-service dylibs; skips compute/accel libs.
 
+    patch-camera-dsc <chunks_dir> <dsc_header> [--dry-run] [--force]
+        Apply the 10-patch set to the DSC chunks that makes Camera.app
+        launch-survivable on a vphone VM: synthesises a single
+        `vphone-cam` AVCaptureDevice through `cameracaptured`'s
+        device-list / discovery-session / serializer paths and stubs out
+        the AVFoundation init-time validation that would otherwise crash
+        on the synthetic device. <dsc_header> is the
+        dyld_shared_cache_arm64e file (not a chunk) used for
+        `ipsw dyld symaddr` symbol resolution.
+
     patch-watchdogd <binary> [--dry-run]
         Surgical 2-instruction patch of /usr/libexec/watchdogd's
         sysctlbyname("kern.hv_vmm_present", ...) caching block so the
@@ -64,6 +74,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_mobileactivationd import patch_mobileactivationd
     from patchers.cfw_patch_jetsam import patch_launchd_jetsam
     from patchers.cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
+    from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
     from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons
 else:
@@ -72,6 +83,7 @@ else:
     from .cfw_patch_mobileactivationd import patch_mobileactivationd
     from .cfw_patch_jetsam import patch_launchd_jetsam
     from .cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
+    from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
     from .cfw_daemons import parse_cryptex_paths, inject_daemons
 
@@ -127,6 +139,15 @@ def main():
         results = patch_hv_vmm_in_dsc(sys.argv[2], dry_run=dry_run)
         sys.exit(0)
 
+    elif cmd == "patch-camera-dsc":
+        if len(sys.argv) < 4:
+            print("Usage: patch_cfw.py patch-camera-dsc <chunks_dir> <dsc_header> [--dry-run] [--force]")
+            sys.exit(1)
+        dry_run = "--dry-run" in sys.argv[4:]
+        force   = "--force"   in sys.argv[4:]
+        apply_all_camera_patches(sys.argv[2], sys.argv[3], dry_run=dry_run, force=force)
+        sys.exit(0)
+
     elif cmd == "patch-watchdogd":
         if len(sys.argv) < 3:
             print("Usage: patch_cfw.py patch-watchdogd <binary> [--dry-run]")
@@ -171,7 +192,7 @@ def main():
 
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader,")
+        print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
         print("          patch-hv-vmm-dsc, patch-watchdogd, inject-daemons, inject-dylib")
         sys.exit(1)
