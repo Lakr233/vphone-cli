@@ -49,6 +49,7 @@
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
 #include <mach/mach.h>
+#include <malloc/malloc.h>
 #include <notify.h>
 #include <ptrauth.h>
 #include <pthread.h>
@@ -241,7 +242,9 @@ static uintptr_t vcc_bl_target(uintptr_t bl_pc, uint32_t bl) {
 //
 //   bl  <objc_msgSend$boolValue>     ; w0  = [prewarmingEnabledRet boolValue]
 //   mov x25, x0                       ; 0xAA0003F9
-//   ldr x2, [sp, #576]                ; 0xF94123E2 — copy of bundleID outparam
+//   ldr x2, [sp, #<imm>]              ; F9400000 | (imm12<<10) | (31<<5) | 2
+//                                     ;   — copy of bundleID outparam; offset
+//                                     ;   is compiler-chosen, so mask it off
 //   mov x0, x22                       ; 0xAA1603E0 — clientSI string
 //   bl  <objc_msgSend$isEqualToString:>; w0  = [clientSI isEqualToString:bundleID]
 //   cbz w0,  SKIP                     ; (insn & 0xFF00001F) == 0x34000000  → patch
@@ -254,7 +257,9 @@ static uintptr_t vcc_find_per_source_filter(const vcc_image_t *img) {
   if (!img->text || img->text_words < 6) return 0;
   for (size_t i = 0; i + 5 < img->text_words; i++) {
     if (img->text[i]     != 0xAA0003F9u) continue;          // mov x25, x0
-    if (img->text[i + 1] != 0xF94123E2u) continue;          // ldr x2, [sp,#576]
+    // ldr x2, [sp, #?] — any sp-relative 64-bit load into x2. The stack
+    // offset is a compiler-chosen frame slot and shifts between builds.
+    if ((img->text[i + 1] & 0xFFC003FFu) != 0xF94003E2u) continue;
     if (img->text[i + 2] != 0xAA1603E0u) continue;          // mov x0, x22
     if ((img->text[i + 3] & 0xFC000000u) != 0x94000000u)    // BL (don't care)
       continue;
@@ -392,6 +397,26 @@ static int vcc_patch_word(uintptr_t pc, uint32_t expected_word,
   return 1;
 }
 
+// Scan the image's __text for every occurrence of `needle` and rewrite
+// each to `replacement` via vcc_patch_word. Replaces hardcoded image
+// VMAs for patches whose addresses we don't know per-build but whose
+// instruction encoding is a stable fingerprint (e.g. `mov w20, #-12783`
+// MOVN encodings used for error-prep). Returns the count patched.
+static unsigned vcc_scan_and_patch(const vcc_image_t *img,
+                                    uint32_t needle, uint32_t replacement,
+                                    const char *what) {
+  if (!img->text || !img->text_words) return 0;
+  unsigned hits = 0;
+  for (size_t i = 0; i < img->text_words; i++) {
+    if (img->text[i] != needle) continue;
+    uintptr_t pc = (uintptr_t)&img->text[i];
+    if (vcc_patch_word(pc, needle, replacement)) hits++;
+  }
+  vcc_log(@"  scan_and_patch %s (0x%08x -> 0x%08x): %u hit(s)",
+          what ? what : "?", needle, replacement, hits);
+  return hits;
+}
+
 // Scan __text for the daemon's client-allowlist filter sequence:
 //   bl  <FigCaptureCopyClientCodeSigningIdentifier>   ; X
 //   bl  <objc_autorelease_stub>                       ; (don't care about target)
@@ -526,6 +551,101 @@ static uintptr_t vcc_find_data_xref(const vcc_image_t *img, unsigned offset) {
   vcc_log(@"  xref scan #%u: %u candidates, winner 0x%lx with %u hits",
           offset, n_cands, (unsigned long)cands[best].addr, best_hits);
   return cands[best].addr;
+}
+
+// Read a pointer-sized value from `addr` and store in `*out`. The
+// slot addresses we feed this function are always in CMCapture's
+// __DATA / __DATA_CONST segments (filtered upstream by
+// vcc_addr_in_data) so the read itself is safe — those pages are
+// mapped read-something into the process. Wrapped in a function for
+// future swap-in of a safer reader if the constraint changes.
+static BOOL vcc_safe_read_ptr(uintptr_t addr, uintptr_t *out) {
+  if (!addr || !out) return NO;
+  *out = *(uintptr_t *)addr;
+  return YES;
+}
+
+// arm64e ISA class-pointer mask, per libobjc's objc-private.h:
+// `#define ISA_MASK 0x00007ffffffffff8ULL`. Bits 0-2 are isa flags
+// (has_assoc / has_cxx_dtor / is_indexed), bits 3-46 are the class
+// pointer (44 bits), bits 47-63 are PAC + magic-signature bits.
+#define VCC_ISA_CLASS_MASK 0x00007FFFFFFFFFF8ULL
+
+// Returns YES if the value stored at `slot_addr` is a pointer to a
+// heap-allocated CFArray instance. Uses malloc_zone_from_ptr to
+// confirm the candidate pointer was returned by malloc (safe for any
+// 64-bit value; never dereferences) before reading its isa. CFArray
+// instances are always heap allocations from the default malloc zone,
+// so a non-heap value can't be _sSourceList.
+static BOOL vcc_slot_value_is_cfarray(uintptr_t slot_addr) {
+  uintptr_t val_ptr = 0;
+  if (!vcc_safe_read_ptr(slot_addr, &val_ptr)) return NO;
+  if (!val_ptr) return NO;
+  if (val_ptr < 0x100000000ULL || val_ptr > 0x800000000000ULL) return NO;
+  // malloc_zone_from_ptr returns NULL for non-malloc pointers — this
+  // is the safe pre-deref guard. CFArray instances are always heap-
+  // allocated, so any candidate whose slot value isn't heap-owned is
+  // definitionally not _sSourceList.
+  malloc_zone_t *zone = malloc_zone_from_ptr((const void *)val_ptr);
+  if (!zone) return NO;
+  // Now safe to dereference: the value is a confirmed heap allocation.
+  uintptr_t isa = *(uintptr_t *)val_ptr;
+  uintptr_t isa_class = isa & VCC_ISA_CLASS_MASK;
+  if (!isa_class) return NO;
+  static const char *array_classes[] = {
+      "__NSCFArray", "__NSArrayM", "__NSArrayI", "__NSArray0",
+      "__NSSingleObjectArrayI", "NSArray", "NSMutableArray",
+      "NSCFArray", NULL,
+  };
+  for (unsigned i = 0; array_classes[i]; i++) {
+    Class c = objc_getClass(array_classes[i]);
+    if (!c) continue;
+    uintptr_t c_class = ((uintptr_t)c) & VCC_ISA_CLASS_MASK;
+    if (isa_class == c_class) return YES;
+  }
+  return NO;
+}
+
+// Walk a function's body and collect every (BL <X> ; adrp + str x0,
+// [Xn, #imm]) pair into `out_addrs`, returning the count. Useful for
+// extracting the data-global init sequence of a static-init block —
+// each pair represents one "store the result of a function call into
+// a static global" site. The init block for CMCapture's source-list
+// statics emits one such pair per global it initializes; the first
+// one is `_sSourceList`.
+static unsigned vcc_collect_call_then_store_globals(
+    uintptr_t func, unsigned maxInsns, unsigned lookahead,
+    uintptr_t *out_addrs, unsigned cap) {
+  if (!func || !out_addrs || !cap) return 0;
+  func = (uintptr_t)ptrauth_strip((void *)func, ptrauth_key_function_pointer);
+  uint32_t *ip = (uint32_t *)func;
+  unsigned n = 0;
+  for (unsigned i = 0; i < maxInsns && n < cap; i++) {
+    uint32_t insn = ip[i];
+    if ((insn & 0xFC000000u) != 0x94000000u) continue;  // BL
+    for (unsigned j = 1; j <= lookahead && i + j + 1 < maxInsns; j++) {
+      uint32_t adrp = ip[i + j];
+      if ((adrp & 0x9F000000u) != 0x90000000u) continue;
+      uint32_t rd_adrp = adrp & 0x1Fu;
+      uint32_t str = ip[i + j + 1];
+      if ((str & 0xFFC00000u) != 0xF9000000u) continue;
+      uint32_t rt = str & 0x1Fu;
+      uint32_t rn = (str >> 5) & 0x1Fu;
+      uint32_t off = ((str >> 10) & 0xFFFu) * 8;
+      if (rt != 0) continue;
+      if (rn != rd_adrp) continue;
+      uintptr_t adrp_pc = (uintptr_t)&ip[i + j];
+      uintptr_t target = vcc_adrp_target(adrp_pc, adrp) + off;
+      // Dedup
+      BOOL dup = NO;
+      for (unsigned k = 0; k < n; k++) {
+        if (out_addrs[k] == target) { dup = YES; break; }
+      }
+      if (!dup) out_addrs[n++] = target;
+      break;
+    }
+  }
+  return n;
 }
 
 // Resolve a CFString constant by symbol name.
@@ -849,59 +969,6 @@ static void vcc_install_synthetic(void) {
     vcc_log(@"  per-source filter not located — daemon will skip our source");
   }
 
-  // captureSession_buildGraphWithConfiguration bails (returns OSStatus
-  // -12780) when [FigCaptureVideoThumbnailSinkPipeline initWithGraph:...]
-  // returns nil — which it does for our synth because we don't back the
-  // thumbnail output path. Empirically confirmed via lldb on iOS 26.5
-  // build 23F77: buildGraph entered ~17 times with our session, every
-  // call returned 0xffffce14.
-  //
-  // The check is `cbz x0, <bail>` at static 0x1ae2b5284:
-  //   B401_4E60  ; cbz x0, +0x29CC  (-> 0x1ae2b7c50, bail block)
-  // We rewrite it to:
-  //   B400_00A0  ; cbz x0, +0x14    (-> 0x1ae2b5298, loop increment)
-  // so if the thumbnail init returns nil, the graph builder skips
-  // -addVideoThumbnailSinkPipeline: and continues the per-source loop
-  // instead of bailing the entire graph. The session ends up without a
-  // thumbnail sink, but the preview/video-data sinks still build.
-  //
-  // (One of four -12780 bail paths in buildGraph — others are
-  // cameraCalibrationDataSinkPipeline and two unnamed sub-pipelines at
-  // lines 0x3700/0x37f0. Patch them only if test shows the next bail
-  // fires.)
-  // (Temporarily disabled — confirming whether these cbz patches broke
-  // enumeration / Loupe visibility before re-enabling.)
-#if 0
-  {
-    uintptr_t patch_pc = 0x1ae2b5284 + img.slide;
-    vcc_patch_word(patch_pc,
-                   /*expected*/ 0xB4014E60u,   // cbz x0, +0x29CC
-                   /*new*/      0xB40000A0u);  // cbz x0, +0x14
-  }
-#endif
-
-  // Second bail: -[FigCapturePreviewSinkPipeline initWithConfiguration:...]
-  // returning nil at static 0x1ae2b4c90. This is THE preview pipeline —
-  // without it, Camera.app's video preview never gets a sink. We can't
-  // bypass the init returning nil per se, but we can stop the function
-  // from bailing the entire graph. NOP the cbz so execution falls through
-  // with x19=nil. Subsequent objc_msgSend calls on nil receiver return
-  // 0/nil safely. The graph won't have a wired preview, but buildGraph
-  // returns success and the daemon's downstream code (sink instantiation,
-  // viewfinder stream destination binding) can proceed — at which point
-  // our own sink-init / viewfinder hooks can take over frame delivery.
-  //
-  // Original: 0xB401E0E0  ; cbz x0, +0x3C1C  (-> 0x1ae2b88ac, previewSinkPipeline bail)
-  // New:      0xD503201F  ; nop
-#if 0
-  {
-    uintptr_t patch_pc = 0x1ae2b4c90 + img.slide;
-    vcc_patch_word(patch_pc,
-                   /*expected*/ 0xB401E0E0u,   // cbz x0, +0x3C1C
-                   /*new*/      0xD503201Fu);  // nop
-  }
-#endif
-
   if (prewarm_fn_addr) {
     typedef CFTypeRef (*PrewarmFn)(void);
     PrewarmFn pf = (PrewarmFn)ptrauth_sign_unauthenticated(
@@ -947,25 +1014,190 @@ static void vcc_install_synthetic(void) {
     vcc_log(@"  called FigCaptureSourceServerStart()");
   }
 
-  // Locate the data globals by structural xref scan. The compiler emits
-  // `adrp Xn, page; ldr Xm, [Xn, #1056]` at all 5 read sites of
-  // `_sSourceList` and `adrp Xn, page; ldr Xm, [Xn, #1048]` at all 6 read
-  // sites of `_sSourceListLock`. Multiple-hit-agreement guards against
-  // accidental matches on unrelated globals that happen to share a byte
-  // offset.
-  uintptr_t sSourceListAddr     = vcc_find_data_xref(&img, 1056);
-  uintptr_t sSourceListLockAddr = vcc_find_data_xref(&img, 1048);
-  if (!sSourceListAddr || !sSourceListLockAddr) {
-    vcc_log(@"  data global resolve failed: list=0x%lx lock=0x%lx",
-            (unsigned long)sSourceListAddr,
-            (unsigned long)sSourceListLockAddr);
+  // Resolve _sSourceList structurally:
+  //
+  //   LC_SYMTAB → __captureSourceServer_initializeStatics_block_invoke
+  //     (the dispatch_once init body — static text symbol, retained
+  //      in the on-device DSC nlist even when static *data* symbols
+  //      like `_sSourceList` itself are stripped)
+  //     → BL CFArrayCreateMutable inside the block body
+  //     → adrp+str x0, [Xn, #imm]  ← stores into _sSourceList
+  //
+  // Every link is a structural ARM64 pattern, so the chain is stable
+  // across iOS revisions. The static-init function naming convention
+  // (`<class>_initializeStatics_block_invoke`) has been used by Apple
+  // since the iOS 14 era and persists through 26.x.
+  uintptr_t fnCFArrayCreate = (uintptr_t)dlsym(RTLD_DEFAULT,
+                                                "CFArrayCreateMutable");
+  // The on-device nlist exports static text symbols with leading
+  // underscores. Block-invoke names take one extra underscore vs the
+  // outer C symbol — try the canonical first, plus a triple-_ variant
+  // some clangs emit.
+  static const char *kInitBlockNames[] = {
+      "__captureSourceServer_initializeStatics_block_invoke",
+      "___captureSourceServer_initializeStatics_block_invoke",
+      NULL,
+  };
+  uintptr_t blockInvoke = 0;
+  for (unsigned i = 0; kInitBlockNames[i]; i++) {
+    blockInvoke = vcc_lookup_lc_symtab(&img, kInitBlockNames[i]);
+    if (blockInvoke) {
+      vcc_log(@"  init-statics block-invoke (%s) @ 0x%lx",
+              kInitBlockNames[i], (unsigned long)blockInvoke);
+      break;
+    }
+  }
+  // If the symbol is stripped on-device (typical for the DSC), walk
+  // the structural chain rooted at FigCaptureSourceServerStart to
+  // find the dispatch_once block-invoke. The chain is:
+  //
+  //   FigCaptureSourceServerStart  (exported, addr known)
+  //     `cmn x?, #0x1 ; b.ne <wrapper>`     (onceToken check)
+  //   wrapper                       (`.cold.1`, static; addr from b.ne)
+  //     `bl <cold.1>`               (we land here from b.ne; target IS cold.1)
+  //   cold.1                        (5–6 instructions, static)
+  //     `adrp x0,...; add x0, x0, ...`  (onceToken pointer)
+  //     `adrp x1,...; add x1, x1, ...`  (block-constant pointer)
+  //     `bl <dispatch_once stub>`
+  //   block constant                (struct __Block_literal in __DATA_CONST)
+  //     +0x10 = invoke pointer (PAC-signed; raw bytes are the function
+  //                             address before signature stripping)
+  if (!blockInvoke) {
+    uintptr_t fnFigStart = (uintptr_t)dlsym(RTLD_DEFAULT,
+                                            "FigCaptureSourceServerStart");
+    if (fnFigStart) {
+      fnFigStart = (uintptr_t)ptrauth_strip((void *)fnFigStart,
+                                             ptrauth_key_function_pointer);
+      uint32_t *ip = (uint32_t *)fnFigStart;
+      uintptr_t coldWrapper = 0;
+      // Step 1: find `cmn x?, #0x1; b.ne <target>` and decode target.
+      // CMN (immediate) 64-bit, no shift:
+      //   1011 0001 00ii iiii iiii iinn nnn1 1111
+      // mask 0xFFC0001F, match 0xB100001F.
+      // B.NE: 0101 0100 iiii iiii iiii iiii iii0 0001
+      //   mask 0xFF00001F, match 0x54000001.
+      for (unsigned i = 0; i < 256 && !coldWrapper; i++) {
+        uint32_t cmn = ip[i];
+        if ((cmn & 0xFFC0001Fu) != 0xB100001Fu) continue;
+        // imm12 in bits[21:10]
+        uint32_t imm = (cmn >> 10) & 0xFFFu;
+        if (imm != 1) continue;
+        if (i + 1 >= 256) continue;
+        uint32_t bne = ip[i + 1];
+        if ((bne & 0xFF00001Fu) != 0x54000001u) continue;
+        int32_t imm19 = (int32_t)((bne & 0x00FFFFE0u) << 8) >> 11;
+        coldWrapper = (uintptr_t)&ip[i + 1] + (intptr_t)imm19;
+      }
+      if (!coldWrapper) {
+        vcc_log(@"  cmn+b.ne onceToken-check pattern not found in "
+                @"FigCaptureSourceServerStart");
+      } else {
+        vcc_log(@"  cold-wrapper site @ 0x%lx", (unsigned long)coldWrapper);
+        // Step 2: cold wrapper starts with `bl <cold.1>`. Decode.
+        uint32_t bl = *(uint32_t *)coldWrapper;
+        uintptr_t cold1 = 0;
+        if ((bl & 0xFC000000u) == 0x94000000u) {
+          int32_t imm26 = (int32_t)((bl & 0x03FFFFFFu) << 6) >> 4;
+          cold1 = coldWrapper + (intptr_t)imm26;
+          vcc_log(@"  cold.1 @ 0x%lx", (unsigned long)cold1);
+        }
+        // Step 3: walk cold.1 looking for the LAST `adrp x1,...; add x1,
+        // x1, #imm` pair BEFORE the dispatch_once `bl`. That's the block
+        // constant. cold.1 is typically only 5–6 instructions long.
+        if (cold1) {
+          uint32_t *cip = (uint32_t *)cold1;
+          uintptr_t blockConst = 0;
+          for (unsigned i = 0; i < 16; i++) {
+            uint32_t add = cip[i];
+            if ((add & 0xFF800000u) != 0x91000000u) continue;
+            if ((add & 0x1Fu) != 1) continue;        // ADD x1, ...
+            if (((add >> 5) & 0x1Fu) != 1) continue;
+            uint32_t add_imm = (add >> 10) & 0xFFFu;
+            // Walk back for matching adrp x1
+            for (unsigned k = 1; k <= 4 && k <= i; k++) {
+              uint32_t adrp = cip[i - k];
+              if ((adrp & 0x9F000000u) != 0x90000000u) continue;
+              if ((adrp & 0x1Fu) != 1) continue;
+              uintptr_t adrp_pc = (uintptr_t)&cip[i - k];
+              blockConst = vcc_adrp_target(adrp_pc, adrp) + add_imm;
+              break;
+            }
+            if (blockConst) break;
+          }
+          if (!blockConst) {
+            vcc_log(@"  block-constant adrp+add not found in cold.1");
+          } else {
+            vcc_log(@"  block constant @ 0x%lx", (unsigned long)blockConst);
+            // Step 4: read invoke pointer at offset 0x10 within the
+            // block constant. PAC-strip and assign as block-invoke.
+            uintptr_t rawInvoke = *(uintptr_t *)(blockConst + 0x10);
+            blockInvoke = (uintptr_t)ptrauth_strip(
+                (void *)rawInvoke, ptrauth_key_function_pointer);
+            vcc_log(@"  init block-invoke (via cold.1 chain) @ 0x%lx",
+                    (unsigned long)blockInvoke);
+          }
+        }
+      }
+    }
+  }
+  uintptr_t sSourceListAddr = 0;
+  if (blockInvoke) {
+    uintptr_t globals[8] = {0};
+    unsigned ng = vcc_collect_call_then_store_globals(blockInvoke,
+                                                       /*maxInsns*/512,
+                                                       /*lookahead*/12,
+                                                       globals, 8);
+    for (unsigned i = 0; i < ng; i++) {
+      vcc_log(@"  init-statics global #%u: 0x%lx",
+              i, (unsigned long)globals[i]);
+    }
+    // The init block initializes both `_sSourceListLock` (lock
+    // handle) and `_sSourceList` (CFArray) in order. Walk the
+    // discovered globals and pick the first one whose slot value
+    // is actually a CFArray — that's the source list. The lock
+    // entry has a void* mutex handle which malloc_zone validates
+    // but isa fails the CFArray-class check.
+    uintptr_t symLookup = vcc_lookup_lc_symtab(&img, "_sSourceList");
+    if (symLookup) {
+      vcc_log(@"  _sSourceList also in LC_SYMTAB at 0x%lx — using",
+              (unsigned long)symLookup);
+      sSourceListAddr = symLookup;
+    } else {
+      for (unsigned i = 0; i < ng; i++) {
+        if (vcc_slot_value_is_cfarray(globals[i])) {
+          uintptr_t val = 0;
+          vcc_safe_read_ptr(globals[i], &val);
+          vcc_log(@"  _sSourceList chosen (init-store #%u, CFArray @ 0x%lx) at 0x%lx",
+                  i, (unsigned long)val, (unsigned long)globals[i]);
+          sSourceListAddr = globals[i];
+          break;
+        }
+      }
+      if (!sSourceListAddr) {
+        vcc_log(@"  no init-store global slot held a CFArray; falling "
+                @"back to first init-store");
+        if (ng > 0) sSourceListAddr = globals[0];
+      }
+    }
+  } else {
+    vcc_log(@"  init-statics block-invoke lookup failed");
+  }
+  if (!sSourceListAddr) {
+    vcc_log(@"  data global resolve failed: _sSourceList not located");
     return;
   }
 
+  // For the lock, the call-anchor approach requires knowing which
+  // mutex-create function the daemon uses (FigSimpleMutexCreate / Init
+  // / etc. — name varies across iOS). Skip locking entirely: our
+  // dispatch_after fires after FigCaptureSourceServerStart's
+  // dispatch_once block has finished, and we're the only writer to
+  // _sSourceList during this init window.
   CFMutableArrayRef *sSourceListSlot =
       (CFMutableArrayRef *)sSourceListAddr;
-  void **sSourceListLockSlot = (void **)sSourceListLockAddr;
-  void *lockPtr = *sSourceListLockSlot;
+  void **sSourceListLockSlot = NULL;
+  void *lockPtr = NULL;
+  vcc_log(@"  lock acquisition skipped (single-threaded init window)");
   vcc_log(@"  _sSourceList slot @ %p (list=%p), _sSourceListLock slot @ %p (lock=%p)",
           sSourceListSlot, *sSourceListSlot, sSourceListLockSlot, lockPtr);
 
@@ -978,15 +1210,14 @@ static void vcc_install_synthetic(void) {
   }
   VCC_CreateFn create_fn = (VCC_CreateFn)create_p;
 
-  // FigSimpleMutex helpers — both exported.
+  // FigSimpleMutex helpers — best-effort: we still call them when lockPtr
+  // is non-null (the daemon's mutex is alive), but skip when we couldn't
+  // safely resolve the lock global. Resolution failure of the lock is
+  // not fatal anymore — we operate as a single writer during init.
   void (*FigSimpleMutexLock)(void *) =
-      (void (*)(void *))vcc_dlsym_fn("FigSimpleMutexLock");
+      (void (*)(void *))dlsym(RTLD_DEFAULT, "FigSimpleMutexLock");
   void (*FigSimpleMutexUnlock)(void *) =
-      (void (*)(void *))vcc_dlsym_fn("FigSimpleMutexUnlock");
-  if (!FigSimpleMutexLock || !FigSimpleMutexUnlock) {
-    vcc_log(@"  abort: FigSimpleMutex lock/unlock not resolvable");
-    return;
-  }
+      (void (*)(void *))dlsym(RTLD_DEFAULT, "FigSimpleMutexUnlock");
 
   id backing = vcc_build_backing();
   if (!backing) return;
@@ -1002,7 +1233,7 @@ static void vcc_install_synthetic(void) {
   // the daemon's stock (bring-up / hardware) sources use for keys like
   // DeviceType, SmartCameraSupported, Streams, Ports, etc.
   {
-    FigSimpleMutexLock(lockPtr);
+    if (lockPtr && FigSimpleMutexLock) FigSimpleMutexLock(lockPtr);
     CFMutableArrayRef listSnap = *sSourceListSlot;
     CFIndex cnt = listSnap ? CFArrayGetCount(listSnap) : 0;
     vcc_log(@"  --- existing sources (count=%ld) ---", (long)cnt);
@@ -1037,20 +1268,20 @@ static void vcc_install_synthetic(void) {
       vcc_log(@"      attrs ret=%d -> %@", e, (__bridge id)out);
       if (out) CFRelease(out);
     }
-    FigSimpleMutexUnlock(lockPtr);
+    if (lockPtr && FigSimpleMutexUnlock) FigSimpleMutexUnlock(lockPtr);
   }
 
-  FigSimpleMutexLock(lockPtr);
+  if (lockPtr && FigSimpleMutexLock) FigSimpleMutexLock(lockPtr);
   CFMutableArrayRef list = *sSourceListSlot;
   if (!list) {
     vcc_log(@"  _sSourceList is NULL (server init not yet allocated it) — abort");
-    FigSimpleMutexUnlock(lockPtr);
+    if (lockPtr && FigSimpleMutexUnlock) FigSimpleMutexUnlock(lockPtr);
     return;
   }
   CFIndex preCount = CFArrayGetCount(list);
   CFArrayAppendValue(list, source);
   CFIndex postCount = CFArrayGetCount(list);
-  FigSimpleMutexUnlock(lockPtr);
+  if (lockPtr && FigSimpleMutexUnlock) FigSimpleMutexUnlock(lockPtr);
   vcc_log(@"  appended source — list %ld -> %ld", (long)preCount,
           (long)postCount);
 
@@ -1380,9 +1611,10 @@ static id vcc_copy_device_hook(id self, SEL _cmd, NSString *deviceID,
 // MARK: - synthetic FigCaptureDevice subclass
 //
 // Subclass `BWFigCaptureDevice` at runtime via objc_allocateClassPair, then
-// instantiate with class_createInstance (skips the designated initializer's
-// NULL-figCaptureDevice check). Ivar 0x18 (deviceID) is written by direct
-// slot offset; ivar 0x8 (figCaptureDevice C handle) stays NULL.
+// instantiate via +alloc. We write the deviceID NSString directly into the
+// inherited ivar slot. Ivar offsets are resolved at synth-class init time
+// via the ObjC runtime (class_getInstanceVariable + ivar_getOffset) so
+// the layout follows whatever Apple ships, not a hardcoded 26.5 value.
 //
 // To prevent the crash in
 // `-[BWFigCaptureDevice _copyProperty:requireSupported:error:]` (where the
@@ -1392,13 +1624,35 @@ static id vcc_copy_device_hook(id self, SEL _cmd, NSString *deviceID,
 // in our subclass so they never call _copyProperty:. Each override returns
 // canned values for known properties and sets *err=-12787 ("property not
 // supported") for everything else.
-//
-// Other methods (-streams, -invalidate, etc.) that may deref ivar 0x8 are
-// not overridden yet — first iteration is "what's enough to pass init?".
-// Iterative: deploy, observe what crashes next, override that method.
 
-static const ptrdiff_t kBWFigCaptureDevice_figCaptureDevice_Offset = 0x8;
-static const ptrdiff_t kBWFigCaptureDevice_deviceID_Offset         = 0x18;
+// Resolved at synth-class init. -1 until populated; vcc_init_synth_device_class
+// refuses to register the synth class if resolution fails so we never write
+// to a stale offset.
+static ptrdiff_t kBWFigCaptureDevice_deviceID_Offset = -1;
+
+// Resolve an instance-variable offset by name on `cls`, trying each
+// candidate in `names` (NULL-terminated) until one matches. Returns -1
+// if none match. Logs the outcome so a future iOS rename surfaces in
+// the install log instead of silently writing to a wrong slot.
+static ptrdiff_t vcc_resolve_ivar(Class cls, const char *what,
+                                   const char *const *names) {
+  if (!cls) {
+    vcc_log(@"  ivar %s: class missing", what ? what : "?");
+    return -1;
+  }
+  for (unsigned i = 0; names[i]; i++) {
+    Ivar iv = class_getInstanceVariable(cls, names[i]);
+    if (iv) {
+      ptrdiff_t off = ivar_getOffset(iv);
+      vcc_log(@"  ivar %s -> %s @ +0x%lx", what ? what : "?",
+              names[i], (long)off);
+      return off;
+    }
+  }
+  vcc_log(@"  ivar %s: no candidate matched on %s", what ? what : "?",
+          class_getName(cls));
+  return -1;
+}
 
 // Cached CF constants — resolved lazily from CMCaptureCore / CMCaptureDevice.
 static CFStringRef vcc_cf_kClock              = NULL;
@@ -1497,6 +1751,15 @@ static void vcc_init_synth_device_class(void) {
     vcc_log(@"  synth-dev: BWFigCaptureDevice class missing");
     return;
   }
+  static const char *const kDeviceIDNames[] = {
+      "_deviceID", "deviceID", NULL,
+  };
+  kBWFigCaptureDevice_deviceID_Offset = vcc_resolve_ivar(
+      parent, "BWFigCaptureDevice.deviceID", kDeviceIDNames);
+  if (kBWFigCaptureDevice_deviceID_Offset < 0) {
+    vcc_log(@"  synth-dev: required ivar not found — registration aborted");
+    return;
+  }
   vcc_load_synth_cfconsts();
 
   Class cls = objc_allocateClassPair(parent, "VccSynthDevice", 0);
@@ -1525,26 +1788,29 @@ static void vcc_init_synth_device_class(void) {
 
 // MARK: - synthetic FigCaptureStream subclass
 //
-// Subclass BWFigCaptureStream. Confirmed ivar layout from disasm of
-// -[BWFigCaptureStream initWithFigCaptureStream:deviceID:errOut:] and the
-// simple ivar-accessor methods (-uniqueID returns [self+0x18], -portType
-// returns [self+0x10]):
+// Subclass BWFigCaptureStream. Ivar offsets are resolved at synth-class
+// init time via the ObjC runtime so the layout follows whatever Apple
+// ships. Historical disasm of -[BWFigCaptureStream initWith…] and the
+// trivial ivar accessors gave us the slot semantics:
 //
-//   ivar 0x08: figCaptureStream C handle (leave NULL)
-//   ivar 0x10: portType NSString
-//   ivar 0x18: uniqueID NSString
-//   ivar 0x20: isSpecialDeviceID BOOL byte
-//   ivar 0x30: property allowlist dict (optional; leave NULL)
-//   ivar 0x38: property value cache dict — DO NOT write a non-dict here.
-//             Earlier iteration put a deviceID string here; the inherited
-//             -_copyProperty: calls [ivar38 objectForKeyedSubscript:key]
-//             unconditionally, and unrecognized-selector crashed
-//             cameracaptured. Leave NULL so the lookup short-circuits to
-//             nil.
+//   figCaptureStream  : C handle, leave NULL
+//   portType          : NSString
+//   uniqueID          : NSString
+//   isSpecialDeviceID : BOOL (we don't touch it)
+//   property cache    : NSDictionary — DO NOT write a non-dict here.
+//             Earlier iteration put a deviceID string in the slot; the
+//             inherited -_copyProperty: calls [cache
+//             objectForKeyedSubscript:key] unconditionally, and the
+//             unrecognized-selector crashed cameracaptured. Leave NULL
+//             so the lookup short-circuits to nil.
+//   streaming         : BOOL — set to 1 so -streaming returns YES.
 
 static Class vcc_synth_stream_class = Nil;
-static const ptrdiff_t kBWFigCaptureStream_portType_Offset = 0x10;
-static const ptrdiff_t kBWFigCaptureStream_uniqueID_Offset = 0x18;
+// Resolved at synth-class init. portType/uniqueID are required (-1 -> abort
+// class registration); streaming is optional (-1 -> skip the YES poke).
+static ptrdiff_t kBWFigCaptureStream_portType_Offset  = -1;
+static ptrdiff_t kBWFigCaptureStream_uniqueID_Offset  = -1;
+static ptrdiff_t kBWFigCaptureStream_streaming_Offset = -1;
 
 static CFStringRef vcc_cf_kSupportedFormatsArray = NULL;
 
@@ -1646,6 +1912,22 @@ static void vcc_init_synth_stream_class(void) {
     vcc_log(@"  synth-stream: BWFigCaptureStream class missing");
     return;
   }
+  static const char *const kPortTypeNames[]  = {"_portType", "portType", NULL};
+  static const char *const kUniqueIDNames[]  = {"_uniqueID", "uniqueID", NULL};
+  static const char *const kStreamingNames[] = {
+      "_streaming", "streaming", "_isStreaming", "isStreaming", NULL,
+  };
+  kBWFigCaptureStream_portType_Offset = vcc_resolve_ivar(
+      parent, "BWFigCaptureStream.portType", kPortTypeNames);
+  kBWFigCaptureStream_uniqueID_Offset = vcc_resolve_ivar(
+      parent, "BWFigCaptureStream.uniqueID", kUniqueIDNames);
+  kBWFigCaptureStream_streaming_Offset = vcc_resolve_ivar(
+      parent, "BWFigCaptureStream.streaming", kStreamingNames);
+  if (kBWFigCaptureStream_portType_Offset < 0 ||
+      kBWFigCaptureStream_uniqueID_Offset < 0) {
+    vcc_log(@"  synth-stream: required ivar(s) not found — registration aborted");
+    return;
+  }
   Class cls = objc_allocateClassPair(parent, "VccSynthStream", 0);
   if (!cls) {
     vcc_log(@"  synth-stream: objc_allocateClassPair failed");
@@ -1700,15 +1982,17 @@ static id vcc_make_synth_stream(NSString *uniqueID, NSString *deviceID,
       (void *)CFBridgingRetain([portType copy]);
   *(void **)((char *)p + kBWFigCaptureStream_uniqueID_Offset) =
       (void *)CFBridgingRetain([uniqueID copy]);
-  // ivar 0x38 intentionally left NULL — the parent class treats that slot
-  // as a property value-cache NSDictionary and unconditionally sends
-  // -objectForKeyedSubscript: to it. Earlier iteration stored deviceID
-  // here and crashed with "unrecognized selector". deviceID isn't stored
-  // anywhere in the inherited stream layout anyway (only a boolean
-  // comparison result at 0x20).
+  // property-cache NSDictionary ivar intentionally left NULL — the
+  // parent class unconditionally sends -objectForKeyedSubscript: to it,
+  // and an earlier iteration that stored deviceID there crashed with
+  // unrecognized-selector. The deviceID isn't read off the stream by
+  // inherited code anyway (only a per-stream BOOL comparison result is).
   (void)deviceID;
-  // ivar 0x48 = streaming BOOL — set to 1 so -streaming returns YES.
-  *(uint8_t *)((char *)p + 0x48) = 1;
+  // streaming BOOL — set to 1 so -streaming returns YES. Optional:
+  // skip if the ivar isn't present on this build.
+  if (kBWFigCaptureStream_streaming_Offset >= 0) {
+    *(uint8_t *)((char *)p + kBWFigCaptureStream_streaming_Offset) = 1;
+  }
 
   // Pin so dealloc never runs — diagnostic to isolate the autorelease-
   // pool-drain crash. Each session start leaks one stream.
@@ -1829,8 +2113,8 @@ static id vcc_make_synth_device(NSString *deviceID) {
     vcc_log(@"  synth-dev: class_createInstance failed");
     return nil;
   }
-  // Write deviceID at ivar 0x18 via CFBridgingRetain so our -dealloc
-  // override CFRelease's it.
+  // Write deviceID at the runtime-resolved ivar offset via
+  // CFBridgingRetain so our -dealloc override CFRelease's it.
   NSString *idCopy = [deviceID copy];
   void *slotBase  = (__bridge void *)d;
   void **slot     = (void **)((char *)slotBase + kBWFigCaptureDevice_deviceID_Offset);
@@ -2461,90 +2745,83 @@ static void vcc_install_pipelines_addStill_observation(void) {
                       &vcc_pipelines_addStill_orig);
 }
 
-// MARK: - FigCaptureCameraSourcePipeline requiresMasterClock override
+// MARK: - graph-build error suppressors
 //
-// captureSession_buildGraphWithConfiguration + 9332 sets w8 = -12783 when
-// the OR of all camera-source-pipeline `requiresMasterClock` returns is 1
-// at the post-iteration check. (Per disasm at static 0x1ae2b3d40-d84.)
+// captureSession_buildGraphWithConfiguration's per-source iteration bails
+// to OSStatus -12783 along three known paths on our synth source:
 //
-// For our virtual source — no real ISP/HW clock — force the answer to NO
-// so the buildGraph post-iteration check (w21 & 1) stays clear and we
-// don't hit the -12783 bail.
-
-static IMP vcc_csp_requiresMasterClock_orig = NULL;
-typedef BOOL (*VccCspRequiresMasterClockFn)(id self, SEL _cmd);
-
-static BOOL vcc_csp_requiresMasterClock_hook(id self, SEL _cmd) {
-  VccCspRequiresMasterClockFn orig =
-      (VccCspRequiresMasterClockFn)vcc_csp_requiresMasterClock_orig;
-  BOOL origRet = orig(self, _cmd);
-  vcc_log(@"  [CSP requiresMasterClock] self=%p orig=%d -> NO (forced)",
-          self, origRet);
-  return NO;
-}
+//   (1) -[FigCaptureCameraSourcePipeline requiresMasterClock] returns YES,
+//       and the post-iteration check (OR of all pipelines' returns) bails
+//       on a virtual source that has no real ISP/HW clock.
+//   (2) _cs_addObjectToStreamsAttributes returns -12783 when an inherited
+//       ivar slot is NULL (called from _FigVideoCaptureSourcesActivate-
+//       AndCreateDevices during session activation).
+//   (3) -[BWFigVideoCaptureStream initWithCaptureStream:…] sets *errOut
+//       = -12783 in its validation-failure path.
+//
+// (1) is neutralized by rewriting the function's prologue to `mov w0, #0; ret`.
+// The function's address is resolved from CMCapture's LC_SYMTAB by name —
+// no hardcoded VMA.
+//
+// (2)+(3) are neutralized by scanning CMCapture's __text for the specific
+// MOVN encodings the compiler used to prepare -12783 in w20 / w8, and
+// rewriting each to `MOVZ w?, #0`. -12783 is a capture-specific OSStatus
+// emitted only by the daemon; over-application is benign because the
+// daemon's only consumer in the VM is our synth.
 
 static void vcc_install_csp_requires_master_clock_hook(void) {
-  // -[FigCaptureCameraSourcePipeline requiresMasterClock] exists as a
-  // private __TEXT symbol but is NOT in the objc method table, so
-  // class_getInstanceMethod returns NULL and swizzle fails. Byte-patch
-  // the function body to always return 0 (NO) instead.
-  //
-  // Original body (static 0x1ae6ff05c):
-  //   cbz x0, +0x2c        ; if self==nil, jump to ret
-  //   pacibsp
-  //   ... loads ivar, msgSends, returns BOOL
-  //   ret
-  //
-  // Replacement: mov w0, #0; ret. Fits in 8 bytes — we patch the first
-  // 2 instructions at the entry point.
   vcc_image_t img;
   if (vcc_image_resolve(&img, "FigCaptureSourceServerStart") != 0) {
-    vcc_log(@"  csp byte-patch: image resolve failed");
+    vcc_log(@"  graph-build patches: image resolve failed");
     return;
   }
-  uintptr_t target = 0x1ae6ff05c + img.slide;
-  // mov w0, #0  = 0x52800000
-  // ret         = 0xd65f03c0
-  int ok1 = vcc_patch_word(target,      0xb4000160u, 0x52800000u);
-  int ok2 = vcc_patch_word(target + 4, 0xd503237fu, 0xd65f03c0u);
-  vcc_log(@"  csp byte-patch @ 0x%lx: patch1=%d patch2=%d",
-          (unsigned long)target, ok1, ok2);
 
-  // Second bail site: _cs_addObjectToStreamsAttributes at static 0x1ae2bd414
-  // returns -12783 when its ivar+104 is NULL. Per xref, this is called
-  // from _FigVideoCaptureSourcesActivateAndCreateDevices + 3012 during
-  // session activation — likely the actual source of our -12783.
-  //
-  //   0x1ae2bd414: mov w20, #-12783    (0x12863dd4)
-  // Patch to:
-  //   0x1ae2bd414: mov w20, #0         (0x52800014)
-  // so the function returns 0 (success) on the NULL-ivar path instead.
-  uintptr_t target2 = 0x1ae2bd414 + img.slide;
-  int ok3 = vcc_patch_word(target2, 0x12863dd4u, 0x52800014u);
-  vcc_log(@"  cs_addObj byte-patch @ 0x%lx: patch3=%d",
-          (unsigned long)target2, ok3);
+  // (1) Resolve -[FigCaptureCameraSourcePipeline requiresMasterClock] via
+  // LC_SYMTAB. The function is called via direct C dispatch (not in the
+  // objc method table on observed builds, so swizzling won't work), so
+  // we rewrite its prologue in place. The PAC-signed address from the
+  // symtab is stripped before the write.
+  static const char *const kReqMCSyms[] = {
+      "_-[FigCaptureCameraSourcePipeline requiresMasterClock]",
+      "-[FigCaptureCameraSourcePipeline requiresMasterClock]",
+      NULL,
+  };
+  uintptr_t reqMC = 0;
+  for (unsigned i = 0; kReqMCSyms[i]; i++) {
+    reqMC = vcc_lookup_lc_symtab(&img, kReqMCSyms[i]);
+    if (reqMC) {
+      vcc_log(@"  requiresMasterClock @ 0x%lx (sym=%s)",
+              (unsigned long)reqMC, kReqMCSyms[i]);
+      break;
+    }
+  }
+  if (reqMC) {
+    uintptr_t target = (uintptr_t)ptrauth_strip(
+        (void *)reqMC, ptrauth_key_function_pointer);
+    uint32_t insn0 = ((const uint32_t *)target)[0];
+    uint32_t insn1 = ((const uint32_t *)target)[1];
+    // Sanity anchor: the second prologue insn should be pacibsp on every
+    // arm64e build that signs return addresses. Refuse the patch if it
+    // isn't — we'd rather skip than rewrite an unrelated function.
+    if (insn1 != 0xD503237Fu) {
+      vcc_log(@"  requiresMasterClock @ 0x%lx: insn1=0x%08x != pacibsp; skip",
+              (unsigned long)target, insn1);
+    } else {
+      int ok1 = vcc_patch_word(target,     insn0, 0x52800000u);  // mov w0, #0
+      int ok2 = vcc_patch_word(target + 4, insn1, 0xd65f03c0u);  // ret
+      vcc_log(@"  requiresMasterClock prologue patch @ 0x%lx: %d/%d",
+              (unsigned long)target, ok1, ok2);
+    }
+  } else {
+    vcc_log(@"  requiresMasterClock symbol not in LC_SYMTAB; patch skipped");
+  }
 
-  // Third bail site: -[BWFigVideoCaptureStream initWithCaptureStream:...] + 3364
-  // (static 0x1ae2c353c) — sets w8=-12783 then stores to *errOut and jumps
-  // to cleanup. This is the stream init's main validation-failure path.
-  // Patch the mov to set 0 (success) instead, so the stream init returns
-  // success even when our synth's validation fails. The stream object
-  // may still end up partially-initialized but daemon's higher layers
-  // will get a non-error return and proceed.
-  //
-  //   0x1ae2c353c: mov w8, #-12783     (0x12863dc8)
-  // Patch to:
-  //   0x1ae2c353c: mov w8, #0          (0x52800008)
-  uintptr_t target3 = 0x1ae2c353c + img.slide;
-  int ok4 = vcc_patch_word(target3, 0x12863dc8u, 0x52800008u);
-  vcc_log(@"  BWFigVideoCaptureStream-init byte-patch @ 0x%lx: patch4=%d",
-          (unsigned long)target3, ok4);
-
-  // (NOPing the cbnz at 0x1ae2b5e5c CRASHED cameracaptured with
-  // "insertObject:atIndex: object cannot be nil" in
-  // _createBWFigVideoCaptureStreamsForCaptureStreams — patching that
-  // bypass tells the caller it succeeded but produces nil objects
-  // downstream. Reverted.)
+  // (2) `mov w20, #-12783` (MOVN encoding 0x12863dd4) -> `mov w20, #0`.
+  vcc_scan_and_patch(&img, 0x12863dd4u, 0x52800014u,
+                     "mov w20, #-12783 -> #0");
+  // (3) `mov w8, #-12783` (MOVN encoding 0x12863dc8) -> `mov w8, #0`.
+  vcc_scan_and_patch(&img, 0x12863dc8u, 0x52800008u,
+                     "mov w8, #-12783 -> #0");
 }
 
 // MARK: - Sink node injection — manually-constructed BWStillImageSampleBufferSinkNode

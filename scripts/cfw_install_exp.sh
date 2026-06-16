@@ -103,15 +103,17 @@ if [[ -f "$JB_SYSOS_DMG" ]]; then
         "$SCRIPT_DIR/patch_hv_vmm_userland.sh" dsc "$JB_DSC_CHUNKS_DIR"
         echo "[+] hv_vmm DSC patch: chunks patched"
 
-        # Camera DSC patches make `cameracaptured` return a single
-        # synthetic `vphone-cam` device and stub out the AVFoundation
-        # init-time validation that would otherwise crash on it. With
-        # these + the /product/camera DT node (added at fw_patch time),
-        # Camera.app's icon shows on Home Screen and the app launches
-        # without immediately bailing. Patch #6 (the BL-site sanity
-        # check inside _captureSourceServer_handleCopySourcesMessage)
-        # is 26.5-build-specific; the patcher aborts cleanly on any
-        # other build, leaving hv_vmm's changes intact.
+        # Camera DSC patches: (1) short-circuit the NeutrinoCore
+        # _NUStyleTransfer*Processor methods so Camera.app's style-
+        # thumbnail pipeline doesn't crash on this VM build, and (2)
+        # force +[AVCaptureDevice authorizationStatusForMediaType:] =
+        # Authorized so apps don't bail at the TCC gate. Both are
+        # resolved per-build via `ipsw dyld symaddr` and verified by
+        # pacibsp prologue match — version-portable as long as the
+        # named ObjC symbols continue to exist. Combined with the
+        # /product/camera DT node added at fw_patch time, this lets
+        # Camera.app's icon show on Home Screen and the app launch
+        # without immediately bailing.
         if [[ -f "$JB_DSC_HEADER" ]]; then
             echo "[*] camera DSC patch: patching chunks under $JB_DSC_CHUNKS_DIR..."
             if "$SCRIPT_DIR/patch_camera_userland.sh" dsc "$JB_DSC_CHUNKS_DIR" "$JB_DSC_HEADER"; then
