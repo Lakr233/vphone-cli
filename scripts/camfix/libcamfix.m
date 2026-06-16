@@ -770,65 +770,148 @@ static IOSurfaceRef cfx_build_iosurface_from_shm(uint32_t *outW, uint32_t *outH)
   return surf;
 }
 
-// MARK: - AVCapturePhoto / Resolved settings synthesis
+// MARK: - Version-agnostic invocation helpers
+//
+// AVCapturePhoto's designated init and AVCaptureResolvedPhotoSettings'
+// factory each take 25+ arguments. The selectors are gigantic strings and
+// Apple has been known to add/remove arguments between iOS revisions
+// (which silently moves every later arg's positional index). To avoid
+// rewriting every libcamfix release against a fixed signature, the
+// builders below look up the selector by PREFIX at runtime and fill
+// arguments by LABEL — the actual selector component names like
+// "photoSurface" or "uniqueID" — so a future arg insertion just gets
+// nil/zero in that slot without breaking the rest.
 
-static id cfx_build_resolved_settings(int64_t uniqueID, int32_t w, int32_t h) {
-  Class cls = NSClassFromString(@"AVCaptureResolvedPhotoSettings");
-  SEL sel = NSSelectorFromString(@"resolvedSettingsWithUniqueID:photoDimensions:rawPhotoDimensions:previewDimensions:embeddedThumbnailDimensions:rawEmbeddedThumbnailDimensions:livePhotoMovieEnabled:livePhotoMovieDimensions:portraitEffectsMatteDimensions:hairSegmentationMatteDimensions:skinSegmentationMatteDimensions:teethSegmentationMatteDimensions:glassesSegmentationMatteDimensions:spatialOverCapturePhotoDimensions:turboModeEnabled:flashEnabled:redEyeReductionEnabled:HDREnabled:adjustedPhotoFiltersEnabled:EV0PhotoDeliveryEnabled:stillImageStabilizationEnabled:virtualDeviceFusionEnabled:squareCropEnabled:deferredPhotoProxyDimensions:photoProcessingTimeRange:contentAwareDistortionCorrectionEnabled:spatialPhotoCaptureEnabled:photoManifest:digitalFlashUserInterfaceHints:digitalFlashUserInterfaceRGBEstimate:captureBeforeResolvingSettingsEnabled:");
-  NSMethodSignature *sig = [cls methodSignatureForSelector:sel];
-  if (!sig) { cfxlog(@"resolved: no signature"); return nil; }
+// Walk class_copyMethodList for `cls` (or its metaclass when looking for
+// class methods) and return the selector with the most colons that starts
+// with `prefix`. Returns NULL if nothing matches.
+static SEL cfx_find_selector_by_prefix(Class cls, NSString *prefix,
+                                       BOOL classMethod) {
+  if (!cls || !prefix.length) return NULL;
+  Class c = classMethod ? object_getClass(cls) : cls;
+  unsigned int n = 0;
+  Method *methods = class_copyMethodList(c, &n);
+  if (!methods) return NULL;
+  SEL best = NULL;
+  NSUInteger bestArgs = 0;
+  for (unsigned int i = 0; i < n; i++) {
+    SEL s = method_getName(methods[i]);
+    NSString *name = NSStringFromSelector(s);
+    if (![name hasPrefix:prefix]) continue;
+    NSUInteger colons = 0;
+    for (NSUInteger j = 0; j < name.length; j++) {
+      if ([name characterAtIndex:j] == ':') colons++;
+    }
+    if (colons > bestArgs) {
+      bestArgs = colons;
+      best = s;
+    }
+  }
+  free(methods);
+  return best;
+}
+
+// Normalize the first selector component to a canonical label. Apple
+// init/factory selectors start with "initWithX:" / "resolvedSettingsWithX:";
+// the helper-side label dictionary keys are just "X" (camelCase). Strips
+// the prefix and lowercases the first character of the remainder.
+static NSString *cfx_normalize_first_label(NSString *label) {
+  for (NSString *prefix in @[@"initWith", @"resolvedSettingsWith"]) {
+    if ([label hasPrefix:prefix] && label.length > prefix.length) {
+      NSString *rest = [label substringFromIndex:prefix.length];
+      return [[[rest substringToIndex:1] lowercaseString]
+          stringByAppendingString:[rest substringFromIndex:1]];
+    }
+  }
+  return label;
+}
+
+// Resolver block: called once per method argument with the canonical label
+// (e.g. "photoSurface") and the runtime type encoding. The block decides
+// whether and what to write into `outBuf` (already zeroed). If the block
+// doesn't recognize the label, leave outBuf alone — nil for objects,
+// zeroed bytes for structs/primitives.
+typedef void (^cfx_arg_resolver_t)(NSString *label, const char *typeEnc,
+                                   void *outBuf);
+
+// Build + invoke `[target selector]` with arguments filled by `resolver`.
+// Works whether `target` is an alloc'd instance (for inits) or a Class
+// (for class-method factories). Returns the result if it's an object
+// return type, nil otherwise.
+static id cfx_invoke_with_labeled_args(id target, SEL selector,
+                                       cfx_arg_resolver_t resolver) {
+  NSMethodSignature *sig = nil;
+  @try { sig = [target methodSignatureForSelector:selector]; }
+  @catch (NSException *e) { return nil; }
+  if (!sig) return nil;
+
   NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-  [inv setTarget:cls];
-  [inv setSelector:sel];
+  [inv setTarget:target];
+  [inv setSelector:selector];
 
-  cfx_video_dims_t photoDim = {w, h};
-  cfx_video_dims_t zeroDim = {0, 0};
-  cfx_video_dims_t previewDim = {w / 4, h / 4};
-  CMTimeRange zeroRange = {kCMTimeZero, kCMTimeZero};
-  BOOL no = NO;
-  __unsafe_unretained id nilObj = nil;
+  NSArray<NSString *> *parts =
+      [NSStringFromSelector(selector) componentsSeparatedByString:@":"];
+  NSUInteger argCount = sig.numberOfArguments - 2;  // -2 for self + _cmd
+  for (NSUInteger i = 0; i < argCount; i++) {
+    NSString *raw = i < parts.count ? parts[i] : @"";
+    NSString *label = (i == 0) ? cfx_normalize_first_label(raw) : raw;
 
-  [inv setArgument:&uniqueID atIndex:2];   // uniqueID:
-  [inv setArgument:&photoDim atIndex:3];   // photoDimensions:
-  [inv setArgument:&zeroDim atIndex:4];    // rawPhotoDimensions:
-  [inv setArgument:&previewDim atIndex:5]; // previewDimensions:
-  [inv setArgument:&zeroDim atIndex:6];    // embeddedThumbnailDimensions:
-  [inv setArgument:&zeroDim atIndex:7];    // rawEmbeddedThumbnailDimensions:
-  [inv setArgument:&no atIndex:8];         // livePhotoMovieEnabled:
-  [inv setArgument:&zeroDim atIndex:9];    // livePhotoMovieDimensions:
-  [inv setArgument:&zeroDim atIndex:10];   // portraitEffectsMatteDimensions:
-  [inv setArgument:&zeroDim atIndex:11];   // hairSegmentationMatteDimensions:
-  [inv setArgument:&zeroDim atIndex:12];   // skinSegmentationMatteDimensions:
-  [inv setArgument:&zeroDim atIndex:13];   // teethSegmentationMatteDimensions:
-  [inv setArgument:&zeroDim atIndex:14];   // glassesSegmentationMatteDimensions:
-  [inv setArgument:&zeroDim atIndex:15];   // spatialOverCapturePhotoDimensions:
-  [inv setArgument:&no atIndex:16];        // turboModeEnabled:
-  [inv setArgument:&no atIndex:17];        // flashEnabled:
-  [inv setArgument:&no atIndex:18];        // redEyeReductionEnabled:
-  [inv setArgument:&no atIndex:19];        // HDREnabled:
-  [inv setArgument:&no atIndex:20];        // adjustedPhotoFiltersEnabled:
-  [inv setArgument:&no atIndex:21];        // EV0PhotoDeliveryEnabled:
-  [inv setArgument:&no atIndex:22];        // stillImageStabilizationEnabled:
-  [inv setArgument:&no atIndex:23];        // virtualDeviceFusionEnabled:
-  [inv setArgument:&no atIndex:24];        // squareCropEnabled:
-  [inv setArgument:&zeroDim atIndex:25];   // deferredPhotoProxyDimensions:
-  [inv setArgument:&zeroRange atIndex:26]; // photoProcessingTimeRange:
-  [inv setArgument:&no atIndex:27];        // contentAwareDistortionCorrectionEnabled:
-  [inv setArgument:&no atIndex:28];        // spatialPhotoCaptureEnabled:
-  [inv setArgument:&nilObj atIndex:29];    // photoManifest:
-  [inv setArgument:&nilObj atIndex:30];    // digitalFlashUserInterfaceHints:
-  [inv setArgument:&nilObj atIndex:31];    // digitalFlashUserInterfaceRGBEstimate:
-  [inv setArgument:&no atIndex:32];        // captureBeforeResolvingSettingsEnabled:
+    const char *typeEnc = [sig getArgumentTypeAtIndex:i + 2];
+    NSUInteger argSize = 0, argAlign = 0;
+    NSGetSizeAndAlignment(typeEnc, &argSize, &argAlign);
+    if (argSize == 0) continue;
+
+    // alloca on arm64 returns a 16-byte-aligned buffer; argSize <= 64 in
+    // practice for everything Apple uses here (CMTimeRange is 48 bytes).
+    void *buf = alloca(argSize);
+    memset(buf, 0, argSize);
+    if (resolver) resolver(label, typeEnc, buf);
+    [inv setArgument:buf atIndex:i + 2];
+  }
 
   @try {
     [inv invoke];
   } @catch (NSException *e) {
-    cfxlog(@"resolved invoke threw: %@", e);
+    cfxlog(@"invoke %@ threw: %@", NSStringFromSelector(selector), e);
     return nil;
   }
-  __unsafe_unretained id result = nil;
-  [inv getReturnValue:&result];
-  cfxlog(@"resolved settings built: %p uid=%lld", result, uniqueID);
+
+  if (sig.methodReturnLength > 0 &&
+      sig.methodReturnType[0] == '@') {
+    __unsafe_unretained id result = nil;
+    [inv getReturnValue:&result];
+    return result;
+  }
+  return nil;
+}
+
+// MARK: - AVCapturePhoto / Resolved settings synthesis
+
+static id cfx_build_resolved_settings(int64_t uniqueID, int32_t w, int32_t h) {
+  Class cls = NSClassFromString(@"AVCaptureResolvedPhotoSettings");
+  if (!cls) return nil;
+  SEL sel = cfx_find_selector_by_prefix(cls, @"resolvedSettingsWithUniqueID:",
+                                        /*classMethod*/YES);
+  if (!sel) { cfxlog(@"resolved: no factory selector found"); return nil; }
+
+  cfx_video_dims_t photoDim = {w, h};
+  cfx_video_dims_t previewDim = {w / 4, h / 4};
+  id result = cfx_invoke_with_labeled_args(
+      cls, sel,
+      ^(NSString *label, const char *typeEnc, void *out) {
+        if ([label isEqualToString:@"uniqueID"]) {
+          *(int64_t *)out = uniqueID;
+        } else if ([label isEqualToString:@"photoDimensions"]) {
+          *(cfx_video_dims_t *)out = photoDim;
+        } else if ([label isEqualToString:@"previewDimensions"]) {
+          *(cfx_video_dims_t *)out = previewDim;
+        }
+        // All other labels (rawPhotoDimensions, livePhotoMovieEnabled,
+        // photoManifest, etc.) stay zeroed/nil — the factory tolerates
+        // it on builds where this whole path even works at all
+        // (26.5 trips on nil photoManifest, hence the fallback below).
+      });
+  if (result) cfxlog(@"resolved settings built: %p uid=%lld", result, uniqueID);
   return result;
 }
 
@@ -840,60 +923,50 @@ static id cfx_build_avcapturephoto_with_request(IOSurfaceRef surf,
   id alloc_obj = [cls alloc];
   if (!alloc_obj) return nil;
 
-  SEL initSel = NSSelectorFromString(@"initWithTimestamp:photoSurface:photoSurfaceSize:processedFileType:previewPhotoSurface:embeddedThumbnailSourceSurface:photoLibraryThumbnails:metadata:depthDataSurface:depthMetadataDictionary:portraitEffectsMatteSurface:portraitEffectsMatteMetadataDictionary:hairSegmentationMatteSurface:hairSegmentationMatteMetadataDictionary:skinSegmentationMatteSurface:skinSegmentationMatteMetadataDictionary:teethSegmentationMatteSurface:teethSegmentationMatteMetadataDictionary:glassesSegmentationMatteSurface:glassesSegmentationMatteMetadataDictionary:constantColorConfidenceMapSurface:constantColorMetadataDictionary:captureRequest:bracketSettings:sequenceCount:photoCount:expectedPhotoProcessingFlags:sourceDeviceType:");
-  NSMethodSignature *sig = [alloc_obj methodSignatureForSelector:initSel];
-  if (!sig) { cfxlog(@"photo: no init sig"); return nil; }
-  NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-  [inv setTarget:alloc_obj];
-  [inv setSelector:initSel];
+  // Discover the designated init at runtime. Apple may add/remove args
+  // between iOS releases; we anchor on the leading components and accept
+  // whatever the longest matching selector is.
+  SEL initSel = cfx_find_selector_by_prefix(cls, @"initWithTimestamp:",
+                                            /*classMethod*/NO);
+  if (!initSel) { cfxlog(@"photo: no init selector found"); return nil; }
 
   CMTime ts = CMClockGetTime(CMClockGetHostTimeClock());
   CGSize sz = CGSizeMake((CGFloat)w, (CGFloat)h);
   NSString *fileType = @"public.jpeg";
-  __unsafe_unretained id nilObj = nil;
-  IOSurfaceRef nilSurf = NULL;
   NSDictionary *meta = @{};
-  NSInteger one = 1, zero = 0;
   NSString *deviceType = @"AVCaptureDeviceTypeBuiltInWideAngleCamera";
 
-  [inv setArgument:&ts atIndex:2];          // timestamp:
-  [inv setArgument:&surf atIndex:3];        // photoSurface:
-  [inv setArgument:&sz atIndex:4];          // photoSurfaceSize:
-  [inv setArgument:&fileType atIndex:5];    // processedFileType:
-  [inv setArgument:&nilSurf atIndex:6];     // previewPhotoSurface:
-  [inv setArgument:&nilSurf atIndex:7];     // embeddedThumbnailSourceSurface:
-  [inv setArgument:&nilObj atIndex:8];      // photoLibraryThumbnails:
-  [inv setArgument:&meta atIndex:9];        // metadata:
-  [inv setArgument:&nilSurf atIndex:10];    // depthDataSurface:
-  [inv setArgument:&nilObj atIndex:11];     // depthMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:12];    // portraitEffectsMatteSurface:
-  [inv setArgument:&nilObj atIndex:13];     // portraitEffectsMatteMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:14];    // hairSegmentationMatteSurface:
-  [inv setArgument:&nilObj atIndex:15];     // hairSegmentationMatteMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:16];    // skinSegmentationMatteSurface:
-  [inv setArgument:&nilObj atIndex:17];     // skinSegmentationMatteMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:18];    // teethSegmentationMatteSurface:
-  [inv setArgument:&nilObj atIndex:19];     // teethSegmentationMatteMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:20];    // glassesSegmentationMatteSurface:
-  [inv setArgument:&nilObj atIndex:21];     // glassesSegmentationMatteMetadataDictionary:
-  [inv setArgument:&nilSurf atIndex:22];    // constantColorConfidenceMapSurface:
-  [inv setArgument:&nilObj atIndex:23];     // constantColorMetadataDictionary:
-  [inv setArgument:&captureRequest atIndex:24]; // captureRequest:
-  [inv setArgument:&nilObj atIndex:25];     // bracketSettings:
-  [inv setArgument:&one atIndex:26];        // sequenceCount:
-  [inv setArgument:&one atIndex:27];        // photoCount:
-  [inv setArgument:&zero atIndex:28];       // expectedPhotoProcessingFlags:
-  [inv setArgument:&deviceType atIndex:29]; // sourceDeviceType:
-
-  @try {
-    [inv invoke];
-  } @catch (NSException *e) {
-    cfxlog(@"photo init threw: %@", e);
-    return nil;
+  id result = cfx_invoke_with_labeled_args(
+      alloc_obj, initSel,
+      ^(NSString *label, const char *typeEnc, void *out) {
+        if ([label isEqualToString:@"timestamp"]) {
+          *(CMTime *)out = ts;
+        } else if ([label isEqualToString:@"photoSurface"]) {
+          *(IOSurfaceRef *)out = surf;
+        } else if ([label isEqualToString:@"photoSurfaceSize"]) {
+          *(CGSize *)out = sz;
+        } else if ([label isEqualToString:@"processedFileType"]) {
+          *(__unsafe_unretained id *)out = fileType;
+        } else if ([label isEqualToString:@"metadata"]) {
+          *(__unsafe_unretained id *)out = meta;
+        } else if ([label isEqualToString:@"captureRequest"]) {
+          *(__unsafe_unretained id *)out = captureRequest;
+        } else if ([label isEqualToString:@"sequenceCount"]
+                || [label isEqualToString:@"photoCount"]) {
+          *(NSInteger *)out = 1;
+        } else if ([label isEqualToString:@"sourceDeviceType"]) {
+          *(__unsafe_unretained id *)out = deviceType;
+        }
+        // Every other arg (preview/thumbnail/depth/portrait/hair/skin/
+        // teeth/glasses/constantColor surfaces + their metadata dicts,
+        // bracketSettings, expectedPhotoProcessingFlags, etc.) stays
+        // zero/nil — works for both Camera.app (with non-nil
+        // captureRequest) and standalone AVF clients (nil).
+      });
+  if (result) {
+    cfxlog(@"AVCapturePhoto built: %p (captureRequest=%p, sel=%@)",
+           result, captureRequest, NSStringFromSelector(initSel));
   }
-  __unsafe_unretained id result = nil;
-  [inv getReturnValue:&result];
-  cfxlog(@"AVCapturePhoto built: %p (captureRequest=%p)", result, captureRequest);
   return result;
 }
 
