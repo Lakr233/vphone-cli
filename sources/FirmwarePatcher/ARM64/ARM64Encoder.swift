@@ -83,6 +83,16 @@ public enum ARM64Encoder {
         return ARM64.encodeU32(insn)
     }
 
+    /// Encode `MOV Xd, Xm` (the ORR Xd, XZR, Xm alias). With `rm == 31` (XZR) this
+    /// is the canonical "zero a 64-bit register" (`mov xd, xzr`).
+    ///
+    /// Format: `[31] = 1 (sf)`, `[30:24] = 0101010`, `[23:22] = 00 (shift)`,
+    ///         `[20:16] = Rm`, `[15:10] = 0 (imm6)`, `[9:5] = 11111 (XZR)`, `[4:0] = Rd`
+    public static func encodeMovX(rd: UInt32, rm: UInt32) -> Data {
+        let insn: UInt32 = 0xAA00_03E0 | ((rm & 0x1F) << 16) | (rd & 0x1F)
+        return ARM64.encodeU32(insn)
+    }
+
     // MARK: - Decode Helpers
 
     /// Decode a B or BL target address from an instruction at `pc`.

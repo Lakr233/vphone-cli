@@ -55,7 +55,7 @@ extension KernelJBPatcher {
         var seen = Set<Int>()
 
         for off in stride(from: anchorStart, to: anchorEnd, by: 4) {
-            guard let blTarget = decodeBL(at: off), !seen.contains(blTarget) else { continue }
+            guard let blTarget = jbDecodeBL(at: off), !seen.contains(blTarget) else { continue }
             guard jbIsInCodeRange(blTarget) else { continue }
             seen.insert(blTarget)
             let callee_end = findFuncEnd(blTarget, maxSize: 0x400)
@@ -72,56 +72,57 @@ extension KernelJBPatcher {
         return nil
     }
 
-    /// Match the upstream shape:
-    ///   ldr wA, [x0, #8]
-    ///   cbz wA, deny
-    ///   ldr wB, [x0, #0xc]
-    ///   cbz wB, deny
-    ///   mov x?, #0
-    ///   ldr x?, [x?, #0x490]
+    /// Match the upstream sibling nil-field reject shape:
+    ///   ldr w?, [r, #0x18]      ; preceding sibling-field guard
+    ///   cbz w?, continue
+    ///   ldr wA, [base, #8]
+    ///   cbz wA, deny            ; patched (cbz1)
+    ///   ldr wB, [base, #0xc]    ; same base
+    ///   cbz wB, deny            ; patched (cbz2) — same deny target as cbz1
+    /// where the deny block opens with `mov w?, #1` (reject return).
+    ///
+    /// The 26.1 doc also keyed off a trailing `mov x?,#0 ; ldr x?,[x?,#0x490] ; casa`
+    /// sequence; that lowered differently on 26.5, so the anchor is the dual-cbz pair
+    /// plus the `[_,#0x18]` sibling guard — the stable, source-backed reject shape.
     private func matchPersonaHelper(start: Int, end: Int) -> (Int, Int)? {
         var hits: [(Int, Int)] = []
-        var off = start
-        while off + 0x14 < end {
-            let insns = disasm.disassemble(in: buffer.data, at: off, count: 6)
-            guard insns.count >= 6 else { off += 4; continue }
-            let i0 = insns[0], i1 = insns[1], i2 = insns[2]
-            let i3 = insns[3], i4 = insns[4], i5 = insns[5]
+        var off = start + 8
+        while off + 0x10 <= end {
+            defer { off += 4 }
+            let insns = disasm.disassemble(in: buffer.data, at: off, count: 4)
+            guard insns.count >= 4 else { continue }
+            let i0 = insns[0], i1 = insns[1], i2 = insns[2], i3 = insns[3]
 
-            // ldr wA, [base, #8]
-            guard isLdrMem(i0, disp: 8) else { off += 4; continue }
-            guard let i0ops = i0.aarch64?.operands, i0ops.count >= 2 else { off += 4; continue }
+            // ldr wA, [base, #8] ; cbz wA, deny
+            guard isLdrMem(i0, disp: 8) else { continue }
+            guard let i0ops = i0.aarch64?.operands, i0ops.count >= 2 else { continue }
             let loadedReg0 = i0ops[0].reg
             let baseReg = i0ops[1].mem.base
+            guard isCbzWSameReg(i1, reg: loadedReg0) else { continue }
 
-            // cbz wA, deny
-            guard isCbzWSameReg(i1, reg: loadedReg0) else { off += 4; continue }
-
-            // ldr wB, [base, #0xc]
-            guard isLdrMemSameBase(i2, base: baseReg, disp: 0xC) else { off += 4; continue }
-            guard let i2ops = i2.aarch64?.operands, i2ops.count >= 1 else { off += 4; continue }
+            // ldr wB, [base, #0xc] ; cbz wB, deny (same base)
+            guard isLdrMemSameBase(i2, base: baseReg, disp: 0xC) else { continue }
+            guard let i2ops = i2.aarch64?.operands, i2ops.count >= 1 else { continue }
             let loadedReg2 = i2ops[0].reg
+            guard isCbzWSameReg(i3, reg: loadedReg2) else { continue }
 
-            // cbz wB, deny (same deny target)
-            guard isCbzWSameReg(i3, reg: loadedReg2) else { off += 4; continue }
+            // Both cbz must branch to the SAME deny target.
             guard let i1ops = i1.aarch64?.operands, i1ops.count == 2,
                   let i3ops = i3.aarch64?.operands, i3ops.count == 2,
                   i1ops[1].type == AARCH64_OP_IMM, i3ops[1].type == AARCH64_OP_IMM,
                   i1ops[1].imm == i3ops[1].imm
-            else { off += 4; continue }
+            else { continue }
             let denyTarget = Int(i1ops[1].imm)
 
-            // Deny block must look like `mov w0, #1`
-            guard looksLikeErrnoReturn(target: denyTarget, value: 1) else { off += 4; continue }
+            // Deny block must open with `mov w?, #1` (reject return).
+            guard looksLikeErrnoReturn(target: denyTarget, value: 1) else { continue }
 
-            // mov x?, #0
-            guard isMovXImmZero(i4) else { off += 4; continue }
-
-            // ldr x?, [x?, #0x490]
-            guard isLdrMem(i5, disp: 0x490) else { off += 4; continue }
+            // Preceding sibling-field guard: `ldr w?, [r, #0x18] ; cbz w?, continue`.
+            let pre = disasm.disassemble(in: buffer.data, at: off - 8, count: 2)
+            guard pre.count == 2, isLdrMem(pre[0], disp: 0x18),
+                  pre[1].mnemonic == "cbz" else { continue }
 
             hits.append((Int(i1.address), Int(i3.address)))
-            off += 4
         }
 
         return hits.count == 1 ? hits[0] : nil
@@ -152,20 +153,7 @@ extension KernelJBPatcher {
               ops[1].type == AARCH64_OP_IMM
         else { return false }
         // Must be a w-register
-        let name = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return name.hasPrefix("w")
-    }
-
-    private func isMovXImmZero(_ insn: Instruction) -> Bool {
-        guard insn.mnemonic == "mov",
-              let ops = insn.aarch64?.operands, ops.count == 2,
-              ops[0].type == AARCH64_OP_REG,
-              ops[1].type == AARCH64_OP_IMM, ops[1].imm == 0
-        else { return false }
-        let name = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return name.hasPrefix("x")
+        return disasm.firstRegisterName(insn)?.hasPrefix("w") ?? false
     }
 
     private func looksLikeErrnoReturn(target: Int, value: Int64) -> Bool {
@@ -181,20 +169,6 @@ extension KernelJBPatcher {
               ops[0].type == AARCH64_OP_REG,
               ops[1].type == AARCH64_OP_IMM, ops[1].imm == imm
         else { return false }
-        let name = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return name.hasPrefix("w")
-    }
-
-    // MARK: - Instruction decode helpers
-
-    /// Decode a BL instruction at `off`, returning the target file offset or nil.
-    private func decodeBL(at off: Int) -> Int? {
-        guard off + 4 <= buffer.count else { return nil }
-        let insn = buffer.readU32(at: off)
-        guard insn >> 26 == 0b100101 else { return nil }
-        let imm26 = insn & 0x03FF_FFFF
-        let signedImm = Int32(bitPattern: imm26 << 6) >> 6
-        return off + Int(signedImm) * 4
+        return disasm.firstRegisterName(insn)?.hasPrefix("w") ?? false
     }
 }

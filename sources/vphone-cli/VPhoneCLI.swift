@@ -199,6 +199,12 @@ struct PatchComponentCLI: ParsableCommand {
     enum ComponentOption: String, CaseIterable, ExpressibleByArgument {
         case txm
         case kernelBase = "kernel-base"
+        // TESTING/DIAGNOSTICS ONLY — not part of any production flow.
+        // Production JB patching runs through `patch-firmware --variant jb`; this
+        // standalone option exists so `tests/test_jb_kernel_patches.sh` can run the
+        // JB kernel layer over a single kernelcache and dump records via --records-out.
+        // (txm / kernel-base, by contrast, are also used by scripts/ramdisk_build.py.)
+        case kernelJB = "kernel-jb"
     }
 
     static let configuration = CommandConfiguration(
@@ -226,10 +232,17 @@ struct PatchComponentCLI: ParsableCommand {
     @Flag(name: .customLong("quiet"), help: "Suppress per-patch progress output.")
     var quiet: Bool = false
 
+    @Option(
+        name: .customLong("records-out"),
+        help: "Optional path to write emitted PatchRecord JSON (for fast-loop validation)."
+    )
+    var recordsOut: String?
+
     mutating func run() throws {
         let payload = try IM4PHandler.load(contentsOf: input).payload
         let count: Int
         let patchedData: Data
+        var records: [PatchRecord] = []
 
         switch component {
         case .txm:
@@ -241,11 +254,32 @@ struct PatchComponentCLI: ParsableCommand {
             let patcher = KernelPatcher(data: payload, verbose: !quiet)
             count = try patcher.apply()
             patchedData = patcher.buffer.data
+            records = patcher.patches
+
+        case .kernelJB:
+            // Mirrors the pipeline's jb kernel layer. In FirmwarePipeline each kernel
+            // patcher runs on the *original* payload independently, so running
+            // KernelJBPatcher standalone faithfully reproduces JB hook behavior
+            // without the base patcher or the rest of the boot chain.
+            let patcher = KernelJBPatcher(data: payload, verbose: !quiet)
+            count = try patcher.apply()
+            patchedData = patcher.buffer.data
+            records = patcher.patches
         }
 
         let outputDir = output.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
         try patchedData.write(to: output)
+
+        if let recordsOut {
+            let url = URL(fileURLWithPath: recordsOut)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(records).write(to: url)
+            if !quiet {
+                print("[patch-component] wrote \(records.count) patch records to \(url.path)")
+            }
+        }
 
         if !quiet {
             print("[patch-component] applied \(count) patches for \(component.rawValue)")

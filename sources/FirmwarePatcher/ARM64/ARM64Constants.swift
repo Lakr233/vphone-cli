@@ -70,9 +70,6 @@ public enum ARM64 {
     /// CMP XZR, XZR  (SUBS XZR, XZR, XZR — always sets Z flag)
     public static let cmpXzrXzr = encodeU32(0xEB1F_03FF)
 
-    /// MOV X8, XZR  (ORR X8, XZR, XZR)
-    public static let movX8Xzr = encodeU32(0xAA1F_03E8)
-
     // MARK: Common Prologue/Epilogue Patterns (verified via keystone)
 
     /// STP X29, X30, [SP, #-0x10]!  (push frame)
@@ -139,8 +136,6 @@ public enum ARM64 {
 
     /// mrs x0, tpidr_el1
     static let mrs_x0_tpidr_el1: UInt32 = 0xD538_D080
-    /// ldr x1, [x0, #0x3e0]
-    static let ldr_x1_x0_0x3e0: UInt32 = 0xF941_F001
 
     // MARK: Syscallmask C22 Cave Instructions (verified via clang/as)
 

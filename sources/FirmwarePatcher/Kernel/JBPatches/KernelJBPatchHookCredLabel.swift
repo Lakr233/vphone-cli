@@ -23,14 +23,17 @@ extension KernelJBPatcher {
     private static let hookCredLabelIndex = 18
     private static let c23CaveWords = 46 // Must match Python _C23_CAVE_WORDS
 
-    // Expected shape of vfs_context_current prologue (5 words).
-    // Python: _VFS_CONTEXT_CURRENT_SHAPE
-    private static let vfsContextCurrentShape: [UInt32] = [
+    // Stable prologue prefix of vfs_context_current (4 words, version-independent).
+    // The function reads current_thread() from tpidr_el1, then loads the
+    // uthread/uu_context pointer via `ldr x1, [x0, #uthread_off]`. Only that final
+    // immediate drifts across versions (0x3E0 on 26.1, 0x3E8 on macOS 26.5.1,
+    // 0x3F0 on iOS 26.5), so we match the 4 fixed words exactly and require the
+    // 5th to be *any* `ldr x1, [x0, #imm]` — never pinning the version-specific offset.
+    private static let vfsContextCurrentPrefix: [UInt32] = [
         ARM64.pacibspU32, // pacibsp
         ARM64.stpFP_LR_pre, // stp x29, x30, [sp, #-0x10]!
         ARM64.movFP_SP, // mov x29, sp
         ARM64.mrs_x0_tpidr_el1, // mrs x0, tpidr_el1
-        ARM64.ldr_x1_x0_0x3e0, // ldr x1, [x0, #0x3e0]
     ]
 
     // MARK: - Entry Point
@@ -189,34 +192,49 @@ extension KernelJBPatcher {
 
     // MARK: - vfs_context_current Finder
 
-    /// Locate vfs_context_current by its unique 5-word prologue pattern.
+    /// Locate vfs_context_current generically: prefer the symbol, else match the
+    /// stable 4-word prologue prefix followed by *any* `ldr x1, [x0, #imm]` (the
+    /// uthread offset is version-specific and deliberately left unpinned).
     private func findVfsContextCurrentByShape() -> Int {
         let cacheKey = "c23_vfs_context_current"
         if let cached = jbScanCache[cacheKey] { return cached }
+
+        // Symbol fast-path (version-independent; this research kernel is stripped here, but free + future-proof).
+        if let sym = resolveSymbol("_vfs_context_current"),
+           codeRanges.contains(where: { sym >= $0.start && sym < $0.end })
+        {
+            log("  [+] vfs_context_current body at 0x\(String(format: "%X", sym)) (symbol)")
+            jbScanCache[cacheKey] = sym
+            return sym
+        }
 
         guard let (ks, ke) = kernTextRange else {
             jbScanCache[cacheKey] = -1
             return -1
         }
-        let pat = Self.vfsContextCurrentShape
+        let pre = Self.vfsContextCurrentPrefix
         var hits: [Int] = []
 
         var off = ks
-        while off + pat.count * 4 <= ke {
+        while off + (pre.count + 1) * 4 <= ke {
             var match = true
-            for i in 0 ..< pat.count {
-                if buffer.readU32(at: off + i * 4) != pat[i] {
+            for i in 0 ..< pre.count {
+                if buffer.readU32(at: off + i * 4) != pre[i] {
                     match = false
                     break
                 }
             }
-            if match { hits.append(off) }
+            // 5th word must load the uthread/uu_context ptr: `ldr x1, [x0, #imm]` (imm unpinned).
+            let w5 = buffer.readU32(at: off + pre.count * 4)
+            if match, ARM64Inst.isLDRImm64(w5), ARM64Inst.rn(w5) == 0, ARM64Inst.rd(w5) == 1 {
+                hits.append(off)
+            }
             off += 4
         }
 
         let result = hits.count == 1 ? hits[0] : -1
         if result >= 0 {
-            log("  [+] vfs_context_current body at 0x\(String(format: "%X", result)) (shape match)")
+            log("  [+] vfs_context_current body at 0x\(String(format: "%X", result)) (prologue shape)")
         } else {
             log("  [-] vfs_context_current shape scan ambiguous (\(hits.count) hits)")
         }

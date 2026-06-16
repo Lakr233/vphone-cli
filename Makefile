@@ -108,6 +108,10 @@ help:
 	@echo "  make fw_patch_jb             Patch boot chain with Swift pipeline (dev + JB extensions)"
 	@echo "  make fw_patch_exp            Patch boot chain with Swift pipeline (JB + EXP experimental)"
 	@echo ""
+	@echo "Testing:"
+	@echo "  make test_jb_patches         Run all JB kernel patches (incl. Sandbox) over every supported cloudOS kernel"
+	@echo "    Options: QUICK=1           Only the local/newest kernel (fast dev loop)"
+	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
 	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
@@ -359,6 +363,16 @@ fw_patch_jb: patcher_build
 
 fw_patch_exp: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant exp
+
+.PHONY: test_jb_patches
+
+# Run the full JB kernel patch layer (every hook, incl. all Sandbox ops hooks)
+# over EVERY cloudOS kernel the README supports — correctness + backward-compat.
+# Downloads each version's kernelcache on demand (cached under /tmp/vphone_kjb_versions).
+#   Options: QUICK=1   Only the local/newest kernel (fast dev loop)
+test_jb_patches: patcher_build
+	zsh "$(CURDIR)/tests/test_jb_kernel_patches.sh" --no-build \
+		$(if $(filter 1 true yes YES TRUE,$(QUICK)),--quick,)
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore

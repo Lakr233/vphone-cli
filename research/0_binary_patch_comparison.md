@@ -113,7 +113,7 @@
 | JB-06 | B     | `patch_post_validation_additional`    | `_postValidation` (additional)                                                                       | Disable SHA256-only hash-type reject                                                                                                                                                 |     Y      |
 | JB-07 | C     | `patch_syscallmask_apply_to_proc`     | syscallmask apply wrapper (`_proc_apply_syscall_masks` path)                                         | Faithful upstream C22: mutate installed Unix/Mach/KOBJ masks to all-ones via structural cave, then continue into setter; distinct from `NULL`-mask alternative                       |     Y      |
 | JB-08 | A     | `patch_task_conversion_eval_internal` | `_task_conversion_eval_internal`                                                                     | Allow task conversion                                                                                                                                                                |     Y      |
-| JB-09 | A     | `patch_sandbox_hooks_extended`        | Sandbox MACF ops (extended)                                                                          | Stub remaining 30+ sandbox hooks (incl. IOKit 201..210)                                                                                                                              |     Y      |
+| JB-09 | A     | `patch_sandbox_hooks_extended`        | Sandbox MACF ops (extended)                                                                          | Stub remaining 30+ sandbox hooks (incl. IOKit 201..210)|     Y      |
 | JB-10 | A     | `patch_iouc_failed_macf`              | IOUC MACF shared gate                                                                                | A5-v2: patch only the post-`mac_iokit_check_open` deny gate (`CBZ W0, allow` -> `B allow`) and keep the rest of the IOUserClient open path intact                                    |     Y      |
 | JB-11 | B     | `patch_proc_security_policy`          | `_proc_security_policy`                                                                              | Bypass security policy                                                                                                                                                               |     Y      |
 | JB-12 | B     | `patch_proc_pidinfo`                  | `_proc_pidinfo`                                                                                      | Allow pid 0 info                                                                                                                                                                     |     Y      |
@@ -684,3 +684,80 @@ cache rebuild.
   - removed ad-hoc `git clone` source fetching from `scripts/setup_tools.sh` and `scripts/setup_libimobiledevice.sh`.
   - added pinned git-submodule sources under `scripts/repos/` for: `trustcache`, `insert_dylib`, `libplist`, `libimobiledevice-glue`, `libusbmuxd`, `libtatsu`, `libimobiledevice`, `libirecovery`, `idevicerestore`.
   - setup scripts now initialize required submodules via `git submodule update --init --recursive <path>` and stage build copies under local tool build directories.
+- 2026-06-15 cloudOS 26.5 (23F77) JB retargeting — P0 (sudo/setuid):
+  - **JB-04 `patch_hook_cred_label_update_execve` (P0, sudo/setuid) — FIXED.**
+    Root cause: `findVfsContextCurrentByShape()` pinned a 5-word prologue ending
+    in `ldr x1, [x0, #0x3E0]`; the uthread offset drifted to `#0x3F0` on 26.5
+    (`0x3E8` on macOS 26.5.1 KDK), so the exact match returned 0 hits.
+    Fix: resolve `vfs_context_current` generically — symbol first, else the stable
+    4-word prologue prefix (`pacibsp; stp x29,x30,[sp,#-0x10]!; mov x29,sp;
+    mrs x0,tpidr_el1`) followed by *any* `ldr x1,[x0,#imm]` (imm left unpinned);
+    uniqueness still required. Reveal: on the decompressed kernelcache the prefix
+    matches 5 sites, exactly one followed by an `ldr x1,[x0,#imm]` →
+    `vfs_context_current` @ va `0x8D7F39C` (foff `0x1D7B39C`). Validated via
+    `make test_jb_patches`: both `jb.hook_cred_label.{ops_retarget,c23_cave}` emit.
+  - Symbol oracle for the above: macOS 26.5.1 KDK (`KDK_26.5.1_25F80`) —
+    `kernel.release.vmapple` + `Sandbox.kext`/`AMFI.kext` (arm64e) carry full nlist
+    symbol tables for the XNU/Sandbox functions stripped from the vphone600 cache.
+  - Remaining 26.5 JB failures (8) still open: `task_conversion_eval` (inlined),
+    `proc_security_policy` + `proc_pidinfo` (shared `_proc_info` switch refactored,
+    `cmp #0x21` bound gone), `io_secure_bsd_root` (iOS-only, absent from KDK),
+    `mac_mount`, `spawn_validate_persona` (iOS-only), `vm_map_protect`,
+    `kcall10`/`sysent`.
+- 2026-06-16 cloudOS 26.5 (23F77) JB retargeting — the 8 remaining P1 failures, all FIXED.
+  Ground truth: IDA (idasql) on the decompressed `kernelcache.research.vphone600`,
+  symbolicated via the macOS KDK oracle; XNU source cross-check. Validation:
+  `make test_jb_patches` → every supported cloudOS kernel applies with **0** `[-]`
+  failures (84 patches each). All anchors are version-independent
+  (semantic/Capstone/call-graph), no pinned offsets/indices.
+  - **JB-11 `proc_security_policy` + JB-12 `proc_pidinfo` (shared root cause).**
+    The `sub wN,wM,#1 ; cmp wN,#0x21` switch anchor matched TWO sites on 26.5; the
+    naive first-match grabbed the wrong one (`decodeWakeReason`, lower address).
+    Replaced the whole `findProcInfoAnchor` with two source-backed finders in
+    `KernelJBPatcherBase.swift`: `findProcSecurityPolicy()` locates the unique
+    function that loads `PRIV_GLOBAL_PROC_INFO` (1002 = `0x3EA`, a stable
+    `bsd/sys/priv.h` ABI value) into `w1` ahead of `priv_check_cred` →
+    `_proc_security_policy` @ va `0x927E330` (stub entry `mov x0,#0; ret`);
+    `findProcInfoInternal()` = its sole caller via `blIndex` → `_proc_info_internal`
+    @ `0x927B38C` (proc_pidinfo is now inlined there). proc_pidinfo NOPs the unique
+    `ldr x0,[x0,#0x18]; cbz x0; bl; cbz/cbnz wN; mov w0,#0x16(EINVAL); sub wN,wM,#1`
+    guard pair → `0x927BDA8` / `0x927BDB0`.
+  - **JB-08 `task_conversion_eval_internal`.** Inlined; recovered via the unique
+    `"…pineapple on pizza…"` panic-string function (`task_get_special_port_from_user`).
+    The 26.1 matcher failed only because the compare operands swapped
+    (`cmp x0,x9` vs `cmp x9,x0`). Rewrote `collectTaskConversionCandidates` to accept
+    the kernel_task-vs-{X0,X1} compare in EITHER operand order. Unique hit
+    `cmp x0,x9 → cmp xzr,xzr` @ va `0x8D087A8`.
+  - **JB-?? `io_secure_bsd_root`.** `AppleARMPE::callPlatformFunction` (refs both
+    `"SecureRoot"`+`"SecureRootName"`). The match-bit compare-context moved >0xA0 back
+    (sync code inserted), breaking the old lookback. Re-anchored on the unique
+    `csel Wd,wzr,Wn,<cond>` whose `Wn` is built as `kIOReturnNotPrivileged`
+    (`movk Wn,#0xE000,lsl#16` — IOKit error high half). `csel w22,wzr,w9,ne →
+    mov w22,#0` @ va `0x7B30E10`. Dropped the pinned `[x19,#0x11A]` field offset.
+  - **JB-?? `mac_mount`.** Wrapper still uniquely identified by the twin gates among
+    `mount_common` callers (`__mac_mount` @ `0x8EC04F0`). Site 1 (`tbnz wFlags,#5 →
+    mov w?,#1` preboot reject) unchanged → NOP @ `0x8EC06FC`. Site 2 folded on 26.5:
+    `add x?,#0x70 ; ldrb w8,[x?,#1] ; tbz w8,#6` → `ldrb w8,[x16,#0x71] ; tbnz w8,#6`.
+    Re-anchored `findStateGate` on the `ldrb wN,[x,#imm] ; tbz/tbnz wN,#6` pair (the
+    `#6` role bit is the stable semantic) and clear the loaded reg → `mov x8,xzr`
+    @ `0x8EC072C`.
+  - **JB-?? `spawn_validate_persona`** @ `0x91C0D4C` (reached from the spawn
+    entitlement wrapper, intact). The trailing `mov x?,#0 ; ldr x?,[x?,#0x490] ; casa`
+    corroboration lowered differently on 26.5; re-anchored `matchPersonaHelper` on the
+    dual sibling reject `ldr [base,#8];cbz / ldr [base,#0xc];cbz` (same base + same
+    deny target + deny `mov w?,#1`), preceded by the `[_,#0x18]` sibling guard. NOP
+    both cbz → `0x91C0DF8` / `0x91C0E00`.
+  - **JB-25 `vm_map_protect`** @ `0x8DCA0A8`. The 26.1 `mov #6;bics;b.ne;tbnz#22;and
+    #~X` block was recompiled; the per-entry apply path now narrows protection with a
+    runtime W^X mask register before `pmap_protect_options`
+    (`lsr wT,wFlags,#7 ; and w3,wT,wMask`, `mov wMask,#5`). Widening the mask `#5 → #7`
+    makes the AND a pass-through so the requested protection (incl. the stripped bit)
+    reaches the pmap — strictly permissive (`prot&7 ⊇ prot&5`). `mov w27,#5 → mov
+    w27,#7` @ `0x8DCA30C`.
+  - **JB-?? `kcall10` / sysent.** `findNosys()` matched an unrelated tiny
+    `mov w0,#0x4e; ret` stub; the real `_nosys` is a large handler the sysent rows
+    actually point to (112/558 entries). Rewrote `findSysentTable()` to find the table
+    STRUCTURALLY (no `_nosys` dependency): the longest run of valid 24-byte `sysent`
+    rows (chained auth-rebase `sy_call` into __TEXT_EXEC + sane
+    `sy_return_type/sy_narg/sy_arg_bytes`). Base @ foff `0x7693B0` (558 rows);
+    `sysent[439]` (`SYS_kas_info`) @ foff `0x76BCD8`; cave + 3 entry writes emit.

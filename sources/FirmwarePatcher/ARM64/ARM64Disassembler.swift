@@ -54,4 +54,21 @@ public final class ARM64Disassembler: Sendable {
     public func registerName(_ regID: UInt32) -> String? {
         cs.registerName(regID)
     }
+
+    /// Canonical name of the instruction's first operand when it is a register
+    /// (the write target for the moves/loads/branches the patchers match), else nil.
+    ///
+    /// Replaces the brittle `operandString.components(separatedBy: ",")` parsing that
+    /// was duplicated across the JB patch files to recover a destination register's
+    /// width ("w…" vs "x…") and identity.
+    public func firstRegisterName(_ insn: Instruction) -> String? {
+        guard let ops = insn.aarch64?.operands, let first = ops.first,
+              first.type == AARCH64_OP_REG else { return nil }
+        return cs.registerName(UInt32(first.reg.rawValue))
+    }
+
+    /// True iff the instruction's first (destination) operand is the named register.
+    public func writesRegister(_ insn: Instruction, named regName: String) -> Bool {
+        firstRegisterName(insn) == regName
+    }
 }

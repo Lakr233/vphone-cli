@@ -1,29 +1,37 @@
-// KernelJBPatchVmProtect.swift — JB kernel patch: VM map protect bypass
+// KernelJBPatchVmProtect.swift — JB kernel patch: VM map protect W^X bypass
 //
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
+//
+// Goal: let vm_map_protect apply write+execute (RWX). The downgrade that blocks this
+// is compiled two different ways across releases, so we try both shapes and apply
+// whichever uniquely matches (same patch either way):
+//
+//   Shape A (26.1 / 26.3): an explicit skip-branch around the strip block —
+//       mov  wMask, #6
+//       bics wzr, wMask, wProt        ; (~prot & 6) == 0 ?  (both bits requested)
+//       b.ne skip                     ; <- rewrite to unconditional `b skip`
+//       tbnz wEntryFlags, #22, skip
+//       ... and wProt, wProt, #~bit   ; the downgrade we want to skip
+//
+//   Shape B (26.5): the per-entry apply path narrows the protection with a runtime
+//   W^X mask register before pmap_protect_options —
+//       lsr  wT, wEntryFlags, #7      ; extract the 3-bit protection field
+//       and  w3, wT, wMask            ; wMask = #5  (the W^X strip)
+//       ...
+//       mov  wMask, #5                ; <- widen to #7 so the AND is a pass-through
+//   Widening the mask keeps ALL requested permission bits; it is strictly more
+//   permissive (`prot & 7` ⊇ `prot & 5`), so no working mapping regresses.
 
 import Capstone
 import Foundation
 
 extension KernelJBPatcher {
-    /// Skip the vm_map_protect write-downgrade gate.
-    ///
-    /// Source-backed anchor: recover the function from the in-kernel
-    /// `vm_map_protect(` panic string, then find the unique local block matching:
-    ///
-    ///     mov wMask, #6
-    ///     bics wzr, wMask, wProt
-    ///     b.ne skip
-    ///     tbnz wEntryFlags, #22, skip
-    ///     ...
-    ///     and wProt, wProt, #~VM_PROT_WRITE
-    ///
-    /// Rewriting `b.ne` to unconditional `b` always skips the downgrade block.
+    /// Bypass the vm_map_protect W^X downgrade so write+execute protections are honored.
     @discardableResult
     func patchVmMapProtect() -> Bool {
-        log("\n[JB] _vm_map_protect: skip write-downgrade gate")
+        log("\n[JB] _vm_map_protect: bypass W^X downgrade")
 
-        // Find function via "vm_map_protect(" string
+        // Recover the function from the in-kernel "vm_map_protect(" panic string.
         guard let strOff = buffer.findString("vm_map_protect(") else {
             log("  [-] kernel-text 'vm_map_protect(' anchor not found")
             return false
@@ -35,29 +43,40 @@ extension KernelJBPatcher {
         }
         let funcEnd = findFuncEnd(funcStart, maxSize: 0x2000)
 
-        guard let gate = findWriteDowngradeGate(start: funcStart, end: funcEnd) else {
-            log("  [-] vm_map_protect write-downgrade gate not found")
-            return false
+        // Shape A: explicit skip branch (26.1 / 26.3). Rewrite `b.ne skip` -> `b skip`.
+        if let (brOff, target) = findWriteDowngradeGate(start: funcStart, end: funcEnd) {
+            guard let bBytes = encodeB(from: brOff, to: target) else {
+                log("  [-] branch rewrite out of range")
+                return false
+            }
+            let delta = target - brOff
+            emit(brOff, bBytes,
+                 patchID: "kernelcache_jb.vm_map_protect",
+                 virtualAddress: fileOffsetToVA(brOff),
+                 description: "b #0x\(String(format: "%X", delta)) [_vm_map_protect skip W^X downgrade]")
+            return true
         }
 
-        let (brOff, target) = gate
-        guard let bBytes = encodeB(from: brOff, to: target) else {
-            log("  [-] branch rewrite out of range")
-            return false
+        // Shape B: runtime W^X mask register (26.5). Widen the mask constant #5 -> #7.
+        if let (movOff, maskReg) = findWxMaskMov(start: funcStart, end: funcEnd) {
+            guard let maskBytes = ARM64Encoder.encodeMovzW(rd: maskReg, imm16: 7) else {
+                log("  [-] could not encode widened W^X mask")
+                return false
+            }
+            emit(movOff, maskBytes,
+                 patchID: "kernelcache_jb.vm_map_protect",
+                 virtualAddress: fileOffsetToVA(movOff),
+                 description: "mov w\(maskReg),#7 [_vm_map_protect widen W^X mask, allow W+X]")
+            return true
         }
 
-        let va = fileOffsetToVA(brOff)
-        let delta = target - brOff
-        emit(brOff, bBytes,
-             patchID: "kernelcache_jb.vm_map_protect",
-             virtualAddress: va,
-             description: "b #0x\(String(format: "%X", delta)) [_vm_map_protect]")
-        return true
+        log("  [-] vm_map_protect write-downgrade gate not found")
+        return false
     }
 
-    // MARK: - Private helpers
+    // MARK: - Shape A (26.1 / 26.3): explicit skip-branch gate
 
-    /// Find the `b.ne` instruction address and its target in the write-downgrade block.
+    /// Find the `b.ne` that skips the write-downgrade block, and its target.
     private func findWriteDowngradeGate(start: Int, end: Int) -> (brOff: Int, target: Int)? {
         let wZrReg: aarch64_reg = AARCH64_REG_WZR
 
@@ -101,22 +120,20 @@ extension KernelJBPatcher {
                   tbnzOps[2].type == AARCH64_OP_IMM, Int(tbnzOps[2].imm) == skipTarget
             else { off += 4; continue }
 
-            // Verify there's an `and wProt, wProt, #~2` between tbnz+4 and target
+            // Verify there's an `and wProt, wProt, #~bit` between tbnz+4 and target.
             let searchStart = Int(tbnzInsn.address) + 4
             let searchEnd = min(skipTarget, end)
             guard findWriteClearBetween(start: searchStart, end: searchEnd, protReg: protReg) != nil
             else { off += 4; continue }
 
-            // bneInsn.address is a virtual-like address (== file offset here)
-            let bneFileOff = Int(bneInsn.address)
-            hits.append((bneFileOff, skipTarget))
+            hits.append((Int(bneInsn.address), skipTarget))
             off += 4
         }
 
         return hits.count == 1 ? hits[0] : nil
     }
 
-    /// Scan [start, end) for `and wProt, wProt, #imm` where imm clears bit 1 (VM_PROT_WRITE).
+    /// Scan [start, end) for `and wProt, wProt, #imm` that strips one of the low protection bits.
     private func findWriteClearBetween(start: Int, end: Int, protReg: aarch64_reg) -> Int? {
         var off = start
         while off < end {
@@ -129,7 +146,7 @@ extension KernelJBPatcher {
                ops[2].type == AARCH64_OP_IMM
             {
                 let imm = UInt32(bitPattern: Int32(truncatingIfNeeded: ops[2].imm)) & 0xFFFF_FFFF
-                // Clears bit 1 (VM_PROT_WRITE=2), keeps bit 0 (VM_PROT_READ=1)
+                // Keeps two of the three low protection bits, clears the middle one.
                 if (imm & 0x7) == 0x3 {
                     return off
                 }
@@ -137,5 +154,43 @@ extension KernelJBPatcher {
             off += 4
         }
         return nil
+    }
+
+    // MARK: - Shape B (26.5): runtime W^X mask register
+
+    /// Locate the `mov wMask, #5` that defines the W^X protection mask, identified by
+    /// the unique `lsr wT, _, #7 ; and wD, wT, wMask` pair that narrows the protection
+    /// before pmap_protect_options. Returns (movFileOffset, maskRegIndex).
+    private func findWxMaskMov(start: Int, end: Int) -> (Int, UInt32)? {
+        var candidates: [(Int, UInt32)] = []
+        var off = start
+        while off + 8 <= end {
+            defer { off += 4 }
+            let lsr = buffer.readU32(at: off)
+            guard ARM64Inst.isLSRImm7W(lsr) else { continue }
+            let wt = ARM64Inst.rd(lsr)
+            let and = buffer.readU32(at: off + 4)
+            guard ARM64Inst.isANDRegW(and), ARM64Inst.rn(and) == wt else { continue }
+            let maskReg = ARM64Inst.rm(and)
+
+            // Find the (unique) `movz wMask, #5` writer in this function.
+            var movOff = -1
+            var p = start
+            while p + 4 <= end {
+                let insn = buffer.readU32(at: p)
+                if ARM64Inst.isMOVZW(insn), ARM64Inst.rd(insn) == maskReg, ARM64Inst.movImm16(insn) == 5 {
+                    if movOff >= 0 { movOff = -2; break } // ambiguous writer
+                    movOff = p
+                }
+                p += 4
+            }
+            // Dedup by writer offset: several `lsr;and` pairs may reference the same
+            // `mov wMask,#5` writer — that is still a single mask, not an ambiguous one.
+            if movOff >= 0, !candidates.contains(where: { $0.0 == movOff }) {
+                candidates.append((movOff, maskReg))
+            }
+        }
+
+        return candidates.count == 1 ? candidates[0] : nil
     }
 }

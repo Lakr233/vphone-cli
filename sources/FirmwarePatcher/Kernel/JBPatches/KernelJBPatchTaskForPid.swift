@@ -94,9 +94,7 @@ extension KernelJBPatcher {
               cbzRetOps[1].imm == failTarget
         else { return nil }
         // x0
-        let retRegName = cbzRet.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        guard retRegName == "x0" else { return nil }
+        guard disasm.firstRegisterName(cbzRet) == "x0" else { return nil }
 
         // Look backward for ldr wPid, [x?, #8] and ldr xTaskPtr, [x?, #0x10]
         let scanStart = max(funcStart, off - 0x18)
@@ -125,9 +123,7 @@ extension KernelJBPatcher {
               ops[0].type == AARCH64_OP_REG,
               ops[1].type == AARCH64_OP_IMM, ops[1].imm == 0
         else { return false }
-        let name = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return name == dstName
+        return disasm.firstRegisterName(insn) == dstName
     }
 
     private func isWLdrFromXImm(_ insn: Instruction, imm: Int32) -> Bool {
@@ -137,9 +133,7 @@ extension KernelJBPatcher {
               ops[1].type == AARCH64_OP_MEM,
               ops[1].mem.disp == imm
         else { return false }
-        let dstName = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return dstName.hasPrefix("w")
+        return disasm.firstRegisterName(insn)?.hasPrefix("w") ?? false
     }
 
     private func isXLdrFromXImm(_ insn: Instruction, imm: Int32) -> Bool {
@@ -149,8 +143,6 @@ extension KernelJBPatcher {
               ops[1].type == AARCH64_OP_MEM,
               ops[1].mem.disp == imm
         else { return false }
-        let dstName = insn.operandString.components(separatedBy: ",").first?
-            .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-        return dstName.hasPrefix("x")
+        return disasm.firstRegisterName(insn)?.hasPrefix("x") ?? false
     }
 }

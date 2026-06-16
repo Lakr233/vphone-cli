@@ -16,9 +16,8 @@ public class KernelJBPatcherBase: KernelPatcherBase {
     /// Symbol name → file offset map, built from nlist64 entries.
     var symbols: [String: Int] = [:]
 
-    /// Cached proc_info anchor (func_start, switch_off).
-    private var procInfoAnchor: (Int, Int)?
-    private var procInfoAnchorScanned = false
+    /// Cached _proc_security_policy file offset (-1 = scanned, not found).
+    private var procSecurityPolicyOff: Int?
 
     /// JB scan cache for expensive searches.
     var jbScanCache: [String: Int] = [:]
@@ -260,91 +259,45 @@ public class KernelJBPatcherBase: KernelPatcherBase {
         return (funcStart, funcEnd, refs)
     }
 
-    /// Find `_nosys`: a tiny function returning ENOSYS (errno 78 = 0x4e).
+    // MARK: - proc_info Family Anchors (B6/B7)
+
+    /// Find `_proc_security_policy` by its unique reference to `PRIV_GLOBAL_PROC_INFO`.
     ///
-    /// Pattern A:   `mov w0, #0x4e ; ret`
-    /// Pattern B:   `pacibsp ; mov w0, #0x4e ; ret`  (ARM64e wrapper)
-    ///
-    /// Reads from `buffer.original` (Python: `_rd32(self.raw, off)`).
-    /// Mirrors Python `_find_nosys()`.
-    func findNosys() -> Int? {
-        let movW0_4e: UInt32 = 0x5280_09C0 // MOVZ W0, #0x4e
-        let retVal: UInt32 = ARM64.retU32
-        let pacibsp: UInt32 = ARM64.pacibspU32
+    /// Source: `bsd/kern/proc_info.c` — `proc_security_policy()` is the shared
+    /// proc-info authorization gate. Its only distinctive constant is the privilege
+    /// id passed to `priv_check_cred(my_cred, PRIV_GLOBAL_PROC_INFO, 0)`.
+    /// `PRIV_GLOBAL_PROC_INFO` is `1002` (`0x3EA`) in `bsd/sys/priv.h`, a stable ABI
+    /// value, so the function is located generically as the unique routine that
+    /// loads `0x3EA` into `w1` immediately ahead of a `BL` (the priv-check call) —
+    /// no offsets, no preassembled bytes, no version-pinned switch literal.
+    func findProcSecurityPolicy() -> Int? {
+        if let cached = procSecurityPolicyOff { return cached >= 0 ? cached : nil }
         let raw = buffer.original
+
+        var funcs = Set<Int>()
         for (start, end) in codeRanges {
             var off = start
-            while off + 8 <= end {
-                let v0 = raw.loadLE(UInt32.self, at: off)
-                let v1 = raw.loadLE(UInt32.self, at: off + 4)
-                if v0 == movW0_4e, v1 == retVal { return off }
-                if v0 == pacibsp, v1 == movW0_4e, off + 12 <= end {
-                    let v2 = raw.loadLE(UInt32.self, at: off + 8)
-                    if v2 == retVal { return off }
-                }
-                off += 4
+            let limit = min(end, raw.count) - 4
+            while off <= limit {
+                defer { off += 4 }
+                let insn = raw.loadLE(UInt32.self, at: off)
+                // movz w1, #0x3EA  (Rd=w1, imm16=PRIV_GLOBAL_PROC_INFO)
+                guard ARM64Inst.isMOVZW(insn), ARM64Inst.rd(insn) == 1,
+                      ARM64Inst.movImm16(insn) == 0x3EA else { continue }
+                // Require a BL within the next two instructions (priv_check_cred call).
+                let blA = off + 4 <= limit ? raw.loadLE(UInt32.self, at: off + 4) : 0
+                let blB = off + 8 <= limit ? raw.loadLE(UInt32.self, at: off + 8) : 0
+                guard ARM64Inst.isBL(blA) || ARM64Inst.isBL(blB) else { continue }
+                if let fn = findFunctionStart(off) { funcs.insert(fn) }
             }
         }
-        return nil
-    }
 
-    // MARK: - Proc Info Anchor
-
-    /// Find the `_proc_info` switch anchor as (func_start, switch_off). Cached.
-    ///
-    /// Shared by B6/B7 patches. Expensive on stripped kernels so result is memoised.
-    ///
-    /// Anchor pattern:
-    ///   `sub  wN, wM, #1`   — zero-base the command index
-    ///   `cmp  wN, #0x21`    — bounds-check against the switch table size
-    ///
-    /// Search order: direct symbol → full kern_text scan.
-    /// Mirrors Python `_find_proc_info_anchor()`.
-    func findProcInfoAnchor() -> (Int, Int)? {
-        if procInfoAnchorScanned { return procInfoAnchor }
-        procInfoAnchorScanned = true
-
-        // Fast path: symbol table hit
-        if let funcOff = resolveSymbol("_proc_info") {
-            let searchEnd = min(funcOff + 0x800, buffer.count)
-            let switchOff = scanProcInfoSwitchPattern(start: funcOff, end: searchEnd)
-            procInfoAnchor = (funcOff, switchOff ?? funcOff)
-            return procInfoAnchor
+        let result = funcs.count == 1 ? funcs.first! : -1
+        procSecurityPolicyOff = result
+        if verbose, result >= 0 {
+            print("  [+] _proc_security_policy at 0x\(String(format: "%X", result)) (PRIV_GLOBAL_PROC_INFO anchor)")
         }
-
-        // Slow path: scan __TEXT_EXEC
-        guard let (ks, ke) = kernTextRange else { return nil }
-        guard let switchOff = scanProcInfoSwitchPattern(start: ks, end: ke) else { return nil }
-        let funcStart = findFunctionStart(switchOff) ?? switchOff
-        procInfoAnchor = (funcStart, switchOff)
-        return procInfoAnchor
-    }
-
-    /// Raw scanner for `sub wN, wM, #1 ; cmp wN, #0x21`. Result is memoised in `jbScanCache`.
-    private func scanProcInfoSwitchPattern(start: Int, end: Int) -> Int? {
-        let cacheKey = "proc_info_switch_\(start)_\(end)"
-        if let cached = jbScanCache[cacheKey] { return cached >= 0 ? cached : nil }
-        let raw = buffer.original
-        let limit = min(end - 8, raw.count - 8)
-        var off = max(start, 0)
-        while off <= limit {
-            let i0 = raw.loadLE(UInt32.self, at: off)
-            // SUB (immediate) 32-bit: [31:24]==0x51, sh[22]==0, imm12[21:10]==1
-            guard (i0 & 0xFF00_0000) == 0x5100_0000 else { off += 4; continue }
-            guard (i0 >> 22) & 1 == 0 else { off += 4; continue }
-            guard (i0 >> 10) & 0xFFF == 1 else { off += 4; continue }
-            let subRd = i0 & 0x1F
-            let i1 = raw.loadLE(UInt32.self, at: off + 4)
-            // CMP wN, #imm ≡ SUBS WZR, wN, #imm: [31:24]==0x71, rd==31, sh==0, imm12==0x21
-            guard (i1 & 0xFF00_001F) == 0x7100_001F else { off += 4; continue }
-            guard (i1 >> 22) & 1 == 0 else { off += 4; continue }
-            guard (i1 >> 10) & 0xFFF == 0x21 else { off += 4; continue }
-            guard (i1 >> 5) & 0x1F == subRd else { off += 4; continue }
-            jbScanCache[cacheKey] = off
-            return off
-        }
-        jbScanCache[cacheKey] = -1
-        return nil
+        return result >= 0 ? result : nil
     }
 
     // MARK: - Convenience Properties

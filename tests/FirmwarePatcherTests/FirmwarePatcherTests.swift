@@ -141,6 +141,124 @@ struct ARM64EncoderTests {
         let insn = try disasm.disassembleOne(#require(data), at: 0)
         #expect(insn?.mnemonic == "add")
     }
+
+    @Test func encodeMovXFromZR() {
+        // `mov x8, xzr` — the mac_mount state-clear encoding (ORR X8, XZR, XZR).
+        let bytes = ARM64Encoder.encodeMovX(rd: 8, rm: 31)
+        let insn = disasm.disassembleOne(bytes, at: 0)
+        #expect(insn != nil)
+        #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "orr")
+        // Byte-for-byte equal to the legacy hand-encoded constant 0xAA1F03E8.
+        #expect(bytes == withUnsafeBytes(of: UInt32(0xAA1F_03E8).littleEndian) { Data($0) })
+    }
+
+    @Test func encodeMovXIsRegisterMove() {
+        // `mov x0, x20` matches the project's preverified ARM64.movX0X20 constant.
+        #expect(ARM64Encoder.encodeMovX(rd: 0, rm: 20) == ARM64.movX0X20)
+    }
+}
+
+/// Round-trip coverage for the shared raw-instruction predicates in `ARM64Inst`,
+/// the single source of truth for the JB pattern scanners. Each predicate is
+/// cross-checked against Capstone's decode of the same word so the masks cannot
+/// silently drift from the ISA.
+struct ARM64InstTests {
+    let disasm = ARM64Disassembler()
+
+    private func mnemonic(of word: UInt32) -> String? {
+        let data = withUnsafeBytes(of: word.littleEndian) { Data($0) }
+        return disasm.disassembleOne(data, at: 0)?.mnemonic
+    }
+
+    @Test func fieldAccessors() {
+        // ldr x1, [x0, #0x3e0]  → Rt=1, Rn=0
+        let ldr: UInt32 = 0xF941_F001
+        #expect(ARM64Inst.rd(ldr) == 1)
+        #expect(ARM64Inst.rn(ldr) == 0)
+        // cmp x0, x1 (SUBS XZR, X0, X1) → Rn=0, Rm=1
+        let cmp: UInt32 = 0xEB01_001F
+        #expect(ARM64Inst.rn(cmp) == 0)
+        #expect(ARM64Inst.rm(cmp) == 1)
+        // movz w0, #0x16 → imm16=0x16
+        let movz: UInt32 = 0x5280_02C0
+        #expect(ARM64Inst.movImm16(movz) == 0x16)
+        // sub w2, w3, #1 → imm12=1
+        let sub: UInt32 = 0x5100_0462
+        #expect(ARM64Inst.addSubImm12(sub) == 1)
+    }
+
+    @Test func adrp() {
+        let w: UInt32 = 0x9000_0000 // adrp x0, ...
+        #expect(mnemonic(of: w) == "adrp")
+        #expect(ARM64Inst.isADRP(w))
+        #expect(!ARM64Inst.isADRP(0xF941_F001)) // an ldr is not adrp
+    }
+
+    @Test func ldrImm64() {
+        let w: UInt32 = 0xF941_F001 // ldr x1, [x0, #0x3e0]
+        #expect(mnemonic(of: w) == "ldr")
+        #expect(ARM64Inst.isLDRImm64(w))
+        #expect(!ARM64Inst.isLDRImm64(0x9000_0000))
+    }
+
+    @Test func cmpReg64() {
+        let w: UInt32 = 0xEB01_001F // cmp x0, x1
+        #expect(mnemonic(of: w) == "cmp")
+        #expect(ARM64Inst.isCMPReg64(w))
+        // operand order is irrelevant: cmp x1, x0
+        #expect(ARM64Inst.isCMPReg64(0xEB00_003F))
+        #expect(!ARM64Inst.isCMPReg64(0x5100_0462)) // sub-imm is not cmp-reg
+    }
+
+    @Test func subImm32() {
+        let w: UInt32 = 0x5100_0462 // sub w2, w3, #1
+        #expect(mnemonic(of: w) == "sub")
+        #expect(ARM64Inst.isSUBImm32(w))
+        #expect(!ARM64Inst.isSUBImm32(0x5280_02C0)) // movz is not sub
+    }
+
+    @Test func movzW() {
+        let w: UInt32 = 0x5280_02C0 // movz w0, #0x16
+        let m = mnemonic(of: w)
+        #expect(m == "mov" || m == "movz")
+        #expect(ARM64Inst.isMOVZW(w))
+        #expect(ARM64Inst.rd(w) == 0)
+        #expect(!ARM64Inst.isMOVZW(0xF941_F001))
+    }
+
+    @Test func andRegW() {
+        let w: UInt32 = 0x0A05_0083 // and w3, w4, w5
+        #expect(mnemonic(of: w) == "and")
+        #expect(ARM64Inst.isANDRegW(w))
+        #expect(!ARM64Inst.isANDRegW(0x5280_02C0))
+    }
+
+    @Test func lsrImm7W() {
+        let w: UInt32 = 0x5307_7C20 // lsr w0, w1, #7
+        let m = mnemonic(of: w)
+        #expect(m == "lsr" || m == "ubfm")
+        #expect(ARM64Inst.isLSRImm7W(w))
+        #expect(!ARM64Inst.isLSRImm7W(0x0A05_0083))
+    }
+
+    @Test func branchPredicates() {
+        let bl = ARM64Encoder.encodeBL(from: 0x1000, to: 0x2000)!
+            .withUnsafeBytes { $0.load(as: UInt32.self) }
+        #expect(ARM64Inst.isBL(bl))
+        // b.eq vs b.ne (cond field)
+        #expect(ARM64Inst.isBEQ(0x5400_0020)) // b.eq #4
+        #expect(!ARM64Inst.isBEQ(0x5400_0021)) // b.ne #4
+    }
+
+    @Test func compareAndBranch() {
+        #expect(ARM64Inst.isCBZW(0x3400_0020)) // cbz w0, #4
+        #expect(!ARM64Inst.isCBZW(0x3500_0020)) // that is cbnz
+        #expect(ARM64Inst.isCBNZW(0x3500_0020))
+        #expect(ARM64Inst.isCBZorCBNZW(0x3400_0020))
+        #expect(ARM64Inst.isCBZorCBNZW(0x3500_0020))
+        #expect(ARM64Inst.isCBZX(0xB400_0020)) // cbz x0, #4 (64-bit)
+        #expect(!ARM64Inst.isCBZX(0x3400_0020)) // 32-bit cbz is not the X form
+    }
 }
 
 struct BinaryBufferTests {

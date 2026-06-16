@@ -33,14 +33,8 @@ extension KernelJBPatcher {
     func patchKcall10() -> Bool {
         log("\n[JB] kcall10: ABI-correct sysent[439] cave")
 
-        // 1. Find _nosys.
-        guard let nosysOff = resolveSymbol("_nosys") ?? findNosys() else {
-            log("  [-] _nosys not found")
-            return false
-        }
-
-        // 2. Find sysent table base.
-        guard let sysEntOff = findSysentTable(nosysOff: nosysOff) else {
+        // 1. Find sysent table base (structural; this kernel is symbol-stripped).
+        guard let sysEntOff = findSysentTable() else {
             log("  [-] sysent table not found")
             return false
         }
@@ -117,60 +111,59 @@ extension KernelJBPatcher {
 
     // MARK: - Sysent Table Finder
 
-    /// Find the real sysent table base by locating a _nosys entry then scanning backward.
-    private func findSysentTable(nosysOff: Int) -> Int? {
-        var nosysEntry = -1
-        var segStart = -1
+    /// Find the sysent table base structurally — the longest run of valid 24-byte
+    /// `struct sysent` rows in a DATA segment. No symbol or `_nosys` dependency:
+    /// each row's `sy_call` is an arm64e chained auth-rebase pointer into executable
+    /// memory and the `(sy_return_type, sy_narg, sy_arg_bytes)` trailer is sane, a
+    /// shape that no unrelated data run reproduces for hundreds of entries. The base
+    /// is wherever the longest such run begins (entries are back-to-back from there).
+    private func findSysentTable() -> Int? {
+        // Executable file-offset ranges that sy_call / sy_arg_munge32 point into.
+        let execSegNames: Set = ["__TEXT_EXEC", "__TEXT_BOOT_EXEC"]
+        var execRanges: [(Int, Int)] = []
+        for seg in segments where execSegNames.contains(seg.name) && seg.fileSize > 0 {
+            execRanges.append((Int(seg.fileOffset), Int(seg.fileOffset + seg.fileSize)))
+        }
+        if execRanges.isEmpty { execRanges = codeRanges.map { ($0.start, $0.end) } }
+        func inExec(_ fo: Int) -> Bool { fo > 0 && execRanges.contains { fo >= $0.0 && fo < $0.1 } }
 
-        // Scan DATA segments for an entry whose decoded pointer == nosysOff
-        for seg in segments {
-            guard seg.name.contains("DATA") else { continue }
+        func validEntry(_ o: Int) -> Bool {
+            guard o + Self.sysent_entry_size <= buffer.count else { return false }
+            guard inExec(decodeChainedPtr(buffer.readU64(at: o))) else { return false }
+            let rt = buffer.data.loadLE(UInt32.self, at: o + 16)
+            let narg = buffer.data.loadLE(UInt16.self, at: o + 20)
+            let argBytes = buffer.data.loadLE(UInt16.self, at: o + 22)
+            return rt <= 9 && narg <= 12 && argBytes <= 96
+        }
+
+        var bestBase = -1
+        var bestLen = 0
+        for seg in segments where seg.name.contains("DATA") && seg.fileSize > 0 {
             let sStart = Int(seg.fileOffset)
-            let sEnd = sStart + Int(seg.fileSize)
+            let sEnd = min(sStart + Int(seg.fileSize), buffer.count)
             var off = sStart
             while off + Self.sysent_entry_size <= sEnd {
-                let val = buffer.readU64(at: off)
-                let decoded = decodeChainedPtr(val)
-                if decoded == nosysOff {
-                    // Confirm: next entry also decodes to a code-range address
-                    let val2 = buffer.readU64(at: off + Self.sysent_entry_size)
-                    let dec2 = decodeChainedPtr(val2)
-                    let inCode = dec2 > 0 && codeRanges.contains { dec2 >= $0.start && dec2 < $0.end }
-                    if inCode {
-                        nosysEntry = off
-                        segStart = sStart
-                        break
+                if validEntry(off) {
+                    let runStart = off
+                    var n = 0
+                    while off + Self.sysent_entry_size <= sEnd, validEntry(off) {
+                        n += 1
+                        off += Self.sysent_entry_size
                     }
+                    if n > bestLen { bestLen = n; bestBase = runStart }
+                } else {
+                    off += 8 // entries are 8-byte aligned
                 }
-                off += 8
             }
-            if nosysEntry >= 0 { break }
-        }
-        guard nosysEntry >= 0 else { return nil }
-
-        log("  [*] _nosys entry found at foff 0x\(String(format: "%X", nosysEntry)), scanning backward for table start")
-
-        // Scan backward in sysent_entry_size steps to find table base
-        var base = nosysEntry
-        var entriesBack = 0
-        while base - Self.sysent_entry_size >= segStart {
-            guard entriesBack < Self.sysent_max_entries else { break }
-            let prev = base - Self.sysent_entry_size
-            let val = buffer.readU64(at: prev)
-            let decoded = decodeChainedPtr(val)
-            guard decoded > 0 else { break }
-            let inCode = codeRanges.contains { decoded >= $0.start && decoded < $0.end }
-            guard inCode else { break }
-            // Check narg and arg_bytes for sanity
-            let narg = buffer.data.loadLE(UInt16.self, at: prev + 20)
-            let argBytes = buffer.data.loadLE(UInt16.self, at: prev + 22)
-            guard narg <= 12, argBytes <= 96 else { break }
-            base = prev
-            entriesBack += 1
         }
 
-        log("  [+] sysent table base at foff 0x\(String(format: "%X", base)) (\(entriesBack) entries before first _nosys)")
-        return base
+        // The real BSD syscall table has ~550 rows; require a decisively long run.
+        guard bestLen >= 256, bestBase >= 0 else {
+            log("  [-] no sysent-shaped table found (longest run \(bestLen))")
+            return nil
+        }
+        log("  [+] sysent table base at foff 0x\(String(format: "%X", bestBase)) (\(bestLen) entries)")
+        return bestBase
     }
 
     // MARK: - Munger Finder

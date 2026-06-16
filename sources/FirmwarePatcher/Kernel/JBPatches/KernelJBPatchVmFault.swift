@@ -82,8 +82,7 @@ extension KernelJBPatcher {
                ops[1].mem.base != AARCH64_REG_INVALID,
                ops[1].mem.disp == 0x28
             {
-                let dstName = insn.operandString.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
-                if dstName.hasPrefix("w") {
+                if disasm.firstRegisterName(insn)?.hasPrefix("w") ?? false {
                     flagRegs.insert(ops[0].reg.rawValue)
                 }
             }
@@ -115,8 +114,7 @@ extension KernelJBPatcher {
                   movOps[0].type == AARCH64_OP_REG,
                   movOps[1].type == AARCH64_OP_IMM, movOps[1].imm == 0
             else { off += 4; continue }
-            let movDstName = movInsn.operandString.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
-            guard movDstName.hasPrefix("w") else { off += 4; continue }
+            guard disasm.firstRegisterName(movInsn)?.hasPrefix("w") ?? false else { off += 4; continue }
 
             // Check unconditional B
             let bInsns = disasm.disassemble(in: buffer.data, at: off + 8, count: 1)
