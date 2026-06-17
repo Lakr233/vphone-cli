@@ -13,25 +13,8 @@ set -uo pipefail
 LOG="/var/log/vphone_jb_setup.log"
 DONE_MARKER="/var/mobile/.vphone_jb_setup_done"
 
-log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
-die() { log "FATAL: $*"; exit 1; }
-
-# Redirect all output to log
-exec > >(tee -a "$LOG") 2>&1
-
-log "=== vphone_jb_setup.sh starting ==="
-
-# ── Check done marker ────────────────────────────────────────
-if [ -f "$DONE_MARKER" ]; then
-    log "Already completed (marker exists), exiting."
-    exit 0
-fi
-
-# ── Environment ──────────────────────────────────────────────
 export TERM=xterm-256color
 export DEBIAN_FRONTEND=noninteractive
-
-# Discover PATH dynamically
 P=""
 for d in \
     /var/jb/usr/bin /var/jb/bin /var/jb/sbin /var/jb/usr/sbin \
@@ -40,7 +23,23 @@ for d in \
     [ -d "$d" ] && P="$P:$d"
 done
 export PATH="${P#:}"
+
+# Redirect all output (stdout+stderr) through tee to the log + console.
+exec > >(tee -a "$LOG") 2>&1
+
+# NOTE: log() does NOT pipe through tee — stdout is already tee'd to $LOG by the
+# exec above, so a second tee here would double every timestamped line.
+log() { echo "[$(date '+%H:%M:%S')] $*"; }
+die() { log "FATAL: $*"; exit 1; }
+
+log "=== vphone_jb_setup.sh starting ==="
 log "PATH=$PATH"
+
+# ── Check done marker ────────────────────────────────────────
+if [ -f "$DONE_MARKER" ]; then
+    log "Already completed (marker exists), exiting."
+    exit 0
+fi
 
 # ── Find boot manifest hash ─────────────────────────────────
 BOOT_HASH=""
