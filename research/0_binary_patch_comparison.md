@@ -613,7 +613,7 @@ cache rebuild.
   - dev: all 7 component payloads match
   - jb: all 7 component payloads match
 - Runtime validation blocker observed on 2026-03-10:
-  - `NONE_INTERACTIVE=1 SKIP_PROJECT_SETUP=1 make setup_machine JB=1` reaches the Swift patch stage and reports `[patch-firmware] applied 154 patches for jb`, then fails when the flow transitions into `make boot_dfu`.
+  - `NON_INTERACTIVE=1 SKIP_PROJECT_SETUP=1 make setup_machine JB=1` reaches the Swift patch stage and reports `[patch-firmware] applied 154 patches for jb`, then fails when the flow transitions into `make boot_dfu`.
   - `make boot_dfu` originally failed at launch-policy time with exit `137` / signal `9` because the release `vphone-cli` could not launch on this host.
   - `amfidont` was then validated on-host:
     - it can attach to `/usr/libexec/amfid`

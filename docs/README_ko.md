@@ -104,7 +104,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
 ```bash
 make setup_machine            # "First Boot"까지의 전체 과정 자동화 (복원/Ramdisk/커스텀 펌웨어 포함)
-# 옵션: NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# 옵션: NON_INTERACTIVE=1 SUDO_PASSWORD=...
 # LESS=1 Patchless 변형 (- AMFI, SSV, Img4, TXM 우회)
 # DEV=1 개발 변형 (+ TXM 권한/디버그 우회)
 # JB=1 탈옥 변형 (dev + 전체 보안 우회)

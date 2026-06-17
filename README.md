@@ -116,7 +116,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
 ```bash
 make setup_machine            # full automation through "First Boot" (includes restore/ramdisk/CFW)
-# options: NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# options: NON_INTERACTIVE=1 SUDO_PASSWORD=...
 # LESS=1 for patchless variant (- AMFI, SSV, Img4, TXM bypasses) 
 # DEV=1 for dev variant (+ TXM entitlement/debug bypasses)
 # JB=1 for jailbreak variant (+ full security bypass)

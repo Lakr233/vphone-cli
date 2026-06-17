@@ -104,7 +104,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
 ```bash
 make setup_machine            # 初回起動までを完全自動化（復元/ラムディスク/CFWを含む）
-# オプション：NONE_INTERACTIVE=1 SUDO_PASSWORD=...
+# オプション：NON_INTERACTIVE=1 SUDO_PASSWORD=...
 # LESS=1 で patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
 # DEV=1 で開発バリアント（+ TXM entitlement/デバッグバイパス）
 # JB=1 で脱獄バリアント（dev + 完全セキュリティバイパス）
