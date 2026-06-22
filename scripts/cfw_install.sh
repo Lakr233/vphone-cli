@@ -303,13 +303,20 @@ else
     MNT_SYSOS="$TEMP_DIR/mnt_sysos"
     MNT_APPOS="$TEMP_DIR/mnt_appos"
 
-    # Decrypt SystemOS AEA (cached — skip if already decrypted)
+    # Decrypt SystemOS AEA (cached — skip if already decrypted).
+    # `make restore_offline` decrypts .dmg.aea files in place, keeping the .aea
+    # filename, so the BuildManifest path may already point to a raw DMG.
     if [[ ! -f "$SYSOS_DMG" ]]; then
-        echo "  Extracting AEA key..."
-        AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
-        echo "  key: $AEA_KEY"
-        echo "  Decrypting SystemOS..."
-        aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
+        if [[ "$(xxd -l 4 -p "$RESTORE_DIR/$CRYPTEX_SYSOS")" == "41454131" ]]; then
+            echo "  Extracting AEA key..."
+            AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
+            echo "  key: $AEA_KEY"
+            echo "  Decrypting SystemOS..."
+            aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
+        else
+            echo "  SystemOS already decrypted in place (no AEA1 magic), copying..."
+            cp "$RESTORE_DIR/$CRYPTEX_SYSOS" "$SYSOS_DMG"
+        fi
     else
         echo "  Using cached SystemOS DMG"
     fi
