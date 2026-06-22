@@ -306,6 +306,14 @@ extension KernelPatcher {
             return false
         }
 
+        // Scope to this routine: its deny blocks load both the message and the
+        // `handle_get_dev_by_role` name; the name excludes the adjacent keybag handler.
+        let msgRefs = stringRefSet(in: apfsRange, needles: [
+            "%s:%d: %s This operation needs entitlement",
+            "%s:%d: %s lookup takes place out of a volume group, but the source volume is in one",
+        ])
+        let nameRefs = stringRefSet(in: apfsRange, needles: ["handle_get_dev_by_role"])
+
         for ref in refs {
             guard let funcStart = findFunctionStart(ref.adrpOff) else { continue }
             let funcEnd = min(funcStart + 0x1200, buffer.count)
@@ -339,7 +347,9 @@ extension KernelPatcher {
                     scan += 4; continue
                 }
 
-                if isEntitlementErrorBlock(at: target, funcEnd: funcEnd) {
+                let span = target ..< min(target + 0x40, funcEnd)
+                let inSpan = { (s: Set<Int>) in s.contains { span.contains($0) } }
+                if inSpan(msgRefs), inSpan(nameRefs) {
                     if !candidates.contains(where: { $0.off == scan }) {
                         candidates.append((off: scan, target: target))
                     }
@@ -367,38 +377,15 @@ extension KernelPatcher {
         return false
     }
 
-    /// Return true if the block at `targetOff` contains `mov w8, #0x332D` or
-    /// `mov w8, #0x333B` within the first 0x30 bytes (entitlement-gate line IDs).
-    private func isEntitlementErrorBlock(at targetOff: Int, funcEnd: Int) -> Bool {
-        let scanEnd = min(targetOff + 0x30, funcEnd)
-        var off = targetOff
-        while off + 4 <= scanEnd {
-            guard let insn = disasm.disassembleOne(in: buffer.data, at: off),
-                  let detail = insn.aarch64
-            else {
-                off += 4; continue
-            }
-
-            // Stop on call, unconditional branch, or return — different path.
-            if insn.mnemonic == "bl" || insn.mnemonic == "b"
-                || insn.mnemonic == "ret" || insn.mnemonic == "retab"
-            {
-                break
-            }
-
-            if insn.mnemonic == "mov", detail.operands.count >= 2 {
-                let ops = detail.operands
-                if ops[0].type == AARCH64_OP_REG,
-                   ops[0].reg == AARCH64_REG_W8,
-                   ops[1].type == AARCH64_OP_IMM,
-                   ops[1].imm == 0x332D || ops[1].imm == 0x333B
-                {
-                    return true
-                }
-            }
-            off += 4
+    /// ADRP+ADD reference offsets to `needles`. Anchors deny-block detection on stable
+    /// panic strings instead of the per-version line IDs the old matcher pinned.
+    private func stringRefSet(in range: (start: Int, end: Int), needles: [String]) -> Set<Int> {
+        var refs = Set<Int>()
+        for needle in needles {
+            guard let strOff = buffer.findString(needle) else { continue }
+            for ref in findStringRefs(strOff, in: range) { refs.insert(ref.adrpOff) }
         }
-        return false
+        return refs
     }
 
     // MARK: - Aggregate entry point
