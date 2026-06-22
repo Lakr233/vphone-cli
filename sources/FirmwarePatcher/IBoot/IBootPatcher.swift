@@ -478,38 +478,27 @@ public class IBootPatcher: Patcher {
         emit(cbzOff, bInsn, id: "\(component).rootfs_cbz_0x\(String(errorCode, radix: 16))", description: description)
     }
 
-    /// Find the unique `cmp x8, #0x400` and NOP the `b.hs` that follows.
+    /// NOP the `b.hs` of the unique `cmp x8,#0x400 ; b.hs` rootfs size gate.
+    /// Anchoring on the cmp+b.hs pair disambiguates 26.4's three `cmp x8,#0x400`
+    /// (the other two are followed by `b.hi`); 26.1/26.3 have just the one.
     /// Python: `_patch_bhs_after_cmp_0x400()`
     private func patchBhsAfterCmp0x400() {
-        // Scan every instruction for cmp x8, #0x400 — avoids hand-encoding the
-        // CMP/SUBS encoding and stays robust across Capstone output variants.
-        var locs: [Int] = []
+        var bhsSites: [Int] = []
         for insns in chunkedDisasm() {
-            for insn in insns {
-                if insn.mnemonic == "cmp", insn.operandString == "x8, #0x400" {
-                    locs.append(Int(insn.address))
-                }
+            for insn in insns where insn.mnemonic == "cmp" && insn.operandString == "x8, #0x400" {
+                let bhsOff = Int(insn.address) + 4
+                guard let next = disasm.disassembleOne(in: buffer.original, at: bhsOff),
+                      next.mnemonic == "b.hs" else { continue }
+                if !bhsSites.contains(bhsOff) { bhsSites.append(bhsOff) }
             }
         }
 
-        guard locs.count == 1 else {
-            if verbose { print("  [-] rootfs b.hs: expected 1 'cmp x8, #0x400', found \(locs.count)") }
+        guard bhsSites.count == 1 else {
+            if verbose { print("  [-] rootfs b.hs: expected 1 'cmp x8,#0x400 ; b.hs' pair, found \(bhsSites.count)") }
             return
         }
 
-        let cmpOff = locs[0]
-        let bhsOff = cmpOff + 4
-
-        guard let insn = disasm.disassembleOne(in: buffer.original, at: bhsOff) else {
-            if verbose { print("  [-] rootfs b.hs: no instruction at 0x\(String(format: "%X", bhsOff))") }
-            return
-        }
-        guard insn.mnemonic == "b.hs" else {
-            if verbose { print("  [-] rootfs b.hs: expected b.hs at 0x\(String(format: "%X", bhsOff)), got \(insn.mnemonic)") }
-            return
-        }
-
-        emit(bhsOff, ARM64.nop, id: "\(component).rootfs_bhs_0x400", description: "rootfs: NOP b.hs size check (0x400)")
+        emit(bhsSites[0], ARM64.nop, id: "\(component).rootfs_bhs_0x400", description: "rootfs: NOP b.hs size check (0x400)")
     }
 
     /// Find `ldr xR, [xN, #0x78]; cbz xR` preceding the unique `mov w8, #0x110`
@@ -666,7 +655,8 @@ public class IBootPatcher: Patcher {
         }
 
         if gates.isEmpty {
-            if verbose { print("  [-] bootx precondition: gate pattern not matched") }
+            // 26.4+ construct; genuinely absent on previous iBoot versions.
+            if verbose { print("  [.] bootx precondition: construct not present (pre-26.4 iBoot) — skipping") }
             return
         }
         if gates.count > 1 {
