@@ -111,6 +111,10 @@ help:
 	@echo "Testing:"
 	@echo "  make test_jb_patches         Run all JB kernel patches (incl. Sandbox) over every supported cloudOS kernel"
 	@echo "    Options: QUICK=1           Only the local/newest kernel (fast dev loop)"
+	@echo "  make test_fw_patches         Run the FULL patch-firmware pipeline (boot chain + base kernel + JB + EXP) over"
+	@echo "                               each local cloudOS firmware; fails on any skipped sub-patch (broad drift gate)"
+	@echo "    Options: QUICK=1           Only the newest local cloudOS firmware"
+	@echo "             VARIANTS=\"exp\"     Limit to specific variants (default: jb exp)"
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
@@ -372,6 +376,19 @@ fw_patch_exp: patcher_build
 #   Options: QUICK=1   Only the local/newest kernel (fast dev loop)
 test_jb_patches: patcher_build
 	zsh "$(CURDIR)/tests/test_jb_kernel_patches.sh" --no-build \
+		$(if $(filter 1 true yes YES TRUE,$(QUICK)),--quick,)
+
+.PHONY: test_fw_patches
+
+# Run the FULL patch-firmware pipeline (boot chain + base kernel + JB + EXP, every
+# component) over each locally-prepared cloudOS firmware, for the jb and exp
+# variants, and fail if ANY component skips a sub-patch (a `[-]` line). This is the
+# broad gate that catches drift outside the JB kernel layer (iBSS/iBEC/LLB, base
+# KernelPatcher, TXM, DeviceTree) — which test_jb_patches structurally cannot see.
+#   Options: QUICK=1            Only the newest local cloudOS firmware
+#            VARIANTS="exp"     Limit to specific variants (default: jb exp)
+test_fw_patches: patcher_build
+	zsh "$(CURDIR)/tests/test_firmware_patches.sh" --no-build \
 		$(if $(filter 1 true yes YES TRUE,$(QUICK)),--quick,)
 
 # ═══════════════════════════════════════════════════════════════════
