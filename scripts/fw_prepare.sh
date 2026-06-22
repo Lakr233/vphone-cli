@@ -411,6 +411,30 @@ extract() {
     cp -R "$cache" "$out"
 }
 
+extract_cryptexctl() {
+    local cloudOS="$1"
+    
+    local project_dir="$(cd "$SCRIPT_DIR/.." && pwd)"
+    local tools_prefix="$project_dir/.tools"
+    local tmp_dir="$(mktemp -d)"
+    
+    local aea_path="$(/usr/bin/plutil -extract 'BuildIdentities.0.Manifest.OS.Info.Path' raw -o - "$cloudOS/BuildManifest.plist")"
+    if [ -z "$aea_path" ]; then
+      echo "Failed to read cloudOS OS path from BuildManifest"
+      rm -rf "$tmp_dir"
+      exit 1
+    fi
+    
+    local disk_dir="$tmp_dir/decrypted"
+    ipsw fw aea --output "$disk_dir" "$cloudOS/$aea_path"
+    local disk=$(ls -AU $disk_dir | head -1)
+
+    local mount="$(hdiutil attach -readonly -nobrowse "$disk_dir/$disk" | awk 'END{ print$NF}')"
+    cp "$mount/usr/bin/cryptexctl" "$tools_prefix/cryptexctl"
+    hdiutil detach "$mount" >/dev/null 2>&1 || true
+    rm -rf "$tmp_dir"
+}
+
 download_apfs_sealvolume() {
     local src="$1"
     local base ios_version filename PROJECT_DIR TOOLS_PREFIX TMP_DIR bn ver BUILD BUILD_MANIFEST RAMDISK_PATH RAMDISK_IM4P RAMDISK MOUNT
@@ -643,6 +667,9 @@ CLOUDOS_CACHE="${IPSW_DIR}/${CLOUDOS_DIR}"
 
 extract "$IPHONE_IPSW_PATH" "$IPHONE_CACHE" "$IPHONE_DIR"
 extract "$CLOUDOS_IPSW_PATH" "$CLOUDOS_CACHE" "$CLOUDOS_DIR"
+
+echo "==> Extracting cryptexctl"
+extract_cryptexctl "$CLOUDOS_DIR"
 
 # Keep exactly one active restore tree in the working directory so fw_patch
 # cannot accidentally pick a stale older firmware directory.

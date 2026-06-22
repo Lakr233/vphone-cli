@@ -27,6 +27,7 @@
 #import "vphoned_accessibility.h"
 #import "vphoned_apps.h"
 #import "vphoned_clipboard.h"
+#import "vphoned_cryptex.h"
 #import "vphoned_devmode.h"
 #import "vphoned_files.h"
 #import "vphoned_hid.h"
@@ -327,6 +328,8 @@ static BOOL handle_client(int fd) {
       [caps addObject:@"ipa_install"];
     if (gClipboardAvailable)
       [caps addObject:@"clipboard"];
+    if (vp_cryptex_available())
+      [caps addObject:@"cryptex"];
     if (gAppsAvailable)
       [caps addObject:@"apps"];
     [caps addObject:@"url"];
@@ -394,6 +397,14 @@ static BOOL handle_client(int fd) {
         // Clipboard operations (need fd for inline binary transfer)
         if ([t hasPrefix:@"clipboard_"]) {
           NSDictionary *resp = vp_handle_clipboard_command(fd, msg);
+          if (resp && !vp_write_message(fd, resp))
+            break;
+          continue;
+        }
+
+        // Cryptex operations (need fd for inline binary transfer)
+        if ([t hasPrefix:@"cryptex_"]) {
+          NSDictionary *resp = vp_handle_cryptex_command(msg);
           if (resp && !vp_write_message(fd, resp))
             break;
           continue;

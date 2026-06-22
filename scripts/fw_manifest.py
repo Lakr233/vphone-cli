@@ -193,7 +193,7 @@ def main():
         "ManifestVersion": cloudos_bm["ManifestVersion"],
         "ProductBuildVersion": cloudos_bm["ProductBuildVersion"],
         "ProductVersion": cloudos_bm["ProductVersion"],
-        "SupportedProductTypes": ["iPhone99,11"],
+        "SupportedProductTypes": ["iPhone99,11", "ComputeModule14,2"],
     }
 
     # ── Assemble Restore.plist ───────────────────────────────────────
@@ -213,10 +213,7 @@ def main():
             )
             for cat in ("DFU", "Recovery")
         },
-        "SupportedProductTypes": (
-            iphone_rp.get("SupportedProductTypes", [])
-            + cloudos_rp.get("SupportedProductTypes", [])
-        ),
+        "SupportedProductTypes": build_manifest["SupportedProductTypes"],
         "SystemRestoreImageFileSystems": copy.deepcopy(
             iphone_rp["SystemRestoreImageFileSystems"]
         ),

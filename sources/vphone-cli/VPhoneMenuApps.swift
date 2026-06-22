@@ -27,6 +27,18 @@ extension VPhoneMenuController {
         install.isEnabled = false
         installPackageItem = install
         menu.addItem(install)
+        
+        menu.addItem(NSMenuItem.separator())
+
+        let listCryptex = makeItem("List Cryptexes", action: #selector(listCryptexes))
+        listCryptex.isEnabled = false
+        listCryptexesItem = listCryptex
+        menu.addItem(listCryptex)
+
+        let cryptex = makeItem("Install Cryptex...", action: #selector(installCryptexFromDisk))
+        cryptex.isEnabled = false
+        installCryptexItem = cryptex
+        menu.addItem(cryptex)
 
         item.submenu = menu
         return item
@@ -42,6 +54,11 @@ extension VPhoneMenuController {
 
     func updateInstallAvailability(available: Bool) {
         installPackageItem?.isEnabled = available
+    }
+    
+    func updateCryptexAvailability(available: Bool) {
+        installCryptexItem?.isEnabled = available
+        listCryptexesItem?.isEnabled = available
     }
 
     @objc func openAppBrowser() {
@@ -79,6 +96,64 @@ extension VPhoneMenuController {
                 )
             } catch {
                 showAlert(title: "Install App Package", message: "\(error)", style: .warning)
+            }
+        }
+    }
+    
+    @objc func installCryptexFromDisk() {
+        guard control.isConnected else {
+            showAlert(title: "Install Cryptex", message: "Guest is not connected.", style: .warning)
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Install"
+        panel.message = "Choose the built Cryptex source directory."
+
+        let response = panel.runModal()
+        guard response == .OK, let url = panel.url else { return }
+
+        Task {
+            do {
+                let result = try await control.installCryptex(localURL: url)
+                print("[install] \(result)")
+                showAlert(
+                    title: "Install Cryptex",
+                    message: VPhoneInstallPackage.successMessage(
+                        for: url.lastPathComponent,
+                        detail: result
+                    ),
+                    style: .informational
+                )
+            } catch {
+                showAlert(title: "Install Cryptex", message: "\(error)", style: .warning)
+            }
+        }
+    }
+    
+    @objc func listCryptexes() {
+        guard control.isConnected else {
+            showAlert(title: "List Cryptexes", message: "Guest is not connected.", style: .warning)
+            return
+        }
+
+        Task {
+            do {
+                let result = try await control.listCryptexes()
+                print("[list] \(result)")
+                showAlert(
+                    title: "List Cryptexes",
+                    message: VPhoneInstallPackage.successMessage(
+                        for: "",
+                        detail: result
+                    ),
+                    style: .informational
+                )
+            } catch {
+                showAlert(title: "List Cryptexes", message: "\(error)", style: .warning)
             }
         }
     }

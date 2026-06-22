@@ -18,6 +18,8 @@ class VPhoneMenuController {
     var connectPingItem: NSMenuItem?
     var connectGuestVersionItem: NSMenuItem?
     var installPackageItem: NSMenuItem?
+    var installCryptexItem: NSMenuItem?
+    var listCryptexesItem: NSMenuItem?
     var clipboardGetItem: NSMenuItem?
     var clipboardSetItem: NSMenuItem?
     var appsListItem: NSMenuItem?

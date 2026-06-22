@@ -169,6 +169,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             control.onConnect = { [weak mc, weak provider = locationProvider] caps in
                 mc?.updateConnectAvailability(available: true)
                 mc?.updateInstallAvailability(available: caps.contains("ipa_install"))
+                mc?.updateCryptexAvailability(available: caps.contains("cryptex"))
                 mc?.updateAppsAvailability(available: caps.contains("apps"))
                 mc?.updateURLAvailability(available: caps.contains("url"))
                 mc?.updateClipboardAvailability(available: caps.contains("clipboard"))
@@ -191,6 +192,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             control.onDisconnect = { [weak mc, weak provider = locationProvider] in
                 mc?.updateConnectAvailability(available: false)
                 mc?.updateInstallAvailability(available: false)
+                mc?.updateCryptexAvailability(available: false)
                 mc?.updateAppsAvailability(available: false)
                 mc?.updateURLAvailability(available: false)
                 mc?.updateClipboardAvailability(available: false)

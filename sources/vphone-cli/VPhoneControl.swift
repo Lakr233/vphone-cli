@@ -582,6 +582,63 @@ class VPhoneControl {
             }
         }
     }
+    
+    // MARK: - Cryptex
+    
+    struct CryptexContent {
+        let data: Data?
+    }
+    
+    func listCryptexes() async throws -> String {
+        let request: [String: Any] = ["t": "cryptex_list"]
+        let (resp, _) = try await sendRequest(request)
+        if let detail = resp["msg"] as? String, !detail.isEmpty {
+            return detail
+        }
+        return "No reponse."
+    }
+    
+    func installCryptex(localURL: URL) async throws -> String {
+        do {
+            return try await installCryptexWithBuiltInInstaller(localURL: localURL)
+        } catch let ControlError.guestError(message) where message == "unknown type: cryptex_install" {
+            throw ControlError.guestError(
+                "Guest vphoned does not support cryptex_install yet. Reconnect or reboot the guest so the updated daemon can take over."
+            )
+        }
+    }
+
+    private func installCryptexWithBuiltInInstaller(localURL: URL) async throws -> String {
+        let variant = localURL.deletingPathExtension().lastPathComponent
+        let archive = try Cryptex.createCryptex(source: localURL.path, name: variant)
+        let archiveUrl = URL(fileURLWithPath: archive)
+        
+        let data: Data
+        do {
+            data = try Data(contentsOf: archiveUrl)
+        } catch {
+            throw ControlError.protocolError("failed to read Cryptex archive: \(error)")
+        }
+
+        let remoteDir = "/var/mobile/Documents/vphone-cryptexes"
+        let remoteName = "\(UUID().uuidString)-\(localURL.lastPathComponent)"
+        let remotePath = "\(remoteDir)/\(remoteName)"
+
+        try await createDirectory(path: remoteDir)
+        try await uploadFile(path: remotePath, data: data)
+
+        let request: [String: Any] = [
+            "t": "cryptex_install",
+            "path": remotePath,
+            "variant": variant
+        ]
+        let (resp, _) = try await sendRequest(request)
+        if let detail = resp["msg"] as? String, !detail.isEmpty {
+            return detail
+        }
+        return "Installed \(localURL.lastPathComponent) Cryptex."
+    }
+
 
     // MARK: - App Management
 
@@ -894,7 +951,7 @@ class VPhoneControl {
 
     private static func timeoutForRequest(type: String) -> TimeInterval {
         switch type {
-        case "file_get", "file_put", "ipa_install":
+        case "file_get", "file_put", "ipa_install", "cryptex_install":
             transferRequestTimeout
         case "devmode", "file_list", "file_delete", "file_rename", "file_mkdir", "keychain_list",
              "app_list", "app_launch", "open_url", "accessibility_tree":
