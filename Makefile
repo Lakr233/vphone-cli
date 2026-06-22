@@ -55,7 +55,7 @@ help:
 	@echo "                                       DT identity properties, post-restore DT rewrite, opt-in build spoof)"
 	@echo "             LESS=1                    Build, keeping iOS security mitigations enabled."
 	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
-	@echo "             NON_INTERACTIVE=1        Auto-continue prompts + boot analysis"
+	@echo "             INTERACTIVE=1             Prompt at first-boot stages (default: non-interactive)"
 	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
 	@echo "             NO_BINPACK=1              Excludes the SSH, VNC, ... binaries from being installed (patchless-only, currently)"
 	@echo "             NO_VPHONED=1              Excludes vphoned from being installed (patchless-only, currently)"
@@ -150,7 +150,7 @@ setup_machine:
 		exit 1; \
 	fi
 	SUDO_PASSWORD="$(SUDO_PASSWORD)" \
-	NON_INTERACTIVE="$(NON_INTERACTIVE)" \
+	INTERACTIVE="$(INTERACTIVE)" \
 	NO_BINPACK="$(NO_BINPACK)" \
 	NO_VPHONED="$(NO_VPHONED)" \
 	SPOOF_BUILD="$(SPOOF_BUILD)" \
