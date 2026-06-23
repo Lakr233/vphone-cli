@@ -35,34 +35,43 @@ source "${VENV_DIR}/bin/activate"
 pip install --upgrade pip >/dev/null
 pip install -r "${REQUIREMENTS}"
 
-# --- Build keystone native library ---
+# --- Install keystone native library ---
 # The keystone-engine pip package is Python bindings only.
-# It needs libkeystone.dylib at runtime. Homebrew ships only the static .a,
-# so we build a dylib from it and place it inside the venv.
+# It needs libkeystone.dylib at runtime. Homebrew may ship either a dylib
+# or an older static archive, so place a loadable dylib inside the venv.
 echo ""
-echo "=== Building keystone dylib ==="
-KEYSTONE_DIR="/opt/homebrew/Cellar/keystone"
-if [[ ! -d "${KEYSTONE_DIR}" ]]; then
+echo "=== Installing keystone dylib ==="
+KEYSTONE_PREFIX="$(brew --prefix keystone 2>/dev/null || true)"
+if [[ -z "${KEYSTONE_PREFIX}" || ! -d "${KEYSTONE_PREFIX}" ]]; then
     echo "Error: keystone not found. Install with: brew install keystone"
     exit 1
 fi
-KEYSTONE_STATIC="$(find "${KEYSTONE_DIR}" -name 'libkeystone.a' -type f 2>/dev/null | head -1)"
-if [[ -z "${KEYSTONE_STATIC}" ]]; then
-    echo "Error: libkeystone.a not found. Install with: brew install keystone"
-    exit 1
-fi
+
+KEYSTONE_DYLIB="$(find -L "${KEYSTONE_PREFIX}/lib" -name 'libkeystone*.dylib' -type f 2>/dev/null | head -1)"
+KEYSTONE_STATIC="$(find -L "${KEYSTONE_PREFIX}" -name 'libkeystone.a' -type f 2>/dev/null | head -1)"
 
 PYVER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 KS_PKG_DIR="${VENV_DIR}/lib/python${PYVER}/site-packages/keystone"
 KS_DYLIB="${KS_PKG_DIR}/libkeystone.dylib"
 
-echo "  static lib: ${KEYSTONE_STATIC}"
+mkdir -p "${KS_PKG_DIR}"
 echo "  dylib dest: ${KS_DYLIB}"
 
-clang -shared -o "${KS_DYLIB}" \
-    -Wl,-all_load "${KEYSTONE_STATIC}" \
-    -lc++ \
-    -install_name @rpath/libkeystone.dylib
+if [[ -n "${KEYSTONE_DYLIB}" ]]; then
+    echo "  source dylib: ${KEYSTONE_DYLIB}"
+    cp "${KEYSTONE_DYLIB}" "${KS_DYLIB}"
+    chmod u+w "${KS_DYLIB}"
+elif [[ -n "${KEYSTONE_STATIC}" ]]; then
+    echo "  static lib: ${KEYSTONE_STATIC}"
+    clang -shared -o "${KS_DYLIB}" \
+        -Wl,-all_load "${KEYSTONE_STATIC}" \
+        -lc++ \
+        -install_name @rpath/libkeystone.dylib
+else
+    echo "Error: libkeystone.dylib or libkeystone.a not found under ${KEYSTONE_PREFIX}"
+    echo "Install or repair with: brew reinstall keystone"
+    exit 1
+fi
 
 echo "  dylib built OK"
 
