@@ -439,6 +439,14 @@ static BOOL handle_client(int fd) {
           continue;
         }
 
+        // Generic notify_post
+        if ([t isEqualToString:@"notify_post"]) {
+          NSDictionary *resp = vp_handle_notify_post_command(msg);
+          if (resp && !vp_write_message(fd, resp))
+            break;
+          continue;
+        }
+
         NSDictionary *resp = handle_command(msg);
         if (resp && !vp_write_message(fd, resp))
           break;
