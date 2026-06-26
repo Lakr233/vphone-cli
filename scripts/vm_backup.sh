@@ -1,13 +1,18 @@
 #!/bin/zsh
 # vm_backup.sh — Save the current VM as a named backup.
 #
-# Backups are stored under vm.backups/<name>/ using rsync --sparse.
+# Backups are stored under vm.backups/<name>/.
 # The active VM remembers its name in vm/.vm_name for use by vm_switch.
 #
 # Usage:
 #   make vm_backup NAME=ios17
 #   make vm_backup NAME=ios18-jb BACKUP_INCLUDE_IPSW=1
 set -euo pipefail
+
+# Try cp -c for APFS clone/COW first; fall back to cp -a where -c is unsupported.
+_vphone_cp() {
+    cp -a -c "$@" 2>/dev/null || cp -a "$@"
+}
 
 VM_DIR="${VM_DIR:-vm}"
 BACKUPS_DIR="${BACKUPS_DIR:-vm.backups}"
@@ -68,19 +73,31 @@ echo "Dest   : ${DEST}/"
 src_size="$(du -sh "${VM_DIR}" 2>/dev/null | cut -f1)"
 echo "Size   : ${src_size} (on disk)"
 
-RSYNC_EXCLUDES=()
 if [[ "${BACKUP_INCLUDE_IPSW}" != "1" ]]; then
-    RSYNC_EXCLUDES+=(--exclude '*_Restore*/')
     echo "IPSW   : excluded (use BACKUP_INCLUDE_IPSW=1 to include)"
+else
+    echo "IPSW   : included"
 fi
 echo ""
 
 # --- Sync ---
 mkdir -p "${DEST}"
 
-rsync -aH --sparse --progress --delete \
-    "${RSYNC_EXCLUDES[@]}" \
-    "${VM_DIR}/" "${DEST}/"
+# Use cp for speed.
+# On APFS, cp -c can create an instant copy-on-write clone.
+# If -c is unsupported, _vphone_cp falls back to cp -a.
+while IFS= read -r -d '' item; do
+    base="$(basename "${item}")"
+
+    # Skip IPSW restore dirs if excluded.
+    if [[ "${BACKUP_INCLUDE_IPSW}" != "1" && "${base}" == *_Restore* ]]; then
+        continue
+    fi
+
+    if [[ -d "${item}" || -f "${item}" ]]; then
+        _vphone_cp "${item}" "${DEST}/"
+    fi
+done < <(find "${VM_DIR}" -mindepth 1 -maxdepth 1 -print0)
 
 # Tag the active VM with this name
 echo "${NAME}" > "${VM_DIR}/.vm_name"
