@@ -150,11 +150,24 @@ ldid_sign() {
     ldid "${args[@]}" "$file"
 }
 
+host_hdiutil() {
+    local rc
+    hdiutil "$@" && return 0
+    rc=$?
+
+    if sudo -n true 2>/dev/null; then
+        sudo hdiutil "$@"
+        return
+    fi
+
+    return "$rc"
+}
+
 # Detach a DMG mountpoint if currently mounted, ignore errors
 safe_detach() {
     local mnt="$1"
     if mount | grep -Fq " on $mnt "; then
-        sudo hdiutil detach -force "$mnt" 2>/dev/null || true
+        host_hdiutil detach -force "$mnt" 2>/dev/null || true
     fi
 }
 
@@ -329,9 +342,11 @@ else
     assert_mount_under_vm "$MNT_APPOS" "AppOS mountpoint"
 
     echo "  Mounting SystemOS..."
-    sudo hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -nobrowse -owners off
+    host_hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -nobrowse -owners off \
+        || die "Failed to mount SystemOS DMG. Run 'sudo -v' in a terminal and retry if hdiutil needs administrator privileges."
     echo "  Mounting AppOS..."
-    sudo hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -nobrowse -owners off
+    host_hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -nobrowse -owners off \
+        || die "Failed to mount AppOS DMG. Run 'sudo -v' in a terminal and retry if hdiutil needs administrator privileges."
 
     ssh_cmd "/bin/rm -rf /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
     ssh_cmd "/bin/mkdir -p /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"

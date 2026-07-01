@@ -158,15 +158,26 @@ def run(cmd, **kwargs):
 
 
 def run_sudo(cmd, **kwargs):
-    """Run sudo command non-interactively using VPHONE_SUDO_PASSWORD."""
-    if SUDO_PASSWORD:
-        return run(
-            ["sudo", "-S", *cmd],
-            input=f"{SUDO_PASSWORD}\n",
-            text=True,
-            **kwargs,
-        )
-    return run(["sudo", *cmd], **kwargs)
+    """Run a command directly first, then retry through sudo if required."""
+    try:
+        return run(cmd, **kwargs)
+    except subprocess.CalledProcessError:
+        if SUDO_PASSWORD:
+            return run(
+                ["sudo", "-S", *cmd],
+                input=f"{SUDO_PASSWORD}\n",
+                text=True,
+                **kwargs,
+            )
+        return run(["sudo", *cmd], **kwargs)
+
+
+def detach_mountpoint(mountpoint):
+    """Best-effort detach for hdiutil mountpoints used during ramdisk builds."""
+    subprocess.run(
+        ["hdiutil", "detach", "-force", mountpoint],
+        capture_output=True,
+    )
 
 
 def ensure_path_within_vm(path, vm_dir, label):
@@ -490,6 +501,8 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
 
     ensure_path_within_vm(mountpoint, vm_dir, "Ramdisk mountpoint")
     os.makedirs(mountpoint, exist_ok=True)
+    if os.path.exists(ramdisk_custom):
+        os.remove(ramdisk_custom)
 
     try:
         # Mount, create expanded copy
@@ -529,7 +542,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
                 ramdisk_custom,
             ]
         )
-        run_sudo(["hdiutil", "detach", "-force", mountpoint])
+        detach_mountpoint(mountpoint)
 
         # Mount expanded, inject SSH
         print("  Mounting expanded ramdisk...")
@@ -606,7 +619,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
         print(f"  [+] trustcache.img4")
 
     finally:
-        run_sudo(["hdiutil", "detach", "-force", mountpoint], capture_output=True)
+        detach_mountpoint(mountpoint)
 
     # Shrink and sign ramdisk
     run_sudo(["hdiutil", "resize", "-sectors", "min", ramdisk_custom])
