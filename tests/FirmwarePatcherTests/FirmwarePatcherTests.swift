@@ -298,6 +298,31 @@ struct BinaryBufferTests {
     }
 }
 
+struct IBootPatcherIdempotencyTests {
+    @Test func serialLabelsPatchTwoBannerRunsWhenLabelAbsent() {
+        let banner = String(repeating: "=", count: 32)
+        let payload = Data("prefix \(banner) middle \(banner) suffix".utf8)
+        let patcher = IBootPatcher(data: payload, mode: .ibss, verbose: false)
+
+        patcher.patchSerialLabels()
+
+        #expect(patcher.patches.count == 2)
+        #expect(patcher.patches.allSatisfy {
+            String(data: $0.patchedBytes, encoding: .ascii) == "Loaded iBSS"
+        })
+    }
+
+    @Test func serialLabelsSkipWhenLabelAlreadyPresent() {
+        let banner = String(repeating: "=", count: 32)
+        let payload = Data("Loaded iBSS\0 prefix \(banner) middle \(banner) suffix".utf8)
+        let patcher = IBootPatcher(data: payload, mode: .ibss, verbose: false)
+
+        patcher.patchSerialLabels()
+
+        #expect(patcher.patches.isEmpty)
+    }
+}
+
 struct IM4PPayloadParityTests {
     @Test func ibssIM4PPayloadMatchesRawAndJBPatcherFindsNoncePatch() throws {
         let baseDir = URL(fileURLWithPath: #filePath)

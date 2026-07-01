@@ -134,7 +134,7 @@ public final class FirmwarePipeline {
             var componentRecords: [PatchRecord] = []
 
             for makePatcher in component.patcherFactories {
-                let patcher = makePatcher(rawData, verbose)
+                let patcher = makePatcher(currentData, verbose)
                 let records = try patcher.findAll()
 
                 guard !records.isEmpty else {
@@ -145,18 +145,7 @@ public final class FirmwarePipeline {
                 log("  [+] \(count) \(component.name) patches applied")
 
                 componentRecords.append(contentsOf: records)
-                if let deviceTreePatcher = patcher as? DeviceTreePatcher {
-                    currentData = deviceTreePatcher.patchedData
-                } else if let filesystemPatcher = patcher as? CryptexFilesystemPatcher {
-                    currentData = filesystemPatcher.patchedData
-                } else if let manifestPatcher = patcher as? ManifestHashPatcher {
-                    currentData = manifestPatcher.patchedData
-                } else {
-                    for record in records {
-                        let range = record.fileOffset ..< record.fileOffset + record.patchedBytes.count
-                        currentData.replaceSubrange(range, with: record.patchedBytes)
-                    }
-                }
+                currentData = extractPatchedData(from: patcher, fallback: currentData, records: records)
             }
 
             try loader.save(currentData, to: fileURL)

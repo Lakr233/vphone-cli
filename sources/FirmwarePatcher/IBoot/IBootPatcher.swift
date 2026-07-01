@@ -202,8 +202,13 @@ public class IBootPatcher: Patcher {
         }
         guard let labelBytes = labelStr.data(using: .ascii) else { return }
 
-        // Collect all runs of '=' (>=20 chars) — same logic as Python.
         let raw = buffer.original
+        if raw.range(of: labelBytes) != nil {
+            if verbose { print("  [*] serial labels: already present, skipping") }
+            return
+        }
+
+        // Collect all runs of '=' (>=20 chars) — same logic as Python.
         var eqRuns: [Int] = []
         var i = raw.startIndex
 
