@@ -148,6 +148,7 @@ CFW_INPUT="cfw_input"
 CFW_JB_INPUT="cfw_jb_input"
 CFW_JB_ARCHIVE="cfw_jb_input.tar.zst"
 TEMP_DIR="$VM_DIR/.cfw_temp"
+VPHONE_JB_ENABLE_LAUNCHD_HOOK="${VPHONE_JB_ENABLE_LAUNCHD_HOOK:-0}"
 
 SSH_PORT="${SSH_PORT:-2222}"
 SSH_PASS="alpine"
@@ -403,13 +404,14 @@ else
     echo "  [!] No entitlements found on original launchd"
 fi
 
-# Inject launchdhook via short root alias to avoid Mach-O header overflow.
-# Keep the full /cores/launchdhook.dylib copy on disk for compatibility, but
-# load /b from launchd because this launchd sample only has room for a short
-# LC_LOAD_DYLIB command after stripping LC_CODE_SIGNATURE.
-if [[ -d "$JB_INPUT_DIR/basebin" ]]; then
+# Injecting launchdhook into pid 1 is opt-in. On current vPhone builds the
+# BaseBin launchd hook exits early with "launchd cannot be run directly",
+# which panics the kernel because pid 1 exits.
+if [[ "$VPHONE_JB_ENABLE_LAUNCHD_HOOK" == "1" && -d "$JB_INPUT_DIR/basebin" ]]; then
     echo "  Injecting LC_LOAD_DYLIB for /b (short launchdhook alias)..."
     "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
+else
+    echo "  [*] Skipping launchdhook LC_LOAD_DYLIB injection (set VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 to enable)"
 fi
 
 "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
