@@ -244,11 +244,13 @@ public final class FirmwarePipeline {
             }]
         ))
 
-        // 5. TXM — dev/jb/exp variants use TXMDevPatcher (adds entitlements, debugger, dev-mode)
+        // 5. TXM — dev/jb/exp variants use TXMDevPatcher (adds entitlements, debugger, dev-mode).
+        // BuildManifest marks the release TXM as IsLoadedByiBoot=1 for normal
+        // vPhone boots; the research TXM is present but not the active boot image.
         components.append(ComponentDescriptor(
             name: "TXM",
             inRestoreDir: true,
-            searchPatterns: ["Firmware/txm.iphoneos.research.im4p"],
+            searchPatterns: ["Firmware/txm.iphoneos.release.im4p"],
             patcherFactories: {
                 return switch variant {
                 case .less:

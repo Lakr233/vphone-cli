@@ -108,6 +108,23 @@ get_boot_manifest_hash() {
     /bin/ls $MNT5 2>/dev/null | awk 'length($0)==96{print; exit}'
 }
 
+install_patched_preboot_txm() {
+    local txm_src="$VM_DIR/Ramdisk/txm.img4"
+    local txm_dir="/mnt5/$BOOT_HASH/usr/standalone/firmware/FUD"
+    local txm_dst="$txm_dir/Ap,TrustedExecutionMonitor.img4"
+
+    [[ -f "$txm_src" ]] || die "Missing patched TXM at $txm_src (run make ramdisk_build after fw_patch_jb)"
+
+    echo "  Installing patched TXM into Preboot..."
+    ssh_cmd "/bin/mkdir -p '$txm_dir'"
+    if remote_file_exists "$txm_dst" && ! remote_file_exists "$txm_dst.pre-vphone"; then
+        ssh_cmd "/bin/cp '$txm_dst' '$txm_dst.pre-vphone'"
+    fi
+    scp_to "$txm_src" "$txm_dst"
+    ssh_cmd "/usr/sbin/chown 0:0 '$txm_dst' && /bin/chmod 0644 '$txm_dst'"
+    echo "  [+] Preboot TXM patched"
+}
+
 # ── Setup JB input resources ──────────────────────────────────
 setup_cfw_jb_input() {
     [[ -d "$VM_DIR/$CFW_JB_INPUT" ]] && return
@@ -257,6 +274,7 @@ mount_vol s5 "$MNT5"
 BOOT_HASH="$(get_boot_manifest_hash)"
 [[ -n "$BOOT_HASH" ]] || die "Could not find 96-char boot manifest hash in $MNT5"
 echo "  Boot manifest hash: $BOOT_HASH"
+install_patched_preboot_txm
 
 BOOTSTRAP_ZST="$JB_INPUT_DIR/jb/bootstrap-iphoneos-arm64.tar.zst"
 SILEO_DEB="$JB_INPUT_DIR/jb/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"

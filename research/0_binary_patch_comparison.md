@@ -186,6 +186,7 @@ do NOT execute these).
 | 7   | Procursus bootstrap        | Bootstrap filesystem + optional Sileo deb                                                                          |    -    |  -  |  Y  |
 | 8   | BaseBin hooks              | `systemhook.dylib` / `launchdhook.dylib` / `libellekit.dylib` -> `/cores/` plus `/b` alias for `launchdhook.dylib` |    -    |  -  |  Y  |
 | 9   | `TweakLoader.dylib`        | Lean user-tweak loader built from source and installed to `/var/jb/usr/lib/TweakLoader.dylib`                      |    -    |  -  |  Y  |
+| 10  | Preboot TXM handoff        | JB/EXP copy patched `Ramdisk/txm.img4` over Preboot FUD `Ap,TrustedExecutionMonitor.img4` for normal boot          |    -    |  -  |  Y  |
 
 ### `kern.hv_vmm_present` user-mode patcher (EXP only)
 
@@ -679,9 +680,21 @@ cache rebuild.
 | Boot chain total                   |      46 |  58 | 117 | 132 |
 | CFW binary patches (base)          |       4 |   5 |   6 |   6 |
 | CFW EXP-only steps                 |       - |   - |   - |   5 (hv_vmm DSC, camera DSC ×12, watchdogd EXP-JB-3.5, post-restore DT EXP-JB-6, build-version EXP-JB-7 opt-in) |
-| CFW installed components           |       6 |   7 |   9 |   9 |
-| CFW total                          |      10 |  12 |  15 |  31 |
-| Grand total                        |      56 |  70 | 132 | 163 |
+| CFW installed components           |       6 |   7 |  10 |  10 |
+| CFW total                          |      10 |  12 |  16 |  32 |
+| Grand total                        |      56 |  70 | 133 | 164 |
+
+TXM restore patching targets `Firmware/txm.iphoneos.release.im4p`. The hybrid
+`BuildManifest.plist` also carries `txm.iphoneos.research.im4p`, but the normal
+vPhone boot identity marks the release TXM as `IsLoadedByiBoot=1`; patching only
+the research TXM leaves Developer Mode disabled at runtime and blocks
+`task_for_pid-allow` tools such as `debugserver`.
+
+After restore, normal boot reads a second TXM copy from Preboot:
+`/private/preboot/<boot-hash>/usr/standalone/firmware/FUD/Ap,TrustedExecutionMonitor.img4`.
+JB/EXP install backs up that file as `.pre-vphone` and replaces it with
+`Ramdisk/txm.img4`; otherwise normal boot can still panic at TXM CodeSignature
+selector 24 even though the restore-tree release TXM and ramdisk TXM are patched.
 
 ## Ramdisk Variant Matrix
 
@@ -736,6 +749,7 @@ cache rebuild.
   - unaligned integer reads across the firmware patcher now go through a shared safe `Data.loadLE(...)` helper, fixing the JB IM4P crash (`Swift/UnsafeRawPointer.swift:449` misaligned raw pointer load).
   - `TXMPatcher` now preserves pristine Python parity by preferring the legacy trustcache binary-search site when present, and only falls back to the selector24 hash-flags call chain (`ldr x1, [x20,#0x38]` -> `add x2, sp, #4` -> `bl` -> `ldp x0, x1, [x20,#0x30]` -> `add x2, sp, #8` -> `bl`) when rerunning on a VM tree that already carries the dev/JB selector24 early-return patch.
   - `scripts/fw_prepare.sh` now deletes stale sibling `*Restore*` directories in the working VM directory before patching continues, so a fresh `make fw_prepare && make fw_patch` cannot accidentally select an older prepared firmware tree (for example `26.1`) when a newer one (for example `26.3`) was just generated.
+  - `FirmwarePipeline` now patches the loaded release TXM (`Firmware/txm.iphoneos.release.im4p`) instead of the inactive research TXM, matching `BuildManifest.plist`'s `IsLoadedByiBoot=1` entry and allowing the dev/JB Developer Mode bypass to affect runtime.
 - IM4P/output parity fixes completed after synthetic full-pipeline comparison:
   - `IM4PHandler.save()` no longer forces a generic LZFSE re-encode.
   - Swift now rebuilds IM4Ps in the same effective shape as the Python patch flow and only preserves trailing `PAYP` metadata for `TXM` (`trxm`) and `kernelcache` (`krnl`).
