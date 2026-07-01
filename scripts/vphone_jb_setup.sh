@@ -98,6 +98,21 @@ chown -R 501:501 /var/jb/var/mobile/Library/Preferences
 chmod 0755 /var/jb/var/mobile/Library/Preferences
 log "  Ownership set"
 
+log "[2a/8] Preparing dropbear host keys..."
+mkdir -p /var/dropbear
+DROPBEARKEY=""
+for p in /iosbinpack64/usr/local/bin/dropbearkey /iosbinpack64/usr/local/dropbearkey /var/jb/usr/bin/dropbearkey; do
+    [ -x "$p" ] && DROPBEARKEY="$p" && break
+done
+if [ -n "$DROPBEARKEY" ]; then
+    [ -f /var/dropbear/dropbear_rsa_host_key ] || "$DROPBEARKEY" -t rsa -f /var/dropbear/dropbear_rsa_host_key >/dev/null
+    [ -f /var/dropbear/dropbear_ecdsa_host_key ] || "$DROPBEARKEY" -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key >/dev/null
+    chmod 0600 /var/dropbear/dropbear_rsa_host_key /var/dropbear/dropbear_ecdsa_host_key
+    log "  dropbear host keys ready"
+else
+    log "  WARNING: dropbearkey not found"
+fi
+
 # ═══════════ 3/7 RUN prep_bootstrap.sh ═══════════════════════
 log "[3/8] Running prep_bootstrap.sh..."
 if [ -f /var/jb/prep_bootstrap.sh ]; then

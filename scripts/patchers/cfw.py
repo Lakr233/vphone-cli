@@ -52,6 +52,9 @@ Commands:
     inject-daemons <launchd.plist> <daemon_dir>
         Inject bash/dropbear/trollvnc into launchd.plist.
 
+    patch-dropbear-plist <dropbear.plist>
+        Rewrite dropbear ProgramArguments to use /var/dropbear host keys.
+
     inject-dylib <binary> <dylib_path>
         Inject LC_LOAD_DYLIB into Mach-O binary (thin or universal).
         Equivalent to: optool install -c load -p <dylib_path> -t <binary>
@@ -76,7 +79,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
     from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
-    from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons
+    from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
 else:
     from .cfw_patch_seputil import patch_seputil
     from .cfw_patch_cache_loader import patch_launchd_cache_loader
@@ -85,7 +88,7 @@ else:
     from .cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
     from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
-    from .cfw_daemons import parse_cryptex_paths, inject_daemons
+    from .cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
 
 
 def main():
@@ -169,6 +172,12 @@ def main():
             sys.exit(1)
         inject_daemons(sys.argv[2], sys.argv[3])
 
+    elif cmd == "patch-dropbear-plist":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-dropbear-plist <dropbear.plist>")
+            sys.exit(1)
+        patch_dropbear_plist(sys.argv[2])
+
     elif cmd == "inject-dylib":
         if len(sys.argv) < 4:
             print("Usage: patch_cfw.py inject-dylib <binary> <dylib_path>")
@@ -194,7 +203,7 @@ def main():
         print(f"Unknown command: {cmd}")
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
-        print("          patch-hv-vmm-dsc, patch-watchdogd, inject-daemons, inject-dylib")
+        print("          patch-hv-vmm-dsc, patch-watchdogd, inject-daemons, patch-dropbear-plist, inject-dylib")
         sys.exit(1)
 
 

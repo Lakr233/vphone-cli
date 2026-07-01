@@ -411,6 +411,12 @@ ssh_cmd "/usr/bin/tar --preserve-permissions --no-overwrite-dir \
     -xf /mnt1/iosbinpack64.tar -C /mnt1"
 ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
 
+echo "  Preparing dropbear host keys on Data volume..."
+ssh_cmd "/bin/mkdir -p /mnt3/dropbear"
+ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_rsa_host_key ]; then /mnt1/iosbinpack64/usr/local/bin/dropbearkey -t rsa -f /mnt3/dropbear/dropbear_rsa_host_key >/dev/null; fi"
+ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_ecdsa_host_key ]; then /mnt1/iosbinpack64/usr/local/bin/dropbearkey -t ecdsa -f /mnt3/dropbear/dropbear_ecdsa_host_key >/dev/null; fi"
+ssh_cmd "/bin/chmod 600 /mnt3/dropbear/dropbear_rsa_host_key /mnt3/dropbear/dropbear_ecdsa_host_key"
+
 echo "  [+] iosbinpack64 installed"
 
 # ═══════════ 5/7 PATCH LAUNCHD_CACHE_LOADER ══════════════════
@@ -493,7 +499,13 @@ echo "  [+] vphoned installed (signed copy at .vphoned.signed)"
 
 # Send daemon plists (overwrite on re-run)
 for plist in bash.plist dropbear.plist trollvnc.plist rpcserver_ios.plist; do
-    scp_to "$INPUT_DIR/jb/LaunchDaemons/$plist" "/mnt1/System/Library/LaunchDaemons/"
+    plist_src="$INPUT_DIR/jb/LaunchDaemons/$plist"
+    if [[ "$plist" == "dropbear.plist" ]]; then
+        plist_src="$TEMP_DIR/dropbear.plist"
+        cp "$INPUT_DIR/jb/LaunchDaemons/dropbear.plist" "$plist_src"
+        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dropbear-plist "$plist_src"
+    fi
+    scp_to "$plist_src" "/mnt1/System/Library/LaunchDaemons/"
     ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/$plist"
 done
 scp_to "$VPHONED_SRC/vphoned.plist" "/mnt1/System/Library/LaunchDaemons/"
