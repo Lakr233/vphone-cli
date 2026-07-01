@@ -92,10 +92,13 @@ fi
 # ═══════════ 2/7 FIX OWNERSHIP / PERMISSIONS ═════════════════
 log "[2/8] Fixing mobile Library ownership..."
 mkdir -p /var/jb/var/mobile/Library/Preferences
+mkdir -p /var/jb/Library/MobileSubstrate/DynamicLibraries
 chown -R 501:501 /var/jb/var/mobile/Library
 chmod 0755 /var/jb/var/mobile/Library
 chown -R 501:501 /var/jb/var/mobile/Library/Preferences
 chmod 0755 /var/jb/var/mobile/Library/Preferences
+chown -R 0:0 /var/jb/Library
+chmod 0755 /var/jb/Library /var/jb/Library/MobileSubstrate /var/jb/Library/MobileSubstrate/DynamicLibraries
 log "  Ownership set"
 
 # ═══════════ 3/7 RUN prep_bootstrap.sh ═══════════════════════
@@ -188,12 +191,13 @@ else
         install -y -qq com.opa334.trollstorelite 2>&1
     trollstore_rc=$?
     if [ "$trollstore_rc" -ne 0 ]; then
-        die "TrollStore Lite apt install failed with exit code $trollstore_rc"
-    fi
-    if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
-        log "  TrollStore Lite installed"
+        log "  WARNING: TrollStore Lite apt install failed with exit code $trollstore_rc"
     else
-        die "TrollStore Lite install completed without registering package"
+        if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
+            log "  TrollStore Lite installed"
+        else
+            log "  WARNING: TrollStore Lite install completed without registering package"
+        fi
     fi
 fi
 
