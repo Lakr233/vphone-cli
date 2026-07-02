@@ -158,7 +158,10 @@ def run(cmd, **kwargs):
 
 
 def run_sudo(cmd, **kwargs):
-    """Run a command directly first, then retry through sudo if required."""
+    """Run hdiutil directly first, then retry through sudo if required."""
+    if not cmd or os.path.basename(cmd[0]) != "hdiutil":
+        return run(cmd, **kwargs)
+
     try:
         return run(cmd, **kwargs)
     except subprocess.CalledProcessError:
@@ -172,12 +175,13 @@ def run_sudo(cmd, **kwargs):
         return run(["sudo", *cmd], **kwargs)
 
 
-def detach_mountpoint(mountpoint):
-    """Best-effort detach for hdiutil mountpoints used during ramdisk builds."""
-    subprocess.run(
-        ["hdiutil", "detach", "-force", mountpoint],
-        capture_output=True,
-    )
+def detach_mountpoint(mountpoint, required=False):
+    """Detach hdiutil mountpoints used during ramdisk builds."""
+    try:
+        run_sudo(["hdiutil", "detach", "-force", mountpoint], capture_output=True)
+    except subprocess.CalledProcessError:
+        if required:
+            raise
 
 
 def ensure_path_within_vm(path, vm_dir, label):
@@ -542,7 +546,7 @@ def build_ramdisk(restore_dir, im4m_path, vm_dir, input_dir, output_dir, temp_di
                 ramdisk_custom,
             ]
         )
-        detach_mountpoint(mountpoint)
+        detach_mountpoint(mountpoint, required=True)
 
         # Mount expanded, inject SSH
         print("  Mounting expanded ramdisk...")

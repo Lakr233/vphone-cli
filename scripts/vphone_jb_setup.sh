@@ -97,7 +97,7 @@ chown -R 501:501 /var/jb/var/mobile/Library
 chmod 0755 /var/jb/var/mobile/Library
 chown -R 501:501 /var/jb/var/mobile/Library/Preferences
 chmod 0755 /var/jb/var/mobile/Library/Preferences
-chown -R 0:0 /var/jb/Library
+chown 0:0 /var/jb/Library /var/jb/Library/MobileSubstrate /var/jb/Library/MobileSubstrate/DynamicLibraries
 chmod 0755 /var/jb/Library /var/jb/Library/MobileSubstrate /var/jb/Library/MobileSubstrate/DynamicLibraries
 log "  Ownership set"
 
@@ -184,8 +184,10 @@ log "  apt upgrade done"
 
 # ═══════════ 7/7 INSTALL TROLLSTORE LITE ═════════════════════
 log "[7/8] Installing TrollStore Lite..."
+TROLLSTORE_READY=0
 if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
     log "  TrollStore Lite already installed"
+    TROLLSTORE_READY=1
 else
     apt-get -o APT::Get::AllowUnauthenticated=true \
         install -y -qq com.opa334.trollstorelite 2>&1
@@ -195,6 +197,7 @@ else
     else
         if dpkg -s com.opa334.trollstorelite >/dev/null 2>&1; then
             log "  TrollStore Lite installed"
+            TROLLSTORE_READY=1
         else
             log "  WARNING: TrollStore Lite install completed without registering package"
         fi
@@ -219,5 +222,9 @@ for profile in /var/root/.bashrc /var/root/.bash_profile; do
 done
 
 # ═══════════ DONE ════════════════════════════════════════════
-: > "$DONE_MARKER"
-log "=== vphone_jb_setup.sh complete ==="
+if [ "$TROLLSTORE_READY" = "1" ]; then
+    : > "$DONE_MARKER"
+    log "=== vphone_jb_setup.sh complete ==="
+else
+    log "=== vphone_jb_setup.sh core steps complete; TrollStore Lite still pending, marker not written ==="
+fi
