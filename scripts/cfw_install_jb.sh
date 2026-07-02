@@ -235,14 +235,18 @@ else
     echo "  [!] No entitlements found on original launchd"
 fi
 
-# Injecting launchdhook into pid 1 is opt-in. On current vPhone builds the
-# BaseBin launchd hook exits early with "launchd cannot be run directly",
-# which panics the kernel because pid 1 exits.
-if [[ "$VPHONE_JB_ENABLE_LAUNCHD_HOOK" == "1" && -d "$JB_INPUT_DIR/basebin" ]]; then
-    echo "  Injecting LC_LOAD_DYLIB for /b (short launchdhook alias)..."
-    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
+# Injecting launchdhook into pid 1 is opt-in. This boot-critical hook path has
+# produced boot-analysis failures; keep BaseBin deployed, but do not load /b
+# from launchd unless explicitly requested.
+if [[ "$VPHONE_JB_ENABLE_LAUNCHD_HOOK" == "1" ]]; then
+    if [[ -d "$JB_INPUT_DIR/basebin" ]]; then
+        echo "  Injecting weak dylib load for /b (short launchdhook alias)..."
+        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
+    else
+        echo "  [!] VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 but BaseBin is missing; skipping launchdhook injection"
+    fi
 else
-    echo "  [*] Skipping launchdhook LC_LOAD_DYLIB injection (set VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 to enable)"
+    echo "  [*] Skipping launchdhook dylib injection (set VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 to enable)"
 fi
 
 "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
@@ -320,7 +324,7 @@ ssh_cmd "/bin/rm -rf /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"
 ssh_cmd "/bin/rm -f /mnt5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
 rm -f "$BOOTSTRAP_TAR"
 
-# NOTE: /var/jb symlink is created at runtime by launchdhook.dylib
+# NOTE: /var/jb symlink is created on first normal boot by vphone_jb_setup.sh
 # (Data volume is encrypted and not mountable from ramdisk).
 
 echo "  [+] procursus bootstrap installed"
