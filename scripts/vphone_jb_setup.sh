@@ -107,8 +107,15 @@ done
 if [ -n "$DROPBEARKEY" ]; then
     [ -f /var/dropbear/dropbear_rsa_host_key ] || "$DROPBEARKEY" -t rsa -f /var/dropbear/dropbear_rsa_host_key >/dev/null
     [ -f /var/dropbear/dropbear_ecdsa_host_key ] || "$DROPBEARKEY" -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key >/dev/null
-    chmod 0600 /var/dropbear/dropbear_rsa_host_key /var/dropbear/dropbear_ecdsa_host_key
-    log "  dropbear host keys ready"
+    if [ -f /var/dropbear/dropbear_rsa_host_key ] && [ -f /var/dropbear/dropbear_ecdsa_host_key ]; then
+        if chmod 0600 /var/dropbear/dropbear_rsa_host_key /var/dropbear/dropbear_ecdsa_host_key; then
+            log "  dropbear host keys ready"
+        else
+            log "  WARNING: dropbear host key chmod failed"
+        fi
+    else
+        log "  WARNING: dropbear host key generation incomplete"
+    fi
 else
     log "  WARNING: dropbearkey not found"
 fi

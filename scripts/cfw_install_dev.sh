@@ -141,7 +141,14 @@ assert_mount_under_vm() {
 # Mount device filesystem, tolerate already-mounted
 remote_mount() {
     local dev="$1" mnt="$2" opts="${3:-rw}"
+    ssh_cmd "/bin/mkdir -p $mnt"
+    if ssh_cmd "/sbin/mount | /usr/bin/grep -q ' on $mnt '"; then
+        return 0
+    fi
     ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
+    if ! ssh_cmd "/sbin/mount | /usr/bin/grep -q ' on $mnt '"; then
+        die "Failed to mount $dev at $mnt (opts=$opts). Make sure the ramdisk was booted with the expected patched kernel."
+    fi
 }
 
 # ── Find restore directory ─────────────────────────────────────
