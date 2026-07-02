@@ -129,24 +129,11 @@ public final class FirmwarePipeline {
             let rawData = try loader.load(from: fileURL)
             log("  format: \(rawData.count) bytes")
 
-            // Patch
-            var currentData = rawData
-            var componentRecords: [PatchRecord] = []
-
-            for makePatcher in component.patcherFactories {
-                let patcher = makePatcher(currentData, verbose)
-                let records = try patcher.findAll()
-
-                guard !records.isEmpty else {
-                    throw PatcherError.patchSiteNotFound("\(component.name): no patches found")
-                }
-
-                let count = try patcher.apply()
-                log("  [+] \(count) \(component.name) patches applied")
-
-                componentRecords.append(contentsOf: records)
-                currentData = extractPatchedData(from: patcher, fallback: currentData, records: records)
-            }
+            let (currentData, componentRecords) = try patchData(
+                rawData,
+                componentName: component.name,
+                patcherFactories: component.patcherFactories
+            )
 
             try loader.save(currentData, to: fileURL)
             log("  [+] saved")
@@ -159,6 +146,32 @@ public final class FirmwarePipeline {
         log(String(repeating: "=", count: 60))
 
         return allRecords
+    }
+
+    func patchData(
+        _ rawData: Data,
+        componentName: String,
+        patcherFactories: [(Data, Bool) -> any Patcher]
+    ) throws -> (Data, [PatchRecord]) {
+        var currentData = rawData
+        var componentRecords: [PatchRecord] = []
+
+        for makePatcher in patcherFactories {
+            let patcher = makePatcher(currentData, verbose)
+            let records = try patcher.findAll()
+
+            guard !records.isEmpty else {
+                throw PatcherError.patchSiteNotFound("\(componentName): no patches found")
+            }
+
+            let count = try patcher.apply()
+            log("  [+] \(count) \(componentName) patches applied")
+
+            componentRecords.append(contentsOf: records)
+            currentData = extractPatchedData(from: patcher, fallback: currentData, records: records)
+        }
+
+        return (currentData, componentRecords)
     }
 
     // MARK: - Component List Builder
