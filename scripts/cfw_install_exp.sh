@@ -282,6 +282,10 @@ install_patched_preboot_txm() {
     local txm_dir="/mnt5/$BOOT_HASH/usr/standalone/firmware/FUD"
     local txm_dst="$txm_dir/Ap,TrustedExecutionMonitor.img4"
 
+    # ramdisk_build signs this from the restore-tree release TXM after
+    # fw_patch_jb/fw_patch_exp has already applied the variant TXM patches.
+    # The ramdisk build step only refreshes the base trustcache bypass and
+    # preserves the existing TXMDev bytes before creating Ramdisk/txm.img4.
     [[ -f "$txm_src" ]] || die "Missing patched TXM at $txm_src (run make ramdisk_build after fw_patch_exp)"
 
     echo "  Installing patched TXM into Preboot..."

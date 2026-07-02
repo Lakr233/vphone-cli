@@ -693,17 +693,19 @@ the research TXM leaves Developer Mode disabled at runtime and blocks
 After restore, normal boot reads a second TXM copy from Preboot:
 `/private/preboot/<boot-hash>/usr/standalone/firmware/FUD/Ap,TrustedExecutionMonitor.img4`.
 JB/EXP install backs up that file as `.pre-vphone` and replaces it with
-`Ramdisk/txm.img4`; otherwise normal boot can still panic at TXM CodeSignature
-selector 24 even though the restore-tree release TXM and ramdisk TXM are patched.
+`Ramdisk/txm.img4`. `ramdisk_build.py` signs that IMG4 from the restore-tree
+release TXM after the selected `fw_patch*` variant has run, so JB/EXP inherit
+the TXMDev patch set there; otherwise normal boot can still panic at TXM
+CodeSignature selector 24 even though the restore-tree release TXM is patched.
 
 ## Ramdisk Variant Matrix
 
 | Variant        | Pre-step             | `Ramdisk/txm.img4`               | `Ramdisk/krnl.ramdisk.img4`                                                      | `Ramdisk/krnl.img4`                            | Effective kernel used by `ramdisk_send.sh`          |
 | -------------- | -------------------- | -------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------- |
 | `RAMDISK`      | `make fw_patch`      | release TXM + base TXM patch (1) | base kernel (28), legacy `*.ramdisk` preferred else derive from pristine CloudOS | restore kernel from `fw_patch` (28)            | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `DEV+RAMDISK`  | `make fw_patch_dev`  | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_dev` (29)        | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `JB+RAMDISK`   | `make fw_patch_jb`   | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_jb` (28+59)      | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
-| `EXP+RAMDISK`  | `make fw_patch_exp`  | release TXM + base TXM patch (1) | base kernel (28), same derivation rule                                           | restore kernel from `fw_patch_exp` (28+59+6)   | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `DEV+RAMDISK`  | `make fw_patch_dev`  | release TXM + TXMDev patch set (12, includes base) | base kernel (28), same derivation rule                              | restore kernel from `fw_patch_dev` (29)        | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `JB+RAMDISK`   | `make fw_patch_jb`   | release TXM + TXMDev patch set (12, includes base) | base kernel (28), same derivation rule                              | restore kernel from `fw_patch_jb` (28+59)      | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
+| `EXP+RAMDISK`  | `make fw_patch_exp`  | release TXM + TXMDev patch set (12, includes base) | base kernel (28), same derivation rule                              | restore kernel from `fw_patch_exp` (28+59+6)   | `krnl.ramdisk.img4` preferred, fallback `krnl.img4` |
 
 ## Cross-Version Dynamic Snapshot
 
