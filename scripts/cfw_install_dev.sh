@@ -417,8 +417,8 @@ ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
 
 echo "  Preparing dropbear host keys on Data volume..."
 ssh_cmd "/bin/mkdir -p /mnt3/dropbear"
-ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_rsa_host_key ]; then /mnt1/iosbinpack64/usr/local/bin/dropbearkey -t rsa -f /mnt3/dropbear/dropbear_rsa_host_key >/dev/null; fi"
-ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_ecdsa_host_key ]; then /mnt1/iosbinpack64/usr/local/bin/dropbearkey -t ecdsa -f /mnt3/dropbear/dropbear_ecdsa_host_key >/dev/null; fi"
+ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_rsa_host_key ]; then /usr/local/bin/dropbearkey -t rsa -f /mnt3/dropbear/dropbear_rsa_host_key >/dev/null; fi"
+ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_ecdsa_host_key ]; then /usr/local/bin/dropbearkey -t ecdsa -f /mnt3/dropbear/dropbear_ecdsa_host_key >/dev/null; fi"
 ssh_cmd "/bin/chmod 600 /mnt3/dropbear/dropbear_rsa_host_key /mnt3/dropbear/dropbear_ecdsa_host_key"
 
 echo "  [+] iosbinpack64 installed"
