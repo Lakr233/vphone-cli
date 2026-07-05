@@ -57,18 +57,13 @@ extension KernelJBPatcher {
             return true
         }
 
-        // Shape B: runtime W^X mask register (26.5). Widen the mask constant #5 -> #7.
-        if let (movOff, maskReg) = findWxMaskMov(start: funcStart, end: funcEnd) {
-            guard let maskBytes = ARM64Encoder.encodeMovzW(rd: maskReg, imm16: 7) else {
-                log("  [-] could not encode widened W^X mask")
-                return false
-            }
-            emit(movOff, maskBytes,
-                 patchID: "kernelcache_jb.vm_map_protect",
-                 virtualAddress: fileOffsetToVA(movOff),
-                 description: "mov w\(maskReg),#7 [_vm_map_protect widen W^X mask, allow W+X]")
-            return true
-        }
+        // Shape B (26.5 mask-widen) disabled: findWxMaskMov hit vm_map.c:6202
+        // `prot &= ~VM_PROT_WRITE` (the COW strip), not the RWX gate at vm_map.c:5997.
+        // Widening it broke COW, so debugger/tweak writes crashed SPTM on 26.4+
+        // (VIOLATION_ILLEGAL_MAP). Not retargeted: on SPTM, code modification uses
+        // write-then-flip via vm_protect(VM_PROT_COPY) -> XNU_USER_DEBUG, which needs no
+        // RWX (debugger, Substrate tweaks, and the JB's own plugins all use this path).
+        // Shape A stays for 26.1-26.4; this W^X patch is retired on 26.5+.
 
         log("  [-] vm_map_protect write-downgrade gate not found")
         return false
