@@ -148,7 +148,7 @@ CFW_INPUT="cfw_input"
 CFW_JB_INPUT="cfw_jb_input"
 CFW_JB_ARCHIVE="cfw_jb_input.tar.zst"
 TEMP_DIR="$VM_DIR/.cfw_temp"
-VPHONE_JB_ENABLE_LAUNCHD_HOOK="${VPHONE_JB_ENABLE_LAUNCHD_HOOK:-0}"
+DISABLE_LAUNCHD_HOOK="${DISABLE_LAUNCHD_HOOK:-0}"
 
 SSH_PORT="${SSH_PORT:-2222}"
 SSH_PASS="alpine"
@@ -404,18 +404,16 @@ else
     echo "  [!] No entitlements found on original launchd"
 fi
 
-# Injecting launchdhook into pid 1 is opt-in. This boot-critical hook path has
-# produced boot-analysis failures; keep BaseBin deployed, but do not load /b
-# from launchd unless explicitly requested.
-if [[ "$VPHONE_JB_ENABLE_LAUNCHD_HOOK" == "1" ]]; then
-    if [[ -d "$JB_INPUT_DIR/basebin" ]]; then
-        echo "  Injecting weak dylib load for /b (short launchdhook alias)..."
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
-    else
-        echo "  [!] VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 but BaseBin is missing; skipping launchdhook injection"
-    fi
+# Injecting launchdhook into pid 1 is on by default. This boot-critical hook
+# path has produced boot-analysis failures; set DISABLE_LAUNCHD_HOOK=1 to keep
+# BaseBin deployed without loading /b from launchd.
+if [[ "$DISABLE_LAUNCHD_HOOK" == "1" ]]; then
+    echo "  [*] Skipping launchdhook dylib injection (DISABLE_LAUNCHD_HOOK=1)"
+elif [[ -d "$JB_INPUT_DIR/basebin" ]]; then
+    echo "  Injecting weak dylib load for /b (short launchdhook alias)..."
+    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
 else
-    echo "  [*] Skipping launchdhook dylib injection (set VPHONE_JB_ENABLE_LAUNCHD_HOOK=1 to enable)"
+    echo "  [!] BaseBin is missing; skipping launchdhook injection"
 fi
 
 "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
