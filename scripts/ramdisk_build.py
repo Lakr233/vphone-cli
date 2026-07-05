@@ -162,6 +162,11 @@ def run_sudo(cmd, **kwargs):
     if not cmd or os.path.basename(cmd[0]) != "hdiutil":
         return run(cmd, **kwargs)
 
+    # SUDO_PASSWORD flow exports SUDO_ASKPASS: go straight to sudo -A so
+    # hdiutil never runs unprivileged first (which triggers an auth prompt).
+    if os.environ.get("SUDO_ASKPASS"):
+        return run(["sudo", "-A", *cmd], **kwargs)
+
     try:
         return run(cmd, **kwargs)
     except subprocess.CalledProcessError:

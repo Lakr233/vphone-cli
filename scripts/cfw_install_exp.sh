@@ -93,8 +93,8 @@ if [[ -f "$JB_SYSOS_DMG" ]]; then
     # refuses pre-patched function entries unless --force is passed).
     echo "[*] DSC patches: mounting cached SystemOS DMG..."
     mkdir -p "$JB_MNT_SYSOS"
-    sudo hdiutil detach "$JB_MNT_SYSOS" -force 2>/dev/null || true
-    sudo hdiutil attach -mountpoint "$JB_MNT_SYSOS" "$JB_SYSOS_DMG" -nobrowse -owners off
+    sudo ${SUDO_ASKPASS:+-A} hdiutil detach "$JB_MNT_SYSOS" -force 2>/dev/null || true
+    sudo ${SUDO_ASKPASS:+-A} hdiutil attach -mountpoint "$JB_MNT_SYSOS" "$JB_SYSOS_DMG" -nobrowse -owners off
 
     JB_DSC_CHUNKS_DIR="$JB_MNT_SYSOS/System/Library/Caches/com.apple.dyld"
     JB_DSC_HEADER="$JB_DSC_CHUNKS_DIR/dyld_shared_cache_arm64e"
@@ -128,7 +128,7 @@ if [[ -f "$JB_SYSOS_DMG" ]]; then
         echo "[-] DSC patches: $JB_DSC_CHUNKS_DIR not found, skipping"
     fi
 
-    sudo hdiutil detach "$JB_MNT_SYSOS" -force
+    sudo ${SUDO_ASKPASS:+-A} hdiutil detach "$JB_MNT_SYSOS" -force
 fi
 
 # Now run the regular CFW install. It will see the cached (patched)

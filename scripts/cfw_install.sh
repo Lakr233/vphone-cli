@@ -152,6 +152,10 @@ ldid_sign() {
 
 host_hdiutil() {
     local rc
+    # SUDO_PASSWORD flow exports SUDO_ASKPASS: go straight to sudo -A so
+    # hdiutil never runs unprivileged first (which triggers an auth prompt).
+    [[ -n "${SUDO_ASKPASS:-}" ]] && { sudo -A hdiutil "$@"; return; }
+
     hdiutil "$@" && return 0
     rc=$?
 

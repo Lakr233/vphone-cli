@@ -122,7 +122,7 @@ ldid_sign_ent() {
 safe_detach() {
     local mnt="$1"
     if mount | grep -Fq " on $mnt "; then
-        sudo hdiutil detach -force "$mnt" 2>/dev/null || true
+        sudo ${SUDO_ASKPASS:+-A} hdiutil detach -force "$mnt" 2>/dev/null || true
     fi
 }
 
@@ -275,9 +275,9 @@ assert_mount_under_vm "$MNT_SYSOS" "SystemOS mountpoint"
 assert_mount_under_vm "$MNT_APPOS" "AppOS mountpoint"
 
 echo "  Mounting SystemOS..."
-sudo hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -nobrowse -owners off
+sudo ${SUDO_ASKPASS:+-A} hdiutil attach -mountpoint "$MNT_SYSOS" "$SYSOS_DMG" -nobrowse -owners off
 echo "  Mounting AppOS..."
-sudo hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -nobrowse -owners off
+sudo ${SUDO_ASKPASS:+-A} hdiutil attach -mountpoint "$MNT_APPOS" "$APPOS_DMG" -nobrowse -owners off
 
 # Mount device rootfs (tolerate already-mounted)
 echo "  Mounting device rootfs rw..."
