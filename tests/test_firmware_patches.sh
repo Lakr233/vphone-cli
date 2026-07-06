@@ -52,6 +52,7 @@ typeset -a COMPONENTS=(
   "Firmware/dfu/iBEC.vresearch101.RELEASE.im4p"
   "Firmware/all_flash/LLB.vresearch101.RELEASE.im4p"
   "Firmware/all_flash/DeviceTree.vphone600ap.im4p"
+  "Firmware/txm.iphoneos.release.im4p"
   "Firmware/txm.iphoneos.research.im4p"
   "kernelcache.research.vphone600"
   "BuildManifest.plist"

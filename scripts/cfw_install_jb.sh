@@ -108,24 +108,35 @@ get_boot_manifest_hash() {
     /bin/ls $MNT5 2>/dev/null | awk 'length($0)==96{print; exit}'
 }
 
-install_patched_preboot_txm() {
-    local txm_src="$VM_DIR/Ramdisk/txm.img4"
-    local txm_dir="/mnt5/$BOOT_HASH/usr/standalone/firmware/FUD"
-    local txm_dst="$txm_dir/Ap,TrustedExecutionMonitor.img4"
+find_patched_txm_src() {
+    local dir txm
+    for dir in "$VM_DIR"/iPhone*_Restore; do
+        txm="$dir/Firmware/txm.iphoneos.release.im4p"
+        [[ -f "$txm" ]] && { echo "$txm"; return 0; }
+    done
+    return 1
+}
 
-    # ramdisk_build signs this from the restore-tree release TXM after
-    # fw_patch_jb/fw_patch_exp has already applied the variant TXM patches.
-    # The ramdisk build step only refreshes the base trustcache bypass and
-    # preserves the existing TXMDev bytes before creating Ramdisk/txm.img4.
-    [[ -f "$txm_src" ]] || die "Missing patched TXM at $txm_src (run make ramdisk_build after fw_patch_jb)"
+install_patched_preboot_txm() {
+    local txm_src
+    txm_src="$(find_patched_txm_src)" || die "Missing patched release TXM (run make fw_patch_jb before cfw_install_jb)"
+
+    local txm_dir="$MNT5/$BOOT_HASH/usr/standalone/firmware/FUD"
+    local txm_dst="$txm_dir/Ap,TrustedExecutionMonitor.img4"
+    local txm_backup="$txm_dst.pre-vphone"
+    local txm_local="$TEMP_DIR/Ap,TrustedExecutionMonitor.img4"
 
     echo "  Installing patched TXM into Preboot..."
-    ssh_cmd "/bin/mkdir -p '$txm_dir'"
-    if remote_file_exists "$txm_dst" && ! remote_file_exists "$txm_dst.pre-vphone"; then
-        ssh_cmd "/bin/cp '$txm_dst' '$txm_dst.pre-vphone'"
+    /bin/mkdir -p "$txm_dir" "$TEMP_DIR"
+    [[ -f "$txm_dst" ]] || die "Missing live Preboot TXM at $txm_dst"
+    if [[ ! -f "$txm_backup" ]]; then
+        /bin/cp "$txm_dst" "$txm_backup"
     fi
-    scp_to "$txm_src" "$txm_dst"
-    ssh_cmd "/usr/sbin/chown 0:0 '$txm_dst' && /bin/chmod 0644 '$txm_dst'"
+    /bin/cp "$txm_backup" "$txm_local"
+    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_preboot_txm.py" "$txm_local" "$txm_src"
+    /bin/cp "$txm_local" "$txm_dst"
+    /usr/sbin/chown 0:0 "$txm_dst"
+    /bin/chmod 0644 "$txm_dst"
     echo "  [+] Preboot TXM patched"
 }
 
