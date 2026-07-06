@@ -242,6 +242,10 @@ cleanup_on_exit() {
 }
 trap cleanup_on_exit EXIT
 
+# Host-mode transport override (CFW_HOST_MODE=1): run install against image
+# volumes mounted locally on the host instead of a device over SSH.
+[[ -n "${CFW_HOST_MODE:-}" ]] && source "$SCRIPT_DIR/cfw_host_mode.sh"
+
 # ════════════════════════════════════════════════════════════════
 # Main
 # ════════════════════════════════════════════════════════════════
@@ -274,7 +278,7 @@ echo ""
 echo "[1/7] Installing Cryptex (SystemOS + AppOS)..."
 
 # Mount device rootfs first to check existing state
-echo "  Mounting device rootfs rw..."
+echo "  Mounting rootfs rw..."
 remote_mount /dev/disk1s1 /mnt1
 
 # Rename APFS update snapshot to orig-fs (idempotent)
@@ -305,7 +309,7 @@ CRYPTEX_OS_COUNT=$(ssh_cmd "/bin/ls /mnt1/System/Cryptexes/OS/ 2>/dev/null | /us
 CRYPTEX_APP_COUNT=$(ssh_cmd "/bin/ls /mnt1/System/Cryptexes/App/ 2>/dev/null | /usr/bin/wc -l" | tr -d ' ')
 
 if [[ "${CRYPTEX_OS_COUNT:-0}" -gt 0 && "${CRYPTEX_APP_COUNT:-0}" -gt 0 ]]; then
-    echo "  [*] Cryptexes already installed on device (OS=${CRYPTEX_OS_COUNT} entries, App=${CRYPTEX_APP_COUNT} entries), skipping"
+    echo "  [*] Cryptexes already installed (OS=${CRYPTEX_OS_COUNT} entries, App=${CRYPTEX_APP_COUNT} entries), skipping"
 
     # Still ensure dyld symlinks exist
     ssh_cmd "/bin/ln -sf ../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld \
@@ -357,7 +361,7 @@ else
     ssh_cmd "/bin/chmod 0755 /mnt1/System/Cryptexes/App /mnt1/System/Cryptexes/OS"
 
     # Copy Cryptex files to device
-    echo "  Copying Cryptexes to device (this takes ~3 minutes)..."
+    echo "  Copying Cryptexes..."
     scp_to "$MNT_SYSOS/." "/mnt1/System/Cryptexes/OS"
     scp_to "$MNT_APPOS/." "/mnt1/System/Cryptexes/App"
 
@@ -430,7 +434,7 @@ ssh_cmd "/usr/bin/tar --preserve-permissions --no-overwrite-dir \
     -xf /mnt1/iosbinpack64.tar -C /mnt1"
 ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
 
-echo "  Preparing dropbear host keys on Data volume..."
+echo "  Setting up dropbear host keys..."
 ssh_cmd "/bin/mkdir -p /mnt3/dropbear"
 ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_rsa_host_key ]; then /usr/local/bin/dropbearkey -t rsa -f /mnt3/dropbear/dropbear_rsa_host_key >/dev/null; fi"
 ssh_cmd "if [ ! -f /mnt3/dropbear/dropbear_ecdsa_host_key ]; then /usr/local/bin/dropbearkey -t ecdsa -f /mnt3/dropbear/dropbear_ecdsa_host_key >/dev/null; fi"
@@ -562,7 +566,7 @@ rm -f "$TEMP_DIR/seputil" \
 
 echo ""
 echo "[+] CFW installation complete!"
-echo "    Reboot the device for changes to take effect."
+echo "    Reboot to apply changes."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
 if [[ "$CFW_SKIP_HALT" == "1" ]]; then

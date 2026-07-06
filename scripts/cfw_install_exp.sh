@@ -370,6 +370,10 @@ apply_dev_overlay() {
     die "Dev overlay not found (cfw_dev/rpcserver_ios)"
 }
 
+# Host-mode transport override (CFW_HOST_MODE=1): run install against image
+# volumes mounted locally on the host instead of a device over SSH.
+[[ -n "${CFW_HOST_MODE:-}" ]] && source "$SCRIPT_DIR/cfw_host_mode.sh"
+
 # ── Check JB prerequisites ────────────────────────────────────
 command -v zstd >/dev/null 2>&1 || die "'zstd' not found (required for JB bootstrap phase)"
 
@@ -761,7 +765,7 @@ rm -f "$TEMP_DIR/launchd" \
 
 echo ""
 echo "[+] CFW + JB + EXP installation complete!"
-echo "    Reboot the device for changes to take effect."
+echo "    Reboot to apply changes."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
 
 ssh_cmd "/sbin/halt" || true

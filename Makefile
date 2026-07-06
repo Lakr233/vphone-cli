@@ -130,6 +130,8 @@ help:
 	@echo "  make cfw_install_dev         Install CFW mods via SSH (dev mode)"
 	@echo "  make cfw_install_jb          Install CFW + JB extensions (jetsam/procursus/basebin)"
 	@echo "  make cfw_install_exp         Install CFW + JB + EXP experimental (hv_vmm rename, post-restore DT, build spoof)"
+	@echo "  make cfw_install_host        Ramdisk-free install: host-mount files + offline snapshot flip"
+	@echo "    Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)"
 	@echo ""
 	@echo "Variables: VM_DIR=$(VM_DIR) CPU=$(CPU) MEMORY=$(MEMORY) DISK_SIZE=$(DISK_SIZE)"
 
@@ -478,7 +480,7 @@ ramdisk_send:
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: cfw_install cfw_install_dev cfw_install_jb cfw_install_exp
+.PHONY: cfw_install cfw_install_dev cfw_install_jb cfw_install_exp cfw_install_host
 
 cfw_install:
 	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
@@ -491,3 +493,9 @@ cfw_install_jb:
 
 cfw_install_exp:
 	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") $(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_exp.sh" .
+
+# Ramdisk-free CFW install: place files via host mount + flip boot snapshot
+# offline. No boot_dfu/ramdisk_send/iproxy/SSH. VM must be off. Re-execs sudo.
+#   Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)
+cfw_install_host:
+	$(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant $(if $(VARIANT),$(VARIANT),exp) "$(VM_DIR_ABS)"
