@@ -203,7 +203,7 @@ struct PatchComponentCLI: ParsableCommand {
         // Production JB patching runs through `patch-firmware --variant jb`; this
         // standalone option exists so `tests/test_jb_kernel_patches.sh` can run the
         // JB kernel layer over a single kernelcache and dump records via --records-out.
-        // (txm / kernel-base, by contrast, are also used by scripts/ramdisk_build.py.)
+        // (txm / kernel-base, by contrast, are standalone single-component patchers.)
         case kernelJB = "kernel-jb"
     }
 

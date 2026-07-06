@@ -5,9 +5,8 @@
 # 1) Host deps + project setup/build
 # 2) vm_new + fw_prepare + fw_patch (or fw_patch_dev/ fw_patch_jb with --dev/--jb)
 # 3) DFU restore (boot_dfu + restore_get_shsh + restore)
-# 4) CFW install — default: ramdisk-free host-mount install + offline snapshot
-#    flip (cfw_install_host, VM off). Legacy ramdisk path (boot_dfu +
-#    ramdisk_build/send + iproxy + cfw_install*) is opt-in via USE_RAMDISK_CFW=1.
+# 4) CFW install — host-mount install + offline snapshot flip
+#    (cfw_install_host, VM off)
 # 5) First boot launch (`make boot`) with printed in-guest commands
 
 set -euo pipefail
@@ -19,11 +18,9 @@ cd "$PROJECT_ROOT"
 
 LOG_DIR="${PROJECT_ROOT}/setup_logs"
 DFU_LOG="${LOG_DIR}/boot_dfu.log"
-IPROXY_LOG=""
 BOOT_LOG="${LOG_DIR}/boot.log"
 
 DFU_PID=""
-IPROXY_PID=""
 BOOT_PID=""
 BOOT_FIFO=""
 BOOT_FIFO_FD=""
@@ -34,23 +31,9 @@ VM_DIR_ABS="${VM_DIR:A}"
 AUTO_KILL_VM_LOCKS="${AUTO_KILL_VM_LOCKS:-1}"
 POST_RESTORE_KILL_DELAY="${POST_RESTORE_KILL_DELAY:-30}"
 POST_KILL_SETTLE_DELAY="${POST_KILL_SETTLE_DELAY:-5}"
-RAMDISK_SSH_TIMEOUT="${RAMDISK_SSH_TIMEOUT:-60}"
-RAMDISK_SSH_INTERVAL="${RAMDISK_SSH_INTERVAL:-2}"
-RAMDISK_SSH_PORT="${RAMDISK_SSH_PORT:-}"
-RAMDISK_SSH_USER="${RAMDISK_SSH_USER:-root}"
-RAMDISK_SSH_PASS="${RAMDISK_SSH_PASS:-alpine}"
-IPROXY_UDID="${IPROXY_UDID:-}"
-IPROXY_DEVICE_WAIT_TIMEOUT="${IPROXY_DEVICE_WAIT_TIMEOUT:-90}"
-IPROXY_DEVICE_WAIT_INTERVAL="${IPROXY_DEVICE_WAIT_INTERVAL:-1}"
-RAMDISK_SSH_PORT_EXPLICIT=0
-if [[ -n "$RAMDISK_SSH_PORT" ]]; then
-  RAMDISK_SSH_PORT_EXPLICIT=1
-fi
 
 DEVICE_UDID=""
 DEVICE_ECID=""
-IPROXY_TARGET_UDID=""
-IPROXY_RESOLVE_REASON=""
 BOOT_ANALYSIS_TIMEOUT="${BOOT_ANALYSIS_TIMEOUT:-300}"
 BOOT_PROMPT_FALLBACK_TIMEOUT="${BOOT_PROMPT_FALLBACK_TIMEOUT:-60}"
 BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\.[0-9]+)+#|:/[^ ]* root#}"
@@ -146,174 +129,6 @@ load_device_identity() {
     || die "UDID/ECID mismatch in ${prediction_file}: ${DEVICE_UDID} vs 0x${DEVICE_ECID}"
 
   echo "[+] Device identity loaded: UDID=${DEVICE_UDID} ECID=0x${DEVICE_ECID}"
-}
-
-list_usbmux_udids() {
-  local pmd3_python
-  pmd3_python="$(find_python_for_pmd3 || true)"
-  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
-  [[ -f "$PMD3_BRIDGE" ]] || die "Missing bridge script: $PMD3_BRIDGE"
-  "$pmd3_python" "$PMD3_BRIDGE" usbmux-list 2>/dev/null | tr -d '\r' | sed '/^[[:space:]]*$/d'
-}
-
-print_usbmux_udids() {
-  local -a udids
-  local udid
-  udids=(${(@f)$(list_usbmux_udids)})
-
-  if (( ${#udids[@]} == 0 )); then
-    echo "    (none)"
-    return
-  fi
-
-  for udid in "${udids[@]}"; do
-    echo "    - ${udid}"
-  done
-}
-
-try_resolve_iproxy_target_udid() {
-  local -a usbmux_udids ecid_matches
-  local udid
-  local ecid_lower
-
-  IPROXY_TARGET_UDID=""
-  IPROXY_RESOLVE_REASON=""
-
-  if [[ -n "$IPROXY_UDID" ]]; then
-    IPROXY_TARGET_UDID="$IPROXY_UDID"
-    IPROXY_RESOLVE_REASON="override"
-    return 0
-  fi
-
-  usbmux_udids=(${(@f)$(list_usbmux_udids)})
-  if (( ${#usbmux_udids[@]} == 0 )); then
-    IPROXY_RESOLVE_REASON="none"
-    return 1
-  fi
-
-  for udid in "${usbmux_udids[@]}"; do
-    if [[ "$udid" == "$DEVICE_UDID" ]]; then
-      IPROXY_TARGET_UDID="$udid"
-      IPROXY_RESOLVE_REASON="restore_match"
-      return 0
-    fi
-  done
-
-  ecid_lower="${DEVICE_ECID:l}"
-  ecid_matches=()
-  for udid in "${usbmux_udids[@]}"; do
-    if [[ "${udid:l}" == *"${ecid_lower}"* ]]; then
-      ecid_matches+=("$udid")
-    fi
-  done
-
-  if (( ${#ecid_matches[@]} == 1 )); then
-    IPROXY_TARGET_UDID="${ecid_matches[1]}"
-    IPROXY_RESOLVE_REASON="ecid_match"
-    return 0
-  fi
-
-  if (( ${#usbmux_udids[@]} == 1 )); then
-    IPROXY_RESOLVE_REASON="single_mismatch"
-    return 3
-  fi
-
-  IPROXY_RESOLVE_REASON="ambiguous"
-  return 2
-}
-
-wait_for_iproxy_target_udid() {
-  local timeout interval waited rc
-
-  timeout="$IPROXY_DEVICE_WAIT_TIMEOUT"
-  interval="$IPROXY_DEVICE_WAIT_INTERVAL"
-  waited=0
-
-  [[ "$timeout" == <-> ]] || die "IPROXY_DEVICE_WAIT_TIMEOUT must be an integer (seconds)"
-  [[ "$interval" == <-> ]] || die "IPROXY_DEVICE_WAIT_INTERVAL must be an integer (seconds)"
-  (( timeout > 0 )) || die "IPROXY_DEVICE_WAIT_TIMEOUT must be > 0"
-  (( interval > 0 )) || die "IPROXY_DEVICE_WAIT_INTERVAL must be > 0"
-
-  echo "[*] Resolving iproxy target UDID (timeout=${timeout}s)..."
-  while (( waited < timeout )); do
-    if try_resolve_iproxy_target_udid; then
-      echo "[*] USBMux IDs currently visible:"
-      print_usbmux_udids
-      case "$IPROXY_RESOLVE_REASON" in
-        override)
-          echo "[*] Using explicit IPROXY_UDID override: ${IPROXY_TARGET_UDID}"
-          ;;
-        restore_match)
-          echo "[+] iproxy target UDID matched restore UDID: ${IPROXY_TARGET_UDID}"
-          ;;
-        ecid_match)
-          echo "[+] iproxy target UDID matched ECID substring: ${IPROXY_TARGET_UDID}"
-          ;;
-      esac
-      return
-    fi
-    rc=$?
-
-    if (( waited == 0 || waited % 5 == 0 )); then
-      case "$rc" in
-        2)
-          echo "  waiting for USBMux disambiguation... ${waited}s elapsed"
-          ;;
-        3)
-          echo "  waiting for restore UDID/ECID match (strict mode)... ${waited}s elapsed"
-          ;;
-        *)
-          echo "  waiting for USBMux device... ${waited}s elapsed"
-          ;;
-      esac
-    fi
-
-    sleep "$interval"
-    (( waited += interval ))
-  done
-
-  echo "[-] Timed out resolving iproxy target UDID after ${timeout}s."
-  echo "[-] USBMux IDs currently visible:"
-  print_usbmux_udids
-  if [[ "$IPROXY_RESOLVE_REASON" == "single_mismatch" ]]; then
-    die "Only non-matching USBMux device was visible. Strict identity isolation is enabled; wait for restore UDID/ECID or set IPROXY_UDID explicitly."
-  fi
-  if [[ "$IPROXY_RESOLVE_REASON" == "ambiguous" ]]; then
-    die "Multiple USBMux devices detected and none uniquely matched restore UDID/ECID. Set IPROXY_UDID explicitly."
-  fi
-  die "No USBMux devices detected for iproxy. Ensure ramdisk has fully booted USB stack."
-}
-
-port_is_listening() {
-  local port="$1"
-  lsof -n -t -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
-}
-
-pick_random_ssh_port() {
-  local attempt port
-  for attempt in {1..200}; do
-    port=$((20000 + (RANDOM % 40000)))
-    if ! port_is_listening "$port"; then
-      echo "$port"
-      return 0
-    fi
-  done
-  return 1
-}
-
-choose_ramdisk_ssh_port() {
-  if [[ -n "$RAMDISK_SSH_PORT" ]]; then
-    [[ "$RAMDISK_SSH_PORT" == <-> ]] || die "RAMDISK_SSH_PORT must be an integer"
-    (( RAMDISK_SSH_PORT >= 1 && RAMDISK_SSH_PORT <= 65535 )) \
-      || die "RAMDISK_SSH_PORT out of range: ${RAMDISK_SSH_PORT}"
-    if port_is_listening "$RAMDISK_SSH_PORT"; then
-      die "RAMDISK_SSH_PORT ${RAMDISK_SSH_PORT} is already in use"
-    fi
-    return
-  fi
-
-  RAMDISK_SSH_PORT="$(pick_random_ssh_port)" \
-    || die "Failed to allocate a random local SSH forward port"
 }
 
 parse_bool() {
@@ -489,11 +304,6 @@ cleanup() {
   if [[ -n "$BOOT_FIFO" && -p "$BOOT_FIFO" ]]; then
     rm -f "$BOOT_FIFO" || true
     BOOT_FIFO=""
-  fi
-
-  if [[ -n "$IPROXY_PID" ]]; then
-    stop_process_tree "$IPROXY_PID"
-    IPROXY_PID=""
   fi
 
   if [[ -n "$DFU_PID" ]]; then
@@ -841,120 +651,6 @@ wait_for_recovery() {
   exit 1
 }
 
-start_iproxy() {
-  [[ -n "$DEVICE_UDID" ]] || die "Device UDID is empty; cannot resolve iproxy target"
-
-  choose_ramdisk_ssh_port
-  wait_for_iproxy_target_udid
-
-  if port_is_listening "$RAMDISK_SSH_PORT"; then
-    if [[ "$RAMDISK_SSH_PORT_EXPLICIT" == "1" ]]; then
-      die "RAMDISK_SSH_PORT ${RAMDISK_SSH_PORT} is already in use"
-    fi
-    RAMDISK_SSH_PORT="$(pick_random_ssh_port)" \
-      || die "Failed to allocate a free random local SSH forward port"
-  fi
-
-  IPROXY_LOG="${LOG_DIR}/iproxy_${RAMDISK_SSH_PORT}.log"
-  mkdir -p "$LOG_DIR"
-  : > "$IPROXY_LOG"
-
-  local pmd3_python
-  pmd3_python="$(find_python_for_pmd3 || true)"
-  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
-  echo "[*] Starting pymobiledevice3 usbmux forward ${RAMDISK_SSH_PORT} -> 22 (target_udid=${IPROXY_TARGET_UDID}, restore_udid=${DEVICE_UDID}, ecid=0x${DEVICE_ECID})..."
-  ("$pmd3_python" -m pymobiledevice3 usbmux forward --serial "$IPROXY_TARGET_UDID" "$RAMDISK_SSH_PORT" 22 >"$IPROXY_LOG" 2>&1) &
-  IPROXY_PID=$!
-
-  sleep 1
-  if ! kill -0 "$IPROXY_PID" 2>/dev/null; then
-    echo "[-] iproxy exited early. Log:"
-    tail -n 40 "$IPROXY_LOG" || true
-    exit 1
-  fi
-
-  echo "[+] iproxy running (pid=$IPROXY_PID, log=$IPROXY_LOG)"
-}
-
-wait_for_ramdisk_ssh() {
-  local sshpass_bin
-  local waited=0
-
-  [[ "$RAMDISK_SSH_TIMEOUT" == <-> ]] || die "RAMDISK_SSH_TIMEOUT must be an integer (seconds)"
-  [[ "$RAMDISK_SSH_INTERVAL" == <-> ]] || die "RAMDISK_SSH_INTERVAL must be an integer (seconds)"
-  (( RAMDISK_SSH_TIMEOUT > 0 )) || die "RAMDISK_SSH_TIMEOUT must be > 0"
-  (( RAMDISK_SSH_INTERVAL > 0 )) || die "RAMDISK_SSH_INTERVAL must be > 0"
-
-  sshpass_bin="$(command -v sshpass || true)"
-  [[ -x "$sshpass_bin" ]] || die "sshpass not found (run: make setup_tools)"
-
-  echo "[*] Waiting for ramdisk SSH on ${RAMDISK_SSH_USER}@127.0.0.1:${RAMDISK_SSH_PORT} (timeout=${RAMDISK_SSH_TIMEOUT}s)..."
-  while (( waited < RAMDISK_SSH_TIMEOUT )); do
-    if [[ -n "$IPROXY_PID" ]] && ! kill -0 "$IPROXY_PID" 2>/dev/null; then
-      echo "[-] iproxy process exited while waiting for ramdisk SSH."
-      if [[ -n "$IPROXY_LOG" ]]; then
-        echo "[-] iproxy log tail:"
-        tail -n 40 "$IPROXY_LOG" 2>/dev/null || true
-      fi
-      die "iproxy exited before ramdisk SSH became ready."
-    fi
-
-    if [[ -f "$DFU_LOG" ]] && grep -Eiq 'panic|kernel panic|stackshot succeeded|panic\.apple\.com' "$DFU_LOG"; then
-      echo "[-] Detected panic markers in boot_dfu log while waiting for ramdisk SSH."
-      echo "[-] boot_dfu log tail:"
-      tail -n 80 "$DFU_LOG" 2>/dev/null || true
-      die "Ramdisk boot appears to have panicked before SSH became ready."
-    fi
-
-    if [[ -n "$DFU_PID" ]] && ! kill -0 "$DFU_PID" 2>/dev/null; then
-      echo "[-] boot_dfu process exited while waiting for ramdisk SSH."
-      echo "[-] boot_dfu log tail:"
-      tail -n 80 "$DFU_LOG" 2>/dev/null || true
-      die "DFU boot exited before ramdisk SSH became ready."
-    fi
-
-    if "$sshpass_bin" -p "$RAMDISK_SSH_PASS" ssh \
-      -o StrictHostKeyChecking=no \
-      -o UserKnownHostsFile=/dev/null \
-      -o PreferredAuthentications=password \
-      -o ConnectTimeout=5 \
-      -q \
-      -p "$RAMDISK_SSH_PORT" \
-      "${RAMDISK_SSH_USER}@127.0.0.1" "echo ready" >/dev/null 2>&1
-    then
-      echo "[+] Ramdisk SSH is ready"
-      return
-    fi
-
-    if (( waited == 0 || waited % 10 == 0 )); then
-      echo "  waiting... ${waited}s elapsed"
-    fi
-
-    sleep "$RAMDISK_SSH_INTERVAL"
-    (( waited += RAMDISK_SSH_INTERVAL ))
-  done
-
-  echo "[-] Timed out waiting for ramdisk SSH readiness."
-  echo "[-] Identity context: restore_udid=${DEVICE_UDID}, ecid=0x${DEVICE_ECID}, iproxy_target_udid=${IPROXY_TARGET_UDID}"
-  echo "[-] USBMux IDs at timeout:"
-  print_usbmux_udids
-  if [[ -n "$IPROXY_LOG" ]]; then
-    echo "[-] iproxy log tail:"
-    tail -n 40 "$IPROXY_LOG" 2>/dev/null || true
-  fi
-  echo "[-] boot_dfu log tail:"
-  tail -n 60 "$DFU_LOG" 2>/dev/null || true
-  die "Ramdisk SSH did not become ready in ${RAMDISK_SSH_TIMEOUT}s."
-}
-
-stop_iproxy() {
-  if [[ -n "$IPROXY_PID" ]] && kill -0 "$IPROXY_PID" 2>/dev/null; then
-    echo "[*] Stopping iproxy (pid=$IPROXY_PID)..."
-    stop_process_tree "$IPROXY_PID"
-  fi
-  IPROXY_PID=""
-}
-
 parse_args() {
   local arg
   for arg in "$@"; do
@@ -1019,8 +715,7 @@ main() {
   setup_sudo_noninteractive
 
   local fw_patch_target="fw_patch"
-  local cfw_install_target="cfw_install"
-  local cfw_variant="regular"      # variant for the ramdisk-free `cfw_install_host`
+  local cfw_variant="regular"      # variant for `cfw_install_host`
   local mode_label="base"
 
   if (( JB_MODE + DEV_MODE + EXP_MODE + LESS_MODE > 1 )); then
@@ -1029,22 +724,18 @@ main() {
 
   if [[ "$JB_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_jb"
-    cfw_install_target="cfw_install_jb"
     cfw_variant="jb"
     mode_label="jailbreak"
   elif [[ "$DEV_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_dev"
-    cfw_install_target="cfw_install_dev"
     cfw_variant="dev"
     mode_label="dev"
   elif [[ "$EXP_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_exp"
-    cfw_install_target="cfw_install_exp"
     cfw_variant="exp"
     mode_label="experimental"
   elif [[ "$LESS_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_less"
-    cfw_install_target=""
     cfw_variant=""
     mode_label="less"
   fi
@@ -1091,32 +782,14 @@ main() {
     echo "[*] Waiting ${POST_KILL_SETTLE_DELAY}s for cleanup before CFW install..."
     sleep "$POST_KILL_SETTLE_DELAY"
 
-    if [[ "${USE_RAMDISK_CFW:-0}" == "1" ]]; then
-      # ── Legacy ramdisk CFW install (opt-in via USE_RAMDISK_CFW=1) ──
-      echo ""
-      echo "=== Ramdisk + CFW phase (legacy, USE_RAMDISK_CFW=1) ==="
-      start_boot_dfu
-      load_device_identity
-      wait_for_recovery
-      run_make "Ramdisk" ramdisk_build RAMDISK_UDID="$DEVICE_UDID"
-      echo "[*] Ramdisk identity context: restore_udid=${DEVICE_UDID} ecid=0x${DEVICE_ECID}"
-      run_make "Ramdisk" ramdisk_send IRECOVERY_ECID="0x$DEVICE_ECID" RAMDISK_UDID="$DEVICE_UDID"
-      start_iproxy
-      wait_for_ramdisk_ssh
-      run_make "CFW install" "$cfw_install_target" SSH_PORT="$RAMDISK_SSH_PORT"
-      stop_boot_dfu
-      stop_iproxy
-    else
-      # ── Default: ramdisk-free host-mount CFW install + offline snapshot flip.
-      # The VM is off after the restore phase, so we attach Disk.img on the
-      # host, place all CFW files, and rename the boot snapshot offline — no
-      # DFU/ramdisk_send/iproxy/SSH. cfw_install_host re-execs under sudo
-      # (SUDO_ASKPASS from setup_sudo_noninteractive when SUDO_PASSWORD is set).
-      echo ""
-      echo "=== CFW install (host-mount, ramdisk-free) ==="
-      check_vm_storage_locks
-      run_make "CFW install" cfw_install_host VARIANT="$cfw_variant" SPOOF_BUILD="${SPOOF_BUILD:-}"
-    fi
+    # Host-mount CFW install + offline snapshot flip. The VM is off after the
+    # restore phase, so we attach Disk.img on the host, place all CFW files, and
+    # rename the boot snapshot offline. cfw_install_host re-execs under sudo
+    # (SUDO_ASKPASS from setup_sudo_noninteractive when SUDO_PASSWORD is set).
+    echo ""
+    echo "=== CFW install (host-mount) ==="
+    check_vm_storage_locks
+    run_make "CFW install" cfw_install_host VARIANT="$cfw_variant" SPOOF_BUILD="${SPOOF_BUILD:-}"
   fi
 
   if [[ "$LESS_MODE" -eq 0 || "$NO_BINPACK" -eq 0 ]]; then

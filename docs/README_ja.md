@@ -103,7 +103,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ## クイックスタート
 
 ```bash
-make setup_machine            # 初回起動までを完全自動化（復元/ラムディスク/CFWを含む）
+make setup_machine            # 初回起動までを完全自動化（復元/CFWを含む）
 # オプション：NON_INTERACTIVE=1 SUDO_PASSWORD=...
 # LESS=1 で patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
 # DEV=1 で開発バリアント（+ TXM entitlement/デバッグバイパス）
@@ -170,29 +170,12 @@ make restore                  # pymobiledevice3 restore バックエンドでフ
 
 ## カスタムファームウェアのインストール
 
-ターミナル 1 の DFU 起動を停止し（Ctrl+C）、Ramdisk 用に再び DFU で起動します：
+復元が完了したら、ターミナル 1 の DFU 起動を停止（Ctrl+C）して VM を完全に電源オフにします。インストーラは VM の `Disk.img` をホスト側でマウントし、すべての CFW ファイルを配置してブートスナップショットをオフラインで切り替えます（DFU / Ramdisk / SSH は不要）。そのためディスクへの排他アクセスが必要です。
 
 ```bash
-# ターミナル 1
-make boot_dfu                 # 実行したままにする
-```
-
-```bash
-# ターミナル 2
-sudo make ramdisk_build       # 署名済みSSH Ramdisk のビルド
-make ramdisk_send             # デバイスへ送信
-```
-
-Ramdisk が起動したら（出力に `Running server` と表示されるはずです）、usbmux トンネル用に **3つ目のターミナル** を開き、ターミナル 2 から CFW をインストールします：
-
-```bash
-# ターミナル 3 — 実行したままにする
-python3 -m pymobiledevice3 usbmux forward 2222 22
-```
-
-```bash
-# ターミナル 2
+# ターミナル 2（自動的に sudo で再実行されます）
 make cfw_install
+# または: make cfw_install_dev       # 開発バリアント
 # または: make cfw_install_jb        # 脱獄バリアント
 # または: make cfw_install_exp       # 実験バリアント（脱獄 + リサーチパッチスタック）
 # または: SPOOF_BUILD=23F77 make cfw_install_exp   # ProductBuildVersion も書き換え
@@ -200,7 +183,7 @@ make cfw_install
 
 ## 初回起動
 
-ターミナル 1 の DFU 起動を停止し（Ctrl+C）、以下を実行します：
+DFU 起動を停止し CFW をインストールしたら、VM を通常起動します：
 
 ```bash
 make boot

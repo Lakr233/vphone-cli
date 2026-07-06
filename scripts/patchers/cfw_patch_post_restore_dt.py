@@ -15,8 +15,8 @@ mode cross-checks DT root `model` / `target-type` against the
 BuildManifest's signed identity and rejects the device on mismatch — but
 they are NOT boot-time-fatal. After restore completes, the existing iBSS /
 iBEC / LLB image4_validate_property_callback bypass patches accept any
-IM4P contents, so re-patching the DT on the booted-into-ramdisk system
-before the device reboots into the rootfs is safe.
+IM4P contents, so re-patching the DT offline (on the host-mounted restored
+filesystem) before the device boots into the rootfs is safe.
 
 The `compatible` rewrite is a reorder, not a replacement: VPHONE600AP
 stays in the list (now as the second entry) so IOKit's platform-expert
@@ -30,11 +30,11 @@ Layout summary:
         OR "VPHONE600AP\\0iPhone17,3\\0AppleVirtualPlatformARM\\0\\0"      (48B, post-Tier1b)
   after:   "D47AP\\0VPHONE600AP\\0AppleVirtualPlatformARM\\0" + 6 NUL pad  (48B)
 
-This script runs on the host. The install pipeline scp_from's the
-devicetree.img4 from `/mnt5/<boot-hash>/usr/standalone/firmware/`, this
-script edits it in place, and the install pipeline scp_to's it back to
-the same path. The boot-manifest-hash directory is the same one
-discovered by `get_boot_manifest_hash` in `cfw_install_jb.sh`.
+This script runs on the host. The install pipeline copies the
+devicetree.img4 out of the host-mounted `/mnt5/<boot-hash>/usr/standalone/firmware/`,
+this script edits it in place, and the pipeline copies it back to the same
+path. The boot-manifest-hash directory is the same one discovered by
+`get_boot_manifest_hash` in `cfw_install_jb.sh`.
 
 Dependencies:
     pip install pyimg4

@@ -17,7 +17,6 @@ BACKUP_INCLUDE_IPSW ?= 0
 FORCE       ?= 0
 RESTORE_UDID ?=           # UDID for restore operations
 RESTORE_ECID ?=           # ECID for restore operations
-IRECOVERY_ECID ?=         # ECID for ramdisk send operations
 
 # ─── Build info ──────────────────────────────────────────────────
 GIT_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -121,17 +120,12 @@ help:
 	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
 	@echo "  make restore_offline         Restore offline — decrypts AEA images in place, uses cached .shsh blob"
 	@echo ""
-	@echo "Ramdisk:"
-	@echo "  make ramdisk_build           Build signed SSH ramdisk"
-	@echo "  make ramdisk_send            Send ramdisk to device"
-	@echo ""
-	@echo "CFW:"
-	@echo "  make cfw_install             Install CFW mods via SSH"
-	@echo "  make cfw_install_dev         Install CFW mods via SSH (dev mode)"
+	@echo "CFW (host-mount install; VM must be off, re-execs sudo):"
+	@echo "  make cfw_install             Install base CFW mods"
+	@echo "  make cfw_install_dev         Install CFW mods (dev mode)"
 	@echo "  make cfw_install_jb          Install CFW + JB extensions (jetsam/procursus/basebin)"
 	@echo "  make cfw_install_exp         Install CFW + JB + EXP experimental (hv_vmm rename, post-restore DT, build spoof)"
-	@echo "  make cfw_install_host        Ramdisk-free install: host-mount files + offline snapshot flip"
-	@echo "    Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)"
+	@echo "  make cfw_install_host        Select variant: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)"
 	@echo ""
 	@echo "Variables: VM_DIR=$(VM_DIR) CPU=$(CPU) MEMORY=$(MEMORY) DISK_SIZE=$(DISK_SIZE)"
 
@@ -464,38 +458,25 @@ restore_offline:
 		--ecid "$$ECID"
 
 # ═══════════════════════════════════════════════════════════════════
-# Ramdisk
-# ═══════════════════════════════════════════════════════════════════
-
-.PHONY: ramdisk_build ramdisk_send
-
-ramdisk_build: patcher_build
-	cd $(VM_DIR) && RAMDISK_UDID="$(RAMDISK_UDID)" $(PYTHON) "$(CURDIR)/$(SCRIPTS)/ramdisk_build.py" .
-
-ramdisk_send:
-	cd $(VM_DIR) && PMD3_BRIDGE="$(PMD3_BRIDGE)" PYTHON="$(PYTHON)" IRECOVERY_ECID="$(IRECOVERY_ECID)" RAMDISK_UDID="$(RAMDISK_UDID)" RESTORE_UDID="$(RESTORE_UDID)" \
-		zsh "$(CURDIR)/$(SCRIPTS)/ramdisk_send.sh"
-
-# ═══════════════════════════════════════════════════════════════════
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
 .PHONY: cfw_install cfw_install_dev cfw_install_jb cfw_install_exp cfw_install_host
 
 cfw_install:
-	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install.sh" .
+	$(MAKE) cfw_install_host VARIANT=regular
 
 cfw_install_dev:
-	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_dev.sh" .
+	$(MAKE) cfw_install_host VARIANT=dev
 
 cfw_install_jb:
-	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_jb.sh" .
+	$(MAKE) cfw_install_host VARIANT=jb
 
 cfw_install_exp:
-	cd $(VM_DIR) && $(if $(SSH_PORT),SSH_PORT="$(SSH_PORT)") $(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") _VPHONE_PATH="$$PATH" zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_exp.sh" .
+	$(MAKE) cfw_install_host VARIANT=exp SPOOF_BUILD="$(SPOOF_BUILD)"
 
-# Ramdisk-free CFW install: place files via host mount + flip boot snapshot
-# offline. No boot_dfu/ramdisk_send/iproxy/SSH. VM must be off. Re-execs sudo.
+# CFW install: place files via host mount + flip the boot snapshot offline.
+# VM must be off; re-execs under sudo.
 #   Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)
 cfw_install_host:
 	$(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant $(if $(VARIANT),$(VARIANT),exp) "$(VM_DIR_ABS)"

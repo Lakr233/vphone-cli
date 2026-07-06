@@ -98,11 +98,11 @@ scripts/
 ├── patches/                      # Build-time patches (libirecovery)
 ├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
 ├── fw_manifest.py                # Generate hybrid BuildManifest/Restore plists
-├── ramdisk_build.py              # Build SSH ramdisk with trustcache (reuses Swift patch-component for TXM/base kernel)
-├── ramdisk_send.sh               # Send ramdisk to device via irecovery
 ├── cfw_install.sh                # Install CFW (regular)
 ├── cfw_install_dev.sh            # Regular + rpcserver daemon
 ├── cfw_install_jb.sh             # Regular + jetsam fix + procursus
+├── cfw_install_exp.sh            # JB + experimental research patches (hv_vmm rename, DT identity)
+├── cfw_install_host.sh           # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
 ├── vm_create.sh                  # Create VM directory
 ├── setup_machine.sh              # Full automation (setup → first boot)
 ├── setup_tools.sh                # Install deps, build toolchain from submodules, create venv
@@ -110,6 +110,9 @@ scripts/
 ├── setup_venv_linux.sh           # Create Python venv (Linux)
 ├── setup_libimobiledevice.sh     # Build libimobiledevice stack from scripts/repos submodules
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
+
+tools/
+└── apfs_snap_rename.py           # Offline APFS boot-snapshot flip (used by cfw_install_host.sh)
 
 research/                         # Detailed firmware/patch documentation
 ```

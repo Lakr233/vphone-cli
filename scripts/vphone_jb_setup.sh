@@ -1,7 +1,7 @@
 #!/bin/bash
 # vphone_jb_setup.sh — First-boot JB finalization script.
 #
-# Deployed to /cores/ during cfw_install_jb.sh (ramdisk phase).
+# Deployed to /cores/ during cfw_install_jb.sh.
 # Runs automatically via LaunchDaemon on first normal boot.
 # Idempotent — safe to re-run on subsequent boots.
 #
