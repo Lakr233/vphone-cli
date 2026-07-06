@@ -270,6 +270,24 @@ if [[ -f "$SILEO_DEB" ]]; then
     cp -R "$SILEO_DEB" "$MNT5/$BOOT_HASH/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 fi
 
+# ── Extra debs: download from manifest, then stage the whole cache ──────
+echo "  Fetching extra debs..."
+zsh "$SCRIPT_DIR/fetch_debs.sh" || true
+DEBS_CACHE="${SCRIPT_DIR:h}/debs"
+DEBS_DEST="$MNT5/$BOOT_HASH/debs"
+/bin/rm -rf "$DEBS_DEST"
+deb_count=0
+for deb in "$DEBS_CACHE"/*.deb(N); do
+    (( deb_count == 0 )) && /bin/mkdir -p "$DEBS_DEST"
+    cp -R "$deb" "$DEBS_DEST/"
+    deb_count=$((deb_count + 1))
+done
+if (( deb_count > 0 )); then
+    echo "  [+] Staged $deb_count extra deb(s) for first-boot install"
+else
+    echo "  [=] No extra debs to stage"
+fi
+
 JB_DIR_NAME="jb-vphone"
 /bin/rm -rf $MNT5/$BOOT_HASH/jb
 /bin/rm -rf $MNT5/$BOOT_HASH/$JB_DIR_NAME

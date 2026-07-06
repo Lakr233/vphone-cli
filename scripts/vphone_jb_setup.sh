@@ -171,6 +171,44 @@ else
     fi
 fi
 
+# ═══════════ 5b/8 INSTALL EXTRA DEBS ═════════════════════════
+log "[5b/8] Installing extra debs..."
+DEBS_DIR="/private/preboot/$BOOT_HASH/debs"
+if [ -d "$DEBS_DIR" ]; then
+    to_install=()
+    for deb in "$DEBS_DIR"/*.deb; do
+        [ -f "$deb" ] || continue
+        name="$(basename "$deb")"
+        pkg="$(dpkg-deb -f "$deb" Package 2>/dev/null)"
+        ver="$(dpkg-deb -f "$deb" Version 2>/dev/null)"
+        if [ -z "$pkg" ]; then
+            log "  WARNING: cannot read Package field from $name, will install anyway"
+            to_install+=("$deb")
+            continue
+        fi
+        cur="$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)"
+        if [ -n "$cur" ] && dpkg --compare-versions "$cur" ge "$ver" 2>/dev/null; then
+            log "  $pkg $cur already installed (>= $ver), skipping"
+        else
+            to_install+=("$deb")
+        fi
+    done
+    if [ "${#to_install[@]}" -gt 0 ]; then
+        names="$(for d in "${to_install[@]}"; do basename "$d"; done | tr '\n' ' ')"
+        log "  Installing ${#to_install[@]} deb(s): $names"
+        if dpkg -i "${to_install[@]}"; then
+            log "  Extra debs installed"
+        else
+            rc=$?
+            log "  WARNING: dpkg -i exited with $rc (unmet external deps are non-fatal)"
+        fi
+    else
+        log "  All extra debs already installed, nothing to do"
+    fi
+else
+    log "  No extra debs staged"
+fi
+
 uicache -a 2>/dev/null || true
 log "  uicache refreshed"
 

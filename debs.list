@@ -1,0 +1,17 @@
+# debs.list — URLs of .deb packages to download during machine setup (JB/EXP).
+#
+# One URL per line. Blank lines and lines starting with '#' are ignored.
+#
+# Downloads are cached in ./debs/ (keyed by filename); a file already present
+# there is not re-downloaded. You may also drop .deb files into ./debs/
+# manually — they are installed on first boot alongside the downloaded ones.
+#
+# A failed download prints an error and is skipped; it never aborts setup.
+# Packages are installed with `dpkg -i` on first boot (same as Sileo); this
+# does not resolve dependencies.
+#
+# Example:
+# https://havoc.app/get/com.example.pkg/com.example.pkg_1.0_iphoneos-arm64.deb
+https://apt.procurs.us/pool/main/iphoneos-arm64-rootless/3000/openssh/openssh-client_9.7p1-1_iphoneos-arm64.deb
+https://apt.procurs.us/pool/main/iphoneos-arm64-rootless/3000/openssh/openssh-sftp-server_9.7p1-1_iphoneos-arm64.deb
+https://apt.procurs.us/pool/main/iphoneos-arm64-rootless/3000/openssh/openssh-server_9.7p1-1_iphoneos-arm64.deb
