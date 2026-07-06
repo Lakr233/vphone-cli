@@ -105,78 +105,6 @@ def wait_for_irecv(ecid: Optional[int], timeout: int, is_recovery: Optional[bool
     raise TimeoutError(f"Timed out waiting for {mode_label} endpoint")
 
 
-def irecv_send_file(irecv: IRecv, image_path: Path) -> None:
-    data = image_path.read_bytes()
-    irecv.send_buffer(data)
-
-
-def resolve_kernel_image(ramdisk_dir: Path) -> Path:
-    ramdisk_variant = ramdisk_dir / "krnl.ramdisk.img4"
-    if ramdisk_variant.exists():
-        return ramdisk_variant
-    default_kernel = ramdisk_dir / "krnl.img4"
-    if default_kernel.exists():
-        return default_kernel
-    raise FileNotFoundError(f"Kernel image not found in {ramdisk_dir}")
-
-
-def cmd_ramdisk_send(ecid: Optional[int], ramdisk_dir: Path, timeout: int) -> None:
-    if not ramdisk_dir.is_dir():
-        raise FileNotFoundError(f"Ramdisk directory not found: {ramdisk_dir}")
-
-    kernel_img = resolve_kernel_image(ramdisk_dir)
-
-    print(f"[*] Sending ramdisk from {ramdisk_dir}")
-    if kernel_img.name == "krnl.ramdisk.img4":
-        print("  [*] Using ramdisk kernel variant: krnl.ramdisk.img4")
-
-    irecv = wait_for_irecv(ecid, timeout=timeout, is_recovery=False)
-
-    # 1) DFU stage: iBSS + iBEC, then switch to recovery.
-    print("  [1/8] Loading iBSS...")
-    irecv_send_file(irecv, ramdisk_dir / "iBSS.vresearch101.RELEASE.img4")
-
-    print("  [2/8] Loading iBEC...")
-    irecv_send_file(irecv, ramdisk_dir / "iBEC.vresearch101.RELEASE.img4")
-    irecv.send_command("go", b_request=1)
-    time.sleep(1)
-
-    print("  [*] Waiting for device to reconnect in recovery...")
-    irecv = wait_for_irecv(ecid, timeout=timeout, is_recovery=True)
-    print("  [*] Reconnected in recovery")
-
-    # 2) Recovery stage payload chain.
-    print("  [3/8] Loading SPTM...")
-    irecv_send_file(irecv, ramdisk_dir / "sptm.vresearch1.release.img4")
-    irecv.send_command("firmware")
-
-    print("  [4/8] Loading TXM...")
-    irecv_send_file(irecv, ramdisk_dir / "txm.img4")
-    irecv.send_command("firmware")
-
-    print("  [5/8] Loading trustcache...")
-    irecv_send_file(irecv, ramdisk_dir / "trustcache.img4")
-    irecv.send_command("firmware")
-
-    print("  [6/8] Loading ramdisk...")
-    irecv_send_file(irecv, ramdisk_dir / "ramdisk.img4")
-    time.sleep(2)
-    irecv.send_command("ramdisk")
-
-    print("  [7/8] Loading device tree...")
-    irecv_send_file(irecv, ramdisk_dir / "DeviceTree.vphone600ap.img4")
-    irecv.send_command("devicetree")
-
-    print("  [8/8] Loading SEP...")
-    irecv_send_file(irecv, ramdisk_dir / "sep-firmware.vresearch101.RELEASE.img4")
-    irecv.send_command("firmware")
-
-    print("  [*] Booting kernel...")
-    irecv_send_file(irecv, kernel_img)
-    irecv.send_command("bootx", b_request=1)
-
-    print("[+] Boot sequence complete. Device should be booting into ramdisk.")
-
 
 def derive_shsh_output(vm_dir: Path, ecid: Optional[int]) -> Path:
     tag = f"{ecid:016X}" if ecid is not None else "auto"
@@ -245,21 +173,6 @@ def recovery_probe_command(
 ) -> None:
     parsed_ecid = require_ecid(ecid)
     wait_for_irecv(parsed_ecid, timeout=timeout)
-
-
-@app.command("ramdisk-send", help="Send ramdisk chain over irecv")
-def ramdisk_send_command(
-    ecid: Optional[str] = typer.Option(None, help="Hex ECID (with/without 0x)"),
-    timeout: int = typer.Option(90, help="Send timeout in seconds"),
-    ramdisk_dir: Path = typer.Option(
-        Path("Ramdisk"),
-        help="Ramdisk directory",
-        exists=False,
-        file_okay=False,
-        dir_okay=True,
-    ),
-) -> None:
-    cmd_ramdisk_send(require_ecid(ecid), ramdisk_dir, timeout)
 
 
 @app.command("restore-get-shsh", help="Fetch SHSH from prepared restore dir")

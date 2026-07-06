@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Offline APFS root-snapshot rename for vphone Disk.img (ramdisk-free CFW flip).
+# Offline APFS root-snapshot rename for vphone Disk.img (CFW boot-source flip).
 #
 # Renames the com.apple.os.update-<hash> system snapshot in place so the
 # (seal-enforcement-patched) guest kernel can't find the named root snapshot

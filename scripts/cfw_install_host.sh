@@ -1,11 +1,10 @@
 #!/bin/zsh
-# cfw_install_host.sh — ramdisk-free CFW install.
+# cfw_install_host.sh — CFW install by host-mounting the VM's Disk.img.
 #
-# Replaces the DFU + ramdisk_send + iproxy + SSH install path: places every
-# CFW file by mounting the VM's Disk.img on the host (CFW_HOST_MODE, see
-# cfw_host_mode.sh) and flips the boot snapshot offline
-# (tools/apfs_snap_rename.py) so the VM boots the live volume. The resulting
-# VM is identical to the ramdisk-installed one, minus the ramdisk round-trips.
+# Attaches the VM's Disk.img on the host and hands the container to the variant
+# installer (cfw_install*.sh), which mounts the APFS volumes and places every
+# CFW file directly. Then flips the boot snapshot offline
+# (tools/apfs_snap_rename.py) so the VM boots the live volume.
 #
 # Prereqs: VM restored (make restore) and powered off; host has gnu-tar, ipsw,
 # aea, ldid, zstd, project venv (make setup_tools). SIP disabled (project
@@ -63,15 +62,15 @@ CONT="${SYS%s*}"
 echo "[*] attached: container=$CONT system=$SYS"
 
 cleanup() {
-  for m in /private/tmp/cfwhost/mnt1 /private/tmp/cfwhost/mnt2 /private/tmp/cfwhost/mnt3 /private/tmp/cfwhost/mnt5; do
+  for m in /private/tmp/cfwhost/mnt1 /private/tmp/cfwhost/mnt3 /private/tmp/cfwhost/mnt5; do
     umount "$m" 2>/dev/null || true
   done
   hdiutil detach "$BASEDISK" 2>/dev/null || diskutil eject "$BASEDISK" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-echo "[*] running $INSTALLER in CFW_HOST_MODE (files placed on host mounts)..."
-( cd "$VM_DIR" && CFW_HOST_MODE=1 CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
+echo "[*] running $INSTALLER (files placed on host mounts)..."
+( cd "$VM_DIR" && CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
     ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} zsh "$SCRIPT_DIR/$INSTALLER" . )
 
 cleanup

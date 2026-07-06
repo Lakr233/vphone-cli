@@ -115,7 +115,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 ## Quick Start
 
 ```bash
-make setup_machine            # full automation through "First Boot" (includes restore/ramdisk/CFW)
+make setup_machine            # full automation through "First Boot" (includes restore/CFW)
 # options: NON_INTERACTIVE=1 SUDO_PASSWORD=...
 # LESS=1 for patchless variant (- AMFI, SSV, Img4, TXM bypasses) 
 # DEV=1 for dev variant (+ TXM entitlement/debug bypasses)
@@ -182,29 +182,15 @@ make restore                  # flash firmware via pymobiledevice3 restore backe
 
 ## Install Custom Firmware
 
-Stop the DFU boot in terminal 1 (Ctrl+C), then boot into DFU again for the ramdisk:
+Once the restore completes, stop the DFU boot in terminal 1 (Ctrl+C) so the VM is
+fully powered off. The installer mounts the VM's `Disk.img` on the host, places
+all CFW files, and flips the boot snapshot offline — no DFU, ramdisk, or SSH — so
+it needs exclusive access to the disk.
 
 ```bash
-# terminal 1
-make boot_dfu                 # keep running
-```
-
-```bash
-# terminal 2
-sudo make ramdisk_build       # build signed SSH ramdisk
-make ramdisk_send             # send to device
-```
-
-Once the ramdisk is running (you should see `Running server` in the output), open a **third terminal** for the usbmux tunnel, then install CFW from terminal 2:
-
-```bash
-# terminal 3 — keep running
-python3 -m pymobiledevice3 usbmux forward 2222 22
-```
-
-```bash
-# terminal 2
+# terminal 2 (re-execs under sudo automatically)
 make cfw_install
+# or: make cfw_install_dev       # development variant
 # or: make cfw_install_jb        # jailbreak variant
 # or: make cfw_install_exp       # experimental variant (JB + research stack)
 # or: SPOOF_BUILD=23F77 make cfw_install_exp   # additionally rewrite ProductBuildVersion
@@ -212,7 +198,7 @@ make cfw_install
 
 ## First Boot
 
-Stop the DFU boot in terminal 1 (Ctrl+C), then:
+With the DFU boot stopped and CFW installed, boot the VM normally:
 
 ```bash
 make boot

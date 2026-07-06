@@ -1,6 +1,7 @@
 #!/bin/zsh
 # cfw_install_exp.sh — Install base CFW + JB extensions + EXP experimental
-# patches on vphone via SSH ramdisk.
+# patches on vphone. Files are placed directly on the VM's Disk.img volumes,
+# which cfw_install_host.sh attaches and mounts on the host; the VM must be off.
 #
 # Runs the base CFW installer first (phases 1-7), the JB-specific
 # modifications (launchd jetsam patch, dylib injection, procursus bootstrap,
@@ -12,7 +13,7 @@
 #                     slot re-attest of the standalone Mach-O.
 #   - EXP-JB-6      : post-restore DT identity rewrite (root model /
 #                     target-type / compatible[0]) inside
-#                     /mnt5/.../devicetree.img4.
+#                     $MNT5/.../devicetree.img4.
 #   - EXP-JB-7      : optional ProductBuildVersion rewrite in
 #                     SystemVersion.plist (gated on the SPOOF_BUILD env var).
 #
@@ -133,8 +134,8 @@ fi
 
 # Now run the regular CFW install. It will see the cached (patched)
 # CryptexSystemOS.dmg and use it as-is, so the patched DSC chunks land
-# in /mnt1/System/Cryptexes/OS on the device.
-CFW_SKIP_HALT=1 zsh "$SCRIPT_DIR/cfw_install.sh" "$VM_DIR"
+# in $MNT1/System/Cryptexes/OS.
+zsh "$SCRIPT_DIR/cfw_install.sh" "$VM_DIR"
 
 # ════════════════════════════════════════════════════════════════
 # Step 2: JB-specific phases
@@ -150,20 +151,6 @@ CFW_JB_ARCHIVE="cfw_jb_input.tar.zst"
 TEMP_DIR="$VM_DIR/.cfw_temp"
 DISABLE_LAUNCHD_HOOK="${DISABLE_LAUNCHD_HOOK:-0}"
 
-SSH_PORT="${SSH_PORT:-2222}"
-SSH_PASS="alpine"
-SSH_USER="root"
-SSH_HOST="localhost"
-SSH_RETRY="${SSH_RETRY:-3}"
-SSHPASS_BIN=""
-SSH_OPTS=(
-    -o StrictHostKeyChecking=no
-    -o UserKnownHostsFile=/dev/null
-    -o PreferredAuthentications=password
-    -o ConnectTimeout=30
-    -q
-)
-
 # ── Helpers ─────────────────────────────────────────────────────
 die() {
     echo "[-] $*" >&2
@@ -172,44 +159,11 @@ die() {
 
 check_prerequisites() {
     local missing=()
-    command -v sshpass &>/dev/null || missing+=("sshpass")
     command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
     command -v xcrun &>/dev/null || missing+=("xcrun (Xcode command line tools)")
     if ((${#missing[@]} > 0)); then
         die "Missing required tools: ${missing[*]}. Run: make setup_tools"
     fi
-    SSHPASS_BIN="$(command -v sshpass)"
-}
-
-_sshpass() {
-    "$SSHPASS_BIN" -p "$SSH_PASS" "$@"
-}
-
-_ssh_retry() {
-    local attempt rc label
-    label=${2:-cmd}
-    for ((attempt = 1; attempt <= SSH_RETRY; attempt++)); do
-        "$@" && return 0
-        rc=$?
-        [[ $rc -ne 255 ]] && return $rc # real command failure — don't retry
-        echo "  [${label}] connection lost (attempt $attempt/$SSH_RETRY), retrying in 3s..." >&2
-        sleep 3
-    done
-    return 255
-}
-
-ssh_cmd() {
-    _ssh_retry _sshpass ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"
-}
-scp_to() {
-    _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" -r "$1" "$SSH_USER@$SSH_HOST:$2"
-}
-scp_from() {
-    _ssh_retry _sshpass scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$SSH_USER@$SSH_HOST:$1" "$2"
-}
-
-remote_file_exists() {
-    ssh_cmd "test -f '$1'" 2>/dev/null
 }
 
 ldid_sign() {
@@ -250,7 +204,7 @@ build_tweakloader() {
 }
 
 # Builds the libvcamcaptured.dylib injected into /usr/libexec/cameracaptured
-# via the TweakLoader allowlist. Output goes to TEMP_DIR; caller scp's the
+# via the TweakLoader allowlist. Output goes to TEMP_DIR; caller copies the
 # binary + companion plist to procursus/Library/MobileSubstrate/DynamicLibraries.
 build_libvcamcaptured() {
     local src="$SCRIPT_DIR/vcamcaptured/libvcamcaptured.m"
@@ -319,20 +273,8 @@ build_libcamfix() {
     echo "$out"
 }
 
-remote_mount() {
-    local dev="$1" mnt="$2" opts="${3:-rw}"
-    ssh_cmd "/bin/mkdir -p $mnt"
-    if ssh_cmd "/sbin/mount | /usr/bin/grep -q ' on $mnt '"; then
-        return 0
-    fi
-    ssh_cmd "/sbin/mount_apfs -o $opts $dev $mnt 2>/dev/null || true"
-    if ! ssh_cmd "/sbin/mount | /usr/bin/grep -q ' on $mnt '"; then
-        die "Failed to mount $dev at $mnt (opts=$opts). Make sure the ramdisk was booted with the expected patched kernel."
-    fi
-}
-
 get_boot_manifest_hash() {
-    ssh_cmd "/bin/ls /mnt5 2>/dev/null" | awk 'length($0)==96{print; exit}'
+    /bin/ls $MNT5 2>/dev/null | awk 'length($0)==96{print; exit}'
 }
 
 # ── Setup JB input resources ──────────────────────────────────
@@ -370,9 +312,25 @@ apply_dev_overlay() {
     die "Dev overlay not found (cfw_dev/rpcserver_ios)"
 }
 
-# Host-mode transport override (CFW_HOST_MODE=1): run install against image
-# volumes mounted locally on the host instead of a device over SSH.
-[[ -n "${CFW_HOST_MODE:-}" ]] && source "$SCRIPT_DIR/cfw_host_mode.sh"
+# The VM's Disk.img is attached on the host by cfw_install_host.sh; its APFS
+# volumes are mounted here and every file is placed with plain cp/chmod/etc.
+# (the VM is off — nothing runs "on the device").
+: "${CFW_HOST_CONTAINER:?CFW_HOST_CONTAINER unset — run via cfw_install_host.sh}"
+HOST_MNT="${CFW_HOST_MNT:-/private/tmp/cfwhost}"
+MNT1="$HOST_MNT/mnt1"   # disk1s1 (System / rootfs)
+MNT3="$HOST_MNT/mnt3"   # disk1s3
+MNT5="$HOST_MNT/mnt5"   # disk1s5 (per-boot-manifest OS dir / procursus bootstrap)
+TAR="$(command -v gtar 2>/dev/null || echo /opt/homebrew/bin/gtar)"  # macOS bsdtar lacks GNU tar flags
+mkdir -p "$HOST_MNT"
+
+# Mount an APFS volume of the attached image container at a host mount point.
+mount_vol() {  # mount_vol <slice, e.g. s1> <mountpoint> [opts]
+    local dev="/dev/${CFW_HOST_CONTAINER}$1" mnt="$2" opts="${3:-rw}"
+    /bin/mkdir -p "$mnt"
+    /sbin/mount | /usr/bin/grep -q " on $mnt " && return 0
+    /sbin/mount_apfs -o "$opts" "$dev" "$mnt" 2>/dev/null || true
+    /sbin/mount | /usr/bin/grep -q " on $mnt " || die "mount failed: $dev -> $mnt"
+}
 
 # ── Check JB prerequisites ────────────────────────────────────
 command -v zstd >/dev/null 2>&1 || die "'zstd' not found (required for JB bootstrap phase)"
@@ -385,19 +343,19 @@ check_prerequisites
 
 mkdir -p "$TEMP_DIR"
 
-# Mount device rootfs (may already be mounted from base install)
-remote_mount /dev/disk1s1 /mnt1
+# Mount the image's System volume (may already be mounted from base install)
+mount_vol s1 "$MNT1"
 
 # ═══════════ JB-1 PATCH LAUNCHD (JETSAM + DYLIB INJECTION) ════
 echo ""
 echo "[JB-1] Patching launchd (jetsam guard + hook injection)..."
 
-if ! remote_file_exists "/mnt1/sbin/launchd.bak"; then
+if ! [[ -e "$MNT1/sbin/launchd.bak" ]]; then
     echo "  Creating backup..."
-    ssh_cmd "/bin/cp /mnt1/sbin/launchd /mnt1/sbin/launchd.bak"
+    /bin/cp $MNT1/sbin/launchd $MNT1/sbin/launchd.bak
 fi
 
-scp_from "/mnt1/sbin/launchd.bak" "$TEMP_DIR/launchd"
+cp "$MNT1/sbin/launchd.bak" "$TEMP_DIR/launchd"
 
 # Extract original entitlements before patching (must preserve for spawn permissions)
 echo "  Extracting original entitlements..."
@@ -428,8 +386,8 @@ if [[ -s "$TEMP_DIR/launchd.entitlements" ]]; then
 else
     ldid_sign "$TEMP_DIR/launchd"
 fi
-scp_to "$TEMP_DIR/launchd" "/mnt1/sbin/launchd"
-ssh_cmd "/bin/chmod 0755 /mnt1/sbin/launchd"
+cp -R "$TEMP_DIR/launchd" "$MNT1/sbin/launchd"
+/bin/chmod 0755 $MNT1/sbin/launchd
 
 echo "  [+] launchd patched"
 
@@ -438,10 +396,10 @@ echo ""
 echo "[JB-2] Installing iosbinpack64..."
 
 apply_dev_overlay
-scp_to "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "/mnt1"
-ssh_cmd "/usr/bin/tar --preserve-permissions --no-overwrite-dir \
-    -xf /mnt1/iosbinpack64.tar -C /mnt1"
-ssh_cmd "/bin/rm -f /mnt1/iosbinpack64.tar"
+cp -R "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "$MNT1"
+"$TAR" --preserve-permissions --no-overwrite-dir \
+    -xf $MNT1/iosbinpack64.tar -C $MNT1
+/bin/rm -f $MNT1/iosbinpack64.tar
 
 echo "  [+] iosbinpack64 installed"
 
@@ -449,13 +407,13 @@ echo "  [+] iosbinpack64 installed"
 echo ""
 echo "[JB-3] Patching debugserver entitlements..."
 
-scp_from "/mnt1/usr/libexec/debugserver" "$TEMP_DIR/debugserver"
+cp "$MNT1/usr/libexec/debugserver" "$TEMP_DIR/debugserver"
 ldid -e "$TEMP_DIR/debugserver" > "$TEMP_DIR/debugserver-entitlements.plist"
 plutil -remove seatbelt-profiles "$TEMP_DIR/debugserver-entitlements.plist" || true
 plutil -insert task_for_pid-allow -bool YES "$TEMP_DIR/debugserver-entitlements.plist" || true
 ldid_sign_ent "$TEMP_DIR/debugserver" "$TEMP_DIR/debugserver-entitlements.plist"
-scp_to "$TEMP_DIR/debugserver" "/mnt1/usr/libexec/debugserver"
-ssh_cmd "/bin/chmod 0755 /mnt1/usr/libexec/debugserver"
+cp -R "$TEMP_DIR/debugserver" "$MNT1/usr/libexec/debugserver"
+/bin/chmod 0755 $MNT1/usr/libexec/debugserver
 
 echo "  [+] debugserver entitlements patched"
 
@@ -486,10 +444,10 @@ echo "  [+] debugserver entitlements patched"
 echo ""
 echo "[EXP-JB-3.5] Patching watchdogd hv_vmm_present cache..."
 
-scp_from "/mnt1/usr/libexec/watchdogd" "$TEMP_DIR/watchdogd"
+cp "$MNT1/usr/libexec/watchdogd" "$TEMP_DIR/watchdogd"
 "$SCRIPT_DIR/patch_hv_vmm_userland.sh" watchdogd "$TEMP_DIR/watchdogd"
-scp_to "$TEMP_DIR/watchdogd" "/mnt1/usr/libexec/watchdogd"
-ssh_cmd "/bin/chmod 0755 /mnt1/usr/libexec/watchdogd"
+cp -R "$TEMP_DIR/watchdogd" "$MNT1/usr/libexec/watchdogd"
+/bin/chmod 0755 $MNT1/usr/libexec/watchdogd
 
 echo "  [+] watchdogd patched"
 
@@ -498,9 +456,9 @@ echo "  [+] watchdogd patched"
 echo ""
 echo "[JB-4] Installing procursus bootstrap..."
 
-remote_mount /dev/disk1s5 /mnt5
+mount_vol s5 "$MNT5"
 BOOT_HASH="$(get_boot_manifest_hash)"
-[[ -n "$BOOT_HASH" ]] || die "Could not find 96-char boot manifest hash in /mnt5"
+[[ -n "$BOOT_HASH" ]] || die "Could not find 96-char boot manifest hash in $MNT5"
 echo "  Boot manifest hash: $BOOT_HASH"
 
 BOOTSTRAP_ZST="$JB_INPUT_DIR/jb/bootstrap-iphoneos-arm64.tar.zst"
@@ -510,27 +468,27 @@ SILEO_DEB="$JB_INPUT_DIR/jb/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 BOOTSTRAP_TAR="$TEMP_DIR/bootstrap-iphoneos-arm64.tar"
 zstd -d -f "$BOOTSTRAP_ZST" -o "$BOOTSTRAP_TAR"
 
-scp_to "$BOOTSTRAP_TAR" "/mnt5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
+cp -R "$BOOTSTRAP_TAR" "$MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
 if [[ -f "$SILEO_DEB" ]]; then
-    scp_to "$SILEO_DEB" "/mnt5/$BOOT_HASH/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
+    cp -R "$SILEO_DEB" "$MNT5/$BOOT_HASH/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 fi
 
 JB_DIR_NAME="jb-vphone"
-ssh_cmd "/bin/rm -rf /mnt5/$BOOT_HASH/jb"
-ssh_cmd "/bin/rm -rf /mnt5/$BOOT_HASH/$JB_DIR_NAME"
-ssh_cmd "/bin/mkdir -p /mnt5/$BOOT_HASH/$JB_DIR_NAME"
-ssh_cmd "/bin/chmod 0755 /mnt5/$BOOT_HASH/$JB_DIR_NAME"
-ssh_cmd "/usr/sbin/chown 0:0 /mnt5/$BOOT_HASH/$JB_DIR_NAME"
-ssh_cmd "/usr/bin/tar --preserve-permissions -xf /mnt5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
-    -C /mnt5/$BOOT_HASH/$JB_DIR_NAME/"
-ssh_cmd "/bin/mv /mnt5/$BOOT_HASH/$JB_DIR_NAME/var /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus"
-ssh_cmd "/bin/mv /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb/* /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus 2>/dev/null || true"
-ssh_cmd "/bin/rm -rf /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"
-ssh_cmd "/bin/rm -f /mnt5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
+/bin/rm -rf $MNT5/$BOOT_HASH/jb
+/bin/rm -rf $MNT5/$BOOT_HASH/$JB_DIR_NAME
+/bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME
+/bin/chmod 0755 $MNT5/$BOOT_HASH/$JB_DIR_NAME
+/usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME
+"$TAR" --preserve-permissions -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
+    -C $MNT5/$BOOT_HASH/$JB_DIR_NAME/
+/bin/mv $MNT5/$BOOT_HASH/$JB_DIR_NAME/var $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus
+mv "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"/*(N) "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus" 2>/dev/null || true
+/bin/rm -rf $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb
+/bin/rm -f $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar
 rm -f "$BOOTSTRAP_TAR"
 
 # NOTE: /var/jb symlink is created on first normal boot by vphone_jb_setup.sh
-# (Data volume is encrypted and not mountable from ramdisk).
+# (Data volume is encrypted and not mountable at install time).
 
 echo "  [+] procursus bootstrap installed"
 
@@ -543,9 +501,9 @@ if [[ -d "$BASEBIN_DIR" ]]; then
 
     # Clean previous dylibs before re-uploading
     echo "  Cleaning old /cores/ dylibs..."
-    ssh_cmd "/bin/rm -rf /mnt1/cores"
-    ssh_cmd "/bin/mkdir -p /mnt1/cores"
-    ssh_cmd "/bin/chmod 0755 /mnt1/cores"
+    /bin/rm -rf $MNT1/cores
+    /bin/mkdir -p $MNT1/cores
+    /bin/chmod 0755 $MNT1/cores
 
     # Install all pre-built dylibs from basebin payload
     for dylib in "$BASEBIN_DIR"/*.dylib; do
@@ -553,8 +511,8 @@ if [[ -d "$BASEBIN_DIR" ]]; then
         dylib_name="$(basename "$dylib")"
         echo "  Installing $dylib_name..."
         ldid_sign "$dylib"
-        scp_to "$dylib" "/mnt1/cores/$dylib_name"
-        ssh_cmd "/bin/chmod 0755 /mnt1/cores/$dylib_name"
+        cp -R "$dylib" "$MNT1/cores/$dylib_name"
+        /bin/chmod 0755 $MNT1/cores/$dylib_name
     done
 
     # Short alias for launchdhook (header space is tight)
@@ -562,9 +520,9 @@ if [[ -d "$BASEBIN_DIR" ]]; then
         echo "  Installing short launchdhook alias at /b..."
         cp "$BASEBIN_DIR/launchdhook.dylib" "$TEMP_DIR/b"
         ldid_sign "$TEMP_DIR/b"
-        ssh_cmd "/bin/rm -f /mnt1/b"
-        scp_to "$TEMP_DIR/b" "/mnt1/b"
-        ssh_cmd "/bin/chmod 0755 /mnt1/b"
+        /bin/rm -f $MNT1/b
+        cp -R "$TEMP_DIR/b" "$MNT1/b"
+        /bin/chmod 0755 $MNT1/b
     fi
 
     echo "  [+] BaseBin hooks deployed"
@@ -575,10 +533,10 @@ echo ""
 echo "[JB-4] Building and installing TweakLoader..."
 
 TWEAKLOADER_OUT="$(build_tweakloader)"
-ssh_cmd "/bin/mkdir -p /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib"
-scp_to "$TWEAKLOADER_OUT" "/mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
-ssh_cmd "/usr/sbin/chown 0:0 /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
-ssh_cmd "/bin/chmod 0755 /mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
+/bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib
+cp -R "$TWEAKLOADER_OUT" "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
+/usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib
+/bin/chmod 0755 $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib
 
 echo "  [+] TweakLoader installed to procursus/usr/lib/TweakLoader.dylib"
 
@@ -590,18 +548,18 @@ echo "  [+] TweakLoader installed to procursus/usr/lib/TweakLoader.dylib"
 echo ""
 echo "[JB-4.1] Building and installing libvcamcaptured..."
 LIBVCAM_OUT="$(build_libvcamcaptured)"
-LIBVCAM_DIR="/mnt5/$BOOT_HASH/$JB_DIR_NAME/procursus/Library/MobileSubstrate/DynamicLibraries"
-ssh_cmd "/bin/mkdir -p $LIBVCAM_DIR"
-scp_to "$LIBVCAM_OUT" "$LIBVCAM_DIR/libvcamcaptured.dylib"
-ssh_cmd "/usr/sbin/chown 0:0 $LIBVCAM_DIR/libvcamcaptured.dylib"
-ssh_cmd "/bin/chmod 0755 $LIBVCAM_DIR/libvcamcaptured.dylib"
+LIBVCAM_DIR="$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/Library/MobileSubstrate/DynamicLibraries"
+/bin/mkdir -p $LIBVCAM_DIR
+cp -R "$LIBVCAM_OUT" "$LIBVCAM_DIR/libvcamcaptured.dylib"
+/usr/sbin/chown 0:0 $LIBVCAM_DIR/libvcamcaptured.dylib
+/bin/chmod 0755 $LIBVCAM_DIR/libvcamcaptured.dylib
 
 # The plist tells TweakLoader to load the dylib only inside cameracaptured
 # (Filter.Executables = ["cameracaptured"]); keep it next to the dylib.
 LIBVCAM_PLIST="$SCRIPT_DIR/vcamcaptured/libvcamcaptured.plist"
 if [[ -f "$LIBVCAM_PLIST" ]]; then
-    scp_to "$LIBVCAM_PLIST" "$LIBVCAM_DIR/libvcamcaptured.plist"
-    ssh_cmd "/bin/chmod 0644 $LIBVCAM_DIR/libvcamcaptured.plist"
+    cp -R "$LIBVCAM_PLIST" "$LIBVCAM_DIR/libvcamcaptured.plist"
+    /bin/chmod 0644 $LIBVCAM_DIR/libvcamcaptured.plist
 fi
 echo "  [+] libvcamcaptured installed to procursus/Library/MobileSubstrate/DynamicLibraries/"
 
@@ -614,14 +572,14 @@ echo "  [+] libvcamcaptured installed to procursus/Library/MobileSubstrate/Dynam
 echo ""
 echo "[JB-4.2] Building and installing libcamfix..."
 LIBCAMFIX_OUT="$(build_libcamfix)"
-scp_to "$LIBCAMFIX_OUT" "$LIBVCAM_DIR/libcamfix.dylib"
-ssh_cmd "/usr/sbin/chown 0:0 $LIBVCAM_DIR/libcamfix.dylib"
-ssh_cmd "/bin/chmod 0755 $LIBVCAM_DIR/libcamfix.dylib"
+cp -R "$LIBCAMFIX_OUT" "$LIBVCAM_DIR/libcamfix.dylib"
+/usr/sbin/chown 0:0 $LIBVCAM_DIR/libcamfix.dylib
+/bin/chmod 0755 $LIBVCAM_DIR/libcamfix.dylib
 
 LIBCAMFIX_PLIST="$SCRIPT_DIR/camfix/libcamfix.plist"
 if [[ -f "$LIBCAMFIX_PLIST" ]]; then
-    scp_to "$LIBCAMFIX_PLIST" "$LIBVCAM_DIR/libcamfix.plist"
-    ssh_cmd "/bin/chmod 0644 $LIBVCAM_DIR/libcamfix.plist"
+    cp -R "$LIBCAMFIX_PLIST" "$LIBVCAM_DIR/libcamfix.plist"
+    /bin/chmod 0644 $LIBVCAM_DIR/libcamfix.plist
 fi
 echo "  [+] libcamfix installed to procursus/Library/MobileSubstrate/DynamicLibraries/"
 
@@ -633,17 +591,17 @@ echo "[JB-5] Deploying first-boot setup..."
 SETUP_SCRIPT="$SCRIPT_DIR/vphone_jb_setup.sh"
 SETUP_PLIST="$SCRIPT_DIR/vphone_jb_setup.plist"
 if [[ -f "$SETUP_SCRIPT" ]]; then
-    scp_to "$SETUP_SCRIPT" "/mnt1/cores/vphone_jb_setup.sh"
-    ssh_cmd "/bin/chmod 0755 /mnt1/cores/vphone_jb_setup.sh"
+    cp -R "$SETUP_SCRIPT" "$MNT1/cores/vphone_jb_setup.sh"
+    /bin/chmod 0755 $MNT1/cores/vphone_jb_setup.sh
     echo "  [+] vphone_jb_setup.sh -> /cores/"
 fi
 if [[ -f "$SETUP_PLIST" ]]; then
-    scp_to "$SETUP_PLIST" "/mnt1/System/Library/LaunchDaemons/com.vphone.jb-setup.plist"
-    ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/LaunchDaemons/com.vphone.jb-setup.plist"
+    cp -R "$SETUP_PLIST" "$MNT1/System/Library/LaunchDaemons/com.vphone.jb-setup.plist"
+    /bin/chmod 0644 $MNT1/System/Library/LaunchDaemons/com.vphone.jb-setup.plist
 
     # Inject into launchd.plist so launchd starts it at boot
     echo "  Injecting com.vphone.jb-setup into launchd.plist..."
-    scp_from "/mnt1/System/Library/xpc/launchd.plist" "$TEMP_DIR/launchd.plist"
+    cp "$MNT1/System/Library/xpc/launchd.plist" "$TEMP_DIR/launchd.plist"
     "$PYTHON3" -c "
 import plistlib, sys
 with open(sys.argv[1], 'rb') as f:
@@ -654,8 +612,8 @@ target.setdefault('LaunchDaemons', {})['/System/Library/LaunchDaemons/com.vphone
 with open(sys.argv[1], 'wb') as f:
     plistlib.dump(target, f, sort_keys=False)
 " "$TEMP_DIR/launchd.plist" "$SETUP_PLIST"
-    scp_to "$TEMP_DIR/launchd.plist" "/mnt1/System/Library/xpc/launchd.plist"
-    ssh_cmd "/bin/chmod 0644 /mnt1/System/Library/xpc/launchd.plist"
+    cp -R "$TEMP_DIR/launchd.plist" "$MNT1/System/Library/xpc/launchd.plist"
+    /bin/chmod 0644 $MNT1/System/Library/xpc/launchd.plist
     echo "  [+] com.vphone.jb-setup.plist injected into launchd.plist"
 fi
 
@@ -673,9 +631,9 @@ fi
 # image4_validate_property_callback bypass patches accept any IM4P
 # contents on subsequent boots.
 #
-# /mnt5 is still mounted at this point in the install flow (the umount
-# happens in the CLEANUP block below). We scp the live devicetree.img4
-# down, patch it on the host, scp it back. Next boot, iBoot loads the
+# $MNT5 is still mounted at this point in the install flow (the umount
+# happens in the CLEANUP block below). We copy the live devicetree.img4
+# out, patch it on the host, copy it back. Next boot, iBoot loads the
 # modified DT, kernel populates machine_info from the new values, and
 # sysctl hw.machine / hw.product / hw.model flip to iPhone17,3 / D47 /
 # (whatever IOPlatformExpert resolves from compatible[0]=D47AP).
@@ -688,14 +646,14 @@ fi
 if [[ -z "$BOOT_HASH" ]]; then
     echo "  [-] BOOT_HASH not discoverable, skipping EXP-JB-6"
 else
-    JB6_DT_REMOTE="/mnt5/$BOOT_HASH/usr/standalone/firmware/devicetree.img4"
+    JB6_DT_REMOTE="$MNT5/$BOOT_HASH/usr/standalone/firmware/devicetree.img4"
     JB6_DT_LOCAL="$TEMP_DIR/devicetree.img4"
-    if ssh_cmd "test -f '$JB6_DT_REMOTE'" 2>/dev/null; then
-        scp_from "$JB6_DT_REMOTE" "$JB6_DT_LOCAL"
+    if [[ -e "$JB6_DT_REMOTE" ]]; then
+        cp "$JB6_DT_REMOTE" "$JB6_DT_LOCAL"
         "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_post_restore_dt.py" "$JB6_DT_LOCAL"
-        scp_to "$JB6_DT_LOCAL" "$JB6_DT_REMOTE"
-        ssh_cmd "/usr/sbin/chown 0:0 $JB6_DT_REMOTE"
-        ssh_cmd "/bin/chmod 0644 $JB6_DT_REMOTE"
+        cp -R "$JB6_DT_LOCAL" "$JB6_DT_REMOTE"
+        /usr/sbin/chown 0:0 $JB6_DT_REMOTE
+        /bin/chmod 0644 $JB6_DT_REMOTE
         echo "  [+] devicetree.img4 rewritten in place"
     else
         echo "  [-] $JB6_DT_REMOTE not found, skipping EXP-JB-6"
@@ -719,8 +677,8 @@ fi
 # Both are plain plist files (no Apple signature on individual plists),
 # so no image4 / cdHash / TXM concerns. Both volumes are writable at
 # install time:
-#   /mnt1 (rootfs)  — writable before the install-time seal is established
-#   /mnt5 (preboot) — apfs writable
+#   $MNT1 (rootfs)  — writable before the install-time seal is established
+#   $MNT5 (preboot) — apfs writable
 #
 # After this, Settings -> About -> Build, MG BuildVersion key, and every
 # framework that reads SystemVersion.plist see the new identifier.
@@ -733,15 +691,15 @@ if [[ -n "${SPOOF_BUILD:-}" ]]; then
     echo "[EXP-JB-7] Rewriting ProductBuildVersion to $SPOOF_BUILD in SystemVersion plists..."
 
     for jb7_remote in \
-        "/mnt1/System/Library/CoreServices/SystemVersion.plist" \
-        "/mnt5/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist"
+        "$MNT1/System/Library/CoreServices/SystemVersion.plist" \
+        "$MNT5/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist"
     do
-        if ssh_cmd "test -f '$jb7_remote'" 2>/dev/null; then
+        if [[ -e "$jb7_remote" ]]; then
             jb7_local="$TEMP_DIR/$(echo "$jb7_remote" | tr '/' '_').plist"
-            scp_from "$jb7_remote" "$jb7_local"
+            cp "$jb7_remote" "$jb7_local"
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_build_version.py" \
                 "$jb7_local" "$SPOOF_BUILD"
-            scp_to "$jb7_local" "$jb7_remote"
+            cp -R "$jb7_local" "$jb7_remote"
         else
             echo "  [-] $jb7_remote not found, skipping"
         fi
@@ -753,11 +711,10 @@ fi
 
 # ═══════════ CLEANUP ═════════════════════════════════════════
 echo ""
-echo "[*] Unmounting device filesystems..."
-ssh_cmd "/sbin/umount /mnt1 2>/dev/null || true"
-ssh_cmd "/sbin/umount /mnt2 2>/dev/null || true"
-ssh_cmd "/sbin/umount /mnt3 2>/dev/null || true"
-ssh_cmd "/sbin/umount /mnt5 2>/dev/null || true"
+echo "[*] Unmounting image volumes..."
+/sbin/umount $MNT1 2>/dev/null || true
+/sbin/umount $MNT3 2>/dev/null || true
+/sbin/umount $MNT5 2>/dev/null || true
 
 echo "[*] Cleaning up temp binaries..."
 rm -f "$TEMP_DIR/launchd" \
@@ -765,7 +722,5 @@ rm -f "$TEMP_DIR/launchd" \
 
 echo ""
 echo "[+] CFW + JB + EXP installation complete!"
-echo "    Reboot to apply changes."
+echo "    Boot to apply changes."
 echo "    After boot, SSH will be available on port 22222 (password: alpine)"
-
-ssh_cmd "/sbin/halt" || true
