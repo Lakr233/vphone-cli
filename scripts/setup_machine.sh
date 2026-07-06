@@ -5,7 +5,9 @@
 # 1) Host deps + project setup/build
 # 2) vm_new + fw_prepare + fw_patch (or fw_patch_dev/ fw_patch_jb with --dev/--jb)
 # 3) DFU restore (boot_dfu + restore_get_shsh + restore)
-# 4) Ramdisk + CFW (boot_dfu + ramdisk_build + ramdisk_send + iproxy + cfw_install / cfw_install_dev / cfw_install_jb)
+# 4) CFW install — default: ramdisk-free host-mount install + offline snapshot
+#    flip (cfw_install_host, VM off). Legacy ramdisk path (boot_dfu +
+#    ramdisk_build/send + iproxy + cfw_install*) is opt-in via USE_RAMDISK_CFW=1.
 # 5) First boot launch (`make boot`) with printed in-guest commands
 
 set -euo pipefail
@@ -1018,6 +1020,7 @@ main() {
 
   local fw_patch_target="fw_patch"
   local cfw_install_target="cfw_install"
+  local cfw_variant="regular"      # variant for the ramdisk-free `cfw_install_host`
   local mode_label="base"
 
   if (( JB_MODE + DEV_MODE + EXP_MODE + LESS_MODE > 1 )); then
@@ -1027,18 +1030,22 @@ main() {
   if [[ "$JB_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_jb"
     cfw_install_target="cfw_install_jb"
+    cfw_variant="jb"
     mode_label="jailbreak"
   elif [[ "$DEV_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_dev"
     cfw_install_target="cfw_install_dev"
+    cfw_variant="dev"
     mode_label="dev"
   elif [[ "$EXP_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_exp"
     cfw_install_target="cfw_install_exp"
+    cfw_variant="exp"
     mode_label="experimental"
   elif [[ "$LESS_MODE" -eq 1 ]]; then
     fw_patch_target="fw_patch_less"
     cfw_install_target=""
+    cfw_variant=""
     mode_label="less"
   fi
 
@@ -1081,24 +1088,35 @@ main() {
   stop_boot_dfu
 
   if [[ "$LESS_MODE" -eq 0 ]]; then
-    echo "[*] Waiting ${POST_KILL_SETTLE_DELAY}s for cleanup before ramdisk stage..."
+    echo "[*] Waiting ${POST_KILL_SETTLE_DELAY}s for cleanup before CFW install..."
     sleep "$POST_KILL_SETTLE_DELAY"
-  
-    echo ""
-    echo "=== Ramdisk + CFW phase ==="
-    start_boot_dfu
-    load_device_identity
-    wait_for_recovery
-    run_make "Ramdisk" ramdisk_build RAMDISK_UDID="$DEVICE_UDID"
-    echo "[*] Ramdisk identity context: restore_udid=${DEVICE_UDID} ecid=0x${DEVICE_ECID}"
-    run_make "Ramdisk" ramdisk_send IRECOVERY_ECID="0x$DEVICE_ECID" RAMDISK_UDID="$DEVICE_UDID"
-    start_iproxy
 
-    wait_for_ramdisk_ssh
-
-    run_make "CFW install" "$cfw_install_target" SSH_PORT="$RAMDISK_SSH_PORT"
-    stop_boot_dfu
-    stop_iproxy
+    if [[ "${USE_RAMDISK_CFW:-0}" == "1" ]]; then
+      # ── Legacy ramdisk CFW install (opt-in via USE_RAMDISK_CFW=1) ──
+      echo ""
+      echo "=== Ramdisk + CFW phase (legacy, USE_RAMDISK_CFW=1) ==="
+      start_boot_dfu
+      load_device_identity
+      wait_for_recovery
+      run_make "Ramdisk" ramdisk_build RAMDISK_UDID="$DEVICE_UDID"
+      echo "[*] Ramdisk identity context: restore_udid=${DEVICE_UDID} ecid=0x${DEVICE_ECID}"
+      run_make "Ramdisk" ramdisk_send IRECOVERY_ECID="0x$DEVICE_ECID" RAMDISK_UDID="$DEVICE_UDID"
+      start_iproxy
+      wait_for_ramdisk_ssh
+      run_make "CFW install" "$cfw_install_target" SSH_PORT="$RAMDISK_SSH_PORT"
+      stop_boot_dfu
+      stop_iproxy
+    else
+      # ── Default: ramdisk-free host-mount CFW install + offline snapshot flip.
+      # The VM is off after the restore phase, so we attach Disk.img on the
+      # host, place all CFW files, and rename the boot snapshot offline — no
+      # DFU/ramdisk_send/iproxy/SSH. cfw_install_host re-execs under sudo
+      # (SUDO_ASKPASS from setup_sudo_noninteractive when SUDO_PASSWORD is set).
+      echo ""
+      echo "=== CFW install (host-mount, ramdisk-free) ==="
+      check_vm_storage_locks
+      run_make "CFW install" cfw_install_host VARIANT="$cfw_variant" SPOOF_BUILD="${SPOOF_BUILD:-}"
+    fi
   fi
 
   if [[ "$LESS_MODE" -eq 0 || "$NO_BINPACK" -eq 0 ]]; then
