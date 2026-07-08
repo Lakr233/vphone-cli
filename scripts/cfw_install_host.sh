@@ -55,10 +55,10 @@ fi
 
 echo "[*] host-mode CFW install: variant=$VARIANT vm=$VM_DIR"
 AO=$(hdiutil attach -nomount -imagekey diskimage-class=CRawDiskImage "$IMG" 2>/dev/null)
-BASEDISK=$(echo "$AO" | head -1 | awk '{print $1}')
-SYS=$(diskutil apfs list 2>/dev/null | awk '/APFS Volume Disk \(Role\):/{for(i=1;i<=NF;i++) if($i ~ /^disk[0-9]+s[0-9]+$/) dev=$i} /Name:.*System \(Case-sensitive\)/{print dev; exit}')
-CONT="${SYS%s*}"
-[[ -n "$CONT" ]] || { echo "[-] System volume not found in $IMG" >&2; hdiutil detach "$BASEDISK" 2>/dev/null; exit 1; }
+BASEDISK=$(awk 'NR == 1 { print $1; exit }' <<< "$AO")
+CONT=$(diskutil info -plist "${BASEDISK}s1" | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
+SYS=$(diskutil apfs list "$CONT" 2>/dev/null | awk '/APFS Volume Disk \(Role\):/{for(i=1;i<=NF;i++) if($i ~ /^disk[0-9]+s[0-9]+$/) dev=$i} /Name:.*System \(Case-sensitive\)/{print dev; exit}')
+[[ -n "$CONT" && -n "$SYS" ]] || { echo "[-] System volume not found in $IMG" >&2; hdiutil detach "$BASEDISK" 2>/dev/null; exit 1; }
 echo "[*] attached: container=$CONT system=$SYS"
 
 cleanup() {
