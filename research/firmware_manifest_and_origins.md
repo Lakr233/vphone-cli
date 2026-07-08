@@ -23,10 +23,17 @@ restore directory, then `fw_manifest.py` generates the hybrid BuildManifest.
 
 | Source         | Identities | DeviceClasses                                           |
 | -------------- | ---------- | ------------------------------------------------------- |
+| iPhone 26.0    | 5          | All d47ap                                               |
+| iPhone 26.0.1  | 5          | All d47ap                                               |
 | iPhone 26.1    | 5          | All d47ap                                               |
 | iPhone 26.3    | 5          | All d47ap                                               |
 | CloudOS 26.1   | 6          | j236cap, j475dap, vphone600ap (x2), vresearch101ap (x2) |
 | KnownWork 26.1 | 5          | All vresearch101ap                                      |
+
+26.0 and 26.0.1 have no matching public PCC vphone600 drop in this repo's tested set, so
+it is prepared as iPhone 26.0 or 26.0.1 userspace plus the 26.1 PCC boot/runtime stack.
+The 26.0 and 26.0.1 `IOMobileFramebuffer` dyld-cache patch in CFW install fixes the
+only observed GUI ABI mismatch (`SwapEnd` payload size 0x548 -> 0x560).
 
 ### CloudOS 26.1 Identity Structure (6 identities)
 

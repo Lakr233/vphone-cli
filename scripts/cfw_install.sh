@@ -283,6 +283,18 @@ else
     echo "  [+] Cryptex installed"
 fi
 
+# iOS 26.0 and 26.0.1 IOMobileFramebuffer send the older 0x548-byte SwapEnd
+# payload, but the PCC vphone600 userclient rejects anything below the
+# 26.1-era 0x560 layout. Patch only that immediate in the installed 26.0 or 26.0.1
+# DSC; do not replace frameworks or normalize GPU metadata.
+IOS_VERSION=$(/usr/bin/plutil -extract ProductVersion raw -o - "$MNT1/System/Library/CoreServices/SystemVersion.plist" 2>/dev/null || true)
+if [[ "$IOS_VERSION" == 26.0* ]]; then
+    echo "  [*] Patching 26.0/26.0.1 IOMobileFramebuffer SwapEnd payload size..."
+    DSC_DIR="$MNT1/System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+    [[ -d "$DSC_DIR" ]] || die "dyld cache dir missing: $DSC_DIR"
+    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-iomfb-swapend "$DSC_DIR"
+fi
+
 # ═══════════ 2/7 PATCH SEPUTIL ════════════════════════════════
 echo ""
 echo "[2/7] Patching seputil..."

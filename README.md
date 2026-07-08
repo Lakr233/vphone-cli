@@ -10,12 +10,18 @@ Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC re
 
 | Host          | iPhone                | CloudOS         |
 | ------------- | --------------------- | --------------- |
+| Mac16,8 26.5.1 | `17,3_26.0_23A341`    | `26.1-23B85`    |
+| Mac16,8 26.5.1 | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
+| Mac16,8 26.5.1 | `17,3_26.1_23B85`     | `26.1-23B85`    |
 | Mac16,12 26.3 | `17,3_26.1_23B85`     | `26.1-23B85`    |
 | Mac16,12 26.3 | `17,3_26.3_23D127`    | `26.1-23B85`    |
 | Mac16,12 26.3 | `17,3_26.3_23D127`    | `26.3-23D128`   |
 | Mac16,12 26.3 | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
 | Mac16,11 26.2 | `17,3_26.4_23E246`    | `26.4-23E5207q` |
 | Mac16,11 26.2 | `17,3_26.5_23F77`     | `26.4-23E5207q` |
+
+iOS 26.0 and 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time
+`IOMobileFramebuffer` SwapEnd payload-size patch.
 
 ## Firmware Variants
 

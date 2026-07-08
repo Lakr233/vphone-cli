@@ -29,6 +29,11 @@ Commands:
         the mounted SystemOS Cryptex). Targets a fixed list of identity,
         store, and consumer-service dylibs; skips compute/accel libs.
 
+    patch-iomfb-swapend <chunks_dir> [--dry-run]
+        Patch iOS 26.0 and 26.0.1 IOMobileFramebuffer's _kern_SwapEnd external-method
+        payload size from 0x548 to 0x560 for the PCC vphone600 userclient,
+        then re-attest the modified DSC page hash.
+
     patch-camera-dsc <chunks_dir> <dsc_header> [--dry-run] [--force]
         Apply the 10-patch set to the DSC chunks that makes Camera.app
         launch-survivable on a vphone VM: synthesises a single
@@ -77,6 +82,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_mobileactivationd import patch_mobileactivationd
     from patchers.cfw_patch_jetsam import patch_launchd_jetsam
     from patchers.cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
+    from patchers.cfw_patch_iomfb_swapend import patch_iomfb_swapend
     from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
     from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
@@ -86,6 +92,7 @@ else:
     from .cfw_patch_mobileactivationd import patch_mobileactivationd
     from .cfw_patch_jetsam import patch_launchd_jetsam
     from .cfw_patch_hv_vmm_dsc import patch_hv_vmm_in_dsc
+    from .cfw_patch_iomfb_swapend import patch_iomfb_swapend
     from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
     from .cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
@@ -140,6 +147,18 @@ def main():
             sys.exit(1)
         dry_run = "--dry-run" in sys.argv[3:]
         results = patch_hv_vmm_in_dsc(sys.argv[2], dry_run=dry_run)
+        sys.exit(0)
+
+    elif cmd == "patch-iomfb-swapend":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-iomfb-swapend <chunks_dir> [--dry-run]")
+            sys.exit(1)
+        dry_run = "--dry-run" in sys.argv[3:]
+        try:
+            patch_iomfb_swapend(sys.argv[2], dry_run=dry_run)
+        except ValueError as e:
+            print(f"[-] {e}")
+            sys.exit(1)
         sys.exit(0)
 
     elif cmd == "patch-camera-dsc":
@@ -203,7 +222,8 @@ def main():
         print(f"Unknown command: {cmd}")
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
-        print("          patch-hv-vmm-dsc, patch-watchdogd, inject-daemons, patch-dropbear-plist, inject-dylib")
+        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-watchdogd,")
+        print("          inject-daemons, patch-dropbear-plist, inject-dylib")
         sys.exit(1)
 
 
