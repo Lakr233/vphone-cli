@@ -84,6 +84,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     public func apply() throws -> Int {
         print("Merging Filesystems")
         let (unencryptedImage, aeaImage) = try mergeFilesystems()
+        defer { try? FileManager.default.removeItem(at: unencryptedImage) }
         
         print("Creating Trustcache")
         let trustcachePath = try createTrustcache(filesystem: unencryptedImage)
@@ -114,10 +115,10 @@ public final class CryptexFilesystemPatcher: Patcher {
     func mergeFilesystems() throws -> (URL, URL) {
         let osPath = try getOSFilesystemPath()
         let osDmgPath = try decryptAeaFile(self.restoreDir.appending(path: osPath))
-        let tmpDir = try createTmpDir()
-        let newDmgPath = tmpDir.appending(path: "new-filesystem.dmg")
+        let newDmgPath = self.restoreDir.appending(path: "new-filesystem.dmg")
         
         print("- Converting OS image")
+        let tmpDir = try createTmpDir()
         let targetImagePath = tmpDir.appending(path: "disk.dmg")
         do {
             try convertToRawImage(input: osDmgPath, output: targetImagePath)
@@ -164,12 +165,12 @@ public final class CryptexFilesystemPatcher: Patcher {
         try convertToUDRWImage(input: targetImagePath, output: newDmgPath)
         let metadata = try getAeaMetadata(self.restoreDir.appending(path: osPath))
         let key = try getAeaKey(self.restoreDir.appending(path: osPath), metadata: metadata)
-        let finalFile = try encryptAeaFile(newDmgPath, key: key, metadata: metadata)
+        let finalFile = newDmgPath.appendingPathExtension("aea")
         let finalDestination = self.restoreDir.appending(path: finalFile.lastPathComponent)
         if FileManager.default.fileExists(atPath: finalDestination.path) {
             try FileManager.default.removeItem(at: finalDestination)
         }
-        try FileManager.default.moveItem(at: finalFile, to: finalDestination)
+        try encryptAeaFile(newDmgPath, output: finalFile, key: key, metadata: metadata)
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: finalDestination.path)
         return (newDmgPath, finalDestination)
     }
@@ -775,10 +776,9 @@ public final class CryptexFilesystemPatcher: Patcher {
         ]).trimmingCharacters(in: ["\n"])
     }
     
-    func encryptAeaFile(_ path: URL, key: String, metadata: [String: String]) throws -> URL {
-        let outputPath = path.appendingPathExtension("aea")
+    func encryptAeaFile(_ path: URL, output: URL, key: String, metadata: [String: String]) throws {
         var arguments = [
-            "encrypt", "-i", path.path, "-o", outputPath.path,
+            "encrypt", "-i", path.path, "-o", output.path,
             "-profile", "1", "-key-value", key,
         ]
         for (metaKey, metaValue) in metadata {
@@ -788,7 +788,6 @@ public final class CryptexFilesystemPatcher: Patcher {
             arguments.append(metaValue)
         }
         _ = try runProcess("/usr/bin/aea", arguments)
-        return outputPath
     }
     
     func decryptAeaFile(_ path: URL) throws -> URL {
