@@ -1,0 +1,61 @@
+name: release
+
+# Build the signed vphone-cli.app and attach it to a published GitHub Release.
+# Signing is ad-hoc (codesign --sign -) with sources/vphone.entitlements, exactly
+# like a local `make bundle` — no Developer ID certificate or secrets required.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init build submodules
+        # --recursive: libcapstone-spm builds capstone from its own nested
+        # Vendor/capstone submodule. Scoped to these paths, so the large
+        # scripts/resources storage submodule is still skipped.
+        run: |
+          git submodule update --init --recursive --depth 1 \
+            vendor/swift-argument-parser \
+            vendor/Dynamic \
+            vendor/libcapstone-spm \
+            vendor/libimg4-spm \
+            vendor/MachOKit
+
+      - name: Toolchain versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Install ldid
+        run: brew install ldid-procursus
+
+      - name: Build and bundle
+        run: make bundle
+
+      - name: Verify entitlements
+        run: |
+          bin=.build/vphone-cli.app/Contents/MacOS/vphone-cli
+          ents=$(codesign -d --entitlements - "$bin" 2>&1)
+          echo "$ents"
+          echo "$ents" | grep -q 'com.apple.private.virtualization' \
+            || { echo "::error::required virtualization entitlement missing from signed app"; exit 1; }
+
+      - name: Package app
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: ditto -c -k --keepParent .build/vphone-cli.app "vphone-cli-${TAG}.zip"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "vphone-cli-${TAG}.zip" --clobber
