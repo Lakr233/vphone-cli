@@ -28,6 +28,19 @@ class VPhoneControl {
     private(set) var guestName = ""
     private(set) var guestCaps: [String] = []
     private(set) var guestIP: String?
+    /// Guest userland iOS version reported at handshake (e.g. "18.6.2"), if known.
+    private(set) var guestIOSVersion: String?
+
+    /// Whether touches should be injected guest-side via vphoned rather than the
+    /// VZ USB touchscreen. True for iOS 18 bases: on the 26.x kernel their USB
+    /// touchscreen dext receives reports but emits no digitizer events, so the
+    /// UI never sees touches. 26.x bases keep the native VZ multitouch path.
+    var useGuestTouchInjection: Bool {
+        guard isConnected, guestCaps.contains("touch"),
+              let major = guestIOSVersion.flatMap({ Int($0.split(separator: ".").first ?? "") })
+        else { return false }
+        return major < 26
+    }
     /// Path to the signed vphoned binary. When set, enables auto-update.
     var guestBinaryURL: URL?
 
@@ -201,6 +214,7 @@ class VPhoneControl {
             let name = resp["name"] as? String ?? "unknown"
             let caps = resp["caps"] as? [String] ?? []
             let ip = resp["ip"] as? String
+            let iosVersion = resp["ios"] as? String
             let needUpdate = resp["need_update"] as? Bool ?? false
 
             Task { @MainActor in
@@ -216,9 +230,14 @@ class VPhoneControl {
                 self.guestName = name
                 self.guestCaps = caps
                 self.guestIP = ip
+                self.guestIOSVersion = iosVersion
                 self.isConnected = true
                 let ipSuffix = ip.map { " (\($0))" } ?? ""
-                print("[control] connected to \(name) v\(version)\(ipSuffix), caps: \(caps)")
+                let iosSuffix = iosVersion.map { " iOS \($0)" } ?? ""
+                print("[control] connected to \(name) v\(version)\(ipSuffix)\(iosSuffix), caps: \(caps)")
+                if self.useGuestTouchInjection {
+                    print("[control] guest-side touch injection enabled (iOS \(iosVersion ?? "?"))")
+                }
 
                 if needUpdate && self.variant != .less {
                     self.pushUpdate(fd: fd)
@@ -296,6 +315,24 @@ class VPhoneControl {
         print(
             "[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)"
         )
+    }
+
+    /// Inject a single-finger digitizer touch guest-side (bypasses VZ USB touch).
+    /// phase: 0 = down, 1 = move, 3 = up. x/y are normalized 0..1, top-left origin.
+    func sendTouch(phase: Int, x: Double, y: Double) {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "touch",
+            "id": String(nextRequestId, radix: 16),
+            "phase": phase,
+            "x": x,
+            "y": y,
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
+            print("[control] touch send failed (not connected)")
+            return
+        }
     }
 
     // MARK: - Developer Mode

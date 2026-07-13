@@ -16,3 +16,9 @@ void vp_hid_press(uint32_t page, uint32_t usage);
 
 /// Send a single key down or key up event.
 void vp_hid_key(uint32_t page, uint32_t usage, BOOL down);
+
+/// Inject a single-finger digitizer touch event.
+/// phase: 0 = down, 1 = move, 3 = up. x/y are normalized 0..1 with the
+/// origin at the top-left. Used for iOS 18 bases where the VZ USB touchscreen
+/// dext produces no digitizer events on the 26.x kernel.
+void vp_hid_touch(int phase, double x, double y);
