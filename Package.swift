@@ -22,6 +22,7 @@ let package = Package(
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Img4tool", package: "libimg4-spm"),
                 .product(name: "MachOKit", package: "MachOKit"),
+                "MobileDevice"
             ],
             path: "sources/FirmwarePatcher"
         ),
@@ -40,6 +41,14 @@ let package = Package(
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("AVFoundation"),
             ]
+        ),
+        .target(
+            name: "MobileDevice",
+            path: "sources/MobileDevice",
+            linkerSettings: [
+                .unsafeFlags(["-F", "/Library/Apple/System/Library/PrivateFrameworks/"]),
+                .linkedFramework("MobileDevice")
+            ],
         ),
         .testTarget(
             name: "FirmwarePatcherTests",

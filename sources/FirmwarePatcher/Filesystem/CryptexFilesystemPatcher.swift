@@ -100,6 +100,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         // update trustcache, metadata, root_hash path
         let updatedManifest = try setUpdatedComponentsInManifest(filesystem: aeaImage, trustcache: trustcachePath, metadata: metadataPath, rootHash: rootHashContainer)
         rebuiltData = try serializePayload(updatedManifest)
+        try setUpdatedComponentsInRestorePlist(filesystem: aeaImage)
         
         return 1
     }
@@ -114,11 +115,14 @@ public final class CryptexFilesystemPatcher: Patcher {
     func mergeFilesystems() throws -> (URL, URL) {
         let osPath = try getOSFilesystemPath()
         let osDmgPath = try decryptAeaFile(self.restoreDir.appending(path: osPath))
+        defer { try? FileManager.default.removeItem(at: osDmgPath) }
         let tmpDir = try createTmpDir()
         let newDmgPath = tmpDir.appending(path: "new-filesystem.dmg")
         
         print("- Converting OS image")
-        let targetImagePath = tmpDir.appending(path: "disk.dmg")
+        // Resizing is very limited in a temporary directory
+        let targetImagePath = self.restoreDir.appending(path: "disk.dmg")
+        defer { try? FileManager.default.removeItem(at: targetImagePath) }
         do {
             try convertToRawImage(input: osDmgPath, output: targetImagePath)
             let (targetDevice, targetMount) = try attachImage(path: targetImagePath, forceRW: true)
@@ -157,6 +161,9 @@ public final class CryptexFilesystemPatcher: Patcher {
                 try injectLaunchDaemons(targetMount: targetMount, cfwInput: cfwInputPath, vphoned: !noVphoned, cfw: !noBinpack)
                 try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
             }
+            
+            print("- Add cryptexctl")
+            try addCryptexctl(targetMount: targetMount)
         }
         
         print("- Finalizing merged image")
@@ -229,6 +236,17 @@ public final class CryptexFilesystemPatcher: Patcher {
         ])
         try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
         _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
+    }
+    
+    func addCryptexctl(targetMount: String) throws {
+        let cryptexctl = self.vphoneCliDirectory.appending(path: ".tools/cryptexctl")
+        guard FileManager.default.fileExists(atPath: cryptexctl.path) else {
+            print("cryptexctl not present")
+            return
+        }
+        
+        let target = URL(fileURLWithPath: targetMount).appending(path: "/usr/bin/cryptexctl")
+        try FileManager.default.copyItem(atPath: cryptexctl.path, toPath: target.path)
     }
     
     func addExtraServices(targetMount: String, cfwInput: URL) throws {
@@ -522,15 +540,13 @@ public final class CryptexFilesystemPatcher: Patcher {
         let (device, mount) = try attachImage(path: filesystem, readonly: true)
         defer { try? detachImage(deviceNode: device) }
         
-        let oldTrustcache = try getTrustcachePath()
-        let oldTrustcachePath = self.restoreDir.appending(path: oldTrustcache)
         let newTrustcachePath = self.restoreDir.appending(path: "Firmware/new.trustcache")
         let tmpDir = try createTmpDir()
         
         let tcContainer = tmpDir.appending(path: "new.trustcache")
         _ = try runProcess("/System/Library/SecurityResearch/usr/bin/cryptexctl", [
             "generate-trust-cache", "--type", "static",
-            "--base-trust-cache", oldTrustcachePath.path,
+            "--restricted-exec-mode-default", "both",
             "--output-file", tcContainer.path,
             mount
         ])
@@ -553,6 +569,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         } else {
             try decryptAeaFile(self.restoreDir.appending(path: try getSystemOsFilesystemPath()))
         }
+        defer { if !appOS { try? FileManager.default.removeItem(at: osPath) } }
         let (osDevice, osMount) = try attachImage(path: osPath, readonly: true)
         defer { try? detachImage(deviceNode: osDevice) }
         
@@ -568,6 +585,19 @@ public final class CryptexFilesystemPatcher: Patcher {
             format: .xml,
             options: 0
         )
+    }
+    
+    func setUpdatedComponentsInRestorePlist(filesystem: URL) throws {
+        let path = self.restoreDir.appending(path: "Restore.plist")
+        let data = try Data.init(contentsOf: path)
+        guard let pathSuffix = relativePath(from: filesystem, base: self.restoreDir.appendingPathComponent("", isDirectory: true)) else {
+            throw FirmwareManifest.ManifestError.fileNotFound("path suffix for \(filesystem)")
+        }
+        var root = try parsePlist(data: data)
+        let newdict: PlistDict = [ pathSuffix: "APFS" ]
+        root["SystemRestoreImageFileSystems"] = newdict
+        let newData = try serializePayload(root)
+        try newData.write(to: path)
     }
     
     func setUpdatedComponentsInManifest(filesystem: URL, trustcache: URL, metadata: URL, rootHash: URL) throws -> PlistDict {

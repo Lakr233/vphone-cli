@@ -118,6 +118,7 @@ help:
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
 	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
+	@echo "  make restore_mobiledevice    Restore to device (MobileDevice backend)"
 	@echo "  make restore_offline         Restore offline — decrypts AEA images in place, uses cached .shsh blob"
 	@echo ""
 	@echo "CFW (host-mount install; VM must be off, re-execs sudo):"
@@ -419,6 +420,12 @@ restore:
 		--vm-dir . \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
+
+restore_mobiledevice: bundle
+	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
+	    restore \
+		--config ./config.plist \
+		--ipsw "iPhone"*
 
 restore_offline:
 	@$(call _resolve_ecid); \

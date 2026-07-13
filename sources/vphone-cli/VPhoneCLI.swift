@@ -1,12 +1,21 @@
 import ArgumentParser
 import FirmwarePatcher
 import Foundation
+import MobileDevice
+import Dynamic
+import Virtualization
+
+
+enum CLIError: Error {
+    case CryptexError(String)
+    case RestoreError(String)
+}
 
 struct VPhoneCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "vphone-cli",
         abstract: "Boot a virtual iPhone or patch firmware with the Swift pipeline",
-        subcommands: [VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self],
+        subcommands: [VPhoneBootCLI.self, VPhoneRestoreCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self, CryptexCLI.self],
         defaultSubcommand: VPhoneBootCLI.self
     )
 }
@@ -112,6 +121,232 @@ struct VPhoneBootCLI: ParsableCommand {
     }
 
     mutating func run() throws {}
+}
+
+struct VPhoneRestoreCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "restore",
+        abstract: "Restore a virtual iPhone",
+    )
+
+    @Option(
+        help: "Path to VM manifest plist (config.plist). Required.",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var config: URL
+    
+    @Option(
+        help: "Apple firmware variant to restore (release/research).",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var ipsw: URL
+
+    @Option(help: "Apple firmware variant to restore (customer/research).")
+    var variant: FirmwareVariant = .customer
+    
+    enum FirmwareVariant: String, CaseIterable, ExpressibleByArgument {
+        case customer
+        case research
+    }
+    
+    class RestoreContextWrapper {
+        var context: RestoreContext
+        init(context: RestoreContext) {
+            self.context = context
+        }
+    }
+    
+    struct RestoreContext {
+        let config: [String: Any]
+        let completion: DispatchSemaphore
+        var status: RestoreResult = .init()
+    }
+    
+    struct RestoreResult {
+        enum State: String {
+            case notstarted, started, success, failed
+        }
+
+        var state: State = .notstarted
+        var errReason: String? = nil
+
+        mutating func setResult(state: State, errReason: String? = nil) {
+            self.state = state
+            self.errReason = errReason
+        }
+    }
+
+    // ToDo Improve: Register Log Handler
+    mutating func run() throws {
+        var config = AMRestorableDeviceCopyDefaultRestoreOptions() as! [String: Any]
+
+        config[kAMRestoreOptionsRestoreBootArgs] =
+        if let bootArgs = config[kAMRestoreOptionsRestoreBootArgs] as? String {
+            bootArgs + " serial=3"
+        } else {
+            "rd=md0 nand-enable-reformat=1 -progress -restore serial=3"
+        }
+        
+        config[kAMRestoreOptionsPostRestoreAction] = kAMRestorePostRestoreShutdown
+        config[kAMRestorableRestoreOptionWaitForDeviceConnectionToFinishStateMachine] = false
+        config[kAMRestoreOptionsPersistentBootArgModifications] = [
+            [kAMRestoreBootArgsAdd, "debug", "0x104c04"],
+            [kAMRestoreBootArgsAdd, "serial", "3"],
+        ]
+
+        config[kAMRestoreOptionsRestoreBundlePath] = ipsw.path
+        let variantName = try! restoreVariantName(variant)
+        config[kAMRestoreOptionsAuthInstallVariant] = variantName
+
+        var restoreContext = RestoreContext(
+            config: config,
+            completion: DispatchSemaphore(value: 0)
+        )
+
+        print("[vphone] restore: \(ipsw) (variant: \"\(variant.rawValue)\")")
+
+        let contextWrapper = RestoreContextWrapper(context: restoreContext)
+        let contextWrapperRaw = Unmanaged<RestoreContextWrapper>.passRetained(contextWrapper)
+        defer {
+            contextWrapperRaw.release()
+        }
+
+        var resErr: Unmanaged<CFError>?
+        let clientID = AMRestorableDeviceRegisterForNotifications(
+            newConnectionCallback,
+            contextWrapperRaw.toOpaque(),
+            &resErr
+        )
+        defer {
+            if clientID != kAMRestorableInvalidClientID {
+                AMRestorableDeviceUnregisterForNotifications(clientID)
+            }
+        }
+
+        if let resErr = resErr?.takeUnretainedValue() {
+            let errReason = CFErrorCopyDescription(resErr) as? String ?? "No Reason"
+            contextWrapper.context.status.setResult(state: .failed,
+                                                    errReason: "initialization: \(errReason)")
+            throw CLIError.RestoreError("restore init: \(errReason)")
+        }
+        defer { restoreContext = contextWrapper.context }
+
+        // 5 minutes restore timeout
+        let deadline = DispatchTime.now() + 300
+        guard contextWrapper.context.completion.wait(timeout: deadline) == .success else {
+            contextWrapper.context.status.setResult(state: .failed, errReason: "timeout")
+            throw CLIError.RestoreError("timeout")
+        }
+
+        guard contextWrapper.context.status.state == .success else {
+            throw CLIError.RestoreError("failed: \(restoreContext.status.errReason ?? "No reason")")
+        }
+    }
+}
+
+func restoreVariantName(_ variant: VPhoneRestoreCLI.FirmwareVariant) throws -> String {
+    return switch variant {
+    case VPhoneRestoreCLI.FirmwareVariant.customer: "Darwin Cloud Customer Erase Install (IPSW)"
+    case VPhoneRestoreCLI.FirmwareVariant.research: "Research Darwin Cloud Customer Erase Install (IPSW)"
+    }
+}
+
+func newConnectionCallback(
+    _ deviceRef: AMRestorableDeviceRef?,
+    _ event: AMRestorableDeviceEvent,
+    _ context: UnsafeMutableRawPointer?
+) {
+    let deviceRef = deviceRef!
+    let contextRef = Unmanaged<VPhoneRestoreCLI.RestoreContextWrapper>
+        .fromOpaque(context!)
+        .takeUnretainedValue()
+
+    guard contextRef.context.status.state == .notstarted else {
+        return
+    }
+
+    print("restore: device connected")
+    let deviceState = getAMRDeviceState(deviceRef)
+    if deviceState == kAMRestorableDeviceStateBootedOS {
+        if AMDeviceEnterRecovery(deviceRef) != 0 {
+            print("Failed to enter recovery mode")
+            return
+        }
+    }
+
+    guard [kAMRestorableDeviceStateDFU, kAMRestorableDeviceStateDFUMac].contains(deviceState) else {
+        print("Not in DFU mode")
+        let devState = getAMRDeviceState(deviceRef)
+        contextRef.context.status.setResult(state: .failed,
+                                            errReason: "VM not in DFU mode (curstate = \(devState))")
+        return
+    }
+    
+    let restoreConfig = contextRef.context.config as CFDictionary
+    contextRef.context.status.state = .started
+
+    AMRestorableDeviceRestore(
+        deviceRef,
+        restoreConfig,
+        restoreProgressCallback,
+        context
+    )
+
+    if event == kAMRestorableDeviceEventDisappeared {
+        print("Disappeared")
+        contextRef.context.status.setResult(state: .failed,
+                                            errReason: "disconnected from VM")
+    }
+}
+
+private func restoreProgressCallback(
+    _ deviceRef: AMRestorableDeviceRef?,
+    _ restoreInfo: CFDictionary?,
+    _ context: UnsafeMutableRawPointer? // &RestoreContext
+) {
+    let restoreInfo = restoreInfo! as! [String: Any]
+    let contextRef = Unmanaged<VPhoneRestoreCLI.RestoreContextWrapper>
+        .fromOpaque(context!)
+        .takeUnretainedValue()
+
+    if let progress = restoreInfo[kAMRestorableDeviceInfoKeyOverallProgress as String] {
+        if (progress as! Int32) >= 0 {
+            let printStr = String(format: "%3d", progress as! Int32)
+            print("[Restore] Progress: \(printStr)%", terminator: "\r")
+            fflush(stdout)
+        } else {
+            print("[Restore] Waiting...", terminator: "\r")
+            fflush(stdout)
+        }
+    }
+
+    let status = restoreInfo[kAMRestorableDeviceInfoKeyStatus as String]
+    guard let status = status as? String else {
+        return
+    }
+
+    if status == (kAMRestorableDeviceStatusRestoring as String) {
+        return
+    }
+
+    if status == (kAMRestorableDeviceStatusSuccessful) {
+        contextRef.context.status.setResult(state: .success)
+        print("[Restore] Completed")
+    } else {
+        var errReason = "no reason provided"
+        if let error = restoreInfo[kAMRestorableDeviceInfoKeyError] {
+            errReason = (error as! CFError).localizedDescription
+        }
+
+        contextRef.context.status.setResult(state: .failed, errReason: errReason)
+    }
+
+    contextRef.context.completion.signal()
+}
+
+private func getAMRDeviceState(_ deviceRef: AMRestorableDeviceRef) -> AMRestorableDeviceState {
+    return AMRestorableDeviceGetStateWithVersion(deviceRef,
+                                                 OpaquePointer(getAMRestorableDeviceStateVersion2()))
 }
 
 struct PatchFirmwareCLI: ParsableCommand {
@@ -285,5 +520,34 @@ struct PatchComponentCLI: ParsableCommand {
             print("[patch-component] applied \(count) patches for \(component.rawValue)")
             print("[patch-component] wrote patched payload to \(output.path)")
         }
+    }
+}
+
+struct CryptexCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "cryptex",
+        abstract: "Configure the use of Cryptexes for your virtual iPhone",
+        subcommands: [CryptexCreateCLI.self]
+    )
+}
+
+struct CryptexCreateCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "create",
+        abstract: "Create a cryptex to your virtual iPhone"
+    )
+    
+    @Option(name: [.customLong("source"), .customShort("s")],
+            help: "The source for compiling the Cryptex. Required.")
+    var path: String
+    
+    @Option(name: [.customLong("variant"), .customShort("v")],
+            help: "The variant of the referenced Cryptex (research, release, ...). Required.")
+    var variant: String
+
+    mutating func run() throws {
+        print("Creating cryptex")
+        let path = try Cryptex.createCryptex(source: path, name: variant)
+        print("Created cryptex at \(path)")
     }
 }

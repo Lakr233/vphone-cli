@@ -774,9 +774,15 @@ main() {
   load_device_identity
   wait_for_recovery
   run_make "Restore" restore_get_shsh RESTORE_UDID="$DEVICE_UDID" RESTORE_ECID="0x$DEVICE_ECID"
-  run_make "Restore" restore RESTORE_UDID="$DEVICE_UDID" RESTORE_ECID="0x$DEVICE_ECID"
-  wait_for_post_restore_reboot
-  stop_boot_dfu
+  
+  # The MobileDevice restore (for Cryptex support) is currently only activated for the Patchless mode.
+  if [[ "$LESS_MODE" -eq 0 ]]; then
+    run_make "Restore" restore RESTORE_UDID="$DEVICE_UDID" RESTORE_ECID="0x$DEVICE_ECID"
+    wait_for_post_restore_reboot
+    stop_boot_dfu
+  else
+    run_make "Restore" restore_mobiledevice
+  fi
 
   if [[ "$LESS_MODE" -eq 0 ]]; then
     echo "[*] Waiting ${POST_KILL_SETTLE_DELAY}s for cleanup before CFW install..."
