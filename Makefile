@@ -319,7 +319,7 @@ boot: bundle vphoned boot_binary_check
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--config ./config.plist
 
-boot_less: bundle vphoned boot_binary_check_less
+boot_less: bundle boot_binary_check_less
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--config ./config.plist \
 		--variant less \

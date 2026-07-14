@@ -322,17 +322,22 @@ start_first_boot() {
   mkdir -p "$LOG_DIR"
   : > "$BOOT_LOG"
 
+  local target="boot"
+  if [ "$1" -eq 1 ]; then
+    target="boot_less"
+  fi
+
   BOOT_FIFO="$(mktemp -u "${TMPDIR:-/tmp}/vphone-first-boot.XXXXXX")"
   mkfifo "$BOOT_FIFO"
 
-  (make boot <"$BOOT_FIFO" >"$BOOT_LOG" 2>&1) &
+  (make "$target" <"$BOOT_FIFO" >"$BOOT_LOG" 2>&1) &
   BOOT_PID=$!
 
   exec {BOOT_FIFO_FD}>"$BOOT_FIFO"
 
   sleep 2
   if ! kill -0 "$BOOT_PID" 2>/dev/null; then
-    die "make boot exited early during first boot stage"
+    die "make $target exited early during first boot stage"
   fi
 }
 
@@ -801,7 +806,7 @@ main() {
       echo "[*] non-interactive (default): auto-starting first boot"
     fi
 
-    start_first_boot
+    start_first_boot "$LESS_MODE"
 
     if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
       read -r "?[*] Press Enter once the VM is fully booted"
