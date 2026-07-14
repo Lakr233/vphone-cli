@@ -87,6 +87,11 @@ public final class FirmwarePipeline {
     /// Computed in `patchAll()` before `buildComponentList()` runs.
     private var iosBaseIs18 = false
 
+    /// Set when the iPhone base is iOS 27.x. Gates the iOS-27-only JB kernel patches
+    /// (KernelJBPatcher.applyIOS27); false for 18.x/26.x so those bases are
+    /// byte-identical to pre-branch. Computed in `patchAll()` alongside iosBaseIs18.
+    private var iosBaseIs27 = false
+
     // MARK: - Init
 
     public init(
@@ -122,7 +127,10 @@ public final class FirmwarePipeline {
         // version, not the base). iOS 18 bases need the EXC_GUARD patch.
         let baseVersion = Self.readBaseProductVersion(restoreDir)
         iosBaseIs18 = baseVersion?.hasPrefix("18.") ?? false
-        log("[*] iPhone base iOS:   \(baseVersion ?? "unknown")\(iosBaseIs18 ? "  (enabling iOS-18 EXC_GUARD kernel patch)" : "")")
+        iosBaseIs27 = baseVersion?.hasPrefix("27.") ?? false
+        let baseGateNote = iosBaseIs18 ? "  (enabling iOS-18 EXC_GUARD kernel patch)"
+            : iosBaseIs27 ? "  (enabling iOS-27 JB kernel patches)" : ""
+        log("[*] iPhone base iOS:   \(baseVersion ?? "unknown")\(baseGateNote)")
 
         let components = buildComponentList()
         log("[*] Patching \(components.count) boot-chain components ...")
@@ -195,6 +203,10 @@ public final class FirmwarePipeline {
         // Captured by value into the patcher factory closures below (avoids
         // capturing self). True only for iOS 18 bases; gates the EXC_GUARD patch.
         let applyExcGuard = iosBaseIs18
+
+        // Same capture-by-value; true only for iOS 27 bases. Gates the iOS-27-only
+        // JB kernel patches so 18.x/26.x bases apply none of them.
+        let applyIOS27 = iosBaseIs27
 
         // iOS 18 bases: disable the skywalk flowswitch netagents via boot-arg so
         // Network.framework uses the BSD path (the 26.1-kernel skywalk
@@ -315,7 +327,9 @@ public final class FirmwarePipeline {
                             KernelPatcher(data: data, verbose: verbose, isDev: false, applyExcGuard: applyExcGuard)
                         },
                         { data, verbose in
-                            KernelJBPatcher(data: data, verbose: verbose)
+                            let p = KernelJBPatcher(data: data, verbose: verbose)
+                            p.applyIOS27 = applyIOS27
+                            return p
                         },
                     ]
                 case .exp:
@@ -324,7 +338,9 @@ public final class FirmwarePipeline {
                             KernelPatcher(data: data, verbose: verbose, isDev: false, applyExcGuard: applyExcGuard)
                         },
                         { data, verbose in
-                            KernelJBPatcher(data: data, verbose: verbose)
+                            let p = KernelJBPatcher(data: data, verbose: verbose)
+                            p.applyIOS27 = applyIOS27
+                            return p
                         },
                         { data, verbose in
                             KernelEXPPatcher(data: data, verbose: verbose)

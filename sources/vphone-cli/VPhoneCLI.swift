@@ -238,6 +238,12 @@ struct PatchComponentCLI: ParsableCommand {
     )
     var recordsOut: String?
 
+    @Option(
+        name: .customLong("target-os"),
+        help: "kernel-jb only: base iOS version the kernel will run under (e.g. 27.0). Gates the iOS-27-only JB patches exactly as the pipeline does. Omit to apply the full set (dev/test default)."
+    )
+    var targetOS: String?
+
     mutating func run() throws {
         let payload = try IM4PHandler.load(contentsOf: input).payload
         let count: Int
@@ -262,6 +268,11 @@ struct PatchComponentCLI: ParsableCommand {
             // KernelJBPatcher standalone faithfully reproduces JB hook behavior
             // without the base patcher or the rest of the boot chain.
             let patcher = KernelJBPatcher(data: payload, verbose: !quiet)
+            // Mirror the pipeline's per-base gating: apply the iOS-27-only patches when
+            // --target-os is 27.x, skip them for an explicit non-27 target. With no
+            // --target-os, default to applying them so the dev/test tool exercises the
+            // full set.
+            patcher.applyIOS27 = targetOS.map { $0.hasPrefix("27.") } ?? true
             count = try patcher.apply()
             patchedData = patcher.buffer.data
             records = patcher.patches

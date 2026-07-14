@@ -12,6 +12,15 @@ import Foundation
 public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     public let component = "kernelcache_jb"
 
+    /// Gates the iOS-27-only kernel patches. These target an iOS-27 userland running
+    /// on the 26.4 kernel; on a 26.x base they are unnecessary and some are actively
+    /// harmful (e.g. the IOMFB SwapEnd size gate would reject 26.x's native 0x588 swap
+    /// struct → dead display, the 26.5 regression). The pipeline sets this from the
+    /// iPhone base ProductVersion (false for 18.x/26.x → byte-identical to pre-branch);
+    /// standalone patch-component defaults it true so the dev tool exercises the full
+    /// set (override with --target-os).
+    public var applyIOS27 = false
+
     public func findAll() throws -> [PatchRecord] {
         try parseMachO()
         buildADRPIndex()
@@ -48,6 +57,13 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
         patchHookCredLabelUpdateExecve()
         patchKcall10()
         patchSyscallmaskApplyToProc()
+
+        // Neutralize the exec-time ip_mac_return SECURITY_POLICY kill so a userland
+        // newer than the kernel (iOS 27 on the 26.4 kernel) can launch: AMFI's exec
+        // hooks reject the newer binaries' validation category → ip_mac_return != 0 →
+        // core daemons (backboardd, cfprefsd, ...) die at exec → boot deadlock.
+        // No-op-in-effect for version-matched userlands (ip_mac_return == 0 there).
+        patchExecSecurityPolicyKill()
 
         return patches
     }
