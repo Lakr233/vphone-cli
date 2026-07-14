@@ -515,6 +515,8 @@ public final class FirmwarePipeline {
         if let kjb = patcher as? KernelJBPatcher { return kjb.buffer.data }
         if let kexp = patcher as? KernelEXPPatcher { return kexp.buffer.data }
         if let dt = patcher as? DeviceTreePatcher { return dt.patchedData }
+        if let fs = patcher as? CryptexFilesystemPatcher { return fs.patchedData }
+        if let mh = patcher as? ManifestHashPatcher { return mh.patchedData }
 
         // Fallback: apply records manually to a copy of the original data.
         var data = fallback
