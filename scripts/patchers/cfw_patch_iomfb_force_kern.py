@@ -123,29 +123,40 @@ def patch_iomfb_force_kern(chunks_dir, *, dsc_path=None, dry_run=False):
 
     modified = []
     forced = set()
+    already = set()
     for suffix, pub_name, pub_va, kern_name, kern_va in candidates:
+        first = next(_cs.disasm(chunks.bytes_at_vma(pub_va, 4), pub_va), None)
+        # Idempotent: a prior run already rewrote this entrypoint to `b _kern_*`.
+        if first is not None and first.mnemonic == "b":
+            m = re.match(r"#(0x[0-9a-fA-F]+)$", first.op_str.strip())
+            if m and int(m.group(1), 16) == kern_va:
+                print(f"      [=] {pub_name} already -> b {kern_name} (idempotent)")
+                already.add(suffix)
+                continue
         if not _is_dispatch_trampoline(chunks, pub_va):
             print(f"      [=] {pub_name} not a thin trampoline; leaving on virt path")
             continue
         b_bytes = asm_at(f"b #{kern_va}", pub_va)
         if len(b_bytes) != 4:
             raise RuntimeError(f"expected 4 bytes for b, got {len(b_bytes)}")
-        before = next(_cs.disasm(chunks.bytes_at_vma(pub_va, 4), pub_va))
         print(f"      [+] {pub_name} @ 0x{pub_va:X}: "
-              f"'{before.mnemonic} {before.op_str}' -> 'b {kern_name}' (0x{kern_va:X})")
+              f"'{first.mnemonic} {first.op_str}' -> 'b {kern_name}' (0x{kern_va:X})")
         if not dry_run:
             chunks.write_at_vma(pub_va, b_bytes)
         modified.append(pub_va)
         forced.add(suffix)
 
-    missing = [s for s in REQUIRED if s not in forced]
+    covered = forced | already
+    missing = [s for s in REQUIRED if s not in covered]
     if missing:
         raise ValueError(
-            f"force-kern did not retarget required entrypoints {missing} "
-            f"(found trampolines: {sorted(forced)})"
+            f"force-kern did not cover required entrypoints {missing} "
+            f"(newly forced: {sorted(forced)}; already forced: {sorted(already)})"
         )
 
-    if not dry_run:
+    if dry_run:
+        print(f"  [.] dry-run: would re-attest {len(set(modified))} page(s)")
+    elif modified:
         print(f"  [.] re-attesting {len(set(modified))} modified page(s)...")
         reattest_modified_pages(chunks, modified, dry_run=False)
         for va in modified:
@@ -153,7 +164,7 @@ def patch_iomfb_force_kern(chunks_dir, *, dsc_path=None, dry_run=False):
             if ins.mnemonic != "b":
                 raise RuntimeError(f"post-write verify failed at 0x{va:X} ({ins.mnemonic})")
     else:
-        print(f"  [.] dry-run: would re-attest {len(set(modified))} page(s)")
+        print(f"  [=] all {len(already)} entrypoint(s) already forced; nothing to patch/re-attest")
 
-    print(f"  [+] IOMFB force-kern complete: {len(modified)} entrypoint(s) -> _kern_*")
+    print(f"  [+] IOMFB force-kern complete: {len(forced)} newly forced, {len(already)} already -> _kern_*")
     return len(modified)
