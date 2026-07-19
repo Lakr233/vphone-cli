@@ -33,13 +33,21 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
         patchTaskConversionEvalInternal()
         patchSandboxHooksExtended()
         patchIoucFailedMacf()
-        // iOS 27 userland on the 26.4 kernel: the IOKit user-client open path's
-        // Sandbox gate (separate from the MACF gate above) spuriously denies the
-        // render server (backboardd) its IOMobileFramebuffer/IOSurface/HID user
-        // clients → no present (no Apple logo) + nil main display (SpringBoard
-        // crash-loop). Bypass it, mirroring the MACF gate. No-op where the gate
-        // already allows (native 26.x userlands).
-        patchIoucFailedSandbox()
+
+        // iOS-27-only (gated — a 26.x base skips these entirely). Both target a 27
+        // userland on the 26.4 kernel:
+        //  - IOUC sandbox gate bypass: the IOKit user-client open path's Sandbox gate
+        //    (separate from the MACF gate above) spuriously denies backboardd its
+        //    IOMFB/IOSurface/HID user clients → no present + nil main display →
+        //    SpringBoard crash-loop. Mirrors the MACF gate.
+        //  - DiskImages2 DDI ABI (kernel driver v9 vs iOS-27 controller/daemon v11) +
+        //    RegisterNotificationPort off-by-one, so the personalized DDI attaches
+        //    (/System/Developer auto-mount). Pairs with the sandbox ops[124] allow
+        //    and the diskimagesiod isMountComplete→YES userland patch (cfw_install).
+        if applyIOS27 {
+            patchIoucFailedSandbox()
+            patchDiskImages2ClientAbi()
+        }
 
         // Group B
         patchPostValidationAdditional()

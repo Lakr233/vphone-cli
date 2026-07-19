@@ -29,8 +29,10 @@ extension KernelJBPatcher {
             return false
         }
 
-        // Extended hook index table (name → ops slot index).
-        let hookIndices: [(String, Int)] = [
+        // Extended hook index table (name → ops slot index). Entries 201..316 are the
+        // base JB sandbox bypass and apply on every JB base; the iOS-27-only
+        // syscall-unix entry (124) is appended below, gated on applyIOS27.
+        var hookIndices: [(String, Int)] = [
             ("iokit_check_201", 201),
             ("iokit_check_202", 202),
             ("iokit_check_203", 203),
@@ -68,6 +70,17 @@ extension KernelJBPatcher {
             ("vnode_check_unlink", 283),
             ("vnode_check_fsgetpath", 316),
         ]
+
+        // iOS-27-only: mpo_proc_check_syscall_unix[124] → allow lets the mount_apfs that
+        // MobileStorageMounter spawns make the mount(2) syscall (unix 167) for the iOS-27
+        // personalized DDI (/System/Developer). Gated so a 26.x base keeps its syscall-unix
+        // MAC filter intact (else kernel Sandbox: "Protobox: mount_apfs deny(1) syscall-unix
+        // 167"). Index 124 is calibrated against this kernel's mac_policy_ops layout: the
+        // vnode_check_open==267 / vnode_check_fsgetpath==316 entries above match the
+        // reference XNU struct order exactly, so mpo_proc_check_syscall_unix==124 holds.
+        if applyIOS27 {
+            hookIndices.append(("proc_check_syscall_unix", 124))
+        }
 
         var patched = 0
         for (hookName, idx) in hookIndices {

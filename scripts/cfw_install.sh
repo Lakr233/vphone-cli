@@ -71,6 +71,16 @@ ldid_sign() {
     ldid "${args[@]}" "$file"
 }
 
+# Like ldid_sign but re-applies an entitlements plist (for binaries whose
+# entitlements must survive the re-sign, e.g. diskimagesiod's embedded sandbox
+# profile + private DA/apfs entitlements).
+ldid_sign_ent() {
+    local file="$1" ent="$2" bundle_id="${3:-}"
+    local args=("-S$ent" -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
+    ldid "${args[@]}" "$file"
+}
+
 host_hdiutil() {
     local rc
     # SUDO_PASSWORD flow exports SUDO_ASKPASS: go straight to sudo -A so
@@ -366,6 +376,31 @@ cp "$MNT1/usr/libexec/seputil.bak" "$TEMP_DIR/seputil"
 ldid_sign "$TEMP_DIR/seputil" "com.apple.seputil"
 cp -R "$TEMP_DIR/seputil" "$MNT1/usr/libexec/seputil"
 /bin/chmod 0755 $MNT1/usr/libexec/seputil
+
+# ── DDI (/System/Developer) auto-mount — diskimagesiod (iOS 27 only) ──
+# Force -[DIDiskArb isMountCompleteWithExpectedCount:diskTracker:] → YES so
+# MobileStorageMounter proceeds to mount the iOS-27 personalized DDI (its
+# waitForDAMount otherwise hangs forever on the 26.4 vphone600 hybrid: only some
+# IOMedia appear to diskimagesiod's DA session + DA never auto-mounts). Pairs
+# with the DiskImages2 ABI + sandbox mac_policy_ops[124] JB kernel patches.
+# Entitlements (embedded sandbox profile + private DA/apfs) preserved on re-sign.
+# Gated to 27.*: on a version-matched userland the native waitForDAMount completes
+# correctly, and forcing the wait to return early could race the real mount — so
+# it is NOT applied there (uses the same $IOS_VERSION as the DSC patches above).
+case "$IOS_VERSION" in
+    27.*)
+        echo "  Patching diskimagesiod (DDI auto-mount, iOS $IOS_VERSION)..."
+        if ! [[ -e "$MNT1/usr/libexec/diskimagesiod.bak" ]]; then
+            /bin/cp "$MNT1/usr/libexec/diskimagesiod" "$MNT1/usr/libexec/diskimagesiod.bak"
+        fi
+        ldid -e "$MNT1/usr/libexec/diskimagesiod.bak" > "$TEMP_DIR/diskimagesiod.ent.plist"
+        cp "$MNT1/usr/libexec/diskimagesiod.bak" "$TEMP_DIR/diskimagesiod"
+        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-diskimagesiod "$TEMP_DIR/diskimagesiod"
+        ldid_sign_ent "$TEMP_DIR/diskimagesiod" "$TEMP_DIR/diskimagesiod.ent.plist" "com.apple.diskimagesiod"
+        cp -R "$TEMP_DIR/diskimagesiod" "$MNT1/usr/libexec/diskimagesiod"
+        /bin/chmod 0755 "$MNT1/usr/libexec/diskimagesiod"
+        ;;
+esac
 
 # Rename gigalocker (mv to same name is fine on re-run)
 echo "  Renaming gigalocker..."

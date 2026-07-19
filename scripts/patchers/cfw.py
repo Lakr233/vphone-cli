@@ -77,6 +77,13 @@ Commands:
         escalates to a kernel panic. Also recomputes the affected
         CodeDirectory slot hash via cfw_macho_codesign.
 
+    patch-diskimagesiod <binary>
+        Force -[DIDiskArb isMountCompleteWithExpectedCount:diskTracker:] to return
+        YES so MobileStorageMounter proceeds to mount the iOS-27 personalized DDI at
+        /System/Developer (its waitForDAMount otherwise hangs forever on the 26.4
+        vphone600 hybrid). Pairs with the DiskImages2 ABI + sandbox
+        mac_policy_ops[124] JB kernel patches. No-op-in-effect on matched userlands.
+
     inject-daemons <launchd.plist> <daemon_dir>
         Inject bash/dropbear/trollvnc into launchd.plist.
 
@@ -111,6 +118,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
     from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
+    from patchers.cfw_patch_diskimagesiod import patch_diskimagesiod
     from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
 else:
     from .cfw_patch_seputil import patch_seputil
@@ -124,6 +132,7 @@ else:
     from .cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
     from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
+    from .cfw_patch_diskimagesiod import patch_diskimagesiod
     from .cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
 
 
@@ -247,6 +256,13 @@ def main():
         # exception (unparseable binary / no anchor) is fatal.
         sys.exit(0)
 
+    elif cmd == "patch-diskimagesiod":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-diskimagesiod <binary>")
+            sys.exit(1)
+        if not patch_diskimagesiod(sys.argv[2]):
+            sys.exit(1)
+
     elif cmd == "inject-daemons":
         if len(sys.argv) < 4:
             print("Usage: patch_cfw.py inject-daemons <launchd.plist> <daemon_dir>")
@@ -285,7 +301,7 @@ def main():
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
         print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-watchdogd,")
-        print("          inject-daemons, patch-dropbear-plist, inject-dylib")
+        print("          patch-diskimagesiod, inject-daemons, patch-dropbear-plist, inject-dylib")
         sys.exit(1)
 
 
