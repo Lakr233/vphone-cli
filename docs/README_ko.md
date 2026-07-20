@@ -2,7 +2,7 @@
 
 # vphone-cli
 
-PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 가상 iPhone(iOS 26)을 부팅합니다.
+PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 가상 iPhone을 부팅합니다.
 
 ![poc](./demo.jpeg)
 
