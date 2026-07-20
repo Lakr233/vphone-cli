@@ -74,9 +74,13 @@ public final class AVPBooterPatcher: Patcher {
             throw PatcherError.invalidFormat("AVPBooter: disassembly produced no instructions")
         }
 
-        // Step 1 — locate the first instruction that references the DGST constant.
+        // Step 1 — locate the first movz/movk instruction that loads the DGST constant.
+        // Only match immediate-loading mnemonics to avoid false positives from branch
+        // targets whose address happens to contain "4447" (e.g. `bl #0x4447c`).
         guard let hitIdx = insns.firstIndex(where: { insn in
-            "\(insn.mnemonic) \(insn.operandString)".contains(Self.dgstSearch)
+            let mn = insn.mnemonic
+            guard mn == "movz" || mn == "movk" || mn == "mov" else { return false }
+            return insn.operandString.contains(Self.dgstSearch)
         }) else {
             throw PatcherError.patchSiteNotFound("AVPBooter DGST: constant 0x4447 not found in binary")
         }
