@@ -2,7 +2,7 @@
 
 # vphone-cli
 
-Boot a virtual iPhone (iOS 26) via Apple's Virtualization.framework using PCC research VM infrastructure.
+Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM infrastructure.
 
 ![poc](./docs/demo.jpeg)
 

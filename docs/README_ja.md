@@ -2,7 +2,7 @@
 
 # vphone-cli
 
-Apple の Virtualization.framework と PCC の研究用 VM インフラを使用して、仮想 iPhone (iOS 26) を起動するためのツール
+Apple の Virtualization.framework と PCC の研究用 VM インフラを使用して、仮想 iPhone を起動するためのツール
 
 ![poc](./demo.jpeg)
 
