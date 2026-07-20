@@ -116,9 +116,9 @@
 | 15    | `mov w0,#0`                | `_handle_fsioc_graft`            | Allow fsioc graft                                  |    Y    |  Y  |  Y  |
 | 16    | NOP (3x)                   | `handle_get_dev_by_role`         | Bypass APFS role-lookup deny gates for boot mounts |    Y    |  Y  |  Y  |
 | 17-26 | `mov x0,#0; ret` (5 hooks) | Sandbox MACF ops table           | Stub 5 sandbox hooks                               |    Y    |  Y  |  Y  |
-| 27    | `PACIBSP→RET`              | `_thread_guard_violation`        | Disable fatal EXC_GUARD (Mach port guard) delivery. Dev variant always; regular/jb/exp gain it automatically on **iOS 18 bases** (18.6.2's runningboardd/SpringBoard trip `GUARD_TYPE_MACH_PORT` "flavor 10", a guard the 26.1 kernel enforces fatally, crash-looping the UI). 26.x bases boot without it and are unaffected. | 18† | Y | 18† |
+| 27    | `PACIBSP→RET`              | `_thread_guard_violation`        | Disable fatal EXC_GUARD (Mach port guard) delivery. Dev variant always; regular/jb/exp now gain it unconditionally on every base (see note below). | Y | Y | Y |
 
-† iOS 18 bases only — auto-detected in `FirmwarePipeline` from `iPhone-BuildManifest.plist`'s `ProductVersion` (the pre-hybrid manifest fw_prepare preserves; the live BuildManifest reads the cloudOS 26.1 version). Passed to `KernelPatcher` as `applyExcGuard`, which gates patch 27.
+† Originally scoped to iOS 18 bases only (18.6.2's runningboardd/SpringBoard trip `GUARD_TYPE_MACH_PORT` "flavor 10", crash-looping the UI). Widened 2026-07-16 after [upstream issue #291](https://github.com/Lakr233/vphone-cli/issues/291): third-party apps shipping crash-reporting SDKs (Bugly, Crashlytics, KSCrash, ...) call `task_swap_exception_ports()`, which the 26.1 research kernel also enforces as a fatal `SET_EXCEPTION_BEHAVIOR`/`GUARD_TYPE_MACH_PORT` violation — the same underlying guard, a different trigger, on 26.x bases the prior gating assumed were unaffected. `applyExcGuard` in `FirmwarePipeline`/`KernelPatcher` is now always `true` for regular/jb/exp, matching the dev variant. `iosBaseIs18` (from `iPhone-BuildManifest.plist`'s `ProductVersion`) still gates the unrelated 18.x skywalk-netagent boot-arg workaround.
 
 ### JB-Only Kernel Methods (Reference List)
 

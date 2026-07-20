@@ -330,4 +330,5 @@ setup_logs/
 /research/xnu
 /vm
 /vm.backups
+/vm-*/
 /debs/

@@ -83,8 +83,8 @@ public final class FirmwarePipeline {
     let loader: any FirmwareLoader
 
     /// Set when the iPhone base is iOS 18.x (read from iPhone-BuildManifest.plist).
-    /// Gates the EXC_GUARD kernel patch, which iOS 18 bases need but 26.x don't.
-    /// Computed in `patchAll()` before `buildComponentList()` runs.
+    /// Gates the skywalk-netagent boot-arg workaround (18.x-specific mDNSResponder
+    /// crash-loop). Computed in `patchAll()` before `buildComponentList()` runs.
     private var iosBaseIs18 = false
 
     /// Set when the iPhone base is iOS 27.x. Gates the iOS-27-only JB kernel patches
@@ -124,11 +124,11 @@ public final class FirmwarePipeline {
 
         // Detect the iPhone base iOS version (from the pre-hybrid manifest that
         // fw_prepare preserves — the live BuildManifest.plist reads the cloudOS
-        // version, not the base). iOS 18 bases need the EXC_GUARD patch.
+        // version, not the base). iOS 18 bases need the skywalk-netagent boot-arg.
         let baseVersion = Self.readBaseProductVersion(restoreDir)
         iosBaseIs18 = baseVersion?.hasPrefix("18.") ?? false
         iosBaseIs27 = baseVersion?.hasPrefix("27.") ?? false
-        let baseGateNote = iosBaseIs18 ? "  (enabling iOS-18 EXC_GUARD kernel patch)"
+        let baseGateNote = iosBaseIs18 ? "  (enabling iOS-18 netagent boot-arg)"
             : iosBaseIs27 ? "  (enabling iOS-27 JB kernel patches)" : ""
         log("[*] iPhone base iOS:   \(baseVersion ?? "unknown")\(baseGateNote)")
 
@@ -201,8 +201,13 @@ public final class FirmwarePipeline {
         var components: [ComponentDescriptor] = []
 
         // Captured by value into the patcher factory closures below (avoids
-        // capturing self). True only for iOS 18 bases; gates the EXC_GUARD patch.
-        let applyExcGuard = iosBaseIs18
+        // capturing self). Applied on every base, not just iOS 18: production
+        // apps shipping crash-reporting SDKs (Bugly, Crashlytics, KSCrash, ...)
+        // call task_swap_exception_ports(), which the research kernel enforces
+        // as a fatal EXC_GUARD/GUARD_TYPE_MACH_PORT on 26.x bases too (see
+        // upstream issue #291 / PR #297) — not just the 18.x SpringBoard case
+        // this flag was originally scoped to.
+        let applyExcGuard = true
 
         // Same capture-by-value; true only for iOS 27 bases. Gates the iOS-27-only
         // JB kernel patches so 18.x/26.x bases apply none of them.
