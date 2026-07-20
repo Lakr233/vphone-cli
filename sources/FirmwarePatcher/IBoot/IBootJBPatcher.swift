@@ -32,9 +32,11 @@ public final class IBootJBPatcher: IBootPatcher {
         }
 
         // Collect all ADRP+ADD sites that reference any "boot-nonce" occurrence.
+        // Allow a small negative delta (up to 16 bytes before the string) because
+        // code may reference the containing structure rather than the string itself.
         var addOffsets: [Int] = []
         for strOff in stringOffsets {
-            let refs = findRefsToOffset(strOff)
+            let refs = findRefsNear(strOff, tolerance: 16)
             for (_, addOff) in refs {
                 addOffsets.append(addOff)
             }
@@ -135,6 +137,55 @@ public final class IBootJBPatcher: IBootPatcher {
     }
 
     // MARK: - Reference Search Helpers
+
+    /// Find all ADRP+ADD pairs that point within `tolerance` bytes before `targetOff`.
+    ///
+    /// This handles the common case where code references a structure header
+    /// a few bytes before the actual string (e.g. a length-prefixed property).
+    private func findRefsNear(_ targetOff: Int, tolerance: Int) -> [(adrpOff: Int, addOff: Int)] {
+        let data = buffer.data
+        let size = buffer.count
+        var refs: [(Int, Int)] = []
+
+        var off = 0
+        while off + 8 <= size {
+            guard
+                let a = disasm.disassembleOne(in: data, at: off),
+                let b = disasm.disassembleOne(in: data, at: off + 4)
+            else {
+                off += 4
+                continue
+            }
+
+            guard
+                a.mnemonic == "adrp",
+                b.mnemonic == "add",
+                let detA = a.aarch64,
+                let detB = b.aarch64,
+                detA.operands.count >= 2,
+                detB.operands.count >= 3,
+                detA.operands[0].reg.rawValue == detB.operands[1].reg.rawValue,
+                detA.operands[1].type == AARCH64_OP_IMM,
+                detB.operands[2].type == AARCH64_OP_IMM
+            else {
+                off += 4
+                continue
+            }
+
+            let pageAddr = detA.operands[1].imm
+            let addImm = detB.operands[2].imm
+            let computed = Int(pageAddr + addImm)
+            let delta = targetOff - computed
+
+            if delta >= 0, delta <= tolerance {
+                refs.append((off, off + 4))
+            }
+
+            off += 4
+        }
+
+        return refs
+    }
 
     /// Find all ADRP+ADD pairs in the binary that point to `targetOff`.
     ///
