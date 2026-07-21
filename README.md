@@ -20,7 +20,9 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 | Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
 | Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
 | Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 | Mac17,8 26.4    | `17,3_26.1_23B85`     | `26.1-23B85`    |
 
 iOS <= 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch.
