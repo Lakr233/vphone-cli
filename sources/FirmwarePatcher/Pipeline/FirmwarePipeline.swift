@@ -80,6 +80,7 @@ public final class FirmwarePipeline {
     let verbose: Bool
     let noBinpack: Bool
     let noVphoned: Bool
+    let forceExcGuard: Bool
     let loader: any FirmwareLoader
 
     /// Set when the iPhone base is iOS 18.x (read from iPhone-BuildManifest.plist).
@@ -100,6 +101,7 @@ public final class FirmwarePipeline {
         verbose: Bool = true,
         noBinpack: Bool = false,
         noVphoned: Bool = false,
+        forceExcGuard: Bool = false,
         loader: (any FirmwareLoader)? = nil
     ) {
         self.vmDirectory = vmDirectory
@@ -107,6 +109,7 @@ public final class FirmwarePipeline {
         self.verbose = verbose
         self.noBinpack = noBinpack
         self.noVphoned = noVphoned
+        self.forceExcGuard = forceExcGuard
         self.loader = loader ?? ContainerFirmwareLoader()
     }
 
@@ -201,13 +204,17 @@ public final class FirmwarePipeline {
         var components: [ComponentDescriptor] = []
 
         // Captured by value into the patcher factory closures below (avoids
-        // capturing self). Applied on every base, not just iOS 18: production
-        // apps shipping crash-reporting SDKs (Bugly, Crashlytics, KSCrash, ...)
-        // call task_swap_exception_ports(), which the research kernel enforces
-        // as a fatal EXC_GUARD/GUARD_TYPE_MACH_PORT on 26.x bases too (see
-        // upstream issue #291 / PR #297) — not just the 18.x SpringBoard case
-        // this flag was originally scoped to.
-        let applyExcGuard = true
+        // capturing self). Always on for iOS 18 bases: 18.6.2's runningboardd/
+        // SpringBoard trips GUARD_TYPE_MACH_PORT flavor 10, crash-looping the
+        // UI, and the VM won't boot without this patch there. Otherwise off by
+        // default and opt-in via `forceExcGuard` (--force-exc-guard):
+        // some third-party apps shipping crash-reporting/RASP SDKs call
+        // task_swap_exception_ports(), which the research kernel can enforce
+        // as a fatal EXC_GUARD/GUARD_TYPE_MACH_PORT/KOBJECT_REPLY_PORT_SEMANTICS
+        // violation (see upstream issue #291 / PR #297) — but this isn't
+        // required for the VM itself to boot on 26.x, so it stays opt-in
+        // rather than always-on for regular/jb/exp.
+        let applyExcGuard = iosBaseIs18 || forceExcGuard
 
         // Same capture-by-value; true only for iOS 27 bases. Gates the iOS-27-only
         // JB kernel patches so 18.x/26.x bases apply none of them.

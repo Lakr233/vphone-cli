@@ -173,13 +173,20 @@ struct PatchFirmwareCLI: ParsableCommand {
     @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned from being installed (patchless-only).")
     var noVphoned: Bool = false
 
+    @Flag(
+        name: .customLong("force-exc-guard"),
+        help: "Force-enable the EXC_GUARD (Mach port guard) disable patch on regular/jb/exp, even on bases where it isn't required to boot. Use if a third-party app's crash-reporting/RASP SDK trips a fatal GUARD_TYPE_MACH_PORT violation on launch. Always on for iOS 18 bases regardless of this flag."
+    )
+    var forceExcGuard: Bool = false
+
     mutating func run() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: vmDirectory,
             variant: variant.pipelineVariant,
             verbose: !quiet,
             noBinpack: noBinpack,
-            noVphoned: noVphoned
+            noVphoned: noVphoned,
+            forceExcGuard: forceExcGuard
         )
         let records = try pipeline.patchAll()
 
