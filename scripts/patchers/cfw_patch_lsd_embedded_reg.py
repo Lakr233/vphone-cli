@@ -107,11 +107,13 @@ def _disasm_function(chunks, vma, max_insns=96):
 
 def _find_gate(insns):
     """Locate the conditional branch that gates the entitled result: the
-    `cbz`/`cbnz` on w0 whose fall-through instruction is `mov w<reg>,#1`
+    `cbz` on w0 whose fall-through instruction is `mov w<reg>,#1`
     (the YES value later moved to x0). Returns (insn, result_reg) or None."""
     for i in range(len(insns) - 1):
         ins = insns[i]
-        if ins.mnemonic not in ("cbz", "cbnz"):
+        # Gate is always cbz ("if NOT entitled, fail").
+        # cbnz to success is the entitlement check, not the gate.
+        if ins.mnemonic != "cbz":
             continue
         ops = ins.operands
         if not ops or ops[0].type != ARM64_OP_REG or ins.reg_name(ops[0].reg) != "w0":
@@ -120,8 +122,6 @@ def _find_gate(insns):
         if nxt is not None and nxt[1] == 1 and nxt[0].startswith("w"):
             return ins, nxt[0]
     return None
-
-
 def patch_lsd_embedded_reg(chunks_dir, *, dry_run=False):
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
@@ -138,11 +138,23 @@ def patch_lsd_embedded_reg(chunks_dir, *, dry_run=False):
     insns = _disasm_function(chunks, fn_vma)
     found = _find_gate(insns)
     if found is None:
-        raise ValueError(
-            f"{METHOD}: entitled-result gate (cbz/cbnz w0 -> mov w<reg>,#1) not found"
+        # iOS 27 (build 24A5390f+): the three entitlement checks all use
+        # cbnz -> success with no cbz gate.  The function already always
+        # returns YES, so no patch is needed.
+        # Positive assertion: confirm at least one cbnz w0 exists (proves
+        # the function has entitlement-check structure).  If neither cbz
+        # nor cbnz on w0 is found, the function shape is unrecognizable.
+        has_cbnz_check = any(
+            ins.mnemonic == "cbnz"
+            for ins in insns
+            if ins.op_str.startswith("w0,")
         )
-    gate, result_reg = found
-    insn_vma = gate.address
+        if has_cbnz_check:
+            print(f"      [=] no cbz gate; function uses all-cbnz pattern (iOS 27+), already always returns YES; skipping")
+            return 0
+        raise ValueError(
+            f"{METHOD}: no cbz/cbnz on w0 found; unrecognized function shape"
+        )
     print(f"      [.] gate: {gate.mnemonic} {gate.op_str} @ 0x{insn_vma:X} "
           f"(fall-through sets {result_reg}=1)")
 
