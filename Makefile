@@ -246,7 +246,7 @@ vphoned:
 .PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfidont_allow_vphone boot_host_preflight boot boot_less boot_dfu boot_binary_check
 
 vm_new:
-	CPU="$(CPU)" MEMORY="$(MEMORY)" NETWORK_MODE="$(NETWORK_MODE)" MAC_ADDRESS="$(MAC_ADDRESS)" \
+	CPU="$(CPU)" MEMORY="$(MEMORY)" NETWORK_MODE="$(NETWORK_MODE)" MAC_ADDRESS="$(MAC_ADDRESS)" NET_INTERFACE="$(NET_INTERFACE)" \
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
 
 vm_backup:

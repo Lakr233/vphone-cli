@@ -200,10 +200,18 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             }
             switch netConf.mode {
             case .bridged:
+                // Bridged works over WIRED ethernet only — Wi-Fi APs won't pass a
+                // second MAC, so a Wi-Fi bridge never gets a DHCP lease.
                 let interfaces = VZBridgedNetworkInterface.networkInterfaces
-                if let iface = interfaces.first {
+                let want = netConf.interface
+                let chosen = interfaces.first(where: { $0.identifier == want }) ?? interfaces.first
+                if let iface = chosen {
+                    if !want.isEmpty && iface.identifier != want {
+                        print("[vphone] Network: requested interface \(want) not bridgeable; using \(iface.identifier)")
+                    }
                     net.attachment = VZBridgedNetworkDeviceAttachment(interface: iface)
                     print("[vphone] Network: bridged via \(iface.identifier) (VM joins the physical LAN)")
+                    print("[vphone]   bridgeable interfaces: \(interfaces.map { $0.identifier })")
                 } else {
                     net.attachment = VZNATNetworkDeviceAttachment()
                     print("[vphone] Network: no bridgeable interface available; falling back to shared NAT")
