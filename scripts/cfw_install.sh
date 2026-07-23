@@ -354,7 +354,10 @@ esac
 #    that our JB code-signing environment produces. That crash-loops every daemon which
 #    pins an entitlement peer-requirement (intelligencetasksd/searchpartyd/transparencyd/
 #    bluetoothd/...). Absent on 26.x/18.x libxpc (self-gating patcher no-ops there).
+# FORCE_DSC_MAXSLIDE=1 (default 0): opt in to zeroing maxSlide on non-27 bases,
+# whose caches fit and would otherwise self-gate to a no-op (--force bypasses that).
 DSC_DIR="$MNT1/System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+FORCE_DSC_MAXSLIDE="${FORCE_DSC_MAXSLIDE:-0}"
 case "$IOS_VERSION" in
     27.*)
         if [[ -d "$DSC_DIR" ]]; then
@@ -364,6 +367,12 @@ case "$IOS_VERSION" in
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-lsd-embedded-reg "$DSC_DIR"
             echo "  [*] Patching libxpc LWCR self-check (iOS 27 daemon crash-loop)..."
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-xpc-lwcr "$DSC_DIR"
+        fi
+        ;;
+    *)
+        if [[ "$FORCE_DSC_MAXSLIDE" == "1" && -d "$DSC_DIR" ]]; then
+            echo "  [*] Forcing dyld cache maxSlide=0 (opt-in FORCE_DSC_MAXSLIDE=1; base iOS ${IOS_VERSION:-unknown})..."
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dsc-maxslide "$DSC_DIR" --force
         fi
         ;;
 esac

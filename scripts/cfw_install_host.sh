@@ -70,8 +70,11 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[*] running $INSTALLER (files placed on host mounts)..."
-( cd "$VM_DIR" && CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
-    ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} zsh "$SCRIPT_DIR/$INSTALLER" . )
+# via env: an expansion-produced ${VAR:+NAME=val} isn't parsed as a shell assignment.
+( cd "$VM_DIR" && env CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
+    ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} \
+    ${FORCE_DSC_MAXSLIDE:+FORCE_DSC_MAXSLIDE="$FORCE_DSC_MAXSLIDE"} \
+    zsh "$SCRIPT_DIR/$INSTALLER" . )
 
 cleanup
 trap - EXIT

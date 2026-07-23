@@ -43,12 +43,13 @@ Commands:
         Pairs with the KernelJBPatchIomfbSwap kernel patches (accept 27's 0x6e0
         SwapEnd struct).
 
-    patch-dsc-maxslide <chunks_dir> [--dry-run]
+    patch-dsc-maxslide <chunks_dir> [--dry-run] [--force]
         Zero the dyld_cache_header maxSlide when the userland cache would overflow
         the vphone600 26.x kernel's 6 GiB shared region (cache span + maxSlide >
         0x180000000, e.g. iOS 27.0). Lets the cache map at slide 0 so launchd's dyld
         can map libSystem. Self-gating (no-op if it already fits); no re-attest needed
-        (header field, not a cs_validate'd code page).
+        (header field, not a cs_validate'd code page). --force zeroes maxSlide even
+        when the cache fits (non-27 opt-in).
 
     patch-lsd-embedded-reg <chunks_dir> [--dry-run]
         Force lsd's -[_LSDModifyClient clientIsEntitledForEmbeddedRegistrationOperations]
@@ -229,10 +230,11 @@ def main():
 
     elif cmd == "patch-dsc-maxslide":
         if len(sys.argv) < 3:
-            print("Usage: patch_cfw.py patch-dsc-maxslide <chunks_dir> [--dry-run]")
+            print("Usage: patch_cfw.py patch-dsc-maxslide <chunks_dir> [--dry-run] [--force]")
             sys.exit(1)
         dry_run = "--dry-run" in sys.argv[3:]
-        patch_dsc_maxslide(sys.argv[2], dry_run=dry_run)
+        force = "--force" in sys.argv[3:]
+        patch_dsc_maxslide(sys.argv[2], dry_run=dry_run, force=force)
         sys.exit(0)
 
     elif cmd == "patch-lsd-embedded-reg":

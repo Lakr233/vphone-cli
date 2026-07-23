@@ -190,6 +190,7 @@ make cfw_install
 # または: make cfw_install_jb        # 脱獄バリアント
 # または: make cfw_install_exp       # 実験バリアント（脱獄 + リサーチパッチスタック）
 # または: SPOOF_BUILD=23F77 make cfw_install_exp   # ProductBuildVersion も書き換え
+# または: FORCE_DSC_MAXSLIDE=1 make cfw_install    # 27 以外のベースで DSC maxSlide=0 を強制（全バリアント対応、27 は自動）
 ```
 
 ## 初回起動
