@@ -317,7 +317,8 @@ boot_binary_check: $(BINARY)
 
 boot: bundle vphoned boot_binary_check
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
-		--config ./config.plist
+		--config ./config.plist \
+		$(if $(filter 1 true yes YES TRUE,$(HEADLESS)),--headless,)
 
 boot_less: bundle boot_binary_check_less
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \

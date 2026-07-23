@@ -19,7 +19,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
     func showWindow(
         for vm: VZVirtualMachine, screenWidth: Int, screenHeight: Int, screenScale: Double,
-        keyHelper: VPhoneKeyHelper, control: VPhoneControl, ecid: String?
+        keyHelper: VPhoneKeyHelper, control: VPhoneControl, ecid: String?, headless: Bool = false
     ) {
         self.control = control
         self.ecid = ecid
@@ -65,13 +65,25 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         window.toolbarStyle = .unified
 
         let controller = NSWindowController(window: window)
-        controller.showWindow(nil)
         windowController = controller
-
         keyHelper.window = window
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(view)
-        NSApp.activate(ignoringOtherApps: true)
+
+        if headless {
+            // The web console / VNC is the only display. Keep the window (and its
+            // VZ view) alive off-screen so the control socket and capture keep
+            // working, but never show it on any display.
+            window.setFrame(
+                NSRect(x: -30000, y: -30000, width: windowSize.width, height: windowSize.height),
+                display: false)
+            window.orderFrontRegardless()
+            window.makeFirstResponder(view)
+            print("[vphone] Headless: host window hidden — use the web console / VNC")
+        } else {
+            controller.showWindow(nil)
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(view)
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         let monitor = VPhoneTouchIDMonitor()
         monitor.start(control: control, window: window)
