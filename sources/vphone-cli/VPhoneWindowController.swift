@@ -37,12 +37,15 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
             width: CGFloat(screenWidth) / scale, height: CGFloat(screenHeight) / scale
         )
 
-        let window = NSWindow(
+        let window = VPhoneVMWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
+        // In headless mode the window lives off-screen; bypass AppKit's frame
+        // constraint that would otherwise pull it back onto a visible display.
+        window.bypassConstrain = headless
 
         window.isReleasedWhenClosed = false
         window.contentAspectRatio = windowSize
@@ -143,5 +146,15 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
 
     @objc private func homePressed() {
         control?.sendHIDPress(page: 0x0C, usage: 0x40)
+    }
+}
+
+/// An NSWindow that can opt out of AppKit's on-screen frame constraint so it can
+/// live fully off-screen in headless mode (the web console / VNC is the display).
+final class VPhoneVMWindow: NSWindow {
+    var bypassConstrain = false
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        bypassConstrain ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }
 }
