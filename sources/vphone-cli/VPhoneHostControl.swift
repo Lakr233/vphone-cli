@@ -18,6 +18,7 @@ import ImageIO
 ///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe
 ///   {"t":"key","name":"home"}                   → hardware key (home/power/volup/voldown)
 ///   {"t":"type","text":"Hello"}                 → set guest clipboard
+///   {"t":"info"}                                → guest metadata: ip, ios, name, connected
 ///
 /// All commands except "screenshot" wait briefly then capture a compact screen
 /// image returned as `"image":"<base64>"` in the response.  Pass `"screen":false`
@@ -38,6 +39,7 @@ class VPhoneHostControl {
         var error: String?
         var ok = false
         var imageBase64: String?
+        var extra: [String: Any] = [:]
     }
 
     /// Screen pixel dimensions for coordinate mapping.
@@ -406,6 +408,28 @@ class VPhoneHostControl {
             semaphore.wait()
             writeResponse(fd, ok: result.ok, error: result.error, image: result.imageBase64)
 
+        case "info":
+            // Report guest metadata (IP address, iOS version, name) as learned
+            // from the vsock control handshake. Used by vphone-web's Info panel.
+            let semaphore = DispatchSemaphore(value: 0)
+            let result = ResultBox()
+
+            Task { @MainActor in
+                defer { semaphore.signal() }
+                guard let controller, let ctl = controller.control else {
+                    result.error = "guest not connected"
+                    return
+                }
+                result.extra["connected"] = ctl.isConnected
+                if let ip = ctl.guestIP { result.extra["ip"] = ip }
+                if let ios = ctl.guestIOSVersion { result.extra["ios"] = ios }
+                if !ctl.guestName.isEmpty { result.extra["name"] = ctl.guestName }
+                result.ok = true
+            }
+
+            semaphore.wait()
+            writeResponse(fd, ok: result.ok, error: result.error, extra: result.extra)
+
         default:
             writeResponse(fd, ok: false, error: "unknown command: \(type)")
         }
@@ -431,12 +455,14 @@ class VPhoneHostControl {
     }
 
     private nonisolated static func writeResponse(
-        _ fd: Int32, ok: Bool, path: String? = nil, error: String? = nil, image: String? = nil
+        _ fd: Int32, ok: Bool, path: String? = nil, error: String? = nil, image: String? = nil,
+        extra: [String: Any]? = nil
     ) {
         var dict: [String: Any] = ["ok": ok]
         if let path { dict["path"] = path }
         if let error { dict["error"] = error }
         if let image { dict["image"] = image }
+        if let extra { for (k, v) in extra { dict[k] = v } }
 
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               var json = String(data: data, encoding: .utf8)
