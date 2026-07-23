@@ -356,31 +356,40 @@ fetch() {
     local src="$1" out="$2"
     if [[ -f "$out" ]]; then
         if is_local "$src"; then
-            echo "==> Skipping: '$out' already exists."
-            return
-        fi
-        # File exists — could be partial (interrupted) or complete.
-        # Attempt to resume; curl -C - is a no-op on a fully-downloaded file.
-        local local_size
-        local_size=$(wc -c < "$out" | tr -d ' ')
-        echo "==> Found existing ${out##*/} (${local_size} bytes), resuming ..."
-        local rc=0
-        download_file "$src" "$out" || rc=$?
-        if [[ $rc -eq 0 ]]; then
-            return
-        fi
-        # curl exit 22 = HTTP error; with -C - on a complete file the server
-        # returns 416 which --fail maps to exit 22.  Verify via content-length.
-        if [[ $rc -eq 22 ]]; then
-            local remote_size
-            remote_size=$(curl -sI --location "$src" | awk 'tolower($1)=="content-length:"{v=$2} END{print v}' | tr -d '\r')
-            if [[ -n "$remote_size" && "$local_size" -ge "$remote_size" ]]; then
-                echo "==> Already fully downloaded (${local_size} bytes)."
+            # Reuse the cached copy ONLY if it matches the source. A different
+            # local IPSW that happens to share the same basename (e.g. two
+            # cloudOS.ipsw files) must not silently reuse a stale copy.
+            if [[ -f "$src" ]] && \
+               [[ "$(wc -c <"$src" | tr -d ' ')" == "$(wc -c <"$out" | tr -d ' ')" ]]; then
+                echo "==> Skipping: '$out' already exists (matches source)."
                 return
             fi
+            echo "==> Cached '${out##*/}' differs from source — replacing ..."
+            rm -f "$out"
+        else
+            # Remote source, file exists — could be partial or complete.
+            # Attempt to resume; curl -C - is a no-op on a fully-downloaded file.
+            local local_size
+            local_size=$(wc -c < "$out" | tr -d ' ')
+            echo "==> Found existing ${out##*/} (${local_size} bytes), resuming ..."
+            local rc=0
+            download_file "$src" "$out" || rc=$?
+            if [[ $rc -eq 0 ]]; then
+                return
+            fi
+            # curl exit 22 = HTTP error; with -C - on a complete file the server
+            # returns 416 which --fail maps to exit 22.  Verify via content-length.
+            if [[ $rc -eq 22 ]]; then
+                local remote_size
+                remote_size=$(curl -sI --location "$src" | awk 'tolower($1)=="content-length:"{v=$2} END{print v}' | tr -d '\r')
+                if [[ -n "$remote_size" && "$local_size" -ge "$remote_size" ]]; then
+                    echo "==> Already fully downloaded (${local_size} bytes)."
+                    return
+                fi
+            fi
+            echo "==> Resume failed; retrying full download ..."
+            rm -f "$out"
         fi
-        echo "==> Resume failed; retrying full download ..."
-        rm -f "$out"
     fi
     if is_local "$src"; then
         [[ -f "$src" ]] || die "Local IPSW not found: $src"
@@ -397,7 +406,10 @@ fetch() {
 
 extract() {
     local zip="$1" cache="$2" out="$3"
-    if [[ -d "$cache" && -n "$(ls -A "$cache" 2>/dev/null)" ]]; then
+    # Reuse the extraction only if it's non-empty AND not older than the source
+    # zip. fetch() re-copies a changed source (fresh mtime), so a stale cache is
+    # correctly invalidated here.
+    if [[ -d "$cache" && -n "$(ls -A "$cache" 2>/dev/null)" && ! "$zip" -nt "$cache" ]]; then
         echo "==> Cached: ${cache##*/}"
     else
         rm -rf "$cache"
