@@ -56,6 +56,10 @@ struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned usage (patchless-only).")
     var noVphoned: Bool = false
 
+    @Flag(name: .customLong("headless"),
+          help: "Run without showing the host window (the web console / VNC is the only display). The control socket stays available.")
+    var headless: Bool = false
+
     /// DFU mode runs headless (no GUI).
     var noGraphics: Bool {
         dfu
