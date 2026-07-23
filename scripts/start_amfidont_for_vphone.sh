@@ -17,9 +17,18 @@ if ! command -v amfidont &>/dev/null; then
   exit 1
 fi
 
-sudo xcrun amfidont daemon \
+# amfidont drives LLDB's Python bindings and must use *Xcode's* lldb (which
+# matches its Xcode python3 runtime). If a Homebrew LLVM lldb is first on PATH it
+# shadows Xcode's and ships incompatible bindings (e.g. Python 3.14 vs 3.9),
+# producing a "_lldb did not return an extension module" failure. Force the
+# Xcode toolchain so the `lldb -P` amfidont runs internally resolves correctly.
+XCODE_BIN="$(xcode-select -p 2>/dev/null)/usr/bin"
+AMFIDONT_BIN="$(command -v amfidont)"
+LOG=/tmp/amfidont-vphone.log
+
+sudo env PATH="$XCODE_BIN:/usr/bin:/bin" "$AMFIDONT_BIN" daemon \
     --path "$PROJECT_ROOT" \
     --spoof-apple \
-    >/dev/null 2>&1
+    >"$LOG" 2>&1
 
-echo "amfidont started"
+echo "amfidont started (log: $LOG)"
