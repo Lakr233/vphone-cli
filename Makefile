@@ -246,7 +246,7 @@ vphoned:
 .PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfidont_allow_vphone boot_host_preflight boot boot_less boot_dfu boot_binary_check
 
 vm_new:
-	CPU="$(CPU)" MEMORY="$(MEMORY)" \
+	CPU="$(CPU)" MEMORY="$(MEMORY)" NETWORK_MODE="$(NETWORK_MODE)" MAC_ADDRESS="$(MAC_ADDRESS)" NET_INTERFACE="$(NET_INTERFACE)" \
 	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
 
 vm_backup:
@@ -317,7 +317,8 @@ boot_binary_check: $(BINARY)
 
 boot: bundle vphoned boot_binary_check
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
-		--config ./config.plist
+		--config ./config.plist \
+		$(if $(filter 1 true yes YES TRUE,$(HEADLESS)),--headless,)
 
 boot_less: bundle boot_binary_check_less
 	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
