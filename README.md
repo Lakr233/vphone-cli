@@ -23,6 +23,7 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 | Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
 | Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
+| Mac17,8 26.4    | `17,3_26.1_23B85`     | `26.1-23B85`    |
 
 iOS <= 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch.
 
@@ -135,6 +136,8 @@ make setup_machine            # full automation through "First Boot" (includes r
 # JB=1 for jailbreak variant (+ full security bypass)
 # EXP=1 for experimental variant (JB + research patches: hv_vmm rename, DT identity, post-restore rewrite)
 # SPOOF_BUILD=<id> (EXP only) Rewrite SystemVersion.plist ProductBuildVersion to <id>, e.g. 23F77
+# export FORCE_EXC_GUARD=1 before running to force-enable the EXC_GUARD disable
+# patch on bases that don't need it to boot (see FAQ: EXC_GUARD crash on launch)
 ```
 
 ## Manual Setup
@@ -150,6 +153,9 @@ make fw_patch                 # patch boot chain (regular variant)
 # or: make fw_patch_dev       # dev variant (+ TXM entitlement/debug bypasses)
 # or: make fw_patch_jb        # jailbreak variant (+ full security bypass)
 # or: make fw_patch_exp       # experimental variant (JB + research stack)
+# add FORCE_EXC_GUARD=1 to fw_patch/fw_patch_jb/fw_patch_exp to force-enable the
+# EXC_GUARD (Mach port guard) disable patch on bases that don't need it to boot —
+# see FAQ: "My app crashes on launch with EXC_GUARD / GUARD_TYPE_MACH_PORT"
 ```
 
 ### Cleaning
@@ -322,6 +328,20 @@ Reboot the VM. The SSH server will start automatically on the next boot.
 **Q: Can I install `.tipa` files?**
 
 Yes. The install menu supports both `.ipa` and `.tipa` packages. Drag and drop or use the file picker.
+
+**Q: My app crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` (e.g. `KOBJECT_REPLY_PORT_SEMANTICS`).**
+
+Some third-party apps that bundle a crash-reporting or RASP SDK (Bugly, Crashlytics, KSCrash, and others) call `task_swap_exception_ports()` on launch to install their own exception handler. On bases where this isn't required for the VM itself to boot, the research kernel can enforce that as a fatal Mach port guard violation instead of the silent/non-fatal behavior production iOS exhibits for this call pattern (see [issue #291](https://github.com/Lakr233/vphone-cli/issues/291)).
+
+Re-patch with the guard disable force-enabled, then re-flash:
+
+```bash
+make fw_prepare               # reset to pristine firmware first
+make fw_patch_jb FORCE_EXC_GUARD=1   # or fw_patch / fw_patch_exp
+# ... boot_dfu, restore_get_shsh, restore, cfw_install_jb, boot as usual
+```
+
+This is always on automatically for iOS 18 bases (needed there to boot at all) — the flag only matters for other bases where an app hits this specific crash.
 
 **Q: Can I update to a newer iOS version?**
 
