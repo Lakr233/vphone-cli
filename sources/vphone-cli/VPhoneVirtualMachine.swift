@@ -183,10 +183,41 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
         config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
-        // Network (shared NAT)
-        let net = VZVirtioNetworkDeviceConfiguration()
-        net.attachment = VZNATNetworkDeviceAttachment()
-        config.networkDevices = [net]
+        // Network — honor the configured mode (nat | bridged | hostOnly | none).
+        // Bridged puts the VM directly on the host's physical LAN (its own DHCP
+        // lease), so peers on the subnet can reach it (e.g. SSH) without NAT.
+        // Requires the com.apple.vm.networking entitlement (see vphone.entitlements).
+        let netConf = manifest.networkConfig
+        switch netConf.mode {
+        case .none:
+            config.networkDevices = []
+            print("[vphone] Network: disabled")
+        default:
+            let net = VZVirtioNetworkDeviceConfiguration()
+            if !netConf.macAddress.isEmpty, let mac = VZMACAddress(string: netConf.macAddress) {
+                net.macAddress = mac
+                print("[vphone] Network: fixed MAC \(netConf.macAddress)")
+            }
+            switch netConf.mode {
+            case .bridged:
+                let interfaces = VZBridgedNetworkInterface.networkInterfaces
+                if let iface = interfaces.first {
+                    net.attachment = VZBridgedNetworkDeviceAttachment(interface: iface)
+                    print("[vphone] Network: bridged via \(iface.identifier) (VM joins the physical LAN)")
+                } else {
+                    net.attachment = VZNATNetworkDeviceAttachment()
+                    print("[vphone] Network: no bridgeable interface available; falling back to shared NAT")
+                }
+            case .hostOnly:
+                // Virtualization.framework has no direct host-only attachment; NAT is closest.
+                net.attachment = VZNATNetworkDeviceAttachment()
+                print("[vphone] Network: host-only unsupported; using shared NAT")
+            default:
+                net.attachment = VZNATNetworkDeviceAttachment()
+                print("[vphone] Network: shared NAT")
+            }
+            config.networkDevices = [net]
+        }
 
         // Serial port (PL011 UART - pipes for input/output with boot detection)
         if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject
