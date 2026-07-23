@@ -57,6 +57,15 @@ Commands:
         otherwise demands from the XPC peer. Unblocks vphoned/TrollStore/uicache app
         installs. Self-gating (no-op on pre-iOS-27 userlands where the method is absent).
 
+    patch-xpc-lwcr <chunks_dir> [--dry-run]
+        Stop libxpc's Lightweight Code Requirement self-check (_xpc_token_satisfies_lwcr)
+        from brk-aborting on our JB. iOS 27's LWCR matcher returns the contradictory
+        (matched=0, error_code=MATCH) pair under our code-signing environment; the
+        assertion crash-loops every daemon that pins an entitlement peer-requirement
+        (intelligencetasksd/searchpartyd/transparencyd/bluetoothd/...). Derives `matched`
+        from error_code + drops the abort (cset w0,eq; nop; nop) and re-attests the page.
+        Self-gating (no-op on pre-iOS-27 userlands where the symbol is absent).
+
     patch-camera-dsc <chunks_dir> <dsc_header> [--dry-run] [--force]
         Apply the 10-patch set to the DSC chunks that makes Camera.app
         launch-survivable on a vphone VM: synthesises a single
@@ -116,6 +125,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_iomfb_force_kern import patch_iomfb_force_kern
     from patchers.cfw_patch_dsc_maxslide import patch_dsc_maxslide
     from patchers.cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
+    from patchers.cfw_patch_xpc_lwcr import patch_xpc_lwcr
     from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
     from patchers.cfw_patch_diskimagesiod import patch_diskimagesiod
@@ -130,6 +140,7 @@ else:
     from .cfw_patch_iomfb_force_kern import patch_iomfb_force_kern
     from .cfw_patch_dsc_maxslide import patch_dsc_maxslide
     from .cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
+    from .cfw_patch_xpc_lwcr import patch_xpc_lwcr
     from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
     from .cfw_patch_diskimagesiod import patch_diskimagesiod
@@ -232,6 +243,14 @@ def main():
         patch_lsd_embedded_reg(sys.argv[2], dry_run=dry_run)
         sys.exit(0)
 
+    elif cmd == "patch-xpc-lwcr":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-xpc-lwcr <chunks_dir> [--dry-run]")
+            sys.exit(1)
+        dry_run = "--dry-run" in sys.argv[3:]
+        patch_xpc_lwcr(sys.argv[2], dry_run=dry_run)
+        sys.exit(0)
+
     elif cmd == "patch-camera-dsc":
         if len(sys.argv) < 4:
             print("Usage: patch_cfw.py patch-camera-dsc <chunks_dir> <dsc_header> [--dry-run] [--force]")
@@ -300,7 +319,7 @@ def main():
         print(f"Unknown command: {cmd}")
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
-        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-watchdogd,")
+        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-xpc-lwcr, patch-watchdogd,")
         print("          patch-diskimagesiod, inject-daemons, patch-dropbear-plist, inject-dylib")
         sys.exit(1)
 

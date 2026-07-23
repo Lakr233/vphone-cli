@@ -349,6 +349,11 @@ esac
 #    the iOS-27 vpregister first-boot tool can register JB apps (uicache's
 #    registerApplicationDictionary is a no-op stub on 27). Not needed on 26.x/18.x,
 #    where uicache registers apps normally.
+#  - xpc LWCR self-check: iOS 27's libxpc brk-aborts when its Lightweight Code
+#    Requirement matcher returns the contradictory (matched=0, error_code=MATCH) pair
+#    that our JB code-signing environment produces. That crash-loops every daemon which
+#    pins an entitlement peer-requirement (intelligencetasksd/searchpartyd/transparencyd/
+#    bluetoothd/...). Absent on 26.x/18.x libxpc (self-gating patcher no-ops there).
 DSC_DIR="$MNT1/System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
 case "$IOS_VERSION" in
     27.*)
@@ -357,6 +362,8 @@ case "$IOS_VERSION" in
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dsc-maxslide "$DSC_DIR"
             echo "  [*] Patching lsd embedded-registration gate (iOS 27 app registration)..."
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-lsd-embedded-reg "$DSC_DIR"
+            echo "  [*] Patching libxpc LWCR self-check (iOS 27 daemon crash-loop)..."
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-xpc-lwcr "$DSC_DIR"
         fi
         ;;
 esac

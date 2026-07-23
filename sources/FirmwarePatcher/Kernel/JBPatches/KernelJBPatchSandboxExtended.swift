@@ -57,7 +57,7 @@ extension KernelJBPatcher {
             ("vnode_check_ioctl", 261),
             ("vnode_check_link", 264),
             ("vnode_check_listextattr", 265),
-            ("vnode_check_open", 267),
+            // vnode_check_open (267) is appended conditionally below.
             ("vnode_check_readlink", 270),
             ("vnode_check_setattrlist", 275),
             ("vnode_check_setextattr", 276),
@@ -80,6 +80,13 @@ extension KernelJBPatcher {
         // reference XNU struct order exactly, so mpo_proc_check_syscall_unix==124 holds.
         if applyIOS27 {
             hookIndices.append(("proc_check_syscall_unix", 124))
+        }
+
+        // On iOS 27, leave ops[267] real so KernelJBPatchFpfsScopedOpen can retarget it to a
+        // FileProvider-scoped trampoline (the fpfs walk needs the stock check as its terminus,
+        // else ResolverService balloons → respring). Neuter it as usual on every other base.
+        if !applyIOS27 {
+            hookIndices.append(("vnode_check_open", 267))
         }
 
         var patched = 0
