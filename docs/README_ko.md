@@ -190,6 +190,7 @@ make cfw_install
 # 또는: make cfw_install_jb        # 탈옥 변형
 # 또는: make cfw_install_exp       # 실험 변형 (탈옥 + 연구 패치 스택)
 # 또는: SPOOF_BUILD=23F77 make cfw_install_exp   # 추가로 ProductBuildVersion 재작성
+# 또는: FORCE_DSC_MAXSLIDE=1 make cfw_install    # 27 이외 베이스에서 DSC maxSlide=0 강제 (모든 변형, 27은 자동)
 ```
 
 ## 첫 부팅

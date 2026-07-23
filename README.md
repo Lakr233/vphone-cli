@@ -207,6 +207,7 @@ make cfw_install
 # or: make cfw_install_jb        # jailbreak variant
 # or: make cfw_install_exp       # experimental variant (JB + research stack)
 # or: SPOOF_BUILD=23F77 make cfw_install_exp   # additionally rewrite ProductBuildVersion
+# or: FORCE_DSC_MAXSLIDE=1 make cfw_install    # force DSC maxSlide=0 on a non-27 base (any variant; 27 does this automatically)
 ```
 
 ## First Boot

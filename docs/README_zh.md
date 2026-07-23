@@ -190,6 +190,7 @@ make cfw_install
 # 或：make cfw_install_jb        # 越狱变体
 # 或：make cfw_install_exp       # 实验变体（越狱 + 研究补丁栈）
 # 或：SPOOF_BUILD=23F77 make cfw_install_exp   # 同时改写 ProductBuildVersion
+# 或：FORCE_DSC_MAXSLIDE=1 make cfw_install    # 在非 27 基础版本上强制 DSC maxSlide=0（所有变体；27 会自动执行）
 ```
 
 ## 首次启动
