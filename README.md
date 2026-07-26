@@ -23,7 +23,6 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 | Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
 | Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-| Mac17,8 26.4    | `17,3_26.1_23B85`     | `26.1-23B85`    |
 
 iOS <= 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch.
 
@@ -330,7 +329,7 @@ Yes. The install menu supports both `.ipa` and `.tipa` packages. Drag and drop o
 
 **Q: My app crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` (e.g. `KOBJECT_REPLY_PORT_SEMANTICS`).**
 
-Some third-party apps that bundle a crash-reporting or RASP SDK (Bugly, Crashlytics, KSCrash, and others) call `task_swap_exception_ports()` on launch to install their own exception handler. On bases where this isn't required for the VM itself to boot, the research kernel can enforce that as a fatal Mach port guard violation instead of the silent/non-fatal behavior production iOS exhibits for this call pattern (see [issue #291](https://github.com/Lakr233/vphone-cli/issues/291)).
+Some third-party apps that bundle a crash-reporting or RASP SDK call `task_swap_exception_ports()` on launch to install their own exception handler. On bases where this isn't required for the VM itself to boot, the research kernel can enforce that as a fatal Mach port guard violation instead of the silent/non-fatal behavior production iOS exhibits for this call pattern (see [issue #291](https://github.com/Lakr233/vphone-cli/issues/291)).
 
 Re-patch with the guard disable force-enabled, then re-flash:
 
