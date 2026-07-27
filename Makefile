@@ -8,9 +8,12 @@ VM_DIR      ?= vm
 # (e.g. external SSD) VM_DIR values. `abspath` leaves absolute paths intact
 # and joins relative ones against CURDIR — use this for the VM directory arg.
 VM_DIR_ABS  := $(abspath $(VM_DIR))
-CPU         ?= 8          # CPU cores (only used during vm_new)
-MEMORY      ?= 8192       # Memory in MB (only used during vm_new)
-DISK_SIZE   ?= 64         # Disk size in GB (only used during vm_new)
+# CPU cores, memory (MB), disk size (GB) — used only during vm_new.
+# NB: no inline comments on these `?=` lines — make would fold the trailing
+# whitespace into the value (e.g. CPU="8   ") and break numeric consumers.
+CPU         ?= 8
+MEMORY      ?= 8192
+DISK_SIZE   ?= 64
 BACKUPS_DIR ?= vm.backups
 NAME        ?=
 BACKUP_INCLUDE_IPSW ?= 0
@@ -252,7 +255,7 @@ vphoned:
 
 vm_new:
 	CPU="$(CPU)" MEMORY="$(MEMORY)" \
-	zsh $(SCRIPTS)/vm_create.sh --dir $(VM_DIR) --disk-size $(DISK_SIZE)
+	zsh $(SCRIPTS)/vm_create.sh --dir "$(VM_DIR)" --disk-size $(DISK_SIZE)
 
 vm_backup:
 	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" BACKUP_INCLUDE_IPSW="$(BACKUP_INCLUDE_IPSW)" \
@@ -321,17 +324,17 @@ boot_binary_check: $(BINARY)
 	$(call BOOT_BINARY_CHECK,--assert-bootable)
 
 boot: bundle vphoned boot_binary_check
-	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
+	cd "$(VM_DIR)" && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--config ./config.plist
 
 boot_less: bundle boot_binary_check_less
-	cd $(VM_DIR) && "$(CURDIR)/$(BUNDLE_BIN)" \
+	cd "$(VM_DIR)" && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--config ./config.plist \
 		--variant less \
 		$(if $(filter 1 true yes YES TRUE,$(NO_VPHONED)),--no-vphoned,)
 
 boot_dfu: build boot_binary_check
-	cd $(VM_DIR) && "$(CURDIR)/$(BINARY)" \
+	cd "$(VM_DIR)" && "$(CURDIR)/$(BINARY)" \
 		--config ./config.plist \
 		--dfu
 
@@ -342,7 +345,7 @@ boot_dfu: build boot_binary_check
 .PHONY: fw_prepare fw_patch fw_patch_less fw_patch_dev fw_patch_jb
 
 fw_prepare:
-	cd $(VM_DIR) && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
+	cd "$(VM_DIR)" && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
 
 fw_patch: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular \

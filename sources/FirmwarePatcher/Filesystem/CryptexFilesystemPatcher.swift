@@ -12,6 +12,7 @@
 import Foundation
 import CryptoKit
 import Img4tool
+import VPhoneCore
 
 enum ProcessError: Error {
     case failed(Int32, String)
@@ -46,6 +47,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let noBinpack: Bool
     public let noVphoned: Bool
     let vphoneCliDirectory = URL(filePath: "./")
+    let resources = VPhoneResources.resolve()
     
     var buildManiest: Data
     var rebuiltData: Data?
@@ -134,7 +136,7 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Fix Dyld Cache")
             try addDyldSymlinks(targetMount: targetMount)
             
-            let cfwInputOgPath = vphoneCliDirectory.appending(path: "scripts/resources/cfw_input.tar.zst")
+            let cfwInputOgPath = resources.resourceArchivesDir.appendingPathComponent("cfw_input.tar.zst")
             let cfwInputPath = try createTmpDir()
             _ = try runProcess("/usr/bin/tar", [
                 "--zstd", "-xf", cfwInputOgPath.path, "-C", cfwInputPath.path
@@ -178,8 +180,8 @@ public final class CryptexFilesystemPatcher: Patcher {
     func patchLaunchdCacheLoader(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
-        let pythonPath = vphoneCliDirectory.appending(path: ".venv/bin/python3")
-        let patcherPath = vphoneCliDirectory.appending(path: "scripts/patchers/cfw.py")
+        let pythonPath = try resources.pythonExecutable()
+        let patcherPath = resources.cfwPy
         _ = try runProcess(pythonPath.path, [
             patcherPath.path, "patch-launchd-cache-loader",
             launchdCacheLoaderPath.path
@@ -196,7 +198,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     
     func injectLaunchDaemons(targetMount: String, cfwInput: URL, vphoned: Bool = true, cfw: Bool = true) throws {
         let target = URL.init(filePath: targetMount)
-        let scriptDir = vphoneCliDirectory.appending(path: "scripts")
+        let scriptDir = resources.scriptsDir
 
         let tmpDir = try createTmpDir()
         let launchdPath = tmpDir.appending(path: "launchd.plist")
@@ -224,8 +226,9 @@ public final class CryptexFilesystemPatcher: Patcher {
             }
         }
         
-        _ = try runProcess(vphoneCliDirectory.appending(path: ".venv/bin/python3").path, [
-            vphoneCliDirectory.appending(path: "scripts/patchers/cfw.py").path, "inject-daemons",
+        let pythonPath = try resources.pythonExecutable()
+        _ = try runProcess(pythonPath.path, [
+            resources.cfwPy.path, "inject-daemons",
             launchdPath.path, launchDaemonsPath.path
         ])
         try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
@@ -242,9 +245,12 @@ public final class CryptexFilesystemPatcher: Patcher {
     
     func addVphoned(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
-        let scriptDir = vphoneCliDirectory.appending(path: "scripts")
+        let scriptDir = resources.scriptsDir
         let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
-        let vphonedBin = vphonedSrc.appendingPathComponent("vphoned")
+        // vphonedSrc (bundled source) is read-only inside a packaged .app, so the
+        // compiled binary must land in a writable temp dir, not next to the source.
+        let buildDir = try createTmpDir()
+        let vphonedBin = buildDir.appendingPathComponent("vphoned")
 
         try buildVphoned(vphonedSrc: vphonedSrc, vphonedBin: vphonedBin)
         defer { try? FileManager.default.removeItem(at: vphonedBin) }
@@ -323,8 +329,9 @@ public final class CryptexFilesystemPatcher: Patcher {
     func patchMobileActivation(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
-        _ = try runProcess("./.venv/bin/python3", [
-            "./scripts/patchers/cfw.py", "patch-mobileactivationd",
+        let pythonPath = try resources.pythonExecutable()
+        _ = try runProcess(pythonPath.path, [
+            resources.cfwPy.path, "patch-mobileactivationd",
             mobileActivationdPath.path
         ])
         _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
@@ -398,7 +405,12 @@ public final class CryptexFilesystemPatcher: Patcher {
     
     private func identifyApfsSealvolume() throws -> URL {
         let iosVersion = try getProductVersion()
-        let path = self.vphoneCliDirectory.appending(path: ".tools/apfs_sealvolume_\(iosVersion)")
+        // VPHONE_SEAL_DIR (set by the CLI's `fw prepare`/`fw patch`) must agree with
+        // wherever fw_prepare.sh's download_apfs_sealvolume() wrote the file; unset
+        // (dev Makefile flow) falls back to the historical repo-relative `.tools/`.
+        let sealDir = ProcessInfo.processInfo.environment["VPHONE_SEAL_DIR"].map { URL(fileURLWithPath: $0) }
+            ?? self.vphoneCliDirectory.appending(path: ".tools")
+        let path = sealDir.appendingPathComponent("apfs_sealvolume_\(iosVersion)")
         guard FileManager.default.fileExists(atPath: path.path) else {
             throw FirmwareManifest.ManifestError.fileNotFound(path.path)
         }
