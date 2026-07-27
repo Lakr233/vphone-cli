@@ -183,7 +183,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
         config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
-        // Network — honor the configured mode (nat | bridged | hostOnly | none).
+        // Network — honor the configured mode (nat | bridged | none).
         // Bridged puts the VM directly on the host's physical LAN (its own DHCP
         // lease), so peers on the subnet can reach it (e.g. SSH) without NAT.
         // Requires the com.apple.vm.networking entitlement (see vphone.entitlements).
@@ -194,9 +194,15 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             print("[vphone] Network: disabled")
         default:
             let net = VZVirtioNetworkDeviceConfiguration()
-            if !netConf.macAddress.isEmpty, let mac = VZMACAddress(string: netConf.macAddress) {
-                net.macAddress = mac
-                print("[vphone] Network: fixed MAC \(netConf.macAddress)")
+            if !netConf.macAddress.isEmpty {
+                if let mac = VZMACAddress(string: netConf.macAddress) {
+                    net.macAddress = mac
+                    print("[vphone] Network: fixed MAC \(netConf.macAddress)")
+                } else {
+                    // Failable initializer: a malformed MAC would otherwise leave the VM
+                    // with an auto-generated address, silently breaking DHCP reservations.
+                    print("[vphone] Network: ignoring invalid MAC '\(netConf.macAddress)'; using an auto-generated MAC")
+                }
             }
             switch netConf.mode {
             case .bridged:
@@ -204,22 +210,23 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 // second MAC, so a Wi-Fi bridge never gets a DHCP lease.
                 let interfaces = VZBridgedNetworkInterface.networkInterfaces
                 let want = netConf.interface
-                let chosen = interfaces.first(where: { $0.identifier == want }) ?? interfaces.first
+                // Auto-pick only when no interface was named. Bridging an explicit but
+                // unavailable request onto some other NIC would silently join the VM to
+                // an unintended LAN, so that case falls through to the NAT branch below.
+                let chosen = want.isEmpty ? interfaces.first : interfaces.first(where: { $0.identifier == want })
                 if let iface = chosen {
-                    if !want.isEmpty && iface.identifier != want {
-                        print("[vphone] Network: requested interface \(want) not bridgeable; using \(iface.identifier)")
-                    }
                     net.attachment = VZBridgedNetworkDeviceAttachment(interface: iface)
                     print("[vphone] Network: bridged via \(iface.identifier) (VM joins the physical LAN)")
                     print("[vphone]   bridgeable interfaces: \(interfaces.map { $0.identifier })")
                 } else {
                     net.attachment = VZNATNetworkDeviceAttachment()
-                    print("[vphone] Network: no bridgeable interface available; falling back to shared NAT")
+                    if want.isEmpty {
+                        print("[vphone] Network: no bridgeable interface available; falling back to shared NAT")
+                    } else {
+                        print("[vphone] Network: requested interface '\(want)' is not bridgeable; falling back to shared NAT")
+                        print("[vphone]   bridgeable interfaces: \(interfaces.map { $0.identifier })")
+                    }
                 }
-            case .hostOnly:
-                // Virtualization.framework has no direct host-only attachment; NAT is closest.
-                net.attachment = VZNATNetworkDeviceAttachment()
-                print("[vphone] Network: host-only unsupported; using shared NAT")
             default:
                 net.attachment = VZNATNetworkDeviceAttachment()
                 print("[vphone] Network: shared NAT")

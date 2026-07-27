@@ -75,6 +75,10 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
             // The web console / VNC is the only display. Keep the window (and its
             // VZ view) alive off-screen so the control socket and capture keep
             // working, but never show it on any display.
+            // Detach the frame-autosave name first: otherwise this (-30000,-30000)
+            // frame is persisted to user defaults and restored (off-centre) by a
+            // later *windowed* boot for the same ECID.
+            window.setFrameAutosaveName("")
             window.setFrame(
                 NSRect(x: -30000, y: -30000, width: windowSize.width, height: windowSize.height),
                 display: false)

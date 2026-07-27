@@ -31,8 +31,10 @@ def create_manifest(
         memory_mb: Memory size in MB
         disk_size_gb: Disk size in GB
         platform_fusing: Platform fusing mode (prod/dev) or None for auto-detect
-        network_mode: Network attachment mode (nat|bridged|hostOnly|none). Bridged
-            puts the VM directly on the host's physical LAN.
+        network_mode: Network attachment mode (nat|bridged|none). Bridged puts the VM
+            directly on the host's physical LAN. There is no host-only mode:
+            Virtualization.framework has no host-only attachment, and NAT would
+            grant full outbound internet. Use "none" for an isolated guest.
         mac_address: Optional fixed MAC (e.g. for a DHCP reservation); blank = auto.
     """
     # Convert to manifest units
@@ -118,9 +120,9 @@ def main():
     parser.add_argument(
         "--network-mode",
         type=str,
-        choices=["nat", "bridged", "hostOnly", "none"],
+        choices=["nat", "bridged", "none"],
         default="nat",
-        help="Network mode (default: nat). 'bridged' joins the physical LAN.",
+        help="Network mode (default: nat). 'bridged' joins the physical LAN; 'none' isolates the guest.",
     )
     parser.add_argument(
         "--mac-address",

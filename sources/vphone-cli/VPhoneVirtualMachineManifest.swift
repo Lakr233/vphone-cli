@@ -83,10 +83,13 @@ struct VPhoneVirtualMachineManifest: Codable {
         /// available bridgeable interface. Only used in `.bridged` mode.
         let interface: String
 
+        /// Virtualization.framework offers no host-only attachment, so no `hostOnly`
+        /// case is exposed — it could only be implemented as NAT, which grants full
+        /// outbound internet and is the opposite of what the name implies. Use
+        /// `.none` for an isolated guest.
         enum NetworkMode: String, Codable {
             case nat
             case bridged
-            case hostOnly
             case none
         }
 

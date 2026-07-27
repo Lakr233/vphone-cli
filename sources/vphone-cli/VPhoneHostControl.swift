@@ -18,11 +18,11 @@ import ImageIO
 ///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe
 ///   {"t":"key","name":"home"}                   → hardware key (home/power/volup/voldown)
 ///   {"t":"type","text":"Hello"}                 → set guest clipboard
-///   {"t":"info"}                                → guest metadata: ip, ios, name, connected
+///   {"t":"info"}                                → guest metadata: ip, ios, name, connected (NO screen image)
 ///
-/// All commands except "screenshot" wait briefly then capture a compact screen
-/// image returned as `"image":"<base64>"` in the response.  Pass `"screen":false`
-/// to skip the capture.
+/// All commands except "screenshot" and "info" wait briefly then capture a
+/// compact screen image returned as `"image":"<base64>"` in the response.  Pass
+/// `"screen":false` to skip the capture.
 @MainActor
 class VPhoneHostControl {
     private let socketPath: String

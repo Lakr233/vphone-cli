@@ -356,11 +356,19 @@ fetch() {
     local src="$1" out="$2"
     if [[ -f "$out" ]]; then
         if is_local "$src"; then
-            # Reuse the cached copy ONLY if it matches the source. A different
-            # local IPSW that happens to share the same basename (e.g. two
-            # cloudOS.ipsw files) must not silently reuse a stale copy.
-            if [[ -f "$src" ]] && \
-               [[ "$(wc -c <"$src" | tr -d ' ')" == "$(wc -c <"$out" | tr -d ' ')" ]]; then
+            if [[ ! -f "$src" ]]; then
+                # Source is temporarily unavailable (unmounted volume, moved or
+                # renamed). The cached copy is the only one left — reuse it rather
+                # than deleting it and dying at the copy step below.
+                echo "==> Source '$src' unavailable; reusing cached '${out##*/}'."
+                return
+            fi
+            # Reuse the cached copy ONLY if it is byte-identical to the source. A
+            # different local IPSW that happens to share the same basename (e.g.
+            # two cloudOS.ipsw files, same size) must not silently reuse a stale
+            # copy; cmp short-circuits on the first differing byte, so a mismatch
+            # is cheap while an exact match saves a full re-copy.
+            if cmp -s "$src" "$out"; then
                 echo "==> Skipping: '$out' already exists (matches source)."
                 return
             fi
