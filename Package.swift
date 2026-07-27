@@ -22,8 +22,16 @@ let package = Package(
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Img4tool", package: "libimg4-spm"),
                 .product(name: "MachOKit", package: "MachOKit"),
+                "VPhoneCore",
             ],
             path: "sources/FirmwarePatcher"
+        ),
+        .target(
+            name: "VPhoneCore",
+            path: "sources/VPhoneCore",
+            linkerSettings: [
+                .linkedFramework("Virtualization"),
+            ]
         ),
         .executableTarget(
             name: "vphone-cli",
@@ -31,6 +39,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Dynamic", package: "Dynamic"),
                 "FirmwarePatcher",
+                "VPhoneCore",
             ],
             path: "sources/vphone-cli",
             linkerSettings: [
@@ -45,6 +54,11 @@ let package = Package(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],
             path: "tests/FirmwarePatcherTests"
+        ),
+        .testTarget(
+            name: "VPhoneCoreTests",
+            dependencies: ["VPhoneCore"],
+            path: "tests/VPhoneCoreTests"
         ),
     ]
 )

@@ -1,0 +1,53 @@
+@testable import VPhoneCore
+import Foundation
+import Testing
+
+struct ResourcesTests {
+    @Test func bundledLayoutResolvesToContentsResources() {
+        let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
+        let r = VPhoneResources.resolve(executablePath: exe)
+        #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
+        #expect(r.fwPrepareScript.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/fw_prepare.sh")
+        #expect(r.cfwPy.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/patchers/cfw.py")
+    }
+
+    @Test func devLayoutWalksUpToProjectRoot() throws {
+        // Fake a dev tree: <root>/.build/release/vphone-cli with a <root>/scripts dir.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent(".build/release"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("scripts"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let exe = root.appendingPathComponent(".build/release/vphone-cli").path
+        let r = VPhoneResources.resolve(executablePath: exe)
+        #expect(r.base.path == root.resolvingSymlinksInPath().path)
+        #expect(r.resourceArchivesDir.path == root.resolvingSymlinksInPath()
+            .appendingPathComponent("scripts/resources").path)
+    }
+
+    @Test func cacheDirsAreHomeRelativeAndToolsBinIsBaseRelative() {
+        let r = VPhoneResources(base: URL(fileURLWithPath: "/Applications/vphone-cli.app/Contents/Resources"))
+        #expect(r.userCacheDir.path.hasSuffix("/.vphone"))
+        #expect(r.toolsBinDir.path == r.base.appendingPathComponent(".tools/bin").path)
+    }
+
+    @Test func managedVenvDefaultsUnderDotVphone() {
+        // The override env var would change this; only assert the default.
+        if ProcessInfo.processInfo.environment["VPHONE_VENV_DIR"] != nil { return }
+        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
+        #expect(r.managedVenvDir.path.hasSuffix("/.vphone/venv"))
+    }
+
+    @Test func pythonUsabilityProbeRejectsMissingAcceptsDevVenv() {
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let r = VPhoneResources(base: cwd)
+        // A non-existent interpreter is never usable.
+        #expect(r.pythonIsUsable(URL(fileURLWithPath: "/does/not/exist/python3")) == false)
+        // The dev .venv (when present) carries a modern ipsw_parser and must pass.
+        let devVenv = cwd.appendingPathComponent(".venv/bin/python3")
+        if FileManager.default.isExecutableFile(atPath: devVenv.path) {
+            #expect(r.pythonIsUsable(devVenv) == true)
+        }
+    }
+}
