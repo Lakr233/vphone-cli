@@ -4,6 +4,8 @@
 
 Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM infrastructure.
 
+Everything runs through the single `vphone-cli` binary — create, patch, restore, install, boot, and manage VMs. No `make` needed after building.
+
 ![poc](./docs/demo.jpeg)
 
 ## Tested Environments
@@ -24,351 +26,184 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
 | Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
-iOS <= 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch.
+iOS ≤ 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch. iOS 27.0 uses the 26.4 PCC vphone600 stack plus the CFW-time force-kern `IOMobileFramebuffer` present-path patch and the dyld shared-cache `maxSlide` fit.
 
-iOS 27.0 uses the 26.4 PCC vphone600 stack plus the CFW-time force-kern `IOMobileFramebuffer` present-path patch and the dyld shared-cache `maxSlide` fit.
-
-**Note:** GPU/Metal acceleration does not work on iOS 18.x — the 18.x Metal/IOGPU framework has no paravirtualized GPU implementation, so Metal-rendered content (web pages, images, wallpaper) does not render. Touch, networking, and apps work normally.
+> **Note:** GPU/Metal acceleration does not work on iOS 18.x — the 18.x Metal/IOGPU framework has no paravirtualized GPU implementation, so Metal-rendered content (web pages, images, wallpaper) does not render. Touch, networking, and apps work normally.
 
 ## Firmware Variants
 
-Five patch variants are available with increasing levels of security bypass:
+Five patch variants with increasing security bypass — pass one to `--variant`:
 
-| Variant          | Boot Chain     |    CFW     | Make Targets                        |
-| ---------------- | :------------: | :--------: | ----------------------------------- |
-| **Patchless**    | 4 patches      | 2 phases   | `fw_patch_less` + `boot_less`       |
-| **Regular**      | 42 patches     | 10 phases  | `fw_patch` + `cfw_install`          |
-| **Development**  | 53 patches     | 12 phases  | `fw_patch_dev` + `cfw_install_dev`  |
-| **Jailbreak**    | 113 patches    | 14 phases  | `fw_patch_jb` + `cfw_install_jb`    |
-| **Experimental** | 141 patches    | 18 phases  | `fw_patch_exp` + `cfw_install_exp`  |
+| Variant      | Boot Chain  | CFW       | Notes                                                              |
+| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | Patchless — keeps iOS mitigations enabled                         |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM bypass                                           |
+| `dev`        | 53 patches  | 12 phases | + TXM entitlement/debug bypass                                    |
+| `jb`         | 113 patches | 14 phases | + full jailbreak (Sileo, TrollStore auto-install on first boot)   |
+| `exp`        | 141 patches | 18 phases | JB superset + anti-VM-detection research patches                  |
 
-> JB finalization (symlinks, Sileo, apt, TrollStore) runs automatically on first boot via `/cores/vphone_jb_setup.sh` LaunchDaemon. Monitor progress: `/var/log/vphone_jb_setup.log`.
-
-> **Experimental (EXP)** is a JB superset that patches the kernel and DSC to make some Apple services think the device is not a VM, while keeping VM-specific services (graphics passthrough, compute/accel fast paths) working correctly. Other variants are deliberately NOT affected.
-
-See [research/0_binary_patch_comparison.md](./research/0_binary_patch_comparison.md) for the detailed per-component breakdown.
+See [`research/0_binary_patch_comparison.md`](./research/0_binary_patch_comparison.md) for the per-component breakdown.
 
 ## Prerequisites
 
-**Host OS:** macOS 15+ (Sequoia) is required for PV=3 virtualization.
+**Host:** macOS 15+ (Sequoia), a non-nested Mac (Virtualization.framework can't nest). The private PV=3 entitlements + unsigned-binary workflow need SIP/AMFI relaxed. Pick **one** of these two paths — the SIP setting and the AMFI setting go together, don't mix them:
 
-**Configure SIP/AMFI** — required for private Virtualization.framework entitlements and unsigned binary workflows.
-
-Boot into Recovery (long press power button), open Terminal, then choose one setup path:
-
-- **Option 1: Fully disable SIP + AMFI boot-arg (most permissive)**
-
-  In Recovery:
-
-  ```bash
-  csrutil disable
-  csrutil allow-research-guests enable
-  ```
-
-  After restarting into macOS:
-
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
-
-  Restart once more.
-
-- **Option 2: Keep SIP mostly enabled, disable only debug restrictions, use [`amfidont`](https://github.com/zqxwce/amfidont) or [`amfree`](https://github.com/retX0/amfree)**
-
-  In Recovery:
-
-  ```bash
-  csrutil enable --without debug
-  csrutil allow-research-guests enable
-  ```
-
-  After restarting into macOS:
-
-  ```bash
-  # Using amfidont:
-  xcrun python3 -m pip install amfidont
-  sudo amfidont --path [PATH_TO_VPHONE_DIR]
-  
-  # OR Using amfree:
-  brew install retX0/tap/amfree
-  sudo amfree --path [PATH_TO_VPHONE_DIR]
-  ```
-
-  Repo helper (for amfidont):
-
-  ```bash
-  make amfidont_allow_vphone
-  ```
-
-  This helper computes the current signed `vphone-cli` CDHash and uses the
-  URL-encoded project path form observed by `AMFIPathValidator`.
-
-> The Patchless variant requires either the use of option 1 or amfidont with the `-S` flag (`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`)
-
-**Install dependencies:**
-
-*You will need both brew dependencies and Git Submodule dependencies.*
-
-1. Brew dependencies:
+**Option A — fully disable SIP, then disable AMFI via boot-arg (most permissive).** In Recovery (long-press power → Terminal):
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+csrutil disable
+csrutil allow-research-guests enable
 ```
 
-`scripts/fw_prepare.sh` prefers `aria2c` for faster multi-connection downloads and falls back to `curl` or `wget` when needed.
+Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take effect):
 
-2. Git Submodules
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
+```
 
-**Submodules** — this repo uses git submodules for resources, vendored Swift deps, and toolchain sources under `scripts/repos/`. Clone with:
+**Option B — keep SIP on (debug-only relaxed), then allowlist the binary with amfidont** (leaves AMFI enabled system-wide). In Recovery:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+Then reboot into macOS and allowlist the repo with [`amfidont`](https://github.com/zqxwce/amfidont) (or [`amfree`](https://github.com/retX0/amfree)):
+
+```bash
+sudo amfidont --path <repo>
+```
+
+> The `less` (patchless) variant needs Option A, or Option B with `amfidont -S` (`sudo amfidont -S --path <repo>`).
+
+**Dependencies:**
 
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+```
+
+(A modern `python3` — 3.11+ — is required; the app builds its own Python environment from it, see [Python runtime](#python-runtime).)
+
+## Build
+
+Two one-time bootstrap scripts (a compiled binary can't build itself), then everything is `vphone-cli`:
+
+```bash
+./scripts/setup_tools.sh      # install deps, build toolchain submodules, create the Python venv
+./scripts/build.sh            # build + sign vphone-cli, bundle the .app, cross-compile vphoned
+```
+
+Put the binary on your `PATH` so the examples below work verbatim:
+
+```bash
+cd .build/release
+vphone-cli --help
 ```
 
 ## Quick Start
 
-```bash
-make setup_machine            # full automation through "First Boot" (includes restore/CFW)
-# options: NON_INTERACTIVE=1 SUDO_PASSWORD=...
-# LESS=1 for patchless variant (- AMFI, SSV, Img4, TXM bypasses) 
-# DEV=1 for dev variant (+ TXM entitlement/debug bypasses)
-# JB=1 for jailbreak variant (+ full security bypass)
-# EXP=1 for experimental variant (JB + research patches: hv_vmm rename, DT identity, post-restore rewrite)
-# SPOOF_BUILD=<id> (EXP only) Rewrite SystemVersion.plist ProductBuildVersion to <id>, e.g. 23F77
-# export FORCE_EXC_GUARD=1 before running to force-enable the EXC_GUARD disable
-# patch on bases that don't need it to boot (see FAQ: EXC_GUARD crash on launch)
-```
-
-## Manual Setup
+One command creates a VM end-to-end (download → patch → DFU restore → CFW install → first boot):
 
 ```bash
-make setup_tools              # install brew deps, build trustcache + insert_dylib, create Python venv (pymobiledevice3, aria2c included)
-make build                    # build + sign vphone-cli
-make vm_new                   # create VM directory with manifest (config.plist)
-# options: CPU=8 MEMORY=8192 DISK_SIZE=64
-make fw_prepare               # download IPSWs, extract, merge, generate manifest
-make fw_patch                 # patch boot chain (regular variant)
-# or: sudo make fw_patch_less # patchless variant (- AMFI, SSV, Img4, TXM bypasses)
-# or: make fw_patch_dev       # dev variant (+ TXM entitlement/debug bypasses)
-# or: make fw_patch_jb        # jailbreak variant (+ full security bypass)
-# or: make fw_patch_exp       # experimental variant (JB + research stack)
-# add FORCE_EXC_GUARD=1 to fw_patch/fw_patch_jb/fw_patch_exp to force-enable the
-# EXC_GUARD (Mach port guard) disable patch on bases that don't need it to boot —
-# see FAQ: "My app crashes on launch with EXC_GUARD / GUARD_TYPE_MACH_PORT"
+vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-### Cleaning
+With no source flags it downloads a default tested iPhone + cloudOS pair. To choose specific firmware, pass **`-i`/`--iphone-source`** and **`-c`/`--cloudos-source`** — each takes either a **URL** or a **local `.ipsw` path** (see [Tested Environments](#tested-environments) for known-good pairs):
 
 ```bash
-make clean                    # remove build/tooling artifacts only
-make clean CLEAN_VM=1         # also remove vm/ after confirmation
-make clean CLEAN_IPSW=1       # also remove ipsws/ after confirmation
+# from local IPSWs
+vphone-cli vm create myphone -V jb \
+  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
+  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
+
+# or from URLs — downloaded and cached under ~/.vphone/ipsws
+vphone-cli vm create myphone -V jb \
+  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
 ```
 
-Default clean never removes `vm/` or `ipsws/`.
-
-### VM Configuration
-
-Starting from v1.0, VM configuration is stored in `vm/config.plist`. Set CPU, memory, and disk size during VM creation:
+The CFW-install stage needs root (host disk mount) and will prompt for `sudo`; pass `-s <pw>` (`--sudo-password`) to run unattended. Add `-v` to watch the restore (pmd3 log, colorized), `-vv` for pmd3 debug detail, `-vvv` for vphone-cli's internal trace. Then boot it:
 
 ```bash
-# Create VM with custom configuration
-make vm_new CPU=16 MEMORY=16384 DISK_SIZE=128
-
-# Boot automatically reads from config.plist
-make boot
+vphone-cli vm launch myphone
 ```
 
-The manifest stores all VM settings (CPU, memory, screen, ROMs, storage) and is compatible with [security-pcc's VMBundle.Config format](https://github.com/apple/security-pcc).
+VMs live in a **library** at `~/.vphone/VMs/` (override any command with `--library-root <dir>`). Run any VM command with no name (e.g. `vphone-cli vm launch`) to pick from a menu of your VMs.
 
-## Restore
+## Commands
 
-You'll need **two terminals** for the restore process. Keep terminal 1 running while using terminal 2.
+`vphone-cli vm create` runs the whole pipeline; the individual steps below let you drive it manually or re-run one stage.
+
+### Manage
 
 ```bash
-# terminal 1
-make boot_dfu                 # boot VM in DFU mode (keep running)
+vphone-cli vm list                         # list VMs (--json for scripting)
+vphone-cli vm info myphone                  # show one VM
+vphone-cli vm new myphone                   # create an empty bundle (cpu/mem/disk options)
+vphone-cli vm config myphone --cpu 8 --memory 8192
+vphone-cli vm clone myphone myphone-2       # fast APFS clone, fresh device identity
+vphone-cli vm export myphone --out myphone.tar.xz   # xz -9; skips restore dir + staging files
+vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm rename myphone iphone16
+vphone-cli vm delete iphone16
 ```
+
+### Build a VM manually (what `vm create` automates)
 
 ```bash
-# terminal 2
-make restore_get_shsh         # fetch SHSH blob
-make restore                  # flash firmware via pymobiledevice3 restore backend
-# or: make restore_offline    # offline restore (decrypts AEA images in place, uses cached .shsh blob)
-                              # for the first time should be ran with internet access for AEA decryption
+vphone-cli vm new myphone                              # 1. empty bundle
+vphone-cli fw prepare myphone --iphone-version 26.1     # 2. download + merge IPSWs
+vphone-cli fw patch myphone --variant jb                # 3. patch the boot chain
+
+vphone-cli vm launch myphone --dfu &                    # 4. boot into DFU (background)
+vphone-cli restore myphone --get-shsh                   #    fetch SHSH
+vphone-cli restore myphone                              #    DFU restore
+vphone-cli vm stop myphone                              #    stop the DFU boot
+
+vphone-cli cfw install myphone --variant jb             # 5. install CFW (host-mount; asks for sudo)
+vphone-cli vm launch myphone                            # 6. first boot
 ```
 
-## Install Custom Firmware
+Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
-Once the restore completes, stop the DFU boot in terminal 1 (Ctrl+C) so the VM is
-fully powered off. The installer mounts the VM's `Disk.img` on the host, places
-all CFW files, and flips the boot snapshot offline — no DFU, ramdisk, or SSH — so
-it needs exclusive access to the disk.
+## Running & Connecting
 
-```bash
-# terminal 2 (re-execs under sudo automatically)
-make cfw_install
-# or: make cfw_install_dev       # development variant
-# or: make cfw_install_jb        # jailbreak variant
-# or: make cfw_install_exp       # experimental variant (JB + research stack)
-# or: SPOOF_BUILD=23F77 make cfw_install_exp   # additionally rewrite ProductBuildVersion
-# or: FORCE_DSC_MAXSLIDE=1 make cfw_install    # force DSC maxSlide=0 on a non-27 base (any variant; 27 does this automatically)
-```
+`vphone-cli vm launch <name>` opens the VM window; `vphone-cli vm stop <name>` shuts it down. The guest runs an SSH server (dropbear) on port `22222` and VNC on `5901`, reachable over the VM's NAT IP (find it with `arp -a` on `bridge100`):
 
-## First Boot
+- **SSH (jailbreak):** `ssh -p 22222 mobile@<vm-ip>` (password `alpine`)
+- **SSH (regular/dev):** `ssh -p 22222 root@<vm-ip>`
+- **VNC:** `vnc://<vm-ip>:5901`
 
-With the DFU boot stopped and CFW installed, boot the VM normally:
+For the `jb`/`exp` variants, Sileo and TrollStore are installed automatically on first boot (monitor `/var/log/vphone_jb_setup.log`).
 
-```bash
-make boot
-```
+## Python runtime
 
-After `cfw_install_jb`, the jailbreak variant will have **Sileo** and **TrollStore** available on first boot. You can use Sileo to install `openssh-server` for SSH access.
-
-For the regular/development variant, the VM gives you a **direct console**. When you see `bash-4.4#`, press Enter and run these commands to initialize the shell environment and generate SSH host keys:
-
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-
-mkdir -p /var/dropbear
-cp /iosbinpack64/etc/profile /var/profile
-cp /iosbinpack64/etc/motd /var/motd
-
-# generate SSH host keys (required for SSH to work)
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-
-shutdown -h now
-```
-
-> **Note:** Without the host key generation step, dropbear (SSH server) will accept connections but immediately close them because it has no keys to perform the SSH handshake.
-
-## Subsequent Boots
-
-```bash
-make boot
-```
-
-In a separate terminal, start usbmux forward tunnels:
-
-```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (JB: if you install openssh-server from Sileo)
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
-```
-
-Connect via:
-
-- **SSH (JB):** `ssh -p 2222 mobile@127.0.0.1` (password: `alpine`)
-- **SSH (Regular/Dev):** `ssh -p 2222 root@127.0.0.1` (password: `alpine`)
-- **VNC:** `vnc://127.0.0.1:5901`
-- [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
-
-## VM Backup & Switch
-
-Save and switch between multiple VM environments (e.g. different iOS builds or firmware variants). Backups are stored in `vm.backups/` using `rsync --sparse` for efficient sparse disk handling.
-
-```bash
-make vm_backup NAME=26.1-clean    # save current VM
-rm -rf vm && make vm_new          # start fresh for a different build
-# ... fw_prepare, fw_patch, restore, cfw_install, boot
-make vm_backup NAME=26.3-jb       # save the new one too
-make vm_list                      # list all saved backups
-make vm_switch NAME=26.1-clean    # swap between them
-```
-
-> **Note:** Always stop the VM before backup/switch/restore.
+A few steps (DFU restore, IPSW handling) run through Python. On first use,
+vphone-cli provisions a self-contained venv at `~/.vphone/venv` from a modern
+host `python3` (3.11+) using the bundled `requirements.txt` — so the signed
+`.app` is **portable**: copy it anywhere (e.g. `/Applications`) and it runs
+without the repo. Provisioning is automatic; run `vphone-cli setup` to do it
+up front. Point at a specific interpreter with `VPHONE_PYTHON=/path/to/python3`,
+or relocate the venv with `VPHONE_VENV_DIR=/path`.
 
 ## FAQ
 
-> **Before anything else — run `git pull` to make sure you have the latest version.**
+**`zsh: killed ./vphone-cli`** — AMFI/debug restrictions aren't bypassed; see [Prerequisites](#prerequisites) (`amfi_get_out_of_my_way=1` or `amfidont`).
 
-**Q: I get `zsh: killed ./vphone-cli` when trying to run it.**
+**`Virtualization is not available on this hardware`** — your Mac is itself a VM; PV=3 guest boot can't nest. Use a non-nested macOS 15+ host.
 
-AMFI/debug restrictions are not bypassed correctly. Choose one setup path:
+**Stuck on "Press home to continue"** — connect via VNC and right-click (two-finger click) to simulate the home button.
 
-- **Option 1 (full AMFI disable):**
+**System apps won't install** — during iOS setup, don't pick Japan or the EU as your region (extra regulatory checks the VM can't satisfy); pick e.g. United States.
 
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
+**App crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`** — re-patch with `vphone-cli fw patch <name> --variant <v> --force-exc-guard`, then re-restore/install ([#291](https://github.com/Lakr233/vphone-cli/issues/291)). Always on for iOS 18 bases.
 
-- **Option 2 (debug restrictions only):**
-  use Recovery mode `csrutil enable --without debug` (no full SIP disable), then install/load [`amfidont`](https://github.com/zqxwce/amfidont) or [`amfree`](https://github.com/retX0/amfree) while keeping AMFI otherwise enabled.
-  For this repo, `make amfidont_allow_vphone` packages the required encoded-path
-  and CDHash allowlist startup (if using amfidont).
-
-**Q: `make boot` / `make boot_dfu` starts and then fails with `VZErrorDomain Code=2 "Virtualization is not available on this hardware."`**
-
-The host itself is running inside an Apple virtual machine, so nested
-Virtualization.framework guest boot is unavailable. Run the boot flow on a
-non-nested macOS 15+ host instead. `make boot_host_preflight` will show this as
-`Model Name: Apple Virtual Machine 1` with `kern.hv_vmm_present=1`.
-`make boot` / `make boot_dfu` now fail fast through `boot_binary_check` before
-attempting VM startup on that kind of host.
-
-**Q: System apps (App Store, Messages, etc.) won't download or install.**
-
-During iOS setup, do **not** select **Japan** or **European Union** as your region. These regions enforce additional regulatory checks (e.g., sideloading disclosures, camera shutter requirements) that the virtual machine cannot satisfy, which prevents system apps from being downloaded and installed. Choose any other region (e.g., United States) to avoid this issue.
-
-**Q: I'm stuck on the "Press home to continue" screen.**
-
-Connect via VNC (`vnc://127.0.0.1:5901`) and right-click anywhere on the screen (two-finger click on a Mac trackpad). This simulates the home button press.
-
-**Q: How do I get SSH access?**
-
-Install `openssh-server` from Sileo (available on the jailbreak variant after first boot).
-
-**Q: SSH doesn't work after installing openssh-server.**
-
-Reboot the VM. The SSH server will start automatically on the next boot.
-
-**Q: Can I install `.tipa` files?**
-
-Yes. The install menu supports both `.ipa` and `.tipa` packages. Drag and drop or use the file picker.
-
-**Q: My app crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` (e.g. `KOBJECT_REPLY_PORT_SEMANTICS`).**
-
-Some third-party apps that bundle a crash-reporting or RASP SDK call `task_swap_exception_ports()` on launch to install their own exception handler. On bases where this isn't required for the VM itself to boot, the research kernel can enforce that as a fatal Mach port guard violation instead of the silent/non-fatal behavior production iOS exhibits for this call pattern (see [issue #291](https://github.com/Lakr233/vphone-cli/issues/291)).
-
-Re-patch with the guard disable force-enabled, then re-flash:
-
-```bash
-make fw_prepare               # reset to pristine firmware first
-make fw_patch_jb FORCE_EXC_GUARD=1   # or fw_patch / fw_patch_exp
-# ... boot_dfu, restore_get_shsh, restore, cfw_install_jb, boot as usual
-```
-
-This is always on automatically for iOS 18 bases (needed there to boot at all) — the flag only matters for other bases where an app hits this specific crash.
-
-**Q: Can I update to a newer iOS version?**
-
-Yes. Override `fw_prepare` with the IPSW URL for the version you want:
-
-```bash
-export IPHONE_SOURCE=/path/to/some_os.ipsw
-export CLOUDOS_SOURCE=/path/to/some_os.ipsw
-make fw_prepare
-make fw_patch
-```
-
-Our patches are applied via binary analysis, not static offsets, so newer versions should work. If something breaks, ask AI for help.
-
-**Q: I used `restore_offline` and I am stuck in the setup screen**
-
-The device is trying to contact apple for the setup, and you are probably not connected to the internet if you used `restore_offline`.
-You can bypass most of the setup screen by making the device supervised:
-
-```bash
-python3 -m pymobiledevice3 profile supervise vphone
-```
+**Install a `.ipa`/`.tipa`** — use the running VM's Install menu (drag-drop or file picker).
 
 ## Automation
 
-vphone-cli exposes a host control socket (`vm/vphone.sock`) for programmatic VM interaction — screenshots, touch injection, swipe gestures, hardware keys, and clipboard. Every action returns a compact grayscale screenshot inline, enabling AI-driven E2E testing workflows.
-
-See [vphone-mcp](https://github.com/pluginslab/vphone-mcp) for an MCP server that wraps this socket with high-level tools (open apps by name, navigate back, scroll, type text) usable from Claude Code or Claude Desktop.
+`vphone-cli` exposes a host control socket (`<bundle>/vphone.sock`) for programmatic control — screenshots, touch, swipes, hardware keys, clipboard — each action returning an inline screenshot for AI-driven E2E testing. See [vphone-mcp](https://github.com/pluginslab/vphone-mcp) for an MCP server wrapping it.
 
 ## Acknowledgements
 

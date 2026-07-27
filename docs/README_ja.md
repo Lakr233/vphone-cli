@@ -2,13 +2,15 @@
 
 # vphone-cli
 
-Apple の Virtualization.framework と PCC の研究用 VM インフラを使用して、仮想 iPhone を起動するためのツール
+PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtualization.framework 経由で仮想 iPhone を起動します。
+
+すべての処理は単一の `vphone-cli` バイナリを通じて実行されます — VM の作成、パッチ適用、復元、インストール、起動、管理。ビルド後は `make` は不要です。
 
 ![poc](./demo.jpeg)
 
-## 検証済み環境
+## 動作確認済み環境
 
-| ホスト           | iPhone                | CloudOS         |
+| ホスト          | iPhone                | CloudOS         |
 | --------------- | --------------------- | --------------- |
 | Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
 | Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
@@ -24,303 +26,178 @@ Apple の Virtualization.framework と PCC の研究用 VM インフラを使用
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
 | Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
-iOS 27.0 は 26.4 PCC vphone600 スタックに加えて、CFW 時の force-kern `IOMobileFramebuffer` present-path パッチと dyld 共有キャッシュの `maxSlide` 調整を使用します。
+iOS ≤ 26.0.1 では 26.1 PCC vphone600 スタックと、CFW 適用時の `IOMobileFramebuffer` SwapEnd ペイロードサイズパッチを使用します。iOS 27.0 では 26.4 PCC vphone600 スタックと、CFW 適用時の force-kern `IOMobileFramebuffer` present-path パッチ、および dyld shared-cache の `maxSlide` フィットを使用します。
 
-**注意:** iOS 18.x では Metal/GPU アクセラレーションは動作しません。18.x の Metal/IOGPU フレームワークに準仮想化 GPU の実装が存在しないため、Metal でレンダリングされるコンテンツ（Web ページ、画像、壁紙）は表示されません。タッチ、ネットワーク、アプリは正常に動作します。
+> **注意:** GPU/Metal アクセラレーションは iOS 18.x では動作しません — 18.x の Metal/IOGPU フレームワークには準仮想化 GPU 実装がないため、Metal でレンダリングされるコンテンツ（Web ページ、画像、壁紙）は描画されません。タッチ、ネットワーク、アプリは正常に動作します。
 
 ## ファームウェアバリアント
 
-セキュリティバイパスのレベルが異なる5つのパッチバリアントが利用可能です：
+セキュリティバイパスの度合いが段階的に増す 5 つのパッチバリアント — いずれか 1 つを `--variant` に渡します:
 
-| バリアント    | ブートチェーン     |     CFW      | Make ターゲット                              |
-| ------------- | :----------------: | :----------: | -------------------------------------------- |
-| **Patchless** | 4 パッチ           | 2 フェーズ   | `fw_patch_less` + `boot_less`              |
-| **通常版**    | 42 パッチ          | 10 フェーズ  | `fw_patch` + `cfw_install`                   |
-| **開発版**    | 53 パッチ          | 12 フェーズ  | `fw_patch_dev` + `cfw_install_dev`           |
-| **脱獄版**    | 113 パッチ         | 14 フェーズ  | `fw_patch_jb` + `cfw_install_jb`             |
-| **実験版**    | 脱獄 + EXP 専用    | 脱獄 + EXP   | `fw_patch_exp` + `cfw_install_exp`           |
+| バリアント   | ブートチェーン | CFW       | 備考                                                              |
+| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | パッチなし — iOS の緩和策を有効なまま維持                          |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM バイパス                                        |
+| `dev`        | 53 patches  | 12 phases | + TXM エンタイトルメント/デバッグバイパス                          |
+| `jb`         | 113 patches | 14 phases | + 完全な脱獄（Sileo、TrollStore を初回起動時に自動インストール）   |
+| `exp`        | 141 patches | 18 phases | JB のスーパーセット + VM 検出対策リサーチパッチ                    |
 
-> JB最終設定（シンボリックリンク、Sileo、apt、TrollStore）は `/cores/vphone_jb_setup.sh` LaunchDaemon により初回起動時に自動実行されます。進捗確認：`/var/log/vphone_jb_setup.log`。
-
-> **実験版（EXP）** は脱獄版の上位集合で、リサーチブランチの実験的パッチを追加で実行します：カーネルの `hv_vmm_present` sysctl リネーム + カーネル内部呼び出し元の改変（`KernelEXPPatcher`）、サインインブラックリスト付きの DSC バイト5改変 + スロット再認証、watchdogd 精密 2 命令パッチ（EXP-JB-3.5）、fw_patch 時点での DeviceTree アイデンティティプロパティ 8 件、復元後の DT アイデンティティ書き換え（EXP-JB-6）、`SPOOF_BUILD=<id>` によるオプトイン式の `SystemVersion.plist` `ProductBuildVersion` 書き換え（EXP-JB-7）。他のバリアントは意図的に影響を受けません。
-
-詳細なコンポーネントごとの内訳については [research/0_binary_patch_comparison.md](../research/0_binary_patch_comparison.md) を参照してください。
+コンポーネントごとの内訳については [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md) を参照してください。
 
 ## 前提条件
 
-**ホストOS:** PV=3 仮想化には macOS 15+（Sequoia）が必要です。
+**ホスト:** macOS 15+ (Sequoia)、ネストされていない Mac（Virtualization.framework はネストできません）。プライベートな PV=3 エンタイトルメント + 未署名バイナリのワークフローには SIP/AMFI の緩和が必要です。以下の 2 つの方法から **1 つ** を選んでください — SIP の設定と AMFI の設定はセットです。混在させないでください:
 
-**SIP/AMFIの設定** — プライベートな Virtualization.framework の entitlement と未署名バイナリのワークフローに必要です。
-
-復旧モードで起動し（電源ボタンを長押し）、ターミナルを開いて、以下のいずれかの方法を選択します：
-
-- **方法 1：SIP を完全に無効化 + AMFI boot-arg（最も制限が少ない）**
-
-  復旧モードで：
-
-  ```bash
-  csrutil disable
-  csrutil allow-research-guests enable
-  ```
-
-  通常の macOS に再起動した後：
-
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
-
-  もう一度再起動します。
-
-- **方法 2：SIP はほぼ有効のまま、デバッグ制限のみ無効化、[`amfidont`](https://github.com/zqxwce/amfidont) または [`amfree`](https://github.com/retX0/amfree) を使用**
-
-  復旧モードで：
-
-  ```bash
-  csrutil enable --without debug
-  csrutil allow-research-guests enable
-  ```
-
-  通常の macOS に再起動した後：
-
-  ```bash
-  # amfidont の場合:
-  xcrun python3 -m pip install amfidont
-  sudo amfidont --path [PATH_TO_VPHONE_DIR]
-  
-  # または amfree の場合:
-  brew install retX0/tap/amfree
-  sudo amfree --path [PATH_TO_VPHONE_DIR]
-  ```
-
-  このリポジトリでは、`make amfidont_allow_vphone` を実行すると
-  `amfidont` 用のエンコード済みパスと CDHash の許可設定をまとめて行えます。
-
-> Patchless バリアントでは、方法 1 か、`-S` フラグ付きの amfidont（`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`）が必要です。
-
-**依存関係のインストール:**
+**オプション A — SIP を完全に無効化し、boot-arg で AMFI を無効化する（最も緩い）。** リカバリーモードで（電源ボタン長押し → ターミナル）:
 
 ```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+csrutil disable
+csrutil allow-research-guests enable
 ```
 
-`scripts/fw_prepare.sh` は高速な多重接続ダウンロードのために `aria2c` を優先し、必要に応じて `curl` または `wget` にフォールバックします。
+その後 macOS で再起動し、AMFI の boot-arg を設定します（有効化には SIP を完全に無効化する必要があります）:
 
-**Submodules** — このリポジトリはリソース、Swift 依存、`scripts/repos/` 配下のツールチェーンソースに git submodule を使用しています。クローン時に以下を使用してください：
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
+```
+
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、amfidont でバイナリを許可リストに追加する**（AMFI はシステム全体で有効なまま）。リカバリーモードで:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+その後 macOS で再起動し、[`amfidont`](https://github.com/zqxwce/amfidont)（または [`amfree`](https://github.com/retX0/amfree)）でリポジトリを許可リストに追加します:
+
+```bash
+sudo amfidont --path <repo>
+```
+
+> `less`（パッチなし）バリアントにはオプション A、またはオプション B に `amfidont -S` を組み合わせたもの（`sudo amfidont -S --path <repo>`）が必要です。
+
+**依存関係:**
 
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+```
+
+（最新の `python3` — 3.11+ — が必要です。アプリはそこから独自の Python 環境を構築します。[Python ランタイム](#python-ランタイム) を参照してください。）
+
+## ビルド
+
+一度きりのブートストラップスクリプトが 2 つあります（コンパイル済みバイナリは自分自身をビルドできないため）。その後はすべて `vphone-cli` で行います:
+
+```bash
+./scripts/setup_tools.sh      # 依存関係のインストール、ツールチェーンのサブモジュールのビルド、Python venv の作成
+./scripts/build.sh            # vphone-cli のビルド + 署名、.app のバンドル、vphoned のクロスコンパイル
+```
+
+以下の例をそのまま実行できるように、バイナリを `PATH` に追加します:
+
+```bash
+cd .build/release
+vphone-cli --help
 ```
 
 ## クイックスタート
 
-```bash
-make setup_machine            # 初回起動までを完全自動化（復元/CFWを含む）
-# オプション：NON_INTERACTIVE=1 SUDO_PASSWORD=...
-# LESS=1 で patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
-# DEV=1 で開発バリアント（+ TXM entitlement/デバッグバイパス）
-# JB=1 で脱獄バリアント（dev + 完全セキュリティバイパス）
-# EXP=1 で実験バリアント（脱獄 + リサーチパッチ: hv_vmm リネーム、DT アイデンティティ、復元後書き換え）
-# SPOOF_BUILD=<id>（EXP 限定）SystemVersion.plist の ProductBuildVersion を <id> に書き換え、例: 23F77
-```
-
-## 手動セットアップ
+1 つのコマンドで VM をエンドツーエンドで作成します（ダウンロード → パッチ → DFU 復元 → CFW インストール → 初回起動）:
 
 ```bash
-make setup_tools              # brew 依存関係のインストール、trustcache + insert_dylib のビルド、Python venv 作成（pymobiledevice3/aria2c を含む）
-make build                    # vphone-cli のビルド + 署名
-make vm_new                   # VM ディレクトリとマニフェスト（config.plist）の作成
-# オプション：CPU=8 MEMORY=8192 DISK_SIZE=64
-make fw_prepare               # IPSW のダウンロード、抽出、マージ、マニフェスト生成
-make fw_patch                 # ブートチェーンのパッチ当て（通常バリアント）
-# または: sudo make fw_patch_less # patchless バリアント（- AMFI, SSV, Img4, TXM バイパス）
-# または: make fw_patch_dev   # 開発バリアント（+ TXM entitlement/デバッグバイパス）
-# または: make fw_patch_jb    # 脱獄バリアント（dev + 完全セキュリティバイパス）
-# または: make fw_patch_exp   # 実験バリアント（脱獄 + リサーチパッチスタック）
+vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-### クリーンアップ
+ソースフラグを指定しない場合、動作確認済みのデフォルトの iPhone + cloudOS ペアがダウンロードされます。特定のファームウェアを選ぶには **`-i`/`--iphone-source`** と **`-c`/`--cloudos-source`** を渡します — それぞれ **URL** または **ローカルの `.ipsw` パス** のいずれかを取ります（既知の良好なペアについては [動作確認済み環境](#動作確認済み環境) を参照）:
 
 ```bash
-make clean                    # ビルド/ツール関連の生成物のみ削除
-make clean CLEAN_VM=1         # 確認後、vm/ も削除
-make clean CLEAN_IPSW=1       # 確認後、ipsws/ も削除
+# ローカルの IPSW から
+vphone-cli vm create myphone -V jb \
+  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
+  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
+
+# または URL から — ~/.vphone/ipsws 以下にダウンロードしてキャッシュ
+vphone-cli vm create myphone -V jb \
+  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
 ```
 
-通常の clean では `vm/` や `ipsws/` は削除されません。
-
-### VM 設定
-
-v1.0 から、VM 設定は `vm/config.plist` に保存されます。VM 作成時に CPU、メモリ、ディスクサイズを設定します：
+CFW インストール段階は root 権限（ホストディスクのマウント）が必要で、`sudo` の入力を求めます。無人で実行するには `-s <pw>`（`--sudo-password`）を渡します。復元の様子を見るには `-v`（pmd3 ログ、カラー表示）、pmd3 のデバッグ詳細には `-vv`、vphone-cli の内部トレースには `-vvv` を追加します。その後、起動します:
 
 ```bash
-# カスタム設定で VM を作成
-make vm_new CPU=16 MEMORY=16384 DISK_SIZE=128
-
-# 起動時に config.plist から設定を自動読み込み
-make boot
+vphone-cli vm launch myphone
 ```
 
-マニフェストファイルはすべての VM 設定（CPU、メモリ、画面、ROM、ストレージ）を保存し、[security-pcc の VMBundle.Config 形式](https://github.com/apple/security-pcc) と互換性があります。
+VM は `~/.vphone/VMs/` にある **ライブラリ** に保存されます（任意のコマンドで `--library-root <dir>` によって上書き可能）。VM コマンドを名前なしで実行すると（例: `vphone-cli vm launch`）、VM のメニューから選択できます。
 
-## 復元
+## コマンド
 
-復元プロセスには **2つのターミナル** が必要です。ターミナル 2 を使用している間、ターミナル 1 を実行し続けてください。
+`vphone-cli vm create` はパイプライン全体を実行します。以下の個別ステップを使うと、手動で操作したり 1 つの段階を再実行したりできます。
+
+### 管理
 
 ```bash
-# ターミナル 1
-make boot_dfu                 # DFUモードでVMを起動（実行したままにする）
+vphone-cli vm list                         # VM の一覧表示（スクリプト用に --json）
+vphone-cli vm info myphone                  # 1 つの VM を表示
+vphone-cli vm new myphone                   # 空のバンドルを作成（cpu/mem/disk オプション）
+vphone-cli vm config myphone --cpu 8 --memory 8192
+vphone-cli vm clone myphone myphone-2       # 高速 APFS クローン、新しいデバイスアイデンティティ
+vphone-cli vm export myphone --out myphone.tar.xz   # xz -9; 復元ディレクトリ + ステージングファイルをスキップ
+vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm rename myphone iphone16
+vphone-cli vm delete iphone16
 ```
+
+### VM を手動でビルドする（`vm create` が自動化する処理）
 
 ```bash
-# ターミナル 2
-make restore_get_shsh         # SHSH blob の取得
-make restore                  # pymobiledevice3 restore バックエンドでファームウェアを焼き込み
-# または: make restore_offline    # オフライン復元（AEA イメージをその場で復号し、キャッシュ済み .shsh blob を使用）
-                                  # 初回は AEA 復号のためインターネット接続が必要です
+vphone-cli vm new myphone                              # 1. 空のバンドル
+vphone-cli fw prepare myphone --iphone-version 26.1     # 2. IPSW のダウンロード + マージ
+vphone-cli fw patch myphone --variant jb                # 3. ブートチェーンにパッチ適用
+
+vphone-cli vm launch myphone --dfu &                    # 4. DFU で起動（バックグラウンド）
+vphone-cli restore myphone --get-shsh                   #    SHSH を取得
+vphone-cli restore myphone                              #    DFU 復元
+vphone-cli vm stop myphone                              #    DFU 起動を停止
+
+vphone-cli cfw install myphone --variant jb             # 5. CFW をインストール（ホストマウント; sudo を要求）
+vphone-cli vm launch myphone                            # 6. 初回起動
 ```
 
-## カスタムファームウェアのインストール
+新しい iOS に更新するには、`fw prepare` を IPSW に向けます: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
-復元が完了したら、ターミナル 1 の DFU 起動を停止（Ctrl+C）して VM を完全に電源オフにします。インストーラは VM の `Disk.img` をホスト側でマウントし、すべての CFW ファイルを配置してブートスナップショットをオフラインで切り替えます（DFU / Ramdisk / SSH は不要）。そのためディスクへの排他アクセスが必要です。
+## 実行と接続
 
-```bash
-# ターミナル 2（自動的に sudo で再実行されます）
-make cfw_install
-# または: make cfw_install_dev       # 開発バリアント
-# または: make cfw_install_jb        # 脱獄バリアント
-# または: make cfw_install_exp       # 実験バリアント（脱獄 + リサーチパッチスタック）
-# または: SPOOF_BUILD=23F77 make cfw_install_exp   # ProductBuildVersion も書き換え
-# または: FORCE_DSC_MAXSLIDE=1 make cfw_install    # 27 以外のベースで DSC maxSlide=0 を強制（全バリアント対応、27 は自動）
-```
+`vphone-cli vm launch <name>` は VM のウィンドウを開き、`vphone-cli vm stop <name>` はシャットダウンします。ゲストはポート `22222` で SSH サーバー（dropbear）を、`5901` で VNC を実行しており、VM の NAT IP 経由でアクセスできます（`bridge100` 上で `arp -a` を実行して確認）:
 
-## 初回起動
+- **SSH（脱獄）:** `ssh -p 22222 mobile@<vm-ip>`（パスワード `alpine`）
+- **SSH（regular/dev）:** `ssh -p 22222 root@<vm-ip>`
+- **VNC:** `vnc://<vm-ip>:5901`
 
-DFU 起動を停止し CFW をインストールしたら、VM を通常起動します：
+`jb`/`exp` バリアントでは、Sileo と TrollStore が初回起動時に自動的にインストールされます（`/var/log/vphone_jb_setup.log` で監視）。
 
-```bash
-make boot
-```
+## Python ランタイム
 
-`cfw_install_jb` 実行後、脱獄バリアントでは初回起動時に **Sileo** と **TrollStore** が利用可能になります。Sileo から `openssh-server` をインストールして SSH アクセスを有効にできます。
+いくつかのステップ（DFU 復元、IPSW 処理）は Python を通じて実行されます。初回使用時、vphone-cli はバンドルされた `requirements.txt` を使用して、最新のホスト `python3`（3.11+）から `~/.vphone/venv` に自己完結型の venv をプロビジョニングします — そのため署名済みの `.app` は **ポータブル** です。任意の場所（例: `/Applications`）にコピーすればリポジトリなしで動作します。プロビジョニングは自動ですが、事前に行うには `vphone-cli setup` を実行します。特定のインタプリタを指定するには `VPHONE_PYTHON=/path/to/python3`、venv の場所を変更するには `VPHONE_VENV_DIR=/path` を使用します。
 
-通常版/開発版では、VM に**直接繋がるコンソール**が開きます。`bash-4.4#` と表示されたら、Enter を押し、シェル環境を初期化して SSH ホストキーを生成するために以下のコマンドを実行します：
+## FAQ
 
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
+**`zsh: killed ./vphone-cli`** — AMFI/デバッグ制限がバイパスされていません。[前提条件](#前提条件) を参照してください（`amfi_get_out_of_my_way=1` または `amfidont`）。
 
-mkdir -p /var/dropbear
-cp /iosbinpack64/etc/profile /var/profile
-cp /iosbinpack64/etc/motd /var/motd
+**`Virtualization is not available on this hardware`** — お使いの Mac 自体が VM です。PV=3 ゲスト起動はネストできません。ネストされていない macOS 15+ ホストを使用してください。
 
-# SSHホストキーの生成（SSHを機能させるために必要）
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
+**「Press home to continue」で止まる** — VNC で接続し、右クリック（2 本指クリック）してホームボタンをシミュレートします。
 
-shutdown -h now
-```
+**システムアプリがインストールできない** — iOS のセットアップ中に、地域として日本や EU を選ばないでください（VM が満たせない追加の規制チェックが入ります）。例えば United States を選択してください。
 
-> **注意:** ホストキー生成手順を行わないと、dropbear（SSH サーバー）は接続を受け付けますが、SSH ハンドシェイクを実行するためのキーがないためすぐに切断されます。
+**アプリが起動時に `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` でクラッシュする** — `vphone-cli fw patch <name> --variant <v> --force-exc-guard` で再パッチし、再度復元/インストールしてください（[#291](https://github.com/Lakr233/vphone-cli/issues/291)）。iOS 18 ベースでは常に有効です。
 
-## 2回目以降の起動
+**`.ipa`/`.tipa` をインストールする** — 実行中の VM の Install メニューを使用します（ドラッグ&ドロップまたはファイルピッカー）。
 
-```bash
-make boot
-```
+## 自動化
 
-別のターミナルで usbmux 転送トンネルを開始します：
-
-```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH（dropbear）
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH（脱獄版：Sileo で openssh-server を入れた場合）
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
-```
-
-以下で接続します：
-
-- **SSH（脱獄版）:** `ssh -p 2222 mobile@127.0.0.1` (パスワード: `alpine`)
-- **SSH（通常版/開発版）:** `ssh -p 2222 root@127.0.0.1` (パスワード: `alpine`)
-- **VNC:** `vnc://127.0.0.1:5901`
-- [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
-
-## VM バックアップと切り替え
-
-複数の VM 環境（異なる iOS ビルドやファームウェアバリアントなど）を保存して切り替えることができます。バックアップは `vm.backups/` に保存され、`rsync --sparse` でスパースディスクイメージを効率的に処理します。
-
-```bash
-make vm_backup NAME=26.1-clean    # 現在の VM を保存
-rm -rf vm && make vm_new          # 新しいビルド用に初期化
-# ... fw_prepare, fw_patch, restore, cfw_install, boot
-make vm_backup NAME=26.3-jb       # 新しい VM も保存
-make vm_list                      # すべてのバックアップを一覧表示
-make vm_switch NAME=26.1-clean    # バックアップ間を切り替え
-```
-
-> **注意:** バックアップ/切り替え/復元の前に必ず VM を停止してください。
-
-## よくある質問 (FAQ)
-
-> **何よりもまず — `git pull` を実行して最新バージョンであることを確認してください**
-
-**Q: 実行しようとすると `zsh: killed ./vphone-cli` と表示されます**
-
-AMFI/デバッグ制限が正しくバイパスされていません。以下のいずれかの方法を選択してください：
-
-- **方法 1（AMFI を完全に無効化）：**
-
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
-
-- **方法 2（デバッグ制限のみ無効化）：**
-  復旧モードで `csrutil enable --without debug`（完全な SIP 無効化は不要）を使用し、[`amfidont`](https://github.com/zqxwce/amfidont) または [`amfree`](https://github.com/retX0/amfree) をインストール/ロードして AMFI のその他の機能は有効のままにします。
-  このリポジトリでは、`make amfidont_allow_vphone` により `amfidont` で必要なエンコード済みパスと CDHash の許可設定を自動で行えます。
-
-**Q: `make boot` / `make boot_dfu` が `VZErrorDomain Code=2 "Virtualization is not available on this hardware."` で失敗します**
-
-ホスト自体が Apple 仮想マシン上で動作しているため、ネストされた Virtualization.framework のゲスト起動は利用できません。ネストされていない macOS 15+ ホストで実行してください。`make boot_host_preflight` ではこの状態を `Model Name: Apple Virtual Machine 1` と `kern.hv_vmm_present=1` として確認できます。現在は `boot_binary_check` により、該当ホストでは起動前に早期失敗します。
-
-**Q: システムアプリ（App Store、メッセージなど）がダウンロード・インストールできません**
-
-iOS の初期設定時に、地域として**日本**または**欧州連合**を選択**しないでください**。これらの地域では追加の規制チェック（サイドローディングの開示、カメラのシャッター音など）が適用されますが、仮想マシンではこれらの要件を満たせないため、システムアプリのダウンロードおよびインストールができなくなります。この問題を回避するには、他の地域（例: 米国）を選択してください。
-
-**Q: "Press home to continue" の画面から進めません**
-
-VNC経由で接続し（`vnc://127.0.0.1:5901`）、画面の任意の場所を右クリック（Mac のトラックパッドでは 2 本指クリック）してください。これによりホームボタンの押下がシミュレートされます。
-
-**Q: SSH アクセスを有効にするには？**
-
-Sileo から `openssh-server` をインストールしてください（脱獄バリアントの初回起動後に利用可能）。
-
-**Q: openssh-server をインストールしても SSH が動作しません。**
-
-VM を再起動してください。次回起動時に SSH サーバーが自動的に開始されます。
-
-**Q: `.tipa` ファイルをインストールできますか？**
-
-はい。インストールメニューは `.ipa` と `.tipa` パッケージの両方に対応しています。ドラッグ＆ドロップまたはファイルピッカーを使用してください。
-
-**Q: もっと新しいiOSバージョンにアップデートできますか？**
-
-はい。`fw_prepare` に希望するバージョンの IPSW URL を指定することでできます：
-
-```bash
-export IPHONE_SOURCE=/path/to/some_os.ipsw
-export CLOUDOS_SOURCE=/path/to/some_os.ipsw
-make fw_prepare
-make fw_patch
-```
-
-私たちのパッチは静的なオフセットではなくバイナリ解析によって適用されるため、新しいバージョンでも動作するはずです。何か壊れた場合は AI に聞いてください。
-
-**Q: `restore_offline` を使ったらセットアップ画面で進めなくなりました**
-
-セットアップ中に Apple への接続が必要ですが、`restore_offline` を使った場合はインターネットに接続されていない可能性があります。
-デバイスを監視対象（supervised）にすることで、セットアップ画面の多くを回避できます：
-
-```bash
-python3 -m pymobiledevice3 profile supervise vphone
-```
+`vphone-cli` はプログラムによる制御のためにホスト制御ソケット（`<bundle>/vphone.sock`）を公開します — スクリーンショット、タッチ、スワイプ、ハードウェアキー、クリップボード — 各アクションは AI 駆動の E2E テスト用にインラインのスクリーンショットを返します。それをラップする MCP サーバーについては [vphone-mcp](https://github.com/pluginslab/vphone-mcp) を参照してください。
 
 ## 謝辞
 
