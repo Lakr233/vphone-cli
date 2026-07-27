@@ -12,14 +12,9 @@ do {
         app.delegate = delegate
         app.run()
 
-    case var patch as PatchFirmwareCLI:
-        try patch.run()
-
-    case var patch as PatchComponentCLI:
-        try patch.run()
-
     default:
-        break
+        var runnable = command
+        try runnable.run()
     }
 } catch {
     VPhoneCLI.exit(withError: error)

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Virtualization
+import VPhoneCore
 
 /// Host-side client for the vphoned guest agent.
 ///
@@ -118,23 +119,8 @@ class VPhoneControl {
     }
 
     private static func signCertURL() -> URL? {
-        let fm = FileManager.default
-        let candidates = [
-            Bundle.main.resourceURL?.appendingPathComponent("signcert.p12"),
-            Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/signcert.p12"),
-            URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(
-                "scripts/vphoned/signcert.p12"
-            ),
-            URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(
-                "../scripts/vphoned/signcert.p12"
-            ),
-        ]
-        for candidate in candidates.compactMap(\.self) {
-            if fm.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-        }
-        return nil
+        let signcert = VPhoneResources.resolve().signcert
+        return FileManager.default.fileExists(atPath: signcert.path) ? signcert : nil
     }
 
     // MARK: - Guest Binary Hash

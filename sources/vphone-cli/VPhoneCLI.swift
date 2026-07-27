@@ -1,12 +1,16 @@
 import ArgumentParser
 import FirmwarePatcher
 import Foundation
+import VPhoneCore
 
 struct VPhoneCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "vphone-cli",
         abstract: "Boot a virtual iPhone or patch firmware with the Swift pipeline",
-        subcommands: [VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self],
+        subcommands: [
+            VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self, VPhoneVMCommand.self,
+            VPhoneFWCommand.self, VPhoneRestoreCommand.self, VPhoneCFWCommand.self, VPhoneSetupCommand.self,
+        ],
         defaultSubcommand: VPhoneBootCLI.self
     )
 }
@@ -30,12 +34,13 @@ struct VPhoneBootCLI: ParsableCommand {
     )
 
     @Option(
+        name: .shortAndLong,
         help: "Path to VM manifest plist (config.plist). Required.",
         transform: URL.init(fileURLWithPath:)
     )
     var config: URL
 
-    @Flag(help: "Boot into DFU mode")
+    @Flag(name: .shortAndLong, help: "Boot into DFU mode")
     var dfu: Bool = false
 
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
@@ -43,8 +48,8 @@ struct VPhoneBootCLI: ParsableCommand {
 
     @Option(help: "Path to signed vphoned binary for guest auto-update")
     var vphonedBin: String = ".vphoned.signed"
-    
-    @Option(help: "Firmware variant to execute.")
+
+    @Option(name: [.customShort("V"), .long], help: "Firmware variant to execute.")
     var variant: PatchFirmwareCLI.VariantOption = .regular
 
     @Option(
@@ -155,7 +160,7 @@ struct PatchFirmwareCLI: ParsableCommand {
     )
     var vmDirectory: URL
 
-    @Option(help: "Firmware variant to patch.")
+    @Option(name: [.customShort("V"), .long], help: "Firmware variant to patch.")
     var variant: VariantOption = .regular
 
     @Option(
@@ -164,7 +169,7 @@ struct PatchFirmwareCLI: ParsableCommand {
     )
     var recordsOut: String?
 
-    @Flag(name: .customLong("quiet"), help: "Suppress per-component progress output.")
+    @Flag(name: [.customShort("q"), .customLong("quiet")], help: "Suppress per-component progress output.")
     var quiet: Bool = false
     
     @Flag(name: .customLong("no-binpack"), help: "Exclude the SSH, VNC, ... binaries from being installed (patchless-only).")
@@ -223,20 +228,20 @@ struct PatchComponentCLI: ParsableCommand {
     var component: ComponentOption
 
     @Option(
-        name: .customLong("input"),
+        name: [.customShort("i"), .customLong("input")],
         help: "Path to the source firmware file (IM4P or raw).",
         transform: URL.init(fileURLWithPath:)
     )
     var input: URL
 
     @Option(
-        name: .customLong("output"),
+        name: [.customShort("o"), .customLong("output")],
         help: "Path to write the patched raw payload bytes.",
         transform: URL.init(fileURLWithPath:)
     )
     var output: URL
 
-    @Flag(name: .customLong("quiet"), help: "Suppress per-patch progress output.")
+    @Flag(name: [.customShort("q"), .customLong("quiet")], help: "Suppress per-patch progress output.")
     var quiet: Bool = false
 
     @Option(
