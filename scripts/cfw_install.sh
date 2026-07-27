@@ -36,6 +36,10 @@ VM_DIR="$(cd "$VM_DIR" && pwd)"
 # `make cfw_install` standalone (without setup_machine.sh exporting PATH)
 # still uses the correctly set-up venv interpreter.
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"
@@ -134,7 +138,7 @@ setup_cfw_input() {
         archive="$search_dir/$CFW_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
+            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
             return
         fi
     done
@@ -430,7 +434,7 @@ echo ""
 echo "[3/7] Installing AppleParavirtGPUMetalIOGPUFamily..."
 
 cp -R "$INPUT_DIR/custom/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/AppleParavirtGPUMetalIOGPUFamily.tar -C $MNT1
 
 BUNDLE="$MNT1/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle"
@@ -452,7 +456,7 @@ echo ""
 echo "[4/7] Installing iosbinpack64..."
 
 cp -R "$INPUT_DIR/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/iosbinpack64.tar -C $MNT1
 /bin/rm -f $MNT1/iosbinpack64.tar
 

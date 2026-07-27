@@ -45,9 +45,15 @@ IMG="$VM_DIR/Disk.img"
 [[ -f "$IMG" ]] || { echo "[-] no Disk.img at $IMG" >&2; exit 1; }
 
 # Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd + venv python).
-P="$PROJ/.tools/bin:$PROJ/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# VPHONE_PYTHON overrides the venv python (e.g. a bundled .app has no .venv);
+# unset falls back to the repo venv, unchanged from before.
+if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+  P="$PROJ/.tools/bin:$(dirname "$VPHONE_PYTHON"):/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+else
+  P="$PROJ/.tools/bin:$PROJ/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+fi
 export PATH="$P"
-PY="$PROJ/.venv/bin/python3"
+PY="${VPHONE_PYTHON:-$PROJ/.venv/bin/python3}"
 
 if lsof "$IMG" >/dev/null 2>&1; then
   echo "[-] $IMG is in use — stop the VM first." >&2; exit 1

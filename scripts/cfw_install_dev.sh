@@ -31,6 +31,10 @@ VM_DIR="$(cd "$VM_DIR" && pwd)"
 
 # ── Python resolver — prefer project venv over whatever is in PATH ─
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"

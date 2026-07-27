@@ -22,6 +22,10 @@ SCRIPT_DIR="${0:a:h}"
 # Resolves to .venv/bin/python3 relative to the project root (parent of
 # scripts/), falling back to the system python3 when the venv is absent.
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"
@@ -144,7 +148,7 @@ setup_cfw_jb_input() {
         archive="$search_dir/$CFW_JB_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_JB_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
+            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
             return
         fi
     done
@@ -161,7 +165,7 @@ apply_dev_overlay() {
             local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
             local tmpdir="$VM_DIR/.iosbinpack_tmp"
             mkdir -p "$tmpdir"
-            tar -xf "$iosbinpack" -C "$tmpdir"
+            "$TAR" --warning=no-unknown-keyword -xf "$iosbinpack" -C "$tmpdir"
             cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
             (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
             rm -rf "$tmpdir"
@@ -256,7 +260,7 @@ echo "[JB-2] Installing iosbinpack64..."
 
 apply_dev_overlay
 cp -R "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/iosbinpack64.tar -C $MNT1
 /bin/rm -f $MNT1/iosbinpack64.tar
 
@@ -353,7 +357,7 @@ JB_DIR_NAME="jb-vphone"
 /bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /bin/chmod 0755 $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME
-"$TAR" --preserve-permissions -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
+"$TAR" --preserve-permissions --warning=no-unknown-keyword -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
     -C $MNT5/$BOOT_HASH/$JB_DIR_NAME/
 /bin/mv $MNT5/$BOOT_HASH/$JB_DIR_NAME/var $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus
 mv "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"/*(N) "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus" 2>/dev/null || true

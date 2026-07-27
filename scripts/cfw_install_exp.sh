@@ -38,6 +38,10 @@ SCRIPT_DIR="${0:a:h}"
 # Resolves to .venv/bin/python3 relative to the project root (parent of
 # scripts/), falling back to the system python3 when the venv is absent.
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"

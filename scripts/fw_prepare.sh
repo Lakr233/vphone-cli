@@ -73,7 +73,7 @@ source_hash_suffix() {
     elif command -v sha256sum >/dev/null 2>&1; then
         printf '%s' "$src" | sha256sum | awk '{print substr($1, 1, 12)}'
     else
-        python3 - "$src" <<'PY'
+        "$PYTHON3" - "$src" <<'PY'
 import hashlib
 import sys
 
@@ -142,7 +142,7 @@ list_firmwares() {
     local device="$1" readme_path="$2"
     local downloadable_urls
     downloadable_urls="$(downloadable_ipsw_urls "$device")"
-    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" python3 - "$device" "$readme_path" <<'PY'
+    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" "$PYTHON3" - "$device" "$readme_path" <<'PY'
 import os
 import re
 import sys
@@ -230,7 +230,7 @@ resolve_selector_from_downloads() {
     local device="$1" version="$2" build="$3" readme_path="$4"
     local downloadable_urls
     downloadable_urls="$(downloadable_ipsw_urls "$device")"
-    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" python3 - "$device" "$version" "$build" "$readme_path" <<'PY'
+    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" "$PYTHON3" - "$device" "$version" "$build" "$readme_path" <<'PY'
 import os
 import re
 import sys
@@ -426,7 +426,8 @@ download_apfs_sealvolume() {
     filename="apfs_sealvolume_${ios_version}"
     
     PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-    TOOLS_PREFIX="$PROJECT_DIR/.tools"
+    TOOLS_PREFIX="${VPHONE_SEAL_DIR:-$PROJECT_DIR/.tools}"
+    mkdir -p "$TOOLS_PREFIX"
 
     if [[ -f "$TOOLS_PREFIX/$filename" ]]; then
         echo "$filename already present"
@@ -511,6 +512,7 @@ IPHONE_BUILD="${IPHONE_BUILD:-}"
 IPHONE_SOURCE="${IPHONE_SOURCE:-}"
 CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-}"
 IPSW_DIR="${IPSW_DIR:-${SCRIPT_DIR}/../ipsws}"
+PYTHON3="${VPHONE_PYTHON:-python3}"
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -680,7 +682,7 @@ cp -n "${CLOUDOS_DIR}"/Firmware/*.dmg.trustcache "$IPHONE_DIR/Firmware"/ 2>/dev/
 cp "$IPHONE_DIR/BuildManifest.plist" "$IPHONE_DIR/iPhone-BuildManifest.plist"
 
 echo "==> Generating hybrid plists ..."
-python3 "$SCRIPT_DIR/fw_manifest.py" "$IPHONE_DIR" "$CLOUDOS_DIR"
+"$PYTHON3" "$SCRIPT_DIR/fw_manifest.py" "$IPHONE_DIR" "$CLOUDOS_DIR"
 
 echo "==> Cleaning up ..."
 rm -rf "$CLOUDOS_DIR"
