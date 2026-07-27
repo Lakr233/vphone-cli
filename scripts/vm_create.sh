@@ -151,7 +151,10 @@ echo "[5/4] Generating VM manifest (config.plist)"
     --vm-dir "${VM_DIR}" \
     --cpu "${CPU_COUNT}" \
     --memory "${MEMORY_MB}" \
-    --disk-size "${DISK_SIZE_GB}" || {
+    --disk-size "${DISK_SIZE_GB}" \
+    --network-mode "${NETWORK_MODE:-nat}" \
+    --mac-address "${MAC_ADDRESS:-}" \
+    --interface "${NET_INTERFACE:-}" || {
     echo "ERROR: Failed to generate VM manifest"
     exit 1
 }

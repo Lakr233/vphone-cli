@@ -23,7 +23,9 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        NSApp.setActivationPolicy(cli.noGraphics ? .prohibited : .regular)
+        // .prohibited = no UI (DFU). .accessory = background app, no Dock icon
+        // (headless: window stays hidden off-screen). .regular = normal windowed app.
+        NSApp.setActivationPolicy(cli.noGraphics ? .prohibited : (cli.headless ? .accessory : .regular))
 
         signal(SIGINT, SIG_IGN)
         let src = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
@@ -108,7 +110,8 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 screenScale: options.screenScale,
                 keyHelper: keyHelper,
                 control: control,
-                ecid: vm.ecidHex
+                ecid: vm.ecidHex,
+                headless: cli.headless
             )
             windowController = wc
 

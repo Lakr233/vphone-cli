@@ -17,9 +17,35 @@ if ! command -v amfidont &>/dev/null; then
   exit 1
 fi
 
-sudo xcrun amfidont daemon \
+# amfidont drives LLDB's Python bindings and must use *Xcode's* lldb (which
+# matches its Xcode python3 runtime). If a Homebrew LLVM lldb is first on PATH it
+# shadows Xcode's and ships incompatible bindings (e.g. Python 3.14 vs 3.9),
+# producing a "_lldb did not return an extension module" failure. Force the
+# Xcode toolchain so the `lldb -P` amfidont runs internally resolves correctly.
+# Tolerate xcode-select failing: under `set -e` a failed command substitution in
+# a bare assignment aborts the whole script, and with stderr suppressed the user
+# would get zero diagnostics on exactly the fresh-host case this script targets.
+XCODE_DEVDIR="$(xcode-select -p 2>/dev/null || true)"
+if [[ -z "$XCODE_DEVDIR" ]]; then
+  echo "error: no active Xcode developer dir." >&2
+  echo "  set one with: sudo xcode-select -s /Applications/Xcode.app" >&2
+  exit 1
+fi
+XCODE_BIN="$XCODE_DEVDIR/usr/bin"
+
+AMFIDONT_BIN="$(command -v amfidont)"
+# amfidont's LLDB python bindings must match the python it was installed under.
+# Surface which binary resolved so a Homebrew-vs-Xcode python mismatch is
+# diagnosable from the console rather than silent in the log.
+echo "==> amfidont: $AMFIDONT_BIN (must be installed under Xcode's python3, else lldb bindings mismatch)"
+
+# Prefer the per-user private $TMPDIR over world-writable /tmp: a fixed, guessable
+# path in /tmp is a symlink/pre-created-file hazard for the pre-sudo redirect below.
+LOG="${TMPDIR:-/tmp}/amfidont-vphone.log"
+
+sudo env PATH="$XCODE_BIN:/usr/bin:/bin" "$AMFIDONT_BIN" daemon \
     --path "$PROJECT_ROOT" \
     --spoof-apple \
-    >/dev/null 2>&1
+    >"$LOG" 2>&1
 
-echo "amfidont started"
+echo "amfidont started (log: $LOG)"

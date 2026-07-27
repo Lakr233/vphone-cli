@@ -79,12 +79,32 @@ struct VPhoneVirtualMachineManifest: Codable {
     struct NetworkConfig: Codable {
         let mode: NetworkMode
         let macAddress: String
+        /// Host interface identifier to bridge to (e.g. "en0"). Empty = first
+        /// available bridgeable interface. Only used in `.bridged` mode.
+        let interface: String
 
+        /// Virtualization.framework offers no host-only attachment, so no `hostOnly`
+        /// case is exposed — it could only be implemented as NAT, which grants full
+        /// outbound internet and is the opposite of what the name implies. Use
+        /// `.none` for an isolated guest.
         enum NetworkMode: String, Codable {
             case nat
             case bridged
-            case hostOnly
             case none
+        }
+
+        init(mode: NetworkMode, macAddress: String, interface: String = "") {
+            self.mode = mode
+            self.macAddress = macAddress
+            self.interface = interface
+        }
+
+        // Backward compatible: older config.plists have no `interface` key.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            mode = try c.decode(NetworkMode.self, forKey: .mode)
+            macAddress = try c.decodeIfPresent(String.self, forKey: .macAddress) ?? ""
+            interface = try c.decodeIfPresent(String.self, forKey: .interface) ?? ""
         }
 
         static let `default` = NetworkConfig(mode: .nat, macAddress: "")
