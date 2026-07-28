@@ -25,25 +25,29 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
         let layout = VPhoneLaunchLayout(resources: resources)
 
-        // Host preflight — same gate make boot applies.
-        var preflightArgs = ["--assert-bootable"]
-        if variant == "less" { preflightArgs.append("--less") }
-        let pre = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/bin/zsh"), [layout.preflightScript.path] + preflightArgs,
-            cwd: resources.base)
-        if !pre.stdout.isEmpty { print(pre.stdout, terminator: "") }
-        guard pre.succeeded else {
-            FileHandle.standardError.write(Data(pre.stderr.utf8))
-            throw ExitCode(pre.exitCode == 0 ? 1 : pre.exitCode)
-        }
-
-        // A bundled .app is its own boot binary — self-spawn the running executable
-        // for both the GUI and --dfu (headless) boot paths.
+        // The running executable is BOTH what we boot from and what preflight
+        // should check — a bundled .app is its own boot binary.
         let bootBinary = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
         guard FileManager.default.isExecutableFile(atPath: bootBinary.path) else {
             FileHandle.standardError.write(Data(
                 "error: \(bootBinary.path) not found — build it first (make build/bundle).\n".utf8))
             throw ExitCode(1)
+        }
+
+        // Host preflight — same gate make boot applies. Point it at THIS binary
+        // (VPHONE_CLI_BIN) so it checks the vphone-cli we're running, not a dev
+        // .build/release path that doesn't exist inside the bundled .app.
+        var preflightArgs = ["--assert-bootable"]
+        if variant == "less" { preflightArgs.append("--less") }
+        var preflightEnv = ProcessInfo.processInfo.environment
+        preflightEnv["VPHONE_CLI_BIN"] = bootBinary.path
+        let pre = try VPhoneProcessRunner.runCapturing(
+            URL(fileURLWithPath: "/bin/zsh"), [layout.preflightScript.path] + preflightArgs,
+            cwd: resources.base, env: preflightEnv)
+        if !pre.stdout.isEmpty { print(pre.stdout, terminator: "") }
+        guard pre.succeeded else {
+            FileHandle.standardError.write(Data(pre.stderr.utf8))
+            throw ExitCode(pre.exitCode == 0 ? 1 : pre.exitCode)
         }
 
         if !dfu && !noVphoned {

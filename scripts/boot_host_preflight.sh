@@ -34,7 +34,11 @@ done
 
 cd "$PROJECT_ROOT"
 
-RELEASE_BIN="${PROJECT_ROOT}/.build/release/vphone-cli"
+# The caller (vphone-cli) passes VPHONE_CLI_BIN = the running binary, so we
+# check THAT — the bundled .app's Contents/MacOS/vphone-cli, not a dev
+# .build/release path that doesn't exist inside the bundle. Falls back to the
+# dev layout for standalone/`make` invocation.
+RELEASE_BIN="${VPHONE_CLI_BIN:-${PROJECT_ROOT}/.build/release/vphone-cli}"
 DEBUG_BIN="${PROJECT_ROOT}/.build/debug/vphone-cli"
 ENTITLEMENTS="${PROJECT_ROOT}/sources/vphone.entitlements"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vphone-preflight.XXXXXX")"
