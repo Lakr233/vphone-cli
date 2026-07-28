@@ -4,99 +4,36 @@
 
 Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM infrastructure.
 
-Everything runs through the single `vphone-cli` binary — create, patch, restore, install, boot, and manage VMs. No `make` needed after building.
-
 ![poc](./docs/demo.jpeg)
-
-## Tested Environments
-
-| Host            | iPhone                | CloudOS         |
-| --------------- | --------------------- | --------------- |
-| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
-| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
-| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
-| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-
-iOS ≤ 26.0.1 use the 26.1 PCC vphone600 stack plus the CFW-time `IOMobileFramebuffer` SwapEnd payload-size patch. iOS 27.0 uses the 26.4 PCC vphone600 stack plus the CFW-time force-kern `IOMobileFramebuffer` present-path patch and the dyld shared-cache `maxSlide` fit.
-
-> **Note:** GPU/Metal acceleration does not work on iOS 18.x — the 18.x Metal/IOGPU framework has no paravirtualized GPU implementation, so Metal-rendered content (web pages, images, wallpaper) does not render. Touch, networking, and apps work normally.
-
-## Firmware Variants
-
-Five patch variants with increasing security bypass — pass one to `--variant`:
-
-| Variant      | Boot Chain  | CFW       | Notes                                                              |
-| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
-| `less`       | 4 patches   | 2 phases  | Patchless — keeps iOS mitigations enabled                         |
-| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM bypass                                           |
-| `dev`        | 53 patches  | 12 phases | + TXM entitlement/debug bypass                                    |
-| `jb`         | 113 patches | 14 phases | + full jailbreak (Sileo, TrollStore auto-install on first boot)   |
-| `exp`        | 141 patches | 18 phases | JB superset + anti-VM-detection research patches                  |
-
-See [`research/0_binary_patch_comparison.md`](./research/0_binary_patch_comparison.md) for the per-component breakdown.
 
 ## Prerequisites
 
-**Host:** macOS 15+ (Sequoia), a non-nested Mac (Virtualization.framework can't nest). The private PV=3 entitlements + unsigned-binary workflow need SIP/AMFI relaxed. Pick **one** of these two paths — the SIP setting and the AMFI setting go together, don't mix them:
+**Host:**
 
-**Option A — fully disable SIP, then disable AMFI via boot-arg (most permissive).** In Recovery (long-press power → Terminal):
-
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
-
-Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take effect):
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
-```
-
-**Option B — keep SIP on (debug-only relaxed), then allowlist the binary with amfidont** (leaves AMFI enabled system-wide). In Recovery:
-
-```bash
-csrutil enable --without debug
-csrutil allow-research-guests enable
-```
-
-Then reboot into macOS and allowlist the repo with [`amfidont`](https://github.com/zqxwce/amfidont) (or [`amfree`](https://github.com/retX0/amfree)):
-
-```bash
-sudo amfidont --path <path_to_vphone-cli.app>
-```
-
-> The `less` (patchless) variant needs Option A, or Option B with `amfidont -S` (`sudo amfidont -S --path <path_to_vphone-cli.app>`).
+- Apple Silicon
+- macOS 15+ (Sequoia)
+- [SIP/AMFI relaxation to allow private PV=3 entitlements with unsigned-binary](#sipamfi-relaxation)
 
 **Dependencies:**
 
 ```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
-(A modern `python3` — 3.11+ — is required; the app builds its own Python environment from it, see [Python runtime](#python-runtime).)
+## Install
+
+```bash
+brew install zqxwce/tap/vphone-cli
+```
 
 ## Build
 
-Two one-time bootstrap scripts (a compiled binary can't build itself), then everything is `vphone-cli`:
-
 ```bash
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+
 ./scripts/setup_tools.sh      # install deps, build toolchain submodules, create the Python venv
 ./scripts/build.sh            # build + sign vphone-cli, bundle the .app, cross-compile vphoned
-```
 
-Put the binary on your `PATH` so the examples below work verbatim:
-
-```bash
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
@@ -107,25 +44,7 @@ One command creates a VM end-to-end (download → patch → DFU restore → CFW 
 
 ```bash
 vphone-cli vm create myphone -V jb        # -V / --variant
-```
 
-The user is then prompted to choose iOS <-> cloudOS paring, you can specify either one by passing **`-i`/`--iphone-source`** and/or **`-c`/`--cloudos-source`**, i.e.:
-
-```bash
-# from local IPSWs
-vphone-cli vm create myphone -V jb \
-  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
-  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
-
-# or from URLs — downloaded and cached under ~/.vphone/ipsws
-vphone-cli vm create myphone -V jb \
-  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://.../399b6..."
-```
-
-Then boot it:
-
-```bash
 vphone-cli vm launch myphone
 ```
 
@@ -165,25 +84,25 @@ vphone-cli vm launch myphone                            # 6. first boot
 
 Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
-## Running & Connecting
+## Firmware Variants
 
-`vphone-cli vm launch <name>` opens the VM window; `vphone-cli vm stop <name>` shuts it down. The guest runs an SSH server (dropbear) on port `22222` and VNC on `5901`, reachable over the VM's NAT IP (find it with `arp -a` on `bridge100`):
+Five patch variants with increasing security bypass — pass one to `--variant`:
+
+| Variant      | Boot Chain  | CFW       | Notes                                                              |
+| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | Patchless — keeps iOS mitigations enabled                         |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM bypass                                           |
+| `dev`        | 53 patches  | 12 phases | + TXM entitlement/debug bypass                                    |
+| `jb`         | 113 patches | 14 phases | + full jailbreak (Sileo, TrollStore auto-install on first boot)   |
+| `exp`        | 141 patches | 18 phases | JB superset + anti-VM-detection research patches                  |
+
+See [`research/0_binary_patch_comparison.md`](./research/0_binary_patch_comparison.md) for the per-component breakdown.
+
+## Running & Connecting
 
 - **SSH (jailbreak):** `ssh -p 22222 mobile@<vm-ip>` (password `alpine`)
 - **SSH (regular/dev):** `ssh -p 22222 root@<vm-ip>`
 - **VNC:** `vnc://<vm-ip>:5901`
-
-For the `jb`/`exp` variants, Sileo and TrollStore are installed automatically on first boot (monitor `/var/log/vphone_jb_setup.log`).
-
-## Python runtime
-
-A few steps (DFU restore, IPSW handling) run through Python. On first use,
-vphone-cli provisions a self-contained venv at `~/.vphone/venv` from a modern
-host `python3` (3.11+) using the bundled `requirements.txt` — so the signed
-`.app` is **portable**: copy it anywhere (e.g. `/Applications`) and it runs
-without the repo. Provisioning is automatic; run `vphone-cli setup` to do it
-up front. Point at a specific interpreter with `VPHONE_PYTHON=/path/to/python3`,
-or relocate the venv with `VPHONE_VENV_DIR=/path`.
 
 ## Locations
 
@@ -196,6 +115,56 @@ Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo
 | `~/.vphone/tools/`| Cached APFS seal-volume artifacts (`apfs_sealvolume_<version>`) fetched during `fw prepare`.  |
 | `~/.vphone/debs/` | Cached `.deb` packages the `jb`/`exp` CFW install lays into the guest (Sileo, apt, …).        |
 | `~/.vphone/venv/` | Auto-provisioned Python environment (see [Python runtime](#python-runtime); override with `$VPHONE_VENV_DIR`). |
+
+## SIP/AMFI Relaxation
+
+**Option A — fully disable SIP, then disable AMFI via boot-arg (most permissive).** 
+
+In Recovery (long-press power → Terminal):
+
+```bash
+csrutil disable
+csrutil allow-research-guests enable
+```
+
+Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take effect):
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
+```
+
+**Option B — keep SIP on (debug-only relaxed), then allowlist the binary with amfidont** (leaves AMFI enabled system-wide). 
+
+In Recovery:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+Then reboot into macOS and:
+
+```bash
+vphone-amfidont         # .build/vphone-cli.app/Contents/Resources/vphone-amfidont for local builds
+```
+
+## Tested Environments
+
+| Host            | iPhone                | CloudOS         |
+| --------------- | --------------------- | --------------- |
+| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
+| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
+| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
+| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
 ## FAQ
 

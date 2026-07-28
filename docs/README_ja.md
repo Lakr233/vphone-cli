@@ -4,99 +4,36 @@
 
 PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtualization.framework 経由で仮想 iPhone を起動します。
 
-すべての処理は単一の `vphone-cli` バイナリを通じて実行されます — VM の作成、パッチ適用、復元、インストール、起動、管理。ビルド後は `make` は不要です。
-
 ![poc](./demo.jpeg)
-
-## 動作確認済み環境
-
-| ホスト          | iPhone                | CloudOS         |
-| --------------- | --------------------- | --------------- |
-| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
-| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
-| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
-| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-
-iOS ≤ 26.0.1 では 26.1 PCC vphone600 スタックと、CFW 適用時の `IOMobileFramebuffer` SwapEnd ペイロードサイズパッチを使用します。iOS 27.0 では 26.4 PCC vphone600 スタックと、CFW 適用時の force-kern `IOMobileFramebuffer` present-path パッチ、および dyld shared-cache の `maxSlide` フィットを使用します。
-
-> **注意:** GPU/Metal アクセラレーションは iOS 18.x では動作しません — 18.x の Metal/IOGPU フレームワークには準仮想化 GPU 実装がないため、Metal でレンダリングされるコンテンツ（Web ページ、画像、壁紙）は描画されません。タッチ、ネットワーク、アプリは正常に動作します。
-
-## ファームウェアバリアント
-
-セキュリティバイパスの度合いが段階的に増す 5 つのパッチバリアント — いずれか 1 つを `--variant` に渡します:
-
-| バリアント   | ブートチェーン | CFW       | 備考                                                              |
-| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
-| `less`       | 4 patches   | 2 phases  | パッチなし — iOS の緩和策を有効なまま維持                          |
-| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM バイパス                                        |
-| `dev`        | 53 patches  | 12 phases | + TXM エンタイトルメント/デバッグバイパス                          |
-| `jb`         | 113 patches | 14 phases | + 完全な脱獄（Sileo、TrollStore を初回起動時に自動インストール）   |
-| `exp`        | 141 patches | 18 phases | JB のスーパーセット + VM 検出対策リサーチパッチ                    |
-
-コンポーネントごとの内訳については [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md) を参照してください。
 
 ## 前提条件
 
-**ホスト:** macOS 15+ (Sequoia)、ネストされていない Mac（Virtualization.framework はネストできません）。プライベートな PV=3 エンタイトルメント + 未署名バイナリのワークフローには SIP/AMFI の緩和が必要です。以下の 2 つの方法から **1 つ** を選んでください — SIP の設定と AMFI の設定はセットです。混在させないでください:
+**ホスト:**
 
-**オプション A — SIP を完全に無効化し、boot-arg で AMFI を無効化する（最も緩い）。** リカバリーモードで（電源ボタン長押し → ターミナル）:
-
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
-
-その後 macOS で再起動し、AMFI の boot-arg を設定します（有効化には SIP を完全に無効化する必要があります）:
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
-```
-
-**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、amfidont でバイナリを許可リストに追加する**（AMFI はシステム全体で有効なまま）。リカバリーモードで:
-
-```bash
-csrutil enable --without debug
-csrutil allow-research-guests enable
-```
-
-その後 macOS で再起動し、[`amfidont`](https://github.com/zqxwce/amfidont)（または [`amfree`](https://github.com/retX0/amfree)）でリポジトリを許可リストに追加します:
-
-```bash
-sudo amfidont --path <path_to_vphone-cli.app>
-```
-
-> `less`（パッチなし）バリアントにはオプション A、またはオプション B に `amfidont -S` を組み合わせたもの（`sudo amfidont -S --path <path_to_vphone-cli.app>`）が必要です。
+- Apple Silicon
+- macOS 15+ (Sequoia)
+- [未署名バイナリでプライベートな PV=3 エンタイトルメントを許可するための SIP/AMFI の緩和](#sipamfi-の緩和)
 
 **依存関係:**
 
 ```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
-（最新の `python3` — 3.11+ — が必要です。アプリはそこから独自の Python 環境を構築します。[Python ランタイム](#python-ランタイム) を参照してください。）
+## インストール
+
+```bash
+brew install zqxwce/tap/vphone-cli
+```
 
 ## ビルド
 
-一度きりのブートストラップスクリプトが 2 つあります（コンパイル済みバイナリは自分自身をビルドできないため）。その後はすべて `vphone-cli` で行います:
-
 ```bash
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+
 ./scripts/setup_tools.sh      # 依存関係のインストール、ツールチェーンのサブモジュールのビルド、Python venv の作成
 ./scripts/build.sh            # vphone-cli のビルド + 署名、.app のバンドル、vphoned のクロスコンパイル
-```
 
-以下の例をそのまま実行できるように、バイナリを `PATH` に追加します:
-
-```bash
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
@@ -107,25 +44,7 @@ vphone-cli --help
 
 ```bash
 vphone-cli vm create myphone -V jb        # -V / --variant
-```
 
-その後、iOS <-> cloudOS のペアリングを選ぶよう促されます。**`-i`/`--iphone-source`** および/または **`-c`/`--cloudos-source`** を渡して、どちらか（または両方）を指定することもできます。例:
-
-```bash
-# ローカルの IPSW から
-vphone-cli vm create myphone -V jb \
-  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
-  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
-
-# または URL から — ~/.vphone/ipsws 以下にダウンロードしてキャッシュ
-vphone-cli vm create myphone -V jb \
-  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://.../399b6..."
-```
-
-その後、起動します:
-
-```bash
 vphone-cli vm launch myphone
 ```
 
@@ -165,19 +84,25 @@ vphone-cli vm launch myphone                            # 6. 初回起動
 
 新しい iOS に更新するには、`fw prepare` を IPSW に向けます: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
-## 実行と接続
+## ファームウェアバリアント
 
-`vphone-cli vm launch <name>` は VM のウィンドウを開き、`vphone-cli vm stop <name>` はシャットダウンします。ゲストはポート `22222` で SSH サーバー（dropbear）を、`5901` で VNC を実行しており、VM の NAT IP 経由でアクセスできます（`bridge100` 上で `arp -a` を実行して確認）:
+セキュリティバイパスの度合いが段階的に増す 5 つのパッチバリアント — いずれか 1 つを `--variant` に渡します:
+
+| バリアント   | ブートチェーン | CFW       | 備考                                                              |
+| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | パッチなし — iOS の緩和策を有効なまま維持                          |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM バイパス                                        |
+| `dev`        | 53 patches  | 12 phases | + TXM エンタイトルメント/デバッグバイパス                          |
+| `jb`         | 113 patches | 14 phases | + 完全な脱獄（Sileo、TrollStore を初回起動時に自動インストール）   |
+| `exp`        | 141 patches | 18 phases | JB のスーパーセット + VM 検出対策リサーチパッチ                    |
+
+コンポーネントごとの内訳については [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md) を参照してください。
+
+## 実行と接続
 
 - **SSH（脱獄）:** `ssh -p 22222 mobile@<vm-ip>`（パスワード `alpine`）
 - **SSH（regular/dev）:** `ssh -p 22222 root@<vm-ip>`
 - **VNC:** `vnc://<vm-ip>:5901`
-
-`jb`/`exp` バリアントでは、Sileo と TrollStore が初回起動時に自動的にインストールされます（`/var/log/vphone_jb_setup.log` で監視）。
-
-## Python ランタイム
-
-いくつかのステップ（DFU 復元、IPSW 処理）は Python を通じて実行されます。初回使用時、vphone-cli はバンドルされた `requirements.txt` を使用して、最新のホスト `python3`（3.11+）から `~/.vphone/venv` に自己完結型の venv をプロビジョニングします — そのため署名済みの `.app` は **ポータブル** です。任意の場所（例: `/Applications`）にコピーすればリポジトリなしで動作します。プロビジョニングは自動ですが、事前に行うには `vphone-cli setup` を実行します。特定のインタプリタを指定するには `VPHONE_PYTHON=/path/to/python3`、venv の場所を変更するには `VPHONE_VENV_DIR=/path` を使用します。
 
 ## 場所
 
@@ -185,11 +110,61 @@ vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれま�
 
 | パス              | 内容                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------ |
-| `~/.vphone/VMs/`  | VM バンドル — VM ごとに 1 ディレクトリ。ライブラリであり、`$VPHONE_LIBRARY_ROOT` で上書きできます。 |
+| `~/.vphone/VMs/`  | VM バンドル — VM ごとに 1 ディレクトリ。これがライブラリです。`$VPHONE_LIBRARY_ROOT` で上書きできます。 |
 | `~/.vphone/ipsws/`| ダウンロードされた iPhone + cloudOS の IPSW。キャッシュされ、複数の VM で再利用されます。       |
 | `~/.vphone/tools/`| `fw prepare` 中に取得された APFS seal-volume アーティファクト（`apfs_sealvolume_<version>`）のキャッシュ。 |
 | `~/.vphone/debs/` | `jb`/`exp` の CFW インストールがゲストに配置する `.deb` パッケージのキャッシュ（Sileo、apt など）。 |
 | `~/.vphone/venv/` | 自動的にプロビジョニングされる Python 環境（[Python ランタイム](#python-ランタイム) を参照。`$VPHONE_VENV_DIR` で上書き可能）。 |
+
+## SIP/AMFI の緩和
+
+**オプション A — SIP を完全に無効化し、boot-arg で AMFI を無効化する（最も緩い）。**
+
+リカバリーモードで（電源ボタン長押し → ターミナル）:
+
+```bash
+csrutil disable
+csrutil allow-research-guests enable
+```
+
+その後 macOS で再起動し、AMFI の boot-arg を設定します（有効化には SIP を完全に無効化する必要があります）:
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
+```
+
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、amfidont でバイナリを許可リストに追加する**（AMFI はシステム全体で有効なまま）。
+
+リカバリーモードで:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+その後 macOS で再起動し:
+
+```bash
+vphone-amfidont         # ローカルビルドの場合は .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+```
+
+## 動作確認済み環境
+
+| ホスト          | iPhone                | CloudOS         |
+| --------------- | --------------------- | --------------- |
+| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
+| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
+| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
+| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
 ## FAQ
 

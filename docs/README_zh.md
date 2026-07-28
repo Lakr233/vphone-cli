@@ -4,99 +4,36 @@
 
 使用 PCC 研究虚拟机基础设施，通过 Apple 的 Virtualization.framework 启动一台虚拟 iPhone。
 
-所有操作都通过单个 `vphone-cli` 二进制文件完成——创建、打补丁、恢复、安装、启动以及管理虚拟机。构建完成后无需再使用 `make`。
-
 ![poc](./demo.jpeg)
-
-## 测试环境
-
-| 宿主机          | iPhone                | CloudOS         |
-| --------------- | --------------------- | --------------- |
-| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
-| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
-| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
-| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-
-iOS ≤ 26.0.1 使用 26.1 PCC vphone600 栈，外加 CFW 阶段的 `IOMobileFramebuffer` SwapEnd 载荷大小补丁。iOS 27.0 使用 26.4 PCC vphone600 栈，外加 CFW 阶段的强制内核 `IOMobileFramebuffer` present-path 补丁以及 dyld 共享缓存 `maxSlide` 适配。
-
-> **注意：** GPU/Metal 加速在 iOS 18.x 上无法工作——18.x 的 Metal/IOGPU 框架没有半虚拟化 GPU 实现，因此由 Metal 渲染的内容（网页、图片、壁纸）不会显示。触控、网络和应用可正常工作。
-
-## 固件变体
-
-五种补丁变体，安全绕过程度递增——将其中之一传给 `--variant`：
-
-| 变体         | 引导链      | CFW       | 说明                                              |
-| ------------ | ----------- | --------- | ------------------------------------------------- |
-| `less`       | 4 patches   | 2 phases  | 无补丁——保持 iOS 缓解措施启用                     |
-| `regular`    | 42 patches  | 10 phases | 绕过 AMFI/SSV/Img4/TXM                            |
-| `dev`        | 53 patches  | 12 phases | + 绕过 TXM 授权/调试                              |
-| `jb`         | 113 patches | 14 phases | + 完整越狱（首次启动时自动安装 Sileo、TrollStore）|
-| `exp`        | 141 patches | 18 phases | JB 超集 + 反虚拟机检测研究补丁                    |
-
-各组件的详细拆解见 [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md)。
 
 ## 前置条件
 
-**宿主机：** macOS 15+（Sequoia），一台非嵌套的 Mac（Virtualization.framework 无法嵌套）。私有 PV=3 授权 + 未签名二进制的工作流需要放宽 SIP/AMFI。请从以下两条路径中选择**一条**——SIP 设置和 AMFI 设置是配套的，不要混用：
+**宿主机：**
 
-**方案 A——完全禁用 SIP，然后通过 boot-arg 禁用 AMFI（最宽松）。** 在恢复模式下（长按电源键 → 终端）：
-
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
-
-然后重启进入 macOS 并设置 AMFI boot-arg（需要 SIP 完全关闭才能生效）：
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 之后重启
-```
-
-**方案 B——保持 SIP 开启（仅放宽 debug），然后用 amfidont 将二进制加入白名单**（AMFI 在系统范围内保持启用）。在恢复模式下：
-
-```bash
-csrutil enable --without debug
-csrutil allow-research-guests enable
-```
-
-然后重启进入 macOS，用 [`amfidont`](https://github.com/zqxwce/amfidont)（或 [`amfree`](https://github.com/retX0/amfree)）将仓库加入白名单：
-
-```bash
-sudo amfidont --path <path_to_vphone-cli.app>
-```
-
-> `less`（无补丁）变体需要方案 A，或者搭配 `amfidont -S` 的方案 B（`sudo amfidont -S --path <path_to_vphone-cli.app>`）。
+- Apple Silicon
+- macOS 15+（Sequoia）
+- [放宽 SIP/AMFI，以允许未签名二进制使用私有 PV=3 授权](#放宽-sipamfi)
 
 **依赖：**
 
 ```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
-（需要一个较新的 `python3`——3.11+；应用会基于它构建自己的 Python 环境，见 [Python 运行时](#python-运行时)。）
+## 安装
+
+```bash
+brew install zqxwce/tap/vphone-cli
+```
 
 ## 构建
 
-两个一次性的引导脚本（编译后的二进制无法自行构建），之后一切都通过 `vphone-cli` 完成：
-
 ```bash
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+
 ./scripts/setup_tools.sh      # 安装依赖、构建工具链子模块、创建 Python venv
 ./scripts/build.sh            # 构建并签名 vphone-cli、打包 .app、交叉编译 vphoned
-```
 
-把二进制加入你的 `PATH`，这样下面的示例就能原样运行：
-
-```bash
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
@@ -107,25 +44,7 @@ vphone-cli --help
 
 ```bash
 vphone-cli vm create myphone -V jb        # -V / --variant
-```
 
-随后会提示你选择 iOS <-> cloudOS 配对；你也可以通过传入 **`-i`/`--iphone-source`** 和/或 **`-c`/`--cloudos-source`** 指定其中之一（或两者）。例如：
-
-```bash
-# 使用本地 IPSW
-vphone-cli vm create myphone -V jb \
-  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
-  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
-
-# 或使用 URL——下载后缓存到 ~/.vphone/ipsws
-vphone-cli vm create myphone -V jb \
-  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://.../399b6..."
-```
-
-然后启动它：
-
-```bash
 vphone-cli vm launch myphone
 ```
 
@@ -165,19 +84,25 @@ vphone-cli vm launch myphone                            # 6. 首次启动
 
 要升级到更新的 iOS，把 `fw prepare` 指向一个 IPSW：`--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
-## 运行与连接
+## 固件变体
 
-`vphone-cli vm launch <name>` 会打开虚拟机窗口；`vphone-cli vm stop <name>` 会将其关闭。客户机在端口 `22222` 上运行 SSH 服务器（dropbear），在 `5901` 上运行 VNC，可通过虚拟机的 NAT IP 访问（在 `bridge100` 上用 `arp -a` 查找）：
+五种补丁变体，安全绕过程度递增——将其中之一传给 `--variant`：
+
+| 变体      | 引导链      | CFW       | 说明                                              |
+| --------- | ----------- | --------- | ------------------------------------------------- |
+| `less`    | 4 patches   | 2 phases  | 无补丁——保持 iOS 缓解措施启用                     |
+| `regular` | 42 patches  | 10 phases | 绕过 AMFI/SSV/Img4/TXM                            |
+| `dev`     | 53 patches  | 12 phases | + 绕过 TXM 授权/调试                              |
+| `jb`      | 113 patches | 14 phases | + 完整越狱（首次启动时自动安装 Sileo、TrollStore）|
+| `exp`     | 141 patches | 18 phases | JB 超集 + 反虚拟机检测研究补丁                    |
+
+各组件的详细拆解见 [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md)。
+
+## 运行与连接
 
 - **SSH（越狱）：** `ssh -p 22222 mobile@<vm-ip>`（密码 `alpine`）
 - **SSH（regular/dev）：** `ssh -p 22222 root@<vm-ip>`
 - **VNC：** `vnc://<vm-ip>:5901`
-
-对于 `jb`/`exp` 变体，Sileo 和 TrollStore 会在首次启动时自动安装（可监控 `/var/log/vphone_jb_setup.log`）。
-
-## Python 运行时
-
-有几个步骤（DFU 恢复、IPSW 处理）通过 Python 运行。首次使用时，vphone-cli 会基于宿主机上较新的 `python3`（3.11+）并使用捆绑的 `requirements.txt`，在 `~/.vphone/venv` 处配置一个自包含的 venv——因此签名后的 `.app` 是**可移植的**：把它复制到任何地方（例如 `/Applications`），无需仓库即可运行。配置是自动进行的；运行 `vphone-cli setup` 可提前完成配置。用 `VPHONE_PYTHON=/path/to/python3` 指定特定的解释器，或用 `VPHONE_VENV_DIR=/path` 迁移 venv。
 
 ## 位置
 
@@ -190,6 +115,56 @@ vphone-cli 创建的所有内容都位于 `~/.vphone/` 下——保存在仓库�
 | `~/.vphone/tools/`| `fw prepare` 期间获取的 APFS seal-volume 制品（`apfs_sealvolume_<version>`）缓存。 |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 安装写入客户机的 `.deb` 包缓存（Sileo、apt 等）。                   |
 | `~/.vphone/venv/` | 自动配置的 Python 环境（见 [Python 运行时](#python-运行时)；可用 `$VPHONE_VENV_DIR` 覆盖）。 |
+
+## 放宽 SIP/AMFI
+
+**方案 A——完全禁用 SIP，然后通过 boot-arg 禁用 AMFI（最宽松）。**
+
+在恢复模式下（长按电源键 → 终端）：
+
+```bash
+csrutil disable
+csrutil allow-research-guests enable
+```
+
+然后重启进入 macOS 并设置 AMFI boot-arg（需要 SIP 完全关闭才能生效）：
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 之后重启
+```
+
+**方案 B——保持 SIP 开启（仅放宽 debug），然后用 amfidont 将二进制加入白名单**（AMFI 在系统范围内保持启用）。
+
+在恢复模式下：
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+然后重启进入 macOS 并执行：
+
+```bash
+vphone-amfidont         # 本地构建见 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+```
+
+## 测试环境
+
+| 宿主机          | iPhone                | CloudOS         |
+| --------------- | --------------------- | --------------- |
+| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
+| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
+| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
+| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
 ## 常见问题
 

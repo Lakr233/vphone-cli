@@ -4,99 +4,36 @@
 
 PCC 리서치 VM 인프라를 사용하여 Apple의 Virtualization.framework로 가상 iPhone을 부팅합니다.
 
-모든 것은 단일 `vphone-cli` 바이너리를 통해 실행됩니다 — VM 생성, 패치, 복원, 설치, 부팅, 관리. 빌드 후에는 `make`가 필요하지 않습니다.
-
 ![poc](./demo.jpeg)
-
-## 테스트 환경
-
-| Host            | iPhone                | CloudOS         |
-| --------------- | --------------------- | --------------- |
-| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
-| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
-| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
-| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
-| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-
-iOS ≤ 26.0.1은 26.1 PCC vphone600 스택에 더해 CFW 단계의 `IOMobileFramebuffer` SwapEnd 페이로드 크기 패치를 사용합니다. iOS 27.0은 26.4 PCC vphone600 스택에 더해 CFW 단계의 force-kern `IOMobileFramebuffer` present-path 패치와 dyld 공유 캐시 `maxSlide` 조정을 사용합니다.
-
-> **참고:** iOS 18.x에서는 GPU/Metal 가속이 작동하지 않습니다 — 18.x의 Metal/IOGPU 프레임워크에 반가상화 GPU 구현이 없기 때문에 Metal로 렌더링되는 콘텐츠(웹 페이지, 이미지, 배경화면)가 표시되지 않습니다. 터치, 네트워크, 앱은 정상적으로 작동합니다.
-
-## 펌웨어 변형
-
-보안 우회 수준이 점점 강해지는 5가지 패치 변형이 있습니다 — 하나를 `--variant`에 전달하세요:
-
-| 변형         | 부트 체인   | CFW       | 참고                                                            |
-| ------------ | ----------- | --------- | --------------------------------------------------------------- |
-| `less`       | 4 patches   | 2 phases  | Patchless — iOS 완화 기능을 활성 상태로 유지                    |
-| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM 우회                                          |
-| `dev`        | 53 patches  | 12 phases | + TXM 권한/디버그 우회                                          |
-| `jb`         | 113 patches | 14 phases | + 전체 탈옥 (Sileo, TrollStore가 첫 부팅 시 자동 설치)          |
-| `exp`        | 141 patches | 18 phases | JB 상위 집합 + VM 탐지 방지 연구 패치                           |
-
-컴포넌트별 상세 분류는 [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md)를 참조하세요.
 
 ## 사전 요구 사항
 
-**호스트:** macOS 15+ (Sequoia), 중첩되지 않은 Mac (Virtualization.framework는 중첩할 수 없습니다). Private PV=3 권한 + 서명되지 않은 바이너리 워크플로우에는 SIP/AMFI 완화가 필요합니다. 다음 두 가지 방법 중 **하나**를 선택하세요 — SIP 설정과 AMFI 설정은 함께 가야 하므로 섞지 마세요:
+**호스트:**
 
-**방법 A — SIP를 완전히 비활성화한 후, boot-arg로 AMFI를 비활성화 (가장 관대).** 복구 모드에서 (전원 버튼 길게 누르기 → 터미널):
-
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
-
-그런 다음 macOS로 재부팅하고 AMFI boot-arg를 설정합니다 (적용되려면 SIP가 완전히 꺼져 있어야 합니다):
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 이후 재부팅
-```
-
-**방법 B — SIP 유지 (디버그만 완화), 그런 다음 amfidont로 바이너리를 허용 목록에 추가** (AMFI는 시스템 전체에서 활성 상태 유지). 복구 모드에서:
-
-```bash
-csrutil enable --without debug
-csrutil allow-research-guests enable
-```
-
-그런 다음 macOS로 재부팅하고 [`amfidont`](https://github.com/zqxwce/amfidont) (또는 [`amfree`](https://github.com/retX0/amfree))로 저장소를 허용 목록에 추가합니다:
-
-```bash
-sudo amfidont --path <path_to_vphone-cli.app>
-```
-
-> `less` (patchless) 변형은 방법 A, 또는 `amfidont -S`를 포함한 방법 B(`sudo amfidont -S --path <path_to_vphone-cli.app>`)가 필요합니다.
+- Apple Silicon
+- macOS 15+ (Sequoia)
+- [서명되지 않은 바이너리로 private PV=3 권한을 허용하기 위한 SIP/AMFI 완화](#sipamfi-완화)
 
 **의존성:**
 
 ```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
 ```
 
-(최신 `python3` — 3.11+ — 이 필요합니다; 앱은 이를 사용하여 자체 Python 환경을 빌드합니다. [Python 런타임](#python-런타임)을 참조하세요.)
+## 설치
+
+```bash
+brew install zqxwce/tap/vphone-cli
+```
 
 ## 빌드
 
-두 개의 일회성 부트스트랩 스크립트(컴파일된 바이너리는 스스로를 빌드할 수 없습니다)를 실행하면, 그 다음부터는 모든 것이 `vphone-cli`입니다:
-
 ```bash
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+
 ./scripts/setup_tools.sh      # 의존성 설치, 툴체인 서브모듈 빌드, Python venv 생성
 ./scripts/build.sh            # vphone-cli 빌드 및 서명, .app 번들 생성, vphoned 크로스 컴파일
-```
 
-아래 예제가 그대로 작동하도록 바이너리를 `PATH`에 추가하세요:
-
-```bash
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
@@ -107,25 +44,7 @@ vphone-cli --help
 
 ```bash
 vphone-cli vm create myphone -V jb        # -V / --variant
-```
 
-그러면 iOS <-> cloudOS 페어링을 선택하라는 안내가 표시됩니다. **`-i`/`--iphone-source`** 및/또는 **`-c`/`--cloudos-source`**를 전달하여 둘 중 하나(또는 둘 다)를 직접 지정할 수도 있습니다. 예:
-
-```bash
-# 로컬 IPSW에서
-vphone-cli vm create myphone -V jb \
-  -i ~/ipsws/iPhone17,3_26.1_23B85_Restore.ipsw \
-  -c ~/ipsws/cloudOS_26.1-23B85.ipsw
-
-# 또는 URL에서 — 다운로드되어 ~/.vphone/ipsws 아래에 캐시됨
-vphone-cli vm create myphone -V jb \
-  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://.../399b6..."
-```
-
-그런 다음 부팅합니다:
-
-```bash
 vphone-cli vm launch myphone
 ```
 
@@ -165,25 +84,25 @@ vphone-cli vm launch myphone                            # 6. 첫 부팅
 
 최신 iOS로 업데이트하려면 `fw prepare`를 IPSW로 지정하세요: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
-## 실행 및 연결
+## 펌웨어 변형
 
-`vphone-cli vm launch <name>`은 VM 창을 엽니다; `vphone-cli vm stop <name>`은 종료합니다. 게스트는 포트 `22222`에서 SSH 서버(dropbear)를, `5901`에서 VNC를 실행하며, VM의 NAT IP로 접근할 수 있습니다 (`bridge100`에서 `arp -a`로 찾으세요):
+보안 우회 수준이 점점 강해지는 5가지 패치 변형이 있습니다 — 하나를 `--variant`에 전달하세요:
+
+| 변형         | 부트 체인   | CFW       | 참고                                                            |
+| ------------ | ----------- | --------- | --------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | Patchless — iOS 완화 기능을 활성 상태로 유지                    |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM 우회                                          |
+| `dev`        | 53 patches  | 12 phases | + TXM 권한/디버그 우회                                          |
+| `jb`         | 113 patches | 14 phases | + 전체 탈옥 (Sileo, TrollStore가 첫 부팅 시 자동 설치)          |
+| `exp`        | 141 patches | 18 phases | JB 상위 집합 + VM 탐지 방지 연구 패치                           |
+
+컴포넌트별 상세 분류는 [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md)를 참조하세요.
+
+## 실행 및 연결
 
 - **SSH (탈옥):** `ssh -p 22222 mobile@<vm-ip>` (비밀번호 `alpine`)
 - **SSH (regular/dev):** `ssh -p 22222 root@<vm-ip>`
 - **VNC:** `vnc://<vm-ip>:5901`
-
-`jb`/`exp` 변형의 경우, Sileo와 TrollStore가 첫 부팅 시 자동으로 설치됩니다 (`/var/log/vphone_jb_setup.log`로 모니터링).
-
-## Python 런타임
-
-일부 단계(DFU 복원, IPSW 처리)는 Python을 통해 실행됩니다. 최초 사용 시,
-vphone-cli는 번들된 `requirements.txt`를 사용하여 최신 호스트 `python3`(3.11+)로부터
-`~/.vphone/venv`에 독립적인 venv를 프로비저닝합니다 — 따라서 서명된
-`.app`은 **이식 가능**합니다: 어디든(예: `/Applications`) 복사하면 저장소
-없이도 실행됩니다. 프로비저닝은 자동으로 이루어집니다; 미리 실행하려면 `vphone-cli setup`을
-실행하세요. 특정 인터프리터를 지정하려면 `VPHONE_PYTHON=/path/to/python3`을,
-venv 위치를 변경하려면 `VPHONE_VENV_DIR=/path`를 사용하세요.
 
 ## 위치
 
@@ -196,6 +115,56 @@ vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 —
 | `~/.vphone/tools/`| `fw prepare` 중에 가져온 APFS seal-volume 아티팩트(`apfs_sealvolume_<version>`) 캐시.         |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 설치가 게스트에 넣는 `.deb` 패키지 캐시 (Sileo, apt 등).                       |
 | `~/.vphone/venv/` | 자동으로 프로비저닝되는 Python 환경 ([Python 런타임](#python-런타임) 참조; `$VPHONE_VENV_DIR`로 재정의). |
+
+## SIP/AMFI 완화
+
+**방법 A — SIP를 완전히 비활성화한 후, boot-arg로 AMFI를 비활성화 (가장 관대).**
+
+복구 모드에서 (전원 버튼 길게 누르기 → 터미널):
+
+```bash
+csrutil disable
+csrutil allow-research-guests enable
+```
+
+그런 다음 macOS로 재부팅하고 AMFI boot-arg를 설정합니다 (적용되려면 SIP가 완전히 꺼져 있어야 합니다):
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 이후 재부팅
+```
+
+**방법 B — SIP 유지 (디버그만 완화), 그런 다음 amfidont로 바이너리를 허용 목록에 추가** (AMFI는 시스템 전체에서 활성 상태 유지).
+
+복구 모드에서:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+그런 다음 macOS로 재부팅하고:
+
+```bash
+vphone-amfidont         # 로컬 빌드의 경우 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+```
+
+## 테스트 환경
+
+| 호스트          | iPhone                | CloudOS         |
+| --------------- | --------------------- | --------------- |
+| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
+| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
+| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
+| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
+| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
+| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
+| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
+| Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
 ## FAQ
 
