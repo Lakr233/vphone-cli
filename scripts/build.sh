@@ -52,6 +52,10 @@ cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
 cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
 codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
+# vphone-amfidont helper (allows this .app through amfid). Bundled next to the
+# main binary so a Homebrew `binary` symlink can put it on PATH.
+cp -f "scripts/vphone-amfidont" "${BUNDLE}/Contents/MacOS/vphone-amfidont"
+chmod +x "${BUNDLE}/Contents/MacOS/vphone-amfidont"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
 echo "  bundled → ${BUNDLE}"
 
