@@ -27,7 +27,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
 
         // The running executable is BOTH what we boot from and what preflight
         // should check — a bundled .app is its own boot binary.
-        let bootBinary = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        let bootBinary = VPhoneResources.runningExecutable()
         guard FileManager.default.isExecutableFile(atPath: bootBinary.path) else {
             FileHandle.standardError.write(Data(
                 "error: \(bootBinary.path) not found — build it first (make build/bundle).\n".utf8))

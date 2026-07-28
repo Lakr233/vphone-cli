@@ -28,7 +28,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
 
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-        let selfExe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        let selfExe = VPhoneResources.runningExecutable()
         let orchestrator = VPhoneCreateOrchestrator(
             library: lib.library, resources: resources, selfExecutable: selfExe)
         try orchestrator.run(.init(

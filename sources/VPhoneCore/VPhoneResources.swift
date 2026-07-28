@@ -16,8 +16,21 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Resolution
 
-    public static func resolve(executablePath: String = CommandLine.arguments[0]) -> VPhoneResources {
-        let exe = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
+    /// The running executable, resolved reliably. `CommandLine.arguments[0]` is
+    /// NOT reliable — under a PATH/symlink launch (e.g. a Homebrew symlink) it's
+    /// a bare name that `URL(fileURLWithPath:)` resolves against the CWD, so the
+    /// binary/base end up under `$HOME`. `Bundle.main.executableURL` is the
+    /// kernel-provided executable path, correct regardless of how the process
+    /// was invoked; resolve symlinks so a brew symlink lands on the real binary
+    /// inside the .app.
+    public static func runningExecutable() -> URL {
+        if let exe = Bundle.main.executableURL { return exe.resolvingSymlinksInPath() }
+        return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    }
+
+    public static func resolve(executablePath: String? = nil) -> VPhoneResources {
+        let exe = executablePath.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
+            ?? runningExecutable()
         let macos = exe.deletingLastPathComponent()             // …/Contents/MacOS
         if macos.lastPathComponent == "MacOS",
            macos.deletingLastPathComponent().lastPathComponent == "Contents" {
@@ -62,6 +75,7 @@ public struct VPhoneResources: Sendable {
     }
     public var ipswCacheDir: URL { userCacheDir.appendingPathComponent("ipsws") }
     public var sealVolumeCacheDir: URL { userCacheDir.appendingPathComponent("tools") }
+    public var debsCacheDir: URL { userCacheDir.appendingPathComponent("debs") }
     public var toolsBinDir: URL { base.appendingPathComponent(".tools/bin") }
 
     // MARK: - Python

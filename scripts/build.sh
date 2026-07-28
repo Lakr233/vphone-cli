@@ -95,7 +95,11 @@ done
 # requirements.txt lets the app provision its own ~/.vphone/venv on first run
 # (see VPhoneResources.pythonExecutable) — the app carries no venv itself.
 cp -f requirements.txt "${RES}/requirements.txt"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt"
+# debs.list = extra-deb manifest (fetch_debs.sh reads $base/debs.list); README.md
+# = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
+cp -f debs.list "${RES}/debs.list"
+cp -f README.md "${RES}/README.md"
+echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —

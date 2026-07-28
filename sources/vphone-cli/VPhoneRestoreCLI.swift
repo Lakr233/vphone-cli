@@ -105,9 +105,11 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         // `fw patch` path (CryptexFilesystemPatcher).
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
         env["VPHONE_PYTHON"] = try resources.pythonExecutable().path
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
+        env["VPHONE_DEBS_DIR"] = resources.debsCacheDir.path
 
         let args = [resources.cfwInstallHostScript.path, "--variant", variant, bundle.url.path]
         if v.tracesInternals {

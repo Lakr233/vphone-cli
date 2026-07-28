@@ -448,9 +448,11 @@ public struct VPhoneCreateOrchestrator {
         if options.forceDSCMaxSlide { env["FORCE_DSC_MAXSLIDE"] = "1" }
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
         env["VPHONE_PYTHON"] = try resources.pythonExecutable().path
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
+        env["VPHONE_DEBS_DIR"] = resources.debsCacheDir.path
         for (key, value) in sudoEnvExtras { env[key] = value }
 
         let args = [resources.cfwInstallHostScript.path, "--variant", options.variant, bundleURL.path]

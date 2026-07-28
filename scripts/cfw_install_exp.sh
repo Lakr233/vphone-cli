@@ -539,7 +539,7 @@ fi
 # ── Extra debs: download from manifest, then stage the whole cache ──────
 echo "  Fetching extra debs..."
 zsh "$SCRIPT_DIR/fetch_debs.sh" || true
-DEBS_CACHE="${SCRIPT_DIR:h}/debs"
+DEBS_CACHE="${VPHONE_DEBS_DIR:-${SCRIPT_DIR:h}/debs}"
 DEBS_DEST="$MNT5/$BOOT_HASH/debs"
 /bin/rm -rf "$DEBS_DEST"
 deb_count=0
