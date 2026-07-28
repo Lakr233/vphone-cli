@@ -2,6 +2,10 @@
 import Foundation
 import Testing
 
+// Serialized: defaultRootHonorsEnvOverride / defaultRootIsShellSafe mutate the
+// process-global VPHONE_LIBRARY_ROOT; run in parallel they race (a set/unset
+// from one can land inside the other's assertion).
+@Suite(.serialized)
 struct LibraryTests {
     private func makeRoot() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

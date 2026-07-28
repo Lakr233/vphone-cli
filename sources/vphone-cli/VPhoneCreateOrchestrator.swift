@@ -20,6 +20,7 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
     case restoreGetSHSHFailed(Int32)
     case restoreUpdateFailed(Int32)
     case cfwInstallFailed(Int32)
+    case sudoPasswordRequired
     case firstBootPanic
     case firstBootExitedBeforePrompt(Int32)
     case bootAnalysisPanic
@@ -53,6 +54,9 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
             "restore-update failed (exit \(code))"
         case let .cfwInstallFailed(code):
             "CFW install failed (exit \(code))"
+        case .sudoPasswordRequired:
+            "CFW install needs root but no sudo password is available — pass --sudo-password "
+                + "or run vm create in an interactive terminal"
         case .firstBootPanic:
             "first boot panicked before command injection"
         case let .firstBootExitedBeforePrompt(code):
@@ -161,16 +165,30 @@ public struct VPhoneCreateOrchestrator {
             throw VPhoneLibraryError.alreadyExists(name: options.name)
         }
 
-        // setup_sudo_noninteractive: preload an askpass helper so CFW install's
-        // internal `sudo -A` re-exec can run unattended.
+        // CFW install re-execs under sudo (host disk mount: mount_apfs + chown
+        // 0:0 are root-only). With --sudo-password we feed sudo non-interactively
+        // via the askpass helper. Otherwise sudo prompts on the terminal itself —
+        // the CFW-install step runs as a foreground job (runForeground) so sudo's
+        // process group owns the tty and reads the password directly; our code
+        // never sees it. `less` runs the whole create as root, so needs no password.
         var sudoEnvExtras: [String: String] = [:]
         var askpassScript: URL?
         defer { if let askpassScript { try? FileManager.default.removeItem(at: askpassScript) } }
-        if let password = options.sudoPassword, !password.isEmpty {
-            let script = try makeSudoAskpassScript(password: password)
-            askpassScript = script
-            sudoEnvExtras = ["SUDO_ASKPASS": script.path, "SUDO_PASSWORD": password]
-            preloadSudoCredential(env: sudoEnvExtras, verbosity: v)
+        if !isLess {
+            if let password = options.sudoPassword, !password.isEmpty {
+                let script = try makeSudoAskpassScript()
+                askpassScript = script
+                sudoEnvExtras = ["SUDO_ASKPASS": script.path, "SUDO_PASSWORD": password]
+                if preloadSudoCredential(env: sudoEnvExtras, verbosity: v) {
+                    print("[+] sudo credential preloaded via --sudo-password")
+                } else {
+                    print("[!] --sudo-password failed validation; will still try at CFW-install time")
+                }
+            } else if isatty(FileHandle.standardInput.fileDescriptor) == 0 {
+                // No password and no terminal for sudo to prompt on — fail before
+                // the long download/restore, not at the eventual sudo prompt.
+                throw VPhoneCreateError.sudoPasswordRequired
+            }
         }
 
         print("\n=== vm new ===")
@@ -247,7 +265,9 @@ public struct VPhoneCreateOrchestrator {
 
     // MARK: - sudo askpass
 
-    private func makeSudoAskpassScript(password: String) throws -> URL {
+    /// Askpass helper: emits `$SUDO_PASSWORD` (set per-invocation in the env).
+    /// The password is never written into the script itself.
+    private func makeSudoAskpassScript() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-sudo-askpass-\(UUID().uuidString)")
         let script = "#!/bin/sh\nprintf '%s\\n' \"${SUDO_PASSWORD:-}\"\n"
@@ -256,16 +276,15 @@ public struct VPhoneCreateOrchestrator {
         return url
     }
 
-    private func preloadSudoCredential(env extras: [String: String], verbosity v: VPhoneVerbosity) {
+    /// Validate a sudo credential non-interactively via the askpass env
+    /// (`sudo -A -v`). Returns whether it succeeded.
+    private func preloadSudoCredential(env extras: [String: String], verbosity v: VPhoneVerbosity) -> Bool {
         var env = ProcessInfo.processInfo.environment
         for (key, value) in extras { env[key] = value }
         trace("spawn /usr/bin/sudo -A -v (env keys added: \(extras.keys.sorted().joined(separator: ", ")))", v)
-        let result = try? VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: "/usr/bin/sudo"), ["-A", "-v"], env: env)
-        if result?.succeeded == true {
-            print("[+] sudo credential preloaded via SUDO_PASSWORD")
-        } else {
-            print("[!] SUDO_PASSWORD provided but sudo -A validation failed; continuing without preload")
-        }
+        let result = try? VPhoneProcessRunner.runCapturing(
+            URL(fileURLWithPath: "/usr/bin/sudo"), ["-A", "-v"], env: env)
+        return result?.succeeded == true
     }
 
     // MARK: - fw prepare / fw patch
@@ -437,8 +456,20 @@ public struct VPhoneCreateOrchestrator {
         let args = [resources.cfwInstallHostScript.path, "--variant", options.variant, bundleURL.path]
         let envKeys = (["VPHONE_PYTHON", "IPSW_DIR", "VPHONE_SEAL_DIR"] + sudoEnvExtras.keys.sorted()).joined(separator: ", ")
         trace("spawn /bin/zsh \(args.joined(separator: " ")) (env keys: \(envKeys))", v)
-        let code = try VPhoneProcessRunner.runStreaming(
-            URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
+        // With an askpass credential sudo is non-interactive → honor verbosity.
+        // Without one, sudo must prompt on the terminal → run as a foreground job
+        // so its process group owns the tty (see runForeground).
+        let code: Int32
+        if sudoEnvExtras["SUDO_ASKPASS"] != nil {
+            code = try VPhoneProcessRunner.runStreaming(
+                URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
+        } else {
+            print("[*] CFW install needs root — sudo will prompt for your macOS password.")
+            // Foreground so sudo can own the tty; echo honors verbosity (quiet
+            // suppresses the install's own output, sudo's /dev/tty prompt stays).
+            code = try VPhoneProcessRunner.runForeground(
+                URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
+        }
         guard code == 0 else { throw VPhoneCreateError.cfwInstallFailed(code) }
         print("[+] CFW installed (\(options.variant)).")
     }

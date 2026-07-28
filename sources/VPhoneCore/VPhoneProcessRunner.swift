@@ -108,4 +108,63 @@ public enum VPhoneProcessRunner {
         process.waitUntilExit()
         return process.terminationStatus
     }
+
+    /// Run `executable args` as a controlling-terminal FOREGROUND job.
+    ///
+    /// Foundation spawns children in a new process group, which leaves them in
+    /// the *background* of the terminal — an interactive program they run (e.g.
+    /// `sudo`) then can't disable echo or read the tty (the password shows and
+    /// isn't delivered). This hands the terminal to the child's group via
+    /// `tcsetpgrp` for the duration, so sudo owns the tty and reads the password
+    /// directly; our process never sees it. Our foreground group is restored on
+    /// return. Falls back to a plain inherited run when there is no tty.
+    public static func runForeground(
+        _ executable: URL,
+        _ args: [String],
+        cwd: URL? = nil,
+        env: [String: String]? = nil,
+        echo: Bool = true
+    ) throws -> Int32 {
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = args
+        if let cwd { process.currentDirectoryURL = cwd }
+        if let env { process.environment = env }
+        // When echo is false, suppress the child's normal output — but it still
+        // becomes the terminal's foreground group below, so an interactive sudo
+        // it runs still prompts/reads via /dev/tty (independent of stdout/stderr).
+        if !echo {
+            let devNull = FileHandle.nullDevice
+            process.standardOutput = devNull
+            process.standardError = devNull
+        }
+
+        var ttyFD = FileHandle.standardInput.fileDescriptor
+        var openedTTY = false
+        if isatty(ttyFD) == 0 {
+            let fd = open("/dev/tty", O_RDWR)
+            guard fd >= 0 else {
+                try process.run(); process.waitUntilExit(); return process.terminationStatus
+            }
+            ttyFD = fd
+            openedTTY = true
+        }
+
+        let savedFg = tcgetpgrp(ttyFD)
+        // tcsetpgrp from a background group would raise SIGTTOU/SIGTTIN (default:
+        // stop). Ignore them while we juggle the foreground group.
+        let prevTTOU = signal(SIGTTOU, SIG_IGN)
+        let prevTTIN = signal(SIGTTIN, SIG_IGN)
+        defer {
+            signal(SIGTTOU, prevTTOU)
+            signal(SIGTTIN, prevTTIN)
+            if openedTTY { close(ttyFD) }
+        }
+
+        try process.run()
+        _ = tcsetpgrp(ttyFD, process.processIdentifier)   // hand the tty to the child
+        process.waitUntilExit()
+        if savedFg > 0 { _ = tcsetpgrp(ttyFD, savedFg) }  // take it back
+        return process.terminationStatus
+    }
 }
