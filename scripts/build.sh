@@ -52,10 +52,6 @@ cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
 cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
 codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
-# vphone-amfidont helper (allows this .app through amfid). Bundled next to the
-# main binary so a Homebrew `binary` symlink can put it on PATH.
-cp -f "scripts/vphone-amfidont" "${BUNDLE}/Contents/MacOS/vphone-amfidont"
-chmod +x "${BUNDLE}/Contents/MacOS/vphone-amfidont"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
 echo "  bundled → ${BUNDLE}"
 
@@ -103,7 +99,12 @@ cp -f requirements.txt "${RES}/requirements.txt"
 # = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
 cp -f debs.list "${RES}/debs.list"
 cp -f README.md "${RES}/README.md"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md"
+# vphone-amfidont helper (allows this .app through amfid). Kept in Resources —
+# NOT MacOS — so bundle signing doesn't reject it as unsigned nested code; a
+# Homebrew `binary` symlink exposes it on PATH.
+cp -f scripts/vphone-amfidont "${RES}/vphone-amfidont"
+chmod +x "${RES}/vphone-amfidont"
+echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md, vphone-amfidont"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —

@@ -4,7 +4,7 @@
 # step. amfidont: https://github.com/zqxwce/amfidont
 set -euo pipefail
 
-# The enclosing .app (this lives at vphone-cli.app/Contents/MacOS/vphone-amfidont;
+# The enclosing .app (this lives at vphone-cli.app/Contents/Resources/vphone-amfidont;
 # `:A` resolves a Homebrew symlink back into the bundle).
 app="${0:A:h:h:h}"
 [[ "${app:e}" == app && -x "$app/Contents/MacOS/vphone-cli" ]] \
