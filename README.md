@@ -71,10 +71,10 @@ csrutil allow-research-guests enable
 Then reboot into macOS and allowlist the repo with [`amfidont`](https://github.com/zqxwce/amfidont) (or [`amfree`](https://github.com/retX0/amfree)):
 
 ```bash
-sudo amfidont --path <repo>
+sudo amfidont --path <path_to_vphone-cli.app>
 ```
 
-> The `less` (patchless) variant needs Option A, or Option B with `amfidont -S` (`sudo amfidont -S --path <repo>`).
+> The `less` (patchless) variant needs Option A, or Option B with `amfidont -S` (`sudo amfidont -S --path <path_to_vphone-cli.app>`).
 
 **Dependencies:**
 
@@ -97,7 +97,7 @@ Two one-time bootstrap scripts (a compiled binary can't build itself), then ever
 Put the binary on your `PATH` so the examples below work verbatim:
 
 ```bash
-cd .build/release
+cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
 
@@ -109,7 +109,7 @@ One command creates a VM end-to-end (download → patch → DFU restore → CFW 
 vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-With no source flags it downloads a default tested iPhone + cloudOS pair. To choose specific firmware, pass **`-i`/`--iphone-source`** and **`-c`/`--cloudos-source`** — each takes either a **URL** or a **local `.ipsw` path** (see [Tested Environments](#tested-environments) for known-good pairs):
+The user is then prompted to choose iOS <-> cloudOS paring, you can specify either one by passing **`-i`/`--iphone-source`** and/or **`-c`/`--cloudos-source`**, i.e.:
 
 ```bash
 # from local IPSWs
@@ -119,17 +119,15 @@ vphone-cli vm create myphone -V jb \
 
 # or from URLs — downloaded and cached under ~/.vphone/ipsws
 vphone-cli vm create myphone -V jb \
-  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
+  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://.../399b6..."
 ```
 
-The CFW-install stage needs root (host disk mount) and will prompt for `sudo`; pass `-s <pw>` (`--sudo-password`) to run unattended. Add `-v` to watch the restore (pmd3 log, colorized), `-vv` for pmd3 debug detail, `-vvv` for vphone-cli's internal trace. Then boot it:
+Then boot it:
 
 ```bash
 vphone-cli vm launch myphone
 ```
-
-VMs live in a **library** at `~/.vphone/VMs/` (override any command with `--library-root <dir>`). Run any VM command with no name (e.g. `vphone-cli vm launch`) to pick from a menu of your VMs.
 
 ## Commands
 
@@ -186,6 +184,18 @@ host `python3` (3.11+) using the bundled `requirements.txt` — so the signed
 without the repo. Provisioning is automatic; run `vphone-cli setup` to do it
 up front. Point at a specific interpreter with `VPHONE_PYTHON=/path/to/python3`,
 or relocate the venv with `VPHONE_VENV_DIR=/path`.
+
+## Locations
+
+Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo and the `.app` so the signed bundle stays portable:
+
+| Path              | Contents                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| `~/.vphone/VMs/`  | VM bundles — one directory per VM. This is the library; override with `$VPHONE_LIBRARY_ROOT`. |
+| `~/.vphone/ipsws/`| Downloaded iPhone + cloudOS IPSWs, cached and reused across VMs.                              |
+| `~/.vphone/tools/`| Cached APFS seal-volume artifacts (`apfs_sealvolume_<version>`) fetched during `fw prepare`.  |
+| `~/.vphone/debs/` | Cached `.deb` packages the `jb`/`exp` CFW install lays into the guest (Sileo, apt, …).        |
+| `~/.vphone/venv/` | Auto-provisioned Python environment (see [Python runtime](#python-runtime); override with `$VPHONE_VENV_DIR`). |
 
 ## FAQ
 

@@ -29,10 +29,13 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
         let selfExe = VPhoneResources.runningExecutable()
+        // Prompt for any firmware component not supplied on the command line.
+        let sources = try VPhoneFirmwareSelection.resolve(iphone: iphoneSource, cloudos: cloudosSource)
         let orchestrator = VPhoneCreateOrchestrator(
             library: lib.library, resources: resources, selfExecutable: selfExe)
         try orchestrator.run(.init(
-            name: name, variant: variant, iphoneSource: iphoneSource, cloudosSource: cloudosSource,
+            name: name, variant: variant,
+            iphoneSource: sources.iphoneSource, cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword, spoofBuild: spoofBuild, forceDSCMaxSlide: forceDSCMaxSlide,
             interactive: interactive, verbosity: VPhoneVerbosity(count: verboseCount)))
     }

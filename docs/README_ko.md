@@ -71,10 +71,10 @@ csrutil allow-research-guests enable
 그런 다음 macOS로 재부팅하고 [`amfidont`](https://github.com/zqxwce/amfidont) (또는 [`amfree`](https://github.com/retX0/amfree))로 저장소를 허용 목록에 추가합니다:
 
 ```bash
-sudo amfidont --path <repo>
+sudo amfidont --path <path_to_vphone-cli.app>
 ```
 
-> `less` (patchless) 변형은 방법 A, 또는 `amfidont -S`를 포함한 방법 B(`sudo amfidont -S --path <repo>`)가 필요합니다.
+> `less` (patchless) 변형은 방법 A, 또는 `amfidont -S`를 포함한 방법 B(`sudo amfidont -S --path <path_to_vphone-cli.app>`)가 필요합니다.
 
 **의존성:**
 
@@ -97,7 +97,7 @@ brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass key
 아래 예제가 그대로 작동하도록 바이너리를 `PATH`에 추가하세요:
 
 ```bash
-cd .build/release
+cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
 
@@ -109,7 +109,7 @@ vphone-cli --help
 vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-소스 플래그가 없으면 기본적으로 테스트된 iPhone + cloudOS 쌍을 다운로드합니다. 특정 펌웨어를 선택하려면 **`-i`/`--iphone-source`**와 **`-c`/`--cloudos-source`**를 전달하세요 — 각각 **URL** 또는 **로컬 `.ipsw` 경로**를 받습니다 (검증된 쌍은 [테스트 환경](#테스트-환경)을 참조하세요):
+그러면 iOS <-> cloudOS 페어링을 선택하라는 안내가 표시됩니다. **`-i`/`--iphone-source`** 및/또는 **`-c`/`--cloudos-source`**를 전달하여 둘 중 하나(또는 둘 다)를 직접 지정할 수도 있습니다. 예:
 
 ```bash
 # 로컬 IPSW에서
@@ -119,17 +119,15 @@ vphone-cli vm create myphone -V jb \
 
 # 또는 URL에서 — 다운로드되어 ~/.vphone/ipsws 아래에 캐시됨
 vphone-cli vm create myphone -V jb \
-  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
+  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://.../399b6..."
 ```
 
-CFW 설치 단계는 root(호스트 디스크 마운트)가 필요하며 `sudo`를 요청합니다; 무인 실행을 위해서는 `-s <pw>`(`--sudo-password`)를 전달하세요. 복원 과정을 보려면 `-v`(pmd3 로그, 색상 표시), pmd3 디버그 상세 정보는 `-vv`, vphone-cli의 내부 추적은 `-vvv`를 추가하세요. 그런 다음 부팅합니다:
+그런 다음 부팅합니다:
 
 ```bash
 vphone-cli vm launch myphone
 ```
-
-VM은 `~/.vphone/VMs/`의 **라이브러리**에 저장됩니다 (어떤 명령이든 `--library-root <dir>`로 재정의할 수 있습니다). 이름 없이 VM 명령을 실행하면 (예: `vphone-cli vm launch`) VM 목록 메뉴에서 선택할 수 있습니다.
 
 ## 명령어
 
@@ -186,6 +184,18 @@ vphone-cli는 번들된 `requirements.txt`를 사용하여 최신 호스트 `pyt
 없이도 실행됩니다. 프로비저닝은 자동으로 이루어집니다; 미리 실행하려면 `vphone-cli setup`을
 실행하세요. 특정 인터프리터를 지정하려면 `VPHONE_PYTHON=/path/to/python3`을,
 venv 위치를 변경하려면 `VPHONE_VENV_DIR=/path`를 사용하세요.
+
+## 위치
+
+vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 — 서명된 번들이 이식 가능하도록 저장소와 `.app` 외부에 보관됩니다:
+
+| 경로              | 내용                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `~/.vphone/VMs/`  | VM 번들 — VM마다 하나의 디렉터리. 라이브러리이며, `$VPHONE_LIBRARY_ROOT`로 재정의할 수 있습니다. |
+| `~/.vphone/ipsws/`| 다운로드된 iPhone + cloudOS IPSW, 캐시되어 여러 VM에서 재사용됩니다.                          |
+| `~/.vphone/tools/`| `fw prepare` 중에 가져온 APFS seal-volume 아티팩트(`apfs_sealvolume_<version>`) 캐시.         |
+| `~/.vphone/debs/` | `jb`/`exp` CFW 설치가 게스트에 넣는 `.deb` 패키지 캐시 (Sileo, apt 등).                       |
+| `~/.vphone/venv/` | 자동으로 프로비저닝되는 Python 환경 ([Python 런타임](#python-런타임) 참조; `$VPHONE_VENV_DIR`로 재정의). |
 
 ## FAQ
 

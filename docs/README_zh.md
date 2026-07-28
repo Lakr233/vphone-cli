@@ -71,10 +71,10 @@ csrutil allow-research-guests enable
 然后重启进入 macOS，用 [`amfidont`](https://github.com/zqxwce/amfidont)（或 [`amfree`](https://github.com/retX0/amfree)）将仓库加入白名单：
 
 ```bash
-sudo amfidont --path <repo>
+sudo amfidont --path <path_to_vphone-cli.app>
 ```
 
-> `less`（无补丁）变体需要方案 A，或者搭配 `amfidont -S` 的方案 B（`sudo amfidont -S --path <repo>`）。
+> `less`（无补丁）变体需要方案 A，或者搭配 `amfidont -S` 的方案 B（`sudo amfidont -S --path <path_to_vphone-cli.app>`）。
 
 **依赖：**
 
@@ -97,7 +97,7 @@ brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass key
 把二进制加入你的 `PATH`，这样下面的示例就能原样运行：
 
 ```bash
-cd .build/release
+cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
 
@@ -109,7 +109,7 @@ vphone-cli --help
 vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-不带源标志时，它会下载一对默认的、经过测试的 iPhone + cloudOS 固件。要选择特定固件，请传入 **`-i`/`--iphone-source`** 和 **`-c`/`--cloudos-source`**——每个都接受 **URL** 或**本地 `.ipsw` 路径**（已验证可用的固件对见[测试环境](#测试环境)）：
+随后会提示你选择 iOS <-> cloudOS 配对；你也可以通过传入 **`-i`/`--iphone-source`** 和/或 **`-c`/`--cloudos-source`** 指定其中之一（或两者）。例如：
 
 ```bash
 # 使用本地 IPSW
@@ -119,17 +119,15 @@ vphone-cli vm create myphone -V jb \
 
 # 或使用 URL——下载后缓存到 ~/.vphone/ipsws
 vphone-cli vm create myphone -V jb \
-  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
+  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://.../399b6..."
 ```
 
-CFW 安装阶段需要 root 权限（挂载宿主机磁盘），并会提示输入 `sudo`；传入 `-s <pw>`（`--sudo-password`）可无人值守运行。加上 `-v` 可观看恢复过程（pmd3 日志，带颜色），`-vv` 显示 pmd3 调试细节，`-vvv` 显示 vphone-cli 的内部跟踪。然后启动它：
+然后启动它：
 
 ```bash
 vphone-cli vm launch myphone
 ```
-
-虚拟机存放在位于 `~/.vphone/VMs/` 的**库**中（任何命令都可用 `--library-root <dir>` 覆盖）。运行任何虚拟机命令时不带名称（例如 `vphone-cli vm launch`），即可从你的虚拟机菜单中选择。
 
 ## 命令
 
@@ -180,6 +178,18 @@ vphone-cli vm launch myphone                            # 6. 首次启动
 ## Python 运行时
 
 有几个步骤（DFU 恢复、IPSW 处理）通过 Python 运行。首次使用时，vphone-cli 会基于宿主机上较新的 `python3`（3.11+）并使用捆绑的 `requirements.txt`，在 `~/.vphone/venv` 处配置一个自包含的 venv——因此签名后的 `.app` 是**可移植的**：把它复制到任何地方（例如 `/Applications`），无需仓库即可运行。配置是自动进行的；运行 `vphone-cli setup` 可提前完成配置。用 `VPHONE_PYTHON=/path/to/python3` 指定特定的解释器，或用 `VPHONE_VENV_DIR=/path` 迁移 venv。
+
+## 位置
+
+vphone-cli 创建的所有内容都位于 `~/.vphone/` 下——保存在仓库和 `.app` 之外，以便签名后的包保持可移植：
+
+| 路径              | 内容                                                                             |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `~/.vphone/VMs/`  | 虚拟机包——每个虚拟机一个目录。这是库；可用 `$VPHONE_LIBRARY_ROOT` 覆盖。          |
+| `~/.vphone/ipsws/`| 已下载的 iPhone + cloudOS IPSW，缓存后在多个虚拟机间复用。                        |
+| `~/.vphone/tools/`| `fw prepare` 期间获取的 APFS seal-volume 制品（`apfs_sealvolume_<version>`）缓存。 |
+| `~/.vphone/debs/` | `jb`/`exp` CFW 安装写入客户机的 `.deb` 包缓存（Sileo、apt 等）。                   |
+| `~/.vphone/venv/` | 自动配置的 Python 环境（见 [Python 运行时](#python-运行时)；可用 `$VPHONE_VENV_DIR` 覆盖）。 |
 
 ## 常见问题
 

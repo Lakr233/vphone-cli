@@ -71,10 +71,10 @@ csrutil allow-research-guests enable
 その後 macOS で再起動し、[`amfidont`](https://github.com/zqxwce/amfidont)（または [`amfree`](https://github.com/retX0/amfree)）でリポジトリを許可リストに追加します:
 
 ```bash
-sudo amfidont --path <repo>
+sudo amfidont --path <path_to_vphone-cli.app>
 ```
 
-> `less`（パッチなし）バリアントにはオプション A、またはオプション B に `amfidont -S` を組み合わせたもの（`sudo amfidont -S --path <repo>`）が必要です。
+> `less`（パッチなし）バリアントにはオプション A、またはオプション B に `amfidont -S` を組み合わせたもの（`sudo amfidont -S --path <path_to_vphone-cli.app>`）が必要です。
 
 **依存関係:**
 
@@ -97,7 +97,7 @@ brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass key
 以下の例をそのまま実行できるように、バイナリを `PATH` に追加します:
 
 ```bash
-cd .build/release
+cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
 
@@ -109,7 +109,7 @@ vphone-cli --help
 vphone-cli vm create myphone -V jb        # -V / --variant
 ```
 
-ソースフラグを指定しない場合、動作確認済みのデフォルトの iPhone + cloudOS ペアがダウンロードされます。特定のファームウェアを選ぶには **`-i`/`--iphone-source`** と **`-c`/`--cloudos-source`** を渡します — それぞれ **URL** または **ローカルの `.ipsw` パス** のいずれかを取ります（既知の良好なペアについては [動作確認済み環境](#動作確認済み環境) を参照）:
+その後、iOS <-> cloudOS のペアリングを選ぶよう促されます。**`-i`/`--iphone-source`** および/または **`-c`/`--cloudos-source`** を渡して、どちらか（または両方）を指定することもできます。例:
 
 ```bash
 # ローカルの IPSW から
@@ -119,17 +119,15 @@ vphone-cli vm create myphone -V jb \
 
 # または URL から — ~/.vphone/ipsws 以下にダウンロードしてキャッシュ
 vphone-cli vm create myphone -V jb \
-  -i "https://updates.cdn-apple.com/.../iPhone17,3_26.1_23B85_Restore.ipsw" \
-  -c "https://updates.cdn-apple.com/private-cloud-compute/<id>"
+  -i "https://.../iPhone17,3_26.1_23B85_Restore.ipsw" \
+  -c "https://.../399b6..."
 ```
 
-CFW インストール段階は root 権限（ホストディスクのマウント）が必要で、`sudo` の入力を求めます。無人で実行するには `-s <pw>`（`--sudo-password`）を渡します。復元の様子を見るには `-v`（pmd3 ログ、カラー表示）、pmd3 のデバッグ詳細には `-vv`、vphone-cli の内部トレースには `-vvv` を追加します。その後、起動します:
+その後、起動します:
 
 ```bash
 vphone-cli vm launch myphone
 ```
-
-VM は `~/.vphone/VMs/` にある **ライブラリ** に保存されます（任意のコマンドで `--library-root <dir>` によって上書き可能）。VM コマンドを名前なしで実行すると（例: `vphone-cli vm launch`）、VM のメニューから選択できます。
 
 ## コマンド
 
@@ -180,6 +178,18 @@ vphone-cli vm launch myphone                            # 6. 初回起動
 ## Python ランタイム
 
 いくつかのステップ（DFU 復元、IPSW 処理）は Python を通じて実行されます。初回使用時、vphone-cli はバンドルされた `requirements.txt` を使用して、最新のホスト `python3`（3.11+）から `~/.vphone/venv` に自己完結型の venv をプロビジョニングします — そのため署名済みの `.app` は **ポータブル** です。任意の場所（例: `/Applications`）にコピーすればリポジトリなしで動作します。プロビジョニングは自動ですが、事前に行うには `vphone-cli setup` を実行します。特定のインタプリタを指定するには `VPHONE_PYTHON=/path/to/python3`、venv の場所を変更するには `VPHONE_VENV_DIR=/path` を使用します。
+
+## 場所
+
+vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれます — 署名済みバンドルがポータブルであり続けるよう、リポジトリと `.app` の外に保管されます:
+
+| パス              | 内容                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `~/.vphone/VMs/`  | VM バンドル — VM ごとに 1 ディレクトリ。ライブラリであり、`$VPHONE_LIBRARY_ROOT` で上書きできます。 |
+| `~/.vphone/ipsws/`| ダウンロードされた iPhone + cloudOS の IPSW。キャッシュされ、複数の VM で再利用されます。       |
+| `~/.vphone/tools/`| `fw prepare` 中に取得された APFS seal-volume アーティファクト（`apfs_sealvolume_<version>`）のキャッシュ。 |
+| `~/.vphone/debs/` | `jb`/`exp` の CFW インストールがゲストに配置する `.deb` パッケージのキャッシュ（Sileo、apt など）。 |
+| `~/.vphone/venv/` | 自動的にプロビジョニングされる Python 環境（[Python ランタイム](#python-ランタイム) を参照。`$VPHONE_VENV_DIR` で上書き可能）。 |
 
 ## FAQ
 
