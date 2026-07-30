@@ -45,6 +45,8 @@ struct VPhoneRestoreCommand: ParsableCommand {
         if getShsh {
             throw ExitCode(try pmd3("restore-get-shsh", extra: []))
         }
+
+        let code: Int32
         if offline {
             let fm = FileManager.default
             let shshes = ((try? fm.contentsOfDirectory(at: bundle.url, includingPropertiesForKeys: nil)) ?? [])
@@ -57,9 +59,30 @@ struct VPhoneRestoreCommand: ParsableCommand {
             guard let restoreDir else { throw VPhoneRestoreError.noRestoreDir }
             print("[restore] decrypting AEA images in \(restoreDir.lastPathComponent)...")
             try VPhoneRestoreOps.decryptAEAImages(inRestoreDir: restoreDir)
-            throw ExitCode(try pmd3("restore-update", extra: ["--tss", shsh.path]))
+            code = try pmd3("restore-update", extra: ["--tss", shsh.path])
+        } else {
+            code = try pmd3("restore-update", extra: [])
         }
-        throw ExitCode(try pmd3("restore-update", extra: []))
+
+        if code == 0 { recordRestoreVersions(bundle: bundle) }
+        throw ExitCode(code)
+    }
+
+    /// Snapshot the just-restored iOS + cloudOS versions to `restore-info.json`,
+    /// read host-side from the bundle's restore-dir plists. Best-effort: the
+    /// restore already succeeded, so a metadata miss is only a warning.
+    private func recordRestoreVersions(bundle: VPhoneBundle) {
+        guard let info = VPhoneRestoreInfo.derive(fromBundle: bundle) else {
+            FileHandle.standardError.write(Data("warning: could not record restore versions (metadata not found)\n".utf8))
+            return
+        }
+        do {
+            try info.write(toBundle: bundle)
+            print("[restore] recorded iOS \(info.ios.version) (\(info.ios.build)) / "
+                + "cloudOS \(info.cloudOS.version) (\(info.cloudOS.build))")
+        } catch {
+            FileHandle.standardError.write(Data("warning: could not write restore-info.json: \(error)\n".utf8))
+        }
     }
 }
 

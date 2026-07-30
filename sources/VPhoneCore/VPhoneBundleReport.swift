@@ -5,11 +5,13 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
     public let cpuCount: Int
     public let memoryMB: Int
     public let diskSizeBytes: Int64
+    public let restoreInfo: VPhoneRestoreInfo?
 
     public init(bundle: VPhoneBundle) {
         self.name = bundle.name
         self.cpuCount = Int(bundle.manifest.cpuCount)
         self.memoryMB = Int(bundle.manifest.memorySize / (1024 * 1024))
         self.diskSizeBytes = bundle.diskSizeBytes
+        self.restoreInfo = VPhoneRestoreInfo.load(fromBundle: bundle)
     }
 }

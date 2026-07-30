@@ -60,7 +60,11 @@ struct VPhoneVMListCommand: ParsableCommand {
             print("(no VMs in \(library.root.path))")
         } else {
             for r in reports {
-                print("\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024*1024*1024)) GB disk")
+                var line = "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024*1024*1024)) GB disk"
+                if let info = r.restoreInfo {
+                    line += "  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
+                }
+                print(line)
             }
         }
     }
@@ -85,6 +89,10 @@ struct VPhoneVMInfoCommand: ParsableCommand {
             print("cpu:   \(report.cpuCount)")
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
+            if let info = report.restoreInfo {
+                print("iOS:     \(info.ios.version) (\(info.ios.build))")
+                print("cloudOS: \(info.cloudOS.version) (\(info.cloudOS.build))")
+            }
         }
     }
 }

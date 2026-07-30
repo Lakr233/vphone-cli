@@ -370,6 +370,8 @@ public struct VPhoneCreateOrchestrator {
             python, restoreArgs, cwd: bundleURL, echo: v.showsToolDetail)
         guard restoreCode == 0 else { throw VPhoneCreateError.restoreUpdateFailed(restoreCode) }
 
+        recordRestoreVersions(bundleURL: bundleURL)
+
         // wait_for_post_restore_reboot: a plain case-insensitive 'panic' grep —
         // distinct from (narrower than) BOOT_PANIC_REGEX used elsewhere.
         print("[*] Restore complete; waiting up to 30s for reboot/panic before stopping DFU...")
@@ -384,6 +386,25 @@ public struct VPhoneCreateOrchestrator {
             print("[*] No panic marker observed in 30s; stopping DFU anyway.")
         }
         // `defer` above terminates the DFU process on every exit path.
+    }
+
+    /// Snapshot the just-restored iOS + cloudOS versions to `restore-info.json`,
+    /// read host-side from the bundle's restore-dir plists. Best-effort: the
+    /// restore already succeeded, so a metadata miss is a warning, not a failure.
+    private func recordRestoreVersions(bundleURL: URL) {
+        guard let bundle = try? VPhoneBundle.load(at: bundleURL),
+              let info = VPhoneRestoreInfo.derive(fromBundle: bundle)
+        else {
+            print("[!] Could not record restore versions (metadata not found)")
+            return
+        }
+        do {
+            try info.write(toBundle: bundle)
+            print("[+] Recorded versions: iOS \(info.ios.version) (\(info.ios.build)), "
+                + "cloudOS \(info.cloudOS.version) (\(info.cloudOS.build))")
+        } catch {
+            print("[!] Could not write restore-info.json: \(error)")
+        }
     }
 
     private func loadDeviceIdentity(bundleURL: URL) throws -> (udid: String, ecid: String) {
