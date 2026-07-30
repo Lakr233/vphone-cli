@@ -818,9 +818,8 @@ echo "[*] Unmounting image volumes..."
 /sbin/umount $MNT3 2>/dev/null || true
 /sbin/umount $MNT5 2>/dev/null || true
 
-echo "[*] Cleaning up temp binaries..."
-rm -f "$TEMP_DIR/launchd" \
-    "$TEMP_DIR/bootstrap-iphoneos-arm64.tar"
+echo "[*] Cleaning up temp..."
+rm -rf "$TEMP_DIR"
 
 echo ""
 echo "[+] CFW + JB + EXP installation complete!"
