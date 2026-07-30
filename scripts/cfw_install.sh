@@ -36,6 +36,10 @@ VM_DIR="$(cd "$VM_DIR" && pwd)"
 # `make cfw_install` standalone (without setup_machine.sh exporting PATH)
 # still uses the correctly set-up venv interpreter.
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"
@@ -134,7 +138,7 @@ setup_cfw_input() {
         archive="$search_dir/$CFW_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
+            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
             return
         fi
     done
@@ -349,7 +353,15 @@ esac
 #    the iOS-27 vpregister first-boot tool can register JB apps (uicache's
 #    registerApplicationDictionary is a no-op stub on 27). Not needed on 26.x/18.x,
 #    where uicache registers apps normally.
+#  - xpc LWCR self-check: iOS 27's libxpc brk-aborts when its Lightweight Code
+#    Requirement matcher returns the contradictory (matched=0, error_code=MATCH) pair
+#    that our JB code-signing environment produces. That crash-loops every daemon which
+#    pins an entitlement peer-requirement (intelligencetasksd/searchpartyd/transparencyd/
+#    bluetoothd/...). Absent on 26.x/18.x libxpc (self-gating patcher no-ops there).
+# FORCE_DSC_MAXSLIDE=1 (default 0): opt in to zeroing maxSlide on non-27 bases,
+# whose caches fit and would otherwise self-gate to a no-op (--force bypasses that).
 DSC_DIR="$MNT1/System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+FORCE_DSC_MAXSLIDE="${FORCE_DSC_MAXSLIDE:-0}"
 case "$IOS_VERSION" in
     27.*)
         if [[ -d "$DSC_DIR" ]]; then
@@ -357,6 +369,14 @@ case "$IOS_VERSION" in
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dsc-maxslide "$DSC_DIR"
             echo "  [*] Patching lsd embedded-registration gate (iOS 27 app registration)..."
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-lsd-embedded-reg "$DSC_DIR"
+            echo "  [*] Patching libxpc LWCR self-check (iOS 27 daemon crash-loop)..."
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-xpc-lwcr "$DSC_DIR"
+        fi
+        ;;
+    *)
+        if [[ "$FORCE_DSC_MAXSLIDE" == "1" && -d "$DSC_DIR" ]]; then
+            echo "  [*] Forcing dyld cache maxSlide=0 (opt-in FORCE_DSC_MAXSLIDE=1; base iOS ${IOS_VERSION:-unknown})..."
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dsc-maxslide "$DSC_DIR" --force
         fi
         ;;
 esac
@@ -414,7 +434,7 @@ echo ""
 echo "[3/7] Installing AppleParavirtGPUMetalIOGPUFamily..."
 
 cp -R "$INPUT_DIR/custom/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/AppleParavirtGPUMetalIOGPUFamily.tar -C $MNT1
 
 BUNDLE="$MNT1/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle"
@@ -436,7 +456,7 @@ echo ""
 echo "[4/7] Installing iosbinpack64..."
 
 cp -R "$INPUT_DIR/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/iosbinpack64.tar -C $MNT1
 /bin/rm -f $MNT1/iosbinpack64.tar
 

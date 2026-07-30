@@ -23,6 +23,10 @@ SCRIPT_DIR="${0:a:h}"
 [[ -n "${_VPHONE_PATH:-}" ]] && export PATH="$_VPHONE_PATH"
 
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"

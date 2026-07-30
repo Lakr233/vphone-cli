@@ -1,6 +1,7 @@
 import Dynamic
 import Foundation
 import Virtualization
+import VPhoneCore
 
 /// Minimal VM for booting a vphone (virtual iPhone) in DFU mode.
 @MainActor

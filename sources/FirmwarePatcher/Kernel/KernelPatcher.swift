@@ -16,10 +16,14 @@ public final class KernelPatcher: KernelPatcherBase, Patcher {
     public var isDev: Bool = false
 
     /// When true, apply the EXC_GUARD (Mach port guard) disable even on
-    /// non-dev variants. Set for iOS 18 bases: their older userland
-    /// (runningboardd/SpringBoard) trips a Mach port guard the 26.1 kernel
-    /// enforces fatally (EXC_GUARD, GUARD_TYPE_MACH_PORT "flavor 10"),
-    /// which crash-loops the UI. Scoped to iOS 18 bases so 26.x is unaffected.
+    /// non-dev variants. Always required on iOS 18 bases: their older
+    /// userland (runningboardd/SpringBoard) trips a Mach port guard
+    /// "flavor 10" that crash-loops the UI. On other bases this is opt-in
+    /// (see `FirmwarePipeline`'s `forceExcGuard`/`--force-exc-guard`): some
+    /// third-party apps calling task_swap_exception_ports() (crash-reporting/
+    /// RASP SDKs) can trip a GUARD_TYPE_MACH_PORT/KOBJECT_REPLY_PORT_SEMANTICS
+    /// violation that the research kernel enforces fatally (upstream issue
+    /// #291 / PR #297), but it's not required for the VM itself to boot.
     public var applyExcGuard: Bool = false
 
     public convenience init(data: Data, verbose: Bool = true, isDev: Bool, applyExcGuard: Bool = false) {
@@ -53,8 +57,7 @@ public final class KernelPatcher: KernelPatcherBase, Patcher {
         patchSandbox() // 16-25
 
         // EXC_GUARD (Mach port guard) disable — applied on the dev variant
-        // always, and on any variant with an iOS 18 base (see applyExcGuard).
-        // Not applied to 26.x bases, which boot without it.
+        // always, and on regular/jb/exp via applyExcGuard (see its doc comment).
         if isDev || applyExcGuard {
             patchExcGuardBehavior() // 26
         }

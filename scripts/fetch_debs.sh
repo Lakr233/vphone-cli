@@ -13,7 +13,10 @@ set -uo pipefail
 SCRIPT_DIR="${0:a:h}"
 REPO_ROOT="${SCRIPT_DIR:h}"
 
-CACHE_DIR="${1:-$REPO_ROOT/debs}"
+# VPHONE_DEBS_DIR (set by the app to a writable ~/.vphone/debs) keeps the cache
+# out of the read-only .app bundle; the manifest is bundled next to this script's
+# repo/Resources root, so $REPO_ROOT/debs.list resolves in both dev and .app.
+CACHE_DIR="${1:-${VPHONE_DEBS_DIR:-$REPO_ROOT/debs}}"
 MANIFEST="${2:-$REPO_ROOT/debs.list}"
 
 mkdir -p "$CACHE_DIR"

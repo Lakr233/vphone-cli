@@ -22,7 +22,8 @@ setup, NOT a cs_validate'd dylib code page — so, unlike cfw_patch_iomfb_swapen
 page re-attestation is required (confirmed empirically: a live-poked cache with
 maxSlide=0 booted with "dyld cache mapped system-wide", 0 panics).
 
-Self-gating: no-op unless span + maxSlide overflows the region.
+Self-gating: no-op unless span + maxSlide overflows the region. force=True
+(CLI --force) zeroes maxSlide unconditionally, for non-27 bases that opt in.
 
 dyld_cache_header offsets (little-endian u64, stable across recent iOS):
     sharedRegionStart @0xE0,  sharedRegionSize @0xE8,  maxSlide @0xF0
@@ -42,7 +43,7 @@ OFF_MAX_SLIDE = 0xF0
 KERNEL_SHARED_REGION_SIZE = 0x180000000
 
 
-def patch_dsc_maxslide(chunks_dir, *, kernel_region_size=KERNEL_SHARED_REGION_SIZE, dry_run=False):
+def patch_dsc_maxslide(chunks_dir, *, kernel_region_size=KERNEL_SHARED_REGION_SIZE, dry_run=False, force=False):
     main = os.path.join(chunks_dir, MAIN_CHUNK)
     if not os.path.isfile(main):
         raise FileNotFoundError(f"main DSC chunk not found: {main}")
@@ -56,17 +57,23 @@ def patch_dsc_maxslide(chunks_dir, *, kernel_region_size=KERNEL_SHARED_REGION_SI
         maxslide = struct.unpack_from("<Q", hdr, OFF_MAX_SLIDE)[0]
         print(f"  [.] {MAIN_CHUNK}: start=0x{srstart:X} size=0x{srsize:X} maxSlide=0x{maxslide:X}")
 
-        if srsize + maxslide <= kernel_region_size:
+        fits = srsize + maxslide <= kernel_region_size
+        if fits and not force:
             print(f"      [=] fits: span+maxSlide 0x{srsize + maxslide:X} <= "
                   f"region 0x{kernel_region_size:X}; no change")
             return 0
+        if maxslide == 0:
+            print("      [=] maxSlide already 0; no change")
+            return 0
 
-        # Overflow: set maxSlide to 0 so the cache maps at slide 0 within the region.
+        # Set maxSlide to 0 so the cache maps at slide 0 within the region.
         new_maxslide = 0
+        reason = (f"forced: span+maxSlide 0x{srsize + maxslide:X} fits region "
+                  f"0x{kernel_region_size:X} but --force set" if fits
+                  else f"overflow: span+maxSlide 0x{srsize + maxslide:X} > "
+                       f"region 0x{kernel_region_size:X}")
         action = "would set" if dry_run else "set"
-        print(f"      [+] overflow: span+maxSlide 0x{srsize + maxslide:X} > "
-              f"region 0x{kernel_region_size:X}; {action} maxSlide "
-              f"0x{maxslide:X} -> 0x{new_maxslide:X}")
+        print(f"      [+] {reason}; {action} maxSlide 0x{maxslide:X} -> 0x{new_maxslide:X}")
         if not dry_run:
             f.seek(OFF_MAX_SLIDE)
             f.write(struct.pack("<Q", new_maxslide))
@@ -107,6 +114,13 @@ def _self_test():
         with open(c, "rb") as f:
             f.seek(OFF_MAX_SLIDE)
             assert struct.unpack("<Q", f.read(8))[0] == 0x20000000
+        # fits + force: opt-in zeroes maxSlide even though it fits
+        assert patch_dsc_maxslide(d, force=True) == 1
+        with open(c, "rb") as f:
+            f.seek(OFF_MAX_SLIDE)
+            assert struct.unpack("<Q", f.read(8))[0] == 0
+        # force + already 0: idempotent no-op
+        assert patch_dsc_maxslide(d, force=True) == 0
     print("self-test OK")
 
 

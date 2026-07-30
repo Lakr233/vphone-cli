@@ -2,13 +2,155 @@
 
 # vphone-cli
 
-PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 가상 iPhone을 부팅합니다.
+PCC 리서치 VM 인프라를 사용하여 Apple의 Virtualization.framework로 가상 iPhone을 부팅합니다.
 
 ![poc](./demo.jpeg)
 
-## 테스트된 환경
+## 사전 요구 사항
 
-| Host            | iPhone                | CloudOS         |
+**호스트:**
+
+- Apple Silicon
+- macOS 15+ (Sequoia)
+- [서명되지 않은 바이너리로 private PV=3 권한을 허용하기 위한 SIP/AMFI 완화](#sipamfi-완화)
+
+**의존성:**
+
+```bash
+brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+```
+
+## 설치
+
+```bash
+brew install zqxwce/tap/vphone-cli
+```
+
+## 빌드
+
+```bash
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+
+./scripts/setup_tools.sh      # 의존성 설치, 툴체인 서브모듈 빌드, Python venv 생성
+./scripts/build.sh            # vphone-cli 빌드 및 서명, .app 번들 생성, vphoned 크로스 컴파일
+
+cd .build/vphone-cli.app/Contents/MacOS/
+vphone-cli --help
+```
+
+## 빠른 시작
+
+하나의 명령으로 VM을 처음부터 끝까지 생성합니다 (다운로드 → 패치 → DFU 복원 → CFW 설치 → 첫 부팅):
+
+```bash
+vphone-cli vm create myphone -V jb        # -V / --variant
+
+vphone-cli vm launch myphone
+```
+
+## 명령어
+
+`vphone-cli vm create`는 전체 파이프라인을 실행합니다; 아래 개별 단계들을 사용하면 수동으로 진행하거나 한 단계만 다시 실행할 수 있습니다.
+
+### 관리
+
+```bash
+vphone-cli vm list                         # VM 목록 표시 (스크립팅용 --json)
+vphone-cli vm info myphone                  # VM 하나 표시
+vphone-cli vm new myphone                   # 빈 번들 생성 (cpu/mem/disk 옵션)
+vphone-cli vm config myphone --cpu 8 --memory 8192
+vphone-cli vm clone myphone myphone-2       # 빠른 APFS 복제, 새로운 기기 식별자
+vphone-cli vm export myphone --out myphone.tar.xz   # xz -9; restore 디렉토리 + 스테이징 파일 건너뜀
+vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm rename myphone iphone16
+vphone-cli vm delete iphone16
+```
+
+### VM 수동 빌드 (`vm create`가 자동화하는 작업)
+
+```bash
+vphone-cli vm new myphone                              # 1. 빈 번들
+vphone-cli fw prepare myphone --iphone-version 26.1     # 2. IPSW 다운로드 + 병합
+vphone-cli fw patch myphone --variant jb                # 3. 부트 체인 패치
+
+vphone-cli vm launch myphone --dfu &                    # 4. DFU로 부팅 (백그라운드)
+vphone-cli restore myphone --get-shsh                   #    SHSH 가져오기
+vphone-cli restore myphone                              #    DFU 복원
+vphone-cli vm stop myphone                              #    DFU 부팅 중지
+
+vphone-cli cfw install myphone --variant jb             # 5. CFW 설치 (호스트 마운트; sudo 요청)
+vphone-cli vm launch myphone                            # 6. 첫 부팅
+```
+
+최신 iOS로 업데이트하려면 `fw prepare`를 IPSW로 지정하세요: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
+
+## 펌웨어 변형
+
+보안 우회 수준이 점점 강해지는 5가지 패치 변형이 있습니다 — 하나를 `--variant`에 전달하세요:
+
+| 변형         | 부트 체인   | CFW       | 참고                                                            |
+| ------------ | ----------- | --------- | --------------------------------------------------------------- |
+| `less`       | 4 patches   | 2 phases  | Patchless — iOS 완화 기능을 활성 상태로 유지                    |
+| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM 우회                                          |
+| `dev`        | 53 patches  | 12 phases | + TXM 권한/디버그 우회                                          |
+| `jb`         | 113 patches | 14 phases | + 전체 탈옥 (Sileo, TrollStore가 첫 부팅 시 자동 설치)          |
+| `exp`        | 141 patches | 18 phases | JB 상위 집합 + VM 탐지 방지 연구 패치                           |
+
+컴포넌트별 상세 분류는 [`research/0_binary_patch_comparison.md`](../research/0_binary_patch_comparison.md)를 참조하세요.
+
+## 실행 및 연결
+
+- **SSH (탈옥):** `ssh -p 22222 mobile@<vm-ip>` (비밀번호 `alpine`)
+- **SSH (regular/dev):** `ssh -p 22222 root@<vm-ip>`
+- **VNC:** `vnc://<vm-ip>:5901`
+
+## 위치
+
+vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 — 서명된 번들이 이식 가능하도록 저장소와 `.app` 외부에 보관됩니다:
+
+| 경로              | 내용                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `~/.vphone/VMs/`  | VM 번들 — VM마다 하나의 디렉터리. 라이브러리이며, `$VPHONE_LIBRARY_ROOT`로 재정의할 수 있습니다. |
+| `~/.vphone/ipsws/`| 다운로드된 iPhone + cloudOS IPSW, 캐시되어 여러 VM에서 재사용됩니다.                          |
+| `~/.vphone/tools/`| `fw prepare` 중에 가져온 APFS seal-volume 아티팩트(`apfs_sealvolume_<version>`) 캐시.         |
+| `~/.vphone/debs/` | `jb`/`exp` CFW 설치가 게스트에 넣는 `.deb` 패키지 캐시 (Sileo, apt 등).                       |
+| `~/.vphone/venv/` | 자동으로 프로비저닝되는 Python 환경 ([Python 런타임](#python-런타임) 참조; `$VPHONE_VENV_DIR`로 재정의). |
+
+## SIP/AMFI 완화
+
+**방법 A — SIP를 완전히 비활성화한 후, boot-arg로 AMFI를 비활성화 (가장 관대).**
+
+복구 모드에서 (전원 버튼 길게 누르기 → 터미널):
+
+```bash
+csrutil disable
+csrutil allow-research-guests enable
+```
+
+그런 다음 macOS로 재부팅하고 AMFI boot-arg를 설정합니다 (적용되려면 SIP가 완전히 꺼져 있어야 합니다):
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 이후 재부팅
+```
+
+**방법 B — SIP 유지 (디버그만 완화), 그런 다음 amfidont로 바이너리를 허용 목록에 추가** (AMFI는 시스템 전체에서 활성 상태 유지).
+
+복구 모드에서:
+
+```bash
+csrutil enable --without debug
+csrutil allow-research-guests enable
+```
+
+그런 다음 macOS로 재부팅하고:
+
+```bash
+vphone-amfidont         # 로컬 빌드의 경우 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+```
+
+## 테스트 환경
+
+| 호스트          | iPhone                | CloudOS         |
 | --------------- | --------------------- | --------------- |
 | Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
 | Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
@@ -24,303 +166,24 @@ PCC 리서치 VM 인프라와 Apple의 Virtualization.framework를 사용하여 
 | Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
 | Mac16,6 25.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
 
-iOS 27.0은 26.4 PCC vphone600 스택에 더해 CFW 단계의 force-kern `IOMobileFramebuffer` present-path 패치와 dyld 공유 캐시 `maxSlide` 조정을 사용합니다.
-
-**참고:** iOS 18.x에서는 Metal/GPU 가속이 작동하지 않습니다. 18.x의 Metal/IOGPU 프레임워크에 반가상화 GPU 구현이 없기 때문에 Metal로 렌더링되는 콘텐츠(웹 페이지, 이미지, 배경화면)가 표시되지 않습니다. 터치, 네트워크, 앱은 정상적으로 작동합니다.
-
-## 펌웨어 변형
-
-보안 우회 수준이 다른 5가지 패치 변형을 사용할 수 있습니다:
-
-| 변형           | 부트 체인         |    CFW     | Make 타겟                                   |
-| -------------- | :---------------: | :--------: | ------------------------------------------- |
-| **Patchless**  |  4 패치           | 2 페이즈   | `fw_patch_less` + `boot_less`             |
-| **일반**       |  42 패치          | 10 페이즈  | `fw_patch` + `cfw_install`                  |
-| **개발**       |  53 패치          | 12 페이즈  | `fw_patch_dev` + `cfw_install_dev`          |
-| **탈옥**       | 113 패치          | 14 페이즈  | `fw_patch_jb` + `cfw_install_jb`            |
-| **실험**       | 탈옥 + EXP 전용   | 탈옥 + EXP | `fw_patch_exp` + `cfw_install_exp`          |
-
-> JB 최종 설정(심볼릭 링크, Sileo, apt, TrollStore)은 `/cores/vphone_jb_setup.sh` LaunchDaemon을 통해 첫 번째 부팅 시 자동으로 실행됩니다. 진행 상황 확인: `/var/log/vphone_jb_setup.log`.
-
-> **실험(EXP)** 변형은 탈옥 변형의 상위 집합으로, 연구 브랜치의 실험적 패치를 추가로 실행합니다: 커널 `hv_vmm_present` sysctl 이름 변경 + 커널 내부 호출자 변조(`KernelEXPPatcher`), 로그인 블랙리스트가 있는 DSC 바이트 5 변조 + 슬롯 재인증, watchdogd 정밀 2개 명령어 패치(EXP-JB-3.5), 펌웨어 패치 단계의 DeviceTree 식별 속성 8개, 복원 후 DT 식별 재작성(EXP-JB-6), 그리고 `SPOOF_BUILD=<id>`를 통한 옵트인 `SystemVersion.plist` `ProductBuildVersion` 재작성(EXP-JB-7). 다른 변형은 의도적으로 영향을 받지 않습니다.
-
-컴포넌트별 상세 분류는 [research/0_binary_patch_comparison.md](../research/0_binary_patch_comparison.md)를 참조하세요.
-
-## 사전 요구 사항
-
-**호스트 OS:** PV=3 가상화를 위해 macOS 15+(Sequoia)가 필요합니다.
-
-**SIP/AMFI 설정** — Private Virtualization.framework 권한과 서명되지 않은 바이너리 워크플로우에 필요합니다.
-
-복구 모드(전원 버튼 길게 누르기)로 부팅한 후 터미널을 열고, 다음 중 하나를 선택합니다:
-
-- **방법 1: SIP 완전 비활성화 + AMFI boot-arg (가장 관대)**
-
-  복구 모드에서:
-
-  ```bash
-  csrutil disable
-  csrutil allow-research-guests enable
-  ```
-
-  macOS로 다시 시작한 후:
-
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
-
-  한 번 더 재시작합니다.
-
-- **방법 2: SIP은 대부분 활성 유지, 디버그 제한만 비활성화, [`amfidont`](https://github.com/zqxwce/amfidont) 또는 [`amfree`](https://github.com/retX0/amfree) 사용**
-
-  복구 모드에서:
-
-  ```bash
-  csrutil enable --without debug
-  csrutil allow-research-guests enable
-  ```
-
-  macOS로 다시 시작한 후:
-
-  ```bash
-  # amfidont 사용:
-  xcrun python3 -m pip install amfidont
-  sudo amfidont --path [PATH_TO_VPHONE_DIR]
-  
-  # 또는 amfree 사용:
-  brew install retX0/tap/amfree
-  sudo amfree --path [PATH_TO_VPHONE_DIR]
-  ```
-
-  이 저장소에서는 `make amfidont_allow_vphone`으로 `amfidont`에 필요한
-  인코딩 경로와 CDHash 허용 설정을 한 번에 적용할 수 있습니다.
-
-> Patchless 변형은 방법 1 또는 `-S` 플래그를 포함한 amfidont(`sudo amfidont -S --path [PATH_TO_VPHONE_DIR]`)가 필요합니다.
-
-**의존성(Dependencies) 설치:**
-
-```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
-```
-
-`scripts/fw_prepare.sh` 는 더 빠른 다중 연결 다운로드를 위해 `aria2c` 를 우선 사용하고, 필요하면 `curl` 또는 `wget` 으로 폴백합니다.
-
-**Submodules** — 이 저장소는 리소스, Swift 의존성, `scripts/repos/` 아래 툴체인 소스를 git submodule로 관리합니다. 클론 시 다음 명령어를 사용하세요:
-
-```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
-```
-
-## 빠른 시작
-
-```bash
-make setup_machine            # "First Boot"까지의 전체 과정 자동화 (복원/커스텀 펌웨어 포함)
-# 옵션: NON_INTERACTIVE=1 SUDO_PASSWORD=...
-# LESS=1 Patchless 변형 (- AMFI, SSV, Img4, TXM 우회)
-# DEV=1 개발 변형 (+ TXM 권한/디버그 우회)
-# JB=1 탈옥 변형 (dev + 전체 보안 우회)
-# EXP=1 실험 변형 (탈옥 + 연구 패치: hv_vmm 이름 변경, DT 식별, 복원 후 재작성)
-# SPOOF_BUILD=<id> (EXP 전용) SystemVersion.plist의 ProductBuildVersion을 <id>로 재작성, 예: 23F77
-```
-
-## 수동 설정
-
-```bash
-make setup_tools              # brew 의존성 설치, trustcache + insert_dylib 빌드, Python venv 생성(pymobiledevice3/aria2c 포함)
-make build                    # vphone-cli 빌드 및 서명
-make vm_new                   # VM 디렉토리 및 매니페스트(config.plist) 생성
-# 옵션: CPU=8 MEMORY=8192 DISK_SIZE=64
-make fw_prepare               # IPSW 다운로드, 추출, 병합, manifest 생성
-make fw_patch                 # 부트 체인 패치 (일반 변형)
-# 또는: sudo make fw_patch_less # Patchless 변형 (- AMFI, SSV, Img4, TXM 우회)
-# 또는: make fw_patch_dev     # 개발 변형 (+ TXM 권한/디버그 우회)
-# 또는: make fw_patch_jb      # 탈옥 변형 (dev + 전체 보안 우회)
-# 또는: make fw_patch_exp     # 실험 변형 (탈옥 + 연구 패치 스택)
-```
-
-### 정리
-
-```bash
-make clean                    # 빌드/도구 산출물만 삭제
-make clean CLEAN_VM=1         # 확인 후 vm/ 도 삭제
-make clean CLEAN_IPSW=1       # 확인 후 ipsws/ 도 삭제
-```
-
-기본 clean은 `vm/` 또는 `ipsws/` 를 삭제하지 않습니다.
-
-### VM 설정
-
-v1.0부터 VM 설정은 `vm/config.plist`에 저장됩니다. VM 생성 시 CPU, 메모리, 디스크 크기를 설정하세요:
-
-```bash
-# 사용자 정의 설정으로 VM 생성
-make vm_new CPU=16 MEMORY=16384 DISK_SIZE=128
-
-# 부팅 시 config.plist에서 설정 자동 로드
-make boot
-```
-
-매니페스트 파일은 모든 VM 설정(CPU, 메모리, 화면, ROM, 저장소)을 저장하며 [security-pcc의 VMBundle.Config 형식](https://github.com/apple/security-pcc)과 호환됩니다.
-
-## 복원
-
-복원 프로세스를 위해 **두 개의 터미널**이 필요합니다. 터미널 2를 사용하는 동안 터미널 1을 계속 실행 상태로 두세요.
-
-```bash
-# 터미널 1
-make boot_dfu                 # VM을 DFU 모드로 부팅 (계속 실행 유지)
-```
-
-```bash
-# 터미널 2
-make restore_get_shsh         # SHSH blob 가져오기
-make restore                  # pymobiledevice3 restore 백엔드로 펌웨어 플래싱
-# 또는: make restore_offline    # 오프라인 복원 (AEA 이미지를 제자리에서 복호화하고 캐시된 .shsh blob 사용)
-                              # 최초 1회는 AEA 복호화를 위해 인터넷 연결이 필요합니다
-```
-
-## 커스텀 펌웨어 설치
-
-복원이 완료되면 터미널 1의 DFU 부팅을 중단(Ctrl+C)하여 VM을 완전히 종료합니다. 설치 프로그램은 VM의 `Disk.img`를 호스트에 마운트하여 모든 CFW 파일을 배치하고 부팅 스냅샷을 오프라인으로 전환합니다(DFU / 램디스크 / SSH 불필요). 따라서 디스크에 대한 독점 액세스가 필요합니다.
-
-```bash
-# 터미널 2 (자동으로 sudo로 재실행됨)
-make cfw_install
-# 또는: make cfw_install_dev       # 개발 변형
-# 또는: make cfw_install_jb        # 탈옥 변형
-# 또는: make cfw_install_exp       # 실험 변형 (탈옥 + 연구 패치 스택)
-# 또는: SPOOF_BUILD=23F77 make cfw_install_exp   # 추가로 ProductBuildVersion 재작성
-```
-
-## 첫 부팅
-
-DFU 부팅을 중단하고 CFW를 설치한 후, VM을 정상 부팅합니다:
-
-```bash
-make boot
-```
-
-`cfw_install_jb` 실행 후 탈옥 변형은 첫 번째 부팅 시 **Sileo**와 **TrollStore**를 사용할 수 있습니다. Sileo에서 `openssh-server`를 설치하여 SSH 접근을 활성화할 수 있습니다.
-
-일반/개발 변형의 경우, VM에서 **direct console**이 나타납니다. `bash-4.4#`이 보이면 엔터를 누르고 다음 명령어를 실행하여 쉘 환경을 초기화하고 SSH 호스트 키를 생성하세요:
-
-```bash
-export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'
-
-mkdir -p /var/dropbear
-cp /iosbinpack64/etc/profile /var/profile
-cp /iosbinpack64/etc/motd /var/motd
-
-# SSH 호스트 키 생성 (SSH 작동에 필수)
-dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key
-dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key
-
-shutdown -h now
-```
-
-> **참고:** 호스트 키 생성 단계를 거치지 않으면 dropbear(SSH 서버)가 연결을 수락하더라도 SSH 핸드셰이크를 수행할 키가 없어 즉시 연결을 종료합니다.
-
-## 이후 부팅
-
-```bash
-make boot
-```
-
-별도의 터미널에서 usbmux 포워딩 터널을 시작합니다:
-
-```bash
-python3 -m pymobiledevice3 usbmux forward 2222 22222    # SSH (dropbear)
-python3 -m pymobiledevice3 usbmux forward 2222 22       # SSH (탈옥: Sileo에서 openssh-server를 설치한 경우)
-python3 -m pymobiledevice3 usbmux forward 5901 5901     # VNC
-python3 -m pymobiledevice3 usbmux forward 5910 5910     # RPC
-```
-
-다음을 통해 연결합니다:
-
-- **SSH (탈옥):** `ssh -p 2222 mobile@127.0.0.1` (password: `alpine`)
-- **SSH (일반/개발):** `ssh -p 2222 root@127.0.0.1` (password: `alpine`)
-- **VNC:** `vnc://127.0.0.1:5901`
-- [**RPC:**](http://github.com/doronz88/rpc-project) `rpcclient -p 5910 127.0.0.1`
-
-## VM 백업 및 전환
-
-여러 VM 환경(예: 다른 iOS 빌드 또는 펌웨어 변형)을 저장하고 전환할 수 있습니다. 백업은 `vm.backups/`에 저장되며 `rsync --sparse`를 사용하여 희소 디스크 이미지를 효율적으로 처리합니다.
-
-```bash
-make vm_backup NAME=26.1-clean    # 현재 VM 저장
-rm -rf vm && make vm_new          # 새로운 빌드를 위해 초기화
-# ... fw_prepare, fw_patch, restore, cfw_install, boot
-make vm_backup NAME=26.3-jb       # 새 VM도 저장
-make vm_list                      # 모든 백업 목록 보기
-make vm_switch NAME=26.1-clean    # 백업 간 전환
-```
-
-> **참고:** 백업/전환/복원 전에 반드시 VM을 중지하세요.
-
 ## FAQ
 
-> **무엇보다 먼저 — `git pull`을 실행하여 최신 버전인지 확인하세요.**
+**`zsh: killed ./vphone-cli`** — AMFI/디버그 제한이 우회되지 않았습니다; [사전 요구 사항](#사전-요구-사항)을 참조하세요 (`amfi_get_out_of_my_way=1` 또는 `amfidont`).
 
-**Q: 실행하려고 하면 `zsh: killed ./vphone-cli` 오류가 발생합니다.**
+**`Virtualization is not available on this hardware`** — Mac 자체가 VM입니다; PV=3 게스트 부팅은 중첩할 수 없습니다. 중첩되지 않은 macOS 15+ 호스트를 사용하세요.
 
-AMFI/디버그 제한이 올바르게 우회되지 않았습니다. 다음 중 하나를 선택하세요:
+**"Press home to continue"에서 멈춤** — VNC로 접속하여 우클릭(두 손가락 클릭)으로 홈 버튼을 시뮬레이션하세요.
 
-- **방법 1 (AMFI 완전 비활성화):**
+**시스템 앱이 설치되지 않음** — iOS 초기 설정 시 지역으로 일본이나 EU를 선택하지 마세요 (VM이 충족할 수 없는 추가 규제 검사가 있습니다); 예를 들어 United States를 선택하세요.
 
-  ```bash
-  sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"
-  ```
+**앱이 실행 시 `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`로 충돌** — `vphone-cli fw patch <name> --variant <v> --force-exc-guard`로 다시 패치한 다음, 다시 복원/설치하세요 ([#291](https://github.com/Lakr233/vphone-cli/issues/291)). iOS 18 베이스에서는 항상 켜져 있습니다.
 
-- **방법 2 (디버그 제한만 비활성화):**
-  복구 모드에서 `csrutil enable --without debug`(완전한 SIP 비활성화 없음)를 사용한 다음, [`amfidont`](https://github.com/zqxwce/amfidont) 또는 [`amfree`](https://github.com/retX0/amfree)를 설치/로드하여 AMFI의 나머지 기능은 활성 상태로 유지합니다.
-  이 저장소에서는 `make amfidont_allow_vphone`으로 `amfidont`에 필요한 인코딩 경로와 CDHash 허용 설정을 자동 적용할 수 있습니다.
+**`.ipa`/`.tipa` 설치** — 실행 중인 VM의 Install 메뉴를 사용하세요 (드래그 앤 드롭 또는 파일 선택기).
 
-**Q: `make boot` / `make boot_dfu` 실행 시 `VZErrorDomain Code=2 "Virtualization is not available on this hardware."`로 실패합니다.**
+## 자동화
 
-호스트 자체가 Apple 가상 머신에서 실행 중이기 때문에, 중첩된 Virtualization.framework 게스트 부팅은 지원되지 않습니다. 중첩이 아닌 macOS 15+ 호스트에서 실행하세요. `make boot_host_preflight`에서 `Model Name: Apple Virtual Machine 1` 및 `kern.hv_vmm_present=1`로 이를 확인할 수 있습니다. 현재는 이런 호스트에서 `boot_binary_check`가 VM 시작 전에 빠르게 실패 처리합니다.
+`vphone-cli`는 프로그래밍 방식 제어를 위한 호스트 제어 소켓(`<bundle>/vphone.sock`)을 노출합니다 — 스크린샷, 터치, 스와이프, 하드웨어 키, 클립보드 — 각 동작은 AI 주도 E2E 테스트를 위해 인라인 스크린샷을 반환합니다. 이를 감싸는 MCP 서버는 [vphone-mcp](https://github.com/pluginslab/vphone-mcp)를 참조하세요.
 
-**Q: 시스템 앱(App Store, 메시지 등)을 다운로드하거나 설치할 수 없습니다.**
-
-iOS 초기 설정 시 지역을 **일본** 또는 **유럽 연합**으로 선택하지 **마세요**. 이 지역에서는 추가적인 규제 검사(사이드로딩 공개, 카메라 셔터음 등)가 적용되는데, 가상 머신은 이러한 요건을 충족할 수 없어 시스템 앱의 다운로드 및 설치가 불가능합니다. 이 문제를 피하려면 다른 지역(예: 미국)을 선택하세요.
-
-**Q: "Press home to continue" 화면에서 멈췄습니다.**
-
-VNC(`vnc://127.0.0.1:5901`)로 접속하여 화면의 아무 곳이나 우클릭(Mac 트랙패드에서는 두 손가락 클릭)하세요. 이것이 홈 버튼 누르기를 시뮬레이션합니다.
-
-**Q: SSH 접근을 활성화하려면?**
-
-Sileo에서 `openssh-server`를 설치하세요 (탈옥 변형 첫 부팅 후 사용 가능).
-
-**Q: openssh-server를 설치했는데 SSH가 작동하지 않습니다.**
-
-VM을 재부팅하세요. 다음 부팅 시 SSH 서버가 자동으로 시작됩니다.
-
-**Q: `.tipa` 파일을 설치할 수 있나요?**
-
-네. 설치 메뉴는 `.ipa`와 `.tipa` 패키지를 모두 지원합니다. 드래그 앤 드롭 또는 파일 선택기를 사용하세요.
-
-**Q: 최신 iOS 버전으로 업데이트할 수 있나요?**
-
-네. `fw_prepare`를 원하는 버전의 IPSW URL로 덮어쓰세요:
-
-```bash
-export IPHONE_SOURCE=/path/to/some_os.ipsw
-export CLOUDOS_SOURCE=/path/to/some_os.ipsw
-make fw_prepare
-make fw_patch
-```
-
-저희의 패치는 정적 오프셋이 아닌 바이너리 분석을 통해 적용되므로, 최신 버전에서도 작동할 것입니다. 만약 문제가 발생하면 AI에게 도움을 요청하세요.
-
-**Q: `restore_offline`를 사용했더니 설정 화면에서 진행이 멈췄습니다**
-
-설정 과정에서 Apple 서버에 연결을 시도하는데, `restore_offline`를 사용한 경우 인터넷에 연결되어 있지 않을 가능성이 큽니다.
-기기를 supervised 상태로 만들면 설정 화면의 대부분을 우회할 수 있습니다:
-
-```bash
-python3 -m pymobiledevice3 profile supervise vphone
-```
-
-## 감사 인사
+## 감사의 말
 
 - [wh1te4ever/super-tart-vphone-writeup](https://github.com/wh1te4ever/super-tart-vphone-writeup)

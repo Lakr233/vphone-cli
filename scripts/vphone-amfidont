@@ -1,0 +1,43 @@
+#!/bin/zsh
+# vphone-amfidont — allow this vphone-cli.app through amfid via amfidont,
+# started in daemon mode with --spoof-apple. Automates the README "Option B"
+# step. amfidont: https://github.com/zqxwce/amfidont
+set -euo pipefail
+
+# The enclosing .app (this lives at vphone-cli.app/Contents/Resources/vphone-amfidont;
+# `:A` resolves a Homebrew symlink back into the bundle).
+app="${0:A:h:h:h}"
+[[ "${app:e}" == app && -x "$app/Contents/MacOS/vphone-cli" ]] \
+  || { print -u2 "error: run vphone-amfidont from inside vphone-cli.app"; exit 1 }
+
+# Ensure amfidont is installed.
+if ! command -v amfidont >/dev/null; then
+  printf "amfidont is not installed. Install it via pip now? [y/N] "
+  read -r ans || ans=n
+  [[ "$ans" == [yY]* ]] || { print "Aborted."; exit 1 }
+  xcrun python3 -m pip install -U amfidont
+  command -v amfidont >/dev/null \
+    || { print -u2 "amfidont installed but not on PATH — open a new shell and retry."; exit 1 }
+fi
+# Absolute path: sudo's secure_path won't find a pip-user install by name.
+bin="$(command -v amfidont)"
+
+# Is amfidont already running? Only one can attach to amfid at a time. Check
+# cheaply without root first; its args (and /var/root config) need root, so
+# escalate to a single sudo ONLY when something is actually running.
+raw="$(ps -ax -o pid=,command= | grep '[a]mfidont' | grep -v vphone-amfidont | awk '{print $1}' || true)"
+if [[ -n "${raw//[[:space:]]/}" ]]; then
+  pids=(${(f)raw})
+  print "amfidont is already running — checking coverage (needs sudo)…"
+  info="$(sudo sh -c "ps -o command= -p ${(j:,:)pids} 2>/dev/null; cat /var/root/.amfidont/paths 2>/dev/null" || true)"
+  info+=$'\n'"$(cat ~/.amfidont/paths 2>/dev/null || true)"
+  # Covered if this .app's path is allowed, or if it's running with --allow-all.
+  if print -r -- "$info" | grep -Fq -- "$app" || print -r -- "$info" | grep -Fq -- "--allow-all"; then
+    print "amfidont is already running and allows this .app — nothing to do."
+    exit 0
+  fi
+  print -u2 "amfidont is already running but does NOT allow this .app. Stop it, then re-run vphone-amfidont."
+  exit 1
+fi
+
+exec sudo "$bin" daemon --spoof-apple --path "$app"

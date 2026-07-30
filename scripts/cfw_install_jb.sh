@@ -22,6 +22,10 @@ SCRIPT_DIR="${0:a:h}"
 # Resolves to .venv/bin/python3 relative to the project root (parent of
 # scripts/), falling back to the system python3 when the venv is absent.
 _resolve_python3() {
+    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
+        echo "$VPHONE_PYTHON"
+        return
+    fi
     local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
     if [[ -x "$venv_py" ]]; then
         echo "$venv_py"
@@ -144,7 +148,7 @@ setup_cfw_jb_input() {
         archive="$search_dir/$CFW_JB_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_JB_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
+            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
             return
         fi
     done
@@ -161,7 +165,7 @@ apply_dev_overlay() {
             local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
             local tmpdir="$VM_DIR/.iosbinpack_tmp"
             mkdir -p "$tmpdir"
-            tar -xf "$iosbinpack" -C "$tmpdir"
+            "$TAR" --warning=no-unknown-keyword -xf "$iosbinpack" -C "$tmpdir"
             cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
             (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
             rm -rf "$tmpdir"
@@ -256,7 +260,7 @@ echo "[JB-2] Installing iosbinpack64..."
 
 apply_dev_overlay
 cp -R "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
+"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
     -xf $MNT1/iosbinpack64.tar -C $MNT1
 /bin/rm -f $MNT1/iosbinpack64.tar
 
@@ -275,6 +279,37 @@ cp -R "$TEMP_DIR/debugserver" "$MNT1/usr/libexec/debugserver"
 /bin/chmod 0755 $MNT1/usr/libexec/debugserver
 
 echo "  [+] debugserver entitlements patched"
+
+
+# ═══════════ JB-3b CAMPO SANDBOX FIX (iOS 27 only) ════════════
+# Grant Campo the backboard/frontboard mach-lookups the 26.4 temporary-sandbox denies (see 0_binary_patch_comparison.md #14).
+# 27-gated on the mounted rootfs SystemVersion.plist (same source as vpregister/DSC gates): 26.x userlands don't need it and Campo.app exists there too.
+CAMPO_BIN="$MNT1/Applications/Campo.app/Campo"
+CAMPO_BASE_IOS=$(/usr/bin/plutil -extract ProductVersion raw -o - "$MNT1/System/Library/CoreServices/SystemVersion.plist" 2>/dev/null || true)
+case "$CAMPO_BASE_IOS" in
+27.*)
+    if [[ -f "$CAMPO_BIN" ]]; then
+        echo ""
+        echo "[JB-3b] Granting Campo backboard/frontboard mach-lookup exceptions (iOS $CAMPO_BASE_IOS)..."
+        cp "$CAMPO_BIN" "$TEMP_DIR/Campo"
+        ldid -e "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
+        if [[ -s "$TEMP_DIR/Campo.entitlements" ]]; then
+            "$PYTHON3" "$SCRIPT_DIR/patchers/campo_mach_lookup_exceptions.py" "$TEMP_DIR/Campo.entitlements"
+            ldid_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
+            cp -R "$TEMP_DIR/Campo" "$CAMPO_BIN"
+            /bin/chmod 0755 "$CAMPO_BIN"
+            echo "  [+] Campo re-signed with backboard/frontboard mach-lookup exceptions"
+        else
+            echo "  [!] Could not read Campo entitlements; skipping Campo sandbox fix"
+        fi
+    else
+        echo "[JB-3b] Campo.app not present in this OS image; skipping Campo sandbox fix"
+    fi
+    ;;
+*)
+    echo "[JB-3b] skip Campo sandbox fix (base iOS ${CAMPO_BASE_IOS:-unknown} — 27-only)"
+    ;;
+esac
 
 
 # ═══════════ JB-4 INSTALL PROCURSUS BOOTSTRAP ══════════════════
@@ -301,7 +336,7 @@ fi
 # ── Extra debs: download from manifest, then stage the whole cache ──────
 echo "  Fetching extra debs..."
 zsh "$SCRIPT_DIR/fetch_debs.sh" || true
-DEBS_CACHE="${SCRIPT_DIR:h}/debs"
+DEBS_CACHE="${VPHONE_DEBS_DIR:-${SCRIPT_DIR:h}/debs}"
 DEBS_DEST="$MNT5/$BOOT_HASH/debs"
 /bin/rm -rf "$DEBS_DEST"
 deb_count=0
@@ -322,7 +357,7 @@ JB_DIR_NAME="jb-vphone"
 /bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /bin/chmod 0755 $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME
-"$TAR" --preserve-permissions -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
+"$TAR" --preserve-permissions --warning=no-unknown-keyword -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
     -C $MNT5/$BOOT_HASH/$JB_DIR_NAME/
 /bin/mv $MNT5/$BOOT_HASH/$JB_DIR_NAME/var $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus
 mv "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"/*(N) "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus" 2>/dev/null || true

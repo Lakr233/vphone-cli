@@ -5,9 +5,6 @@ enum VPhoneError: Error, CustomStringConvertible {
     case romNotFound(String)
     case diskNotFound(String)
     case invalidKernelDebugPort(Int)
-    case manifestLoadFailed(path: String, underlying: Error)
-    case manifestParseFailed(path: String, underlying: Error)
-    case manifestWriteFailed(path: String, underlying: Error)
 
     var description: String {
         switch self {
@@ -25,12 +22,6 @@ enum VPhoneError: Error, CustomStringConvertible {
             "Disk image not found: \(p)"
         case let .invalidKernelDebugPort(port):
             "Invalid kernel debug port: \(port) (expected 6000...65535)"
-        case let .manifestLoadFailed(path: path, underlying: _):
-            "Failed to load manifest from \(path)"
-        case let .manifestParseFailed(path: path, underlying: _):
-            "Failed to parse manifest at \(path)"
-        case let .manifestWriteFailed(path: path, underlying: _):
-            "Failed to write manifest to \(path)"
         }
     }
 }

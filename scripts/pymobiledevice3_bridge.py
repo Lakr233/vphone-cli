@@ -23,6 +23,35 @@ from pymobiledevice3.restore.restore import Restore
 import typer
 
 
+# pymobiledevice3's own CLI installs coloredlogs at INFO (see its __main__) and
+# silences these chatty third-party loggers. Mirror that here so the bridge's
+# restore output is the same colorized log stream when run with -v.
+_NOISY_LOGGERS = (
+    "quic",
+    "asyncio",
+    "parso.cache",
+    "parso.cache.pickle",
+    "parso.python.diff",
+    "humanfriendly.prompts",
+    "blib2to3.pgen2.driver",
+    "urllib3.connectionpool",
+)
+
+
+def install_logging(verbose: int) -> None:
+    import logging
+
+    level = [logging.WARNING, logging.INFO, logging.DEBUG][min(verbose, 2)]
+    try:
+        import coloredlogs
+
+        coloredlogs.install(level=level)
+    except ImportError:
+        logging.basicConfig(level=level)
+    for name in _NOISY_LOGGERS:
+        logging.getLogger(name).disabled = True
+
+
 def parse_ecid(value: Optional[str]) -> Optional[int]:
     if not value:
         return None
@@ -193,7 +222,11 @@ def restore_get_shsh_command(
         file_okay=True,
         dir_okay=False,
     ),
+    verbose: int = typer.Option(
+        0, "--verbose", "-v", count=True, help="Increase log verbosity (-v info, -vv debug)."
+    ),
 ) -> Awaitable[None]:
+    install_logging(verbose)
     return cmd_restore_get_shsh(vm_dir, require_ecid(ecid), udid, out)
 
 
@@ -216,7 +249,11 @@ def restore_update_command(
         file_okay=True,
         dir_okay=False,
     ),
+    verbose: int = typer.Option(
+        0, "--verbose", "-v", count=True, help="Increase log verbosity (-v info, -vv debug)."
+    ),
 ) -> Awaitable[None]:
+    install_logging(verbose)
     return cmd_restore_update(vm_dir, require_ecid(ecid), udid, erase=erase, tss_path=tss)
 
 
