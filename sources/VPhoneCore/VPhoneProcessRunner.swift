@@ -167,4 +167,23 @@ public enum VPhoneProcessRunner {
         if savedFg > 0 { _ = tcsetpgrp(ttyFD, savedFg) }  // take it back
         return process.terminationStatus
     }
+
+    /// Run `executable args` as root via macOS's native auth dialog (`osascript` →
+    /// `do shell script … with administrator privileges`). `do shell script` runs
+    /// under a bare env, so `env` is passed inline as `KEY=value` — nothing else
+    /// reaches the command. Returns the command's exit status.
+    public static func runWithAdminPrivileges(
+        _ executable: URL, _ args: [String], env: [String: String] = [:], echo: Bool = true
+    ) throws -> Int32 {
+        func shQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        var tokens = env.sorted { $0.key < $1.key }.map { "\($0.key)=\(shQuote($0.value))" }
+        tokens.append(shQuote(executable.path))
+        tokens += args.map(shQuote)
+        // Escape the /bin/sh command for the AppleScript string literal (\ then ").
+        let appleEscaped = tokens.joined(separator: " ")
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let source = "do shell script \"\(appleEscaped)\" with administrator privileges"
+        return try runStreaming(URL(fileURLWithPath: "/usr/bin/osascript"), ["-e", source], echo: echo)
+    }
 }

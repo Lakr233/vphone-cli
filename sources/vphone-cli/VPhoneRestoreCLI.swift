@@ -104,6 +104,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
     @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp") var variant: String = "exp"
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
     @Flag(name: .customLong("force-dsc-maxslide"), help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)") var forceDSCMaxSlide = false
+    @Flag(name: .customLong("root-popup"), help: "Elevate via macOS's native authentication dialog (osascript) instead of the sudo re-exec") var rootPopup = false
     @Flag(name: .customLong("keep-artifacts"), help: "Keep the extracted CFW input dirs (cfw_input/, cfw_jb_input/) after install (default: removed to save space)") var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
@@ -119,29 +120,37 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
 
-        var env = ProcessInfo.processInfo.environment
-        if let spoofBuild { env["SPOOF_BUILD"] = spoofBuild }
-        if forceDSCMaxSlide { env["FORCE_DSC_MAXSLIDE"] = "1" }
-        if keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
-
-        // Same redirect as `fw prepare`: VPHONE_PYTHON/IPSW_DIR/VPHONE_SEAL_DIR are
-        // exported for the bundled scripts (cfw_install_host.sh's PY/P lines honor
-        // VPHONE_PYTHON); the apfs_sealvolume read itself only happens on the
-        // `fw patch` path (CryptexFilesystemPatcher).
+        // Env the bundled scripts read: rides along via `sudo -E` by default;
+        // --root-popup forwards it inline (do shell script's bare env).
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
-        env["VPHONE_PYTHON"] = try resources.pythonExecutable().path
-        env["IPSW_DIR"] = resources.ipswCacheDir.path
-        env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
-        env["VPHONE_DEBS_DIR"] = resources.debsCacheDir.path
+        var scriptEnv: [String: String] = [
+            "VPHONE_PYTHON": try resources.pythonExecutable().path,
+            "IPSW_DIR": resources.ipswCacheDir.path,
+            "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
+            "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
+        ]
+        if let spoofBuild { scriptEnv["SPOOF_BUILD"] = spoofBuild }
+        if forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
+        if keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         let args = [resources.cfwInstallHostScript.path, "--variant", variant, bundle.url.path]
-        if v.tracesInternals {
-            print("[trace] spawning: /bin/zsh \(args.joined(separator: " ")) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)")
+        let code: Int32
+        if rootPopup {
+            // Forward SUDO_USER (sudo would set it) so the script's chown-back runs.
+            scriptEnv["SUDO_USER"] = NSUserName()
+            code = try VPhoneProcessRunner.runWithAdminPrivileges(
+                URL(fileURLWithPath: "/bin/zsh"), args, env: scriptEnv, echo: v.showsToolDetail)
+        } else {
+            var env = ProcessInfo.processInfo.environment
+            for (key, value) in scriptEnv { env[key] = value }
+            if v.tracesInternals {
+                print("[trace] spawning: /bin/zsh \(args.joined(separator: " ")) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)")
+            }
+            code = try VPhoneProcessRunner.runStreaming(
+                URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
         }
-        let code = try VPhoneProcessRunner.runStreaming(
-            URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
         if code == 0, !keepArtifacts, let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
             print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
         }

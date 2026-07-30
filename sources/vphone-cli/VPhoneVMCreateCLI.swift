@@ -20,6 +20,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     var sudoPassword: String?
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
     @Flag(name: .customLong("force-dsc-maxslide"), help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)") var forceDSCMaxSlide = false
+    @Flag(name: .customLong("root-popup"), help: "Elevate the CFW host-mount via macOS's native authentication dialog (osascript) instead of a sudo prompt") var rootPopup = false
     @Flag(help: "Prompt at first-boot stages instead of running non-interactively") var interactive = false
     @Flag(name: .customLong("keep-artifacts"), help: "Keep intermediate build artifacts (built restore firmware, extracted base-IPSW caches, extracted CFW input dirs) instead of removing them after use. Source archives (.ipsw / .tar.zst) are always kept.")
     var keepArtifacts = false
@@ -39,6 +40,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             name: name, variant: variant,
             iphoneSource: sources.iphoneSource, cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword, spoofBuild: spoofBuild, forceDSCMaxSlide: forceDSCMaxSlide,
+            rootPopup: rootPopup,
             interactive: interactive, verbosity: VPhoneVerbosity(count: verboseCount),
             keepArtifacts: keepArtifacts))
     }
