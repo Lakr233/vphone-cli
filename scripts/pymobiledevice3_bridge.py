@@ -14,6 +14,7 @@ from pymobiledevice3.exceptions import (
     ConnectionFailedToUsbmuxdError,
     IRecvNoDeviceConnectedError,
     IncorrectModeError,
+    PairingError,
 )
 from pymobiledevice3.irecv import IRecv
 from pymobiledevice3.lockdown import create_using_usbmux
@@ -95,7 +96,7 @@ async def resolve_device(ecid: Optional[int], udid: Optional[str]) -> Device:
 
         try:
             lockdown = await create_using_usbmux(serial=usb_device.serial, connection_type="USB")
-        except (ConnectionFailedError, IncorrectModeError):
+        except (ConnectionFailedError, IncorrectModeError, PairingError):
             continue
 
         lockdown_ecid = int(str(lockdown.ecid), 0)
