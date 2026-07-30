@@ -104,6 +104,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
     @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp") var variant: String = "exp"
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
     @Flag(name: .customLong("force-dsc-maxslide"), help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)") var forceDSCMaxSlide = false
+    @Flag(name: .customLong("keep-artifacts"), help: "Keep the extracted CFW input dirs (cfw_input/, cfw_jb_input/) after install (default: removed to save space)") var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
@@ -121,6 +122,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         var env = ProcessInfo.processInfo.environment
         if let spoofBuild { env["SPOOF_BUILD"] = spoofBuild }
         if forceDSCMaxSlide { env["FORCE_DSC_MAXSLIDE"] = "1" }
+        if keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         // Same redirect as `fw prepare`: VPHONE_PYTHON/IPSW_DIR/VPHONE_SEAL_DIR are
         // exported for the bundled scripts (cfw_install_host.sh's PY/P lines honor
@@ -140,6 +142,9 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         }
         let code = try VPhoneProcessRunner.runStreaming(
             URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
+        if code == 0, !keepArtifacts, let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
+            print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
+        }
         throw ExitCode(code)
     }
 }

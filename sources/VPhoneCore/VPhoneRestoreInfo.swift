@@ -57,6 +57,15 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
         try encoder.encode(self).write(to: Self.url(forBundle: bundle))
     }
 
+    /// Remove the `iPhone*_Restore/` tree from the bundle; returns its name, or
+    /// nil if absent. Record versions (`derive`) first — it reads this directory.
+    @discardableResult
+    public static func removeBuiltFirmware(fromBundle bundle: VPhoneBundle) throws -> String? {
+        guard let dir = findRestoreDirectory(inBundle: bundle) else { return nil }
+        try FileManager.default.removeItem(at: dir)
+        return dir.lastPathComponent
+    }
+
     // MARK: - Restore-directory reads
 
     static func findRestoreDirectory(inBundle bundle: VPhoneBundle) -> URL? {

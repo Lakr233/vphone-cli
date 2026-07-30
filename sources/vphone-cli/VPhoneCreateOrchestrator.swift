@@ -104,6 +104,7 @@ public struct VPhoneCreateOrchestrator {
         public var memoryMB: UInt64
         public var diskSizeGB: UInt64
         public var verbosity: VPhoneVerbosity
+        public var keepArtifacts: Bool
 
         public init(
             name: String,
@@ -117,7 +118,8 @@ public struct VPhoneCreateOrchestrator {
             cpuCount: UInt = 8,
             memoryMB: UInt64 = 8192,
             diskSizeGB: UInt64 = 64,
-            verbosity: VPhoneVerbosity = .quiet
+            verbosity: VPhoneVerbosity = .quiet,
+            keepArtifacts: Bool = false
         ) {
             self.name = name
             self.variant = variant
@@ -131,6 +133,7 @@ public struct VPhoneCreateOrchestrator {
             self.memoryMB = memoryMB
             self.diskSizeGB = diskSizeGB
             self.verbosity = verbosity
+            self.keepArtifacts = keepArtifacts
         }
     }
 
@@ -213,6 +216,13 @@ public struct VPhoneCreateOrchestrator {
             Thread.sleep(forTimeInterval: 5)
             print("\n=== CFW install (host-mount) ===")
             try runCFWInstall(options: options, bundleURL: bundleURL, sudoEnvExtras: sudoEnvExtras)
+        }
+
+        // CFW install is the last consumer of the built restore tree (it copies
+        // the SystemOS/AppOS cryptexes from it onto Disk.img); reclaim it now.
+        if !options.keepArtifacts, let bundle = try? VPhoneBundle.load(at: bundleURL),
+           let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
+            print("[+] Removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
         }
 
         print("\n=== First boot ===")
@@ -301,6 +311,7 @@ public struct VPhoneCreateOrchestrator {
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
         if isLess { env["VARIANT"] = "less" }
+        if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         trace("spawn /bin/bash \(resources.fwPrepareScript.path) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)", v)
         let code = try VPhoneProcessRunner.runStreaming(
@@ -474,6 +485,7 @@ public struct VPhoneCreateOrchestrator {
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
         env["VPHONE_DEBS_DIR"] = resources.debsCacheDir.path
+        if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
         for (key, value) in sudoEnvExtras { env[key] = value }
 
         let args = [resources.cfwInstallHostScript.path, "--variant", options.variant, bundleURL.path]

@@ -687,5 +687,13 @@ echo "==> Generating hybrid plists ..."
 echo "==> Cleaning up ..."
 rm -rf "$CLOUDOS_DIR"
 
+# Drop the extracted base-IPSW caches (kept .ipsw re-extracts). VPHONE_KEEP_ARTIFACTS opts out.
+if [[ -z "${VPHONE_KEEP_ARTIFACTS:-}" ]]; then
+    hybrid="$(cd "$IPHONE_DIR" && pwd -P)"
+    for cache in "$IPHONE_CACHE" "$CLOUDOS_CACHE"; do
+        [[ -d "$cache" && "$(cd "$cache" && pwd -P)" != "$hybrid" ]] && rm -rf "$cache"
+    done
+fi
+
 echo "==> Done. Restore directory ready: $IPHONE_DIR/"
 echo "    Run 'make fw_patch' to patch boot-chain components."

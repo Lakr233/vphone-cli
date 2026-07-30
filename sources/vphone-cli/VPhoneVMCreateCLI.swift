@@ -21,6 +21,8 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
     @Flag(name: .customLong("force-dsc-maxslide"), help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)") var forceDSCMaxSlide = false
     @Flag(help: "Prompt at first-boot stages instead of running non-interactively") var interactive = false
+    @Flag(name: .customLong("keep-artifacts"), help: "Keep intermediate build artifacts (built restore firmware, extracted base-IPSW caches, extracted CFW input dirs) instead of removing them after use. Source archives (.ipsw / .tar.zst) are always kept.")
+    var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
@@ -37,6 +39,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             name: name, variant: variant,
             iphoneSource: sources.iphoneSource, cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword, spoofBuild: spoofBuild, forceDSCMaxSlide: forceDSCMaxSlide,
-            interactive: interactive, verbosity: VPhoneVerbosity(count: verboseCount)))
+            interactive: interactive, verbosity: VPhoneVerbosity(count: verboseCount),
+            keepArtifacts: keepArtifacts))
     }
 }

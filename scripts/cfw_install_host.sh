@@ -88,6 +88,11 @@ trap - EXIT
 echo "[*] flipping boot snapshot offline (com.apple.os.update -> live volume)..."
 "$PY" "$PROJ/tools/apfs_snap_rename.py" "$IMG"
 
+# Drop the extracted CFW input dirs (source .tar.zst re-extracts). VPHONE_KEEP_ARTIFACTS opts out.
+if [[ -z "${VPHONE_KEEP_ARTIFACTS:-}" ]]; then
+  rm -rf "${VM_DIR:?}/cfw_input" "${VM_DIR:?}/cfw_jb_input"
+fi
+
 # The whole install ran as root (owners-honored mounts / chown / cp). Hand the
 # host-side artifacts it created (vm/.vphoned.signed, vm/.cfw_temp, extracted
 # cfw_input/cfw_jb_input, the vphoned build) back to the invoking user, so the
