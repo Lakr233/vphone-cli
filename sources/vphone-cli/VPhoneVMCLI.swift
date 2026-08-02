@@ -81,7 +81,8 @@ struct VPhoneVMInfoCommand: ParsableCommand {
 
     func run() throws {
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
-        let report = VPhoneBundleReport(bundle: try lib.library.bundle(named: name))
+        let bundle = try lib.library.bundle(named: name)
+        let report = VPhoneBundleReport(bundle: bundle)
         if json {
             print(String(decoding: try JSONEncoder().encode(report), as: UTF8.self))
         } else {
@@ -89,6 +90,7 @@ struct VPhoneVMInfoCommand: ParsableCommand {
             print("cpu:   \(report.cpuCount)")
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
+            print("net:   \(describeNetwork(bundle.manifest.networkConfig))")
             if let info = report.restoreInfo {
                 print("iOS:     \(info.ios.version) (\(info.ios.build))")
                 print("cloudOS: \(info.cloudOS.version) (\(info.cloudOS.build))")
@@ -124,19 +126,46 @@ struct VPhoneVMNewCommand: ParsableCommand {
 
 struct VPhoneVMConfigCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "config", abstract: "Edit VM manifest fields (cpu/memory)")
+        commandName: "config", abstract: "Edit VM manifest fields (cpu/memory/network)")
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Option(name: .shortAndLong, help: "CPU cores") var cpu: UInt?
     @Option(name: .shortAndLong, help: "Memory (MB)") var memory: UInt64?
+    @Option(name: [.customShort("n"), .long], help: "Network mode: nat | bridged | none") var network: String?
+    @Option(name: .long, help: "Host interface to bridge (bridged mode; auto-picks first if omitted)")
+    var bridgeInterface: String?
 
     func run() throws {
+        let mode = try network.map(Self.parseMode)
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
         let updated = try VPhoneBundleOps.updateConfig(
-            bundleNamed: name, in: lib.library, cpuCount: cpu, memoryMB: memory)
-        print("updated \(updated.name): \(updated.manifest.cpuCount) CPU, \(updated.manifest.memorySize / (1024*1024)) MB")
+            bundleNamed: name, in: lib.library, cpuCount: cpu, memoryMB: memory,
+            networkMode: mode, bridgeInterface: bridgeInterface)
+        let m = updated.manifest
+        print("updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024*1024)) MB, "
+            + "net=\(describeNetwork(m.networkConfig))")
     }
+
+    private static func parseMode(_ s: String)
+        throws -> VPhoneVirtualMachineManifest.NetworkConfig.NetworkMode
+    {
+        switch s.lowercased() {
+        case "nat": return .nat
+        case "bridged": return .bridged
+        case "none", "off": return .off
+        case "hostonly", "host-only":
+            throw ValidationError("network mode 'hostOnly' is not supported; use nat, bridged, or none")
+        default:
+            throw ValidationError("unknown network mode '\(s)'; expected nat, bridged, or none")
+        }
+    }
+}
+
+private func describeNetwork(_ net: VPhoneVirtualMachineManifest.NetworkConfig) -> String {
+    var s = net.mode.rawValue
+    if net.mode == .bridged, let iface = net.bridgeInterface { s += "(\(iface))" }
+    return s
 }
 
 // MARK: - rename

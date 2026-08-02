@@ -105,19 +105,24 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
     public struct NetworkConfig: Codable, Sendable {
         public let mode: NetworkMode
         public let macAddress: String
+        /// Host interface identifier to bridge (bridged mode only); nil otherwise.
+        public let bridgeInterface: String?
 
         public enum NetworkMode: String, Codable, Sendable {
             case nat
             case bridged
             case hostOnly
-            case none
+            /// No network device. Named `off` (not `none`) so a `NetworkMode?`
+            /// literal `.none` can't silently bind to `Optional.none`.
+            case off = "none"
         }
 
         public static let `default` = NetworkConfig(mode: .nat, macAddress: "")
 
-        public init(mode: NetworkMode, macAddress: String) {
+        public init(mode: NetworkMode, macAddress: String, bridgeInterface: String? = nil) {
             self.mode = mode
             self.macAddress = macAddress
+            self.bridgeInterface = bridgeInterface
         }
     }
 
@@ -220,7 +225,8 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         cpuCount: UInt? = nil,
         memorySize: UInt64? = nil,
         screenConfig: ScreenConfig? = nil,
-        machineIdentifier: Data? = nil
+        machineIdentifier: Data? = nil,
+        networkConfig: NetworkConfig? = nil
     ) -> VPhoneVirtualMachineManifest {
         VPhoneVirtualMachineManifest(
             platformType: platformType,
@@ -229,7 +235,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             cpuCount: cpuCount ?? self.cpuCount,
             memorySize: memorySize ?? self.memorySize,
             screenConfig: screenConfig ?? self.screenConfig,
-            networkConfig: networkConfig,
+            networkConfig: networkConfig ?? self.networkConfig,
             diskImage: diskImage,
             nvramStorage: nvramStorage,
             romImages: romImages,

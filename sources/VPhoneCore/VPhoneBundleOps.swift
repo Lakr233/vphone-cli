@@ -88,13 +88,22 @@ public enum VPhoneBundleOps {
 
     public static func updateConfig(
         bundleNamed name: String, in library: VPhoneLibrary,
-        cpuCount: UInt?, memoryMB: UInt64?
+        cpuCount: UInt?, memoryMB: UInt64?,
+        networkMode: VPhoneVirtualMachineManifest.NetworkConfig.NetworkMode? = nil,
+        bridgeInterface: String? = nil
     ) throws -> VPhoneBundle {
         let bundle = try library.bundle(named: name)
+        let editsNetwork = networkMode != nil || bridgeInterface != nil
+        let network = editsNetwork
+            ? try VPhoneNetworking.merge(
+                into: bundle.manifest.networkConfig,
+                mode: networkMode, bridgeInterface: bridgeInterface)
+            : nil
         let updated = bundle.manifest.updating(
             cpuCount: cpuCount,
             memorySize: memoryMB.map { $0 * 1024 * 1024 },
-            screenConfig: nil)
+            screenConfig: nil,
+            networkConfig: network)
         try updated.write(to: bundle.configURL)
         return VPhoneBundle(url: bundle.url, manifest: updated)
     }

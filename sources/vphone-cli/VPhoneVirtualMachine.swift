@@ -184,10 +184,12 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
         config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
-        // Network (shared NAT)
-        let net = VZVirtioNetworkDeviceConfiguration()
-        net.attachment = VZNATNetworkDeviceAttachment()
-        config.networkDevices = [net]
+        // Network (mode + MAC from the bundle manifest; nat/bridged/none)
+        if let net = try VPhoneNetworking.makeNetworkDevice(manifest.networkConfig) {
+            config.networkDevices = [net]
+        } else {
+            config.networkDevices = []
+        }
 
         // Serial port (PL011 UART - pipes for input/output with boot detection)
         if let serialPort = Dynamic._VZPL011SerialPortConfiguration().asObject

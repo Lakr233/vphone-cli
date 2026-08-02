@@ -97,6 +97,45 @@ struct BundleOpsTests {
 
         // Persisted: a fresh load sees the change.
         #expect(try lib.bundle(named: "cfg").manifest.cpuCount == 4)
+        // Untouched network stays at the default.
+        #expect(updated.manifest.networkConfig.mode == .nat)
+    }
+
+    @Test func updateConfigPersistsNetwork() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        defer { try? FileManager.default.removeItem(at: rom); try? FileManager.default.removeItem(at: seprom) }
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOps.create(
+            .init(name: "net", cpuCount: 8, memoryMB: 8192, diskSizeGB: 1,
+                  romSource: rom, sepromSource: seprom), in: lib)
+
+        let updated = try VPhoneBundleOps.updateConfig(
+            bundleNamed: "net", in: lib, cpuCount: nil, memoryMB: nil, networkMode: .off)
+        #expect(updated.manifest.networkConfig.mode == .off)
+        // Persisted across a fresh load, and cpu/memory untouched.
+        let reloaded = try lib.bundle(named: "net").manifest
+        #expect(reloaded.networkConfig.mode == .off)
+        #expect(reloaded.cpuCount == 8)
+    }
+
+    @Test func updateConfigRejectsBadNetwork() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        defer { try? FileManager.default.removeItem(at: rom); try? FileManager.default.removeItem(at: seprom) }
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOps.create(
+            .init(name: "bad", cpuCount: 2, memoryMB: 2048, diskSizeGB: 1,
+                  romSource: rom, sepromSource: seprom), in: lib)
+
+        #expect(throws: VPhoneNetworkingError.hostOnlyUnsupported) {
+            _ = try VPhoneBundleOps.updateConfig(
+                bundleNamed: "bad", in: lib, cpuCount: nil, memoryMB: nil, networkMode: .hostOnly)
+        }
+        // A rejected edit must not have mutated the on-disk manifest.
+        #expect(try lib.bundle(named: "bad").manifest.networkConfig.mode == .nat)
     }
 
     @Test func renameThenDelete() throws {
