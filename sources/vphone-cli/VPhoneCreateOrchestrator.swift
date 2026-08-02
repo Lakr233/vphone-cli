@@ -521,6 +521,10 @@ public struct VPhoneCreateOrchestrator {
         }
         guard code == 0 else { throw VPhoneCreateError.cfwInstallFailed(code) }
         print("[+] CFW installed (\(options.variant)).")
+        if let bundle = try? VPhoneBundle.load(at: bundleURL),
+           let info = try? VPhoneRestoreInfo.recordVariant(options.variant, toBundle: bundle), info.variant != nil {
+            print("[+] Recorded variant \(options.variant), device \(info.device ?? "?")")
+        }
     }
 
     // MARK: - first boot

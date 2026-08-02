@@ -91,9 +91,12 @@ struct VPhoneVMInfoCommand: ParsableCommand {
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
             print("net:   \(describeNetwork(bundle.manifest.networkConfig))")
+            if let udid = report.udid { print("udid:  \(udid)") }
             if let info = report.restoreInfo {
                 print("iOS:     \(info.ios.version) (\(info.ios.build))")
                 print("cloudOS: \(info.cloudOS.version) (\(info.cloudOS.build))")
+                if let variant = info.variant { print("variant: \(variant)") }
+                if let device = info.device { print("device:  \(device)") }
             }
         }
     }

@@ -16,13 +16,25 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
 
     public let ios: OSVersion
     public let cloudOS: OSVersion
+    public let variant: String?
+    public let device: String?
 
-    public init(ios: OSVersion, cloudOS: OSVersion) {
+    public init(ios: OSVersion, cloudOS: OSVersion, variant: String? = nil, device: String? = nil) {
         self.ios = ios
         self.cloudOS = cloudOS
+        self.variant = variant
+        self.device = device
     }
 
     static let fileName = "restore-info.json"
+
+    public static let baseDevice = "iPhone99,11"
+    public static let experimentalDevice = "iPhone17,3"
+
+    /// Only `exp` rewrites the DeviceTree identity; others keep the base type.
+    public static func device(forVariant variant: String) -> String {
+        variant == "exp" ? experimentalDevice : baseDevice
+    }
 
     public static func url(forBundle bundle: VPhoneBundle) -> URL {
         bundle.url.appendingPathComponent(fileName)
@@ -55,6 +67,20 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(self).write(to: Self.url(forBundle: bundle))
+    }
+
+    /// Set `variant` (and its device) on the bundle's restore-info.json, keeping
+    /// the recorded versions. nil if no versions exist yet to preserve.
+    @discardableResult
+    public static func recordVariant(_ variant: String, toBundle bundle: VPhoneBundle) throws
+        -> VPhoneRestoreInfo?
+    {
+        guard let base = load(fromBundle: bundle) else { return nil }
+        let merged = VPhoneRestoreInfo(
+            ios: base.ios, cloudOS: base.cloudOS,
+            variant: variant, device: device(forVariant: variant))
+        try merged.write(toBundle: bundle)
+        return merged
     }
 
     /// Remove the `iPhone*_Restore/` tree from the bundle; returns its name, or

@@ -23,6 +23,19 @@ public enum VPhoneRestoreOps {
         return nil
     }
 
+    // MARK: - UDID
+
+    /// UDID from the `UDID=` line of the bundle's udid-prediction.txt, or nil.
+    public static func resolveUDID(bundle: VPhoneBundle) -> String? {
+        let pred = bundle.url.appendingPathComponent("udid-prediction.txt")
+        guard let text = try? String(contentsOf: pred, encoding: .utf8) else { return nil }
+        for line in text.split(whereSeparator: \.isNewline) where line.hasPrefix("UDID=") {
+            let value = line.dropFirst("UDID=".count).trimmingCharacters(in: .whitespaces)
+            return value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
     // MARK: - AEA
 
     /// True if the file begins with the AEA1 magic (`41 45 41 31`).

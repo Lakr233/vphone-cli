@@ -151,8 +151,13 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             code = try VPhoneProcessRunner.runStreaming(
                 URL(fileURLWithPath: "/bin/zsh"), args, env: env, echo: v.showsToolDetail)
         }
-        if code == 0, !keepArtifacts, let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
-            print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
+        if code == 0 {
+            if let info = try? VPhoneRestoreInfo.recordVariant(variant, toBundle: bundle), info.variant != nil {
+                print("[cfw] recorded variant \(variant), device \(info.device ?? "?")")
+            }
+            if !keepArtifacts, let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
+                print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
+            }
         }
         throw ExitCode(code)
     }

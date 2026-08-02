@@ -85,6 +85,44 @@ struct RestoreInfoTests {
         #expect(report.restoreInfo?.cloudOS.build == "23E5207q")
     }
 
+    @Test func deviceForVariant() {
+        #expect(VPhoneRestoreInfo.device(forVariant: "exp") == "iPhone17,3")
+        for v in ["regular", "dev", "jb"] {
+            #expect(VPhoneRestoreInfo.device(forVariant: v) == "iPhone99,11")
+        }
+    }
+
+    @Test func recordVariantMergesIntoVersions() throws {
+        let b = try makeBundle()
+        defer { try? FileManager.default.removeItem(at: b.url) }
+        try VPhoneRestoreInfo(
+            ios: .init(version: "18.6.2", build: "22G100"),
+            cloudOS: .init(version: "26.1", build: "23B85")).write(toBundle: b)
+
+        let merged = try VPhoneRestoreInfo.recordVariant("exp", toBundle: b)
+        #expect(merged?.variant == "exp")
+        #expect(merged?.device == "iPhone17,3")
+
+        let loaded = VPhoneRestoreInfo.load(fromBundle: b)
+        #expect(loaded?.ios.build == "22G100")
+        #expect(loaded?.variant == "exp")
+        #expect(loaded?.device == "iPhone17,3")
+    }
+
+    @Test func recordVariantNilWithoutVersions() throws {
+        let b = try makeBundle()
+        defer { try? FileManager.default.removeItem(at: b.url) }
+        #expect(try VPhoneRestoreInfo.recordVariant("jb", toBundle: b) == nil)
+    }
+
+    @Test func bundleReportCarriesUDID() throws {
+        let b = try makeBundle()
+        defer { try? FileManager.default.removeItem(at: b.url) }
+        try "UDID=AAAABBBB-1122334455667788\n"
+            .write(to: b.url.appendingPathComponent("udid-prediction.txt"), atomically: true, encoding: .utf8)
+        #expect(VPhoneBundleReport(bundle: b).udid == "AAAABBBB-1122334455667788")
+    }
+
     /// The snapshot lives at the bundle root, so `vm export` must not strip it:
     /// it is matched by neither the `*_Restore*` exclude nor any regenerable-
     /// artifact pattern. Guards against a future exclude edit dropping it.

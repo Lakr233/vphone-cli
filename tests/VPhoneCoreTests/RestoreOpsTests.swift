@@ -33,6 +33,22 @@ struct RestoreOpsTests {
         #expect(VPhoneRestoreOps.resolveECID(explicit: nil, bundle: b) == nil)
     }
 
+    @Test func resolveUDIDFromPredictionFile() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let b = try bundle(in: root)
+        try "UDID=AAAABBBB-1122334455667788\nECID=1122334455667788\n"
+            .write(to: root.appendingPathComponent("udid-prediction.txt"), atomically: true, encoding: .utf8)
+        #expect(VPhoneRestoreOps.resolveUDID(bundle: b) == "AAAABBBB-1122334455667788")
+    }
+
+    @Test func resolveUDIDNilWhenMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let b = try bundle(in: root)
+        #expect(VPhoneRestoreOps.resolveUDID(bundle: b) == nil)
+    }
+
     @Test func isAEAEncryptedDetectsMagic() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
