@@ -16,6 +16,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp | less") var variant: String = "regular"
     @Option(name: .shortAndLong, help: "iPhone IPSW URL or local path") var iphoneSource: String?
     @Option(name: .shortAndLong, help: "cloudOS IPSW URL or local path") var cloudosSource: String?
+    @Option(name: .shortAndLong, help: "Disk size (GB)") var diskSize: UInt64 = 64
     @Option(name: .shortAndLong, help: "sudo password for the CFW host-mount install (via askpass; never logged)")
     var sudoPassword: String?
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
@@ -41,7 +42,8 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             iphoneSource: sources.iphoneSource, cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword, spoofBuild: spoofBuild, forceDSCMaxSlide: forceDSCMaxSlide,
             rootPopup: rootPopup,
-            interactive: interactive, verbosity: VPhoneVerbosity(count: verboseCount),
+            interactive: interactive, diskSizeGB: diskSize,
+            verbosity: VPhoneVerbosity(count: verboseCount),
             keepArtifacts: keepArtifacts))
     }
 }
