@@ -102,7 +102,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         }
     }
 
-    public struct NetworkConfig: Codable, Sendable {
+    public struct NetworkConfig: Codable, Equatable, Sendable {
         public let mode: NetworkMode
         public let macAddress: String
         /// Host interface identifier to bridge (bridged mode only); nil otherwise.

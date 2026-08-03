@@ -90,7 +90,7 @@ struct VPhoneVMInfoCommand: ParsableCommand {
             print("cpu:   \(report.cpuCount)")
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
-            print("net:   \(describeNetwork(bundle.manifest.networkConfig))")
+            print("net:   \(describeNetwork(report.network))")
             if let udid = report.udid { print("udid:  \(udid)") }
             if let info = report.restoreInfo {
                 print("iOS:     \(info.ios.version) (\(info.ios.build))")
