@@ -31,6 +31,9 @@ public struct VPhoneCloudOSOption: Sendable, Equatable {
 /// The known downloadable iPhone/cloudOS pairings. Prompts show the friendly
 /// `iosName`/`cloudosName`; selection resolves to the URLs.
 public enum VPhoneFirmwareCatalog {
+    /// The iPhone model every catalog IPSW targets.
+    public static let device = "iPhone17,3"
+
     // cloudOS images (one per major); referenced by multiple iPhone builds.
     static let cloud261 = "https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349"
     static let cloud262 = "https://updates.cdn-apple.com/private-cloud-compute/0cb00f22e0f7a8b33995b49b2bdca77f781ed6093a09c570ac21b0f012bab908"
@@ -66,5 +69,44 @@ public enum VPhoneFirmwareCatalog {
             out.append(VPhoneCloudOSOption(name: p.cloudosName, url: p.cloudosURL))
         }
         return out
+    }
+
+    /// JSON-friendly projection of the catalog: each iOS build with its recommended cloudOS.
+    public static var report: VPhoneFirmwareCatalogReport {
+        VPhoneFirmwareCatalogReport(
+            device: device,
+            pairings: pairings.map {
+                .init(
+                    ios: .init(name: $0.iosName, url: $0.iosURL),
+                    recommendedCloudOS: .init(name: $0.cloudosName, url: $0.cloudosURL))
+            })
+    }
+}
+
+// MARK: - VPhoneFirmwareCatalogReport
+
+/// Codable view of the firmware catalog for `fw catalog --json`.
+public struct VPhoneFirmwareCatalogReport: Codable, Equatable, Sendable {
+    public struct Firmware: Codable, Equatable, Sendable {
+        public let name: String
+        public let url: String
+        public init(name: String, url: String) { self.name = name; self.url = url }
+    }
+
+    public struct Entry: Codable, Equatable, Sendable {
+        public let ios: Firmware
+        public let recommendedCloudOS: Firmware
+        public init(ios: Firmware, recommendedCloudOS: Firmware) {
+            self.ios = ios
+            self.recommendedCloudOS = recommendedCloudOS
+        }
+    }
+
+    public let device: String
+    public let pairings: [Entry]
+
+    public init(device: String, pairings: [Entry]) {
+        self.device = device
+        self.pairings = pairings
     }
 }

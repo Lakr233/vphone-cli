@@ -7,7 +7,33 @@ struct VPhoneFWCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "fw",
         abstract: "Firmware pipeline: prepare (download/merge IPSWs) and patch",
-        subcommands: [VPhoneFWPrepareCommand.self, VPhoneFWPatchCommand.self])
+        subcommands: [VPhoneFWCatalogCommand.self, VPhoneFWPrepareCommand.self, VPhoneFWPatchCommand.self])
+}
+
+// MARK: - catalog
+
+struct VPhoneFWCatalogCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "catalog",
+        abstract: "Show the known iOS ↔ cloudOS firmware pairings (recommended per iOS build)")
+
+    @Flag(name: .shortAndLong, help: "Emit JSON") var json = false
+
+    func run() throws {
+        let report = VPhoneFirmwareCatalog.report
+        if json {
+            print(String(decoding: try JSONEncoder().encode(report), as: UTF8.self))
+            return
+        }
+        print("Firmware catalog (\(report.device))")
+        let width = report.pairings.map(\.ios.name.count).max() ?? 0
+        let header = "iOS".padding(toLength: width, withPad: " ", startingAt: 0)
+        print("\(header)  recommended cloudOS")
+        for e in report.pairings {
+            let ios = e.ios.name.padding(toLength: width, withPad: " ", startingAt: 0)
+            print("\(ios)  \(e.recommendedCloudOS.name)")
+        }
+    }
 }
 
 // MARK: - prepare
