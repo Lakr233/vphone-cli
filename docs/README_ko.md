@@ -17,7 +17,7 @@ PCC 리서치 VM 인프라를 사용하여 Apple의 Virtualization.framework로 
 **의존성:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
 ```
 
 ## 설치

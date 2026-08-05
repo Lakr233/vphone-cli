@@ -17,7 +17,7 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 **Dependencies:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone libusb ipsw zstd
+brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
 ```
 
 ## Install
