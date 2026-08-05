@@ -109,6 +109,71 @@ public struct VPhoneResources: Sendable {
         return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
     }
 
+    /// Must assemble, not just import — a bindings-only install imports fine
+    /// and then fails inside `fw patch`.
+    func keystoneIsUsable(_ python: URL) -> Bool {
+        let probe = "from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN; import sys; "
+            + "sys.exit(0 if bytes(Ks(KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN).asm('nop')[0]) else 1)"
+        return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
+    }
+
+    func venvIsUsable(_ python: URL) -> Bool {
+        pythonIsUsable(python) && keystoneIsUsable(python)
+    }
+
+    // MARK: - keystone native library
+
+    /// Older bottles ship only the static archive.
+    private func homebrewKeystoneLibs() -> (dylib: URL?, archive: URL?) {
+        for prefix in ["/opt/homebrew/opt/keystone/lib", "/usr/local/opt/keystone/lib"] {
+            let dir = URL(fileURLWithPath: prefix)
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { continue }
+            let dylib = names.first { $0.hasPrefix("libkeystone") && $0.hasSuffix(".dylib") }
+            let archive = names.first { $0 == "libkeystone.a" }
+            if dylib != nil || archive != nil {
+                return (dylib.map(dir.appendingPathComponent), archive.map(dir.appendingPathComponent))
+            }
+        }
+        return (nil, nil)
+    }
+
+    /// Asked of the interpreter: `import keystone` is what's broken here.
+    private func keystonePackageDir(_ python: URL) -> URL? {
+        let probe = "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+        guard let r = try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]), r.succeeded else { return nil }
+        let purelib = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !purelib.isEmpty else { return nil }
+        return URL(fileURLWithPath: purelib).appendingPathComponent("keystone")
+    }
+
+    /// PyPI has no arm64 macOS wheel and the sdist ignores its build's exit
+    /// status, so a failed native build still installs bindings alone and pip
+    /// reports success. Same recovery as scripts/setup_venv.sh.
+    func repairKeystone(_ python: URL) -> Bool {
+        guard let pkgDir = keystonePackageDir(python),
+              FileManager.default.fileExists(atPath: pkgDir.path) else { return false }
+        let dest = pkgDir.appendingPathComponent("libkeystone.dylib")
+        let libs = homebrewKeystoneLibs()
+
+        if let dylib = libs.dylib {
+            try? FileManager.default.removeItem(at: dest)
+            guard (try? FileManager.default.copyItem(at: dylib, to: dest)) != nil else { return false }
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dest.path)
+        } else if let archive = libs.archive {
+            let r = try? VPhoneProcessRunner.runCapturing(
+                URL(fileURLWithPath: "/usr/bin/clang"),
+                ["-shared", "-o", dest.path, "-Wl,-all_load", archive.path,
+                 "-lc++", "-install_name", "@rpath/libkeystone.dylib"])
+            guard r?.succeeded == true else { return false }
+        } else {
+            return false
+        }
+
+        guard keystoneIsUsable(python) else { return false }
+        FileHandle.standardError.write(Data("[+] Repaired keystone native library: \(dest.path)\n".utf8))
+        return true
+    }
+
     /// Resolve a python with working deps: an explicit `VPHONE_PYTHON`, the dev
     /// repo `.venv`, the managed per-user venv, else provision the managed venv
     /// on this machine. Never silently falls back to a stale system python.
@@ -118,8 +183,13 @@ public struct VPhoneResources: Sendable {
             if pythonIsUsable(u) { return u }
         }
         let devVenv = base.appendingPathComponent(".venv/bin/python3")
-        if pythonIsUsable(devVenv) { return devVenv }
-        if pythonIsUsable(managedVenvPython) { return managedVenvPython }
+        if venvIsUsable(devVenv) { return devVenv }
+        // Repair in place before rebuilding — a missing dylib is not worth a
+        // full re-install.
+        if pythonIsUsable(managedVenvPython),
+           keystoneIsUsable(managedVenvPython) || repairKeystone(managedVenvPython) {
+            return managedVenvPython
+        }
         return try bootstrapManagedVenv()
     }
 
@@ -155,6 +225,11 @@ public struct VPhoneResources: Sendable {
             }
             guard pythonIsUsable(py) else {
                 lastError = "venv from \(host.path) still lacks a usable ipsw_parser (too old?)"; continue
+            }
+            guard keystoneIsUsable(py) || repairKeystone(py) else {
+                lastError = "venv from \(host.path) has no working libkeystone — "
+                    + "`brew install keystone`, or install cmake so pip can build it"
+                continue
             }
             log("[+] Python environment ready: \(py.path)")
             return py

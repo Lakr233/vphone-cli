@@ -32,6 +32,16 @@ struct ResourcesTests {
         #expect(r.toolsBinDir.path == r.base.appendingPathComponent(".tools/bin").path)
     }
 
+    /// These all shell out; a missing interpreter must return false, not throw.
+    @Test func venvProbesAreTotalForAMissingInterpreter() {
+        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
+        let missing = URL(fileURLWithPath: "/nonexistent/bin/python3")
+        #expect(r.pythonIsUsable(missing) == false)
+        #expect(r.keystoneIsUsable(missing) == false)
+        #expect(r.venvIsUsable(missing) == false)
+        #expect(r.repairKeystone(missing) == false)
+    }
+
     @Test func managedVenvDefaultsUnderDotVphone() {
         // The override env var would change this; only assert the default.
         if ProcessInfo.processInfo.environment["VPHONE_VENV_DIR"] != nil { return }
