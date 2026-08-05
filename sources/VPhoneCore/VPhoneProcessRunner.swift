@@ -179,8 +179,12 @@ public enum VPhoneProcessRunner {
         var tokens = env.sorted { $0.key < $1.key }.map { "\($0.key)=\(shQuote($0.value))" }
         tokens.append(shQuote(executable.path))
         tokens += args.map(shQuote)
+        var command = tokens.joined(separator: " ")
+        if echo, isatty(STDOUT_FILENO) != 0, let tty = ttyname(STDOUT_FILENO) {
+            command += " > \(shQuote(String(cString: tty))) 2>&1"
+        }
         // Escape the /bin/sh command for the AppleScript string literal (\ then ").
-        let appleEscaped = tokens.joined(separator: " ")
+        let appleEscaped = command
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         let source = "do shell script \"\(appleEscaped)\" with administrator privileges"
