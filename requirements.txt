@@ -4,3 +4,4 @@ keystone-engine
 pyimg4
 pymobiledevice3>=9.5.0
 ipsw-parser
+setuptools
