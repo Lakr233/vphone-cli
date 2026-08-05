@@ -317,9 +317,10 @@ public struct VPhoneCreateOrchestrator {
         if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         trace("spawn /bin/bash \(resources.fwPrepareScript.path) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)", v)
+        // Always streamed — silence during a multi-GB download reads as a hang.
         let code = try VPhoneProcessRunner.runStreaming(
             URL(fileURLWithPath: "/bin/bash"), [resources.fwPrepareScript.path], cwd: bundleURL, env: env,
-            echo: v.showsToolDetail)
+            echo: true)
         guard code == 0 else { throw VPhoneCreateError.fwPrepareFailed(code) }
         print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")
     }
