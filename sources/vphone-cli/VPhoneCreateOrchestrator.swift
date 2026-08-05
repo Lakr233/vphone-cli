@@ -534,6 +534,8 @@ public struct VPhoneCreateOrchestrator {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         var args = ["--config", configURL.path]
         if isLess { args += ["--variant", "less"] }
+        // --interactive keeps the window: it is the operator's only boot-progress cue.
+        if !options.interactive { args.append("--headless") }
 
         if options.interactive {
             print("[*] press Enter to start VM, after the VM has finished booting, press Enter again to finish last stage")
@@ -580,9 +582,9 @@ public struct VPhoneCreateOrchestrator {
 
     private func runBootAnalysis(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
-        trace("spawn \(selfExecutable.path) --config \(configURL.path) (guest serial: off)", v)
+        trace("spawn \(selfExecutable.path) --config \(configURL.path) --headless (guest serial: off)", v)
         let vm = VPhoneManagedProcess(
-            selfExecutable, ["--config", configURL.path], cwd: bundleURL, echo: false)
+            selfExecutable, ["--config", configURL.path, "--headless"], cwd: bundleURL, echo: false)
         try vm.start()
         defer { vm.terminate() }
 

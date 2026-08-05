@@ -9,6 +9,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Flag(name: .shortAndLong, help: "Boot into DFU mode (headless)") var dfu = false
+    @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar") var headless = false
     @Option(name: [.customShort("V"), .long], help: "Firmware variant") var variant: String?
     @Flag(name: .customLong("no-vphoned"), help: "Do not stage/use vphoned") var noVphoned = false
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned; valid: 6000...65535)")
@@ -61,6 +62,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
 
         var args = ["--config", bundle.configURL.path]
         if dfu { args.append("--dfu") }
+        if headless { args.append("--headless") }
         if let variant { args += ["--variant", variant] }
         if noVphoned { args.append("--no-vphoned") }
         if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }

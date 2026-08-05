@@ -43,6 +43,9 @@ struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Boot into DFU mode")
     var dfu: Bool = false
 
+    @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar")
+    var headless: Bool = false
+
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
     var kernelDebugPort: Int?
 
@@ -61,9 +64,9 @@ struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned usage (patchless-only).")
     var noVphoned: Bool = false
 
-    /// DFU mode runs headless (no GUI).
+    /// DFU mode is always headless.
     var noGraphics: Bool {
-        dfu
+        dfu || headless
     }
 
     var installPackageURL: URL? {
