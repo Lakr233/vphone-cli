@@ -4,11 +4,12 @@
 
 import Foundation
 
-/// JB kernel patcher: 84 patches across 3 groups.
+/// JB kernel patcher. Variant- and feature-gated methods can change the emitted
+/// record count; Frida-specific relaxations are opt-in via `applyFrida`.
 ///
-/// Group A: Core gate-bypass methods (5 patches)
-/// Group B: Pattern/string anchored methods (16 patches)
-/// Group C: Shellcode/trampoline heavy methods (4 patches)
+/// Group A: Core gate-bypass methods
+/// Group B: Pattern/string anchored methods
+/// Group C: Shellcode/trampoline heavy methods
 public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     public let component = "kernelcache_jb"
 
@@ -20,6 +21,10 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     /// standalone patch-component defaults it true so the dev tool exercises the full
     /// set (override with --target-os).
     public var applyIOS27 = false
+
+    /// Opt-in Frida Stalker kernel relaxations. Baseline JB/EXP firmware remains
+    /// byte-identical when false; CLI plumbing exposes this as `--frida`.
+    public var applyFrida = false
 
     public func findAll() throws -> [PatchRecord] {
         try parseMachO()
@@ -66,6 +71,11 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
         patchThidShouldCrash()
         patchVmFaultEnterPrepare()
         patchVmMapProtect()
+
+        if applyFrida {
+            patchThreadSetStateCoreRegisters()
+            patchVmMapDeleteImmutableCode()
+        }
 
         // Group C
         patchCredLabelUpdateExecve()

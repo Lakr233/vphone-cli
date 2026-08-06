@@ -95,6 +95,7 @@ struct VPhoneFWPatchCommand: ParsableCommand {
     @Argument(help: "VM name") var name: String?
     @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp | less") var variant: PatchFirmwareCLI.VariantOption = .regular
     @Flag(name: .customLong("force-exc-guard"), help: "Force the EXC_GUARD disable patch") var forceExcGuard = false
+    @Flag(name: .customLong("frida"), help: "Opt in to Frida Stalker kernel relaxations (jb/exp only)") var frida = false
     @Flag(name: .shortAndLong, help: "Suppress per-component progress") var quiet = false
 
     func run() throws {
@@ -114,7 +115,8 @@ struct VPhoneFWPatchCommand: ParsableCommand {
             verbose: !quiet,
             noBinpack: false,
             noVphoned: false,
-            forceExcGuard: forceExcGuard)
+            forceExcGuard: forceExcGuard,
+            enableFrida: frida)
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) patches for \(variant.rawValue)")
     }

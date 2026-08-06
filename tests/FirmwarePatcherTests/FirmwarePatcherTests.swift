@@ -128,6 +128,38 @@ struct ARM64EncoderTests {
         #expect(data == nil)
     }
 
+    @Test func encodeTestBitBranch() throws {
+        let tbz = try #require(ARM64Encoder.encodeTestBitBranch(
+            nonzero: false, register: 8, bit: 13, from: 0x1000, to: 0x1020
+        ))
+        let tbzInsn = try #require(disasm.disassembleOne(tbz, at: 0x1000))
+        #expect(tbzInsn.mnemonic == "tbz")
+        #expect(tbzInsn.operandString.contains("w8"))
+        #expect(tbzInsn.operandString.contains("#0xd"))
+        #expect(tbzInsn.operandString.contains("0x1020"))
+
+        let tbnz = try #require(ARM64Encoder.encodeTestBitBranch(
+            nonzero: true, register: 22, bit: 13, from: 0x2000, to: 0x1f00
+        ))
+        let tbnzInsn = try #require(disasm.disassembleOne(tbnz, at: 0x2000))
+        #expect(tbnzInsn.mnemonic == "tbnz")
+        #expect(tbnzInsn.operandString.contains("w22"))
+        #expect(tbnzInsn.operandString.contains("#0xd"))
+        #expect(tbnzInsn.operandString.contains("0x1f00"))
+    }
+
+    @Test func encodeTestBitBranchRejectsInvalidOperands() {
+        #expect(ARM64Encoder.encodeTestBitBranch(
+            nonzero: false, register: 32, bit: 13, from: 0, to: 4
+        ) == nil)
+        #expect(ARM64Encoder.encodeTestBitBranch(
+            nonzero: false, register: 8, bit: 64, from: 0, to: 4
+        ) == nil)
+        #expect(ARM64Encoder.encodeTestBitBranch(
+            nonzero: false, register: 8, bit: 13, from: 0, to: 0x8000
+        ) == nil)
+    }
+
     @Test func encodeADRP() throws {
         let data = ARM64Encoder.encodeADRP(rd: 0, pc: 0x1000, target: 0x2000)
         #expect(data != nil)

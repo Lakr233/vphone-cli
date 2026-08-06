@@ -234,6 +234,13 @@ apt-get -o Acquire::AllowInsecureRepositories=true \
     update -qq 2>&1 || log "  apt update exited with $?"
 log "  apt update done"
 
+# `vm create --frida` stages this source during CFW install.
+if grep -rIl 'build.frida.re' /etc/apt /var/jb/etc/apt 2>/dev/null | grep -q .; then
+    apt-get -o APT::Get::AllowUnauthenticated=true \
+        install -y -qq re.frida.server 2>&1 || log "  Frida install exited with $?"
+    log "  Frida package setup done"
+fi
+
 apt-get -o APT::Get::AllowUnauthenticated=true \
     install -y -qq libkrw0-tfp0 2>/dev/null || true
 log "  libkrw0-tfp0 done"
