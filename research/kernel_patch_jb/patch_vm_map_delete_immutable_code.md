@@ -5,7 +5,9 @@
 This is an **opt-in Frida patch**. It is emitted only when firmware patching uses
 `--frida`; baseline JB/EXP firmware is unchanged. During a fresh `vm create`, the same
 option is forwarded to the JB/EXP host install, which stages the
-`https://build.frida.re/` Sileo/APT source; first boot installs `re.frida.server`.
+`https://build.frida.re/` Sileo/APT source and an install marker. First boot installs
+`re.frida.server` directly through APT, verifies its dpkg state, and does not write the
+setup done marker until the required package is registered.
 
 ## Goal
 
