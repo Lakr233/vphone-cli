@@ -32,6 +32,20 @@ exec > >(tee -a "$LOG") 2>&1
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 die() { log "FATAL: $*"; exit 1; }
 
+apt_source_contains() {
+    local needle="$1"
+    local dir
+    for dir in /var/jb/etc/apt /etc/apt; do
+        [ -d "$dir" ] || continue
+        grep -rIq "$needle" "$dir" 2>/dev/null && return 0
+    done
+    return 1
+}
+
+frida_is_installed() {
+    [ "$(dpkg-query -W -f='${Status}' re.frida.server 2>/dev/null)" = "install ok installed" ]
+}
+
 log "=== vphone_jb_setup.sh starting ==="
 log "PATH=$PATH"
 
@@ -221,7 +235,7 @@ if [ -d /etc/apt/sources.list.d ] && [ ! -d /var/jb/etc/apt/sources.list.d ]; th
     HAVOC_LIST="/etc/apt/sources.list.d/havoc.list"
 fi
 
-if ! grep -rIl 'havoc.app' /etc/apt /var/jb/etc/apt 2>/dev/null | grep -q .; then
+if ! apt_source_contains 'havoc\.app'; then
     mkdir -p "$(dirname "$HAVOC_LIST")"
     printf '%s\n' 'deb https://havoc.app/ ./' > "$HAVOC_LIST"
     log "  Havoc source added: $HAVOC_LIST"
@@ -229,10 +243,46 @@ else
     log "  Havoc source already present"
 fi
 
-apt-get -o Acquire::AllowInsecureRepositories=true \
+FRIDA_REQUIRED=0
+FRIDA_READY=1
+if [ -f /var/jb/.vphone_frida_enabled ] || apt_source_contains 'build\.frida\.re'; then
+    FRIDA_REQUIRED=1
+    FRIDA_READY=0
+    log "  Frida requested by install marker/source"
+fi
+
+if apt-get -o Acquire::AllowInsecureRepositories=true \
     -o Acquire::AllowDowngradeToInsecureRepositories=true \
-    update -qq 2>&1 || log "  apt update exited with $?"
-log "  apt update done"
+    update -qq 2>&1; then
+    log "  apt update done"
+else
+    apt_update_rc=$?
+    log "  WARNING: apt update failed with exit code $apt_update_rc"
+fi
+
+# `vm create --frida` stages the native Frida APT source and request marker.
+# Install through APT for both new and older source-only VMs, and never claim
+# success until dpkg reports the package fully installed.
+if [ "$FRIDA_REQUIRED" = "1" ]; then
+    if frida_is_installed; then
+        FRIDA_READY=1
+        log "  Frida package already installed"
+    else
+        log "  Installing required Frida package..."
+        if apt-get -o APT::Get::AllowUnauthenticated=true \
+            install -y -qq re.frida.server 2>&1; then
+            if frida_is_installed; then
+                FRIDA_READY=1
+                log "  Frida package installed"
+            else
+                log "  WARNING: Frida apt install completed without registering package"
+            fi
+        else
+            frida_rc=$?
+            log "  WARNING: Frida install failed with exit code $frida_rc"
+        fi
+    fi
+fi
 
 apt-get -o APT::Get::AllowUnauthenticated=true \
     install -y -qq libkrw0-tfp0 2>/dev/null || true
@@ -296,9 +346,11 @@ for profile in /var/root/.bashrc /var/root/.bash_profile; do
 done
 
 # ═══════════ DONE ════════════════════════════════════════════
-if [ "$TROLLSTORE_READY" = "1" ]; then
+if [ "$TROLLSTORE_READY" = "1" ] && [ "$FRIDA_READY" = "1" ]; then
     : > "$DONE_MARKER"
     log "=== vphone_jb_setup.sh complete ==="
+elif [ "$FRIDA_REQUIRED" = "1" ] && [ "$FRIDA_READY" != "1" ]; then
+    log "=== vphone_jb_setup.sh core steps complete; required Frida package still pending, marker not written ==="
 else
     log "=== vphone_jb_setup.sh core steps complete; TrollStore Lite still pending, marker not written ==="
 fi

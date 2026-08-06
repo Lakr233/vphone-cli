@@ -430,6 +430,25 @@ if [[ -f "$SETUP_SCRIPT" ]]; then
     /bin/chmod 0755 $MNT1/cores/vphone_jb_setup.sh
     echo "  [+] vphone_jb_setup.sh -> /cores/"
 fi
+
+# `vm create --frida`: stage the native APT source and an explicit request
+# marker. First-boot setup installs re.frida.server from this source and verifies
+# dpkg state before marking JB setup complete.
+if [[ "${VPHONE_FRIDA:-0}" == "1" ]]; then
+    FRIDA_ROOT="$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus"
+    FRIDA_SOURCES="$FRIDA_ROOT/etc/apt/sources.list.d/frida.sources"
+    /bin/mkdir -p "${FRIDA_SOURCES:h}"
+    /bin/cat > "$FRIDA_SOURCES" <<'EOF'
+Types: deb
+URIs: https://build.frida.re/
+Suites: ./
+Components:
+EOF
+    /usr/bin/touch "$FRIDA_ROOT/.vphone_frida_enabled"
+    /bin/chmod 0644 "$FRIDA_ROOT/.vphone_frida_enabled"
+    echo "  [+] Frida Sileo source and install marker staged"
+fi
+
 # vpregister: registers JB apps via the containerized LS API at first boot (uicache -a's
 # registerApplicationDictionary is a deprecated no-op on iOS 27). Deployed ONLY on a 27
 # base — it needs the 27-only lsd embedded-reg gate, and on 26.x/18.x uicache registers

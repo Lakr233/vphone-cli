@@ -81,6 +81,7 @@ public final class FirmwarePipeline {
     let noBinpack: Bool
     let noVphoned: Bool
     let forceExcGuard: Bool
+    let enableFrida: Bool
     let loader: any FirmwareLoader
 
     /// Set when the iPhone base is iOS 18.x (read from iPhone-BuildManifest.plist).
@@ -102,6 +103,7 @@ public final class FirmwarePipeline {
         noBinpack: Bool = false,
         noVphoned: Bool = false,
         forceExcGuard: Bool = false,
+        enableFrida: Bool = false,
         loader: (any FirmwareLoader)? = nil
     ) {
         self.vmDirectory = vmDirectory
@@ -110,6 +112,7 @@ public final class FirmwarePipeline {
         self.noBinpack = noBinpack
         self.noVphoned = noVphoned
         self.forceExcGuard = forceExcGuard
+        self.enableFrida = enableFrida
         self.loader = loader ?? ContainerFirmwareLoader()
     }
 
@@ -219,6 +222,7 @@ public final class FirmwarePipeline {
         // Same capture-by-value; true only for iOS 27 bases. Gates the iOS-27-only
         // JB kernel patches so 18.x/26.x bases apply none of them.
         let applyIOS27 = iosBaseIs27
+        let applyFrida = enableFrida
 
         // iOS 18 bases: disable the skywalk flowswitch netagents via boot-arg so
         // Network.framework uses the BSD path (the 26.1-kernel skywalk
@@ -341,6 +345,7 @@ public final class FirmwarePipeline {
                         { data, verbose in
                             let p = KernelJBPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
+                            p.applyFrida = applyFrida
                             return p
                         },
                     ]
@@ -352,6 +357,7 @@ public final class FirmwarePipeline {
                         { data, verbose in
                             let p = KernelJBPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
+                            p.applyFrida = applyFrida
                             return p
                         },
                         { data, verbose in
