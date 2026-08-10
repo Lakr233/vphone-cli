@@ -108,13 +108,20 @@ def _disasm_function(chunks, vma, max_insns=96):
 def _find_gate(insns):
     """Locate the conditional branch that gates the entitled result: the
     `cbz`/`cbnz` on w0 whose fall-through instruction is `mov w<reg>,#1`
-    (the YES value later moved to x0). Returns (insn, result_reg) or None."""
+    (the YES value later moved to x0). Returns (insn, result_reg) or None.
+
+    Also matches an already-patched site: a bare `nop` (this patch's own
+    output) immediately before the same `mov w<reg>,#1`, so a re-run against
+    an already-patched cache is recognized as idempotent instead of failing
+    to find the (now gone) conditional branch."""
     for i in range(len(insns) - 1):
         ins = insns[i]
-        if ins.mnemonic not in ("cbz", "cbnz"):
-            continue
-        ops = ins.operands
-        if not ops or ops[0].type != ARM64_OP_REG or ins.reg_name(ops[0].reg) != "w0":
+        is_branch = ins.mnemonic in ("cbz", "cbnz")
+        if is_branch:
+            ops = ins.operands
+            if not ops or ops[0].type != ARM64_OP_REG or ins.reg_name(ops[0].reg) != "w0":
+                continue
+        elif ins.mnemonic != "nop":
             continue
         nxt = _mov_reg_imm(insns[i + 1])
         if nxt is not None and nxt[1] == 1 and nxt[0].startswith("w"):
