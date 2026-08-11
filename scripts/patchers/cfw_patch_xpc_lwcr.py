@@ -59,6 +59,8 @@ except ImportError:  # direct self-test / standalone execution
 
 
 SYMBOL = "_xpc_token_satisfies_lwcr"
+# Mach-O mangles the leading-underscore source name to a double underscore.
+SYMBOL_CANDIDATES = ("__xpc_token_satisfies_lwcr", SYMBOL)
 
 
 def _resolve_local_symbol(chunks_dir, name):
@@ -153,12 +155,19 @@ def patch_xpc_lwcr(chunks_dir, *, dry_run=False):
 
     # Self-gating: the LWCR path only exists on iOS 27+ libxpc. On older
     # userlands the symbol is absent, so this is a no-op there.
-    try:
-        fn_vma = _resolve_local_symbol(chunks_dir, SYMBOL)
-    except RuntimeError:
+    fn_vma = None
+    resolved_name = None
+    for candidate in SYMBOL_CANDIDATES:
+        try:
+            fn_vma = _resolve_local_symbol(chunks_dir, candidate)
+            resolved_name = candidate
+            break
+        except RuntimeError:
+            continue
+    if fn_vma is None:
         print(f"      [=] {SYMBOL} not present (pre-iOS-27 userland); nothing to patch")
         return 0
-    print(f"  [.] {SYMBOL} @ 0x{fn_vma:X}")
+    print(f"  [.] {resolved_name} @ 0x{fn_vma:X}")
 
     insns = _disasm_function(chunks, fn_vma)
     found = _find_consistency_check(insns)
