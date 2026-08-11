@@ -59,6 +59,7 @@ Commands:
         installs. Self-gating (no-op on pre-iOS-27 userlands where the method is absent).
 
     patch-xpc-lwcr <chunks_dir> [--dry-run]
+    patch-lockdown-mode <chunks_dir> [--dry-run]
         Stop libxpc's Lightweight Code Requirement self-check (_xpc_token_satisfies_lwcr)
         from brk-aborting on our JB. iOS 27's LWCR matcher returns the contradictory
         (matched=0, error_code=MATCH) pair under our code-signing environment; the
@@ -127,6 +128,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_dsc_maxslide import patch_dsc_maxslide
     from patchers.cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
     from patchers.cfw_patch_xpc_lwcr import patch_xpc_lwcr
+    from patchers.cfw_patch_lockdown_mode import patch_lockdown_mode
     from patchers.cfw_patch_camera_dsc import apply_all_camera_patches
     from patchers.cfw_patch_watchdogd import patch_watchdogd
     from patchers.cfw_patch_diskimagesiod import patch_diskimagesiod
@@ -142,6 +144,7 @@ else:
     from .cfw_patch_dsc_maxslide import patch_dsc_maxslide
     from .cfw_patch_lsd_embedded_reg import patch_lsd_embedded_reg
     from .cfw_patch_xpc_lwcr import patch_xpc_lwcr
+    from .cfw_patch_lockdown_mode import patch_lockdown_mode
     from .cfw_patch_camera_dsc import apply_all_camera_patches
     from .cfw_patch_watchdogd import patch_watchdogd
     from .cfw_patch_diskimagesiod import patch_diskimagesiod
@@ -251,6 +254,13 @@ def main():
             sys.exit(1)
         dry_run = "--dry-run" in sys.argv[3:]
         patch_xpc_lwcr(sys.argv[2], dry_run=dry_run)
+
+    elif cmd == "patch-lockdown-mode":
+        if len(sys.argv) < 3:
+            print("Usage: patch_cfw.py patch-lockdown-mode <chunks_dir> [--dry-run]")
+            sys.exit(1)
+        dry_run = "--dry-run" in sys.argv[3:]
+        patch_lockdown_mode(sys.argv[2], dry_run=dry_run)
         sys.exit(0)
 
     elif cmd == "patch-camera-dsc":
@@ -321,7 +331,7 @@ def main():
         print(f"Unknown command: {cmd}")
         print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
         print("          patch-mobileactivationd, patch-launchd-jetsam,")
-        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-xpc-lwcr, patch-watchdogd,")
+        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-xpc-lwcr, patch-lockdown-mode, patch-watchdogd,")
         print("          patch-diskimagesiod, inject-daemons, patch-dropbear-plist, inject-dylib")
         sys.exit(1)
 

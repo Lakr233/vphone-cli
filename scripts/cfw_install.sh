@@ -371,6 +371,8 @@ case "$IOS_VERSION" in
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-lsd-embedded-reg "$DSC_DIR"
             echo "  [*] Patching libxpc LWCR self-check (iOS 27 daemon crash-loop)..."
             "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-xpc-lwcr "$DSC_DIR"
+            echo "  [*] Patching os_lockdown_mode_enabled (missing MAC sysctl -> launchd abort)..."
+            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-lockdown-mode "$DSC_DIR"
         fi
         ;;
     *)
