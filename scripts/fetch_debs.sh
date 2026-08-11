@@ -70,6 +70,44 @@ else
     echo "  [=] No manifest at $MANIFEST (skipping downloads)"
 fi
 
+# Opt-in (vm create --frida): fetch the latest Frida iOS release deb. It's
+# re.frida.server (no deps, rootless layout), so the first-boot dpkg -i handles it.
+if [[ "${VPHONE_FRIDA:-0}" == "1" ]]; then
+    echo "  [>] Resolving latest Frida iOS release..."
+    frida_url="$(curl -fsSL --connect-timeout 20 \
+        https://api.github.com/repos/frida/frida/releases/latest 2>/dev/null \
+        | grep -o 'https://[^"]*/frida_[^"]*_iphoneos-arm64\.deb' | head -1)"
+    if [[ -n "$frida_url" ]]; then
+        frida_name="$(deb_filename_from_url "$frida_url")"
+        # Keep only one Frida deb in the cache so a newer "latest" fully replaces
+        # any previously-pinned version at install time.
+        for old in "$CACHE_DIR"/frida_*_iphoneos-arm64.deb(N); do
+            [[ "${old:t}" == "$frida_name" ]] || rm -f "$old"
+        done
+        dest="$CACHE_DIR/$frida_name"
+        if [[ -s "$dest" ]]; then
+            echo "  [=] Cached: $frida_name"
+            cached=$((cached + 1))
+        else
+            echo "  [>] Downloading: $frida_url"
+            tmp="$dest.download"
+            if curl -fL --retry 2 --connect-timeout 20 -o "$tmp" "$frida_url"; then
+                mv -f "$tmp" "$dest"
+                echo "  [+] Downloaded: $frida_name"
+                downloaded=$((downloaded + 1))
+            else
+                rc=$?
+                rm -f "$tmp"
+                echo "  [!] ERROR: Frida download failed (curl exit $rc), skipping" >&2
+                failed=$((failed + 1))
+            fi
+        fi
+    else
+        echo "  [!] ERROR: could not resolve latest Frida iOS deb URL, skipping" >&2
+        failed=$((failed + 1))
+    fi
+fi
+
 total=0
 for f in "$CACHE_DIR"/*.deb(N); do
     total=$((total + 1))

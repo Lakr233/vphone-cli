@@ -80,6 +80,7 @@ echo "[*] running $INSTALLER (files placed on host mounts)..."
 ( cd "$VM_DIR" && env CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
     ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} \
     ${FORCE_DSC_MAXSLIDE:+FORCE_DSC_MAXSLIDE="$FORCE_DSC_MAXSLIDE"} \
+    ${VPHONE_FRIDA:+VPHONE_FRIDA="$VPHONE_FRIDA"} \
     zsh "$SCRIPT_DIR/$INSTALLER" . )
 
 cleanup
