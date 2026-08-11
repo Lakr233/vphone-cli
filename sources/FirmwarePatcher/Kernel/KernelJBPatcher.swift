@@ -4,11 +4,13 @@
 
 import Foundation
 
-/// JB kernel patcher: 84 patches across 3 groups.
+/// JB kernel patcher across 3 groups. Variant- and feature-gated methods can
+/// change the emitted record count; iOS-27-only patches are gated by `applyIOS27`
+/// and Frida Stalker relaxations by `applyFrida` (opt-in `--frida`).
 ///
-/// Group A: Core gate-bypass methods (5 patches)
-/// Group B: Pattern/string anchored methods (16 patches)
-/// Group C: Shellcode/trampoline heavy methods (4 patches)
+/// Group A: Core gate-bypass methods
+/// Group B: Pattern/string anchored methods
+/// Group C: Shellcode/trampoline heavy methods
 public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     public let component = "kernelcache_jb"
 
@@ -20,6 +22,10 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
     /// standalone patch-component defaults it true so the dev tool exercises the full
     /// set (override with --target-os).
     public var applyIOS27 = false
+
+    /// Opt-in Frida Stalker kernel relaxations (exposed as `--frida`). Baseline
+    /// JB/EXP firmware is byte-identical when false.
+    public var applyFrida = false
 
     public func findAll() throws -> [PatchRecord] {
         try parseMachO()
@@ -66,6 +72,13 @@ public final class KernelJBPatcher: KernelJBPatcherBase, Patcher {
         patchThidShouldCrash()
         patchVmFaultEnterPrepare()
         patchVmMapProtect()
+
+        // Opt-in Frida Stalker support (--frida): existing-thread follow
+        // (thread_set_state) + repeated VM_PROT_COPY overwrite (vm_map_delete).
+        if applyFrida {
+            patchThreadSetStateEntitlementFlag()
+            patchVmMapDeleteImmutableCode()
+        }
 
         // Group C
         patchCredLabelUpdateExecve()

@@ -34,6 +34,32 @@ public enum ARM64Encoder {
         return ARM64.encodeU32(insn)
     }
 
+    /// Encode TBZ/TBNZ (test bit and branch). Target must be 4-byte aligned and
+    /// within the signed 14-bit range (+/-32 KB).
+    ///
+    /// Format: `[31] = b5`, `[30:24] = 0110110 (TBZ) / 0110111 (TBNZ)`,
+    ///         `[23:19] = b40`, `[18:5] = imm14`, `[4:0] = Rt`
+    public static func encodeTestBitBranch(
+        nonzero: Bool,
+        register: UInt32,
+        bit: UInt32,
+        from pc: Int,
+        to target: Int
+    ) -> Data? {
+        guard register < 32, bit < 64 else { return nil }
+        let delta = target - pc
+        guard delta & 0x3 == 0 else { return nil }
+        let imm14 = delta >> 2
+        guard imm14 >= -(1 << 13), imm14 < (1 << 13) else { return nil }
+
+        var insn: UInt32 = nonzero ? 0x3700_0000 : 0x3600_0000
+        insn |= (bit & 0x20) << 26
+        insn |= (bit & 0x1F) << 19
+        insn |= (UInt32(bitPattern: Int32(imm14)) & 0x3FFF) << 5
+        insn |= register & 0x1F
+        return ARM64.encodeU32(insn)
+    }
+
     // MARK: - ADRP / ADD Encoding
 
     /// Encode ADRP instruction.
