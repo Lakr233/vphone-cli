@@ -112,8 +112,10 @@ help:
 	@echo "  make fw_patch_dev            Patch boot chain with Swift pipeline (dev mode TXM patches)"
 	@echo "  make fw_patch_jb             Patch boot chain with Swift pipeline (dev + JB extensions)"
 	@echo "    Options: FORCE_EXC_GUARD=1        (see fw_patch above)"
+	@echo "             FRIDA=1                  Opt in to the Frida Stalker kernel relaxations"
 	@echo "  make fw_patch_exp            Patch boot chain with Swift pipeline (JB + EXP experimental)"
 	@echo "    Options: FORCE_EXC_GUARD=1        (see fw_patch above)"
+	@echo "             FRIDA=1                  Opt in to the Frida Stalker kernel relaxations"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test_jb_patches         Run all JB kernel patches (incl. Sandbox) over every supported cloudOS kernel"
@@ -369,11 +371,13 @@ fw_patch_dev: patcher_build
 
 fw_patch_jb: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant jb \
-	$(if $(filter 1 true yes YES TRUE,$(FORCE_EXC_GUARD)),--force-exc-guard,)
+	$(if $(filter 1 true yes YES TRUE,$(FORCE_EXC_GUARD)),--force-exc-guard,) \
+	$(if $(filter 1 true yes YES TRUE,$(FRIDA)),--frida,)
 
 fw_patch_exp: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant exp \
-	$(if $(filter 1 true yes YES TRUE,$(FORCE_EXC_GUARD)),--force-exc-guard,)
+	$(if $(filter 1 true yes YES TRUE,$(FORCE_EXC_GUARD)),--force-exc-guard,) \
+	$(if $(filter 1 true yes YES TRUE,$(FRIDA)),--frida,)
 
 .PHONY: test_jb_patches
 
@@ -481,13 +485,13 @@ cfw_install_dev:
 	$(MAKE) cfw_install_host VARIANT=dev
 
 cfw_install_jb:
-	$(MAKE) cfw_install_host VARIANT=jb
+	$(MAKE) cfw_install_host VARIANT=jb FRIDA="$(FRIDA)"
 
 cfw_install_exp:
-	$(MAKE) cfw_install_host VARIANT=exp SPOOF_BUILD="$(SPOOF_BUILD)"
+	$(MAKE) cfw_install_host VARIANT=exp SPOOF_BUILD="$(SPOOF_BUILD)" FRIDA="$(FRIDA)"
 
 # CFW install: place files via host mount + flip the boot snapshot offline.
 # VM must be off; re-execs under sudo.
 #   Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)
 cfw_install_host:
-	$(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant $(if $(VARIANT),$(VARIANT),exp) "$(VM_DIR_ABS)"
+	$(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") $(if $(filter 1 true yes YES TRUE,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant $(if $(VARIANT),$(VARIANT),exp) "$(VM_DIR_ABS)"

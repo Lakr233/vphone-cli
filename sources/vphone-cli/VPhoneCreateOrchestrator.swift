@@ -99,6 +99,7 @@ public struct VPhoneCreateOrchestrator {
         public var sudoPassword: String?
         public var spoofBuild: String?
         public var forceDSCMaxSlide: Bool
+        public var enableFrida: Bool
         public var rootPopup: Bool
         public var interactive: Bool
         public var cpuCount: UInt
@@ -115,6 +116,7 @@ public struct VPhoneCreateOrchestrator {
             sudoPassword: String? = nil,
             spoofBuild: String? = nil,
             forceDSCMaxSlide: Bool = false,
+            enableFrida: Bool = false,
             rootPopup: Bool = false,
             interactive: Bool = false,
             cpuCount: UInt = 8,
@@ -130,6 +132,7 @@ public struct VPhoneCreateOrchestrator {
             self.sudoPassword = sudoPassword
             self.spoofBuild = spoofBuild
             self.forceDSCMaxSlide = forceDSCMaxSlide
+            self.enableFrida = enableFrida
             self.rootPopup = rootPopup
             self.interactive = interactive
             self.cpuCount = cpuCount
@@ -209,7 +212,9 @@ public struct VPhoneCreateOrchestrator {
         try runFWPrepare(options: options, isLess: isLess, bundleURL: bundleURL)
 
         print("\n=== fw patch ===")
-        try runFWPatch(variant: variantOption, isLess: isLess, bundleURL: bundleURL, verbosity: v)
+        try runFWPatch(
+            variant: variantOption, isLess: isLess, enableFrida: options.enableFrida,
+            bundleURL: bundleURL, verbosity: v)
 
         print("\n=== Restore phase ===")
         try runRestorePhase(bundleURL: bundleURL, verbosity: v)
@@ -326,7 +331,8 @@ public struct VPhoneCreateOrchestrator {
     }
 
     private func runFWPatch(
-        variant: PatchFirmwareCLI.VariantOption, isLess: Bool, bundleURL: URL, verbosity v: VPhoneVerbosity
+        variant: PatchFirmwareCLI.VariantOption, isLess: Bool, enableFrida: Bool,
+        bundleURL: URL, verbosity v: VPhoneVerbosity
     ) throws {
         // Mirrors the Makefile's `ifeq ($(UID),0)` gate on `fw_patch_less` —
         // only the `less` variant requires root.
@@ -343,7 +349,8 @@ public struct VPhoneCreateOrchestrator {
         trace("in-process FirmwarePipeline.patchAll variant=\(variant.rawValue)", v)
         let pipeline = FirmwarePipeline(
             vmDirectory: bundleURL, variant: variant.pipelineVariant, verbose: v.showsToolDetail,
-            noBinpack: false, noVphoned: false, forceExcGuard: false)
+            noBinpack: false, noVphoned: false, forceExcGuard: false,
+            enableFrida: enableFrida)
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) patches for \(variant.rawValue)")
     }
@@ -490,6 +497,7 @@ public struct VPhoneCreateOrchestrator {
         ]
         if let spoofBuild = options.spoofBuild { scriptEnv["SPOOF_BUILD"] = spoofBuild }
         if options.forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
+        if options.enableFrida { scriptEnv["VPHONE_FRIDA"] = "1" }
         if options.keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         let args = [resources.cfwInstallHostScript.path, "--variant", options.variant, bundleURL.path]

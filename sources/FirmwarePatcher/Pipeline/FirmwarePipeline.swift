@@ -81,6 +81,7 @@ public final class FirmwarePipeline {
     let noBinpack: Bool
     let noVphoned: Bool
     let forceExcGuard: Bool
+    let enableFrida: Bool
     let loader: any FirmwareLoader
 
     /// Set when the iPhone base is iOS 18.x (read from iPhone-BuildManifest.plist).
@@ -93,6 +94,9 @@ public final class FirmwarePipeline {
     /// byte-identical to pre-branch. Computed in `patchAll()` alongside iosBaseIs18.
     private var iosBaseIs27 = false
 
+    /// Set when the cloudOS kernel is 26.4+; gates the opt-in Frida kernel patches.
+    private var cloudOSIsFridaCapable = false
+
     // MARK: - Init
 
     public init(
@@ -102,6 +106,7 @@ public final class FirmwarePipeline {
         noBinpack: Bool = false,
         noVphoned: Bool = false,
         forceExcGuard: Bool = false,
+        enableFrida: Bool = false,
         loader: (any FirmwareLoader)? = nil
     ) {
         self.vmDirectory = vmDirectory
@@ -110,6 +115,7 @@ public final class FirmwarePipeline {
         self.noBinpack = noBinpack
         self.noVphoned = noVphoned
         self.forceExcGuard = forceExcGuard
+        self.enableFrida = enableFrida
         self.loader = loader ?? ContainerFirmwareLoader()
     }
 
@@ -134,6 +140,17 @@ public final class FirmwarePipeline {
         let baseGateNote = iosBaseIs18 ? "  (enabling iOS-18 netagent boot-arg)"
             : iosBaseIs27 ? "  (enabling iOS-27 JB kernel patches)" : ""
         log("[*] iPhone base iOS:   \(baseVersion ?? "unknown")\(baseGateNote)")
+
+        // Frida Stalker kernel patches only apply on cloudOS 26.4+ (where the shapes
+        // were validated); older kernels are left untouched. The Frida deb install is
+        // separate and version-independent.
+        let cloudOSVersion = Self.readCloudOSProductVersion(restoreDir)
+        cloudOSIsFridaCapable = Self.productVersionAtLeast(cloudOSVersion, 26, 4)
+        if enableFrida {
+            log("[*] cloudOS kernel:    \(cloudOSVersion ?? "unknown")"
+                + (cloudOSIsFridaCapable ? "  (Frida kernel patches enabled)"
+                    : "  (< 26.4 — Frida kernel patches skipped)"))
+        }
 
         let components = buildComponentList()
         log("[*] Patching \(components.count) boot-chain components ...")
@@ -219,6 +236,9 @@ public final class FirmwarePipeline {
         // Same capture-by-value; true only for iOS 27 bases. Gates the iOS-27-only
         // JB kernel patches so 18.x/26.x bases apply none of them.
         let applyIOS27 = iosBaseIs27
+
+        // Opt-in Frida Stalker kernel relaxations (--frida), gated to cloudOS 26.4+.
+        let applyFrida = enableFrida && cloudOSIsFridaCapable
 
         // iOS 18 bases: disable the skywalk flowswitch netagents via boot-arg so
         // Network.framework uses the BSD path (the 26.1-kernel skywalk
@@ -341,6 +361,7 @@ public final class FirmwarePipeline {
                         { data, verbose in
                             let p = KernelJBPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
+                            p.applyFrida = applyFrida
                             return p
                         },
                     ]
@@ -352,6 +373,7 @@ public final class FirmwarePipeline {
                         { data, verbose in
                             let p = KernelJBPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
+                            p.applyFrida = applyFrida
                             return p
                         },
                         { data, verbose in
@@ -436,18 +458,32 @@ public final class FirmwarePipeline {
         return restoreDir
     }
 
-    /// Read the iPhone base `ProductVersion` from `iPhone-BuildManifest.plist`
-    /// (preserved by fw_prepare before the hybrid manifest overwrites
-    /// BuildManifest.plist). Returns nil if absent/unreadable — callers then
-    /// treat the base as non-iOS-18 (conservative).
-    static func readBaseProductVersion(_ restoreDir: URL) -> String? {
-        let url = restoreDir.appendingPathComponent("iPhone-BuildManifest.plist")
+    /// `ProductVersion` from a manifest in `restoreDir`, or nil if absent/unreadable.
+    static func readProductVersion(_ restoreDir: URL, manifest: String) -> String? {
+        let url = restoreDir.appendingPathComponent(manifest)
         guard let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dict = plist as? [String: Any],
               let version = dict["ProductVersion"] as? String
         else { return nil }
         return version
+    }
+
+    /// iPhone base version (`iPhone-BuildManifest.plist`, preserved by fw_prepare).
+    static func readBaseProductVersion(_ restoreDir: URL) -> String? {
+        readProductVersion(restoreDir, manifest: "iPhone-BuildManifest.plist")
+    }
+
+    /// cloudOS/kernel version (the live `BuildManifest.plist`).
+    static func readCloudOSProductVersion(_ restoreDir: URL) -> String? {
+        readProductVersion(restoreDir, manifest: "BuildManifest.plist")
+    }
+
+    /// Dotted `ProductVersion` >= major.minor, compared numerically. nil is false.
+    static func productVersionAtLeast(_ version: String?, _ major: Int, _ minor: Int) -> Bool {
+        guard let parts = version?.split(separator: ".").compactMap({ Int($0) }),
+              let vMajor = parts.first else { return false }
+        return vMajor != major ? vMajor > major : (parts.count > 1 ? parts[1] : 0) >= minor
     }
 
     private func compareRestoreDirectories(_ lhs: URL, _ rhs: URL) -> Bool {
