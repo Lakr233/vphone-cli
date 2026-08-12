@@ -79,6 +79,97 @@ public enum VPhoneProcessRunner {
             stderr: String(decoding: errBox.take(), as: UTF8.self))
     }
 
+    /// Stream an archive through a `/usr/bin/tar` consumer that reads on stdin,
+    /// invoking `onBytes` with the running byte total so a caller can drive a
+    /// progress bar off the *uncompressed* (export) or *compressed* (import)
+    /// stream. The byte source is exactly one of:
+    ///   - `producerArgs`: a `tar` producing an uncompressed archive to a pipe
+    ///     (export → count uncompressed input; the consumer compresses via `@-`).
+    ///   - `sourceFile`: the archive file read directly (import → count the file
+    ///     as it is fed into `tar -x`).
+    /// Returns the stderr of whichever stage exited nonzero (consumer first), or
+    /// `nil` on success. SIGPIPE is ignored for the duration so a consumer that
+    /// dies early surfaces as its exit status rather than killing this process.
+    public static func runCountingTarPipe(
+        producerArgs: [String]?,
+        sourceFile: URL?,
+        consumerArgs: [String],
+        onBytes: ((Int64) -> Void)? = nil
+    ) throws -> String? {
+        let tar = URL(fileURLWithPath: "/usr/bin/tar")
+        let prevPIPE = signal(SIGPIPE, SIG_IGN)
+        defer { signal(SIGPIPE, prevPIPE) }
+
+        let group = DispatchGroup()
+
+        let consumer = Process()
+        consumer.executableURL = tar
+        consumer.arguments = consumerArgs
+        let cIn = Pipe()
+        consumer.standardInput = cIn
+        consumer.standardOutput = FileHandle.nullDevice
+        let cErr = Pipe()
+        consumer.standardError = cErr
+        let cErrBox = DataBox()
+        group.enter()
+        cErr.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty { handle.readabilityHandler = nil; group.leave() }
+            else { cErrBox.append(chunk) }
+        }
+
+        var producer: Process?
+        let source: FileHandle
+        let pErrBox = DataBox()
+        if let producerArgs {
+            let p = Process()
+            p.executableURL = tar
+            p.arguments = producerArgs
+            let pOut = Pipe()
+            p.standardOutput = pOut
+            let pErr = Pipe()
+            p.standardError = pErr
+            group.enter()
+            pErr.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty { handle.readabilityHandler = nil; group.leave() }
+                else { pErrBox.append(chunk) }
+            }
+            producer = p
+            source = pOut.fileHandleForReading
+        } else if let sourceFile {
+            source = try FileHandle(forReadingFrom: sourceFile)
+        } else {
+            preconditionFailure("runCountingTarPipe: producerArgs or sourceFile required")
+        }
+
+        try consumer.run()
+        try producer?.run()
+
+        let sink = cIn.fileHandleForWriting
+        var total: Int64 = 0
+        while true {
+            guard let chunk = try? source.read(upToCount: 1 << 20), !chunk.isEmpty else { break }
+            do { try sink.write(contentsOf: chunk) } catch { break }  // consumer died; status below
+            total += Int64(chunk.count)
+            onBytes?(total)
+        }
+        try? sink.close()
+        try? source.close()
+
+        producer?.waitUntilExit()
+        consumer.waitUntilExit()
+        group.wait()
+
+        if consumer.terminationStatus != 0 {
+            return String(decoding: cErrBox.take(), as: UTF8.self)
+        }
+        if let producer, producer.terminationStatus != 0 {
+            return String(decoding: pErrBox.take(), as: UTF8.self)
+        }
+        return nil
+    }
+
     /// Run `executable args`, inheriting the parent's stdout/stderr so output
     /// streams live to the terminal (for long-running tools: downloads, restore,
     /// CFW install). Returns the child's exit status; throws only on spawn failure.
