@@ -393,7 +393,7 @@ struct BundleOpsTests {
         return (archive, imported)
     }
 
-    @Test func exportDefaultsToBalancedZstd() throws {
+    @Test func exportDefaultsToFastZstd() throws {
         let (archive, imported) = try exportAndImport(nil)
         #expect(try magic(archive, 4) == Self.zstdMagic)
         #expect(imported.manifest.cpuCount == 6)
@@ -411,11 +411,64 @@ struct BundleOpsTests {
         #expect(imported.manifest.cpuCount == 6)
     }
 
+    @Test func exportToDirectoryAutoNamesWithExtension() throws {
+        let root = try makeRoot()
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOps.create(
+            .init(name: "orig", cpuCount: 6, memoryMB: 2048, diskSizeGB: 1,
+                  romSource: rom, sepromSource: seprom), in: lib)
+        let outDir = try makeRoot()
+        let zstdOut = try VPhoneBundleOps.export(
+            bundleNamed: "orig", to: outDir, includeIPSW: false, in: lib)
+        #expect(zstdOut == outDir.appendingPathComponent("orig.tzst"))
+        #expect(FileManager.default.fileExists(atPath: zstdOut.path))
+        let xzOut = try VPhoneBundleOps.export(
+            bundleNamed: "orig", to: outDir, includeIPSW: false, compression: .max, in: lib)
+        #expect(xzOut == outDir.appendingPathComponent("orig.txz"))
+        #expect(FileManager.default.fileExists(atPath: xzOut.path))
+    }
+
+    @Test func exportAndImportReportProgress() throws {
+        final class Collector {
+            private(set) var dones: [Int64] = []
+            private(set) var total: Int64 = 0
+            func add(_ done: Int64, _ total: Int64) { dones.append(done); self.total = total }
+        }
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOps.create(
+            .init(name: "orig", cpuCount: 6, memoryMB: 2048, diskSizeGB: 1,
+                  romSource: rom, sepromSource: seprom), in: lib)
+
+        let exp = Collector()
+        let archive = root.appendingPathComponent("orig.tzst")
+        try VPhoneBundleOps.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib) {
+            exp.add($0, $1)
+        }
+        #expect(!exp.dones.isEmpty)
+        #expect(exp.total > 0)                                   // bundle logical size
+        #expect(exp.dones.last! > 0)
+        #expect(exp.dones == exp.dones.sorted())                 // monotonically non-decreasing
+
+        let imp = Collector()
+        let dstRoot = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: dstRoot) }
+        _ = try VPhoneBundleOps.importArchive(from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot)) {
+            imp.add($0, $1)
+        }
+        let archiveSize = try Data(contentsOf: archive).count
+        #expect(!imp.dones.isEmpty)
+        #expect(imp.total == Int64(archiveSize))                 // total == compressed file size
+        #expect(imp.dones.last! == Int64(archiveSize))           // whole archive fed
+        #expect(imp.dones == imp.dones.sorted())
+    }
+
     @Test func compressionPresetTarArgs() {
         #expect(VPhoneBundleOps.ExportCompression.fast.tarArgs
             == ["--zstd", "--options", "zstd:compression-level=3,zstd:threads=0"])
-        #expect(VPhoneBundleOps.ExportCompression.balanced.tarArgs
-            == ["--zstd", "--options", "zstd:compression-level=19,zstd:threads=0"])
         #expect(VPhoneBundleOps.ExportCompression.max.tarArgs
             == ["-J", "--options", "xz:compression-level=9,xz:threads=0"])
     }

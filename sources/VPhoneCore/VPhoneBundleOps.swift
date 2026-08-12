@@ -167,16 +167,23 @@ public enum VPhoneBundleOps {
 
     // MARK: - Export / Import
 
-    /// Compression preset for `export`. All import transparently: `importArchive`
-    /// auto-detects the compressor via `tar -tf`/`-xf`. `threads=0` → all cores.
+    /// Compression preset for `export`. Both import transparently — `importArchive`
+    /// auto-detects the compressor when it extracts. `threads=0` → all cores.
     public enum ExportCompression: String, CaseIterable, Sendable {
-        case fast, balanced, max
+        case fast, max
 
         var tarArgs: [String] {
             switch self {
-            case .fast:     ["--zstd", "--options", "zstd:compression-level=3,zstd:threads=0"]
-            case .balanced: ["--zstd", "--options", "zstd:compression-level=19,zstd:threads=0"]
-            case .max:      ["-J", "--options", "xz:compression-level=9,xz:threads=0"]
+            case .fast: ["--zstd", "--options", "zstd:compression-level=3,zstd:threads=0"]
+            case .max:  ["-J", "--options", "xz:compression-level=9,xz:threads=0"]
+            }
+        }
+
+        /// Extension for auto-named output when `export`'s destination is a directory.
+        public var fileExtension: String {
+            switch self {
+            case .fast: "tzst"
+            case .max:  "txz"
             }
         }
     }
@@ -187,39 +194,83 @@ public enum VPhoneBundleOps {
     /// `Disk.img`). Always excluded.
     static let exportExcludePatterns = ["*.vphoned.signed", "*cfw_input*", "*cfw_jb_input*", "*.cfw_temp*"]
 
+    /// When `to` is an existing directory, the archive is written inside it as
+    /// `<name>.<compression.fileExtension>`. Returns the resolved output URL.
+    ///
+    /// Runs as a two-stage `tar` pipeline (uncompressed producer → compressing
+    /// consumer via bsdtar's `@-`) so `progress` can be driven off the
+    /// uncompressed byte stream: it is called with `(bytesDone, totalBytes)`,
+    /// where `totalBytes` is the bundle's on-disk logical size (minus excludes).
+    @discardableResult
     public static func export(
         bundleNamed name: String, to outFile: URL, includeIPSW: Bool,
-        compression: ExportCompression = .balanced, in library: VPhoneLibrary
-    ) throws {
+        compression: ExportCompression = .fast, in library: VPhoneLibrary,
+        progress: ((Int64, Int64) -> Void)? = nil
+    ) throws -> URL {
         _ = try library.bundle(named: name)  // validate it exists
-        var args = ["-cf", outFile.path] + compression.tarArgs
-        if !includeIPSW { args += ["--exclude", "*_Restore*"] }
-        for pattern in exportExcludePatterns { args += ["--exclude", pattern] }
-        args += ["-C", library.root.path, name]
-        let r = try VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: "/usr/bin/tar"), args)
-        guard r.succeeded else { throw VPhoneBundleOpsError.tarFailed(r.stderr) }
+        var isDir: ObjCBool = false
+        let outFile = FileManager.default.fileExists(atPath: outFile.path, isDirectory: &isDir) && isDir.boolValue
+            ? outFile.appendingPathComponent("\(name).\(compression.fileExtension)")
+            : outFile
+
+        // gnutar (not the bsdtar-default pax): pax extended headers make the
+        // consumer's `@-` reader misbid the stream as mtree ("Line too long")
+        // on large members; gnutar also carries files >8 GB (ustar cannot).
+        var producer = ["--format", "gnutar", "-cf", "-"]
+        if !includeIPSW { producer += ["--exclude", "*_Restore*"] }
+        for pattern in exportExcludePatterns { producer += ["--exclude", pattern] }
+        producer += ["-C", library.root.path, name]
+        let consumer = ["-cf", outFile.path] + compression.tarArgs + ["@-"]
+
+        let total = progress != nil
+            ? archivedLogicalSize(bundleDir: library.url(forName: name), libraryRoot: library.root, includeIPSW: includeIPSW)
+            : 0
+        let err = try VPhoneProcessRunner.runCountingTarPipe(
+            producerArgs: producer, sourceFile: nil, consumerArgs: consumer
+        ) { done in progress?(done, total) }
+        if let err { throw VPhoneBundleOpsError.tarFailed(err) }
+        return outFile
     }
 
+    /// On-disk logical size of the members `export` will archive, mirroring the
+    /// tar `--exclude` patterns so the progress total matches the streamed bytes.
+    private static func archivedLogicalSize(
+        bundleDir: URL, libraryRoot: URL, includeIPSW: Bool
+    ) -> Int64 {
+        let fm = FileManager.default
+        guard let en = fm.enumerator(
+            at: bundleDir,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return 0 }
+        let prefix = libraryRoot.path.count + 1  // members are "<name>/..."
+        var total: Int64 = 0
+        for case let url as URL in en {
+            let rel = String(url.path.dropFirst(prefix))
+            if !includeIPSW, rel.contains("_Restore") { en.skipDescendants(); continue }
+            if exportExcludePatterns.contains(where: { fnmatch($0, rel, 0) == 0 }) { continue }
+            guard let vals = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  vals.isRegularFile == true else { continue }
+            total += Int64(vals.fileSize ?? 0)
+        }
+        return total
+    }
+
+    /// Extracts (auto-detecting gzip/zstd/xz) into a private staging dir, then
+    /// promotes the single top-level bundle to the library. Extracting first
+    /// means the archive is decompressed once; `progress` is called with
+    /// `(bytesDone, totalBytes)` as the compressed file is fed into `tar -x`,
+    /// where `totalBytes` is the archive's size on disk.
     public static func importArchive(
-        from inFile: URL, name: String?, in library: VPhoneLibrary
+        from inFile: URL, name: String?, in library: VPhoneLibrary,
+        progress: ((Int64, Int64) -> Void)? = nil
     ) throws -> VPhoneBundle {
         let fm = FileManager.default
-        // Auto-detect the compression (-tf, not -tzf) so both legacy gzip and
-        // current xz archives import.
-        let listing = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/usr/bin/tar"), ["-tf", inFile.path])
-        guard listing.succeeded else { throw VPhoneBundleOpsError.tarFailed(listing.stderr) }
-        let topDirs = Set(listing.stdout.split(whereSeparator: \.isNewline).compactMap {
-            $0.split(separator: "/").first.map(String.init)
-        })
-        guard topDirs.count == 1, let archived = topDirs.first else {
-            throw VPhoneBundleOpsError.badArchive(
-                "expected a single top-level bundle directory, found \(topDirs.sorted())")
+        // Fail fast when the destination name is already known (explicit rename).
+        if let name {
+            try requireValidName(name)
+            if fm.fileExists(atPath: library.url(forName: name).path) {
+                throw VPhoneLibraryError.alreadyExists(name: name)
+            }
         }
-        let finalName = name ?? archived
-        try requireValidName(finalName)
-        let dst = library.url(forName: finalName)
-        if fm.fileExists(atPath: dst.path) { throw VPhoneLibraryError.alreadyExists(name: finalName) }
 
         // Extract into a private staging dir so the archive's OWN top-level name
         // can never clobber/merge into an existing bundle of that name; only the
@@ -229,9 +280,21 @@ public enum VPhoneBundleOps {
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: staging) }
 
-        let extract = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/usr/bin/tar"), ["-xf", inFile.path, "-C", staging.path])
-        guard extract.succeeded else { throw VPhoneBundleOpsError.tarFailed(extract.stderr) }
+        let total = progress != nil ? fileByteSize(inFile) : 0
+        let err = try VPhoneProcessRunner.runCountingTarPipe(
+            producerArgs: nil, sourceFile: inFile, consumerArgs: ["-xf", "-", "-C", staging.path]
+        ) { done in progress?(done, total) }
+        if let err { throw VPhoneBundleOpsError.tarFailed(err) }
+
+        let entries = try fm.contentsOfDirectory(atPath: staging.path)
+        guard entries.count == 1, let archived = entries.first else {
+            throw VPhoneBundleOpsError.badArchive(
+                "expected a single top-level bundle directory, found \(entries.sorted())")
+        }
+        let finalName = name ?? archived
+        try requireValidName(finalName)
+        let dst = library.url(forName: finalName)
+        if fm.fileExists(atPath: dst.path) { throw VPhoneLibraryError.alreadyExists(name: finalName) }
         let extracted = staging.appendingPathComponent(archived)
         guard fm.fileExists(atPath: extracted.appendingPathComponent("config.plist").path) else {
             throw VPhoneBundleOpsError.badArchive(
@@ -239,5 +302,10 @@ public enum VPhoneBundleOps {
         }
         try fm.moveItem(at: extracted, to: dst)
         return try VPhoneBundle.load(at: dst)
+    }
+
+    private static func fileByteSize(_ url: URL) -> Int64 {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+        return Int64(size ?? 0)
     }
 }
