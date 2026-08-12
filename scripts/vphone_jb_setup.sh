@@ -229,6 +229,15 @@ else
     log "  Havoc source already present"
 fi
 
+FRIDA_LIST="$(dirname "$HAVOC_LIST")/frida.list"
+if ! grep -rIl 'build.frida.re' /etc/apt /var/jb/etc/apt 2>/dev/null | grep -q .; then
+    mkdir -p "$(dirname "$FRIDA_LIST")"
+    printf '%s\n' 'deb https://build.frida.re/ ./' > "$FRIDA_LIST"
+    log "  Frida source added: $FRIDA_LIST"
+else
+    log "  Frida source already present"
+fi
+
 apt-get -o Acquire::AllowInsecureRepositories=true \
     -o Acquire::AllowDowngradeToInsecureRepositories=true \
     update -qq 2>&1 || log "  apt update exited with $?"
