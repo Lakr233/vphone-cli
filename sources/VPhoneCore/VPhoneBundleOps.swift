@@ -167,6 +167,20 @@ public enum VPhoneBundleOps {
 
     // MARK: - Export / Import
 
+    /// Compression preset for `export`. All import transparently: `importArchive`
+    /// auto-detects the compressor via `tar -tf`/`-xf`. `threads=0` → all cores.
+    public enum ExportCompression: String, CaseIterable, Sendable {
+        case fast, balanced, max
+
+        var tarArgs: [String] {
+            switch self {
+            case .fast:     ["--zstd", "--options", "zstd:compression-level=3,zstd:threads=0"]
+            case .balanced: ["--zstd", "--options", "zstd:compression-level=19,zstd:threads=0"]
+            case .max:      ["-J", "--options", "xz:compression-level=9,xz:threads=0"]
+            }
+        }
+    }
+
     /// Regenerable staging artifacts that never need to travel in an export:
     /// `.vphoned.signed` is re-staged on the next launch, and the CFW install
     /// inputs/temp are consumed at install time (the result already lives in
@@ -174,12 +188,11 @@ public enum VPhoneBundleOps {
     static let exportExcludePatterns = ["*.vphoned.signed", "*cfw_input*", "*cfw_jb_input*", "*.cfw_temp*"]
 
     public static func export(
-        bundleNamed name: String, to outFile: URL, includeIPSW: Bool, in library: VPhoneLibrary
+        bundleNamed name: String, to outFile: URL, includeIPSW: Bool,
+        compression: ExportCompression = .balanced, in library: VPhoneLibrary
     ) throws {
         _ = try library.bundle(named: name)  // validate it exists
-        // xz at max level, multithreaded (threads=0 → all cores) — the densest
-        // compressor libarchive offers, for a multi-GB Disk.img.
-        var args = ["-cf", outFile.path, "-J", "--options", "xz:compression-level=9,xz:threads=0"]
+        var args = ["-cf", outFile.path] + compression.tarArgs
         if !includeIPSW { args += ["--exclude", "*_Restore*"] }
         for pattern in exportExcludePatterns { args += ["--exclude", pattern] }
         args += ["-C", library.root.path, name]

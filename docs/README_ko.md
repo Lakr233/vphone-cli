@@ -60,8 +60,8 @@ vphone-cli vm info myphone                  # VM 하나 표시
 vphone-cli vm new myphone                   # 빈 번들 생성 (cpu/mem/disk 옵션)
 vphone-cli vm config myphone --cpu 8 --memory 8192
 vphone-cli vm clone myphone myphone-2       # 빠른 APFS 복제, 새로운 기기 식별자
-vphone-cli vm export myphone --out myphone.tar.xz   # xz -9; restore 디렉토리 + 스테이징 파일 건너뜀
-vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm export myphone --out myphone.tzst   # zstd balanced (--compress fast|balanced|max); restore 디렉토리 + 스테이징 파일 건너뜀
+vphone-cli vm import --in myphone.tzst --name restored
 vphone-cli vm rename myphone iphone16
 vphone-cli vm delete iphone16
 ```

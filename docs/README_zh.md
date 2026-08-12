@@ -60,8 +60,8 @@ vphone-cli vm info myphone                  # 显示某台虚拟机
 vphone-cli vm new myphone                   # 创建一个空 bundle（cpu/内存/磁盘选项）
 vphone-cli vm config myphone --cpu 8 --memory 8192
 vphone-cli vm clone myphone myphone-2       # 快速 APFS 克隆，全新设备标识
-vphone-cli vm export myphone --out myphone.tar.xz   # xz -9；跳过 restore 目录 + 暂存文件
-vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm export myphone --out myphone.tzst   # zstd balanced（--compress fast|balanced|max）；跳过 restore 目录 + 暂存文件
+vphone-cli vm import --in myphone.tzst --name restored
 vphone-cli vm rename myphone iphone16
 vphone-cli vm delete iphone16
 ```

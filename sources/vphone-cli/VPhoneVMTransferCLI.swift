@@ -21,6 +21,8 @@ struct VPhoneVMCloneCommand: ParsableCommand {
     }
 }
 
+extension VPhoneBundleOps.ExportCompression: ExpressibleByArgument {}
+
 struct VPhoneVMExportCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "export", abstract: "Export a VM bundle to a .tgz archive")
@@ -28,12 +30,15 @@ struct VPhoneVMExportCommand: ParsableCommand {
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Option(name: .shortAndLong, help: "output archive path") var out: String
+    @Option(name: .shortAndLong, help: "compression preset: fast | balanced | max")
+    var compress: VPhoneBundleOps.ExportCompression = .balanced
     @Flag(help: "include the *_Restore* IPSW directory") var includeIpsw = false
 
     func run() throws {
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
         try VPhoneBundleOps.export(
-            bundleNamed: name, to: URL(fileURLWithPath: out), includeIPSW: includeIpsw, in: lib.library)
+            bundleNamed: name, to: URL(fileURLWithPath: out), includeIPSW: includeIpsw,
+            compression: compress, in: lib.library)
         print("exported \(name) → \(out)")
     }
 }

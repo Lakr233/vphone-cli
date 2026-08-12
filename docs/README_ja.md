@@ -60,8 +60,8 @@ vphone-cli vm info myphone                  # 1 つの VM を表示
 vphone-cli vm new myphone                   # 空のバンドルを作成（cpu/mem/disk オプション）
 vphone-cli vm config myphone --cpu 8 --memory 8192
 vphone-cli vm clone myphone myphone-2       # 高速 APFS クローン、新しいデバイスアイデンティティ
-vphone-cli vm export myphone --out myphone.tar.xz   # xz -9; 復元ディレクトリ + ステージングファイルをスキップ
-vphone-cli vm import --in myphone.tar.xz --name restored
+vphone-cli vm export myphone --out myphone.tzst   # zstd balanced (--compress fast|balanced|max); 復元ディレクトリ + ステージングファイルをスキップ
+vphone-cli vm import --in myphone.tzst --name restored
 vphone-cli vm rename myphone iphone16
 vphone-cli vm delete iphone16
 ```

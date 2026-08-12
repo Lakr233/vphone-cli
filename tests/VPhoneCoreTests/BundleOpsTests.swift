@@ -361,4 +361,62 @@ struct BundleOpsTests {
             _ = try VPhoneBundleOps.importArchive(from: archive, name: nil, in: VPhoneLibrary(root: root))
         }
     }
+
+    // MARK: - Compression presets
+
+    private static let zstdMagic: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD]
+    private static let xzMagic: [UInt8] = [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]
+
+    private func magic(_ url: URL, _ n: Int) throws -> [UInt8] {
+        Array(try Data(contentsOf: url).prefix(n))
+    }
+
+    private func exportAndImport(
+        _ compression: VPhoneBundleOps.ExportCompression?
+    ) throws -> (archive: URL, imported: VPhoneBundle) {
+        let root = try makeRoot()
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOps.create(
+            .init(name: "orig", cpuCount: 6, memoryMB: 2048, diskSizeGB: 1,
+                  romSource: rom, sepromSource: seprom), in: lib)
+        let archive = root.appendingPathComponent("orig.archive")
+        if let compression {
+            try VPhoneBundleOps.export(
+                bundleNamed: "orig", to: archive, includeIPSW: false, compression: compression, in: lib)
+        } else {
+            try VPhoneBundleOps.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib)
+        }
+        let dstRoot = try makeRoot()
+        let imported = try VPhoneBundleOps.importArchive(
+            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot))
+        return (archive, imported)
+    }
+
+    @Test func exportDefaultsToBalancedZstd() throws {
+        let (archive, imported) = try exportAndImport(nil)
+        #expect(try magic(archive, 4) == Self.zstdMagic)
+        #expect(imported.manifest.cpuCount == 6)
+    }
+
+    @Test func exportFastProducesZstdAndRoundTrips() throws {
+        let (archive, imported) = try exportAndImport(.fast)
+        #expect(try magic(archive, 4) == Self.zstdMagic)
+        #expect(imported.manifest.cpuCount == 6)
+    }
+
+    @Test func exportMaxProducesXzAndRoundTrips() throws {
+        let (archive, imported) = try exportAndImport(.max)
+        #expect(try magic(archive, 6) == Self.xzMagic)
+        #expect(imported.manifest.cpuCount == 6)
+    }
+
+    @Test func compressionPresetTarArgs() {
+        #expect(VPhoneBundleOps.ExportCompression.fast.tarArgs
+            == ["--zstd", "--options", "zstd:compression-level=3,zstd:threads=0"])
+        #expect(VPhoneBundleOps.ExportCompression.balanced.tarArgs
+            == ["--zstd", "--options", "zstd:compression-level=19,zstd:threads=0"])
+        #expect(VPhoneBundleOps.ExportCompression.max.tarArgs
+            == ["-J", "--options", "xz:compression-level=9,xz:threads=0"])
+    }
 }
