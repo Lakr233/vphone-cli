@@ -12,6 +12,7 @@
 
 - Apple Silicon
 - macOS 15+（Sequoia）
+- Xcode + iOS SDK（用于交叉编译访客守护进程）
 - [放宽 SIP/AMFI，以允许未签名二进制使用私有 PV=3 授权](#放宽-sipamfi)
 
 **依赖：**

@@ -12,6 +12,7 @@ PCC 리서치 VM 인프라를 사용하여 Apple의 Virtualization.framework로 
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
+- Xcode + iOS SDK (게스트 데몬 크로스 컴파일용)
 - [서명되지 않은 바이너리로 private PV=3 권한을 허용하기 위한 SIP/AMFI 완화](#sipamfi-완화)
 
 **의존성:**

@@ -12,6 +12,7 @@ PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtu
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
+- Xcode + iOS SDK（ゲストデーモンをクロスコンパイルするため）
 - [未署名バイナリでプライベートな PV=3 エンタイトルメントを許可するための SIP/AMFI の緩和](#sipamfi-の緩和)
 
 **依存関係:**

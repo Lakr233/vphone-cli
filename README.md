@@ -12,6 +12,7 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
+- Xcode + iOS SDK (cross-compiles the guest daemon)
 - [SIP/AMFI relaxation to allow private PV=3 entitlements with unsigned-binary](#sipamfi-relaxation)
 
 **Dependencies:**
