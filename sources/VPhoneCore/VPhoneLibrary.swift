@@ -41,8 +41,8 @@ public struct VPhoneLibrary: Sendable {
         // `~/.vphone/VMs` — deliberately space-free: bundle paths flow into the
         // shell/make firmware pipeline, and "Application Support" (a space) breaks
         // any unquoted expansion there. Keep the default path shell-safe.
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".vphone/VMs", isDirectory: true)
+        return VPhoneResources.userDataRoot()
+            .appendingPathComponent("VMs", isDirectory: true)
     }
 
     public func url(forName name: String) -> URL {

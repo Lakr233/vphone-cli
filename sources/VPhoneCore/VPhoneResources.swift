@@ -70,9 +70,17 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Cache dirs
 
-    public var userCacheDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vphone")
+    /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both
+    /// `VPhoneResources` (ipsws/tools/debs/venv) and `VPhoneLibrary` (VMs)
+    /// derive from this so one variable redirects everything vphone-cli creates.
+    public static func userDataRoot() -> URL {
+        if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vphone")
     }
+
+    public var userCacheDir: URL { Self.userDataRoot() }
     public var ipswCacheDir: URL { userCacheDir.appendingPathComponent("ipsws") }
     public var sealVolumeCacheDir: URL { userCacheDir.appendingPathComponent("tools") }
     public var debsCacheDir: URL { userCacheDir.appendingPathComponent("debs") }

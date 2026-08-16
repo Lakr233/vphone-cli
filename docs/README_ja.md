@@ -107,15 +107,18 @@ vphone-cli vm launch myphone                            # 6. 初回起動
 
 ## 場所
 
-vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれます — 署名済みバンドルがポータブルであり続けるよう、リポジトリと `.app` の外に保管されます:
+vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれます — 署名済みバンドルがポータブルであり続けるよう、リポジトリと `.app` の外に保管されます。`$VPHONE_ROOT` でツリー全体をリダイレクトできます:
 
 | パス              | 内容                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------ |
+| `~/.vphone/`      | ユーザー別データルート — `$VPHONE_ROOT` で場所全体を上書きします。                           |
 | `~/.vphone/VMs/`  | VM バンドル — VM ごとに 1 ディレクトリ。これがライブラリです。`$VPHONE_LIBRARY_ROOT` で上書きできます。 |
 | `~/.vphone/ipsws/`| ダウンロードされた iPhone + cloudOS の IPSW。キャッシュされ、複数の VM で再利用されます。       |
 | `~/.vphone/tools/`| `fw prepare` 中に取得された APFS seal-volume アーティファクト（`apfs_sealvolume_<version>`）のキャッシュ。 |
 | `~/.vphone/debs/` | `jb`/`exp` の CFW インストールがゲストに配置する `.deb` パッケージのキャッシュ（Sileo、apt など）。 |
 | `~/.vphone/venv/` | 自動的にプロビジョニングされる Python 環境（[Python ランタイム](#python-ランタイム) を参照。`$VPHONE_VENV_DIR` で上書き可能）。 |
+
+優先順位: 項目ごとの上書き（`$VPHONE_LIBRARY_ROOT`、`$VPHONE_VENV_DIR`）が `$VPHONE_ROOT` より優先され、`$VPHONE_ROOT` は `~/.vphone` のデフォルトより優先されます。`ipsws/`、`tools/`、`debs/` キャッシュは、常に現在有効なルートの直下に置かれます。
 
 ## SIP/AMFI の緩和
 

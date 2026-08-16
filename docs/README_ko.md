@@ -107,15 +107,18 @@ vphone-cli vm launch myphone                            # 6. 첫 부팅
 
 ## 위치
 
-vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 — 서명된 번들이 이식 가능하도록 저장소와 `.app` 외부에 보관됩니다:
+vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 — 서명된 번들이 이식 가능하도록 저장소와 `.app` 외부에 보관됩니다. `$VPHONE_ROOT`로 전체 트리를 리디렉션할 수 있습니다:
 
 | 경로              | 내용                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------ |
+| `~/.vphone/`      | 사용자별 데이터 루트 — `$VPHONE_ROOT`로 전체 위치를 재정의합니다.                            |
 | `~/.vphone/VMs/`  | VM 번들 — VM마다 하나의 디렉터리. 라이브러리이며, `$VPHONE_LIBRARY_ROOT`로 재정의할 수 있습니다. |
 | `~/.vphone/ipsws/`| 다운로드된 iPhone + cloudOS IPSW, 캐시되어 여러 VM에서 재사용됩니다.                          |
 | `~/.vphone/tools/`| `fw prepare` 중에 가져온 APFS seal-volume 아티팩트(`apfs_sealvolume_<version>`) 캐시.         |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 설치가 게스트에 넣는 `.deb` 패키지 캐시 (Sileo, apt 등).                       |
 | `~/.vphone/venv/` | 자동으로 프로비저닝되는 Python 환경 ([Python 런타임](#python-런타임) 참조; `$VPHONE_VENV_DIR`로 재정의). |
+
+우선순위: 항목별 재정의(`$VPHONE_LIBRARY_ROOT`, `$VPHONE_VENV_DIR`)가 `$VPHONE_ROOT`보다 우선하고, `$VPHONE_ROOT`는 `~/.vphone` 기본값보다 우선합니다. `ipsws/`, `tools/`, `debs/` 캐시는 항상 현재 활성 루트 바로 아래에 위치합니다.
 
 ## SIP/AMFI 완화
 
