@@ -1,6 +1,6 @@
 [submodule "scripts/resources"]
 	path = scripts/resources
-	url = https://github.com/Lakr233/vphone-cli-storage.git
+	url = https://github.com/zqxwce/vphone-cli-storage.git
 [submodule "vendor/libcapstone-spm"]
 	path = vendor/libcapstone-spm
 	url = https://github.com/Lakr233/libcapstone-spm.git
