@@ -205,4 +205,3 @@ entitlements.
 The current 30 FPS recorder is a baseline only. Near-60 FPS operation requires
 bounded buffering, low-copy pixel transport, non-main-thread work, and measured
 delivered/dropped-frame statistics.
-
