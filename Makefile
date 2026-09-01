@@ -20,6 +20,7 @@ BACKUP_INCLUDE_IPSW ?= 0
 FORCE       ?= 0
 RESTORE_UDID ?=           # UDID for restore operations
 RESTORE_ECID ?=           # ECID for restore operations
+CODE_SIGN_IDENTITY ?= -
 
 # ─── Build info ──────────────────────────────────────────────────
 GIT_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -70,6 +71,7 @@ help:
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
+	@echo "  make camera_extension        Build the Host CMIO Camera Installer + System Extension"
 	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
 	@echo "  make clean                   Remove build/tooling artifacts only"
 	@echo "    Options: CLEAN_VM=1        Also remove VM_DIR=$(VM_DIR) after confirmation"
@@ -202,7 +204,7 @@ clean:
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build patcher_build bundle
+.PHONY: build patcher_build bundle camera_extension
 
 build: $(BINARY)
 
@@ -221,7 +223,7 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@set -o pipefail; swift build -c release 2>&1 | tail -5
 	@echo ""
 	@echo "=== Signing with entitlements ==="
-	codesign --force --sign - --entitlements $(ENTITLEMENTS) $@
+	codesign --force --sign $(CODE_SIGN_IDENTITY) --entitlements $(ENTITLEMENTS) $@
 	@echo "  signed OK"
 
 bundle: build $(INFO_PLIST)
@@ -231,9 +233,12 @@ bundle: build $(INFO_PLIST)
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
+	@codesign --force --sign $(CODE_SIGN_IDENTITY) $(BUNDLE)/Contents/MacOS/ldid
+	@codesign --force --sign $(CODE_SIGN_IDENTITY) --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
 	@echo "  bundled → $(BUNDLE)"
+
+camera_extension:
+	@CODESIGN_IDENTITY="$(CODE_SIGN_IDENTITY)" zsh $(SCRIPTS)/build_camera_extension.sh
 
 # Cross-compile + sign vphoned daemon for iOS arm64 (requires ldid)
 .PHONY: vphoned

@@ -34,6 +34,7 @@ git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
 ./scripts/setup_tools.sh      # install deps, build toolchain submodules, create the Python venv
 ./scripts/build.sh            # build + sign vphone-cli, bundle the .app, cross-compile vphoned
+make camera_extension         # optionally build the Host CMIO Camera Installer + System Extension
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
@@ -81,6 +82,62 @@ vphone-cli vm stop myphone                              #    stop the DFU boot
 
 vphone-cli cfw install myphone --variant jb             # 5. install CFW (host-mount; asks for sudo)
 vphone-cli vm launch myphone                            # 6. first boot
+```
+
+### Host CMIO virtual camera (experimental)
+
+Build the VM app and the separate Camera Installer app, then install both
+alongside each other in `/Applications`:
+
+```bash
+./scripts/build.sh --no-vphoned
+make camera_extension
+ditto .build/vphone-cli.app /Applications/vphone-cli.app
+ditto .build/vphone-cli-camera-installer.app /Applications/vphone-cli-camera-installer.app
+/Applications/vphone-cli.app/Contents/MacOS/vphone-cli vm launch myphone --virtual-camera
+```
+
+Start the VM with `--virtual-camera` and it automatically starts the
+independently signed Camera Installer before VM boot. This has no menu item and
+does not depend on a VM window: headless and DFU invocations use the same
+normal macOS approval path. A missing or invalid installer fails before the VM
+starts; if macOS is awaiting approval, the VM starts its endpoint and connects
+as soon as the user approves in System Settings. After approval, QuickTime and
+other generic AVFoundation clients can select `VPhone Display`. Frames are
+sourced from the VM's host `VZGraphicsDisplay` screenshot path at the current
+30 FPS baseline. `--dfu --virtual-camera` registers the same device, but it
+publishes frames only if Virtualization exposes a DFU display image. The
+extension publishes one device for every fresh VM registration, named
+`VPhone — <VM name>`. Each VM has its own loopback endpoint and generation
+token, so simultaneous VM-labelled devices do not share frames or affect a
+physical iPhone.
+
+The checked-in build scripts can compile the extension but cannot fabricate
+Apple's restricted Camera/System Extension signing authorization. A local
+development or distribution build must be signed with provisioning profiles
+that grant the Camera Installer install entitlement and an exact App Group
+shared by the VPhone host and CMIO extension. The extension's Mach service is
+derived from that group; otherwise the launch log reports
+`OSSystemExtensionErrorDomain:9` and no QuickTime source is created. See
+[`host_cmio_virtual_camera_plan.md`](research/valeria/host_cmio_virtual_camera_plan.md)
+for the complete Developer Portal recipe, including the three explicit App IDs
+and profiles.
+On this machine, an ad-hoc-signed Camera Installer can also be terminated by
+AMFI before its `main` function (`SIGKILL`, exit 137), which is the same
+pre-activation signing gate in an earlier stage.
+
+Once issued, pass the profiles explicitly when building:
+
+```bash
+APP_BUNDLE_ID=com.example.vphone \
+CAMERA_BUNDLE_ID=com.example.vphone.camera \
+CAMERA_INSTALLER_BUNDLE_ID=com.example.vphone.camera-installer \
+HOST_PROVISIONING_PROFILE=/absolute/path/vphone-host.provisionprofile \
+CAMERA_INSTALLER_PROVISIONING_PROFILE=/absolute/path/vphone-camera-installer.provisionprofile \
+EXTENSION_PROVISIONING_PROFILE=/absolute/path/vphone-camera.provisionprofile \
+CAMERA_APP_GROUP=group.com.example.vphone.shared \
+CODESIGN_IDENTITY='Apple Development: Your Name (TEAMID)' \
+./scripts/build.sh --no-vphoned
 ```
 
 Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.

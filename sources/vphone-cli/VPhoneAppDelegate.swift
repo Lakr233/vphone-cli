@@ -14,6 +14,8 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var locationProvider: VPhoneLocationProvider?
     private var hostControl: VPhoneHostControl?
     private var cameraServer: VPhoneCameraServer?
+    private var virtualCameraServer: VPhoneVirtualCameraServer?
+    private var virtualCameraInstaller: VPhoneVirtualCameraInstaller?
     private var sigintSource: DispatchSourceSignal?
     private var didAttemptAutoInstall = false
 
@@ -46,6 +48,16 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func startVirtualMachine() async throws {
+        // The camera extension belongs to the separate installer app.  Keep
+        // this VM process out of the normal System Extension signing boundary
+        // and fail before boot for an invalid/missing installer.
+        if cli.virtualCamera {
+            let installer = VPhoneVirtualCameraInstaller()
+            installer.onStatusChange = { status in print("[virtual-camera] \(status)") }
+            virtualCameraInstaller = installer
+            _ = try await installer.activate()
+        }
+
         let options = try cli.resolveOptions()
 
         guard options.romURL == nil || FileManager.default.fileExists(atPath: options.romURL!.path) else {
@@ -80,6 +92,47 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         let control = VPhoneControl(variant: options.variant)
         self.control = control
+        let recorder = VPhoneScreenRecorder()
+
+        // The Host CMIO path is intentionally owned by the VM process, not by
+        // the optional AppKit window.  VZ creates the graphics display as part
+        // of the VM configuration, so it is available in headless mode too.
+        if cli.virtualCamera {
+            guard let graphicsDisplay = vm.virtualMachine.graphicsDevices.first?.displays.first else {
+                let mode = cli.dfu ? "DFU" : "this boot mode"
+                throw VPhoneError.virtualCameraUnavailable(
+                    "\(mode) did not expose the configured graphics display; no camera endpoint was registered"
+                )
+            }
+
+            let server = VPhoneVirtualCameraServer(
+                graphicsDisplay: graphicsDisplay, screenRecorder: recorder,
+                vmID: vm.cameraVMID,
+                displayName: options.configURL.deletingLastPathComponent().lastPathComponent,
+                displayStateProvider: { [weak control] in
+                    guard let control, control.isConnected else { return nil }
+                    return try? await control.sendDisplayState()
+                }
+            )
+            server.onStatusChange = { status in
+                print("[virtual-camera] \(status)")
+            }
+            virtualCameraServer = server
+            guard server.start() else {
+                virtualCameraServer = nil
+                throw VPhoneError.virtualCameraUnavailable(
+                    "the per-host VPhone Display endpoint is already in use; stop the other `--virtual-camera` VM before retrying"
+                )
+            }
+
+            if cli.dfu {
+                print(
+                    "[virtual-camera] DFU requested: the camera device is registered normally; "
+                    + "frames are published only if Virtualization exposes a DFU display image"
+                )
+            }
+        }
+
         if !cli.dfu {
             let vphonedURL = URL(fileURLWithPath: cli.vphonedBin)
             if FileManager.default.fileExists(atPath: vphonedURL.path) {
@@ -89,12 +142,13 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             let provider = VPhoneLocationProvider(control: control)
             locationProvider = provider
 
-            let camServer = VPhoneCameraServer()
-            cameraServer = camServer
-
             if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
                 control.connect(device: device)
-                camServer.connect(device: device)
+                if !cli.virtualCamera {
+                    let camServer = VPhoneCameraServer()
+                    cameraServer = camServer
+                    camServer.connect(device: device)
+                }
             }
         }
 
@@ -148,7 +202,6 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
             }
-            let recorder = VPhoneScreenRecorder()
             mc.screenRecorder = recorder
             menuController = mc
 
@@ -202,6 +255,10 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         } else if !cli.dfu {
             // Headless mode: auto-start location as before (no menu exists)
             control.onConnect = { [weak provider = locationProvider] caps in
+                if self.cli.virtualCamera {
+                    let state = caps.contains("display_state") ? "available" : "unavailable (continuous CMIO frames)"
+                    print("[virtual-camera] guest display-state control: \(state)")
+                }
                 if caps.contains("location") {
                     provider?.startForwarding()
                 } else {
@@ -255,6 +312,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {
+        virtualCameraServer?.stop()
         hostControl?.stop()
     }
 

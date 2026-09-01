@@ -7,6 +7,8 @@ import VPhoneCore
 @MainActor
 class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
+    /// Stable per-VM identity used to isolate Host CMIO registrations.
+    let cameraVMID: String
     /// ECID hex string resolved from machineIdentifier (e.g. "0x0012345678ABCDEF").
     let ecidHex: String?
     /// Read handle for VM serial output.
@@ -102,6 +104,8 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
             print("[vphone] Invalid machineIdentifier in config.plist, created new")
         }
+        cameraVMID = machineIdentifier.dataRepresentation
+            .map { String(format: "%02X", $0) }.joined()
 
         // --- Platform ---
         let platform = VZMacPlatformConfiguration()

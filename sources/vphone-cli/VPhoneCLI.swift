@@ -46,6 +46,9 @@ struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar")
     var headless: Bool = false
 
+    @Flag(name: .customLong("virtual-camera"), help: "Publish the VM display as a Host CMIO virtual camera")
+    var virtualCamera: Bool = false
+
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
     var kernelDebugPort: Int?
 

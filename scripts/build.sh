@@ -10,6 +10,12 @@
 # Usage:
 #   ./scripts/build.sh              # build + sign + bundle + vphoned
 #   ./scripts/build.sh --no-vphoned # skip the vphoned cross-compile
+#
+# Optional signing inputs for the Host CMIO Camera Installer / System Extension:
+#   APP_BUNDLE_ID=com.vp.vphone
+#   HOST_PROVISIONING_PROFILE=/absolute/path/vphoneDev.provisionprofile
+#   CAMERA_INSTALLER_PROVISIONING_PROFILE=/absolute/path/camera-installer.provisionprofile
+#   EXTENSION_PROVISIONING_PROFILE=/absolute/path/camera.provisionprofile
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
@@ -23,6 +29,12 @@ INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
 BUILD_INFO="sources/vphone-cli/VPhoneBuildInfo.swift"
 GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+CODE_SIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+APP_BUNDLE_ID="${APP_BUNDLE_ID:-com.vphone.cli}"
+CAMERA_BUNDLE_ID="${CAMERA_BUNDLE_ID:-${APP_BUNDLE_ID}.camera}"
+CAMERA_INSTALLER_BUNDLE_ID="${CAMERA_INSTALLER_BUNDLE_ID:-${APP_BUNDLE_ID}.camera-installer}"
+HOST_PROVISIONING_PROFILE="${HOST_PROVISIONING_PROFILE:-}"
+HOST_APP_GROUP="${HOST_APP_GROUP:-${CAMERA_APP_GROUP:-}}"
 
 BUILD_VPHONED=1
 for arg in "$@"; do
@@ -40,7 +52,14 @@ echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUI
 swift build -c release
 
 echo "=== Signing with entitlements ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BINARY"
+HOST_ENTITLEMENTS="$ENTITLEMENTS"
+if [[ -n "$HOST_APP_GROUP" ]]; then
+  HOST_ENTITLEMENTS=".build/vphone.entitlements.generated.plist"
+  cp -f "$ENTITLEMENTS" "$HOST_ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups array" "$HOST_ENTITLEMENTS" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups:0 string ${HOST_APP_GROUP}" "$HOST_ENTITLEMENTS"
+fi
+codesign --force --sign "$CODE_SIGN_IDENTITY" --entitlements "$HOST_ENTITLEMENTS" "$BINARY"
 echo "  signed OK → ${BINARY}"
 
 # --- Bundle (.app used for GUI boot) ---
@@ -50,9 +69,16 @@ cp -f "$BINARY" "$BUNDLE_BIN"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${APP_BUNDLE_ID}" \
+  "${BUNDLE}/Contents/Info.plist"
+if [[ -n "$HOST_PROVISIONING_PROFILE" ]]; then
+  [[ -f "$HOST_PROVISIONING_PROFILE" ]] \
+    || { echo "Error: HOST_PROVISIONING_PROFILE not found: $HOST_PROVISIONING_PROFILE" >&2; exit 1; }
+  cp -f "$HOST_PROVISIONING_PROFILE" "${BUNDLE}/Contents/embedded.provisionprofile"
+fi
 cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+codesign --force --sign "$CODE_SIGN_IDENTITY" "${BUNDLE}/Contents/MacOS/ldid"
+codesign --force --sign "$CODE_SIGN_IDENTITY" --entitlements "$HOST_ENTITLEMENTS" "$BUNDLE_BIN"
 echo "  bundled → ${BUNDLE}"
 
 # --- vphoned guest daemon (cross-compiled + signed for iOS arm64) ---
@@ -110,8 +136,20 @@ echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,i
 # bundle-step signature (made before these assets existed) is now stale —
 # re-signing here reseals against the final Resources tree.
 echo "=== Re-signing ${BUNDLE_BIN} (resealing Resources) ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+codesign --force --sign "$CODE_SIGN_IDENTITY" --entitlements "$HOST_ENTITLEMENTS" "$BUNDLE_BIN"
 echo "  resealed OK"
+
+# --- Host CMIO Camera Installer / System Extension ---
+# This intentionally uses a companion app: the VM host keeps its own
+# virtualization-signing boundary, while the companion carries the supported
+# system-extension install entitlement and the nested CMIO extension.
+CODESIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+  APP_BUNDLE_ID="$APP_BUNDLE_ID" \
+  CAMERA_BUNDLE_ID="$CAMERA_BUNDLE_ID" \
+  CAMERA_INSTALLER_BUNDLE_ID="$CAMERA_INSTALLER_BUNDLE_ID" \
+  CAMERA_INSTALLER_PROVISIONING_PROFILE="${CAMERA_INSTALLER_PROVISIONING_PROFILE:-}" \
+  EXTENSION_PROVISIONING_PROFILE="${EXTENSION_PROVISIONING_PROFILE:-}" \
+  zsh scripts/build_camera_extension.sh
 
 echo ""
 echo "=== Build complete ==="

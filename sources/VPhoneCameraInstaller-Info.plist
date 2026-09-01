@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.vphone.cli.camera-installer</string>
+    <key>CFBundleExecutable</key>
+    <string>vphone-camera-installer</string>
+    <key>CFBundleName</key>
+    <string>VPhone Camera Installer</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSSystemExtensionUsageDescription</key>
+    <string>Installs VPhone Display so compatible macOS apps can receive a virtual iPhone display.</string>
+</dict>
+</plist>
