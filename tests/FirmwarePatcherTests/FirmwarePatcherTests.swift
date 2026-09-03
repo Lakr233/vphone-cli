@@ -510,6 +510,62 @@ struct FirmwarePipelineTests {
 
         #expect(found == target)
     }
+
+    @Test(arguments: [FirmwarePipeline.Variant.less, .regular, .dev])
+    func globalCodeSignBypassRejectsUnsupportedVariants(_ variant: FirmwarePipeline.Variant) {
+        let pipeline = FirmwarePipeline(
+            vmDirectory: URL(fileURLWithPath: "/tmp/unused"),
+            variant: variant,
+            verbose: false,
+            enableGlobalCodeSignBypass: true
+        )
+
+        let error = caughtPipelineValidationError {
+            try pipeline.validateConfiguration()
+        }
+        #expect(error == "invalid-format")
+    }
+
+    @Test(arguments: [FirmwarePipeline.Variant.jb, .exp])
+    func globalCodeSignBypassReachesSupportedTXMPatcher(_ variant: FirmwarePipeline.Variant) throws {
+        let pipeline = FirmwarePipeline(
+            vmDirectory: URL(fileURLWithPath: "/tmp/unused"),
+            variant: variant,
+            verbose: false,
+            enableGlobalCodeSignBypass: true
+        )
+
+        try pipeline.validateConfiguration()
+        let txm = try #require(pipeline.buildComponentList().first { $0.name == "TXM" })
+        let patcher = try #require(txm.patcherFactories.first?(Data(), false) as? TXMDevPatcher)
+        #expect(patcher.globalCodeSignBypass)
+    }
+
+    @Test func globalCodeSignBypassDefaultsOffForJB() throws {
+        let pipeline = FirmwarePipeline(
+            vmDirectory: URL(fileURLWithPath: "/tmp/unused"),
+            variant: .jb,
+            verbose: false
+        )
+
+        let txm = try #require(pipeline.buildComponentList().first { $0.name == "TXM" })
+        let patcher = try #require(txm.patcherFactories.first?(Data(), false) as? TXMDevPatcher)
+        #expect(!patcher.globalCodeSignBypass)
+    }
+}
+
+private func caughtPipelineValidationError(_ body: () throws -> Void) -> String {
+    do {
+        try body()
+        return "none"
+    } catch let error as PatcherError {
+        if case .invalidFormat = error {
+            return "invalid-format"
+        }
+        return "other"
+    } catch {
+        return "wrong-type"
+    }
 }
 
 struct FridaGatingTests {

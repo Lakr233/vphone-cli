@@ -96,7 +96,15 @@ struct VPhoneFWPatchCommand: ParsableCommand {
     @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp | less") var variant: PatchFirmwareCLI.VariantOption = .regular
     @Flag(name: .customLong("force-exc-guard"), help: "Force the EXC_GUARD disable patch") var forceExcGuard = false
     @Flag(name: .customLong("frida"), help: "Opt in to Frida Stalker kernel relaxations (jb/exp only)") var frida = false
+    @Flag(name: .customLong("global-code-sign-bypass"), help: "Globally ignore TXM page-enforcement failures (jb/exp only)")
+    var globalCodeSignBypass = false
     @Flag(name: .shortAndLong, help: "Suppress per-component progress") var quiet = false
+
+    mutating func validate() throws {
+        if globalCodeSignBypass, !variant.supportsGlobalCodeSignBypass {
+            throw ValidationError("`--global-code-sign-bypass` requires `--variant jb` or `--variant exp`")
+        }
+    }
 
     func run() throws {
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
@@ -116,7 +124,8 @@ struct VPhoneFWPatchCommand: ParsableCommand {
             noBinpack: false,
             noVphoned: false,
             forceExcGuard: forceExcGuard,
-            enableFrida: frida)
+            enableFrida: frida,
+            enableGlobalCodeSignBypass: globalCodeSignBypass)
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) patches for \(variant.rawValue)")
     }

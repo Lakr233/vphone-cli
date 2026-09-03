@@ -149,6 +149,10 @@ struct PatchFirmwareCLI: ParsableCommand {
             case .exp: .exp
             }
         }
+
+        var supportsGlobalCodeSignBypass: Bool {
+            self == .jb || self == .exp
+        }
     }
 
     static let configuration = CommandConfiguration(
@@ -193,6 +197,18 @@ struct PatchFirmwareCLI: ParsableCommand {
     )
     var frida: Bool = false
 
+    @Flag(
+        name: .customLong("global-code-sign-bypass"),
+        help: "Globally ignore TXM page-enforcement failures. jb/exp only; disables guest code-page enforcement."
+    )
+    var globalCodeSignBypass: Bool = false
+
+    mutating func validate() throws {
+        if globalCodeSignBypass, !variant.supportsGlobalCodeSignBypass {
+            throw ValidationError("`--global-code-sign-bypass` requires `--variant jb` or `--variant exp`")
+        }
+    }
+
     mutating func run() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: vmDirectory,
@@ -201,7 +217,8 @@ struct PatchFirmwareCLI: ParsableCommand {
             noBinpack: noBinpack,
             noVphoned: noVphoned,
             forceExcGuard: forceExcGuard,
-            enableFrida: frida
+            enableFrida: frida,
+            enableGlobalCodeSignBypass: globalCodeSignBypass
         )
         let records = try pipeline.patchAll()
 
@@ -272,6 +289,18 @@ struct PatchComponentCLI: ParsableCommand {
     )
     var frida: Bool = false
 
+    @Flag(
+        name: .customLong("global-code-sign-bypass"),
+        help: "txm only: include the global TXM page-enforcement bypass in diagnostic output."
+    )
+    var globalCodeSignBypass: Bool = false
+
+    mutating func validate() throws {
+        if globalCodeSignBypass, component != .txm {
+            throw ValidationError("`--global-code-sign-bypass` is only valid with `--component txm`")
+        }
+    }
+
     mutating func run() throws {
         let payload = try IM4PHandler.load(contentsOf: input).payload
         let count: Int
@@ -280,9 +309,20 @@ struct PatchComponentCLI: ParsableCommand {
 
         switch component {
         case .txm:
-            let patcher = TXMPatcher(data: payload, verbose: !quiet)
-            count = try patcher.apply()
-            patchedData = patcher.patchedData
+            if globalCodeSignBypass {
+                let patcher = TXMDevPatcher(
+                    data: payload,
+                    verbose: !quiet,
+                    globalCodeSignBypass: true
+                )
+                records = try patcher.findAll()
+                count = try patcher.apply()
+                patchedData = patcher.patchedData
+            } else {
+                let patcher = TXMPatcher(data: payload, verbose: !quiet)
+                count = try patcher.apply()
+                patchedData = patcher.patchedData
+            }
 
         case .kernelBase:
             let patcher = KernelPatcher(data: payload, verbose: !quiet)

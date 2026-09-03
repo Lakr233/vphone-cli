@@ -10,6 +10,7 @@ import VPhoneCore
 private enum VPhoneCreateError: Error, CustomStringConvertible {
     case nestedVirtualization
     case unknownVariant(String)
+    case globalCodeSignBypassUnsupportedVariant(String)
     case lessRequiresRoot
     case fwPrepareFailed(Int32)
     case identityTimedOut(URL)
@@ -34,6 +35,8 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
             "Virtualization.framework guest boot is unavailable inside a VM — run vm create on a non-nested macOS 15+ host"
         case let .unknownVariant(v):
             "unknown variant '\(v)' (regular|dev|jb|exp|less)"
+        case let .globalCodeSignBypassUnsupportedVariant(v):
+            "--global-code-sign-bypass requires the jb or exp variant (got '\(v)')"
         case .lessRequiresRoot:
             "fw patch for 'less' must be run as root (matches Makefile's `fw_patch_less must be run via sudo`)"
         case let .fwPrepareFailed(code):
@@ -100,6 +103,7 @@ public struct VPhoneCreateOrchestrator {
         public var spoofBuild: String?
         public var forceDSCMaxSlide: Bool
         public var enableFrida: Bool
+        public var enableGlobalCodeSignBypass: Bool
         public var rootPopup: Bool
         public var interactive: Bool
         public var cpuCount: UInt
@@ -117,6 +121,7 @@ public struct VPhoneCreateOrchestrator {
             spoofBuild: String? = nil,
             forceDSCMaxSlide: Bool = false,
             enableFrida: Bool = false,
+            enableGlobalCodeSignBypass: Bool = false,
             rootPopup: Bool = false,
             interactive: Bool = false,
             cpuCount: UInt = 8,
@@ -133,6 +138,7 @@ public struct VPhoneCreateOrchestrator {
             self.spoofBuild = spoofBuild
             self.forceDSCMaxSlide = forceDSCMaxSlide
             self.enableFrida = enableFrida
+            self.enableGlobalCodeSignBypass = enableGlobalCodeSignBypass
             self.rootPopup = rootPopup
             self.interactive = interactive
             self.cpuCount = cpuCount
@@ -166,6 +172,9 @@ public struct VPhoneCreateOrchestrator {
 
         guard let variantOption = PatchFirmwareCLI.VariantOption(rawValue: options.variant) else {
             throw VPhoneCreateError.unknownVariant(options.variant)
+        }
+        if options.enableGlobalCodeSignBypass, !variantOption.supportsGlobalCodeSignBypass {
+            throw VPhoneCreateError.globalCodeSignBypassUnsupportedVariant(options.variant)
         }
         let isLess = variantOption == .less
 
@@ -214,6 +223,7 @@ public struct VPhoneCreateOrchestrator {
         print("\n=== fw patch ===")
         try runFWPatch(
             variant: variantOption, isLess: isLess, enableFrida: options.enableFrida,
+            enableGlobalCodeSignBypass: options.enableGlobalCodeSignBypass,
             bundleURL: bundleURL, verbosity: v)
 
         print("\n=== Restore phase ===")
@@ -332,6 +342,7 @@ public struct VPhoneCreateOrchestrator {
 
     private func runFWPatch(
         variant: PatchFirmwareCLI.VariantOption, isLess: Bool, enableFrida: Bool,
+        enableGlobalCodeSignBypass: Bool,
         bundleURL: URL, verbosity v: VPhoneVerbosity
     ) throws {
         // Mirrors the Makefile's `ifeq ($(UID),0)` gate on `fw_patch_less` —
@@ -350,7 +361,8 @@ public struct VPhoneCreateOrchestrator {
         let pipeline = FirmwarePipeline(
             vmDirectory: bundleURL, variant: variant.pipelineVariant, verbose: v.showsToolDetail,
             noBinpack: false, noVphoned: false, forceExcGuard: false,
-            enableFrida: enableFrida)
+            enableFrida: enableFrida,
+            enableGlobalCodeSignBypass: enableGlobalCodeSignBypass)
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) patches for \(variant.rawValue)")
     }

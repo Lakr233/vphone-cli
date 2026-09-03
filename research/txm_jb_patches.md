@@ -1,7 +1,8 @@
 # TXM Jailbreak Patch Analysis
 
-Analysis of 6 logical TXM jailbreak patches (11 instruction modifications) applied by `txm_dev.py` on the RESEARCH variant
-of TXM from iPhone17,3 / PCC-CloudOS 26.x.
+Analysis of the 6 default logical TXM jailbreak patches (11 instruction
+modifications) and the separately opt-in global page-enforcement bypass on the
+RESEARCH variant of TXM from iPhone17,3 / PCC-cloudOS 26.x.
 
 ## TXM Execution Model
 
@@ -653,6 +654,84 @@ matching `w9, #0`. NOPs it.
 
 ---
 
+## Patch 7 (opt-in): Global Page-Enforcement Failure Bypass
+
+This patch is disabled by default. It is emitted only for JB/EXP firmware when
+`--global-code-sign-bypass` is explicit; `less`, `regular`, and `dev` reject the
+flag. The patch record ID is:
+
+```text
+txm_jb.page_enforcement_global_bypass
+```
+
+### cloudOS 26.4 target
+
+The function name below is analyst-assigned; it is not an exported symbol.
+
+| Field | Value |
+| --- | --- |
+| TXM build | `txm.iphoneos.research.TrustedExecutionMonitor_Guarded-187.100.3` |
+| Analyst label | `txm_page_enforcement_handler` |
+| Function file offset / VA | `0x1C89C` / `0xFFFFFFF01702089C` |
+| Patch file offset / VA | `0x1CC68` / `0xFFFFFFF017020C68` |
+| Before bytes | `69 0A 00 35` (`CBNZ W9, 0x1CDB4`) |
+| After bytes | `1F 20 03 D5` (`NOP`) |
+
+The relevant path is:
+
+```asm
+0x1CC58  BL    page_enforcement_helper
+0x1CC5C  MOV   W1, W0
+0x1CC60  LSR   X8, X1, #8
+0x1CC64  UBFX  X9, X1, #8, #8
+0x1CC68  CBNZ  W9, 0x1CDB4       ; patched to NOP
+0x1CC6C  LDR   W4, [SP, #0x54]
+0x1CC70  ADD   X23, X23, X4      ; advance page cursor
+0x1CC74  ADD   W26, W26, #1      ; advance page index
+0x1CC7C  CMP   W26, W9
+0x1CC84  B.LO  0x1CC30           ; continue page loop
+```
+
+### Matcher and failure behavior
+
+`TXMDevPatcher.patchPageEnforcementGlobalBypass()`:
+
+1. requires one occurrence of the `page enforcement failed` cstring;
+2. resolves its ADRP/ADD reference and the containing PACIBSP function;
+3. matches the typed register flow from the inner `BL` result through
+   `MOV`, `LSR`, `UBFX`, and the following `CBNZ`;
+4. verifies that fallthrough advances both page cursor and page index before a
+   backward `B.LO` loop;
+5. emits one Keystone-backed `ARM64.nop` record, or throws on zero/multiple
+   candidate branches.
+
+The matcher does not use the recorded file offsets, virtual addresses, or
+instruction bytes for discovery. Those values are validation evidence only.
+
+### Cross-version validation
+
+| cloudOS | TXM build | Patch offset / VA | Before | After |
+| --- | --- | --- | --- | --- |
+| 26.1 (`23B85`) | `TrustedExecutionMonitor_Guarded-182.40.3` | `0x1CC80` / `0xFFFFFFF017020C80` | `09 02 00 35` (`CBNZ W9, 0x1CCC0`) | `1F 20 03 D5` (`NOP`) |
+| 26.3 (`23D129`) | `TrustedExecutionMonitor_Guarded-182.40.3` | `0x1CC80` / `0xFFFFFFF017020C80` | `09 02 00 35` (`CBNZ W9, 0x1CCC0`) | `1F 20 03 D5` (`NOP`) |
+| 26.4 (`23E5207q`) | `TrustedExecutionMonitor_Guarded-187.100.3` | `0x1CC68` / `0xFFFFFFF017020C68` | `69 0A 00 35` (`CBNZ W9, 0x1CDB4`) | `1F 20 03 D5` (`NOP`) |
+
+For all three images, the default and opt-in `TXMDevPatcher` records were
+compared directly: the default list was unchanged and opt-in added exactly one
+record.
+
+### Security effect and preserved paths
+
+NOPing this branch treats every non-zero error category returned by the inner
+page-enforcement helper as success and continues mapping subsequent pages. This
+is a global guest code-signing protection removal, not per-app trust.
+
+The patch does not alter the handler's argument/range checks, allocation
+failures, executable or writable debug-mapping checks, panic state, other TXM
+selectors, or SPTM errors outside this inner page-enforcement result branch.
+
+---
+
 ## Patch Dependency Chain
 
 The patches have a logical ordering --- later patches depend on earlier ones:
@@ -676,6 +755,10 @@ Patch 6: Developer Mode Bypass
   └---> Patches 1-2: CodeSignature Hash Bypass (selector 24)
          Independent — bypasses CS hash validation in the signature chain
 ```
+
+Patch 7 is also independent of the developer/debugger dependency chain. It is
+an explicit global mapping-enforcement opt-in applied after the default TXM
+patches have been identified.
 
 ### Boot-time flow
 
@@ -702,10 +785,14 @@ Patch 6: Developer Mode Bypass
 | 4e  | `0x5d3c4`   | `0xFFFFFFF0170613C4` | code cave                                    | `B back`               | Return to dispatcher              |
 | 5   | `0x1f3b8`   | `0xFFFFFFF0170233B8` | `sub_FFFFFFF017023368` (selector 42)         | `MOV W0, #1`           | Force debugger entitlement = true |
 | 6   | `0x1FA58`   | `0xFFFFFFF017023A58` | `sub_FFFFFFF017023A20` (devmode init)        | NOP                    | Force developer mode ON           |
+| 7*  | `0x1CC68`   | `0xFFFFFFF017020C68` | `txm_page_enforcement_handler` (analyst label) | NOP                  | Ignore inner page-enforcement errors globally |
 
-**Total**: 6 logical patches, 11 instruction modifications (counting shellcode), enabling:
+**Default total**: 6 logical patches, 11 instruction modifications (counting shellcode), enabling:
 
 - CodeSignature bypass (patches 1-2)
 - Universal get-task-allow (patches 3-4)
 - Universal debugger entitlement (patch 5)
 - Forced developer mode (patch 6)
+
+`7*` is not included in that total. With `--global-code-sign-bypass`, JB/EXP
+adds one instruction modification that disables TXM page enforcement globally.

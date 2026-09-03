@@ -82,6 +82,7 @@ public final class FirmwarePipeline {
     let noVphoned: Bool
     let forceExcGuard: Bool
     let enableFrida: Bool
+    let enableGlobalCodeSignBypass: Bool
     let loader: any FirmwareLoader
 
     /// Set when the iPhone base is iOS 18.x (read from iPhone-BuildManifest.plist).
@@ -107,6 +108,7 @@ public final class FirmwarePipeline {
         noVphoned: Bool = false,
         forceExcGuard: Bool = false,
         enableFrida: Bool = false,
+        enableGlobalCodeSignBypass: Bool = false,
         loader: (any FirmwareLoader)? = nil
     ) {
         self.vmDirectory = vmDirectory
@@ -116,6 +118,7 @@ public final class FirmwarePipeline {
         self.noVphoned = noVphoned
         self.forceExcGuard = forceExcGuard
         self.enableFrida = enableFrida
+        self.enableGlobalCodeSignBypass = enableGlobalCodeSignBypass
         self.loader = loader ?? ContainerFirmwareLoader()
     }
 
@@ -126,6 +129,7 @@ public final class FirmwarePipeline {
     /// Returns combined ``PatchRecord`` arrays from every component, in order.
     /// Throws on the first component that fails to patch.
     public func patchAll() throws -> [PatchRecord] {
+        try validateConfiguration()
         let restoreDir = try findRestoreDirectory()
 
         log("[*] VM directory:      \(vmDirectory.path)")
@@ -186,6 +190,14 @@ public final class FirmwarePipeline {
         log(String(repeating: "=", count: 60))
 
         return allRecords
+    }
+
+    func validateConfiguration() throws {
+        if enableGlobalCodeSignBypass, variant != .jb, variant != .exp {
+            throw PatcherError.invalidFormat(
+                "--global-code-sign-bypass requires the jb or exp firmware variant"
+            )
+        }
     }
 
     func patchData(
@@ -329,7 +341,12 @@ public final class FirmwarePipeline {
                     }]
                 case .dev, .jb, .exp:
                     [{ data, verbose in
-                        TXMDevPatcher(data: data, verbose: verbose)
+                        TXMDevPatcher(
+                            data: data,
+                            verbose: verbose,
+                            globalCodeSignBypass: self.enableGlobalCodeSignBypass
+                                && (self.variant == .jb || self.variant == .exp)
+                        )
                     }]
                 }
             }()

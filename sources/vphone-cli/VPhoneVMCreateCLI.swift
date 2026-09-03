@@ -22,6 +22,8 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id") var spoofBuild: String?
     @Flag(name: .customLong("force-dsc-maxslide"), help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)") var forceDSCMaxSlide = false
     @Flag(name: .customLong("frida"), help: "Opt in to Frida Stalker support: install re.frida.server (latest GitHub release) + jb/exp kernel relaxations") var frida = false
+    @Flag(name: .customLong("global-code-sign-bypass"), help: "Globally ignore TXM page-enforcement failures (jb/exp only)")
+    var globalCodeSignBypass = false
     @Flag(name: .customLong("root-popup"), help: "Elevate the CFW host-mount via macOS's native authentication dialog (osascript) instead of a sudo prompt") var rootPopup = false
     @Flag(help: "Prompt at first-boot stages instead of running non-interactively") var interactive = false
     @Flag(name: .customLong("keep-artifacts"), help: "Keep intermediate build artifacts (built restore firmware, extracted base-IPSW caches, extracted CFW input dirs) instead of removing them after use. Source archives (.ipsw / .tar.zst) are always kept.")
@@ -30,6 +32,15 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
+
+    mutating func validate() throws {
+        if globalCodeSignBypass,
+           let parsedVariant = PatchFirmwareCLI.VariantOption(rawValue: variant),
+           !parsedVariant.supportsGlobalCodeSignBypass
+        {
+            throw ValidationError("`--global-code-sign-bypass` requires `--variant jb` or `--variant exp`")
+        }
+    }
 
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
@@ -42,7 +53,8 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             name: name, variant: variant,
             iphoneSource: sources.iphoneSource, cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword, spoofBuild: spoofBuild, forceDSCMaxSlide: forceDSCMaxSlide,
-            enableFrida: frida, rootPopup: rootPopup,
+            enableFrida: frida, enableGlobalCodeSignBypass: globalCodeSignBypass,
+            rootPopup: rootPopup,
             interactive: interactive, diskSizeGB: diskSize,
             verbosity: VPhoneVerbosity(count: verboseCount),
             keepArtifacts: keepArtifacts))

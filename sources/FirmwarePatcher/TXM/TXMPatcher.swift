@@ -51,7 +51,13 @@ public class TXMPatcher: Patcher {
 
     // MARK: - Emit
 
-    func emit(_ offset: Int, _ patchBytes: Data, patchID: String, description: String) {
+    func emit(
+        _ offset: Int,
+        _ patchBytes: Data,
+        patchID: String,
+        virtualAddress: UInt64? = nil,
+        description: String
+    ) {
         let originalBytes = buffer.readBytes(at: offset, count: patchBytes.count)
 
         let beforeInsn = disasm.disassembleOne(in: buffer.original, at: offset)
@@ -64,7 +70,7 @@ public class TXMPatcher: Patcher {
             patchID: patchID,
             component: component,
             fileOffset: offset,
-            virtualAddress: nil,
+            virtualAddress: virtualAddress,
             originalBytes: originalBytes,
             patchedBytes: patchBytes,
             beforeDisasm: beforeStr,

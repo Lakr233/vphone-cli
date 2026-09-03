@@ -95,6 +95,20 @@
 | 10  | Selector42\|29 shellcode: branch back             | Return from shellcode to stub+4           |    -    |  Y  |  Y  |
 | 11  | Debugger entitlement (selector 42\|37)            | `bl` -> `mov w0, #1`                      |    -    |  Y  |  Y  |
 | 12  | Developer mode bypass                             | NOP conditional guard before deny path    |    -    |  Y  |  Y  |
+| 13  | Global page-enforcement failure bypass            | `cbnz wError, error` -> NOP                |    -    |  -   | opt-in |
+
+TXM item 13 is disabled by default and is available only to JB/EXP firmware
+through `--global-code-sign-bypass`; `less`, `regular`, and `dev` reject the
+flag. It removes guest code-page enforcement globally, so it is not part of the
+normal JB output. The matcher anchors on the unique `page enforcement failed`
+cstring, recovers the containing PACIBSP function, verifies the register-aware
+`BL -> MOV -> LSR -> UBFX -> CBNZ` path plus the page/index loop fallthrough,
+and fails unless exactly one branch matches. Real-image validation found
+`0x1CC80` / `0xFFFFFFF017020C80` on cloudOS 26.1 and 26.3
+(`TrustedExecutionMonitor_Guarded-182.40.3`) and `0x1CC68` /
+`0xFFFFFFF017020C68` on cloudOS 26.4
+(`TrustedExecutionMonitor_Guarded-187.100.3`). See
+[`txm_jb_patches.md`](./txm_jb_patches.md#patch-7-opt-in-global-page-enforcement-failure-bypass).
 
 ## Kernelcache
 

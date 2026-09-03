@@ -2,17 +2,26 @@
 //
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
 
+import Capstone
 import Foundation
 
 /// Dev-variant patcher for TXM images.
 ///
-/// Adds 5 patch methods (11 patch records) beyond base trustcache bypass:
+/// Adds 5 patch methods (11 patch records) beyond base trustcache bypass.
+/// An explicit opt-in can add the global page-enforcement bypass.
 ///   1. selector24 force PASS (mov w0, #0xa1 + b epilogue)
 ///   2. get-task-allow entitlement BL → mov x0, #1
 ///   3. selector42|29 shellcode hook + manifest flag force
 ///   4. debugger entitlement BL → mov w0, #1
 ///   5. developer-mode guard → nop
 public final class TXMDevPatcher: TXMPatcher {
+    public let globalCodeSignBypass: Bool
+
+    public init(data: Data, verbose: Bool = true, globalCodeSignBypass: Bool = false) {
+        self.globalCodeSignBypass = globalCodeSignBypass
+        super.init(data: data, verbose: verbose)
+    }
+
     override public func findAll() throws -> [PatchRecord] {
         patches = []
         try patchTrustcacheBypass() // base patch
@@ -21,6 +30,9 @@ public final class TXMDevPatcher: TXMPatcher {
         patchSelector42_29Shellcode()
         patchDebuggerEntitlementForceTrue()
         patchDeveloperModeBypass()
+        if globalCodeSignBypass {
+            try patchPageEnforcementGlobalBypass()
+        }
         return patches
     }
 
@@ -28,7 +40,8 @@ public final class TXMDevPatcher: TXMPatcher {
 
     /// Find all ADRP+ADD pairs in the flat binary that resolve to `targetOff`.
     ///
-    /// TXM is a raw flat binary (no Mach-O), so we cannot use a pre-built ADRP index.
+    /// TXM references are resolved with file-relative arithmetic, so no pre-built
+    /// Mach-O ADRP index is required.
     /// This mirrors the Python `_find_refs_to_offset` full linear scan.
     ///
     /// Returns an array of `(adrpOff, addOff)` pairs.
@@ -107,6 +120,29 @@ public final class TXMDevPatcher: TXMPatcher {
                 return scan
             }
             scan -= 4
+        }
+        return nil
+    }
+
+    private func findFuncEnd(_ start: Int, forward: Int = 0x2000) -> Int {
+        let limit = min(buffer.count, start + forward)
+        var scan = start + 4
+        while scan + 4 <= limit {
+            if buffer.readU32(at: scan) == ARM64.pacibspU32 {
+                return scan
+            }
+            scan += 4
+        }
+        return limit
+    }
+
+    private func fileOffsetToVA(_ offset: Int) -> UInt64? {
+        for segment in MachOParser.parseSegments(from: buffer.original) {
+            let fileOffset = UInt64(offset)
+            guard fileOffset >= segment.fileOffset,
+                  fileOffset < segment.fileOffset + segment.fileSize
+            else { continue }
+            return segment.vmAddr + (fileOffset - segment.fileOffset)
         }
         return nil
     }
@@ -202,6 +238,223 @@ public final class TXMDevPatcher: TXMPatcher {
     }
 
     // MARK: - Dev Patches
+
+    /// Globally ignore inner page-enforcement failures while preserving the
+    /// handler's argument, allocation, and non-code-signing error paths.
+    func patchPageEnforcementGlobalBypass() throws {
+        let anchor = Data("page enforcement failed".utf8)
+        let anchorMatches = buffer.findAll(anchor)
+        guard anchorMatches.count == 1 else {
+            if anchorMatches.isEmpty {
+                throw PatcherError.patchSiteNotFound("TXM page-enforcement failure string")
+            }
+            throw PatcherError.multipleMatchesFound(
+                "TXM page-enforcement failure string",
+                count: anchorMatches.count
+            )
+        }
+
+        var stringOffset = anchorMatches[0]
+        while stringOffset > 0, buffer.data[stringOffset - 1] != 0 {
+            stringOffset -= 1
+        }
+
+        let references = findRefsToOffset(stringOffset)
+        guard !references.isEmpty else {
+            throw PatcherError.patchSiteNotFound("TXM page-enforcement failure string reference")
+        }
+
+        let functionStarts = Set(references.compactMap { findFuncStart($0.adrpOff) })
+        guard !functionStarts.isEmpty else {
+            throw PatcherError.patchSiteNotFound("TXM page-enforcement handler")
+        }
+
+        var matches = Set<Int>()
+        for functionStart in functionStarts {
+            let functionEnd = findFuncEnd(functionStart)
+            for offset in stride(from: functionStart, to: max(functionStart, functionEnd - 16), by: 4) {
+                if matchesPageEnforcementFailureGate(at: offset, functionStart: functionStart, functionEnd: functionEnd) {
+                    matches.insert(offset + 16)
+                }
+            }
+        }
+
+        guard matches.count == 1, let patchOffset = matches.first else {
+            if matches.isEmpty {
+                throw PatcherError.patchSiteNotFound("TXM page-enforcement failure branch")
+            }
+            throw PatcherError.multipleMatchesFound(
+                "TXM page-enforcement failure branch",
+                count: matches.count
+            )
+        }
+
+        emit(
+            patchOffset,
+            ARM64.nop,
+            patchID: "txm_jb.page_enforcement_global_bypass",
+            virtualAddress: fileOffsetToVA(patchOffset),
+            description: "global code-sign bypass: ignore inner page-enforcement failure"
+        )
+    }
+
+    private func matchesPageEnforcementFailureGate(
+        at offset: Int,
+        functionStart: Int,
+        functionEnd: Int
+    ) -> Bool {
+        guard
+            let call = disasm.disassembleOne(in: buffer.original, at: offset),
+            let move = disasm.disassembleOne(in: buffer.original, at: offset + 4),
+            let shift = disasm.disassembleOne(in: buffer.original, at: offset + 8),
+            let extract = disasm.disassembleOne(in: buffer.original, at: offset + 12),
+            let branch = disasm.disassembleOne(in: buffer.original, at: offset + 16),
+            call.mnemonic == "bl",
+            let resultRegister = movedResultRegister(move),
+            isRightShiftOfResult(shift, sourceRegister: resultRegister),
+            let errorRegister = extractedErrorRegister(extract, sourceRegister: resultRegister),
+            isErrorBranch(branch, register: errorRegister, functionEnd: functionEnd)
+        else { return false }
+
+        return fallthroughAdvancesPageAndLoops(
+            after: offset + 16,
+            callOffset: offset,
+            functionStart: functionStart,
+            functionEnd: functionEnd
+        )
+    }
+
+    private func movedResultRegister(_ instruction: Instruction) -> Int? {
+        guard instruction.mnemonic == "mov",
+              let operands = instruction.aarch64?.operands,
+              operands.count == 2,
+              registerName(operands[0])?.hasPrefix("w") == true,
+              registerNumber(operands[1]) == 0,
+              registerName(operands[1])?.hasPrefix("w") == true
+        else { return nil }
+        return registerNumber(operands[0])
+    }
+
+    private func isRightShiftOfResult(_ instruction: Instruction, sourceRegister: Int) -> Bool {
+        guard instruction.mnemonic == "lsr",
+              let operands = instruction.aarch64?.operands,
+              operands.count >= 2,
+              registerNumber(operands[1]) == sourceRegister
+        else { return false }
+        return true
+    }
+
+    private func extractedErrorRegister(_ instruction: Instruction, sourceRegister: Int) -> Int? {
+        guard instruction.mnemonic == "ubfx",
+              let operands = instruction.aarch64?.operands,
+              operands.count == 4,
+              registerNumber(operands[1]) == sourceRegister,
+              operands[2].type == AARCH64_OP_IMM,
+              operands[2].imm == 8,
+              operands[3].type == AARCH64_OP_IMM,
+              operands[3].imm == 8
+        else { return nil }
+        return registerNumber(operands[0])
+    }
+
+    private func isErrorBranch(_ instruction: Instruction, register: Int, functionEnd: Int) -> Bool {
+        guard instruction.mnemonic == "cbnz",
+              let operands = instruction.aarch64?.operands,
+              operands.count == 2,
+              registerNumber(operands[0]) == register,
+              registerName(operands[0])?.hasPrefix("w") == true,
+              operands[1].type == AARCH64_OP_IMM
+        else { return false }
+
+        let target = operands[1].imm
+        return target > Int64(instruction.address) && target < Int64(functionEnd)
+    }
+
+    private func fallthroughAdvancesPageAndLoops(
+        after branchOffset: Int,
+        callOffset: Int,
+        functionStart: Int,
+        functionEnd: Int
+    ) -> Bool {
+        let scanEnd = min(functionEnd, branchOffset + 4 + 12 * 4)
+        let instructions = disasm.disassemble(
+            in: buffer.original,
+            at: branchOffset + 4,
+            count: max(0, (scanEnd - branchOffset - 4) / 4)
+        )
+
+        var cursorRegister: Int?
+        var indexRegister: Int?
+        var comparedIndex = false
+
+        for instruction in instructions {
+            if cursorRegister == nil, let cursor = selfAdvancedRegister(in: instruction, immediate: nil, width: "x") {
+                cursorRegister = cursor
+                continue
+            }
+
+            if cursorRegister != nil, indexRegister == nil,
+               let index = selfAdvancedRegister(in: instruction, immediate: 1, width: "w"),
+               index != cursorRegister
+            {
+                indexRegister = index
+                continue
+            }
+
+            if let indexRegister, !comparedIndex,
+               instruction.mnemonic == "cmp",
+               let operands = instruction.aarch64?.operands,
+               operands.count >= 2,
+               registerNumber(operands[0]) == indexRegister
+            {
+                comparedIndex = true
+                continue
+            }
+
+            if comparedIndex,
+               instruction.mnemonic == "b.lo",
+               let operands = instruction.aarch64?.operands,
+               operands.count == 1,
+               operands[0].type == AARCH64_OP_IMM
+            {
+                let target = operands[0].imm
+                return target >= Int64(functionStart) && target <= Int64(callOffset)
+            }
+        }
+        return false
+    }
+
+    private func selfAdvancedRegister(
+        in instruction: Instruction,
+        immediate: Int64?,
+        width: Character
+    ) -> Int? {
+        guard instruction.mnemonic == "add",
+              let operands = instruction.aarch64?.operands,
+              operands.count == 3,
+              let destinationName = registerName(operands[0]),
+              destinationName.first == width,
+              let destination = registerNumber(operands[0]),
+              registerNumber(operands[1]) == destination
+        else { return nil }
+
+        if let immediate {
+            guard operands[2].type == AARCH64_OP_IMM, operands[2].imm == immediate else { return nil }
+        } else {
+            guard operands[2].type == AARCH64_OP_REG else { return nil }
+        }
+        return destination
+    }
+
+    private func registerName(_ operand: AArch64Operand) -> String? {
+        guard operand.type == AARCH64_OP_REG else { return nil }
+        return disasm.registerName(UInt32(operand.reg.rawValue))
+    }
+
+    private func registerNumber(_ operand: AArch64Operand) -> Int? {
+        guard let name = registerName(operand), name.first == "w" || name.first == "x" else { return nil }
+        return Int(name.dropFirst())
+    }
 
     /// Patch selector24 handler to return 0xA1 (PASS) immediately.
     ///
