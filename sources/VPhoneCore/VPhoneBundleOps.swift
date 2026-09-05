@@ -300,8 +300,9 @@ public enum VPhoneBundleOps {
             throw VPhoneBundleOpsError.badArchive(
                 "archive did not contain a valid bundle (\(archived)/config.plist)")
         }
+        let bundle = try VPhoneBundle.load(at: extracted)
         try fm.moveItem(at: extracted, to: dst)
-        return try VPhoneBundle.load(at: dst)
+        return VPhoneBundle(url: dst, manifest: bundle.manifest)
     }
 
     private static func fileByteSize(_ url: URL) -> Int64 {

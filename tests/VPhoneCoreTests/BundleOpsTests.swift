@@ -362,6 +362,39 @@ struct BundleOpsTests {
         }
     }
 
+    @Test func importRejectsInvalidManifestWithoutReservingName() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let bundleDir = root.appendingPathComponent("original")
+        try fm.createDirectory(at: bundleDir, withIntermediateDirectories: true)
+        let config = bundleDir.appendingPathComponent("config.plist")
+        try "not a plist".write(to: config, atomically: true, encoding: .utf8)
+        let archive = root.appendingPathComponent("vm.tgz")
+        let lib = VPhoneLibrary(root: root.appendingPathComponent("library"))
+
+        func pack() throws {
+            let result = try VPhoneProcessRunner.runCapturing(
+                URL(fileURLWithPath: "/usr/bin/tar"),
+                ["-czf", archive.path, "-C", root.path, "original"])
+            try #require(result.succeeded)
+        }
+        try pack()
+        #expect(throws: VPhoneManifestError.self) {
+            _ = try VPhoneBundleOps.importArchive(from: archive, name: nil, in: lib)
+        }
+        // Neither a destination bundle nor a hidden staging directory may remain.
+        #expect(try fm.contentsOfDirectory(atPath: lib.root.path).isEmpty)
+
+        let manifest = VPhoneVirtualMachineManifest(
+            cpuCount: 2, memorySize: 2048 * 1024 * 1024, romImages: nil)
+        try manifest.write(to: config)
+        try pack()
+        let imported = try VPhoneBundleOps.importArchive(from: archive, name: nil, in: lib)
+        #expect(imported.url == lib.url(forName: "original"))
+        #expect(try lib.bundle(named: "original").manifest.cpuCount == 2)
+    }
+
     // MARK: - Compression presets
 
     private static let zstdMagic: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD]
