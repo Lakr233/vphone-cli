@@ -56,6 +56,7 @@ public enum VPhoneFirmwareCatalog {
         .init(iosName: "iOS 26.5.2", iosURL: "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/140-25549/1AFB1F72-E48E-476A-9C21-42B27C846C01/iPhone17,3_26.5.2_23F84_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 26.6", iosURL: "https://updates.cdn-apple.com/2026SummerFCS/fullrestores/140-58193/1F477C3E-934B-43C0-B428-753B9E005EC0/iPhone17,3_26.6_23G71_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 26.6.1", iosURL: "https://updates.cdn-apple.com/2026SummerFCS/fullrestores/140-93817/B5362BAA-F3EE-49C8-BA43-309F0DAD1362/iPhone17,3_26.6.1_23G83_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
+        .init(iosName: "iOS 26.6.2", iosURL: "https://updates.cdn-apple.com/2026SummerFCS/29d685ce-f70d-45a0-9823-b1cd115f3927/iPhone17,3_26.6.2_23G90_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27 beta 1", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/fullrestores/122-99394/32118457-A80B-4953-BF2A-11F74FD7D375/iPhone17,3_27.0_24A5355q_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27 beta 2", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/fullrestores/140-21207/F0510574-F649-48C5-B535-0A477E342BFB/iPhone17,3_27.0_24A5370h_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27 beta 3", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/fullrestores/140-35950/D135F5B5-C2BE-4630-8AE9-C78A6F0E8381/iPhone17,3_27.0_24A5380h_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
@@ -64,6 +65,7 @@ public enum VPhoneFirmwareCatalog {
         .init(iosName: "iOS 27 beta 6", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/ad5b3026-b03e-4b21-8bcb-96d6ea527e09/iPhone17,3_27.0_24A5418b_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27 beta 7", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/ad5a4f9d-f005-466b-bbcf-3b466040074b/iPhone17,3_27.0_24A5424a_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27 beta 8", iosURL: "https://updates.cdn-apple.com/2026SpringSeed/2d03d580-843b-4b2a-b09d-976b31c10744/iPhone17,3_27.0_24A5430a_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
+        .init(iosName: "iOS 27.0 RC", iosURL: "https://updates.cdn-apple.com/2026FallFCS/2d0cd01d-b4f9-4a20-a1e8-f3be54570da7/iPhone17,3_27.0_24A435_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
     ]
 
     /// Distinct cloudOS images (first-seen order) for the "choose the cloudOS" prompt.
