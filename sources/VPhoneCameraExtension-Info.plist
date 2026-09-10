@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleExecutable</key><string>vphone-camera-extension</string>
+    <key>CFBundleIdentifier</key><string>com.vphone.cli.camera</string>
+    <key>CFBundleName</key><string>VPhone Display Camera</string>
+    <key>CFBundlePackageType</key><string>SYSX</string>
+    <key>CFBundleShortVersionString</key><string>1.2.3</string>
+    <key>CFBundleVersion</key><string>6</string>
+    <key>CMIOExtension</key>
+    <dict><key>CMIOExtensionMachServiceName</key><string>com.vphone.cli.camera</string></dict>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.cmio.extension</string>
+    </dict>
+    <key>NSSystemExtensionUsageDescription</key>
+    <string>Provides the VPhone Display virtual camera to compatible macOS applications.</string>
+</dict>
+</plist>

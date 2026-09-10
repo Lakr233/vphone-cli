@@ -327,6 +327,16 @@ class VPhoneControl {
         let enabled: Bool
     }
 
+    /// Dynamic guest display/backlight state. `displayOn == nil` means the
+    /// current guest did not expose a recognized runtime API; callers must
+    /// retain their normal behavior rather than infer a false disconnection.
+    struct DisplayState {
+        let displayOn: Bool?
+        let locked: Bool?
+        let source: String?
+        let lockSource: String?
+    }
+
     func sendDevModeStatus() async throws -> DevModeStatus {
         let (resp, _) = try await sendRequest(["t": "devmode", "action": "status"])
         let enabled = resp["enabled"] as? Bool ?? false
@@ -340,6 +350,19 @@ class VPhoneControl {
     func sendVersion() async throws -> String {
         let (resp, _) = try await sendRequest(["t": "version"])
         return resp["hash"] as? String ?? "unknown"
+    }
+
+    func sendDisplayState() async throws -> DisplayState {
+        guard guestCaps.contains("display_state") else {
+            throw ControlError.unsupportedCapability("display_state")
+        }
+        let (resp, _) = try await sendRequest(["t": "display_state"])
+        return DisplayState(
+            displayOn: resp["display_on"] as? Bool,
+            locked: resp["locked"] as? Bool,
+            source: resp["source"] as? String,
+            lockSource: resp["lock_source"] as? String
+        )
     }
 
     /// Cancel all currently pending request continuations.

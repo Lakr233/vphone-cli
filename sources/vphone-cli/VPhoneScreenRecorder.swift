@@ -210,9 +210,17 @@ class VPhoneScreenRecorder {
         }
     }
 
-    private func captureStillImage(from view: NSView) async throws -> CGImage {
+    /// Capture one VM display frame for consumers such as the Host CMIO path.
+    func captureStillImage(from view: NSView) async throws -> CGImage {
         let source = try resolveCaptureSource(for: view)
-        guard let cgImage = await takeGraphicsScreenshot(from: source.graphicsDisplay) else {
+        return try await captureStillImage(from: source.graphicsDisplay)
+    }
+
+    /// Capture directly from a VM display.  This is deliberately independent
+    /// of `VZVirtualMachineView` and its window so headless VMs can still feed
+    /// the Host CMIO camera.
+    func captureStillImage(from graphicsDisplay: VZGraphicsDisplay) async throws -> CGImage {
+        guard let cgImage = await takeGraphicsScreenshot(from: graphicsDisplay) else {
             throw CaptureError.captureFailed
         }
         return cgImage

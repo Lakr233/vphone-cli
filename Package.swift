@@ -7,7 +7,11 @@ let package = Package(
     platforms: [
         .macOS(.v15),
     ],
-    products: [],
+    products: [
+        .library(name: "VPhoneCameraShared", targets: ["VPhoneCameraShared"]),
+        .executable(name: "vphone-camera-extension", targets: ["vphone-camera-extension"]),
+        .executable(name: "vphone-camera-installer", targets: ["vphone-camera-installer"]),
+    ],
     dependencies: [
         .package(path: "vendor/swift-argument-parser"),
         .package(path: "vendor/Dynamic"),
@@ -16,6 +20,29 @@ let package = Package(
         .package(path: "vendor/MachOKit"),
     ],
     targets: [
+        .target(
+            name: "VPhoneCameraShared",
+            path: "sources/VPhoneCameraShared"
+        ),
+        .executableTarget(
+            name: "vphone-camera-extension",
+            dependencies: ["VPhoneCameraShared"],
+            path: "sources/vphone-camera-extension",
+            linkerSettings: [
+                .linkedFramework("CoreMedia"),
+                .linkedFramework("CoreMediaIO"),
+                .linkedFramework("CoreVideo"),
+                .linkedFramework("IOKit"),
+            ]
+        ),
+        .executableTarget(
+            name: "vphone-camera-installer",
+            dependencies: ["VPhoneCameraShared"],
+            path: "sources/vphone-camera-installer",
+            linkerSettings: [
+                .linkedFramework("SystemExtensions"),
+            ]
+        ),
         .target(
             name: "FirmwarePatcher",
             dependencies: [
@@ -40,6 +67,7 @@ let package = Package(
                 .product(name: "Dynamic", package: "Dynamic"),
                 "FirmwarePatcher",
                 "VPhoneCore",
+                "VPhoneCameraShared",
             ],
             path: "sources/vphone-cli",
             linkerSettings: [
@@ -59,6 +87,11 @@ let package = Package(
             name: "VPhoneCoreTests",
             dependencies: ["VPhoneCore"],
             path: "tests/VPhoneCoreTests"
+        ),
+        .testTarget(
+            name: "VPhoneCameraSharedTests",
+            dependencies: ["VPhoneCameraShared"],
+            path: "tests/VPhoneCameraSharedTests"
         ),
     ]
 )
