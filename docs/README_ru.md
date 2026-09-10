@@ -4,7 +4,7 @@
 
 Запуск виртуального iPhone через Apple Virtualization.framework с использованием инфраструктуры исследовательской ВМ PCC.
 
-![poc](./docs/demo.jpeg)
+![poc](docs/demo.jpeg)
 
 ## Предварительные требования
 
