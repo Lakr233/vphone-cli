@@ -23,7 +23,7 @@ struct VPhoneVMCloneCommand: ParsableCommand {
 
 struct VPhoneVMExportCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "export", abstract: "Export a VM bundle to a .tgz archive")
+        commandName: "export", abstract: "Export a VM bundle to a compressed archive (.tzst, or .txz with --max)")
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
@@ -46,7 +46,7 @@ struct VPhoneVMExportCommand: ParsableCommand {
 
 struct VPhoneVMImportCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "import", abstract: "Import a VM bundle from a .tgz archive")
+        commandName: "import", abstract: "Import a VM bundle from a compressed archive (compressor auto-detected)")
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "input archive path") var input: String
