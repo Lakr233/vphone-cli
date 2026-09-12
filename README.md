@@ -1,4 +1,4 @@
-<div align="right"><strong><a href="./docs/README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./docs/README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./docs/README_zh.md">🇨🇳中文</a></strong> | <strong><a href="./docs/README_ru.md">🇷🇺Русский</a></strong> | <strong>🇬🇧English</strong></div>
+<div align="right"><strong><a href="./docs/README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./docs/README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./docs/README_zh.md">🇨🇳中文</a></strong> | <strong><a href="./docs/README_ru.md">🇷🇺Русский</a></strong> | <strong><a href="./docs/README_pt.md">🇧🇷Português</a></strong> | <strong>🇬🇧English</strong></div>
 
 # vphone-cli
 
