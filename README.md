@@ -6,6 +6,18 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 
 ![poc](./docs/demo.jpeg)
 
+## vphone-cli vs. Xcode Simulator
+
+The Simulator doesn't run iOS — it's a macOS process linking simulator-target binaries against a translation layer, so there's no real ARM64 kernel, no real entitlements/sandbox enforcement, and no jailbreak. Fine for day-to-day app development, but it can't stand in for the real OS.
+
+`vphone-cli` boots an actual iOS IPSW (real kernel, real boot chain) inside a VM via `Virtualization.framework`. That buys you:
+
+- Real entitlement/sandbox/AMFI behavior — needed for jailbreak development, tweak/exploit research, or apps that behave differently under real security checks
+- A full jailbreak (`jb`/`exp` variants: Sileo, TrollStore, SSH/VNC access, root)
+- A disposable, snapshot/clone-able device — no physical iPhone required for research that would otherwise need one
+
+It's heavier to set up (SIP/AMFI relaxation, IPSW downloads, DFU restore) and isn't a replacement for the Simulator in normal app development — reach for it when you need real-device fidelity the Simulator can't provide.
+
 ## Prerequisites
 
 **Host:**
