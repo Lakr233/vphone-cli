@@ -16,6 +16,7 @@
 set -euo pipefail
 SCRIPT_DIR="${0:a:h}"
 PROJ="${SCRIPT_DIR:h}"
+source "$SCRIPT_DIR/cfw_install_safety.zsh"
 
 VARIANT=exp
 VM_DIR="$PROJ/vm"
@@ -67,17 +68,27 @@ SYS=$(diskutil apfs list "$CONT" 2>/dev/null | awk '/APFS Volume Disk \(Role\):/
 [[ -n "$CONT" && -n "$SYS" ]] || { echo "[-] System volume not found in $IMG" >&2; hdiutil detach "$BASEDISK" 2>/dev/null; exit 1; }
 echo "[*] attached: container=$CONT system=$SYS"
 
+# Private root prevents mountpoint substitution by another local user.
+# Each guest mutation uses the kernel write boundary in cfw_install_safety.zsh.
+HOST_MNT=$(cfw_new_mount_root) || {
+  echo "[-] cannot create private mount root" >&2
+  hdiutil detach "$BASEDISK" 2>/dev/null || diskutil eject "$BASEDISK" 2>/dev/null || true
+  exit 1
+}
+export CFW_HOST_MNT="$HOST_MNT"
+
 cleanup() {
-  for m in /private/tmp/cfwhost/mnt1 /private/tmp/cfwhost/mnt3 /private/tmp/cfwhost/mnt5; do
+  for m in "$HOST_MNT/mnt1" "$HOST_MNT/mnt3" "$HOST_MNT/mnt5"; do
     umount "$m" 2>/dev/null || true
   done
+  /bin/rmdir "$HOST_MNT/mnt1" "$HOST_MNT/mnt3" "$HOST_MNT/mnt5" "$HOST_MNT" 2>/dev/null || true
   hdiutil detach "$BASEDISK" 2>/dev/null || diskutil eject "$BASEDISK" 2>/dev/null || true
 }
 trap cleanup EXIT
 
 echo "[*] running $INSTALLER (files placed on host mounts)..."
 # via env: an expansion-produced ${VAR:+NAME=val} isn't parsed as a shell assignment.
-( cd "$VM_DIR" && env CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
+( cd "$VM_DIR" && env CFW_INSTALL_HOST_MODE=1 CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" CFW_HOST_MNT="$HOST_MNT" \
     ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} \
     ${FORCE_DSC_MAXSLIDE:+FORCE_DSC_MAXSLIDE="$FORCE_DSC_MAXSLIDE"} \
     ${VPHONE_FRIDA:+VPHONE_FRIDA="$VPHONE_FRIDA"} \

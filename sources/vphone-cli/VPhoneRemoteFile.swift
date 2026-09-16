@@ -85,7 +85,8 @@ extension VPhoneRemoteFile {
     init?(dir: String, entry: [String: Any]) {
         guard let name = entry["name"] as? String,
               let typeStr = entry["type"] as? String,
-              let type = FileType(rawValue: typeStr)
+              let type = FileType(rawValue: typeStr),
+              !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\0")
         else { return nil }
 
         self.dir = dir
