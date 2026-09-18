@@ -333,3 +333,4 @@ setup_logs/
 /vm.backups
 /vm-*/
 /debs/
+/.reasonix/

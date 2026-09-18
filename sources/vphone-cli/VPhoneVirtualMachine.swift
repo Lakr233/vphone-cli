@@ -13,6 +13,8 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     private var serialOutputReadHandle: FileHandle?
     /// Synthetic battery source for runtime charge/connectivity updates.
     private var batterySource: AnyObject?
+    /// Network backend owning any host-side helper (userspace mode) for this boot.
+    private var networkSession: VPhoneNetworkSession?
 
     public enum Variant: String, Sendable {
         case less
@@ -184,9 +186,19 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
         config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
-        // Network (mode + MAC from the bundle manifest; nat/bridged/none)
-        if let net = try VPhoneNetworking.makeNetworkDevice(manifest.networkConfig) {
+        // Network (mode from the bundle manifest; nat/bridged/tunnel/none).
+        // `tunnel` starts a host-side gvproxy process, which the session owns; its
+        // diagnostic switches (VPHONE_NET_DEBUG / VPHONE_NET_PCAP) come from the environment.
+        let session = try VPhoneNetworking.makeNetworkSession(
+            manifest.networkConfig,
+            tunnelNetworkOptions: .fromEnvironment(
+                logFileURL: options.configURL.deletingLastPathComponent()
+                    .appendingPathComponent("net-helper.log"))
+        )
+        networkSession = session
+        if let net = session.device {
             config.networkDevices = [net]
+            print("[vphone] Network mode: \(manifest.networkConfig.mode.rawValue)")
         } else {
             config.networkDevices = []
         }
@@ -289,7 +301,13 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         }
 
         // Validate
-        try config.validate()
+        do {
+            try config.validate()
+        } catch {
+            // Don't leave the userspace helper (and its sockets) behind.
+            networkSession?.stop()
+            throw error
+        }
         print("[vphone] Configuration validated")
 
         virtualMachine = VZVirtualMachine(configuration: config)

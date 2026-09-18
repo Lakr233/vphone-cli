@@ -91,6 +91,17 @@ for t in trustcache insert_dylib; do
   if [[ -x ".tools/bin/$t" ]]; then cp -f ".tools/bin/$t" "${RES}/.tools/bin/$t"
   else echo "Error: .tools/bin/$t missing — run ./scripts/setup_tools.sh first" >&2; exit 1; fi
 done
+# Userspace networking helper for `--network tunnel` (VPN-safe NAT). Optional: only
+# needed for that mode, and it is a download rather than a build product — so a
+# missing helper warns instead of failing the build. VPhoneTunnelNetwork resolves it
+# from Contents/Resources (see sources/VPhoneCore/VPhoneTunnelNetwork.swift).
+if [[ -x ".tools/bin/gvproxy" ]]; then
+  cp -f ".tools/bin/gvproxy" "${RES}/gvproxy"
+  echo "  bundled gvproxy (userspace networking helper)"
+else
+  echo "[!] .tools/bin/gvproxy missing — '--network tunnel' will not work from this bundle." >&2
+  echo "    Run 'make net_helper' and rebuild to bundle it." >&2
+fi
 [[ -f .build/vphoned.signed ]] && cp -f .build/vphoned.signed "${RES}/vphoned.signed" || true
 # requirements.txt lets the app provision its own ~/.vphone/venv on first run
 # (see VPhoneResources.pythonExecutable) — the app carries no venv itself.
@@ -104,7 +115,7 @@ cp -f README.md "${RES}/README.md"
 # Homebrew `binary` symlink exposes it on PATH.
 cp -f scripts/vphone-amfidont "${RES}/vphone-amfidont"
 chmod +x "${RES}/vphone-amfidont"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md, vphone-amfidont"
+echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, gvproxy (if present), vphoned.signed, requirements.txt, debs.list, README.md, vphone-amfidont"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —

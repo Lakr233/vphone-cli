@@ -12,6 +12,8 @@ public enum VPhoneNetworkingError: Error, Equatable {
     case noBridgeInterfaces
     /// `--bridge-interface` was given without selecting bridged mode.
     case bridgeInterfaceWithoutBridgedMode
+    /// `tunnel` mode pins to a helper process, so it needs a session, not a bare device.
+    case tunnelModeNeedsSession
 }
 
 extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
@@ -25,6 +27,11 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
             "bridged mode requires a host interface, but none are available for bridging"
         case .bridgeInterfaceWithoutBridgedMode:
             "--bridge-interface is only valid with --network bridged"
+        case .tunnelModeNeedsSession:
+            """
+            network mode 'tunnel' is backed by a helper process; build it with \
+            VPhoneNetworking.makeNetworkSession(_:) rather than makeNetworkDevice(_:)
+            """
         }
     }
     public var errorDescription: String? { description }
@@ -92,12 +99,16 @@ public enum VPhoneNetworking {
     /// Build the VZ network device for a config, or nil for `.off` (no NIC).
     /// The MAC is left framework-assigned; a forced MAC breaks guest networking.
     /// Throws if the config cannot be realized (missing bridge interface, hostOnly).
+    ///
+    /// `.tunnel` cannot be realized without a helper process — use `makeNetworkSession`.
     public static func makeNetworkDevice(_ cfg: NetworkConfig) throws -> VZVirtioNetworkDeviceConfiguration? {
         switch cfg.mode {
         case .off:
             return nil
         case .hostOnly:
             throw VPhoneNetworkingError.hostOnlyUnsupported
+        case .tunnel:
+            throw VPhoneNetworkingError.tunnelModeNeedsSession
         case .nat:
             let net = VZVirtioNetworkDeviceConfiguration()
             net.attachment = VZNATNetworkDeviceAttachment()
@@ -114,5 +125,55 @@ public enum VPhoneNetworking {
             net.attachment = VZBridgedNetworkDeviceAttachment(interface: iface)
             return net
         }
+    }
+
+    /// Realize `cfg` for a boot. Unlike `makeNetworkDevice`, this also starts whatever
+    /// host-side helper the mode needs, and returns a session that owns that lifetime.
+    /// Callers must `stop()` the session when the VM goes away.
+    public static func makeNetworkSession(
+        _ cfg: NetworkConfig,
+        tunnelNetworkOptions: VPhoneTunnelNetwork.Options = .default
+    ) throws -> VPhoneNetworkSession {
+        guard cfg.mode == .tunnel else {
+            return VPhoneNetworkSession(mode: cfg.mode, device: try makeNetworkDevice(cfg))
+        }
+        let network = VPhoneTunnelNetwork(options: tunnelNetworkOptions)
+        let device = VZVirtioNetworkDeviceConfiguration()
+        do {
+            device.attachment = try network.start()
+        } catch {
+            network.stop()
+            throw error
+        }
+        return VPhoneNetworkSession(mode: .tunnel, device: device, tunnelNetwork: network)
+    }
+}
+
+// MARK: - Session
+
+/// A realized network backend for one boot: the device to attach into the VM
+/// configuration plus anything that has to be torn down with it. Today only
+/// `tunnel` mode owns a host process; the other modes are device-only.
+public final class VPhoneNetworkSession {
+    public typealias NetworkMode = VPhoneNetworking.NetworkConfig.NetworkMode
+
+    public let mode: NetworkMode
+    /// NIC for `VZVirtualMachineConfiguration.networkDevices`; nil for `.off`.
+    public let device: VZVirtioNetworkDeviceConfiguration?
+    private let tunnelNetwork: VPhoneTunnelNetwork?
+
+    init(mode: NetworkMode, device: VZVirtioNetworkDeviceConfiguration?, tunnelNetwork: VPhoneTunnelNetwork? = nil) {
+        self.mode = mode
+        self.device = device
+        self.tunnelNetwork = tunnelNetwork
+    }
+
+    /// Idempotent: terminates a helper process and removes its sockets.
+    public func stop() {
+        tunnelNetwork?.stop()
+    }
+
+    deinit {
+        stop()
     }
 }

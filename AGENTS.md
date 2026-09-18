@@ -12,6 +12,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Platform:** macOS 15+ (Sequoia), SIP/AMFI disabled
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
 - **Python deps:** `capstone`, `keystone-engine`, `pyimg4` (see `requirements.txt`)
+- **VM networking:** `--network nat` (vmnet) and `bridged` both stop working when a VPN owns the host's default route — use `--network tunnel` (gvproxy userspace NAT, `make net_helper`). See `research/userspace_networking_gvproxy.md`.
 
 ## Workflow Rules
 
@@ -109,6 +110,7 @@ scripts/
 ├── setup_venv.sh                 # Create Python venv
 ├── setup_venv_linux.sh           # Create Python venv (Linux)
 ├── setup_libimobiledevice.sh     # Build libimobiledevice stack from scripts/repos submodules
+├── net_helper.sh                 # Download the userspace networking helper (gvproxy; --network tunnel)
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
 
 tools/
