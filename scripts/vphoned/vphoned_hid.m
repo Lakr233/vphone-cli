@@ -100,21 +100,27 @@ void vp_hid_key(uint32_t page, uint32_t usage, BOOL down) {
     if (ev) { send_hid_event(ev); CFRelease(ev); }
 }
 
-// Build a display-integrated hand digitizer event carrying one finger and
-// dispatch it. Mirrors WebKit's HIDEventGenerator single-touch path.
-static void dispatch_digitizer(double x, double y, boolean_t range,
-                               boolean_t touch, uint32_t mask) {
-    if (!pDigitizer || !pFinger || !pAppend || !pSetInt) return;
+// Build a display-integrated hand digitizer event carrying one or more fingers
+// and dispatch it. Mirrors WebKit's HIDEventGenerator multi-touch path.
+static void dispatch_digitizer_points(const double *xs, const double *ys,
+                                      int count, boolean_t range,
+                                      boolean_t touch, uint32_t mask) {
+    if (!pDigitizer || !pFinger || !pAppend || !pSetInt || count <= 0) return;
 
     uint64_t ts = mach_absolute_time();
     IOHIDEventRef parent = pDigitizer(kCFAllocatorDefault, ts, VP_TRANSDUCER_HAND,
-                                      0, 0, mask, 0, x, y, 0, 0, 0, range, touch, 0);
+                                      0, 0, mask, 0, xs[0], ys[0], 0, 0, 0, range, touch, 0);
     if (!parent) return;
     pSetInt(parent, VP_FIELD_IS_DISPLAY_INTEGRATED, 1);
 
-    IOHIDEventRef finger = pFinger(kCFAllocatorDefault, ts, 1, VP_TRANSDUCER_FINGER,
-                                   mask, x, y, 0, 0, 0, range, touch, 0);
-    if (finger) {
+    for (int i = 0; i < count; i++) {
+        // Finger 0 keeps index 1 / identity 2, matching the original
+        // single-touch path; extra fingers get their own identity so the guest
+        // tracks them as separate touches.
+        IOHIDEventRef finger = pFinger(kCFAllocatorDefault, ts, (uint32_t)(i + 1),
+                                       (uint32_t)(i + 2), mask, xs[i], ys[i],
+                                       0, 0, 0, range, touch, 0);
+        if (!finger) continue;
         pSetInt(finger, VP_FIELD_IS_DISPLAY_INTEGRATED, 1);
         pAppend(parent, finger, 0);
         CFRelease(finger);
@@ -129,6 +135,11 @@ static void dispatch_digitizer(double x, double y, boolean_t range,
     CFRelease(parent);
 }
 
+static void dispatch_digitizer(double x, double y, boolean_t range,
+                               boolean_t touch, uint32_t mask) {
+    dispatch_digitizer_points(&x, &y, 1, range, touch, mask);
+}
+
 void vp_hid_touch(int phase, double x, double y) {
     switch (phase) {
     case 0: // down
@@ -140,6 +151,23 @@ void vp_hid_touch(int phase, double x, double y) {
     case 3: // up
     default:
         dispatch_digitizer(x, y, 0, 0, VP_DIG_TOUCH | VP_DIG_IDENTITY);
+        break;
+    }
+}
+
+void vp_hid_touch2(int phase, double x1, double y1, double x2, double y2) {
+    const double xs[2] = {x1, x2};
+    const double ys[2] = {y1, y2};
+    switch (phase) {
+    case 0: // down
+        dispatch_digitizer_points(xs, ys, 2, 1, 1, VP_DIG_TOUCH | VP_DIG_IDENTITY);
+        break;
+    case 1: // move
+        dispatch_digitizer_points(xs, ys, 2, 1, 1, VP_DIG_POSITION);
+        break;
+    case 3: // up
+    default:
+        dispatch_digitizer_points(xs, ys, 2, 0, 0, VP_DIG_TOUCH | VP_DIG_IDENTITY);
         break;
     }
 }

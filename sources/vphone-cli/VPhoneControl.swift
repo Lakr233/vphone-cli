@@ -42,6 +42,13 @@ class VPhoneControl {
         else { return false }
         return major < 26
     }
+
+    /// Whether the guest agent can inject multi-finger digitizer touches
+    /// (`touch2`), used for trackpad pinch gestures.
+    var supportsMultiTouch: Bool {
+        isConnected && guestCaps.contains("touch2")
+    }
+
     /// Path to the signed vphoned binary. When set, enables auto-update.
     var guestBinaryURL: URL?
 
@@ -317,6 +324,27 @@ class VPhoneControl {
         ]
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
             print("[control] touch send failed (not connected)")
+            return
+        }
+    }
+
+    /// Inject a two-finger digitizer touch guest-side (pinch gestures).
+    /// phase: 0 = down, 1 = move, 3 = up. Coordinates are normalized 0..1,
+    /// top-left origin. Both fingers travel in one hand event.
+    func sendTouch2(phase: Int, x1: Double, y1: Double, x2: Double, y2: Double) {
+        nextRequestId += 1
+        let msg: [String: Any] = [
+            "v": Self.protocolVersion,
+            "t": "touch2",
+            "id": String(nextRequestId, radix: 16),
+            "phase": phase,
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2,
+        ]
+        guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
+            print("[control] touch2 send failed (not connected)")
             return
         }
     }

@@ -209,6 +209,13 @@ static NSDictionary *handle_command(NSDictionary *msg) {
     return vp_make_response(@"ok", reqId);
   }
 
+  if ([type isEqualToString:@"touch2"]) {
+    int phase = [msg[@"phase"] intValue];
+    vp_hid_touch2(phase, [msg[@"x1"] doubleValue], [msg[@"y1"] doubleValue],
+                  [msg[@"x2"] doubleValue], [msg[@"y2"] doubleValue]);
+    return vp_make_response(@"ok", reqId);
+  }
+
   if ([type isEqualToString:@"devmode"]) {
     if (!vp_devmode_available()) {
       NSMutableDictionary *r = vp_make_response(@"err", reqId);
@@ -340,6 +347,7 @@ static BOOL handle_client(int fd) {
     [caps addObject:@"url"];
     [caps addObject:@"settings"];
     [caps addObject:@"touch"];
+    [caps addObject:@"touch2"];
 
     NSMutableDictionary *helloResp = [@{
       @"v" : @PROTOCOL_VERSION,

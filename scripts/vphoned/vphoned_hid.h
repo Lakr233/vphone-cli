@@ -22,3 +22,9 @@ void vp_hid_key(uint32_t page, uint32_t usage, BOOL down);
 /// origin at the top-left. Used for iOS 18 bases where the VZ USB touchscreen
 /// dext produces no digitizer events on the 26.x kernel.
 void vp_hid_touch(int phase, double x, double y);
+
+/// Inject a two-finger digitizer touch event (pinch gestures). Both fingers are
+/// carried in a single hand event so the guest sees one multi-touch gesture.
+/// phase: 0 = down, 1 = move, 3 = up. Coordinates are normalized 0..1 with the
+/// origin at the top-left.
+void vp_hid_touch2(int phase, double x1, double y1, double x2, double y2);
