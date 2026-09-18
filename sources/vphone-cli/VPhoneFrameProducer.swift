@@ -123,15 +123,13 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
 
 // MARK: - Video file (.mov / .mp4 / .m4v via AVAssetReader)
 
-/// Plays a video file in a loop. Decode is delegated to `AVAssetReader`
-/// with a BGRA output spec, so anything AVFoundation can demux on macOS
-/// works (`.mov`, `.mp4`, `.m4v`). For unsupported containers
-/// (`.mkv`, `.webm`, `.avi`) convert externally first
-/// (e.g. `ffmpeg -i in.mkv -c copy out.mov` if codecs are compatible).
-///
-/// The producer rescales the input video to the configured camera
-/// width/height using a Core Image render so the wire-format payload
-/// length stays constant regardless of the source resolution. Output is
+/// Plays a video file in a loop. Decode is delegated to
+/// `AVAssetReaderVideoCompositionOutput` with a letterbox video
+/// composition, so ANY source (4K portrait iPhone clips included) renders
+/// straight to the camera's output size without ever materializing
+/// full-resolution BGRA frames — a 2160x3840 source previously churned
+/// ~33 MB per frame and OOM'd the host. Aspect ratio is preserved
+/// (black bars), which document-analysis clients require. Output is
 /// always 8-bit BGRA, top-down, 16-byte aligned bytesPerRow.
 final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
     private let url: URL
@@ -140,8 +138,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
     private let bytesPerRow: Int
     private var asset: AVURLAsset
     private var reader: AVAssetReader?
-    private var readerOutput: AVAssetReaderTrackOutput?
-    private let ciContext: CIContext
+    private var readerOutput: AVAssetReaderVideoCompositionOutput?
 
     init(url: URL, width: Int, height: Int) throws {
         self.url = url
@@ -149,7 +146,6 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         self.height = height
         self.bytesPerRow = ((width * 4) + 15) & ~15
         self.asset = AVURLAsset(url: url)
-        self.ciContext = CIContext(options: [.useSoftwareRenderer: false])
         try restartReader()
     }
 
@@ -161,12 +157,36 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                     "\(url.lastPathComponent): no video track"])
         }
         let r = try AVAssetReader(asset: asset)
-        let output = AVAssetReaderTrackOutput(
-            track: track,
-            outputSettings: [
+
+        // Aspect-fit letterbox composition: apply the track's preferred
+        // transform (iPhone portrait clips carry a 90° rotation), scale to
+        // fit the output, center on the black render canvas.
+        let comp = AVMutableVideoComposition()
+        comp.renderSize = CGSize(width: width, height: height)
+        comp.frameDuration = CMTime(value: 1, timescale: 30)
+        let ins = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        let bounds = CGRect(origin: .zero, size: track.naturalSize)
+            .applying(track.preferredTransform)
+        let boundsW = abs(bounds.width), boundsH = abs(bounds.height)
+        let scale = min(CGFloat(width) / boundsW, CGFloat(height) / boundsH)
+        let tx = (CGFloat(width) - boundsW * scale) / 2 - bounds.minX * scale
+        let ty = (CGFloat(height) - boundsH * scale) / 2 - bounds.minY * scale
+        let final = track.preferredTransform
+            .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+            .concatenating(CGAffineTransform(translationX: tx, y: ty))
+        ins.setTransform(final, at: .zero)
+        // The macOS 27 SDK header omits the protocol conformance on the
+        // instruction class, so the typed array assignment fails to compile.
+        // KVC assigns through ObjC where the conformance exists at runtime.
+        comp.setValue(NSArray(object: ins), forKey: "instructions")
+
+        let output = AVAssetReaderVideoCompositionOutput(
+            videoTracks: [track],
+            videoSettings: [
                 kCVPixelBufferPixelFormatTypeKey as String:
                     Int(kCVPixelFormatType_32BGRA),
             ])
+        output.videoComposition = comp
         output.alwaysCopiesSampleData = false
         r.add(output)
         guard r.startReading() else {
@@ -221,29 +241,12 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                 pixels: out)
         }
 
-        // Slow path: resize via Core Image. Stretches to fit; pick aspect
-        // strategy here if you want letterboxing instead.
-        let srcImage = CIImage(cvPixelBuffer: pb)
-        let scaleX = CGFloat(width) / CGFloat(srcWidth)
-        let scaleY = CGFloat(height) / CGFloat(srcHeight)
-        let scaled = srcImage.transformed(
-            by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-
-        var out = Data(count: bytesPerRow * height)
-        out.withUnsafeMutableBytes { dst in
-            let dstBase = dst.baseAddress!
-            ciContext.render(
-                scaled,
-                toBitmap: dstBase,
-                rowBytes: bytesPerRow,
-                bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                format: .BGRA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB())
-        }
-        return VPhoneCameraFrame(
-            width: width, height: height,
-            bytesPerRow: bytesPerRow,
-            timestampNS: UInt64(ProcessInfo.processInfo.systemUptime * 1e9),
-            pixels: out)
+        // The video composition renders every frame at exactly the
+        // configured output size and BGRA, so the fast path above always
+        // applies. Unexpected dimensions mean the composition was ignored —
+        // fail loudly instead of sending a malformed wire payload.
+        print("[camera] mov frame mismatch: \(srcWidth)x\(srcHeight) "
+            + String(CVPixelBufferGetPixelFormatType(pb)))
+        return nil
     }
 }
