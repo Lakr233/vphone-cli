@@ -240,10 +240,12 @@ build_vpregister() {
 # binary + companion plist to procursus/Library/MobileSubstrate/DynamicLibraries.
 build_libvcamcaptured() {
     local src="$SCRIPT_DIR/vcamcaptured/libvcamcaptured.m"
+    local shared="$SCRIPT_DIR/vcamshared/vcam_dataplane.c"
     local out="$TEMP_DIR/libvcamcaptured.dylib"
     local sdk cc
 
     [[ -f "$src" ]] || die "Missing libvcamcaptured source at $src"
+    [[ -f "$shared" ]] || die "Missing shared data-plane source at $shared"
 
     sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
     cc="$(xcrun --sdk iphoneos -f clang)"
@@ -256,9 +258,10 @@ build_libvcamcaptured() {
         -install_name /var/jb/usr/lib/libvcamcaptured.dylib \
         -framework CoreMedia \
         -framework CoreVideo \
+        -framework CoreGraphics \
         -framework Foundation \
         -o "$out" \
-        "$src"
+        "$src" "$shared"
 
     ldid_sign "$out"
     echo "$out"
@@ -272,10 +275,12 @@ build_libvcamcaptured() {
 # the viewfinder live on the virtual camera.
 build_libcamfix() {
     local src="$SCRIPT_DIR/camfix/libcamfix.m"
+    local shared="$SCRIPT_DIR/vcamshared/vcam_dataplane.c"
     local out="$TEMP_DIR/libcamfix.dylib"
     local sdk cc
 
     [[ -f "$src" ]] || die "Missing libcamfix source at $src"
+    [[ -f "$shared" ]] || die "Missing shared data-plane source at $shared"
 
     sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
     cc="$(xcrun --sdk iphoneos -f clang)"
@@ -299,7 +304,7 @@ build_libcamfix() {
         -framework QuartzCore \
         -framework UIKit \
         -o "$out" \
-        "$src"
+        "$src" "$shared"
 
     ldid_sign "$out"
     echo "$out"

@@ -124,6 +124,7 @@ help:
 	@echo "                               each local cloudOS firmware; fails on any skipped sub-patch (broad drift gate)"
 	@echo "    Options: QUICK=1           Only the newest local cloudOS firmware"
 	@echo "             VARIANTS=\"exp\"     Limit to specific variants (default: jb exp)"
+	@echo "  make test_dataplane          Run the vcam data-plane proof harness (host, self-verifying)"
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
@@ -401,6 +402,26 @@ test_jb_patches: patcher_build
 test_fw_patches: patcher_build
 	zsh "$(CURDIR)/tests/test_firmware_patches.sh" --no-build \
 		$(if $(filter 1 true yes YES TRUE,$(QUICK)),--quick,)
+
+.PHONY: test_dataplane
+
+# Host-side proof harness for the shared virtual-camera data plane
+# (scripts/vcamshared/vcam_dataplane.c — the same code the guest dylibs
+# run). Builds against the macOS SDK and self-verifies pixel-format
+# consistency, BT.709 conversion, format-description extensions, sample
+# buffer metadata, and timing. Exit code 0 = all checks pass.
+test_dataplane:
+	@mkdir -p .build
+	@echo "=== Building vcam data-plane proof harness (macOS) ==="
+	@xcrun -sdk macosx clang -O1 -Wall -Wextra -Wno-unused-parameter \
+		-Wno-deprecated-declarations \
+		-o .build/vcam_dataplane_test \
+		tools/vcam_dataplane_test.c \
+		scripts/vcamshared/vcam_dataplane.c \
+		-framework CoreMedia -framework CoreVideo -framework CoreFoundation \
+		-framework CoreGraphics
+	@echo "=== Running ==="
+	@.build/vcam_dataplane_test
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore
