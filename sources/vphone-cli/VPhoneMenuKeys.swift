@@ -26,6 +26,13 @@ extension VPhoneMenuController {
         }
         touchIDMenuItem = tidItem
         menu.addItem(tidItem)
+        menu.addItem(NSMenuItem.separator())
+        let gestureItem = makeItem(
+            "Trackpad Scroll & Pinch to Touch", action: #selector(toggleTrackpadGestures)
+        )
+        gestureItem.state = VPhoneTrackpadGestures.isEnabled ? .on : .off
+        trackpadGesturesItem = gestureItem
+        menu.addItem(gestureItem)
         item.submenu = menu
         return item
     }
@@ -59,6 +66,13 @@ extension VPhoneMenuController {
         monitor.isEnabled.toggle()
         item.state = monitor.isEnabled ? .on : .off
         UserDefaults.standard.set(!monitor.isEnabled, forKey: "touchIDForwardingDisabled")
+    }
+
+    @objc func toggleTrackpadGestures() {
+        let enabled = !VPhoneTrackpadGestures.isEnabled
+        VPhoneTrackpadGestures.isEnabled = enabled
+        trackpadGesturesItem?.state = enabled ? .on : .off
+        captureView?.trackpadGesturesEnabled = enabled
     }
 }
 

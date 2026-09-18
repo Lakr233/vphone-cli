@@ -111,6 +111,11 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         public enum NetworkMode: String, Codable, Sendable {
             case nat
             case bridged
+            /// Userspace NAT through the `gvproxy` helper (`VPhoneTunnelNetwork`).
+            /// Required when the host routes its default route through a VPN, where
+            /// vmnet's pf NAT — pinned to the physical interface — black-holes guest
+            /// egress. See `research/userspace_networking_gvproxy.md`.
+            case tunnel
             case hostOnly
             /// No network device. Named `off` (not `none`) so a `NetworkMode?`
             /// literal `.none` can't silently bind to `Optional.none`.

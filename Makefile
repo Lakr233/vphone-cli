@@ -71,6 +71,7 @@ help:
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
+	@echo "  make net_helper              Download the userspace networking helper (gvproxy; used by --network tunnel)"
 	@echo "  make clean                   Remove build/tooling artifacts only"
 	@echo "    Options: CLEAN_VM=1        Also remove VM_DIR=$(VM_DIR) after confirmation"
 	@echo "             CLEAN_IPSW=1      Also remove ipsws/ after confirmation"
@@ -202,9 +203,13 @@ clean:
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build patcher_build bundle
+.PHONY: build patcher_build bundle net_helper
 
 build: $(BINARY)
+
+# Userspace networking helper for `--network tunnel` (VPN-safe NAT).
+net_helper:
+	zsh $(SCRIPTS)/net_helper.sh
 
 patcher_build: $(PATCHER_BINARY)
 
@@ -232,6 +237,10 @@ bundle: build $(INFO_PLIST)
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
 	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
+	@if [ -x "$(TOOLS_PREFIX)/bin/gvproxy" ]; then \
+		cp -f "$(TOOLS_PREFIX)/bin/gvproxy" "$(BUNDLE)/Contents/Resources/gvproxy"; \
+		echo "  bundled gvproxy (userspace networking helper)"; \
+	fi
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
 	@echo "  bundled → $(BUNDLE)"
 
