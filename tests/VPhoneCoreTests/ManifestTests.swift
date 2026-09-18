@@ -35,6 +35,19 @@ struct ManifestTests {
         #expect(updated.networkConfig.mode == .nat)
     }
 
+    @Test func rejectsTraversalAndDanglingSymlink() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.plist")
+        let bad = VPhoneVirtualMachineManifest(cpuCount: 1, memorySize: 1,
+            diskImage: "../outside", romImages: nil)
+        #expect(throws: VPhoneManifestError.self) { try bad.write(to: url) }
+        let link = dir.appendingPathComponent("Disk.img")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: dir.appendingPathComponent("missing-outside"))
+        #expect(throws: VPhoneManifestError.self) { try sampleManifest().write(to: url) }
+    }
+
     @Test func networkConfigRoundTripsThroughPlist() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

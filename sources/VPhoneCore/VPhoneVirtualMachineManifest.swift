@@ -7,6 +7,7 @@ public enum VPhoneManifestError: Error {
     case loadFailed(path: String, underlying: Error)
     case parseFailed(path: String, underlying: Error)
     case writeFailed(path: String, underlying: Error)
+    case invalidPath(path: String)
 }
 
 extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
@@ -15,6 +16,7 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
         case let .loadFailed(path, underlying): "Failed to load manifest from \(path): \(underlying)"
         case let .parseFailed(path, underlying): "Failed to parse manifest at \(path): \(underlying)"
         case let .writeFailed(path, underlying): "Failed to write manifest to \(path): \(underlying)"
+        case let .invalidPath(path): "Manifest path is outside its VM bundle: \(path)"
         }
     }
     public var errorDescription: String? { description }
@@ -170,6 +172,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
     public static func load(from url: URL) throws -> VPhoneVirtualMachineManifest {
         let data: Data
         do {
+            try validateResource(url.lastPathComponent, in: url.deletingLastPathComponent())
             data = try Data(contentsOf: url)
         } catch {
             throw VPhoneManifestError.loadFailed(path: url.path, underlying: error)
@@ -177,7 +180,9 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
 
         let decoder = PropertyListDecoder()
         do {
-            return try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
+            let manifest = try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
+            try manifest.validatePaths(in: url.deletingLastPathComponent(), configURL: url)
+            return manifest
         } catch {
             throw VPhoneManifestError.parseFailed(path: url.path, underlying: error)
         }
@@ -189,6 +194,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         encoder.outputFormat = .xml
 
         do {
+            try validatePaths(in: url.deletingLastPathComponent(), configURL: url)
             let data = try encoder.encode(self)
             try data.write(to: url)
         } catch {
@@ -209,9 +215,41 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         }
     }
 
-    /// Resolve relative path to absolute URL within VM directory
-    public func resolve(path: String, in vmDirectory: URL) -> URL {
-        vmDirectory.appendingPathComponent(path)
+    /// Resolve a bundle member, rejecting traversal and existing symlink components.
+    /// Missing outputs are allowed so fresh bundles can create their storage.
+    public func resolve(path: String, in vmDirectory: URL) throws -> URL {
+        try Self.validateResource(path, in: vmDirectory)
+        return vmDirectory.appendingPathComponent(path, isDirectory: false)
+    }
+
+    public func validatePaths(in vmDirectory: URL, configURL: URL? = nil) throws {
+        let paths = [diskImage, nvramStorage, sepStorage] +
+            (romImages.map { [$0.avpBooter, $0.avpSEPBooter] } ?? [])
+        for path in paths { try Self.validateResource(path, in: vmDirectory) }
+        let manifestURL = configURL ?? vmDirectory.appendingPathComponent("config.plist")
+        try Self.validateResource(manifestURL.lastPathComponent, in: manifestURL.deletingLastPathComponent())
+    }
+
+    private static func validateResource(_ value: String, in directory: URL) throws {
+        let parts = value.split(separator: "/", omittingEmptySubsequences: false)
+        guard !value.isEmpty, !value.hasPrefix("/"), !value.contains("\0"),
+              !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) else {
+            throw VPhoneManifestError.invalidPath(path: value)
+        }
+        var cursor = directory
+        for (index, part) in parts.enumerated() {
+            cursor.appendPathComponent(String(part))
+            var info = stat()
+            if lstat(cursor.path, &info) != 0 {
+                if errno == ENOENT { continue }
+                throw VPhoneManifestError.invalidPath(path: value)
+            }
+            let type = info.st_mode & S_IFMT
+            guard type != S_IFLNK,
+                  index == parts.count - 1 || type == S_IFDIR else {
+                throw VPhoneManifestError.invalidPath(path: value)
+            }
+        }
     }
 
     /// Get VZMacMachineIdentifier from manifest data

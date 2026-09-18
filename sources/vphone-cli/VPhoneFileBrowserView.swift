@@ -1,4 +1,6 @@
 @preconcurrency import Foundation
+import Darwin
+import VPhoneCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -374,12 +376,19 @@ private struct FileDragItem: Transferable {
             guard !item.file.isDirectoryLike else {
                 throw CocoaError(.fileNoSuchFile)
             }
-            let data = try await item.control.downloadFile(path: item.file.path)
             let tempDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             let tempURL = tempDir.appendingPathComponent(item.file.name)
-            try data.write(to: tempURL)
+            let directory = try VPhoneDownloadPath.openDirectory(tempDir, create: false)
+            defer { close(directory) }
+            var committed = false
+            defer { if !committed { try? FileManager.default.removeItem(at: tempDir) } }
+            let output = try VPhoneDownloadPath.openAtomicOutput(directory, name: item.file.name)
+            defer { close(output.fd) }
+            try await item.control.downloadFile(path: item.file.path, toFileDescriptor: output.fd)
+            try VPhoneDownloadPath.commit(directory, temporary: output.temporary, name: item.file.name)
+            committed = true
             return SentTransferredFile(tempURL)
         }
     }

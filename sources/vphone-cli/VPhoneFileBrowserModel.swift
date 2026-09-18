@@ -1,5 +1,7 @@
 import Foundation
 import Observation
+import Darwin
+import VPhoneCore
 
 @Observable
 @MainActor
@@ -147,7 +149,9 @@ class VPhoneFileBrowserModel {
         error = nil
         do {
             let entries = try await control.listFiles(path: currentPath)
-            files = entries.compactMap { VPhoneRemoteFile(dir: currentPath, entry: $0) }
+            let parsed = entries.compactMap { VPhoneRemoteFile(dir: currentPath, entry: $0) }
+            guard parsed.count == entries.count else { throw VPhoneDownloadPathError.invalidComponent }
+            files = parsed
         } catch {
             self.error = "\(error)"
             files = []
@@ -159,40 +163,54 @@ class VPhoneFileBrowserModel {
 
     func downloadSelected(to directory: URL) async {
         let selected = files.filter { selection.contains($0.id) }
+        let rootFD: Int32
+        do {
+            rootFD = try VPhoneDownloadPath.openDirectory(directory)
+        } catch {
+            self.error = "Open download directory failed: \(error)"
+            return
+        }
+        defer { close(rootFD) }
         for file in selected {
             if file.isDirectory {
-                await downloadDirectory(remotePath: file.path, name: file.name, to: directory)
+                await downloadDirectory(remotePath: file.path, name: file.name, parentFD: rootFD)
             } else {
-                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
+                await downloadFile(remotePath: file.path, name: file.name, size: file.size, parentFD: rootFD)
             }
             if error != nil { break }
         }
         transferName = nil
     }
 
-    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: URL) async {
+    private func downloadFile(remotePath: String, name: String, size: UInt64, parentFD: Int32) async {
         transferName = name
-        transferTotal = Int64(size)
+        transferTotal = Int64(clamping: size)
         transferCurrent = 0
         do {
-            let data = try await control.downloadFile(path: remotePath)
-            transferCurrent = Int64(data.count)
-            let dest = directory.appendingPathComponent(name)
-            try data.write(to: dest)
-            print("[files] downloaded \(remotePath) (\(data.count) bytes)")
+            let atomic = try VPhoneDownloadPath.openAtomicOutput(parentFD, name: name)
+            let output = atomic.fd
+            defer { close(output) }
+            var committed = false
+            defer { if !committed { _ = Darwin.unlinkat(parentFD, atomic.temporary, 0) } }
+            try await control.downloadFile(path: remotePath, toFileDescriptor: output)
+            try VPhoneDownloadPath.commit(parentFD, temporary: atomic.temporary, name: name)
+            committed = true
+            transferCurrent = Int64(clamping: size)
+            print("[files] downloaded \(remotePath) (\(size) bytes)")
         } catch {
             self.error = "Download failed: \(error)"
         }
     }
 
-    private func downloadDirectory(remotePath: String, name: String, to localParent: URL) async {
-        let localDir = localParent.appendingPathComponent(name)
+    private func downloadDirectory(remotePath: String, name: String, parentFD: Int32) async {
+        let childFD: Int32
         do {
-            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+            childFD = try VPhoneDownloadPath.openChildDirectory(parentFD, name)
         } catch {
             self.error = "Create directory failed: \(error)"
             return
         }
+        defer { close(childFD) }
 
         let entries: [[String: Any]]
         do {
@@ -203,12 +221,16 @@ class VPhoneFileBrowserModel {
         }
 
         let children = entries.compactMap { VPhoneRemoteFile(dir: remotePath, entry: $0) }
+        guard children.count == entries.count else {
+            self.error = "Directory contains an invalid entry"
+            return
+        }
         for child in children {
             if child.isDirectory {
-                await downloadDirectory(remotePath: child.path, name: child.name, to: localDir)
+                await downloadDirectory(remotePath: child.path, name: child.name, parentFD: childFD)
             } else {
                 await downloadFile(
-                    remotePath: child.path, name: child.name, size: child.size, to: localDir
+                    remotePath: child.path, name: child.name, size: child.size, parentFD: childFD
                 )
             }
             if error != nil { return }
