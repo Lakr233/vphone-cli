@@ -28,6 +28,7 @@
 #import "vphoned_apps.h"
 #import "vphoned_clipboard.h"
 #import "vphoned_devmode.h"
+#import "vphoned_display.h"
 #import "vphoned_files.h"
 #import "vphoned_hid.h"
 #import "vphoned_install.h"
@@ -246,6 +247,12 @@ static NSDictionary *handle_command(NSDictionary *msg) {
     return vp_make_response(@"pong", reqId);
   }
 
+  if ([type isEqualToString:@"display_state"]) {
+    NSMutableDictionary *response = vp_make_response(@"display_state", reqId);
+    [response addEntriesFromDictionary:vp_display_state_query()];
+    return response;
+  }
+
   if ([type isEqualToString:@"location"]) {
     double lat = [msg[@"lat"] doubleValue];
     double lon = [msg[@"lon"] doubleValue];
@@ -340,6 +347,11 @@ static BOOL handle_client(int fd) {
     [caps addObject:@"url"];
     [caps addObject:@"settings"];
     [caps addObject:@"touch"];
+    // The probe itself is dynamic and reports unknown when this guest does
+    // not expose a recognized display/backlight API.  Advertising the
+    // capability lets a new Host distinguish that safe neutral result from
+    // an older vphoned binary that does not implement the request at all.
+    [caps addObject:@"display_state"];
 
     NSMutableDictionary *helloResp = [@{
       @"v" : @PROTOCOL_VERSION,
