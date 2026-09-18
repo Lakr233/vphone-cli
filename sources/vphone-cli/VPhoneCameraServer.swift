@@ -41,6 +41,7 @@ final class VPhoneCameraServer {
     private var producer: VPhoneFrameProducer?
     private var timer: DispatchSourceTimer?
     private var connectionAttemptToken: UInt64 = 0
+    private var produceInFlight = false
 
     private let sendQueue = DispatchQueue(
         label: "com.vphone.camera.send", qos: .userInteractive)
@@ -126,7 +127,16 @@ final class VPhoneCameraServer {
             let fd = self.connectionFD
             guard fd >= 0 else { return }
             let q = self.producerQueue
-            q.async {
+            // Backpressure: if the previous produce+send cycle is still
+            // running (slow CI render or a blocking vsock write), drop this
+            // tick. Without this, a stalled guest queues ~3.6 MB frames at
+            // 30 fps on producerQueue — a fast track to host OOM.
+            if self.produceInFlight { return }
+            self.produceInFlight = true
+            q.async { [weak self] in
+                defer { Task { @MainActor [weak self] in self?.produceInFlight = false } }
+                guard let self else { return }
+                guard let producer = self.producer else { return }
                 guard let frame = producer.nextFrame() else { return }
                 let ok = Self.send(fd: fd, frame: frame)
                 if !ok {
