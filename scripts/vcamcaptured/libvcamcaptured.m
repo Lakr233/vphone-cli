@@ -40,6 +40,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#include "../vcamshared/vcam_dataplane.h"
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -669,6 +670,11 @@ static void *vcc_dlsym_fn(const char *name) {
 
 // MARK: - synthetic source construction
 
+// Opaque unique ID of the one realtime video stream this source publishes.
+// Must match the ID the vendor stream hooks hand out (see
+// vcc_copy_streams_hook / vcc_copy_streams_from_device_hook).
+static NSString *const kVccSynthStreamID = @"vphone:vcam:stream:video:0";
+
 static id vcc_build_backing(void) {
   Class backingClass = NSClassFromString(@"FigCaptureSourceBacking");
   if (!backingClass) {
@@ -772,10 +778,52 @@ static id vcc_build_backing(void) {
     // see one; clients that pick the canonical ISP pixel format (AVF's
     // _preferredFormatForPreset: matcher for AVCaptureSessionPresetHigh)
     // pick the 420v one. Same preset list + frame-rate range on both.
+    // Phase 3: AVCaptureDeviceFormat consistency. Key names below are
+    // grounded in Apple's shipped CMCapture/CMCaptureCore (extracted from
+    // the dyld shared cache — same Fig framework family the guest runs);
+    // semantics come from the public AVCaptureDeviceFormat API spec in
+    // the SDK headers. Every value tells the same story as the delivered
+    // samples (see vcam_dataplane.c):
+    //
+    //   AVF property                     <- published key            value
+    //   ---------------------------------------------------------------
+    //   videoFieldOfView                 <- VideoFieldOfView         63.0
+    //     (same constant derives the per-frame camera intrinsic matrix
+    //      focal length: fx = (w/2)/tan(FOV/2) — one knob, no drift)
+    //   videoSupportedFrameRateRanges    <- MinFrameRate/MaxFrameRate  1..60
+    //   videoMaxZoomFactor               <- VideoStabilizationTypeOverrideForStandard=3
+    //     (maxZoomFactor's dimension-table fast path; yields 16.0 for
+    //      1280-wide — keeps setVideoZoomFactor: in range for Camera.app)
+    //   videoHDRSupported                <- HDRSupported             NO (8-bit SDR)
+    //   isCameraIntrinsicMatrixDeliverySupported
+    //                                    <- CameraCalibrationDataDeliverySupported YES
+    //                                       IntrinsicMatrixReferenceWidth/Height
+    //     (we attach kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix to
+    //      every delivered sample, so YES is truthful)
+    //   dimensions / formatDescription   <- Width/Height/PixelFormatType 1280x720 '420v'|'BGRA'
+    //
+    // Deliberately NOT published (encoding unknown without runtime ground
+    // truth; a wrong shape could break the FigCaptureSourceVideoFormat
+    // init): HighResStillImageDimensions, supportedColorSpaces
+    // ("ColorSpace"), stabilization mode lists, photo dimensions.
     NSDictionary *commonKeys = @{
       @"DefaultActiveFormat" : @NO,  // overridden on the active one
       figKey("kFigSupportedFormat_VideoMinFrameRate") : @(1),
       figKey("kFigSupportedFormat_VideoMaxFrameRate") : @(60),
+      // Horizontal field of view in degrees. Same constant that derives the
+      // per-frame camera intrinsic matrix focal length, so AVCaptureDevice
+      // format.fieldOfView and the CMSampleBuffer intrinsics tell one story.
+      // Calibration knob — measure on a physical device before trusting.
+      @"VideoFieldOfView" : @(VCC_VCAM_HFOV_DEG),
+      // 8-bit SDR delivery: advertising HDR would be a lie AVF clients
+      // would act on (tone mapping, EDR pipelines).
+      @"HDRSupported" : @NO,
+      // We attach kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix to
+      // every delivered sample with the principal point at frame center —
+      // so intrinsic delivery is supported, referenced to the full frame.
+      @"CameraCalibrationDataDeliverySupported" : @YES,
+      @"IntrinsicMatrixReferenceWidth" : @1280,
+      @"IntrinsicMatrixReferenceHeight" : @720,
       // -[FigCaptureSourceVideoFormat maxZoomFactor] takes a fast path that
       // returns 1.0 for raw bayer formats; for BGRA (our case) it falls to
       // a fancy path that reads stabilizationTypeOverrideForCinematic / -ForStandard
@@ -847,12 +895,19 @@ static id vcc_build_backing(void) {
                                                     @selector(alloc));
   if (!alloced) return nil;
   uint32_t mediaTypeVideo = 0x76696465;  // 'vide'
+  // Advertise one realtime (unsynchronized) video stream. Without a stream
+  // uniqueID the client-side AVCaptureFigVideoDevice has no ports: sessions
+  // never ask the vendor for streams, no capture graph is built for
+  // third-party clients, and their AVCaptureVideoDataOutputs starve (which
+  // is what hid metadata-gated controls in some capture SDKs). Camera.app
+  // never noticed because its viewfinder path is driven independently.
+  NSArray *unsyncStreams = @[ kVccSynthStreamID ];
   id backing = ((id (*)(id, SEL, uint32_t, id, id, id, id, id, id))objc_msgSend)(
       alloced, initSel, mediaTypeVideo, attrs,
-      [NSMutableDictionary dictionary], formats, @[], @[], @[]);
-  vcc_log(@"  backing = %p (attrs.count=%lu formats.count=%lu)",
+      [NSMutableDictionary dictionary], formats, @[], @[], unsyncStreams);
+  vcc_log(@"  backing = %p (attrs.count=%lu formats.count=%lu streams=%@)",
           backing, (unsigned long)attrs.count,
-          (unsigned long)formats.count);
+          (unsigned long)formats.count, unsyncStreams);
   return backing;
 }
 
@@ -1464,6 +1519,10 @@ static void vcc_dump_sink_node_methods(void) {
 //      drive them ourselves on a timer if the source-side stays starved.
 
 static NSMutableArray *vcc_captured_sinks = nil;  // weak refs via NSValue
+// Strong refs for the sink-drive loop (see vcc_drive_sinks_once).
+static NSMutableArray *vcc_driven_sinks = nil;
+static uint64_t vcc_sink_drive_count = 0;
+static uint64_t vcc_sink_drive_ok = 0;
 static NSValue *vcc_first_input_ref = nil;
 static unsigned long vcc_render_call_count = 0;
 static unsigned long vcc_iqsn_init_count = 0;
@@ -1501,6 +1560,11 @@ static id vcc_iqsn_init_hook(
     if (!vcc_captured_sinks)
       vcc_captured_sinks = [NSMutableArray array];
     [vcc_captured_sinks addObject:[NSValue valueWithPointer:(__bridge void *)ret]];
+    // Strong ref for the sink-drive loop: keeps the node valid and its
+    // client transport pinned for the lifetime of the daemon. One leak per
+    // session start — same tradeoff the synth streams already make.
+    if (!vcc_driven_sinks) vcc_driven_sinks = [NSMutableArray array];
+    if (![vcc_driven_sinks containsObject:ret]) [vcc_driven_sinks addObject:ret];
   }
   return ret;
 }
@@ -1519,6 +1583,8 @@ static id vcc_rqsn_init_hook(
     if (!vcc_captured_sinks)
       vcc_captured_sinks = [NSMutableArray array];
     [vcc_captured_sinks addObject:[NSValue valueWithPointer:(__bridge void *)ret]];
+    if (!vcc_driven_sinks) vcc_driven_sinks = [NSMutableArray array];
+    if (![vcc_driven_sinks containsObject:ret]) [vcc_driven_sinks addObject:ret];
   }
   return ret;
 }
@@ -2178,22 +2244,52 @@ typedef struct vcc_latest_frame_s {
 } vcc_latest_frame_t;
 extern vcc_latest_frame_t vcc_latest_frame;
 
-// CVPixelBuffer release callback for the malloc'd pixel buffer. Has to be
-// a real C function (block isn't compatible with the callback signature).
-static void vcc_cv_release_bytes(void *refcon, const void *baseAddress) {
-  (void)refcon;
-  free((void *)baseAddress);
-}
-
 static IMP vcc_vfs_init_orig = NULL;
 static IMP vcc_vfs_open_orig = NULL;
 static IMP vcc_vfs_close_orig = NULL;
 static NSMutableArray *vcc_vf_streams = nil;  // strong refs
 static dispatch_source_t vcc_vf_timer = NULL;
 static dispatch_queue_t vcc_vf_q = NULL;
-static uint64_t vcc_vf_pts_ns = 0;
 static uint64_t vcc_vf_enqueue_count = 0;
 static uint64_t vcc_vf_enqueue_success = 0;
+
+// Video sink nodes (BWImageQueueSinkNode / BWRemoteQueueSinkNode) created
+// for any client session. Strong refs — see the init hooks above. These are
+// the client-graph tail: driving them with our samples is what delivers
+// frames to third-party AVCaptureVideoDataOutput clients,
+// the same way the still-sink drive delivers photos.
+static CMSampleBufferRef vcc_build_cmsb_from_shm_fmt(uint32_t fmt_out);
+
+// Deliver the latest shm frame to every captured video sink. Runs on the
+// same 30 Hz queue as the viewfinder drive. Graph-built sinks expect the
+// active advertised format's samples — BGRA is what clients see selected
+// (camfix substitutes the first format for third-party sessions).
+static void vcc_drive_sinks_once(void) {
+  if (!vcc_driven_sinks || vcc_driven_sinks.count == 0) return;
+  CMSampleBufferRef cmsb = vcc_build_cmsb_from_shm_fmt(VCC_FMT_BGRA);
+  if (!cmsb) return;
+  SEL sel = NSSelectorFromString(@"renderSampleBuffer:forInput:");
+  for (id sink in [vcc_driven_sinks copy]) {
+    if (!sink || ![sink respondsToSelector:sel]) continue;
+    @try {
+      ((int (*)(id, SEL, CMSampleBufferRef, id))objc_msgSend)(
+          sink, sel, cmsb, nil);
+      vcc_sink_drive_ok++;
+    } @catch (NSException *e) {
+      if ((vcc_sink_drive_count & 63) == 1) {
+        vcc_log(@"  [SINK drive] exception on %p: %@", sink, e);
+      }
+    }
+  }
+  CFRelease(cmsb);
+  vcc_sink_drive_count++;
+  if ((vcc_sink_drive_count & 59) == 1) {
+    vcc_log(@"  [SINK drive] frames=%llu sinks=%lu ok=%llu",
+            (unsigned long long)vcc_sink_drive_count,
+            (unsigned long)vcc_driven_sinks.count,
+            (unsigned long long)vcc_sink_drive_ok);
+  }
+}
 
 typedef id (*VccVfsInitFn)(id self, SEL _cmd);
 typedef void (*VccVfsOpenFn)(id self, SEL _cmd, id dest);
@@ -2232,59 +2328,66 @@ static void vcc_vfs_close_hook(id self, SEL _cmd) {
   orig(self, _cmd);
 }
 
-// Build a CMSampleBuffer wrapping the latest shm frame. Caller must
-// CFRelease the result.
-static CMSampleBufferRef vcc_build_cmsb_from_shm(void) {
+// Build a CMSampleBuffer wrapping the latest shm frame, in the requested
+// delivery format. The heavy lifting (pixel-format-honest CVPixelBuffer,
+// extension-bearing format description, camera attachments, host-frame
+// timing) lives in the shared data plane, which is proven by
+// tools/vcam_dataplane_test.c on the host. Caller must CFRelease.
+//
+// Serializes builds because the shared timing state advances per buffer and
+// the viewfinder drive queue + still-image drive can run on different
+// threads.
+static pthread_mutex_t vcc_delivery_lock = PTHREAD_MUTEX_INITIALIZER;
+static vcc_timing_state_t vcc_delivery_timing;
+static pthread_once_t vcc_delivery_timing_once = PTHREAD_ONCE_INIT;
+static void vcc_delivery_timing_init(void) {
+  vcc_timing_init(&vcc_delivery_timing);
+}
+
+static CMSampleBufferRef vcc_build_cmsb_from_shm_fmt(uint32_t fmt_out) {
+  pthread_mutex_lock(&vcc_delivery_lock);
+  pthread_once(&vcc_delivery_timing_once, vcc_delivery_timing_init);
+
+  vcc_frame_desc_t frame;
+  memset(&frame, 0, sizeof(frame));
+  uint8_t *pixels = NULL;
   pthread_mutex_lock(&vcc_latest_frame.lock);
-  uint32_t w = vcc_latest_frame.width;
-  uint32_t h = vcc_latest_frame.height;
-  uint32_t bpr = vcc_latest_frame.bytes_per_row;
   size_t len = vcc_latest_frame.pixels_length;
-  if (!len || !w || !h || !bpr) {
-    pthread_mutex_unlock(&vcc_latest_frame.lock);
-    return NULL;
+  if (len && vcc_latest_frame.width && vcc_latest_frame.height &&
+      vcc_latest_frame.bytes_per_row) {
+    pixels = malloc(len);
+    if (pixels) memcpy(pixels, vcc_latest_frame.pixels, len);
   }
-  void *pixels = malloc(len);
-  if (!pixels) {
-    pthread_mutex_unlock(&vcc_latest_frame.lock);
-    return NULL;
+  if (pixels) {
+    frame.width = vcc_latest_frame.width;
+    frame.height = vcc_latest_frame.height;
+    frame.bytes_per_row = vcc_latest_frame.bytes_per_row;
+    frame.pixel_format = vcc_latest_frame.pixel_format;
+    frame.timestamp_ns = vcc_latest_frame.timestamp_ns;
+    frame.frame_index = vcc_latest_frame.frame_index;
+    frame.pixels = pixels;
+    frame.pixels_length = len;
   }
-  memcpy(pixels, vcc_latest_frame.pixels, len);
   pthread_mutex_unlock(&vcc_latest_frame.lock);
 
-  CVPixelBufferRef pb = NULL;
-  CVReturn cvr = CVPixelBufferCreateWithBytes(
-      kCFAllocatorDefault, w, h, kCVPixelFormatType_32BGRA,
-      pixels, bpr, vcc_cv_release_bytes, NULL, NULL, &pb);
-  if (cvr != kCVReturnSuccess || !pb) {
-    free(pixels);
+  if (!pixels) {
+    pthread_mutex_unlock(&vcc_delivery_lock);
     return NULL;
   }
 
-  CMVideoFormatDescriptionRef desc = NULL;
-  OSStatus s = CMVideoFormatDescriptionCreateForImageBuffer(
-      kCFAllocatorDefault, pb, &desc);
-  if (s != noErr || !desc) {
-    CVPixelBufferRelease(pb);
-    return NULL;
-  }
-
-  // Monotonic PTS at 30 fps. The viewfinder's internal jitter buffer
-  // discards frames whose PTS doesn't advance, so we increment per call.
-  vcc_vf_pts_ns += 33333333ull;  // 1/30s in nanoseconds
-  CMSampleTimingInfo timing = {
-      .duration = CMTimeMake(1, 30),
-      .presentationTimeStamp = CMTimeMake((int64_t)vcc_vf_pts_ns, 1000000000),
-      .decodeTimeStamp = kCMTimeInvalid,
-  };
-
-  CMSampleBufferRef cmsb = NULL;
-  s = CMSampleBufferCreateForImageBuffer(
-      kCFAllocatorDefault, pb, true, NULL, NULL, desc, &timing, &cmsb);
-  CFRelease(desc);
-  CVPixelBufferRelease(pb);
-  if (s != noErr || !cmsb) return NULL;
+  CMSampleBufferRef cmsb = vcc_cmsb_from_frame(&frame, fmt_out,
+                                               &vcc_delivery_timing);
+  free(pixels);
+  pthread_mutex_unlock(&vcc_delivery_lock);
   return cmsb;
+}
+
+// Viewfinder/video delivery: the active advertised format. The synthetic
+// source publishes 420v as DefaultActiveFormat, so that's what AVF clients
+// pick — the delivered sample must be the same thing, not a BGRA buffer
+// wearing a 420v costume.
+static CMSampleBufferRef vcc_build_cmsb_from_shm(void) {
+  return vcc_build_cmsb_from_shm_fmt(VCC_FMT_420V);
 }
 
 static void vcc_vf_drive_once(void) {
@@ -2338,10 +2441,16 @@ static void vcc_install_viewfinder_hooks(void) {
                             dispatch_time(DISPATCH_TIME_NOW, 0),
                             33333333ull, 2000000ull);
   dispatch_source_set_event_handler(vcc_vf_timer, ^{
-    @autoreleasepool { vcc_vf_drive_once(); }
+    @autoreleasepool {
+      vcc_vf_drive_once();
+      vcc_drive_sinks_once();
+    }
   });
   dispatch_resume(vcc_vf_timer);
-  vcc_log(@"  viewfinder drive timer armed (30 Hz)");
+  vcc_log(@"  viewfinder drive timer armed (30 Hz, delivering '%c%c%c%c' "
+          @"+ camera metadata)",
+          (char)(VCC_FMT_420V & 0xff), (char)((VCC_FMT_420V >> 8) & 0xff),
+          (char)((VCC_FMT_420V >> 16) & 0xff), (char)((VCC_FMT_420V >> 24) & 0xff));
 }
 
 static void vcc_install_sink_observation(void) {
@@ -2969,7 +3078,9 @@ static void vcc_construct_still_sink(void) {
 // proven the synthetic-handler approach works at the API level.
 static void vcc_drive_still_sink_once(void) {
   if (!vcc_synth_still_sink) return;
-  CMSampleBufferRef sbuf = vcc_build_cmsb_from_shm();
+  // Photo sinks receive BGRA (the still pipeline JPEG-encodes directly);
+  // delivered format matches the BGRA FigCaptureSourceVideoFormat.
+  CMSampleBufferRef sbuf = vcc_build_cmsb_from_shm_fmt(VCC_FMT_BGRA);
   if (!sbuf) {
     vcc_log(@"  still-drive: no shm frame yet");
     return;
@@ -3032,6 +3143,22 @@ static id vcc_parsed_cfg_init_hook(id self, SEL _cmd, id sessionCfg,
         && [cameraCfgs count] > 0) {
       vcc_log(@"  [ParsedCfg] cameraCfgs[0] class=%@",
               NSStringFromClass([[cameraCfgs firstObject] class]));
+      // Always dump the camera source config's identity — the graph builder
+      // routes on these values; a nil/empty captureDeviceID here means it
+      // will never reach the device vendor.
+      id cameraCfg = [cameraCfgs firstObject];
+      id sourceID = nil, deviceType = nil, captureDeviceID = nil, source = nil;
+      @try { sourceID = [cameraCfg valueForKey:@"sourceID"]; } @catch (NSException *e) {}
+      @try { deviceType = [cameraCfg valueForKey:@"sourceDeviceType"]; } @catch (NSException *e) {}
+      @try { captureDeviceID = [cameraCfg valueForKey:@"captureDeviceID"]; } @catch (NSException *e) {}
+      @try { source = [cameraCfg valueForKey:@"source"]; } @catch (NSException *e) {}
+      vcc_log(@"  [ParsedCfg] cameraCfg sourceID=%@ deviceType=%@ captureDeviceID=%@ source=%@",
+              sourceID ?: @"(nil)", deviceType ?: @"(nil)",
+              captureDeviceID ?: @"(nil)",
+              source ? NSStringFromClass([source class]) : @"(nil)");
+      NSString *desc = [cameraCfg description];
+      if (desc.length > 800) desc = [desc substringToIndex:800];
+      vcc_log(@"  [ParsedCfg] cameraCfg desc=%@", desc);
     }
     if (stillCfgs && [stillCfgs respondsToSelector:@selector(count)]
         && [stillCfgs count] > 0) {
@@ -3134,6 +3261,13 @@ static int vcc_shm_read_latest(void) {
 
   if (pix_len == 0 || pix_len > VCC_SHM_MAX_PIXELS) return 0;
   if (w == 0 || h == 0 || bpr == 0 || pix_len < (size_t)bpr * h) return 0;
+  // Planar 4:2:0 wire data also carries the chroma plane after luma; refuse
+  // truncated frames instead of reading garbage chroma.
+  if (fmt == 0x34323076u /* '420v' */ || fmt == 0x34323066u /* '420f' */) {
+    size_t luma = (size_t)bpr * h;
+    size_t chroma = (size_t)(2u * (w / 2)) * (h / 2);
+    if (pix_len < luma + chroma) return 0;
+  }
 
   pthread_mutex_lock(&vcc_latest_frame.lock);
   if (vcc_latest_frame.pixels_capacity < pix_len) {
