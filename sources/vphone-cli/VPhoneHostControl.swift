@@ -228,6 +228,15 @@ class VPhoneHostControl {
     private nonisolated static func handleClient(_ fd: Int32, controller: VPhoneHostControl?) {
         defer { close(fd) }
 
+        // A client may close the socket before it has read the whole reply (a
+        // single recv(4096) followed by close() is enough for a screenshot
+        // response). Without SO_NOSIGPIPE the next write(2) raises SIGPIPE,
+        // whose default action terminates this process - and the VM with it
+        // (issue #472). With the option set, write(2) returns EPIPE and the
+        // send loop in writeResponse stops quietly.
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+
         guard let line = readLine(from: fd) else { return }
 
         guard let data = line.data(using: .utf8),
@@ -264,8 +273,11 @@ class VPhoneHostControl {
                         let url = try await recorder.saveScreenshot(view: view, to: URL(fileURLWithPath: outputPath))
                         result.path = url.path
                     }
-                    // Always include compact image for screenshot command
-                    result.imageBase64 = await controller.captureCompactScreenshot()
+                    // `screen` defaults to true, so the reply carries the compact
+                    // preview next to the saved file unless the caller opts out.
+                    if wantScreen {
+                        result.imageBase64 = await controller.captureCompactScreenshot()
+                    }
                     result.ok = true
                 } catch {
                     result.error = "\(error)"
@@ -448,9 +460,16 @@ class VPhoneHostControl {
             var offset = 0
             while remaining > 0 {
                 let written = write(fd, ptr.advanced(by: offset), remaining)
-                if written <= 0 { break }
-                offset += written
-                remaining -= written
+                if written > 0 {
+                    offset += written
+                    remaining -= written
+                    continue
+                }
+                // -1 with EPIPE means the peer is gone (see the SO_NOSIGPIPE in
+                // handleClient): the reply is best-effort, so stop. Retry only
+                // an interrupted call; anything else is a dead socket.
+                if written < 0 && errno == EINTR { continue }
+                break
             }
         }
     }
