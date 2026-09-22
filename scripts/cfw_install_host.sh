@@ -4,7 +4,7 @@
 # Attaches the VM's Disk.img on the host and hands the container to the variant
 # installer (cfw_install*.sh), which mounts the APFS volumes and places every
 # CFW file directly. Then flips the boot snapshot offline
-# (tools/apfs_snap_rename.py) so the VM boots the live volume.
+# (`vphone-cli cfw flip-snapshot`) so the VM boots the live volume.
 #
 # Prereqs: VM restored (make restore) and powered off; host has gnu-tar, ipsw,
 # aea, ldid, zstd, project venv (make setup_tools). SIP disabled (project
@@ -87,7 +87,17 @@ cleanup
 trap - EXIT
 
 echo "[*] flipping boot snapshot offline (com.apple.os.update -> live volume)..."
-"$PY" "$PROJ/tools/apfs_snap_rename.py" "$IMG"
+# VPHONE_CLI_BIN is set by `vphone-cli cfw install`; the fallbacks cover being
+# run by hand from a dev tree or from inside the .app, where scripts/ sits in
+# Contents/Resources and the binaries are one level up in MacOS.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+  for candidate in "$PROJ/.build/release/vphone-cli" "${PROJ:h}/MacOS/vphone-cli"; do
+    [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+  done
+fi
+[[ -x "$VPHONE_CLI" ]] || { echo "[-] cannot find vphone-cli to flip the snapshot" >&2; exit 1; }
+"$VPHONE_CLI" cfw flip-snapshot "$IMG"
 
 # Drop the extracted CFW input dirs (source .tar.zst re-extracts). VPHONE_KEEP_ARTIFACTS opts out.
 if [[ -z "${VPHONE_KEEP_ARTIFACTS:-}" ]]; then

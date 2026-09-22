@@ -11,6 +11,10 @@ import VPhoneCore
 /// `NSApplicationDelegate` method it implements internal.
 public enum VPhoneGuestApp {
     /// Run the guest. Returns only when the application terminates.
+    ///
+    /// `@MainActor` because NSApplication is: at the top of `main.swift` that
+    /// isolation was implicit, and moving the code into a function loses it.
+    @MainActor
     public static func run(_ boot: VPhoneBootCLI) -> Never {
         let app = NSApplication.shared
         let delegate = VPhoneAppDelegate(cli: boot)

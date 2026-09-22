@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# REFERENCE IMPLEMENTATION -- no longer called by anything.
+#
+# Superseded 2026-09-23 by `vphone-cli cfw flip-snapshot`
+# (sources/VPhoneCore/VPhoneAPFSSnapshot.swift). The two were compared on a
+# synthetic multi-block fixture and produced byte-identical images and
+# character-identical output, including the decoy block that must NOT be
+# rewritten.
+#
+# It is kept only until that comparison has been repeated once against a real
+# Disk.img, because the blast radius of getting this wrong is a corrupt guest
+# filesystem and having the reference to hand beats reading it out of git.
+# Delete it then -- it is one of the files D1 counts.
+#
 # Offline APFS root-snapshot rename for vphone Disk.img (CFW boot-source flip).
 #
 # Renames the com.apple.os.update-<hash> system snapshot in place so the

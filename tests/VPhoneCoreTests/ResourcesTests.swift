@@ -2,6 +2,13 @@
 import Foundation
 import Testing
 
+/// `.serialized` because several of these set and unset `VPHONE_ROOT`, and the
+/// environment is process-global: run in parallel, one test's
+/// `defer { unsetenv(...) }` clears the variable another is still relying on.
+/// That was a real intermittent failure — roughly one run in ten —
+/// and the reason two tests below bail out early when `VPHONE_ROOT` is already
+/// set, which was a way of tolerating the race rather than fixing it.
+@Suite(.serialized)
 struct ResourcesTests {
     @Test func bundledLayoutResolvesToContentsResources() {
         let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"

@@ -116,7 +116,10 @@ rsync -a \
   --exclude '.git' \
   --exclude '.build' \
   scripts/ "${RES}/scripts/"
-cp -f tools/apfs_snap_rename.py "${RES}/tools/apfs_snap_rename.py"
+# tools/ is created but currently empty: apfs_snap_rename.py is no longer
+# bundled, because `vphone-cli cfw flip-snapshot` does that work now. The .py
+# stays in the repo as a reference until the byte comparison has been repeated
+# against a real Disk.img.
 # Custom-built tools (bundled; not brew/pip). apfs_sealvolume is NOT bundled
 # (it is extracted from the target IPSW at `fw prepare` time — Task 5).
 for t in trustcache insert_dylib; do

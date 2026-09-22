@@ -97,7 +97,43 @@ struct VPhoneCFWCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cfw",
         abstract: "Custom-firmware install (host-mount; VM must be off; re-execs sudo)",
-        subcommands: [VPhoneCFWInstallCommand.self])
+        subcommands: [VPhoneCFWInstallCommand.self, VPhoneCFWFlipSnapshotCommand.self])
+}
+
+/// Replaces `tools/apfs_snap_rename.py`, called from `cfw_install_host.sh`
+/// once the install is done.
+struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "flip-snapshot",
+        abstract: "Rename the APFS root snapshot in a Disk.img so the guest boots the live volume",
+        discussion: """
+        Renames the com.apple.os.update-<hash> system snapshot in place, so a
+        guest kernel with seal enforcement patched out cannot find the named
+        root snapshot and roots the live volume instead. Offline: no mount, no
+        fs_snapshot syscall, no host security change.
+
+        Only records inside a block whose APFS checksum verifies are touched,
+        so identical strings baked into on-volume binaries are left alone.
+
+        The VM must be powered off.
+        """
+    )
+
+    @Argument(help: "Path to the VM's Disk.img", transform: URL.init(fileURLWithPath:))
+    var image: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    @Option(
+        name: .customLong("new-prefix"),
+        help: "Replacement prefix. Must be exactly as long as 'com.apple.os.update-'."
+    )
+    var newPrefix: String = VPhoneAPFSSnapshot.defaultNewPrefix
+
+    func run() throws {
+        try VPhoneAPFSSnapshot.rename(imageAt: image, newPrefix: newPrefix, dryRun: dryRun)
+    }
 }
 
 struct VPhoneCFWInstallCommand: ParsableCommand {
@@ -146,6 +182,9 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
         var scriptEnv: [String: String] = [
+            // The script re-execs under sudo, so it cannot work out where we
+            // live from its own path in the bundled case. Tell it.
+            "VPHONE_CLI_BIN": VPhoneResources.runningExecutable().path,
             "VPHONE_PYTHON": try resources.pythonExecutable().path,
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
