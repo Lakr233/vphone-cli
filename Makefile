@@ -41,11 +41,13 @@ SCRIPTS     := scripts
 BINARY      := .build/release/vphone-cli
 VM_BINARY   := .build/release/vphone-vm
 LETMEIN_BINARY := .build/release/vphone-letmein
+ARCHIVE_BINARY := .build/release/vphone-archive
 PATCHER_BINARY := .build/debug/vphone-cli
 BUNDLE      := .build/vphone-cli.app
 BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
 BUNDLE_VM   := $(BUNDLE)/Contents/MacOS/vphone-vm
 BUNDLE_LETMEIN := $(BUNDLE)/Contents/MacOS/vphone-letmein
+BUNDLE_ARCHIVE := $(BUNDLE)/Contents/MacOS/vphone-archive
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
@@ -257,7 +259,8 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(VM_BINARY)
 	@codesign --force --sign - $(BINARY)
 	@codesign --force --sign - $(LETMEIN_BINARY)
-	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein"
+	@codesign --force --sign - $(ARCHIVE_BINARY)
+	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein, vphone-archive"
 	@# An unentitled vphone-vm is worse than a broken one: it launches
 	@# perfectly, which convinces vphone-cli's AMFI probe that nothing is
 	@# wrong, and only fails later trying to create a PV=3 machine. A bare
@@ -266,13 +269,14 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 		| grep -q 'com.apple.private.virtualization' \
 		|| (echo "Error: $(VM_BINARY) is not entitled after signing." >&2; exit 1)
 
-$(VM_BINARY) $(LETMEIN_BINARY): $(BINARY)
+$(VM_BINARY) $(LETMEIN_BINARY) $(ARCHIVE_BINARY): $(BINARY)
 
 bundle: build $(INFO_PLIST)
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
 	@cp -f $(VM_BINARY) $(BUNDLE_VM)
 	@cp -f $(LETMEIN_BINARY) $(BUNDLE_LETMEIN)
+	@cp -f $(ARCHIVE_BINARY) $(BUNDLE_ARCHIVE)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
@@ -283,6 +287,7 @@ bundle: build $(INFO_PLIST)
 	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
 	@codesign --force --sign - $(BUNDLE_BIN)
 	@codesign --force --sign - $(BUNDLE_LETMEIN)
+	@codesign --force --sign - $(BUNDLE_ARCHIVE)
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
 	@codesign -v $(BUNDLE_VM) \
 		|| (echo "Error: the bundle seal did not verify after signing." >&2; exit 1)

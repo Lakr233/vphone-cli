@@ -16,17 +16,20 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 cd "$PROJECT_ROOT"
 
-# Three host binaries, and only ONE of them is entitled. vphone-cli is the
+# Four host binaries, and only ONE of them is entitled. vphone-cli is the
 # user-facing entry point and carries nothing, so it always launches; vphone-vm
 # holds the private virtualization keys and is what amfid can refuse;
-# vphone-letmein opens a window when it does.
+# vphone-letmein opens a window when it does; vphone-archive unpacks and packs
+# without gtar, bsdtar, unzip or zstd.
 BINARY=".build/release/vphone-cli"
 VM_BINARY=".build/release/vphone-vm"
 LETMEIN_BINARY=".build/release/vphone-letmein"
+ARCHIVE_BINARY=".build/release/vphone-archive"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
 BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
 BUNDLE_LETMEIN="${BUNDLE}/Contents/MacOS/vphone-letmein"
+BUNDLE_ARCHIVE="${BUNDLE}/Contents/MacOS/vphone-archive"
 INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
 BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
@@ -54,7 +57,8 @@ echo "=== Signing ==="
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$VM_BINARY"
 codesign --force --sign - "$BINARY"
 codesign --force --sign - "$LETMEIN_BINARY"
-echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein"
+codesign --force --sign - "$ARCHIVE_BINARY"
+echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein, vphone-archive"
 
 # An unentitled vphone-vm is worse than a broken one: it launches perfectly,
 # which convinces vphone-cli's AMFI probe that nothing is wrong, and only fails
@@ -77,6 +81,7 @@ mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp -f "$BINARY" "$BUNDLE_BIN"
 cp -f "$VM_BINARY" "$BUNDLE_VM"
 cp -f "$LETMEIN_BINARY" "$BUNDLE_LETMEIN"
+cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
@@ -88,6 +93,7 @@ cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
 codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_LETMEIN"
+codesign --force --sign - "$BUNDLE_ARCHIVE"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
 
@@ -147,6 +153,7 @@ echo "=== Re-signing bundled binaries (resealing Resources) ==="
 # Nested first, main executable last — see the bundling step above.
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_LETMEIN"
+codesign --force --sign - "$BUNDLE_ARCHIVE"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 codesign -v "$BUNDLE_VM" \
   || { echo "Error: the bundle seal did not verify after signing." >&2; exit 1; }
@@ -157,6 +164,7 @@ echo "=== Build complete ==="
 echo "  vphone-cli     : ${BINARY} (no entitlements — always launches)"
 echo "  vphone-vm      : ${VM_BINARY} (entitled — amfid may refuse it)"
 echo "  vphone-letmein : ${LETMEIN_BINARY}"
+echo "  vphone-archive : ${ARCHIVE_BINARY}"
 echo "  bundle         : ${BUNDLE}"
 [[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned        : .build/vphoned.signed"
 echo ""

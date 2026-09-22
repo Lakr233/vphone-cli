@@ -22,3 +22,6 @@
 [submodule "scripts/repos/insert_dylib"]
 	path = scripts/repos/insert_dylib
 	url = https://github.com/tyilo/insert_dylib.git
+[submodule "vendor/libarchive.xcframework"]
+	path = vendor/libarchive.xcframework
+	url = https://github.com/Lakr233/libarchive.xcframework.git

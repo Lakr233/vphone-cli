@@ -239,6 +239,27 @@ check_smoke() {
   }
 
   [[ -x "$cli" ]] && run_restricted "vphone-cli --help" "$cli" --help
+
+  # The one binary whose smallest real job is worth doing here. Packing and
+  # unpacking a .tzst with no zstd(1) reachable is the whole reason it exists:
+  # both the system tar and GNU tar spawn one for that filter, so this is the
+  # difference between a CFW install working on a machine without Homebrew and
+  # not.
+  local archive="$root/Contents/MacOS/vphone-archive"
+  if [[ -x "$archive" ]]; then
+    local work="$tmp/smoke"
+    mkdir -p "$work/src" "$work/out"
+    print "hello" > "$work/src/probe.txt"
+    if env -i PATH=/usr/bin:/bin HOME="$tmp" "$archive" \
+         create -f "$work/t.tzst" -C "$work/src" --zstd >/dev/null 2>&1 \
+       && env -i PATH=/usr/bin:/bin HOME="$tmp" "$archive" \
+         extract -f "$work/t.tzst" -C "$work/out" >/dev/null 2>&1 \
+       && [[ "$(<"$work/out/probe.txt")" == "hello" ]]; then
+      green "  ok    gate 3: vphone-archive round-trips a .tzst with no zstd on PATH"
+    else
+      fail "gate 3: vphone-archive could not round-trip a .tzst"
+    fi
+  fi
   [[ -x "$letmein" ]] && {
     # Expected to refuse without root; what matters is that it starts.
     env -i PATH=/usr/bin:/bin HOME="$tmp" "$letmein" status >/dev/null 2>&1

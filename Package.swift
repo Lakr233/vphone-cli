@@ -14,6 +14,7 @@ let package = Package(
         .package(path: "vendor/libcapstone-spm"),
         .package(path: "vendor/libimg4-spm"),
         .package(path: "vendor/MachOKit"),
+        .package(path: "vendor/libarchive.xcframework"),
     ],
     targets: [
         .target(
@@ -35,6 +36,19 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("Virtualization"),
             ]
+        ),
+        // Archive reading and writing: the one place that knows how ownership,
+        // permissions and path safety differ between unpacking onto a mounted
+        // guest volume and unpacking into a host temp directory. Replaces
+        // gtar, bsdtar, unzip and zstd, which between them were four external
+        // programs and, for anything .zst, a Homebrew install.
+        .target(
+            name: "VPhoneArchive",
+            dependencies: [
+                .product(name: "LibArchive", package: "libarchive.xcframework"),
+                "VPhoneCore",
+            ],
+            path: "sources/VPhoneArchive"
         ),
         // Everything that touches a running guest: the machine, its window and
         // menus, the vsock channel and the host device bridges. It is a library
@@ -80,6 +94,15 @@ let package = Package(
             ],
             path: "sources/vphone-cli"
         ),
+        .executableTarget(
+            name: "vphone-archive",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "VPhoneArchive",
+                "VPhoneCore",
+            ],
+            path: "sources/vphone-archive"
+        ),
         // Opens a short AMFI window so vphone-vm can be exec'd. Plain C against
         // the SDK; no third-party anything.
         .executableTarget(
@@ -98,6 +121,11 @@ let package = Package(
             name: "VPhoneCoreTests",
             dependencies: ["VPhoneCore"],
             path: "tests/VPhoneCoreTests"
+        ),
+        .testTarget(
+            name: "VPhoneArchiveTests",
+            dependencies: ["VPhoneArchive"],
+            path: "tests/VPhoneArchiveTests"
         ),
     ]
 )

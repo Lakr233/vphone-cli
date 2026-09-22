@@ -327,6 +327,12 @@ __marimo__/
 scripts/vphoned/vphoned
 /cfw_input/
 sources/VPhoneCore/VPhoneBuildInfo.swift
+# libarchive drops zero-byte tar.XXXXXXXX files in the process's working
+# directory while restoring macOS metadata — a relative mkstemp template in
+# its own sources, so TMPDIR does not redirect them. Harmless, but they should
+# not be committed. Worth remembering that `vphone-archive` run as root during
+# an install will leave them in whatever directory the installer is in.
+tar.????????
 setup_logs/
 /testing_results
 /.ida-mcp
