@@ -787,7 +787,8 @@ cache rebuild.
     - it can attach to `/usr/libexec/amfid`
     - the initial path allow rule failed because `AMFIPathValidator` reports URL-encoded paths (`/Volumes/My%20Shared%20Files/...`)
     - rerunning `amfidont` with the encoded project path and the release-binary CDHash allows the signed release `vphone-cli` to launch
-    - this workflow is now packaged as `make amfidont_allow_vphone` / `scripts/start_amfidont_for_vphone.sh`
+    - this workflow was packaged as `make amfidont_allow_vphone` / `scripts/start_amfidont_for_vphone.sh`
+    - **superseded 2026-09-23.** `amfidont` is gone, and so is the path/CDHash allowlist it provided — on macOS 26 amfid carries `com.apple.developer.hardened-process`, which gates the debugger operations a per-validation decision needs. `vphone-letmein` replaces it with a global switch held open only for the length of one launch, and `vphone-cli` (now unentitled, so it always starts) drives that itself. The URL-encoding detail above no longer applies: nothing matches on paths any more. See `sources/vphone-letmein/main.c`.
   - With launch policy bypassed, `make boot_dfu` advances into VM setup, emits `vm/udid-prediction.txt`, and then fails with `VZErrorDomain Code=2 "Virtualization is not available on this hardware."`
   - `VPhoneAppDelegate` startup failure handling was tightened so these fatal boot/DFU startup errors now exit non-zero; `make boot_dfu` now reports `make: *** [boot_dfu] Error 1` for the nested-virtualization failure instead of incorrectly returning success.
   - The host itself is a nested Apple VM (`Model Name: Apple Virtual Machine 1`, `kern.hv_vmm_present=1`), so the remaining blocker is lack of nested Virtualization.framework availability rather than firmware patching or AMFI bypass.

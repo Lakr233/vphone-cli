@@ -47,27 +47,36 @@ See `research/` for detailed firmware pipeline, component origins, patch breakdo
 Makefile                          # Single entry point — run `make help`
 
 sources/
-├── vphone.entitlements               # Private API entitlements (5 keys)
-└── vphone-cli/                       # Swift 6.0 executable (pure Swift, no ObjC)
-    ├── main.swift                    # Entry point — NSApplication + AppDelegate
+├── vphone.entitlements               # Private API entitlements (7 keys) — signed ONTO vphone-vm ONLY
+│
+├── vphone-cli/                       # Entry point. NO entitlements, so it always launches.
+│   │                                 # Argument parsing + orchestration; spawns the others.
+│   ├── main.swift                    # Parses, and forwards `boot` to vphone-vm
+│   ├── VPhoneCLI.swift               # Root command, patch-firmware/patch-component
+│   ├── VPhoneFWCLI.swift             # Firmware subcommands
+│   ├── VPhoneSetupCLI.swift          # Setup subcommands
+│   ├── VPhoneRestoreCLI.swift        # Restore subcommands
+│   ├── VPhoneVMCLI.swift             # VM subcommand group
+│   ├── VPhoneVMCreateCLI.swift       # VM create
+│   ├── VPhoneVMLaunchCLI.swift       # VM launch
+│   ├── VPhoneVMTransferCLI.swift     # VM transfer
+│   ├── VPhoneCreateOptions.swift     # Create-flow option set
+│   ├── VPhoneCreateOrchestrator.swift # Native `vm create` pipeline driver
+│   ├── VPhoneFirmwareSelection.swift # Interactive firmware picker
+│   ├── VPhoneVMSelection.swift       # Interactive VM picker
+│   └── VPhoneProgressBar.swift       # Terminal progress rendering
+│
+├── vphone-vm/                        # The ONLY entitled binary — a parse and a run loop
+│   └── main.swift                    # VPhoneBootCLI.parseOrExit() → VPhoneGuestApp.run()
+│
+├── vphone-letmein/                   # Opens a short AMFI window so vphone-vm can exec
+│   └── main.c                        # Plain C; Foundation + libobjc only
+│
+└── VPhoneVMKit/                      # Everything that touches a running guest
+    ├── VPhoneGuestApp.swift          # NSApplication wiring (keeps the entry point logic-free)
     ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
-    ├── VPhoneBuildInfo.swift         # Auto-generated build-time commit hash
     ├── VPhoneHostControl.swift       # Unix-socket automation server (one JSON line in/out)
-    │
-    ├── CLI/                          # ArgumentParser command tree + interactive pickers
-    │   ├── VPhoneCLI.swift           # Root command and global options
-    │   ├── VPhoneFWCLI.swift         # Firmware subcommands
-    │   ├── VPhoneSetupCLI.swift      # Setup subcommands
-    │   ├── VPhoneRestoreCLI.swift    # Restore subcommands
-    │   ├── VPhoneVMCLI.swift         # VM subcommand group
-    │   ├── VPhoneVMCreateCLI.swift   # VM create
-    │   ├── VPhoneVMLaunchCLI.swift   # VM launch
-    │   ├── VPhoneVMTransferCLI.swift # VM transfer
-    │   ├── VPhoneCreateOptions.swift # Create-flow option set
-    │   ├── VPhoneCreateOrchestrator.swift # Native `vm create` pipeline driver
-    │   ├── VPhoneFirmwareSelection.swift  # Interactive firmware picker
-    │   ├── VPhoneVMSelection.swift   # Interactive VM picker
-    │   └── VPhoneProgressBar.swift   # Terminal progress rendering
+    ├── VPhoneBootCLI+VirtualMachine.swift # resolveOptions() — the half that needs Virtualization
     │
     ├── VM/                           # VM core
     │   ├── VPhoneVirtualMachine.swift # @MainActor VM configuration and lifecycle
@@ -79,8 +88,7 @@ sources/
     │   ├── VPhoneControl.swift       # Host-side vsock client for vphoned (length-prefixed JSON)
     │   ├── VPhoneControlApps.swift   # Installed apps — list and launch
     │   ├── VPhoneControlKeychain.swift # Keychain dump
-    │   ├── VPhoneControlSystem.swift # Device, battery, location, devmode
-    │   └── VPhoneInstallPackage.swift # Package installation over vsock
+    │   └── VPhoneControlSystem.swift # Device, battery, location, devmode
     │
     ├── Interface/                    # Window & UI
     │   ├── VPhoneWindowController.swift # @MainActor VM window management + toolbar
@@ -147,9 +155,11 @@ research/                         # Detailed firmware/patch documentation
 
 ### Key Patterns
 
+- **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-letmein` opens a window when it does. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
+- **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and decides once per command whether an AMFI window is needed, by running `vphone-vm --help` and looking for SIGKILL. Never spawn the guest directly.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
-- **App lifecycle:** `main.swift` → `NSApplication` + `VPhoneAppDelegate`. CLI args parsed before run loop. AppDelegate drives VM start/window/shutdown.
-- **Configuration:** `ArgumentParser` → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
+- **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.
+- **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
 - **Guest daemon (vphoned):** ObjC daemon inside iOS VM, vsock port 1337, length-prefixed JSON protocol. Host side is `VPhoneControl` with auto-reconnect.
 - **Menu system:** `VPhoneMenuController` + per-menu extensions (Keys, Type, Location, Connect, Install, Record).
 - **File browser:** SwiftUI (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) in `NSHostingController`. Search, sort, upload/download, drag-drop via `VPhoneControl`.

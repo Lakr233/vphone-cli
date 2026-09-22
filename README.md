@@ -137,7 +137,7 @@ Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take ef
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
 ```
 
-**Option B — keep SIP on (debug-only relaxed), then allowlist the binary with amfidont** (leaves AMFI enabled system-wide). 
+**Option B — keep SIP on (debug-only relaxed) and let `vphone-cli` open a window per launch** (leaves AMFI enabled the rest of the time).
 
 In Recovery:
 
@@ -146,11 +146,29 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-Then reboot into macOS and:
+Then reboot into macOS. There is nothing else to set up: `vphone-cli` carries
+no entitlements and always launches, so when it starts a guest it notices that
+amfid will not accept `vphone-vm`, opens a window with `vphone-letmein` (one
+sudo prompt), and closes it once the guest is running.
+
+To do it by hand — worth it while working on `vphone-vm`, where one sudo beats
+a prompt per run:
 
 ```bash
-vphone-amfidont         # .build/vphone-cli.app/Contents/Resources/vphone-amfidont for local builds
+make letmein          # open        (sudo)
+make letmein_status   # check
+make letmein_off      # close
 ```
+
+> **Be honest about what this does.** It is a global switch, not an allowlist:
+> while the window is open, amfid reports *every* signature it checks as valid
+> and Apple-signed. That cannot be narrowed to one path or one binary — a
+> per-validation decision needs Apple-private debugger entitlements. What can
+> be narrowed is time, which is why the automatic path holds the window only
+> for the length of one launch. It is also memory-only: a reboot clears it.
+>
+> `vphone-letmein` replaces the old `amfidont` helper, which was a pip package
+> and is no longer used.
 
 ## Tested Environments
 
@@ -179,7 +197,7 @@ vphone-amfidont         # .build/vphone-cli.app/Contents/Resources/vphone-amfido
 
 ## FAQ
 
-**`zsh: killed ./vphone-cli`** — AMFI/debug restrictions aren't bypassed; see [Prerequisites](#prerequisites) (`amfi_get_out_of_my_way=1` or `amfidont`).
+**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [Prerequisites](#prerequisites) (`amfi_get_out_of_my_way=1`, or let `vphone-cli` open a window for you). Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
 
 **`Virtualization is not available on this hardware`** — your Mac is itself a VM; PV=3 guest boot can't nest. Use a non-nested macOS 15+ host.
 
