@@ -689,7 +689,18 @@ cp -n "${CLOUDOS_DIR}"/Firmware/*.dmg.trustcache "$IPHONE_DIR/Firmware"/ 2>/dev/
 cp "$IPHONE_DIR/BuildManifest.plist" "$IPHONE_DIR/iPhone-BuildManifest.plist"
 
 echo "==> Generating hybrid plists ..."
-"$PYTHON3" "$SCRIPT_DIR/fw_manifest.py" "$IPHONE_DIR" "$CLOUDOS_DIR"
+# VPHONE_CLI_BIN is set when a vphone-cli subcommand invokes this script; the
+# fallbacks cover being run by hand from a dev tree or from inside the .app,
+# where scripts/ sits in Contents/Resources and the binaries are in MacOS.
+PROJ_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "$PROJ_ROOT/.build/release/vphone-cli" "$(dirname "$PROJ_ROOT")/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break; }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || { echo "ERROR: cannot find vphone-cli to generate the hybrid plists" >&2; exit 1; }
+"$VPHONE_CLI" fw manifest "$IPHONE_DIR" "$CLOUDOS_DIR"
 
 echo "==> Cleaning up ..."
 rm -rf "$CLOUDOS_DIR"

@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Generate hybrid BuildManifest.plist and Restore.plist for vresearch1 restore.
+"""REFERENCE IMPLEMENTATION -- no longer called by anything.
+
+Superseded 2026-09-23 by `vphone-cli fw manifest`
+(sources/FirmwarePatcher/Manifest/FirmwareManifest.swift). Checked against
+this file on cloudOS 26.4-23E5207q x iPhone 27.0-24A435: same identity
+indices picked, and semantically identical BuildManifest.plist and
+Restore.plist.
+
+That is ONE build pair. What would break on another is the identity
+*selection* -- which identity counts as research, which as release, which as
+the erase identity -- and the only reason to keep this file is to re-run the
+comparison when a new pair lands. Do that before deleting it. It is one of
+the files D1 counts.
+
+Generate hybrid BuildManifest.plist and Restore.plist for vresearch1 restore.
 
 Merges cloudOS boot-chain (vresearch101ap) with vphone600 runtime components
 (device tree, SEP, kernel) and iPhone OS images into a single DFU erase-install

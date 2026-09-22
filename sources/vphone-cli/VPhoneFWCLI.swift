@@ -7,7 +7,54 @@ struct VPhoneFWCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "fw",
         abstract: "Firmware pipeline: prepare (download/merge IPSWs) and patch",
-        subcommands: [VPhoneFWCatalogCommand.self, VPhoneFWPrepareCommand.self, VPhoneFWPatchCommand.self])
+        subcommands: [
+            VPhoneFWCatalogCommand.self,
+            VPhoneFWPrepareCommand.self,
+            VPhoneFWPatchCommand.self,
+            VPhoneFWManifestCommand.self,
+        ])
+}
+
+// MARK: - manifest
+
+/// Replaces `scripts/fw_manifest.py`, called from `fw_prepare.sh` once both
+/// IPSWs are extracted and merged.
+struct VPhoneFWManifestCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "manifest",
+        abstract: "Write the hybrid BuildManifest.plist and Restore.plist into the iPhone directory",
+        discussion: """
+        Merges the cloudOS boot chain (vresearch101ap, which is what the VM
+        identifies as in DFU) with vphone600 runtime components and the iPhone
+        OS images into a single DFU erase-install build identity.
+
+        Both files are written into <iphone-dir>, replacing what is there.
+        fw_prepare.sh keeps the original as iPhone-BuildManifest.plist first.
+        """
+    )
+
+    @Argument(
+        help: "Extracted iPhone IPSW directory — also where the output is written",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var iPhoneDirectory: URL
+
+    @Argument(
+        help: "Extracted cloudOS IPSW directory",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var cloudOSDirectory: URL
+
+    @Flag(name: .shortAndLong, help: "Print which identities were selected")
+    var verbose = false
+
+    func run() throws {
+        try FirmwareManifest.generate(
+            iPhoneDir: iPhoneDirectory,
+            cloudOSDir: cloudOSDirectory,
+            verbose: true
+        )
+    }
 }
 
 // MARK: - catalog
