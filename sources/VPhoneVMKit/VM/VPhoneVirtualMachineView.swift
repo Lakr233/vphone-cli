@@ -2,6 +2,7 @@ import AppKit
 import Dynamic
 import Foundation
 import Virtualization
+import VPhoneCore
 
 class VPhoneVirtualMachineView: VZVirtualMachineView {
     var keyHelper: VPhoneKeyHelper?

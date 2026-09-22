@@ -16,12 +16,20 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 cd "$PROJECT_ROOT"
 
+# Three host binaries, and only ONE of them is entitled. vphone-cli is the
+# user-facing entry point and carries nothing, so it always launches; vphone-vm
+# holds the private virtualization keys and is what amfid can refuse;
+# vphone-letmein opens a window when it does.
 BINARY=".build/release/vphone-cli"
+VM_BINARY=".build/release/vphone-vm"
+LETMEIN_BINARY=".build/release/vphone-letmein"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
+BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
+BUNDLE_LETMEIN="${BUNDLE}/Contents/MacOS/vphone-letmein"
 INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
-BUILD_INFO="sources/vphone-cli/VPhoneBuildInfo.swift"
+BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
 GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 BUILD_VPHONED=1
@@ -39,20 +47,44 @@ echo '// Auto-generated — do not edit' > "$BUILD_INFO"
 echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUILD_INFO"
 swift build -c release
 
-echo "=== Signing with entitlements ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BINARY"
-echo "  signed OK → ${BINARY}"
+# Only vphone-vm gets the entitlements. Signing vphone-cli with them too would
+# put us straight back where we started: the entry point itself unable to
+# launch without an AMFI bypass already in place.
+echo "=== Signing ==="
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$VM_BINARY"
+codesign --force --sign - "$BINARY"
+codesign --force --sign - "$LETMEIN_BINARY"
+echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein"
+
+# An unentitled vphone-vm is worse than a broken one: it launches perfectly,
+# which convinces vphone-cli's AMFI probe that nothing is wrong, and only fails
+# later when it tries to create a PV=3 machine. A bare `swift build` leaves
+# exactly that state behind. Catch it at the source.
+if ! codesign -d --entitlements - --xml "$VM_BINARY" 2>/dev/null \
+     | grep -q 'com.apple.private.virtualization'; then
+  echo "Error: ${VM_BINARY} is not entitled after signing." >&2
+  echo "       It would still launch, and would still fail to create a VM." >&2
+  exit 1
+fi
 
 # --- Bundle (.app used for GUI boot) ---
+# The .app is never opened through Launch Services — every caller runs a binary
+# inside it directly. It exists so the process that becomes an NSApplication
+# has a bundle: icon, LSUIElement, and the location usage strings. That process
+# is vphone-vm, which is why it, and not vphone-cli, is CFBundleExecutable.
 echo "=== Bundling ${BUNDLE} ==="
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp -f "$BINARY" "$BUNDLE_BIN"
+cp -f "$VM_BINARY" "$BUNDLE_VM"
+cp -f "$LETMEIN_BINARY" "$BUNDLE_LETMEIN"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
 cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
 codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
+codesign --force --sign - "$BUNDLE_BIN"
+codesign --force --sign - "$BUNDLE_LETMEIN"
 echo "  bundled → ${BUNDLE}"
 
 # --- vphoned guest daemon (cross-compiled + signed for iOS arm64) ---
@@ -99,24 +131,23 @@ cp -f requirements.txt "${RES}/requirements.txt"
 # = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
 cp -f debs.list "${RES}/debs.list"
 cp -f README.md "${RES}/README.md"
-# vphone-amfidont helper (allows this .app through amfid). Kept in Resources —
-# NOT MacOS — so bundle signing doesn't reject it as unsigned nested code; a
-# Homebrew `binary` symlink exposes it on PATH.
-cp -f scripts/vphone-amfidont "${RES}/vphone-amfidont"
-chmod +x "${RES}/vphone-amfidont"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md, vphone-amfidont"
+echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —
 # re-signing here reseals against the final Resources tree.
-echo "=== Re-signing ${BUNDLE_BIN} (resealing Resources) ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+echo "=== Re-signing bundled binaries (resealing Resources) ==="
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
+codesign --force --sign - "$BUNDLE_BIN"
+codesign --force --sign - "$BUNDLE_LETMEIN"
 echo "  resealed OK"
 
 echo ""
 echo "=== Build complete ==="
-echo "  binary : ${BINARY}"
-echo "  bundle : ${BUNDLE}"
-[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned: .build/vphoned.signed"
+echo "  vphone-cli     : ${BINARY} (no entitlements — always launches)"
+echo "  vphone-vm      : ${VM_BINARY} (entitled — amfid may refuse it)"
+echo "  vphone-letmein : ${LETMEIN_BINARY}"
+echo "  bundle         : ${BUNDLE}"
+[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned        : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"

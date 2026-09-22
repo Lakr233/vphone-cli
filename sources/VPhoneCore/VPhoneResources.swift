@@ -1,3 +1,4 @@
+import Darwin  // _NSGetExecutablePath
 import Foundation
 
 // MARK: - VPhoneResourcesError
@@ -15,16 +16,46 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Resolution
 
-    /// The running executable, resolved reliably. `CommandLine.arguments[0]` is
-    /// NOT reliable — under a PATH/symlink launch (e.g. a Homebrew symlink) it's
-    /// a bare name that `URL(fileURLWithPath:)` resolves against the CWD, so the
-    /// binary/base end up under `$HOME`. `Bundle.main.executableURL` is the
-    /// kernel-provided executable path, correct regardless of how the process
-    /// was invoked; resolve symlinks so a brew symlink lands on the real binary
-    /// inside the .app.
+    /// The image this process is actually running, as the kernel recorded it.
+    ///
+    /// Neither obvious alternative works here. `CommandLine.arguments[0]` is a
+    /// bare name under a PATH or symlink launch, which `URL(fileURLWithPath:)`
+    /// then resolves against the CWD and lands under `$HOME`.
+    /// `Bundle.main.executableURL` reads `CFBundleExecutable` out of Info.plist
+    /// — and now that the bundle declares `vphone-vm`, it answers "vphone-vm"
+    /// even when the running binary is `vphone-cli` sitting right beside it in
+    /// the same `Contents/MacOS`. It cannot be used to find ourselves.
+    ///
+    /// `_NSGetExecutablePath` has neither problem: it is the path the kernel
+    /// exec'd, independent of argv and of any plist. Symlinks are resolved so a
+    /// Homebrew symlink lands on the real binary inside the .app.
     public static func runningExecutable() -> URL {
+        var size = UInt32(PATH_MAX)
+        var buffer = [CChar](repeating: 0, count: Int(size))
+        if _NSGetExecutablePath(&buffer, &size) == 0 {
+            let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            let path = String(decoding: bytes, as: UTF8.self)
+            return URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        }
+        // Only reachable if PATH_MAX was somehow too small for our own path.
         if let exe = Bundle.main.executableURL { return exe.resolvingSymlinksInPath() }
         return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    }
+
+    /// A companion binary shipped beside this one: `vphone-vm`, `vphone-letmein`.
+    ///
+    /// The layout is the same in both places we ever run from — `.build/release`
+    /// during development and `Contents/MacOS` in the bundle — so resolving a
+    /// sibling of the running image covers both without a special case, and
+    /// without ever consulting `PATH`. That last part is the point: a `PATH`
+    /// lookup is what let the old Python probing pick up whatever happened to
+    /// be installed on the machine.
+    ///
+    /// Existence is deliberately not checked here. The caller reports a missing
+    /// companion far better than this function could, because it knows which
+    /// operation is failing and why.
+    public static func siblingExecutable(_ name: String) -> URL {
+        runningExecutable().deletingLastPathComponent().appendingPathComponent(name)
     }
 
     public static func resolve(executablePath: String? = nil) -> VPhoneResources {

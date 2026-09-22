@@ -1,6 +1,6 @@
 #!/bin/zsh
 # boot_host_preflight.sh — Diagnose whether the host can launch the signed
-# vphone-cli binary required for PV=3 virtualization boot/DFU flows.
+# vphone-vm binary required for PV=3 virtualization boot/DFU flows.
 
 set -euo pipefail
 
@@ -34,15 +34,18 @@ done
 
 cd "$PROJECT_ROOT"
 
-# The caller (vphone-cli) passes VPHONE_CLI_BIN = the running binary, so we
-# check THAT — the bundled .app's Contents/MacOS/vphone-cli, not a dev
-# .build/release path that doesn't exist inside the bundle. Falls back to the
-# dev layout for standalone/`make` invocation.
-RELEASE_BIN="${VPHONE_CLI_BIN:-${PROJECT_ROOT}/.build/release/vphone-cli}"
-DEBUG_BIN="${PROJECT_ROOT}/.build/debug/vphone-cli"
+# What we check is vphone-vm, not vphone-cli. vphone-cli carries no
+# entitlements and launches on any host, so asking whether it runs proves
+# nothing; vphone-vm holds the private virtualization keys and is the binary
+# amfid can refuse. The caller passes VPHONE_CLI_BIN pointing at it — the
+# bundled .app's Contents/MacOS/vphone-vm, not a dev .build/release path that
+# does not exist inside the bundle. The fallback is the dev layout, for
+# standalone and `make` invocation.
+RELEASE_BIN="${VPHONE_CLI_BIN:-${PROJECT_ROOT}/.build/release/vphone-vm}"
+DEBUG_BIN="${PROJECT_ROOT}/.build/debug/vphone-vm"
 ENTITLEMENTS="${PROJECT_ROOT}/sources/vphone.entitlements"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vphone-preflight.XXXXXX")"
-TMP_SIGNED_DEBUG="${TMP_DIR}/vphone-cli.debug.signed"
+TMP_SIGNED_DEBUG="${TMP_DIR}/vphone-vm.debug.signed"
 
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -178,7 +181,9 @@ print_section "Result"
 echo "If unsigned debug runs but either signed binary exits 137 / signal 9,"
 echo "the host is not currently permitting the required private virtualization entitlements."
 echo "If the signed release binary exits 0 but the signed debug control still exits 137,"
-echo "a path/CDHash-scoped amfidont bypass may already be active for this repo."
+echo "something is permitting this particular binary and not others."
+echo "Note vphone-letmein is not that something: it is a global switch, so while"
+echo "its window is open BOTH would exit 0."
 echo "Typical requirements for this project are:"
 echo "  1. macOS 15+ with PV=3 support"
 echo "  2. Host hardware must expose Virtualization.framework VM support (not a nested VM without virtualization availability)"
@@ -191,7 +196,7 @@ if (( ASSERT_BOOTABLE == 1 )); then
   if (( RELEASE_HELP_RC != 0 )); then
     (( QUIET == 0 )) && {
       echo ""
-      echo "Error: signed release vphone-cli is not launchable on this host (exit $RELEASE_HELP_RC)." >&2
+      echo "Error: signed release vphone-vm is not launchable on this host (exit $RELEASE_HELP_RC)." >&2
     }
     exit "$RELEASE_HELP_RC"
   fi

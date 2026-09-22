@@ -30,14 +30,22 @@ truthy = $(filter 1 true yes YES TRUE,$(1))
 
 # ─── Build info ──────────────────────────────────────────────────
 GIT_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_INFO  := sources/vphone-cli/VPhoneBuildInfo.swift
+BUILD_INFO  := sources/VPhoneCore/VPhoneBuildInfo.swift
 
 # ─── Paths ────────────────────────────────────────────────────────
 SCRIPTS     := scripts
+# Three host binaries, and only ONE of them is entitled. vphone-cli is the
+# user-facing entry point and carries nothing, so it always launches; vphone-vm
+# holds the private virtualization keys and is what amfid can refuse;
+# vphone-letmein opens a window when it does. See sources/vphone.entitlements.
 BINARY      := .build/release/vphone-cli
+VM_BINARY   := .build/release/vphone-vm
+LETMEIN_BINARY := .build/release/vphone-letmein
 PATCHER_BINARY := .build/debug/vphone-cli
 BUNDLE      := .build/vphone-cli.app
 BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
+BUNDLE_VM   := $(BUNDLE)/Contents/MacOS/vphone-vm
+BUNDLE_LETMEIN := $(BUNDLE)/Contents/MacOS/vphone-letmein
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 VENV        := .venv
@@ -94,7 +102,7 @@ help:
 	@echo "  make vm_list                 List available backups"
 	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW directories in the backup"
 	@echo "             FORCE=1                Skip overwrite prompt on restore"
-	@echo "  make amfidont_allow_vphone   Start amfidont for the signed vphone-cli binary"
+	@echo "  make letmein                 Open an AMFI window by hand (vphone-cli does it for you)"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
 	@echo "  make boot_less               Boot VM in vphoned patchless compatibility mode"
@@ -231,24 +239,47 @@ $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
 	$(WRITE_BUILD_INFO)
 	@set -o pipefail; swift build 2>&1 | tail -5
 
+# One recipe produces all three host binaries — `swift build` builds every
+# target anyway. Grouped targets (`&:`) would say this more precisely but need
+# GNU Make 4.3, and macOS still ships 3.81, so the other two just depend on
+# this one.
+#
+# Only vphone-vm gets the entitlements. Signing vphone-cli with them too would
+# put us straight back where we started: the entry point itself unable to
+# launch without an AMFI bypass already in place.
 $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "=== Building vphone-cli ($(GIT_HASH)) ==="
 	$(WRITE_BUILD_INFO)
 	@set -o pipefail; swift build -c release 2>&1 | tail -5
 	@echo ""
-	@echo "=== Signing with entitlements ==="
-	codesign --force --sign - --entitlements $(ENTITLEMENTS) $@
-	@echo "  signed OK"
+	@echo "=== Signing ==="
+	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(VM_BINARY)
+	@codesign --force --sign - $(BINARY)
+	@codesign --force --sign - $(LETMEIN_BINARY)
+	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein"
+	@# An unentitled vphone-vm is worse than a broken one: it launches
+	@# perfectly, which convinces vphone-cli's AMFI probe that nothing is
+	@# wrong, and only fails later trying to create a PV=3 machine. A bare
+	@# `swift build` leaves exactly that state behind.
+	@codesign -d --entitlements - --xml $(VM_BINARY) 2>/dev/null \
+		| grep -q 'com.apple.private.virtualization' \
+		|| (echo "Error: $(VM_BINARY) is not entitled after signing." >&2; exit 1)
+
+$(VM_BINARY) $(LETMEIN_BINARY): $(BINARY)
 
 bundle: build $(INFO_PLIST)
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
+	@cp -f $(VM_BINARY) $(BUNDLE_VM)
+	@cp -f $(LETMEIN_BINARY) $(BUNDLE_LETMEIN)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
 	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_BIN)
+	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
+	@codesign --force --sign - $(BUNDLE_BIN)
+	@codesign --force --sign - $(BUNDLE_LETMEIN)
 	@echo "  bundled → $(BUNDLE)"
 
 # Cross-compile + sign vphoned daemon for iOS arm64 (requires ldid)
@@ -269,7 +300,7 @@ vphoned:
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfidont_allow_vphone boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
+.PHONY: vm_new vm_backup vm_restore vm_switch vm_list letmein letmein_off letmein_status boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
 
 vm_new:
 	CPU="$(CPU)" MEMORY="$(MEMORY)" \
@@ -306,23 +337,37 @@ vm_list:
 	fi; \
 	if [ "$$found" = "0" ]; then echo "  (no backups yet — run: make vm_backup NAME=<name>)"; fi
 
-amfidont_allow_vphone: bundle
-	zsh $(SCRIPTS)/start_amfidont_for_vphone.sh
+# Normally unnecessary: vphone-cli opens and closes the window itself around
+# the launch. This is for working on vphone-vm by hand, where paying for one
+# sudo and leaving the window open beats a prompt per run. Close it with
+# `make letmein_off` — while it is open, amfid reports EVERY signature valid.
+letmein: $(LETMEIN_BINARY)
+	sudo "$(CURDIR)/$(LETMEIN_BINARY)" on
+
+letmein_off: $(LETMEIN_BINARY)
+	sudo "$(CURDIR)/$(LETMEIN_BINARY)" off
+
+letmein_status: $(LETMEIN_BINARY)
+	@sudo "$(CURDIR)/$(LETMEIN_BINARY)" status
 
 boot_host_preflight: build
 	zsh $(SCRIPTS)/boot_host_preflight.sh
 
+# Checks the ENTITLED binary, because that is the one amfid can refuse.
+# Running `vphone-cli --help` here would prove nothing: it carries no
+# entitlements and launches on any host.
 define BOOT_BINARY_CHECK
 	@zsh $(SCRIPTS)/boot_host_preflight.sh $(1)
 	@tmp_log="$$(mktemp -t vphone-boot-preflight.XXXXXX)"; \
 	set +e; \
-	"$(CURDIR)/$(BINARY)" --help >"$$tmp_log" 2>&1; \
+	"$(CURDIR)/$(VM_BINARY)" --help >"$$tmp_log" 2>&1; \
 	rc=$$?; \
 	set -e; \
 	if [ $$rc -ne 0 ]; then \
-		echo "Error: signed vphone-cli failed to launch (exit $$rc)." >&2; \
+		echo "Error: signed vphone-vm failed to launch (exit $$rc)." >&2; \
 		echo "Check private virtualization entitlement support and ensure SIP/AMFI are disabled on the host." >&2; \
-		echo "Alternatively, start the AMFI bypass helper with 'make amfidont_allow_vphone', then try again." >&2; \
+		echo "vphone-cli opens an AMFI window automatically when it starts a guest; to do it by hand:" >&2; \
+		echo "  sudo $(CURDIR)/$(LETMEIN_BINARY) on" >&2; \
 		if [ -s "$$tmp_log" ]; then \
 			echo "--- vphone-cli preflight log ---" >&2; \
 			tail -n 40 "$$tmp_log" >&2; \

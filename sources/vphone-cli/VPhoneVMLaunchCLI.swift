@@ -18,6 +18,12 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
     var kernelDebugPort: Int?
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
+    @Option(help: """
+    When to open an AMFI window for vphone-vm: auto (only if amfid refuses the \
+    launch), always, or never. Opening one needs sudo and, while open, makes \
+    amfid report every signature as valid.
+    """)
+    var letMeIn: VPhoneLetMeInPolicy = .fromEnvironment()
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
 
@@ -28,18 +34,22 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
         let layout = VPhoneLaunchLayout(resources: resources)
 
-        // The running executable is BOTH what we boot from and what preflight
-        // should check — a bundled .app is its own boot binary.
-        let bootBinary = VPhoneResources.runningExecutable()
-        guard FileManager.default.isExecutableFile(atPath: bootBinary.path) else {
-            FileHandle.standardError.write(Data(
-                "error: \(bootBinary.path) not found — build it first (make build/bundle).\n".utf8))
+        // The guest runs in vphone-vm, not in this process — that is the binary
+        // carrying the virtualization entitlements, so it is also the one
+        // preflight has to check. Checking ourselves would prove nothing: this
+        // binary is unentitled and always launches.
+        let launcher: VPhoneGuestLaunchPlanner
+        do {
+            launcher = try VPhoneGuestLaunchPlanner(letMeIn: letMeIn)
+        } catch {
+            FileHandle.standardError.write(Data("error: \(error)\n".utf8))
             throw ExitCode(1)
         }
+        let bootBinary = launcher.guestExecutable
 
-        // Host preflight — same gate make boot applies. Point it at THIS binary
-        // (VPHONE_CLI_BIN) so it checks the vphone-cli we're running, not a dev
-        // .build/release path that doesn't exist inside the bundled .app.
+        // Host preflight — same gate make boot applies. Point it at the guest
+        // binary (VPHONE_CLI_BIN) so it checks what actually has to launch, not
+        // a dev .build/release path that doesn't exist inside the bundled .app.
         var preflightArgs = ["--assert-bootable"]
         if variant == "less" { preflightArgs.append("--less") }
         var preflightEnv = ProcessInfo.processInfo.environment
@@ -73,25 +83,15 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }
 
         if v.tracesInternals {
-            print("[trace] spawning: \(bootBinary.path) \(args.joined(separator: " "))")
+            let (exe, spawned) = launcher.plan(args)
+            print("[trace] spawning: \(exe.path) \(spawned.joined(separator: " "))")
         }
 
-        let child = Process()
-        child.executableURL = bootBinary
-        child.arguments = args
-        child.currentDirectoryURL = bundle.url
         // `vm launch` always streams the guest serial console (inherits our
-        // stdio); it is intentionally not gated on verbosity.
-        try child.run()
-
-        // Forward SIGINT to the child so Ctrl+C stops the VM cleanly.
-        let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        signal(SIGINT, SIG_IGN)
-        sigint.setEventHandler { child.interrupt() }
-        sigint.resume()
-
-        child.waitUntilExit()
-        throw ExitCode(child.terminationStatus)
+        // stdio); it is intentionally not gated on verbosity. run() also hands
+        // the terminal to the child, which is what lets Ctrl-C reach the guest
+        // and an interactive sudo prompt reach the user.
+        throw ExitCode(try launcher.run(args, cwd: bundle.url))
     }
 }
 

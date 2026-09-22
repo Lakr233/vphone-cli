@@ -94,12 +94,20 @@ extension VPhoneCreateError: LocalizedError {
 public struct VPhoneCreateOrchestrator {
     private let library: VPhoneLibrary
     private let resources: VPhoneResources
-    private let selfExecutable: URL
+    /// How to start the guest. A create boots it four times — DFU, first boot,
+    /// boot analysis, foreground — so the decision about whether an AMFI window
+    /// is needed is taken once, here, rather than probing amfid (and possibly
+    /// prompting for sudo) before each one.
+    private let launcher: VPhoneGuestLaunchPlanner
 
-    public init(library: VPhoneLibrary, resources: VPhoneResources, selfExecutable: URL) {
+    public init(
+        library: VPhoneLibrary,
+        resources: VPhoneResources,
+        launcher: VPhoneGuestLaunchPlanner
+    ) {
         self.library = library
         self.resources = resources
-        self.selfExecutable = selfExecutable
+        self.launcher = launcher
     }
 
     // MARK: - run
@@ -339,13 +347,9 @@ public struct VPhoneCreateOrchestrator {
         print("[*] Starting DFU boot in background...")
         // Guest serial is never teed during `vm create` (echo: false); the
         // managed process still reads it internally for panic/prompt matching.
-        trace("spawn \(selfExecutable.path) --config \(configURL.path) --dfu (guest serial: off)", v)
-        let dfu = VPhoneManagedProcess(
-            selfExecutable,
-            ["--config", configURL.path, "--dfu"],
-            cwd: bundleURL,
-            echo: false
-        )
+        let (dfuExe, dfuArgs) = launcher.plan(["--config", configURL.path, "--dfu"])
+        trace("spawn \(dfuExe.path) \(dfuArgs.joined(separator: " ")) (guest serial: off)", v)
+        let dfu = VPhoneManagedProcess(dfuExe, dfuArgs, cwd: bundleURL, echo: false)
         try dfu.start()
         defer { dfu.terminate() }
 
@@ -553,8 +557,9 @@ public struct VPhoneCreateOrchestrator {
             print("[*] non-interactive (default): auto-starting first boot")
         }
 
-        trace("spawn \(selfExecutable.path) \(args.joined(separator: " ")) (guest serial: off)", v)
-        let boot = VPhoneManagedProcess(selfExecutable, args, cwd: bundleURL, echo: false)
+        let (bootExe, bootArgs) = launcher.plan(args)
+        trace("spawn \(bootExe.path) \(bootArgs.joined(separator: " ")) (guest serial: off)", v)
+        let boot = VPhoneManagedProcess(bootExe, bootArgs, cwd: bundleURL, echo: false)
         try boot.start()
         defer { boot.terminate() }
 
@@ -591,13 +596,9 @@ public struct VPhoneCreateOrchestrator {
 
     private func runBootAnalysis(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
-        trace("spawn \(selfExecutable.path) --config \(configURL.path) --headless (guest serial: off)", v)
-        let vm = VPhoneManagedProcess(
-            selfExecutable,
-            ["--config", configURL.path, "--headless"],
-            cwd: bundleURL,
-            echo: false
-        )
+        let (vmExe, vmArgs) = launcher.plan(["--config", configURL.path, "--headless"])
+        trace("spawn \(vmExe.path) \(vmArgs.joined(separator: " ")) (guest serial: off)", v)
+        let vm = VPhoneManagedProcess(vmExe, vmArgs, cwd: bundleURL, echo: false)
         try vm.start()
         defer { vm.terminate() }
 
@@ -625,10 +626,10 @@ public struct VPhoneCreateOrchestrator {
     private func startVMForeground(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         print("\n=== Start VM ===")
-        let args = ["--config", configURL.path, "--variant", "less"]
-        trace("spawn \(selfExecutable.path) \(args.joined(separator: " ")) (echo=\(v.showsToolDetail))", v)
+        let (exe, args) = launcher.plan(["--config", configURL.path, "--variant", "less"])
+        trace("spawn \(exe.path) \(args.joined(separator: " ")) (echo=\(v.showsToolDetail))", v)
         let code = try VPhoneProcessRunner.runStreaming(
-            selfExecutable,
+            exe,
             args,
             cwd: bundleURL,
             echo: v.showsToolDetail

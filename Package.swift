@@ -28,26 +28,65 @@ let package = Package(
         ),
         .target(
             name: "VPhoneCore",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
             path: "sources/VPhoneCore",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
             ]
         ),
-        .executableTarget(
-            name: "vphone-cli",
+        // Everything that touches a running guest: the machine, its window and
+        // menus, the vsock channel and the host device bridges. It is a library
+        // so the only executable holding the private virtualization
+        // entitlements can stay as small as an argument parse and an
+        // NSApplication run loop.
+        .target(
+            name: "VPhoneVMKit",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Dynamic", package: "Dynamic"),
-                "FirmwarePatcher",
                 "VPhoneCore",
             ],
-            path: "sources/vphone-cli",
+            path: "sources/VPhoneVMKit",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("AVFoundation"),
+            ]
+        ),
+        // The only binary signed with sources/vphone.entitlements.
+        .executableTarget(
+            name: "vphone-vm",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "VPhoneCore",
+                "VPhoneVMKit",
+            ],
+            path: "sources/vphone-vm"
+        ),
+        // The user-facing entry point. Note it depends on neither VPhoneVMKit
+        // nor any of the five frameworks above: it never builds a machine, it
+        // starts vphone-vm. Adding a dependency on the kit here would quietly
+        // undo the split, so don't.
+        .executableTarget(
+            name: "vphone-cli",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "FirmwarePatcher",
+                "VPhoneCore",
+            ],
+            path: "sources/vphone-cli"
+        ),
+        // Opens a short AMFI window so vphone-vm can be exec'd. Plain C against
+        // the SDK; no third-party anything.
+        .executableTarget(
+            name: "vphone-letmein",
+            path: "sources/vphone-letmein",
+            linkerSettings: [
+                .linkedFramework("Foundation"),
             ]
         ),
         .testTarget(

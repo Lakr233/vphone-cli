@@ -14,14 +14,12 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     /// Synthetic battery source for runtime charge/connectivity updates.
     private var batterySource: AnyObject?
 
-    public enum Variant: String, Sendable {
-        case less
-        case regular
-        case dev
-        case jb
-        case exp
-    }
-    
+    /// Moved to VPhoneCore so vphone-cli can accept `--variant` without linking
+    /// Virtualization. The alias keeps every existing `VPhoneVirtualMachine.Variant`
+    /// spelling working.
+    public typealias Variant = VPhoneVariant
+
+
     struct Options {
         var configURL: URL
         var romURL: URL?

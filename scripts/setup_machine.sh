@@ -246,7 +246,10 @@ stop_process_tree() {
 }
 
 kill_stale_vphone_procs() {
-  local vphone_bin="${PROJECT_ROOT}/.build/release/vphone-cli"
+  # A stale guest is a vphone-vm, not a vphone-cli: vphone-cli only forwards a
+  # boot and exits when the guest it started does, so it is never the thing
+  # left behind holding a VM.
+  local vphone_bin="${PROJECT_ROOT}/.build/release/vphone-vm"
   local -a stale_pids
   stale_pids=(${(@f)$(pgrep -f "$vphone_bin" 2>/dev/null || true)})
   (( ${#stale_pids[@]} == 0 )) && return

@@ -15,116 +15,8 @@ struct VPhoneCLI: ParsableCommand {
     )
 }
 
-struct VPhoneBootCLI: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "boot",
-        abstract: "Boot a virtual iPhone (PV=3)",
-        discussion: """
-        Creates a Virtualization.framework VM with platform version 3 (vphone)
-        and boots it from a manifest plist that describes all paths and hardware.
-
-        Requires:
-          - macOS 15+ (Sequoia or later)
-          - SIP/AMFI disabled
-          - Signed with vphone entitlements (done automatically by wrapper script)
-
-        Example:
-          vphone-cli --config ./config.plist
-        """
-    )
-
-    @Option(
-        name: .shortAndLong,
-        help: "Path to VM manifest plist (config.plist). Required.",
-        transform: URL.init(fileURLWithPath:)
-    )
-    var config: URL
-
-    @Flag(name: .shortAndLong, help: "Boot into DFU mode")
-    var dfu: Bool = false
-
-    @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar")
-    var headless: Bool = false
-
-    @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
-    var kernelDebugPort: Int?
-
-    @Option(help: "Path to signed vphoned binary for guest auto-update")
-    var vphonedBin: String = ".vphoned.signed"
-
-    @Option(name: [.customShort("V"), .long], help: "Firmware variant to execute.")
-    var variant: PatchFirmwareCLI.VariantOption = .regular
-
-    @Option(
-        help: "Automatically install the given IPA/TIPA after the guest control channel connects. Unavailable with --dfu.",
-        transform: URL.init(fileURLWithPath:)
-    )
-    var installIPA: URL?
-    
-    @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned usage (patchless-only).")
-    var noVphoned: Bool = false
-
-    /// DFU mode is always headless.
-    var noGraphics: Bool {
-        dfu || headless
-    }
-
-    var installPackageURL: URL? {
-        installIPA?.standardizedFileURL
-    }
-
-    mutating func validate() throws {
-        if dfu, let packageURL = installPackageURL {
-            throw ValidationError(
-                "`--install-ipa` is unavailable with `--dfu` because DFU mode does not start the guest control channel: \(packageURL.path)"
-            )
-        }
-
-        guard let packageURL = installPackageURL else { return }
-
-        guard FileManager.default.fileExists(atPath: packageURL.path) else {
-            throw ValidationError("`--install-ipa` file does not exist: \(packageURL.path)")
-        }
-
-        guard VPhoneInstallPackage.isSupportedFile(packageURL) else {
-            throw ValidationError(
-                "`--install-ipa` only supports .ipa or .tipa packages: \(packageURL.lastPathComponent)"
-            )
-        }
-    }
-
-    /// Resolve final options by merging manifest values.
-    func resolveOptions() throws -> VPhoneVirtualMachine.Options {
-        let manifest = try VPhoneVirtualMachineManifest.load(from: config)
-        print("[vphone] Loaded VM manifest from \(config.path)")
-
-        let vmDir = config.deletingLastPathComponent()
-
-        return VPhoneVirtualMachine.Options(
-            configURL: config,
-            romURL: manifest.romImages != nil
-                ? manifest.resolve(path: manifest.romImages!.avpBooter, in: vmDir)
-                : nil,
-            nvramURL: manifest.resolve(path: manifest.nvramStorage, in: vmDir),
-            diskURL: manifest.resolve(path: manifest.diskImage, in: vmDir),
-            cpuCount: Int(manifest.cpuCount),
-            memorySize: manifest.memorySize,
-            sepStorageURL: manifest.resolve(path: manifest.sepStorage, in: vmDir),
-            sepRomURL: manifest.romImages != nil
-                ? manifest.resolve(path: manifest.romImages!.avpSEPBooter, in: vmDir)
-                : nil,
-            screenWidth: manifest.screenConfig.width,
-            screenHeight: manifest.screenConfig.height,
-            screenPPI: manifest.screenConfig.pixelsPerInch,
-            screenScale: manifest.screenConfig.scale,
-            kernelDebugPort: kernelDebugPort,
-            variant: variant.virtualMachineVariant,
-            noVphoned: self.noVphoned
-        )
-    }
-
-    mutating func run() throws {}
-}
+// VPhoneBootCLI now lives in VPhoneCore, shared with vphone-vm. This binary
+// only forwards it — see main.swift.
 
 struct PatchFirmwareCLI: ParsableCommand {
     enum VariantOption: String, CaseIterable, ExpressibleByArgument {
@@ -144,15 +36,6 @@ struct PatchFirmwareCLI: ParsableCommand {
             }
         }
 
-        var virtualMachineVariant: VPhoneVirtualMachine.Variant {
-            switch self {
-            case .less: .less
-            case .regular: .regular
-            case .dev: .dev
-            case .jb: .jb
-            case .exp: .exp
-            }
-        }
     }
 
     static let configuration = CommandConfiguration(

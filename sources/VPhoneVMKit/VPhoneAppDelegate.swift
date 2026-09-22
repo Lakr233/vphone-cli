@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Virtualization
+import VPhoneCore
 
 class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private let cli: VPhoneBootCLI

@@ -322,7 +322,7 @@ __marimo__/
 /references/
 scripts/vphoned/vphoned
 /cfw_input/
-sources/vphone-cli/VPhoneBuildInfo.swift
+sources/VPhoneCore/VPhoneBuildInfo.swift
 setup_logs/
 /testing_results
 /.ida-mcp

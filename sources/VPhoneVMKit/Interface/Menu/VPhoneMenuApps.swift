@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import VPhoneCore
 
 // MARK: - Apps Menu
 
