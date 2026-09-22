@@ -22,7 +22,10 @@ struct VPhoneArchiveCLI: ParsableCommand {
         The compressor is detected when reading, so there is no --zstd to pass
         and no way to pass the wrong one.
         """,
-        subcommands: [Extract.self, Create.self, Decompress.self, List.self, Cat.self],
+        subcommands: [
+            Extract.self, Create.self, Decompress.self,
+            List.self, Cat.self, Fingerprint.self,
+        ],
         defaultSubcommand: Extract.self
     )
 }
@@ -213,6 +216,58 @@ struct Cat: ParsableCommand {
     func run() throws {
         let data = try VPhoneArchiveReader.readMember(member, from: file)
         FileHandle.standardOutput.write(data)
+    }
+}
+
+// MARK: - fingerprint
+
+struct Fingerprint: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "fingerprint",
+        abstract: "Describe a directory tree completely, or compare two of them",
+        discussion: """
+        For deciding whether GNU tar and vphone-archive produced the same
+        result. `diff -r` and `stat` cannot answer that: they miss ACLs,
+        extended attributes, which files are hardlinked to which, and
+        sparse-file occupancy — the four things most likely to differ, and
+        all four of which change how a guest behaves.
+
+        With one path, writes JSON. With two, prints the differences and exits
+        non-zero if there are any.
+        """
+    )
+
+    @Argument(help: "Tree to describe", transform: URL.init(fileURLWithPath:))
+    var tree: URL
+
+    @Argument(help: "Second tree; given, the two are compared",
+              transform: URL.init(fileURLWithPath:))
+    var other: URL?
+
+    @Flag(name: .customLong("no-content-hashes"),
+          help: "Skip file digests — much faster, and enough to compare metadata")
+    var noContentHashes = false
+
+    func run() throws {
+        let first = try VPhoneTreeFingerprint.capture(tree, includeContentHashes: !noContentHashes)
+
+        guard let other else {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            print(String(decoding: try encoder.encode(first), as: UTF8.self))
+            return
+        }
+
+        let second = try VPhoneTreeFingerprint.capture(
+            other, includeContentHashes: !noContentHashes
+        )
+        let differences = first.differences(from: second)
+        guard differences.isEmpty else {
+            for line in differences { print(line) }
+            print("\n\(differences.count) difference(s)")
+            throw ExitCode(1)
+        }
+        print("identical (\(first.entries.count) entries)")
     }
 }
 

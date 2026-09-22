@@ -95,6 +95,27 @@ public enum VPhoneArchiveExtractor {
             }
             archive_entry_set_pathname(entry, targetPath)
 
+            // A hardlink entry names its target as an archive-relative path,
+            // and libarchive resolves that against the process's working
+            // directory. Since the entry's own path has just been made
+            // absolute, the target has to be too, or extraction fails with
+            // "Hard-link target 'x' does not exist" — which is what happened.
+            //
+            // Symlinks are deliberately left alone: their target is data,
+            // stored and restored verbatim, and rewriting one would change
+            // what the link says.
+            if let rawLink = archive_entry_hardlink(entry) {
+                let linkPath = String(cString: rawLink)
+                let linkTarget = resolvedDestination.appendingPathComponent(linkPath)
+                let resolvedLink = linkTarget.standardized.path
+                guard resolvedLink.hasPrefix(destinationPath + "/") else {
+                    throw VPhoneArchiveError.pathEscapesDestination(
+                        member: linkPath, destination: destinationPath
+                    )
+                }
+                archive_entry_set_hardlink(entry, resolvedLink)
+            }
+
             if options.noOverwriteDir, shouldSkipExistingDirectory(entry, at: target) {
                 // Skip the header only. Everything under this directory that
                 // does not yet exist is still written on its own entry, which

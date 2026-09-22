@@ -79,6 +79,21 @@ public enum VPhoneArchiveWriter {
             )
         }
 
+        // Without a link resolver, every name of a hardlinked file is packed
+        // as its own full copy, and unpacking gives back separate files. That
+        // matters here: iosbinpack64 and the procursus bootstrap are full of
+        // hardlinks, so flattening them silently doubles what lands on the
+        // guest volume and breaks anything that expected the identity. GNU tar
+        // does this by default, which is how the difference was found — see
+        // `vphone-archive fingerprint`.
+        //
+        // With the tar strategy the resolver never defers: the first name is
+        // returned as-is, and later ones come back as hardlink references with
+        // size 0, which the data copy below already skips.
+        let resolver = archive_entry_linkresolver_new()
+        archive_entry_linkresolver_set_strategy(resolver, archive_format(writer))
+        defer { archive_entry_linkresolver_free(resolver) }
+
         let rootPath = resolvedRoot.path
         var written = 0
         var bytes: Int64 = 0
@@ -104,13 +119,24 @@ public enum VPhoneArchiveWriter {
             if patterns.contains(where: { matches(relative, pattern: $0) }) { continue }
             archive_entry_set_pathname(entry, relative)
 
-            guard archive_write_header(writer, entry) == ARCHIVE_OK else {
+            // Turns the second and later names of a hardlinked file into
+            // references to the first. The archive-relative pathname has to be
+            // set before this, or the resolver records absolute paths as the
+            // link targets.
+            var resolved: OpaquePointer? = entry
+            var deferred: OpaquePointer?
+            archive_entry_linkify(resolver, &resolved, &deferred)
+            guard let resolved else { continue }
+
+            guard archive_write_header(writer, resolved) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
                     path: relative, reason: archiveErrorString(writer)
                 )
             }
 
-            if archive_entry_size(entry) > 0 {
+            // A hardlink reference comes back with size 0, so this also skips
+            // re-storing contents we have already written once.
+            if archive_entry_size(resolved) > 0 {
                 bytes += try copyFile(at: absolute, into: writer, isCancelled: isCancelled)
             }
 

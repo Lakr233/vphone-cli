@@ -125,6 +125,75 @@ struct RoundTripTests {
         }
     }
 
+    @Test("hardlinks survive as hardlinks")
+    func hardlinksArePreserved() throws {
+        let source = try Self.makeTree()
+        let archive = Self.scratch("hl").appendingPathExtension("tar")
+        let destination = Self.scratch("hlout")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        defer {
+            for url in [source, archive, destination] {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+
+        try FileManager.default.linkItem(
+            at: source.appendingPathComponent("top.txt"),
+            to: source.appendingPathComponent("same.txt")
+        )
+
+        try VPhoneArchiveWriter.create(archive: archive, from: source)
+        try VPhoneArchiveExtractor.extract(archive, into: destination, options: .intoHostDirectory)
+
+        // Without archive_entry_linkresolver each name is packed as a separate
+        // full copy, and unpacking gives back two unrelated files. That is not
+        // cosmetic: iosbinpack64 and the procursus bootstrap are full of
+        // hardlinks, so flattening them silently doubles what lands on the
+        // guest volume. GNU tar preserves them, and `vphone-archive
+        // fingerprint` is what caught the difference.
+        var first = stat(), second = stat()
+        #expect(lstat(destination.appendingPathComponent("top.txt").path, &first) == 0)
+        #expect(lstat(destination.appendingPathComponent("same.txt").path, &second) == 0)
+        #expect(first.st_ino == second.st_ino)
+        #expect(first.st_nlink == 2)
+    }
+
+    @Test("a tree fingerprint notices what diff -r would miss")
+    func fingerprintDetectsMetadataDifferences() throws {
+        let a = Self.scratch("fpa")
+        let b = Self.scratch("fpb")
+        // The same mtime on both, because two files written a moment apart
+        // genuinely differ and the fingerprint is right to say so — mtime is
+        // one of the things ARCHIVE_EXTRACT_TIME is supposed to restore.
+        let when = Date(timeIntervalSince1970: 1_700_000_000)
+        for url in [a, b] {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try Data("same\n".utf8).write(to: url.appendingPathComponent("f.txt"))
+            try FileManager.default.setAttributes(
+                [.modificationDate: when], ofItemAtPath: url.appendingPathComponent("f.txt").path
+            )
+            try FileManager.default.setAttributes(
+                [.modificationDate: when], ofItemAtPath: url.path
+            )
+        }
+        defer {
+            for url in [a, b] { try? FileManager.default.removeItem(at: url) }
+        }
+
+        #expect(try VPhoneTreeFingerprint.capture(a)
+            .differences(from: VPhoneTreeFingerprint.capture(b)).isEmpty)
+
+        // Identical contents, different mode — `diff -r` says nothing.
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)],
+            ofItemAtPath: b.appendingPathComponent("f.txt").path
+        )
+        let differences = try VPhoneTreeFingerprint.capture(a)
+            .differences(from: VPhoneTreeFingerprint.capture(b))
+        #expect(differences.count == 1)
+        #expect(differences[0].contains("mode"))
+    }
+
     @Test("exclusions are applied")
     func exclusions() throws {
         let source = try Self.makeTree()
