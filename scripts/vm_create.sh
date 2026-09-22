@@ -147,7 +147,21 @@ touch "${VM_DIR}/.gitkeep"
 
 # --- Generate VM manifest ---
 echo "[5/5] Generating VM manifest (config.plist)"
-"${SCRIPT_DIR}/vm_manifest.py" \
+# VPHONE_CLI_BIN is set when a vphone-cli subcommand invokes this script; the
+# fallbacks cover being run by hand from a dev tree or from inside the .app,
+# where scripts/ sits in Contents/Resources and the binaries are in MacOS.
+PROJ_ROOT="${SCRIPT_DIR:h}"
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "${PROJ_ROOT}/.build/release/vphone-cli" "${PROJ_ROOT:h}/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || {
+    echo "ERROR: cannot find vphone-cli to generate the VM manifest"
+    exit 1
+}
+"$VPHONE_CLI" vm write-manifest \
     --vm-dir "${VM_DIR}" \
     --cpu "${CPU_COUNT}" \
     --memory "${MEMORY_MB}" || {

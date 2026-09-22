@@ -19,6 +19,13 @@ public enum VPhoneVariant: String, Sendable, CaseIterable, ExpressibleByArgument
     case exp
 }
 
+// MARK: - Manifest values the CLI can take as arguments
+
+// Kept here, with the other ArgumentParser conformances, rather than beside
+// the type: the manifest is a data model and has no other reason to know that
+// a command line exists.
+extension VPhoneVirtualMachineManifest.PlatformFusing: ExpressibleByArgument {}
+
 // MARK: - VPhoneBootCLI
 
 /// The options for booting a guest.

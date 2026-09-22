@@ -21,8 +21,57 @@ struct VPhoneVMCommand: ParsableCommand {
             VPhoneVMLaunchCommand.self,
             VPhoneVMStopCommand.self,
             VPhoneVMCreateCommand.self,
+            VPhoneVMWriteManifestCommand.self,
         ]
     )
+}
+
+/// Replaces `scripts/vm_manifest.py`, called from `vm_create.sh` as its last
+/// step. Deliberately takes a directory rather than a library name: it runs
+/// while the bundle is still being assembled, before it is something the
+/// library would list.
+struct VPhoneVMWriteManifestCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "write-manifest",
+        abstract: "Write a fresh config.plist into a VM directory"
+    )
+
+    @Option(
+        name: .customLong("vm-dir"),
+        help: "VM directory to write config.plist into",
+        transform: URL.init(fileURLWithPath:)
+    )
+    var vmDirectory: URL = URL(fileURLWithPath: "vm")
+
+    @Option(name: .customLong("cpu"), help: "CPU core count")
+    var cpuCount: UInt = 8
+
+    @Option(name: .customLong("memory"), help: "Memory size in MB")
+    var memoryMB: UInt64 = 8192
+
+    @Option(
+        name: .customLong("platform-fusing"),
+        help: "prod or dev. Omit to let the host OS decide."
+    )
+    var platformFusing: VPhoneVirtualMachineManifest.PlatformFusing?
+
+    func run() throws {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: vmDirectory.path, isDirectory: &isDirectory
+        ), isDirectory.boolValue else {
+            throw ValidationError("VM directory does not exist: \(vmDirectory.path)")
+        }
+
+        let manifest = VPhoneVirtualMachineManifest.newVM(
+            cpuCount: cpuCount,
+            memoryMB: memoryMB,
+            platformFusing: platformFusing
+        )
+        let configURL = vmDirectory.appendingPathComponent("config.plist")
+        try manifest.write(to: configURL)
+        print("Created VM manifest: \(configURL.path)")
+    }
 }
 
 // MARK: - Shared options
