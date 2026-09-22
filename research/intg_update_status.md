@@ -68,6 +68,19 @@ Nothing below could be done without root or a real guest.
    empty-password copy has to stay for the `--use-ldid` escape hatch.
 3. **`vm export` / `import`** onto `VPhoneArchive`, keeping gnutar, `.tzst`
    at zstd 3 and `.txz` at xz 9, and checking compatibility both ways.
+
+   This one needs a decision the plan gets wrong for this architecture. §3.9.0-0
+   says to move export/import from `VPhoneCore` to `VPhoneVM`, which assumed
+   `vphone-cli` imports the VM kit. It does not, deliberately — so moving them
+   there would break `vphone-cli vm export`. The right home here is
+   `VPhoneArchive`: it sits above `VPhoneCore`, and `vphone-cli` can depend on
+   it without pulling in Virtualization or AppKit.
+
+   It is a real refactor rather than a switch of implementation: about twenty
+   call sites in `BundleOpsTests` move with the API. The upside is that those
+   tests already pin the format contract (R11) — round trip, `--max` producing
+   xz, auto-naming the extension — so whoever does it gets told immediately if
+   it is wrong. Worth doing in one go rather than in the tail of a session.
 4. **Gate 4** — a machine with no Homebrew. Still the only thing that can
    support "it works elsewhere"; gates 1–3 are necessary and not sufficient,
    which the script says out loud.
