@@ -107,8 +107,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the root. Unanchored, these match a directory named lib at ANY
+# depth, which silently swallowed cfw-kit/lib/ -- the shared library every
+# script in the kit sources. They come from the Python packaging template and
+# were only ever meant to be the setuptools build output here.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
