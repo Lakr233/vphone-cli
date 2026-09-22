@@ -102,6 +102,7 @@ help:
 	@echo "  make vm_list                 List available backups"
 	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW directories in the backup"
 	@echo "             FORCE=1                Skip overwrite prompt on restore"
+	@echo "  make check-aux               Run the self-containment admission gates"
 	@echo "  make letmein                 Open an AMFI window by hand (vphone-cli does it for you)"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
@@ -276,10 +277,15 @@ bundle: build $(INFO_PLIST)
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
 	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
+	@# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the
+	@# whole bundle and everything beside it counts as nested code. Sign the
+	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
 	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
 	@codesign --force --sign - $(BUNDLE_BIN)
 	@codesign --force --sign - $(BUNDLE_LETMEIN)
+	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
+	@codesign -v $(BUNDLE_VM) \
+		|| (echo "Error: the bundle seal did not verify after signing." >&2; exit 1)
 	@echo "  bundled → $(BUNDLE)"
 
 # Cross-compile + sign vphoned daemon for iOS arm64 (requires ldid)
@@ -336,6 +342,13 @@ vm_list:
 		done; \
 	fi; \
 	if [ "$$found" = "0" ]; then echo "  (no backups yet — run: make vm_backup NAME=<name>)"; fi
+
+# The self-containment admission gates. Expected to FAIL today: the bundled
+# ldid is Homebrew's and links /opt/homebrew. That is the gate working, and it
+# clears when VPhoneSign replaces ldid. CHECK_AUX_FAST=1 skips the smoke test.
+.PHONY: check-aux
+check-aux: bundle
+	@zsh $(SCRIPTS)/check_aux.sh
 
 # Normally unnecessary: vphone-cli opens and closes the window itself around
 # the launch. This is for working on vphone-vm by hand, where paying for one

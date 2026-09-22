@@ -81,10 +81,14 @@ cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
 cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
+# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the whole
+# bundle, and everything beside it in Contents/MacOS counts as nested code.
+# Sign the nested binaries FIRST or the seal captures them in an earlier state
+# and `codesign -v` on the bundle reports "nested code is modified or invalid".
 codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_LETMEIN"
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
 
 # --- vphoned guest daemon (cross-compiled + signed for iOS arm64) ---
@@ -140,9 +144,12 @@ echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,i
 # bundle-step signature (made before these assets existed) is now stale —
 # re-signing here reseals against the final Resources tree.
 echo "=== Re-signing bundled binaries (resealing Resources) ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
+# Nested first, main executable last — see the bundling step above.
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_LETMEIN"
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
+codesign -v "$BUNDLE_VM" \
+  || { echo "Error: the bundle seal did not verify after signing." >&2; exit 1; }
 echo "  resealed OK"
 
 echo ""
