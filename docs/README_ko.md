@@ -137,7 +137,7 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 이후 재부팅
 ```
 
-**방법 B — SIP 유지 (디버그만 완화), 그런 다음 amfidont로 바이너리를 허용 목록에 추가** (AMFI는 시스템 전체에서 활성 상태 유지).
+**방법 B — SIP 유지 (디버그만 완화), 실행할 때마다 `vphone-cli`가 창을 열도록 하기** (그 외의 시간에는 AMFI가 활성 상태 유지).
 
 복구 모드에서:
 
@@ -146,11 +146,19 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-그런 다음 macOS로 재부팅하고:
+그런 다음 macOS로 재부팅합니다. 그 외에 설정할 것은 없습니다: `vphone-cli`는 entitlement가 없어 항상 실행되며, 게스트를 시작할 때 amfid가 `vphone-vm`을 받아들이지 않는다는 것을 감지하면 `vphone-letmein`으로 창을 열고 (sudo 입력 1회), 게스트가 실행되면 창을 닫습니다.
+
+직접 하려면 — `vphone-vm` 작업 중에는 실행할 때마다 입력하는 것보다 sudo 한 번이 나으므로 해 볼 만합니다:
 
 ```bash
-vphone-amfidont         # 로컬 빌드의 경우 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+make letmein          # 열기        (sudo)
+make letmein_status   # 확인
+make letmein_off      # 닫기
 ```
+
+> **이것이 무엇을 하는지 솔직히 알아 두세요.** 이것은 허용 목록이 아니라 전역 스위치입니다: 창이 열려 있는 동안 amfid는 자신이 검사하는 *모든* 서명을 유효하며 Apple이 서명한 것으로 보고합니다. 이를 하나의 경로나 하나의 바이너리로 좁힐 수는 없습니다 — 검증 단위의 판단에는 Apple 비공개 디버거 entitlement가 필요합니다. 좁힐 수 있는 것은 시간이며, 그래서 자동 경로는 한 번의 실행 동안만 창을 열어 둡니다. 또한 메모리에만 존재하므로 재부팅하면 해제됩니다.
+>
+> `vphone-letmein`은 pip 패키지였던 기존 `amfidont` 헬퍼를 대체하며, `amfidont`는 더 이상 사용되지 않습니다.
 
 ## 테스트 환경
 
@@ -179,7 +187,7 @@ vphone-amfidont         # 로컬 빌드의 경우 .build/vphone-cli.app/Contents
 
 ## FAQ
 
-**`zsh: killed ./vphone-cli`** — AMFI/디버그 제한이 우회되지 않았습니다; [사전 요구 사항](#사전-요구-사항)을 참조하세요 (`amfi_get_out_of_my_way=1` 또는 `amfidont`).
+**`zsh: killed ./vphone-vm`** — AMFI/디버그 제한이 우회되지 않았습니다; [사전 요구 사항](#사전-요구-사항)을 참조하세요 (`amfi_get_out_of_my_way=1`, 또는 `vphone-cli`가 대신 창을 열도록 하세요). 참고로 `vphone-cli` 자체에는 이런 일이 생길 수 없습니다: entitlement가 없으므로 *그것*이 종료되고 있다면 다른 문제가 있는 것입니다.
 
 **`Virtualization is not available on this hardware`** — Mac 자체가 VM입니다; PV=3 게스트 부팅은 중첩할 수 없습니다. 중첩되지 않은 macOS 15+ 호스트를 사용하세요.
 

@@ -137,7 +137,7 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 之后重启
 ```
 
-**方案 B——保持 SIP 开启（仅放宽 debug），然后用 amfidont 将二进制加入白名单**（AMFI 在系统范围内保持启用）。
+**方案 B——保持 SIP 开启（仅放宽 debug），让 `vphone-cli` 在每次启动时替你开一次窗口**（其余时间 AMFI 保持启用）。
 
 在恢复模式下：
 
@@ -146,11 +146,19 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-然后重启进入 macOS 并执行：
+然后重启进入 macOS。除此之外无需任何配置：`vphone-cli` 不带任何 entitlement，因此总能正常启动；当它拉起客户机时，会发现 amfid 不接受 `vphone-vm`，于是用 `vphone-letmein` 打开一个窗口（一次 sudo 提示），并在客户机跑起来后把它关掉。
+
+手动操作也可以——在调试 `vphone-vm` 时值得这么做，一次 sudo 胜过每次运行都弹一次提示：
 
 ```bash
-vphone-amfidont         # 本地构建见 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+make letmein          # 打开        (sudo)
+make letmein_status   # 查看
+make letmein_off      # 关闭
 ```
+
+> **请如实看待它的作用。** 这是一个全局开关，而不是白名单：窗口打开期间，amfid 会把它校验的*每一个*签名都报告为有效且由 Apple 签名。这一点无法收窄到某个路径或某个二进制——按次校验的判定需要 Apple 私有的调试器 entitlement。能收窄的是时间，所以自动路径只在一次启动的时长内保持窗口打开。它同样只存在于内存中：重启即失效。
+>
+> `vphone-letmein` 取代了旧的 `amfidont` 辅助工具——那是一个 pip 包，现已不再使用。
 
 ## 测试环境
 
@@ -179,7 +187,7 @@ vphone-amfidont         # 本地构建见 .build/vphone-cli.app/Contents/Resourc
 
 ## 常见问题
 
-**`zsh: killed ./vphone-cli`** —— AMFI/debug 限制未被绕过；见[前置条件](#前置条件)（`amfi_get_out_of_my_way=1` 或 `amfidont`）。
+**`zsh: killed ./vphone-vm`** —— AMFI/debug 限制未被绕过；见[前置条件](#前置条件)（`amfi_get_out_of_my_way=1`，或让 `vphone-cli` 替你开窗口）。注意这不会发生在 `vphone-cli` 自身上：它不带任何 entitlement，所以如果被杀的是*它*，那就是别处出了问题。
 
 **`Virtualization is not available on this hardware`** —— 你的 Mac 本身就是一台虚拟机；PV=3 客户机启动无法嵌套。请使用非嵌套的 macOS 15+ 宿主机。
 

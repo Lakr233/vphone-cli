@@ -137,7 +137,7 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
 ```
 
-**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、amfidont でバイナリを許可リストに追加する**（AMFI はシステム全体で有効なまま）。
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、起動ごとに `vphone-cli` にウィンドウを開かせる**（それ以外の時間は AMFI が有効なまま）。
 
 リカバリーモードで:
 
@@ -146,11 +146,19 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-その後 macOS で再起動し:
+その後 macOS で再起動します。ほかに設定するものはありません: `vphone-cli` は entitlement を持たないため常に起動でき、ゲストを起動する際に amfid が `vphone-vm` を受け付けないことを検知すると、`vphone-letmein` でウィンドウを開き（sudo の入力が 1 回）、ゲストが動き出したら閉じます。
+
+手動で行う場合 — `vphone-vm` の作業中は、実行のたびに入力するより sudo 1 回で済むぶん有用です:
 
 ```bash
-vphone-amfidont         # ローカルビルドの場合は .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+make letmein          # 開く        (sudo)
+make letmein_status   # 確認
+make letmein_off      # 閉じる
 ```
+
+> **これが何をするのかを正しく理解してください。** これは許可リストではなくグローバルなスイッチです: ウィンドウが開いている間、amfid は検査した*すべて*の署名を有効かつ Apple 署名済みとして報告します。これを 1 つのパスや 1 つのバイナリに絞ることはできません — 検証ごとの判断には Apple 非公開のデバッガ entitlement が必要です。絞れるのは時間であり、そのため自動の経路では 1 回の起動のあいだだけウィンドウを開いたままにします。またメモリ上にしか存在せず、再起動すれば解除されます。
+>
+> `vphone-letmein` は、pip パッケージだった旧来の `amfidont` ヘルパーを置き換えるもので、`amfidont` はもう使用しません。
 
 ## 動作確認済み環境
 
@@ -179,7 +187,7 @@ vphone-amfidont         # ローカルビルドの場合は .build/vphone-cli.ap
 
 ## FAQ
 
-**`zsh: killed ./vphone-cli`** — AMFI/デバッグ制限がバイパスされていません。[前提条件](#前提条件) を参照してください（`amfi_get_out_of_my_way=1` または `amfidont`）。
+**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[前提条件](#前提条件) を参照してください（`amfi_get_out_of_my_way=1`、または `vphone-cli` にウィンドウを開かせる）。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
 
 **`Virtualization is not available on this hardware`** — お使いの Mac 自体が VM です。PV=3 ゲスト起動はネストできません。ネストされていない macOS 15+ ホストを使用してください。
 

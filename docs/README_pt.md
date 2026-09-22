@@ -137,7 +137,7 @@ Depois reinicie no macOS e configure o boot-arg do AMFI (requer SIP completament
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reinicie após
 ```
 
-**Opção B — manter SIP ligado (relaxado apenas para debug), depois allowlist o binário com amfidont** (mantém AMFI habilitado em todo o sistema).
+**Opção B — manter SIP ligado (relaxado apenas para debug) e deixar o `vphone-cli` abrir uma janela a cada execução** (mantém AMFI habilitado no resto do tempo).
 
 No Recovery:
 
@@ -146,11 +146,19 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-Depois reinicie no macOS e:
+Depois reinicie no macOS. Não há mais nada para configurar: o `vphone-cli` não carrega entitlements e sempre inicia, então, ao iniciar um guest, ele percebe que o amfid não aceita o `vphone-vm`, abre uma janela com o `vphone-letmein` (um pedido de sudo) e a fecha assim que o guest estiver rodando.
+
+Para fazer isso manualmente — vale a pena enquanto se trabalha no `vphone-vm`, onde um sudo é melhor que um pedido por execução:
 
 ```bash
-vphone-amfidont         # .build/vphone-cli.app/Contents/Resources/vphone-amfidont para builds locais
+make letmein          # abrir       (sudo)
+make letmein_status   # verificar
+make letmein_off      # fechar
 ```
+
+> **Seja honesto sobre o que isso faz.** É um interruptor global, não uma allowlist: enquanto a janela está aberta, o amfid reporta *toda* assinatura que verifica como válida e assinada pela Apple. Isso não pode ser restringido a um caminho ou a um binário — uma decisão por validação exigiria entitlements de depurador privados da Apple. O que pode ser restringido é o tempo, e por isso o caminho automático mantém a janela aberta apenas pela duração de uma execução. Também fica apenas em memória: reiniciar limpa tudo.
+>
+> O `vphone-letmein` substitui o antigo helper `amfidont`, que era um pacote pip e não é mais usado.
 
 ## Ambientes Testados
 
@@ -179,7 +187,7 @@ vphone-amfidont         # .build/vphone-cli.app/Contents/Resources/vphone-amfido
 
 ## FAQ
 
-**`zsh: killed ./vphone-cli`** — Restrições de AMFI/debug não foram desativadas; veja [Pré-requisitos](#pré-requisitos) (`amfi_get_out_of_my_way=1` ou `amfidont`).
+**`zsh: killed ./vphone-vm`** — Restrições de AMFI/debug não foram desativadas; veja [Pré-requisitos](#pré-requisitos) (`amfi_get_out_of_my_way=1`, ou deixe o `vphone-cli` abrir uma janela para você). Note que isso não pode acontecer com o próprio `vphone-cli`: ele não carrega entitlements, então se *ele* está sendo morto, algo mais está errado.
 
 **`Virtualization is not available on this hardware`** — Seu Mac é uma VM; boot de guest PV=3 não pode ser aninhado. Use um host macOS 15+ não-virtualizado.
 
