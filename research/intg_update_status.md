@@ -17,6 +17,7 @@
 | 4 | `custom-firmware-kit` → `cfw-kit/` | done, as-is |
 | 5a | admission gates 1–3 (`make check-aux`) | done; fails on bundled ldid, as designed |
 | 5b | `VPhoneArchive` + `vphone-archive` | library and binary done; **call sites not switched** |
+| 5c | `vphone-archive fingerprint` (the plan's tree-fingerprint) | done; already found and drove a hardlink fix |
 
 Tests: `VPhoneCoreTests` 152/152, `VPhoneArchiveTests` 13/13. The 14
 `FirmwarePatcherTests` failures are pre-existing — they need
@@ -42,12 +43,24 @@ Nothing below could be done without root or a real guest.
 ## Next, in order
 
 1. **Switch the archive call sites.** `vphone-archive` is built, bundled and
-   tested, and nothing calls it yet. The IPSW unzip in `fw_prepare.sh` and the
-   host-side temp extractions are low risk. The `$TAR` calls in
-   `cfw_install*.sh` are not: they write to a mounted guest volume as root,
-   and want the tree-fingerprint comparison (uid/gid, ACLs, xattrs, hardlink
-   grouping, `st_blocks`) against GNU tar before being switched. See
-   `research/archive_extraction_contracts.md`.
+   tested, and nothing calls it yet.
+
+   The comparison the plan asks for has been run, on the real
+   `cfw_input.tar.zst` and `cfw_jb_input.tar.zst`: everything matches GNU tar
+   except **one directory mtime per archive**, where `vphone-archive` restores
+   the archive's recorded value and GNU tar leaves the extraction time. More
+   faithful, but still a behaviour change, and it has not been through a boot.
+
+   What is still untested is **ownership restoration**, which only happens as
+   root — the comparison ran unprivileged, so `ARCHIVE_EXTRACT_OWNER` never
+   came into play. That is the gap to close before the `$TAR` calls in
+   `cfw_install*.sh` are switched, since those write to a mounted guest volume
+   as root and getting ownership wrong there produces a guest that does not
+   boot. The IPSW unzip in `fw_prepare.sh` and the host-side temp extractions
+   have neither problem and can go first.
+
+   Re-run it yourself with:
+   `vphone-archive fingerprint <gtar-output> <vphone-output>`
 2. **`VPhoneSign`**, which is what clears the last two admission-gate
    failures. `ldid` is the only binary we ship that is already
    non-self-contained. The plan's §3.11 has the measurements; the

@@ -106,6 +106,37 @@ written. That is **stronger** than the flag, which only asks whether a stored
 path begins with a slash; the check asks where the path actually lands. There
 is a test with a hand-built `../escaped` member, checksum and all.
 
+## Measured against the real CFW archives
+
+`scripts/resources/cfw_input.tar.zst` and `cfw_jb_input.tar.zst`, unpacked by
+GNU tar with the flags `cfw_install*.sh` passes and by `vphone-archive`, then
+compared with `vphone-archive fingerprint`. Same entry counts, and **one
+difference each, of the same kind**:
+
+```
+cfw_input/jb:        mtime 1790104701863394309 vs 1772464479000000000
+cfw_jb_input/basebin: mtime 1790104702288353311 vs 1772341940000000000
+```
+
+A directory's mtime. `vphone-archive` restores the value recorded in the
+archive (2026-03-03); GNU tar leaves it at the moment of extraction
+(2026-09-23). Checked with and without `--no-overwrite-dir`: GNU tar behaves
+the same either way, so the flag is not what causes it — GNU tar simply is not
+restoring these directories' mtimes, and libarchive's deferred fixup is.
+
+Everything else matches: modes, numeric uid/gid, symlink targets, hardlink
+grouping, xattrs, ACLs, occupancy and content digests.
+
+**So the switch is a behaviour change, in the direction of being more faithful
+to the archive.** A directory's mtime on an iOS volume should be cosmetic, but
+"should be" is not "is", and this has not been through a boot. It is the one
+thing to look at on the first real install.
+
+Not covered here: ownership restoration, which only happens as root. The
+comparison above ran unprivileged, so `ARCHIVE_EXTRACT_OWNER` never came into
+play. That is the remaining gap before scenario A can be switched with
+confidence.
+
 ## Known wart
 
 libarchive leaves zero-byte `tar.XXXXXXXX` files in the process's **working
