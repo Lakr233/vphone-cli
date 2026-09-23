@@ -44,7 +44,7 @@ struct LaunchLayoutTests {
         #expect(try layout.stageVphoned(into: bundle) == false)
     }
 
-    @Test func stageVphonedReturnsFalseWhenSourceAbsent() throws {
+    @Test func stageVphonedFailsWhenSourceAbsent() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -58,7 +58,9 @@ struct LaunchLayoutTests {
         )
         let bundle = VPhoneBundle(url: bundleDir, manifest: manifest)
 
-        #expect(try VPhoneLaunchLayout(projectRoot: root).stageVphoned(into: bundle) == false)
+        #expect(throws: VPhoneGuestBinaries.Error.self) {
+            try VPhoneLaunchLayout(projectRoot: root).stageVphoned(into: bundle)
+        }
         #expect(!FileManager.default.fileExists(
             atPath: bundleDir.appendingPathComponent(".vphoned.signed").path))
     }

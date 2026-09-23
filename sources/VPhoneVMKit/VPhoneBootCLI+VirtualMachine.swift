@@ -29,9 +29,7 @@ extension VPhoneBootCLI {
             screenHeight: manifest.screenConfig.height,
             screenPPI: manifest.screenConfig.pixelsPerInch,
             screenScale: manifest.screenConfig.scale,
-            kernelDebugPort: kernelDebugPort,
-            variant: variant,
-            noVphoned: noVphoned
+            kernelDebugPort: kernelDebugPort
         )
     }
 }

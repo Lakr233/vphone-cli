@@ -222,9 +222,6 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
-    @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp") var variant: String = "exp"
-    @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id")
-    var spoofBuild: String?
     @Flag(
         name: .customLong("force-dsc-maxslide"),
         help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)"
@@ -247,9 +244,6 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
 
     func run() throws {
         let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
-        guard ["regular", "dev", "jb", "exp"].contains(variant) else {
-            throw ValidationError("unknown cfw variant '\(variant)' (regular|dev|jb|exp)")
-        }
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
@@ -270,11 +264,10 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
             "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
         ]
-        if let spoofBuild { scriptEnv["SPOOF_BUILD"] = spoofBuild }
         if forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
         if keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
-        let args = [resources.cfwInstallHostScript.path, "--variant", variant, bundle.url.path]
+        let args = [resources.cfwInstallHostScript.path, "--variant", "jb", bundle.url.path]
         let code: Int32
         if rootPopup {
             // Forward SUDO_USER (sudo would set it) so the script's chown-back runs.
@@ -299,8 +292,8 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             )
         }
         if code == 0 {
-            if let info = try? VPhoneRestoreInfo.recordVariant(variant, toBundle: bundle), info.variant != nil {
-                print("[cfw] recorded variant \(variant), device \(info.device ?? "?")")
+            if let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {
+                print("[cfw] recorded variant jb, device \(info.device ?? "?")")
             }
             if !keepArtifacts, let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
                 print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")

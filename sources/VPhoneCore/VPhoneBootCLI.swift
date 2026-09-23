@@ -1,24 +1,6 @@
 import ArgumentParser
 import Foundation
 
-// MARK: - VPhoneVariant
-
-/// Which firmware variant a guest is running.
-///
-/// This used to be nested inside `VPhoneVirtualMachine`, which put it on the
-/// far side of the Virtualization framework. It is a five-case string enum with
-/// no VM in it, and both binaries need it — `vphone-cli` to accept `--variant`,
-/// `vphone-vm` to configure the machine — so it belongs down here. The kit
-/// keeps a `VPhoneVirtualMachine.Variant` typealias so existing call sites read
-/// the same as before.
-public enum VPhoneVariant: String, Sendable, CaseIterable, ExpressibleByArgument {
-    case less
-    case regular
-    case dev
-    case jb
-    case exp
-}
-
 // MARK: - Manifest values the CLI can take as arguments
 
 // Kept here, with the other ArgumentParser conformances, rather than beside
@@ -34,8 +16,8 @@ extension VPhoneVirtualMachineManifest.PlatformFusing: ExpressibleByArgument {}
 /// the machine and becomes the NSApplication. `vphone-cli` only *forwards* it,
 /// re-rendering itself through `bootArguments` and spawning `vphone-vm`.
 ///
-/// Keeping one declaration is what makes the two agree about what `--dfu` or
-/// `--variant jb` mean, and it means `vphone-cli boot --help` and
+/// Keeping one declaration is what makes the two agree about `--dfu`, and
+/// means `vphone-cli boot --help` and
 /// `vphone-vm --help` cannot drift apart.
 ///
 /// Note it has no `run()` that boots. `vphone-cli`'s entry point recognises
@@ -81,17 +63,11 @@ public struct VPhoneBootCLI: ParsableCommand {
     @Option(help: "Path to signed vphoned binary for guest auto-update")
     public var vphonedBin: String = ".vphoned.signed"
 
-    @Option(name: [.customShort("V"), .long], help: "Firmware variant to execute.")
-    public var variant: VPhoneVariant = .regular
-
     @Option(
         help: "Automatically install the given IPA/TIPA after the guest control channel connects. Unavailable with --dfu.",
         transform: URL.init(fileURLWithPath:)
     )
     public var installIPA: URL?
-
-    @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned usage (patchless-only).")
-    public var noVphoned: Bool = false
 
     public init() {}
 
@@ -105,6 +81,15 @@ public struct VPhoneBootCLI: ParsableCommand {
     }
 
     public mutating func validate() throws {
+        if !dfu,
+           let bundle = try? VPhoneBundle.load(at: config.deletingLastPathComponent()),
+           let existingVariant = VPhoneRestoreInfo.load(fromBundle: bundle)?.variant,
+           existingVariant != "jb" {
+            throw ValidationError(
+                "This VM was created as '\(existingVariant)'. Only JB VMs are supported by this build."
+            )
+        }
+
         if dfu, let packageURL = installPackageURL {
             throw ValidationError(
                 "`--install-ipa` is unavailable with `--dfu` because DFU mode does not start the guest control channel: \(packageURL.path)"
@@ -140,8 +125,6 @@ public struct VPhoneBootCLI: ParsableCommand {
         var args = ["--config", config.path]
         if dfu { args.append("--dfu") }
         if headless { args.append("--headless") }
-        if noVphoned { args.append("--no-vphoned") }
-        if variant != .regular { args += ["--variant", variant.rawValue] }
         if vphonedBin != ".vphoned.signed" { args += ["--vphoned-bin", vphonedBin] }
         if let port = kernelDebugPort { args += ["--kernel-debug-port", String(port)] }
         if let ipa = installIPA { args += ["--install-ipa", ipa.path] }

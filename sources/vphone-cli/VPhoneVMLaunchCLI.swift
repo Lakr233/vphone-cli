@@ -12,8 +12,6 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
     @Argument(help: "VM name") var name: String?
     @Flag(name: .shortAndLong, help: "Boot into DFU mode (headless)") var dfu = false
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar") var headless = false
-    @Option(name: [.customShort("V"), .long], help: "Firmware variant") var variant: String?
-    @Flag(name: .customLong("no-vphoned"), help: "Do not stage/use vphoned") var noVphoned = false
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned; valid: 6000...65535)")
     var kernelDebugPort: Int?
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
@@ -44,8 +42,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         // Host preflight — same gate make boot applies. Point it at the guest
         // binary (VPHONE_CLI_BIN) so it checks what actually has to launch, not
         // a dev .build/release path that doesn't exist inside the bundled .app.
-        var preflightArgs = ["--assert-bootable"]
-        if variant == "less" { preflightArgs.append("--less") }
+        let preflightArgs = ["--assert-bootable"]
         var preflightEnv = ProcessInfo.processInfo.environment
         preflightEnv["VPHONE_CLI_BIN"] = bootBinary.path
         let pre = try VPhoneProcessRunner.runCapturing(
@@ -60,20 +57,13 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
             throw ExitCode(pre.exitCode == 0 ? 1 : pre.exitCode)
         }
 
-        if !dfu && !noVphoned {
-            do {
-                _ = try layout.stageVphoned(into: bundle)
-            } catch {
-                FileHandle.standardError.write(Data(
-                    "warning: could not stage vphoned into \(bundle.name): \(error)\n".utf8))
-            }
+        if !dfu {
+            _ = try layout.stageVphoned(into: bundle)
         }
 
         var args = ["--config", bundle.configURL.path]
         if dfu { args.append("--dfu") }
         if headless { args.append("--headless") }
-        if let variant { args += ["--variant", variant] }
-        if noVphoned { args.append("--no-vphoned") }
         if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }
 
         if v.tracesInternals {

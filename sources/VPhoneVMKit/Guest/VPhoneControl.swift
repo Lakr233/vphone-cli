@@ -55,11 +55,7 @@ class VPhoneControl {
     private var nextRequestId: UInt64 = 0
     private var connectionAttemptToken: UInt64 = 0
     private var reconnectWorkItem: DispatchWorkItem?
-    public var variant: VPhoneVirtualMachine.Variant = .regular
-
-    init(variant: VPhoneVirtualMachine.Variant) {
-        self.variant = variant
-    }
+    init() {}
     
     // MARK: - Pending Requests
 
@@ -222,7 +218,7 @@ class VPhoneControl {
                     print("[control] guest-side touch injection enabled (iOS \(iosVersion ?? "?"))")
                 }
 
-                if needUpdate && self.variant != .less {
+                if needUpdate {
                     self.pushUpdate(fd: fd)
                 } else {
                     self.startReadLoop(fd: fd, attemptToken: attemptToken)

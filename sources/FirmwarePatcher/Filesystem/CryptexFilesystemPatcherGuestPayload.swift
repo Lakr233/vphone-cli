@@ -54,7 +54,7 @@ extension CryptexFilesystemPatcher {
         )
     }
 
-    func injectLaunchDaemons(targetMount: String, cfwInput: URL, vphoned: Bool = true, cfw: Bool = true) throws {
+    func injectLaunchDaemons(targetMount: String, cfwInput: URL, cfw: Bool = true) throws {
         let target = URL.init(filePath: targetMount)
         let scriptDir = resources.scriptsDir
 
@@ -65,18 +65,16 @@ extension CryptexFilesystemPatcher {
         try FileManager.default.createDirectory(at: launchDaemonsPath, withIntermediateDirectories: false)
         try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
 
-        if vphoned {
-            let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
-            let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
-            try FileManager.default.copyItem(
-                at: vphonedLaunchdPlist,
-                to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist")
-            )
-            try FileManager.default.copyItem(
-                at: vphonedLaunchdPlist,
-                to: launchDaemonsPath.appending(path: vphonedLaunchdPlist.lastPathComponent)
-            )
-        }
+        let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
+        let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
+        try FileManager.default.copyItem(
+            at: vphonedLaunchdPlist,
+            to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist")
+        )
+        try FileManager.default.copyItem(
+            at: vphonedLaunchdPlist,
+            to: launchDaemonsPath.appending(path: vphonedLaunchdPlist.lastPathComponent)
+        )
         if cfw {
             let launchDaemonsDir = cfwInput.appending(path: "cfw_input/jb/LaunchDaemons")
             let launchDaemons = try FileManager.default.contentsOfDirectory(atPath: launchDaemonsDir.path)

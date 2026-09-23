@@ -26,7 +26,6 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let restoreDir: URL
     public let verbose: Bool
     public let noBinpack: Bool
-    public let noVphoned: Bool
     let vphoneCliDirectory = URL(filePath: "./")
     let resources = VPhoneResources.resolve()
 
@@ -40,14 +39,12 @@ public final class CryptexFilesystemPatcher: Patcher {
         buildManiest: Data,
         restoreDir: URL,
         verbose: Bool = true,
-        noBinpack: Bool = false,
-        noVphoned: Bool = false
+        noBinpack: Bool = false
     ) {
         self.buildManiest = buildManiest
         self.restoreDir = restoreDir
         self.verbose = verbose
         self.noBinpack = noBinpack
-        self.noVphoned = noVphoned
     }
 
     deinit {
@@ -154,23 +151,18 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Patching mobile activation…")
             try patchMobileActivation(targetMount: targetMount, cfwInput: cfwInputPath)
 
-            if !noVphoned {
-                print("- Adding vphoned…")
-                try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
+            print("- Adding vphoned…")
+            try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
             if !noBinpack {
                 print("- Adding binpack…")
                 try addExtraServices(targetMount: targetMount, cfwInput: cfwInputPath)
             }
-            if !noVphoned || !noBinpack {
-                try injectLaunchDaemons(
-                    targetMount: targetMount,
-                    cfwInput: cfwInputPath,
-                    vphoned: !noVphoned,
-                    cfw: !noBinpack
-                )
-                try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
+            try injectLaunchDaemons(
+                targetMount: targetMount,
+                cfwInput: cfwInputPath,
+                cfw: !noBinpack
+            )
+            try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
         }
 
         print("- Finalizing merged image…")

@@ -10,8 +10,6 @@ import VPhoneRestore
 /// `wait_for_recovery` / `wait_for_first_boot_prompt_auto` / `run_boot_analysis`.
 private enum VPhoneCreateError: Error, CustomStringConvertible {
     case nestedVirtualization
-    case unknownVariant(String)
-    case lessRequiresRoot
     case fwPrepareFailed(Int32)
     case identityTimedOut(URL)
     case invalidUDID(String)
@@ -27,16 +25,11 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
     case bootAnalysisPanic
     case bootAnalysisExited(Int32)
     case bootAnalysisTimeout
-    case lessBootFailed(Int32)
 
     var description: String {
         switch self {
         case .nestedVirtualization:
             "Guest boot is unavailable inside a VM. Run vm create on a macOS 15 or later host that is not itself a VM."
-        case let .unknownVariant(v):
-            "Unknown variant '\(v)'. Choose regular, dev, jb, exp, or less."
-        case .lessRequiresRoot:
-            "The 'less' variant requires root. Run vm create with sudo."
         case let .fwPrepareFailed(code):
             "Firmware preparation failed (exit code \(code))."
         case let .identityTimedOut(path):
@@ -71,8 +64,6 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
             "Boot analysis ended before the guest finished booting (exit code \(code))."
         case .bootAnalysisTimeout:
             "Boot analysis timed out."
-        case let .lessBootFailed(code):
-            "The VM failed to start with the 'less' variant (exit code \(code))."
         }
     }
 }
@@ -124,11 +115,6 @@ public struct VPhoneCreateOrchestrator {
             throw VPhoneCreateError.nestedVirtualization
         }
 
-        guard let variantOption = PatchFirmwareCLI.VariantOption(rawValue: options.variant) else {
-            throw VPhoneCreateError.unknownVariant(options.variant)
-        }
-        let isLess = variantOption == .less
-
         let bundleURL = library.url(forName: options.name)
         if FileManager.default.fileExists(atPath: bundleURL.path) {
             throw VPhoneLibraryError.alreadyExists(name: options.name)
@@ -139,25 +125,23 @@ public struct VPhoneCreateOrchestrator {
         // via the askpass helper. Otherwise sudo prompts on the terminal itself —
         // the CFW-install step runs as a foreground job (runForeground) so sudo's
         // process group owns the tty and reads the password directly; our code
-        // never sees it. `less` runs the whole create as root, so needs no password.
+        // never sees it.
         var sudoEnvExtras: [String: String] = [:]
         var askpassScript: URL?
         defer { if let askpassScript { try? FileManager.default.removeItem(at: askpassScript) } }
-        if !isLess {
-            if let password = options.sudoPassword, !password.isEmpty {
-                let script = try makeSudoAskpassScript()
-                askpassScript = script
-                sudoEnvExtras = ["SUDO_ASKPASS": script.path, "SUDO_PASSWORD": password]
-                if preloadSudoCredential(env: sudoEnvExtras, verbosity: v) {
-                    print("[+] sudo credential preloaded via --sudo-password")
-                } else {
-                    print("[!] --sudo-password failed validation; will still try at CFW-install time")
-                }
-            } else if !options.rootPopup && isatty(FileHandle.standardInput.fileDescriptor) == 0 {
-                // No password, no popup, no terminal for sudo to prompt on — fail
-                // before the long download/restore, not at the eventual sudo prompt.
-                throw VPhoneCreateError.sudoPasswordRequired
+        if let password = options.sudoPassword, !password.isEmpty {
+            let script = try makeSudoAskpassScript()
+            askpassScript = script
+            sudoEnvExtras = ["SUDO_ASKPASS": script.path, "SUDO_PASSWORD": password]
+            if preloadSudoCredential(env: sudoEnvExtras, verbosity: v) {
+                print("[+] sudo credential preloaded via --sudo-password")
+            } else {
+                print("[!] --sudo-password failed validation; will still try at CFW-install time")
             }
+        } else if !options.rootPopup && isatty(FileHandle.standardInput.fileDescriptor) == 0 {
+            // No password, no popup, no terminal for sudo to prompt on — fail
+            // before the long download/restore, not at the eventual sudo prompt.
+            throw VPhoneCreateError.sudoPasswordRequired
         }
 
         print("\n=== vm new ===")
@@ -173,26 +157,18 @@ public struct VPhoneCreateOrchestrator {
         print("created \(bundle.url.path)")
 
         print("\n=== fw prepare ===")
-        try runFWPrepare(options: options, isLess: isLess, bundleURL: bundleURL)
+        try runFWPrepare(options: options, bundleURL: bundleURL)
 
         print("\n=== fw patch ===")
-        try runFWPatch(
-            variant: variantOption,
-            isLess: isLess,
-            enableFrida: options.enableFrida,
-            bundleURL: bundleURL,
-            verbosity: v
-        )
+        try runFWPatch(enableFrida: options.enableFrida, bundleURL: bundleURL, verbosity: v)
 
         print("\n=== Restore phase ===")
         try runRestorePhase(bundleURL: bundleURL, verbosity: v)
 
-        if !isLess {
-            print("[*] Waiting 5s for cleanup before CFW install...")
-            Thread.sleep(forTimeInterval: 5)
-            print("\n=== CFW install (host-mount) ===")
-            try runCFWInstall(options: options, bundleURL: bundleURL, sudoEnvExtras: sudoEnvExtras)
-        }
+        print("[*] Waiting 5s for cleanup before CFW install...")
+        Thread.sleep(forTimeInterval: 5)
+        print("\n=== CFW install (host-mount) ===")
+        try runCFWInstall(options: options, bundleURL: bundleURL, sudoEnvExtras: sudoEnvExtras)
 
         // CFW install is the last consumer of the built restore tree (it copies
         // the SystemOS/AppOS cryptexes from it onto Disk.img); reclaim it now.
@@ -202,24 +178,13 @@ public struct VPhoneCreateOrchestrator {
         }
 
         print("\n=== First boot ===")
-        try runFirstBoot(options: options, isLess: isLess, bundleURL: bundleURL)
-
-        if variantOption == .jb || variantOption == .exp {
-            print("\n=== JB Finalize ===")
-            print("[*] JB finalization will run automatically on first normal boot")
-            print("    via /cores/vphone_jb_setup.sh (LaunchDaemon).")
-            print("    Monitor progress via vphoned file browser: /var/log/vphone_jb_setup.log")
-        }
+        try runFirstBoot(options: options, bundleURL: bundleURL)
 
         print("\n=== Done ===")
         print("Setup completed.")
 
         print("\n=== Boot analysis ===")
-        if isLess {
-            try startVMForeground(bundleURL: bundleURL, verbosity: v)
-        } else {
-            try runBootAnalysis(bundleURL: bundleURL, verbosity: v)
-        }
+        try runBootAnalysis(bundleURL: bundleURL, verbosity: v)
     }
 
     // MARK: - trace
@@ -278,7 +243,7 @@ public struct VPhoneCreateOrchestrator {
 
     // MARK: - fw prepare / fw patch
 
-    private func runFWPrepare(options: Options, isLess: Bool, bundleURL: URL) throws {
+    private func runFWPrepare(options: Options, bundleURL: URL) throws {
         let v = options.verbosity
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
@@ -289,7 +254,6 @@ public struct VPhoneCreateOrchestrator {
         // No VPHONE_PYTHON: fw_prepare.sh no longer runs any Python.
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
-        if isLess { env["VARIANT"] = "less" }
         if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         trace(
@@ -309,36 +273,27 @@ public struct VPhoneCreateOrchestrator {
     }
 
     private func runFWPatch(
-        variant: PatchFirmwareCLI.VariantOption,
-        isLess: Bool,
         enableFrida: Bool,
         bundleURL: URL,
         verbosity v: VPhoneVerbosity
     ) throws {
-        // Mirrors the Makefile's `ifeq ($(UID),0)` gate on `fw_patch_less` —
-        // only the `less` variant requires root.
-        if isLess, getuid() != 0 {
-            throw VPhoneCreateError.lessRequiresRoot
-        }
-
         // In-process pipeline (no subprocess) — CryptexFilesystemPatcher's
         // apfs_sealvolume read honors VPHONE_SEAL_DIR from *this* process's
         // environment, so set it here to agree with `fw prepare`'s write.
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
         setenv("VPHONE_SEAL_DIR", resources.sealVolumeCacheDir.path, 1)
 
-        trace("in-process FirmwarePipeline.patchAll variant=\(variant.rawValue)", v)
+        trace("in-process FirmwarePipeline.patchAll variant=jb", v)
         let pipeline = FirmwarePipeline(
             vmDirectory: bundleURL,
-            variant: variant.pipelineVariant,
+            variant: .jb,
             verbose: v.showsToolDetail,
-            noBinpack: false,
-            noVphoned: false,
+            noBinpack: true,
             forceExcGuard: false,
             enableFrida: enableFrida
         )
         let records = try pipeline.patchAll()
-        print("[fw patch] applied \(records.count) patches for \(variant.rawValue)")
+        print("[fw patch] applied \(records.count) JB patches")
     }
 
     // MARK: - restore phase
@@ -510,12 +465,11 @@ public struct VPhoneCreateOrchestrator {
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
             "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
         ]
-        if let spoofBuild = options.spoofBuild { scriptEnv["SPOOF_BUILD"] = spoofBuild }
         if options.forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
         if options.enableFrida { scriptEnv["VPHONE_FRIDA"] = "1" }
         if options.keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
-        let args = [resources.cfwInstallHostScript.path, "--variant", options.variant, bundleURL.path]
+        let args = [resources.cfwInstallHostScript.path, "--variant", "jb", bundleURL.path]
         // --sudo-password (askpass) wins over --root-popup.
         let usePopup = options.rootPopup && sudoEnvExtras["SUDO_ASKPASS"] == nil
         let code: Int32
@@ -557,20 +511,19 @@ public struct VPhoneCreateOrchestrator {
             }
         }
         guard code == 0 else { throw VPhoneCreateError.cfwInstallFailed(code) }
-        print("[+] CFW installed (\(options.variant)).")
+        print("[+] JB CFW installed.")
         if let bundle = try? VPhoneBundle.load(at: bundleURL),
-           let info = try? VPhoneRestoreInfo.recordVariant(options.variant, toBundle: bundle), info.variant != nil {
-            print("[+] Recorded variant \(options.variant), device \(info.device ?? "?")")
+           let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {
+            print("[+] Recorded variant jb, device \(info.device ?? "?")")
         }
     }
 
     // MARK: - first boot
 
-    private func runFirstBoot(options: Options, isLess: Bool, bundleURL: URL) throws {
+    private func runFirstBoot(options: Options, bundleURL: URL) throws {
         let v = options.verbosity
         let configURL = bundleURL.appendingPathComponent("config.plist")
         var args = ["--config", configURL.path]
-        if isLess { args += ["--variant", "less"] }
         // --interactive keeps the window: it is the operator's only boot-progress cue.
         if !options.interactive { args.append("--headless") }
 
@@ -644,20 +597,4 @@ public struct VPhoneCreateOrchestrator {
         }
     }
 
-    /// `less` variant: `run_make "Start VM" boot_less` — a plain foreground
-    /// boot, no panic/prompt analysis (patchless compat mode has no CFW-driven
-    /// success marker to watch for).
-    private func startVMForeground(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
-        let configURL = bundleURL.appendingPathComponent("config.plist")
-        print("\n=== Start VM ===")
-        let (exe, args) = launcher.plan(["--config", configURL.path, "--variant", "less"])
-        trace("spawn \(exe.path) \(args.joined(separator: " ")) (echo=\(v.showsToolDetail))", v)
-        let code = try VPhoneProcessRunner.runStreaming(
-            exe,
-            args,
-            cwd: bundleURL,
-            echo: v.showsToolDetail
-        )
-        guard code == 0 else { throw VPhoneCreateError.lessBootFailed(code) }
-    }
 }

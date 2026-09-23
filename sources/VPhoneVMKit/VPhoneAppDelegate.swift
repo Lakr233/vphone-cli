@@ -54,7 +54,6 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         print("=== vphone-cli ===")
-        print("Variant : \(options.variant)")
         print("ROM     : \(options.romURL?.path ?? "None")")
         print("Disk    : \(options.diskURL.path)")
         print("NVRAM   : \(options.nvramURL.path)")
@@ -79,7 +78,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
         try await vm.start(forceDFU: cli.dfu)
 
-        let control = VPhoneControl(variant: options.variant)
+        let control = VPhoneControl()
         self.control = control
         if !cli.dfu {
             let vphonedURL = URL(fileURLWithPath: cli.vphonedBin)

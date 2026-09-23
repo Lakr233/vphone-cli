@@ -14,12 +14,6 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     /// Synthetic battery source for runtime charge/connectivity updates.
     private var batterySource: AnyObject?
 
-    /// Moved to VPhoneCore so vphone-cli can accept `--variant` without linking
-    /// Virtualization. The alias keeps every existing `VPhoneVirtualMachine.Variant`
-    /// spelling working.
-    public typealias Variant = VPhoneVariant
-
-
     struct Options {
         var configURL: URL
         var romURL: URL?
@@ -34,8 +28,6 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         var screenPPI: Int = 460
         var screenScale: Double = 3.0
         var kernelDebugPort: Int?
-        var variant: Variant
-        var noVphoned: Bool
     }
 
     private struct DeviceIdentity {
@@ -223,10 +215,8 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
         config.keyboards = [VZUSBKeyboardConfiguration()]
 
-        if !options.noVphoned {
-            // Vsock (host <-> guest control channel, no IP/TCP involved)
-            config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
-        }
+        // Vsock (host <-> guest control channel, no IP/TCP involved)
+        config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
 
         // Power source (synthetic battery - guest sees full charge, charging)
         let source = Dynamic._VZMacSyntheticBatterySource()

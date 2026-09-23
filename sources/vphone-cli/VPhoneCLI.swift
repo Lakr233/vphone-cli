@@ -21,25 +21,6 @@ struct VPhoneCLI: ParsableCommand {
 // only forwards it — see main.swift.
 
 struct PatchFirmwareCLI: ParsableCommand {
-    enum VariantOption: String, CaseIterable, ExpressibleByArgument {
-        case less
-        case regular
-        case dev
-        case jb
-        case exp
-
-        var pipelineVariant: FirmwarePipeline.Variant {
-            switch self {
-            case .less: .less
-            case .regular: .regular
-            case .dev: .dev
-            case .jb: .jb
-            case .exp: .exp
-            }
-        }
-
-    }
-
     static let configuration = CommandConfiguration(
         commandName: "patch-firmware",
         abstract: "Patch boot-chain firmware in a VM directory using the Swift pipeline"
@@ -52,9 +33,6 @@ struct PatchFirmwareCLI: ParsableCommand {
     )
     var vmDirectory: URL
 
-    @Option(name: [.customShort("V"), .long], help: "Firmware variant to patch.")
-    var variant: VariantOption = .regular
-
     @Option(
         name: .customLong("records-out"),
         help: "Optional path to write emitted PatchRecord JSON."
@@ -64,15 +42,6 @@ struct PatchFirmwareCLI: ParsableCommand {
     @Flag(name: [.customShort("q"), .customLong("quiet")], help: "Suppress per-component progress output.")
     var quiet: Bool = false
     
-    @Flag(
-        name: .customLong("no-binpack"),
-        help: "Exclude the SSH, VNC, ... binaries from being installed (patchless-only)."
-    )
-    var noBinpack: Bool = false
-
-    @Flag(name: .customLong("no-vphoned"), help: "Exclude vphoned from being installed (patchless-only).")
-    var noVphoned: Bool = false
-
     @Flag(
         name: .customLong("force-exc-guard"),
         help: "Force-enable the EXC_GUARD (Mach port guard) disable patch on regular/jb/exp, even on bases where it isn't required to boot. Use if a third-party app's crash-reporting/RASP SDK trips a fatal GUARD_TYPE_MACH_PORT violation on launch. Always on for iOS 18 bases regardless of this flag."
@@ -88,10 +57,9 @@ struct PatchFirmwareCLI: ParsableCommand {
     mutating func run() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: vmDirectory,
-            variant: variant.pipelineVariant,
+            variant: .jb,
             verbose: !quiet,
-            noBinpack: noBinpack,
-            noVphoned: noVphoned,
+            noBinpack: true,
             forceExcGuard: forceExcGuard,
             enableFrida: frida
         )
@@ -104,7 +72,7 @@ struct PatchFirmwareCLI: ParsableCommand {
             try encoder.encode(records).write(to: url)
             print("[patch-firmware] wrote \(records.count) patch records to \(url.path)")
         } else {
-            print("[patch-firmware] applied \(records.count) patches for \(variant.rawValue)")
+            print("[patch-firmware] applied \(records.count) JB patches")
         }
     }
 }
@@ -114,7 +82,7 @@ struct PatchComponentCLI: ParsableCommand {
         case txm
         case kernelBase = "kernel-base"
         // TESTING/DIAGNOSTICS ONLY — not part of any production flow.
-        // Production JB patching runs through `patch-firmware --variant jb`; this
+        // Production JB patching runs through `patch-firmware`; this
         // standalone option exists so `tests/test_jb_kernel_patches.sh` can run the
         // JB kernel layer over a single kernelcache and dump records via --records-out.
         // (txm / kernel-base, by contrast, are standalone single-component patchers.)

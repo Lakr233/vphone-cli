@@ -10,7 +10,6 @@
 #
 # Usage:
 #   ./scripts/build.sh              # build + sign + bundle + vphoned
-#   ./scripts/build.sh --no-vphoned # skip the vphoned cross-compile
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
@@ -46,11 +45,9 @@ ENTITLEMENTS="sources/vphone.entitlements"
 BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
 GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
-BUILD_VPHONED=1
 for arg in "$@"; do
   case "$arg" in
-    --no-vphoned) BUILD_VPHONED=0 ;;
-    -h|--help) echo "Usage: $0 [--no-vphoned]"; exit 0 ;;
+    -h|--help) echo "Usage: $0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -139,20 +136,15 @@ echo "  bundled → ${BUNDLE}"
 # --- Guest binaries (cross-compiled for iOS; see scripts/guest_binaries.mk) ---
 # All five of them, because compiling them at CFW-install time is what made
 # Xcode a requirement for running a VM. This is the build machine; it has Xcode.
-if [[ "$BUILD_VPHONED" -eq 1 ]]; then
-  make -f scripts/guest_binaries.mk guest_binaries GIT_HASH="$GIT_HASH"
-  # vphoned.signed is the copy the host pushes into a *running* guest over vsock,
-  # so it is signed here rather than at install time. ldid used to do this;
-  # `vphone-cli sign` writes the same bytes and needs no Homebrew, which takes
-  # the last external program out of the build as well as out of dist.
-  echo "=== Signing vphoned ==="
-  cp .build/guest/vphoned .build/vphoned.signed
-  "$BINARY" sign \
-    --entitlements scripts/vphoned/entitlements.plist --merge \
-    --pkcs12 scripts/vphoned/signcert.p12 \
-    .build/vphoned.signed
-  echo "  signed → .build/vphoned.signed"
-fi
+make -f scripts/guest_binaries.mk guest_binaries GIT_HASH="$GIT_HASH"
+# vphoned.signed is the copy the host pushes into a running guest over vsock.
+echo "=== Signing vphoned ==="
+cp .build/guest/vphoned .build/vphoned.signed
+"$BINARY" sign \
+  --entitlements scripts/vphoned/entitlements.plist --merge \
+  --pkcs12 scripts/vphoned/signcert.p12 \
+  .build/vphoned.signed
+echo "  signed → .build/vphoned.signed"
 
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
 RES="${BUNDLE}/Contents/Resources"
@@ -210,7 +202,7 @@ echo "  vphone-archive     : ${ARCHIVE_BINARY}"
 echo "  vphone-ask-for-permission : ${ASKPASS_BINARY}"
 echo "  vphone-amfi-allow  : ${AMFI_BINARY} (arm64e)"
 echo "  bundle             : ${BUNDLE}"
-[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned            : .build/vphoned.signed"
+echo "  vphoned            : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
 echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements."

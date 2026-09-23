@@ -143,6 +143,25 @@ struct RestoreInfoTests {
         #expect(try VPhoneRestoreInfo.recordVariant("jb", toBundle: b) == nil)
     }
 
+    @Test func normalBootRejectsAnExplicitOldVariantButDFUStillParses() throws {
+        let b = try makeBundle()
+        defer { try? FileManager.default.removeItem(at: b.url) }
+        try b.manifest.write(to: b.configURL)
+        try VPhoneRestoreInfo(
+            ios: .init(version: "26.6.2", build: "23G90"),
+            cloudOS: .init(version: "26.4", build: "23E5207q"),
+            variant: "exp"
+        ).write(toBundle: b)
+
+        do {
+            _ = try VPhoneBootCLI.parseAsRoot(["--config", b.configURL.path])
+            Issue.record("Boot accepted an explicitly unsupported VM variant")
+        } catch {
+            #expect(String(describing: error).contains("Only JB VMs are supported"))
+        }
+        _ = try VPhoneBootCLI.parseAsRoot(["--config", b.configURL.path, "--dfu"])
+    }
+
     @Test func bundleReportCarriesUDID() throws {
         let b = try makeBundle()
         defer { try? FileManager.default.removeItem(at: b.url) }

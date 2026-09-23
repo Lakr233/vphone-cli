@@ -15,7 +15,9 @@ public struct VPhoneLaunchLayout: Sendable {
     @discardableResult
     public func stageVphoned(into bundle: VPhoneBundle) throws -> Bool {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: vphoned.path) else { return false }
+        guard fm.fileExists(atPath: vphoned.path) else {
+            throw VPhoneGuestBinaries.Error.missing("vphoned.signed", [vphoned])
+        }
         let dst = bundle.url.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: dst.path),
            let a = try? Data(contentsOf: vphoned, options: .mappedIfSafe),

@@ -6,23 +6,17 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "create",
         abstract: "Create a VM end-to-end (prepare → patch → restore → CFW → first boot)",
-        discussion: "Runs the full pipeline for a fresh VM. Needs an internet connection "
-            + "(IPSW download), a non-nested macOS host, and sudo (CFW host-mount). "
-            + "The 'less' (patchless) variant must itself be run with sudo — the whole "
-            + "create runs as root, not just the fw-patch stage."
+        discussion: "Runs the JB pipeline for a fresh VM. Needs an internet connection "
+            + "(IPSW download), a non-nested macOS host, and sudo (CFW host-mount)."
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "new VM name") var name: String
-    @Option(name: [.customShort("V"), .long], help: "variant: regular | dev | jb | exp | less")
-    var variant: String = "regular"
     @Option(name: .shortAndLong, help: "iPhone IPSW URL or local path") var iphoneSource: String?
     @Option(name: .shortAndLong, help: "cloudOS IPSW URL or local path") var cloudosSource: String?
     @Option(name: .shortAndLong, help: "Disk size (GB)") var diskSize: UInt64 = 64
     @Option(name: .shortAndLong, help: "sudo password for the CFW host-mount install (via askpass; never logged)")
     var sudoPassword: String?
-    @Option(name: [.customShort("b"), .long], help: "(exp only) rewrite ProductBuildVersion to this build id")
-    var spoofBuild: String?
     @Flag(
         name: .customLong("force-dsc-maxslide"),
         help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)"
@@ -64,11 +58,9 @@ struct VPhoneVMCreateCommand: ParsableCommand {
         )
         try orchestrator.run(.init(
             name: name,
-            variant: variant,
             iphoneSource: sources.iphoneSource,
             cloudosSource: sources.cloudosSource,
             sudoPassword: sudoPassword,
-            spoofBuild: spoofBuild,
             forceDSCMaxSlide: forceDSCMaxSlide,
             enableFrida: frida,
             rootPopup: rootPopup,

@@ -90,8 +90,6 @@ help:
 	@echo "  make amfi_off                Remove the allowlist and restart amfid clean"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
-	@echo "  make boot_less               Boot VM in vphoned patchless compatibility mode"
-	@echo "    Options: NO_VPHONED=1              Skip installing vphoned"
 	@echo "  make boot_dfu                Boot VM in DFU mode (reads from config.plist)"
 	@echo ""
 	@echo "Firmware pipeline:"
@@ -102,28 +100,11 @@ help:
 	@echo "             IPHONE_BUILD=     Resolve a downloadable iPhone build to an IPSW URL"
 	@echo "             IPHONE_SOURCE=    URL or local path to iPhone IPSW"
 	@echo "             CLOUDOS_SOURCE=   URL or local path to cloudOS IPSW"
-	@echo "  make fw_patch                Patch boot chain with Swift pipeline (regular variant)"
+	@echo "  make fw_patch                Patch boot chain with the JB Swift pipeline"
 	@echo "    Options: FORCE_EXC_GUARD=1        Force the EXC_GUARD Mach-port-guard disable patch even on bases"
 	@echo "                                      that don't strictly need it to boot (e.g. a 3rd-party app's"
 	@echo "                                      crash-reporting SDK trips a fatal GUARD_TYPE_MACH_PORT violation)"
-	@echo "  make fw_patch_less           Patch boot chain with Swift pipeline (less patches)"
-	@echo "    Options: NO_BINPACK=1              Skip installing the SSH, VNC and other bundled binaries"
-	@echo "             NO_VPHONED=1              Skip installing vphoned"
-	@echo "  make fw_patch_dev            Patch boot chain with Swift pipeline (dev mode TXM patches)"
-	@echo "  make fw_patch_jb             Patch boot chain with Swift pipeline (dev + JB extensions)"
-	@echo "    Options: FORCE_EXC_GUARD=1        (see fw_patch above)"
 	@echo "             FRIDA=1                  Opt in to the Frida Stalker kernel relaxations"
-	@echo "  make fw_patch_exp            Patch boot chain with Swift pipeline (JB + EXP experimental)"
-	@echo "    Options: FORCE_EXC_GUARD=1        (see fw_patch above)"
-	@echo "             FRIDA=1                  Opt in to the Frida Stalker kernel relaxations"
-	@echo ""
-	@echo "Testing:"
-	@echo "  make test_jb_patches         Run all JB kernel patches (incl. Sandbox) over every supported cloudOS kernel"
-	@echo "    Options: QUICK=1           Only the local/newest kernel (fast dev loop)"
-	@echo "  make test_fw_patches         Run the FULL patch-firmware pipeline (boot chain + base kernel + JB + EXP) over"
-	@echo "                               each local cloudOS firmware; fails if any sub-patch is skipped"
-	@echo "    Options: QUICK=1           Only the newest local cloudOS firmware"
-	@echo "             VARIANTS=\"exp\"     Limit to specific variants (default: jb exp)"
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
@@ -131,11 +112,7 @@ help:
 	@echo "  make restore_offline         Restore offline from the cached .shsh file (decrypts AEA images in place)"
 	@echo ""
 	@echo "CFW (host-mount install; VM must be off, re-execs sudo):"
-	@echo "  make cfw_install             Install base CFW mods"
-	@echo "  make cfw_install_dev         Install CFW mods (dev mode)"
-	@echo "  make cfw_install_jb          Install CFW + JB extensions (jetsam/procursus/basebin)"
-	@echo "  make cfw_install_exp         Install CFW + JB + EXP experimental (hv_vmm rename, post-restore DT, build spoof)"
-	@echo "  make cfw_install_host        Select variant: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)"
+	@echo "  make cfw_install             Install JB CFW via host mount"
 	@echo ""
 	@echo "Variables: VM_DIR=$(VM_DIR) SWIFT_JOBS=$(SWIFT_JOBS)"
 
@@ -252,83 +229,29 @@ $(AMFI_BINARY): $(AMFI_SOURCE)
 	@codesign --force --sign - $(AMFI_BINARY)
 	@echo "  signed: vphone-amfi-allow"
 
-# `bundle` produces the SAME bundle scripts/build.sh does, Resources included.
-#
-# It did not, until now: build.sh staged Contents/Resources/scripts and this
-# target did not, so `make check-aux` — which depends on this — was inspecting a
-# five-binary bundle while the thing users actually get carried twenty scripts
-# and a Homebrew-linked trustcache. The gate was green because it was looking at
-# the wrong artifact. Both paths now read the same allowlist.
-bundle: build $(AMFI_BINARY) guest_binaries $(INFO_PLIST)
-	@# `build` re-signs unconditionally now, so the copies below are always
-	@# made from a freshly entitled vphone-vm rather than from whatever a bare
-	@# `swift build` last left in .build/release.
-	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
-	@cp -f $(BINARY) $(BUNDLE_BIN)
-	@cp -f $(VM_BINARY) $(BUNDLE_VM)
-	@cp -f $(ARCHIVE_BINARY) $(BUNDLE_ARCHIVE)
-	@cp -f $(ASKPASS_BINARY) $(BUNDLE_ASKPASS)
-	@cp -f $(AMFI_BINARY) $(BUNDLE_AMFI)
-	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
-	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
-	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
-	@# The bundle is built over whatever is already there, so these are removed
-	@# although nothing copies any of them any more: bundles built before
-	@# VPhoneSign replaced ldid carry the Homebrew ldid; bundles built before the
-	@# AMFI bypass became ours carry vphone-letmein, which patched amfid's __TEXT
-	@# — a write the kernel kills amfid for wherever vm.cs_system_enforcement is
-	@# 1; and .tools/bin/trustcache linked /opt/homebrew's libcrypto.3 while
-	@# nothing ever invoked it. They have to go BEFORE the seal below, not after
-	@# — removing nested code from a sealed bundle is what makes `codesign -v`
-	@# report it modified.
-	@rm -f $(BUNDLE)/Contents/MacOS/ldid $(BUNDLE)/Contents/MacOS/vphone-letmein
-	@rm -rf $(BUNDLE)/Contents/Resources/scripts $(BUNDLE)/Contents/Resources/guest \
-		$(BUNDLE)/Contents/Resources/.tools $(BUNDLE)/Contents/Resources/tools
-	@mkdir -p $(BUNDLE)/Contents/Resources/scripts
-	@zsh $(SCRIPTS)/dist_manifest.sh \
-		| rsync -a --files-from=- $(SCRIPTS)/ $(BUNDLE)/Contents/Resources/scripts/
-	@cp -R $(GUEST_DIR) $(BUNDLE)/Contents/Resources/guest
-	@cp -f debs.list $(BUNDLE)/Contents/Resources/debs.list
-	@cp -f README.md $(BUNDLE)/Contents/Resources/README.md
-	@# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the
-	@# whole bundle and everything beside it counts as nested code. Sign the
-	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
-	@codesign --force --sign - $(BUNDLE_BIN)
-	@codesign --force --sign - $(BUNDLE_ARCHIVE)
-	@codesign --force --sign - $(BUNDLE_ASKPASS)
-	@codesign --force --sign - $(BUNDLE_AMFI)
-	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
-	@codesign -v $(BUNDLE_VM) \
-		|| (echo "Error: the bundle seal did not verify after signing." >&2; exit 1)
-	@echo "  bundled → $(BUNDLE)"
+# One packaging implementation: direct builds and `make bundle` stage the same resources.
+bundle:
+	@zsh $(SCRIPTS)/build.sh
 
 # The five iOS binaries the guest runs. Compiled here, on the build machine,
 # because compiling them at CFW-install time is what made Xcode a prerequisite
 # for running a VM. See scripts/guest_binaries.mk.
 include $(SCRIPTS)/guest_binaries.mk
 
-# vphoned for a LIVE guest: the copy the host pushes over vsock, signed here
-# because there is no VM cfw_input in that flow. `vphone-cli sign` replaces the
-# `ldid` this used to need, so the build has no Homebrew dependency either.
+# vphoned for a live guest. This target only prepares the build artifact;
+# `boot` stages it into its VM after `bundle` has completed.
 .PHONY: vphoned
 vphoned: $(GUEST_DIR)/vphoned $(BINARY)
 	@cp -f $(GUEST_DIR)/vphoned .build/vphoned.signed
 	@$(BINARY) sign --entitlements $(SCRIPTS)/vphoned/entitlements.plist --merge \
 		--pkcs12 $(SCRIPTS)/vphoned/signcert.p12 .build/vphoned.signed
 	@echo "  signed → .build/vphoned.signed"
-	@# The VM-local copy the guest auto-update path reads. Same bytes, second
-	@# location; the `ldid` invocation that used to be here is the same
-	@# `vphone-cli sign` above.
-	@if [ -d "$(VM_DIR_ABS)" ]; then \
-		cp -f .build/vphoned.signed $(VM_DIR_ABS)/.vphoned.signed; \
-		echo "  signed → $(VM_DIR)/.vphoned.signed"; \
-	fi
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: amfi_allow amfi_status amfi_off boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
+.PHONY: amfi_allow amfi_status amfi_off boot_host_preflight boot boot_dfu boot_binary_check
 
 # Self-containment checks over the complete application bundle.
 # CHECK_AUX_FAST=1 skips smoke checks for local source checks only.
@@ -410,21 +333,13 @@ define BOOT_BINARY_CHECK
 	rm -f "$$tmp_log"
 endef
 
-boot_binary_check_less: $(BINARY)
-	$(call BOOT_BINARY_CHECK,--assert-bootable --less)
-
 boot_binary_check: $(BINARY)
 	$(call BOOT_BINARY_CHECK,--assert-bootable)
 
-boot: bundle vphoned boot_binary_check
+boot: bundle boot_binary_check
+	@cp -f "$(BUNDLE)/Contents/Resources/vphoned.signed" "$(VM_DIR_ABS)/.vphoned.signed"
 	cd "$(VM_DIR)" && "$(CURDIR)/$(BUNDLE_BIN)" \
 		--config ./config.plist
-
-boot_less: bundle boot_binary_check_less
-	cd "$(VM_DIR)" && "$(CURDIR)/$(BUNDLE_BIN)" \
-		--config ./config.plist \
-		--variant less \
-		$(if $(call truthy,$(NO_VPHONED)),--no-vphoned,)
 
 boot_dfu: build boot_binary_check
 	cd "$(VM_DIR)" && "$(CURDIR)/$(BINARY)" \
@@ -435,63 +350,15 @@ boot_dfu: build boot_binary_check
 # Firmware pipeline
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: fw_prepare fw_patch fw_patch_less fw_patch_dev fw_patch_jb fw_patch_exp
+.PHONY: fw_prepare fw_patch
 
 fw_prepare:
 	cd "$(VM_DIR)" && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
 
 fw_patch: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant regular \
-	$(if $(call truthy,$(FORCE_EXC_GUARD)),--force-exc-guard,)
-
-UID := $(shell id -u)
-ifeq ($(UID),0)
-fw_patch_less: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" \
-	--variant less \
-	$(if $(call truthy,$(NO_BINPACK)),--no-binpack,) \
-	$(if $(call truthy,$(NO_VPHONED)),--no-vphoned,)
-else
-fw_patch_less:
-	@echo "Error: fw_patch_less needs root. Run: sudo make fw_patch_less"
-	@exit 1
-endif
-
-fw_patch_dev: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant dev
-
-fw_patch_jb: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant jb \
 	$(if $(call truthy,$(FORCE_EXC_GUARD)),--force-exc-guard,) \
 	$(if $(call truthy,$(FRIDA)),--frida,)
-
-fw_patch_exp: patcher_build
-	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" --variant exp \
-	$(if $(call truthy,$(FORCE_EXC_GUARD)),--force-exc-guard,) \
-	$(if $(call truthy,$(FRIDA)),--frida,)
-
-.PHONY: test_jb_patches
-
-# Run the full JB kernel patch layer (every hook, incl. all Sandbox ops hooks)
-# over EVERY cloudOS kernel the README supports — correctness + backward-compat.
-# Downloads each version's kernelcache on demand (cached under /tmp/vphone_kjb_versions).
-#   Options: QUICK=1   Only the local/newest kernel (fast dev loop)
-test_jb_patches: patcher_build
-	zsh "$(CURDIR)/tests/test_jb_kernel_patches.sh" --no-build \
-		$(if $(call truthy,$(QUICK)),--quick,)
-
-.PHONY: test_fw_patches
-
-# Run the FULL patch-firmware pipeline (boot chain + base kernel + JB + EXP, every
-# component) over each locally-prepared cloudOS firmware, for the jb and exp
-# variants, and fail if ANY component skips a sub-patch (a `[-]` line). This is the
-# broad gate that catches drift outside the JB kernel layer (iBSS/iBEC/LLB, base
-# KernelPatcher, TXM, DeviceTree) — which test_jb_patches structurally cannot see.
-#   Options: QUICK=1            Only the newest local cloudOS firmware
-#            VARIANTS="exp"     Limit to specific variants (default: jb exp)
-test_fw_patches: patcher_build
-	zsh "$(CURDIR)/tests/test_firmware_patches.sh" --no-build \
-		$(if $(call truthy,$(QUICK)),--quick,)
 
 # ═══════════════════════════════════════════════════════════════════
 # Restore
@@ -578,22 +445,7 @@ restore_offline: build
 # CFW
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: cfw_install cfw_install_dev cfw_install_jb cfw_install_exp cfw_install_host
+.PHONY: cfw_install
 
 cfw_install:
-	$(MAKE) cfw_install_host VARIANT=regular
-
-cfw_install_dev:
-	$(MAKE) cfw_install_host VARIANT=dev
-
-cfw_install_jb:
-	$(MAKE) cfw_install_host VARIANT=jb FRIDA="$(FRIDA)"
-
-cfw_install_exp:
-	$(MAKE) cfw_install_host VARIANT=exp SPOOF_BUILD="$(SPOOF_BUILD)" FRIDA="$(FRIDA)"
-
-# CFW install: place files via host mount + flip the boot snapshot offline.
-# VM must be off; re-execs under sudo.
-#   Options: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)
-cfw_install_host:
-	$(if $(SPOOF_BUILD),SPOOF_BUILD="$(SPOOF_BUILD)") $(if $(call truthy,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant $(if $(VARIANT),$(VARIANT),exp) "$(VM_DIR_ABS)"
+	$(if $(call truthy,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant jb "$(VM_DIR_ABS)"
