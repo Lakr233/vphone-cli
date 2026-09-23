@@ -62,8 +62,15 @@ private enum DSCFixture {
 
     /// Where clones are made. Same filesystem as the pristine copy, so
     /// `cp -c` is a clone rather than 6.7 GB of reads.
+    ///
+    /// Deliberately a sibling of `ref_extract/`, not a child of it. This used
+    /// to sit at `ref_extract/scratch_dscfoundation`, inside the pristine tree
+    /// the whole suite compares against: the cleanup works, but any run that
+    /// is interrupted leaves multi-GB clones in there, and a reference tree
+    /// with scratch in it is no longer a reference. `ipsws/` is the same
+    /// filesystem, so the clone is still a clone.
     static var scratchRoot: URL {
-        repoRoot.appendingPathComponent("ipsws/ref_extract/scratch_dscfoundation")
+        repoRoot.appendingPathComponent("ipsws/scratch_dscfoundation")
     }
 
     /// The project venv, which is where the reference Python lives.
