@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # cfw_install_host.sh — CFW install by host-mounting the VM's Disk.img.
 #
 # Attaches the VM's Disk.img on the host and hands the container to the variant
@@ -6,9 +7,11 @@
 # CFW file directly. Then flips the boot snapshot offline
 # (`vphone-cli cfw flip-snapshot`) so the VM boots the live volume.
 #
-# Prereqs: VM restored (make restore) and powered off; host has gnu-tar, ipsw,
-# aea, ldid, zstd (make setup_tools) and a built vphone-cli (make build), which
-# is where every CFW patcher lives. SIP disabled (project baseline); NO
+# Prereqs: VM restored (make restore) and powered off, and a built vphone-cli
+# (make build), which is where every CFW patcher, the signer and the archive
+# reader live. There is no host toolchain to install: this used to need gnu-tar,
+# ipsw, ldid and zstd from Homebrew plus Xcode for the guest binaries, and now
+# needs nothing outside macOS. SIP disabled (project baseline); NO
 # authenticated-root/ARV change needed.
 #
 # Usage: cfw_install_host.sh [--variant regular|dev|jb|exp] [vm_dir]
@@ -45,15 +48,23 @@ VM_DIR="${VM_DIR:a}"
 IMG="$VM_DIR/Disk.img"
 [[ -f "$IMG" ]] || { echo "[-] no Disk.img at $IMG" >&2; exit 1; }
 
-# Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd).
-# No python entry, at either end: the installers call `vphone-cli cfw <verb>`
-# for every patch, and as of P2.4 there is no interpreter on this machine's
-# behalf to find. VPHONE_PYTHON used to be prepended here for the Python
-# patchers; nothing reads it downstream and `cfw install` no longer sets it.
-P="$PROJ/.tools/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# System directories only.
+#
+# This used to prepend "$PROJ/.tools/bin:/opt/homebrew/bin", because the
+# installers needed gnu-tar, ipsw, ldid and zstd from Homebrew. None of them is
+# reached for any more: signing is `vphone-cli sign`, archives are
+# `vphone-archive`, the AEA key is `vphone-cli fw aea-key`, and the guest
+# binaries are cross-compiled at build time instead of by xcrun here. Putting
+# Homebrew back on this PATH would let a dependency return without anything
+# failing, which is exactly how the last one survived so long.
+#
+# No python entry either, at either end: the installers call `vphone-cli cfw
+# <verb>` for every patch, and as of P2.4 there is no interpreter on this
+# machine's behalf to find.
+P="/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH="$P"
 
-if lsof "$IMG" >/dev/null 2>&1; then
+if /usr/sbin/lsof "$IMG" >/dev/null 2>&1; then
   echo "[-] $IMG is in use — stop the VM first." >&2; exit 1
 fi
 
@@ -104,12 +115,15 @@ fi
 
 # The whole install ran as root (owners-honored mounts / chown / cp). Hand the
 # host-side artifacts it created (vm/.vphoned.signed, vm/.cfw_temp, extracted
-# cfw_input/cfw_jb_input, the vphoned build) back to the invoking user, so the
-# subsequent user-run steps (make boot / setup_machine first boot, which rewrite
+# cfw_input/cfw_jb_input) back to the invoking user, so the subsequent user-run
+# steps (make boot / setup_machine first boot, which rewrite
 # vm/.vphoned.signed) don't hit "Permission denied".
+#
+# scripts/vphoned/vphoned used to need the same treatment, because the install
+# compiled it in place as root. It is built at build time now, by the user, and
+# nothing here writes to the source tree.
 if [[ -n "${SUDO_USER:-}" ]]; then
   chown -R "$SUDO_USER" "$VM_DIR" 2>/dev/null || true
-  [[ -e "$PROJ/scripts/vphoned/vphoned" ]] && chown "$SUDO_USER" "$PROJ/scripts/vphoned/vphoned" 2>/dev/null || true
   echo "[*] restored ownership of host-side artifacts to $SUDO_USER"
 fi
 

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # vm_create.sh — Create a new vphone VM directory with all required files.
 #
 # Mirrors the vrevm VM creation process:

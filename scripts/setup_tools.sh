@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # setup_tools.sh — Install all required host tools for vphone-cli
 #
 # Installs brew packages, builds trustcache from source, and builds insert_dylib

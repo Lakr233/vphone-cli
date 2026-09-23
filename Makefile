@@ -307,7 +307,14 @@ $(AMFI_BINARY): $(AMFI_SOURCE)
 	@codesign --force --sign - $(AMFI_BINARY)
 	@echo "  signed: vphone-amfi-allow"
 
-bundle: build $(AMFI_BINARY) $(INFO_PLIST)
+# `bundle` produces the SAME bundle scripts/build.sh does, Resources included.
+#
+# It did not, until now: build.sh staged Contents/Resources/scripts and this
+# target did not, so `make check-aux` — which depends on this — was inspecting a
+# five-binary bundle while the thing users actually get carried twenty scripts
+# and a Homebrew-linked trustcache. The gate was green because it was looking at
+# the wrong artifact. Both paths now read the same allowlist.
+bundle: build $(AMFI_BINARY) guest_binaries $(INFO_PLIST)
 	@# `build` re-signs unconditionally now, so the copies below are always
 	@# made from a freshly entitled vphone-vm rather than from whatever a bare
 	@# `swift build` last left in .build/release.
@@ -320,16 +327,24 @@ bundle: build $(AMFI_BINARY) $(INFO_PLIST)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
-	@# The bundle is built over whatever is already there, so these two are removed
-	@# although nothing copies either one any more: bundles built before VPhoneSign
-	@# replaced ldid carry the Homebrew ldid, the only thing in here linking
-	@# libcrypto.3 and libplist-2.0.4 and so the only thing failing gate 1; bundles
-	@# built before the AMFI bypass became the user's own business carry
-	@# vphone-letmein, which patched amfid's __TEXT — a write the kernel kills
-	@# amfid for wherever vm.cs_system_enforcement is 1. Both have to go
-	@# before the seal below, not after — removing nested code from a sealed bundle
-	@# is what makes `codesign -v` report it modified.
+	@# The bundle is built over whatever is already there, so these are removed
+	@# although nothing copies any of them any more: bundles built before
+	@# VPhoneSign replaced ldid carry the Homebrew ldid; bundles built before the
+	@# AMFI bypass became ours carry vphone-letmein, which patched amfid's __TEXT
+	@# — a write the kernel kills amfid for wherever vm.cs_system_enforcement is
+	@# 1; and .tools/bin/trustcache linked /opt/homebrew's libcrypto.3 while
+	@# nothing ever invoked it. They have to go BEFORE the seal below, not after
+	@# — removing nested code from a sealed bundle is what makes `codesign -v`
+	@# report it modified.
 	@rm -f $(BUNDLE)/Contents/MacOS/ldid $(BUNDLE)/Contents/MacOS/vphone-letmein
+	@rm -rf $(BUNDLE)/Contents/Resources/scripts $(BUNDLE)/Contents/Resources/guest \
+		$(BUNDLE)/Contents/Resources/.tools $(BUNDLE)/Contents/Resources/tools
+	@mkdir -p $(BUNDLE)/Contents/Resources/scripts
+	@zsh $(SCRIPTS)/dist_manifest.sh \
+		| rsync -a --files-from=- $(SCRIPTS)/ $(BUNDLE)/Contents/Resources/scripts/
+	@cp -R $(GUEST_DIR) $(BUNDLE)/Contents/Resources/guest
+	@cp -f debs.list $(BUNDLE)/Contents/Resources/debs.list
+	@cp -f README.md $(BUNDLE)/Contents/Resources/README.md
 	@# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the
 	@# whole bundle and everything beside it counts as nested code. Sign the
 	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
@@ -342,19 +357,27 @@ bundle: build $(AMFI_BINARY) $(INFO_PLIST)
 		|| (echo "Error: the bundle seal did not verify after signing." >&2; exit 1)
 	@echo "  bundled → $(BUNDLE)"
 
-# Cross-compile + sign vphoned daemon for iOS arm64 (requires ldid)
+# The five iOS binaries the guest runs. Compiled here, on the build machine,
+# because compiling them at CFW-install time is what made Xcode a prerequisite
+# for running a VM. See scripts/guest_binaries.mk.
+include $(SCRIPTS)/guest_binaries.mk
+
+# vphoned for a LIVE guest: the copy the host pushes over vsock, signed here
+# because there is no VM cfw_input in that flow. `vphone-cli sign` replaces the
+# `ldid` this used to need, so the build has no Homebrew dependency either.
 .PHONY: vphoned
-vphoned:
-	@command -v ldid >/dev/null 2>&1 \
-		|| (echo "Error: ldid not found. Run: brew install ldid-procursus" && exit 1)
-	$(MAKE) -C $(SCRIPTS)/vphoned GIT_HASH=$(GIT_HASH)
-	@echo "=== Signing vphoned ==="
-	cp $(SCRIPTS)/vphoned/vphoned $(VM_DIR)/.vphoned.signed
-	ldid \
-		-S$(SCRIPTS)/vphoned/entitlements.plist \
-		-M "-K$(SCRIPTS)/vphoned/signcert.p12" \
-		$(VM_DIR)/.vphoned.signed
-	@echo "  signed → $(VM_DIR)/.vphoned.signed"
+vphoned: $(GUEST_DIR)/vphoned $(BINARY)
+	@cp -f $(GUEST_DIR)/vphoned .build/vphoned.signed
+	@$(BINARY) sign --entitlements $(SCRIPTS)/vphoned/entitlements.plist --merge \
+		--pkcs12 $(SCRIPTS)/vphoned/signcert.p12 .build/vphoned.signed
+	@echo "  signed → .build/vphoned.signed"
+	@# The VM-local copy the guest auto-update path reads. Same bytes, second
+	@# location; the `ldid` invocation that used to be here is the same
+	@# `vphone-cli sign` above.
+	@if [ -d "$(VM_DIR_ABS)" ]; then \
+		cp -f .build/vphoned.signed $(VM_DIR_ABS)/.vphoned.signed; \
+		echo "  signed → $(VM_DIR)/.vphoned.signed"; \
+	fi
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management

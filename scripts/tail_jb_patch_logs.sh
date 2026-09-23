@@ -1,4 +1,6 @@
 #!/bin/zsh
+# vphone-tier: build
+# tail_jb_patch_logs.sh — follow the guest's first-boot JB setup log.
 set -euo pipefail
 unsetopt BG_NICE 2>/dev/null || true
 

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # vm_switch.sh — Switch the active VM to a different named backup.
 #
 # Saves the current VM under its name (from vm/.vm_name), then restores

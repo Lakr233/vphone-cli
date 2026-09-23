@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # vm_restore.sh — Restore a named backup into the active VM directory.
 #
 # Usage:

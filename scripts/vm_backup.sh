@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # vm_backup.sh — Save the current VM as a named backup.
 #
 # Backups are stored under vm.backups/<name>/.

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # cfw_install_jb.sh — Install base CFW + JB extensions on vphone.
 #
 # Runs the base CFW installer first (phases 1-7), then applies JB-specific
@@ -8,7 +9,6 @@
 #
 # Prerequisites (in addition to cfw_install.sh requirements):
 #   - cfw_jb_input/ or resources/cfw_jb_input.tar.zst present
-#   - zstd (for bootstrap decompression)
 #
 # Usage: make cfw_install_jb
 set -euo pipefail
@@ -36,6 +36,19 @@ fi
     echo "[-] cannot find vphone-cli (the JB phases need it) — run 'make build'" >&2
     exit 1
 }
+
+# Siblings of the binary just resolved, never PATH. See cfw_install.sh.
+VPHONE_ARCHIVE="${VPHONE_CLI:h}/vphone-archive"
+[[ -x "$VPHONE_ARCHIVE" ]] || {
+    echo "[-] cannot find vphone-archive beside $VPHONE_CLI — run 'make build'" >&2
+    exit 1
+}
+# The guest binaries this variant installs — TweakLoader.dylib and vpregister —
+# are cross-compiled at build time (scripts/guest_binaries.mk) and shipped.
+GUEST_BIN=""
+for candidate in "${SCRIPT_DIR:h}/guest" "${SCRIPT_DIR:h}/.build/guest"; do
+    [[ -d "$candidate" ]] && { GUEST_BIN="$candidate"; break }
+done
 
 # ════════════════════════════════════════════════════════════════
 # Step 1: Run base CFW install, then continue with JB phases
@@ -65,76 +78,67 @@ die() {
 }
 
 check_prerequisites() {
-    local missing=()
-    command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
-    command -v xcrun &>/dev/null || missing+=("xcrun (Xcode command line tools)")
-    if ((${#missing[@]} > 0)); then
-        die "Missing required tools: ${missing[*]}. Run: make setup_tools"
-    fi
+    # ldid and xcrun used to be checked here. Neither is reachable from this
+    # script any more: signing is `vphone-cli sign` (see cfw_install.sh), and
+    # the two guest binaries below are cross-compiled at build time rather than
+    # here, so no iPhoneOS SDK is needed on the machine running the install.
+    [[ -n "$GUEST_BIN" ]] || die "no prebuilt guest binaries — run 'make build'"
 }
 
-ldid_sign() {
+guest_sign() {
     local file="$1" bundle_id="${2:-}"
-    local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
 
-ldid_sign_ent() {
+guest_sign_ent() {
     local file="$1" entitlements_plist="$2" bundle_id="${3:-}"
-    local args=("-S$entitlements_plist" "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--entitlements "$entitlements_plist" --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
 
-build_tweakloader() {
-    local src="$SCRIPT_DIR/tweakloader/TweakLoader.m"
+# `ldid -S<ent> -M`: entitlements captured off the original binary, merged back
+# over whatever the patched one carries.
+guest_sign_ent_merge() {
+    "$VPHONE_CLI" sign --entitlements "$2" --merge \
+        --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12" "$1"
+}
+
+guest_entitlements() {
+    "$VPHONE_CLI" dump-entitlements "$1"
+}
+
+guest_untar() {   # guest_untar <archive> <dest> [extra flags…]
+    local archive="$1" dest="$2"; shift 2
+    "$VPHONE_ARCHIVE" extract -f "$archive" -C "$dest" "$@"
+}
+
+# TweakLoader — arm64 + arm64e, built by scripts/guest_binaries.mk. This used to
+# compile TweakLoader.m through `xcrun --sdk iphoneos`, which meant a user who
+# only wanted to run a VM still had to install Xcode. Signing stays, because it
+# uses this VM's own signcert.
+stage_tweakloader() {
+    local src="$GUEST_BIN/TweakLoader.dylib"
     local out="$TEMP_DIR/TweakLoader.dylib"
-    local sdk cc
-
-    [[ -f "$src" ]] || die "Missing tweak loader source at $src"
-
-    sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
-    cc="$(xcrun --sdk iphoneos -f clang)"
-
-    "$cc" -isysroot "$sdk" \
-        -arch arm64 -arch arm64e \
-        -miphoneos-version-min=15.0 \
-        -dynamiclib \
-        -fobjc-arc -O3 \
-        -framework Foundation \
-        -o "$out" \
-        "$src"
-
-    ldid_sign "$out"
+    [[ -f "$src" ]] || die "Missing prebuilt TweakLoader.dylib at $src — run 'make build'"
+    cp -f "$src" "$out"
+    guest_sign "$out"
     echo "$out"
 }
 
-# Build vpregister — registers JB app bundles via the containerized LaunchServices
+# vpregister — registers JB app bundles via the containerized LaunchServices
 # API on iOS 27, where -[LSApplicationWorkspace registerApplicationDictionary:]
 # (uicache -a) is a deprecated no-op stub. Needs the lsd embedded-reg gate patch
 # (cfw_patch_lsd_embedded_reg, applied by cfw_install.sh). Deployed to /cores and
 # invoked by vphone_jb_setup.sh at first boot.
-build_vpregister() {
-    local src="$SCRIPT_DIR/vpregister/vpregister.m"
+stage_vpregister() {
+    local src="$GUEST_BIN/vpregister"
     local out="$TEMP_DIR/vpregister"
-    local sdk cc
-
-    [[ -f "$src" ]] || die "Missing vpregister source at $src"
-
-    sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
-    cc="$(xcrun --sdk iphoneos -f clang)"
-
-    "$cc" -isysroot "$sdk" \
-        -arch arm64e \
-        -miphoneos-version-min=15.0 \
-        -fobjc-arc -Os \
-        -framework Foundation \
-        -Wl,-undefined,dynamic_lookup \
-        -o "$out" \
-        "$src"
-
-    ldid_sign_ent "$out" "$SCRIPT_DIR/vphoned/entitlements.plist"
+    [[ -f "$src" ]] || die "Missing prebuilt vpregister at $src — run 'make build'"
+    cp -f "$src" "$out"
+    guest_sign_ent "$out" "$SCRIPT_DIR/vphoned/entitlements.plist"
     echo "$out"
 }
 
@@ -150,7 +154,7 @@ setup_cfw_jb_input() {
         archive="$search_dir/$CFW_JB_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_JB_ARCHIVE..."
-            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
+            guest_untar "$archive" "$VM_DIR"
             return
         fi
     done
@@ -167,9 +171,12 @@ apply_dev_overlay() {
             local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
             local tmpdir="$VM_DIR/.iosbinpack_tmp"
             mkdir -p "$tmpdir"
-            "$TAR" --warning=no-unknown-keyword -xf "$iosbinpack" -C "$tmpdir"
+            guest_untar "$iosbinpack" "$tmpdir"
             cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
-            (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
+            # -C "$tmpdir" packs what is under it, and the only thing under it
+            # is iosbinpack64/ — the same single top-level member `tar -cf …
+            # iosbinpack64` from inside $tmpdir produced.
+            "$VPHONE_ARCHIVE" create -f "$iosbinpack" -C "$tmpdir"
             rm -rf "$tmpdir"
             return
         fi
@@ -185,7 +192,6 @@ HOST_MNT="${CFW_HOST_MNT:-/private/tmp/cfwhost}"
 MNT1="$HOST_MNT/mnt1"   # disk1s1 (System / rootfs)
 MNT3="$HOST_MNT/mnt3"   # disk1s3
 MNT5="$HOST_MNT/mnt5"   # disk1s5 (per-boot-manifest OS dir / procursus bootstrap)
-TAR="$(command -v gtar 2>/dev/null || echo /opt/homebrew/bin/gtar)"  # macOS bsdtar lacks GNU tar flags
 mkdir -p "$HOST_MNT"
 
 # Mount an APFS volume of the attached image container at a host mount point.
@@ -198,7 +204,8 @@ mount_vol() {  # mount_vol <slice, e.g. s1> <mountpoint> [opts]
 }
 
 # ── Check JB prerequisites ────────────────────────────────────
-command -v zstd >/dev/null 2>&1 || die "'zstd' not found (required for JB bootstrap phase)"
+# zstd(1) used to be required here for the bootstrap. vphone-archive links
+# libzstd and decompresses in-process, so the check below is the only one left.
 
 setup_cfw_jb_input
 JB_INPUT_DIR="$VM_DIR/$CFW_JB_INPUT"
@@ -224,7 +231,7 @@ cp "$MNT1/sbin/launchd.bak" "$TEMP_DIR/launchd"
 
 # Extract original entitlements before patching (must preserve for spawn permissions)
 echo "  Extracting original entitlements..."
-ldid -e "$TEMP_DIR/launchd" > "$TEMP_DIR/launchd.entitlements" 2>/dev/null || true
+guest_entitlements "$TEMP_DIR/launchd" > "$TEMP_DIR/launchd.entitlements" 2>/dev/null || true
 if [[ -s "$TEMP_DIR/launchd.entitlements" ]]; then
     echo "  [+] Preserved launchd entitlements"
 else
@@ -250,9 +257,9 @@ fi
 
 # Re-sign with original entitlements to avoid "operation not permitted" on spawn
 if [[ -s "$TEMP_DIR/launchd.entitlements" ]]; then
-    ldid -S"$TEMP_DIR/launchd.entitlements" -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" "$TEMP_DIR/launchd"
+    guest_sign_ent_merge "$TEMP_DIR/launchd" "$TEMP_DIR/launchd.entitlements"
 else
-    ldid_sign "$TEMP_DIR/launchd"
+    guest_sign "$TEMP_DIR/launchd"
 fi
 cp -R "$TEMP_DIR/launchd" "$MNT1/sbin/launchd"
 /bin/chmod 0755 $MNT1/sbin/launchd
@@ -265,8 +272,7 @@ echo "[JB-2] Installing iosbinpack64..."
 
 apply_dev_overlay
 cp -R "$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
-    -xf $MNT1/iosbinpack64.tar -C $MNT1
+guest_untar "$MNT1/iosbinpack64.tar" "$MNT1" --preserve-permissions --no-overwrite-dir
 /bin/rm -f $MNT1/iosbinpack64.tar
 
 echo "  [+] iosbinpack64 installed"
@@ -276,10 +282,10 @@ echo ""
 echo "[JB-3] Patching debugserver entitlements..."
 
 cp "$MNT1/usr/libexec/debugserver" "$TEMP_DIR/debugserver"
-ldid -e "$TEMP_DIR/debugserver" > "$TEMP_DIR/debugserver-entitlements.plist"
+guest_entitlements "$TEMP_DIR/debugserver" > "$TEMP_DIR/debugserver-entitlements.plist"
 plutil -remove seatbelt-profiles "$TEMP_DIR/debugserver-entitlements.plist" || true
 plutil -insert task_for_pid-allow -bool YES "$TEMP_DIR/debugserver-entitlements.plist" || true
-ldid_sign_ent "$TEMP_DIR/debugserver" "$TEMP_DIR/debugserver-entitlements.plist"
+guest_sign_ent "$TEMP_DIR/debugserver" "$TEMP_DIR/debugserver-entitlements.plist"
 cp -R "$TEMP_DIR/debugserver" "$MNT1/usr/libexec/debugserver"
 /bin/chmod 0755 $MNT1/usr/libexec/debugserver
 
@@ -297,10 +303,10 @@ case "$BASE_IOS" in
         echo ""
         echo "[JB-3b] Granting Campo backboard/frontboard mach-lookup exceptions (iOS $BASE_IOS)..."
         cp "$CAMPO_BIN" "$TEMP_DIR/Campo"
-        ldid -e "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
+        guest_entitlements "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
         if [[ -s "$TEMP_DIR/Campo.entitlements" ]]; then
             "$VPHONE_CLI" cfw patch-campo-entitlements "$TEMP_DIR/Campo.entitlements"
-            ldid_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
+            guest_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
             cp -R "$TEMP_DIR/Campo" "$CAMPO_BIN"
             /bin/chmod 0755 "$CAMPO_BIN"
             echo "  [+] Campo re-signed with backboard/frontboard mach-lookup exceptions"
@@ -331,7 +337,7 @@ SILEO_DEB="$JB_INPUT_DIR/jb/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 [[ -f "$BOOTSTRAP_ZST" ]] || die "Missing $BOOTSTRAP_ZST"
 
 BOOTSTRAP_TAR="$TEMP_DIR/bootstrap-iphoneos-arm64.tar"
-zstd -d -f "$BOOTSTRAP_ZST" -o "$BOOTSTRAP_TAR"
+"$VPHONE_ARCHIVE" decompress -f "$BOOTSTRAP_ZST" -o "$BOOTSTRAP_TAR"
 
 cp -R "$BOOTSTRAP_TAR" "$MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar"
 if [[ -f "$SILEO_DEB" ]]; then
@@ -362,8 +368,8 @@ JB_DIR_NAME="jb-vphone"
 /bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /bin/chmod 0755 $MNT5/$BOOT_HASH/$JB_DIR_NAME
 /usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME
-"$TAR" --preserve-permissions --warning=no-unknown-keyword -xf $MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar \
-    -C $MNT5/$BOOT_HASH/$JB_DIR_NAME/
+guest_untar "$MNT5/$BOOT_HASH/bootstrap-iphoneos-arm64.tar" \
+    "$MNT5/$BOOT_HASH/$JB_DIR_NAME/" --preserve-permissions
 /bin/mv $MNT5/$BOOT_HASH/$JB_DIR_NAME/var $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus
 mv "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb"/*(N) "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus" 2>/dev/null || true
 /bin/rm -rf $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/jb
@@ -393,7 +399,7 @@ if [[ -d "$BASEBIN_DIR" ]]; then
         [[ -f "$dylib" ]] || continue
         dylib_name="$(basename "$dylib")"
         echo "  Installing $dylib_name..."
-        ldid_sign "$dylib"
+        guest_sign "$dylib"
         cp -R "$dylib" "$MNT1/cores/$dylib_name"
         /bin/chmod 0755 $MNT1/cores/$dylib_name
     done
@@ -402,7 +408,7 @@ if [[ -d "$BASEBIN_DIR" ]]; then
     if [[ -f "$BASEBIN_DIR/launchdhook.dylib" ]]; then
         echo "  Installing short launchdhook alias at /b..."
         cp "$BASEBIN_DIR/launchdhook.dylib" "$TEMP_DIR/b"
-        ldid_sign "$TEMP_DIR/b"
+        guest_sign "$TEMP_DIR/b"
         /bin/rm -f $MNT1/b
         cp -R "$TEMP_DIR/b" "$MNT1/b"
         /bin/chmod 0755 $MNT1/b
@@ -415,7 +421,7 @@ fi
 echo ""
 echo "[JB-4] Building and installing TweakLoader..."
 
-TWEAKLOADER_OUT="$(build_tweakloader)"
+TWEAKLOADER_OUT="$(stage_tweakloader)"
 /bin/mkdir -p $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib
 cp -R "$TWEAKLOADER_OUT" "$MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib"
 /usr/sbin/chown 0:0 $MNT5/$BOOT_HASH/$JB_DIR_NAME/procursus/usr/lib/TweakLoader.dylib
@@ -444,7 +450,7 @@ fi
 # SystemVersion.plist, the same source cfw_install.sh gates its 27 patches on.
 case "$BASE_IOS" in
     27.*)
-        VPREGISTER="$(build_vpregister)"
+        VPREGISTER="$(stage_vpregister)"
         if [[ -f "$VPREGISTER" ]]; then
             cp -R "$VPREGISTER" "$MNT1/cores/vpregister"
             /bin/chmod 0755 $MNT1/cores/vpregister

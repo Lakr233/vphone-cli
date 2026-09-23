@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # boot_host_preflight.sh — Diagnose whether the host can launch the signed
 # vphone-vm binary required for PV=3 virtualization boot/DFU flows.
 

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # patch_camera_userland.sh — Apply the Camera.app accessibility DSC patches.
 #
 # Mirrors patch_hv_vmm_userland.sh's shape so the EXP install pipeline can

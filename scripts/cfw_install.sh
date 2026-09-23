@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # cfw_install.sh — Install base CFW modifications on vphone.
 #
 # Installs Cryptexes, patches system binaries, installs jailbreak tools
@@ -12,9 +13,9 @@
 #
 # Prerequisites:
 #   - VM restored (make restore) and powered off
-#   - `ipsw` tool installed (brew install blacktop/tap/ipsw)
-#   - `aea` tool available (macOS 12+)
-#   - vphone-cli built (make build) — every CFW patcher lives in it
+#   - /usr/bin/aea (macOS 12+) — the only external program this script runs
+#   - vphone-cli built (make build) — every CFW patcher, the signer, the
+#     archive reader and the prebuilt guest binaries come with it
 #   - cfw_input/ or resources/cfw_input.tar.zst present
 #
 # Usage: make cfw_install
@@ -48,6 +49,25 @@ fi
     exit 1
 }
 
+# vphone-archive and vphone-cli are always installed side by side — in
+# .build/release during development and in Contents/MacOS in the .app — so a
+# sibling of the binary we just resolved is the whole lookup. It replaces the
+# GNU tar and zstd this script used to reach for on PATH.
+VPHONE_ARCHIVE="${VPHONE_CLI:h}/vphone-archive"
+[[ -x "$VPHONE_ARCHIVE" ]] || {
+    echo "[-] cannot find vphone-archive beside $VPHONE_CLI — run 'make build'" >&2
+    exit 1
+}
+
+# The five iOS binaries this install puts in the guest are cross-compiled at
+# BUILD time (scripts/guest_binaries.mk) and shipped, because compiling them
+# here would make Xcode and the iPhoneOS SDK a requirement for running a VM.
+# Contents/Resources/guest in the .app, .build/guest in a dev tree.
+GUEST_BIN=""
+for candidate in "${SCRIPT_DIR:h}/guest" "${SCRIPT_DIR:h}/.build/guest"; do
+    [[ -d "$candidate" ]] && { GUEST_BIN="$candidate"; break }
+done
+
 # ── Configuration ───────────────────────────────────────────────
 CFW_INPUT="cfw_input"
 CFW_ARCHIVE="cfw_input.tar.zst"
@@ -59,29 +79,46 @@ die() {
     exit 1
 }
 
-require_signing_tools() {
-    local missing=()
-    command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
-    if ((${#missing[@]} > 0)); then
-        die "Missing required tools: ${missing[*]}. Run: make setup_tools"
-    fi
-}
-
-ldid_sign() {
+# ldid is gone from this script. `vphone-cli sign` writes the same bytes — the
+# same CodeDirectory, the same synthesised designated requirement, no CMS and
+# no ad-hoc flag — out of the system frameworks, and it ships inside the .app.
+# ldid did not: it links Homebrew's libcrypto.3 and libplist-2.0.4, so a .app
+# carrying it worked on the machine that built it and nowhere else.
+#
+# The three shapes this file ever called it in map one to one:
+#     ldid -S -M -K<p12> [-I<id>] f   ->  guest_sign f [id]
+#     ldid -S<ent> -M -K<p12> [-I] f  ->  guest_sign_ent f ent [id]
+#     ldid -e f                       ->  guest_entitlements f
+guest_sign() {
     local file="$1" bundle_id="${2:-}"
-    local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
 
-# Like ldid_sign but re-applies an entitlements plist (for binaries whose
+# Like guest_sign but re-applies an entitlements plist (for binaries whose
 # entitlements must survive the re-sign, e.g. diskimagesiod's embedded sandbox
 # profile + private DA/apfs entitlements).
-ldid_sign_ent() {
+guest_sign_ent() {
     local file="$1" ent="$2" bundle_id="${3:-}"
-    local args=("-S$ent" -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--entitlements "$ent" --merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
+}
+
+# `ldid -e`: the embedded entitlements of every slice, byte for byte and with
+# nothing in between, because the output is redirected into a plist and fed
+# straight back to guest_sign_ent.
+guest_entitlements() {
+    "$VPHONE_CLI" dump-entitlements "$1"
+}
+
+# `tar` in every shape this script used it. The compressor is detected from the
+# file, so --zstd is not passed and cannot be passed wrongly; --warning= has no
+# counterpart because nothing warns.
+guest_untar() {   # guest_untar <archive> <dest> [extra flags…]
+    local archive="$1" dest="$2"; shift 2
+    "$VPHONE_ARCHIVE" extract -f "$archive" -C "$dest" "$@"
 }
 
 host_hdiutil() {
@@ -137,7 +174,7 @@ setup_cfw_input() {
         archive="$search_dir/$CFW_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_ARCHIVE..."
-            "$TAR" --zstd --warning=no-unknown-keyword -xf "$archive" -C "$VM_DIR"
+            guest_untar "$archive" "$VM_DIR"
             return
         fi
     done
@@ -145,9 +182,14 @@ setup_cfw_input() {
 }
 
 # ── Check prerequisites ────────────────────────────────────────
+# What used to be here was `command -v ipsw` and `command -v aea`. The first is
+# gone: the one thing this script asked ipsw for was the SystemOS AEA key, and
+# `vphone-cli fw aea-key` derives it from the archive's own auth data. The
+# second stays, because /usr/bin/aea is part of macOS — but it is called by
+# absolute path now, so there is nothing left to look up.
 require_firmware_tools() {
-    command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
-    command -v aea >/dev/null 2>&1 || die "'aea' not found (requires macOS 12+)"
+    [[ -x /usr/bin/aea ]] || die "/usr/bin/aea missing (it ships with macOS 12+)"
+    [[ -n "$GUEST_BIN" ]] || die "no prebuilt guest binaries — run 'make build'"
     echo "[*] Patchers: $VPHONE_CLI cfw"
 }
 
@@ -165,7 +207,6 @@ trap cleanup_on_exit EXIT
 HOST_MNT="${CFW_HOST_MNT:-/private/tmp/cfwhost}"
 MNT1="$HOST_MNT/mnt1"   # disk1s1 (System / rootfs)
 MNT3="$HOST_MNT/mnt3"   # disk1s3
-TAR="$(command -v gtar 2>/dev/null || echo /opt/homebrew/bin/gtar)"  # macOS bsdtar lacks GNU tar flags
 mkdir -p "$HOST_MNT"
 
 # Mount an APFS volume of the attached image container at a host mount point.
@@ -190,7 +231,6 @@ echo "[+] Restore directory: $RESTORE_DIR"
 setup_cfw_input
 INPUT_DIR="$VM_DIR/$CFW_INPUT"
 echo "[+] Input resources: $INPUT_DIR"
-require_signing_tools
 
 mkdir -p "$TEMP_DIR"
 
@@ -238,10 +278,10 @@ else
     # Decrypt SystemOS AEA (cached — skip if already decrypted)
     if [[ ! -f "$SYSOS_DMG" ]]; then
         echo "  Extracting AEA key..."
-        AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
+        AEA_KEY=$("$VPHONE_CLI" fw aea-key "$RESTORE_DIR/$CRYPTEX_SYSOS")
         echo "  key: $AEA_KEY"
         echo "  Decrypting SystemOS..."
-        aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
+        /usr/bin/aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
     else
         echo "  Using cached SystemOS DMG"
     fi
@@ -384,7 +424,7 @@ fi
 
 cp "$MNT1/usr/libexec/seputil.bak" "$TEMP_DIR/seputil"
 "$VPHONE_CLI" cfw patch-seputil "$TEMP_DIR/seputil"
-ldid_sign "$TEMP_DIR/seputil" "com.apple.seputil"
+guest_sign "$TEMP_DIR/seputil" "com.apple.seputil"
 cp -R "$TEMP_DIR/seputil" "$MNT1/usr/libexec/seputil"
 /bin/chmod 0755 $MNT1/usr/libexec/seputil
 
@@ -404,10 +444,10 @@ case "$IOS_VERSION" in
         if ! [[ -e "$MNT1/usr/libexec/diskimagesiod.bak" ]]; then
             /bin/cp "$MNT1/usr/libexec/diskimagesiod" "$MNT1/usr/libexec/diskimagesiod.bak"
         fi
-        ldid -e "$MNT1/usr/libexec/diskimagesiod.bak" > "$TEMP_DIR/diskimagesiod.ent.plist"
+        guest_entitlements "$MNT1/usr/libexec/diskimagesiod.bak" > "$TEMP_DIR/diskimagesiod.ent.plist"
         cp "$MNT1/usr/libexec/diskimagesiod.bak" "$TEMP_DIR/diskimagesiod"
         "$VPHONE_CLI" cfw patch-diskimagesiod "$TEMP_DIR/diskimagesiod"
-        ldid_sign_ent "$TEMP_DIR/diskimagesiod" "$TEMP_DIR/diskimagesiod.ent.plist" "com.apple.diskimagesiod"
+        guest_sign_ent "$TEMP_DIR/diskimagesiod" "$TEMP_DIR/diskimagesiod.ent.plist" "com.apple.diskimagesiod"
         cp -R "$TEMP_DIR/diskimagesiod" "$MNT1/usr/libexec/diskimagesiod"
         /bin/chmod 0755 "$MNT1/usr/libexec/diskimagesiod"
         ;;
@@ -425,8 +465,8 @@ echo ""
 echo "[3/7] Installing AppleParavirtGPUMetalIOGPUFamily..."
 
 cp -R "$INPUT_DIR/custom/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
-    -xf $MNT1/AppleParavirtGPUMetalIOGPUFamily.tar -C $MNT1
+guest_untar "$MNT1/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1" \
+    --preserve-permissions --no-overwrite-dir
 
 BUNDLE="$MNT1/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle"
 # Clean macOS resource fork files (._* files from tar xattrs)
@@ -447,8 +487,7 @@ echo ""
 echo "[4/7] Installing iosbinpack64..."
 
 cp -R "$INPUT_DIR/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir --warning=no-unknown-keyword \
-    -xf $MNT1/iosbinpack64.tar -C $MNT1
+guest_untar "$MNT1/iosbinpack64.tar" "$MNT1" --preserve-permissions --no-overwrite-dir
 /bin/rm -f $MNT1/iosbinpack64.tar
 
 # dropbear host keys are generated on first boot by dropbear -R; just ensure
@@ -469,7 +508,7 @@ fi
 
 cp "$MNT1/usr/libexec/launchd_cache_loader.bak" "$TEMP_DIR/launchd_cache_loader"
 "$VPHONE_CLI" cfw patch-launchd-cache-loader "$TEMP_DIR/launchd_cache_loader"
-ldid_sign "$TEMP_DIR/launchd_cache_loader" "com.apple.launchd_cache_loader"
+guest_sign "$TEMP_DIR/launchd_cache_loader" "com.apple.launchd_cache_loader"
 cp -R "$TEMP_DIR/launchd_cache_loader" "$MNT1/usr/libexec/launchd_cache_loader"
 /bin/chmod 0755 $MNT1/usr/libexec/launchd_cache_loader
 
@@ -487,7 +526,7 @@ fi
 
 cp "$MNT1/usr/libexec/mobileactivationd.bak" "$TEMP_DIR/mobileactivationd"
 "$VPHONE_CLI" cfw patch-mobileactivationd "$TEMP_DIR/mobileactivationd"
-ldid_sign "$TEMP_DIR/mobileactivationd"
+guest_sign "$TEMP_DIR/mobileactivationd"
 cp -R "$TEMP_DIR/mobileactivationd" "$MNT1/usr/libexec/mobileactivationd"
 /bin/chmod 0755 $MNT1/usr/libexec/mobileactivationd
 
@@ -497,38 +536,18 @@ echo "  [+] mobileactivationd patched"
 echo ""
 echo "[7/7] Installing LaunchDaemons..."
 
-# Install vphoned (vsock HID injector daemon)
+# Install vphoned (vsock HID injector daemon).
+#
+# It used to be cross-compiled right here, out of .m sources shipped inside the
+# .app, whenever they looked newer than the binary — which made Xcode and the
+# iPhoneOS SDK a requirement for installing CFW onto a VM. It is built at build
+# time now (scripts/guest_binaries.mk) and shipped compiled. Signing stays here,
+# because it uses this VM's own cfw_input/signcert.p12.
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
-VPHONED_BIN="$VPHONED_SRC/vphoned"
-VPHONED_SRCS=("$VPHONED_SRC"/*.m)
-needs_vphoned_build=0
-if [[ ! -f "$VPHONED_BIN" ]]; then
-    needs_vphoned_build=1
-else
-    for src in "${VPHONED_SRCS[@]}"; do
-        if [[ "$src" -nt "$VPHONED_BIN" ]]; then
-            needs_vphoned_build=1
-            break
-        fi
-    done
-fi
-if [[ "$needs_vphoned_build" == "1" ]]; then
-    echo "  Building vphoned for arm64..."
-    xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-        -I"$VPHONED_SRC" \
-        -I"$VPHONED_SRC/vendor/libarchive" \
-        -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
-        -larchive \
-        -lsqlite3 \
-        -framework Foundation \
-        -framework Security \
-        -framework CoreServices
-fi
+VPHONED_BIN="$GUEST_BIN/vphoned"
+[[ -f "$VPHONED_BIN" ]] || die "missing prebuilt vphoned at $VPHONED_BIN — run 'make build'"
 cp "$VPHONED_BIN" "$TEMP_DIR/vphoned"
-ldid \
-    -S"$VPHONED_SRC/entitlements.plist" \
-    -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" \
-    "$TEMP_DIR/vphoned"
+guest_sign_ent "$TEMP_DIR/vphoned" "$VPHONED_SRC/entitlements.plist"
 cp -R "$TEMP_DIR/vphoned" "$MNT1/usr/bin/vphoned"
 /bin/chmod 0755 $MNT1/usr/bin/vphoned
 # Keep a copy of the signed binary for host-side auto-update

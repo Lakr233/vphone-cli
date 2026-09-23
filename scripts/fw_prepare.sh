@@ -1,4 +1,5 @@
 #!/bin/bash
+# vphone-tier: dist
 # fw_prepare.sh — Download/copy, merge, and generate hybrid restore firmware.
 # Combines cloudOS boot chain with iPhone OS images for vresearch101.
 #
@@ -62,10 +63,6 @@ looks_like_build() {
     [[ "$1" =~ ^[0-9]{2}[A-Z][0-9A-Z]+$ ]]
 }
 
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "'$1' not found"
-}
-
 # Locate one of this project's own binaries (vphone-cli, vphone-archive).
 # Same resolution order as scripts/cfw_install_host.sh and cfw-kit/run.sh:
 # VPHONE_CLI_BIN when a vphone-cli subcommand invoked us — the wanted binary is
@@ -87,18 +84,14 @@ resolve_vphone_binary() {
     return 1
 }
 
-# Only ever used to name a cache file, so a short hash is enough. There used to
-# be a Python third branch here for hosts with neither tool; shasum ships with
-# macOS system Perl and this project is macOS-only, so it could not run.
+# Only ever used to name a cache file, so a short hash is enough.
+#
+# One absolute path, no fallback ladder. There used to be three branches —
+# `shasum`, then `sha256sum`, then Python — and every one of them was a PATH
+# lookup that could pick up something other than the system tool. /usr/bin/shasum
+# ships with macOS; sha256sum does not, and never resolved here.
 source_hash_suffix() {
-    local src="$1"
-    if command -v shasum >/dev/null 2>&1; then
-        printf '%s' "$src" | shasum -a 256 | awk '{print substr($1, 1, 12)}'
-    elif command -v sha256sum >/dev/null 2>&1; then
-        printf '%s' "$src" | sha256sum | awk '{print substr($1, 1, 12)}'
-    else
-        die "neither 'shasum' nor 'sha256sum' found — cannot derive a cache name"
-    fi
+    printf '%s' "$1" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print substr($1, 1, 12)}'
 }
 
 derive_cache_ipsw_name() {
@@ -125,10 +118,12 @@ derive_cache_ipsw_name() {
     printf '%s-%s.ipsw\n' "$stem" "$suffix"
 }
 
+# `ipsw download ipsw --device D --urls` was here. `vphone-cli fw urls` prints
+# the same lines from AppleDB's catalogue and ships in the bundle.
 downloadable_ipsw_urls() {
-    local device="$1"
-    require_command ipsw
-    ipsw download ipsw --device "$device" --urls
+    local cli
+    cli="$(firmware_matrix_cli)"
+    "$cli" fw urls --device "$1"
 }
 
 supports_color() {
@@ -190,40 +185,21 @@ resolve_selector_from_downloads() {
         --build "$build" --readme "$readme_path"
 }
 
+# /usr/bin/curl, and nothing else.
+#
+# This used to try aria2c first, then curl, then wget, and die if it found
+# none — three PATH lookups, two of which are Homebrew packages, in a script
+# that ships inside the .app. A user without them got a slower download; a user
+# with a different aria2c on PATH got whatever that did. curl is part of macOS
+# and resumes with -C -, which is the only thing aria2c was here for that
+# mattered. An IPSW is one 11 GB file from Apple's CDN; the parallelism was
+# never the bottleneck.
 download_file() {
-    local src="$1" out="$2"
-    if command -v aria2c >/dev/null 2>&1; then
-        # aria2c: fast multi-connection downloader
-        # -x16: max 16 connections per server
-        # -s16: split into 16 parts
-        # -k1M: min split size 1MB
-        # -c: continue/resume download
-        # --allow-overwrite=true: overwrite existing file
-        # --auto-file-renaming=false: don't rename automatically
-        local dir="${out%/*}"
-        local file="${out##*/}"
-        [[ -n "$dir" && "$dir" != "$out" ]] || dir="."
-        aria2c \
-            --allow-overwrite=true \
-            --auto-file-renaming=false \
-            -x 16 \
-            -s 16 \
-            -k 1M \
-            -c \
-            -d "$dir" \
-            -o "$file" \
-            "$src"
-    elif command -v curl >/dev/null 2>&1; then
-        local rc=0
-        curl --fail --location --progress-bar -C - -o "$out" "$src" || rc=$?
-        # 33 = HTTP range error — typically means file is already fully downloaded
-        [[ $rc -eq 33 ]] && return 0
-        return $rc
-    elif command -v wget >/dev/null 2>&1; then
-        wget --no-check-certificate --show-progress -c -O "$out" "$src"
-    else
-        die "Need 'aria2c', 'curl' or 'wget' to download $src"
-    fi
+    local src="$1" out="$2" rc=0
+    /usr/bin/curl --fail --location --progress-bar -C - -o "$out" "$src" || rc=$?
+    # 33 = HTTP range error — typically means the file is already fully there.
+    [[ $rc -eq 33 ]] && return 0
+    return $rc
 }
 
 fetch() {
@@ -300,98 +276,31 @@ extract() {
     cp -Rc "$cache" "$out"
 }
 
+# apfs_sealvolume is what seals a rebuilt system volume, and it is not in an
+# iPhone restore image — only in the macOS one of the same marketing version.
+#
+# This was forty lines of shell around six `ipsw` invocations: resolve a macOS
+# build from AppleDB, range-fetch BuildManifest.plist out of an 18 GB remote
+# zip, read the ramdisk path out of it, range-fetch that, unwrap the IM4P, mount
+# it, copy one file. `vphone-cli fw seal-tool` does all of it — the remote zip
+# reader, the IM4P unwrapper and the AppleDB client are all in the binary now —
+# and this function is left only to work out which version to ask for and where
+# to put it.
 download_apfs_sealvolume() {
-    local src="$1"
-    local base ios_version filename PROJECT_DIR TOOLS_PREFIX TMP_DIR bn ver BUILD BUILD_MANIFEST RAMDISK_PATH RAMDISK_IM4P RAMDISK MOUNT
+    local src="$1" base ios_version PROJECT_DIR TOOLS_PREFIX cli
 
     base="$(basename "$src")"
-    ios_version="$(awk -F_ 'NF >= 2 { print $2 }' <<<"$base")"
+    ios_version="$(/usr/bin/awk -F_ 'NF >= 2 { print $2 }' <<<"$base")"
 
     if [[ -z "$ios_version" ]]; then
         echo "Error: could not determine iOS version from filename: $base" >&2
         return 1
     fi
 
-    filename="apfs_sealvolume_${ios_version}"
-    
     PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
     TOOLS_PREFIX="${VPHONE_SEAL_DIR:-$PROJECT_DIR/.tools}"
-    mkdir -p "$TOOLS_PREFIX"
-
-    if [[ -f "$TOOLS_PREFIX/$filename" ]]; then
-        echo "$filename already present"
-    else
-        echo "Downloading $filename"
-        (
-            TMP_DIR="$(mktemp -d)"
-            trap 'rm -rf "$TMP_DIR"' EXIT
-            
-            # List matching macOS version to the iOS version
-            while IFS= read -r url; do
-                bn="$(basename "$url")"
-                ver="${bn#*_}"
-                ver="${ver%%_*}"
-
-                [[ "$ver" == "$ios_version" ]] || continue
-
-                BUILD="$(awk -F_ '{print $3}' <<<"$bn")"
-                break
-            done < <(
-              ipsw download appledb \
-              --os macOS \
-              --version $ios_version \
-              --urls
-            )
-            
-            if [[ -z "${BUILD:-}" ]]; then
-                echo "Error: failed to determine macOS build from available URLs" >&2
-                          exit 1
-            fi
-            
-            # Download BuildManifest first
-            ipsw download appledb \
-              --os macOS \
-              --build $BUILD \
-              --pattern "^BuildManifest.plist\$" \
-              --output "$TMP_DIR"
-            
-            BUILD_MANIFEST="$(find "$TMP_DIR" -name BuildManifest.plist -print -quit)"
-            if [ -z "$BUILD_MANIFEST" ]; then
-              echo "Failed to locate BuildManifest.plist"
-              exit 1
-            fi
-            
-            RAMDISK_PATH="$(/usr/bin/plutil -extract 'BuildIdentities.0.Manifest.RestoreRamDisk.Info.Path' raw -o - "$BUILD_MANIFEST")"
-            if [ -z "$RAMDISK_PATH" ]; then
-              echo "Failed to read RestoreRamDisk path from BuildManifest"
-              exit 1
-            fi
-            
-            # Download the ramdisk referenced by BuildManifest
-            ipsw download appledb \
-              --os macOS \
-              --build $BUILD \
-              --pattern "$RAMDISK_PATH" \
-              --output "$TMP_DIR"
-
-            RAMDISK_IM4P="$(find "$TMP_DIR" -path "*${RAMDISK_PATH}" -print -quit)"
-            if [ -z "$RAMDISK_IM4P" ]; then
-              echo "Failed to locate downloaded ramdisk: $RAMDISK_PATH"
-              exit 1
-            fi
-
-            RAMDISK="$TMP_DIR/ramdisk.dmg"
-            ipsw img4 im4p extract --output "$RAMDISK" "$RAMDISK_IM4P"
-
-            MOUNT=$(hdiutil attach -readonly -nobrowse "$RAMDISK" | awk 'END{ print$NF}')
-            cp "$MOUNT/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume" \
-            "$TOOLS_PREFIX/$filename"
-            hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-        )
-        echo "  Downloaded: $TOOLS_PREFIX/$filename"
-        echo "  Resigning $filename"
-        codesign --force --sign - "$TOOLS_PREFIX/$filename"
-    fi
+    cli="$(firmware_matrix_cli)"
+    "$cli" fw seal-tool --version "$ios_version" --output "$TOOLS_PREFIX"
 }
 
 LIST_FIRMWARES="${LIST_FIRMWARES:-0}"

@@ -14,6 +14,11 @@ struct VPhoneFWCommand: ParsableCommand {
             VPhoneFWManifestCommand.self,
             VPhoneFWListCommand.self,
             VPhoneFWResolveCommand.self,
+            VPhoneFWAEAKeyCommand.self,
+            VPhoneFWIM4PCreateCommand.self,
+            VPhoneFWIM4PExtractCommand.self,
+            VPhoneFWURLsCommand.self,
+            VPhoneFWSealToolCommand.self,
         ])
 }
 

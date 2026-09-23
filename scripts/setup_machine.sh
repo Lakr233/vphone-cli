@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # setup_machine.sh — Full vphone machine bootstrap through "First Boot".
 #
 # Runs README flow up to (but not including) "Subsequent Boots":

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # cfw_install_dev.sh — Install base CFW modifications on vphone (dev variant).
 #
 # Installs Cryptexes, patches system binaries, installs jailbreak tools
@@ -12,9 +13,9 @@
 #
 # Prerequisites:
 #   - VM restored (make restore) and powered off
-#   - `ipsw` tool installed (brew install blacktop/tap/ipsw)
-#   - `aea` tool available (macOS 12+)
-#   - vphone-cli built (make build) — every CFW patcher lives in it
+#   - /usr/bin/aea (macOS 12+) — the only external program this script runs
+#   - vphone-cli built (make build) — every CFW patcher, the signer, the
+#     archive reader and the prebuilt guest binaries come with it
 #   - cfw_input/ or resources/cfw_input.tar.zst + resources/cfw_dev/rpcserver_ios present
 #
 # Usage: make cfw_install_dev
@@ -46,6 +47,17 @@ fi
     exit 1
 }
 
+# Siblings of the binary just resolved, never PATH. See cfw_install.sh.
+VPHONE_ARCHIVE="${VPHONE_CLI:h}/vphone-archive"
+[[ -x "$VPHONE_ARCHIVE" ]] || {
+    echo "[-] cannot find vphone-archive beside $VPHONE_CLI — run 'make build'" >&2
+    exit 1
+}
+GUEST_BIN=""
+for candidate in "${SCRIPT_DIR:h}/guest" "${SCRIPT_DIR:h}/.build/guest"; do
+    [[ -d "$candidate" ]] && { GUEST_BIN="$candidate"; break }
+done
+
 # ── Configuration ───────────────────────────────────────────────
 CFW_INPUT="cfw_input"
 CFW_ARCHIVE="cfw_input.tar.zst"
@@ -57,26 +69,30 @@ die() {
     exit 1
 }
 
-require_signing_tools() {
-    local missing=()
-    command -v ldid &>/dev/null || missing+=("ldid (brew install ldid-procursus)")
-    if ((${#missing[@]} > 0)); then
-        die "Missing required tools: ${missing[*]}. Run: make setup_tools"
-    fi
-}
-
-ldid_sign() {
+# ldid, gtar and zstd are gone from this script — see the long note in
+# cfw_install.sh for why. `vphone-cli sign` and `vphone-archive` write the same
+# bytes and ship in the bundle.
+guest_sign() {
     local file="$1" bundle_id="${2:-}"
-    local args=(-S -M "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
 
-ldid_sign_ent() {
+guest_sign_ent() {
     local file="$1" entitlements_plist="$2" bundle_id="${3:-}"
-    local args=("-S$entitlements_plist" "-K$VM_DIR/$CFW_INPUT/signcert.p12")
-    [[ -n "$bundle_id" ]] && args+=("-I$bundle_id")
-    ldid "${args[@]}" "$file"
+    local args=(--entitlements "$entitlements_plist" --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
+    "$VPHONE_CLI" sign "${args[@]}" "$file"
+}
+
+guest_entitlements() {
+    "$VPHONE_CLI" dump-entitlements "$1"
+}
+
+guest_untar() {   # guest_untar <archive> <dest> [extra flags…]
+    local archive="$1" dest="$2"; shift 2
+    "$VPHONE_ARCHIVE" extract -f "$archive" -C "$dest" "$@"
 }
 
 # Detach a DMG mountpoint if currently mounted, ignore errors
@@ -115,7 +131,7 @@ setup_cfw_input() {
         archive="$search_dir/$CFW_ARCHIVE"
         if [[ -f "$archive" ]]; then
             echo "  Extracting $CFW_ARCHIVE..."
-            tar --zstd -xf "$archive" -C "$VM_DIR"
+            guest_untar "$archive" "$VM_DIR"
             return
         fi
     done
@@ -132,9 +148,12 @@ apply_dev_overlay() {
             local iosbinpack="$VM_DIR/$CFW_INPUT/jb/iosbinpack64.tar"
             local tmpdir="$VM_DIR/.iosbinpack_tmp"
             mkdir -p "$tmpdir"
-            tar -xf "$iosbinpack" -C "$tmpdir"
+            guest_untar "$iosbinpack" "$tmpdir"
             cp "$dev_bin" "$tmpdir/iosbinpack64/usr/local/bin/rpcserver_ios"
-            (cd "$tmpdir" && tar -cf "$iosbinpack" iosbinpack64)
+            # -C "$tmpdir" packs what is under it, and the only thing under it
+            # is iosbinpack64/ — the same single top-level member `tar -cf …
+            # iosbinpack64` from inside $tmpdir produced.
+            "$VPHONE_ARCHIVE" create -f "$iosbinpack" -C "$tmpdir"
             rm -rf "$tmpdir"
             return
         fi
@@ -144,8 +163,8 @@ apply_dev_overlay() {
 
 # ── Check prerequisites ────────────────────────────────────────
 require_firmware_tools() {
-    command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
-    command -v aea >/dev/null 2>&1 || die "'aea' not found (requires macOS 12+)"
+    [[ -x /usr/bin/aea ]] || die "/usr/bin/aea missing (it ships with macOS 12+)"
+    [[ -n "$GUEST_BIN" ]] || die "no prebuilt guest binaries — run 'make build'"
     echo "[*] Patchers: $VPHONE_CLI cfw"
 }
 
@@ -163,7 +182,6 @@ trap cleanup_on_exit EXIT
 HOST_MNT="${CFW_HOST_MNT:-/private/tmp/cfwhost}"
 MNT1="$HOST_MNT/mnt1"   # disk1s1 (System / rootfs)
 MNT3="$HOST_MNT/mnt3"   # disk1s3
-TAR="$(command -v gtar 2>/dev/null || echo /opt/homebrew/bin/gtar)"  # macOS bsdtar lacks GNU tar flags
 mkdir -p "$HOST_MNT"
 
 # Mount an APFS volume of the attached image container at a host mount point.
@@ -189,7 +207,6 @@ setup_cfw_input
 apply_dev_overlay
 INPUT_DIR="$VM_DIR/$CFW_INPUT"
 echo "[+] Input resources: $INPUT_DIR"
-require_signing_tools
 
 mkdir -p "$TEMP_DIR"
 
@@ -214,10 +231,10 @@ MNT_APPOS="$TEMP_DIR/mnt_appos"
 # Decrypt SystemOS AEA (cached — skip if already decrypted)
 if [[ ! -f "$SYSOS_DMG" ]]; then
     echo "  Extracting AEA key..."
-    AEA_KEY=$(ipsw fw aea --key "$RESTORE_DIR/$CRYPTEX_SYSOS")
+    AEA_KEY=$("$VPHONE_CLI" fw aea-key "$RESTORE_DIR/$CRYPTEX_SYSOS")
     echo "  key: $AEA_KEY"
     echo "  Decrypting SystemOS..."
-    aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
+    /usr/bin/aea decrypt -i "$RESTORE_DIR/$CRYPTEX_SYSOS" -o "$SYSOS_DMG" -key-value "$AEA_KEY"
 else
     echo "  Using cached SystemOS DMG"
 fi
@@ -257,7 +274,7 @@ fi
 cp "$MNT1/sbin/launchd.bak" "$TEMP_DIR/launchd"
 
 "$VPHONE_CLI" cfw patch-launchd-jetsam "$TEMP_DIR/launchd"
-ldid_sign "$TEMP_DIR/launchd"
+guest_sign "$TEMP_DIR/launchd"
 cp -R "$TEMP_DIR/launchd" "$MNT1/sbin/launchd"
 /bin/chmod 0755 $MNT1/sbin/launchd
 
@@ -268,10 +285,10 @@ echo ""
 echo "  Patch debugserver entitlements..."
 
 cp "$MNT1/usr/libexec/debugserver" "$TEMP_DIR/debugserver"
-ldid -e "$TEMP_DIR/debugserver" > "$TEMP_DIR/debugserver-entitlements.plist"
+guest_entitlements "$TEMP_DIR/debugserver" > "$TEMP_DIR/debugserver-entitlements.plist"
 plutil -remove seatbelt-profiles "$TEMP_DIR/debugserver-entitlements.plist" || true
 plutil -insert task_for_pid-allow -bool YES "$TEMP_DIR/debugserver-entitlements.plist" || true
-ldid_sign_ent "$TEMP_DIR/debugserver" "$TEMP_DIR/debugserver-entitlements.plist"
+guest_sign_ent "$TEMP_DIR/debugserver" "$TEMP_DIR/debugserver-entitlements.plist"
 cp -R "$TEMP_DIR/debugserver" "$MNT1/usr/libexec/debugserver"
 /bin/chmod 0755 $MNT1/usr/libexec/debugserver
 
@@ -345,7 +362,7 @@ fi
 
 cp "$MNT1/usr/libexec/seputil.bak" "$TEMP_DIR/seputil"
 "$VPHONE_CLI" cfw patch-seputil "$TEMP_DIR/seputil"
-ldid_sign "$TEMP_DIR/seputil" "com.apple.seputil"
+guest_sign "$TEMP_DIR/seputil" "com.apple.seputil"
 cp -R "$TEMP_DIR/seputil" "$MNT1/usr/libexec/seputil"
 /bin/chmod 0755 $MNT1/usr/libexec/seputil
 
@@ -361,8 +378,8 @@ echo ""
 echo "[3/7] Installing AppleParavirtGPUMetalIOGPUFamily..."
 
 cp -R "$INPUT_DIR/custom/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
-    -xf $MNT1/AppleParavirtGPUMetalIOGPUFamily.tar -C $MNT1
+guest_untar "$MNT1/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1" \
+    --preserve-permissions --no-overwrite-dir
 
 BUNDLE="$MNT1/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle"
 # Clean macOS resource fork files (._* files from tar xattrs)
@@ -383,8 +400,7 @@ echo ""
 echo "[4/7] Installing iosbinpack64..."
 
 cp -R "$INPUT_DIR/jb/iosbinpack64.tar" "$MNT1"
-"$TAR" --preserve-permissions --no-overwrite-dir \
-    -xf $MNT1/iosbinpack64.tar -C $MNT1
+guest_untar "$MNT1/iosbinpack64.tar" "$MNT1" --preserve-permissions --no-overwrite-dir
 /bin/rm -f $MNT1/iosbinpack64.tar
 
 # dropbear host keys are generated on first boot by dropbear -R; just ensure
@@ -405,7 +421,7 @@ fi
 
 cp "$MNT1/usr/libexec/launchd_cache_loader.bak" "$TEMP_DIR/launchd_cache_loader"
 "$VPHONE_CLI" cfw patch-launchd-cache-loader "$TEMP_DIR/launchd_cache_loader"
-ldid_sign "$TEMP_DIR/launchd_cache_loader" "com.apple.launchd_cache_loader"
+guest_sign "$TEMP_DIR/launchd_cache_loader" "com.apple.launchd_cache_loader"
 cp -R "$TEMP_DIR/launchd_cache_loader" "$MNT1/usr/libexec/launchd_cache_loader"
 /bin/chmod 0755 $MNT1/usr/libexec/launchd_cache_loader
 
@@ -423,7 +439,7 @@ fi
 
 cp "$MNT1/usr/libexec/mobileactivationd.bak" "$TEMP_DIR/mobileactivationd"
 "$VPHONE_CLI" cfw patch-mobileactivationd "$TEMP_DIR/mobileactivationd"
-ldid_sign "$TEMP_DIR/mobileactivationd"
+guest_sign "$TEMP_DIR/mobileactivationd"
 cp -R "$TEMP_DIR/mobileactivationd" "$MNT1/usr/libexec/mobileactivationd"
 /bin/chmod 0755 $MNT1/usr/libexec/mobileactivationd
 
@@ -433,35 +449,13 @@ echo "  [+] mobileactivationd patched"
 echo ""
 echo "[7/7] Installing LaunchDaemons..."
 
-# Install vphoned (vsock HID injector daemon)
+# Install vphoned (vsock HID injector daemon). Cross-compiled at build time —
+# see the note in cfw_install.sh. Only the signing stays here.
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
-VPHONED_BIN="$VPHONED_SRC/vphoned"
-VPHONED_SRCS=("$VPHONED_SRC"/*.m)
-needs_vphoned_build=0
-if [[ ! -f "$VPHONED_BIN" ]]; then
-    needs_vphoned_build=1
-else
-    for src in "${VPHONED_SRCS[@]}"; do
-        if [[ "$src" -nt "$VPHONED_BIN" ]]; then
-            needs_vphoned_build=1
-            break
-        fi
-    done
-fi
-if [[ "$needs_vphoned_build" == "1" ]]; then
-    echo "  Building vphoned for arm64..."
-    xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-        -I"$VPHONED_SRC" \
-        -I"$VPHONED_SRC/vendor/libarchive" \
-        -o "$VPHONED_BIN" "${VPHONED_SRCS[@]}" \
-        -larchive \
-        -lsqlite3 \
-        -framework Foundation \
-        -framework Security \
-        -framework CoreServices
-fi
+VPHONED_BIN="$GUEST_BIN/vphoned"
+[[ -f "$VPHONED_BIN" ]] || die "missing prebuilt vphoned at $VPHONED_BIN — run 'make build'"
 cp "$VPHONED_BIN" "$TEMP_DIR/vphoned"
-ldid_sign_ent "$TEMP_DIR/vphoned" "$VPHONED_SRC/entitlements.plist"
+guest_sign_ent "$TEMP_DIR/vphoned" "$VPHONED_SRC/entitlements.plist"
 cp -R "$TEMP_DIR/vphoned" "$MNT1/usr/bin/vphoned"
 /bin/chmod 0755 $MNT1/usr/bin/vphoned
 # Keep a copy of the signed binary for host-side auto-update

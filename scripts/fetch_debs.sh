@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # fetch_debs.sh — Download debs from a URL manifest into a cache dir.
 # Skips files already cached; leaves manually-added debs alone. A failed
 # download is reported and skipped, never fatal (always exits 0).

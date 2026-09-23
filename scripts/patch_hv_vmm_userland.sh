@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: dist
 # patch_hv_vmm_userland.sh — Apply the user-mode hv_vmm_present patch.
 #
 # Two operations, chosen by the first arg:

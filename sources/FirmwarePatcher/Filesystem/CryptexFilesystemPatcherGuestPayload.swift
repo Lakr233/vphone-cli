@@ -129,7 +129,7 @@ extension CryptexFilesystemPatcher {
         let buildDir = try createTmpDir()
         let vphonedBin = buildDir.appendingPathComponent("vphoned")
 
-        try buildVphoned(vphonedSrc: vphonedSrc, vphonedBin: vphonedBin)
+        try stageVphoned(to: vphonedBin)
         defer { try? FileManager.default.removeItem(at: vphonedBin) }
 
         // Sign
@@ -145,33 +145,18 @@ extension CryptexFilesystemPatcher {
         try setMode(0o755, at: targetBin)
     }
 
-    func buildVphoned(vphonedSrc: URL, vphonedBin: URL) throws {
-        let srcURLs = try FileManager.default.contentsOfDirectory(
-            at: vphonedSrc,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension == "m" }
-
-        var args = [
-            "-sdk", "iphoneos", "clang",
-            "-arch", "arm64",
-            "-Os",
-            "-fobjc-arc",
-            "-I\(vphonedSrc.path)",
-            "-I\(vphonedSrc.appendingPathComponent("vendor/libarchive").path)",
-            "-DLESS=1",
-            "-o", vphonedBin.path
-        ]
-        args.append(contentsOf: srcURLs.map { $0.path })
-        args.append(contentsOf: [
-            "-larchive",
-            "-lsqlite3",
-            "-framework", "Foundation",
-            "-framework", "Security",
-            "-framework", "CoreServices"
-        ])
-
-        _ = try runProcess("/usr/bin/xcrun", args)
+    /// Copy in the prebuilt guest daemon.
+    ///
+    /// This used to be a `/usr/bin/xcrun -sdk iphoneos clang …` over the .m
+    /// sources shipped inside the .app — which meant installing CFW onto a VM
+    /// required Xcode and the iPhoneOS SDK on a machine whose only job is to run
+    /// that VM. vphoned is cross-compiled at build time now
+    /// (`scripts/guest_binaries.mk`) and staged into the bundle beside the other
+    /// four guest binaries; the caller still signs it here, because signing uses
+    /// the target VM's own certificate.
+    func stageVphoned(to vphonedBin: URL) throws {
+        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned")
+        try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)
     }
 
     func addGpuDriver(targetMount: String, cfwInput: URL) throws {

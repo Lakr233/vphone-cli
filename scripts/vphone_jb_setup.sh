@@ -1,4 +1,5 @@
 #!/bin/bash
+# vphone-tier: guest
 # vphone_jb_setup.sh — First-boot JB finalization script.
 #
 # Deployed to /cores/ during cfw_install_jb.sh.
