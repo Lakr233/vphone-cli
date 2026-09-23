@@ -237,9 +237,17 @@ clean:
 # Build
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: build patcher_build bundle
+.PHONY: build patcher_build bundle sign
 
-build: $(BINARY)
+# `sign` is phony and runs every time, deliberately. It used to live inside the
+# $(BINARY) recipe, which meant make skipped it whenever the binary was newer
+# than its sources — and a bare `swift build -c release`, which anyone might run,
+# leaves exactly that state: a rebuilt vphone-vm with its entitlements stripped
+# and an mtime that makes `make build` say "Nothing to be done". The guard below
+# was written to catch that case and could not, because it was in the recipe
+# that got skipped. Ad-hoc signing is idempotent and takes under a second, so
+# doing it unconditionally costs nothing and closes the hole.
+build: $(BINARY) sign
 
 patcher_build: $(PATCHER_BINARY)
 
@@ -267,7 +275,8 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "=== Building vphone-cli ($(GIT_HASH)) ==="
 	$(WRITE_BUILD_INFO)
 	@set -o pipefail; swift build -c release 2>&1 | tail -5
-	@echo ""
+
+sign: $(BINARY)
 	@echo "=== Signing ==="
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(VM_BINARY)
 	@codesign --force --sign - $(BINARY)
@@ -277,7 +286,8 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@# An unentitled vphone-vm is worse than a broken one: it launches
 	@# perfectly, which convinces vphone-cli's AMFI probe that nothing is
 	@# wrong, and only fails later trying to create a PV=3 machine. A bare
-	@# `swift build` leaves exactly that state behind.
+	@# `swift build` leaves exactly that state behind — and leaves an mtime
+	@# that used to make `make build` skip this whole block, guard included.
 	@codesign -d --entitlements - --xml $(VM_BINARY) 2>/dev/null \
 		| grep -q 'com.apple.private.virtualization' \
 		|| (echo "Error: $(VM_BINARY) is not entitled after signing." >&2; exit 1)
@@ -298,6 +308,9 @@ $(AMFI_BINARY): $(AMFI_SOURCE)
 	@echo "  signed: vphone-amfi-allow"
 
 bundle: build $(AMFI_BINARY) $(INFO_PLIST)
+	@# `build` re-signs unconditionally now, so the copies below are always
+	@# made from a freshly entitled vphone-vm rather than from whatever a bare
+	@# `swift build` last left in .build/release.
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
 	@cp -f $(VM_BINARY) $(BUNDLE_VM)
