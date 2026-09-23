@@ -95,7 +95,7 @@ help:
 	@echo "                                       Unset or empty keeps the build version that ships in the IPSW."
 	@echo ""
 	@echo "Setup (one-time):"
-	@echo "  make setup_tools             Install all tools (brew packages, trustcache, insert_dylib)"
+	@echo "  make setup_tools             Build insert_dylib (a test reference; optional)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"

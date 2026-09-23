@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build   (see cfw-kit/run.sh)
 # vanilla/install.sh — the smallest CFW that boots.
 #
 # Installs nothing you did not ask for: no SSH, no VNC, no RPC server, no

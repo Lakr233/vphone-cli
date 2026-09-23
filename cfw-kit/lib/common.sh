@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build   (see cfw-kit/run.sh for why the whole kit is build tier)
 # common.sh — shared helpers for the custom-firmware-kit variant installers.
 #
 # Every function here is lifted from vphone-cli's scripts/cfw_install.sh so the

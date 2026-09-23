@@ -8,20 +8,23 @@ PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtu
 
 ## 前提条件
 
-**ホスト:**
+**実行に必要なもの:**
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
-- Xcode + iOS SDK（ゲストデーモンをクロスコンパイルするため）
 - [未署名バイナリでプライベートな PV=3 エンタイトルメントを許可するための SIP/AMFI の緩和](#sipamfi-の緩和)
 
-**依存関係:**
+**それ以外は何も要りません。** Homebrew パッケージも、インタープリタも、パッケージ環境も、
+Xcode も不要です。vphone-cli が実行するものは、`/usr/bin`・`/bin`・`/usr/sbin`・`/sbin`
+にあるシステムバイナリか、`.app` の中にあるもののどちらかです。署名器（`ldid` の置き換え）、
+アーカイブ処理（`gtar`・`zstd`・`unzip`）、ファームウェアカタログと IM4P/AEA の処理
+（`ipsw`）、そして CFW インストーラがゲストに入れる 5 つの iOS バイナリ——これらは
+ビルド時にクロスコンパイルして同梱されるので、手元のマシンではコンパイルしません。
+その状態を保つゲートが `make check-aux` です。
 
-```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
-```
-
-インタープリタもパッケージ環境も不要です。vphone-cli が実行するものはすべて Swift か C で、`make build` がビルドします。
+**ソースからビルドする場合**は、Xcode（その 5 つのゲストバイナリのクロスコンパイルに
+iOS SDK を使います）と `git-lfs`（`git clone` が `scripts/resources` のアーカイブを
+取得するのに必要）が追加で要ります。
 
 ## インストール
 
@@ -32,14 +35,18 @@ brew install zqxwce/tap/vphone-cli
 ## ビルド
 
 ```bash
+brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # brew 依存関係のインストール、ツールチェーンのサブモジュールのビルド
-./scripts/build.sh            # vphone-cli のビルド + 署名、.app のバンドル、vphoned のクロスコンパイル
+./scripts/build.sh            # vphone-cli のビルド + 署名、ゲストバイナリのクロスコンパイル、.app のバンドル
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
+
+`./scripts/setup_tools.sh` は任意で、ビルドするのは `insert_dylib` ひとつだけです。
+Mach-O のテストが Swift の dylib インジェクタをバイト単位で照合するための独立した参照で、
+配布物がこれを実行することはありません。
 
 ## クイックスタート
 
@@ -145,7 +152,7 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
 
 これが依然として最も手軽な方法であり、VM のそばで何かを走らせ続ける必要がない唯一の方法です: AMFI が緩和されていれば `vphone-vm` は単体で起動します。
 
-**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、起動の間は自分で `amfidont` を動かす**（それ以外の時間、および許可していないすべてのバイナリに対しては AMFI が有効なまま）。
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、このビルドを許可リストに入れる**（それ以外の時間、および許可していないすべてのバイナリに対しては AMFI が有効なまま）。
 
 リカバリーモードで:
 
@@ -154,37 +161,32 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-その後 macOS で再起動します。
-
-[`amfidont`](https://github.com/zqxwce/amfidont) は、あなた自身がインストールして実行する別のツールです。**本プロジェクトはこれを同梱せず、インストールせず、起動せず、管理もしません**。依存もしていません — `vphone-cli` は `vphone-vm` が kill されたことを検知し、何を実行すればよいかを伝えるだけです。このリポジトリに Python の依存関係が増えることもありません。
-
-インストールには Apple の Python を使ってください。Homebrew の Python は PEP 668 で拒否します。またこのツールは Xcode の `python3` を再 exec するため、Xcode が必要です:
+その後 macOS で再起動し、次を実行します:
 
 ```bash
-xcrun python3 -m pip install --user amfidont
-# ~/Library/Python/3.9/bin に入ります — $PATH に追加してください
+make amfi_allow     # root が必要。ビルドのたびに再実行してください
+make amfi_status    # 許可リストと、このホストがそれを持てるかどうかを表示
+make amfi_off       # 許可リストを削除し、amfid をクリーンに再起動
 ```
 
-`vphone-vm` の cdhash を取得します。entitlement を持つのはこちらです。`vphone-cli` は entitlement を持たず常に起動できるため、必要なのはその cdhash ではありません:
+これが実行するのは `vphone-amfi-allow` — 本リポジトリ自身の C で書かれ、`.app` に同梱されています。書き込むのは 2 つだけです:
 
-```bash
-VPHONE_BIN="$PWD/.build/vphone-cli.app/Contents/MacOS"   # vphone-vm のあるディレクトリ
-codesign -dv --verbose=4 "$VPHONE_BIN/vphone-vm" 2>&1 | sed -n 's/^CDHash=//p' | head -1
-```
+* 2 つの `vphone-vm` の cdhash を
+  `/Library/Preferences/com.apple.security.coderequirements.plist` に。これは AMFI が
+  もともと読むファイルで、穴ではなく AMFI 自身の機能です;
+* amfid の**ヒープの 1 バイト**。`_isRunningInternalBuild` フラグを立てて、そのファイルを読ませます。
 
-専用のターミナルでデーモンを起動し、そのまま動かし続けます:
+2 つとも必要なのは、`make boot` が両方を起動するからです: `boot_binary_check` は
+`.build/release/vphone-vm` を、起動処理そのものは `.app` の中のものを実行します。
+署名の識別子が異なりハッシュも異なるため、片方だけを許可してもフローの半分しかカバーできません。
 
-```bash
-sudo amfidont daemon --path "$VPHONE_BIN" --cdhash <cdhash> --spoof-apple --verbose
-```
+**ビルドのたびに再実行してください。** 許可は cdhash をキーにしており、署名のたびに cdhash は変わります — 素の `swift build` でも変わります。
 
-あとは別のターミナルから通常どおり起動します — `vphone-cli vm launch myphone`。
+許可すべきバイナリは `vphone-vm` です。`vphone-cli` は entitlement を持たず常に起動できるため、必要なのはその cdhash ではありません。
 
-`--path` / `-p` と `--cdhash` / `-c` はどちらも複数回指定でき、`~/.amfidont/paths` と `~/.amfidont/cdhashes` に保存された許可リストとマージされます。`amfidont add-path <dir>` と `amfidont add-cdhash <hash>` で一度書き込んでおけば（`remove-path` / `remove-cdhash` で取り消せます）、以降は `sudo amfidont daemon --spoof-apple` だけで済みます。なお、リビルドすると cdhash が変わるため、cdhash だけの許可リストは `make build` のたびに古くなります。`--path` による許可リストならそうなりません。
-
-> **何が許可されるのかを正しく理解してください。** これはパスのプレフィックスと cdhash をキーにした許可リストです: 指定していないものに対して amfid は通常どおり検証を続けます。`--spoof-apple` は許可されたバイナリを Apple 署名済みとして報告させるもので、プライベートな PV=3 entitlement が必要とするのはこの挙動です。例外は `--allow-all` で、これを渡すとデーモンが動いている間、amfid が検査した*すべて*の署名が有効として報告されます。いずれの場合もメモリ上にしか存在しません: デーモンを止めるか再起動すれば amfid は元に戻ります。
+> **何が許可されるのかを正しく理解してください。** これは cdhash をキーにした許可リストです: 指定していないバイナリに対して amfid は通常どおり検証を続けます。`make amfi_off` はそのファイルを削除し amfid を再起動します。
 >
-> `amfidont` は `vphone-letmein` を置き換えたものです。後者は amfid の `__TEXT` に書き込むことでウィンドウを開いていました。`sysctl vm.cs_system_enforcement` が 1 のホストでは — macOS 27.0 (26A428)、arm64e、上記の `csrutil` 設定そのままで実測 — カーネルがその dirty なページを理由に amfid を kill し、ゲストも巻き添えになります。しかもこの sysctl は読み取り専用です。`amfidont` は LLDB 経由で amfid を制御するため、ブレークポイントは CPU のデバッグレジスタに置かれ、ページは一切書き換えられません。これが、パッチ方式では動かない強制環境でも動作する理由です。
+> 書き込む 1 バイトは amfid の `__TEXT` ではなく**ヒープ**にあり、それがこの方式が成り立つ理由のすべてです。以前の手法はコードを書き換えていました — `vphone-letmein` は `-[AMFIPathValidator_macos validateWithError:]` の `ldrb` を上書きし、LLDB ベースのツールはブレークポイントのために `BRK` を埋め込みます。どちらも dirty で未署名の実行ページを残し、`sysctl vm.cs_system_enforcement` が 1 のホスト — macOS 27.0 (26A428)、arm64e、上記の `csrutil` 設定そのままで実測 — ではカーネルが次のフォルトでそのページを検証し、amfid を kill し、ゲストも巻き添えにします。この sysctl は実行時には読み取り専用なので、「コードにパッチを当てる」方式はどれだけ気をつけても生き残れません。ヒープはコードではないので、強制検証は何も文句を言いません。
 
 ## 動作確認済み環境
 
@@ -213,7 +215,7 @@ sudo amfidont daemon --path "$VPHONE_BIN" --cdhash <cdhash> --spoof-apple --verb
 
 ## FAQ
 
-**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[SIP/AMFI の緩和](#sipamfi-の緩和) を参照してください（`amfi_get_out_of_my_way=1`（オプション A）、または `vphone-vm` を許可リストに入れた `amfidont` を動かす（オプション B））。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
+**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[SIP/AMFI の緩和](#sipamfi-の緩和) を参照してください（`amfi_get_out_of_my_way=1`（オプション A）、またはこのビルドに対する `make amfi_allow`（オプション B））。直近のビルドより前に実行したのであれば、もう一度実行してください: 許可は cdhash をキーにしており、署名がそれを変えます。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
 
 **`Virtualization is not available on this hardware`** — お使いの Mac 自体が VM です。PV=3 ゲスト起動はネストできません。ネストされていない macOS 15+ ホストを使用してください。
 

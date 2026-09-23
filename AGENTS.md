@@ -12,7 +12,8 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
-- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. Three git submodules are left: `scripts/resources`, `scripts/repos/trustcache`, `scripts/repos/insert_dylib`. **No Python anywhere.**
+- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. Two git submodules are left: `scripts/resources` and `scripts/repos/insert_dylib`. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `scripts/dist_manifest.sh` reads those and is what `build.sh` and `make bundle` stage from, so a script that declares nothing ships nowhere. `make check-aux` gates all of it. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
 
 ## Workflow Rules
 
@@ -178,27 +179,36 @@ sources/
         └── VPhoneScreenRecorder.swift # VM screen recording to file
 
 scripts/                          # Shell only — the CFW patchers are `vphone-cli cfw <verb>` now,
-│                                 # and there is no Python here at all
-├── vphoned/                      # Guest daemon (ObjC, runs inside iOS VM over vsock)
-├── resources/                    # Resource archives (git submodule)
-├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib)
-├── check_aux.sh                  # The self-containment admission gates — `make check-aux`
-├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
-├── cfw_install.sh                # Install CFW (regular)
-├── cfw_install_dev.sh            # Regular + rpcserver daemon
-├── cfw_install_jb.sh             # Regular + jetsam fix + procursus
-├── cfw_install_exp.sh            # JB + experimental research patches (hv_vmm rename, DT identity)
-├── cfw_install_host.sh           # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
-├── vm_create.sh                  # Create VM directory
-├── setup_machine.sh              # Full automation (setup → first boot)
-├── setup_tools.sh                # Install brew deps, build trustcache + insert_dylib from submodules
-└── tail_jb_patch_logs.sh         # Tail JB patch log output
+│                                 # and there is no Python here at all. Every .sh declares its
+│                                 # tier on line 2; `[d]` = dist (ships), `[b]` = build, `[g]` = guest
+├── dist_manifest.sh          [b] # What ships. The allowlist build.sh and `make bundle` stage from
+├── guest_binaries.mk         [b] # Cross-compiles the five iOS binaries (needs the iPhoneOS SDK)
+├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
+├── setup_machine.sh          [b] # Full automation (setup → first boot)
+├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
+├── tail_jb_patch_logs.sh     [b] # Tail JB patch log output
+├── vm_{create,backup,restore,switch}.sh [b]
+├── fw_prepare.sh             [d] # Download IPSWs, merge cloudOS into iPhone
+├── cfw_install.sh            [d] # Install CFW (regular)
+├── cfw_install_dev.sh        [d] # Regular + rpcserver daemon
+├── cfw_install_jb.sh         [d] # Regular + jetsam fix + procursus
+├── cfw_install_exp.sh        [d] # JB + experimental research patches (hv_vmm rename, DT identity)
+├── cfw_install_host.sh       [d] # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
+├── fetch_debs.sh             [d] # Extra-deb downloader, reads debs.list
+├── patch_{camera,hv_vmm}_userland.sh [d]
+├── boot_host_preflight.sh    [d] # Why the host cannot launch vphone-vm
+├── vphone_jb_setup.sh        [g] # First-boot JB finalization, LaunchDaemon inside the VM
+├── resources/                [d] # Resource archives (git submodule; needs git-lfs to clone)
+├── vphoned/                      # Guest daemon source (ObjC). Only the three plists and the
+│                                 # signcert ship; the binary is built by guest_binaries.mk
+├── tweakloader/ vpregister/ vcamcaptured/ camfix/   # The other four guest sources; same deal
+└── repos/                        # Toolchain source (git submodule: insert_dylib)
 
-cfw-kit/                          # Variant-layered CFW installer, vendored as-is
-├── run.sh                        # Entry point
-├── lib/                          # common.sh (cfw_cli / ldid_sign / $TAR seams), base_stages.sh
-├── vanilla/ jb/                  # Per-flavour install.sh; jb/userland/* are empty slots
-└── docs/phase-matrix.md
+cfw-kit/                          # Variant-layered CFW installer, vendored as-is. ALL BUILD TIER:
+├── run.sh                        # it still reaches for ldid/gtar/zstd/ipsw the way
+├── lib/                          # scripts/cfw_install*.sh did before they were cleaned out, so it
+├── vanilla/ jb/                  # does not ship and a dist user cannot run it. P3 decides whether
+└── docs/phase-matrix.md          # it gets the same treatment or stays a development tool.
 
 research/                         # Detailed firmware/patch documentation
 ```
@@ -206,7 +216,7 @@ research/                         # Detailed firmware/patch documentation
 ### Key Patterns
 
 - **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
-- **The AMFI bypass is the user's, not ours.** This project does not ship, install, spawn or supervise one. Relaxing AMFI at boot is the plain route; where that is not wanted, `amfidont` (`xcrun python3 -m pip install --user amfidont`, needs Xcode) allows `vphone-vm` by path or CDHash through LLDB. It is an **allowlist**, scoped to the binaries you name — do not describe it as a global switch. `make amfi_command` prints the line for the current build and prints only; the CDHash changes with every build. It is installed into the user's own Python, not this repository's: nothing here imports it, invokes it or looks for it on `PATH`, and the repository itself contains no Python at all.
+- **The AMFI bypass is ours, and it writes heap, not code.** `vphone-amfi-allow` (`sources/vphone-amfi-allow/`, this project's copy of [Lakr233/amfi-allow](https://github.com/Lakr233/amfi-allow)) puts the cdhashes of both `vphone-vm` copies into `/Library/Preferences/com.apple.security.coderequirements.plist` — a file AMFI already reads — and flips one byte of `_isRunningInternalBuild` in amfid's `AMFIRequirementsManager` singleton so it consults that file. It is an **allowlist**, scoped to the cdhashes you name; do not describe it as a global switch. `make amfi_allow` runs it, `amfi_status` shows it, `amfi_off` removes it. It is a **per-build** step, because a cdhash changes with every signature. It must be **arm64e** to match amfid's slice, which is why it is a clang rule and not a SwiftPM target. The heap write is the load-bearing detail: `vphone-letmein` and LLDB-based tools dirty an executable page, and on a host with `vm.cs_system_enforcement = 1` the kernel kills amfid for that and takes the guest with it.
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and probes once per command with `vphone-vm --help`, looking for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
 - **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `research/p2_restore_off_python.md` has the decision and the behaviour table.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
@@ -264,9 +274,10 @@ There is none, and adding any is a regression.
   everything else. Adding an interpreter back brings with it a provisioning
   step, a silent system-`python3` fallback, and a dependency closure
   `make check-aux` cannot see.
-- `amfidont` is not a counter-example: it is a third-party tool the user
-  installs into their own Python and runs from their own shell. Nothing here
-  imports it, spawns it or looks for it.
+- There is no counter-example left. `amfidont` used to be cited as one — a
+  third-party tool the user installed into their own Python — and it is gone
+  too: the AMFI bypass is `sources/vphone-amfi-allow`, one C file built by
+  clang, and it needs no interpreter, no LLDB and no Xcode.
 
 ### Kernel patcher guardrails
 

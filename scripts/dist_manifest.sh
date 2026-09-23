@@ -31,10 +31,12 @@ cd "$SCRIPT_DIR"
 tier_of() {
     # Line 2 only. A tier declared further down would be a tier nobody reads
     # when they open the file.
-    local declared
+    local declared rest
     declared=$(sed -n '2p' "$1")
     if [[ "$declared" == '# vphone-tier: '* ]]; then
-        print -r -- "${declared#\# vphone-tier: }"
+        # First word only — a line may carry a trailing note, and cfw-kit's do.
+        rest="${declared#\# vphone-tier: }"
+        print -r -- "${rest%%[[:space:]]*}"
     else
         print -r -- "undeclared"
     fi
@@ -42,6 +44,11 @@ tier_of() {
 
 if [[ "${1:-}" == "--tiers" ]]; then
     for f in *.sh; do print -r -- "$f	$(tier_of "$f")"; done
+    # cfw-kit is a separate tree, vendored as-is and never bundled; it declares
+    # its tier the same way so gate 0 can see it too.
+    for f in ../cfw-kit/**/*.sh(N); do
+        print -r -- "${f#../}	$(tier_of "$f")"
+    done
     exit 0
 fi
 

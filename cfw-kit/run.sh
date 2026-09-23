@@ -1,4 +1,15 @@
 #!/bin/zsh
+# vphone-tier: build
+#
+# BUILD, not dist, and that is a decision rather than an oversight: cfw-kit is
+# vendored as-is from an external tree and still reaches for ldid, gnu-tar, zstd
+# and ipsw the way scripts/cfw_install*.sh did before they were cleaned out. It
+# does not ship in the .app, so none of that reaches a user — but it also means
+# a dist user cannot run this variant installer. Whether cfw-kit becomes a dist
+# path (by getting the same treatment the cfw_install*.sh family got) or stays a
+# development tool is a P3 question, deliberately left open. Until it is
+# answered, do not add it to scripts/dist_manifest.sh.
+#
 # run.sh — host driver for the custom-firmware-kit variant installers.
 #
 # Attaches the VM's Disk.img on the host, hands the APFS container to the

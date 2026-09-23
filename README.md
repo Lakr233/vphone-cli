@@ -8,21 +8,24 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 
 ## Prerequisites
 
-**Host:**
+**To run it:**
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
-- Xcode + iOS SDK (cross-compiles the guest daemon)
 - [SIP/AMFI relaxation to allow private PV=3 entitlements with unsigned-binary](#sipamfi-relaxation)
 
-**Dependencies:**
+**Nothing else.** No Homebrew packages, no interpreter, no package environment,
+no Xcode. Everything vphone-cli runs is either a system binary under `/usr/bin`,
+`/bin`, `/usr/sbin` or `/sbin`, or is inside the `.app` — including the signer
+(it replaced `ldid`), the archive reader (`gtar`, `zstd`, `unzip`), the firmware
+catalogue and IM4P/AEA handling (`ipsw`), and the five iOS binaries the CFW
+installers put in the guest, which are cross-compiled at build time and shipped
+rather than built on your machine. `make check-aux` is the gate that keeps it
+that way.
 
-```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
-```
-
-No interpreter and no package environment: everything vphone-cli itself runs is
-Swift or C, built by `make build`.
+**To build it from source**, add Xcode — its iOS SDK is what those guest
+binaries are cross-compiled against — and `git-lfs`, which `git clone` needs for
+the archives in `scripts/resources`.
 
 ## Install
 
@@ -33,14 +36,19 @@ brew install zqxwce/tap/vphone-cli
 ## Build
 
 ```bash
+brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # install brew deps, build the toolchain submodules
-./scripts/build.sh            # build + sign vphone-cli, bundle the .app, cross-compile vphoned
+./scripts/build.sh            # build + sign vphone-cli, cross-compile the guest
+                              # binaries, bundle the .app
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
+
+`./scripts/setup_tools.sh` is optional and builds one thing: `insert_dylib`, the
+independent reference a Mach-O test compares the Swift dylib injector against.
+Nothing shipped runs it.
 
 ## Quick Start
 
@@ -147,7 +155,8 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
 This is still the simplest path, and the only one that needs nothing running
 alongside the VM: with AMFI relaxed, `vphone-vm` launches on its own.
 
-**Option B — keep SIP on (debug-only relaxed) and run `amfidont` yourself while you launch** (AMFI stays enabled the rest of the time, and for every binary you did not allow).
+**Option B — keep SIP on (debug-only relaxed) and allowlist this build** (AMFI
+stays enabled the rest of the time, and for every binary you did not allow).
 
 In Recovery:
 
@@ -156,78 +165,48 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-Then reboot into macOS.
-
-[`amfidont`](https://github.com/zqxwce/amfidont) is a separate tool that you
-install and run. **This project does not ship it, install it, launch it or
-supervise it**, and nothing here depends on it — `vphone-cli` only notices that
-`vphone-vm` was killed and tells you what to run. It adds no Python dependency
-to this repo.
-
-Install it with Apple's Python. Homebrew's refuses with PEP 668, and the tool
-re-execs Xcode's `python3`, so Xcode has to be installed:
+Then reboot into macOS and run:
 
 ```bash
-xcrun python3 -m pip install --user amfidont
-# lands in ~/Library/Python/3.9/bin — add it to $PATH
+make amfi_allow     # asks for root; run it again after every build
+make amfi_status    # show the allowlist, and whether this host can carry one
+make amfi_off       # remove it and restart amfid clean
 ```
 
-Then let it print the command line for the binaries this build actually
-produced:
+That runs `vphone-amfi-allow`, which is built from this repository's own C and
+ships inside the `.app`. It writes two things:
 
-```bash
-make amfi_command      # prints only — installs nothing, runs nothing, no sudo
-```
+* the cdhashes of **both** copies of `vphone-vm` into
+  `/Library/Preferences/com.apple.security.coderequirements.plist`, which AMFI
+  already reads — this is a feature amfid ships, not a hole;
+* one byte of amfid's **heap**, to flip the `_isRunningInternalBuild` flag that
+  makes it consult that file in the first place.
 
-It emits one `sudo amfidont daemon …` line covering **both** copies of
-`vphone-vm`, with the paths already resolved through symlinks:
+Both, because `make boot` launches both: `boot_binary_check` runs
+`.build/release/vphone-vm` and the boot itself runs the one inside the `.app`.
+They sign under different identifiers and hash differently, so allowing one
+covers exactly half the flow.
 
-```bash
-sudo amfidont daemon \
-    --path '<repo>/.build/out/Products/Release' \
-    --path '<repo>/.build/vphone-cli.app/Contents/MacOS' \
-    --cdhash <release cdhash> \
-    --cdhash <bundle cdhash> \
-    --spoof-apple --verbose
-```
-
-Both, because `make boot` runs both: `boot_binary_check` launches
-`.build/release/vphone-vm` and the boot itself launches the one inside the
-`.app`. They sign under different identifiers and hash differently, so an
-allowlist given one covers exactly half the flow — and `make boot_dfu` uses
-only the first. (`.build/release` is a symlink into `.build/out/Products`;
-amfid matches on the resolved path, which is why the printed one is resolved.)
+**Re-run it after every build.** It allowlists cdhashes, and those change with
+every signature — including a bare `swift build`.
 
 `vphone-vm` is the binary to allow. `vphone-cli` carries no entitlements and
 always launches, so its cdhash is not the one you want.
 
-Run that line in its own terminal and leave it there, then launch normally from
-another — `vphone-cli vm launch myphone`. If you skip all of this, the launch
-fails with the same command printed for you, cdhash filled in.
-
-`--path` / `-p` and `--cdhash` / `-c` both repeat, and both merge with the
-allowlists stored in `~/.amfidont/paths` and `~/.amfidont/cdhashes`. Write the
-entries there once with `amfidont add-path <dir>` and `amfidont add-cdhash
-<hash>` (`remove-path` / `remove-cdhash` undo it), and `sudo amfidont daemon
---spoof-apple` is the whole command from then on. A rebuild changes the cdhash,
-so a cdhash-only allowlist goes stale every time you run `make build`; a
-`--path` allowlist does not.
-
-> **Be clear about what this allows.** It is an allowlist keyed on path prefix
-> and cdhash: amfid keeps enforcing for everything you did not name.
-> `--spoof-apple` makes the allowed binaries report as Apple-signed, which is
-> what the private PV=3 entitlements need. The exception is `--allow-all` —
-> pass that and *every* signature amfid checks is reported valid, for as long
-> as the daemon runs. Either way it is memory-only: stop the daemon, or reboot,
-> and amfid is back to normal.
+> **Be clear about what this allows.** It is an allowlist keyed on cdhash:
+> amfid keeps enforcing for every binary you did not name. `make amfi_off`
+> removes the file and restarts amfid.
 >
-> `amfidont` replaced `vphone-letmein`, which opened its window by writing into
-> amfid's `__TEXT`. On a host where `sysctl vm.cs_system_enforcement` reads 1 —
-> measured on macOS 27.0 (26A428), arm64e, with exactly the `csrutil` settings
-> above — the kernel kills amfid for that dirty page and takes the guest down
-> with it, and the sysctl is read-only. `amfidont` drives amfid through LLDB
-> instead, so its breakpoints live in the CPU's debug registers and the page is
-> never written; that is why it works under enforcement where patching cannot.
+> The one byte is in amfid's heap, not its `__TEXT`, and that is the whole
+> reason this works. Earlier attempts patched the code — `vphone-letmein`
+> overwrote the `ldrb` in `-[AMFIPathValidator_macos validateWithError:]`, and
+> LLDB-based tools plant a `BRK` for a breakpoint. Both leave a dirty unsigned
+> executable page, and on a host where `sysctl vm.cs_system_enforcement` reads
+> 1 — as it does on macOS 27.0 (26A428), arm64e, with exactly the `csrutil`
+> settings above — the kernel validates that page on the next fault, kills
+> amfid, and takes the guest down with it. The sysctl is read-only at runtime,
+> so no amount of care makes "patch the code" survive it. A heap write is not
+> code, so enforcement has nothing to object to.
 
 ## Tested Environments
 
@@ -256,7 +235,7 @@ so a cdhash-only allowlist goes stale every time you run `make build`; a
 
 ## FAQ
 
-**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [SIP/AMFI Relaxation](#sipamfi-relaxation) — either `amfi_get_out_of_my_way=1` (Option A), or `amfidont` running with `vphone-vm` on its allowlist (Option B). Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
+**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [SIP/AMFI Relaxation](#sipamfi-relaxation) — either `amfi_get_out_of_my_way=1` (Option A), or `make amfi_allow` for this build (Option B). If you ran it before your last build, run it again: the allowlist is keyed on cdhash, and signing changes that. Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
 
 **`Virtualization is not available on this hardware`** — your Mac is itself a VM; PV=3 guest boot can't nest. Use a non-nested macOS 15+ host.
 
@@ -268,7 +247,9 @@ so a cdhash-only allowlist goes stale every time you run `make build`; a
 
 **Install a `.ipa`/`.tipa`** — use the running VM's Install menu (drag-drop or file picker).
 
-**`cfw install` hangs re-signing a system binary (e.g. `Campo`), memory climbing unbounded** — known bug in `ldid-procursus` up to `2.1.5-procursus7` (the current Homebrew `stable`): `bytes(uint64_t)` calls `__builtin_clzll(0)` with no zero-guard, which is undefined behavior, and on this build resolves to a `0`-length that underflows an unsigned loop counter — `ldid` spins writing one byte at a time into a growing buffer instead of terminating. Triggered by *any* entitlements plist containing an integer value of exactly `0` (some real Apple system binaries have these). Fixed upstream but not yet in a tagged release; rebuild from source: `brew install --HEAD ldid-procursus && brew link --overwrite ldid-procursus`. Kill the hung `ldid` process first (`sudo kill -9 <pid>`) if you already hit it.
+**Do I need Homebrew, or Xcode, to use this?** — No. `vphone-cli` runs on a clean macOS 15+: everything it shells out to is in `/usr/bin`, `/bin`, `/usr/sbin` or `/sbin`, and everything else is inside the `.app`. `make check-aux` is the gate that keeps it that way — it walks the bundle's dependency closure, checks the bundle holds exactly what it is supposed to, scans every shipped script for a `PATH` lookup, and smoke-tests the binaries with `env -i PATH=/usr/bin:/bin`. Building from source is the other story: that needs Xcode (for the iOS SDK the guest binaries are cross-compiled against) and `git-lfs` (to check out `scripts/resources`).
+
+**`cfw install` hangs re-signing a system binary (e.g. `Campo`), memory climbing unbounded** — this was a bug in `ldid-procursus` up to `2.1.5-procursus7`: `bytes(uint64_t)` called `__builtin_clzll(0)` with no zero-guard, which is undefined behavior, and on that build resolved to a `0`-length that underflowed an unsigned loop counter, so `ldid` span writing one byte at a time into a growing buffer instead of terminating. Any entitlements plist with an integer value of exactly `0` triggered it, and some real Apple system binaries have one. It cannot happen any more: signing is `vphone-cli sign`, in-process, and `ldid` is not installed, invoked or shipped.
 
 ## Automation
 

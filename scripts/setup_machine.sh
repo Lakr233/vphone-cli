@@ -459,12 +459,18 @@ check_platform() {
 install_brew_deps() {
   require_cmd brew
 
-  # No python formula: the restore backend is linked into vphone-cli and the
-  # patchers are Swift, so this flow needs no interpreter at any point.
-  local deps=(
-    wget gnu-tar openssl@3 ldid-procursus sshpass git-lfs
-    libusb ipsw
-  )
+  # One formula, and it is not a tool this project runs — it is what `git clone`
+  # needs to check out scripts/resources, whose archives are LFS objects.
+  #
+  # The other eight are gone, and each for its own reason: wget and the
+  # gnu-tar/zstd pair and ldid-procursus were replaced by vphone-archive and
+  # `vphone-cli sign`; ipsw by `vphone-cli fw aea-key` / `fw urls` /
+  # `fw seal-tool`; openssl@3 was only ever linked into a trustcache build for a
+  # binary nothing invoked; libusb has not been in the link since
+  # MobileRecoveryCore took upstream's IOKit backend; and sshpass was installed
+  # for years without a single caller. No python formula either — the restore
+  # backend is linked into vphone-cli and the patchers are Swift.
+  local deps=(git-lfs)
 
   echo "=== Installing Homebrew dependencies ==="
   for pkg in "${deps[@]}"; do

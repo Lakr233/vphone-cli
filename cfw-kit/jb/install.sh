@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build   (see cfw-kit/run.sh)
 # jb/install.sh — fully patched firmware, empty userland.
 #
 # The firmware layer is jailbroken all the way: run `make fw_patch_jb` first and

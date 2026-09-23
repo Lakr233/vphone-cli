@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build   (see cfw-kit/run.sh)
 # base_stages.sh — the stages BOTH variants need, as functions.
 #
 # This is the "what does it take to boot at all" set. Nothing here installs a

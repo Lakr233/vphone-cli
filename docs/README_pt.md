@@ -8,20 +8,24 @@ Inicie um iPhone virtual usando o Virtualization.framework da Apple com a infrae
 
 ## Pré-requisitos
 
-**Host:**
+**Para executar:**
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
-- Xcode + iOS SDK (para compilação cruzada do daemon guest)
 - [Relaxamento de SIP/AMFI para permitir entitlements privados PV=3 com binário não assinado](#relaxamento-sipamfi)
 
-**Dependências:**
+**E nada mais.** Nenhum pacote do Homebrew, nenhum interpretador, nenhum ambiente de
+pacotes, nenhum Xcode. Tudo o que o vphone-cli executa é um binário do sistema em
+`/usr/bin`, `/bin`, `/usr/sbin` ou `/sbin`, ou está dentro do próprio `.app` — o assinador
+(substituiu o `ldid`), a leitura de arquivos compactados (`gtar`, `zstd`, `unzip`), o
+catálogo de firmwares e o tratamento de IM4P/AEA (`ipsw`), e os cinco binários iOS que os
+instaladores de CFW colocam no guest, que são compilados cruzadamente no build e
+distribuídos prontos, não compilados na sua máquina. `make check-aux` é o portão que mantém
+isso assim.
 
-```bash
-brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
-```
-
-Sem interpretador e sem ambiente de pacotes: tudo o que o próprio vphone-cli executa é Swift ou C, compilado por `make build`.
+**Para compilar a partir do código-fonte**, acrescente o Xcode (o iOS SDK dele é contra o
+que esses cinco binários são compilados) e o `git-lfs` (o `git clone` precisa dele para os
+arquivos em `scripts/resources`).
 
 ## Instalação
 
@@ -32,14 +36,18 @@ brew install zqxwce/tap/vphone-cli
 ## Compilação
 
 ```bash
+brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # instala dependências do brew, compila submodules do toolchain
-./scripts/build.sh            # compila + assina vphone-cli, empacota o .app, compila vphoned para iOS
+./scripts/build.sh            # compila + assina vphone-cli, compila os binários guest, empacota o .app
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
+
+`./scripts/setup_tools.sh` é opcional e compila uma coisa só: `insert_dylib`, a referência
+independente contra a qual um teste Mach-O compara o injetor de dylib em Swift, byte a byte.
+Nada do que é distribuído o executa.
 
 ## Início Rápido
 
@@ -146,7 +154,7 @@ sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reinicie após
 
 Esse ainda é o caminho mais simples, e o único que não exige nada rodando ao lado da VM: com o AMFI relaxado, o `vphone-vm` inicia sozinho.
 
-**Opção B — manter SIP ligado (relaxado apenas para debug) e rodar o `amfidont` você mesmo enquanto inicia** (o AMFI continua habilitado no resto do tempo e para todo binário que você não liberar).
+**Opção B — manter SIP ligado (relaxado apenas para debug) e colocar esta build na allowlist** (o AMFI continua habilitado no resto do tempo e para todo binário que você não liberar).
 
 No Recovery:
 
@@ -155,37 +163,34 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-Depois reinicie no macOS.
-
-O [`amfidont`](https://github.com/zqxwce/amfidont) é uma ferramenta separada que você instala e executa. **Este projeto não a distribui, não a instala, não a inicia e não a supervisiona**, e não depende dela — o `vphone-cli` apenas percebe que o `vphone-vm` foi morto e diz o que você precisa rodar. Também não acrescenta nenhuma dependência de Python a este repositório.
-
-Instale com o Python da Apple. O do Homebrew recusa com PEP 668, e a ferramenta faz re-exec do `python3` do Xcode, então o Xcode precisa estar instalado:
+Depois reinicie no macOS e rode:
 
 ```bash
-xcrun python3 -m pip install --user amfidont
-# vai para ~/Library/Python/3.9/bin — adicione ao $PATH
+make amfi_allow     # pede root; rode de novo depois de cada build
+make amfi_status    # mostra a allowlist e se este host consegue carregá-la
+make amfi_off       # remove a allowlist e reinicia o amfid limpo
 ```
 
-Pegue o cdhash do `vphone-vm`. É ele que carrega os entitlements; o `vphone-cli` não carrega nenhum e sempre inicia, então não é o cdhash dele que você quer:
+Isso executa o `vphone-amfi-allow`, compilado do C deste próprio repositório e distribuído dentro do `.app`. Ele escreve duas coisas:
 
-```bash
-VPHONE_BIN="$PWD/.build/vphone-cli.app/Contents/MacOS"   # onde o vphone-vm estiver
-codesign -dv --verbose=4 "$VPHONE_BIN/vphone-vm" 2>&1 | sed -n 's/^CDHash=//p' | head -1
-```
+* os cdhashes das **duas** cópias do `vphone-vm` em
+  `/Library/Preferences/com.apple.security.coderequirements.plist`, um arquivo que o AMFI
+  já lê — é um recurso que ele traz, não um buraco;
+* **um byte do heap** do amfid, para virar a flag `_isRunningInternalBuild` que faz ele
+  consultar esse arquivo.
 
-Inicie o daemon em um terminal só dele e deixe rodando:
+As duas, porque o `make boot` inicia as duas: o `boot_binary_check` roda
+`.build/release/vphone-vm` e o boot em si roda a que está dentro do `.app`. Elas são
+assinadas sob identificadores diferentes e têm hashes diferentes, então liberar uma cobre
+exatamente metade do fluxo.
 
-```bash
-sudo amfidont daemon --path "$VPHONE_BIN" --cdhash <cdhash> --spoof-apple --verbose
-```
+**Rode de novo depois de cada build.** A allowlist é por cdhash, e qualquer assinatura muda o cdhash — inclusive um `swift build` puro.
 
-Depois inicie normalmente de outro terminal — `vphone-cli vm launch myphone`.
+O binário a liberar é o `vphone-vm`. O `vphone-cli` não carrega entitlements e sempre inicia, então não é o cdhash dele que você quer.
 
-`--path` / `-p` e `--cdhash` / `-c` podem ser repetidos, e ambos se somam às allowlists guardadas em `~/.amfidont/paths` e `~/.amfidont/cdhashes`. Grave as entradas lá uma vez com `amfidont add-path <dir>` e `amfidont add-cdhash <hash>` (`remove-path` / `remove-cdhash` desfazem), e a partir daí o comando inteiro vira `sudo amfidont daemon --spoof-apple`. Note que recompilar muda o cdhash, então uma allowlist só de cdhash fica obsoleta a cada `make build`; uma allowlist por `--path` não fica.
-
-> **Seja claro sobre o que isso libera.** É uma allowlist baseada em prefixo de caminho e cdhash: o amfid continua validando tudo o que você não listou. O `--spoof-apple` faz os binários liberados serem reportados como assinados pela Apple, que é exatamente o que os entitlements privados PV=3 exigem. A exceção é `--allow-all` — com ele, *toda* assinatura que o amfid verificar é reportada como válida enquanto o daemon estiver rodando. Em qualquer dos casos, isso só existe em memória: pare o daemon, ou reinicie, e o amfid volta ao normal.
+> **Seja claro sobre o que isso libera.** É uma allowlist por cdhash: o amfid continua validando todo binário que você não listou. `make amfi_off` apaga o arquivo e reinicia o amfid.
 >
-> O `amfidont` substituiu o `vphone-letmein`, que abria sua janela escrevendo no `__TEXT` do amfid. Em um host onde `sysctl vm.cs_system_enforcement` vale 1 — medido no macOS 27.0 (26A428), arm64e, exatamente com as configurações de `csrutil` acima — o kernel mata o amfid por causa dessa página suja e leva o guest junto, e o sysctl é somente leitura. O `amfidont` controla o amfid via LLDB, então seus breakpoints ficam nos registradores de depuração da CPU e a página nunca é escrita; é por isso que ele funciona sob enforcement onde o patch não funciona.
+> Esse um byte fica no **heap** do amfid, não no `__TEXT` dele, e é isso que faz a coisa funcionar. As tentativas anteriores alteravam código — o `vphone-letmein` sobrescrevia o `ldrb` em `-[AMFIPathValidator_macos validateWithError:]`, e ferramentas baseadas em LLDB plantam um `BRK` para o breakpoint. As duas deixam uma página executável suja e não assinada, e num host onde `sysctl vm.cs_system_enforcement` vale 1 — medido no macOS 27.0 (26A428), arm64e, exatamente com as configurações de `csrutil` acima — o kernel valida essa página na próxima falta, mata o amfid e leva o guest junto. O sysctl é somente leitura em runtime, então "corrigir o código" não sobrevive por mais cuidado que se tenha. Heap não é código, e o enforcement não tem do que reclamar.
 
 ## Ambientes Testados
 
@@ -214,7 +219,7 @@ Depois inicie normalmente de outro terminal — `vphone-cli vm launch myphone`.
 
 ## FAQ
 
-**`zsh: killed ./vphone-vm`** — Restrições de AMFI/debug não foram desativadas; veja [Relaxamento SIP/AMFI](#relaxamento-sipamfi) (`amfi_get_out_of_my_way=1`, a Opção A, ou o `amfidont` rodando com o `vphone-vm` na allowlist, a Opção B). Note que isso não pode acontecer com o próprio `vphone-cli`: ele não carrega entitlements, então se *ele* está sendo morto, algo mais está errado.
+**`zsh: killed ./vphone-vm`** — Restrições de AMFI/debug não foram desativadas; veja [Relaxamento SIP/AMFI](#relaxamento-sipamfi) (`amfi_get_out_of_my_way=1`, a Opção A, ou `make amfi_allow` para esta build, a Opção B). Se você rodou *antes* da última build, rode de novo: a allowlist é por cdhash, e assinar muda o cdhash. Note que isso não pode acontecer com o próprio `vphone-cli`: ele não carrega entitlements, então se *ele* está sendo morto, algo mais está errado.
 
 **`Virtualization is not available on this hardware`** — Seu Mac é uma VM; boot de guest PV=3 não pode ser aninhado. Use um host macOS 15+ não-virtualizado.
 
@@ -226,7 +231,9 @@ Depois inicie normalmente de outro terminal — `vphone-cli vm launch myphone`.
 
 **Instalar um `.ipa`/`.tipa`** — Use o menu Install da VM em execução (arrastar-soltar ou seletor de arquivos).
 
-**`cfw install` trava re-assinando um binário de sistema (ex: `Campo`), memória crescendo indefinidamente** — Bug conhecido no `ldid-procursus` até `2.1.5-procursus7` (o `stable` atual do Homebrew): `bytes(uint64_t)` chama `__builtin_clzll(0)` sem verificação de zero, que é comportamento indefinido, e neste build resolve para um length `0` que causa underflow em um contador de loop unsigned — `ldid` fica em loop escrevendo um byte por vez em um buffer crescente ao invés de terminar. Acionado por *qualquer* plist de entitlements contendo um valor inteiro exatamente `0` (alguns binários reais de sistema Apple têm isso). Corrigido upstream mas ainda não em uma release tagged; recompile do fonte: `brew install --HEAD ldid-procursus && brew link --overwrite ldid-procursus`. Mate o processo `ldid` travado primeiro (`sudo kill -9 <pid>`) se já tiver sido afetado.
+**Preciso de Homebrew, ou de Xcode, para usar isto?** — Não. O `vphone-cli` roda num macOS 15+ limpo: tudo o que ele chama está em `/usr/bin`, `/bin`, `/usr/sbin` ou `/sbin`, e todo o resto está dentro do `.app`. `make check-aux` é o portão que mantém isso. Compilar do código-fonte é outra história: aí são necessários o Xcode (o iOS SDK contra o qual os binários guest são compilados) e o `git-lfs` (para `scripts/resources`).
+
+**`cfw install` trava re-assinando um binário de sistema (ex: `Campo`), memória crescendo indefinidamente** — Era um bug no `ldid-procursus` até `2.1.5-procursus7`: `bytes(uint64_t)` chamava `__builtin_clzll(0)` sem verificação de zero, que é comportamento indefinido, e naquele build resolvia para um length `0` que causava underflow num contador de loop unsigned — o `ldid` ficava em loop escrevendo um byte por vez num buffer crescente em vez de terminar. Qualquer plist de entitlements com um valor inteiro exatamente `0` acionava isso, e alguns binários de sistema reais da Apple têm um. Não pode mais acontecer: a assinatura é `vphone-cli sign`, no próprio processo, e o `ldid` não é instalado, invocado nem distribuído.
 
 ## Automação
 
