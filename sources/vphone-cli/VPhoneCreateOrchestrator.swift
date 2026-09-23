@@ -285,14 +285,14 @@ public struct VPhoneCreateOrchestrator {
         var env = ProcessInfo.processInfo.environment
         if let iphoneSource = options.iphoneSource { env["IPHONE_SOURCE"] = iphoneSource }
         if let cloudosSource = options.cloudosSource { env["CLOUDOS_SOURCE"] = cloudosSource }
-        env["VPHONE_PYTHON"] = try resources.pythonExecutable().path
+        // No VPHONE_PYTHON: fw_prepare.sh no longer runs any Python.
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
         if isLess { env["VARIANT"] = "less" }
         if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
         trace(
-            "spawn /bin/bash \(resources.fwPrepareScript.path) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)",
+            "spawn /bin/bash \(resources.fwPrepareScript.path) (env keys: IPSW_DIR, VPHONE_SEAL_DIR)",
             v
         )
         // Always streamed — silence during a multi-GB download reads as a hang.

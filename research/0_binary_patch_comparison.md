@@ -262,6 +262,58 @@ addresses (49 gates each, zero verdict differences).
   cache-shaped file in the chunks directory turns a working patch into a hard
   abort. Fail-closed, and left alone deliberately.
 
+### Swift port status — the six independent Mach-O patchers (2026-09-23)
+
+Rows 1, 2, 3, 5 and 13 above, plus the EXP `watchdogd` patch, now have Swift
+implementations under `sources/FirmwarePatcher/CFW/Patches/`. The patches did not
+change. Each was run against its Python on two `cp -c` clones of the real 24A435
+binary in `ipsws/ref_extract/macho_pristine/`, both with re-attestation off (what
+the Python emits) and on (against `cfw_macho_codesign.reattest_modified_offsets`).
+
+| Python | Swift | Sites | Parity on the real binary |
+| --- | --- | --- | --- |
+| `cfw_patch_seputil.py` | `CFWSeputil` | 1 (+1 slot) | `%s`→`AA` at `0x1BDD2`; sha256 `75dc86f8…` both sides. Re-attested: slot 27 identical. Anchored on the whole `__cstring` literal plus the `adrp`+`add` that builds it, not the Python's file-wide `find`. |
+| `cfw_patch_cache_loader.py` | `CFWCacheLoaderPatcher` | 1 (+1 slot, opt-in) | `cbz x0 @0xC7C` → `nop`; sha256 `17c5b00c…` both sides, 4 bytes differ from pristine. |
+| `cfw_patch_mobileactivationd.py` | `CFWMobileactivationd` | 1 (+1 slot) | `-[DeviceType should_hactivate]` at `0x2EC368`; sha256 `9f26bf92…` both sides. Re-attested: slot 748 identical. The Python's symbol match is a substring search that sees four candidates on this image; the Swift matches the exact selector and cross-checks ObjC metadata. |
+| `cfw_patch_jetsam.py` | `CFWJetsamPatcher` | 1 | `cbz w0 @0xFA98` → `b` (`launchd`); sha256 `cae806f5…` both sides. |
+| `cfw_patch_watchdogd.py` | `CFWWatchdogd` | 2 × 2 insns + 2 slots | Sites at `0x100004754` and `0x10000AB30`, slots 4 and 10; sha256 `963cd445…` both sides, `codesign -v` passes. |
+| `cfw_patch_diskimagesiod.py` | `CFWDiskimagesiod` | 1 (+1 slot) | `isMountComplete…` IMP at `0x320C0`, found through the relative method list; sha256 `41daf01d…` both sides. Re-attested: slot 50 identical. |
+
+**Every port is idempotent, and three of the Pythons are not.** A second Python
+run over its own output walks past the first patch and changes something else:
+`cache_loader` NOPs the `cbnz x0 @0xC84` log-file guard, `jetsam` rewrites the
+`b.ne @0xFAB0` in the same return block, and `seputil` exits 1. The shell never
+hit this because it always copies from the `.bak` first. The Swift reports
+`already patched` and writes nothing, which is what the in-place call site in
+`CryptexFilesystemPatcherGuestPayload` needs.
+
+**Wired in.** `CryptexFilesystemPatcherGuestPayload` now calls
+`CFWCacheLoaderPatcher` and `CFWMobileactivationd` in process instead of
+spawning `cfw.py`. The shell call sites (`cfw_install*.sh`, `cfw-kit`,
+`patch_hv_vmm_userland.sh`) still run the Python until a `vphone-cli cfw` verb
+replaces them.
+
+**A defect that review found and this branch fixed:** `CFWCacheLoaderPatcher`
+trapped on every patch with logging on, which is the default. The before/after
+window starts two instructions ahead of the gate, and it converted that negative
+delta with `UInt64(Int)`, which traps even under `-O`. Every test passed
+`log: nil`, so none reached it. Now covered by `loggingPathDoesNotTrap`.
+
+**Known, not fixed** (all LOW, none changes a byte on these binaries):
+
+* A Mach-O truncated to about 64 bytes makes `diskimagesiod` and `watchdogd`
+  trap in the shared `MachOParser` (`BinaryBuffer.swift:9` precondition) instead
+  of throwing.
+* `CFWCacheLoaderPatcher.flagSetterOnResult` accepts a flag-setting instruction
+  with `x0`/`w0` in any operand, including as the destination.
+* `CFWMobileactivationd`'s ObjC cross-check is scoped to the selector, not the
+  class: it takes the first relative-method-list entry with that name.
+* `CFWJetsamPatcher`'s `.alreadyPatched` is silent. If a later firmware emits an
+  unconditional `b` into the return block ahead of the real gate, it would read
+  as already patched.
+* `CFWWatchdogdTests.swift` converts a VA to a file offset by subtracting the
+  arm64 image base as a constant, in a test only.
+
 ### Installed Components
 
 | #   | Component                  | Description                                                                                                        | Regular | Dev | JB  |

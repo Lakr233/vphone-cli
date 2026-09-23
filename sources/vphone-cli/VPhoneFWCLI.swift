@@ -12,7 +12,67 @@ struct VPhoneFWCommand: ParsableCommand {
             VPhoneFWPrepareCommand.self,
             VPhoneFWPatchCommand.self,
             VPhoneFWManifestCommand.self,
+            VPhoneFWListCommand.self,
+            VPhoneFWResolveCommand.self,
         ])
+}
+
+// MARK: - firmware support matrix
+
+/// Replaces the two Python heredocs that used to live inside
+/// `scripts/fw_prepare.sh`. Both read the `DOWNLOADABLE_IPSW_URLS` the shell
+/// already sets, so only the language changed; the shell still runs `ipsw`.
+///
+/// Neither writes through `print`: `list` styles stdout and `resolve` styles
+/// stderr, and colour is only right if each descriptor is asked separately.
+struct VPhoneFWListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "Print the downloadable-firmware support matrix for a device"
+    )
+
+    @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
+    @Option(help: "README.md holding the 'Tested Environments' table") var readme: String
+
+    func run() throws {
+        let code = VPhoneFirmwareMatrixCommandLine.list(
+            device: device,
+            readmePath: readme,
+            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? ""
+        )
+        if code != 0 { throw ExitCode(code) }
+    }
+}
+
+struct VPhoneFWResolveCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "resolve",
+        abstract: "Resolve a version/build selector to a downloadable IPSW URL",
+        discussion: """
+        Prints version<TAB>build<TAB>url<TAB>status on stdout, which fw_prepare.sh
+        reads back with `IFS=$'\\t' read -r`.
+
+        Exits 2 — not 1 — when a bare version matches more than one build, so a
+        caller can tell "pick a build" from "there is no such firmware". An empty
+        --version or --build means unconstrained.
+        """
+    )
+
+    @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
+    @Option(help: "iOS version to match; empty matches any") var version: String = ""
+    @Option(help: "Build to match; empty matches any") var build: String = ""
+    @Option(help: "README.md holding the 'Tested Environments' table") var readme: String
+
+    func run() throws {
+        let code = VPhoneFirmwareMatrixCommandLine.resolve(
+            device: device,
+            version: version,
+            build: build,
+            readmePath: readme,
+            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? ""
+        )
+        if code != 0 { throw ExitCode(code) }
+    }
 }
 
 // MARK: - manifest
@@ -117,16 +177,16 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
         if let iphoneBuild { env["IPHONE_BUILD"] = iphoneBuild }
         if list { env["LIST_FIRMWARES"] = "1" }
 
-        // Redirect the three things a read-only bundle can't provide (python,
-        // IPSW cache, extracted apfs_sealvolume) to the writable user cache.
+        // Redirect the two things a read-only bundle can't provide (IPSW cache,
+        // extracted apfs_sealvolume) to the writable user cache. No Python:
+        // fw_prepare.sh's last heredocs moved into `fw list` / `fw resolve`.
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        env["VPHONE_PYTHON"] = try resources.pythonExecutable().path
         env["IPSW_DIR"] = resources.ipswCacheDir.path
         env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
 
         if v.tracesInternals {
-            print("[trace] spawning: /bin/bash \(resources.fwPrepareScript.path) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)")
+            print("[trace] spawning: /bin/bash \(resources.fwPrepareScript.path) (env keys: IPSW_DIR, VPHONE_SEAL_DIR)")
         }
         let code = try VPhoneProcessRunner.runStreaming(
             URL(fileURLWithPath: "/bin/bash"),

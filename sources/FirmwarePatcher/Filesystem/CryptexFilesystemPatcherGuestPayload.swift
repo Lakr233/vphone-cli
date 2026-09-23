@@ -43,12 +43,10 @@ extension CryptexFilesystemPatcher {
     func patchLaunchdCacheLoader(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
-        let pythonPath = try resources.pythonExecutable()
-        let patcherPath = resources.cfwPy
-        _ = try runProcess(pythonPath.path, [
-            patcherPath.path, "patch-launchd-cache-loader",
-            launchdCacheLoaderPath.path
-        ])
+        // Patched in place with no `.bak` to restore from, so this is the call
+        // site that needs the port's idempotence. No re-attestation: the sign
+        // below replaces the whole signature anyway.
+        try CFWCacheLoaderPatcher.patch(fileAt: launchdCacheLoaderPath)
         _ = try runProcess("/bin/chmod", ["0755", launchdCacheLoaderPath.path])
 
         try VPhoneSigner.sign(
@@ -207,11 +205,9 @@ extension CryptexFilesystemPatcher {
     func patchMobileActivation(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
-        let pythonPath = try resources.pythonExecutable()
-        _ = try runProcess(pythonPath.path, [
-            resources.cfwPy.path, "patch-mobileactivationd",
-            mobileActivationdPath.path
-        ])
+        // `resign: false` because the sign below replaces the signature, and
+        // re-attesting would refuse an unsigned input the Python accepted.
+        try CFWMobileactivationd.patch(fileAt: mobileActivationdPath, resign: false)
         _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
 
         try VPhoneSigner.sign(

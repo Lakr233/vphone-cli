@@ -87,6 +87,9 @@ resolve_vphone_binary() {
     return 1
 }
 
+# Only ever used to name a cache file, so a short hash is enough. There used to
+# be a Python third branch here for hosts with neither tool; shasum ships with
+# macOS system Perl and this project is macOS-only, so it could not run.
 source_hash_suffix() {
     local src="$1"
     if command -v shasum >/dev/null 2>&1; then
@@ -94,12 +97,7 @@ source_hash_suffix() {
     elif command -v sha256sum >/dev/null 2>&1; then
         printf '%s' "$src" | sha256sum | awk '{print substr($1, 1, 12)}'
     else
-        "$PYTHON3" - "$src" <<'PY'
-import hashlib
-import sys
-
-print(hashlib.sha256(sys.argv[1].encode("utf-8")).hexdigest()[:12])
-PY
+        die "neither 'shasum' nor 'sha256sum' found — cannot derive a cache name"
     fi
 }
 
@@ -159,182 +157,37 @@ style_status() {
     esac
 }
 
+# The firmware support matrix — the README's "Tested Environments" table joined
+# against what Apple still serves — lives in VPhoneCore/VPhoneFirmwareMatrix.swift
+# now. The shell keeps the half it is good at: running `ipsw` and handing the
+# output over in DOWNLOADABLE_IPSW_URLS, the same variable the Python read, so
+# the contract between the two halves did not change.
+#
+# Colour is decided per stream inside the callee, from NO_COLOR, CLICOLOR_FORCE
+# and isatty: `fw list` styles stdout, `fw resolve` styles stderr (its stdout is
+# the $( ) capture below). That only stays right because the binary inherits
+# this script's descriptors — do not add a pipe or a tee.
+firmware_matrix_cli() {
+    resolve_vphone_binary vphone-cli \
+        || die "cannot find vphone-cli for the firmware matrix — run 'make build'"
+}
+
 list_firmwares() {
-    local device="$1" readme_path="$2"
-    local downloadable_urls
+    local device="$1" readme_path="$2" cli downloadable_urls
+    # Separate from `local`, which would swallow the substitution's status.
+    cli="$(firmware_matrix_cli)"
     downloadable_urls="$(downloadable_ipsw_urls "$device")"
-    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" "$PYTHON3" - "$device" "$readme_path" <<'PY'
-import os
-import re
-import sys
-
-device = sys.argv[1]
-readme_path = sys.argv[2]
-
-def supports_color(stream):
-    return not os.environ.get("NO_COLOR") and (stream.isatty() or os.environ.get("CLICOLOR_FORCE") == "1")
-
-def styled_status(status, stream):
-    text = f"{status:<11}"
-    if not supports_color(stream):
-        return text
-    colors = {
-        "Supported": "\033[32m",
-        "Not Tested": "\033[33m",
-        "Unsupported": "\033[31m",
-    }
-    color = colors.get(status)
-    return f"{color}{text}\033[0m" if color else text
-
-def load_supported_pairs(readme_path, device):
-    supported = set()
-    device_suffix = device.removeprefix("iPhone")
-    in_section = False
-    try:
-        with open(readme_path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                if line.startswith("## Tested Environments"):
-                    in_section = True
-                    continue
-                if in_section and line.startswith("## "):
-                    break
-                if not in_section:
-                    continue
-                for match in re.finditer(r"`(?P<device>\d+,\d+)_(?P<version>[^_`]+)_(?P<build>[A-Za-z0-9]+)`", line):
-                    if match.group("device") == device_suffix:
-                        supported.add((match.group("version"), match.group("build")))
-    except FileNotFoundError:
-        return supported
-    return supported
-
-supported_pairs = load_supported_pairs(readme_path, device)
-rows = []
-for line in os.environ.get("DOWNLOADABLE_IPSW_URLS", "").splitlines():
-    match = re.search(
-        rf"/({re.escape(device)}_(?P<version>[^_]+)_(?P<build>[A-Za-z0-9]+)_Restore\.ipsw)$",
-        line.strip(),
-    )
-    if match:
-        rows.append((match.group("version"), match.group("build"), line.strip()))
-
-if not rows:
-    print(f"No downloadable IPSWs found for {device}", file=sys.stderr)
-    sys.exit(1)
-
-def version_key(version):
-    parts = []
-    for item in version.split("."):
-        try:
-            parts.append(int(item))
-        except ValueError:
-            parts.append(item)
-    return tuple(parts)
-
-rows = sorted(set(rows), key=lambda row: (version_key(row[0]), row[1]), reverse=True)
-print(f"Available downloadable IPSWs for {device}:")
-print("")
-print(
-    "Status:",
-    styled_status("Supported", sys.stdout),
-    styled_status("Not Tested", sys.stdout),
-    styled_status("Unsupported", sys.stdout),
-)
-print("")
-print(f"{'VERSION':<12} {'BUILD':<10} STATUS")
-for version, build, url in rows:
-    status = "Supported" if (version, build) in supported_pairs else "Not Tested"
-    print(f"{version:<12} {build:<10} {styled_status(status, sys.stdout)}")
-PY
+    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" \
+        "$cli" fw list --device "$device" --readme "$readme_path"
 }
 
 resolve_selector_from_downloads() {
-    local device="$1" version="$2" build="$3" readme_path="$4"
-    local downloadable_urls
+    local device="$1" version="$2" build="$3" readme_path="$4" cli downloadable_urls
+    cli="$(firmware_matrix_cli)"
     downloadable_urls="$(downloadable_ipsw_urls "$device")"
-    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" "$PYTHON3" - "$device" "$version" "$build" "$readme_path" <<'PY'
-import os
-import re
-import sys
-
-device, version, build, readme_path = sys.argv[1:5]
-
-def supports_color(stream):
-    return not os.environ.get("NO_COLOR") and (stream.isatty() or os.environ.get("CLICOLOR_FORCE") == "1")
-
-def styled_status(status, stream):
-    text = status
-    if not supports_color(stream):
-        return text
-    colors = {
-        "Supported": "\033[32m",
-        "Not Tested": "\033[33m",
-        "Unsupported": "\033[31m",
-    }
-    color = colors.get(status)
-    return f"{color}{text}\033[0m" if color else text
-
-def load_supported_pairs(readme_path, device):
-    supported = set()
-    device_suffix = device.removeprefix("iPhone")
-    in_section = False
-    try:
-        with open(readme_path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                if line.startswith("## Tested Environments"):
-                    in_section = True
-                    continue
-                if in_section and line.startswith("## "):
-                    break
-                if not in_section:
-                    continue
-                for match in re.finditer(r"`(?P<device>\d+,\d+)_(?P<version>[^_`]+)_(?P<build>[A-Za-z0-9]+)`", line):
-                    if match.group("device") == device_suffix:
-                        supported.add((match.group("version"), match.group("build")))
-    except FileNotFoundError:
-        return supported
-    return supported
-
-supported_pairs = load_supported_pairs(readme_path, device)
-matches = []
-for line in os.environ.get("DOWNLOADABLE_IPSW_URLS", "").splitlines():
-    match = re.search(
-        rf"/({re.escape(device)}_(?P<version>[^_]+)_(?P<build>[A-Za-z0-9]+)_Restore\.ipsw)$",
-        line.strip(),
-    )
-    if not match:
-        continue
-    entry_version = match.group("version")
-    entry_build = match.group("build")
-    if version and entry_version != version:
-        continue
-    if build and entry_build != build:
-        continue
-    matches.append((entry_version, entry_build, line.strip()))
-
-if not matches:
-    prefix = styled_status("Unsupported", sys.stderr)
-    if version and build:
-        print(f"{prefix}: no downloadable IPSW matched device={device} version={version} build={build}", file=sys.stderr)
-    elif build:
-        print(f"{prefix}: no downloadable IPSW matched device={device} build={build}", file=sys.stderr)
-    else:
-        print(f"{prefix}: no downloadable IPSW matched device={device} version={version}", file=sys.stderr)
-    sys.exit(1)
-
-if version and not build:
-    builds = sorted({item[1] for item in matches})
-    if len(builds) > 1:
-        print(f"Version {version} is ambiguous for {device}; specify one of these builds:", file=sys.stderr)
-        print(f"{'BUILD':<10} STATUS", file=sys.stderr)
-        for item in sorted(set(matches), key=lambda row: row[1], reverse=True):
-            status = "Supported" if (item[0], item[1]) in supported_pairs else "Not Tested"
-            print(f"{item[1]:<10} {styled_status(status, sys.stderr)}", file=sys.stderr)
-        sys.exit(2)
-
-selected = sorted(set(matches), key=lambda row: row[1], reverse=True)[0]
-status = "Supported" if (selected[0], selected[1]) in supported_pairs else "Not Tested"
-print("\t".join(selected + (status,)))
-PY
+    DOWNLOADABLE_IPSW_URLS="$downloadable_urls" \
+        "$cli" fw resolve --device "$device" --version "$version" \
+        --build "$build" --readme "$readme_path"
 }
 
 download_file() {
@@ -548,7 +401,6 @@ IPHONE_BUILD="${IPHONE_BUILD:-}"
 IPHONE_SOURCE="${IPHONE_SOURCE:-}"
 CLOUDOS_SOURCE="${CLOUDOS_SOURCE:-}"
 IPSW_DIR="${IPSW_DIR:-${SCRIPT_DIR}/../ipsws}"
-PYTHON3="${VPHONE_PYTHON:-python3}"
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
