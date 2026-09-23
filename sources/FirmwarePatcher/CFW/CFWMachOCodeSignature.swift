@@ -343,7 +343,7 @@ public enum CFWMachOCodeSignature {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let records = try reattest(&data, modifiedOffsets: modifiedOffsets, dryRun: dryRun)
         if !dryRun, !records.isEmpty {
             try data.write(to: url)

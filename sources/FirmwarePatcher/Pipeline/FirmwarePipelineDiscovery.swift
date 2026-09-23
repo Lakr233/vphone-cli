@@ -36,7 +36,7 @@ extension FirmwarePipeline {
     /// `ProductVersion` from a manifest in `restoreDir`, or nil if absent/unreadable.
     static func readProductVersion(_ restoreDir: URL, manifest: String) -> String? {
         let url = restoreDir.appendingPathComponent(manifest)
-        guard let data = try? Data(contentsOf: url),
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dict = plist as? [String: Any],
               let version = dict["ProductVersion"] as? String

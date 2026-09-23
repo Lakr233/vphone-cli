@@ -16,8 +16,11 @@ extension CryptexFilesystemPatcher {
     // firmware pipeline.
     private func wrap(_ payload: URL, fourcc: String, description: String, named: String) throws -> URL {
         let im4pPath = try createTmpDir().appending(path: named)
+        // Mapped: the mtree .aar this wraps is the whole system volume's
+        // metadata and runs to hundreds of megabytes.
         let im4p = try IM4P(
-            fourcc: fourcc, description: description, payload: Data(contentsOf: payload)
+            fourcc: fourcc, description: description,
+            payload: Data(contentsOf: payload, options: .mappedIfSafe)
         )
         try im4p.data.write(to: im4pPath)
         return im4pPath

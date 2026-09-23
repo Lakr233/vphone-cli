@@ -365,7 +365,7 @@ public enum FirmwareManifest {
         guard FileManager.default.fileExists(atPath: path) else {
             throw ManifestError.fileNotFound(path)
         }
-        let data = try Data(contentsOf: url)
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
         guard let dict = try PropertyListSerialization.propertyList(
             from: data,
             options: [],

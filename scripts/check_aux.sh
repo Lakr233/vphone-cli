@@ -359,6 +359,48 @@ check_sources() {
   done
   green "  ok    gate 2 [dist]: ${#dist_clean} dist scripts reach for nothing outside macOS"
 
+  # --- Swift: read a file by mapping it, never by slurping it. ---
+  #
+  # `Data(contentsOf:)` with no options reads the whole file into resident
+  # memory. That is fine for a plist and ruinous for what this project actually
+  # opens: `ManifestHashPatcher` hashes the `OS` component, which is a ten
+  # gigabyte filesystem image, and `DSCLocalSymbolTable` parses
+  # dyld_shared_cache_arm64e.symbols, which is 1.17 GB on iOS 27 — it read both
+  # tables whole, so every symbol resolver cost over a gigabyte and a test run
+  # that built several took the machine down.
+  #
+  # `.mappedIfSafe` costs address space instead: pages fault in where they are
+  # touched and the kernel evicts them again.
+  #
+  # There IS one case where mapping is wrong, and it is not a matter of taste:
+  # a buffer that will be mutated and written back over its own file. The write
+  # replaces the file the buffer is mapped from, and the next page fault
+  # through that mapping is a SIGBUS — a killed process with no failed
+  # assertion, which is how it presented. Those reads say so in the spelling:
+  # `Data(contentsOfFileToRewrite:)`, defined once, in
+  # sources/FirmwarePatcher/Binary/InPlaceRewrite.swift, with the reason.
+  #
+  # So the rule for sources/ is: no bare `Data(contentsOf:)`. Either it is
+  # mapped, or it names itself as the rewrite case.
+  #
+  # tests/ is deliberately NOT covered, and that is not laziness. What a test
+  # opens is a committed fixture of a few megabytes, so mapping buys nothing —
+  # and the fixtures are exactly what the patch tests mutate and write back
+  # over, which is the one shape where mapping is wrong. Holding the tests to
+  # the production rule would trade a memory problem they do not have for a
+  # SIGBUS they would.
+  hits=$(grep -rn 'Data(contentsOf:' --include='*.swift' sources/ 2>/dev/null \
+         | grep -v 'mappedIfSafe' \
+         | grep -vE ':[0-9]+: *//')
+  if [[ -n "$hits" ]]; then
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      fail "gate 2: unmapped file read — ${line%%:*}:${${line#*:}%%:*} (add options: .mappedIfSafe)"
+    done <<< "$hits"
+  else
+    green "  ok    gate 2: every file read in sources/ is mapped or a declared rewrite"
+  fi
+
   # --- No interpreter, in any tier. ---
   # This is D1's completion gate, and it deliberately does not look for a
   # pattern: it fails on the word `python` wherever this project's own shell can
@@ -446,6 +488,26 @@ check_smoke() {
       green "  ok    gate 3: vphone-cli sign + dump-entitlements with no ldid on PATH"
     else
       fail "gate 3: vphone-cli could not sign with a restricted PATH"
+    fi
+  fi
+
+  # The IM4P half of what `ipsw` used to do, round-tripped. Deliberately not
+  # `fw aea-key`, `fw urls` or `fw seal-tool`: those three are the other half
+  # and every one of them makes a network request, which would turn this gate
+  # amber on a train. They are checked by hand — `fw urls` against `ipsw
+  # download ipsw --urls`, `fw aea-key` against `ipsw fw aea --key`.
+  if [[ -x "$cli" ]]; then
+    local im4p="$tmp/im4p"
+    mkdir -p "$im4p"
+    print "payload" > "$im4p/in.bin"
+    if env -i PATH=/usr/bin:/bin HOME="$tmp" "$cli" fw im4p-create \
+         --type isys --version 0 -o "$im4p/c.im4p" "$im4p/in.bin" >/dev/null 2>&1 \
+       && env -i PATH=/usr/bin:/bin HOME="$tmp" "$cli" fw im4p-extract \
+         --output "$im4p/out.bin" "$im4p/c.im4p" >/dev/null 2>&1 \
+       && cmp -s "$im4p/in.bin" "$im4p/out.bin"; then
+      green "  ok    gate 3: vphone-cli fw im4p-create/extract with no ipsw on PATH"
+    else
+      fail "gate 3: vphone-cli could not round-trip an IM4P"
     fi
   fi
 

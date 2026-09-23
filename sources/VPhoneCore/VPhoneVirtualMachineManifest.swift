@@ -203,7 +203,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
     public static func load(from url: URL) throws -> VPhoneVirtualMachineManifest {
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try Data(contentsOf: url, options: .mappedIfSafe)
         } catch {
             throw VPhoneManifestError.loadFailed(path: url.path)
         }

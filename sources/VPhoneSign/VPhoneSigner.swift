@@ -77,7 +77,13 @@ public enum VPhoneSigner {
     public static func sign(fileAt url: URL, options: VPhoneSignOptions = .init()) throws -> Data {
         var options = options
         options.identifier = options.identifier ?? url.lastPathComponent
-        let data = try Data(contentsOf: url)
+        // Mapping is safe HERE specifically, and only because of how the write
+        // below works: a temporary beside the file, then `rename(2)`. Rename
+        // does not truncate the original inode, and a mapping keeps that inode
+        // alive, so nothing pulls the bytes out from under this buffer. A
+        // patcher that wrote back with `Data.write(to:)` could not map — see
+        // FirmwarePatcher's InPlaceRewrite.swift.
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
         let signed = try sign(data, options: options)
         // The same path ldid takes: a temporary beside the file, its mode
         // copied over, then rename(2). It has to be rename and not
@@ -192,7 +198,7 @@ public enum VPhoneSigner {
     /// with none contributes nothing, so a file with no entitlements at all
     /// gives an empty array.
     public static func entitlements(ofFileAt url: URL) throws -> [Data] {
-        try entitlements(in: Data(contentsOf: url))
+        try entitlements(in: Data(contentsOf: url, options: .mappedIfSafe))
     }
 
     public static func entitlements(in data: Data) throws -> [Data] {

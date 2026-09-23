@@ -64,13 +64,32 @@ sdk_check:
 		echo "         sudo xcode-select -s /Applications/Xcode.app" >&2; \
 		exit 1)
 
+# The argument order below is the installers' own, framework list included. It
+# looks arbitrary and it is load-bearing: `-framework` order decides
+# LC_LOAD_DYLIB order, which decides the indirect symbol table's numbering, so
+# reordering the list changes the output bytes for no reason. Keeping it means
+# these come out byte-identical to what `cfw install` used to compile on the
+# user's machine. Verified: vpregister and libvcamcaptured.dylib are identical;
+# TweakLoader.dylib differs in exactly two fields per slice —
+#
+#   LC_UUID        clang derives it from the content, so any two links differ
+#   LC_ID_DYLIB    it takes no -install_name, so this defaults to the output
+#                  path. It used to be the installer's own
+#                  <vm>/.cfw_temp/TweakLoader.dylib and is now this stable one.
+#                  Nothing reads it: the guest loads the file by absolute path
+#                  from /var/jb/usr/lib, not through its install name.
+
 # TweakLoader — the substrate-style loader injected into guest processes. Fat:
 # arm64 for the older bases, arm64e for iOS 27. No -install_name; the installer
 # places it at a path the injected LC_LOAD_DYLIB already names.
 $(GUEST_DIR)/TweakLoader.dylib: scripts/tweakloader/TweakLoader.m
 	@echo "=== Building TweakLoader.dylib (arm64 + arm64e, iphoneos) ==="
-	@$(IOS_CC) $(IOS_CFLAGS) -arch arm64 -arch arm64e -O3 \
-		-dynamiclib -framework Foundation \
+	@$(IOS_CC) -isysroot $(IOS_SDK) \
+		-arch arm64 -arch arm64e \
+		$(IOS_MIN) \
+		-dynamiclib \
+		-fobjc-arc -O3 \
+		-framework Foundation \
 		-o $@ $<
 
 # vpregister — registers JB app bundles through the containerized LaunchServices
@@ -79,30 +98,51 @@ $(GUEST_DIR)/TweakLoader.dylib: scripts/tweakloader/TweakLoader.m
 # LaunchServices symbols it calls are resolved by the guest's dyld.
 $(GUEST_DIR)/vpregister: scripts/vpregister/vpregister.m
 	@echo "=== Building vpregister (arm64e, iphoneos) ==="
-	@$(IOS_CC) $(IOS_CFLAGS) -arch arm64e -Os \
-		-framework Foundation -Wl,-undefined,dynamic_lookup \
+	@$(IOS_CC) -isysroot $(IOS_SDK) \
+		-arch arm64e \
+		$(IOS_MIN) \
+		-fobjc-arc -Os \
+		-framework Foundation \
+		-Wl,-undefined,dynamic_lookup \
 		-o $@ $<
 
 # libvcamcaptured — loaded into /usr/libexec/cameracaptured via an injected
 # LC_LOAD_DYLIB, so the -install_name has to be the guest path exactly.
 $(GUEST_DIR)/libvcamcaptured.dylib: scripts/vcamcaptured/libvcamcaptured.m
 	@echo "=== Building libvcamcaptured.dylib (arm64e, iphoneos) ==="
-	@$(IOS_CC) $(IOS_CFLAGS) -arch arm64e -Os \
-		-dynamiclib -install_name /var/jb/usr/lib/libvcamcaptured.dylib \
-		-framework Foundation -framework CoreMedia -framework CoreVideo \
+	@$(IOS_CC) -isysroot $(IOS_SDK) \
+		-arch arm64e \
+		$(IOS_MIN) \
+		-dynamiclib \
+		-fobjc-arc -Os \
+		-install_name /var/jb/usr/lib/libvcamcaptured.dylib \
+		-framework CoreMedia \
+		-framework CoreVideo \
+		-framework Foundation \
 		-o $@ $<
 
 # libcamfix — the substrate plugin TweakLoader loads into every AVFoundation
 # client. Same rule about -install_name.
 $(GUEST_DIR)/libcamfix.dylib: scripts/camfix/libcamfix.m
 	@echo "=== Building libcamfix.dylib (arm64e, iphoneos) ==="
-	@$(IOS_CC) $(IOS_CFLAGS) -arch arm64e -Os \
+	@$(IOS_CC) -isysroot $(IOS_SDK) \
+		-arch arm64e \
+		$(IOS_MIN) \
 		-dynamiclib \
+		-fobjc-arc -Os \
 		-install_name /var/jb/Library/MobileSubstrate/DynamicLibraries/libcamfix.dylib \
-		-framework AVFoundation -framework CoreImage -framework CoreGraphics \
-		-framework CoreMedia -framework CoreVideo -framework Foundation \
-		-framework ImageIO -framework IOSurface -framework MobileCoreServices \
-		-framework Photos -framework QuartzCore -framework UIKit \
+		-framework AVFoundation \
+		-framework CoreImage \
+		-framework CoreGraphics \
+		-framework CoreMedia \
+		-framework CoreVideo \
+		-framework Foundation \
+		-framework ImageIO \
+		-framework IOSurface \
+		-framework MobileCoreServices \
+		-framework Photos \
+		-framework QuartzCore \
+		-framework UIKit \
 		-o $@ $<
 
 # vphoned keeps its own Makefile — it is a multi-file target with a vendored

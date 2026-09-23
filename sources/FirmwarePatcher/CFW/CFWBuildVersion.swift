@@ -124,7 +124,7 @@ public enum CFWBuildVersion {
 
     private static func readFile(at url: URL) throws -> Data {
         do {
-            return try Data(contentsOf: url)
+            return try Data(contentsOfFileToRewrite: url)
         } catch {
             throw PatcherError.fileNotFound(url.path)
         }

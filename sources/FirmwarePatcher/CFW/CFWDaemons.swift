@@ -82,7 +82,7 @@ public enum CFWDaemons {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw DaemonError.fileNotFound(url.path)
         }
-        let data = try Data(contentsOf: url)
+        let data = try Data(contentsOfFileToRewrite: url)
         guard let dict = try PropertyListSerialization.propertyList(
             from: data,
             options: [],

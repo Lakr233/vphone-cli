@@ -125,7 +125,7 @@ class VPhoneControl {
 
     private func loadGuestBinary() {
         guard let url = guestBinaryURL,
-              let data = try? Data(contentsOf: url)
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe)
         else {
             guestBinaryData = nil
             guestBinaryHash = nil
@@ -451,7 +451,10 @@ class VPhoneControl {
     private func installIPAWithBuiltInInstaller(localURL: URL) async throws -> String {
         let data: Data
         do {
-            data = try Data(contentsOf: localURL)
+            // Mapped: an IPA is whatever the user dropped on the window, and
+            // some are gigabytes. The bytes are handed straight to the upload,
+            // which chunks them, so nothing needs them resident at once.
+            data = try Data(contentsOf: localURL, options: .mappedIfSafe)
         } catch {
             throw ControlError.protocolError("failed to read IPA: \(error)")
         }
@@ -479,7 +482,7 @@ class VPhoneControl {
         ]
 
         if let signCertURL = Self.signCertURL() {
-            let signCertData = try Data(contentsOf: signCertURL)
+            let signCertData = try Data(contentsOf: signCertURL, options: .mappedIfSafe)
             let certRemotePath = "\(remoteDir)/\(UUID().uuidString)-signcert.p12"
             cleanupPaths.append(certRemotePath)
             try await uploadFile(path: certRemotePath, data: signCertData)

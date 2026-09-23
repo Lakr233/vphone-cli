@@ -181,7 +181,7 @@ public enum CFWSeputil {
             throw PatcherError.fileNotFound(url.path)
         }
         log?("  [.] \(url.path)")
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let outcome = try patch(&data, dryRun: dryRun, reattest: reattest, log: log)
         if outcome.verdict == .patched {
             try data.write(to: url)

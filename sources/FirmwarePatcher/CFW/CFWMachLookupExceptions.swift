@@ -65,7 +65,7 @@ public enum CFWMachLookupExceptions {
     public static func merge(at url: URL, verbose: Bool = true) throws -> Outcome {
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try Data(contentsOfFileToRewrite: url)
         } catch {
             throw PatcherError.fileNotFound(url.path)
         }

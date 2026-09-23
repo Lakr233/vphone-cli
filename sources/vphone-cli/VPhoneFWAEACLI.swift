@@ -73,7 +73,8 @@ struct VPhoneFWIM4PCreateCommand: ParsableCommand {
 
     func run() throws {
         let im4p = try IM4P(
-            fourcc: fourcc, description: version, payload: Data(contentsOf: file)
+            fourcc: fourcc, description: version,
+            payload: Data(contentsOf: file, options: .mappedIfSafe)
         )
         try im4p.data.write(to: output)
     }

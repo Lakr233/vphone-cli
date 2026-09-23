@@ -190,7 +190,7 @@ public enum CFWCacheLoaderPatcher {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let report = try patch(
             &data,
             dryRun: dryRun,

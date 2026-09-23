@@ -139,7 +139,7 @@ public enum CFWInjectDylib {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let injections = try inject(
             dylibPath: dylibPath,
             into: &data,

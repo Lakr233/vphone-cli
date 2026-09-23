@@ -18,8 +18,8 @@ public struct VPhoneLaunchLayout: Sendable {
         guard fm.fileExists(atPath: vphoned.path) else { return false }
         let dst = bundle.url.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: dst.path),
-           let a = try? Data(contentsOf: vphoned),
-           let b = try? Data(contentsOf: dst), a == b {
+           let a = try? Data(contentsOf: vphoned, options: .mappedIfSafe),
+           let b = try? Data(contentsOf: dst, options: .mappedIfSafe), a == b {
             return false
         }
         if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }

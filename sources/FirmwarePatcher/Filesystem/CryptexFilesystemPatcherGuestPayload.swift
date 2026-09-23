@@ -28,10 +28,11 @@ extension CryptexFilesystemPatcher {
         let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
         return VPhoneSignOptions(
             identifier: identifier,
-            entitlements: try entitlements.map { try Data(contentsOf: $0) },
+            entitlements: try entitlements.map { try Data(contentsOf: $0, options: .mappedIfSafe) },
             mergesExisting: true,
             identity: try VPhoneSignIdentity(
-                pkcs12: Data(contentsOf: signingCertificatePath), password: ""
+                pkcs12: Data(contentsOf: signingCertificatePath, options: .mappedIfSafe),
+                password: ""
             )
         )
     }

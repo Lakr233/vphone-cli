@@ -363,10 +363,8 @@ public final class DSCChunkSet {
         guard !needle.isEmpty else { return [] }
         var results: [UInt64] = []
         for mapping in mappings where mapping.isExecutable {
-            let buffer = try Self.read(
-                url: mapping.chunkURL,
-                offset: mapping.fileOffset,
-                length: Int(mapping.size)
+            let buffer = try Self.window(
+                over: mapping, at: mapping.fileOffset, length: Int(mapping.size)
             )
             var searchFrom = buffer.startIndex
             while searchFrom < buffer.endIndex,
@@ -398,9 +396,9 @@ public final class DSCChunkSet {
         let scanLength = min(localOffset, maxWalk)
         let scanStart = localOffset - scanLength
         // +4 so a header sitting right at the scan's end is still matched.
-        let buffer = try Self.read(
-            url: mapping.chunkURL,
-            offset: mapping.fileOffset &+ UInt64(scanStart),
+        let buffer = try Self.window(
+            over: mapping,
+            at: mapping.fileOffset &+ UInt64(scanStart),
             length: scanLength + 4
         )
         var searchEnd = buffer.endIndex
@@ -513,11 +511,40 @@ public final class DSCChunkSet {
         }
     }
 
+    /// A bounded read: a seek and a copy of `length` bytes.
+    ///
+    /// Right for the small reads — a load command, a page, a run of a few
+    /// kilobytes. Wrong for a whole mapping; use `window(over:)` for those.
     static func read(url: URL, offset: UInt64, length: Int) throws -> Data {
         guard length > 0 else { return Data() }
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         try handle.seek(toOffset: offset)
         return try handle.read(upToCount: length) ?? Data()
+    }
+
+    /// A whole mapping, as a slice of the MAPPED chunk file.
+    ///
+    /// The scans — `findStringVMAs` over every executable mapping,
+    /// `findMachOHeaderBefore` walking back up to 64 MB — used `read` for this,
+    /// which copied the mapping into the heap: an executable mapping is around
+    /// 130 MB and there are two dozen of them, so one string search cost 3.3 GB
+    /// of resident memory and a test run that did a few in a row took the
+    /// machine down.
+    ///
+    /// A slice of a mapping is not a copy. The bytes fault in as the scan walks
+    /// them and the kernel evicts them again behind it, so the same search
+    /// costs a working set rather than the whole cache.
+    ///
+    /// The returned slice keeps the mapping alive for as long as it is held,
+    /// and its `startIndex` is NOT zero — every caller here already works in
+    /// terms of `buffer.startIndex`, which is what makes that safe.
+    static func window(over mapping: Mapping, at offset: UInt64, length: Int) throws -> Data {
+        guard length > 0 else { return Data() }
+        let file = try Data(contentsOf: mapping.chunkURL, options: .mappedIfSafe)
+        let lower = file.startIndex + Int(offset)
+        guard lower <= file.endIndex else { return Data() }
+        let upper = min(file.endIndex, lower + length)
+        return file[lower ..< upper]
     }
 }

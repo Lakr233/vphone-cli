@@ -151,7 +151,7 @@ public enum CFWMobileactivationd {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let before = data
         let report = try patch(&data, resign: resign, dryRun: dryRun, log: log)
 

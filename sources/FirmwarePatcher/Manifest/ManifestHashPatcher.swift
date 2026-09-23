@@ -103,7 +103,14 @@ public final class ManifestHashPatcher: Patcher {
                 throw FirmwareManifest.ManifestError.missingKey("Path in build identity component info")
             }
             
-            let componentData = try Data(contentsOf: restoreDir.appendingPathComponent(path))
+            // Mapped, not read. This loop hashes every component the build
+            // identity names, and that list includes `OS` — the filesystem
+            // DMG, which is ten gigabytes. Reading it meant holding all of it
+            // while SHA384 walked it; mapping means the kernel pages it in
+            // ahead of the hash and evicts behind it.
+            let componentData = try Data(
+                contentsOf: restoreDir.appendingPathComponent(path), options: .mappedIfSafe
+            )
             let finalData = try patchIm4pTypeTag(comp, info["Img4PayloadType"] as? String, componentData)
             let shaHash = SHA384.hash(data: finalData)
             dict["Digest"] = Data(shaHash)

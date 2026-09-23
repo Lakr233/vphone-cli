@@ -89,11 +89,15 @@ struct VPhoneSignCommand: ParsableCommand {
     func run() throws {
         var options = VPhoneSignOptions()
         options.identifier = identifier
-        options.entitlements = try entitlements.map { try Data(contentsOf: $0) }
+        options.entitlements = try entitlements.map {
+            try Data(contentsOf: $0, options: .mappedIfSafe)
+        }
         options.mergesExisting = merge
         options.style = appleAdHoc ? .appleAdHoc : .ldid
         if let pkcs12 {
-            options.identity = try VPhoneSignIdentity(pkcs12: Data(contentsOf: pkcs12), password: "")
+            options.identity = try VPhoneSignIdentity(
+                pkcs12: Data(contentsOf: pkcs12, options: .mappedIfSafe), password: ""
+            )
         }
         try VPhoneSigner.sign(fileAt: file, options: options)
     }

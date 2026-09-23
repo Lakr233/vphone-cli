@@ -73,7 +73,7 @@ public enum VPhoneRestoreBridge {
         )
 
         let written = try locateWrittenSHSH(under: cacheDirectory, requestedECID: ecid)
-        let onDisk = try Data(contentsOf: written)
+        let onDisk = try Data(contentsOf: written, options: .mappedIfSafe)
         let contents = try VPhoneRestoreTicket.plistData(of: onDisk, at: written)
 
         // Python named the file after the ECID the DEVICE reported, not the one

@@ -74,7 +74,7 @@ public enum CFWPostRestoreDeviceTree {
     ) throws -> Outcome {
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try Data(contentsOfFileToRewrite: url)
         } catch {
             throw PatcherError.fileNotFound(url.path)
         }

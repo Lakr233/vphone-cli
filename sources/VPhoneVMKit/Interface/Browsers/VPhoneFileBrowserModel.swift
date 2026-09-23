@@ -218,7 +218,9 @@ class VPhoneFileBrowserModel {
         var uploadError: String?
         for url in urls {
             let name = url.lastPathComponent
-            guard let data = try? Data(contentsOf: url) else {
+            // Mapped: this is a drag-and-drop target, so the size is the
+            // user's choice and the transfer chunks it anyway.
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
                 uploadError = "Could not read \"\(name)\" from disk."
                 break
             }

@@ -193,7 +193,7 @@ public enum CFWJetsamPatcher {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let outcome = try patch(&data, dryRun: dryRun, reattest: reattest, log: log)
         if !dryRun, outcome.verdict == .patched {
             try data.write(to: url)

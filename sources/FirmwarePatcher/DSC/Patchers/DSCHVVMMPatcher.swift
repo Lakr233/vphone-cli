@@ -566,7 +566,7 @@ public enum DSCHVVMMPatcher {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
         }
-        var data = try Data(contentsOf: url)
+        var data = try Data(contentsOfFileToRewrite: url)
         let sites = try findStringSites(inMachO: data)
         guard !sites.isEmpty else {
             if isAlreadyMangled(data) {
