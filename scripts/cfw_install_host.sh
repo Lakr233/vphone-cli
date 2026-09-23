@@ -46,9 +46,10 @@ IMG="$VM_DIR/Disk.img"
 [[ -f "$IMG" ]] || { echo "[-] no Disk.img at $IMG" >&2; exit 1; }
 
 # Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd).
-# No python entry: the installers call `vphone-cli cfw <verb>` for every patch,
-# and nothing they run comes out of the venv. VPHONE_PYTHON used to be prepended
-# here for the Python patchers and is no longer read by anything downstream.
+# No python entry, at either end: the installers call `vphone-cli cfw <verb>`
+# for every patch, and as of P2.4 there is no interpreter on this machine's
+# behalf to find. VPHONE_PYTHON used to be prepended here for the Python
+# patchers; nothing reads it downstream and `cfw install` no longer sets it.
 P="$PROJ/.tools/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH="$P"
 

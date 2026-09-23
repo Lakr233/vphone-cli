@@ -38,7 +38,7 @@ is 2,396 lines against 2,410 at the branch base.
 | **P0** | 455 lines of Python | ✅ **complete** |
 | P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
 | P0.5 | switch the archive call sites | ◐ **package side done, shell side not.** `FirmwarePatcher` has no `tar` calls left; `$TAR` in `cfw_install*.sh` and `cfw-kit/lib/common.sh` still finds `gtar` |
-| P0.5 | `VPhoneSign`, drop `ldid` | ◐ **bundle clean.** `--use-ldid` (`VPhoneSignLdid.swift:27`) and the shell's own `ldid` lookups remain |
+| P0.5 | `VPhoneSign`, drop `ldid` | ◐ **Swift side done.** `--use-ldid` and `VPhoneSignLdid.swift` deleted at `a779f4e`; the tests compare against frozen ldid digests rather than a live one. `cfw-kit` and the Makefile still look `ldid` up on `PATH` |
 | P0.5 | admission gates 1–3 | ✅ `make check-aux`; gate 1 now passes |
 | **P1.0–1.5** | CFW patchers | ✅ **complete** — `scripts/patchers/` deleted at `d90371a`, 26 files / 6,539 lines into 24 `vphone-cli cfw` verbs |
 | **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `research/p2_dfu_spike.md` |

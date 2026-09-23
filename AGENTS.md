@@ -96,7 +96,7 @@ sources/
 │   ├── VPhoneCodeSignature.swift     # SuperBlob / CodeDirectory construction
 │   ├── VPhoneSignEntitlements.swift  # Entitlements plist blob (+ …Reader for reading one back)
 │   ├── VPhoneSignDER.swift           # The DER entitlements blob
-│   └── VPhoneSignLdid.swift          # The `--use-ldid` escape hatch; last ldid site in Swift
+│   └── VPhoneMachOImage.swift        # Slice parsing. ARM only — an x86 slice is refused
 │
 ├── MobileRecoveryCore/               # libirecovery 1.3.1, vendored C. IOKit USB, not libusb
 │   ├── libirecovery.c                # Upstream's bytes, unmodified

@@ -12,34 +12,33 @@ struct VPhoneSignEntitlementsTests {
     /// `ldid -e`, which the installers use a dozen times over to carry a
     /// binary's entitlements across a re-sign. It prints each slice's blob
     /// one after another, so a fat file prints several and a file with none
-    /// prints nothing.
+    /// prints nothing — `e3b0c442…b855` in the table is the digest of the
+    /// empty string, which is what ldid prints for a file carrying none.
+    ///
+    /// The seeded fixtures carry the interesting cases: a long sandbox profile
+    /// in a `<data>`, arrays, and the integers.
     @Test("dump matches ldid -e byte for byte")
     func dumpMatchesLdid() throws {
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
-        // the ones with entitlements carry the interesting cases: a long
-        // sandbox profile in a <data>, arrays, integers, and several slices
-        let corpus = VPhoneSignLdidHarness.carryingEntitlements
-            .filter { FileManager.default.fileExists(atPath: $0) }
-            .map { URL(fileURLWithPath: $0) } + VPhoneSignLdidHarness.corpus
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         var withEntitlements = 0
         for source in corpus {
-            let theirs = try VPhoneSignLdidHarness.run(ldid, ["-e", source.path]).out
-            let ours = try VPhoneSigner.entitlements(ofFileAt: source)
-                .reduce(Data(), +)
-            #expect(theirs == ours, "\(source.lastPathComponent): \(theirs.count) vs \(ours.count) bytes")
-            if !theirs.isEmpty { withEntitlements += 1 }
+            let name = source.lastPathComponent
+            let ours = try VPhoneSigner.entitlements(ofFileAt: source).reduce(Data(), +)
+            try VPhoneSignFixtures.expect("\(name).dump", matches: ours)
+            if !ours.isEmpty { withEntitlements += 1 }
         }
-        #expect(withEntitlements > 0, "nothing in the corpus had entitlements, so nothing was compared")
+        #expect(withEntitlements >= 7, "only \(withEntitlements) fixtures had entitlements to print")
     }
 
     @Test("a file this signed reads back the entitlements it was given")
     func roundTrip() throws {
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = try VPhoneSignLdidHarness.copy(source, into: directory, as: "binary")
         let plist = VPhoneSignParityTests.sampleEntitlements
-        try VPhoneSigner.sign(fileAt: file, options: .init(identifier: "binary", entitlements: plist))
+        let file = try VPhoneSignFixtures.sign(
+            try VPhoneSignFixtures.url("hello-arm64"), in: directory, entitlements: plist
+        )
 
         let read = try VPhoneSigner.entitlements(ofFileAt: file)
         let slices = try VPhoneSignBlobs(fileAt: file).slices.count
@@ -118,9 +117,9 @@ struct VPhoneSignEntitlementsTests {
 
     // MARK: - <integer>, which is where the reader was wrong
 
-    /// Every spelling of an `<integer>` that ldid takes, compared against the
-    /// blobs ldid writes for it rather than against what this signer thinks
-    /// it should write.
+    /// Every spelling of an `<integer>` that ldid takes, compared against what
+    /// ldid wrote for it rather than against what this signer thinks it should
+    /// write.
     ///
     /// This is the test that was missing. The reader used to accept only a
     /// positive decimal, justified by a comment saying ldid's DER "cannot
@@ -128,7 +127,14 @@ struct VPhoneSignEntitlementsTests {
     /// asserting `<integer>0</integer>` must be refused, without ever asking
     /// ldid. ldid spells zero `020100` and minus one `0208ffffffffffffffff`,
     /// and `/usr/sbin/spindump` ships a zero, so the production path failed
-    /// on real input while the tests stayed green.
+    /// on real input while the tests stayed green. `seeded-spindump` carries
+    /// that array now.
+    ///
+    /// The whole file is what is frozen, because a difference in either blob
+    /// moves every CDHash with it and so shows up here anyway. Slot 5 is the
+    /// XML the next `-M` reads back and slot 7 the DER AMFI reads; both are
+    /// asserted present, since a signature that wrote neither would have
+    /// nothing to disagree about.
     @Test(
         "every <integer> ldid takes is carried the way ldid carries it",
         arguments: [
@@ -155,46 +161,28 @@ struct VPhoneSignEntitlementsTests {
         ]
     )
     func integerSpellingsMatchLdid(_ spelling: String) throws {
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let plist = Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict><key>k</key><integer>\(spelling)</integer></dict></plist>
         """.utf8)
-        let file = directory.appendingPathComponent("entitlements.plist")
-        try plist.write(to: file)
-
-        let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: "binary")
-        let result = try VPhoneSignLdidHarness.run(ldid, ["-S\(file.path)", theirs.path])
-        #expect(result.status == 0, "ldid refused <integer>\(spelling)</integer>: \(result.error)")
-
-        let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-binary")
-        try VPhoneSigner.sign(fileAt: ours, options: .init(identifier: "binary", entitlements: plist))
-
-        // the whole file, since a difference in either blob moves every
-        // CDHash with it; the two blobs are then named individually, because
-        // the DER drops the sign and the XML keeps it, so a reader that got
-        // one right could still have the other wrong
-        let whole = try Data(contentsOf: theirs), oursWhole = try Data(contentsOf: ours)
-        #expect(
-            whole == oursWhole,
-            "<integer>\(spelling)</integer>: \(VPhoneSignLdidHarness.difference(whole, oursWhole))"
+        // `binary` is the identifier these rows were frozen under; see the
+        // regeneration note in VPhoneSignFixtures
+        let ours = try VPhoneSignFixtures.sign(
+            try VPhoneSignFixtures.url("hello-arm64"),
+            in: directory,
+            identifier: "binary",
+            entitlements: plist
         )
-        let left = try VPhoneSignBlobs(fileAt: theirs), right = try VPhoneSignBlobs(fileAt: ours)
-        #expect(left.slices.count == right.slices.count)
-        for (index, pair) in zip(left.slices, right.slices).enumerated() {
-            // slot 5 is the XML the next `-M` reads back, slot 7 the DER AMFI reads
+        try VPhoneSignFixtures.expect("integer.\(spelling)", matches: Data(contentsOf: ours))
+
+        for (index, slice) in try VPhoneSignBlobs(fileAt: ours).slices.enumerated() {
             for slot in [UInt32(5), 7] {
-                #expect(pair.0[slot] != nil, "ldid wrote no slot \(slot)")
                 #expect(
-                    pair.0[slot] == pair.1[slot],
-                    """
-                    <integer>\(spelling)</integer> slice \(index) slot \(slot): \
-                    \(VPhoneSignLdidHarness.difference(pair.0[slot] ?? Data(), pair.1[slot] ?? Data()))
-                    """
+                    slice[slot] != nil,
+                    "<integer>\(spelling)</integer> slice \(index): no slot \(slot)"
                 )
             }
         }
@@ -205,8 +193,12 @@ struct VPhoneSignEntitlementsTests {
     /// different things from what the file said.
     ///
     /// ldid refuses both of these itself — `der(plist_t)` answers "Invalid
-    /// plist entry type" and exits 1 for `PLIST_REAL` and `PLIST_DATE` — so
-    /// the claim is checked against ldid here rather than asserted.
+    /// plist entry type" for `PLIST_REAL` and `PLIST_DATE`. That was checked
+    /// against the installed ldid when the frozen table was taken: both exit 1
+    /// and print `ldid: Invalid plist entry type`, so neither has a row in the
+    /// table and refusing them is agreement, not divergence. It is a frozen
+    /// observation for the same reason every other row is — running ldid to
+    /// re-confirm it would put the dependency back.
     @Test(
         "what ldid's DER has no room for is refused, as ldid refuses it",
         arguments: ["<date>2020-01-01T00:00:00Z</date>", "<real>1.5</real>"]
@@ -219,16 +211,6 @@ struct VPhoneSignEntitlementsTests {
         #expect(throws: VPhoneSignError.self) {
             _ = try VPhoneSignEntitlements(xml: plist)
         }
-
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let file = directory.appendingPathComponent("entitlements.plist")
-        try plist.write(to: file)
-        let binary = try VPhoneSignLdidHarness.copy(source, into: directory, as: "binary")
-        let result = try VPhoneSignLdidHarness.run(ldid, ["-S\(file.path)", binary.path])
-        #expect(result.status != 0, "ldid accepted \(value), so refusing it is wrong")
     }
 
     /// The spellings the two libplists read differently.

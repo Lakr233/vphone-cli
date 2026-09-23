@@ -11,40 +11,31 @@ import Testing
 /// is also the only bar that carries: the device this signs for runs an AMFI
 /// this project patched, and what that accepts cannot be re-derived from
 /// first principles. It accepts ldid's bytes.
+///
+/// ldid is not run here. Every expectation is a digest frozen in
+/// `VPhoneSignFixtures`, taken from the real ldid over the committed fixtures;
+/// the header of that file says how to re-derive them and why they are frozen
+/// rather than compared live.
 @Suite("VPhoneSign is byte-identical to ldid")
 struct VPhoneSignParityTests {
-    private var ldid: URL {
-        get throws {
-            try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed; install ldid-procursus to run the parity gate")
-        }
-    }
-
     // MARK: - Ad-hoc, which is nearly every call
 
     @Test("ldid -S")
     func adHoc() throws {
-        let ldid = try ldid
-        let corpus = VPhoneSignLdidHarness.corpus
+        let corpus = try VPhoneSignFixtures.fixtures
         // a corpus that shrank to nothing would make every one of these pass
-        #expect(corpus.count >= 10, "only \(corpus.count) files: too few to say anything")
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         #expect(
             corpus.contains { (try? Data(contentsOf: $0).prefix(4)) == Data([0xCA, 0xFE, 0xBA, 0xBE]) },
             "no fat binary in the corpus"
         )
         for source in corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S", theirs.path])
-            #expect(result.status == 0, "ldid -S \(name): \(result.error)")
-
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(identifier: name))
-
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
+            let ours = try VPhoneSignFixtures.sign(source, in: directory)
+            try VPhoneSignFixtures.expect("\(name).adhoc", matches: Data(contentsOf: ours))
         }
     }
 
@@ -52,136 +43,131 @@ struct VPhoneSignParityTests {
 
     @Test("ldid -S<entitlements>")
     func entitlements() throws {
-        let ldid = try ldid
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
+        for source in corpus {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
-            let plist = directory.appendingPathComponent("entitlements.plist")
-            try Self.sampleEntitlements.write(to: plist)
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S\(plist.path)", theirs.path])
-            #expect(result.status == 0, "ldid -S<ent> \(name): \(result.error)")
-
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, entitlements: Self.sampleEntitlements
-            ))
-
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, entitlements: Self.sampleEntitlements
+            )
+            try VPhoneSignFixtures.expect("\(name).entitlements", matches: Data(contentsOf: ours))
         }
     }
 
-    /// `-M` over a list written for the occasion, so that the merge itself is
-    /// pinned: a key replaced where it stood and a key appended after it,
-    /// which a system binary's own entitlements cannot be relied on to
-    /// contain. The unseeded case — a binary's own list, which is what the
-    /// installers actually merge over — is `mergedWithoutAFile` and
-    /// `mergedOverOwnEntitlements`.
+    /// `-M` over a signature this signer did not write.
+    ///
+    /// The seeded fixtures arrive already signed by ldid, each carrying one
+    /// real daemon's real entitlements, so the merge's starting point is
+    /// nothing anybody here composed. The five `hello-*` files carry none,
+    /// which is the other half of the claim: over them the merge has to be a
+    /// no-op and land exactly where `ldid -S<ent>` lands.
     @Test("ldid -S<entitlements> -M over a seeded signature")
     func merged() throws {
-        let ldid = try ldid
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
+        var seeded = 0
+        for source in corpus {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
+            if try VPhoneSigner.entitlements(ofFileAt: source).contains(where: { !$0.isEmpty }) {
+                seeded += 1
+            }
 
-            // give the file entitlements to merge over, with ldid, so the
-            // starting point is not this signer's own work
-            let seed = directory.appendingPathComponent("seed.plist")
-            try Self.seedEntitlements.write(to: seed)
-            let seeded = try VPhoneSignLdidHarness.copy(source, into: directory, as: "seeded-\(name)")
-            _ = try VPhoneSignLdidHarness.run(ldid, ["-S\(seed.path)", seeded.path])
-
-            let plist = directory.appendingPathComponent("entitlements.plist")
-            try Self.sampleEntitlements.write(to: plist)
-
-            let theirs = try VPhoneSignLdidHarness.copy(seeded, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S\(plist.path)", "-M", theirs.path])
-            #expect(result.status == 0, "ldid -S<ent> -M \(name): \(result.error)")
-
-            let ours = try VPhoneSignLdidHarness.copy(seeded, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, entitlements: Self.sampleEntitlements, mergesExisting: true
-            ))
-
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true
+            )
+            try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
         }
+        // a corpus of files with nothing to merge merges nothing and passes
+        #expect(seeded >= 7, "only \(seeded) fixtures arrived carrying entitlements to merge over")
     }
 
     /// `ldid_sign` in `cfw_install*.sh` is `-S -M` with no entitlements file
     /// at all: whatever the binary already had is re-serialised and kept.
     ///
-    /// The file is signed as it came off disk, with no fixture written over
-    /// it first. That is the whole point. Seeding a binary with an
-    /// author-written plist makes the merge input a list this signer is
+    /// The merge input is entitlement XML nobody here wrote. That is the whole
+    /// point, and it is why the seeded fixtures carry seven real daemons'
+    /// lists rather than something composed for the occasion. Seeding a binary
+    /// with an author-written plist makes the merge input a list this signer is
     /// already known to read, which is how twenty-eight green tests once sat
     /// beside a production path that aborted on `/usr/sbin/spindump` — its
-    /// `<integer>0</integer>` was a shape the fixtures never had. What the
-    /// firmware's own binaries carry is the only input this has to survive.
+    /// `com.apple.trial.status.deployment-environment.allow` is
+    /// `<array><integer>0</integer></array>`, and `<integer>0</integer>` was a
+    /// shape the fixtures never had. `seeded-spindump` carries that array now,
+    /// `seeded-promotedcontentd` a value above `Int32.max`,
+    /// `seeded-runningboardd` two different ones and
+    /// `seeded-sysdiagnose_helper` six.
     @Test("ldid -S -M over a binary's own entitlements, which is what cfw_install calls")
     func mergedWithoutAFile() throws {
-        let ldid = try ldid
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         var merged = 0
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        for source in corpus {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
+            let carries = try VPhoneSigner.entitlements(ofFileAt: source).contains { !$0.isEmpty }
+            if carries { merged += 1 }
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S", "-M", theirs.path])
-            #expect(result.status == 0, "ldid -S -M \(name): \(result.error)")
+            let ours = try VPhoneSignFixtures.sign(source, in: directory, mergesExisting: true)
+            try VPhoneSignFixtures.expect("\(name).mergeOwn", matches: Data(contentsOf: ours))
 
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(identifier: name, mergesExisting: true))
-
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
-            if try VPhoneSigner.entitlements(ofFileAt: source).isEmpty == false {
-                merged += 1
+            // and where there was something to carry across, carrying it
+            // across has to have changed the result — otherwise a merge that
+            // dropped the existing list would match a frozen digest of nothing
+            if carries {
+                #expect(
+                    VPhoneSignFixtures.expected["\(name).mergeOwn"]
+                        != VPhoneSignFixtures.expected["\(name).adhoc"],
+                    "\(name): ldid's -S -M and its -S agree, so the merge carried nothing"
+                )
             }
         }
         // a corpus of files with no entitlements merges nothing and passes
-        #expect(merged >= 8, "only \(merged) files carried entitlements to merge")
+        #expect(merged >= 7, "only \(merged) files carried entitlements to merge")
     }
 
     /// The same, with an entitlements file on top: `ldid -S<ent> -M <file>`
     /// over what the binary already carried, which is what the installers
     /// run when they add a key rather than only re-sign.
+    ///
+    /// It runs over the seeded seven alone, where "the binary's own" means
+    /// something. Its sibling `merged` covers the same verb over the whole
+    /// corpus; what this adds is the guard that every one of the seven really
+    /// did arrive with a list, and that merging over it is not the same as
+    /// replacing it.
     @Test("ldid -S<entitlements> -M over a binary's own entitlements")
     func mergedOverOwnEntitlements() throws {
-        let ldid = try ldid
-        var merged = 0
-        for path in VPhoneSignLdidHarness.carryingEntitlements
-            where FileManager.default.fileExists(atPath: path)
-        {
-            merged += 1
-            let source = URL(fileURLWithPath: path)
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let seeded = try VPhoneSignFixtures.seeded
+        // Without this the loop body can never run and the test passes having
+        // compared nothing. Its sibling `mergedWithoutAFile` carries the same
+        // guard.
+        #expect(seeded.count >= 7, "only \(seeded.count) seeded fixtures")
+        for source in seeded {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
-            let plist = directory.appendingPathComponent("entitlements.plist")
-            try Self.sampleEntitlements.write(to: plist)
+            #expect(
+                try VPhoneSigner.entitlements(ofFileAt: source).contains { !$0.isEmpty },
+                "\(name) carries no entitlements, so there is nothing here to merge over"
+            )
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S\(plist.path)", "-M", theirs.path])
-            #expect(result.status == 0, "ldid -S<ent> -M \(name): \(result.error)")
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true
+            )
+            try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
 
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, entitlements: Self.sampleEntitlements, mergesExisting: true
-            ))
-
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
+            // merging is not replacing: ldid's own two answers differ
+            #expect(
+                VPhoneSignFixtures.expected["\(name).mergeSample"]
+                    != VPhoneSignFixtures.expected["\(name).entitlements"],
+                "\(name): ldid's -S<ent> -M and its -S<ent> agree, so the merge dropped the existing list"
+            )
         }
-        // Without this the loop body can never run — every path missing on
-        // some future macOS — and the test passes having compared nothing.
-        // Its sibling `mergedWithoutAFile` carries the same guard.
-        #expect(merged >= 8, "only \(merged) of the entitlement-carrying binaries exist here")
     }
 
     /// `-I`, which a handful of call sites use to sign under an Apple
@@ -189,21 +175,44 @@ struct VPhoneSignParityTests {
     /// name.
     @Test("ldid -I<identifier>")
     func explicitIdentifier() throws {
-        let ldid = try ldid
-        for source in VPhoneSignLdidHarness.corpus.prefix(4) {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
+        for source in corpus {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S", "-Icom.apple.seputil", theirs.path])
-            #expect(result.status == 0, "ldid -I \(name): \(result.error)")
+            let ours = try VPhoneSignFixtures.sign(source, in: directory, identifier: "com.apple.seputil")
+            try VPhoneSignFixtures.expect("\(name).identifier", matches: Data(contentsOf: ours))
+        }
+    }
 
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(identifier: "com.apple.seputil"))
+    /// The default `-I`: with no identifier set, `VPhoneSigner.sign(fileAt:)`
+    /// takes the file's own name, as ldid does.
+    ///
+    /// Every assertion in this file pins the identifier through
+    /// `VPhoneSignFixtures.sign(_:in:…)`, precisely so that no frozen digest
+    /// depends on what a temporary copy was called. That leaves one line of
+    /// production logic — `options.identifier ?? url.lastPathComponent` —
+    /// covered by nothing, so it is covered here, and structurally: the name
+    /// is read back out of the CodeDirectory rather than compared to a digest.
+    @Test("an unset identifier defaults to the file's name, as ldid does")
+    func identifierDefaultsToTheFileName() throws {
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // deliberately not the fixture's name: the claim is that the signer
+        // reads the name off the file it was handed
+        let name = "named-for-this-test"
+        let file = try VPhoneSignFixtures.copy(
+            try VPhoneSignFixtures.url("hello-arm64"), into: directory, as: name
+        )
+        try VPhoneSigner.sign(fileAt: file)
 
-            let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
-            #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
+        let slices = try VPhoneSignBlobs(fileAt: file).slices
+        #expect(!slices.isEmpty, "nothing was signed")
+        for (index, slice) in slices.enumerated() {
+            let blob = try #require(slice[0], "slice \(index) has no CodeDirectory")
+            #expect(VPhoneSignBlobs.identifier(ofCodeDirectory: blob) == name, "slice \(index)")
         }
     }
 
@@ -211,14 +220,14 @@ struct VPhoneSignParityTests {
     /// would produce a different image every time.
     @Test("signing an already-signed file is idempotent")
     func idempotent() throws {
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        for source in try VPhoneSignFixtures.fixtures {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
-            let file = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
+            let file = try VPhoneSignFixtures.copy(source, into: directory, as: name)
             let once = try VPhoneSigner.sign(fileAt: file, options: .init(identifier: name))
             let twice = try VPhoneSigner.sign(fileAt: file, options: .init(identifier: name))
-            #expect(once == twice, "\(name): \(VPhoneSignLdidHarness.difference(once, twice))")
+            #expect(once == twice, "\(name): \(VPhoneSignFixtures.difference(once, twice))")
         }
     }
 
@@ -231,6 +240,10 @@ struct VPhoneSignParityTests {
     /// bytes in the DER and two different strings in the XML; `0` is one zero
     /// byte and not an empty INTEGER. A fixture whose only integer was `42`
     /// is what let the reader ship taking positive decimals only.
+    ///
+    /// These exact bytes are what ldid was given when the `.entitlements` and
+    /// `.mergeSample` rows of the frozen table were taken. Changing a
+    /// character here invalidates both columns.
     static let sampleEntitlements = Data("""
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -268,23 +281,6 @@ struct VPhoneSignParityTests {
     \t\t<integer>128</integer>
     \t\t<integer>9223372036854775808</integer>
     \t</array>
-    </dict>
-    </plist>
-
-    """.utf8)
-
-    /// A different set, so a merge that silently dropped one side would show.
-    static let seedEntitlements = Data("""
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    <plist version="1.0">
-    <dict>
-    \t<key>com.apple.private.cs.debugger</key>
-    \t<true/>
-    \t<key>an-existing-key</key>
-    \t<string>kept</string>
-    \t<key>get-task-allow</key>
-    \t<false/>
     </dict>
     </plist>
 

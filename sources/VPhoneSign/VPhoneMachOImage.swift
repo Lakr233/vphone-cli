@@ -52,6 +52,11 @@ struct VPhoneMachOImage {
     // MARK: Parsing
 
     /// Parses the slice at `range` of `file`.
+    /// What `init` accepts. `CPU_TYPE_ARM` is 32-bit and cannot get past the
+    /// MH_MAGIC_64 check above it; it is here so the set reads as "ARM",
+    /// rather than as a list someone has to work out the gaps in.
+    static let armCPUTypes: Set<cpu_type_t> = [CPU_TYPE_ARM, CPU_TYPE_ARM64, CPU_TYPE_ARM64_32]
+
     init(file: Data, range: Range<Int>) throws {
         guard file.holds(range.lowerBound, range.count), range.count >= Self.headerSize else {
             throw VPhoneSignError.malformed("slice at \(range.lowerBound) runs past the end of the file")
@@ -68,6 +73,19 @@ struct VPhoneMachOImage {
         self.range = range
         self.image = image
         cpuType = cpu_type_t(bitPattern: image.littleEndianValue(at: 4) as UInt32)
+        // ARM only, deliberately. Everything this signs is either a guest
+        // binary — iOS arm64, out of an IPSW — or one of this project's own
+        // host products, which are arm64 because the host has to be an Apple
+        // silicon Mac to run a virtual iPhone at all. An x86 slice reaching
+        // here is a file that came from somewhere unexpected, and signing it
+        // on a guess is worse than saying so: page size, the `__LINKEDIT`
+        // alignment and the deployment-target load commands all differ, and
+        // none of that is exercised by anything.
+        guard Self.armCPUTypes.contains(cpuType) else {
+            throw VPhoneSignError.unsupportedSlice(
+                "slice at \(range.lowerBound) is cputype \(cpuType); this signer is ARM only"
+            )
+        }
         fileType = image.littleEndianValue(at: 12)
         commandCount = image.littleEndianValue(at: 16)
         commandsSize = Int(image.littleEndianValue(at: 20) as UInt32)
@@ -207,12 +225,10 @@ struct VPhoneMachOImage {
             default:
                 return [.sha1, .sha256]
             }
-        case UInt32(LC_VERSION_MIN_MACOSX):
-            guard size >= MemoryLayout<version_min_command>.size else {
-                throw VPhoneSignError.malformed("LC_VERSION_MIN_MACOSX is \(size) bytes")
-            }
-            let (major, minor) = version(image.littleEndianValue(at: start + 8))
-            return major >= 10 && minor >= 12 ? [.sha256] : [.sha1, .sha256]
+        // LC_VERSION_MIN_MACOSX is not read. It is the load command that
+        // predates LC_BUILD_VERSION, and arm64 macOS starts at 11.0, which is
+        // years after the changeover — so on an ARM-only signer the pair
+        // (this command, a slice we accept) does not occur.
         case UInt32(LC_VERSION_MIN_IPHONEOS), UInt32(LC_VERSION_MIN_TVOS):
             guard size >= MemoryLayout<version_min_command>.size else {
                 throw VPhoneSignError.malformed("a version command is \(size) bytes")
@@ -282,13 +298,9 @@ struct VPhoneMachOImage {
 
     /// The alignment ldid rounds `__LINKEDIT`'s vmsize to: the slice's own
     /// in a fat file, and in a thin one what it takes the CPU's page to be.
-    var linkeditAlignment: Int {
-        switch cpuType {
-        case CPU_TYPE_ARM, CPU_TYPE_ARM64, CPU_TYPE_ARM64_32: 14
-        case CPU_TYPE_X86, CPU_TYPE_X86_64, CPU_TYPE_POWERPC, CPU_TYPE_POWERPC64: 12
-        default: 0
-        }
-    }
+    /// ldid's table has an entry per CPU; only the ARM one can be reached
+    /// here, because `init` refuses everything else.
+    var linkeditAlignment: Int { 14 }
 
     // MARK: Rewriting
 

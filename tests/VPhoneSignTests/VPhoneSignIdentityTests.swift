@@ -12,6 +12,10 @@ import Testing
 /// the CodeDirectory, and it is the only part that has to: everything AMFI
 /// seals is in there, and the CDHash is computed over it. The CMS is then
 /// held to a verifier nobody here wrote.
+///
+/// So what is frozen from ldid is the part that does not move — the blobs, in
+/// `VPhoneSignFixtures.expected`, and the two byte counts, in
+/// `expectedLengths`.
 @Suite("VPhoneSign signs with a PKCS#12")
 struct VPhoneSignIdentityTests {
     /// The certificate this repository signs its guest daemon with. It is
@@ -49,92 +53,86 @@ struct VPhoneSignIdentityTests {
     }
 
     /// The hard gate for `-K`: the CodeDirectories are ldid's, byte for byte.
+    ///
+    /// Slot 0 and slot 4096 are the two CodeDirectories; slot 2 is in the same
+    /// claim because under `-K` the designated requirement carries the leaf's
+    /// common name. A slot the table has no row for must not be written, and a
+    /// slot it has a row for must be — otherwise a signature missing a
+    /// CodeDirectory entirely would sail past a loop that only compares what
+    /// it finds.
     @Test("every CodeDirectory matches ldid -K")
     func codeDirectoriesMatchLdid() throws {
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
         let identity = try identity()
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let corpus = try VPhoneSignFixtures.fixtures
+        #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
+        var compared = 0
+        for source in corpus {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let result = try VPhoneSignLdidHarness.run(ldid, ["-S", "-M", "-K\(Self.p12.path)", theirs.path])
-            #expect(result.status == 0, "ldid -K \(name): \(result.error)")
-
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, mergesExisting: true, identity: identity
-            ))
-
-            let left = try VPhoneSignBlobs(fileAt: theirs), right = try VPhoneSignBlobs(fileAt: ours)
-            #expect(left.slices.count == right.slices.count, "\(name): different slice counts")
-            for (index, pair) in zip(left.slices, right.slices).enumerated() {
-                for slot in [UInt32(0), 0x1000] where pair.0[slot] != nil || pair.1[slot] != nil {
-                    #expect(
-                        pair.0[slot] == pair.1[slot],
-                        "\(name) slice \(index) slot 0x\(String(slot, radix: 16)): CodeDirectory differs"
-                    )
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, mergesExisting: true, identity: identity
+            )
+            for (index, slice) in try VPhoneSignBlobs(fileAt: ours).slices.enumerated() {
+                for slot in [UInt32(0), 2, 0x1000] {
+                    let key = "\(name).sealed.\(index).\(slot)"
+                    guard VPhoneSignFixtures.isFrozen(key) else {
+                        #expect(slice[slot] == nil, "\(key): ldid wrote no such blob, this signer did")
+                        continue
+                    }
+                    let blob = try #require(slice[slot], "\(key): ldid wrote this blob, this signer did not")
+                    try VPhoneSignFixtures.expect(key, matches: blob)
+                    compared += 1
                 }
-                // the designated requirement carries the leaf's common name
-                // under -K, so it is part of the same claim
-                #expect(pair.0[2] == pair.1[2], "\(name) slice \(index): requirements differ")
             }
         }
+        // every frozen row has to have been reached, or a corpus that lost a
+        // fixture — or a signature that lost a slice — compares less and passes
+        let frozen = VPhoneSignFixtures.expected.keys.count { $0.contains(".sealed.") }
+        #expect(compared == frozen, "compared \(compared) of the \(frozen) frozen CodeDirectory blobs")
     }
 
     /// The seal, checked by `codesign --verify`, which is an action and not
     /// the verbosity flag that `-d -vvv` turns out to be.
     ///
-    /// Both signers pass outright, entitlements or not: `codesign --verify`
-    /// exits 0 and prints "satisfies its Designated Requirement" for ldid's
-    /// output and for this one. An earlier note here said the DR clause fails
-    /// for both whenever entitlements are present, because ldid compiles a DR
-    /// naming a leaf that expired in 2018. That does not reproduce in any
-    /// configuration tried — `--verify` does not build a trust chain, so the
-    /// expiry never comes into it — so the run is asserted rather than only
-    /// compared against ldid's.
+    /// This signer passes outright, entitlements or not: `codesign --verify`
+    /// exits 0 and prints "satisfies its Designated Requirement". An earlier
+    /// note here said the DR clause fails whenever entitlements are present,
+    /// because ldid compiles a DR naming a leaf that expired in 2018. That
+    /// does not reproduce in any configuration tried — `--verify` does not
+    /// build a trust chain, so the expiry never comes into it.
+    ///
+    /// `/usr/bin/codesign` is the one system binary this suite still calls,
+    /// and it is called as a verifier rather than as a source of input.
     @Test("codesign --verify accepts the seal, with entitlements and without")
     func codesignVerifiesTheSeal() throws {
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
         let identity = try identity()
         let codesign = URL(fileURLWithPath: "/usr/bin/codesign")
-        // the corpus's first files carry no entitlements and
-        // `carryingEntitlements` is the half that does, which is the case the
-        // old note claimed was different
-        // Filter before the prefix, not after. The other order takes the first
-        // four names and *then* drops the missing ones, so a machine without
-        // one of lsd/sshd/trustd/pkd quietly shrinks the entitlement-carrying
-        // half — possibly to nothing — and the test still passes.
-        let entitled = VPhoneSignLdidHarness.carryingEntitlements
-            .filter { FileManager.default.fileExists(atPath: $0) }
-            .prefix(4)
-            .map { URL(fileURLWithPath: $0) }
-        #expect(entitled.count == 4, "expected four entitlement-carrying binaries, found \(entitled.count)")
-        let corpus = VPhoneSignLdidHarness.corpus.prefix(4) + entitled
+        let corpus = try VPhoneSignFixtures.fixtures
+        var entitled = 0
         for source in corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
+            if try VPhoneSigner.entitlements(ofFileAt: source).contains(where: { !$0.isEmpty }) {
+                entitled += 1
+            }
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            let seal = try VPhoneSignLdidHarness.run(ldid, ["-S", "-M", "-K\(Self.p12.path)", theirs.path])
-            #expect(seal.status == 0, "ldid -S -M -K \(name): \(seal.error)")
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, mergesExisting: true, identity: identity
-            ))
-
-            let mine = try VPhoneSignLdidHarness.run(codesign, ["--verify", "--no-strict", "-vvv", ours.path])
-            let theirsResult = try VPhoneSignLdidHarness.run(codesign, ["--verify", "--no-strict", "-vvv", theirs.path])
-            #expect(theirsResult.status == 0, "ldid's own output: \(theirsResult.error)")
-            #expect(mine.status == 0, "\(name): \(mine.error)")
-            #expect(mine.error.contains("valid on disk"), "\(name): \(mine.error)")
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, mergesExisting: true, identity: identity
+            )
+            let result = try VPhoneSignFixtures.run(codesign, ["--verify", "--no-strict", "-vvv", ours.path])
+            #expect(result.status == 0, "\(name): \(result.error)")
+            #expect(result.error.contains("valid on disk"), "\(name): \(result.error)")
             #expect(
-                mine.error.contains("satisfies its Designated Requirement"),
-                "\(name): ours [\(mine.error)] ldid [\(theirsResult.error)]"
+                result.error.contains("satisfies its Designated Requirement"),
+                "\(name): \(result.error)"
             )
         }
+        // the entitlement-carrying half is the case the old note claimed was
+        // different, so it has to be in the run
+        #expect(entitled >= 7, "only \(entitled) of the fixtures carried entitlements")
     }
 
     /// The two files are the same size, and their CMS blobs are the same
@@ -147,29 +145,21 @@ struct VPhoneSignIdentityTests {
     /// commands and change every CDHash.
     @Test("the CMS is the same length as ldid's, and so is the file")
     func cmsIsTheSameLengthAsLdids() throws {
-        let ldid = try #require(VPhoneSignLdidHarness.ldid, "ldid is not installed")
         let identity = try identity()
-        for source in VPhoneSignLdidHarness.corpus.prefix(8) {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        for source in try VPhoneSignFixtures.fixtures {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
 
-            let theirs = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            _ = try VPhoneSignLdidHarness.run(ldid, ["-S", "-M", "-K\(Self.p12.path)", theirs.path])
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: "ours-\(name)")
-            try VPhoneSigner.sign(fileAt: ours, options: .init(
-                identifier: name, mergesExisting: true, identity: identity
-            ))
-
-            #expect(
-                try Data(contentsOf: theirs).count == Data(contentsOf: ours).count,
-                "\(name): the signed files are different sizes"
+            let ours = try VPhoneSignFixtures.sign(
+                source, in: directory, mergesExisting: true, identity: identity
             )
-            let left = try VPhoneSignBlobs(fileAt: theirs), right = try VPhoneSignBlobs(fileAt: ours)
-            for (index, pair) in zip(left.slices, right.slices).enumerated() {
-                let mine = try #require(pair.1[0x10000], "\(name) slice \(index) has no CMS")
-                let theirs = try #require(pair.0[0x10000], "\(name) slice \(index): ldid wrote no CMS")
-                #expect(mine.count == theirs.count, "\(name) slice \(index): \(mine.count) vs \(theirs.count)")
+            try VPhoneSignFixtures.expect(
+                length: "\(name).sealedSize", is: Data(contentsOf: ours).count
+            )
+            for (index, slice) in try VPhoneSignBlobs(fileAt: ours).slices.enumerated() {
+                let cms = try #require(slice[0x10000], "\(name) slice \(index) has no CMS")
+                try VPhoneSignFixtures.expect(length: "\(name).cms.\(index)", is: cms.count)
             }
         }
     }
@@ -180,14 +170,14 @@ struct VPhoneSignIdentityTests {
     /// says nothing about whether the signature is sound.
     @Test("openssl cms -verify accepts the signature")
     func opensslVerifiesTheCMS() throws {
-        let openssl = try #require(VPhoneSignLdidHarness.which("openssl"), "openssl is not installed")
+        let openssl = URL(fileURLWithPath: "/usr/bin/openssl")
+        try #require(FileManager.default.isExecutableFile(atPath: openssl.path), "openssl is not installed")
         let identity = try identity()
-        for source in VPhoneSignLdidHarness.corpus.prefix(6) {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        for source in try VPhoneSignFixtures.fixtures.prefix(6) {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
-            let ours = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            try VPhoneSigner.sign(fileAt: ours, options: .init(identifier: name, identity: identity))
+            let ours = try VPhoneSignFixtures.sign(source, in: directory, identity: identity)
 
             let blobs = try VPhoneSignBlobs(fileAt: ours)
             for (index, slice) in blobs.slices.enumerated() {
@@ -199,7 +189,7 @@ struct VPhoneSignIdentityTests {
                 try cms.dropFirst(8).write(to: cmsFile)
                 try directoryBlob.write(to: contentFile)
 
-                let result = try VPhoneSignLdidHarness.run(openssl, [
+                let result = try VPhoneSignFixtures.run(openssl, [
                     "cms", "-verify", "-inform", "DER", "-in", cmsFile.path,
                     "-content", contentFile.path, "-noverify", "-binary", "-out", "/dev/null",
                 ])

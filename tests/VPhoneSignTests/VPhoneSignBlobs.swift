@@ -38,6 +38,18 @@ struct VPhoneSignBlobs {
         self.slices = slices
     }
 
+    /// The signing identifier out of a CodeDirectory blob. `identOffset` is
+    /// the sixth big-endian word of the structure and counts from the blob's
+    /// own start; the string it points at is NUL-terminated.
+    static func identifier(ofCodeDirectory blob: Data) -> String? {
+        let bytes = [UInt8](blob)
+        guard bytes.count >= 24 else { return nil }
+        let offset = Int(be32(blob, 20))
+        guard offset > 0, offset < bytes.count else { return nil }
+        guard let end = bytes[offset...].firstIndex(of: 0) else { return nil }
+        return String(decoding: bytes[offset ..< end], as: UTF8.self)
+    }
+
     // MARK: Walking the file
 
     private static func be32(_ data: Data, _ offset: Int) -> UInt32 {

@@ -13,14 +13,13 @@ struct VPhoneSignStyleTests {
     @Test("the Apple ad-hoc style passes codesign --verify")
     func appleAdHocVerifies() throws {
         let codesign = URL(fileURLWithPath: "/usr/bin/codesign")
-        for source in VPhoneSignLdidHarness.corpus {
-            let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        for source in try VPhoneSignFixtures.fixtures {
+            let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
-            let file = try VPhoneSignLdidHarness.copy(source, into: directory, as: name)
-            try VPhoneSigner.sign(fileAt: file, options: .init(identifier: name, style: .appleAdHoc))
+            let file = try VPhoneSignFixtures.sign(source, in: directory, style: .appleAdHoc)
 
-            let result = try VPhoneSignLdidHarness.run(codesign, ["--verify", "-vvv", file.path])
+            let result = try VPhoneSignFixtures.run(codesign, ["--verify", "-vvv", file.path])
             #expect(result.status == 0, "\(name): \(result.error)")
             #expect(result.error.contains("valid on disk"), "\(name): \(result.error)")
         }
@@ -28,11 +27,11 @@ struct VPhoneSignStyleTests {
 
     @Test("the Apple ad-hoc style sets the flag and writes the empty wrapper")
     func appleAdHocShape() throws {
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = try VPhoneSignLdidHarness.copy(source, into: directory, as: "binary")
-        try VPhoneSigner.sign(fileAt: file, options: .init(identifier: "binary", style: .appleAdHoc))
+        let file = try VPhoneSignFixtures.sign(
+            try VPhoneSignFixtures.url("hello-arm64"), in: directory, style: .appleAdHoc
+        )
 
         for slice in try VPhoneSignBlobs(fileAt: file).slices {
             let directoryBlob = try #require(slice[0])
@@ -51,7 +50,7 @@ struct VPhoneSignStyleTests {
 
     @Test("a file that is not a Mach-O is refused")
     func refusesSomethingElse() throws {
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("script.sh")
         try Data("#!/bin/sh\necho hello\n".utf8).write(to: file)
@@ -64,8 +63,7 @@ struct VPhoneSignStyleTests {
 
     @Test("a truncated Mach-O is refused rather than signed over garbage")
     func refusesATruncatedMachO() throws {
-        let source = try #require(VPhoneSignLdidHarness.corpus.first { $0.path.hasPrefix("/bin") })
-        let whole = try Data(contentsOf: source)
+        let whole = try Data(contentsOf: VPhoneSignFixtures.url("hello-arm64"))
         #expect(throws: VPhoneSignError.self) {
             _ = try VPhoneSigner.sign(whole.prefix(whole.count / 3), options: .init(identifier: "x"))
         }
@@ -83,14 +81,32 @@ struct VPhoneSignStyleTests {
         }
     }
 
+    /// `VPhoneMachOImage.armCPUTypes` is ARM only, deliberately: page size,
+    /// the `__LINKEDIT` alignment and the deployment-target load commands all
+    /// differ on x86, and nothing here exercises any of it. Signing such a
+    /// slice on a guess is worse than saying so — and this is the rule that
+    /// took the old corpus of fat system binaries out of this suite, so it is
+    /// worth one test of its own.
+    @Test("an x86_64 slice is refused rather than signed on a guess")
+    func refusesAnX86Slice() throws {
+        // MH_MAGIC_64, CPU_TYPE_X86_64, CPU_SUBTYPE_X86_64_ALL, MH_EXECUTE,
+        // then ncmds/sizeofcmds/flags/reserved, all zero
+        var header = Data()
+        for word: UInt32 in [0xFEED_FACF, 0x0100_0007, 0x0000_0003, 0x0000_0002, 0, 0, 0, 0] {
+            withUnsafeBytes(of: word.littleEndian) { header.append(contentsOf: $0) }
+        }
+        #expect(throws: VPhoneSignError.self) {
+            _ = try VPhoneSigner.sign(header, options: .init(identifier: "x"))
+        }
+    }
+
     /// `sign(_:options:)` takes any `Data`, and a slice of one keeps its
     /// parent's indices. Every offset in the signer counts from the start of
     /// the file, so a slice that starts anywhere else has to be handled
     /// before the first byte is read.
     @Test("a Data slice that does not start at zero signs the same as a copy")
     func signsANonZeroBasedSlice() throws {
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let whole = try Data(contentsOf: source)
+        let whole = try Data(contentsOf: VPhoneSignFixtures.url("hello-arm64"))
         let padded = Data(count: 7) + whole
         let slice = padded[7...]
         #expect(slice.startIndex == 7, "the slice was rebased, so this proves nothing")
@@ -104,10 +120,13 @@ struct VPhoneSignStyleTests {
     /// pipeline signs those in place.
     @Test("a read-only file is signed and keeps its mode")
     func signsAReadOnlyFile() throws {
-        let source = try #require(VPhoneSignLdidHarness.corpus.first)
-        let directory = try VPhoneSignLdidHarness.temporaryDirectory()
+        let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = try VPhoneSignLdidHarness.copy(source, into: directory, as: "binary")
+        // not through the shared helper: the mode has to be set between the
+        // copy and the signature
+        let file = try VPhoneSignFixtures.copy(
+            try VPhoneSignFixtures.url("hello-arm64"), into: directory, as: "binary"
+        )
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
 
         try VPhoneSigner.sign(fileAt: file, options: .init(identifier: "binary"))

@@ -283,7 +283,13 @@ let package = Package(
         .testTarget(
             name: "VPhoneSignTests",
             dependencies: ["VPhoneSign"],
-            path: "tests/VPhoneSignTests"
+            path: "tests/VPhoneSignTests",
+            // Mach-O files to sign and the C they were built from. Excluded
+            // rather than declared as resources: the tests reach them through
+            // `#filePath`, so they need to be on disk and not in a bundle,
+            // and left in place SwiftPM would try to compile the .c and refuse
+            // the target for mixing languages.
+            exclude: ["Fixtures"]
         ),
         // Everything here runs without a device attached: argument parsing,
         // the restore-tree rules, the .shsh naming and the C struct the
