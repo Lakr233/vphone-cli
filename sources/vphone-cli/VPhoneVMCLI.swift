@@ -26,10 +26,8 @@ struct VPhoneVMCommand: ParsableCommand {
     )
 }
 
-/// Replaces `scripts/vm_manifest.py`, called from `vm_create.sh` as its last
-/// step. Deliberately takes a directory rather than a library name: it runs
-/// while the bundle is still being assembled, before it is something the
-/// library would list.
+/// Writes configuration for an existing bundle directory. New bundles should
+/// normally use `vm new`, which owns all initial storage files.
 struct VPhoneVMWriteManifestCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "write-manifest",

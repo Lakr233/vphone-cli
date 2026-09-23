@@ -184,10 +184,8 @@ scripts/                          # Shell only — the CFW patchers are `vphone-
 ├── dist_manifest.sh          [b] # What ships. The allowlist build.sh and `make bundle` stage from
 ├── guest_binaries.mk         [b] # Cross-compiles the five iOS binaries (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
-├── setup_machine.sh          [b] # Full automation (setup → first boot)
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
 ├── tail_jb_patch_logs.sh     [b] # Tail JB patch log output
-├── vm_{create,backup,restore,switch}.sh [b]
 ├── fw_prepare.sh             [d] # Download IPSWs, merge cloudOS into iPhone
 ├── cfw_install.sh            [d] # Install CFW (regular)
 ├── cfw_install_dev.sh        [d] # Regular + rpcserver daemon
@@ -203,12 +201,6 @@ scripts/                          # Shell only — the CFW patchers are `vphone-
 │                                 # signcert ship; the binary is built by guest_binaries.mk
 ├── tweakloader/ vpregister/ vcamcaptured/ camfix/   # The other four guest sources; same deal
 └── repos/                        # Toolchain source (git submodule: insert_dylib)
-
-cfw-kit/                          # Variant-layered CFW installer, vendored as-is. ALL BUILD TIER:
-├── run.sh                        # it still reaches for ldid/gtar/zstd/ipsw the way
-├── lib/                          # scripts/cfw_install*.sh did before they were cleaned out, so it
-├── vanilla/ jb/                  # does not ship and a dist user cannot run it. P3 decides whether
-└── docs/phase-matrix.md          # it gets the same treatment or stays a development tool.
 
 research/                         # Detailed firmware/patch documentation
 ```
@@ -252,7 +244,7 @@ research/                         # Detailed firmware/patch documentation
 
 Every patcher is Swift, in `sources/FirmwarePatcher`. The boot chain and kernel
 run through `patch-firmware`; the CFW/DSC patchers are `vphone-cli cfw <verb>`,
-one verb per patch, driven by `scripts/cfw_install*.sh` and `cfw-kit/`.
+one verb per patch, driven by `scripts/cfw_install*.sh` only.
 
 - Disassembly is Capstone via `ARM64Disassembler` (the `libcapstone-spm` package). Assembly is `ARM64Encoder` plus the pre-encoded constants in `ARM64` (`ARM64Constants.swift`) — together they replace keystone's `asm()` / `asm_at()`, and `ARM64.nop` / `ARM64.movW0_0` are the old `NOP` / `MOV_W0_0`. IM4P containers go through `IM4PHandler` (the `libimg4-spm` package), which replaces pyimg4. Both resolve by URL; there is no `vendor/` directory to check out first.
 - Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.

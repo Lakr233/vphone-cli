@@ -65,7 +65,7 @@ public enum VPhoneBundleOps {
                 throw error
             }
 
-            // SEP storage: 512 KB of zeros (real bytes, matches vm_create.sh).
+            // SEP storage: 512 KB of initialized zero bytes.
             try Data(count: 512 * 1024).write(to: dir.appendingPathComponent("SEPStorage"))
 
             // ROMs.

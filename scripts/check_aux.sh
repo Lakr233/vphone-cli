@@ -415,7 +415,7 @@ check_sources() {
   # check_aux.sh excludes itself, because a scanner that looks for a word
   # necessarily contains it.
   hits=$( { grep -rnE 'python[0-9.]*' --include='*.sh' --include='*.mk' \
-              scripts/ cfw-kit/ tests/ 2>/dev/null
+              scripts/ tests/ 2>/dev/null
             grep -HnE 'python[0-9.]*' Makefile 2>/dev/null } \
           | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
           | grep -vE '^scripts/check_aux\.sh:' \

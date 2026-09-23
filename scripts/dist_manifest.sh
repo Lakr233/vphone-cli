@@ -44,11 +44,6 @@ tier_of() {
 
 if [[ "${1:-}" == "--tiers" ]]; then
     for f in *.sh; do print -r -- "$f	$(tier_of "$f")"; done
-    # cfw-kit is a separate tree, vendored as-is and never bundled; it declares
-    # its tier the same way so gate 0 can see it too.
-    for f in ../cfw-kit/**/*.sh(N); do
-        print -r -- "${f#../}	$(tier_of "$f")"
-    done
     exit 0
 fi
 

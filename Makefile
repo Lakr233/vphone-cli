@@ -8,16 +8,7 @@ VM_DIR      ?= vm
 # (e.g. external SSD) VM_DIR values. `abspath` leaves absolute paths intact
 # and joins relative ones against CURDIR — use this for the VM directory arg.
 VM_DIR_ABS  := $(abspath $(VM_DIR))
-# CPU cores, memory (MB), disk size (GB) — used only during vm_new.
-# NB: no inline comments on these `?=` lines — make would fold the trailing
-# whitespace into the value (e.g. CPU="8   ") and break numeric consumers.
-CPU         ?= 8
-MEMORY      ?= 8192
-DISK_SIZE   ?= 64
-BACKUPS_DIR ?= vm.backups
-NAME        ?=
-BACKUP_INCLUDE_IPSW ?= 0
-FORCE       ?= 0
+SWIFT_JOBS  ?= 4
 # UDID and ECID for restore operations
 RESTORE_UDID ?=
 RESTORE_ECID ?=
@@ -77,23 +68,6 @@ export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/.build/release:$(PATH)
 help:
 	@echo "vphone-cli — Virtual iPhone boot tool"
 	@echo ""
-	@echo "LazyCat (AIO):"
-	@echo "  make setup_machine                   Full setup through First Boot"
-	@echo "    Options: JB=1                      Jailbreak firmware/CFW path"
-	@echo "             DEV=1                     Dev firmware/CFW path (dev TXM + cfw_install_dev)"
-	@echo "             EXP=1                     Experimental firmware/CFW path (JB + EXP-only patches:"
-	@echo "                                       kernel hv_vmm rename, DSC byte-5 mangle, surgical watchdogd patch,"
-	@echo "                                       DT identity properties, post-restore DT rewrite, opt-in build spoof)"
-	@echo "             LESS=1                    Build, keeping iOS security mitigations enabled."
-	@echo "             SKIP_PROJECT_SETUP=1      Skip setup_tools/build"
-	@echo "             INTERACTIVE=1             Prompt at first-boot stages (default: non-interactive)"
-	@echo "             SUDO_PASSWORD=...         Preload sudo credential for setup flow"
-	@echo "             NO_BINPACK=1              Skip installing the SSH, VNC and other bundled binaries (patchless only)"
-	@echo "             NO_VPHONED=1              Skip installing vphoned (patchless only)"
-	@echo "             SPOOF_BUILD=<id>          (EXP only) Rewrite ProductBuildVersion in SystemVersion.plist to <id>"
-	@echo "                                       e.g. SPOOF_BUILD=23F77 makes Settings → About show that build."
-	@echo "                                       Unset or empty keeps the build version that ships in the IPSW."
-	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_tools             Build insert_dylib (a test reference; optional)"
 	@echo ""
@@ -105,17 +79,10 @@ help:
 	@echo "             CLEAN_IPSW=1      Also remove ipsws/ after confirmation"
 	@echo ""
 	@echo "VM management:"
-	@echo "  make vm_new                  Create VM directory with manifest (config.plist)"
-	@echo "    Options: VM_DIR=vm         VM directory name"
-	@echo "             CPU=8             CPU cores (stored in manifest)"
-	@echo "             MEMORY=8192       Memory in MB (stored in manifest)"
-	@echo "             DISK_SIZE=64      Disk size in GB (stored in manifest)"
-	@echo "  make vm_backup NAME=<name>   Save current VM as a named backup"
-	@echo "  make vm_restore NAME=<name>  Restore a named backup into vm/"
-	@echo "  make vm_switch NAME=<name>   Save current + restore target (one step)"
-	@echo "  make vm_list                 List available backups"
-	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW directories in the backup"
-	@echo "             FORCE=1                Skip overwrite prompt on restore"
+	@echo "  vphone-cli vm new <name>      Create a VM bundle"
+	@echo "  vphone-cli vm list            List VM bundles"
+	@echo "  vphone-cli vm export <name> --out <archive>  Back up a VM"
+	@echo "  vphone-cli vm import <archive> --name <name> Restore into a new VM"
 	@echo "  make check-aux               Run the self-containment admission gates"
 	@echo "  make amfi_allow              Allow THIS build's vphone-vm past amfid (asks for root)"
 	@echo "                               Re-run after every build — it allowlists cdhashes"
@@ -170,35 +137,13 @@ help:
 	@echo "  make cfw_install_exp         Install CFW + JB + EXP experimental (hv_vmm rename, post-restore DT, build spoof)"
 	@echo "  make cfw_install_host        Select variant: VARIANT=regular|dev|jb|exp (default exp)  SPOOF_BUILD=<id> (exp)"
 	@echo ""
-	@echo "Variables: VM_DIR=$(VM_DIR) CPU=$(CPU) MEMORY=$(MEMORY) DISK_SIZE=$(DISK_SIZE)"
+	@echo "Variables: VM_DIR=$(VM_DIR) SWIFT_JOBS=$(SWIFT_JOBS)"
 
 # ═══════════════════════════════════════════════════════════════════
 # Setup
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: setup_machine setup_tools
-
-setup_machine:
-	@if count=0; \
-	  [ -n "$(call truthy,$(JB))" ] && count=$$((count+1)); \
-	  [ -n "$(call truthy,$(DEV))" ] && count=$$((count+1)); \
-	  [ -n "$(call truthy,$(EXP))" ] && count=$$((count+1)); \
-	  [ -n "$(call truthy,$(LESS))" ] && count=$$((count+1)); \
-	  [ $$count -gt 1 ]; then \
-		echo "Error: use only one of JB=1, DEV=1, EXP=1 or LESS=1."; \
-		exit 1; \
-	fi
-	SUDO_PASSWORD="$(SUDO_PASSWORD)" \
-	INTERACTIVE="$(INTERACTIVE)" \
-	NO_BINPACK="$(NO_BINPACK)" \
-	NO_VPHONED="$(NO_VPHONED)" \
-	SPOOF_BUILD="$(SPOOF_BUILD)" \
-	zsh $(SCRIPTS)/setup_machine.sh \
-		$(if $(call truthy,$(JB)),--jb,) \
-		$(if $(call truthy,$(DEV)),--dev,) \
-		$(if $(call truthy,$(EXP)),--exp,) \
-		$(if $(call truthy,$(LESS)),--less,) \
-		$(if $(call truthy,$(SKIP_PROJECT_SETUP)),--skip-project-setup,)
+.PHONY: setup_tools
 
 setup_tools:
 	VARIANT=$(VARIANT) zsh $(SCRIPTS)/setup_tools.sh
@@ -261,7 +206,7 @@ endef
 $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
 	@echo "=== Building vphone-cli patcher ($(GIT_HASH)) ==="
 	$(WRITE_BUILD_INFO)
-	@set -o pipefail; swift build 2>&1 | tail -5
+	@set -o pipefail; swift build --jobs $(SWIFT_JOBS) 2>&1 | tail -5
 
 # One recipe produces all three host binaries — `swift build` builds every
 # target anyway. Grouped targets (`&:`) would say this more precisely but need
@@ -274,7 +219,7 @@ $(PATCHER_BINARY): $(SWIFT_SOURCES) Package.swift
 $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "=== Building vphone-cli ($(GIT_HASH)) ==="
 	$(WRITE_BUILD_INFO)
-	@set -o pipefail; swift build -c release 2>&1 | tail -5
+	@set -o pipefail; swift build -c release --jobs $(SWIFT_JOBS) 2>&1 | tail -5
 
 sign: $(BINARY)
 	@echo "=== Signing ==="
@@ -383,46 +328,10 @@ vphoned: $(GUEST_DIR)/vphoned $(BINARY)
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfi_allow amfi_status amfi_off boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
+.PHONY: amfi_allow amfi_status amfi_off boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
 
-vm_new:
-	CPU="$(CPU)" MEMORY="$(MEMORY)" \
-	zsh $(SCRIPTS)/vm_create.sh --dir "$(VM_DIR)" --disk-size $(DISK_SIZE)
-
-vm_backup:
-	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" BACKUP_INCLUDE_IPSW="$(BACKUP_INCLUDE_IPSW)" \
-	zsh $(SCRIPTS)/vm_backup.sh
-
-vm_restore:
-	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" FORCE="$(FORCE)" \
-	zsh $(SCRIPTS)/vm_restore.sh
-
-vm_switch:
-	VM_DIR="$(VM_DIR)" BACKUPS_DIR="$(BACKUPS_DIR)" NAME="$(NAME)" BACKUP_INCLUDE_IPSW="$(BACKUP_INCLUDE_IPSW)" \
-	zsh $(SCRIPTS)/vm_switch.sh
-
-vm_list:
-	@found=0; \
-	if [ -d "$(BACKUPS_DIR)" ]; then \
-		current=""; \
-		[ -f "$(VM_DIR)/.vm_name" ] && current="$$(cat "$(VM_DIR)/.vm_name")"; \
-		for d in "$(BACKUPS_DIR)"/*/; do \
-			[ -f "$${d}config.plist" ] || continue; \
-			name="$$(basename "$$d")"; \
-			size="$$(du -sh "$$d" 2>/dev/null | cut -f1)"; \
-			if [ "$$name" = "$$current" ]; then \
-				echo "  * $$name ($$size) [active]"; \
-			else \
-				echo "    $$name ($$size)"; \
-			fi; \
-			found=1; \
-		done; \
-	fi; \
-	if [ "$$found" = "0" ]; then echo "  (no backups yet — run: make vm_backup NAME=<name>)"; fi
-
-# The self-containment admission gates. Expected to FAIL today: the bundled
-# ldid is Homebrew's and links /opt/homebrew. That is the gate working, and it
-# clears when VPhoneSign replaces ldid. CHECK_AUX_FAST=1 skips the smoke test.
+# Self-containment checks over the complete application bundle.
+# CHECK_AUX_FAST=1 skips smoke checks for local source checks only.
 .PHONY: check-aux
 check-aux: bundle
 	@zsh $(SCRIPTS)/check_aux.sh

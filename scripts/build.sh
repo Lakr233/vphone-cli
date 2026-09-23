@@ -59,7 +59,7 @@ done
 echo "=== Building vphone-cli (${GIT_HASH}) ==="
 echo '// Auto-generated — do not edit' > "$BUILD_INFO"
 echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUILD_INFO"
-swift build -c release
+swift build -c release --jobs "${SWIFT_JOBS:-4}"
 
 # vphone-amfi-allow, which SwiftPM cannot produce: it reads amfid's ObjC runtime
 # and so must match amfid's own slice, which is arm64e. Plain clang, two system
