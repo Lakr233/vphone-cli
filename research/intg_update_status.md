@@ -10,15 +10,21 @@
 > 7.5%; both were stale by several commits. Every number below was measured with
 > a command, and the commands are in "How these were counted" at the end so the
 > next person can disagree with the measurement rather than the prose.
+>
+> **Updated at `a908f81`**, after D2 and D3 landed. The D2/D3 rows below are
+> rewritten; the D4 row is not, and the detail is in
+> [`d2_d3_self_containment.md`](./d2_d3_self_containment.md), which is the
+> handover for that work — what the tiers are, what each removed program was
+> replaced by, what was verified against the real tool, and what is left open.
 
 ## Where the four delivery lines stand
 
 | line | plan's completion bar | now |
 | --- | --- | --- |
 | **D1** Python → zero | hard gate, 100%, achieved at **P2.4** | **6,070 / 6,070 lines — done.** No `.py` tracked, no heredoc, no runtime `python3` |
-| **D2** self-contained admission rule | `make check-aux` green | gates 1 and 1b **green**; gate 2 has **38 registered** items (**35** once P2's deletions land) and 0 unregistered; gate 4 does not exist |
-| **D3** drop third-party programs | gtar/bsdtar/unzip/zstd/ldid/… | replacements all exist and the `.app` ships **3 binaries and no tools**; the installer shell still resolves `gtar` / `zstd` / `ldid` itself |
-| **D4** shell → zero | P3 required, P4 in scope | **0%**, and it grew: **7,173 lines** in 27 files, from 5,895 in 22 (**7,072 in 25** once P2's deletions land) |
+| **D2** self-contained admission rule | `make check-aux` green | **green, and the rule is now per tier.** Gates 0, 1, 1b, 1c, 2 and 3 all pass; the dist tier's registered-exception list is **empty**. Gate 4 (a machine with no Homebrew) still does not exist |
+| **D3** drop third-party programs | gtar/bsdtar/unzip/zstd/ldid/… | **done for the dist tier.** `ldid`, `gtar`, `zstd`, `tar`, `ipsw`, `aria2c`, `wget`, `xcrun` and the bundled `trustcache` are all gone from what ships; `setup_tools.sh` installs no Homebrew formula at all, and `setup_machine.sh` is down to `git-lfs`, which `git clone` needs rather than this project |
+| **D4** shell → zero | P3 required, P4 in scope | **0%.** The dist tier is ten `.sh` files; the tiers and gates are what make it possible to convert them one at a time without losing track of what ships |
 
 D4 going up is not an accounting artifact. `cfw-kit/` (1,036 lines) and
 `scripts/check_aux.sh` (327) are both new on this branch; everything else nets
@@ -37,9 +43,9 @@ is 2,396 lines against 2,410 at the branch base.
 | — | AMFI bypass moved out of the project | ✅ docs in 6 languages |
 | **P0** | 455 lines of Python | ✅ **complete** |
 | P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
-| P0.5 | switch the archive call sites | ◐ **package side done, shell side not.** `FirmwarePatcher` has no `tar` calls left; `$TAR` in `cfw_install*.sh` and `cfw-kit/lib/common.sh` still finds `gtar` |
-| P0.5 | `VPhoneSign`, drop `ldid` | ◐ **Swift side done.** `--use-ldid` and `VPhoneSignLdid.swift` deleted at `a779f4e`; the tests compare against frozen ldid digests rather than a live one. `cfw-kit` and the Makefile still look `ldid` up on `PATH` |
-| P0.5 | admission gates 1–3 | ✅ `make check-aux`; gate 1 now passes |
+| P0.5 | switch the archive call sites | ✅ **done at `356bec6`.** `$TAR` is gone from `cfw_install*.sh`; only `cfw-kit` still finds `gtar`, and it is build tier and does not ship |
+| P0.5 | `VPhoneSign`, drop `ldid` | ✅ **done at `356bec6`.** The installers and the Makefile call `vphone-cli sign`; nothing looks `ldid` up any more except `cfw-kit` |
+| P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`d2_d3_self_containment.md`](./d2_d3_self_containment.md) |
 | **P1.0–1.5** | CFW patchers | ✅ **complete** — `scripts/patchers/` deleted at `d90371a`, 26 files / 6,539 lines into 24 `vphone-cli cfw` verbs |
 | **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `research/p2_dfu_spike.md` |
 | **P2.1–2.2** | vendor libirecovery + idevicerestore | ✅ `sources/MobileRecoveryCore`, `sources/MobileRestoreCore` |
@@ -90,7 +96,18 @@ Two corrections to the earlier ledger's arithmetic:
 
 ## D2, counted
 
-`zsh scripts/check_aux.sh --fast`:
+> Superseded at `a908f81`. The counts below were taken when the gate had ONE
+> flat list applied to the whole repository — which is exactly the thing that
+> made them hard to read: `xcrun` in a build script and `xcrun` in something
+> the `.app` ships counted the same, so "38 registered items" did not say
+> whether the product was any closer to standing on its own. Kept because the
+> shape of the old list is what the tier split was a response to.
+>
+> **Now**: `zsh scripts/check_aux.sh` reports gates 0, 1, 1b, 1c, 2 and 3 all
+> green, with the **dist tier's registered list empty**. See
+> [`d2_d3_self_containment.md`](./d2_d3_self_containment.md).
+
+`zsh scripts/check_aux.sh --fast`, as of the previous revision:
 
 - **Gate 1 (dependency closure)** and **gate 1b (relocation)** both report
   nothing. This is the change since the last revision of this file, which
@@ -108,10 +125,12 @@ Two corrections to the earlier ledger's arithmetic:
 - **Gate 3** was skipped here (`--fast`). CI must not skip it.
 - **Gate 4 — a machine with no Homebrew — still does not exist**, and is still
   the only thing that can support "it works elsewhere". The script says so
-  itself. Gates 1–3 are necessary and not sufficient.
+  itself. The other gates are necessary and not sufficient. **This is still
+  true at `a908f81`.**
 
-`ipsw` and `aea` are deliberately out of scope this round and are not counted
-against D3.
+`ipsw` and `aea` were out of scope for that round. They are not now: `ipsw` is
+gone, and `aea` stayed because `/usr/bin/aea` is part of macOS — it is called
+by absolute path, so there is nothing left to look up.
 
 ## D4, counted
 
