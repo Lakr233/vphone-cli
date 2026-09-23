@@ -371,6 +371,15 @@ hashed to `dfe38096…`, and the guest dies on the first demand-page-in of it.
 `DSCFoundationTests.pageStraddlingWriteAttestsEveryDirtiedPage` pins both the fix
 and the reference's value, so the divergence stays on the record.
 
+**One verb is semantically, not byte, identical.** `cfw inject-daemons` writes a
+plist, and the two XML writers disagree on one thing: Python's `plistlib`
+serialises an integral double as `<real>1.0</real>` where Foundation emits
+`<real>1</real>`. Both parse back to the same value, and matching the Python
+byte for byte would mean reimplementing `plistlib`'s writer — which is why the
+plan set the bar for plists at semantic equivalence (type, order, key set,
+`Data` bytes) rather than bytes. Recorded here so "byte-identical" is not read
+as covering the plist verbs.
+
 **Two behavioural differences kept on purpose**, both on the already-patched path
 and neither changing a byte:
 

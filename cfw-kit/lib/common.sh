@@ -183,8 +183,12 @@ preflight() {
         # (missing argument) and 64 for a typo, and would actually RUN any verb
         # that happens to need no arguments.
         local -a have
-        have=("${(@f)$("$VPHONE_CLI" cfw --help 2>&1 |
-            awk '/^SUBCOMMANDS:/ {f = 1; next} f && /^  [a-z]/ {print $1}')}")
+        # (@f) on empty output yields one empty element, not an empty array, so
+        # a count test never fires. Drop empties first — that is what makes the
+        # "could not read the list" branch below reachable at all.
+        have=(${(@f)"$("$VPHONE_CLI" cfw --help 2>&1 |
+            awk '/^SUBCOMMANDS:/ {f = 1; next} f && /^  [a-z]/ {print $1}')"})
+        have=(${have:#})
         if (( ${#have} == 0 )); then
             warn "could not read the subcommand list from '$VPHONE_CLI cfw --help'"
             fatal=1

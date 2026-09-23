@@ -484,6 +484,12 @@ public struct VPhoneCreateOrchestrator {
         // <verb>` now, so nothing under this script reads a python. Asking for
         // one here would only force a venv bootstrap nobody uses.
         var scriptEnv: [String: String] = [
+            // What replaced it. The script re-execs under sudo, so it cannot
+            // work out where we live from its own path in the bundled case —
+            // same reason `cfw install` passes it (VPhoneRestoreCLI). Without
+            // it the script falls back to guessing, which works in a dev tree
+            // and in the .app but is a guess either way.
+            "VPHONE_CLI_BIN": VPhoneResources.runningExecutable().path,
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
             "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
@@ -511,7 +517,7 @@ public struct VPhoneCreateOrchestrator {
             var env = ProcessInfo.processInfo.environment
             for (key, value) in scriptEnv { env[key] = value }
             for (key, value) in sudoEnvExtras { env[key] = value }
-            let envKeys = (["IPSW_DIR", "VPHONE_SEAL_DIR"] + sudoEnvExtras.keys.sorted())
+            let envKeys = (["VPHONE_CLI_BIN", "IPSW_DIR", "VPHONE_SEAL_DIR"] + sudoEnvExtras.keys.sorted())
                 .joined(separator: ", ")
             trace("spawn /bin/zsh \(args.joined(separator: " ")) (env keys: \(envKeys))", v)
             // With an askpass credential sudo is non-interactive → honor verbosity.
