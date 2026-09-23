@@ -3,9 +3,31 @@ import Foundation
 public enum VPhoneRestoreError: Error, Equatable {
     case ecidUnresolved
     case noSHSH
-    case noRestoreDir
     case aeaDecryptFailed(String)
     case aeaStillEncrypted(String)
+}
+
+/// Without this, ArgumentParser prints the case name — a restore run with no
+/// cached blob said `Error: noSHSH`, beside sibling failures from
+/// `VPhoneRestoreBackendError` that have read as sentences all along.
+///
+/// `noRestoreDir` used to sit in the enum above and is gone: its one thrower
+/// was `--offline`'s local restore-tree glob, and that now goes through
+/// `VPhoneRestoreLayout.findRestoreDirectory`, whose own
+/// `noRestoreDirectory(_:)` names the bundle it looked in.
+extension VPhoneRestoreError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .ecidUnresolved:
+            "No ECID: pass --ecid, or restore a bundle whose udid-prediction.txt carries one"
+        case .noSHSH:
+            "No cached .shsh in the bundle; run `restore --get-shsh` first, or drop the --offline flag"
+        case let .aeaDecryptFailed(name):
+            "Could not decrypt \(name)"
+        case let .aeaStillEncrypted(name):
+            "\(name) is still AEA-encrypted after decryption reported success"
+        }
+    }
 }
 
 public enum VPhoneRestoreOps {

@@ -5,9 +5,13 @@ import Testing
 /// `.serialized` because several of these set and unset `VPHONE_ROOT`, and the
 /// environment is process-global: run in parallel, one test's
 /// `defer { unsetenv(...) }` clears the variable another is still relying on.
-/// That was a real intermittent failure — roughly one run in ten —
-/// and the reason two tests below bail out early when `VPHONE_ROOT` is already
-/// set, which was a way of tolerating the race rather than fixing it.
+/// That was a real intermittent failure — roughly one run in ten.
+///
+/// `.serialized` alone did not fix it, and the "roughly one run in ten" stayed
+/// true: it orders this suite's tests against each other and says nothing about
+/// `LibraryTests`, which drives the same two variables from its own serialized
+/// suite in a different file. Both sides now go through `ProcessEnvironment`,
+/// which is the lock that actually spans them.
 @Suite(.serialized)
 struct ResourcesTests {
     @Test func bundledLayoutResolvesToContentsResources() {
@@ -39,19 +43,23 @@ struct ResourcesTests {
     }
 
     @Test func cacheDirsAreHomeRelative() {
-        // The VPHONE_ROOT override would relocate the cache; only assert the default.
-        if ProcessInfo.processInfo.environment["VPHONE_ROOT"] != nil { return }
-        #expect(VPhoneResources.userDataRoot().path.hasSuffix("/.vphone"))
+        // The VPHONE_ROOT override would relocate the cache; assert the default
+        // with the variable held clear, rather than bailing out when some other
+        // suite happens to have set it — that skip was the old way of living
+        // with the race `ProcessEnvironment` now closes.
+        ProcessEnvironment.withOverrides(["VPHONE_ROOT": nil]) {
+            #expect(VPhoneResources.userDataRoot().path.hasSuffix("/.vphone"))
+        }
     }
 
     @Test func userDataRootHonorsVPHONERoot() {
-        setenv("VPHONE_ROOT", "/tmp/vphone-test-root", 1)
-        defer { unsetenv("VPHONE_ROOT") }
-        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
-        #expect(VPhoneResources.userDataRoot().path == "/tmp/vphone-test-root")
-        #expect(r.ipswCacheDir.path == "/tmp/vphone-test-root/ipsws")
-        #expect(r.sealVolumeCacheDir.path == "/tmp/vphone-test-root/tools")
-        #expect(r.debsCacheDir.path == "/tmp/vphone-test-root/debs")
+        ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
+            let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
+            #expect(VPhoneResources.userDataRoot().path == "/tmp/vphone-test-root")
+            #expect(r.ipswCacheDir.path == "/tmp/vphone-test-root/ipsws")
+            #expect(r.sealVolumeCacheDir.path == "/tmp/vphone-test-root/tools")
+            #expect(r.debsCacheDir.path == "/tmp/vphone-test-root/debs")
+        }
     }
 
     /// `VPhoneResources` resolves programs as siblings of the running image and
@@ -60,19 +68,19 @@ struct ResourcesTests {
     /// from the other side, so assert it directly: every URL this type hands
     /// out is rooted in `base` or in the user data root.
     @Test func everyResourceIsRootedInTheBaseOrTheDataRoot() {
-        setenv("VPHONE_ROOT", "/tmp/vphone-test-root", 1)
-        defer { unsetenv("VPHONE_ROOT") }
-        let base = URL(fileURLWithPath: "/x")
-        let r = VPhoneResources(base: base)
-        let rooted = [
-            r.scriptsDir, r.resourceArchivesDir, r.fwPrepareScript,
-            r.cfwInstallHostScript, r.preflightScript, r.signcert, r.vphoned,
-        ]
-        for url in rooted {
-            #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")
-        }
-        for url in [r.ipswCacheDir, r.sealVolumeCacheDir, r.debsCacheDir] {
-            #expect(url.path.hasPrefix("/tmp/vphone-test-root/"))
+        ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
+            let base = URL(fileURLWithPath: "/x")
+            let r = VPhoneResources(base: base)
+            let rooted = [
+                r.scriptsDir, r.resourceArchivesDir, r.fwPrepareScript,
+                r.cfwInstallHostScript, r.preflightScript, r.signcert, r.vphoned,
+            ]
+            for url in rooted {
+                #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")
+            }
+            for url in [r.ipswCacheDir, r.sealVolumeCacheDir, r.debsCacheDir] {
+                #expect(url.path.hasPrefix("/tmp/vphone-test-root/"))
+            }
         }
     }
 

@@ -150,20 +150,48 @@ it is not checked and needs a phone or VM in DFU.
 | --: | --- | --- | --- | --- | --- |
 | 1 | `restore` (online, default) | `pmd3 restore-update` | `erase=true, ticket_path=NULL` | VM boots | **device** (options mapping is `unit`: `RestoreOptionsTests.defaultsAreAnOnlineEraseRestore`) |
 | 2 | `restore --get-shsh` | `pmd3 restore-get-shsh` | `shsh_only=true` | `.shsh` semantically equal to the Python's, same filename | **split.** Filename and plist handling are `unit` (`RestoreLayoutTests.shshIsNamedAfterTheECIDInSixteenHexDigits`, the whole of `RestoreTicketTests`); the TSS round trip is **device** |
-| 3 | `restore --offline` | AEA decrypt in place → `--tss <first .shsh>` | AEA decrypt in place → `ticket_path=<same file>` | ① `noSHSH` with no blob ② `noRestoreDir` with no tree ③ multiple `.shsh` → sorted first ④ VM boots | ①②③ **unit** (`RestoreLayoutTests`, `RestoreRunnerTests.fetchingASHSHStopsAtTheMissingRestoreTree`); ④ **device** |
+| 3 | `restore --offline` | AEA decrypt in place → `--tss <first .shsh>` | AEA decrypt in place → `ticket_path=<same file>` | ① `noSHSH` with no blob ② `noRestoreDir` with no tree ③ multiple `.shsh` → sorted first ④ VM boots | ①②③ **unit** (`RestoreLayoutTests`, `RestoreRunnerTests.fetchingASHSHStopsAtTheMissingRestoreTree`), and ①② also **run through the CLI** — see below; ④ **device** |
 | 4 | `restore --no-erase` | `Behavior.Update` | `erase=false` | user data survives | **device** (mapping is `unit`: `RestoreOptionsTests.updateInPlaceClearsErase`) |
 | 5 | metadata on success | writes `restore-info.json` | same | contents identical | **device.** `VPhoneRestoreInfo.derive` is host-side and unchanged, but "only on success" needs a run |
 | 6 | failure | no `restore-info.json`, exit code passed through | same | exit codes match | **device.** The bridge's own rejections are `unit` (`RestoreRunnerTests`); a failure from inside idevicerestore is not |
 | 7 | verbosity | `-v` → one, `-vv`/`-vvv` → two `-v` | `debug_level` | logs comparably detailed | **device.** The level enum matches upstream's one for one and that is `unit` (`RestoreEventTests.levelsMatchIdevicerestoresEnum`) |
 
-Four rows need a device: 1, 4, 5, 6, and the tail halves of 2, 3 and 7.
-**Run them on a disposable VM** — a failed restore leaves the guest sitting in
-recovery.
+### What the first pass over this table actually turned up
 
-The unit suite was **not executed during this documentation pass** (another
-stage held the build directory). Whoever lands P2 should run
-`swift test --filter VPhoneRestoreTests` and record the result here rather than
-inheriting the claim.
+The unit suite had **not been executed during the documentation pass** that wrote
+this file, and the note here asked whoever landed P2 to run it rather than
+inherit the claim. Run on 2026-09-23:
+`swift test --filter VPhoneRestoreTests` → **67 tests in 6 suites, all passing.**
+
+Reading the table against the shipped CLI, rather than against the library,
+found three things the unit tests could not have caught — every one of them a
+gap between `VPhoneRestore` and `vphone-cli`, not inside either:
+
+- **Row 4 was not "needs a device", it was unreachable.** The Python had
+  `--erase/--no-erase`; the port kept `VPhoneRestoreOptions.erase` and
+  `RestoreOptionsTests.updateInPlaceClearsErase`, but no flag was ever added to
+  `VPhoneRestoreCommand`, which passed a literal `erase: true`. The flag exists
+  now, so the row is a device check like the rest.
+- **Row 3's `--offline` path bypassed its own guard, destructively.** The CLI
+  globbed `iPhone*_Restore` itself, sorted, and took the first — Python's rule,
+  the one "Deliberate divergences" below says was replaced — then decrypted that
+  tree's AEA images **in place** before `VPhoneRestoreBridge` got a chance to
+  refuse two trees. With two firmware trees in a bundle it irreversibly
+  decrypted one nobody chose and *then* aborted. It now calls
+  `VPhoneRestoreLayout.findRestoreDirectory` like every other caller, so the
+  refusal comes first. Verified end to end: two trees → exit 1, zero bytes
+  written into either.
+- **`VPhoneRestoreError` printed case names.** A missing blob said
+  `Error: noSHSH` beside sibling failures from `VPhoneRestoreBackendError` that
+  have read as sentences all along. It conforms to `LocalizedError` now.
+  `noRestoreDir` went with it: the `--offline` glob was its only thrower.
+
+Criteria ① and ② of row 3 were then exercised through the built binary against a
+synthetic bundle, not only through the library.
+
+The rows that remain **device** are unchanged: 1, 4, 5, 6 and the tail halves of
+2, 3 and 7. **Run them on a disposable VM** — a failed restore leaves the guest
+sitting in recovery.
 
 ### `research/p2_dfu_spike.md` already settled the riskiest question
 

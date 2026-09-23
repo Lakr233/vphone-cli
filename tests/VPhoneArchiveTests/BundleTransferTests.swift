@@ -232,10 +232,22 @@ struct BundleTransferTests {
         Array(try Data(contentsOf: url).prefix(n))
     }
 
-    private func exportAndImport(
-        _ compression: VPhoneBundleTransfer.ExportCompression?
-    ) throws -> (archive: URL, imported: VPhoneBundle) {
+    /// Takes a body rather than returning the pair, because it makes two
+    /// temporary libraries and has to outlive neither.
+    ///
+    /// It used to `return (archive, imported)`, which meant neither root could
+    /// be removed here — and none of the three callers removed them either. Each
+    /// holds a 1 GiB `Disk.img`, so every `swift test` left six of them in
+    /// `FileManager.temporaryDirectory` for good: the directory had reached
+    /// 383 GB and filled the volume. Every other test in this file and in
+    /// `BundleOpsTests` already paired `makeRoot()` with a `defer`; this helper
+    /// was the one place that could not.
+    private func withExportAndImport(
+        _ compression: VPhoneBundleTransfer.ExportCompression?,
+        _ body: (_ archive: URL, _ imported: VPhoneBundle) throws -> Void
+    ) throws {
         let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
         try makeBundle("orig", cpuCount: 6, in: lib)
         let archive = root.appendingPathComponent("orig.archive")
@@ -251,27 +263,37 @@ struct BundleTransferTests {
             try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib)
         }
         let dstRoot = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: dstRoot) }
         let imported = try VPhoneBundleTransfer.importArchive(
             from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot))
-        return (archive, imported)
+        try body(archive, imported)
     }
 
+    // The `try` is hoisted out of `#expect` in these three: inside a throwing
+    // closure the macro's expansion does not carry the throw out, so
+    // `#expect(try magic(...))` is "errors thrown from here are not handled".
     @Test func exportDefaultsToFastZstd() throws {
-        let (archive, imported) = try exportAndImport(nil)
-        #expect(try magic(archive, 4) == Self.zstdMagic)
-        #expect(imported.manifest.cpuCount == 6)
+        try withExportAndImport(nil) { archive, imported in
+            let magic = try magic(archive, 4)
+            #expect(magic == Self.zstdMagic)
+            #expect(imported.manifest.cpuCount == 6)
+        }
     }
 
     @Test func exportFastProducesZstdAndRoundTrips() throws {
-        let (archive, imported) = try exportAndImport(.fast)
-        #expect(try magic(archive, 4) == Self.zstdMagic)
-        #expect(imported.manifest.cpuCount == 6)
+        try withExportAndImport(.fast) { archive, imported in
+            let magic = try magic(archive, 4)
+            #expect(magic == Self.zstdMagic)
+            #expect(imported.manifest.cpuCount == 6)
+        }
     }
 
     @Test func exportMaxProducesXzAndRoundTrips() throws {
-        let (archive, imported) = try exportAndImport(.max)
-        #expect(try magic(archive, 6) == Self.xzMagic)
-        #expect(imported.manifest.cpuCount == 6)
+        try withExportAndImport(.max) { archive, imported in
+            let magic = try magic(archive, 6)
+            #expect(magic == Self.xzMagic)
+            #expect(imported.manifest.cpuCount == 6)
+        }
     }
 
     /// Replaces the old `compressionPresetTarArgs`, which pinned the same

@@ -47,25 +47,36 @@ struct LibraryTests {
         }
     }
 
+    // These three go through `ProcessEnvironment` rather than calling `setenv`
+    // and `unsetenv` directly. `.serialized` on this suite orders these tests
+    // against each other, but `ResourcesTests` drives the same two variables
+    // from its own serialized suite, and nothing ordered the two suites — so
+    // the bare `unsetenv` that used to open `defaultRootIsShellSafe` could
+    // clear `VPHONE_ROOT` in the middle of a ResourcesTests assertion.
     @Test func defaultRootHonorsEnvOverride() {
-        setenv("VPHONE_LIBRARY_ROOT", "/tmp/vphone-test-root", 1)
-        defer { unsetenv("VPHONE_LIBRARY_ROOT") }
-        #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root")
+        ProcessEnvironment.withOverrides(["VPHONE_LIBRARY_ROOT": "/tmp/vphone-test-root"]) {
+            #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root")
+        }
     }
 
     @Test func defaultRootHonorsVPHONERoot() {
-        unsetenv("VPHONE_LIBRARY_ROOT")
-        setenv("VPHONE_ROOT", "/tmp/vphone-test-root", 1)
-        defer { unsetenv("VPHONE_ROOT") }
-        #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root/VMs")
+        ProcessEnvironment.withOverrides([
+            "VPHONE_LIBRARY_ROOT": nil,
+            "VPHONE_ROOT": "/tmp/vphone-test-root",
+        ]) {
+            #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root/VMs")
+        }
     }
 
     @Test func defaultRootIsShellSafe() {
         // The default root feeds the shell/make firmware pipeline; a space in it
         // (e.g. "Application Support") breaks unquoted expansion. Must stay space-free.
-        unsetenv("VPHONE_LIBRARY_ROOT")
-        unsetenv("VPHONE_ROOT")
-        #expect(!VPhoneLibrary.defaultRoot().path.contains(" "))
+        ProcessEnvironment.withOverrides([
+            "VPHONE_LIBRARY_ROOT": nil,
+            "VPHONE_ROOT": nil,
+        ]) {
+            #expect(!VPhoneLibrary.defaultRoot().path.contains(" "))
+        }
     }
 
     @Test func scanReportsCorruptBundlesInsteadOfDropping() throws {

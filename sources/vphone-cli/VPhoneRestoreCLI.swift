@@ -34,6 +34,12 @@ struct VPhoneRestoreCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Device UDID (optional)") var udid: String?
     @Option(name: .shortAndLong, help: "Device ECID (default: read from the bundle's udid-prediction.txt)")
     var ecid: String?
+    // The Python exposed this as `--erase/--no-erase`, defaulting to erase, and
+    // `VPhoneRestoreOptions.erase` has carried it since the port. Only the flag
+    // was missing, which left `Behavior.Update` reachable from the library and
+    // its unit test but not from the command line.
+    @Flag(name: .customLong("no-erase"), help: "Update in place instead of erasing (upstream's Behavior.Update)")
+    var noErase = false
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
 
@@ -74,11 +80,14 @@ struct VPhoneRestoreCommand: ParsableCommand {
             let shshes = ((try? fm.contentsOfDirectory(at: bundle.url, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.pathExtension == "shsh" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
             guard let shsh = shshes.first else { throw VPhoneRestoreError.noSHSH }
-            let restoreDir = ((try? fm.contentsOfDirectory(at: bundle.url, includingPropertiesForKeys: nil)) ?? [])
-                .filter { $0.lastPathComponent.hasPrefix("iPhone") && $0.lastPathComponent.hasSuffix("_Restore") }
-                .sorted { $0.lastPathComponent < $1.lastPathComponent }
-                .first
-            guard let restoreDir else { throw VPhoneRestoreError.noRestoreDir }
+            // `VPhoneRestoreLayout.findRestoreDirectory`, not a local glob that
+            // sorts and takes the first. This path used to do the latter, which
+            // is Python's rule and the one the port deliberately replaced —
+            // and here it was worse than either: with two firmware trees side
+            // by side it decrypted one of them IN PLACE, irreversibly, and only
+            // then reached the bridge, which refuses two trees and aborted. The
+            // refusal has to come before anything is written.
+            let restoreDir = try VPhoneRestoreLayout.findRestoreDirectory(in: bundle.url)
             print("[restore] decrypting AEA images in \(restoreDir.lastPathComponent)...")
             try VPhoneRestoreOps.decryptAEAImages(inRestoreDir: restoreDir)
             ticket = shsh
@@ -88,7 +97,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
             vmDir: bundle.url,
             ecid: ecidValue,
             udid: udid,
-            erase: true,
+            erase: !noErase,
             ticketPath: ticket,
             debugLevel: v.restoreDebugLevel,
             onEvent: onEvent
