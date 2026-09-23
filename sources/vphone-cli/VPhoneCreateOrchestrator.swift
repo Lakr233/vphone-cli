@@ -423,28 +423,37 @@ public struct VPhoneCreateOrchestrator {
 
     private func runBootAnalysis(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
-        let (vmExe, vmArgs) = launcher.plan(["--config", configURL.path, "--headless"])
+        // A newly restored guest may need its first graphical session to
+        // finish setup before vphoned accepts a connection. A headless first
+        // boot timed out on 26.6.2, while the same disk reached vphoned in
+        // GUI mode; later headless boots then connected normally.
+        let (vmExe, vmArgs) = launcher.plan(["--config", configURL.path])
         trace("spawn \(vmExe.path) \(vmArgs.joined(separator: " ")) (guest serial: off)", v)
         let vm = VPhoneManagedProcess(vmExe, vmArgs, cwd: bundleURL, echo: false)
         try vm.start()
         defer { vm.terminate() }
 
-        let outcome = vm.waitForOutput(matching: VPhoneBootPatterns.panicOrVphonedRegex, timeout: 300)
-        trace("first-boot managed-process outcome: \(outcome)", v)
-        switch outcome {
-        case .matched:
-            if case .matched = vm.waitForOutput(matching: "(?i:\(VPhoneBootPatterns.panicRegex))", timeout: 0) {
+        let socketPath = bundleURL.appendingPathComponent("vphone.sock").path
+        let deadline = Date().addingTimeInterval(300)
+        while Date() < deadline {
+            switch vm.waitForOutput(matching: "(?i:\(VPhoneBootPatterns.panicRegex))", timeout: 0) {
+            case .matched:
                 print("[-] Boot analysis: panic detected, stopping VM.")
                 throw VPhoneCreateError.bootAnalysisPanic
+            case let .exited(code):
+                print("[-] Boot analysis: VM process exited before success marker.")
+                throw VPhoneCreateError.bootAnalysisExited(code)
+            case .timedOut:
+                break
             }
-            print("[+] First boot: vphoned connected.")
-        case let .exited(code):
-            print("[-] Boot analysis: VM process exited before success marker.")
-            throw VPhoneCreateError.bootAnalysisExited(code)
-        case .timedOut:
-            print("[-] Boot analysis timeout (300s); stopping VM.")
-            throw VPhoneCreateError.bootAnalysisTimeout
+            if VPhoneHostControlProbe.ping(socketPath: socketPath) {
+                print("[+] First boot: vphoned ping succeeded.")
+                return
+            }
+            Thread.sleep(forTimeInterval: 1)
         }
+        print("[-] Boot analysis timeout (300s); stopping VM.")
+        throw VPhoneCreateError.bootAnalysisTimeout
     }
 
 }

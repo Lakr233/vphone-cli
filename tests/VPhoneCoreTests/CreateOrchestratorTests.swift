@@ -4,10 +4,9 @@ import Testing
 
 // Tests for `VPhoneBootPatterns` — the pure, device-independent pieces of the
 // native `vm create` pipeline (`VPhoneCreateOrchestrator`, executable target).
-// The orchestrator's live stages (DFU/restore/CFW/boot check)
-// need a real device and are NOT exercised here; see the Task 2 report.
+// The orchestrator's live stages (DFU/restore/CFW/boot check) require a VM.
 struct CreateOrchestratorTests {
-    // MARK: - first-boot log markers
+    // MARK: - first-boot panic markers
 
     private func matches(_ pattern: String, _ line: String) throws -> Bool {
         let re = try NSRegularExpression(pattern: pattern)
@@ -24,16 +23,6 @@ struct CreateOrchestratorTests {
 
     @Test func panicRegexDoesNotMatchOrdinaryLogLine() throws {
         #expect(try !matches(VPhoneBootPatterns.panicRegex, "vphoned: connected, awaiting handshake"))
-    }
-
-    @Test func bootCheckMatchesPanicCaseInsensitively() throws {
-        #expect(try matches(VPhoneBootPatterns.panicOrVphonedRegex, "PANIC(cpu 0 caller 0x0): uppercase panic"))
-    }
-
-    @Test func bootCheckRequiresVphonedConnectionInsteadOfShellPrompt() throws {
-        #expect(try matches(VPhoneBootPatterns.panicOrVphonedRegex,
-            "[control] connected to vphoned v1 (192.168.64.2) iOS 26.6.2"))
-        #expect(try !matches(VPhoneBootPatterns.panicOrVphonedRegex, "bash-3.2#"))
     }
 
     // MARK: - normalizeECID (port of setup_machine.sh's normalize_ecid)

@@ -7,10 +7,6 @@ public enum VPhoneBootPatterns {
     /// Kernel panic marker in the guest serial log.
     public static let panicRegex = #"(^|[^p])(panic|kernel panic|panic\.apple\.com|stackshot succeeded)"#
 
-    /// A connected guest daemon is the first-boot success marker. The old
-    /// iosbinpack shell prompt no longer exists in the JB-only guest.
-    public static let panicOrVphonedRegex = "(?i:\(panicRegex))|\\[control\\] connected to vphoned v[0-9]+"
-
     /// Accept 1-16 ASCII hex digits, with an optional 0x prefix.
     public static func normalizeECID(_ raw: String) -> String? {
         var value = raw
