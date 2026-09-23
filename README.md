@@ -18,14 +18,11 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 no Xcode. Everything vphone-cli runs is either a system binary under `/usr/bin`,
 `/bin`, `/usr/sbin` or `/sbin`, or is inside the `.app` — including the signer
 (it replaced `ldid`), the archive reader (`gtar`, `zstd`, `unzip`), the firmware
-catalogue and IM4P/AEA handling (`ipsw`), and the five iOS binaries the CFW
-installers put in the guest, which are cross-compiled at build time and shipped
+catalogue and IM4P/AEA handling (`ipsw`), and the vphoned daemon installed in the guest, which is cross-compiled at build time and shipped
 rather than built on your machine. `make check-aux` is the gate that keeps it
 that way.
 
-**To build it from source**, add Xcode — its iOS SDK is what those guest
-binaries are cross-compiled against — and `git-lfs`, which `git clone` needs for
-the archives in `scripts/resources`.
+**To build it from source**, add Xcode for the iOS SDK used to compile vphoned.
 
 ## Install
 
@@ -36,7 +33,6 @@ brew install zqxwce/tap/vphone-cli
 ## Build
 
 ```bash
-brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
 ./scripts/build.sh            # build + sign vphone-cli, cross-compile the guest
@@ -125,7 +121,6 @@ Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo
 | `~/.vphone/VMs/`  | VM bundles — one directory per VM. This is the library; override with `$VPHONE_LIBRARY_ROOT`. |
 | `~/.vphone/ipsws/`| Downloaded iPhone + cloudOS IPSWs, cached and reused across VMs.                              |
 | `~/.vphone/tools/`| Cached APFS seal-volume artifacts used by firmware patching.                       |
-| `~/.vphone/debs/` | Cached `.deb` packages the `jb`/`exp` CFW install lays into the guest (Sileo, apt, …).        |
 
 Precedence: the per-item override `$VPHONE_LIBRARY_ROOT` wins over `$VPHONE_ROOT`, which wins over the `~/.vphone` default. The `ipsws/`, `tools/`, and `debs/` caches always sit directly under whichever root is active.
 
@@ -241,7 +236,7 @@ always launches, so its cdhash is not the one you want.
 
 **Install a `.ipa`/`.tipa`** — use the running VM's Install menu (drag-drop or file picker).
 
-**Do I need Homebrew, or Xcode, to use this?** — No. `vphone-cli` runs on a clean macOS 15+: everything it shells out to is in `/usr/bin`, `/bin`, `/usr/sbin` or `/sbin`, and everything else is inside the `.app`. `make check-aux` is the gate that keeps it that way — it walks the bundle's dependency closure, checks the bundle holds exactly what it is supposed to, scans every shipped script for a `PATH` lookup, and smoke-tests the binaries with `env -i PATH=/usr/bin:/bin`. Building from source is the other story: that needs Xcode (for the iOS SDK the guest binaries are cross-compiled against) and `git-lfs` (to check out `scripts/resources`).
+**Do I need Homebrew, or Xcode, to use this?** — No. `vphone-cli` runs on a clean macOS 15+: everything it shells out to is in `/usr/bin`, `/bin`, `/usr/sbin` or `/sbin`, and everything else is inside the `.app`. `make check-aux` is the gate that keeps it that way — it walks the bundle's dependency closure, checks the bundle holds exactly what it is supposed to, scans every shipped script for a `PATH` lookup, and smoke-tests the binaries with `env -i PATH=/usr/bin:/bin`. Building from source needs Xcode for the iOS SDK used to compile vphoned.
 
 **`cfw install` hangs re-signing a system binary (e.g. `Campo`), memory climbing unbounded** — this was a bug in `ldid-procursus` up to `2.1.5-procursus7`: `bytes(uint64_t)` called `__builtin_clzll(0)` with no zero-guard, which is undefined behavior, and on that build resolved to a `0`-length that underflowed an unsigned loop counter, so `ldid` span writing one byte at a time into a growing buffer instead of terminating. Any entitlements plist with an integer value of exactly `0` triggered it, and some real Apple system binaries have one. It cannot happen any more: signing is `vphone-cli sign`, in-process, and `ldid` is not installed, invoked or shipped.
 

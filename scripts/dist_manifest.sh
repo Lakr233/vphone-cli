@@ -63,10 +63,6 @@ done
 #                     artifacts ship in Contents/Resources/guest instead, so the
 #                     install needs no iPhoneOS SDK
 #   vphoned/*.m *.h vendor/ Makefile   same, and it is the bulk of scripts/
-print -r -- "resources"                     # cfw_input*.tar.zst + cfw_dev/, read by setup_cfw_input
+print -r -- "payloads/AppleParavirtGPUMetalIOGPUFamily.tar" # guest GPU driver
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
-print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned and vpregister
-print -r -- "vphoned/signcert.p12"          # VPhoneResources.signcert, for live installs
-print -r -- "vphone_jb_setup.plist"         # LaunchDaemon that runs vphone_jb_setup.sh
-print -r -- "camfix/libcamfix.plist"        # companion plist, copied beside the dylib
-print -r -- "vcamcaptured/libvcamcaptured.plist"
+print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

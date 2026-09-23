@@ -1,17 +1,7 @@
 // VPhoneGuestBinaries.swift — where the prebuilt iOS binaries live.
 //
-// Five Mach-Os run inside the guest and are built for it, not for this host:
-// vphoned, TweakLoader.dylib, vpregister, libvcamcaptured.dylib and
-// libcamfix.dylib. Every one of them used to be cross-compiled at CFW-install
-// time — three by `scripts/cfw_install*.sh` through `xcrun --sdk iphoneos`, and
-// vphoned by `FirmwarePatcher` doing the same thing from Swift. That made Xcode
-// and the iPhoneOS SDK a prerequisite for `cfw install`, on a machine whose only
-// job is to run a virtual phone.
-//
-// They are compiled by `scripts/guest_binaries.mk` on the machine that builds
-// the .app and shipped in `Contents/Resources/guest`. What is left at install
-// time is signing, which cannot move: it uses the target VM's own
-// `cfw_input/signcert.p12`, and that does not exist until a VM does.
+// vphoned is cross-compiled on the build machine and shipped in the app.
+// The runtime installs it with an ad-hoc signature and never needs Xcode.
 
 import Foundation
 

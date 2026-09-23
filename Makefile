@@ -239,7 +239,7 @@ include $(SCRIPTS)/guest_binaries.mk
 vphoned: $(GUEST_DIR)/vphoned $(BINARY)
 	@cp -f $(GUEST_DIR)/vphoned .build/vphoned.signed
 	@$(BINARY) sign --entitlements $(SCRIPTS)/vphoned/entitlements.plist --merge \
-		--pkcs12 $(SCRIPTS)/vphoned/signcert.p12 .build/vphoned.signed
+		.build/vphoned.signed
 	@echo "  signed → .build/vphoned.signed"
 
 # ═══════════════════════════════════════════════════════════════════
@@ -440,4 +440,4 @@ restore_offline: build
 .PHONY: cfw_install
 
 cfw_install:
-	$(if $(call truthy,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" --variant jb "$(VM_DIR_ABS)"
+	$(if $(call truthy,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" "$(VM_DIR_ABS)"

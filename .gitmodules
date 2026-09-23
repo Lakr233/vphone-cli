@@ -1,6 +1,3 @@
-[submodule "scripts/resources"]
-	path = scripts/resources
-	url = https://github.com/zqxwce/vphone-cli-storage.git
 [submodule "scripts/repos/insert_dylib"]
 	path = scripts/repos/insert_dylib
 	url = https://github.com/tyilo/insert_dylib.git

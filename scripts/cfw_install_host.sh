@@ -2,8 +2,8 @@
 # vphone-tier: dist
 # cfw_install_host.sh — CFW install by host-mounting the VM's Disk.img.
 #
-# Attaches the VM's Disk.img on the host and hands the container to the variant
-# installer (cfw_install*.sh), which mounts the APFS volumes and places every
+# Attaches the VM's Disk.img on the host and hands the container to the JB
+# installer, which mounts the APFS volumes and places every
 # CFW file directly. Then flips the boot snapshot offline
 # (`vphone-cli cfw flip-snapshot`) so the VM boots the live volume.
 #
@@ -14,33 +14,19 @@
 # needs nothing outside macOS. SIP disabled (project baseline); NO
 # authenticated-root/ARV change needed.
 #
-# Usage: cfw_install_host.sh [--variant regular|dev|jb|exp] [vm_dir]
+# Usage: cfw_install_host.sh [vm_dir]
 # Runs as root (mount_apfs/chown/cp to owners-honored mounts); re-execs under
 # sudo automatically (honors SUDO_ASKPASS for non-interactive use).
 set -euo pipefail
 SCRIPT_DIR="${0:a:h}"
 PROJ="${SCRIPT_DIR:h}"
 
-VARIANT=exp
-VM_DIR="$PROJ/vm"
-while (( $# )); do
-  case "$1" in
-    --variant) VARIANT="$2"; shift 2 ;;
-    *)         VM_DIR="$1";  shift ;;
-  esac
-done
-
-case "$VARIANT" in
-  regular) INSTALLER=cfw_install.sh ;;
-  dev)     INSTALLER=cfw_install_dev.sh ;;
-  jb)      INSTALLER=cfw_install_jb.sh ;;
-  exp)     INSTALLER=cfw_install_exp.sh ;;
-  *) echo "[-] unknown variant: $VARIANT (regular|dev|jb|exp)" >&2; exit 1 ;;
-esac
+VM_DIR="${1:-$PROJ/vm}"
+[[ $# -le 1 ]] || { echo "[-] expected one VM directory" >&2; exit 1; }
 
 # Re-exec as root; owners-honored mounts + chown/cp require it.
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-  exec sudo ${SUDO_ASKPASS:+-A} -E /bin/zsh "$0" --variant "$VARIANT" "$VM_DIR"
+  exec sudo ${SUDO_ASKPASS:+-A} -E /bin/zsh "$0" "$VM_DIR"
 fi
 unset SUDO_ASKPASS   # already root: host_hdiutil/pre-step use plain sudo/hdiutil
 
@@ -68,7 +54,7 @@ if /usr/sbin/lsof "$IMG" >/dev/null 2>&1; then
   echo "[-] $IMG is in use — stop the VM first." >&2; exit 1
 fi
 
-echo "[*] host-mode CFW install: variant=$VARIANT vm=$VM_DIR"
+echo "[*] host-mode JB CFW install: vm=$VM_DIR"
 AO=$(hdiutil attach -nomount -imagekey diskimage-class=CRawDiskImage "$IMG" 2>/dev/null)
 BASEDISK=$(awk 'NR == 1 { print $1; exit }' <<< "$AO")
 CONT=$(diskutil info -plist "${BASEDISK}s1" | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
@@ -84,13 +70,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "[*] running $INSTALLER (files placed on host mounts)..."
+echo "[*] running cfw_install_jb.sh (files placed on host mounts)..."
 # via env: an expansion-produced ${VAR:+NAME=val} isn't parsed as a shell assignment.
 ( cd "$VM_DIR" && env CFW_HOST_CONTAINER="$CONT" _VPHONE_PATH="$P" \
     ${SPOOF_BUILD:+SPOOF_BUILD="$SPOOF_BUILD"} \
     ${FORCE_DSC_MAXSLIDE:+FORCE_DSC_MAXSLIDE="$FORCE_DSC_MAXSLIDE"} \
     ${VPHONE_FRIDA:+VPHONE_FRIDA="$VPHONE_FRIDA"} \
-    zsh "$SCRIPT_DIR/$INSTALLER" . )
+    zsh "$SCRIPT_DIR/cfw_install_jb.sh" . )
 
 cleanup
 trap - EXIT
@@ -108,14 +94,8 @@ fi
 [[ -x "$VPHONE_CLI" ]] || { echo "[-] cannot find vphone-cli to flip the snapshot" >&2; exit 1; }
 "$VPHONE_CLI" cfw flip-snapshot "$IMG"
 
-# Drop the extracted CFW input dirs (source .tar.zst re-extracts). VPHONE_KEEP_ARTIFACTS opts out.
-if [[ -z "${VPHONE_KEEP_ARTIFACTS:-}" ]]; then
-  rm -rf "${VM_DIR:?}/cfw_input" "${VM_DIR:?}/cfw_jb_input"
-fi
-
 # The whole install ran as root (owners-honored mounts / chown / cp). Hand the
-# host-side artifacts it created (vm/.vphoned.signed, vm/.cfw_temp, extracted
-# cfw_input/cfw_jb_input) back to the invoking user, so the subsequent user-run
+# host-side artifacts it created (vm/.vphoned.signed and vm/.cfw_temp) back to the invoking user, so the subsequent user-run
 # steps (make boot / setup_machine first boot, which rewrite
 # vm/.vphoned.signed) don't hit "Permission denied".
 #

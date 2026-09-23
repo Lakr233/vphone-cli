@@ -129,40 +129,16 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Fixing dyld cache…")
             try addDyldSymlinks(targetMount: targetMount)
 
-            let cfwInputOgPath = resources.resourceArchivesDir.appendingPathComponent("cfw_input.tar.zst")
-            let cfwInputPath = try createTmpDir()
-            // No `--zstd` to pass: VPhoneArchiveExtractor detects the filter, and
-            // the libzstd it uses is static in the xcframework rather than a
-            // Homebrew program tar would have gone looking for.
-            //
-            // `.ontoGuestVolume` although this lands in a host temp directory.
-            // The destination is scratch, but the members are the guest's files
-            // in waiting — several are copied onto the volume verbatim below —
-            // and this step runs as root, where `/usr/bin/tar -xf` already
-            // restored modes and numeric owners by default. Keeping them is
-            // preserving what the tar call did, not tightening it.
-            try VPhoneArchiveExtractor.extract(
-                cfwInputOgPath, into: cfwInputPath, options: .ontoGuestVolume
-            )
-
             print("- Fixing GPU driver…")
-            try addGpuDriver(targetMount: targetMount, cfwInput: cfwInputPath)
+            try addGpuDriver(targetMount: targetMount)
 
             print("- Patching mobile activation…")
-            try patchMobileActivation(targetMount: targetMount, cfwInput: cfwInputPath)
+            try patchMobileActivation(targetMount: targetMount)
 
             print("- Adding vphoned…")
-            try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
-            if !noBinpack {
-                print("- Adding binpack…")
-                try addExtraServices(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
-            try injectLaunchDaemons(
-                targetMount: targetMount,
-                cfwInput: cfwInputPath,
-                cfw: !noBinpack
-            )
-            try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
+            try addVphoned(targetMount: targetMount)
+            try injectLaunchDaemons(targetMount: targetMount)
+            try patchLaunchdCacheLoader(targetMount: targetMount)
         }
 
         print("- Finalizing merged image…")

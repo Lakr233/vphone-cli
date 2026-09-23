@@ -234,7 +234,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
     var rootPopup = false
     @Flag(
         name: .customLong("keep-artifacts"),
-        help: "Keep the extracted CFW input dirs (cfw_input/, cfw_jb_input/) after install (default: removed to save space)"
+        help: "Keep the extracted firmware after install (default: removed to save space)"
     )
     var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
@@ -252,7 +252,6 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         // --root-popup forwards it inline (do shell script's bare env).
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
         var scriptEnv: [String: String] = [
             // The script re-execs under sudo, so it cannot work out where we
             // live from its own path in the bundled case. Tell it.
@@ -262,12 +261,10 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             // last Python patcher was deleted.
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
-            "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
         ]
         if forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
-        if keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
-        let args = [resources.cfwInstallHostScript.path, "--variant", "jb", bundle.url.path]
+        let args = [resources.cfwInstallHostScript.path, bundle.url.path]
         let code: Int32
         if rootPopup {
             // Forward SUDO_USER (sudo would set it) so the script's chown-back runs.

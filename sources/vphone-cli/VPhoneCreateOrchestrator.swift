@@ -431,7 +431,6 @@ public struct VPhoneCreateOrchestrator {
         let v = options.verbosity
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
         // No VPHONE_PYTHON: the CFW installers and cfw-kit run `vphone-cli cfw
         // <verb>` now, so nothing under this script reads a python. Asking for
         // one here would only force a venv bootstrap nobody uses.
@@ -444,13 +443,11 @@ public struct VPhoneCreateOrchestrator {
             "VPHONE_CLI_BIN": VPhoneResources.runningExecutable().path,
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
-            "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
         ]
         if options.forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
         if options.enableFrida { scriptEnv["VPHONE_FRIDA"] = "1" }
-        if options.keepArtifacts { scriptEnv["VPHONE_KEEP_ARTIFACTS"] = "1" }
 
-        let args = [resources.cfwInstallHostScript.path, "--variant", "jb", bundleURL.path]
+        let args = [resources.cfwInstallHostScript.path, bundleURL.path]
         // --sudo-password (askpass) wins over --root-popup.
         let usePopup = options.rootPopup && sudoEnvExtras["SUDO_ASKPASS"] == nil
         let code: Int32

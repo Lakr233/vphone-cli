@@ -92,10 +92,11 @@ public struct VPhoneResources: Sendable {
     // MARK: - Assets
 
     public var scriptsDir: URL { base.appendingPathComponent("scripts") }
-    public var resourceArchivesDir: URL { scriptsDir.appendingPathComponent("resources") }
+    public var gpuDriverArchive: URL {
+        scriptsDir.appendingPathComponent("payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
+    }
     public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
     public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
-    public var signcert: URL { scriptsDir.appendingPathComponent("vphoned/signcert.p12") }
 
     public var vphoned: URL {
         let bundled = base.appendingPathComponent("vphoned.signed")
@@ -108,7 +109,7 @@ public struct VPhoneResources: Sendable {
     // MARK: - Cache dirs
 
     /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both
-    /// `VPhoneResources` (ipsws/tools/debs) and `VPhoneLibrary` (VMs) derive
+    /// `VPhoneResources` (ipsws/tools) and `VPhoneLibrary` (VMs) derive
     /// from this so one variable redirects everything vphone-cli creates.
     public static func userDataRoot() -> URL {
         if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
@@ -119,7 +120,6 @@ public struct VPhoneResources: Sendable {
 
     public var ipswCacheDir: URL { Self.userDataRoot().appendingPathComponent("ipsws") }
     public var sealVolumeCacheDir: URL { Self.userDataRoot().appendingPathComponent("tools") }
-    public var debsCacheDir: URL { Self.userDataRoot().appendingPathComponent("debs") }
 
     // MARK: - No interpreter
 

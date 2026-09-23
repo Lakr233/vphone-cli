@@ -2,8 +2,7 @@
 # vphone-tier: dist
 # cfw_install.sh — Install base CFW modifications on vphone.
 #
-# Installs Cryptexes, patches system binaries, installs jailbreak tools
-# and configures LaunchDaemons for persistent SSH/VNC access.
+# Installs Cryptexes, patches required system binaries, and installs vphoned.
 #
 # Files are placed directly on the VM's Disk.img volumes, which cfw_install_host.sh
 # attaches and mounts on the host; the VM must be off.
@@ -16,7 +15,7 @@
 #   - /usr/bin/aea (macOS 12+) — the only external program this script runs
 #   - vphone-cli built (make build) — every CFW patcher, the signer, the
 #     archive reader and the prebuilt guest binaries come with it
-#   - cfw_input/ or resources/cfw_input.tar.zst present
+#   - the bundled GPU driver payload and prebuilt vphoned present
 #
 # Usage: make cfw_install
 set -euo pipefail
@@ -59,7 +58,7 @@ VPHONE_ARCHIVE="${VPHONE_CLI:h}/vphone-archive"
     exit 1
 }
 
-# The five iOS binaries this install puts in the guest are cross-compiled at
+# The vphoned binary this install puts in the guest is cross-compiled at
 # BUILD time (scripts/guest_binaries.mk) and shipped, because compiling them
 # here would make Xcode and the iPhoneOS SDK a requirement for running a VM.
 # Contents/Resources/guest in the .app, .build/guest in a dev tree.
@@ -69,8 +68,6 @@ for candidate in "${SCRIPT_DIR:h}/guest" "${SCRIPT_DIR:h}/.build/guest"; do
 done
 
 # ── Configuration ───────────────────────────────────────────────
-CFW_INPUT="cfw_input"
-CFW_ARCHIVE="cfw_input.tar.zst"
 TEMP_DIR="$VM_DIR/.cfw_temp"
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -86,12 +83,12 @@ die() {
 # carrying it worked on the machine that built it and nowhere else.
 #
 # The three shapes this file ever called it in map one to one:
-#     ldid -S -M -K<p12> [-I<id>] f   ->  guest_sign f [id]
-#     ldid -S<ent> -M -K<p12> [-I] f  ->  guest_sign_ent f ent [id]
+#     ldid -S -M [-I<id>] f   ->  guest_sign f [id]
+#     ldid -S<ent> -M [-I] f  ->  guest_sign_ent f ent [id]
 #     ldid -e f                       ->  guest_entitlements f
 guest_sign() {
     local file="$1" bundle_id="${2:-}"
-    local args=(--merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    local args=(--merge)
     [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
     "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
@@ -101,7 +98,7 @@ guest_sign() {
 # profile + private DA/apfs entitlements).
 guest_sign_ent() {
     local file="$1" ent="$2" bundle_id="${3:-}"
-    local args=(--entitlements "$ent" --merge --pkcs12 "$VM_DIR/$CFW_INPUT/signcert.p12")
+    local args=(--entitlements "$ent" --merge)
     [[ -n "$bundle_id" ]] && args+=(--identifier "$bundle_id")
     "$VPHONE_CLI" sign "${args[@]}" "$file"
 }
@@ -166,21 +163,6 @@ find_restore_dir() {
     die "No restore directory found in $VM_DIR"
 }
 
-# ── Setup input resources ──────────────────────────────────────
-setup_cfw_input() {
-    [[ -d "$VM_DIR/$CFW_INPUT" ]] && return
-    local archive
-    for search_dir in "$SCRIPT_DIR/resources" "$SCRIPT_DIR" "$VM_DIR"; do
-        archive="$search_dir/$CFW_ARCHIVE"
-        if [[ -f "$archive" ]]; then
-            echo "  Extracting $CFW_ARCHIVE..."
-            guest_untar "$archive" "$VM_DIR"
-            return
-        fi
-    done
-    die "Neither $CFW_INPUT/ nor $CFW_ARCHIVE found"
-}
-
 # ── Check prerequisites ────────────────────────────────────────
 # What used to be here was `command -v ipsw` and `command -v aea`. The first is
 # gone: the one thing this script asked ipsw for was the SystemOS AEA key, and
@@ -227,10 +209,6 @@ require_firmware_tools
 
 RESTORE_DIR=$(find_restore_dir)
 echo "[+] Restore directory: $RESTORE_DIR"
-
-setup_cfw_input
-INPUT_DIR="$VM_DIR/$CFW_INPUT"
-echo "[+] Input resources: $INPUT_DIR"
 
 mkdir -p "$TEMP_DIR"
 
@@ -380,9 +358,8 @@ esac
 #    at slide 0. (The patcher also self-gates on the actual span, but older userlands
 #    fit with full slide and never need it — so it is not run there at all.)
 #  - lsd embedded-registration gate: opens lsd's containerized-registration path so
-#    the iOS-27 vpregister first-boot tool can register JB apps (uicache's
-#    registerApplicationDictionary is a no-op stub on 27). Not needed on 26.x/18.x,
-#    where uicache registers apps normally.
+#    registerApplicationDictionary is a no-op stub on 27. The gate remains
+#    part of the maximal JB patch set even though app bootstrap is external.
 #  - xpc LWCR self-check: iOS 27's libxpc brk-aborts when its Lightweight Code
 #    Requirement matcher returns the contradictory (matched=0, error_code=MATCH) pair
 #    that our JB code-signing environment produces. That crash-loops every daemon which
@@ -464,8 +441,7 @@ echo "  [+] seputil patched"
 echo ""
 echo "[3/7] Installing AppleParavirtGPUMetalIOGPUFamily..."
 
-cp -R "$INPUT_DIR/custom/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1"
-guest_untar "$MNT1/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1" \
+guest_untar "$SCRIPT_DIR/payloads/AppleParavirtGPUMetalIOGPUFamily.tar" "$MNT1" \
     --preserve-permissions --no-overwrite-dir
 
 BUNDLE="$MNT1/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle"
@@ -478,23 +454,7 @@ find $BUNDLE -name '._*' -delete 2>/dev/null || true
 /bin/chmod 0755 $BUNDLE/_CodeSignature
 /bin/chmod 0644 $BUNDLE/_CodeSignature/CodeResources
 /bin/chmod 0644 $BUNDLE/Info.plist
-/bin/rm -f $MNT1/AppleParavirtGPUMetalIOGPUFamily.tar
-
 echo "  [+] GPU driver installed"
-
-# ═══════════ 4/7 INSTALL IOSBINPACK64 ════════════════════════
-echo ""
-echo "[4/7] Installing iosbinpack64..."
-
-cp -R "$INPUT_DIR/jb/iosbinpack64.tar" "$MNT1"
-guest_untar "$MNT1/iosbinpack64.tar" "$MNT1" --preserve-permissions --no-overwrite-dir
-/bin/rm -f $MNT1/iosbinpack64.tar
-
-# dropbear host keys are generated on first boot by dropbear -R; just ensure
-# the key directory exists for it to write into.
-/bin/mkdir -p $MNT3/dropbear
-
-echo "  [+] iosbinpack64 installed"
 
 # ═══════════ 5/7 PATCH LAUNCHD_CACHE_LOADER ══════════════════
 echo ""
@@ -541,8 +501,7 @@ echo "[7/7] Installing LaunchDaemons..."
 # It used to be cross-compiled right here, out of .m sources shipped inside the
 # .app, whenever they looked newer than the binary — which made Xcode and the
 # iPhoneOS SDK a requirement for installing CFW onto a VM. It is built at build
-# time now (scripts/guest_binaries.mk) and shipped compiled. Signing stays here,
-# because it uses this VM's own cfw_input/signcert.p12.
+# time now (scripts/guest_binaries.mk) and shipped compiled.
 VPHONED_SRC="$SCRIPT_DIR/vphoned"
 VPHONED_BIN="$GUEST_BIN/vphoned"
 [[ -f "$VPHONED_BIN" ]] || die "missing prebuilt vphoned at $VPHONED_BIN — run 'make build'"
@@ -554,17 +513,6 @@ cp -R "$TEMP_DIR/vphoned" "$MNT1/usr/bin/vphoned"
 cp "$TEMP_DIR/vphoned" "$VM_DIR/.vphoned.signed"
 echo "  [+] vphoned installed (signed copy at .vphoned.signed)"
 
-# Send daemon plists (overwrite on re-run)
-for plist in bash.plist dropbear.plist trollvnc.plist rpcserver_ios.plist; do
-    plist_src="$INPUT_DIR/jb/LaunchDaemons/$plist"
-    if [[ "$plist" == "dropbear.plist" ]]; then
-        plist_src="$TEMP_DIR/dropbear.plist"
-        cp "$INPUT_DIR/jb/LaunchDaemons/dropbear.plist" "$plist_src"
-        "$VPHONE_CLI" cfw patch-dropbear-plist "$plist_src"
-    fi
-    cp -R "$plist_src" "$MNT1/System/Library/LaunchDaemons/"
-    /bin/chmod 0644 $MNT1/System/Library/LaunchDaemons/$plist
-done
 cp -R "$VPHONED_SRC/vphoned.plist" "$MNT1/System/Library/LaunchDaemons/"
 /bin/chmod 0644 $MNT1/System/Library/LaunchDaemons/vphoned.plist
 
@@ -576,8 +524,8 @@ if ! [[ -e "$MNT1/System/Library/xpc/launchd.plist.bak" ]]; then
 fi
 
 cp "$MNT1/System/Library/xpc/launchd.plist.bak" "$TEMP_DIR/launchd.plist"
-cp "$VPHONED_SRC/vphoned.plist" "$INPUT_DIR/jb/LaunchDaemons/"
-"$VPHONE_CLI" cfw inject-daemons "$TEMP_DIR/launchd.plist" "$INPUT_DIR/jb/LaunchDaemons"
+"$VPHONE_CLI" cfw inject-daemon "$TEMP_DIR/launchd.plist" \
+    "$VPHONED_SRC/vphoned.plist" --name vphoned
 cp -R "$TEMP_DIR/launchd.plist" "$MNT1/System/Library/xpc/launchd.plist"
 /bin/chmod 0644 $MNT1/System/Library/xpc/launchd.plist
 
@@ -595,4 +543,3 @@ rm -rf "$TEMP_DIR"
 echo ""
 echo "[+] CFW installation complete!"
 echo "    Boot to apply changes."
-echo "    After boot, SSH will be available on port 22222 (password: alpine)"

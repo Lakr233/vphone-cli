@@ -12,7 +12,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
-- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. Two git submodules are left: `scripts/resources` and `scripts/repos/insert_dylib`. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. The only git submodule is `scripts/repos/insert_dylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
 - **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `scripts/dist_manifest.sh` reads those and is what `build.sh` and `make bundle` stage from, so a script that declares nothing ships nowhere. `make check-aux` gates all of it. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
 
 ## Workflow Rules
@@ -31,8 +31,9 @@ For any changes applying new patches, also update research/0_binary_patch_compar
 ## Firmware Mode
 
 The public CLI exposes only JB: `vphone-cli fw patch` and `vphone-cli cfw install`.
-The legacy CFW shell installer still contains first-boot package setup; its
-removal is tracked in the integration work. Do not add another public variant.
+The guest contains vphoned and required system patches; package-manager
+bootstrap and first-boot installation are outside this project. Do not add
+another public variant.
 
 See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
 
@@ -175,23 +176,17 @@ scripts/                          # Shell only — the CFW patchers are `vphone-
 │                                 # and there is no Python here at all. Every .sh declares its
 │                                 # tier on line 2; `[d]` = dist (ships), `[b]` = build, `[g]` = guest
 ├── dist_manifest.sh          [b] # What ships. The allowlist build.sh and `make bundle` stage from
-├── guest_binaries.mk         [b] # Cross-compiles the five iOS binaries (needs the iPhoneOS SDK)
+├── guest_binaries.mk         [b] # Cross-compiles vphoned (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
 ├── tail_jb_patch_logs.sh     [b] # Tail JB patch log output
-├── cfw_install.sh            [d] # Install CFW (regular)
-├── cfw_install_dev.sh        [d] # Regular + rpcserver daemon
-├── cfw_install_jb.sh         [d] # Regular + jetsam fix + procursus
-├── cfw_install_exp.sh        [d] # JB + experimental research patches (hv_vmm rename, DT identity)
+├── cfw_install.sh            [d] # Base system patches and vphoned
+├── cfw_install_jb.sh         [d] # JB system patches; no package bootstrap
 ├── cfw_install_host.sh       [d] # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
-├── fetch_debs.sh             [d] # Extra-deb downloader, reads debs.list
-├── patch_{camera,hv_vmm}_userland.sh [d]
 ├── boot_host_preflight.sh    [d] # Why the host cannot launch vphone-vm
-├── vphone_jb_setup.sh        [g] # First-boot JB finalization, LaunchDaemon inside the VM
-├── resources/                [d] # Resource archives (git submodule; needs git-lfs to clone)
-├── vphoned/                      # Guest daemon source (ObjC). Only the three plists and the
-│                                 # signcert ship; the binary is built by guest_binaries.mk
-├── tweakloader/ vpregister/ vcamcaptured/ camfix/   # The other four guest sources; same deal
+├── payloads/                 [d] # Small GPU driver archive; no bootstrap payloads
+├── vphoned/                      # Guest daemon source; only its plist and entitlements ship
+├── tweakloader/ vpregister/ vcamcaptured/ camfix/ # Unshipped experimental sources
 └── repos/                        # Toolchain source (git submodule: insert_dylib)
 
 research/                         # Detailed firmware/patch documentation

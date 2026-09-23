@@ -18,12 +18,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          lfs: true
-
-      - name: Init submodules
-        # SwiftPM resolves code dependencies from Package.resolved.
-        # insert_dylib is a test reference, not a product dependency.
-        run: git submodule update --init --depth 1 scripts/resources
 
       - name: Toolchain versions
         run: |

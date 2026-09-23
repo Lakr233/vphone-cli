@@ -1,5 +1,13 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Current product scope (September 2026):** the tables below preserve the
+> historical patch comparison. The public runtime now exposes only JB. Guest
+> package managers, Procursus, BaseBin hooks, and first-boot package setup are
+> outside this repository. The JB install retains the base system patches,
+> launchd jetsam guard, debugserver entitlement edit, iOS 27 Campo entitlement
+> edit, GPU driver, and mandatory vphoned. Old variant rows are research history,
+> not available install modes.
+
 > **`scripts/patchers/*.py` no longer exists.** The tables below cite those
 > filenames throughout, because that is where each patch was first written and
 > where its on-device validation notes were recorded. Every one is now a Swift

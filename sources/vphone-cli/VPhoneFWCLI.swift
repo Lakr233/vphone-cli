@@ -9,6 +9,7 @@ struct VPhoneFWCommand: ParsableCommand {
         abstract: "Firmware pipeline: prepare (download/merge IPSWs) and patch",
         subcommands: [
             VPhoneFWCatalogCommand.self,
+            VPhoneFWInspectCommand.self,
             VPhoneFWPrepareCommand.self,
             VPhoneFWPatchCommand.self,
             VPhoneFWManifestCommand.self,
@@ -20,6 +21,42 @@ struct VPhoneFWCommand: ParsableCommand {
             VPhoneFWURLsCommand.self,
             VPhoneFWSealToolCommand.self,
         ])
+}
+
+/// Check a PCC IPSW's build identities using HTTP ranges before committing
+/// space to a full download. The hybrid restore requires both device classes.
+struct VPhoneFWInspectCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "inspect",
+        abstract: "Inspect a remote IPSW manifest without downloading the archive"
+    )
+
+    @Argument(help: "Remote IPSW URL") var source: String
+
+    func run() throws {
+        guard let url = URL(string: source), ["https", "http"].contains(url.scheme ?? "") else {
+            throw ValidationError("Expected an HTTP(S) IPSW URL")
+        }
+        let data = try vphoneRunBlocking {
+            let zip = try await VPhoneRemoteZip.open(url)
+            return try await zip.read(zip.entry(endingWith: "BuildManifest.plist"))
+        }
+        guard let manifest = try PropertyListSerialization.propertyList(from: data, format: nil)
+                as? [String: Any],
+              let identities = manifest["BuildIdentities"] as? [[String: Any]] else {
+            throw VPhoneRemoteZip.Error.malformed("BuildManifest.plist has no BuildIdentities")
+        }
+        print("\(manifest["ProductVersion"] ?? "unknown") (\(manifest["ProductBuildVersion"] ?? "unknown"))")
+        for deviceClass in ["vresearch101ap", "vphone600ap"] {
+            let matches = identities.filter {
+                ($0["Info"] as? [String: Any])?["DeviceClass"] as? String == deviceClass
+            }
+            let variants = matches.compactMap {
+                ($0["Info"] as? [String: Any])?["Variant"] as? String
+            }
+            print("\(deviceClass): \(variants.isEmpty ? "missing" : variants.joined(separator: ", "))")
+        }
+    }
 }
 
 // MARK: - firmware support matrix

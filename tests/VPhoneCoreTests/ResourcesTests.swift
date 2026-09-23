@@ -37,8 +37,8 @@ struct ResourcesTests {
         let exe = root.appendingPathComponent(".build/release/vphone-cli").path
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == root.resolvingSymlinksInPath().path)
-        #expect(r.resourceArchivesDir.path == root.resolvingSymlinksInPath()
-            .appendingPathComponent("scripts/resources").path)
+        #expect(r.gpuDriverArchive.path == root.resolvingSymlinksInPath()
+            .appendingPathComponent("scripts/payloads/AppleParavirtGPUMetalIOGPUFamily.tar").path)
     }
 
     @Test func cacheDirsAreHomeRelative() {
@@ -57,7 +57,6 @@ struct ResourcesTests {
             #expect(VPhoneResources.userDataRoot().path == "/tmp/vphone-test-root")
             #expect(r.ipswCacheDir.path == "/tmp/vphone-test-root/ipsws")
             #expect(r.sealVolumeCacheDir.path == "/tmp/vphone-test-root/tools")
-            #expect(r.debsCacheDir.path == "/tmp/vphone-test-root/debs")
         }
     }
 
@@ -71,13 +70,13 @@ struct ResourcesTests {
             let base = URL(fileURLWithPath: "/x")
             let r = VPhoneResources(base: base)
             let rooted = [
-                r.scriptsDir, r.resourceArchivesDir,
-                r.cfwInstallHostScript, r.preflightScript, r.signcert, r.vphoned,
+                r.scriptsDir, r.gpuDriverArchive,
+                r.cfwInstallHostScript, r.preflightScript, r.vphoned,
             ]
             for url in rooted {
                 #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")
             }
-            for url in [r.ipswCacheDir, r.sealVolumeCacheDir, r.debsCacheDir] {
+            for url in [r.ipswCacheDir, r.sealVolumeCacheDir] {
                 #expect(url.path.hasPrefix("/tmp/vphone-test-root/"))
             }
         }

@@ -112,11 +112,6 @@ class VPhoneControl {
         }
     }
 
-    private static func signCertURL() -> URL? {
-        let signcert = VPhoneResources.resolve().signcert
-        return FileManager.default.fileExists(atPath: signcert.path) ? signcert : nil
-    }
-
     // MARK: - Guest Binary Hash
 
     private func loadGuestBinary() {
@@ -459,31 +454,20 @@ class VPhoneControl {
         let remoteName = "\(UUID().uuidString)-\(localURL.lastPathComponent)"
         let remotePath = "\(remoteDir)/\(remoteName)"
 
-        var cleanupPaths = [remotePath]
         defer {
             Task {
-                for cleanupPath in cleanupPaths {
-                    try? await deleteFile(path: cleanupPath)
-                }
+                try? await deleteFile(path: remotePath)
             }
         }
 
         try await createDirectory(path: remoteDir)
         try await uploadFile(path: remotePath, data: data)
 
-        var request: [String: Any] = [
+        let request: [String: Any] = [
             "t": "ipa_install",
             "path": remotePath,
             "registration": "User",
         ]
-
-        if let signCertURL = Self.signCertURL() {
-            let signCertData = try Data(contentsOf: signCertURL, options: .mappedIfSafe)
-            let certRemotePath = "\(remoteDir)/\(UUID().uuidString)-signcert.p12"
-            cleanupPaths.append(certRemotePath)
-            try await uploadFile(path: certRemotePath, data: signCertData)
-            request["cert_path"] = certRemotePath
-        }
 
         let (resp, _) = try await sendRequest(request)
         if let detail = resp["msg"] as? String, !detail.isEmpty {
