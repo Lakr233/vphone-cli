@@ -5,6 +5,11 @@ import plistlib
 import subprocess
 import sys
 
+try:
+    from . import cfw_records as records
+except ImportError:  # direct self-test / standalone execution
+    import cfw_records as records
+
 
 DROPBEAR_KEY_ARGS = [
     "-r",
@@ -47,6 +52,11 @@ def parse_cryptex_paths(manifest_path):
 
 def inject_daemons(plist_path, daemon_dir):
     """Inject bash/dropbear/trollvnc entries into launchd.plist."""
+    # Snapshot before the plutil conversion: the Swift port replaces that step
+    # too, so the reference input is the pristine binary plist.
+    records.set_group("inject_daemons")
+    before = records.snapshot_file(plist_path)
+
     # Convert to XML first (macOS binary plist -> XML)
     subprocess.run(["plutil", "-convert", "xml1", plist_path], capture_output=True)
 
@@ -71,6 +81,12 @@ def inject_daemons(plist_path, daemon_dir):
 
     with open(plist_path, "wb") as f:
         plistlib.dump(target, f, sort_keys=False)
+
+    records.record_after_write(
+        plist_path, before, component="launchd.plist",
+        patch_id="inject_daemons.launch_daemons",
+        description="LaunchDaemons entries injected for bash/dropbear/trollvnc/vphoned/rpcserver_ios",
+    )
 
 
 def patch_dropbear_daemon(daemon):
@@ -98,8 +114,15 @@ def patch_dropbear_daemon(daemon):
 
 
 def patch_dropbear_plist(plist_path):
+    records.set_group("dropbear_plist")
+    before = records.snapshot_file(plist_path)
     with open(plist_path, "rb") as f:
         daemon = plistlib.load(f)
     patch_dropbear_daemon(daemon)
     with open(plist_path, "wb") as f:
         plistlib.dump(daemon, f, sort_keys=False)
+    records.record_after_write(
+        plist_path, before, component="dropbear.plist",
+        patch_id="dropbear_plist.host_keys",
+        description="ProgramArguments rewritten to use /var/dropbear host keys",
+    )

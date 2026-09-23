@@ -2,6 +2,7 @@
 
 from .cfw_asm import *
 from .cfw_asm import _log_asm, _cs
+from . import cfw_records as records
 
 
 def patch_launchd_cache_loader(filepath):
@@ -96,6 +97,13 @@ def patch_launchd_cache_loader(filepath):
             print(f"  After:")
             _log_asm(data, ctx_start, 5, branch_foff)
 
+            records.set_group("launchd_cache_loader")
+            records.record_file_write(filepath, data, component="launchd_cache_loader", sites=[
+                records.site(branch_foff, 4, "launchd_cache_loader.unsecure_cache_gate",
+                             f"NOP the cache-validation branch gated on "
+                             f"'{anchor_str.decode()}'",
+                             virtual_address=text_va + (branch_foff - text_foff)),
+            ])
             open(filepath, "wb").write(data)
             print(f"  [+] NOPped at 0x{branch_foff:X}")
             return True

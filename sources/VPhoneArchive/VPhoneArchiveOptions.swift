@@ -52,16 +52,30 @@ public struct VPhoneArchiveExtractOptions: Sendable {
     /// that has booted.
     public var macMetadata: Bool
 
+    /// Restore the archive's mode bits **exactly**, setuid and setgid included,
+    /// ignoring the process umask. This is `tar -p`.
+    ///
+    /// Off by default, and that default is the safe one: without it libarchive
+    /// strips setuid, setgid and sticky and masks the rest through the umask,
+    /// which is what plain `tar -xf` does as a normal user.
+    ///
+    /// Only turn it on where the modes in the archive are the point — see
+    /// `ontoGuestVolume` — never for an archive that arrived from somewhere
+    /// else.
+    public var exactPermissions: Bool
+
     /// Restore ACLs and BSD file flags as well as mode bits.
     public var extendedMetadata: Bool
 
     public init(
         ownership: VPhoneArchiveOwnership,
+        exactPermissions: Bool = false,
         noOverwriteDir: Bool = false,
         macMetadata: Bool = false,
         extendedMetadata: Bool = false
     ) {
         self.ownership = ownership
+        self.exactPermissions = exactPermissions
         self.noOverwriteDir = noOverwriteDir
         self.macMetadata = macMetadata
         self.extendedMetadata = extendedMetadata
@@ -71,16 +85,35 @@ public struct VPhoneArchiveExtractOptions: Sendable {
     ///
     /// Mirrors what `cfw_install*.sh` passes GNU tar today:
     /// `--preserve-permissions --no-overwrite-dir`.
+    ///
+    /// `exactPermissions` is not optional here. An iOS system volume is full
+    /// of setuid binaries and of modes that are not the host's umask to decide
+    /// — a `/usr/bin/su` that comes back 0755 instead of 4755 is a guest that
+    /// boots into something subtly broken. The archives are ones this project
+    /// builds, so restoring them verbatim is the whole job.
     public static let ontoGuestVolume = VPhoneArchiveExtractOptions(
         ownership: .preserveNumeric,
+        exactPermissions: true,
         noOverwriteDir: true,
         macMetadata: false,
         extendedMetadata: true
     )
 
     /// Unpacking into a host directory we own and can throw away.
+    ///
+    /// The mirror image of `ontoGuestVolume`: the archive is whatever the user
+    /// handed us — a `vm export` that travelled here from another machine —
+    /// and nothing in it may decide the modes of files written into the host's
+    /// home directory. So `exactPermissions` stays off, the process umask
+    /// applies, and setuid/setgid/sticky are dropped.
+    ///
+    /// This is exactly what `/usr/bin/tar -xf` (no `-p`) gave, which is what
+    /// `vm import` used to shell out to. It is a deliberate contract, not a
+    /// default nobody looked at: `hostPresetNeverRestoresSetuid` fails if the
+    /// flag ever comes back.
     public static let intoHostDirectory = VPhoneArchiveExtractOptions(
         ownership: .currentUser,
+        exactPermissions: false,
         noOverwriteDir: false,
         macMetadata: false,
         extendedMetadata: false
@@ -111,9 +144,16 @@ public struct VPhoneArchiveExtractOptions: Sendable {
         // lands.
         var flags = ARCHIVE_EXTRACT_SECURE_SYMLINKS
             | ARCHIVE_EXTRACT_SECURE_NODOTDOT
-            | ARCHIVE_EXTRACT_PERM
             | ARCHIVE_EXTRACT_TIME
 
+        // ARCHIVE_EXTRACT_PERM is `tar -p`, and it is a decision, not a
+        // fidelity dial. With it, archive_write_disk restores the stored mode
+        // verbatim; without it, it clears S_ISUID/S_ISGID/S_ISVTX and masks
+        // the remainder through the umask it captured at
+        // archive_write_disk_new(). Setting it unconditionally is how `vm
+        // import` came to write a world-writable, setuid tree out of an
+        // archive from somewhere else. See the two presets above.
+        if exactPermissions { flags |= ARCHIVE_EXTRACT_PERM }
         if ownership == .preserveNumeric { flags |= ARCHIVE_EXTRACT_OWNER }
         if extendedMetadata { flags |= ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS }
         if macMetadata { flags |= ARCHIVE_EXTRACT_MAC_METADATA }

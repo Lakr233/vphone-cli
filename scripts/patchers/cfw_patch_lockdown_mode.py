@@ -29,10 +29,12 @@ try:
     from .cfw_asm import asm
     from .cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:
     from cfw_asm import asm
     from cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 SYMBOL_CANDIDATES = (
     "___os_lockdown_mode_enabled_block_invoke",
@@ -69,6 +71,7 @@ def _find_error_gate(insns):
 
 
 def patch_lockdown_mode(chunks_dir, *, dry_run=False):
+    records.set_group("lockdown_mode")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -100,6 +103,11 @@ def patch_lockdown_mode(chunks_dir, *, dry_run=False):
     action = "would write" if dry_run else "wrote"
     print(f"      [+] {action} nop at 0x{gate.address:X} ({cur.hex()} -> {nop.hex()})")
     if not dry_run:
+        records.next_site(
+            "lockdown_mode.sysctl_error_gate",
+            f"NOP `{gate.mnemonic} {gate.op_str}` so a missing "
+            f"security.mac.lockdown_mode_state_public sysctl reads 0 instead of aborting",
+        )
         chunks.write_at_vma(gate.address, nop)
         reattest_modified_pages(chunks, [gate.address], dry_run=False)
         if chunks.bytes_at_vma(gate.address, 4) != nop:

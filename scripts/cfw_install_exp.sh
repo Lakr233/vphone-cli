@@ -51,6 +51,25 @@ _resolve_python3() {
 }
 PYTHON3="$(_resolve_python3)"
 
+# ── vphone-cli resolver — the Swift CFW patchers the phases below call ─
+# Same order as scripts/cfw_install_host.sh and cfw-kit/run.sh: VPHONE_CLI_BIN
+# when a vphone-cli subcommand invoked us, otherwise a dev tree or the .app,
+# where scripts/ sits in Contents/Resources and the binaries are one level up
+# in MacOS. Never `command -v` — the binary has to be the one we built beside
+# these scripts, not whatever else is on PATH.
+# Resolved up front, before anything is mounted or written: a missing binary
+# should stop the run here, not halfway through with volumes attached.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "${SCRIPT_DIR:h}/.build/release/vphone-cli" "${SCRIPT_DIR:h:h}/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || {
+    echo "[-] cannot find vphone-cli (the JB/EXP phases need it) — run 'make build'" >&2
+    exit 1
+}
+
 # ════════════════════════════════════════════════════════════════
 # Step 1: Run base CFW install (skip halt — we continue with JB phases)
 # ════════════════════════════════════════════════════════════════
@@ -85,7 +104,8 @@ if [[ -z "$JB_RESTORE_DIR" ]]; then
 elif [[ ! -f "$JB_SYSOS_DMG" ]]; then
     # Not yet decrypted — decrypt to the cache location cfw_install.sh expects.
     echo "[*] hv_vmm DSC patch: decrypting SystemOS into cache..."
-    JB_CRYPTEX_SYSOS=$("$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" cryptex-paths "$JB_RESTORE_DIR/iPhone-BuildManifest.plist" | head -1)
+    # Two lines out, SystemOS first then AppOS; head -1 takes SystemOS.
+    JB_CRYPTEX_SYSOS=$("$VPHONE_CLI" cfw cryptex-paths "$JB_RESTORE_DIR/iPhone-BuildManifest.plist" | head -1)
     JB_AEA_KEY=$(ipsw fw aea --key "$JB_RESTORE_DIR/$JB_CRYPTEX_SYSOS")
     aea decrypt -i "$JB_RESTORE_DIR/$JB_CRYPTEX_SYSOS" -o "$JB_SYSOS_DMG" -key-value "$JB_AEA_KEY"
 fi
@@ -401,7 +421,10 @@ if [[ "$DISABLE_LAUNCHD_HOOK" == "1" ]]; then
     echo "  [*] Skipping launchdhook dylib injection (DISABLE_LAUNCHD_HOOK=1)"
 elif [[ -d "$JB_INPUT_DIR/basebin" ]]; then
     echo "  Injecting weak dylib load for /b (short launchdhook alias)..."
-    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
+    # Stays exactly here: the injector leaves launchd unsigned, so it has to
+    # run after the `ldid -e` entitlement capture above and before the
+    # patch-launchd-jetsam + ldid re-sign below.
+    "$VPHONE_CLI" cfw inject-dylib "$TEMP_DIR/launchd" "/b"
 else
     echo "  [!] BaseBin is missing; skipping launchdhook injection"
 fi
@@ -459,7 +482,7 @@ case "$BASE_IOS" in
         cp "$CAMPO_BIN" "$TEMP_DIR/Campo"
         ldid -e "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
         if [[ -s "$TEMP_DIR/Campo.entitlements" ]]; then
-            "$PYTHON3" "$SCRIPT_DIR/patchers/campo_mach_lookup_exceptions.py" "$TEMP_DIR/Campo.entitlements"
+            "$VPHONE_CLI" cfw patch-campo-entitlements "$TEMP_DIR/Campo.entitlements"
             ldid_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
             cp -R "$TEMP_DIR/Campo" "$CAMPO_BIN"
             /bin/chmod 0755 "$CAMPO_BIN"
@@ -699,16 +722,7 @@ if [[ -f "$SETUP_PLIST" ]]; then
     # Inject into launchd.plist so launchd starts it at boot
     echo "  Injecting com.vphone.jb-setup into launchd.plist..."
     cp "$MNT1/System/Library/xpc/launchd.plist" "$TEMP_DIR/launchd.plist"
-    "$PYTHON3" -c "
-import plistlib, sys
-with open(sys.argv[1], 'rb') as f:
-    target = plistlib.load(f)
-with open(sys.argv[2], 'rb') as f:
-    daemon = plistlib.load(f)
-target.setdefault('LaunchDaemons', {})['/System/Library/LaunchDaemons/com.vphone.jb-setup.plist'] = daemon
-with open(sys.argv[1], 'wb') as f:
-    plistlib.dump(target, f, sort_keys=False)
-" "$TEMP_DIR/launchd.plist" "$SETUP_PLIST"
+    "$VPHONE_CLI" cfw inject-daemon "$TEMP_DIR/launchd.plist" "$SETUP_PLIST" --name com.vphone.jb-setup
     cp -R "$TEMP_DIR/launchd.plist" "$MNT1/System/Library/xpc/launchd.plist"
     /bin/chmod 0644 $MNT1/System/Library/xpc/launchd.plist
     echo "  [+] com.vphone.jb-setup.plist injected into launchd.plist"
@@ -747,7 +761,7 @@ else
     JB6_DT_LOCAL="$TEMP_DIR/devicetree.img4"
     if [[ -e "$JB6_DT_REMOTE" ]]; then
         cp "$JB6_DT_REMOTE" "$JB6_DT_LOCAL"
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_post_restore_dt.py" "$JB6_DT_LOCAL"
+        "$VPHONE_CLI" cfw patch-post-restore-dt "$JB6_DT_LOCAL"
         cp -R "$JB6_DT_LOCAL" "$JB6_DT_REMOTE"
         /usr/sbin/chown 0:0 $JB6_DT_REMOTE
         /bin/chmod 0644 $JB6_DT_REMOTE
@@ -794,8 +808,10 @@ if [[ -n "${SPOOF_BUILD:-}" ]]; then
         if [[ -e "$jb7_remote" ]]; then
             jb7_local="$TEMP_DIR/$(echo "$jb7_remote" | tr '/' '_').plist"
             cp "$jb7_remote" "$jb7_local"
-            "$PYTHON3" "$SCRIPT_DIR/patchers/cfw_patch_build_version.py" \
-                "$jb7_local" "$SPOOF_BUILD"
+            # The SPOOF_BUILD gate stays in the shell above: the Swift
+            # subcommand has no gate of its own, exactly as the Python had
+            # none, and always rewrites the build it is handed.
+            "$VPHONE_CLI" cfw patch-build-version "$jb7_local" "$SPOOF_BUILD"
             cp -R "$jb7_local" "$jb7_remote"
         else
             echo "  [-] $jb7_remote not found, skipping"

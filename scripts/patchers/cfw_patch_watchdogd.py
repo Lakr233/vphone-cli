@@ -104,6 +104,7 @@ from .cfw_asm import (
     parse_macho_sections,
 )
 from .cfw_macho_codesign import reattest_modified_offsets
+from . import cfw_records as records
 
 from capstone.arm64_const import ARM64_OP_IMM
 
@@ -382,6 +383,7 @@ def patch_watchdogd(filepath, *, dry_run=False):
 
     print(f"  [+] found {len(matches)} '{PATTERN_NAME}' site(s)")
     touched_offsets = []
+    record_sites = []
     n_applied = 0
     for m in matches:
         cbnz_foff = m["cbnz_foff"]
@@ -424,6 +426,15 @@ def patch_watchdogd(filepath, *, dry_run=False):
 
         touched_offsets.append(cbnz_foff)
         touched_offsets.append(cset_foff)
+        record_sites.append(records.site(
+            cbnz_foff, 4, f"watchdogd.hv_vmm_cache.cbnz@0x{m['cbnz_va']:X}",
+            "NOP the cbnz w0 that skips the cached hv_vmm_present store",
+            virtual_address=m["cbnz_va"]))
+        record_sites.append(records.site(
+            cset_foff, 4, f"watchdogd.hv_vmm_cache.cset@0x{m['cset_va']:X}",
+            f"cset {m['cset_reg']} -> mov {m['cset_reg']}, #1 "
+            f"(cached 'am I a VM?' byte forced to 1)",
+            virtual_address=m["cset_va"]))
         n_applied += 1
 
     if n_applied == 0:
@@ -436,6 +447,9 @@ def patch_watchdogd(filepath, *, dry_run=False):
     if dry_run:
         print(f"  [.] dry-run — not writing patched bytes")
     else:
+        records.set_group("watchdogd")
+        records.record_file_write(filepath, data, component="watchdogd",
+                                  sites=record_sites)
         with open(filepath, "wb") as f:
             f.write(data)
         print(f"  [+] {filepath}: wrote {n_applied} site(s)")

@@ -327,8 +327,12 @@ System/Library/ExtensionKit/Extensions/HostInferenceProviderService.appex/HostIn
   the first byte of the cstring through `DSCChunks.write_at_vma`.
   Pure Python. Whitelist-based by design so an operator can comment
   out individual entries to bisect.
-* `scripts/patchers/cfw.py patch-hv-vmm <binary>` —
-  standalone-Mach-O subcommand (used for the 6 on-device files).
+* ~~`scripts/patchers/cfw.py patch-hv-vmm <binary>`~~ — **gone.** The
+  standalone-Mach-O subcommand and its backing patcher
+  (`cfw_patch_hv_vmm_rootfs.py`) were removed with item 8 in the
+  blacklist-flip redesign; the 6 on-device files no longer need an
+  SSH-time patch. `scripts/patch_hv_vmm_userland.sh:65-73` documents
+  why the wrapper's standalone branch has no honest substitute.
 * `scripts/patchers/cfw.py patch-hv-vmm-dsc <chunks_dir>` —
   DSC subcommand (used while the SystemOS Cryptex DMG is still
   mounted on the host, before the device copy).

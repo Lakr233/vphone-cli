@@ -280,11 +280,16 @@ bundle: build $(INFO_PLIST)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
-	@cp -f $$(command -v ldid) $(BUNDLE)/Contents/MacOS/ldid
+	@# The bundle is built over whatever is already there, so Contents/MacOS/ldid
+	@# is removed although nothing copies it any more: bundles built before
+	@# VPhoneSign replaced ldid carry the Homebrew one, which is the only thing in
+	@# here linking libcrypto.3 and libplist-2.0.4 and so the only thing failing
+	@# gate 1. It has to go before the seal below, not after — removing nested
+	@# code from a sealed bundle is what makes `codesign -v` report it modified.
+	@rm -f $(BUNDLE)/Contents/MacOS/ldid
 	@# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the
 	@# whole bundle and everything beside it counts as nested code. Sign the
 	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
-	@codesign --force --sign - $(BUNDLE)/Contents/MacOS/ldid
 	@codesign --force --sign - $(BUNDLE_BIN)
 	@codesign --force --sign - $(BUNDLE_LETMEIN)
 	@codesign --force --sign - $(BUNDLE_ARCHIVE)

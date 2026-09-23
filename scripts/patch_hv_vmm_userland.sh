@@ -1,7 +1,7 @@
 #!/bin/zsh
 # patch_hv_vmm_userland.sh — Apply the user-mode hv_vmm_present patch.
 #
-# Three operations, chosen by the first arg:
+# Two operations, chosen by the first arg:
 #
 #   dsc <chunks_dir>
 #       Patch the canonical sysctlbyname("kern.hv_vmm_present", ...) sites
@@ -10,10 +10,6 @@
 #       mounted SystemOS Cryptex's `System/Library/Caches/com.apple.dyld/`.
 #       Skips the compute/accel dylibs (CoreML, Espresso, ANE, CoreRE,
 #       RenderBox, WebGPU, caulk, IOSurfaceAccelerator).
-#
-#   standalone <binary>
-#       Patch a single standalone Mach-O file in place. Idempotent.
-#       Caller is responsible for re-signing (ldid).
 #
 #   watchdogd <binary>
 #       Surgical 2-instruction patch of /usr/libexec/watchdogd that
@@ -54,7 +50,6 @@ usage() {
     cat <<EOF >&2
 Usage:
   $0 dsc <chunks_dir>
-  $0 standalone <binary>
   $0 watchdogd <binary>
 EOF
     exit 2
@@ -69,11 +64,16 @@ case "$op" in
         echo "[*] Patching hv_vmm_present consumers in DSC chunks under: $1"
         "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-hv-vmm-dsc "$1"
         ;;
-    standalone)
-        (( $# >= 1 )) || usage
-        echo "[*] Patching hv_vmm_present consumers in: $1"
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-hv-vmm "$1"
-        ;;
+    # `standalone <binary>` used to live here and called
+    # `cfw.py patch-hv-vmm`, which no longer exists: that subcommand and its
+    # backing patcher (cfw_patch_hv_vmm_rootfs.py) were removed, so the op had
+    # been falling through cfw.py's unknown-command branch and exiting 1. It is
+    # deleted rather than retargeted because nothing in the repo invokes it and
+    # there is no honest substitute — `patch-hv-vmm-dsc` takes a directory of
+    # DSC chunks, not a Mach-O, and `patch-watchdogd` is specific to
+    # watchdogd's cached byte. EXP now covers user-mode hv_vmm_present with
+    # `dsc` (every consumer inside the shared cache) plus `watchdogd` (the one
+    # standalone binary still holding its own copy).
     watchdogd)
         (( $# >= 1 )) || usage
         echo "[*] Patching watchdogd hv_vmm_present cache in: $1"

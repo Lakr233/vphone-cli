@@ -20,6 +20,11 @@ public enum VPhoneArchiveExtractor {
 
     /// Unpack `archive` into `destination`.
     ///
+    /// `bytesRead` reports how far into the archive *file* the read has got —
+    /// compressed bytes, so it can be shown against the file's size on disk.
+    /// It fires per data block, not per entry, because a VM bundle's `Disk.img`
+    /// is one entry of many gigabytes.
+    ///
     /// - Returns: the number of entries written, not counting any skipped by
     ///   `noOverwriteDir`.
     @discardableResult
@@ -28,6 +33,7 @@ public enum VPhoneArchiveExtractor {
         into destination: URL,
         options: VPhoneArchiveExtractOptions,
         progress: ((Progress) -> Void)? = nil,
+        bytesRead: ((Int64) -> Void)? = nil,
         isCancelled: (() -> Bool)? = nil
     ) throws -> Int {
         let reader = archive_read_new()
@@ -130,7 +136,12 @@ public enum VPhoneArchiveExtractor {
             }
 
             if archive_entry_size(entry) > 0 {
-                bytes += try copyData(from: reader, to: writer, isCancelled: isCancelled)
+                bytes += try copyData(
+                    from: reader, to: writer, isCancelled: isCancelled,
+                    onBlock: bytesRead.map { report in
+                        { report(archive_filter_bytes(reader, -1)) }
+                    }
+                )
             }
 
             guard archive_write_finish_entry(writer) == ARCHIVE_OK else {
@@ -141,6 +152,10 @@ public enum VPhoneArchiveExtractor {
 
             written += 1
             progress?(Progress(entriesWritten: written, bytesWritten: bytes, currentPath: memberPath))
+            // filter -1 is the bottom filter, the archive file itself, so this
+            // is the compressed position. Entries with no data never reach the
+            // per-block report above, and small ones are most of a bundle.
+            bytesRead?(archive_filter_bytes(reader, -1))
         }
 
         return written
@@ -191,7 +206,8 @@ public enum VPhoneArchiveExtractor {
     private static func copyData(
         from reader: OpaquePointer?,
         to writer: OpaquePointer?,
-        isCancelled: (() -> Bool)?
+        isCancelled: (() -> Bool)?,
+        onBlock: (() -> Void)? = nil
     ) throws -> Int64 {
         var total: Int64 = 0
         while true {
@@ -218,6 +234,7 @@ public enum VPhoneArchiveExtractor {
                 )
             }
             total += Int64(size)
+            onBlock?()
         }
     }
 }

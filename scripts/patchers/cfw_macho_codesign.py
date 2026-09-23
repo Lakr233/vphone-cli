@@ -67,6 +67,11 @@ import hashlib
 import os
 import struct
 
+try:
+    from . import cfw_records as records
+except ImportError:  # direct self-test / standalone execution
+    import cfw_records as records
+
 
 # CS constants.
 CSMAGIC_EMBEDDED_SIGNATURE = 0xFADE0CC0
@@ -339,6 +344,23 @@ def reattest_modified_offsets(
                     "before": old_hash.hex(),
                     "after": new_hash.hex(),
                 }
+            )
+
+    if not dry_run and records.enabled():
+        # Same reason as the DSC side: the Swift port has to reproduce these
+        # slot hashes exactly, so they are part of the reference snapshot.
+        for d in diagnostics:
+            records.record(
+                f"codesign.macho.cd{d['slot_type']:#x}.slot{d['page_index']}",
+                os.path.basename(filepath),
+                d["hash_offset_in_file"],
+                bytes.fromhex(d["before"]),
+                bytes.fromhex(d["after"]),
+                description=(
+                    f"Mach-O CodeDirectory slot {d['page_index']} "
+                    f"(page 0x{d['page_start']:X}..0x{d['page_end']:X}) re-attested"
+                ),
+                source_file=filepath,
             )
 
     return diagnostics

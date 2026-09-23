@@ -208,6 +208,37 @@ struct RoundTripTests {
         #expect(paths.contains("top.txt"))
     }
 
+    @Test("packing does not modify the tree it reads")
+    func packingLeavesTheSourceAlone() throws {
+        // libarchive's read_disk defaults to ARCHIVE_READDISK_MAC_COPYFILE,
+        // which packs each file's AppleDouble form through a temp file made
+        // from a *relative* mkstemp template — and the tree walker chdir's
+        // into each directory as it descends, so the temp file appears and
+        // vanishes inside the directory being read and leaves its mtime at
+        // now. `vm export` was rewriting the mtime of every directory in the
+        // VM bundle it had only been asked to read. `/usr/bin/tar -cf` does
+        // not do this, and neither should this.
+        let source = try Self.makeTree()
+        let archive = Self.scratch("untouched").appendingPathExtension("tar")
+        defer {
+            for url in [source, archive] { try? FileManager.default.removeItem(at: url) }
+        }
+
+        let when = Date(timeIntervalSince1970: 1_700_000_000)
+        let nested = source.appendingPathComponent("a/b")
+        for url in [source, source.appendingPathComponent("a"), nested] {
+            try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: url.path)
+        }
+
+        try VPhoneArchiveWriter.create(archive: archive, from: source)
+
+        for url in [source, source.appendingPathComponent("a"), nested] {
+            var info = stat()
+            #expect(lstat(url.path, &info) == 0)
+            #expect(info.st_mtimespec.tv_sec == Int(when.timeIntervalSince1970))
+        }
+    }
+
     @Test("a single member can be read without unpacking")
     func readMember() throws {
         let source = try Self.makeTree()

@@ -113,12 +113,35 @@ Commands:
         Inject LC_LOAD_DYLIB into Mach-O binary (thin or universal).
         Equivalent to: optool install -c load -p <dylib_path> -t <binary>
 
+    records-status [<root>]
+        Report reference-snapshot coverage: which of the 19 patchers have a
+        captured `reference_patches/<group>.json` and which are still missing.
+
+Global flag (accepted by every subcommand above):
+
+    --emit-records [<root>]
+        Capture each applied patch as a PatchRecord-shaped JSON record under
+        <root>/reference_patches/, with the pre-patch inputs under
+        <root>/raw_payloads/. <root> defaults to ipsws/patch_refactor_input.
+        Equivalent to setting VPHONE_PATCH_RECORDS=<root>, which is the way to
+        capture a whole `cfw_install*.sh` run without editing the shell.
+        Capture is a pure observer — patch output is byte-identical either way —
+        except that it refuses, loudly, to record a run whose input is already
+        this root's own patched output. One root per (variant x iOS build).
+
+        Separated from its value, <root> has to look like a path (a separator,
+        a `~`, or a directory that exists) and may not be a subcommand name, so
+        that `--emit-records patch-seputil <bin>` reads as the bare flag plus a
+        subcommand. Spell an unusual root `--emit-records=<root>`.
+        See scripts/patchers/README_reference_capture.md.
+
 Dependencies:
     pip install capstone keystone-engine
     ipsw CLI in $PATH (required for patch-camera-dsc, patch-iomfb-swapend and
         patch-iomfb-force-kern)
 """
 
+import json
 import os
 import sys
 
@@ -142,6 +165,7 @@ if __name__ == "__main__":
     from patchers.cfw_patch_watchdogd import patch_watchdogd
     from patchers.cfw_patch_diskimagesiod import patch_diskimagesiod
     from patchers.cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
+    from patchers import cfw_records as records
 else:
     from .cfw_patch_seputil import patch_seputil
     from .cfw_patch_cache_loader import patch_launchd_cache_loader
@@ -158,14 +182,140 @@ else:
     from .cfw_patch_watchdogd import patch_watchdogd
     from .cfw_patch_diskimagesiod import patch_diskimagesiod
     from .cfw_daemons import parse_cryptex_paths, inject_daemons, patch_dropbear_plist
+    from . import cfw_records as records
+
+
+# MARK: - Reference-snapshot coverage
+
+# The patchers plan P1.0 wants a reference snapshot for, by the group name each
+# one writes under. Kept here rather than in cfw_records so the list lives next
+# to the dispatch table it mirrors.
+EXPECTED_RECORD_GROUPS = (
+    # Standalone Mach-O (plan P1.2)
+    "seputil",
+    "launchd_cache_loader",
+    "mobileactivationd",
+    "launchd_jetsam",
+    "watchdogd",
+    "diskimagesiod",
+    # DSC (plan P1.3)
+    "dsc_maxslide",
+    "lockdown_mode",
+    "xpc_lwcr",
+    "lsd_embedded_reg",
+    "hv_vmm_dsc",
+    "iomfb_swapend",
+    "iomfb_force_kern",
+    "camera_dsc",
+    # Non-disassembly (plan P1.4)
+    "inject_daemons",
+    "dropbear_plist",
+    "inject_dylib",
+    "build_version",
+    "post_restore_dt",
+)
+
+# Runs only on the JB/EXP Campo path, so its absence is not a gap in the matrix.
+OPTIONAL_RECORD_GROUPS = ("campo_mach_lookup",)
+
+
+# MARK: - Dispatch table
+
+# Every verb `main()` answers to. Two jobs: the usage line printed on an unknown
+# command, and the reserved list handed to `records.take_cli_flag`, so a bare
+# `--emit-records` can never swallow a subcommand as its optional <root>.
+#
+# cfw-kit/lib/common.sh greps this file for each name in its
+# REQUIRED_CFW_SUBCOMMANDS and dies when one is missing, so nothing here is
+# removed while the Python remains the escape hatch.
+COMMANDS = (
+    "cryptex-paths",
+    "patch-seputil",
+    "patch-launchd-cache-loader",
+    "patch-mobileactivationd",
+    "patch-launchd-jetsam",
+    "patch-hv-vmm-dsc",
+    "patch-iomfb-swapend",
+    "patch-iomfb-force-kern",
+    "patch-dsc-maxslide",
+    "patch-lsd-embedded-reg",
+    "patch-xpc-lwcr",
+    "patch-lockdown-mode",
+    "patch-camera-dsc",
+    "patch-watchdogd",
+    "patch-diskimagesiod",
+    "inject-daemons",
+    "patch-dropbear-plist",
+    "inject-dylib",
+    "records-status",
+)
+
+
+def records_status(root):
+    """Print which patchers have been captured and which are missing."""
+    reference_dir, payload_dir = records.resolve_dirs(root)
+    print(f"reference_patches: {reference_dir}")
+    print(f"raw_payloads:      {payload_dir}")
+    print("")
+
+    missing = []
+    opaque = []
+    for group in EXPECTED_RECORD_GROUPS + OPTIONAL_RECORD_GROUPS:
+        path = os.path.join(reference_dir, f"{group}.json")
+        optional = group in OPTIONAL_RECORD_GROUPS
+        try:
+            with open(path) as f:
+                recs = json.load(f)
+        except (OSError, ValueError):
+            print(f"  [{'.' if optional else '-'}] {group:<22} "
+                  f"{'missing (optional)' if optional else 'MISSING'}")
+            if not optional:
+                missing.append(group)
+            continue
+        # A record with no inline bytes carries an empty `patch_bytes`, so the
+        # Swift comparison cannot fail against it. Counting it as coverage is
+        # how a group looks captured while grading nothing.
+        blind = sum(1 for r in recs
+                    if isinstance(r, dict) and not r.get("patch_bytes"))
+        note = f" — {blind} not comparable (no inline bytes)" if blind else ""
+        print(f"  [{'!' if blind else '+'}] {group:<22} {len(recs):>5} record(s){note}")
+        if blind and not optional:
+            opaque.append(group)
+
+    covered = len(EXPECTED_RECORD_GROUPS) - len(missing)
+    print("")
+    print(f"  {covered}/{len(EXPECTED_RECORD_GROUPS)} required patchers captured")
+    if missing:
+        print(f"  still needed: {', '.join(missing)}")
+        return 1
+    if opaque:
+        print(f"  records that cannot fail a wrong port: {', '.join(opaque)}")
+        print("  each needs a structural recorder before it grades anything")
+        return 1
+    warnings = os.path.join(reference_dir, "_capture_warnings.jsonl")
+    if os.path.exists(warnings):
+        print(f"  read {warnings} — this capture warned about something")
+    print("  capture complete for this variant x iOS build")
+    return 0
 
 
 def main():
+    # Strip the capture flag before dispatch: every branch below indexes argv
+    # positionally, so this is what makes the flag uniform across all of them.
+    # `reserved` keeps a bare `--emit-records` from eating the subcommand as its
+    # optional <root>, which is what turned `--emit-records patch-seputil <bin>`
+    # into "Unknown command: <bin>" plus a stray ./patch-seputil/ capture tree.
+    sys.argv[:], _ = records.take_cli_flag(sys.argv, reserved=COMMANDS)
+
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
 
     cmd = sys.argv[1]
+
+    if cmd == "records-status":
+        root = sys.argv[2] if len(sys.argv) > 2 else records.default_root()
+        sys.exit(records_status(root))
 
     if cmd == "cryptex-paths":
         if len(sys.argv) < 3:
@@ -330,18 +480,37 @@ def main():
         if not insert_dylib_bin:
             print("[-] insert_dylib not found. Run: make setup_tools")
             sys.exit(1)
+        # Recorded around the subprocess: the Swift port writes the LC itself,
+        # and the only honest reference for "what insert_dylib did" is the file
+        # either side of it.
+        #
+        # `structure="macho"` is what makes that reference mean something.
+        # insert_dylib strips the code signature and reflows __LINKEDIT, so the
+        # file length changes and the generic recorder collapsed the whole edit
+        # into one record with empty bytes at offset 0 — which a Swift port that
+        # wrote nothing at all still matched. The Mach-O recorder describes the
+        # mach_header counters and the inserted load command instead: small,
+        # bounded, at real offsets, and impossible to satisfy without writing
+        # them. This is pid 1's dylib; the reference has to be able to fail.
+        records.set_group("inject_dylib")
+        before = records.snapshot_file(sys.argv[2])
         rc = subprocess.run(
             [insert_dylib_bin, "--weak", "--inplace", "--all-yes", sys.argv[3], sys.argv[2]],
         ).returncode
         if rc != 0:
             sys.exit(rc)
+        records.record_after_write(
+            sys.argv[2], before, component=os.path.basename(sys.argv[2]),
+            patch_id="inject_dylib.lc_load_dylib",
+            description=f"LC_LOAD_WEAK_DYLIB for {sys.argv[3]} inserted",
+            structure="macho",
+        )
 
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: cryptex-paths, patch-seputil, patch-launchd-cache-loader, patch-camera-dsc,")
-        print("          patch-mobileactivationd, patch-launchd-jetsam,")
-        print("          patch-hv-vmm-dsc, patch-iomfb-swapend, patch-iomfb-force-kern, patch-dsc-maxslide, patch-lsd-embedded-reg, patch-xpc-lwcr, patch-lockdown-mode, patch-watchdogd,")
-        print("          patch-diskimagesiod, inject-daemons, patch-dropbear-plist, inject-dylib")
+        print("Commands:")
+        for name in COMMANDS:
+            print(f"          {name}")
         sys.exit(1)
 
 

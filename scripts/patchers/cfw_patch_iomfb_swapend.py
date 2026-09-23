@@ -47,10 +47,12 @@ try:
     from .cfw_asm import asm, _cs, _mov_reg_imm
     from .cfw_dsc_chunks import DSCChunks, _disasm_function
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:  # direct self-test execution
     from cfw_asm import asm, _cs, _mov_reg_imm
     from cfw_dsc_chunks import DSCChunks, _disasm_function
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 
 IOMFB = "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer"
@@ -108,6 +110,7 @@ def _find_swap_size_insn(insns):
 
 def patch_iomfb_swapend(chunks_dir, *, dsc_path=None, target_size=TARGET_SIZE,
                         dry_run=False):
+    records.set_group("iomfb_swapend")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -139,6 +142,11 @@ def patch_iomfb_swapend(chunks_dir, *, dsc_path=None, target_size=TARGET_SIZE,
         print(f"      [+] {action} {IOMFB} {SWAPEND_SYMBOL} size "
               f"0x{cur_size:X} -> 0x{target_size:X} at 0x{insn_vma:X}")
         if not dry_run:
+            records.next_site(
+                "iomfb_swapend.payload_size",
+                f"{IOMFB} {SWAPEND_SYMBOL} external-method payload size "
+                f"0x{cur_size:X} -> 0x{target_size:X}",
+            )
             chunks.write_at_vma(insn_vma, new_bytes)
 
     if not dry_run:

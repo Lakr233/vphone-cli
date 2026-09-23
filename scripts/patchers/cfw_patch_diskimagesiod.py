@@ -31,6 +31,7 @@ own, so returning YES early changes nothing observable).
 
 from .cfw_asm import *
 from .cfw_asm import _log_asm
+from . import cfw_records as records
 
 _SELECTOR = "isMountCompleteWithExpectedCount:diskTracker:"
 
@@ -150,6 +151,12 @@ def patch_diskimagesiod(filepath):
     print("  After:")
     _log_asm(data, imp_foff, 4, imp_foff)
 
+    records.set_group("diskimagesiod")
+    records.record_file_write(filepath, data, component="diskimagesiod", sites=[
+        records.site(imp_foff, 8, "diskimagesiod.is_mount_complete",
+                     f"-[DIDiskArb {_SELECTOR}] -> mov x0, #1; ret",
+                     virtual_address=imp_va if imp_va > 0 else None),
+    ])
     open(filepath, "wb").write(data)
     print(f"  [+] Patched isMountComplete at 0x{imp_foff:X}: mov x0, #1; ret")
     return True

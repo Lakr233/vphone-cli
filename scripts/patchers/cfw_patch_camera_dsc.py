@@ -26,10 +26,12 @@ try:
     from .cfw_asm import asm
     from .cfw_dsc_chunks import DSCChunks
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:
     from cfw_asm import asm
     from cfw_dsc_chunks import DSCChunks
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 
 NU_STYLE_TRANSFER_SYMBOLS = [
@@ -43,6 +45,11 @@ NU_STYLE_TRANSFER_SYMBOLS = [
 AVF_AUTH_STATUS_SYMBOL = (
     "+[AVCaptureDevice authorizationStatusForMediaType:]"
 )
+
+
+def _sym_slug(sym):
+    """A stable, filename-safe patch-id tail for an ObjC method symbol."""
+    return re.sub(r"[^A-Za-z0-9]+", "_", sym).strip("_")
 
 
 def _resolve_symbols_in_image(dsc_path, image_path, wanted_symbols):
@@ -114,6 +121,10 @@ def patch_nu_styletransfer_short_circuit(chunks, vmas, *, dry_run=False, force=F
                 f"{sym}: prologue not pacibsp (got {orig[:4].hex()}); use --force to override"
             )
         if not dry_run:
+            # One record per symbol, so each of the five short-circuits is
+            # identified on its own rather than as "the camera patch".
+            records.next_site(f"camera_dsc.nu_styletransfer.{_sym_slug(sym)}",
+                              f"{sym} -> mov w0, #0; ret")
             chunks.write_at_vma(vma, new_bytes)
             patched.append(vma)
 
@@ -150,6 +161,8 @@ def patch_avf_authorization_always_authorized(
                 f"{sym}: prologue not pacibsp (got {orig[:4].hex()}); use --force to override"
             )
         if not dry_run:
+            records.next_site(f"camera_dsc.avf_authorization.{_sym_slug(sym)}",
+                              f"{sym} -> mov w0, #3 (AVAuthorizationStatusAuthorized); ret")
             chunks.write_at_vma(vma, new_bytes)
             patched.append(vma)
 
@@ -167,6 +180,7 @@ def patch_avf_authorization_always_authorized(
 def apply_all_camera_patches(chunks_dir, dsc_path, *, dry_run=False, force=False):
     """Apply every camera DSC patch against `chunks_dir`, resolving symbols
     against `dsc_path`."""
+    records.set_group("camera_dsc")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] DSC: {chunks!r}")
 
@@ -189,6 +203,7 @@ def apply_avf_auth_only(chunks_dir, dsc_path, *, dry_run=False, force=False):
     """Apply only the AVFCapture authorization gate patch. Useful when running
     on a chunk pulled from a device that already has the NU patches applied
     (composition mode in `vphone-dsc-chunk-ramdisk-deploy`)."""
+    records.set_group("camera_dsc")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] DSC: {chunks!r}")
     print(f"  [.] resolving AVFCapture authorization symbol against {dsc_path}...")

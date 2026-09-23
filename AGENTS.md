@@ -152,8 +152,7 @@ scripts/
 ├── patchers/                     # Python CFW patcher modules
 │   └── cfw.py                    #   CFW binary patcher entrypoint
 ├── resources/                    # Resource archives (git submodule)
-├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib, libimobiledevice stack)
-├── patches/                      # Build-time patches (libirecovery)
+├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib)
 ├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
 ├── cfw_install.sh                # Install CFW (regular)
 ├── cfw_install_dev.sh            # Regular + rpcserver daemon
@@ -165,7 +164,6 @@ scripts/
 ├── setup_tools.sh                # Install deps, build toolchain from submodules, create venv
 ├── setup_venv.sh                 # Create Python venv
 ├── setup_venv_linux.sh           # Create Python venv (Linux)
-├── setup_libimobiledevice.sh     # Build libimobiledevice stack from scripts/repos submodules
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
 
 cfw-kit/                          # Variant-layered CFW installer, vendored as-is

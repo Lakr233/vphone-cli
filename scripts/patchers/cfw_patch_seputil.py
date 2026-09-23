@@ -1,5 +1,10 @@
 """seputil patch module."""
 
+try:
+    from . import cfw_records as records
+except ImportError:  # direct self-test / standalone execution
+    import cfw_records as records
+
 
 def patch_seputil(filepath):
     """Dynamically find and patch the gigalocker path format string in seputil.
@@ -35,6 +40,11 @@ def patch_seputil(filepath):
 
     print(f"  After:  {bytes(data[offset : offset + 7]).hex(' ')}")
 
+    records.set_group("seputil")
+    records.record_file_write(filepath, data, component="seputil", sites=[
+        records.site(pct_s_off, 2, "seputil.gigalocker_uuid",
+                     "gigalocker path format '/%s.gl' -> '/AA.gl'"),
+    ])
     open(filepath, "wb").write(data)
     print(f"  [+] Patched at 0x{pct_s_off:X}: %s -> AA")
     print(f"      /{anchor[1:-1].decode()} -> /AA.gl")

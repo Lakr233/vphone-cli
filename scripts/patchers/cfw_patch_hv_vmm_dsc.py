@@ -51,6 +51,7 @@ from .cfw_patch_hv_vmm import (
 )
 from .cfw_dsc_chunks import DSCChunks
 from .cfw_dsc_codesign import reattest_modified_pages
+from . import cfw_records as records
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ def patch_hv_vmm_in_dsc(chunks_dir, *, dry_run=False):
 
     Returns {install_name: count_of_cstring_sites_mangled}.
     """
+    records.set_group("hv_vmm_dsc")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -196,6 +198,11 @@ def patch_hv_vmm_in_dsc(chunks_dir, *, dry_run=False):
         action = "would mangle" if dry_run else "mangled"
         if not dry_run:
             # Write the single byte at vma + MANGLE_OFFSET.
+            records.next_site(
+                f"hv_vmm_dsc.mangle@0x{vma:X}",
+                f"'kern.hv_vmm_present' byte {MANGLE_OFFSET} "
+                f"{ORIGINAL_BYTE.decode()} -> {MANGLED_BYTE.decode()} in {install_name}",
+            )
             chunks.write_at_vma(vma + MANGLE_OFFSET, MANGLED_BYTE)
         print(f"      [+] {action} {label}  string@0x{vma:X}  "
               f"byte {MANGLE_OFFSET} "

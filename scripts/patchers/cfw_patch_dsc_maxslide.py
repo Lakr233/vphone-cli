@@ -32,6 +32,11 @@ dyld_cache_header offsets (little-endian u64, stable across recent iOS):
 import os
 import struct
 
+try:
+    from . import cfw_records as records
+except ImportError:  # direct self-test / standalone execution
+    import cfw_records as records
+
 MAIN_CHUNK = "dyld_shared_cache_arm64e"
 
 OFF_SHARED_REGION_START = 0xE0
@@ -75,6 +80,16 @@ def patch_dsc_maxslide(chunks_dir, *, kernel_region_size=KERNEL_SHARED_REGION_SI
         action = "would set" if dry_run else "set"
         print(f"      [+] {reason}; {action} maxSlide 0x{maxslide:X} -> 0x{new_maxslide:X}")
         if not dry_run:
+            # Header field, not a cs_validate'd code page — this is the one DSC
+            # patch that never goes through DSCChunks.write_at_vma, so it has to
+            # record itself.
+            records.set_group("dsc_maxslide")
+            records.record(
+                "dsc_maxslide.zero", MAIN_CHUNK, OFF_MAX_SLIDE,
+                struct.pack("<Q", maxslide), struct.pack("<Q", new_maxslide),
+                description=f"dyld_cache_header maxSlide 0x{maxslide:X} -> 0 ({reason})",
+                source_file=main,
+            )
             f.seek(OFF_MAX_SLIDE)
             f.write(struct.pack("<Q", new_maxslide))
             f.flush()

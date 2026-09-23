@@ -29,6 +29,11 @@ Idempotent: a re-run on an already-patched plist exits without rewriting.
 import plistlib
 import sys
 
+try:
+    from . import cfw_records as records
+except ImportError:  # run directly: the script's own directory is on sys.path
+    import cfw_records as records
+
 
 KEY = "ProductBuildVersion"
 
@@ -75,15 +80,23 @@ def patch_plist(path: str, target: str, *, dry_run: bool = False) -> bool:
         return False
 
     new_data = plistlib.dumps(plist, fmt=fmt, sort_keys=False)
+    records.set_group("build_version")
+    records.record_file_write(
+        path, new_data, component="SystemVersion.plist",
+        patch_id="build_version.product_build_version",
+        description=f"{KEY} {current!r} -> {target!r}",
+    )
     with open(path, "wb") as f:
         f.write(new_data)
     return True
 
 
 def _main(argv):
+    argv, _ = records.take_cli_flag(argv)
     if len(argv) < 3:
         print(
-            "Usage: cfw_patch_build_version.py <plist> <new_build_version> [--dry-run]",
+            "Usage: cfw_patch_build_version.py [--emit-records <dir>] "
+            "<plist> <new_build_version> [--dry-run]",
             file=sys.stderr,
         )
         return 2

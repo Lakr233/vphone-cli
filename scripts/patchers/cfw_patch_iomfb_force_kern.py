@@ -48,10 +48,12 @@ try:
     from .cfw_asm import asm_at, _cs
     from .cfw_dsc_chunks import DSCChunks
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:  # direct execution
     from cfw_asm import asm_at, _cs
     from cfw_dsc_chunks import DSCChunks
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 
 IOMFB = "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer"
@@ -101,6 +103,7 @@ def _is_dispatch_trampoline(chunks, va):
 
 
 def patch_iomfb_force_kern(chunks_dir, *, dsc_path=None, dry_run=False):
+    records.set_group("iomfb_force_kern")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -142,6 +145,10 @@ def patch_iomfb_force_kern(chunks_dir, *, dsc_path=None, dry_run=False):
         print(f"      [+] {pub_name} @ 0x{pub_va:X}: "
               f"'{first.mnemonic} {first.op_str}' -> 'b {kern_name}' (0x{kern_va:X})")
         if not dry_run:
+            records.next_site(
+                f"iomfb_force_kern.{suffix}",
+                f"{pub_name} trampoline -> b {kern_name} (0x{kern_va:X})",
+            )
             chunks.write_at_vma(pub_va, b_bytes)
         modified.append(pub_va)
         forced.add(suffix)

@@ -46,10 +46,12 @@ try:
     from .cfw_asm import asm, _mov_reg_imm
     from .cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:  # direct self-test / standalone execution
     from cfw_asm import asm, _mov_reg_imm
     from cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 
 LAUNCHSERVICES = "/System/Library/Frameworks/CoreServices.framework/CoreServices"
@@ -81,6 +83,7 @@ def _find_gate(insns):
 
 
 def patch_lsd_embedded_reg(chunks_dir, *, dry_run=False):
+    records.set_group("lsd_embedded_reg")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -116,6 +119,11 @@ def patch_lsd_embedded_reg(chunks_dir, *, dry_run=False):
         print(f"      [+] {action} gate {gate.mnemonic} -> nop at 0x{insn_vma:X} "
               f"(bytes {cur.hex()} -> {nop.hex()})")
         if not dry_run:
+            records.next_site(
+                "lsd_embedded_reg.entitlement_gate",
+                f"NOP `{gate.mnemonic} {gate.op_str}` in {METHOD} so the "
+                f"fall-through sets {result_reg}=1 (entitled)",
+            )
             chunks.write_at_vma(insn_vma, nop)
 
     if not dry_run:

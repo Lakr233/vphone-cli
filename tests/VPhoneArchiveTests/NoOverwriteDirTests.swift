@@ -52,6 +52,26 @@ struct NoOverwriteDirTests {
         return info.st_mode & 0o7777
     }
 
+    /// The options `cfw_install` unpacks with, minus the one part that needs
+    /// root.
+    ///
+    /// `--no-overwrite-dir` exists for exactly one caller — unpacking onto a
+    /// mounted guest volume — so `ontoGuestVolume` is the preset these vary
+    /// `noOverwriteDir` against. It is also the preset that carries
+    /// `exactPermissions`, and the modes below are what that means: the host
+    /// preset masks them through the umask instead, which is its whole point
+    /// (see `ExtractPermissionsTests`) and would make "the archive's mode
+    /// won" unobservable here.
+    ///
+    /// `.currentUser` only because `ARCHIVE_EXTRACT_OWNER` would need root to
+    /// chown, and these run as whoever is testing.
+    static func installOptions(noOverwriteDir: Bool) -> VPhoneArchiveExtractOptions {
+        var options = VPhoneArchiveExtractOptions.ontoGuestVolume
+        options.ownership = .currentUser
+        options.noOverwriteDir = noOverwriteDir
+        return options
+    }
+
     // MARK: - The behaviour that matters
 
     @Test("an existing directory keeps its own permissions")
@@ -71,9 +91,8 @@ struct NoOverwriteDirTests {
             [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path
         )
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = true
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
 
         #expect(try Self.mode(of: existing) == 0o700)
     }
@@ -93,9 +112,8 @@ struct NoOverwriteDirTests {
             [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path
         )
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = false
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: false))
 
         // `man 3 archive_write_disk`: "existing directories will have their
         // permissions updated". Confirmed — 0700 in, 0777 out. This is
@@ -120,9 +138,8 @@ struct NoOverwriteDirTests {
         let existing = destination.appendingPathComponent("dir")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = true
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
 
         // This is the difference from ARCHIVE_EXTRACT_NO_OVERWRITE, which
         // would have skipped the whole subtree.
@@ -143,9 +160,8 @@ struct NoOverwriteDirTests {
         let beside = destination.appendingPathComponent("beside.txt")
         try Data("stale\n".utf8).write(to: beside)
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = true
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
 
         // The other half of why ARCHIVE_EXTRACT_NO_OVERWRITE is not a
         // substitute: it would have left "stale" in place.
@@ -161,9 +177,8 @@ struct NoOverwriteDirTests {
             try? FileManager.default.removeItem(at: destination)
         }
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = true
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
 
         let dir = destination.appendingPathComponent("dir")
         #expect(FileManager.default.fileExists(atPath: dir.path))
@@ -187,9 +202,8 @@ struct NoOverwriteDirTests {
             at: destination.appendingPathComponent("dir"), withDestinationURL: elsewhere
         )
 
-        var options = VPhoneArchiveExtractOptions.intoHostDirectory
-        options.noOverwriteDir = true
-        try VPhoneArchiveExtractor.extract(archive, into: destination, options: options)
+        try VPhoneArchiveExtractor.extract(
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
 
         // Two things have to hold, and both do.
         //

@@ -6,8 +6,40 @@
 
 import Foundation
 import VPhoneCore
+import VPhoneSign
 
 extension CryptexFilesystemPatcher {
+    // MARK: - Signing
+
+    /// What the `ldid -S -M -K<cfw_input/signcert.p12>` these steps used to
+    /// shell out for now asks VPhoneSign for.
+    ///
+    /// The `.p12` is opened here because VPhoneSign signs with an already-read
+    /// identity — but not on the `VPHONE_USE_LDID` path, where the external
+    /// tool opens the container itself from `identityPath`. Skipping the parse
+    /// there is what keeps the escape hatch a way *out* of a VPhoneSign
+    /// regression rather than a second way into one.
+    func guestSigningOptions(
+        cfwInput: URL,
+        identifier: String? = nil,
+        entitlements: URL? = nil
+    ) throws -> VPhoneSignOptions {
+        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
+        var identity: (any VPhoneSigningIdentity)?
+        if !VPhoneLdid.isPreferred {
+            identity = try VPhoneSignIdentity(
+                pkcs12: Data(contentsOf: signingCertificatePath), password: ""
+            )
+        }
+        return VPhoneSignOptions(
+            identifier: identifier,
+            entitlements: try entitlements.map { try Data(contentsOf: $0) },
+            mergesExisting: true,
+            identity: identity,
+            identityPath: signingCertificatePath.path
+        )
+    }
+
     func patchLaunchdCacheLoader(targetMount: String, cfwInput: URL) throws {
         let target = URL.init(filePath: targetMount)
         let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
@@ -19,12 +51,12 @@ extension CryptexFilesystemPatcher {
         ])
         _ = try runProcess("/bin/chmod", ["0755", launchdCacheLoaderPath.path])
 
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S", "-M", "-K\(signingCertificatePath.path)",
-            "-Icom.apple.launchd_cache_loader",
-            launchdCacheLoaderPath.path
-        ])
+        try VPhoneSigner.sign(
+            fileAt: launchdCacheLoaderPath,
+            options: try guestSigningOptions(
+                cfwInput: cfwInput, identifier: "com.apple.launchd_cache_loader"
+            )
+        )
     }
 
     func injectLaunchDaemons(targetMount: String, cfwInput: URL, vphoned: Bool = true, cfw: Bool = true) throws {
@@ -62,11 +94,20 @@ extension CryptexFilesystemPatcher {
             }
         }
 
-        let pythonPath = try resources.pythonExecutable()
-        _ = try runProcess(pythonPath.path, [
-            resources.cfwPy.path, "inject-daemons",
-            launchdPath.path, launchDaemonsPath.path
-        ])
+        // The Python printed one line per daemon as it scanned and the install
+        // log is read for those lines, so the scan comes back in scan order and
+        // is logged here in the same words.
+        let staged = try CFWDaemons.injectDaemons(
+            into: launchdPath, fromDirectory: launchDaemonsPath
+        )
+        for daemon in staged {
+            switch daemon {
+            case let .present(daemon):
+                print("  [+] Injected \(daemon.name)")
+            case let .absent(source):
+                print("  [!] Missing \(source), skipping")
+            }
+        }
         try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
         _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
     }
@@ -94,12 +135,13 @@ extension CryptexFilesystemPatcher {
         // Sign
         let targetBin = target.appending(path: "/usr/bin/vphoned")
         try FileManager.default.copyItem(at: vphonedBin, to: targetBin)
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S\(vphonedSrc.appendingPathComponent("entitlements.plist").path)",
-            "-M", "-K\(signingCertificatePath.path)",
-            targetBin.path
-        ])
+        try VPhoneSigner.sign(
+            fileAt: targetBin,
+            options: try guestSigningOptions(
+                cfwInput: cfwInput,
+                entitlements: vphonedSrc.appendingPathComponent("entitlements.plist")
+            )
+        )
         _ = try runProcess("/bin/chmod", ["0755", targetBin.path])
     }
 
@@ -172,11 +214,10 @@ extension CryptexFilesystemPatcher {
         ])
         _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
 
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S", "-M", "-K\(signingCertificatePath.path)",
-            mobileActivationdPath.path
-        ])
+        try VPhoneSigner.sign(
+            fileAt: mobileActivationdPath,
+            options: try guestSigningOptions(cfwInput: cfwInput)
+        )
     }
 
     func addDyldSymlinks(targetMount: String) throws {

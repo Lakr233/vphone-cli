@@ -49,10 +49,12 @@ try:
     from .cfw_asm import asm
     from .cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from .cfw_dsc_codesign import reattest_modified_pages
+    from . import cfw_records as records
 except ImportError:  # direct self-test / standalone execution
     from cfw_asm import asm
     from cfw_dsc_chunks import DSCChunks, resolve_local_symbol, _disasm_function
     from cfw_dsc_codesign import reattest_modified_pages
+    import cfw_records as records
 
 
 SYMBOL = "_xpc_token_satisfies_lwcr"
@@ -144,6 +146,7 @@ def _find_patched_shape(insns):
 
 
 def patch_xpc_lwcr(chunks_dir, *, dry_run=False):
+    records.set_group("xpc_lwcr")
     chunks = DSCChunks(chunks_dir)
     print(f"  [.] {chunks!r}")
 
@@ -198,6 +201,10 @@ def patch_xpc_lwcr(chunks_dir, *, dry_run=False):
         action = "would write" if dry_run else "wrote"
         print(f"      [+] {action} {label} at 0x{vma:X} ({cur.hex()} -> {new_bytes.hex()})")
         if not dry_run:
+            records.next_site(
+                f"xpc_lwcr.{label.split()[0]}@0x{vma:X}",
+                f"{SYMBOL}: `{label}` — derive matched from error_code and drop the abort",
+            )
             chunks.write_at_vma(vma, new_bytes)
         modified.append(vma)
 

@@ -35,6 +35,25 @@ _resolve_python3() {
 }
 PYTHON3="$(_resolve_python3)"
 
+# ── vphone-cli resolver — the Swift CFW patchers the JB phases call ─
+# Same order as scripts/cfw_install_host.sh and cfw-kit/run.sh: VPHONE_CLI_BIN
+# when a vphone-cli subcommand invoked us, otherwise a dev tree or the .app,
+# where scripts/ sits in Contents/Resources and the binaries are one level up
+# in MacOS. Never `command -v` — the binary has to be the one we built beside
+# these scripts, not whatever else is on PATH.
+# Resolved up front, before anything is mounted or written: a missing binary
+# should stop the run here, not halfway through JB-1 with volumes attached.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "${SCRIPT_DIR:h}/.build/release/vphone-cli" "${SCRIPT_DIR:h:h}/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || {
+    echo "[-] cannot find vphone-cli (the JB phases need it) — run 'make build'" >&2
+    exit 1
+}
+
 # ════════════════════════════════════════════════════════════════
 # Step 1: Run base CFW install, then continue with JB phases
 # ════════════════════════════════════════════════════════════════
@@ -236,7 +255,10 @@ if [[ "$DISABLE_LAUNCHD_HOOK" == "1" ]]; then
     echo "  [*] Skipping launchdhook dylib injection (DISABLE_LAUNCHD_HOOK=1)"
 elif [[ -d "$JB_INPUT_DIR/basebin" ]]; then
     echo "  Injecting weak dylib load for /b (short launchdhook alias)..."
-    "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-dylib "$TEMP_DIR/launchd" "/b"
+    # Stays exactly here: the injector leaves launchd unsigned, so it has to
+    # run after the `ldid -e` entitlement capture above and before the
+    # patch-launchd-jetsam + ldid re-sign below.
+    "$VPHONE_CLI" cfw inject-dylib "$TEMP_DIR/launchd" "/b"
 else
     echo "  [!] BaseBin is missing; skipping launchdhook injection"
 fi
@@ -294,7 +316,7 @@ case "$BASE_IOS" in
         cp "$CAMPO_BIN" "$TEMP_DIR/Campo"
         ldid -e "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
         if [[ -s "$TEMP_DIR/Campo.entitlements" ]]; then
-            "$PYTHON3" "$SCRIPT_DIR/patchers/campo_mach_lookup_exceptions.py" "$TEMP_DIR/Campo.entitlements"
+            "$VPHONE_CLI" cfw patch-campo-entitlements "$TEMP_DIR/Campo.entitlements"
             ldid_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
             cp -R "$TEMP_DIR/Campo" "$CAMPO_BIN"
             /bin/chmod 0755 "$CAMPO_BIN"
@@ -457,16 +479,7 @@ if [[ -f "$SETUP_PLIST" ]]; then
     # Inject into launchd.plist so launchd starts it at boot
     echo "  Injecting com.vphone.jb-setup into launchd.plist..."
     cp "$MNT1/System/Library/xpc/launchd.plist" "$TEMP_DIR/launchd.plist"
-    "$PYTHON3" -c "
-import plistlib, sys
-with open(sys.argv[1], 'rb') as f:
-    target = plistlib.load(f)
-with open(sys.argv[2], 'rb') as f:
-    daemon = plistlib.load(f)
-target.setdefault('LaunchDaemons', {})['/System/Library/LaunchDaemons/com.vphone.jb-setup.plist'] = daemon
-with open(sys.argv[1], 'wb') as f:
-    plistlib.dump(target, f, sort_keys=False)
-" "$TEMP_DIR/launchd.plist" "$SETUP_PLIST"
+    "$VPHONE_CLI" cfw inject-daemon "$TEMP_DIR/launchd.plist" "$SETUP_PLIST" --name com.vphone.jb-setup
     cp -R "$TEMP_DIR/launchd.plist" "$MNT1/System/Library/xpc/launchd.plist"
     /bin/chmod 0644 $MNT1/System/Library/xpc/launchd.plist
     echo "  [+] com.vphone.jb-setup.plist injected into launchd.plist"

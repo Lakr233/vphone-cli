@@ -8,6 +8,11 @@ Usage: campo_mach_lookup_exceptions.py <entitlements.plist>
 import plistlib
 import sys
 
+try:
+    from . import cfw_records as records
+except ImportError:  # run directly: the script's own directory is on sys.path
+    import cfw_records as records
+
 EXCEPTION_KEY = "com.apple.security.exception.mach-lookup.global-name"
 
 SERVICES = [
@@ -32,6 +37,9 @@ SERVICES = [
 
 
 def merge(path):
+    records.set_group("campo_mach_lookup")
+    before = records.snapshot_file(path)
+
     with open(path, "rb") as f:
         entitlements = plistlib.load(f)
 
@@ -42,14 +50,21 @@ def merge(path):
     with open(path, "wb") as f:
         plistlib.dump(entitlements, f)
 
+    records.record_after_write(
+        path, before, component="Campo.entitlements",
+        patch_id="campo_mach_lookup.global_name",
+        description=f"{len(added)} backboard/frontboard mach-lookup exception(s) merged",
+    )
+
     print("  [+] Campo mach-lookup exception count: %d (+%d added)"
           % (len(entitlements[EXCEPTION_KEY]), len(added)))
 
 
 def main(argv):
+    argv, _ = records.take_cli_flag(argv)
     if len(argv) != 2:
-        print("Usage: campo_mach_lookup_exceptions.py <entitlements.plist>",
-              file=sys.stderr)
+        print("Usage: campo_mach_lookup_exceptions.py [--emit-records <dir>] "
+              "<entitlements.plist>", file=sys.stderr)
         return 2
     merge(argv[1])
     return 0

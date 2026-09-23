@@ -49,6 +49,11 @@ import sys
 
 import pyimg4
 
+try:
+    from . import cfw_records as records
+except ImportError:  # run directly: the script's own directory is on sys.path
+    import cfw_records as records
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Device Tree binary format parser/serializer (mirrors
@@ -300,6 +305,19 @@ def patch_devicetree_file(path: str, *, dry_run: bool = False) -> int:
         print(f"  [.] dry-run — not writing back")
         return 0
 
+    records.set_group("post_restore_dt")
+    # Two levels, because the Swift port has to get both right: the property
+    # edits inside the decompressed DT blob, and the re-wrapped container.
+    records.record_blob_diff(
+        "devicetree.dtre", dt_blob, new_dt,
+        patch_id_prefix="post_restore_dt.property",
+        description="restore-fatal DT identity property rewritten (blob-relative offset)",
+        source_file=path,
+    )
+    records.record_file_write(path, out_bytes, component="devicetree.img4",
+                              patch_id="post_restore_dt.container",
+                              description="IM4P re-wrapped around the patched DT blob")
+
     with open(path, "wb") as f:
         f.write(out_bytes)
     print(f"  [+] wrote {path}")
@@ -307,9 +325,11 @@ def patch_devicetree_file(path: str, *, dry_run: bool = False) -> int:
 
 
 def _main(argv):
+    argv, _ = records.take_cli_flag(argv)
     if len(argv) < 2:
         print(
-            "Usage: cfw_patch_post_restore_dt.py <devicetree.img4|im4p> [--dry-run]",
+            "Usage: cfw_patch_post_restore_dt.py [--emit-records <dir>] "
+            "<devicetree.img4|im4p> [--dry-run]",
             file=sys.stderr,
         )
         return 2

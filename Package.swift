@@ -23,6 +23,10 @@ let package = Package(
                 .product(name: "Capstone", package: "libcapstone-spm"),
                 .product(name: "Img4tool", package: "libimg4-spm"),
                 .product(name: "MachOKit", package: "MachOKit"),
+                // The cryptex patcher re-signs what it rewrites. That used to be
+                // three `runProcess("/opt/homebrew/bin/ldid", …)` calls, which is
+                // the one thing in this package that made `make check-aux` fail.
+                "VPhoneSign",
                 "VPhoneCore",
             ],
             path: "sources/FirmwarePatcher"
@@ -49,6 +53,19 @@ let package = Package(
                 "VPhoneCore",
             ],
             path: "sources/VPhoneArchive"
+        ),
+        // Ad-hoc and PKCS#12 Mach-O code signing, byte for byte what ldid
+        // writes. It replaces ldid, which is the only program this project
+        // shipped that links Homebrew (libcrypto.3, libplist-2.0.4) and so
+        // the only one that failed `make check-aux`. Nothing here is outside
+        // the system frameworks: CryptoKit for the hashes, Security for the
+        // PKCS#12 and the CMS.
+        .target(
+            name: "VPhoneSign",
+            path: "sources/VPhoneSign",
+            linkerSettings: [
+                .linkedFramework("Security"),
+            ]
         ),
         // Everything that touches a running guest: the machine, its window and
         // menus, the vsock channel and the host device bridges. It is a library
@@ -84,12 +101,15 @@ let package = Package(
         // The user-facing entry point. Note it depends on neither VPhoneVMKit
         // nor any of the five frameworks above: it never builds a machine, it
         // starts vphone-vm. Adding a dependency on the kit here would quietly
-        // undo the split, so don't.
+        // undo the split, so don't. VPhoneArchive is fine and is why `vm export`
+        // still works here: it sits above VPhoneCore and pulls in neither
+        // Virtualization nor AppKit.
         .executableTarget(
             name: "vphone-cli",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "FirmwarePatcher",
+                "VPhoneArchive",
                 "VPhoneCore",
             ],
             path: "sources/vphone-cli"
@@ -126,6 +146,11 @@ let package = Package(
             name: "VPhoneArchiveTests",
             dependencies: ["VPhoneArchive"],
             path: "tests/VPhoneArchiveTests"
+        ),
+        .testTarget(
+            name: "VPhoneSignTests",
+            dependencies: ["VPhoneSign"],
+            path: "tests/VPhoneSignTests"
         ),
     ]
 )

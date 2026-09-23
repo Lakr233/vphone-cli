@@ -77,6 +77,11 @@ import hashlib
 import os
 import struct
 
+try:
+    from . import cfw_records as records
+except ImportError:  # direct self-test / standalone execution
+    import cfw_records as records
+
 
 # CS constants.
 CSMAGIC_EMBEDDED_SIGNATURE = 0xFADE0CC0
@@ -291,4 +296,21 @@ def reattest_modified_pages(chunks, modified_vmas, *, dry_run=False, verbose=Tru
         action = "would update" if dry_run else "updated"
         print(f"  [+] re-attest: {action} {total} slot hash(es) across "
               f"{len(chunks_pages)} chunk(s)")
+    if not dry_run and records.enabled():
+        # P1.1's gate is that the Swift slot hashes come out byte-identical to
+        # these, so the re-attestation belongs in the snapshot as much as the
+        # instruction patches do.
+        for d in diagnostics:
+            records.record(
+                f"codesign.dsc.slot{d['page_index']}",
+                os.path.basename(d["chunk_path"]),
+                d["slot_off"],
+                bytes.fromhex(d["sha256_before"]),
+                bytes.fromhex(d["sha256_after"]),
+                description=(
+                    f"DSC CodeDirectory slot {d['page_index']} "
+                    f"(page at 0x{d['chunk_off']:X}) re-attested"
+                ),
+                source_file=d["chunk_path"],
+            )
     return diagnostics

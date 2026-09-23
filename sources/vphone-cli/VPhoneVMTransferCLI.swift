@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import VPhoneArchive
 import VPhoneCore
 
 struct VPhoneVMCloneCommand: ParsableCommand {
@@ -36,9 +37,9 @@ struct VPhoneVMExportCommand: ParsableCommand {
 
     func run() throws {
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
-        let compression: VPhoneBundleOps.ExportCompression = max ? .max : .fast
+        let compression: VPhoneBundleTransfer.ExportCompression = max ? .max : .fast
         let bar = VPhoneProgressBar(label: "exporting \(name)")
-        let outURL = try VPhoneBundleOps.export(
+        let outURL = try VPhoneBundleTransfer.export(
             bundleNamed: name,
             to: URL(fileURLWithPath: out),
             includeIPSW: includeIpsw,
@@ -63,7 +64,7 @@ struct VPhoneVMImportCommand: ParsableCommand {
 
     func run() throws {
         let bar = VPhoneProgressBar(label: "importing")
-        let bundle = try VPhoneBundleOps.importArchive(
+        let bundle = try VPhoneBundleTransfer.importArchive(
             from: URL(fileURLWithPath: input),
             name: name,
             in: lib.library,

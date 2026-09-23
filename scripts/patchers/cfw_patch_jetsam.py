@@ -3,6 +3,7 @@
 from .cfw_asm import *
 from .cfw_asm import _log_asm
 from .cfw_patch_cache_loader import _find_adrp_add_ref, _find_cstring_start
+from . import cfw_records as records
 
 def _extract_branch_target_off(insn):
     for op in reversed(insn.operands):
@@ -146,6 +147,13 @@ def patch_launchd_jetsam(filepath):
         print(f"  After:")
         _log_asm(data, ctx_start, 5, patch_off)
 
+        records.set_group("launchd_jetsam")
+        records.record_file_write(filepath, data, component="launchd_jetsam", sites=[
+            records.site(patch_off, 4, "launchd_jetsam.panic_guard_bypass",
+                         f"conditional branch -> unconditional b 0x{patch_target:X} "
+                         f"(jetsam panic guard bypass)",
+                         virtual_address=text_va + (patch_off - text_foff)),
+        ])
         open(filepath, "wb").write(data)
         print(f"  [+] Patched at 0x{patch_off:X}: jetsam panic guard bypass")
         return True

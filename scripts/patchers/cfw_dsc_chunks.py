@@ -51,8 +51,10 @@ import re
 
 try:
     from .cfw_asm import _cs
+    from . import cfw_records as records
 except ImportError:  # direct self-test / standalone execution
     from cfw_asm import _cs
+    import cfw_records as records
 
 
 def _enumerate_chunks(chunks_dir):
@@ -240,9 +242,21 @@ class DSCChunks:
                 f"crosses a chunk boundary — refusing"
             )
         cp, foff = loc
+        # Every DSC patcher funnels through here, so this is the one place the
+        # reference capture has to read the original bytes — and it has to read
+        # them before the write, not reconstruct them after.
+        original = None
+        if records.enabled():
+            records.note_dsc_page(cp, foff)
+            with open(cp, "rb") as f:
+                f.seek(foff)
+                original = f.read(len(data))
         with open(cp, "r+b") as f:
             f.seek(foff)
             f.write(data)
+        if original is not None:
+            records.record_span(os.path.basename(cp), foff, original, data,
+                                virtual_address=vma, source_file=cp)
 
     # ---- additional helpers used by the DSC-native canonical-site finder ----
 

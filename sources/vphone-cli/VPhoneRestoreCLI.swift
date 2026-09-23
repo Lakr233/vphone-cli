@@ -97,7 +97,20 @@ struct VPhoneCFWCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cfw",
         abstract: "Custom-firmware install (host-mount; VM must be off; re-execs sudo)",
-        subcommands: [VPhoneCFWInstallCommand.self, VPhoneCFWFlipSnapshotCommand.self])
+        subcommands: [
+            VPhoneCFWInstallCommand.self,
+            VPhoneCFWFlipSnapshotCommand.self,
+            // The per-step patchers the installers used to reach through
+            // scripts/patchers/cfw.py for — see VPhoneCFWPatchCLI.swift.
+            VPhoneCFWCryptexPathsCommand.self,
+            VPhoneCFWInjectDaemonsCommand.self,
+            VPhoneCFWInjectDaemonCommand.self,
+            VPhoneCFWPatchDropbearPlistCommand.self,
+            VPhoneCFWInjectDylibCommand.self,
+            VPhoneCFWPatchBuildVersionCommand.self,
+            VPhoneCFWPatchCampoEntitlementsCommand.self,
+            VPhoneCFWPatchPostRestoreDTCommand.self,
+        ])
 }
 
 /// Replaces `tools/apfs_snap_rename.py`, called from `cfw_install_host.sh`

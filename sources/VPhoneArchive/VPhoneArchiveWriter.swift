@@ -14,16 +14,30 @@ public enum VPhoneArchiveWriter {
     /// Paths inside the archive are relative to `root`, so unpacking anywhere
     /// reproduces the tree rather than an absolute path.
     ///
-    /// `excluding` takes `fnmatch` patterns matched against the archive-relative
-    /// path, which is what `vm export` already uses.
+    /// `topLevel` puts every member under one directory of that name, and adds
+    /// an entry for the directory itself — what `tar -C <parent> <name>` does.
+    /// `vm export` needs it: an export holds exactly one top-level bundle
+    /// directory, and import checks for exactly that.
+    ///
+    /// `excluding` takes `fnmatch` patterns, matched against the path relative
+    /// to `root` — not against `topLevel/...`, so a VM whose name happens to
+    /// contain `cfw_input` does not exclude its own contents.
+    ///
+    /// `bytesPacked` reports the running total of file bytes copied, as they
+    /// are copied. `progress` fires once per entry, which is enough for a
+    /// listing but not for a progress bar: a VM bundle is one multi-gigabyte
+    /// `Disk.img` and a handful of small files, so a per-entry bar would sit
+    /// at zero for the whole export.
     @discardableResult
     public static func create(
         archive: URL,
         from root: URL,
+        topLevel: String? = nil,
         format: VPhoneArchiveFormat = .gnutar,
         compression: VPhoneArchiveCompression = .none,
         excluding patterns: [String] = [],
         progress: ((Progress) -> Void)? = nil,
+        bytesPacked: ((Int64) -> Void)? = nil,
         isCancelled: (() -> Bool)? = nil
     ) throws -> Int {
         let writer = archive_write_new()
@@ -66,6 +80,24 @@ public enum VPhoneArchiveWriter {
 
         let disk = archive_read_disk_new()
         archive_read_disk_set_standard_lookup(disk)
+        // Clears ARCHIVE_READDISK_MAC_COPYFILE, which archive_read_disk_new
+        // sets. Everything else stays at its default — xattrs, ACLs, file
+        // flags and sparse maps are still read.
+        //
+        // It is not a fidelity choice, it is a side effect: for every file,
+        // copyfile(3) packs the AppleDouble form into a temp file made with a
+        // *relative* mkstemp template, and libarchive's tree walker chdir's
+        // into each directory as it descends — so the temp file is created and
+        // removed inside the directory being read, and that directory's mtime
+        // becomes now. `vm export` would rewrite the mtime of every directory
+        // in the VM bundle it was asked only to read. Measured: 2023 in, the
+        // moment of the export out; `/usr/bin/tar -cf` leaves them alone.
+        //
+        // Nothing is lost that was being kept: no `._` member has ever been
+        // seen in an archive this writes, and both extract presets leave
+        // ARCHIVE_EXTRACT_MAC_METADATA off, so one would come back as a
+        // literal `._` file rather than as metadata.
+        archive_read_disk_set_behavior(disk, 0)
         defer { archive_read_free(disk) }
 
         // Resolved, and the same resolved path is what libarchive walks — so
@@ -111,13 +143,22 @@ public enum VPhoneArchiveWriter {
                     path: root.path, reason: archiveErrorString(disk)
                 )
             }
-            archive_read_disk_descend(disk)
 
             let absolute = archive_entry_pathname(entry).map { String(cString: $0) } ?? ""
             let relative = VPhoneArchivePaths.relative(absolute, under: rootPath)
-            if relative.isEmpty { continue }   // the root itself
-            if patterns.contains(where: { matches(relative, pattern: $0) }) { continue }
-            archive_entry_set_pathname(entry, relative)
+            // An excluded directory is not descended into, so the whole subtree
+            // goes in one decision rather than one fnmatch per file. GNU tar's
+            // --exclude prunes the same way, and `vm export`'s *_Restore*
+            // exclude covers an unpacked IPSW — tens of thousands of files.
+            if !relative.isEmpty, patterns.contains(where: { matches(relative, pattern: $0) }) {
+                continue
+            }
+            archive_read_disk_descend(disk)
+
+            // Without a top-level name the root entry itself is skipped: an
+            // archive of a directory's contents should not carry the directory.
+            guard let stored = storedPath(relative, under: topLevel) else { continue }
+            archive_entry_set_pathname(entry, stored)
 
             // Turns the second and later names of a hardlinked file into
             // references to the first. The archive-relative pathname has to be
@@ -130,18 +171,21 @@ public enum VPhoneArchiveWriter {
 
             guard archive_write_header(writer, resolved) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: relative, reason: archiveErrorString(writer)
+                    path: stored, reason: archiveErrorString(writer)
                 )
             }
 
             // A hardlink reference comes back with size 0, so this also skips
             // re-storing contents we have already written once.
             if archive_entry_size(resolved) > 0 {
-                bytes += try copyFile(at: absolute, into: writer, isCancelled: isCancelled)
+                try copyFile(at: absolute, into: writer, isCancelled: isCancelled) { chunk in
+                    bytes += chunk
+                    bytesPacked?(bytes)
+                }
             }
 
             written += 1
-            progress?(Progress(entriesWritten: written, bytesWritten: bytes, currentPath: relative))
+            progress?(Progress(entriesWritten: written, bytesWritten: bytes, currentPath: stored))
         }
 
         return written
@@ -214,17 +258,23 @@ public enum VPhoneArchiveWriter {
             || fnmatch(pattern, (path as NSString).lastPathComponent, 0) == 0
     }
 
+    /// What this member is called inside the archive, or nil to skip it.
+    private static func storedPath(_ relative: String, under topLevel: String?) -> String? {
+        guard let topLevel else { return relative.isEmpty ? nil : relative }
+        return relative.isEmpty ? topLevel : topLevel + "/" + relative
+    }
+
     private static func copyFile(
         at path: String,
         into writer: OpaquePointer?,
-        isCancelled: (() -> Bool)?
-    ) throws -> Int64 {
+        isCancelled: (() -> Bool)?,
+        onBytes: (Int64) -> Void
+    ) throws {
         guard let handle = FileHandle(forReadingAtPath: path) else {
             throw VPhoneArchiveError.cannotOpen(path: path, reason: "cannot read")
         }
         defer { try? handle.close() }
 
-        var total: Int64 = 0
         while true {
             if isCancelled?() == true { throw VPhoneArchiveError.cancelled }
             guard let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty else { break }
@@ -236,8 +286,7 @@ public enum VPhoneArchiveWriter {
                     path: path, reason: archiveErrorString(writer)
                 )
             }
-            total += Int64(sent)
+            onBytes(Int64(sent))
         }
-        return total
     }
 }
