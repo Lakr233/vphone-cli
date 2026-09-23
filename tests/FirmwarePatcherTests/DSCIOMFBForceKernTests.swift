@@ -235,9 +235,12 @@ private enum ForceKernFixture {
     /// clone left behind in it is a corrupted reference for every later run.
     /// Same filesystem, so `cp -c` is still a clone rather than 6.7 GB of I/O.
     static var scratchRoot: URL {
-        ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
-            .map { URL(fileURLWithPath: $0) }
-            ?? repoRoot.appendingPathComponent("ipsws/scratch_dsc_forcekern")
+        // Per-suite leaf on BOTH branches: the override is a base shared with
+        // the other DSC suites, and they reuse the same clone names.
+        if let override = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"] {
+            return URL(fileURLWithPath: override).appendingPathComponent("scratch_dsc_forcekern")
+        }
+        return repoRoot.appendingPathComponent("ipsws/scratch_dsc_forcekern")
     }
 
     static func cloneCache(named name: String) throws -> URL {

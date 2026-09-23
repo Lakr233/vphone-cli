@@ -353,10 +353,28 @@ against constants recorded from that same Python at commit `78cbeea`, each with 
 provenance comment naming the command and the input digest, and each suite checks
 the fixture is the one the goldens were taken over — so a different firmware fails
 on that line instead of looking like a patcher bug. Two structural fixes were
-needed for the freeze to mean anything: the re-attester parity test was reading
-`.build/release/vphone-letmein`, a build product whose bytes change every build
-(retargeted to `macho_pristine/seputil`), and the device-tree golden is a digest
-map keyed by input digest, because that input exists in two cloudOS IPSWs.
+needed for the freeze to mean anything: the re-attester parity test was reading a
+**build product**, whose bytes change every build, and the device-tree golden is a
+digest map keyed by input digest, because that input exists in two cloudOS IPSWs.
+
+The build product in question was `.build/release/vphone-letmein`, picked as the
+nearest real ad-hoc-signed thin arm64 Mach-O with a non-page-aligned `codeLimit`.
+The tests asserting a frozen digest moved off it first, onto the real 24A435
+`seputil`; the rest of `CFWMachOTests` — structural cases that only needed *some*
+signed Mach-O — kept pointing at the build product, and that stopped being viable
+when `vphone-letmein` was deleted from the tree (see
+`research/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
+the way the sibling CFW parity suites do: `macho_pristine/seputil`, resolved
+through `VPHONE_MACHO_PRISTINE` with `ipsws/ref_extract/macho_pristine` as the
+default, **failing** rather than skipping when it is absent, since a skipped test
+reads like a passing one. `VPHONE_MACHO_FIXTURE_OPTIONAL=1` turns that back into
+a skip for a machine that cannot carry the extracted IPSW.
+
+**The lesson generalises past this one binary: a test fixture must never be
+something the build produces**, whether or not the assertion is a frozen digest.
+It was luck, not design, that the old fixture had the properties these tests
+exercise — a non-page-aligned `codeLimit` and zero padding behind the load
+commands — and a fixture that is rebuilt is also a fixture that can vanish.
 
 Re-deriving any of these constants means re-extracting the reference Python from
 git history — `scripts/patchers/` is gone from the working tree.
@@ -1019,7 +1037,14 @@ cache rebuild.
     - the initial path allow rule failed because `AMFIPathValidator` reports URL-encoded paths (`/Volumes/My%20Shared%20Files/...`)
     - rerunning `amfidont` with the encoded project path and the release-binary CDHash allows the signed release `vphone-cli` to launch
     - this workflow was packaged as `make amfidont_allow_vphone` / `scripts/start_amfidont_for_vphone.sh`
-    - **superseded 2026-09-23.** `amfidont` is gone, and so is the path/CDHash allowlist it provided — on macOS 26 amfid carries `com.apple.developer.hardened-process`, which gates the debugger operations a per-validation decision needs. `vphone-letmein` replaces it with a global switch held open only for the length of one launch, and `vphone-cli` (now unentitled, so it always starts) drives that itself. The URL-encoding detail above no longer applies: nothing matches on paths any more. See `sources/vphone-letmein/main.c`.
+    - ~~**superseded 2026-09-23.** `amfidont` is gone, and so is the path/CDHash allowlist it provided — on macOS 26 amfid carries `com.apple.developer.hardened-process`, which gates the debugger operations a per-validation decision needs. `vphone-letmein` replaces it with a global switch held open only for the length of one launch, and `vphone-cli` (now unentitled, so it always starts) drives that itself. The URL-encoding detail above no longer applies: nothing matches on paths any more.~~
+    - **That correction was itself wrong, and is reversed (2026-09-23, later the same day).** `amfidont` is the supported route again and `vphone-letmein` is deleted. Two things were measured:
+      - `vphone-letmein` opened its window by writing amfid's `__TEXT`. Where the host enforces code signing system-wide the kernel validates that page on the next fault, finds no signature, and kills amfid — `EXC_BAD_ACCESS` / `SIGKILL` (Code Signature Invalid), termination namespace `CODESIGNING`, indicator "Invalid Page" — and the guest is `SIGKILL`ed too because amfid never answered. Measured twice on macOS 27.0 (26A428) arm64e: the patch lands, the read-back verifies, and the child still dies. The gate is `sysctl vm.cs_system_enforcement`, which reads **1** there and is read-only.
+      - The claim that a per-validation decision is impossible was reasoning from that tool's own position. `amfidont` drives amfid through LLDB, and `debugserver` holds the Apple-private debugger entitlements; arm64 breakpoints live in the CPU's debug registers, so no page is ever dirtied. That is why it works under enforcement *and* why it can scope to one binary. **`amfidont` is an allowlist, not a global switch** — the "global switch" wording belonged to `vphone-letmein` and must not be carried onto it.
+    - The URL-encoding detail above is therefore live again for `--path`, and is sidestepped entirely by allowing the **CDHash** instead, which is what the project documents. Allow `vphone-vm`, never `vphone-cli`: the entry point carries no entitlements and amfid never objects to it.
+      - install (measured on this machine, 2026-09-23): `xcrun python3 -m pip install --user amfidont` → `~/Library/Python/3.9/bin/amfidont`. Apple's `/usr/bin/python3` is 3.9 and the tool re-execs Xcode's python3, so Xcode is required; Homebrew's python refuses under PEP 668.
+      - run: `sudo amfidont daemon --cdhash "$(codesign -dv --verbose=4 <path>/vphone-vm 2>&1 | sed -n 's/^CDHash=//p' | head -1)" --spoof-apple --verbose`. With it running, `vphone-vm --help` exits 0 instead of being `SIGKILL`ed, and amfid stays alive.
+      - it is **not** a dependency of this repo. Nothing here installs, spawns or supervises it, no Makefile target wraps it, and no Python is added to the tree for it — `vphone-cli` only detects the refusal and prints the command.
   - With launch policy bypassed, `make boot_dfu` advances into VM setup, emits `vm/udid-prediction.txt`, and then fails with `VZErrorDomain Code=2 "Virtualization is not available on this hardware."`
   - `VPhoneAppDelegate` startup failure handling was tightened so these fatal boot/DFU startup errors now exit non-zero; `make boot_dfu` now reports `make: *** [boot_dfu] Error 1` for the nested-virtualization failure instead of incorrectly returning success.
   - The host itself is a nested Apple VM (`Model Name: Apple Virtual Machine 1`, `kern.hv_vmm_present=1`), so the remaining blocker is lack of nested Virtualization.framework availability rather than firmware patching or AMFI bypass.
@@ -1161,3 +1186,54 @@ cache rebuild.
     rows (chained auth-rebase `sy_call` into __TEXT_EXEC + sane
     `sy_return_type/sy_narg/sy_arg_bytes`). Base @ foff `0x7693B0` (558 rows);
     `sysent[439]` (`SYS_kas_info`) @ foff `0x76BCD8`; cave + 3 entry writes emit.
+
+## The cryptex merge stops shelling out (2026-09-23)
+
+Eleven subprocess call sites in `CryptexFilesystemPatcher*` were doing work this
+process can do directly. Two of them changed what lands on the volume, so they are
+recorded here rather than only in the commit.
+
+**`tar` → `VPhoneArchive`.** The last three `runProcess("/usr/bin/tar", …)` calls in
+the package are gone: `cfw_input.tar.zst` into the scratch directory, `iosbinpack64.tar`
+and `AppleParavirtGPUMetalIOGPUFamily.tar` onto the mounted volume. All three now use
+`VPhoneArchiveExtractor` with the `.ontoGuestVolume` preset, so `--zstd` is no longer
+passed (the filter is detected, and libzstd is static in the xcframework).
+
+- **Behaviour change:** `.ontoGuestVolume` includes `--no-overwrite-dir`, which the two
+  guest-volume `tar` calls did *not* pass — they passed only `--preserve-permissions`.
+  Directories that iosbinpack64 and the GPU bundle share with the system volume now keep
+  their own mode, owner and mtime instead of taking the archive's. That is what
+  `cfw_install.sh` has always passed GNU tar (`--preserve-permissions --no-overwrite-dir`);
+  the Swift port dropped the second flag, and this restores shell parity.
+- Ownership and exact modes are unchanged: the step runs as root, where `/usr/bin/tar -xf`
+  already implied `-p` and restored numeric owners. That is why the scratch-directory
+  extraction also uses `.ontoGuestVolume` despite the name — the preset is what bsdtar
+  did as root, and several of those members are copied onto the volume verbatim.
+
+**`find -name '._*' -delete` → `deleteAppleDoubleFiles`,** and this one was nearly a
+silent regression worth writing down. On a volume with native extended attributes,
+**Foundation does not show `._*` entries at all**: `FileManager.contentsOfDirectory` and
+`enumerator(at:)` both omit them, because Foundation reads such a name as the partner
+file's metadata rather than as a file. `fileExists(atPath:)` compounds it by answering
+*true* for a `._x` that is not in the directory. Measured on APFS:
+
+| how the file was made | in `readdir` | in `contentsOfDirectory` |
+|---|---|---|
+| `open(2)` (what tar and libarchive do) | yes | **no** |
+| `Data.write(to:)` / `FileManager.createFile` | **no** — folded into the partner's xattrs | no |
+
+So the first port of this sweep — a `FileManager.enumerator` walk — found nothing,
+deleted nothing and reported success, on exactly the files it exists to remove. The
+shipped version walks with `opendir`/`readdir` and removes with `unlink(2)`, which is
+what `find` did. `chownRecursively` shares that walk for the same reason. Both are
+covered by `tests/FirmwarePatcherTests/CryptexFileOpsTests.swift`, whose fixtures are
+made with `open(2)` and asserted with `readdir` — a Foundation-built fixture would make
+the test pass by having nothing to find.
+
+**The rest are like-for-like:** `chmod` → `FileManager.setAttributes`, `chown -R 0:0` →
+`lchown` over that walk (BSD `chown -R` defaults to `-P`, so symlinks are not followed),
+`ln -sf` → `createSymbolicLink` after removing what was there, with the one deliberate
+difference that a real directory in the link's place is now an error instead of ln(1)'s
+silent nested link. `diskutil image resize --plist | plutil -extract max raw` loses the
+shell and `plutil`: the plist is parsed in-process, starting at `<?xml` so that a warning
+on diskutil's merged stderr can no longer be handed back as the `--size` argument.

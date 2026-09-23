@@ -105,11 +105,15 @@ enum VPhoneSignLdidHarness {
     /// This project's own binaries, when they have been built. `vphoned` is
     /// the one that matters most: it is iOS arm64, cross-compiled, and the
     /// binary the guest actually loads.
+    ///
+    /// `vphone-letmein` was on this list until it was removed from the
+    /// project. It brought no shape the others do not — the host products are
+    /// all thin arm64 and ad-hoc signed — so nothing replaced it.
     static var built: [String] {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return [root.appendingPathComponent("scripts/vphoned/vphoned").path]
-            + ["vphone-letmein", "vphone-archive", "vphone-vm", "vphone-cli"].flatMap { name in
+            + ["vphone-archive", "vphone-vm", "vphone-cli"].flatMap { name in
                 ["release", "debug"].map { root.appendingPathComponent(".build/\($0)/\(name)").path }
             }
     }

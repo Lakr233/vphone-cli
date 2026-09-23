@@ -5,6 +5,7 @@
 // launchd_cache_loader patches, vphoned, the binpack, and the LaunchDaemons that start them.
 
 import Foundation
+import VPhoneArchive
 import VPhoneCore
 import VPhoneSign
 
@@ -47,7 +48,7 @@ extension CryptexFilesystemPatcher {
         // site that needs the port's idempotence. No re-attestation: the sign
         // below replaces the whole signature anyway.
         try CFWCacheLoaderPatcher.patch(fileAt: launchdCacheLoaderPath)
-        _ = try runProcess("/bin/chmod", ["0755", launchdCacheLoaderPath.path])
+        try setMode(0o755, at: launchdCacheLoaderPath)
 
         try VPhoneSigner.sign(
             fileAt: launchdCacheLoaderPath,
@@ -107,15 +108,21 @@ extension CryptexFilesystemPatcher {
             }
         }
         try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
-        _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
+        try setMode(0o644, at: launchdOgPath)
     }
 
     func addExtraServices(targetMount: String, cfwInput: URL) throws {
-        _ = try runProcess("/usr/bin/tar", [
-            "--preserve-permissions",
-            "-xf", cfwInput.appending(path: "cfw_input/jb/iosbinpack64.tar").path,
-            "-C", targetMount
-        ])
+        // `.ontoGuestVolume` is `tar --preserve-permissions --no-overwrite-dir`
+        // with numeric ownership — the preset was written for this archive. The
+        // `/usr/bin/tar` call it replaces passed only the first of those, so the
+        // directories iosbinpack64 shares with the system volume had their mode
+        // and owner taken from the archive; now, as in `cfw_install.sh`, the
+        // volume keeps its own.
+        try VPhoneArchiveExtractor.extract(
+            cfwInput.appending(path: "cfw_input/jb/iosbinpack64.tar"),
+            into: URL(filePath: targetMount),
+            options: .ontoGuestVolume
+        )
     }
 
     func addVphoned(targetMount: String, cfwInput: URL) throws {
@@ -140,7 +147,7 @@ extension CryptexFilesystemPatcher {
                 entitlements: vphonedSrc.appendingPathComponent("entitlements.plist")
             )
         )
-        _ = try runProcess("/bin/chmod", ["0755", targetBin.path])
+        try setMode(0o755, at: targetBin)
     }
 
     func buildVphoned(vphonedSrc: URL, vphonedBin: URL) throws {
@@ -176,29 +183,27 @@ extension CryptexFilesystemPatcher {
         let target = URL.init(filePath: targetMount)
 
         let gpuTarPath = cfwInput.appending(path: "cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar")
-        _ = try runProcess("/usr/bin/tar", [
-            "--preserve-permissions",
-            "-xf", gpuTarPath.path,
-            "-C", target.path
-        ])
+        try VPhoneArchiveExtractor.extract(
+            gpuTarPath, into: target, options: .ontoGuestVolume
+        )
 
         let bundle = target.appending(path: "/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")
         // Clean macOS resource fork files (._* files from tar xattrs)
-        _ = try? runProcess("/usr/bin/find", [bundle.path, "-name", "._*", "-delete"])
-        _ = try runProcess("/usr/sbin/chown", ["-R", "0:0", bundle.path])
+        try deleteAppleDoubleFiles(under: bundle)
+        try chownRecursively(uid: 0, gid: 0, at: bundle)
         for path in [
-            bundle.path,
-            bundle.appending(path: "/libAppleParavirtCompilerPluginIOGPUFamily.dylib").path,
-            bundle.appending(path: "/AppleParavirtGPUMetalIOGPUFamily").path,
-            bundle.appending(path: "/_CodeSignature").path,
+            bundle,
+            bundle.appending(path: "/libAppleParavirtCompilerPluginIOGPUFamily.dylib"),
+            bundle.appending(path: "/AppleParavirtGPUMetalIOGPUFamily"),
+            bundle.appending(path: "/_CodeSignature"),
         ] {
-            _ = try runProcess("/bin/chmod", ["0755", path])
+            try setMode(0o755, at: path)
         }
         for path in [
-            bundle.appending(path: "/_CodeSignature/CodeResources").path,
-            bundle.appending(path: "/Info.plist").path
+            bundle.appending(path: "/_CodeSignature/CodeResources"),
+            bundle.appending(path: "/Info.plist")
         ] {
-            _ = try runProcess("/bin/chmod", ["0644", path])
+            try setMode(0o644, at: path)
         }
     }
 
@@ -208,7 +213,7 @@ extension CryptexFilesystemPatcher {
         // `resign: false` because the sign below replaces the signature, and
         // re-attesting would refuse an unsigned input the Python accepted.
         try CFWMobileactivationd.patch(fileAt: mobileActivationdPath, resign: false)
-        _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
+        try setMode(0o755, at: mobileActivationdPath)
 
         try VPhoneSigner.sign(
             fileAt: mobileActivationdPath,
@@ -218,13 +223,13 @@ extension CryptexFilesystemPatcher {
 
     func addDyldSymlinks(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
-        _ = try runProcess("/bin/ln", [
-            "-sf", "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
-            target.appending(path: "/System/Library/Caches/com.apple.dyld").path
-        ])
-        _ = try runProcess("/bin/ln", [
-            "-sf", "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
-            target.appending(path: "/System/DriverKit/System/Library/dyld").path
-        ])
+        try createSymlink(
+            at: target.appending(path: "/System/Library/Caches/com.apple.dyld"),
+            to: "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+        )
+        try createSymlink(
+            at: target.appending(path: "/System/DriverKit/System/Library/dyld"),
+            to: "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld"
+        )
     }
 }

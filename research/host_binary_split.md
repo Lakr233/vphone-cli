@@ -1,7 +1,15 @@
-# The host binary split: vphone-cli / vphone-vm / vphone-letmein
+# The host binary split: vphone-cli / vphone-vm
 
 > 2026-09-23, branch `vphone-intg-update`.
-> Supersedes the single-executable layout and the `amfidont` helper.
+> Supersedes the single-executable layout.
+>
+> **Corrected later the same day.** This document originally argued the split
+> alongside `vphone-letmein`, a helper that opened a global AMFI window for the
+> length of one exec. The split is unchanged and still right. The helper is
+> removed: it cannot work on a host that enforces code signing, and the reason
+> it gave for being global was wrong. Both corrections are in *[What changed,
+> and what it cost](#what-changed-and-what-it-cost)*; the original reasoning is
+> kept in place so the correction has something to correct.
 
 ## The problem it solves
 
@@ -11,9 +19,12 @@ signature, so the kernel killed the entry point at exec. `vphone-cli --help`
 printed nothing and exited 137.
 
 That is a chicken-and-egg: the tool could not run in order to arrange the
-conditions under which it could run. The only way out was to leave a bypass
-daemon running all the time, so that every process on the machine was being
-told that every signature was valid, for as long as the machine was up.
+conditions under which it could run. The only way out was to have the bypass
+already in place before anything of ours executed — arranged out of band, by
+hand, and kept up for as long as you wanted to use the tool. Nothing in the
+project could take part in its own admission, and a user who got it wrong got
+`Killed: 9` with no diagnosis, because the binary that would have explained was
+the binary being refused.
 
 ## The shape now
 
@@ -21,21 +32,118 @@ told that every signature was valid, for as long as the machine was up.
 | --- | :---: | --- |
 | `vphone-cli` | **none** | argument parsing and orchestration. Launches anywhere. |
 | `vphone-vm` | **all 7** | a parse and an `NSApplication` run loop over `VPhoneVMKit`. |
-| `vphone-letmein` | none (needs root) | opens an AMFI window. Plain C. |
+| `vphone-archive` | none | libarchive front end. Unrelated to amfid; listed for completeness. |
 
-`vphone-cli` is now always able to start, which is what lets it do something
+`vphone-cli` is now always able to start, which is what lets it say something
 about amfid instead of being the thing amfid stops. When it is asked for a
-guest it hands the boot to `vphone-vm`, opening a window around the exec if it
-has to and closing it immediately after.
+guest it hands the boot to `vphone-vm`; if amfid refuses that exec, the entry
+point is alive to print why and what to do about it.
 
-The compensating control moved from **scope** to **time**. The old helper
-claimed a path/CDHash allowlist; that is not reproducible on macOS 26, because
-deciding per-validation means interrupting amfid, and amfid carries
-`com.apple.developer.hardened-process`, which gates exactly those debugger
-operations behind Apple-private entitlements. So the switch is global while it
-is open — and the answer is to keep it open for one exec rather than all day.
+> **Superseded paragraph, kept for the record.** What stood here was: *"The
+> compensating control moved from scope to time. The old helper claimed a
+> path/CDHash allowlist; that is not reproducible on macOS 26, because deciding
+> per-validation means interrupting amfid, and amfid carries
+> `com.apple.developer.hardened-process`, which gates exactly those debugger
+> operations behind Apple-private entitlements. So the switch is global while it
+> is open — and the answer is to keep it open for one exec rather than all day.
+> **Do not describe `vphone-letmein` as scoped to a binary or a path.** It is
+> not."*
+>
+> "Not reproducible on macOS 26" is false — `amfidont` does exactly that, and
+> does it under code-signing enforcement as well. The tool the paragraph defends
+> is gone. See below.
 
-**Do not describe `vphone-letmein` as scoped to a binary or a path.** It is not.
+## What changed, and what it cost
+
+Two things were learned after the split shipped. Neither touches the split
+itself; both kill the helper that shipped with it.
+
+### 1. Writing amfid's `__TEXT` is fatal under `vm.cs_system_enforcement`
+
+`vphone-letmein` opened its window by patching amfid's `__TEXT` in place. That
+makes the page private, dirty and unsigned. On a host where the kernel enforces
+code signing system-wide, the next fault into that page is validated, finds no
+signature, and the kernel kills amfid:
+
+```
+exception    EXC_BAD_ACCESS, SIGKILL (Code Signature Invalid)
+termination  namespace CODESIGNING, code 2, indicator "Invalid Page"
+fault        0x23cea8c68, inside -[AMFIPathValidator_macos validateWithError:]
+region       __TEXT 23cea8000-23ceb0000  r-x/rwx  SM=COW
+```
+
+Measured twice on macOS 27.0 (26A428), arm64e, with SIP `enabled --without
+debug` plus `allow-research-guests enable` — the configuration the README calls
+Option B. The write lands, the read-back verifies, amfid dies at that instant,
+and the guest is `SIGKILL`ed anyway because amfid never answered its
+validation. The gate is the read-only sysctl `vm.cs_system_enforcement`, which
+reads **1** there, so nothing can relax it at runtime and no amount of care in
+the tool changes the outcome. `csrutil enable --without debug` does not clear
+it: that flag buys `task_for_pid`, not permission to execute a modified page.
+
+Do not re-derive this. The approach is closed on such a host, and that is why
+the tool was removed rather than fixed.
+
+### 2. "A per-binary allowlist is impossible" was wrong
+
+The superseded paragraph above reasoned from `vphone-letmein`'s own position —
+it could not decide per validation, so it concluded nobody could. `amfidont`
+does exactly that, by driving amfid through LLDB: `debugserver` carries the
+Apple-private debugger entitlements, and a debugger sets arm64 breakpoints in
+the CPU's debug registers rather than writing the page. That is the same reason
+it survives enforcement where a text patch cannot — no page is ever dirtied.
+
+So the trade was never scope *versus* time. A text patch buys neither scope nor
+a host that enforces signing; the debugger route buys both.
+
+Measured on the same host, with `vm.cs_system_enforcement` still reading 1:
+with `sudo amfidont daemon --cdhash <vphone-vm's> --spoof-apple --verbose`
+running, `vphone-vm --help` exits 0 instead of being `SIGKILL`ed, and amfid is
+still alive afterwards. That is the case `vphone-letmein` could not reach at
+all.
+
+**`amfidont` is an allowlist, not a global switch.** It decides per binary, by
+path prefix or by CDHash. The "global switch, not an allowlist" wording that
+`vphone-letmein` carried was true of `vphone-letmein` and must not be copied
+onto its replacement.
+
+`amfidont` is by this project's own author —
+<https://github.com/zqxwce/amfidont>, PyPI `amfidont`, 0.0.3 at the time of
+writing — but it is a separate program, not a component of this repo.
+
+### 3. The bypass is now outside this project
+
+Policy, decided 2026-09-23: `vphone-cli` does not install, spawn, supervise or
+depend on any AMFI bypass. It probes, and on a refusal it prints the exact
+command to run. Arranging AMFI is the user's own business — either relax it at
+boot, or run `amfidont` and allow `vphone-vm`'s CDHash:
+
+```bash
+xcrun python3 -m pip install --user amfidont       # Apple's python3 is 3.9
+codesign -dv --verbose=4 <path>/vphone-vm 2>&1 | sed -n 's/^CDHash=//p' | head -1
+sudo amfidont daemon --cdhash <cdhash> --spoof-apple --verbose
+```
+
+`make amfi_command` renders that second and third line for the binaries the
+current build produced, and does nothing else — it installs nothing, starts
+nothing, and does not check whether `amfidont` is even on the machine. Re-run it
+after every build: the CDHash changes with the bytes.
+
+It is `vphone-vm`'s CDHash that matters, never `vphone-cli`'s — `vphone-cli`
+carries no entitlements and amfid never objects to it. `amfidont` re-execs
+Xcode's python3, so Xcode is required; Homebrew's python refuses the install
+under PEP 668, which is why the system interpreter is the documented one. No
+Python dependency is added to this repo for any of it.
+
+### 4. One lesson worth keeping from the helper
+
+Upstream's `exec --hold N` restored the patch after N seconds and returned
+immediately, leaving the child running. That loses the guest's exit status and
+every signal path to it, so the caller could neither report nor cancel a boot;
+a Ctrl-C took down the supervisor and left the guest parentless, which looks
+exactly like a hang. Anything that ever wraps the guest again — a sudo shim, a
+supervisor, a launchd job — has to forward `SIGINT`/`SIGTERM`/`SIGHUP` and
+surface the child's exit status, or it will reintroduce that.
 
 ## Why the split was cheap
 
@@ -88,30 +196,17 @@ Nothing else in `VPhoneCore` does, but new code might.
 runs, so a `--help` that never prints is the same refusal a real boot would
 hit. It costs nothing and touches no VM state. A refusal is `SIGKILL`, which
 Foundation reports as termination status 9. Any *other* non-zero exit is raised
-rather than escalated into a sudo prompt — we only ask for root on the one
-signature we recognise.
+as itself — we recognise exactly one signature and do not guess at the rest.
 
-`VPHONE_LETMEIN=auto|always|never`, and `--let-me-in` on `vm launch`. `never`
-still probes: it means "do not open a window", not "do not tell me why", and
-skipping the probe would hand the user a bare exit 9 with no explanation, which
-is the failure this path exists to remove.
-
-## `--hold` changed meaning
-
-Upstream `exec --hold N` restored the patch after N seconds and returned
-immediately, leaving the child running. That loses the guest's exit status and
-every signal path to it, so `vphone-cli` could not report or cancel a boot.
-
-Now `--hold N` restores after N seconds and *keeps supervising*: the window is
-still only one launch long, but the guest's exit status and signals still reach
-the caller. The old behaviour is `--hold N --detach`. `SIGINT`/`SIGTERM`/`SIGHUP`
-are also forwarded to the child before the supervisor leaves — without that, a
-Ctrl-C took down the supervisor and left the guest parentless, which looks
-exactly like a hang.
+The probe is now the whole of what the CLI does about amfid. It never arranges
+a bypass, and it never asks for root; on a refusal it explains the refusal and
+names the command the user has to run. Skipping the probe would hand back a
+bare exit 9 with no explanation, which is the failure this path exists to
+remove, so there is no way to turn it off.
 
 ## Verified, and not
 
-**Verified on 2026-09-23** (AMFI window closed, no sudo available):
+**Verified on 2026-09-23** (amfid refusing `vphone-vm`, no bypass in place):
 
 | | |
 | --- | --- |
@@ -119,26 +214,30 @@ exactly like a hang.
 | `vphone-vm` entitlements | 7 keys |
 | `vphone-cli --help` | exits 0 and prints |
 | `vphone-vm --help` | exits 137 — amfid refuses it, as expected |
-| probe + `VPHONE_LETMEIN=never` | reports the refusal in full, never touches sudo |
-| probe + `auto` | builds `sudo …/vphone-letmein exec --hold 10 -- …/vphone-vm --config …`, confirmed in the process tree |
+| probe on a refusal | reports it in full, never touches sudo |
 | sibling resolution | resolves through the `.build/release` symlink to the real `Products/Release` directory |
 | entitlement guard | fails as required on an unentitled binary |
 | `VPhoneCoreTests` | 130/130 |
-| `vphone-letmein` | builds `-Wall -Wextra` clean; `otool -L` shows only Foundation, libSystem, libobjc |
+
+Two rows that stood here — the `VPHONE_LETMEIN` env var and the `sudo …
+vphone-letmein exec --hold 10 --` command line confirmed in the process tree —
+measured a tool that no longer exists. They were true when taken; they describe
+nothing in the tree now.
 
 **Not verified — needs root and a real guest:**
 
 1. **Whether `vphone-vm` can actually start a VM holding the entitlements
-   alone.** Everything here rests on it. Nothing about the split is proven
-   until a guest boots.
-2. **`--hold 10` — is 10 seconds right?** A guess. Too short and the exec is
-   still being validated when the window shuts; too long and it is open for no
-   reason. Measure it.
-3. **The `auto` path end to end**, including the sudo prompt, `--hold`
-   restoring while the guest keeps running, and Ctrl-C reaching the guest.
-4. **Location and TouchID**, which depend on TCC attributing the usage strings
+   alone.** — **settled**, see `research/p2_dfu_spike.md`: it booted a guest
+   and libirecovery saw its DFU endpoint. Everything here rested on this, and
+   it is the one item the DFU spike closed on the way past.
+2. **That the instructions printed on a refusal are the ones that work**, on a
+   host with `vm.cs_system_enforcement` = 1 and nothing installed yet. The
+   `amfidont` install and daemon invocation were measured on this machine (see
+   `research/0_binary_patch_comparison.md`); the CLI's rendering of them into
+   an error message was not measured against a fresh host.
+3. **Location and TouchID**, which depend on TCC attributing the usage strings
    to `vphone-vm`. It is `CFBundleExecutable`, so it should — but TCC's view of
    a binary inside someone else's bundle is worth confirming rather than
    assuming.
-5. **Bridged networking**, now that the name is validated at boot instead of at
+4. **Bridged networking**, now that the name is validated at boot instead of at
    config time.

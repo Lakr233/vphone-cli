@@ -137,7 +137,10 @@ Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take ef
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
 ```
 
-**Option B — keep SIP on (debug-only relaxed) and let `vphone-cli` open a window per launch** (leaves AMFI enabled the rest of the time).
+This is still the simplest path, and the only one that needs nothing running
+alongside the VM: with AMFI relaxed, `vphone-vm` launches on its own.
+
+**Option B — keep SIP on (debug-only relaxed) and run `amfidont` yourself while you launch** (AMFI stays enabled the rest of the time, and for every binary you did not allow).
 
 In Recovery:
 
@@ -146,60 +149,78 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-Then reboot into macOS. There is nothing else to set up: `vphone-cli` carries
-no entitlements and always launches, so when it starts a guest it notices that
-amfid will not accept `vphone-vm`, opens a window with `vphone-letmein` (one
-sudo prompt), and closes it once the guest is running.
+Then reboot into macOS.
 
-> **Check this before relying on Option B:**
->
-> ```bash
-> sysctl vm.cs_system_enforcement    # must be 0
-> ```
->
-> `vphone-letmein` opens its window by writing into amfid's `__TEXT`, which
-> makes that page private, dirty and unsigned. If the host enforces code
-> signing system-wide, the kernel validates the page the next time amfid faults
-> into it, finds no signature, and kills amfid —
-> `CODESIGNING / "Invalid Page"`, with a report in
-> `/Library/Logs/DiagnosticReports`. The guest is killed too, because amfid
-> died before it answered. Measured on macOS 27.0 (26A428), arm64e, with
-> exactly the `csrutil` settings above: the sysctl reads **1**, so Option B
-> does not work there and `vphone-letmein` refuses rather than taking amfid
-> down. The sysctl is read-only, so nothing can relax it at runtime.
->
-> `csrutil enable --without debug` by itself does **not** clear it — that flag
-> buys `task_for_pid`, not permission to run modified pages. If the sysctl
-> reads 1, use Option A; with AMFI relaxed, `vphone-vm` launches on its own and
-> `vphone-letmein` is not involved at all.
->
-> The predecessor `amfidont` worked under enforcement because it drove amfid
-> through LLDB, and a debugger sets arm64 breakpoints in the CPU's debug
-> registers without writing to the page. Doing that here needs
-> `com.apple.private.set-exception-port` and
-> `com.apple.private.thread-set-state`, which is why `vphone-letmein` patches
-> instead — and why the patch carries this precondition.
+[`amfidont`](https://github.com/zqxwce/amfidont) is a separate tool that you
+install and run. **This project does not ship it, install it, launch it or
+supervise it**, and nothing here depends on it — `vphone-cli` only notices that
+`vphone-vm` was killed and tells you what to run. It adds no Python dependency
+to this repo.
 
-To do it by hand — worth it while working on `vphone-vm`, where one sudo beats
-a prompt per run:
+Install it with Apple's Python. Homebrew's refuses with PEP 668, and the tool
+re-execs Xcode's `python3`, so Xcode has to be installed:
 
 ```bash
-make letmein          # open        (sudo)
-make letmein_status   # check
-make letmein_off      # close
+xcrun python3 -m pip install --user amfidont
+# lands in ~/Library/Python/3.9/bin — add it to $PATH
 ```
 
-> **Be honest about what this does.** It is a global switch, not an allowlist:
-> while the window is open, amfid reports *every* signature it checks as valid
-> and Apple-signed. That cannot be narrowed to one path or one binary — a
-> per-validation decision needs Apple-private debugger entitlements. What can
-> be narrowed is time, which is why the automatic path holds the window only
-> for the length of one launch. It is also memory-only: a reboot clears it.
+Then let it print the command line for the binaries this build actually
+produced:
+
+```bash
+make amfi_command      # prints only — installs nothing, runs nothing, no sudo
+```
+
+It emits one `sudo amfidont daemon …` line covering **both** copies of
+`vphone-vm`, with the paths already resolved through symlinks:
+
+```bash
+sudo amfidont daemon \
+    --path '<repo>/.build/out/Products/Release' \
+    --path '<repo>/.build/vphone-cli.app/Contents/MacOS' \
+    --cdhash <release cdhash> \
+    --cdhash <bundle cdhash> \
+    --spoof-apple --verbose
+```
+
+Both, because `make boot` runs both: `boot_binary_check` launches
+`.build/release/vphone-vm` and the boot itself launches the one inside the
+`.app`. They sign under different identifiers and hash differently, so an
+allowlist given one covers exactly half the flow — and `make boot_dfu` uses
+only the first. (`.build/release` is a symlink into `.build/out/Products`;
+amfid matches on the resolved path, which is why the printed one is resolved.)
+
+`vphone-vm` is the binary to allow. `vphone-cli` carries no entitlements and
+always launches, so its cdhash is not the one you want.
+
+Run that line in its own terminal and leave it there, then launch normally from
+another — `vphone-cli vm launch myphone`. If you skip all of this, the launch
+fails with the same command printed for you, cdhash filled in.
+
+`--path` / `-p` and `--cdhash` / `-c` both repeat, and both merge with the
+allowlists stored in `~/.amfidont/paths` and `~/.amfidont/cdhashes`. Write the
+entries there once with `amfidont add-path <dir>` and `amfidont add-cdhash
+<hash>` (`remove-path` / `remove-cdhash` undo it), and `sudo amfidont daemon
+--spoof-apple` is the whole command from then on. A rebuild changes the cdhash,
+so a cdhash-only allowlist goes stale every time you run `make build`; a
+`--path` allowlist does not.
+
+> **Be clear about what this allows.** It is an allowlist keyed on path prefix
+> and cdhash: amfid keeps enforcing for everything you did not name.
+> `--spoof-apple` makes the allowed binaries report as Apple-signed, which is
+> what the private PV=3 entitlements need. The exception is `--allow-all` —
+> pass that and *every* signature amfid checks is reported valid, for as long
+> as the daemon runs. Either way it is memory-only: stop the daemon, or reboot,
+> and amfid is back to normal.
 >
-> `vphone-letmein` replaces the old `amfidont` helper, which was a pip package
-> and is no longer used. It is not a drop-in replacement: see the
-> `vm.cs_system_enforcement` note above for the case `amfidont` covered and
-> this does not.
+> `amfidont` replaced `vphone-letmein`, which opened its window by writing into
+> amfid's `__TEXT`. On a host where `sysctl vm.cs_system_enforcement` reads 1 —
+> measured on macOS 27.0 (26A428), arm64e, with exactly the `csrutil` settings
+> above — the kernel kills amfid for that dirty page and takes the guest down
+> with it, and the sysctl is read-only. `amfidont` drives amfid through LLDB
+> instead, so its breakpoints live in the CPU's debug registers and the page is
+> never written; that is why it works under enforcement where patching cannot.
 
 ## Tested Environments
 
@@ -228,7 +249,7 @@ make letmein_off      # close
 
 ## FAQ
 
-**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [Prerequisites](#prerequisites) (`amfi_get_out_of_my_way=1`, or let `vphone-cli` open a window for you). Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
+**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [SIP/AMFI Relaxation](#sipamfi-relaxation) — either `amfi_get_out_of_my_way=1` (Option A), or `amfidont` running with `vphone-vm` on its allowlist (Option B). Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
 
 **`Virtualization is not available on this hardware`** — your Mac is itself a VM; PV=3 guest boot can't nest. Use a non-nested macOS 15+ host.
 

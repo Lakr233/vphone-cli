@@ -16,19 +16,20 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 cd "$PROJECT_ROOT"
 
-# Four host binaries, and only ONE of them is entitled. vphone-cli is the
+# Three host binaries, and only ONE of them is entitled. vphone-cli is the
 # user-facing entry point and carries nothing, so it always launches; vphone-vm
 # holds the private virtualization keys and is what amfid can refuse;
-# vphone-letmein opens a window when it does; vphone-archive unpacks and packs
-# without gtar, bsdtar, unzip or zstd.
+# vphone-archive unpacks and packs without gtar, bsdtar, unzip or zstd.
+#
+# Nothing here opens an AMFI window. Allowing vphone-vm past amfid is the user's
+# own step, with a bypass this project neither ships nor depends on; `make
+# amfi_command` prints the command line for the binaries built below.
 BINARY=".build/release/vphone-cli"
 VM_BINARY=".build/release/vphone-vm"
-LETMEIN_BINARY=".build/release/vphone-letmein"
 ARCHIVE_BINARY=".build/release/vphone-archive"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
 BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
-BUNDLE_LETMEIN="${BUNDLE}/Contents/MacOS/vphone-letmein"
 BUNDLE_ARCHIVE="${BUNDLE}/Contents/MacOS/vphone-archive"
 INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
@@ -56,9 +57,8 @@ swift build -c release
 echo "=== Signing ==="
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$VM_BINARY"
 codesign --force --sign - "$BINARY"
-codesign --force --sign - "$LETMEIN_BINARY"
 codesign --force --sign - "$ARCHIVE_BINARY"
-echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein, vphone-archive"
+echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive"
 
 # An unentitled vphone-vm is worse than a broken one: it launches perfectly,
 # which convinces vphone-cli's AMFI probe that nothing is wrong, and only fails
@@ -80,24 +80,25 @@ echo "=== Bundling ${BUNDLE} ==="
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp -f "$BINARY" "$BUNDLE_BIN"
 cp -f "$VM_BINARY" "$BUNDLE_VM"
-cp -f "$LETMEIN_BINARY" "$BUNDLE_LETMEIN"
 cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
-# The bundle is built over whatever is already there, so Contents/MacOS/ldid is
-# removed although nothing copies it any more: bundles built before VPhoneSign
-# replaced ldid carry the Homebrew one, which is the only thing in here linking
-# libcrypto.3 and libplist-2.0.4 and so the only thing failing gate 1. It has to
-# go before the seal below, not after — removing nested code from a sealed
-# bundle is what makes `codesign -v` report it as modified.
-rm -f "${BUNDLE}/Contents/MacOS/ldid"
+# The bundle is built over whatever is already there, so these two are removed
+# although nothing copies either one any more: bundles built before VPhoneSign
+# replaced ldid carry the Homebrew ldid, the only thing in here linking
+# libcrypto.3 and libplist-2.0.4 and so the only thing failing gate 1; bundles
+# built before the AMFI bypass became the user's own business carry
+# vphone-letmein, which patched amfid's __TEXT — a write the kernel kills amfid
+# for wherever vm.cs_system_enforcement is 1. Both have to go before the seal
+# below, not after — removing nested code from a sealed bundle is what makes
+# `codesign -v` report it as modified.
+rm -f "${BUNDLE}/Contents/MacOS/ldid" "${BUNDLE}/Contents/MacOS/vphone-letmein"
 # Order matters: vphone-vm is CFBundleExecutable, so signing it seals the whole
 # bundle, and everything beside it in Contents/MacOS counts as nested code.
 # Sign the nested binaries FIRST or the seal captures them in an earlier state
 # and `codesign -v` on the bundle reports "nested code is modified or invalid".
 codesign --force --sign - "$BUNDLE_BIN"
-codesign --force --sign - "$BUNDLE_LETMEIN"
 codesign --force --sign - "$BUNDLE_ARCHIVE"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
@@ -170,7 +171,6 @@ echo "  bundled: scripts/ (resources), .tools/bin/trustcache, vphoned.signed, re
 echo "=== Re-signing bundled binaries (resealing Resources) ==="
 # Nested first, main executable last — see the bundling step above.
 codesign --force --sign - "$BUNDLE_BIN"
-codesign --force --sign - "$BUNDLE_LETMEIN"
 codesign --force --sign - "$BUNDLE_ARCHIVE"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 codesign -v "$BUNDLE_VM" \
@@ -181,9 +181,10 @@ echo ""
 echo "=== Build complete ==="
 echo "  vphone-cli     : ${BINARY} (no entitlements — always launches)"
 echo "  vphone-vm      : ${VM_BINARY} (entitled — amfid may refuse it)"
-echo "  vphone-letmein : ${LETMEIN_BINARY}"
 echo "  vphone-archive : ${ARCHIVE_BINARY}"
 echo "  bundle         : ${BUNDLE}"
 [[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned        : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
+echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements;"
+echo "'make amfi_command' prints the bypass command line for these exact binaries."

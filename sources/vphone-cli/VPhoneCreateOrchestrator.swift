@@ -117,7 +117,7 @@ public struct VPhoneCreateOrchestrator {
         // Fail fast on a nested-VM host — PV=3 guest boot can't nest, and the whole
         // create pipeline (download + patch + restore) is wasted otherwise. Mirrors
         // the boot_host_preflight gate that `make boot` applied.
-        if try Self.isNestedVMHost() {
+        if Self.isNestedVMHost() {
             throw VPhoneCreateError.nestedVirtualization
         }
 
@@ -240,12 +240,18 @@ public struct VPhoneCreateOrchestrator {
 
     /// True when running inside an Apple VM (`kern.hv_vmm_present == 1`),
     /// where Virtualization.framework PV=3 guest boot is unavailable.
-    static func isNestedVMHost() throws -> Bool {
-        let r = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/usr/sbin/sysctl"),
-            ["-n", "kern.hv_vmm_present"]
-        )
-        return VPhoneBootPatterns.parseHVVmmPresent(r.stdout)
+    ///
+    /// Read with `sysctlbyname`. It used to spawn `/usr/sbin/sysctl -n` and
+    /// match its stdout against "1" — a process and a string parser for one int
+    /// the kernel hands over directly. An unreadable sysctl reads as "not
+    /// nested", which is what the string parse did with an empty stdout.
+    static func isNestedVMHost() -> Bool {
+        var present: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.hv_vmm_present", &present, &size, nil, 0) == 0 else {
+            return false
+        }
+        return present != 0
     }
 
     // MARK: - sudo askpass

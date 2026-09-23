@@ -27,6 +27,10 @@ let package = Package(
                 // three `runProcess("/opt/homebrew/bin/ldid", …)` calls, which is
                 // the one thing in this package that made `make check-aux` fail.
                 "VPhoneSign",
+                // And it unpacks three archives onto the volume it is building,
+                // which were the last three `runProcess("/usr/bin/tar", …)` calls
+                // anywhere in the package.
+                "VPhoneArchive",
                 "VPhoneCore",
             ],
             path: "sources/FirmwarePatcher"
@@ -123,15 +127,12 @@ let package = Package(
             ],
             path: "sources/vphone-archive"
         ),
-        // Opens a short AMFI window so vphone-vm can be exec'd. Plain C against
-        // the SDK; no third-party anything.
-        .executableTarget(
-            name: "vphone-letmein",
-            path: "sources/vphone-letmein",
-            linkerSettings: [
-                .linkedFramework("Foundation"),
-            ]
-        ),
+        // A `vphone-letmein` target stood here: a C program that wrote amfid's
+        // __TEXT to open a short window for vphone-vm. It cannot work on a host
+        // where `vm.cs_system_enforcement` is 1 — the dirtied page is exactly
+        // what gets amfid SIGKILLed — and opening an AMFI window is the user's
+        // decision to make, not this project's. See "SIP/AMFI Relaxation" in
+        // README.md for the two routes that do work.
         .testTarget(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],

@@ -62,11 +62,8 @@ public enum VPhoneBootPatterns {
         return (0x30...0x39).contains(ascii) || (0x41...0x46).contains(ascii) || (0x61...0x66).contains(ascii)
     }
 
-    /// Pure parse of `sysctl -n kern.hv_vmm_present` output — `"1"` means the
-    /// host is itself an Apple VM (nested), where Virtualization.framework
-    /// PV=3 guest boot is unavailable. Mirrors the `boot_host_preflight.sh`
-    /// gate `make boot` applied before native `vm create` replaced it.
-    public static func parseHVVmmPresent(_ output: String) -> Bool {
-        output.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
-    }
+    // `parseHVVmmPresent` lived here: the string form of `sysctl -n
+    // kern.hv_vmm_present`, trimmed and compared to "1". It went when its one
+    // caller stopped spawning sysctl — `VPhoneCreateOrchestrator.isNestedVMHost`
+    // reads the int with `sysctlbyname` now, so there is no text to parse.
 }

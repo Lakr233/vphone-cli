@@ -116,10 +116,12 @@ private enum LSDRegFixture {
     /// scratch directory next to it is one `rm -rf` typo away from destroying
     /// a 6.7 GB extraction nobody can regenerate quickly.
     static var scratchRoot: URL {
-        ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
+        // Per-suite leaf on BOTH branches: the override is a base shared with
+        // the other DSC suites, and they reuse the same clone names.
+        let base = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
             .map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("vphone-dsc-lsd-embedded-reg")
+        return base.appendingPathComponent("vphone-dsc-lsd-embedded-reg")
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.

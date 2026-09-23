@@ -311,8 +311,10 @@ private enum HVVMMFixture {
     /// temporary directory is on a different volume from the cache and would
     /// therefore turn `clonefile` into a real copy.
     static var scratchRoot: URL {
+        // Per-suite leaf on BOTH branches: the override is a base shared with
+        // the other DSC suites, and they reuse the same clone names.
         if let override = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"] {
-            return URL(fileURLWithPath: override)
+            return URL(fileURLWithPath: override).appendingPathComponent("vphone-hvvmm-parity")
         }
         return FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-hvvmm-parity")

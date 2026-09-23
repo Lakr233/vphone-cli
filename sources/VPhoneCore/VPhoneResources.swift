@@ -35,14 +35,32 @@ public struct VPhoneResources: Sendable {
         if _NSGetExecutablePath(&buffer, &size) == 0 {
             let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
             let path = String(decoding: bytes, as: UTF8.self)
-            return URL(fileURLWithPath: path).resolvingSymlinksInPath()
+            return realPath(URL(fileURLWithPath: path))
         }
         // Only reachable if PATH_MAX was somehow too small for our own path.
-        if let exe = Bundle.main.executableURL { return exe.resolvingSymlinksInPath() }
-        return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        if let exe = Bundle.main.executableURL { return realPath(exe) }
+        return realPath(URL(fileURLWithPath: CommandLine.arguments[0]))
     }
 
-    /// A companion binary shipped beside this one: `vphone-vm`, `vphone-letmein`.
+    /// `realpath(3)`, deliberately not `URL.resolvingSymlinksInPath()`.
+    ///
+    /// Foundation's version standardizes as well as resolves, and on macOS that
+    /// means dropping a leading `/private`: a binary that really lives at
+    /// `/private/tmp/x/vphone-vm` comes back as `/tmp/x/vphone-vm`. Both open
+    /// the same file, but only one is the path the kernel records — and an AMFI
+    /// allowlist is matched against the kernel's spelling, so the other one
+    /// silently allows nothing. `realpath` resolves every component and keeps
+    /// `/private`.
+    ///
+    /// A path that does not resolve (it does not exist yet) is returned as it
+    /// came in; the caller is better placed to say what is missing.
+    static func realPath(_ url: URL) -> URL {
+        guard let resolved = realpath(url.path, nil) else { return url }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved))
+    }
+
+    /// A companion binary shipped beside this one — today only `vphone-vm`.
     ///
     /// The layout is the same in both places we ever run from — `.build/release`
     /// during development and `Contents/MacOS` in the bundle — so resolving a
@@ -59,7 +77,7 @@ public struct VPhoneResources: Sendable {
     }
 
     public static func resolve(executablePath: String? = nil) -> VPhoneResources {
-        let exe = executablePath.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
+        let exe = executablePath.map { realPath(URL(fileURLWithPath: $0)) }
             ?? runningExecutable()
         let macos = exe.deletingLastPathComponent()             // …/Contents/MacOS
         if macos.lastPathComponent == "MacOS",
@@ -243,10 +261,21 @@ public struct VPhoneResources: Sendable {
             .map { URL(fileURLWithPath: $0) }
     }
 
+    /// First executable named `name` on `PATH`, or nil.
+    ///
+    /// This was `/usr/bin/env which <name>` — two processes, run six times per
+    /// call to `candidateHostPythons()`, to read a variable this one already
+    /// has. It is also the only PATH lookup the admission gates allow, and only
+    /// because of what it is for: finding an *interpreter to offer the user*,
+    /// not resolving one of this project's own programs. Those are resolved as
+    /// siblings of the running image — see `siblingExecutable` — and a gate
+    /// scan that sees `which` here should read this comment and move on.
     private func which(_ name: String) -> String? {
-        let r = try? VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: "/usr/bin/env"), ["which", name])
-        guard let r, r.succeeded else { return nil }
-        let p = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return p.isEmpty ? nil : p
+        guard let path = ProcessInfo.processInfo.environment["PATH"] else { return nil }
+        for directory in path.split(separator: ":", omittingEmptySubsequences: true) {
+            let candidate = "\(directory)/\(name)"
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return nil
     }
 }

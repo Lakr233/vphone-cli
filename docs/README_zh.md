@@ -137,7 +137,9 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 之后重启
 ```
 
-**方案 B——保持 SIP 开启（仅放宽 debug），让 `vphone-cli` 在每次启动时替你开一次窗口**（其余时间 AMFI 保持启用）。
+这依然是最省事的方案，也是唯一不需要在虚拟机旁边额外跑东西的方案：AMFI 一旦放宽，`vphone-vm` 自己就能启动。
+
+**方案 B——保持 SIP 开启（仅放宽 debug），启动时自己跑 `amfidont`**（其余时间、以及所有未被你放行的二进制，AMFI 仍然生效）。
 
 在恢复模式下：
 
@@ -146,19 +148,37 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-然后重启进入 macOS。除此之外无需任何配置：`vphone-cli` 不带任何 entitlement，因此总能正常启动；当它拉起客户机时，会发现 amfid 不接受 `vphone-vm`，于是用 `vphone-letmein` 打开一个窗口（一次 sudo 提示），并在客户机跑起来后把它关掉。
+然后重启进入 macOS。
 
-手动操作也可以——在调试 `vphone-vm` 时值得这么做，一次 sudo 胜过每次运行都弹一次提示：
+[`amfidont`](https://github.com/zqxwce/amfidont) 是一个独立的工具，由你自己安装、自己运行。**本项目不附带它、不安装它、不拉起它，也不托管它**，并且不依赖它——`vphone-cli` 只会察觉 `vphone-vm` 被杀掉，并告诉你该运行什么。它不会给本仓库引入任何 Python 依赖。
+
+请用 Apple 自带的 Python 安装。Homebrew 的 Python 会因 PEP 668 拒绝安装；此外该工具会重新 exec Xcode 的 `python3`，因此必须装有 Xcode：
 
 ```bash
-make letmein          # 打开        (sudo)
-make letmein_status   # 查看
-make letmein_off      # 关闭
+xcrun python3 -m pip install --user amfidont
+# 装到 ~/Library/Python/3.9/bin —— 记得加入 $PATH
 ```
 
-> **请如实看待它的作用。** 这是一个全局开关，而不是白名单：窗口打开期间，amfid 会把它校验的*每一个*签名都报告为有效且由 Apple 签名。这一点无法收窄到某个路径或某个二进制——按次校验的判定需要 Apple 私有的调试器 entitlement。能收窄的是时间，所以自动路径只在一次启动的时长内保持窗口打开。它同样只存在于内存中：重启即失效。
+取 `vphone-vm` 的 cdhash。带 entitlement 的是它；`vphone-cli` 不带任何 entitlement、总能正常启动，所以要的不是它的 cdhash：
+
+```bash
+VPHONE_BIN="$PWD/.build/vphone-cli.app/Contents/MacOS"   # vphone-vm 所在目录
+codesign -dv --verbose=4 "$VPHONE_BIN/vphone-vm" 2>&1 | sed -n 's/^CDHash=//p' | head -1
+```
+
+在单独的终端里启动守护进程并让它一直跑着：
+
+```bash
+sudo amfidont daemon --path "$VPHONE_BIN" --cdhash <cdhash> --spoof-apple --verbose
+```
+
+然后在另一个终端里照常启动——`vphone-cli vm launch myphone`。
+
+`--path` / `-p` 和 `--cdhash` / `-c` 都可以重复指定，并且都会与 `~/.amfidont/paths`、`~/.amfidont/cdhashes` 中保存的白名单合并。用 `amfidont add-path <dir>` 和 `amfidont add-cdhash <hash>` 写进去一次（`remove-path` / `remove-cdhash` 可以撤销），之后整条命令就只剩 `sudo amfidont daemon --spoof-apple`。注意：重新构建会改变 cdhash，所以只按 cdhash 做的白名单每跑一次 `make build` 就会失效，而按 `--path` 做的不会。
+
+> **请如实看待它放行了什么。** 这是一个按路径前缀和 cdhash 匹配的白名单：对于你没有列出的一切，amfid 照常校验。`--spoof-apple` 让被放行的二进制被报告为 Apple 签名，私有 PV=3 entitlement 需要的正是这一点。例外是 `--allow-all`——加上它之后，在守护进程运行期间，amfid 校验的*每一个*签名都会被报告为有效。无论哪种方式都只存在于内存中：停掉守护进程或重启，amfid 就恢复原样。
 >
-> `vphone-letmein` 取代了旧的 `amfidont` 辅助工具——那是一个 pip 包，现已不再使用。
+> `amfidont` 取代了 `vphone-letmein`——后者是靠写入 amfid 的 `__TEXT` 来开窗口的。在 `sysctl vm.cs_system_enforcement` 为 1 的主机上（在 macOS 27.0 (26A428)、arm64e，以及上面那套 `csrutil` 配置下实测），内核会因为这个被写脏的页面杀掉 amfid，并连带杀掉客户机，而该 sysctl 是只读的。`amfidont` 改为通过 LLDB 驱动 amfid，断点落在 CPU 的调试寄存器里，从不写页面——这正是它能在强制校验下工作、而打补丁不行的原因。
 
 ## 测试环境
 
@@ -187,7 +207,7 @@ make letmein_off      # 关闭
 
 ## 常见问题
 
-**`zsh: killed ./vphone-vm`** —— AMFI/debug 限制未被绕过；见[前置条件](#前置条件)（`amfi_get_out_of_my_way=1`，或让 `vphone-cli` 替你开窗口）。注意这不会发生在 `vphone-cli` 自身上：它不带任何 entitlement，所以如果被杀的是*它*，那就是别处出了问题。
+**`zsh: killed ./vphone-vm`** —— AMFI/debug 限制未被绕过；见[放宽 SIP/AMFI](#放宽-sipamfi)：要么用 `amfi_get_out_of_my_way=1`（方案 A），要么让 `amfidont` 跑着并把 `vphone-vm` 放进它的白名单（方案 B）。注意这不会发生在 `vphone-cli` 自身上：它不带任何 entitlement，所以如果被杀的是*它*，那就是别处出了问题。
 
 **`Virtualization is not available on this hardware`** —— 你的 Mac 本身就是一台虚拟机；PV=3 客户机启动无法嵌套。请使用非嵌套的 macOS 15+ 宿主机。
 

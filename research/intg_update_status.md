@@ -23,7 +23,7 @@
 | S0 | libzstd static in the xcframework? | ✅ **yes**, proven at runtime |
 | S2 | liblzma MT encoder? | ✅ **yes**, 4.84x at 1 GiB |
 | — | entitlements off `vphone-cli` onto `vphone-vm` | ✅ verified 0 / 7 / 0 / 0 |
-| — | `vphone-letmein` in, `amfidont` scripts out | ✅ docs in 6 languages |
+| — | AMFI bypass moved out of the project | ✅ docs in 6 languages |
 | **P0** | 455 lines of Python | ✅ **complete** — all three gone from the tree |
 | P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
 | P0.5 | switch the archive call sites | ❌ **nothing calls it yet** |
@@ -32,6 +32,17 @@
 | P1.0–1.5 | CFW patchers, **5,098 lines** | ❌ not started |
 | P2.0–2.4 | restore, 268 lines + venv removal | ❌ not started |
 | P3, P4 | shell | ❌ not started |
+
+That AMFI row went round in a circle in one day, so it is worth stating where
+it landed. The `amfidont` scripts came out and `vphone-letmein` went in; then
+`vphone-letmein` was measured killing amfid outright on a host where
+`vm.cs_system_enforcement` reads 1, and came out again. The project now ships
+**no** bypass at all: `vphone-cli` probes with `vphone-vm --help`, and on a
+refusal prints what to run. `amfidont` is what it names, installed by the user
+with `xcrun python3 -m pip install --user amfidont`. This costs D1 nothing —
+it is not a dependency of this repo, nothing here imports or invokes it, and
+`scripts/pymobiledevice3_bridge.py` remains the only Python program in the
+tree. `research/host_binary_split.md` has the measurement and the reasoning.
 
 Tests: `VPhoneCoreTests` 152/152, `VPhoneArchiveTests` 15/15. The 14
 `FirmwarePatcherTests` failures are pre-existing — they need
@@ -93,11 +104,17 @@ and must stay.
 
 Nothing below could be done without root or a real guest.
 
-1. **Can `vphone-vm` start a VM holding the entitlements alone?** Everything
-   rests on this, and none of it is proven until a guest boots.
-2. **`vphone-letmein` end to end** — the sudo prompt, `--hold 10` restoring
-   while the guest keeps running, Ctrl-C reaching the guest. The window
-   defaults to 10 seconds, which is a guess; measure it.
+1. ~~**Can `vphone-vm` start a VM holding the entitlements alone?**~~
+   **Answered: yes.** A guest booted and libirecovery enumerated its virtual
+   DFU endpoint — `research/p2_dfu_spike.md`. Everything rested on this.
+2. ~~**`vphone-letmein` end to end.**~~ **Answered, and the answer removed the
+   tool.** It works only where the kernel does not enforce code signing; with
+   `vm.cs_system_enforcement` = 1 the patched `__TEXT` page gets amfid killed
+   (`CODESIGNING`, "Invalid Page") and the guest dies with it. Measured twice
+   on macOS 27.0 (26A428) arm64e. What still needs a machine is the
+   **replacement instruction path**: that the `amfidont` command `vphone-cli`
+   prints on a refusal is correct as printed on a host with nothing installed
+   yet.
 3. **Location and TouchID**, which depend on TCC attributing the usage strings
    to `vphone-vm`. It is `CFBundleExecutable`, so it should — worth confirming.
 4. **Bridged networking**, now validated at boot instead of at config time.

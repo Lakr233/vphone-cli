@@ -18,12 +18,6 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
     var kernelDebugPort: Int?
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
-    @Option(help: """
-    When to open an AMFI window for vphone-vm: auto (only if amfid refuses the \
-    launch), always, or never. Opening one needs sudo and, while open, makes \
-    amfid report every signature as valid.
-    """)
-    var letMeIn: VPhoneLetMeInPolicy = .fromEnvironment()
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
 
@@ -40,7 +34,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         // binary is unentitled and always launches.
         let launcher: VPhoneGuestLaunchPlanner
         do {
-            launcher = try VPhoneGuestLaunchPlanner(letMeIn: letMeIn)
+            launcher = try VPhoneGuestLaunchPlanner()
         } catch {
             FileHandle.standardError.write(Data("error: \(error)\n".utf8))
             throw ExitCode(1)
@@ -89,8 +83,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
 
         // `vm launch` always streams the guest serial console (inherits our
         // stdio); it is intentionally not gated on verbosity. run() also hands
-        // the terminal to the child, which is what lets Ctrl-C reach the guest
-        // and an interactive sudo prompt reach the user.
+        // the terminal to the child, which is what lets Ctrl-C reach the guest.
         throw ExitCode(try launcher.run(args, cwd: bundle.url))
     }
 }

@@ -157,10 +157,12 @@ private enum CameraFixture {
     /// reference extract is what every other DSC suite compares against, and a
     /// scratch directory has no business living inside it.
     static var scratchRoot: URL {
-        ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
+        // Per-suite leaf on BOTH branches: the override is a base shared with
+        // the other DSC suites, and they reuse the same clone names.
+        let base = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
             .map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("vphone-dsc-camera")
+        return base.appendingPathComponent("vphone-dsc-camera")
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.

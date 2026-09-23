@@ -137,7 +137,9 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
 ```
 
-**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、起動ごとに `vphone-cli` にウィンドウを開かせる**（それ以外の時間は AMFI が有効なまま）。
+これが依然として最も手軽な方法であり、VM のそばで何かを走らせ続ける必要がない唯一の方法です: AMFI が緩和されていれば `vphone-vm` は単体で起動します。
+
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、起動の間は自分で `amfidont` を動かす**（それ以外の時間、および許可していないすべてのバイナリに対しては AMFI が有効なまま）。
 
 リカバリーモードで:
 
@@ -146,19 +148,37 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-その後 macOS で再起動します。ほかに設定するものはありません: `vphone-cli` は entitlement を持たないため常に起動でき、ゲストを起動する際に amfid が `vphone-vm` を受け付けないことを検知すると、`vphone-letmein` でウィンドウを開き（sudo の入力が 1 回）、ゲストが動き出したら閉じます。
+その後 macOS で再起動します。
 
-手動で行う場合 — `vphone-vm` の作業中は、実行のたびに入力するより sudo 1 回で済むぶん有用です:
+[`amfidont`](https://github.com/zqxwce/amfidont) は、あなた自身がインストールして実行する別のツールです。**本プロジェクトはこれを同梱せず、インストールせず、起動せず、管理もしません**。依存もしていません — `vphone-cli` は `vphone-vm` が kill されたことを検知し、何を実行すればよいかを伝えるだけです。このリポジトリに Python の依存関係が増えることもありません。
+
+インストールには Apple の Python を使ってください。Homebrew の Python は PEP 668 で拒否します。またこのツールは Xcode の `python3` を再 exec するため、Xcode が必要です:
 
 ```bash
-make letmein          # 開く        (sudo)
-make letmein_status   # 確認
-make letmein_off      # 閉じる
+xcrun python3 -m pip install --user amfidont
+# ~/Library/Python/3.9/bin に入ります — $PATH に追加してください
 ```
 
-> **これが何をするのかを正しく理解してください。** これは許可リストではなくグローバルなスイッチです: ウィンドウが開いている間、amfid は検査した*すべて*の署名を有効かつ Apple 署名済みとして報告します。これを 1 つのパスや 1 つのバイナリに絞ることはできません — 検証ごとの判断には Apple 非公開のデバッガ entitlement が必要です。絞れるのは時間であり、そのため自動の経路では 1 回の起動のあいだだけウィンドウを開いたままにします。またメモリ上にしか存在せず、再起動すれば解除されます。
+`vphone-vm` の cdhash を取得します。entitlement を持つのはこちらです。`vphone-cli` は entitlement を持たず常に起動できるため、必要なのはその cdhash ではありません:
+
+```bash
+VPHONE_BIN="$PWD/.build/vphone-cli.app/Contents/MacOS"   # vphone-vm のあるディレクトリ
+codesign -dv --verbose=4 "$VPHONE_BIN/vphone-vm" 2>&1 | sed -n 's/^CDHash=//p' | head -1
+```
+
+専用のターミナルでデーモンを起動し、そのまま動かし続けます:
+
+```bash
+sudo amfidont daemon --path "$VPHONE_BIN" --cdhash <cdhash> --spoof-apple --verbose
+```
+
+あとは別のターミナルから通常どおり起動します — `vphone-cli vm launch myphone`。
+
+`--path` / `-p` と `--cdhash` / `-c` はどちらも複数回指定でき、`~/.amfidont/paths` と `~/.amfidont/cdhashes` に保存された許可リストとマージされます。`amfidont add-path <dir>` と `amfidont add-cdhash <hash>` で一度書き込んでおけば（`remove-path` / `remove-cdhash` で取り消せます）、以降は `sudo amfidont daemon --spoof-apple` だけで済みます。なお、リビルドすると cdhash が変わるため、cdhash だけの許可リストは `make build` のたびに古くなります。`--path` による許可リストならそうなりません。
+
+> **何が許可されるのかを正しく理解してください。** これはパスのプレフィックスと cdhash をキーにした許可リストです: 指定していないものに対して amfid は通常どおり検証を続けます。`--spoof-apple` は許可されたバイナリを Apple 署名済みとして報告させるもので、プライベートな PV=3 entitlement が必要とするのはこの挙動です。例外は `--allow-all` で、これを渡すとデーモンが動いている間、amfid が検査した*すべて*の署名が有効として報告されます。いずれの場合もメモリ上にしか存在しません: デーモンを止めるか再起動すれば amfid は元に戻ります。
 >
-> `vphone-letmein` は、pip パッケージだった旧来の `amfidont` ヘルパーを置き換えるもので、`amfidont` はもう使用しません。
+> `amfidont` は `vphone-letmein` を置き換えたものです。後者は amfid の `__TEXT` に書き込むことでウィンドウを開いていました。`sysctl vm.cs_system_enforcement` が 1 のホストでは — macOS 27.0 (26A428)、arm64e、上記の `csrutil` 設定そのままで実測 — カーネルがその dirty なページを理由に amfid を kill し、ゲストも巻き添えになります。しかもこの sysctl は読み取り専用です。`amfidont` は LLDB 経由で amfid を制御するため、ブレークポイントは CPU のデバッグレジスタに置かれ、ページは一切書き換えられません。これが、パッチ方式では動かない強制環境でも動作する理由です。
 
 ## 動作確認済み環境
 
@@ -187,7 +207,7 @@ make letmein_off      # 閉じる
 
 ## FAQ
 
-**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[前提条件](#前提条件) を参照してください（`amfi_get_out_of_my_way=1`、または `vphone-cli` にウィンドウを開かせる）。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
+**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[SIP/AMFI の緩和](#sipamfi-の緩和) を参照してください（`amfi_get_out_of_my_way=1`（オプション A）、または `vphone-vm` を許可リストに入れた `amfidont` を動かす（オプション B））。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
 
 **`Virtualization is not available on this hardware`** — お使いの Mac 自体が VM です。PV=3 ゲスト起動はネストできません。ネストされていない macOS 15+ ホストを使用してください。
 

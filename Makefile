@@ -37,16 +37,17 @@ SCRIPTS     := scripts
 # Three host binaries, and only ONE of them is entitled. vphone-cli is the
 # user-facing entry point and carries nothing, so it always launches; vphone-vm
 # holds the private virtualization keys and is what amfid can refuse;
-# vphone-letmein opens a window when it does. See sources/vphone.entitlements.
+# vphone-archive unpacks and packs. See sources/vphone.entitlements.
+#
+# Opening an AMFI window for vphone-vm is the USER's job — this project no
+# longer ships a tool for it. `make amfi_command` prints the command line.
 BINARY      := .build/release/vphone-cli
 VM_BINARY   := .build/release/vphone-vm
-LETMEIN_BINARY := .build/release/vphone-letmein
 ARCHIVE_BINARY := .build/release/vphone-archive
 PATCHER_BINARY := .build/debug/vphone-cli
 BUNDLE      := .build/vphone-cli.app
 BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
 BUNDLE_VM   := $(BUNDLE)/Contents/MacOS/vphone-vm
-BUNDLE_LETMEIN := $(BUNDLE)/Contents/MacOS/vphone-letmein
 BUNDLE_ARCHIVE := $(BUNDLE)/Contents/MacOS/vphone-archive
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
@@ -110,7 +111,8 @@ help:
 	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW directories in the backup"
 	@echo "             FORCE=1                Skip overwrite prompt on restore"
 	@echo "  make check-aux               Run the self-containment admission gates"
-	@echo "  make letmein                 Open an AMFI window by hand (vphone-cli does it for you)"
+	@echo "  make amfi_command            Print the 'sudo amfidont daemon …' line for this build"
+	@echo "                               (prints only — installs nothing, runs nothing, needs no sudo)"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
 	@echo "  make boot_less               Boot VM in vphoned patchless compatibility mode"
@@ -263,9 +265,8 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@echo "=== Signing ==="
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(VM_BINARY)
 	@codesign --force --sign - $(BINARY)
-	@codesign --force --sign - $(LETMEIN_BINARY)
 	@codesign --force --sign - $(ARCHIVE_BINARY)
-	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-letmein, vphone-archive"
+	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive"
 	@# An unentitled vphone-vm is worse than a broken one: it launches
 	@# perfectly, which convinces vphone-cli's AMFI probe that nothing is
 	@# wrong, and only fails later trying to create a PV=3 machine. A bare
@@ -274,29 +275,30 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 		| grep -q 'com.apple.private.virtualization' \
 		|| (echo "Error: $(VM_BINARY) is not entitled after signing." >&2; exit 1)
 
-$(VM_BINARY) $(LETMEIN_BINARY) $(ARCHIVE_BINARY): $(BINARY)
+$(VM_BINARY) $(ARCHIVE_BINARY): $(BINARY)
 
 bundle: build $(INFO_PLIST)
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
 	@cp -f $(VM_BINARY) $(BUNDLE_VM)
-	@cp -f $(LETMEIN_BINARY) $(BUNDLE_LETMEIN)
 	@cp -f $(ARCHIVE_BINARY) $(BUNDLE_ARCHIVE)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
-	@# The bundle is built over whatever is already there, so Contents/MacOS/ldid
-	@# is removed although nothing copies it any more: bundles built before
-	@# VPhoneSign replaced ldid carry the Homebrew one, which is the only thing in
-	@# here linking libcrypto.3 and libplist-2.0.4 and so the only thing failing
-	@# gate 1. It has to go before the seal below, not after — removing nested
-	@# code from a sealed bundle is what makes `codesign -v` report it modified.
-	@rm -f $(BUNDLE)/Contents/MacOS/ldid
+	@# The bundle is built over whatever is already there, so these two are removed
+	@# although nothing copies either one any more: bundles built before VPhoneSign
+	@# replaced ldid carry the Homebrew ldid, the only thing in here linking
+	@# libcrypto.3 and libplist-2.0.4 and so the only thing failing gate 1; bundles
+	@# built before the AMFI bypass became the user's own business carry
+	@# vphone-letmein, which patched amfid's __TEXT — a write the kernel kills
+	@# amfid for wherever vm.cs_system_enforcement is 1. Both have to go
+	@# before the seal below, not after — removing nested code from a sealed bundle
+	@# is what makes `codesign -v` report it modified.
+	@rm -f $(BUNDLE)/Contents/MacOS/ldid $(BUNDLE)/Contents/MacOS/vphone-letmein
 	@# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the
 	@# whole bundle and everything beside it counts as nested code. Sign the
 	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
 	@codesign --force --sign - $(BUNDLE_BIN)
-	@codesign --force --sign - $(BUNDLE_LETMEIN)
 	@codesign --force --sign - $(BUNDLE_ARCHIVE)
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
 	@codesign -v $(BUNDLE_VM) \
@@ -321,7 +323,7 @@ vphoned:
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: vm_new vm_backup vm_restore vm_switch vm_list letmein letmein_off letmein_status boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
+.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfi_command boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
 
 vm_new:
 	CPU="$(CPU)" MEMORY="$(MEMORY)" \
@@ -365,18 +367,57 @@ vm_list:
 check-aux: bundle
 	@zsh $(SCRIPTS)/check_aux.sh
 
-# Normally unnecessary: vphone-cli opens and closes the window itself around
-# the launch. This is for working on vphone-vm by hand, where paying for one
-# sudo and leaving the window open beats a prompt per run. Close it with
-# `make letmein_off` — while it is open, amfid reports EVERY signature valid.
-letmein: $(LETMEIN_BINARY)
-	sudo "$(CURDIR)/$(LETMEIN_BINARY)" on
-
-letmein_off: $(LETMEIN_BINARY)
-	sudo "$(CURDIR)/$(LETMEIN_BINARY)" off
-
-letmein_status: $(LETMEIN_BINARY)
-	@sudo "$(CURDIR)/$(LETMEIN_BINARY)" status
+# vphone-vm carries the private virtualization entitlements, so amfid is the one
+# thing that can refuse it. Opening a window for it is the user's own business:
+# this project ships no bypass and depends on none. What it can do is save the
+# cdhash from being copied out of `codesign -dv` by hand, so this target prints
+# the exact command line for the binaries THIS build produced — and prints only.
+# It installs nothing, runs nothing, needs no sudo, and does not care whether
+# amfidont is on the machine at all.
+#
+# It depends on `bundle` because `make boot` needs BOTH copies of vphone-vm let
+# through: boot_binary_check runs .build/release/vphone-vm, and the boot itself
+# runs the one inside the .app. Their cdhashes differ — different signing
+# identifier (`vphone-vm-<hash>` vs `com.vphone.cli`), sealed bundle resources
+# on one and none on the other, and they are not even the same length — so an
+# allowlist given one cdhash covers exactly half the flow.
+#
+# The paths are printed resolved (`pwd -P`). .build/release is a symlink to
+# .build/out/Products/Release, and amfid judges the vnode path it is handed,
+# not the symlink the user typed — a `--path` entry naming the symlink matches
+# nothing, silently.
+amfi_command: bundle
+	@set -e; \
+	paths=""; hashes=""; \
+	for b in "$(CURDIR)/$(VM_BINARY)" "$(CURDIR)/$(BUNDLE_VM)"; do \
+		[ -f "$$b" ] || continue; \
+		h="$$(codesign -dv --verbose=4 "$$b" 2>&1 | sed -n 's/^CDHash=//p' | head -1)"; \
+		[ -n "$$h" ] || continue; \
+		d="$$(cd "$$(dirname "$$b")" && pwd -P)"; \
+		case " $$paths " in *" $$d "*) ;; *) paths="$$paths $$d";; esac; \
+		case " $$hashes " in *" $$h "*) ;; *) hashes="$$hashes $$h";; esac; \
+	done; \
+	if [ -z "$$hashes" ]; then \
+		echo "Error: no CDHash on $(VM_BINARY) — run 'make build' first." >&2; \
+		exit 1; \
+	fi; \
+	echo "vphone-vm is the only entitled binary, so it is the only one amfid can"; \
+	echo "refuse. Allow it with an AMFI bypass of your choosing — the project does"; \
+	echo "not install, start or require one. With amfidont, for this build:"; \
+	echo ""; \
+	printf '  sudo amfidont daemon'; \
+	for d in $$paths; do printf " \\\\\n    --path '%s'" "$$d"; done; \
+	for h in $$hashes; do printf " \\\\\n    --cdhash %s" "$$h"; done; \
+	printf " \\\\\n    --spoof-apple --verbose\n"; \
+	echo ""; \
+	echo "It is an allowlist: only the paths and cdhashes above are let through."; \
+	echo "Re-run this target after every build — the cdhash changes with the binary."; \
+	echo "Leave the daemon running in its own terminal, then 'make boot' in another."; \
+	echo ""; \
+	echo "amfidont is not part of this project and is not built here."; \
+	echo "It installs with the SYSTEM python (Homebrew's refuses, PEP 668):"; \
+	echo "  xcrun python3 -m pip install --user amfidont    # needs Xcode"; \
+	echo "  ~/Library/Python/3.9/bin/amfidont"
 
 boot_host_preflight: build
 	zsh $(SCRIPTS)/boot_host_preflight.sh
@@ -394,8 +435,9 @@ define BOOT_BINARY_CHECK
 	if [ $$rc -ne 0 ]; then \
 		echo "Error: signed vphone-vm failed to launch (exit $$rc)." >&2; \
 		echo "Check private virtualization entitlement support and ensure SIP/AMFI are disabled on the host." >&2; \
-		echo "vphone-cli opens an AMFI window automatically when it starts a guest; to do it by hand:" >&2; \
-		echo "  sudo $(CURDIR)/$(LETMEIN_BINARY) on" >&2; \
+		echo "If it was SIGKILLed, amfid refused the entitlements and an AMFI bypass has to allow" >&2; \
+		echo "vphone-vm first. That is yours to run; for the command line, with this build's cdhash:" >&2; \
+		echo "  make amfi_command" >&2; \
 		if [ -s "$$tmp_log" ]; then \
 			echo "--- vphone-cli preflight log ---" >&2; \
 			tail -n 40 "$$tmp_log" >&2; \

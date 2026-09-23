@@ -119,10 +119,16 @@ private enum LWCRFixture {
     /// temporary directory is, and `VPHONE_DSC_SCRATCH` is there for a layout
     /// where it is not.
     static var scratchRoot: URL {
-        ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
+        // The override names a *base*, not this suite's directory. Six DSC
+        // suites honour the same variable and they all clone under the same
+        // handful of names ("swift", "dryrun", "idempotent"); only ordering
+        // *within* a suite is serialized, so sharing one directory lets one
+        // suite's `discard` delete a clone another is still creating. The leaf
+        // therefore has to be per-suite on both branches, not just the default.
+        let base = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
             .map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("vphone_dsc_xpclwcr")
+        return base.appendingPathComponent("vphone_dsc_xpclwcr")
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.

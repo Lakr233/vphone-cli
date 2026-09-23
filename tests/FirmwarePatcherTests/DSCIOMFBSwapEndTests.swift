@@ -140,9 +140,12 @@ private enum SwapEndFixture {
     /// is the pristine reference the rest of the suite compares against, and
     /// nothing here may leave anything in it.
     static var scratchRoot: URL {
-        ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
-            .map { URL(fileURLWithPath: $0) }
-            ?? repoRoot.appendingPathComponent("ipsws/scratch_dsciomfbswapend")
+        // Per-suite leaf on BOTH branches: the override is a base shared with
+        // the other DSC suites, and they reuse the same clone names.
+        if let override = ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"] {
+            return URL(fileURLWithPath: override).appendingPathComponent("scratch_dsciomfbswapend")
+        }
+        return repoRoot.appendingPathComponent("ipsws/scratch_dsciomfbswapend")
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.

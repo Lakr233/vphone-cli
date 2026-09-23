@@ -8,8 +8,9 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Boot (GUI):** `make boot`
 - **Boot (DFU):** `make boot_dfu`
 - **All targets:** `make help`
+- **AMFI refuses `vphone-vm`?** `make amfi_command` prints the bypass line for this build. The bypass itself is the user's to install and run; see Key Patterns.
 - **Python venv:** `make setup_venv` (installs to `.venv/`, activate with `source .venv/bin/activate`). Needed only for `make restore*` — `scripts/pymobiledevice3_bridge.py` is the one Python program left. The patch pipeline never touches it.
-- **Platform:** macOS 15+ (Sequoia), SIP/AMFI disabled
+- **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
 - **Python deps:** `typer`, `pymobiledevice3`, `ipsw-parser` (see `requirements.txt`) — the restore bridge's, and nothing else's
 
@@ -69,15 +70,12 @@ sources/
 ├── vphone-vm/                        # The ONLY entitled binary — a parse and a run loop
 │   └── main.swift                    # VPhoneBootCLI.parseOrExit() → VPhoneGuestApp.run()
 │
-├── vphone-letmein/                   # Opens a short AMFI window so vphone-vm can exec
-│   └── main.c                        # Plain C; Foundation + libobjc only
-│
 ├── vphone-archive/                   # Thin shell over VPhoneArchive
 │   └── main.swift                    # extract / create / decompress / list / cat / fingerprint
 │
 ├── VPhoneCore/                       # No UI, no guest — what both entry points share
 │   ├── VPhoneBootCLI.swift           # Boot flags, parsed by both binaries; renders argv
-│   ├── VPhoneGuestLauncher.swift     # Decides on the AMFI window, spawns vphone-vm
+│   ├── VPhoneGuestLauncher.swift     # Spawns vphone-vm; explains an amfid refusal
 │   ├── VPhoneBundle*.swift           # VM bundle layout, ops, reporting
 │   ├── VPhoneVirtualMachineManifest.swift # config.plist (replaced scripts/vm_manifest.py)
 │   ├── VPhoneAPFSSnapshot.swift      # Offline APFS boot-snapshot flip
@@ -176,8 +174,9 @@ research/                         # Detailed firmware/patch documentation
 
 ### Key Patterns
 
-- **Four host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-letmein` opens a window when it does, and `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
-- **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and decides once per command whether an AMFI window is needed, by running `vphone-vm --help` and looking for SIGKILL. Never spawn the guest directly.
+- **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
+- **The AMFI bypass is the user's, not ours.** This project does not ship, install, spawn or supervise one. Relaxing AMFI at boot is the plain route; where that is not wanted, `amfidont` (`xcrun python3 -m pip install --user amfidont`, needs Xcode) allows `vphone-vm` by path or CDHash through LLDB. It is an **allowlist**, scoped to the binaries you name — do not describe it as a global switch. `make amfi_command` prints the line for the current build and prints only; the CDHash changes with every build. No Python dependency enters this repo for it; `scripts/pymobiledevice3_bridge.py` stays the only Python program here.
+- **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and probes once per command with `vphone-vm --help`, looking for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
 - **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.
 - **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.

@@ -78,19 +78,9 @@ struct CreateOrchestratorTests {
         #expect(VPhoneBootPatterns.normalizeECID("0x") == nil)
     }
 
-    // MARK: - parseHVVmmPresent (nested-VM host preflight)
-
-    @Test func parseHVVmmPresentTrueWhenNested() {
-        #expect(VPhoneBootPatterns.parseHVVmmPresent("1\n") == true)
-    }
-
-    @Test func parseHVVmmPresentFalseWhenNotNested() {
-        #expect(VPhoneBootPatterns.parseHVVmmPresent("0") == false)
-    }
-
-    @Test func parseHVVmmPresentFalseWhenEmpty() {
-        #expect(VPhoneBootPatterns.parseHVVmmPresent("") == false)
-    }
+    // The three parseHVVmmPresent cases that were here tested a string parse of
+    // `sysctl -n kern.hv_vmm_present`. The nested-host check reads the int
+    // through `sysctlbyname` now, so the parse — and its tests — are gone.
 
     // MARK: - firstBootCommands (setup_machine.sh:344-361)
 

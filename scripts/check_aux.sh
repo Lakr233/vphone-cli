@@ -64,6 +64,15 @@ typeset -a REGISTERED_REMAINING=(
   sshpass   # JB environment only, frozen
 )
 
+# The AMFI bypass is deliberately NOT on that list and must never be added to
+# it. Whatever program lets amfid accept vphone-vm's entitlements — amfidont or
+# anything else — is the user's, run by hand from their own shell. Nothing here
+# installs it, spawns it, or looks for it on PATH, so it is not a dependency of
+# this bundle and its absence is not a debt to pay down; `make amfi_command`
+# only prints a command line for the user to run. If a script ever does reach
+# for one, gate 2 below should fail: that would be the project taking on the
+# dependency, which is exactly what it stopped doing.
+
 # Programs macOS ships that we depend on and intend to keep. This is the
 # honest boundary of "zero dependencies" — widening it means editing this file,
 # which is the point.
@@ -225,7 +234,6 @@ check_smoke() {
   local root="$1"
   local cli="$root/Contents/MacOS/vphone-cli"
   local vm="$root/Contents/MacOS/vphone-vm"
-  local letmein="$root/Contents/MacOS/vphone-letmein"
   local tmp; tmp="$(mktemp -d)"
 
   run_restricted() {
@@ -259,15 +267,10 @@ check_smoke() {
       fail "gate 3: vphone-archive could not round-trip a .tzst"
     fi
   fi
-  [[ -x "$letmein" ]] && {
-    # Expected to refuse without root; what matters is that it starts.
-    env -i PATH=/usr/bin:/bin HOME="$tmp" "$letmein" status >/dev/null 2>&1
-    (( $? == 1 )) && green "  ok    gate 3: vphone-letmein starts and refuses without root" \
-                  || fail "gate 3: vphone-letmein did not start cleanly"
-  }
-  # vphone-vm is deliberately NOT smoke-tested here: amfid refuses it unless a
-  # window is open, so its exit code says something about the host, not about
-  # self-containment.
+  # vphone-vm is deliberately NOT smoke-tested here: amfid refuses it unless the
+  # host's own AMFI bypass allows this copy — and the copy under test is a
+  # relocated one, with a path no allowlist was told about. Its exit code would
+  # say something about the host, not about self-containment.
   [[ -x "$vm" ]] && note "gate 3: vphone-vm skipped (amfid gates it; see boot_host_preflight.sh)"
 
   rm -rf "$tmp"
