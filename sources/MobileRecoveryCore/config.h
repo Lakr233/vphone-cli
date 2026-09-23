@@ -3,8 +3,20 @@
  *
  * Hand-written stand-in for the config.h that libirecovery's autotools build
  * generates. It is NOT an upstream file: everything else under this target is
- * libirecovery 1.3.1 byte for byte, and this is the one file SwiftPM has to
- * supply in autoconf's place.
+ * libirecovery byte for byte, and this is the one file SwiftPM has to supply
+ * in autoconf's place.
+ *
+ * The vendored source is upstream `master`, not the 1.3.1 release. That is
+ * deliberate and load-bearing: 1.3.1's device table has no entry for the PCC
+ * research environment, so `irecv_devices_get_device_by_client` returned
+ * nothing for it and idevicerestore stopped at "Unable to discover device
+ * type" — the vphone VM was unrestorable. master carries
+ *
+ *     { "iPhone99,11", "vresearch101ap", 0x90, 0xFE01, "iPhone 99,11" },
+ *
+ * under a "Private Cloud Compute Research Environment" heading. The version
+ * strings below stay at 1.3.1 because that is the last tag master descends
+ * from, and it is what upstream's own configure.ac would still report.
  *
  * Each value below is what `./configure` would have written on macOS, read off
  * upstream's configure.ac and config.h.in rather than guessed:

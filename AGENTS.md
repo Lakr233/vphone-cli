@@ -8,7 +8,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Boot (GUI):** `make boot`
 - **Boot (DFU):** `make boot_dfu`
 - **All targets:** `make help`
-- **AMFI refuses `vphone-vm`?** `make amfi_command` prints the bypass line for this build. The bypass itself is the user's to install and run; see Key Patterns.
+- **AMFI refuses `vphone-vm`?** `make amfi_allow` (asks for root). Re-run it after every build — it allowlists cdhashes. `make amfi_status` to look, `make amfi_off` to revert. See Key Patterns.
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
@@ -98,8 +98,10 @@ sources/
 │   ├── VPhoneSignDER.swift           # The DER entitlements blob
 │   └── VPhoneMachOImage.swift        # Slice parsing. ARM only — an x86 slice is refused
 │
-├── MobileRecoveryCore/               # libirecovery 1.3.1, vendored C. IOKit USB, not libusb
-│   ├── libirecovery.c                # Upstream's bytes, unmodified
+├── MobileRecoveryCore/               # libirecovery master, vendored C. IOKit USB, not libusb
+│   ├── libirecovery.c                # Upstream's bytes, unmodified. master, NOT 1.3.1 — the
+│   │                                 # release predates the iPhone99,11 / vresearch101ap entry
+│   │                                 # and without it a restore cannot identify the vphone VM
 │   ├── include/libirecovery.h        # Upstream's public header
 │   └── config.h                      # Ours — what ./configure concludes on macOS
 │

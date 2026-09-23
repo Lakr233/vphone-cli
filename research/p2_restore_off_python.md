@@ -148,11 +148,11 @@ it is not checked and needs a phone or VM in DFU.
 
 | # | scenario | before | after | criterion | state |
 | --: | --- | --- | --- | --- | --- |
-| 1 | `restore` (online, default) | `pmd3 restore-update` | `erase=true, ticket_path=NULL` | VM boots | **device** (options mapping is `unit`: `RestoreOptionsTests.defaultsAreAnOnlineEraseRestore`) |
-| 2 | `restore --get-shsh` | `pmd3 restore-get-shsh` | `shsh_only=true` | `.shsh` semantically equal to the Python's, same filename | **split.** Filename and plist handling are `unit` (`RestoreLayoutTests.shshIsNamedAfterTheECIDInSixteenHexDigits`, the whole of `RestoreTicketTests`); the TSS round trip is **device** |
-| 3 | `restore --offline` | AEA decrypt in place → `--tss <first .shsh>` | AEA decrypt in place → `ticket_path=<same file>` | ① `noSHSH` with no blob ② `noRestoreDir` with no tree ③ multiple `.shsh` → sorted first ④ VM boots | ①②③ **unit** (`RestoreLayoutTests`, `RestoreRunnerTests.fetchingASHSHStopsAtTheMissingRestoreTree`), and ①② also **run through the CLI** — see below; ④ **device** |
-| 4 | `restore --no-erase` | `Behavior.Update` | `erase=false` | user data survives | **device** (mapping is `unit`: `RestoreOptionsTests.updateInPlaceClearsErase`) |
-| 5 | metadata on success | writes `restore-info.json` | same | contents identical | **device.** `VPhoneRestoreInfo.derive` is host-side and unchanged, but "only on success" needs a run |
+| 1 | `restore` (online, default) | `pmd3 restore-update` | `erase=true, ticket_path=NULL` | VM boots | **device**, but both halves are now proven separately: the online TSS fetch by row 2 and the erase-and-flash by row 3. What has not been run is the two in one invocation. Options mapping is `unit`: `RestoreOptionsTests.defaultsAreAnOnlineEraseRestore` |
+| 2 | `restore --get-shsh` | `pmd3 restore-get-shsh` | `shsh_only=true` | `.shsh` semantically equal to the Python's, same filename | ✅ **DONE 2026-09-23.** Real TSS round trip against a DFU-booted `dfu-spike`: ApNonce and SepNonce read from the device, `Received SHSH blobs`, saved as `206C763772858301.shsh` — the `%016X` name `VPhoneRestoreLayout.shshOutput` promises. The blob is a TSS response (`@ServerVersion 2.1.0`, 5,803-byte `ApImg4Ticket`), binary plist where the Python wrote XML — a serialization difference, not a semantic one |
+| 3 | `restore --offline` | AEA decrypt in place → `--tss <first .shsh>` | AEA decrypt in place → `ticket_path=<same file>` | ① `noSHSH` with no blob ② `noRestoreDir` with no tree ③ multiple `.shsh` → sorted first ④ VM boots | ✅ **DONE 2026-09-23.** ①②③ `unit` and also run through the CLI (see below); ④ a full flash of `dfu-spike` from the 26.1/23B85 tree with the cached ticket: four `.dmg.aea` decrypted in place, filesystem sent, system volume sealed, `Status: Restore Finished`, exit 0, and the device left DFU |
+| 4 | `restore --no-erase` | `Behavior.Update` | `erase=false` | user data survives | **device.** The flag did not exist until 2026-09-23 — see below. Mapping is `unit`: `RestoreOptionsTests.updateInPlaceClearsErase` |
+| 5 | metadata on success | writes `restore-info.json` | same | contents identical | ✅ **DONE 2026-09-23.** Written only after the restore returned: `{"ios":{"version":"26.1","build":"23B85"},"cloudOS":{"version":"26.1","build":"23B85"}}` |
 | 6 | failure | no `restore-info.json`, exit code passed through | same | exit codes match | **device.** The bridge's own rejections are `unit` (`RestoreRunnerTests`); a failure from inside idevicerestore is not |
 | 7 | verbosity | `-v` → one, `-vv`/`-vvv` → two `-v` | `debug_level` | logs comparably detailed | **device.** The level enum matches upstream's one for one and that is `unit` (`RestoreEventTests.levelsMatchIdevicerestoresEnum`) |
 
@@ -189,9 +189,45 @@ gap between `VPhoneRestore` and `vphone-cli`, not inside either:
 Criteria ① and ② of row 3 were then exercised through the built binary against a
 synthetic bundle, not only through the library.
 
-The rows that remain **device** are unchanged: 1, 4, 5, 6 and the tail halves of
-2, 3 and 7. **Run them on a disposable VM** — a failed restore leaves the guest
-sitting in recovery.
+### And then the device rows were run — after one more thing had to be fixed
+
+`make amfi_allow` made `vphone-vm` launchable on the dev host for the first time,
+so `dfu-spike` could be booted `--dfu` and the device rows actually attempted.
+`vphone-cli recovery-probe` found it immediately — ECID `0x206C763772858301`,
+matching what `vphone-vm` derived from `machineIdentifier`, two independent code
+paths agreeing. A wrong `--ecid` times out rather than matching the attached
+device, so `irecv_open_with_ecid_and_attempts` is filtering and not just taking
+whatever answers.
+
+Then `--get-shsh` stopped at **`Unable to discover device type`**.
+
+That is `get_irecv_device` returning NULL, from `irecv_devices_get_device_by_client`
+failing to match `{cpid 0xFE01, bdid 0x90}` — the PCC research environment — in
+libirecovery's `irecv_devices[]`. The table is `static`, so nothing outside the
+file can extend it, and **vendoring release 1.3.1 was the mistake**: upstream
+`master` already carries
+
+```c
+/* Private Cloud Compute Research Environment */
+{ "iPhone99,11", "vresearch101ap", 0x90, 0xFE01, "iPhone 99,11" },
+```
+
+This is the deeper half of P2's Python-to-idevicerestore swap, and worth stating
+plainly: pymobiledevice3 never needed a device table. It matched the connected
+device's CPID/BDID against the BuildManifest's own `BuildIdentities`, so a
+device Apple had not shipped was not a special case. idevicerestore selects the
+build identity through `client->device->product_type`, so an unlisted device is
+not merely unidentified — it is unrestorable. Vendoring `master` rather than the
+newest tag is therefore load-bearing here, not housekeeping; `config.h`'s header
+says so at the vendoring site.
+
+With that in, the same probe reports `iPhone99,11 in DFU`, idevicerestore
+reports `Identified device as vresearch101ap, iPhone99,11`, and rows 2, 3 and 5
+pass as recorded above.
+
+The rows still open are **1** (only as a single invocation — see its cell),
+**4** (the flag is new), **6** and the tail of **7**. **Run them on a disposable
+VM** — a failed restore leaves the guest sitting in recovery.
 
 ### `research/p2_dfu_spike.md` already settled the riskiest question
 
