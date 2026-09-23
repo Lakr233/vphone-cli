@@ -93,13 +93,8 @@ help:
 	@echo "  make boot_dfu                Boot VM in DFU mode (reads from config.plist)"
 	@echo ""
 	@echo "Firmware pipeline:"
-	@echo "  make fw_prepare              Download IPSWs, extract, merge"
-	@echo "    Options: LIST_FIRMWARES=1  List downloadable iPhone IPSWs for IPHONE_DEVICE and exit"
-	@echo "             IPHONE_DEVICE=    Device identifier for firmware lookup (default: iPhone17,3)"
-	@echo "             IPHONE_VERSION=   Resolve a downloadable iPhone version to an IPSW URL"
-	@echo "             IPHONE_BUILD=     Resolve a downloadable iPhone build to an IPSW URL"
-	@echo "             IPHONE_SOURCE=    URL or local path to iPhone IPSW"
-	@echo "             CLOUDOS_SOURCE=   URL or local path to cloudOS IPSW"
+	@echo "  vphone-cli fw prepare <name> --iphone-source IPSW --cloudos-source IPSW"
+	@echo "                               Prepare a VM's restore tree from two IPSWs"
 	@echo "  make fw_patch                Patch boot chain with the JB Swift pipeline"
 	@echo "    Options: FORCE_EXC_GUARD=1        Force the EXC_GUARD Mach-port-guard disable patch even on bases"
 	@echo "                                      that don't strictly need it to boot (e.g. a 3rd-party app's"
@@ -350,10 +345,7 @@ boot_dfu: build boot_binary_check
 # Firmware pipeline
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: fw_prepare fw_patch
-
-fw_prepare:
-	cd "$(VM_DIR)" && bash "$(CURDIR)/$(SCRIPTS)/fw_prepare.sh"
+.PHONY: fw_patch
 
 fw_patch: patcher_build
 	"$(CURDIR)/$(PATCHER_BINARY)" patch-firmware --vm-directory "$(VM_DIR_ABS)" \

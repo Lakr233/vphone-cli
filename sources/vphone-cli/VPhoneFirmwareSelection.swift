@@ -7,7 +7,7 @@ enum VPhoneFirmwareSelection {
 
     /// Resolve `vm create`'s iPhone/cloudOS sources, prompting on a TTY for
     /// whichever component the user didn't pass. Non-interactive or fully
-    /// specified → returns the inputs unchanged (fw_prepare defaults fill gaps).
+    /// specified → returns the inputs unchanged for caller validation.
     static func resolve(iphone: String?, cloudos: String?) throws -> VPhoneFirmwareSources {
         try VPhoneFirmwarePicker.resolve(
             iphone: iphone,

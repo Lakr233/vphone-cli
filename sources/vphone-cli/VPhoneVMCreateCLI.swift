@@ -51,6 +51,9 @@ struct VPhoneVMCreateCommand: ParsableCommand {
         let launcher = try VPhoneGuestLaunchPlanner()
         // Prompt for any firmware component not supplied on the command line.
         let sources = try VPhoneFirmwareSelection.resolve(iphone: iphoneSource, cloudos: cloudosSource)
+        guard sources.iphoneSource != nil, sources.cloudosSource != nil else {
+            throw ValidationError("Specify both --iphone-source and --cloudos-source when running without a terminal.")
+        }
         let orchestrator = VPhoneCreateOrchestrator(
             library: lib.library,
             resources: resources,

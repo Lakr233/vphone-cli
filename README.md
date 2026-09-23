@@ -55,7 +55,9 @@ Nothing shipped runs it.
 One command creates a VM end-to-end (download → patch → DFU restore → CFW install → first boot):
 
 ```bash
-vphone-cli vm create myphone -V jb        # -V / --variant
+vphone-cli vm create myphone \
+  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw
 
 vphone-cli vm launch myphone
 ```
@@ -82,15 +84,16 @@ vphone-cli vm delete iphone16
 
 ```bash
 vphone-cli vm new myphone                              # 1. empty bundle
-vphone-cli fw prepare myphone --iphone-version 26.1     # 2. download + merge IPSWs
-vphone-cli fw patch myphone --variant jb                # 3. patch the boot chain
+vphone-cli fw prepare myphone --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw                # 2. merge IPSWs
+vphone-cli fw patch myphone                             # 3. patch the JB boot chain
 
 vphone-cli vm launch myphone --dfu &                    # 4. boot into DFU (background)
 vphone-cli restore myphone --get-shsh                   #    fetch SHSH
 vphone-cli restore myphone                              #    DFU restore
 vphone-cli vm stop myphone                              #    stop the DFU boot
 
-vphone-cli cfw install myphone --variant jb             # 5. install CFW (host-mount; asks for sudo)
+vphone-cli cfw install myphone                          # 5. install CFW (host-mount; asks for sudo)
 vphone-cli vm launch myphone                            # 6. first boot
 ```
 
@@ -101,24 +104,15 @@ libirecovery and idevicerestore directly — no external restore tool, no setup
 step before the first one works. Add `--offline` to restore from a `.shsh`
 already saved beside the VM instead of asking Apple for a fresh one.
 
-## Firmware Variants
+## Firmware Mode
 
-Five patch variants with increasing security bypass — pass one to `--variant`:
-
-| Variant      | Boot Chain  | CFW       | Notes                                                              |
-| ------------ | ----------- | --------- | ----------------------------------------------------------------- |
-| `less`       | 4 patches   | 2 phases  | Patchless — keeps iOS mitigations enabled                         |
-| `regular`    | 42 patches  | 10 phases | AMFI/SSV/Img4/TXM bypass                                           |
-| `dev`        | 53 patches  | 12 phases | + TXM entitlement/debug bypass                                    |
-| `jb`         | 113 patches | 14 phases | + full jailbreak (Sileo, TrollStore auto-install on first boot)   |
-| `exp`        | 141 patches | 18 phases | JB superset + anti-VM-detection research patches                  |
+The CLI exposes one firmware mode: JB. There is no `--variant` choice.
 
 See [`research/0_binary_patch_comparison.md`](./research/0_binary_patch_comparison.md) for the per-component breakdown.
 
 ## Running & Connecting
 
 - **SSH (jailbreak):** `ssh -p 22222 mobile@<vm-ip>` (password `alpine`)
-- **SSH (regular/dev):** `ssh -p 22222 root@<vm-ip>`
 - **VNC:** `vnc://<vm-ip>:5901`
 
 ## Locations
@@ -130,7 +124,7 @@ Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo
 | `~/.vphone/`      | The per-user data root — override the entire location with `$VPHONE_ROOT`.                   |
 | `~/.vphone/VMs/`  | VM bundles — one directory per VM. This is the library; override with `$VPHONE_LIBRARY_ROOT`. |
 | `~/.vphone/ipsws/`| Downloaded iPhone + cloudOS IPSWs, cached and reused across VMs.                              |
-| `~/.vphone/tools/`| Cached APFS seal-volume artifacts (`apfs_sealvolume_<version>`) fetched during `fw prepare`.  |
+| `~/.vphone/tools/`| Cached APFS seal-volume artifacts used by firmware patching.                       |
 | `~/.vphone/debs/` | Cached `.deb` packages the `jb`/`exp` CFW install lays into the guest (Sileo, apt, …).        |
 
 Precedence: the per-item override `$VPHONE_LIBRARY_ROOT` wins over `$VPHONE_ROOT`, which wins over the `~/.vphone` default. The `ipsws/`, `tools/`, and `debs/` caches always sit directly under whichever root is active.
@@ -243,7 +237,7 @@ always launches, so its cdhash is not the one you want.
 
 **System apps won't install** — during iOS setup, don't pick Japan or the EU as your region (extra regulatory checks the VM can't satisfy); pick e.g. United States.
 
-**App crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`** — re-patch with `vphone-cli fw patch <name> --variant <v> --force-exc-guard`, then re-restore/install ([#291](https://github.com/Lakr233/vphone-cli/issues/291)). Always on for iOS 18 bases.
+**App crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`** — re-patch with `vphone-cli fw patch <name> --force-exc-guard`, then re-restore/install ([#291](https://github.com/Lakr233/vphone-cli/issues/291)). Always on for iOS 18 bases.
 
 **Install a `.ipa`/`.tipa`** — use the running VM's Install menu (drag-drop or file picker).
 

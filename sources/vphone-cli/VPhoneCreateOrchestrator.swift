@@ -1,3 +1,4 @@
+import ArgumentParser
 import FirmwarePatcher
 import Foundation
 import VPhoneCore
@@ -10,7 +11,6 @@ import VPhoneRestore
 /// `wait_for_recovery` / `wait_for_first_boot_prompt_auto` / `run_boot_analysis`.
 private enum VPhoneCreateError: Error, CustomStringConvertible {
     case nestedVirtualization
-    case fwPrepareFailed(Int32)
     case identityTimedOut(URL)
     case invalidUDID(String)
     case invalidECID(String)
@@ -30,8 +30,6 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
         switch self {
         case .nestedVirtualization:
             "Guest boot is unavailable inside a VM. Run vm create on a macOS 15 or later host that is not itself a VM."
-        case let .fwPrepareFailed(code):
-            "Firmware preparation failed (exit code \(code))."
         case let .identityTimedOut(path):
             "Device identity file not found: \(path.path). Run vm create again to regenerate it."
         case let .invalidUDID(v):
@@ -244,31 +242,14 @@ public struct VPhoneCreateOrchestrator {
     // MARK: - fw prepare / fw patch
 
     private func runFWPrepare(options: Options, bundleURL: URL) throws {
-        let v = options.verbosity
-        try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-
-        var env = ProcessInfo.processInfo.environment
-        if let iphoneSource = options.iphoneSource { env["IPHONE_SOURCE"] = iphoneSource }
-        if let cloudosSource = options.cloudosSource { env["CLOUDOS_SOURCE"] = cloudosSource }
-        // No VPHONE_PYTHON: fw_prepare.sh no longer runs any Python.
-        env["IPSW_DIR"] = resources.ipswCacheDir.path
-        env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
-        if options.keepArtifacts { env["VPHONE_KEEP_ARTIFACTS"] = "1" }
-
-        trace(
-            "spawn /bin/bash \(resources.fwPrepareScript.path) (env keys: IPSW_DIR, VPHONE_SEAL_DIR)",
-            v
+        guard let phone = options.iphoneSource, let cloud = options.cloudosSource else {
+            throw ValidationError("Specify both iPhone and cloudOS IPSW sources when running without a terminal.")
+        }
+        let bundle = try VPhoneBundle.load(at: bundleURL)
+        try VPhoneFirmwarePreparer.prepare(
+            iPhoneSource: phone, cloudOSSource: cloud,
+            bundle: bundle, cacheDirectory: resources.ipswCacheDir
         )
-        // Always streamed — silence during a multi-GB download reads as a hang.
-        let code = try VPhoneProcessRunner.runStreaming(
-            URL(fileURLWithPath: "/bin/bash"),
-            [resources.fwPrepareScript.path],
-            cwd: bundleURL,
-            env: env,
-            echo: true
-        )
-        guard code == 0 else { throw VPhoneCreateError.fwPrepareFailed(code) }
         print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")
     }
 

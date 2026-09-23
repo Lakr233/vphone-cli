@@ -24,9 +24,7 @@ struct VPhoneFWCommand: ParsableCommand {
 
 // MARK: - firmware support matrix
 
-/// Replaces the two Python heredocs that used to live inside
-/// `scripts/fw_prepare.sh`. Both read the `DOWNLOADABLE_IPSW_URLS` the shell
-/// already sets, so only the language changed; the shell still runs `ipsw`.
+/// Lists the available firmware using the URLs supplied by AppleDB.
 ///
 /// Neither writes through `print`: `list` styles stdout and `resolve` styles
 /// stderr, and colour is only right if each descriptor is asked separately.
@@ -54,8 +52,7 @@ struct VPhoneFWResolveCommand: ParsableCommand {
         commandName: "resolve",
         abstract: "Resolve a version/build selector to a downloadable IPSW URL",
         discussion: """
-        Prints version<TAB>build<TAB>url<TAB>status on stdout, which fw_prepare.sh
-        reads back with `IFS=$'\\t' read -r`.
+        Prints version<TAB>build<TAB>url<TAB>status on stdout.
 
         Exits 2 — not 1 — when a bare version matches more than one build, so a
         caller can tell "pick a build" from "there is no such firmware". An empty
@@ -82,8 +79,7 @@ struct VPhoneFWResolveCommand: ParsableCommand {
 
 // MARK: - manifest
 
-/// Replaces `scripts/fw_manifest.py`, called from `fw_prepare.sh` once both
-/// IPSWs are extracted and merged.
+/// Generates the hybrid manifest after both IPSWs are extracted and merged.
 struct VPhoneFWManifestCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "manifest",
@@ -94,7 +90,7 @@ struct VPhoneFWManifestCommand: ParsableCommand {
         OS images into a single DFU erase-install build identity.
 
         Both files are written into <iphone-dir>, replacing what is there.
-        fw_prepare.sh keeps the original as iPhone-BuildManifest.plist first.
+        `fw prepare` keeps the original as iPhone-BuildManifest.plist first.
         """
     )
 
@@ -170,37 +166,51 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
     var verboseCount: Int
 
     func run() throws {
-        let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
+        let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
+        let readme = resources.base.appendingPathComponent("README.md").path
+        let needsCatalog = list || iphoneVersion != nil || iphoneBuild != nil
+        let urls = if needsCatalog {
+            try vphoneRunBlocking {
+                try await VPhoneFirmwareIndex.restoreURLs(forDevice: "iPhone17,3")
+            }.joined(separator: "\n")
+        } else { "" }
+
+        if list {
+            let code = VPhoneFirmwareMatrixCommandLine.list(
+                device: "iPhone17,3", readmePath: readme, downloadURLs: urls
+            )
+            if code != 0 { throw ExitCode(code) }
+            return
+        }
+
+        var source = iphoneSource
+        if iphoneVersion != nil || iphoneBuild != nil {
+            guard source == nil else {
+                throw ValidationError("Use either --iphone-source or --iphone-version/--iphone-build.")
+            }
+            let selection = VPhoneFirmwareMatrix.selection(
+                device: "iPhone17,3", version: iphoneVersion ?? "", build: iphoneBuild ?? "",
+                readme: try? String(contentsOfFile: readme, encoding: .utf8),
+                downloadURLs: urls,
+                style: .forStream(FileHandle.standardError.fileDescriptor)
+            )
+            switch selection {
+            case let .selected(release, _): source = release.url
+            case let .ambiguous(message), let .unmatched(message):
+                throw ValidationError(message.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+
+        let selected = try VPhoneFirmwareSelection.resolve(iphone: source, cloudos: cloudosSource)
+        guard let phone = selected.iphoneSource, let cloud = selected.cloudosSource else {
+            throw ValidationError("Specify both --iphone-source and --cloudos-source when running without a terminal.")
+        }
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
-        let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-
-        var env = ProcessInfo.processInfo.environment
-        if let iphoneSource { env["IPHONE_SOURCE"] = iphoneSource }
-        if let cloudosSource { env["CLOUDOS_SOURCE"] = cloudosSource }
-        if let iphoneVersion { env["IPHONE_VERSION"] = iphoneVersion }
-        if let iphoneBuild { env["IPHONE_BUILD"] = iphoneBuild }
-        if list { env["LIST_FIRMWARES"] = "1" }
-
-        // Redirect the two things a read-only bundle can't provide (IPSW cache,
-        // extracted apfs_sealvolume) to the writable user cache. No Python:
-        // fw_prepare.sh's last heredocs moved into `fw list` / `fw resolve`.
-        try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        env["IPSW_DIR"] = resources.ipswCacheDir.path
-        env["VPHONE_SEAL_DIR"] = resources.sealVolumeCacheDir.path
-
-        if v.tracesInternals {
-            print("[trace] spawning: /bin/bash \(resources.fwPrepareScript.path) (env keys: IPSW_DIR, VPHONE_SEAL_DIR)")
-        }
-        let code = try VPhoneProcessRunner.runStreaming(
-            URL(fileURLWithPath: "/bin/bash"),
-            [resources.fwPrepareScript.path],
-            cwd: bundle.url,
-            env: env,
-            echo: v.showsToolDetail
+        try VPhoneFirmwarePreparer.prepare(
+            iPhoneSource: phone, cloudOSSource: cloud,
+            bundle: bundle, cacheDirectory: resources.ipswCacheDir
         )
-        throw ExitCode(code)
     }
 }
 

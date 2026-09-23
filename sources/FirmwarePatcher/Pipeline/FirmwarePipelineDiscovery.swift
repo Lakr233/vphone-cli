@@ -28,7 +28,7 @@ extension FirmwarePipeline {
         .sorted(by: compareRestoreDirectories)
 
         guard let restoreDir = contents.first else {
-            throw PatcherError.fileNotFound("Restore directory in \(vmDirectory.path). Run make fw_prepare first.")
+            throw PatcherError.fileNotFound("Restore directory in \(vmDirectory.path). Run vphone-cli fw prepare first.")
         }
         return restoreDir
     }

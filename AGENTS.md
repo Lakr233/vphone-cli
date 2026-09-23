@@ -28,18 +28,11 @@ For any changes applying new patches, also update research/0_binary_patch_compar
 - If working on kernel analysis, symbolication lookups, or kernel patch reasoning, read `skills/kernel-analysis-vphone600/SKILL.md` first.
 - Use this skill as the default procedure for `vphone600` kernel work.
 
-## Firmware Variants
+## Firmware Mode
 
-| Variant          | Boot Chain     |    CFW    | Make Targets                       |
-| ---------------- | :------------: | :-------: | ---------------------------------- |
-| **Regular**      | 52 patches     | 10 phases | `fw_patch` + `cfw_install`         |
-| **Development**  | 66 patches     | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
-| **Jailbreak**    | 127 patches    | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
-| **Experimental** | 141 patches    | 18 phases | `fw_patch_exp` + `cfw_install_exp` |
-
-> JB finalization (symlinks, Sileo, apt, TrollStore) runs automatically on first boot via `/cores/vphone_jb_setup.sh` LaunchDaemon. Monitor progress: `/var/log/vphone_jb_setup.log`.
-
-> EXP is a JB superset that patches the kernel and DSC to make some Apple services think the device is not a VM, while keeping VM-specific services (graphics passthrough, compute/accel fast paths) working correctly. Other variants are deliberately NOT affected by these changes.
+The public CLI exposes only JB: `vphone-cli fw patch` and `vphone-cli cfw install`.
+The legacy CFW shell installer still contains first-boot package setup; its
+removal is tracked in the integration work. Do not add another public variant.
 
 See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
 
@@ -186,7 +179,6 @@ scripts/                          # Shell only — the CFW patchers are `vphone-
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
 ├── tail_jb_patch_logs.sh     [b] # Tail JB patch log output
-├── fw_prepare.sh             [d] # Download IPSWs, merge cloudOS into iPhone
 ├── cfw_install.sh            [d] # Install CFW (regular)
 ├── cfw_install_dev.sh        [d] # Regular + rpcserver daemon
 ├── cfw_install_jb.sh         [d] # Regular + jetsam fix + procursus

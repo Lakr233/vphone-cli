@@ -174,7 +174,7 @@ zsh scripts/dist_manifest.sh | rsync -a --files-from=- scripts/ "${RES}/scripts/
 [[ -d .build/guest ]] && cp -R .build/guest "${RES}/guest"
 [[ -f .build/vphoned.signed ]] && cp -f .build/vphoned.signed "${RES}/vphoned.signed" || true
 # debs.list = extra-deb manifest (fetch_debs.sh reads $base/debs.list); README.md
-# = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
+# = the Tested-Environments table `vphone-cli fw prepare` reads for firmware status.
 cp -f debs.list "${RES}/debs.list"
 cp -f README.md "${RES}/README.md"
 echo "  bundled: scripts/ (dist tier), guest/ (5 iOS binaries), vphoned.signed,"

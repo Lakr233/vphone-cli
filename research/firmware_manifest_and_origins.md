@@ -12,8 +12,8 @@ runtime components use the **vphone600** variant because its DeviceTree sets MKB
 (allows boot without system keybag), its SEP firmware matches the vphone600 device tree,
 and `hardware target` reports as `vphone600ap` for proper iPhone emulation.
 
-`fw_prepare.sh` downloads both IPSWs, merges cloudOS firmware into the iPhone
-restore directory, then `fw_manifest.py` generates the hybrid BuildManifest.
+`vphone-cli fw prepare` resolves both IPSWs, merges cloudOS firmware into the
+iPhone restore directory, then generates the hybrid BuildManifest in Swift.
 
 ---
 

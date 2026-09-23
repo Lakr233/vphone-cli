@@ -93,7 +93,6 @@ public struct VPhoneResources: Sendable {
 
     public var scriptsDir: URL { base.appendingPathComponent("scripts") }
     public var resourceArchivesDir: URL { scriptsDir.appendingPathComponent("resources") }
-    public var fwPrepareScript: URL { scriptsDir.appendingPathComponent("fw_prepare.sh") }
     public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
     public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
     public var signcert: URL { scriptsDir.appendingPathComponent("vphoned/signcert.p12") }

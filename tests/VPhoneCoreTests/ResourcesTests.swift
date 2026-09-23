@@ -18,7 +18,6 @@ struct ResourcesTests {
         let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
-        #expect(r.fwPrepareScript.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/fw_prepare.sh")
         #expect(r.cfwInstallHostScript.path
             == "/Applications/vphone-cli.app/Contents/Resources/scripts/cfw_install_host.sh")
     }
@@ -72,7 +71,7 @@ struct ResourcesTests {
             let base = URL(fileURLWithPath: "/x")
             let r = VPhoneResources(base: base)
             let rooted = [
-                r.scriptsDir, r.resourceArchivesDir, r.fwPrepareScript,
+                r.scriptsDir, r.resourceArchivesDir,
                 r.cfwInstallHostScript, r.preflightScript, r.signcert, r.vphoned,
             ]
             for url in rooted {
