@@ -11,8 +11,8 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **AMFI refuses `vphone-vm`?** `make amfi_command` prints the bypass line for this build. The bypass itself is the user's to install and run; see Key Patterns.
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
-- **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
-- **Dependencies:** seven SwiftPM packages, every one resolved by URL — there is no `vendor/` directory, and `Package.resolved` pins fourteen once transitives are counted. Three git submodules are left: `scripts/resources`, `scripts/repos/trustcache`, `scripts/repos/insert_dylib`. **No Python anywhere.**
+- **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
+- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. Three git submodules are left: `scripts/resources`, `scripts/repos/trustcache`, `scripts/repos/insert_dylib`. **No Python anywhere.**
 
 ## Workflow Rules
 

@@ -17,12 +17,15 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
         .package(url: "https://github.com/mhdhejazi/Dynamic.git", from: "1.2.0"),
-        // The one that cannot be a version: its CoreCapstone target carries
-        // `.unsafeFlags(["-Wno-shorten-64-to-32"])`, and SwiftPM refuses unsafe
-        // flags in a dependency resolved by version — a branch requirement is
-        // allowed to carry them. Drop that flag upstream and this becomes
-        // `from:` like the rest.
-        .package(url: "https://github.com/Lakr233/libcapstone-spm.git", branch: "main"),
+        // Was the one that could not be a version, because its CoreCapstone
+        // target carried `.unsafeFlags(["-Wno-shorten-64-to-32"])` and SwiftPM
+        // refuses unsafe flags in a dependency resolved by version. 0.1.3
+        // writes the same flag through `CSetting.disableWarning`, which is not
+        // unsafe, so this is `from:` like the rest and `Package.resolved`
+        // records a version rather than whatever `main` pointed at that day.
+        // Start at 0.1.3 and not lower: 0.1.1 and 0.1.2 tag a commit that is
+        // not an ancestor of `main` and does not carry the fix.
+        .package(url: "https://github.com/Lakr233/libcapstone-spm.git", from: "0.1.3"),
         .package(url: "https://github.com/Lakr233/libimg4-spm.git", from: "0.1.1"),
         .package(url: "https://github.com/Lakr233/libarchive.xcframework.git", from: "0.1.1"),
         .package(url: "https://github.com/p-x9/MachOKit.git", from: "0.52.2"),

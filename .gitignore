@@ -318,6 +318,12 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 *.resolved
+# …except the one that matters. `*.resolved` arrived with the boilerplate above
+# and swept up SwiftPM's lock file with it, which left every dependency version
+# resolved fresh on each clone — the opposite of what this repository claims
+# about reproducing a build. It is an application, not a library, so the lock
+# file belongs in the tree.
+!Package.resolved
 /VM
 /ipsws/
 .limd/
