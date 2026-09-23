@@ -84,7 +84,6 @@ else
   P="$PROJ/.tools/bin:$PROJ/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 fi
 export PATH="$P"
-PY="${VPHONE_PYTHON:-$PROJ/.venv/bin/python3}"
 
 # Variables the installers read, forwarded explicitly. An expansion-produced
 # ${VAR:+NAME=val} is not parsed as a shell assignment, hence `env`.
@@ -152,8 +151,18 @@ cleanup
 trap - EXIT
 
 echo "[*] flipping boot snapshot offline (com.apple.os.update -> live volume)..."
-[[ -x "$PY" ]] || { echo "[-] python3 not found at $PY — snapshot NOT flipped; the VM will boot the stock snapshot." >&2; exit 1; }
-"$PY" "$PROJ/tools/apfs_snap_rename.py" "$IMG"
+# Was `python3 tools/apfs_snap_rename.py`. Same resolution order as
+# scripts/cfw_install_host.sh: the env var when the CLI invoked us, otherwise a
+# dev tree or the .app, where scripts/ sits in Contents/Resources and the
+# binaries are one level up in MacOS.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+  for candidate in "$PROJ/.build/release/vphone-cli" "${PROJ:h}/MacOS/vphone-cli"; do
+    [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+  done
+fi
+[[ -x "$VPHONE_CLI" ]] || { echo "[-] cannot find vphone-cli — snapshot NOT flipped; the VM will boot the stock snapshot." >&2; exit 1; }
+"$VPHONE_CLI" cfw flip-snapshot "$IMG"
 
 # Upstream removes the extracted cfw_input/ here for `make` idempotence. The kit
 # keeps it: re-running a variant is the normal case while designing a userland,

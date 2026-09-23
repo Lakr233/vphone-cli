@@ -72,6 +72,28 @@ sources/
 ├── vphone-letmein/                   # Opens a short AMFI window so vphone-vm can exec
 │   └── main.c                        # Plain C; Foundation + libobjc only
 │
+├── vphone-archive/                   # Thin shell over VPhoneArchive
+│   └── main.swift                    # extract / create / decompress / list / cat / fingerprint
+│
+├── VPhoneCore/                       # No UI, no guest — what both entry points share
+│   ├── VPhoneBootCLI.swift           # Boot flags, parsed by both binaries; renders argv
+│   ├── VPhoneGuestLauncher.swift     # Decides on the AMFI window, spawns vphone-vm
+│   ├── VPhoneBundle*.swift           # VM bundle layout, ops, reporting
+│   ├── VPhoneVirtualMachineManifest.swift # config.plist (replaced scripts/vm_manifest.py)
+│   ├── VPhoneAPFSSnapshot.swift      # Offline APFS boot-snapshot flip
+│   └── …                             # networking, resources, process running, pickers
+│
+├── VPhoneArchive/                    # libarchive: replaces gtar, bsdtar, unzip and zstd
+│   ├── VPhoneArchiveExtractor.swift  # Unpack, incl. the hand-written --no-overwrite-dir
+│   ├── VPhoneArchiveWriter.swift     # Pack + single-stream decompress
+│   ├── VPhoneArchivePaths.swift      # realpath(3) — NOT the Foundation equivalents
+│   └── VPhoneTreeFingerprint.swift   # Compare two extracted trees, field by field
+│
+├── FirmwarePatcher/                  # The Swift firmware pipeline (largest module)
+│   ├── IBoot/ Kernel/ TXM/           # Boot-chain patches; Kernel/JBPatches/ is the JB set
+│   ├── DeviceTree/ Filesystem/       # DT edits, cryptex/rootfs work
+│   └── ARM64/ Binary/ Core/ Pipeline/ # Disassembly, Mach-O, driver
+│
 └── VPhoneVMKit/                      # Everything that touches a running guest
     ├── VPhoneGuestApp.swift          # NSApplication wiring (keeps the entry point logic-free)
     ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
@@ -133,7 +155,6 @@ scripts/
 ├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib, libimobiledevice stack)
 ├── patches/                      # Build-time patches (libirecovery)
 ├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
-├── fw_manifest.py                # Generate hybrid BuildManifest/Restore plists
 ├── cfw_install.sh                # Install CFW (regular)
 ├── cfw_install_dev.sh            # Regular + rpcserver daemon
 ├── cfw_install_jb.sh             # Regular + jetsam fix + procursus
@@ -147,15 +168,18 @@ scripts/
 ├── setup_libimobiledevice.sh     # Build libimobiledevice stack from scripts/repos submodules
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
 
-tools/
-└── apfs_snap_rename.py           # Offline APFS boot-snapshot flip (used by cfw_install_host.sh)
+cfw-kit/                          # Variant-layered CFW installer, vendored as-is
+├── run.sh                        # Entry point
+├── lib/                          # common.sh (cfw_py / ldid_sign / $TAR seams), base_stages.sh
+├── vanilla/ jb/                  # Per-flavour install.sh; jb/userland/* are empty slots
+└── docs/phase-matrix.md
 
 research/                         # Detailed firmware/patch documentation
 ```
 
 ### Key Patterns
 
-- **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-letmein` opens a window when it does. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
+- **Four host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-letmein` opens a window when it does, and `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and decides once per command whether an AMFI window is needed, by running `vphone-vm --help` and looking for SIGKILL. Never spawn the guest directly.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
 - **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.

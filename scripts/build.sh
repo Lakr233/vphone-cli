@@ -116,8 +116,11 @@ fi
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
 RES="${BUNDLE}/Contents/Resources"
 echo "=== Bundling runtime assets → ${RES} ==="
+# The bundle is built over whatever is already there, so ${RES}/tools is still
+# removed although nothing creates it any more: bundles built before
+# `cfw flip-snapshot` replaced apfs_snap_rename.py carry an empty one.
 rm -rf "${RES}/scripts" "${RES}/tools" "${RES}/.tools" "${RES}/vphoned.signed"
-mkdir -p "${RES}/scripts" "${RES}/tools" "${RES}/.tools/bin"
+mkdir -p "${RES}/scripts" "${RES}/.tools/bin"
 # Mirror scripts/ EXCEPT the make-coupled orchestrator, toolchain source, caches.
 rsync -a \
   --exclude 'setup_machine.sh' \
@@ -126,10 +129,6 @@ rsync -a \
   --exclude '.git' \
   --exclude '.build' \
   scripts/ "${RES}/scripts/"
-# tools/ is created but currently empty: apfs_snap_rename.py is no longer
-# bundled, because `vphone-cli cfw flip-snapshot` does that work now. The .py
-# stays in the repo as a reference until the byte comparison has been repeated
-# against a real Disk.img.
 # Custom-built tools (bundled; not brew/pip). apfs_sealvolume is NOT bundled
 # (it is extracted from the target IPSW at `fw prepare` time — Task 5).
 for t in trustcache insert_dylib; do
@@ -144,7 +143,7 @@ cp -f requirements.txt "${RES}/requirements.txt"
 # = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
 cp -f debs.list "${RES}/debs.list"
 cp -f README.md "${RES}/README.md"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md"
+echo "  bundled: scripts/ (patchers+resources), .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —

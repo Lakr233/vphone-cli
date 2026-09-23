@@ -1,91 +1,147 @@
-# `vphone-intg-update` — where this got to
+# `vphone-intg-update` — progress against the migration plan
 
-> 2026-09-23. Branch off `qof-update-26-fall` @ `6d5ce7d`, pushed.
+> 2026-09-23. Branch off `qof-update-26-fall` @ `6d5ce7d`.
 >
-> Plan: `~/Desktop/vphone-cli-migration-plan.md`, and the approved execution
-> order in `~/.claude/plans/mellow-weaving-gem.md`.
+> Plan: `~/Desktop/vphone-cli-migration-plan.md`. Its phases are P0 → P4; the
+> approved execution order for this branch (`~/.claude/plans/mellow-weaving-gem.md`)
+> covered **P0 and part of P0.5 only**, and said so up front. This file is the
+> ledger, because `/TODO.md` is not part of this repo's workflow.
 
-## Done
+## Where the four delivery lines stand
 
-| step | what | state |
+| line | plan's completion bar | now |
 | --- | --- | --- |
-| S0 | libzstd static in the xcframework? | **yes** — proven at runtime |
-| S2 | liblzma MT encoder? | **yes** — 4.84x at 1 GiB |
-| 1 | entitlements moved off `vphone-cli` onto `vphone-vm` | done, verified |
-| 2 | `vphone-letmein` in, `amfidont` scripts out, docs in 6 languages | done |
-| 3 | P0's three Python files | done; two deleted, one kept as reference |
-| 4 | `custom-firmware-kit` → `cfw-kit/` | done, as-is |
-| 5a | admission gates 1–3 (`make check-aux`) | done; fails on bundled ldid, as designed |
-| 5b | `VPhoneArchive` + `vphone-archive` | library and binary done; **call sites not switched** |
-| 5c | `vphone-archive fingerprint` (the plan's tree-fingerprint) | done; already found and drove a hardlink fix |
+| **D1** Python → zero | hard gate, 100%, achieved at **P2.4** | **455 / 6,070 lines (7.5%)** — P0 only |
+| **D2** self-contained admission rule | `make check-aux` green | gates 1–3 exist and run; **4 failures**, all `ldid` |
+| **D3** drop third-party programs | gtar/bsdtar/unzip/zstd/ldid/… | archive four **replaced but not switched over**; `ldid` still shipped |
+| **D4** shell → zero | P3 required, P4 in scope | **0%** — 7,304 lines host-side |
 
-Tests: `VPhoneCoreTests` 152/152, `VPhoneArchiveTests` 13/13. The 14
+## Phase by phase
+
+| phase | scope | state |
+| --- | --- | --- |
+| S0 | libzstd static in the xcframework? | ✅ **yes**, proven at runtime |
+| S2 | liblzma MT encoder? | ✅ **yes**, 4.84x at 1 GiB |
+| — | entitlements off `vphone-cli` onto `vphone-vm` | ✅ verified 0 / 7 / 0 / 0 |
+| — | `vphone-letmein` in, `amfidont` scripts out | ✅ docs in 6 languages |
+| **P0** | 455 lines of Python | ✅ **complete** — all three gone from the tree |
+| P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
+| P0.5 | switch the archive call sites | ❌ **nothing calls it yet** |
+| P0.5 | `VPhoneSign`, drop `ldid` | ❌ not started |
+| P0.5 | admission gates 1–3 | ✅ `make check-aux`, fails on `ldid` by design |
+| P1.0–1.5 | CFW patchers, **5,098 lines** | ❌ not started |
+| P2.0–2.4 | restore, 268 lines + venv removal | ❌ not started |
+| P3, P4 | shell | ❌ not started |
+
+Tests: `VPhoneCoreTests` 152/152, `VPhoneArchiveTests` 15/15. The 14
 `FirmwarePatcherTests` failures are pre-existing — they need
 `ipsws/patch_refactor_input/`, which is not in the repo.
+
+## What is left, counted
+
+**Python — 5,426 lines in 28 files, plus 189 embedded in shell**
+
+| what | lines | phase |
+| --- | ---: | --- |
+| `scripts/patchers/*.py` (26 files) | 5,098 | P1 |
+| `scripts/pymobiledevice3_bridge.py` | 268 | P2 |
+| `tests/test_dropbear_plist.py` | 60 | P1.5 |
+| embedded in `fw_prepare.sh`, `cfw_install_{jb,exp}.sh` | 189 | P1.4 / P2.4 |
+
+`tests/test_dropbear_plist.py` is worth knowing about separately: it passes, it
+covers live code (`patchers/cfw_daemons.py`), and **no runner invokes it** — no
+Makefile target, no CI. The other two files in `tests/` have Makefile targets.
+It dies with P1.5 either way, so wiring it up is optional, but right now it is
+coverage nobody is collecting.
+
+**The `_resolve_python3()` fallback is untouched in all six scripts**
+(`cfw_install{,_dev,_jb,_exp}.sh`, `patch_{camera,hv_vmm}_userland.sh`). Each
+ends in `command -v python3`, so deleting the venv makes everything **silently
+fall back to system Python**. Plan §1.2.3 calls this D1's main trap, and it is
+why D1's acceptance has to run on a PATH with no `python3` at all.
+
+**Shell — 7,304 lines host-side**, of which `cfw_install*.sh` is 2,410 and
+`setup_machine.sh` + `fw_prepare.sh` another 1,522.
+
+## Dead code removed (this pass)
+
+- `scripts/fw_manifest.py` (251) and `tools/apfs_snap_rename.py` (108) —
+  both had no callers left. `tools/` is gone with it. Recover either from git
+  if a comparison is ever needed again: `git show f637f63:tools/apfs_snap_rename.py`.
+- `scripts/build.sh` — stopped creating the now-empty `Resources/tools`, and
+  the bundled-assets line no longer claims to ship it. The `rm -rf` stays, with
+  a note: the bundle is built over whatever is already there, so an older one
+  still has the empty directory to clear.
+- `cfw-kit/run.sh` — **this one was a live break, not dead code.** Deleting
+  `apfs_snap_rename.py` broke `run.sh:156`, which still called it by path. The
+  first sweep missed it by only searching `scripts/`, `Makefile` and `sources/`.
+  It is now `vphone-cli cfw flip-snapshot`, using the same resolution order as
+  `scripts/cfw_install_host.sh`, and `$PY` is gone with its only use. **Any
+  future file deletion has to be swept against `cfw-kit/` too.**
+- `AGENTS.md` — the tree listed `tools/apfs_snap_rename.py` as "used by
+  `cfw_install_host.sh`", which stopped being true before this pass. It also
+  had no entry for `VPhoneCore`, `VPhoneArchive`, `FirmwarePatcher`,
+  `vphone-archive` or `cfw-kit`, and still said "three host binaries".
+
+Swept and found clean: no unreferenced Swift type in `VPhoneCore`,
+`VPhoneArchive` or `vphone-cli`; every repo-relative path literal in shell,
+Swift, C and the Makefile resolves; every `requirements.txt` entry is still
+imported except `setuptools`, which is a build dependency of `keystone-engine`
+and must stay.
 
 ## Needs you, and a machine
 
 Nothing below could be done without root or a real guest.
 
 1. **Can `vphone-vm` start a VM holding the entitlements alone?** Everything
-   in step 1 rests on this, and none of it is proven until a guest boots.
+   rests on this, and none of it is proven until a guest boots.
 2. **`vphone-letmein` end to end** — the sudo prompt, `--hold 10` restoring
    while the guest keeps running, Ctrl-C reaching the guest. The window
    defaults to 10 seconds, which is a guess; measure it.
-3. **Location and TouchID**, which depend on TCC attributing the usage
-   strings to `vphone-vm`. It is `CFBundleExecutable`, so it should — worth
-   confirming rather than assuming.
+3. **Location and TouchID**, which depend on TCC attributing the usage strings
+   to `vphone-vm`. It is `CFBundleExecutable`, so it should — worth confirming.
 4. **Bridged networking**, now validated at boot instead of at config time.
 5. **`cfw flip-snapshot` against a real `Disk.img`.** The byte comparison
-   against the Python passed on a synthetic fixture; repeat it once on a real
-   image, then delete `tools/apfs_snap_rename.py`.
+   against the Python passed on a synthetic fixture. This is now the only
+   implementation — `cfw-kit/run.sh` and `cfw_install_host.sh` both call it.
 
 ## Next, in order
 
 1. **Switch the archive call sites.** `vphone-archive` is built, bundled and
    tested, and nothing calls it yet.
 
-   The comparison the plan asks for has been run, on the real
+   The comparison the plan asks for has been run on the real
    `cfw_input.tar.zst` and `cfw_jb_input.tar.zst`: everything matches GNU tar
    except **one directory mtime per archive**, where `vphone-archive` restores
-   the archive's recorded value and GNU tar leaves the extraction time. More
-   faithful, but still a behaviour change, and it has not been through a boot.
+   the archive's recorded value and GNU tar leaves the extraction time.
 
-   What is still untested is **ownership restoration**, which only happens as
-   root — the comparison ran unprivileged, so `ARCHIVE_EXTRACT_OWNER` never
-   came into play. That is the gap to close before the `$TAR` calls in
-   `cfw_install*.sh` are switched, since those write to a mounted guest volume
-   as root and getting ownership wrong there produces a guest that does not
-   boot. The IPSW unzip in `fw_prepare.sh` and the host-side temp extractions
-   have neither problem and can go first.
-
-   Re-run it yourself with:
-   `vphone-archive fingerprint <gtar-output> <vphone-output>`
-2. **`VPhoneSign`**, which is what clears the last two admission-gate
-   failures. `ldid` is the only binary we ship that is already
-   non-self-contained. The plan's §3.11 has the measurements; the
+   Still untested is **ownership restoration**, which only happens as root, so
+   `ARCHIVE_EXTRACT_OWNER` never came into play. Close that before switching
+   the `$TAR` calls in `cfw_install*.sh`, which write to a mounted guest volume
+   as root — getting ownership wrong there produces a guest that will not boot.
+   The IPSW unzip in `fw_prepare.sh` and the host-side temp extractions have
+   neither problem and can go first. Re-run with
+   `vphone-archive fingerprint <gtar-output> <vphone-output>`.
+2. **`VPhoneSign`** — the only thing that clears the four remaining admission
+   gate failures, all of them `ldid`. Plan §3.11 has the measurements. The
    `signcert.p12` needs re-wrapping with a password first, and the old
    empty-password copy has to stay for the `--use-ldid` escape hatch.
-3. **`vm export` / `import`** onto `VPhoneArchive`, keeping gnutar, `.tzst`
-   at zstd 3 and `.txz` at xz 9, and checking compatibility both ways.
+3. **`vm export` / `import`** onto `VPhoneArchive`, keeping gnutar, `.tzst` at
+   zstd 3 and `.txz` at xz 9, checking compatibility both ways.
 
-   This one needs a decision the plan gets wrong for this architecture. §3.9.0-0
-   says to move export/import from `VPhoneCore` to `VPhoneVM`, which assumed
-   `vphone-cli` imports the VM kit. It does not, deliberately — so moving them
-   there would break `vphone-cli vm export`. The right home here is
-   `VPhoneArchive`: it sits above `VPhoneCore`, and `vphone-cli` can depend on
-   it without pulling in Virtualization or AppKit.
+   Plan §3.9.0-0 says to move these to `VPhoneVM`, which assumed `vphone-cli`
+   imports the VM kit. It does not, deliberately, so that move would break
+   `vphone-cli vm export`. The right home is `VPhoneArchive`: above
+   `VPhoneCore`, and reachable without Virtualization or AppKit.
 
-   It is a real refactor rather than a switch of implementation: about twenty
-   call sites in `BundleOpsTests` move with the API. The upside is that those
-   tests already pin the format contract (R11) — round trip, `--max` producing
-   xz, auto-naming the extension — so whoever does it gets told immediately if
-   it is wrong. Worth doing in one go rather than in the tail of a session.
+   It is a real refactor, about twenty call sites in `BundleOpsTests`. Those
+   tests already pin the format contract (R11), so whoever does it gets told
+   immediately if it is wrong. Worth doing in one go.
 4. **Gate 4** — a machine with no Homebrew. Still the only thing that can
    support "it works elsewhere"; gates 1–3 are necessary and not sufficient,
    which the script says out loud.
 
-## Three things the plan got wrong
+## Things the plan got wrong
 
 Recorded because they were measured, not reasoned about.
 
@@ -95,6 +151,9 @@ Recorded because they were measured, not reasoned about.
 - **`sources/vphone.entitlements` has 7 keys**, not the 4 the plan says or the
   5 `CLAUDE.md` said. Two of them — location and BiometricKit — belong to
   `Devices/`, which is why they all landed on `vphone-vm`.
+- **The Python inventory in §1.2.1 misses a file.** It lists five blocks of
+  standalone `.py`; `tests/test_dropbear_plist.py` (60 lines) is not among
+  them. The total is 6,070, not 6,010.
 - **The admission rule caught a bug the plan did not predict**: signing
   `vphone-vm` first sealed the bundle over its siblings in an earlier state,
   and `codesign -v` reported "nested code is modified or invalid". The main
@@ -102,8 +161,8 @@ Recorded because they were measured, not reasoned about.
 
 ## And one I nearly got wrong
 
-The first measurement of `--no-overwrite-dir` said libarchive already leaves
-an existing directory's mode alone, which would have made the flag
-decorative — and it was taken from an extraction that was failing partway and
-applying nothing. A measurement from a failing code path measures the failure.
-It is 0700 in, 0777 out when extraction actually works, and the flag matters.
+The first measurement of `--no-overwrite-dir` said libarchive already leaves an
+existing directory's mode alone, which would have made the flag decorative —
+and it was taken from an extraction that was failing partway and applying
+nothing. A measurement from a failing code path measures the failure. It is
+0700 in, 0777 out when extraction actually works, and the flag matters.
