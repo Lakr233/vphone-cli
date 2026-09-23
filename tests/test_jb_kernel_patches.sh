@@ -76,21 +76,28 @@ elif [[ -n "${BUILDS:-}" ]]; then
 else
   # cloudOS column entries look like `26.4-23E5207q` (version-dash-build); the
   # iPhone column uses `17,3_26.5_23F77` (commas/underscores), so filter those out.
-  BUILD_LIST=($(python3 - "$README" <<'PY'
-import re, sys
-seen=[]
-insec=False
-for line in open(sys.argv[1], encoding="utf-8"):
-    if line.startswith("## Tested Environments"): insec=True; continue
-    if insec and line.startswith("## "): break
-    if not insec: continue
-    for tok in re.findall(r"`([^`]+)`", line):
-        m=re.fullmatch(r"\d+\.\d[\d.]*-([0-9A-Za-z]+)", tok)  # 26.4-23E5207q
-        if m and m.group(1) not in seen:
-            seen.append(m.group(1))
-print("\n".join(seen))
-PY
-))
+  #
+  # awk, not the `python3 - <<'PY'` heredoc this was until P2.4. A bare `python3`
+  # here resolved whatever interpreter happened to be on PATH, which is the exact
+  # silent fallback the repo spent D1 removing — and it survived the venv because
+  # nothing linked it to the venv in the first place. awk ships with macOS.
+  BUILD_LIST=($(awk '
+    /^## Tested Environments/ { insec = 1; next }
+    insec && /^## /           { exit }
+    !insec                    { next }
+    {
+      rest = $0
+      while (match(rest, /`[^`]+`/)) {
+        tok  = substr(rest, RSTART + 1, RLENGTH - 2)
+        rest = substr(rest, RSTART + RLENGTH)
+        if (tok ~ /^[0-9]+\.[0-9][0-9.]*-[0-9A-Za-z]+$/) {
+          sub(/^[0-9]+\.[0-9][0-9.]*-/, "", tok)
+          if (!(tok in seen)) { seen[tok] = 1; order[++n] = tok }
+        }
+      }
+    }
+    END { for (i = 1; i <= n; i++) print order[i] }
+  ' "$README"))
 fi
 [[ ${#BUILD_LIST} -gt 0 ]] || { echo "[-] no cloudOS builds resolved"; exit 2; }
 echo "kernel builds to test: ${BUILD_LIST[*]}"
@@ -115,34 +122,51 @@ ensure_pcc_info() {
 
 # Resolve one cloudOS build -> its PCC "OS" asset URL (only releases that still
 # carry the vphone600 firmware). Empty output => not found.
+# Also awk rather than a python3 heredoc — see the note above BUILD_LIST. The
+# release index is a flat text dump, so this walks it as blocks: a numbered
+# digest line opens one, and everything up to the next digest line belongs to
+# it. A block qualifies only if it advertises vphone firmware, carries a PCC
+# asset URL, and mentions the build we were asked about; the first qualifying
+# block wins, exactly as the reading of the whole index into a list then
+# scanning it in order did.
 resolve_url() {
   local build="$1"
-  PCC_INFO="$PCC_INFO" python3 - "$build" <<'PY'
-import os, re, sys
-build = sys.argv[1]
-raw = open(os.environ["PCC_INFO"], encoding="utf-8", errors="replace").read()
-clean = re.sub(r"\x1b\[[0-9;]*m", "", raw)
-
-blocks, cur = [], None
-for line in clean.splitlines():
-    if re.match(r"^\d+\)\s+[0-9a-f]{16,}", line):
-        cur = {"vphone": False, "url": None, "builds": set()}
-        blocks.append(cur)
-        continue
-    if cur is None:
-        continue
-    if "\U0001F4F1 VPHONE" in line:   # 📱 VPHONE = vphone firmware present
-        cur["vphone"] = True
-    u = re.search(r"(https://updates\.cdn-apple\.com/private-cloud-compute/[0-9a-f]+)", line)
-    if u and cur["url"] is None:
-        cur["url"] = u.group(1)
-    cur["builds"].update(re.findall(r"\b(2[0-9][A-Z][0-9A-Za-z]+)\b", line))
-
-for b in blocks:
-    if b["vphone"] and b["url"] and build in b["builds"]:
-        print(b["url"])
-        break
-PY
+  awk -v want="$build" '
+    function close_block() {
+      if (!found && open && vphone && url != "" && (want in builds)) {
+        found = 1
+        print url
+      }
+      open = 0; vphone = 0; url = ""; delete builds
+    }
+    BEGIN { esc = sprintf("%c", 27) }
+    {
+      line = $0
+      gsub(esc "\\[[0-9;]*m", "", line)          # ipsw colourises its output
+    }
+    # A release block opens on `<n>) <hex digest>`.
+    match(line, /^[0-9]+\)[ \t]+[0-9a-f]+/) {
+      digest = substr(line, RSTART, RLENGTH)
+      sub(/^[0-9]+\)[ \t]+/, "", digest)
+      if (length(digest) >= 16) { close_block(); open = 1; next }
+    }
+    !open { next }
+    {
+      if (index(line, "📱 VPHONE") > 0) vphone = 1   # the vphone firmware marker
+      if (url == "" \
+          && match(line, /https:\/\/updates\.cdn-apple\.com\/private-cloud-compute\/[0-9a-f]+/)) {
+        url = substr(line, RSTART, RLENGTH)
+      }
+      # Build ids (23B85, 24A5380h) as whole words. Splitting on non-word
+      # characters is what keeps `17,3_26.5_23F77` out: an id glued to its
+      # neighbours by underscores is not a word on its own.
+      k = split(line, word, /[^A-Za-z0-9_]+/)
+      for (i = 1; i <= k; i++) {
+        if (word[i] ~ /^2[0-9][A-Z][0-9A-Za-z]+$/) builds[word[i]] = 1
+      }
+    }
+    END { close_block() }
+  ' "$PCC_INFO"
 }
 
 # --- 4. Obtain kernelcache.research.vphone600 for a build -------------------

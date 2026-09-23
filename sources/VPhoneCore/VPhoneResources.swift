@@ -1,12 +1,6 @@
 import Darwin  // _NSGetExecutablePath
 import Foundation
 
-// MARK: - VPhoneResourcesError
-
-public enum VPhoneResourcesError: Error, Equatable {
-    case venvBootstrapFailed(String)
-}
-
 // MARK: - VPhoneResources
 
 public struct VPhoneResources: Sendable {
@@ -102,7 +96,6 @@ public struct VPhoneResources: Sendable {
     public var fwPrepareScript: URL { scriptsDir.appendingPathComponent("fw_prepare.sh") }
     public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
     public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
-    public var pmd3Bridge: URL { scriptsDir.appendingPathComponent("pymobiledevice3_bridge.py") }
     public var signcert: URL { scriptsDir.appendingPathComponent("vphoned/signcert.p12") }
 
     public var vphoned: URL {
@@ -116,8 +109,8 @@ public struct VPhoneResources: Sendable {
     // MARK: - Cache dirs
 
     /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both
-    /// `VPhoneResources` (ipsws/tools/debs/venv) and `VPhoneLibrary` (VMs)
-    /// derive from this so one variable redirects everything vphone-cli creates.
+    /// `VPhoneResources` (ipsws/tools/debs) and `VPhoneLibrary` (VMs) derive
+    /// from this so one variable redirects everything vphone-cli creates.
     public static func userDataRoot() -> URL {
         if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
             return URL(fileURLWithPath: root, isDirectory: true)
@@ -129,153 +122,25 @@ public struct VPhoneResources: Sendable {
     public var sealVolumeCacheDir: URL { Self.userDataRoot().appendingPathComponent("tools") }
     public var debsCacheDir: URL { Self.userDataRoot().appendingPathComponent("debs") }
 
-    // MARK: - Python
+    // MARK: - No interpreter
 
-    /// Runtime pip deps, mirrored from requirements.txt (fallback when the
-    /// bundled requirements.txt is somehow absent).
-    ///
-    /// One consumer is left: `scripts/pymobiledevice3_bridge.py`, the restore
-    /// path. The firmware patchers that needed capstone, keystone-engine and
-    /// pyimg4 are Swift now (`FirmwarePatcher`), so those three are gone. pyimg4
-    /// still ends up installed — `pymobiledevice3` and `ipsw-parser` both
-    /// require it — but nothing here asks for it directly any more.
-    static let fallbackRequirements =
-        ["typer", "pymobiledevice3>=9.5.0", "ipsw-parser", "setuptools"]
+    // There is deliberately nothing here any more.
+    //
+    // This type used to resolve a python3 — an explicit `VPHONE_PYTHON`, the
+    // repo's `.venv`, a managed `~/.vphone/venv` it would provision on first
+    // run, and failing all of those a scan of `PATH` for python3.14 down to
+    // python3.10 and then `/usr/bin/python3`. The one program that needed it
+    // was the pymobiledevice3 restore bridge, and the restore backend is now
+    // libirecovery + idevicerestore linked into this binary (`VPhoneRestore`).
+    //
+    // The whole ladder is gone rather than left unused, because the last rung
+    // was the dangerous one: a `PATH` fallback makes a missing environment look
+    // like a working one, right up until a restore fails on a stranger's
+    // machine. Nothing in this package may resolve an interpreter again — see
+    // the "Python" section in AGENTS.md, and `scripts/check_aux.sh`, which now
+    // fails outright on a python3 lookup instead of registering it.
 
-    /// Bundled/dev requirements list the managed venv is provisioned from.
-    public var requirementsFile: URL { base.appendingPathComponent("requirements.txt") }
-
-    /// Per-user managed venv, created on demand. Deliberately OUTSIDE both the
-    /// repo and the .app so the app is portable — a venv is never moved between
-    /// machines (its links would break); it is built fresh on each host.
-    public var managedVenvDir: URL {
-        if let dir = ProcessInfo.processInfo.environment["VPHONE_VENV_DIR"], !dir.isEmpty {
-            return URL(fileURLWithPath: dir)
-        }
-        return Self.userDataRoot().appendingPathComponent("venv")
-    }
-    private var managedVenvPython: URL { managedVenvDir.appendingPathComponent("bin/python3") }
-
-    /// A python is usable only if it can actually run the restore bridge.
-    ///
-    /// Two halves, and both are needed. `ipsw_parser` must be new enough —
-    /// that is the gap behind `IPSW has no attribute 'create_from_path'` when
-    /// an old system-python build gets picked up. And `pymobiledevice3` must be
-    /// importable, which `ipsw_parser` does **not** imply: `pip show
-    /// ipsw-parser` lists coloredlogs, construct, plumbum, pyimg4, remotezip2,
-    /// requests and typer, and no pymobiledevice3. A venv holding only
-    /// `ipsw-parser` passes an `ipsw_parser`-only probe and then dies on
-    /// `ModuleNotFoundError: No module named 'pymobiledevice3'` at the bridge's
-    /// line 11 — an import traceback instead of "this environment is wrong".
-    func pythonIsUsable(_ python: URL) -> Bool {
-        guard FileManager.default.isExecutableFile(atPath: python.path) else { return false }
-        let probe = "from ipsw_parser.ipsw import IPSW; import pymobiledevice3; import sys; "
-            + "sys.exit(0 if hasattr(IPSW, 'create_from_path') else 1)"
-        return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
-    }
-
-    /// Resolve a python with working deps: an explicit `VPHONE_PYTHON`, the dev
-    /// repo `.venv`, the managed per-user venv, else provision the managed venv
-    /// on this machine. Never silently falls back to a stale system python.
-    ///
-    /// `pythonIsUsable` is the whole health check now. It used to be paired
-    /// with a keystone probe and an in-place repair of keystone's native
-    /// library, because a `fw patch` ran Python patchers; those are Swift
-    /// (`FirmwarePatcher`), and the only thing left needing an interpreter is
-    /// the pymobiledevice3 restore bridge — which is exactly what the probe
-    /// covers.
-    public func pythonExecutable() throws -> URL {
-        if let override = ProcessInfo.processInfo.environment["VPHONE_PYTHON"], !override.isEmpty {
-            let u = URL(fileURLWithPath: override)
-            if pythonIsUsable(u) { return u }
-        }
-        let devVenv = base.appendingPathComponent(".venv/bin/python3")
-        if pythonIsUsable(devVenv) { return devVenv }
-        if pythonIsUsable(managedVenvPython) { return managedVenvPython }
-        return try bootstrapManagedVenv()
-    }
-
-    /// Provision `~/.vphone/venv`: try each candidate host python for real
-    /// (build the venv, install deps, verify) and use the first that fully
-    /// succeeds — a candidate that imports `venv` can still fail `-m venv`
-    /// (e.g. a broken `ensurepip`), so we fall through instead of trusting it.
-    /// One-time per machine.
-    private func bootstrapManagedVenv() throws -> URL {
-        func log(_ s: String) { FileHandle.standardError.write(Data((s + "\n").utf8)) }
-        let candidates = candidateHostPythons()
-        guard !candidates.isEmpty else {
-            throw VPhoneResourcesError.venvBootstrapFailed(
-                "No python3 found on this system. Install it with 'brew install python@3.13', or set VPHONE_PYTHON.")
-        }
-        log("[*] First run: setting up the Python environment at \(managedVenvDir.path)…")
-        let py = managedVenvPython
-        let install: [String] = FileManager.default.fileExists(atPath: requirementsFile.path)
-            ? ["-m", "pip", "install", "-r", requirementsFile.path]
-            : ["-m", "pip", "install"] + Self.fallbackRequirements
-        var lastError = "No usable Python could be found on this system"
-
-        for host in candidates {
-            log("    → Trying \(host.path)…")
-            try? FileManager.default.removeItem(at: managedVenvDir)
-            try FileManager.default.createDirectory(
-                at: Self.userDataRoot(),
-                withIntermediateDirectories: true)
-            guard (try? VPhoneProcessRunner.runStreaming(host, ["-m", "venv", managedVenvDir.path])) == 0 else {
-                lastError = "Could not create a Python environment with \(host.path)"; continue
-            }
-            _ = try? VPhoneProcessRunner.runStreaming(py, ["-m", "pip", "install", "--upgrade", "-q", "pip"])
-            guard (try? VPhoneProcessRunner.runStreaming(py, install)) == 0 else {
-                lastError = "Could not install the required Python packages with \(host.path)"; continue
-            }
-            guard pythonIsUsable(py) else {
-                lastError = "The Python environment built with \(host.path) is missing a required package"; continue
-            }
-            log("[+] Python environment ready: \(py.path)")
-            return py
-        }
-        try? FileManager.default.removeItem(at: managedVenvDir)
-        throw VPhoneResourcesError.venvBootstrapFailed(
-            lastError + ". If the problem persists, install a modern python3 with "
-                + "'brew install python@3.13', or set VPHONE_PYTHON.")
-    }
-
-    /// Ordered, existence-checked host python3 candidates to bootstrap from.
-    /// Canonical Homebrew locations first, then versioned names on PATH, then
-    /// generic `python3`, then system `/usr/bin/python3` (3.9) as a last resort
-    /// (it resolves an old, broken pymobiledevice3 stack).
-    private func candidateHostPythons() -> [URL] {
-        var paths: [String] = []
-        if let override = ProcessInfo.processInfo.environment["VPHONE_PYTHON"], !override.isEmpty {
-            paths.append(override)
-        }
-        paths += ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"]
-        for name in ["python3.14", "python3.13", "python3.12", "python3.11", "python3.10"] {
-            if let p = which(name) { paths.append(p) }
-        }
-        if let p = which("python3") { paths.append(p) }
-        paths.append("/usr/bin/python3")
-
-        var seen = Set<String>()
-        return paths.filter { !$0.isEmpty && seen.insert($0).inserted }
-            .filter { FileManager.default.isExecutableFile(atPath: $0) }
-            .map { URL(fileURLWithPath: $0) }
-    }
-
-    /// First executable named `name` on `PATH`, or nil.
-    ///
-    /// This was `/usr/bin/env which <name>` — two processes, run six times per
-    /// call to `candidateHostPythons()`, to read a variable this one already
-    /// has. It is also the only PATH lookup the admission gates allow, and only
-    /// because of what it is for: finding an *interpreter to offer the user*,
-    /// not resolving one of this project's own programs. Those are resolved as
-    /// siblings of the running image — see `siblingExecutable` — and a gate
-    /// scan that sees `which` here should read this comment and move on.
-    private func which(_ name: String) -> String? {
-        guard let path = ProcessInfo.processInfo.environment["PATH"] else { return nil }
-        for directory in path.split(separator: ":", omittingEmptySubsequences: true) {
-            let candidate = "\(directory)/\(name)"
-            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-        }
-        return nil
-    }
+    // With the interpreter went the last `PATH` lookup in this package. Every
+    // program vphone-cli runs is either a sibling of the running image
+    // (`siblingExecutable`) or a bundled script under `scriptsDir`.
 }

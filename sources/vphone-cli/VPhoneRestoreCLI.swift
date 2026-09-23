@@ -1,6 +1,22 @@
 import ArgumentParser
 import Foundation
 import VPhoneCore
+import VPhoneRestore
+
+// MARK: - Verbosity → restore logging
+
+extension VPhoneVerbosity {
+    /// What `-v` meant when the restore ran as a Python subprocess: one `-v`
+    /// for `.info` (pymobiledevice3's colorful INFO), two for `.debug` and
+    /// `.trace`. In process that single count becomes two knobs, and both are
+    /// needed — see `restoreDebugLevel`.
+    var restoreLogLevel: VPhoneRestoreLogLevel { self >= .debug ? .debug : .info }
+
+    /// idevicerestore's own level ceiling (`-d`). Raising the console sink
+    /// without raising this one prints nothing extra, because the messages it
+    /// would show are never emitted.
+    var restoreDebugLevel: Int32 { self >= .debug ? 1 : 0 }
+}
 
 // MARK: - restore
 
@@ -18,38 +34,41 @@ struct VPhoneRestoreCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Device UDID (optional)") var udid: String?
     @Option(name: .shortAndLong, help: "Device ECID (default: read from the bundle's udid-prediction.txt)")
     var ecid: String?
-    @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
-    var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
 
+    /// The restore runs here now, in this process: `VPhoneRestore` over
+    /// libirecovery and idevicerestore, where a python spawned with an argv
+    /// used to be. A failure therefore throws instead of returning an exit
+    /// code — which keeps the two halves that mattered, the non-zero exit and
+    /// `restore-info.json` staying unwritten.
     func run() throws {
         let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
         let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
-        let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-        guard let ecidValue = VPhoneRestoreOps.resolveECID(explicit: ecid, bundle: bundle) else {
+        guard let ecidText = VPhoneRestoreOps.resolveECID(explicit: ecid, bundle: bundle) else {
             throw VPhoneRestoreError.ecidUnresolved
         }
-
-        func pmd3(_ subcommand: String, extra: [String]) throws -> Int32 {
-            var args = [resources.pmd3Bridge.path, subcommand, "--vm-dir", "."]
-            if let udid { args += ["--udid", udid] }
-            args += ["--ecid", ecidValue] + extra
-            // -v (.info) → pmd3 INFO (its colorful log level), -vv/-vvv → DEBUG.
-            args += Array(repeating: "-v", count: min(v.rawValue, 2))
-            let python = try resources.pythonExecutable()
-            if v.tracesInternals {
-                print("[trace] spawning: \(python.path) \(args.joined(separator: " "))")
-            }
-            return try VPhoneProcessRunner.runStreaming(python, args, cwd: bundle.url, echo: v.showsToolDetail)
+        let ecidValue = try VPhoneRestoreIdentity.parseECID(ecidText)
+        let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel)
+        if v.tracesInternals {
+            let ecidLabel = ecidValue.map { "0x" + VPhoneRestoreIdentity.formatECID($0) } ?? "(any attached device)"
+            print("[trace] restore backend: in-process, ECID \(ecidLabel), debug level \(v.restoreDebugLevel)")
         }
 
         if getShsh {
-            throw ExitCode(try pmd3("restore-get-shsh", extra: []))
+            try VPhoneRestoreBridge.fetchSHSH(
+                vmDir: bundle.url,
+                ecid: ecidValue,
+                udid: udid,
+                out: nil,
+                debugLevel: v.restoreDebugLevel,
+                onEvent: onEvent
+            )
+            return
         }
 
-        let code: Int32
+        var ticket: URL?
         if offline {
             let fm = FileManager.default
             let shshes = ((try? fm.contentsOfDirectory(at: bundle.url, includingPropertiesForKeys: nil)) ?? [])
@@ -62,13 +81,19 @@ struct VPhoneRestoreCommand: ParsableCommand {
             guard let restoreDir else { throw VPhoneRestoreError.noRestoreDir }
             print("[restore] decrypting AEA images in \(restoreDir.lastPathComponent)...")
             try VPhoneRestoreOps.decryptAEAImages(inRestoreDir: restoreDir)
-            code = try pmd3("restore-update", extra: ["--tss", shsh.path])
-        } else {
-            code = try pmd3("restore-update", extra: [])
+            ticket = shsh
         }
 
-        if code == 0 { recordRestoreVersions(bundle: bundle) }
-        throw ExitCode(code)
+        try VPhoneRestoreBridge.restore(
+            vmDir: bundle.url,
+            ecid: ecidValue,
+            udid: udid,
+            erase: true,
+            ticketPath: ticket,
+            debugLevel: v.restoreDebugLevel,
+            onEvent: onEvent
+        )
+        recordRestoreVersions(bundle: bundle)
     }
 
     /// Snapshot the just-restored iOS + cloudOS versions to `restore-info.json`,
@@ -88,6 +113,37 @@ struct VPhoneRestoreCommand: ParsableCommand {
         } catch {
             FileHandle.standardError.write(Data("warning: could not write restore-info.json: \(error)\n".utf8))
         }
+    }
+}
+
+// MARK: - recovery-probe
+
+/// The Python bridge's `recovery-probe`, under the same name.
+///
+/// It exists for `scripts/setup_machine.sh`, which polls for a DFU endpoint
+/// from the shell and has nothing but an exit code to go on — `vm create` does
+/// the same waiting in process (`VPhoneCreateOrchestrator.waitForRecovery`) and
+/// does not go through here.
+struct VPhoneRecoveryProbeCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "recovery-probe",
+        abstract: "Wait briefly for a DFU/recovery endpoint; exit 0 if one answered"
+    )
+
+    @Option(name: .shortAndLong, help: "Device ECID (hex, 0x optional; default: the only device attached)")
+    var ecid: String?
+    @Option(name: .shortAndLong, help: "Seconds to keep probing before giving up") var timeout: Int = 2
+
+    func run() throws {
+        let device = try VPhoneRestoreBridge.recoveryProbe(
+            ecid: try VPhoneRestoreIdentity.parseECID(ecid),
+            timeout: timeout
+        )
+        // The Python printed nothing at all and its one caller discarded both
+        // streams. One line costs that caller nothing and is the difference
+        // between "it worked" and knowing which device answered.
+        print("[+] \(device.productType ?? "device") in \(device.mode), "
+            + "ECID 0x\(VPhoneRestoreIdentity.formatECID(device.ecid))")
     }
 }
 
@@ -198,7 +254,9 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             // The script re-execs under sudo, so it cannot work out where we
             // live from its own path in the bundled case. Tell it.
             "VPHONE_CLI_BIN": VPhoneResources.runningExecutable().path,
-            "VPHONE_PYTHON": try resources.pythonExecutable().path,
+            // No VPHONE_PYTHON: the installers call `vphone-cli cfw <verb>` for
+            // every patch, and cfw_install_host.sh stopped reading it when the
+            // last Python patcher was deleted.
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
             "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
@@ -222,7 +280,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
             var env = ProcessInfo.processInfo.environment
             for (key, value) in scriptEnv { env[key] = value }
             if v.tracesInternals {
-                print("[trace] spawning: /bin/zsh \(args.joined(separator: " ")) (env keys: VPHONE_PYTHON, IPSW_DIR, VPHONE_SEAL_DIR)")
+                print("[trace] spawning: /bin/zsh \(args.joined(separator: " ")) (env keys: VPHONE_CLI_BIN, IPSW_DIR, VPHONE_SEAL_DIR)")
             }
             code = try VPhoneProcessRunner.runStreaming(
                 URL(fileURLWithPath: "/bin/zsh"),

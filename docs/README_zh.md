@@ -18,8 +18,10 @@
 **依赖：**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+不需要解释器，也不需要任何包管理环境：vphone-cli 自身运行的一切都是 Swift 或 C，由 `make build` 构建。
 
 ## 安装
 
@@ -32,7 +34,7 @@ brew install zqxwce/tap/vphone-cli
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # 安装依赖、构建工具链子模块、创建 Python venv
+./scripts/setup_tools.sh      # 安装 brew 依赖、构建工具链子模块
 ./scripts/build.sh            # 构建并签名 vphone-cli、打包 .app、交叉编译 vphoned
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +87,10 @@ vphone-cli vm launch myphone                            # 6. 首次启动
 
 要升级到更新的 iOS，把 `fw prepare` 指向一个 IPSW：`--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
+第 4、5 步都在 `vphone-cli` 自己的进程里完成。`restore` 直接驱动内置的 libirecovery
+和 idevicerestore——没有外部刷机工具，第一次运行之前也不需要任何准备步骤。加
+`--offline` 可以用虚拟机目录里已保存的 `.shsh` 刷机，而不再向 Apple 申请新的。
+
 ## 固件变体
 
 五种补丁变体，安全绕过程度递增——将其中之一传给 `--variant`：
@@ -116,9 +122,8 @@ vphone-cli 创建的所有内容都位于 `~/.vphone/` 下——保存在仓库�
 | `~/.vphone/ipsws/`| 已下载的 iPhone + cloudOS IPSW，缓存后在多个虚拟机间复用。                        |
 | `~/.vphone/tools/`| `fw prepare` 期间获取的 APFS seal-volume 制品（`apfs_sealvolume_<version>`）缓存。 |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 安装写入客户机的 `.deb` 包缓存（Sileo、apt 等）。                   |
-| `~/.vphone/venv/` | 自动配置的 Python 环境（见 [Python 运行时](#python-运行时)；可用 `$VPHONE_VENV_DIR` 覆盖）。 |
 
-优先级：单项覆盖（`$VPHONE_LIBRARY_ROOT`、`$VPHONE_VENV_DIR`）优先于 `$VPHONE_ROOT`，`$VPHONE_ROOT` 优先于 `~/.vphone` 默认值。`ipsws/`、`tools/` 和 `debs/` 缓存始终位于当前生效的根目录之下。
+优先级：单项覆盖 `$VPHONE_LIBRARY_ROOT` 优先于 `$VPHONE_ROOT`，`$VPHONE_ROOT` 优先于 `~/.vphone` 默认值。`ipsws/`、`tools/` 和 `debs/` 缓存始终位于当前生效的根目录之下。
 
 ## 放宽 SIP/AMFI
 

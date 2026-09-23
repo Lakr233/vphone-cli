@@ -1,4 +1,0 @@
-typer
-pymobiledevice3>=9.5.0
-ipsw-parser
-setuptools

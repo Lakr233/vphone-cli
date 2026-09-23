@@ -18,8 +18,10 @@ PCC 리서치 VM 인프라를 사용하여 Apple의 Virtualization.framework로 
 **의존성:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+인터프리터도, 패키지 환경도 필요하지 않습니다. vphone-cli가 실행하는 모든 것은 Swift 또는 C이며 `make build`가 빌드합니다.
 
 ## 설치
 
@@ -32,7 +34,7 @@ brew install zqxwce/tap/vphone-cli
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # 의존성 설치, 툴체인 서브모듈 빌드, Python venv 생성
+./scripts/setup_tools.sh      # brew 의존성 설치, 툴체인 서브모듈 빌드
 ./scripts/build.sh            # vphone-cli 빌드 및 서명, .app 번들 생성, vphoned 크로스 컴파일
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +87,11 @@ vphone-cli vm launch myphone                            # 6. 첫 부팅
 
 최신 iOS로 업데이트하려면 `fw prepare`를 IPSW로 지정하세요: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
+4단계와 5단계는 `vphone-cli` 자체 프로세스에서 실행됩니다. `restore`는 내장된
+libirecovery와 idevicerestore를 직접 구동합니다 — 외부 복원 도구도, 첫 실행 전
+준비 단계도 없습니다. `--offline`을 붙이면 Apple에 새 ticket을 요청하는 대신 VM
+옆에 이미 저장된 `.shsh`로 복원합니다.
+
 ## 펌웨어 변형
 
 보안 우회 수준이 점점 강해지는 5가지 패치 변형이 있습니다 — 하나를 `--variant`에 전달하세요:
@@ -116,9 +123,8 @@ vphone-cli가 생성하는 모든 것은 `~/.vphone/` 아래에 있습니다 —
 | `~/.vphone/ipsws/`| 다운로드된 iPhone + cloudOS IPSW, 캐시되어 여러 VM에서 재사용됩니다.                          |
 | `~/.vphone/tools/`| `fw prepare` 중에 가져온 APFS seal-volume 아티팩트(`apfs_sealvolume_<version>`) 캐시.         |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 설치가 게스트에 넣는 `.deb` 패키지 캐시 (Sileo, apt 등).                       |
-| `~/.vphone/venv/` | 자동으로 프로비저닝되는 Python 환경 ([Python 런타임](#python-런타임) 참조; `$VPHONE_VENV_DIR`로 재정의). |
 
-우선순위: 항목별 재정의(`$VPHONE_LIBRARY_ROOT`, `$VPHONE_VENV_DIR`)가 `$VPHONE_ROOT`보다 우선하고, `$VPHONE_ROOT`는 `~/.vphone` 기본값보다 우선합니다. `ipsws/`, `tools/`, `debs/` 캐시는 항상 현재 활성 루트 바로 아래에 위치합니다.
+우선순위: 항목별 재정의 `$VPHONE_LIBRARY_ROOT`가 `$VPHONE_ROOT`보다 우선하고, `$VPHONE_ROOT`는 `~/.vphone` 기본값보다 우선합니다. `ipsws/`, `tools/`, `debs/` 캐시는 항상 현재 활성 루트 바로 아래에 위치합니다.
 
 ## SIP/AMFI 완화
 

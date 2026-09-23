@@ -16,28 +16,23 @@ extension CryptexFilesystemPatcher {
     /// shell out for now asks VPhoneSign for.
     ///
     /// The `.p12` is opened here because VPhoneSign signs with an already-read
-    /// identity — but not on the `VPHONE_USE_LDID` path, where the external
-    /// tool opens the container itself from `identityPath`. Skipping the parse
-    /// there is what keeps the escape hatch a way *out* of a VPhoneSign
-    /// regression rather than a second way into one.
+    /// identity. There is no longer a second path that opens it elsewhere: the
+    /// external-ldid escape hatch is gone, so this parse either succeeds or the
+    /// step fails, and a missing identity can no longer become a silent ad-hoc
+    /// downgrade.
     func guestSigningOptions(
         cfwInput: URL,
         identifier: String? = nil,
         entitlements: URL? = nil
     ) throws -> VPhoneSignOptions {
         let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        var identity: (any VPhoneSigningIdentity)?
-        if !VPhoneLdid.isPreferred {
-            identity = try VPhoneSignIdentity(
-                pkcs12: Data(contentsOf: signingCertificatePath), password: ""
-            )
-        }
         return VPhoneSignOptions(
             identifier: identifier,
             entitlements: try entitlements.map { try Data(contentsOf: $0) },
             mergesExisting: true,
-            identity: identity,
-            identityPath: signingCertificatePath.path
+            identity: try VPhoneSignIdentity(
+                pkcs12: Data(contentsOf: signingCertificatePath), password: ""
+            )
         )
     }
 

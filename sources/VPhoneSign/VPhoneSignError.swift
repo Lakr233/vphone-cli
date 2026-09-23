@@ -28,8 +28,6 @@ public enum VPhoneSignError: Error, Equatable, CustomStringConvertible {
     case identityUnreadable(String)
     /// The CMS signature could not be produced.
     case signingFailed(String)
-    /// `--use-ldid` was asked for and the external tool is missing or failed.
-    case ldidUnavailable(String)
 
     public var description: String {
         switch self {
@@ -40,7 +38,6 @@ public enum VPhoneSignError: Error, Equatable, CustomStringConvertible {
         case let .unsupportedEntitlements(detail): "unsupported entitlements: \(detail)"
         case let .identityUnreadable(detail): "cannot read the signing identity: \(detail)"
         case let .signingFailed(detail): "signing failed: \(detail)"
-        case let .ldidUnavailable(detail): "ldid: \(detail)"
         }
     }
 }

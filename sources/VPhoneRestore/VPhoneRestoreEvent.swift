@@ -93,6 +93,12 @@ public enum VPhoneRestoreConsole {
     /// mutex, but the captured `printf` channel does not, and two threads
     /// interleaving mid-line is the kind of log nobody can read. Each call
     /// returns an independently locked sink, so use one per restore.
+    ///
+    /// The `print` below happens while the C bridge has the process's `stdout`
+    /// redirected into itself, which would be a loop — except that the bridge
+    /// marks the thread it is calling a callback on and passes that thread's
+    /// writes through to the real stdout. See `g_in_callback` in
+    /// `vphone_restore_bridge.c`; printing from here is the case it exists for.
     public static func handler(
         level: VPhoneRestoreLogLevel = .info,
         showsProgress: Bool = false

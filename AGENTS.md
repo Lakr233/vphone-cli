@@ -9,10 +9,10 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Boot (DFU):** `make boot_dfu`
 - **All targets:** `make help`
 - **AMFI refuses `vphone-vm`?** `make amfi_command` prints the bypass line for this build. The bypass itself is the user's to install and run; see Key Patterns.
-- **Python venv:** `make setup_venv` (installs to `.venv/`, activate with `source .venv/bin/activate`). Needed only for `make restore*` — `scripts/pymobiledevice3_bridge.py` is the one Python program left. The patch pipeline never touches it.
+- **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
-- **Python deps:** `typer`, `pymobiledevice3`, `ipsw-parser` (see `requirements.txt`) — the restore bridge's, and nothing else's
+- **Dependencies:** seven SwiftPM packages, every one resolved by URL — there is no `vendor/` directory, and `Package.resolved` pins fourteen once transitives are counted. Three git submodules are left: `scripts/resources`, `scripts/repos/trustcache`, `scripts/repos/insert_dylib`. **No Python anywhere.**
 
 ## Workflow Rules
 
@@ -56,7 +56,11 @@ sources/
 │   ├── VPhoneCLI.swift               # Root command, patch-firmware/patch-component
 │   ├── VPhoneFWCLI.swift             # Firmware subcommands
 │   ├── VPhoneSetupCLI.swift          # Setup subcommands
-│   ├── VPhoneRestoreCLI.swift        # Restore subcommands
+│   ├── VPhoneRestoreCLI.swift        # `restore` + the `cfw` subcommand group
+│   ├── VPhoneCFWPatchCLI.swift       # `cfw` verbs: cryptex-paths, inject-*, patch-*
+│   ├── VPhoneCFWMachOVerbsCLI.swift  # The six Mach-O `cfw patch-*` verbs
+│   ├── VPhoneCFWDSCVerbsCLI.swift    # The eight dyld-shared-cache `cfw patch-*` verbs
+│   ├── VPhoneSignCLI.swift           # `sign` — VPhoneSign from the command line
 │   ├── VPhoneVMCLI.swift             # VM subcommand group
 │   ├── VPhoneVMCreateCLI.swift       # VM create
 │   ├── VPhoneVMLaunchCLI.swift       # VM launch
@@ -86,6 +90,32 @@ sources/
 │   ├── VPhoneArchiveWriter.swift     # Pack + single-stream decompress
 │   ├── VPhoneArchivePaths.swift      # realpath(3) — NOT the Foundation equivalents
 │   └── VPhoneTreeFingerprint.swift   # Compare two extracted trees, field by field
+│
+├── VPhoneSign/                       # Mach-O code signing — replaces ldid, byte for byte
+│   ├── VPhoneSigner.swift            # Ad-hoc and PKCS#12 signing
+│   ├── VPhoneCodeSignature.swift     # SuperBlob / CodeDirectory construction
+│   ├── VPhoneSignEntitlements.swift  # Entitlements plist blob (+ …Reader for reading one back)
+│   ├── VPhoneSignDER.swift           # The DER entitlements blob
+│   └── VPhoneSignLdid.swift          # The `--use-ldid` escape hatch; last ldid site in Swift
+│
+├── MobileRecoveryCore/               # libirecovery 1.3.1, vendored C. IOKit USB, not libusb
+│   ├── libirecovery.c                # Upstream's bytes, unmodified
+│   ├── include/libirecovery.h        # Upstream's public header
+│   └── config.h                      # Ours — what ./configure concludes on macOS
+│
+├── MobileRestoreCore/                # idevicerestore, vendored C, built IDEVICERESTORE_NOMAIN
+│   ├── restore.c asr.c fdr.c img4.c …# Upstream's bytes, unmodified (~19.5k lines)
+│   ├── vphone_restore_bridge.c       # Ours — the library entry point upstream's main() was
+│   ├── vphone_zip_stub.c + zip.h     # Ours — libzip has no counterpart here; see zip.h's header
+│   ├── config.h                      # Ours
+│   └── include/vphone_restore_bridge.h # The only header a dependent sees
+│
+├── VPhoneRestore/                    # Swift over those two C targets — replaced the Python bridge
+│   ├── VPhoneRecoveryProbe.swift     # irecv_open_with_ecid_and_attempts + timeout polling
+│   ├── VPhoneRestoreBridge.swift     # The three ported commands: probe, get-shsh, restore
+│   ├── VPhoneRestoreTicket.swift     # Undoes idevicerestore's -t: gzipped binary plist → plain
+│   ├── VPhoneRestoreRunner.swift     # Drives vphone_restore_run
+│   └── …                             # options, identity, restore-tree layout, events, errors
 │
 ├── FirmwarePatcher/                  # The Swift firmware pipeline (largest module)
 │   ├── IBoot/ Kernel/ TXM/           # Boot-chain patches; Kernel/JBPatches/ is the JB set
@@ -145,11 +175,12 @@ sources/
         ├── VPhoneTouchIDMonitor.swift # BiometricKit delegate sink
         └── VPhoneScreenRecorder.swift # VM screen recording to file
 
-scripts/                          # Shell only — the CFW patchers are `vphone-cli cfw <verb>` now
+scripts/                          # Shell only — the CFW patchers are `vphone-cli cfw <verb>` now,
+│                                 # and there is no Python here at all
 ├── vphoned/                      # Guest daemon (ObjC, runs inside iOS VM over vsock)
-├── pymobiledevice3_bridge.py     # The ONE remaining Python program (restore); needs .venv
 ├── resources/                    # Resource archives (git submodule)
 ├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib)
+├── check_aux.sh                  # The self-containment admission gates — `make check-aux`
 ├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
 ├── cfw_install.sh                # Install CFW (regular)
 ├── cfw_install_dev.sh            # Regular + rpcserver daemon
@@ -158,9 +189,7 @@ scripts/                          # Shell only — the CFW patchers are `vphone-
 ├── cfw_install_host.sh           # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
 ├── vm_create.sh                  # Create VM directory
 ├── setup_machine.sh              # Full automation (setup → first boot)
-├── setup_tools.sh                # Install deps, build toolchain from submodules, create venv
-├── setup_venv.sh                 # Create Python venv
-├── setup_venv_linux.sh           # Create Python venv (Linux)
+├── setup_tools.sh                # Install brew deps, build trustcache + insert_dylib from submodules
 └── tail_jb_patch_logs.sh         # Tail JB patch log output
 
 cfw-kit/                          # Variant-layered CFW installer, vendored as-is
@@ -175,8 +204,9 @@ research/                         # Detailed firmware/patch documentation
 ### Key Patterns
 
 - **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
-- **The AMFI bypass is the user's, not ours.** This project does not ship, install, spawn or supervise one. Relaxing AMFI at boot is the plain route; where that is not wanted, `amfidont` (`xcrun python3 -m pip install --user amfidont`, needs Xcode) allows `vphone-vm` by path or CDHash through LLDB. It is an **allowlist**, scoped to the binaries you name — do not describe it as a global switch. `make amfi_command` prints the line for the current build and prints only; the CDHash changes with every build. No Python dependency enters this repo for it; `scripts/pymobiledevice3_bridge.py` stays the only Python program here.
+- **The AMFI bypass is the user's, not ours.** This project does not ship, install, spawn or supervise one. Relaxing AMFI at boot is the plain route; where that is not wanted, `amfidont` (`xcrun python3 -m pip install --user amfidont`, needs Xcode) allows `vphone-vm` by path or CDHash through LLDB. It is an **allowlist**, scoped to the binaries you name — do not describe it as a global switch. `make amfi_command` prints the line for the current build and prints only; the CDHash changes with every build. It is installed into the user's own Python, not this repository's: nothing here imports it, invokes it or looks for it on `PATH`, and the repository itself contains no Python at all.
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — and probes once per command with `vphone-vm --help`, looking for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
+- **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `research/p2_restore_off_python.md` has the decision and the behaviour table.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
 - **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.
 - **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
@@ -212,21 +242,35 @@ Every patcher is Swift, in `sources/FirmwarePatcher`. The boot chain and kernel
 run through `patch-firmware`; the CFW/DSC patchers are `vphone-cli cfw <verb>`,
 one verb per patch, driven by `scripts/cfw_install*.sh` and `cfw-kit/`.
 
-- Disassembly is Capstone via `ARM64Disassembler` (`vendor/libcapstone-spm`). Assembly is `ARM64Encoder` plus the pre-encoded constants in `ARM64` (`ARM64Constants.swift`) — together they replace keystone's `asm()` / `asm_at()`, and `ARM64.nop` / `ARM64.movW0_0` are the old `NOP` / `MOV_W0_0`. IM4P containers go through `IM4PHandler` (`vendor/libimg4-spm`), which replaces pyimg4.
+- Disassembly is Capstone via `ARM64Disassembler` (the `libcapstone-spm` package). Assembly is `ARM64Encoder` plus the pre-encoded constants in `ARM64` (`ARM64Constants.swift`) — together they replace keystone's `asm()` / `asm_at()`, and `ARM64.nop` / `ARM64.movW0_0` are the old `NOP` / `MOV_W0_0`. IM4P containers go through `IM4PHandler` (the `libimg4-spm` package), which replaces pyimg4. Both resolve by URL; there is no `vendor/` directory to check out first.
 - Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.
 - Each patch logged with offset and before/after state.
-- No interpreter, no venv, no native-library repair: `make build` is the whole toolchain.
+- No interpreter, no Python environment, no native-library repair: `make build` is the whole toolchain.
 
-### Python Scripts
+### Python
 
-- One program is left: `scripts/pymobiledevice3_bridge.py`, the restore backend. Use the project venv (`source .venv/bin/activate`); create it with `make setup_venv`.
-- Do not add a second one. A patch, a probe or a format reader belongs in Swift, where it is built, signed and tested with everything else.
+There is none, and adding any is a regression.
+
+- No `.py` file is tracked in this repository, no shell script embeds a Python
+  heredoc, and nothing resolves a `python3` at runtime. `git ls-files '*.py'`
+  returns nothing; that is the standing check.
+- There is no environment to activate and no dependency list to install. The
+  restore backend was the last holdout and is now `sources/VPhoneRestore` over
+  two vendored C targets — see `research/p2_restore_off_python.md`.
+- A patch, a probe, a format reader or a device protocol belongs in Swift,
+  where it is built, signed, gated by `make check-aux` and tested with
+  everything else. Adding an interpreter back brings with it a provisioning
+  step, a silent system-`python3` fallback, and a dependency closure
+  `make check-aux` cannot see.
+- `amfidont` is not a counter-example: it is a third-party tool the user
+  installs into their own Python and runs from their own shell. Nothing here
+  imports it, spawns it or looks for it.
 
 ### Kernel patcher guardrails
 
 - For kernel patchers, never hardcode file offsets, virtual addresses, or preassembled instruction bytes inside patch logic.
 - All instruction matching must be derived from Capstone decode results (mnemonic / operands / control-flow), not exact operand-string text when a semantic operand check is possible. `ARM64Disassembler` is the only decoder — match on the decoded mnemonic and operand detail, never on a formatted operand string.
-- All replacement instruction bytes must come from Keystone-backed helpers already used by the project: `ARM64Encoder.encode*` and the `ARM64` constants, which were generated by keystone-engine, verified by Capstone round-trip, and are asserted word for word against keystone in `tests/FirmwarePatcherTests/ARM64EncoderTests.swift`. Never write a literal instruction word at a patch site. A new instruction means a new encoder plus its keystone-checked test case, not a raw `Data`. Keystone is deliberately **not** a project dependency any more — nothing at runtime or in the test suite calls it, and the expected words are frozen constants. To derive a new one, build it a throwaway environment: `brew install keystone && python3 -m venv /tmp/ks && /tmp/ks/bin/pip install keystone-engine`, then the one-liner in that test file's header. Do not add it back to `requirements.txt` or the venv, and do not invent an expected word without checking it.
+- All replacement instruction bytes must come from Keystone-backed helpers already used by the project: `ARM64Encoder.encode*` and the `ARM64` constants, which were generated by keystone-engine, verified by Capstone round-trip, and are asserted word for word against keystone in `tests/FirmwarePatcherTests/ARM64EncoderTests.swift`. Never write a literal instruction word at a patch site. A new instruction means a new encoder plus its keystone-checked test case, not a raw `Data`. Keystone is deliberately **not** a project dependency any more — nothing at runtime or in the test suite calls it, and the expected words are frozen constants. To derive a new one, stand keystone up in a throwaway environment **outside this repository** (`brew install keystone`, plus `keystone-engine` in a scratch interpreter somewhere under `/tmp`) and run the one-liner in that test file's header against it. There is no dependency list here to add it to and no environment here to install it into; creating either is the regression the "Python" section above forbids. Do not invent an expected word without checking it.
 - Prefer source-backed semantic anchors: in-image symbol lookup, string xrefs, local call-flow, and XNU correlation. Do not depend on repo-exported per-kernel symbol dumps at runtime.
 - When retargeting a patch, write the reveal procedure and validation steps into the relevant research doc or commit notes before handing off for testing. Do not create `TODO.md`.
 - For `patchBsdInitAuth` (`Kernel/JBPatches/Storage/KernelJBPatchBsdInitAuth.swift`, named `patch_bsd_init_auth` in the research docs) specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.

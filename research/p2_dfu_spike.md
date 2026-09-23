@@ -5,12 +5,19 @@
 > Plan section P2.0 marks this the largest unknown in P2 and says to stop and
 > re-evaluate if it fails, rather than vendoring idevicerestore on an assumption.
 
+> **Since answered and acted on.** The migration this spike unblocked is done:
+> the restore path is `sources/VPhoneRestore` over vendored libirecovery and
+> idevicerestore, and `scripts/pymobiledevice3_bridge.py` no longer exists.
+> Everything below is written as of the day of the spike, when it still did.
+> `research/p2_restore_off_python.md` has what P2 went on to do.
+
 ## Why it was a real question
 
-The restore path today goes through pymobiledevice3's `IRecv`, which is **pyusb**.
-libirecovery on macOS goes through **IOKit USB**. Different transport, so whether
-one works tells you nothing about the other, and the whole of P2.1/P2.2 is wasted
-work if the IOKit path cannot see a Virtualization.framework virtual endpoint.
+The restore path at the time went through pymobiledevice3's `IRecv`, which is
+**pyusb**. libirecovery on macOS goes through **IOKit USB**. Different transport,
+so whether one works tells you nothing about the other, and the whole of
+P2.1/P2.2 is wasted work if the IOKit path cannot see a Virtualization.framework
+virtual endpoint.
 
 ## Result
 
@@ -101,8 +108,9 @@ negative result is distinguishable from a broken harness.
 ## Still open, and deliberately not answered here
 
 Plan section P2.2 asks that **FDR equivalence** be confirmed as part of this spike.
-It was not, and cannot be from device enumeration alone: pymobiledevice3 runs
+It was not, and cannot be from device enumeration alone: pymobiledevice3 ran
 `Restore(..., ignore_fdr=False)`, and idevicerestore's FDR handling is internal.
 Whether the two behave the same only shows up during an actual restore. That stays
 an open risk on P2.2 and must not be assumed away — it is called out here so the
-next person does not read "P2.0 passed" as covering it.
+next person does not read "P2.0 passed" as covering it. It is still open;
+`research/p2_restore_off_python.md` carries it forward.

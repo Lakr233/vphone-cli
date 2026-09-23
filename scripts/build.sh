@@ -122,10 +122,13 @@ fi
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
 RES="${BUNDLE}/Contents/Resources"
 echo "=== Bundling runtime assets → ${RES} ==="
-# The bundle is built over whatever is already there, so ${RES}/tools is still
-# removed although nothing creates it any more: bundles built before
-# `cfw flip-snapshot` replaced apfs_snap_rename.py carry an empty one.
-rm -rf "${RES}/scripts" "${RES}/tools" "${RES}/.tools" "${RES}/vphoned.signed"
+# The bundle is built over whatever is already there, so ${RES}/tools and
+# ${RES}/requirements.txt are still removed although nothing creates either any
+# more: bundles built before `cfw flip-snapshot` replaced the snapshot-rename
+# script carry an empty tools/, and bundles built before the restore backend
+# moved in-process carry a pip requirements list the app would never read.
+rm -rf "${RES}/scripts" "${RES}/tools" "${RES}/.tools" "${RES}/vphoned.signed" \
+  "${RES}/requirements.txt"
 mkdir -p "${RES}/scripts" "${RES}/.tools/bin"
 # Mirror scripts/ EXCEPT the make-coupled orchestrator, toolchain source, caches.
 # `patchers` is excluded rather than simply absent: the CFW patchers are Swift
@@ -147,23 +150,19 @@ rsync -a \
 # insert_dylib is NOT bundled any more: `CFWInjectDylib` does the injection
 # in-process, byte for byte (tests/FirmwarePatcherTests/CFWMachOTests.swift
 # asserts that against the real binary), and the only caller that ever shelled
-# out to it was scripts/patchers/cfw.py. setup_tools.sh still builds it, because
-# that parity test needs a reference to compare against — it is a development
-# tool now, not something the shipped .app runs.
+# out to it was the CFW patcher script that has since been deleted.
+# setup_tools.sh still builds it, because that parity test needs a reference to
+# compare against — it is a development tool now, not something the .app runs.
 for t in trustcache; do
   if [[ -x ".tools/bin/$t" ]]; then cp -f ".tools/bin/$t" "${RES}/.tools/bin/$t"
   else echo "Error: .tools/bin/$t missing — run ./scripts/setup_tools.sh first" >&2; exit 1; fi
 done
 [[ -f .build/vphoned.signed ]] && cp -f .build/vphoned.signed "${RES}/vphoned.signed" || true
-# requirements.txt lets the app provision its own ~/.vphone/venv on first run
-# (see VPhoneResources.pythonExecutable) — the app carries no venv itself. The
-# venv is down to one job: scripts/pymobiledevice3_bridge.py, the restore path.
-cp -f requirements.txt "${RES}/requirements.txt"
 # debs.list = extra-deb manifest (fetch_debs.sh reads $base/debs.list); README.md
 # = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
 cp -f debs.list "${RES}/debs.list"
 cp -f README.md "${RES}/README.md"
-echo "  bundled: scripts/ (resources), .tools/bin/trustcache, vphoned.signed, requirements.txt, debs.list, README.md"
+echo "  bundled: scripts/ (resources), .tools/bin/trustcache, vphoned.signed, debs.list, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —

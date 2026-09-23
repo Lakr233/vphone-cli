@@ -42,30 +42,19 @@ public struct VPhoneSignOptions {
     public var style = Style.ldid
     /// `-K`: sign for real rather than ad-hoc.
     public var identity: (any VPhoneSigningIdentity)?
-    /// Where `identity` was read from. Only the escape hatch needs it: the
-    /// external ldid opens the container itself.
-    public var identityPath: String?
-    /// `--use-ldid`: hand the file to the external tool instead. nil asks
-    /// the environment (`VPHONE_USE_LDID`), which is how a regression is
-    /// recovered from without touching a call site.
-    public var usesExternalLdid: Bool?
 
     public init(
         identifier: String? = nil,
         entitlements: Data? = nil,
         mergesExisting: Bool = false,
         style: Style = .ldid,
-        identity: (any VPhoneSigningIdentity)? = nil,
-        identityPath: String? = nil,
-        usesExternalLdid: Bool? = nil
+        identity: (any VPhoneSigningIdentity)? = nil
     ) {
         self.identifier = identifier
         self.entitlements = entitlements
         self.mergesExisting = mergesExisting
         self.style = style
         self.identity = identity
-        self.identityPath = identityPath
-        self.usesExternalLdid = usesExternalLdid
     }
 }
 
@@ -88,10 +77,6 @@ public enum VPhoneSigner {
     public static func sign(fileAt url: URL, options: VPhoneSignOptions = .init()) throws -> Data {
         var options = options
         options.identifier = options.identifier ?? url.lastPathComponent
-        if options.usesExternalLdid ?? VPhoneLdid.isPreferred {
-            try VPhoneLdid.sign(fileAt: url, options: options, identityPath: options.identityPath)
-            return try Data(contentsOf: url)
-        }
         let data = try Data(contentsOf: url)
         let signed = try sign(data, options: options)
         // The same path ldid takes: a temporary beside the file, its mode
@@ -206,12 +191,8 @@ public enum VPhoneSigner {
     /// any, in slice order, exactly as the signature stores them. A slice
     /// with none contributes nothing, so a file with no entitlements at all
     /// gives an empty array.
-    public static func entitlements(ofFileAt url: URL, usesExternalLdid: Bool? = nil) throws -> [Data] {
-        if usesExternalLdid ?? VPhoneLdid.isPreferred {
-            let dumped = try VPhoneLdid.entitlements(ofFileAt: url)
-            return dumped.isEmpty ? [] : [dumped]
-        }
-        return try entitlements(in: Data(contentsOf: url))
+    public static func entitlements(ofFileAt url: URL) throws -> [Data] {
+        try entitlements(in: Data(contentsOf: url))
     }
 
     public static func entitlements(in data: Data) throws -> [Data] {

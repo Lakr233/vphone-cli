@@ -24,7 +24,7 @@ struct VPhoneSignEntitlementsTests {
         var withEntitlements = 0
         for source in corpus {
             let theirs = try VPhoneSignLdidHarness.run(ldid, ["-e", source.path]).out
-            let ours = try VPhoneSigner.entitlements(ofFileAt: source, usesExternalLdid: false)
+            let ours = try VPhoneSigner.entitlements(ofFileAt: source)
                 .reduce(Data(), +)
             #expect(theirs == ours, "\(source.lastPathComponent): \(theirs.count) vs \(ours.count) bytes")
             if !theirs.isEmpty { withEntitlements += 1 }
@@ -41,7 +41,7 @@ struct VPhoneSignEntitlementsTests {
         let plist = VPhoneSignParityTests.sampleEntitlements
         try VPhoneSigner.sign(fileAt: file, options: .init(identifier: "binary", entitlements: plist))
 
-        let read = try VPhoneSigner.entitlements(ofFileAt: file, usesExternalLdid: false)
+        let read = try VPhoneSigner.entitlements(ofFileAt: file)
         let slices = try VPhoneSignBlobs(fileAt: file).slices.count
         #expect(read.count == slices)
         // libplist rewrites the document it was given; what must survive is

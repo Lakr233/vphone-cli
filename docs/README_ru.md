@@ -18,8 +18,10 @@
 **Зависимости:**
 
 ```
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+Ни интерпретатора, ни окружения пакетного менеджера: всё, что запускает сам vphone-cli, написано на Swift или C и собирается через `make build`.
 
 ## Установка
 
@@ -32,7 +34,7 @@ brew install zqxwce/tap/vphone-cli
 ```
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # установка зависимостей, сборка сабмодулей тулчейна, создание Python venv
+./scripts/setup_tools.sh      # установка зависимостей brew, сборка сабмодулей тулчейна
 ./scripts/build.sh            # сборка + подпись vphone-cli, сборка .app, кросс-компиляция vphoned
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +87,11 @@ vphone-cli vm launch myphone                            # 6. первая заг
 
 Обновление до более новой iOS: укажите `fw prepare` на IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
+Шаги 4 и 5 выполняются в собственном процессе `vphone-cli`. `restore` напрямую
+управляет встроенными libirecovery и idevicerestore — ни внешней утилиты
+восстановления, ни подготовительного шага перед первым запуском. Флаг `--offline`
+восстанавливает из уже сохранённого рядом с ВМ `.shsh` вместо запроса нового у Apple.
+
 ## Варианты прошивки
 
 Пять вариантов патчей с нарастающим обходом безопасности — передайте один в `--variant`:
@@ -116,10 +123,8 @@ vphone-cli vm launch myphone                            # 6. первая заг
 | −`~/.vphone/ipsws/` | Загруженные IPSW iPhone + cloudOS, кэшируются и переиспользуются между ВМ. |
 | −`~/.vphone/tools/` | Кэшированные артефакты APFS seal-volume (`apfs_sealvolume_<version>`), получаемые при `fw prepare`. |
 | −`~/.vphone/debs/` | Кэшированные `.deb`-пакеты, которые установка CFW `jb`/`exp` кладёт в гостя (Sileo, apt, …). |
-| −`~/.vphone/venv/` | Автоматически созданное окружение Python (см. Python runtime; переопределяется через `$VPHONE_VENV_DIR`). |
-⚙
 
-Приоритет: переопределения по элементам (`$VPHONE_LIBRARY_ROOT`, `$VPHONE_VENV_DIR`) имеют больший вес, чем `$VPHONE_ROOT`, который имеет больший вес, чем значение по умолчанию `~/.vphone`. Кэши `ipsws/`, `tools/` и `debs/` всегда располагаются непосредственно под активным корнем.
+Приоритет: переопределение по элементу `$VPHONE_LIBRARY_ROOT` имеет больший вес, чем `$VPHONE_ROOT`, который имеет больший вес, чем значение по умолчанию `~/.vphone`. Кэши `ipsws/`, `tools/` и `debs/` всегда располагаются непосредственно под активным корнем.
 
 ## Ослабление SIP/AMFI
 

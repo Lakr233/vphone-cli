@@ -233,6 +233,12 @@ let package = Package(
         // undo the split, so don't. VPhoneArchive is fine and is why `vm export`
         // still works here: it sits above VPhoneCore and pulls in neither
         // Virtualization nor AppKit.
+        //
+        // VPhoneRestore is the line that ends the venv: `restore`, `vm create`
+        // and `make restore*` reach it directly instead of spawning a Python.
+        // It is also what finally puts libirecovery, idevicerestore, libcurl
+        // and libz inside .build/vphone-cli.app, where `make check-aux` gate 1
+        // can see them.
         .executableTarget(
             name: "vphone-cli",
             dependencies: [
@@ -240,6 +246,7 @@ let package = Package(
                 "FirmwarePatcher",
                 "VPhoneArchive",
                 "VPhoneCore",
+                "VPhoneRestore",
             ],
             path: "sources/vphone-cli"
         ),

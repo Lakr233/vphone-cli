@@ -9,8 +9,12 @@
 //     ldid -S"$ent" -M "-K$p12" -I"$id" <file>   ->  vphone-cli sign …
 //     ldid -e <file>                             ->  vphone-cli dump-entitlements
 //
-// Both keep the `--use-ldid` escape hatch (and the VPHONE_USE_LDID environment
-// variable behind it), so a regression is recoverable without a rebuild.
+// There is no way back to the external tool. `--use-ldid` and the VPHONE_USE_LDID
+// environment variable behind it are gone: an escape hatch that shells out to a
+// Homebrew binary is a dependency whether or not the default path takes it, and
+// this project is meant to be self-contained. What guarded the replacement stays
+// where it belongs — tests/VPhoneSignTests compares these bytes against the real
+// ldid when one is installed, and skips rather than passes when one is not.
 
 import ArgumentParser
 import Foundation
@@ -80,9 +84,6 @@ struct VPhoneSignCommand: ParsableCommand {
     )
     var appleAdHoc = false
 
-    @Flag(name: .customLong("use-ldid"), help: "Hand the file to the external ldid instead of signing here")
-    var useLdid = false
-
     func run() throws {
         var options = VPhoneSignOptions()
         options.identifier = identifier
@@ -90,19 +91,8 @@ struct VPhoneSignCommand: ParsableCommand {
         options.mergesExisting = merge
         options.style = appleAdHoc ? .appleAdHoc : .ldid
         if let pkcs12 {
-            // Both halves, and for different readers: the built-in signer wants
-            // the opened identity, and --use-ldid wants the container's path
-            // because ldid opens it itself. Setting only one of them is how a
-            // real signature used to become a silent ad-hoc downgrade; the
-            // external path now throws instead, which only works if the path is
-            // here to throw about.
             options.identity = try VPhoneSignIdentity(pkcs12: Data(contentsOf: pkcs12), password: "")
-            options.identityPath = pkcs12.path
         }
-        // nil, not false: nil lets VPHONE_USE_LDID decide, which is the whole
-        // point of the environment variable. Passing false would override it.
-        options.usesExternalLdid = useLdid ? true : nil
-
         try VPhoneSigner.sign(fileAt: file, options: options)
     }
 }

@@ -15,8 +15,8 @@ struct ResourcesTests {
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
         #expect(r.fwPrepareScript.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/fw_prepare.sh")
-        #expect(r.pmd3Bridge.path
-            == "/Applications/vphone-cli.app/Contents/Resources/scripts/pymobiledevice3_bridge.py")
+        #expect(r.cfwInstallHostScript.path
+            == "/Applications/vphone-cli.app/Contents/Resources/scripts/cfw_install_host.sh")
     }
 
     @Test func devLayoutWalksUpToProjectRoot() throws {
@@ -44,53 +44,7 @@ struct ResourcesTests {
         #expect(VPhoneResources.userDataRoot().path.hasSuffix("/.vphone"))
     }
 
-    /// The probe shells out; a missing interpreter must return false, not throw.
-    @Test func venvProbeIsTotalForAMissingInterpreter() {
-        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
-        let missing = URL(fileURLWithPath: "/nonexistent/bin/python3")
-        #expect(r.pythonIsUsable(missing) == false)
-    }
-
-    /// The venv exists for `scripts/pymobiledevice3_bridge.py` and nothing else
-    /// now that the firmware patchers are Swift, so the requirements must not
-    /// name a patcher-only package. capstone, keystone-engine and pyimg4 were
-    /// the three; pyimg4 still arrives transitively via pymobiledevice3.
-    @Test func fallbackRequirementsCarryNoPatcherOnlyPackages() {
-        let names = VPhoneResources.fallbackRequirements
-        for dead in ["capstone", "keystone-engine", "pyimg4"] {
-            #expect(names.contains { $0.hasPrefix(dead) } == false, "\(dead) is patcher-only")
-        }
-        #expect(names.contains { $0.hasPrefix("pymobiledevice3") })
-        #expect(names.contains("ipsw-parser"))
-    }
-
-    /// `fallbackRequirements` claims to mirror requirements.txt, so check the
-    /// real file rather than trusting the comment. Derived from `#filePath`:
-    /// `swift test` makes no promise about the working directory.
-    @Test func requirementsFileMatchesTheFallbackList() throws {
-        let repoRoot = URL(filePath: #filePath)
-            .deletingLastPathComponent() // VPhoneCoreTests
-            .deletingLastPathComponent() // tests
-            .deletingLastPathComponent() // <root>
-        let file = repoRoot.appending(path: "requirements.txt")
-        try #require(FileManager.default.fileExists(atPath: file.path))
-        let listed = try String(contentsOf: file, encoding: .utf8)
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
-        #expect(listed == VPhoneResources.fallbackRequirements)
-    }
-
-    @Test func managedVenvDefaultsUnderDotVphone() {
-        // The override env vars would change this; only assert the default.
-        if ProcessInfo.processInfo.environment["VPHONE_VENV_DIR"] != nil { return }
-        if ProcessInfo.processInfo.environment["VPHONE_ROOT"] != nil { return }
-        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
-        #expect(r.managedVenvDir.path.hasSuffix("/.vphone/venv"))
-    }
-
     @Test func userDataRootHonorsVPHONERoot() {
-        unsetenv("VPHONE_VENV_DIR")
         setenv("VPHONE_ROOT", "/tmp/vphone-test-root", 1)
         defer { unsetenv("VPHONE_ROOT") }
         let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
@@ -98,29 +52,36 @@ struct ResourcesTests {
         #expect(r.ipswCacheDir.path == "/tmp/vphone-test-root/ipsws")
         #expect(r.sealVolumeCacheDir.path == "/tmp/vphone-test-root/tools")
         #expect(r.debsCacheDir.path == "/tmp/vphone-test-root/debs")
-        #expect(r.managedVenvDir.path == "/tmp/vphone-test-root/venv")
     }
 
-    @Test func managedVenvOverrideBeatsVPHONERoot() {
+    /// `VPhoneResources` resolves programs as siblings of the running image and
+    /// scripts under `scriptsDir`, and nothing else — no `PATH` walk, no
+    /// interpreter. That claim is what the deleted venv tests used to guard
+    /// from the other side, so assert it directly: every URL this type hands
+    /// out is rooted in `base` or in the user data root.
+    @Test func everyResourceIsRootedInTheBaseOrTheDataRoot() {
         setenv("VPHONE_ROOT", "/tmp/vphone-test-root", 1)
-        setenv("VPHONE_VENV_DIR", "/tmp/custom-venv", 1)
-        defer {
-            unsetenv("VPHONE_ROOT")
-            unsetenv("VPHONE_VENV_DIR")
+        defer { unsetenv("VPHONE_ROOT") }
+        let base = URL(fileURLWithPath: "/x")
+        let r = VPhoneResources(base: base)
+        let rooted = [
+            r.scriptsDir, r.resourceArchivesDir, r.fwPrepareScript,
+            r.cfwInstallHostScript, r.preflightScript, r.signcert, r.vphoned,
+        ]
+        for url in rooted {
+            #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")
         }
-        let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
-        #expect(r.managedVenvDir.path == "/tmp/custom-venv")
+        for url in [r.ipswCacheDir, r.sealVolumeCacheDir, r.debsCacheDir] {
+            #expect(url.path.hasPrefix("/tmp/vphone-test-root/"))
+        }
     }
 
-    @Test func pythonUsabilityProbeRejectsMissingAcceptsDevVenv() {
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let r = VPhoneResources(base: cwd)
-        // A non-existent interpreter is never usable.
-        #expect(r.pythonIsUsable(URL(fileURLWithPath: "/does/not/exist/python3")) == false)
-        // The dev .venv (when present) carries a modern ipsw_parser and must pass.
-        let devVenv = cwd.appendingPathComponent(".venv/bin/python3")
-        if FileManager.default.isExecutableFile(atPath: devVenv.path) {
-            #expect(r.pythonIsUsable(devVenv) == true)
-        }
+    /// A companion binary is found beside the running image, never on `PATH` —
+    /// the property that made the interpreter ladder removable.
+    @Test func siblingExecutableSitsBesideTheRunningImage() {
+        let me = VPhoneResources.runningExecutable()
+        let sibling = VPhoneResources.siblingExecutable("vphone-vm")
+        #expect(sibling.deletingLastPathComponent().path == me.deletingLastPathComponent().path)
+        #expect(sibling.lastPathComponent == "vphone-vm")
     }
 }

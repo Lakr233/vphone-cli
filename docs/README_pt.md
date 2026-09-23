@@ -18,8 +18,10 @@ Inicie um iPhone virtual usando o Virtualization.framework da Apple com a infrae
 **Dependências:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+Sem interpretador e sem ambiente de pacotes: tudo o que o próprio vphone-cli executa é Swift ou C, compilado por `make build`.
 
 ## Instalação
 
@@ -32,7 +34,7 @@ brew install zqxwce/tap/vphone-cli
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # instala dependências, compila submodules do toolchain, cria o venv Python
+./scripts/setup_tools.sh      # instala dependências do brew, compila submodules do toolchain
 ./scripts/build.sh            # compila + assina vphone-cli, empacota o .app, compila vphoned para iOS
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +87,12 @@ vphone-cli vm launch meuiphone                         # 6. primeiro boot
 
 Atualize para um iOS mais novo apontando `fw prepare` para um IPSW: `--iphone-source /caminho/para.ipsw --cloudos-source /caminho/para.ipsw`.
 
+Os passos 4 e 5 rodam no próprio processo do `vphone-cli`. O `restore` controla
+diretamente as cópias embutidas de libirecovery e idevicerestore — sem ferramenta
+externa de restauração e sem nenhum passo de preparação antes da primeira
+execução. Com `--offline`, a restauração usa um `.shsh` já salvo ao lado da VM em
+vez de pedir um novo à Apple.
+
 ## Variantes de Firmware
 
 Cinco variantes de patch com bypass de segurança crescente — passe uma para `--variant`:
@@ -116,9 +124,8 @@ Tudo que o vphone-cli cria fica em `~/.vphone/` — fora do repo e do `.app` par
 | `~/.vphone/ipsws/`| IPSWs de iPhone + cloudOS baixados, em cache e reutilizados entre VMs.                        |
 | `~/.vphone/tools/`| Artefatos de seal-volume APFS em cache (`apfs_sealvolume_<versão>`) obtidos durante `fw prepare`. |
 | `~/.vphone/debs/` | Pacotes `.deb` em cache que o CFW `jb`/`exp` instala no guest (Sileo, apt, …).                |
-| `~/.vphone/venv/` | Ambiente Python provisionado automaticamente; substitua com `$VPHONE_VENV_DIR`. |
 
-Precedência: as substituições por item (`$VPHONE_LIBRARY_ROOT`, `$VPHONE_VENV_DIR`) têm prioridade sobre `$VPHONE_ROOT`, que tem prioridade sobre o padrão `~/.vphone`. Os caches `ipsws/`, `tools/` e `debs/` sempre ficam diretamente sob qualquer raiz ativa.
+Precedência: a substituição por item `$VPHONE_LIBRARY_ROOT` tem prioridade sobre `$VPHONE_ROOT`, que tem prioridade sobre o padrão `~/.vphone`. Os caches `ipsws/`, `tools/` e `debs/` sempre ficam diretamente sob qualquer raiz ativa.
 
 ## Relaxamento SIP/AMFI
 

@@ -1,9 +1,11 @@
 #!/bin/zsh
 # setup_tools.sh — Install all required host tools for vphone-cli
 #
-# Installs brew packages, builds trustcache from source, builds insert_dylib
-# from submodule source (a test reference — see step [3/4]), and creates the
-# Python venv for the pymobiledevice3 restore bridge.
+# Installs brew packages, builds trustcache from source, and builds insert_dylib
+# from submodule source (a test reference — see step [3/3]).
+#
+# There is no interpreter step: the restore backend is linked into vphone-cli
+# and the patchers are Swift, so nothing this script installs is an environment.
 #
 # Run: make setup_tools
 
@@ -25,13 +27,13 @@ ensure_repo_submodule() {
 
 # ── Brew packages ──────────────────────────────────────────────
 
-echo "[1/4] Checking brew packages..."
+echo "[1/3] Checking brew packages..."
 
-# cmake and keystone are deliberately absent: both existed only so pip could
-# build keystone-engine's native library for the Python firmware patchers, and
-# those are Swift now (FirmwarePatcher's ARM64Encoder replaces keystone's asm(),
-# vendor/libcapstone-spm replaces the capstone wheel). openssl@3 stays — the
-# trustcache build below links it.
+# No python here, and cmake and keystone are deliberately absent too: all three
+# existed only so pip could build keystone-engine's native library for the
+# Python firmware patchers, and those are Swift now (FirmwarePatcher's
+# ARM64Encoder replaces keystone's asm(), the libcapstone-spm package replaces
+# the capstone wheel). openssl@3 stays — the trustcache build below links it.
 BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass zstd)
 BREW_MISSING=()
 
@@ -50,7 +52,7 @@ fi
 
 # ── Trustcache ─────────────────────────────────────────────────
 
-echo "[2/4] trustcache"
+echo "[2/3] trustcache"
 
 TRUSTCACHE_BIN="$TOOLS_PREFIX/bin/trustcache"
 if [[ -x "$TRUSTCACHE_BIN" ]]; then
@@ -86,7 +88,7 @@ fi
 # against, byte for byte — that test skips silently when it is missing, which
 # is the worst possible way to lose the check.
 
-echo "[3/4] insert_dylib (byte-parity reference for CFWMachOTests)"
+echo "[3/3] insert_dylib (byte-parity reference for CFWMachOTests)"
 
 INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then
@@ -99,11 +101,6 @@ else
     clang -o "$INSERT_DYLIB_BIN" "$INSERT_DYLIB_DIR/insert_dylib/main.c" -framework Security -O2
     echo "  Installed: $INSERT_DYLIB_BIN"
 fi
-
-# ── Python venv ────────────────────────────────────────────────
-
-echo "[4/4] Python venv"
-zsh "$SCRIPT_DIR/setup_venv.sh"
 
 echo ""
 echo "All tools installed."

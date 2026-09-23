@@ -248,11 +248,14 @@ activemq-data/
 *.sage.py
 
 # Environments
+#
+# `.venv` and `venv/` are deliberately NOT ignored any more. Nothing in this
+# repo creates a virtualenv — the restore backend is linked into vphone-cli —
+# so a `.venv` on disk is a leftover from before P2.4, and it should show up in
+# `git status` until `make clean` sweeps it rather than sit there invisibly.
 .env
 .envrc
-.venv
 env/
-venv/
 ENV/
 env.bak/
 venv.bak/

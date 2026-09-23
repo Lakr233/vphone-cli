@@ -1,6 +1,7 @@
 import FirmwarePatcher
 import Foundation
 import VPhoneCore
+import VPhoneRestore
 
 // MARK: - VPhoneCreateError
 
@@ -17,8 +18,8 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
     case invalidECID(String)
     case udidECIDMismatch(udid: String, ecid: String)
     case recoveryTimeout
-    case restoreGetSHSHFailed(Int32)
-    case restoreUpdateFailed(Int32)
+    case restoreGetSHSHFailed(String)
+    case restoreUpdateFailed(String)
     case cfwInstallFailed(Int32)
     case sudoPasswordRequired
     case firstBootPanic
@@ -49,10 +50,12 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
                 + "Run vm create again to regenerate it."
         case .recoveryTimeout:
             "Timed out waiting for the device to enter recovery mode."
-        case let .restoreGetSHSHFailed(code):
-            "Unable to fetch the signing ticket (exit code \(code))."
-        case let .restoreUpdateFailed(code):
-            "Device restore failed (exit code \(code))."
+        // No exit code any more: the restore backend is in this process, so
+        // what a failure carries is the reason it gave.
+        case let .restoreGetSHSHFailed(reason):
+            "Unable to fetch the signing ticket: \(reason)"
+        case let .restoreUpdateFailed(reason):
+            "Device restore failed: \(reason)"
         case let .cfwInstallFailed(code):
             "Custom firmware installation failed (exit code \(code))."
         case .sudoPasswordRequired:
@@ -228,14 +231,6 @@ public struct VPhoneCreateOrchestrator {
         print("[trace] \(msg)")
     }
 
-    /// `-v` repeated `min(v.rawValue, 2)` times, for the pmd3 bridge's own
-    /// `--verbose`/`-v` count option (`.info`→1 INFO / pmd3's colorful default,
-    /// `.debug`/`.trace`→2 DEBUG). `-v` on `vm create` thus surfaces the pmd3
-    /// restore logs, which is the whole point of asking for verbosity.
-    private func pmd3VerbosityArgs(_ v: VPhoneVerbosity) -> [String] {
-        Array(repeating: "-v", count: min(v.rawValue, 2))
-    }
-
     // MARK: - nested-VM preflight
 
     /// True when running inside an Apple VM (`kern.hv_vmm_present == 1`),
@@ -361,31 +356,46 @@ public struct VPhoneCreateOrchestrator {
 
         let (udid, ecid) = try loadDeviceIdentity(bundleURL: bundleURL)
         print("[+] Device identity loaded: UDID=\(udid) ECID=0x\(ecid)")
+        // `loadDeviceIdentity` has already held this to ^[0-9A-F]{16}$, so the
+        // parse cannot fail; it is here because the backend takes the number.
+        let ecidValue = try VPhoneRestoreIdentity.parseECID(ecid)
 
-        try waitForRecovery(ecid: ecid, verbosity: v)
+        try waitForRecovery(ecid: ecidValue, verbosity: v)
 
-        let python = try resources.pythonExecutable()
-        let verbosityArgs = pmd3VerbosityArgs(v)
+        // Both steps run in this process now — no python, no argv, no exit
+        // code — and report through the same console sink the CLI's `restore`
+        // uses. `-v` still decides how much of the restore log is shown.
+        let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel)
         print("[*] Fetching SHSH blob...")
-        let shshArgs =
-            [resources.pmd3Bridge.path, "restore-get-shsh", "--vm-dir", ".", "--udid", udid, "--ecid", "0x\(ecid)"]
-            + verbosityArgs
-        trace("spawn \(python.path) \(shshArgs.joined(separator: " "))", v)
-        let shshCode = try VPhoneProcessRunner.runStreaming(python, shshArgs, cwd: bundleURL, echo: v.showsToolDetail)
-        guard shshCode == 0 else { throw VPhoneCreateError.restoreGetSHSHFailed(shshCode) }
+        trace("in-process VPhoneRestoreBridge.fetchSHSH udid=\(udid) ecid=0x\(ecid)", v)
+        do {
+            try VPhoneRestoreBridge.fetchSHSH(
+                vmDir: bundleURL,
+                ecid: ecidValue,
+                udid: udid,
+                out: nil,
+                debugLevel: v.restoreDebugLevel,
+                onEvent: onEvent
+            )
+        } catch {
+            throw VPhoneCreateError.restoreGetSHSHFailed("\(error)")
+        }
 
         print("[*] Restoring...")
-        let restoreArgs =
-            [resources.pmd3Bridge.path, "restore-update", "--vm-dir", ".", "--udid", udid, "--ecid", "0x\(ecid)"]
-            + verbosityArgs
-        trace("spawn \(python.path) \(restoreArgs.joined(separator: " "))", v)
-        let restoreCode = try VPhoneProcessRunner.runStreaming(
-            python,
-            restoreArgs,
-            cwd: bundleURL,
-            echo: v.showsToolDetail
-        )
-        guard restoreCode == 0 else { throw VPhoneCreateError.restoreUpdateFailed(restoreCode) }
+        trace("in-process VPhoneRestoreBridge.restore udid=\(udid) ecid=0x\(ecid) erase=true", v)
+        do {
+            try VPhoneRestoreBridge.restore(
+                vmDir: bundleURL,
+                ecid: ecidValue,
+                udid: udid,
+                erase: true,
+                ticketPath: nil,
+                debugLevel: v.restoreDebugLevel,
+                onEvent: onEvent
+            )
+        } catch {
+            throw VPhoneCreateError.restoreUpdateFailed("\(error)")
+        }
 
         recordRestoreVersions(bundleURL: bundleURL)
 
@@ -461,16 +471,16 @@ public struct VPhoneCreateOrchestrator {
         return (udid, ecid)
     }
 
-    private func waitForRecovery(ecid: String, verbosity v: VPhoneVerbosity) throws {
+    /// 90 attempts, each waiting up to 2 seconds for an endpoint and sleeping 2
+    /// between — the cadence `setup_machine.sh`'s `wait_for_recovery` set, kept
+    /// to the attempt. What is gone is the python process per attempt: the same
+    /// wait is now one `irecv_open_with_ecid_and_attempts` poll per round.
+    private func waitForRecovery(ecid: UInt64?, verbosity v: VPhoneVerbosity) throws {
         print("[*] Waiting for recovery/DFU endpoint...")
-        let python = try resources.pythonExecutable()
         for _ in 1...90 {
-            let result = try? VPhoneProcessRunner.runCapturing(
-                python,
-                [resources.pmd3Bridge.path, "recovery-probe", "--ecid", "0x\(ecid)", "--timeout", "2"]
-            )
-            if result?.succeeded == true {
+            if let device = try? VPhoneRestoreBridge.recoveryProbe(ecid: ecid, timeout: 2) {
                 print("[+] Device endpoint is reachable")
+                trace("recovery-probe: \(device.productType ?? "device") in \(device.mode)", v)
                 return
             }
             Thread.sleep(forTimeInterval: 2)

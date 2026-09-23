@@ -9,7 +9,8 @@ struct VPhoneCLI: ParsableCommand {
         abstract: "Boot a virtual iPhone or patch firmware with the Swift pipeline",
         subcommands: [
             VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self, VPhoneVMCommand.self,
-            VPhoneFWCommand.self, VPhoneRestoreCommand.self, VPhoneCFWCommand.self, VPhoneSetupCommand.self,
+            VPhoneFWCommand.self, VPhoneRestoreCommand.self, VPhoneRecoveryProbeCommand.self,
+            VPhoneCFWCommand.self,
             VPhoneSignCommand.self, VPhoneDumpEntitlementsCommand.self,
         ],
         defaultSubcommand: VPhoneBootCLI.self

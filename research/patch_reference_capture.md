@@ -5,7 +5,10 @@
 > left with them when `scripts/patchers/` was removed. It is kept because the
 > port was built against the records it describes, and because shipping code
 > still cites its findings (`CFWJetsam.swift` quotes the non-idempotency note).
-> To run any of it, recover `scripts/patchers/` from git history at `78cbeea`.
+> To run any of it, recover `scripts/patchers/` from git history at `78cbeea`
+> **and stand up a Python environment outside this repository** — there is no
+> Python here any more and nothing left to activate, so the `.venv/bin/python3`
+> invocations below are transcripts, not instructions.
 > The parity evidence itself is no longer re-derived at test time: it is frozen
 > into the `FrozenReference` / `*Golden` enums in `tests/FirmwarePatcherTests/`.
 

@@ -53,7 +53,6 @@ section() { print ""; print -P "%B== $* ==%b" }
 # Anything not on this list and not in the system whitelist fails.
 typeset -a REGISTERED_REMAINING=(
   ldid      # -> VPhoneSign (P0.5). Bundled today and NOT self-contained.
-  python3   # -> restore backend only (scripts/pymobiledevice3_bridge.py); gone at P2.4
   gtar      # -> vphone-archive (P0.5)
   zstd      # -> vphone-archive (P0.5)
   unzip     # -> vphone-archive (P0.5)
@@ -64,6 +63,13 @@ typeset -a REGISTERED_REMAINING=(
   sshpass   # JB environment only, frozen
 )
 
+# python3 was on that list until P2.4 and must never go back on it. The restore
+# backend was its last consumer and is now libirecovery + idevicerestore linked
+# into vphone-cli, so an interpreter lookup anywhere in this repo is not a debt
+# to pay down — it is a regression, and gate 2 below now FAILS on one instead of
+# reporting it. `is_registered` still folds python3.13 and friends onto
+# `python3`, so a versioned lookup fails under the name people will search for.
+#
 # The AMFI bypass is deliberately NOT on that list and must never be added to
 # it. Whatever program lets amfid accept vphone-vm's entitlements — amfidont or
 # anything else — is the user's, run by hand from their own shell. Nothing here
@@ -85,7 +91,9 @@ typeset -a SYSTEM_WHITELIST=(
 
 is_registered() {
   local needle="$1"
-  # python3.13, python3.14 and friends are all the same dependency.
+  # python3.13, python3.14 and friends are all the same dependency — and since
+  # P2.4 that dependency is registered nowhere, so this fold exists to make a
+  # versioned lookup fail as plain `python3`.
   [[ "$needle" == python3* ]] && needle=python3
   for r in $REGISTERED_REMAINING; do [[ "$r" == "$needle" ]] && return 0; done
   return 1
@@ -170,9 +178,12 @@ check_closure() {
 # ---------------------------------------------------------------------------
 # Gate 2 — source scan
 # ---------------------------------------------------------------------------
-# otool describes link time. These are the runtime lookups it cannot see: the
-# `command -v python3` fallbacks, and a `tar --zstd` that quietly spawns a
-# zstd(1) from PATH. Both are real in this repo and neither shows up in gate 1.
+# otool describes link time. These are the runtime lookups it cannot see: a
+# `command -v python3` fallback, and a `tar --zstd` that quietly spawns a
+# zstd(1) from PATH. The second is still real in this repo; the first is the
+# one that made D1 look finished when it was not — several helpers ended their
+# python resolution with `command -v python3`, so pulling the venv out left
+# them quietly running the system interpreter. Neither shows up in gate 1.
 check_sources() {
   local hits="" line="" prog=""
 
@@ -203,9 +214,13 @@ check_sources() {
   # command position -- line start, or after | ; && || ( $( ! if -- and dropping
   # comment lines is the difference between a gate people read and one they
   # learn to ignore. `which is enough for...` in a comment is not a PATH lookup.
+  #
+  # tests/ is scanned too. It was not until P2.4, and that is exactly how a
+  # `python3 - <<'PY'` heredoc in tests/test_jb_kernel_patches.sh outlived the
+  # venv it was never part of: nothing looked there.
   hits=$(grep -rnE '^[^#]*(^|[;&|(]|\$\(|`|! |if )[[:space:]]*(command -v|which)[[:space:]]+[A-Za-z0-9_.-]+' \
-           --include='*.sh' scripts/ cfw-kit/ 2>/dev/null \
-         | grep -vE '^scripts/(build|check_aux|setup_venv|setup_venv_linux|setup_tools)\.sh' \
+           --include='*.sh' scripts/ cfw-kit/ tests/ 2>/dev/null \
+         | grep -vE '^scripts/(build|check_aux|setup_tools)\.sh' \
          | grep -v 'vphone_jb_setup.sh')
   if [[ -n "$hits" ]]; then
     while IFS= read -r line; do
@@ -217,6 +232,34 @@ check_sources() {
         fail "gate 2: unregistered PATH lookup for '$prog' — $line"
       fi
     done <<< "$hits"
+  fi
+
+  # No interpreter, anywhere. This is D1's completion gate, and it deliberately
+  # does not look for a pattern: it fails on the word `python` wherever this
+  # project's own shell can execute it. Looking for `command -v python3` is
+  # what would have missed the two `python3 - <<'PY'` heredocs that sat in
+  # tests/ long after the venv they were never part of.
+  #
+  # Two things are not interpreter use here. Comment lines: the repo explains
+  # what the Python used to do in a lot of places, and that history is worth
+  # keeping. And `echo`/`print` lines: `make amfi_command` prints the command
+  # that installs amfidont, which is the USER's tool, in the USER's own python,
+  # run from the USER's own shell — nothing here installs or spawns it.
+  #
+  # check_aux.sh excludes itself, because a scanner that looks for a word
+  # necessarily contains it.
+  hits=$( { grep -rnE 'python[0-9.]*' --include='*.sh' scripts/ cfw-kit/ tests/ 2>/dev/null
+            grep -HnE 'python[0-9.]*' Makefile 2>/dev/null } \
+          | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
+          | grep -vE '^scripts/check_aux\.sh:' \
+          | grep -vE '(echo|print)[[:space:]]' )
+  if [[ -n "$hits" ]]; then
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      fail "gate 2: interpreter reference — $line"
+    done <<< "$hits"
+  else
+    green "  ok    gate 2: no python reachable from any script, Makefile or test"
   fi
 }
 

@@ -260,7 +260,7 @@ addresses (49 gates each, zero verdict differences).
   convention (`0`). A driver summing these for a preview gets a wrong total.
 * `DSCLSDEmbeddedRegPatcher` — record text says `cbz w0, 0x186eea048` where the
   captured Python reference says `cbz w0, #0x186eea048`. libcapstone-spm
-  (Capstone 6) omits the `#` the venv's Capstone 5.0.7 emits. Bytes are
+  (Capstone 6) omits the `#` the Python patchers' Capstone 5.0.7 emitted. Bytes are
   identical; a field-level diff against `reference_patches/` will flag it.
 * `DSCHVVMMPatcher.findStringSites(inMachO:)` skips a string section whose
   declared extent overruns EOF, where the Python truncates and scans what is
@@ -415,9 +415,14 @@ byte-parity reference, gated on its presence. Deleting the submodule would turn
 that check into a silent skip rather than a failure. CI no longer initialises it;
 `setup_tools.sh` still builds it, relabelled as a test reference.
 
-`requirements.txt` drops `capstone`, `keystone-engine` and `pyimg4`; the venv,
-`setup_venv*.sh` and the Homebrew list exist for exactly one program now,
-`scripts/pymobiledevice3_bridge.py`.
+**P1 dropped `capstone`, `keystone-engine` and `pyimg4` from the dependency
+list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,
+`scripts/setup_venv_linux.sh`, the `make setup_venv` target and
+`scripts/pymobiledevice3_bridge.py` are all gone — the restore backend was the
+last program holding any of them up, and it is `sources/VPhoneRestore` over
+vendored libirecovery and idevicerestore now
+(`research/p2_restore_off_python.md`). No Python is tracked in this repository
+and nothing resolves a `python3` at runtime.
 
 ### Installed Components
 

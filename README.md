@@ -18,8 +18,11 @@ Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM
 **Dependencies:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+No interpreter and no package environment: everything vphone-cli itself runs is
+Swift or C, built by `make build`.
 
 ## Install
 
@@ -32,7 +35,7 @@ brew install zqxwce/tap/vphone-cli
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # install deps, build toolchain submodules, create the Python venv
+./scripts/setup_tools.sh      # install brew deps, build the toolchain submodules
 ./scripts/build.sh            # build + sign vphone-cli, bundle the .app, cross-compile vphoned
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +88,11 @@ vphone-cli vm launch myphone                            # 6. first boot
 
 Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
+Steps 4 and 5 run in `vphone-cli`'s own process. `restore` drives vendored
+libirecovery and idevicerestore directly — no external restore tool, no setup
+step before the first one works. Add `--offline` to restore from a `.shsh`
+already saved beside the VM instead of asking Apple for a fresh one.
+
 ## Firmware Variants
 
 Five patch variants with increasing security bypass — pass one to `--variant`:
@@ -116,9 +124,8 @@ Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo
 | `~/.vphone/ipsws/`| Downloaded iPhone + cloudOS IPSWs, cached and reused across VMs.                              |
 | `~/.vphone/tools/`| Cached APFS seal-volume artifacts (`apfs_sealvolume_<version>`) fetched during `fw prepare`.  |
 | `~/.vphone/debs/` | Cached `.deb` packages the `jb`/`exp` CFW install lays into the guest (Sileo, apt, …).        |
-| `~/.vphone/venv/` | Auto-provisioned Python environment (see [Python runtime](#python-runtime); override with `$VPHONE_VENV_DIR`). |
 
-Precedence: the per-item overrides (`$VPHONE_LIBRARY_ROOT`, `$VPHONE_VENV_DIR`) win over `$VPHONE_ROOT`, which wins over the `~/.vphone` default. The `ipsws/`, `tools/`, and `debs/` caches always sit directly under whichever root is active.
+Precedence: the per-item override `$VPHONE_LIBRARY_ROOT` wins over `$VPHONE_ROOT`, which wins over the `~/.vphone` default. The `ipsws/`, `tools/`, and `debs/` caches always sit directly under whichever root is active.
 
 ## SIP/AMFI Relaxation
 

@@ -102,10 +102,11 @@ public enum VPhoneRestoreTicket {
                 case Z_STREAM_END:
                     return true
                 case Z_OK, Z_BUF_ERROR:
-                    // Z_BUF_ERROR with nothing left to read is a truncated
-                    // stream; with input left it just means "call me again".
-                    if status == Z_BUF_ERROR, produced == 0, stream.avail_in == 0 { return false }
-                    if stream.avail_in == 0, produced == 0 { return false }
+                    // No input left and no output produced means inflate can
+                    // make no further progress and the stream ended without
+                    // its trailer — a truncated file, not a finished one. Z_OK
+                    // otherwise just means "call me again".
+                    if produced == 0, stream.avail_in == 0 { return false }
                 default:
                     return false
                 }

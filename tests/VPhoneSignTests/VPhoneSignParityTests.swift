@@ -140,7 +140,7 @@ struct VPhoneSignParityTests {
 
             let left = try Data(contentsOf: theirs), right = try Data(contentsOf: ours)
             #expect(left == right, "\(name): \(VPhoneSignLdidHarness.difference(left, right))")
-            if try VPhoneSigner.entitlements(ofFileAt: source, usesExternalLdid: false).isEmpty == false {
+            if try VPhoneSigner.entitlements(ofFileAt: source).isEmpty == false {
                 merged += 1
             }
         }

@@ -18,8 +18,10 @@ PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtu
 **依存関係:**
 
 ```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
+brew install aria2 wget gnu-tar openssl@3 ldid-procursus sshpass libusb ipsw zstd
 ```
+
+インタープリタもパッケージ環境も不要です。vphone-cli が実行するものはすべて Swift か C で、`make build` がビルドします。
 
 ## インストール
 
@@ -32,7 +34,7 @@ brew install zqxwce/tap/vphone-cli
 ```bash
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # 依存関係のインストール、ツールチェーンのサブモジュールのビルド、Python venv の作成
+./scripts/setup_tools.sh      # brew 依存関係のインストール、ツールチェーンのサブモジュールのビルド
 ./scripts/build.sh            # vphone-cli のビルド + 署名、.app のバンドル、vphoned のクロスコンパイル
 
 cd .build/vphone-cli.app/Contents/MacOS/
@@ -85,6 +87,11 @@ vphone-cli vm launch myphone                            # 6. 初回起動
 
 新しい iOS に更新するには、`fw prepare` を IPSW に向けます: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
+ステップ 4 と 5 は `vphone-cli` 自身のプロセス内で実行されます。`restore` は同梱の
+libirecovery と idevicerestore を直接駆動します — 外部の復元ツールも、最初の 1 回の前に
+必要なセットアップ手順もありません。`--offline` を付けると、Apple に新しい ticket を
+要求する代わりに、VM の横に保存済みの `.shsh` で復元します。
+
 ## ファームウェアバリアント
 
 セキュリティバイパスの度合いが段階的に増す 5 つのパッチバリアント — いずれか 1 つを `--variant` に渡します:
@@ -116,9 +123,8 @@ vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれま�
 | `~/.vphone/ipsws/`| ダウンロードされた iPhone + cloudOS の IPSW。キャッシュされ、複数の VM で再利用されます。       |
 | `~/.vphone/tools/`| `fw prepare` 中に取得された APFS seal-volume アーティファクト（`apfs_sealvolume_<version>`）のキャッシュ。 |
 | `~/.vphone/debs/` | `jb`/`exp` の CFW インストールがゲストに配置する `.deb` パッケージのキャッシュ（Sileo、apt など）。 |
-| `~/.vphone/venv/` | 自動的にプロビジョニングされる Python 環境（[Python ランタイム](#python-ランタイム) を参照。`$VPHONE_VENV_DIR` で上書き可能）。 |
 
-優先順位: 項目ごとの上書き（`$VPHONE_LIBRARY_ROOT`、`$VPHONE_VENV_DIR`）が `$VPHONE_ROOT` より優先され、`$VPHONE_ROOT` は `~/.vphone` のデフォルトより優先されます。`ipsws/`、`tools/`、`debs/` キャッシュは、常に現在有効なルートの直下に置かれます。
+優先順位: 項目ごとの上書き `$VPHONE_LIBRARY_ROOT` が `$VPHONE_ROOT` より優先され、`$VPHONE_ROOT` は `~/.vphone` のデフォルトより優先されます。`ipsws/`、`tools/`、`debs/` キャッシュは、常に現在有効なルートの直下に置かれます。
 
 ## SIP/AMFI の緩和
 

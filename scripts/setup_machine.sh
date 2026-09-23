@@ -38,7 +38,9 @@ BOOT_ANALYSIS_TIMEOUT="${BOOT_ANALYSIS_TIMEOUT:-300}"
 BOOT_PROMPT_FALLBACK_TIMEOUT="${BOOT_PROMPT_FALLBACK_TIMEOUT:-60}"
 BOOT_BASH_PROMPT_REGEX="${BOOT_BASH_PROMPT_REGEX:-bash-[0-9]+(\.[0-9]+)+#|:/[^ ]* root#}"
 BOOT_PANIC_REGEX="${BOOT_PANIC_REGEX:-(^|[^p])(panic|kernel panic|panic\\.apple\\.com|stackshot succeeded)}"
-PMD3_BRIDGE="${PMD3_BRIDGE:-${PROJECT_ROOT}/scripts/pymobiledevice3_bridge.py}"
+# The restore backend, built by `make build` a few steps before it is needed.
+# It replaces the pymobiledevice3 bridge script and the interpreter that ran it.
+VPHONE_CLI="${VPHONE_CLI:-${PROJECT_ROOT}/.build/release/vphone-cli}"
 NON_INTERACTIVE=1
 JB_MODE=0
 DEV_MODE=0
@@ -54,22 +56,6 @@ die() {
 require_cmd() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Missing required command: $cmd"
-}
-
-find_python_for_pmd3() {
-  local candidate
-  for candidate in \
-    "${PROJECT_ROOT}/.venv/bin/python3" \
-    "$(command -v python3 2>/dev/null || true)"
-  do
-    [[ -n "$candidate" ]] || continue
-    [[ -x "$candidate" ]] || continue
-    if "$candidate" -c "import pymobiledevice3" >/dev/null 2>&1; then
-      echo "$candidate"
-      return 0
-    fi
-  done
-  return 1
 }
 
 normalize_ecid() {
@@ -472,9 +458,11 @@ check_platform() {
 install_brew_deps() {
   require_cmd brew
 
+  # No python formula: the restore backend is linked into vphone-cli and the
+  # patchers are Swift, so this flow needs no interpreter at any point.
   local deps=(
     wget gnu-tar openssl@3 ldid-procursus sshpass git-lfs
-    python@3.13 libusb ipsw
+    libusb ipsw
   )
 
   echo "=== Installing Homebrew dependencies ==="
@@ -487,16 +475,6 @@ install_brew_deps() {
     fi
   done
   echo ""
-}
-
-ensure_python_linked() {
-  if ! command -v python3.13 >/dev/null 2>&1; then
-    local pybin
-    pybin="$(brew --prefix python@3.13)/bin"
-    export PATH="$pybin:$PATH"
-  fi
-
-  require_cmd python3.13
 }
 
 run_make() {
@@ -588,15 +566,12 @@ wait_for_post_restore_reboot() {
 }
 
 wait_for_recovery() {
-  local pmd3_python
-  pmd3_python="$(find_python_for_pmd3 || true)"
-  [[ -x "$pmd3_python" ]] || die "pymobiledevice3 python runtime not found (run: make setup_tools)"
-  [[ -f "$PMD3_BRIDGE" ]] || die "Missing bridge script: $PMD3_BRIDGE"
+  [[ -x "$VPHONE_CLI" ]] || die "Missing vphone-cli: $VPHONE_CLI (run: make build)"
 
   echo "[*] Waiting for recovery/DFU endpoint..."
   local i
   for i in {1..90}; do
-    if "$pmd3_python" "$PMD3_BRIDGE" recovery-probe --ecid "0x${DEVICE_ECID}" --timeout 2 >/dev/null 2>&1; then
+    if "$VPHONE_CLI" recovery-probe --ecid "0x${DEVICE_ECID}" --timeout 2 >/dev/null 2>&1; then
       echo "[+] Device endpoint is reachable"
       return
     fi
@@ -711,15 +686,10 @@ main() {
   else
     check_platform
     install_brew_deps
-    ensure_python_linked
 
     run_make "Project setup" setup_tools
     run_make "Project setup" build
   fi
-
-  # The venv serves exactly one program now: scripts/pymobiledevice3_bridge.py,
-  # the restore backend. The patch pipeline is Swift and never reads it.
-  export PATH="$PROJECT_ROOT/.venv/bin:$PATH"
 
   run_make "Firmware prep" vm_new
   if [[ "$LESS_MODE" -eq 0 ]]; then

@@ -51,19 +51,18 @@ BUNDLE_VM   := $(BUNDLE)/Contents/MacOS/vphone-vm
 BUNDLE_ARCHIVE := $(BUNDLE)/Contents/MacOS/vphone-archive
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
-# The venv exists for exactly one program now — the pymobiledevice3 restore
-# bridge below. The firmware and CFW patchers it used to serve are Swift
-# (FirmwarePatcher, reached through `vphone-cli cfw <verb>` and `patch-firmware`),
-# so nothing in the patch pipeline touches $(PYTHON) any more.
-VENV        := .venv
+# There is no interpreter here any more, and no variable naming one. The
+# firmware and CFW patchers are Swift (FirmwarePatcher, reached through
+# `vphone-cli cfw <verb>` and `patch-firmware`), and the restore targets below
+# are `vphone-cli restore`, which carries libirecovery and idevicerestore in
+# the binary. Anything that reintroduces a `python3` on PATH here is a
+# regression — see the "Python" section in AGENTS.md.
 TOOLS_PREFIX := .tools
-PMD3_BRIDGE := $(CURDIR)/$(SCRIPTS)/pymobiledevice3_bridge.py
-PYTHON      := $(CURDIR)/$(VENV)/bin/python3
 
 SWIFT_SOURCES := $(shell find sources -name '*.swift')
 
 # ─── Environment — prefer project-local binaries ────────────────
-export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/$(VENV)/bin:$(CURDIR)/.build/release:$(PATH)
+export PATH := $(CURDIR)/$(TOOLS_PREFIX)/bin:$(CURDIR)/.build/release:$(PATH)
 
 # ─── Default ──────────────────────────────────────────────────────
 .PHONY: help
@@ -88,8 +87,7 @@ help:
 	@echo "                                       Unset or empty keeps the build version that ships in the IPSW."
 	@echo ""
 	@echo "Setup (one-time):"
-	@echo "  make setup_tools             Install all tools (brew, trustcache, insert_dylib, venv+pymobiledevice3)"
-	@echo "  make setup_venv              The venv alone — needed only for 'make restore*' (pymobiledevice3)"
+	@echo "  make setup_tools             Install all tools (brew packages, trustcache, insert_dylib)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
@@ -152,7 +150,7 @@ help:
 	@echo ""
 	@echo "Restore:"
 	@echo "  make restore_get_shsh        Dump SHSH response from Apple"
-	@echo "  make restore                 Restore to device (pymobiledevice3 backend)"
+	@echo "  make restore                 Restore to device (in-process libirecovery + idevicerestore)"
 	@echo "  make restore_offline         Restore offline from the cached .shsh file (decrypts AEA images in place)"
 	@echo ""
 	@echo "CFW (host-mount install; VM must be off, re-execs sudo):"
@@ -168,7 +166,7 @@ help:
 # Setup
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: setup_machine setup_tools setup_venv
+.PHONY: setup_machine setup_tools
 
 setup_machine:
 	@if count=0; \
@@ -195,22 +193,20 @@ setup_machine:
 setup_tools:
 	VARIANT=$(VARIANT) zsh $(SCRIPTS)/setup_tools.sh
 
-# The venv alone, without the brew packages and the toolchain builds that
-# setup_tools also does. Documented in AGENTS.md and in setup_venv.sh's own
-# header, both of which named a target that did not exist.
-setup_venv:
-	zsh $(SCRIPTS)/setup_venv.sh
-
 # ═══════════════════════════════════════════════════════════════════
 # Clean — remove generated build/tooling files by default.
 # Destructive VM/IPSW cleanup is opt-in and requires confirmation.
+#
+# `.venv` is named literally, and only so an old checkout can be swept: nothing
+# creates one any more, and it is no longer in .gitignore, so a leftover shows
+# up in `git status` until this removes it.
 # ═══════════════════════════════════════════════════════════════════
 
 .PHONY: clean
 clean:
 	@set -e; \
 	echo "=== Cleaning build/tooling artifacts ==="; \
-	echo "Removing: .build .swiftpm $(VENV) $(TOOLS_PREFIX)"; \
+	echo "Removing: .build .swiftpm $(TOOLS_PREFIX) (and a leftover .venv, if one is still there)"; \
 	if [ "$(CLEAN_VM)" = "1" ] || [ "$(CLEAN_IPSW)" = "1" ]; then \
 		echo ""; \
 		echo "WARNING: destructive clean requested."; \
@@ -223,7 +219,7 @@ clean:
 			exit 0; \
 		esac; \
 	fi; \
-	rm -rf .build .swiftpm "$(VENV)" "$(TOOLS_PREFIX)"; \
+	rm -rf .build .swiftpm "$(TOOLS_PREFIX)" .venv; \
 	if [ "$(CLEAN_VM)" = "1" ]; then rm -rf "$(VM_DIR)"; fi; \
 	if [ "$(CLEAN_IPSW)" = "1" ]; then rm -rf ipsws; fi
 
@@ -550,21 +546,34 @@ define _resolve_ecid
 	fi
 endef
 
-restore_get_shsh:
+# The restore backend is vphone-cli itself now — libirecovery and
+# idevicerestore, linked in — so these targets need the binary built, the way
+# boot_dfu does. The venv and the Python bridge they used to run are gone from
+# this path entirely.
+#
+# `vphone-cli restore` names a VM the way the CLI does, as a library root plus
+# a bundle name, while make has always taken a directory (VM_DIR=vm, or an
+# absolute path on an external disk). Split VM_DIR_ABS rather than ask anyone
+# to learn a second spelling.
+RESTORE_VM_ARGS = --library-root "$(dir $(VM_DIR_ABS))" "$(notdir $(VM_DIR_ABS))"
+
+restore_get_shsh: build
 	@$(call _resolve_ecid); \
-	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-get-shsh \
-		--vm-dir . \
+	"$(CURDIR)/$(BINARY)" restore $(RESTORE_VM_ARGS) --get-shsh \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
 
-restore:
+restore: build
 	@$(call _resolve_ecid); \
-	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
-		--vm-dir . \
+	"$(CURDIR)/$(BINARY)" restore $(RESTORE_VM_ARGS) \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
 
-restore_offline:
+# The `ipsw fw aea` loop below stays: decrypting the AEA images is not part of
+# what moved in-process. `vphone-cli restore --offline` then picks the same
+# first-sorted .shsh this recipe checks for, and its own AEA pass finds nothing
+# left to do after the loop has run.
+restore_offline: build
 	@$(call _resolve_ecid); \
 	SHSH=$$(ls "$(VM_DIR_ABS)/"*.shsh 2>/dev/null | head -1); \
 	if [ -z "$$SHSH" ]; then \
@@ -595,9 +604,7 @@ restore_offline:
 		fi; \
 	done; \
 	echo "[+] Restoring offline with SHSH: $$(basename $$SHSH)"; \
-	cd "$(VM_DIR)" && "$(PYTHON)" "$(PMD3_BRIDGE)" restore-update \
-		--vm-dir . \
-		--tss "$$SHSH" \
+	"$(CURDIR)/$(BINARY)" restore $(RESTORE_VM_ARGS) --offline \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
 
