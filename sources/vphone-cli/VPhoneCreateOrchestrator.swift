@@ -14,7 +14,6 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
     case invalidECID(String)
     case udidECIDMismatch(udid: String, ecid: String)
     case recoveryTimeout
-    case restoreGetSHSHFailed(String)
     case restoreUpdateFailed(String)
     case cfwInstallFailed(Int32)
     case sudoPasswordRequired
@@ -39,8 +38,6 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
             "Timed out waiting for the device to enter recovery mode."
         // No exit code any more: the restore backend is in this process, so
         // what a failure carries is the reason it gave.
-        case let .restoreGetSHSHFailed(reason):
-            "Unable to fetch the signing ticket: \(reason)"
         case let .restoreUpdateFailed(reason):
             "Device restore failed: \(reason)"
         case let .cfwInstallFailed(code):
@@ -288,25 +285,12 @@ public struct VPhoneCreateOrchestrator {
 
         try waitForRecovery(ecid: ecidValue, verbosity: v)
 
-        // Both steps run in this process now — no python, no argv, no exit
-        // code — and report through the same console sink the CLI's `restore`
-        // uses. `-v` still decides how much of the restore log is shown.
+        // Online restore fetches its own signing ticket. Running a separate
+        // SHSH request first would initialize and tear down libirecovery twice
+        // in this process; the second device discovery can then fail. The
+        // standalone `restore --get-shsh` command remains available when a
+        // ticket file is needed for an offline restore.
         let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel)
-        print("[*] Fetching SHSH blob...")
-        trace("in-process VPhoneRestoreBridge.fetchSHSH udid=\(udid) ecid=0x\(ecid)", v)
-        do {
-            try VPhoneRestoreBridge.fetchSHSH(
-                vmDir: bundleURL,
-                ecid: ecidValue,
-                udid: udid,
-                out: nil,
-                debugLevel: v.restoreDebugLevel,
-                onEvent: onEvent
-            )
-        } catch {
-            throw VPhoneCreateError.restoreGetSHSHFailed("\(error)")
-        }
-
         print("[*] Restoring...")
         trace("in-process VPhoneRestoreBridge.restore udid=\(udid) ecid=0x\(ecid) erase=true", v)
         do {

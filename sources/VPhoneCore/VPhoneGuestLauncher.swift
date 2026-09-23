@@ -8,6 +8,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
     /// amfid refused `vphone-vm`. Carries what the advice needs to be concrete:
     /// the binary that was refused and, when it could be read, its cdhash.
     case blockedByAMFI(guest: URL, cdHash: String?)
+    case missingEntitlements(guest: URL)
     case probeFailed(exitCode: Int32, output: String)
 
     public var description: String {
@@ -33,6 +34,13 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
 
             The allowlist is specific to this signature, so repeat after a
             rebuild. See "SIP/AMFI Relaxation" in README.md for host settings.
+            """
+
+        case let .missingEntitlements(guest):
+            return """
+            vphone-vm is missing the private PV=3 entitlements: \(guest.path)
+            Run `make build` to sign this binary, then allow the new signature
+            through the host's AMFI policy before launching a VM.
             """
 
         case let .probeFailed(code, output):
@@ -64,7 +72,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
 /// tells them how.
 ///
 /// It is a value rather than a set of static calls because `vm create` boots
-/// the guest four times, and probing amfid once per boot would be wasteful.
+/// the guest more than once, and probing amfid once per boot would be wasteful.
 public struct VPhoneGuestLaunchPlanner: Sendable {
     /// The guest binary. Host preflight checks this, because this is the
     /// binary that actually has to satisfy amfid.
@@ -76,6 +84,13 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
             throw VPhoneGuestLaunchError.missingCompanion(name: "vphone-vm", expectedAt: vm)
         }
         guestExecutable = vm
+
+        // `swift test -c release` can replace a signed release binary with
+        // its linker-signed, unentitled build. That binary answers --help, but
+        // PV=3 isSupported is false when the VM is created.
+        guard try Self.hasRequiredEntitlements(vm) else {
+            throw VPhoneGuestLaunchError.missingEntitlements(guest: vm)
+        }
 
         // Probe before doing anything else. Launching straight into a SIGKILL
         // would leave the caller with a bare exit 9 and no explanation — which
@@ -105,6 +120,19 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
     }
 
     // MARK: - Probe
+
+    private static func hasRequiredEntitlements(_ vm: URL) throws -> Bool {
+        let result = try VPhoneProcessRunner.runCapturing(
+            URL(fileURLWithPath: "/usr/bin/codesign"),
+            ["-d", "--entitlements", "-", "--xml", vm.path]
+        )
+        guard result.succeeded,
+              let plist = try? PropertyListSerialization.propertyList(
+                  from: Data(result.stdout.utf8), format: nil) as? [String: Any]
+        else { return false }
+        return plist["com.apple.private.virtualization"] as? Bool == true &&
+            plist["com.apple.private.virtualization.security-research"] as? Bool == true
+    }
 
     /// Ask amfid the question cheaply, by running `vphone-vm --help`.
     ///

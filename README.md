@@ -89,8 +89,7 @@ vphone-cli fw prepare myphone --iphone-source /path/to/iPhone17,3_Restore.ipsw \
 vphone-cli fw patch myphone                             # 3. patch the JB boot chain
 
 vphone-cli vm launch myphone --dfu &                    # 4. boot into DFU (background)
-vphone-cli restore myphone --get-shsh                   #    fetch SHSH
-vphone-cli restore myphone                              #    DFU restore
+vphone-cli restore myphone                              #    fetch a ticket and DFU restore
 vphone-cli vm stop myphone                              #    stop the DFU boot
 
 vphone-cli cfw install myphone                          # 5. install CFW (host-mount; asks for sudo)
@@ -99,10 +98,11 @@ vphone-cli vm launch myphone                            # 6. first boot
 
 Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
 
-Steps 4 and 5 run in `vphone-cli`'s own process. `restore` drives vendored
+The restore command runs in `vphone-cli`'s own process. It drives vendored
 libirecovery and idevicerestore directly — no external restore tool, no setup
-step before the first one works. Add `--offline` to restore from a `.shsh`
-already saved beside the VM instead of asking Apple for a fresh one.
+step before the first one works. Use `restore --get-shsh` separately if you
+need to save a ticket, then add `--offline` to restore from that `.shsh`
+instead of asking Apple for a fresh one.
 
 ## Firmware Mode
 

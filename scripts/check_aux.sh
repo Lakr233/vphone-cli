@@ -46,13 +46,11 @@ FAST=0
 
 BUNDLE=".build/vphone-cli.app"
 FAILURES=0
-typeset -a REMAINING   # known, registered, not yet removed
 
 red()   { print -P "%F{red}$*%f" }
 green() { print -P "%F{green}$*%f" }
 amber() { print -P "%F{yellow}$*%f" }
 fail()  { red "  FAIL  $*"; (( FAILURES++ )) }
-note()  { REMAINING+=("$1"); amber "  todo  $1" }
 
 section() { print ""; print -P "%B== $* ==%b" }
 
@@ -511,11 +509,20 @@ check_smoke() {
     fi
   fi
 
-  # vphone-vm is deliberately NOT smoke-tested here: amfid refuses it unless the
-  # host's own AMFI bypass allows this copy — and the copy under test is a
-  # relocated one, with a path no allowlist was told about. Its exit code would
-  # say something about the host, not about self-containment.
-  [[ -x "$vm" ]] && note "gate 3: relocated vphone-vm skipped (host AMFI policy may gate it; run vphone-cli host preflight on the installed build)"
+  # An entitled VM can be refused at exec by this host's AMFI policy, which is
+  # independent of the bundle's dependency closure. Check the relocated
+  # signature and its two required private entitlements here; a real VM boot
+  # is the separate host acceptance test.
+  local entitlements="$tmp/vm-entitlements.plist"
+  if [[ -x "$vm" ]] \
+     && /usr/bin/codesign --verify --strict "$vm" >/dev/null 2>&1 \
+     && /usr/bin/codesign -d --entitlements - --xml "$vm" >"$entitlements" 2>/dev/null \
+     && [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.private.virtualization' "$entitlements" 2>/dev/null)" == true ]] \
+     && [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.private.virtualization.security-research' "$entitlements" 2>/dev/null)" == true ]]; then
+    green "  ok    gate 3: relocated vphone-vm signature and PV=3 entitlements"
+  else
+    fail "gate 3: relocated vphone-vm signature or PV=3 entitlements"
+  fi
 
   rm -rf "$tmp"
 }
@@ -561,12 +568,6 @@ rm -rf "${MOVED:h}"
 
 # ---------------------------------------------------------------------------
 section "Result"
-if (( ${#REMAINING} )); then
-  amber "${#REMAINING} registered item(s) still to remove:"
-  for r in $REMAINING; do print "    - $r"; done
-  print ""
-  amber "These are tracked, not ignored. A release requires this list to be empty."
-fi
 
 if (( FAILURES )); then
   red "$FAILURES failure(s). The bundle is not self-contained."
