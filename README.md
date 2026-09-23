@@ -151,6 +151,35 @@ no entitlements and always launches, so when it starts a guest it notices that
 amfid will not accept `vphone-vm`, opens a window with `vphone-letmein` (one
 sudo prompt), and closes it once the guest is running.
 
+> **Check this before relying on Option B:**
+>
+> ```bash
+> sysctl vm.cs_system_enforcement    # must be 0
+> ```
+>
+> `vphone-letmein` opens its window by writing into amfid's `__TEXT`, which
+> makes that page private, dirty and unsigned. If the host enforces code
+> signing system-wide, the kernel validates the page the next time amfid faults
+> into it, finds no signature, and kills amfid —
+> `CODESIGNING / "Invalid Page"`, with a report in
+> `/Library/Logs/DiagnosticReports`. The guest is killed too, because amfid
+> died before it answered. Measured on macOS 27.0 (26A428), arm64e, with
+> exactly the `csrutil` settings above: the sysctl reads **1**, so Option B
+> does not work there and `vphone-letmein` refuses rather than taking amfid
+> down. The sysctl is read-only, so nothing can relax it at runtime.
+>
+> `csrutil enable --without debug` by itself does **not** clear it — that flag
+> buys `task_for_pid`, not permission to run modified pages. If the sysctl
+> reads 1, use Option A; with AMFI relaxed, `vphone-vm` launches on its own and
+> `vphone-letmein` is not involved at all.
+>
+> The predecessor `amfidont` worked under enforcement because it drove amfid
+> through LLDB, and a debugger sets arm64 breakpoints in the CPU's debug
+> registers without writing to the page. Doing that here needs
+> `com.apple.private.set-exception-port` and
+> `com.apple.private.thread-set-state`, which is why `vphone-letmein` patches
+> instead — and why the patch carries this precondition.
+
 To do it by hand — worth it while working on `vphone-vm`, where one sudo beats
 a prompt per run:
 
@@ -168,7 +197,9 @@ make letmein_off      # close
 > for the length of one launch. It is also memory-only: a reboot clears it.
 >
 > `vphone-letmein` replaces the old `amfidont` helper, which was a pip package
-> and is no longer used.
+> and is no longer used. It is not a drop-in replacement: see the
+> `vm.cs_system_enforcement` note above for the case `amfidont` covered and
+> this does not.
 
 ## Tested Environments
 

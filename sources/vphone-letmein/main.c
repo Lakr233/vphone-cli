@@ -74,6 +74,47 @@
 // runtime). No file offset, virtual address or ivar offset is hardcoded.
 //
 // ---------------------------------------------------------------------------
+// When this CANNOT work, and why
+// ---------------------------------------------------------------------------
+// Writing to amfid's __TEXT produces a private, dirty, unsigned executable
+// page. If the host enforces code signing system-wide, the kernel validates
+// that page on the next fault into it, finds no signature, and kills amfid:
+//
+//     exception    EXC_BAD_ACCESS, SIGKILL (Code Signature Invalid)
+//     termination  namespace CODESIGNING, code 2, indicator "Invalid Page"
+//     fault        inside -[AMFIPathValidator_macos validateWithError:]
+//     region       __TEXT ... r-x/rwx SM=COW
+//
+// Measured on macOS 27.0 (26A428), arm64e, SIP `enabled --without debug`:
+// amfid died at the instant this tool patched it. The gate is the read-only
+// sysctl `vm.cs_system_enforcement`. At 1 this tool takes amfid down and
+// nothing launches; at 0 the dirty page is allowed and the patch holds. So the
+// value is checked before anything is written, and 1 is a refusal, not a
+// warning -- killing the machine's amfid is not an acceptable failure mode.
+//
+// This is also why the LLDB-based predecessor worked where this does not: a
+// debugger sets arm64 breakpoints in the CPU's debug registers and never
+// writes to the text page at all. Doing that here would need
+// task_set_exception_ports() and thread_set_state(), which are the gated calls
+// described above -- the trade this tool made was "no debugger entitlements,
+// but only on a host that permits dirty text".
+//
+// Two things that look like a way around it and are not, both on arm64e:
+//
+//   * Rebinding amfid's __DATA_CONST,__auth_got entries. The slots hold
+//     PAC-signed pointers, and the signing keys are per-process, so a pointer
+//     forged here fails authentication inside amfid.
+//   * Swizzling -[AMFIPathValidator_macos validateWithError:]. Relative method
+//     lists store an unsigned 32-bit offset, so the entry itself could be
+//     rewritten -- but the ObjC method cache would keep serving the original
+//     IMP, and _objc_flush_caches cannot be called in another process.
+//
+// The supported configuration for this project is a host where AMFI is not
+// enforcing (see README). On such a host vphone-vm launches on its own and
+// this tool is not needed; it exists for the narrower case of an enforcing
+// amfid on a host that still permits dirty text.
+//
+// ---------------------------------------------------------------------------
 // Scope, honestly stated
 // ---------------------------------------------------------------------------
 // This is a global switch: while the patch is in place EVERY signature amfid
@@ -92,9 +133,9 @@
 // not survive a reboot, and `off` restores by writing this process's own
 // (unmodified) bytes back -- there is no state file to lose.
 //
-// Requires: root, and SIP with debugging restrictions disabled
-// (`csrutil enable --without debug`). Same prerequisites the rest of the
-// project already has.
+// Requires: root; SIP with debugging restrictions disabled
+// (`csrutil enable --without debug`), so task_for_pid works; and
+// `vm.cs_system_enforcement == 0`, so the patched page may execute.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,6 +148,7 @@
 #include <objc/runtime.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
+#include <sys/sysctl.h>
 
 #define AMFID_PATH "/usr/libexec/amfid"
 #define AMFI_FRAMEWORK \
@@ -139,13 +181,35 @@ typedef struct {
 } site_t;
 
 static mach_port_t g_task = MACH_PORT_NULL;
+static pid_t g_pid = -1;
 static site_t g_sites[2];
 static int g_nsites = 0;
 static int g_applied = 0;
+// Set while unwinding so the atexit handler does not try to touch amfid again.
+// Without it a failed write inside restore_all() called die(), die() called
+// exit(), exit() ran restore_at_exit(), and that tried the same write again --
+// the same error printed twice and exit() re-entered.
+static int g_bailing = 0;
 
 static void die(const char *what, kern_return_t kr) {
+    g_bailing = 1;
     fprintf(stderr, "error: %s: %s\n", what, mach_error_string(kr));
     exit(1);
+}
+
+// `vm.cs_system_enforcement` decides whether a dirty, unsigned executable page
+// is a kill. Read-only at runtime, so this is a report, not a switch.
+static int cs_system_enforcement(void) {
+    int value = 0;
+    size_t len = sizeof(value);
+    if (sysctlbyname("vm.cs_system_enforcement", &value, &len, NULL, 0) != 0) return -1;
+    return value;
+}
+
+static int amfid_is_alive(void) {
+    if (g_pid <= 0) return 0;
+    char path[PROC_PIDPATHINFO_MAXSIZE];
+    return proc_pidpath(g_pid, path, sizeof(path)) > 0 && strcmp(path, AMFID_PATH) == 0;
 }
 
 static pid_t find_amfid(void) {
@@ -186,24 +250,29 @@ static ptrdiff_t ivar_offset(const char *name) {
 // amfid memory
 // --------------------------------------------------------------------------
 
-static void read_amfid(mach_vm_address_t addr, void *buf, size_t len) {
+// Every remote access returns its kern_return_t. A dead amfid is an ordinary
+// outcome here -- it is a launch-on-demand job with EnablePressuredExit, so it
+// can be gone between any two calls -- and the caller decides whether that is
+// a failure or simply nothing left to do.
+static kern_return_t try_read_amfid(mach_vm_address_t addr, void *buf, size_t len) {
     mach_vm_size_t got = 0;
-    kern_return_t kr = mach_vm_read_overwrite(g_task, addr, len, (mach_vm_address_t)buf, &got);
-    if (kr != KERN_SUCCESS) die("mach_vm_read_overwrite", kr);
+    return mach_vm_read_overwrite(g_task, addr, len, (mach_vm_address_t)buf, &got);
 }
 
 // Writing forces the shared-cache page to be copied into amfid privately, so
 // every other process — including this one — keeps seeing the pristine code.
-static void write_amfid(mach_vm_address_t addr, const uint32_t *words, int n) {
+static kern_return_t try_write_amfid(mach_vm_address_t addr, const uint32_t *words, int n,
+                                     const char **what) {
     mach_vm_address_t page = addr & ~(PAGE_SIZE_16K - 1);
     mach_vm_size_t span = PAGE_SIZE_16K * 2; // a site may straddle a page boundary
     kern_return_t kr = mach_vm_protect(g_task, page, span, FALSE,
                                        VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-    if (kr != KERN_SUCCESS) die("mach_vm_protect(rw|copy)", kr);
+    if (kr != KERN_SUCCESS) { *what = "mach_vm_protect(rw|copy)"; return kr; }
     kr = mach_vm_write(g_task, addr, (vm_offset_t)words, (mach_msg_type_number_t)(n * 4));
-    if (kr != KERN_SUCCESS) die("mach_vm_write", kr);
+    if (kr != KERN_SUCCESS) { *what = "mach_vm_write"; return kr; }
     kr = mach_vm_protect(g_task, page, span, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-    if (kr != KERN_SUCCESS) die("mach_vm_protect(rx)", kr);
+    if (kr != KERN_SUCCESS) { *what = "mach_vm_protect(rx)"; return kr; }
+    return KERN_SUCCESS;
 }
 
 // --------------------------------------------------------------------------
@@ -281,28 +350,88 @@ static void locate_isapple_site(site_t *out) {
 // --------------------------------------------------------------------------
 
 // A site counts as patched when amfid's copy matches what we would write.
+// Returns -1 when amfid could not be read at all, which is not the same as
+// "clean" and must not be reported as one.
 static int site_is_patched(const site_t *s) {
     uint32_t cur[2] = {0, 0};
-    read_amfid(s->addr, cur, (size_t)s->words * 4);
+    if (try_read_amfid(s->addr, cur, (size_t)s->words * 4) != KERN_SUCCESS) return -1;
     for (int i = 0; i < s->words; i++)
         if (cur[i] != s->want[i]) return 0;
     return 1;
 }
 
-static void apply_all(void) {
-    for (int i = 0; i < g_nsites; i++) write_amfid(g_sites[i].addr, g_sites[i].want, g_sites[i].words);
+// The patch is worthless unless it is still there, in a live amfid, when the
+// kernel asks. So the write is read back, and a dead amfid at this point is
+// reported as what it is rather than carried forward as success.
+static void died_under_the_patch(void) {
+    fprintf(stderr,
+            "\nerror: amfid died while being patched.\n"
+            "       vm.cs_system_enforcement is %d. At 1 the kernel validates the dirty\n"
+            "       text page on the next fault into it, finds no signature, and kills\n"
+            "       amfid with CODESIGNING/\"Invalid Page\" -- look for an amfid report in\n"
+            "       /Library/Logs/DiagnosticReports. Nothing this tool can do from\n"
+            "       another process avoids that; the host has to stop enforcing, and\n"
+            "       with AMFI relaxed vphone-vm launches without this tool at all.\n",
+            cs_system_enforcement());
+}
+
+// Does amfid's copy already hold `words`? Used to skip writes that would
+// change nothing: every write dirties a page, and on a host that enforces code
+// signing a needlessly dirtied page is a needlessly dead amfid.
+static int site_already_reads(const site_t *s, const uint32_t *words) {
+    uint32_t cur[2] = {0, 0};
+    if (try_read_amfid(s->addr, cur, (size_t)s->words * 4) != KERN_SUCCESS) return -1;
+    for (int i = 0; i < s->words; i++)
+        if (cur[i] != words[i]) return 0;
+    return 1;
+}
+
+static int apply_all(void) {
+    for (int i = 0; i < g_nsites; i++) {
+        if (site_already_reads(&g_sites[i], g_sites[i].want) == 1) continue;
+        const char *what = "";
+        kern_return_t kr = try_write_amfid(g_sites[i].addr, g_sites[i].want, g_sites[i].words, &what);
+        if (kr != KERN_SUCCESS) {
+            if (!amfid_is_alive()) { died_under_the_patch(); return 0; }
+            die(what, kr);
+        }
+    }
+    for (int i = 0; i < g_nsites; i++) {
+        int state = site_is_patched(&g_sites[i]);
+        if (state < 0) { died_under_the_patch(); return 0; }
+        if (state == 0) {
+            fprintf(stderr, "\nerror: %s did not take -- amfid still reads the original bytes\n",
+                    g_sites[i].name);
+            return 0;
+        }
+    }
     g_applied = 1;
+    return 1;
 }
 
 // The pristine bytes are simply the ones still mapped in this process, since the
-// patch only ever touched amfid's private copy.
+// patch only ever touched amfid's private copy. If amfid is gone, its private
+// copy went with it and there is nothing left to undo -- that is a clean
+// outcome, not a failure, and it is the common one for a job that idle-exits.
 static void restore_all(void) {
     if (!g_nsites) return;
+    g_applied = 0; // first: a failure below must not re-enter through atexit
     for (int i = 0; i < g_nsites; i++) {
         const uint32_t *pristine = (const uint32_t *)g_sites[i].addr;
-        write_amfid(g_sites[i].addr, pristine, g_sites[i].words);
+        // Writing the original bytes back is still a write: it dirties the page
+        // just as the patch did, and on an enforcing host that alone is fatal.
+        // So a site that already reads pristine is left alone entirely.
+        if (site_already_reads(&g_sites[i], pristine) == 1) continue;
+        const char *what = "";
+        kern_return_t kr = try_write_amfid(g_sites[i].addr, pristine, g_sites[i].words, &what);
+        if (kr == KERN_SUCCESS) continue;
+        if (!amfid_is_alive()) {
+            printf("amfid is no longer running; its private copy went with it\n");
+            return;
+        }
+        fprintf(stderr, "warning: could not restore %s: %s: %s\n",
+                g_sites[i].name, what, mach_error_string(kr));
     }
-    g_applied = 0;
 }
 
 // Set once `exec` has forked, so a signal can be passed on before we go.
@@ -318,6 +447,7 @@ static void restore_on_signal(int sig) {
 }
 
 static void restore_at_exit(void) {
+    if (g_bailing) return; // die() is already unwinding; do not touch amfid again
     if (g_applied) restore_all();
 }
 
@@ -328,11 +458,38 @@ static void locate_all(void) {
     g_nsites = 2;
 }
 
+// Take (or retake) a task port on whatever amfid is running now. Quiet form
+// for the watchdog, which calls it whenever the pid has moved.
+static kern_return_t grab_amfid(pid_t pid) {
+    if (g_task != MACH_PORT_NULL) {
+        mach_port_deallocate(mach_task_self(), g_task);
+        g_task = MACH_PORT_NULL;
+    }
+    kern_return_t kr = task_for_pid(mach_task_self(), pid, &g_task);
+    if (kr == KERN_SUCCESS) g_pid = pid;
+    return kr;
+}
+
+// amfid is launch-on-demand with EnablePressuredExit, so "not running" is a
+// normal state rather than an error — wait briefly for it instead of failing.
+static pid_t await_amfid(int seconds) {
+    for (int i = 0; i <= seconds * 10; i++) {
+        pid_t pid = find_amfid();
+        if (pid > 0) return pid;
+        usleep(100 * 1000);
+    }
+    return -1;
+}
+
 static void attach(void) {
     if (geteuid() != 0) { fprintf(stderr, "error: must run as root\n"); exit(1); }
-    pid_t pid = find_amfid();
-    if (pid < 0) { fprintf(stderr, "error: amfid is not running\n"); exit(1); }
-    kern_return_t kr = task_for_pid(mach_task_self(), pid, &g_task);
+    pid_t pid = await_amfid(5);
+    if (pid < 0) {
+        fprintf(stderr, "error: amfid is not running, and did not start within 5s\n");
+        fprintf(stderr, "       it is launched on demand; any code-signature check starts it\n");
+        exit(1);
+    }
+    kern_return_t kr = grab_amfid(pid);
     if (kr != KERN_SUCCESS) {
         fprintf(stderr, "error: task_for_pid(%d): %s\n", pid, mach_error_string(kr));
         fprintf(stderr, "       needs root and `csrutil enable --without debug`\n");
@@ -341,14 +498,55 @@ static void attach(void) {
     printf("amfid pid %d\n", pid);
 }
 
+// amfid can exit and be relaunched at any point in the window, and a fresh
+// amfid is an unpatched one. Called in a tight loop while the window is open
+// so a relaunch is repatched rather than silently letting the next launch die.
+// Returns 0 once the patch can no longer be kept in place.
+static int keep_patched(void) {
+    pid_t pid = find_amfid();
+    if (pid < 0) return 1; // between instances; nothing to patch yet
+    if (pid != g_pid) {
+        if (grab_amfid(pid) != KERN_SUCCESS) return 1; // it may already be gone again
+        printf("amfid relaunched as pid %d; repatching\n", pid);
+        return apply_all();
+    }
+    for (int i = 0; i < g_nsites; i++) {
+        int state = site_is_patched(&g_sites[i]);
+        if (state < 0) return 1; // gone mid-check; the next pass picks up its successor
+        if (state == 0) return apply_all();
+    }
+    return 1;
+}
+
+// Refuse before writing anything if the host would kill amfid for it.
+static int refuse_if_enforcing(int force) {
+    int enforcing = cs_system_enforcement();
+    if (enforcing <= 0) return 0; // 0 = permitted, -1 = sysctl absent, let it try
+    fprintf(stderr,
+            "error: vm.cs_system_enforcement is 1 — this host enforces code signing\n"
+            "       system-wide, so patching amfid's text would get amfid killed with\n"
+            "       CODESIGNING/\"Invalid Page\" the moment it runs the patched page.\n"
+            "       That takes down the machine's amfid, so it is refused rather than\n"
+            "       attempted. Measured on macOS 27.0 (26A428) arm64e; see the header\n"
+            "       of this tool's source for the crash report it produced.\n"
+            "\n"
+            "       The sysctl is read-only, so this cannot be relaxed at runtime. Run\n"
+            "       the host with AMFI not enforcing — and then vphone-vm launches\n"
+            "       without this tool at all.\n"
+            "\n"
+            "       `--force` attempts it anyway; expect amfid to die.\n");
+    return force ? 0 : 1;
+}
+
 static void usage(const char *argv0) {
     fprintf(stderr,
             "usage: sudo %s <command>\n"
             "\n"
-            "  status              report whether amfid is currently patched\n"
-            "  on                  patch amfid and exit (stays until `off` or reboot)\n"
+            "  status              report whether amfid is currently patched, and\n"
+            "                      whether this host would allow the patch at all\n"
+            "  on [--force]        patch amfid and exit (stays until `off` or reboot)\n"
             "  off                 restore amfid\n"
-            "  exec [--hold N] [--detach] -- <path>...\n"
+            "  exec [--hold N] [--detach] [--force] -- <path>...\n"
             "                      patch, run <path>, restore. Without --hold the patch\n"
             "                      stays until the command exits. With it, the patch is\n"
             "                      removed after N seconds but the command is still\n"
@@ -357,6 +555,11 @@ static void usage(const char *argv0) {
             "                      is removed and leaves the command running.\n"
             "                      <path> must be an absolute path: there is no PATH\n"
             "                      lookup.\n"
+            "\n"
+            "Requires `vm.cs_system_enforcement == 0`. On a host that enforces, the\n"
+            "patched page is killed as CODESIGNING/\"Invalid Page\" and amfid dies with\n"
+            "it, so `on` and `exec` refuse (exit 3) unless --force. Such a host needs\n"
+            "AMFI relaxed instead -- and then vphone-vm launches without this tool.\n"
             "\n"
             "While patched, EVERY signature amfid checks is reported valid and\n"
             "Apple-signed -- this is a global switch, not an allowlist. Prefer\n"
@@ -376,19 +579,27 @@ int main(int argc, char **argv) {
         printf("\n");
         for (int i = 0; i < g_nsites; i++) {
             int p = site_is_patched(&g_sites[i]);
+            if (p < 0) {
+                printf("\namfid went away while being read; nothing is patched\n");
+                return 1;
+            }
             n += p;
             printf("  %-36s %s\n", g_sites[i].name, p ? "PATCHED" : "clean");
         }
         printf("\namfid is %s\n", n == g_nsites ? "PATCHED (bypass active)"
                                   : n == 0     ? "clean (no bypass)"
                                                : "PARTIALLY patched — run `off`");
+        printf("vm.cs_system_enforcement = %d%s\n", cs_system_enforcement(),
+               cs_system_enforcement() > 0 ? "  (patching would kill amfid — see `on`)" : "");
         return n == g_nsites ? 0 : (n == 0 ? 1 : 2);
     }
 
     if (!strcmp(cmd, "on")) {
+        int force = argc > 2 && !strcmp(argv[2], "--force");
+        if (refuse_if_enforcing(force)) return 3;
         attach();
         locate_all();
-        apply_all();
+        if (!apply_all()) return 1;
         g_applied = 0; // deliberately persistent: do not restore at exit
         printf("\namfid patched. Run `%s off` when you are done.\n", argv[0]);
         return 0;
@@ -402,8 +613,13 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    if (!strcmp(cmd, "--help") || !strcmp(cmd, "-h")) {
+        usage(argv[0]);
+        return 0;
+    }
+
     if (!strcmp(cmd, "exec")) {
-        int i = 2, hold = -1, detach = 0;
+        int i = 2, hold = -1, detach = 0, force = 0;
         while (i < argc) {
             if (!strcmp(argv[i], "--hold")) {
                 if (i + 1 >= argc) { usage(argv[0]); return 2; }
@@ -411,6 +627,9 @@ int main(int argc, char **argv) {
                 i += 2;
             } else if (!strcmp(argv[i], "--detach")) {
                 detach = 1;
+                i += 1;
+            } else if (!strcmp(argv[i], "--force")) {
+                force = 1;
                 i += 1;
             } else {
                 break;
@@ -423,13 +642,16 @@ int main(int argc, char **argv) {
         if (i < argc && !strcmp(argv[i], "--")) i++;
         if (i >= argc) { usage(argv[0]); return 2; }
 
+        if (refuse_if_enforcing(force)) return 3;
         attach();
         locate_all();
         signal(SIGINT, restore_on_signal);
         signal(SIGTERM, restore_on_signal);
         signal(SIGHUP, restore_on_signal);
         atexit(restore_at_exit);
-        apply_all();
+        // Nothing is launched on a patch that did not take: the child would be
+        // killed at exec and the real reason would be buried under its output.
+        if (!apply_all()) return 1;
         printf("\n>>> %s\n", argv[i]);
 
         pid_t child = fork();
@@ -454,9 +676,31 @@ int main(int argc, char **argv) {
         // would close the window just as early but throw that away, which is
         // why it is opt-in rather than what --hold does by itself.
         if (hold >= 0) {
-            sleep((unsigned)hold);
+            // Not a plain sleep. amfid idle-exits and is relaunched on demand,
+            // and a relaunched amfid is an unpatched one — so the window is
+            // only real if it is re-established for as long as it is open.
+            // Also stop early once the child is gone: there is nothing left to
+            // cover, and holding a global bypass open past its purpose is the
+            // one thing this tool must not do.
+            for (int tick = 0; tick < hold * 20; tick++) {
+                usleep(50 * 1000);
+                if (waitpid(child, &status, WNOHANG) == child) {
+                    if (WIFSIGNALED(status))
+                        printf("<<< child killed by signal %d during the window\n", WTERMSIG(status));
+                    else
+                        printf("<<< child exited with status %d during the window\n",
+                               WEXITSTATUS(status));
+                    child = -1;
+                    break;
+                }
+                if (!keep_patched()) {
+                    fprintf(stderr, "<<< could not keep amfid patched; closing the window\n");
+                    break;
+                }
+            }
             restore_all();
             printf("<<< held %ds; amfid restored\n", hold);
+            if (child < 0) return WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
             if (detach) {
                 printf("detached; pid %d keeps running\n", (int)child);
                 return 0;
@@ -464,7 +708,10 @@ int main(int argc, char **argv) {
         }
 
         while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
-        printf("<<< child exited with status %d\n", WEXITSTATUS(status));
+        if (WIFSIGNALED(status))
+            printf("<<< child killed by signal %d\n", WTERMSIG(status));
+        else
+            printf("<<< child exited with status %d\n", WEXITSTATUS(status));
         if (g_applied) {
             restore_all();
             printf("amfid restored.\n");

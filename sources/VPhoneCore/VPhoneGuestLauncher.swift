@@ -36,6 +36,7 @@ public enum VPhoneLetMeInPolicy: String, Sendable, CaseIterable, ExpressibleByAr
 public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
     case missingCompanion(name: String, expectedAt: URL)
     case blockedByAMFI
+    case blockedByCodeSigningEnforcement
     case probeFailed(exitCode: Int32, output: String)
 
     public var description: String {
@@ -52,6 +53,22 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
             opening a window for it.
             Re-run with --let-me-in=auto, or open one yourself:
               sudo vphone-letmein on
+            """
+        case .blockedByCodeSigningEnforcement:
+            """
+            amfid refused to launch vphone-vm, and this host cannot be given an \
+            AMFI window: `sysctl vm.cs_system_enforcement` reads 1.
+
+            vphone-letmein opens its window by writing into amfid's __TEXT. That \
+            makes the page private, dirty and unsigned, and under system-wide \
+            enforcement the kernel kills amfid for it (CODESIGNING / "Invalid \
+            Page") before it can answer — so the guest dies too and the machine \
+            loses its amfid. No sudo prompt was shown, because there is nothing \
+            a password would buy here; the sysctl is read-only.
+
+            Relax AMFI instead — see "SIP/AMFI Relaxation", Option A, in \
+            README.md. With AMFI relaxed vphone-vm launches on its own and \
+            vphone-letmein is not involved at all.
             """
         case let .probeFailed(code, output):
             """
@@ -127,6 +144,14 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
             throw VPhoneGuestLaunchError.blockedByAMFI
         }
 
+        // Ask before prompting for a password. vphone-letmein refuses on an
+        // enforcing host anyway (exit 3), but it can only say so after sudo has
+        // already taken the user's password — and a password that buys nothing
+        // is worse than an early, specific refusal.
+        if Self.codeSigningIsEnforced() {
+            throw VPhoneGuestLaunchError.blockedByCodeSigningEnforcement
+        }
+
         let letmein = VPhoneResources.siblingExecutable("vphone-letmein")
         guard FileManager.default.isExecutableFile(atPath: letmein.path) else {
             throw VPhoneGuestLaunchError.missingCompanion(name: "vphone-letmein", expectedAt: letmein)
@@ -142,6 +167,23 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
 
         executable = URL(fileURLWithPath: "/usr/bin/sudo")
         prefix = [letmein.path, "exec", "--hold", String(windowSeconds), "--", vm.path]
+    }
+
+    /// Does this host kill a process for running a modified page?
+    ///
+    /// `vm.cs_system_enforcement` is the flag behind the
+    /// `CODESIGNING / "Invalid Page"` kill. It is read-only, so this is a
+    /// report about the host, not something any caller can change. A missing
+    /// sysctl is treated as "not enforcing": on a host old enough not to have
+    /// it, letting vphone-letmein try and report for itself beats refusing on a
+    /// guess.
+    static func codeSigningIsEnforced() -> Bool {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("vm.cs_system_enforcement", &value, &size, nil, 0) == 0 else {
+            return false
+        }
+        return value != 0
     }
 
     /// The command to spawn for one boot.
