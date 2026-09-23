@@ -16,21 +16,30 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 cd "$PROJECT_ROOT"
 
-# Three host binaries, and only ONE of them is entitled. vphone-cli is the
+# Five host binaries, and only ONE of them is entitled. vphone-cli is the
 # user-facing entry point and carries nothing, so it always launches; vphone-vm
 # holds the private virtualization keys and is what amfid can refuse;
-# vphone-archive unpacks and packs without gtar, bsdtar, unzip or zstd.
+# vphone-archive unpacks and packs without gtar, bsdtar, unzip or zstd;
+# vphone-ask-for-permission is the SUDO_ASKPASS helper; vphone-amfi-allow is
+# what gets vphone-vm past amfid.
 #
-# Nothing here opens an AMFI window. Allowing vphone-vm past amfid is the user's
-# own step, with a bypass this project neither ships nor depends on; `make
-# amfi_command` prints the command line for the binaries built below.
+# `make amfi_allow` runs that last one for the binaries built below. It is a
+# per-build step, not a once-per-machine one, because it allowlists cdhashes and
+# those change every time anything is signed.
 BINARY=".build/release/vphone-cli"
 VM_BINARY=".build/release/vphone-vm"
 ARCHIVE_BINARY=".build/release/vphone-archive"
+ASKPASS_BINARY=".build/release/vphone-ask-for-permission"
+# Not built by `swift build`: SwiftPM emits arm64 and this one has to be arm64e
+# to walk amfid's ObjC runtime. See the header of its C file.
+AMFI_BINARY=".build/release/vphone-amfi-allow"
+AMFI_SOURCE="sources/vphone-amfi-allow/vphone-amfi-allow.c"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
 BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
 BUNDLE_ARCHIVE="${BUNDLE}/Contents/MacOS/vphone-archive"
+BUNDLE_ASKPASS="${BUNDLE}/Contents/MacOS/vphone-ask-for-permission"
+BUNDLE_AMFI="${BUNDLE}/Contents/MacOS/vphone-amfi-allow"
 INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
 BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
@@ -51,6 +60,22 @@ echo '// Auto-generated — do not edit' > "$BUILD_INFO"
 echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUILD_INFO"
 swift build -c release
 
+# vphone-amfi-allow, which SwiftPM cannot produce: it reads amfid's ObjC runtime
+# and so must match amfid's own slice, which is arm64e. Plain clang, two system
+# frameworks, no Xcode.app and nothing on PATH beyond the toolchain that just
+# built everything else.
+echo "=== Building vphone-amfi-allow (arm64e) ==="
+clang -arch arm64e -O2 \
+  -framework CoreFoundation -framework Security \
+  -o "$AMFI_BINARY" "$AMFI_SOURCE"
+# An arm64 build would compile and link and then fail at run time with nothing
+# to say, because task_for_pid on an arm64e amfid from an arm64 tool cannot read
+# the pointer-authenticated slot it is looking for. Assert the slice.
+if ! file "$AMFI_BINARY" | grep -q arm64e; then
+  echo "Error: ${AMFI_BINARY} is not arm64e." >&2
+  exit 1
+fi
+
 # Only vphone-vm gets the entitlements. Signing vphone-cli with them too would
 # put us straight back where we started: the entry point itself unable to
 # launch without an AMFI bypass already in place.
@@ -58,7 +83,10 @@ echo "=== Signing ==="
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$VM_BINARY"
 codesign --force --sign - "$BINARY"
 codesign --force --sign - "$ARCHIVE_BINARY"
-echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive"
+codesign --force --sign - "$ASKPASS_BINARY"
+codesign --force --sign - "$AMFI_BINARY"
+echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive,"
+echo "          vphone-ask-for-permission, vphone-amfi-allow"
 
 # An unentitled vphone-vm is worse than a broken one: it launches perfectly,
 # which convinces vphone-cli's AMFI probe that nothing is wrong, and only fails
@@ -81,6 +109,8 @@ mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp -f "$BINARY" "$BUNDLE_BIN"
 cp -f "$VM_BINARY" "$BUNDLE_VM"
 cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
+cp -f "$ASKPASS_BINARY" "$BUNDLE_ASKPASS"
+cp -f "$AMFI_BINARY" "$BUNDLE_AMFI"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
@@ -100,6 +130,8 @@ rm -f "${BUNDLE}/Contents/MacOS/ldid" "${BUNDLE}/Contents/MacOS/vphone-letmein"
 # and `codesign -v` on the bundle reports "nested code is modified or invalid".
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_ARCHIVE"
+codesign --force --sign - "$BUNDLE_ASKPASS"
+codesign --force --sign - "$BUNDLE_AMFI"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
 
@@ -171,6 +203,8 @@ echo "=== Re-signing bundled binaries (resealing Resources) ==="
 # Nested first, main executable last — see the bundling step above.
 codesign --force --sign - "$BUNDLE_BIN"
 codesign --force --sign - "$BUNDLE_ARCHIVE"
+codesign --force --sign - "$BUNDLE_ASKPASS"
+codesign --force --sign - "$BUNDLE_AMFI"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 codesign -v "$BUNDLE_VM" \
   || { echo "Error: the bundle seal did not verify after signing." >&2; exit 1; }
@@ -178,12 +212,15 @@ echo "  resealed OK"
 
 echo ""
 echo "=== Build complete ==="
-echo "  vphone-cli     : ${BINARY} (no entitlements — always launches)"
-echo "  vphone-vm      : ${VM_BINARY} (entitled — amfid may refuse it)"
-echo "  vphone-archive : ${ARCHIVE_BINARY}"
-echo "  bundle         : ${BUNDLE}"
-[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned        : .build/vphoned.signed"
+echo "  vphone-cli         : ${BINARY} (no entitlements — always launches)"
+echo "  vphone-vm          : ${VM_BINARY} (entitled — amfid may refuse it)"
+echo "  vphone-archive     : ${ARCHIVE_BINARY}"
+echo "  vphone-ask-for-permission : ${ASKPASS_BINARY}"
+echo "  vphone-amfi-allow  : ${AMFI_BINARY} (arm64e)"
+echo "  bundle             : ${BUNDLE}"
+[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned            : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
-echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements;"
-echo "'make amfi_command' prints the bypass command line for these exact binaries."
+echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements."
+echo "'make amfi_allow' allows this build past it; re-run it after every build,"
+echo "because it allowlists cdhashes and those change with every signature."

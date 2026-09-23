@@ -262,12 +262,25 @@ let package = Package(
             ],
             path: "sources/vphone-archive"
         ),
-        // A `vphone-letmein` target stood here: a C program that wrote amfid's
-        // __TEXT to open a short window for vphone-vm. It cannot work on a host
-        // where `vm.cs_system_enforcement` is 1 — the dirtied page is exactly
-        // what gets amfid SIGKILLed — and opening an AMFI window is the user's
-        // decision to make, not this project's. See "SIP/AMFI Relaxation" in
-        // README.md for the two routes that do work.
+        // The SUDO_ASKPASS program, and the probe behind `VPhoneSudo.route()`.
+        // No ArgumentParser and no VPhoneCore: it is two verbs, it runs while
+        // sudo waits on its stdout, and `VPhoneSudo` in VPhoneCore shells out
+        // to it rather than linking it — a dependency the other way round would
+        // put AppKit under vphone-cli.
+        .executableTarget(
+            name: "vphone-ask-for-permission",
+            path: "sources/vphone-ask-for-permission"
+        ),
+        // `vphone-amfi-allow` is NOT here, and cannot be: SwiftPM emits arm64
+        // and it has to be arm64e to read amfid's ObjC runtime. `scripts/build.sh`
+        // compiles it with clang; see the header of its one C file.
+        //
+        // A `vphone-letmein` target stood here too: a C program that wrote
+        // amfid's __TEXT to open a short window for vphone-vm. It cannot work on
+        // a host where `vm.cs_system_enforcement` is 1 — the dirtied page is
+        // exactly what gets amfid SIGKILLed. `vphone-amfi-allow` replaces it by
+        // writing one byte of amfid's *heap* instead, which that sysctl does not
+        // police. See "SIP/AMFI Relaxation" in README.md.
         .testTarget(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],

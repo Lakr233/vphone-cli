@@ -39,16 +39,24 @@ SCRIPTS     := scripts
 # holds the private virtualization keys and is what amfid can refuse;
 # vphone-archive unpacks and packs. See sources/vphone.entitlements.
 #
-# Opening an AMFI window for vphone-vm is the USER's job — this project no
-# longer ships a tool for it. `make amfi_command` prints the command line.
+# Getting vphone-vm past amfid is `make amfi_allow`, which runs
+# vphone-amfi-allow for this build's cdhashes. It asks for root and it is a
+# per-build step. `make amfi_off` puts the machine back.
 BINARY      := .build/release/vphone-cli
 VM_BINARY   := .build/release/vphone-vm
 ARCHIVE_BINARY := .build/release/vphone-archive
+ASKPASS_BINARY := .build/release/vphone-ask-for-permission
+# Not a SwiftPM product: SwiftPM emits arm64 and this one must be arm64e to
+# read amfid's ObjC runtime. Built by clang, below and in scripts/build.sh.
+AMFI_BINARY := .build/release/vphone-amfi-allow
+AMFI_SOURCE := sources/vphone-amfi-allow/vphone-amfi-allow.c
 PATCHER_BINARY := .build/debug/vphone-cli
 BUNDLE      := .build/vphone-cli.app
 BUNDLE_BIN  := $(BUNDLE)/Contents/MacOS/vphone-cli
 BUNDLE_VM   := $(BUNDLE)/Contents/MacOS/vphone-vm
 BUNDLE_ARCHIVE := $(BUNDLE)/Contents/MacOS/vphone-archive
+BUNDLE_ASKPASS := $(BUNDLE)/Contents/MacOS/vphone-ask-for-permission
+BUNDLE_AMFI := $(BUNDLE)/Contents/MacOS/vphone-amfi-allow
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
 # There is no interpreter here any more, and no variable naming one. The
@@ -109,8 +117,10 @@ help:
 	@echo "    Options: BACKUP_INCLUDE_IPSW=1  Include *_Restore* IPSW directories in the backup"
 	@echo "             FORCE=1                Skip overwrite prompt on restore"
 	@echo "  make check-aux               Run the self-containment admission gates"
-	@echo "  make amfi_command            Print the 'sudo amfidont daemon …' line for this build"
-	@echo "                               (prints only — installs nothing, runs nothing, needs no sudo)"
+	@echo "  make amfi_allow              Allow THIS build's vphone-vm past amfid (asks for root)"
+	@echo "                               Re-run after every build — it allowlists cdhashes"
+	@echo "  make amfi_status             Show the allowlist and whether this host can carry one"
+	@echo "  make amfi_off                Remove the allowlist and restart amfid clean"
 	@echo "  make boot_host_preflight     Diagnose whether host can launch signed PV=3 binary"
 	@echo "  make boot                    Boot VM (reads from config.plist)"
 	@echo "  make boot_less               Boot VM in vphoned patchless compatibility mode"
@@ -262,7 +272,8 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(VM_BINARY)
 	@codesign --force --sign - $(BINARY)
 	@codesign --force --sign - $(ARCHIVE_BINARY)
-	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive"
+	@codesign --force --sign - $(ASKPASS_BINARY)
+	@echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive, vphone-ask-for-permission"
 	@# An unentitled vphone-vm is worse than a broken one: it launches
 	@# perfectly, which convinces vphone-cli's AMFI probe that nothing is
 	@# wrong, and only fails later trying to create a PV=3 machine. A bare
@@ -271,13 +282,28 @@ $(BINARY): $(SWIFT_SOURCES) Package.swift $(ENTITLEMENTS)
 		| grep -q 'com.apple.private.virtualization' \
 		|| (echo "Error: $(VM_BINARY) is not entitled after signing." >&2; exit 1)
 
-$(VM_BINARY) $(ARCHIVE_BINARY): $(BINARY)
+$(VM_BINARY) $(ARCHIVE_BINARY) $(ASKPASS_BINARY): $(BINARY)
 
-bundle: build $(INFO_PLIST)
+# arm64e, because it reads amfid's ObjC runtime and has to match amfid's slice.
+# An arm64 build links and then fails at run time with nothing to say, so the
+# slice is asserted rather than assumed.
+$(AMFI_BINARY): $(AMFI_SOURCE)
+	@echo "=== Building vphone-amfi-allow (arm64e) ==="
+	@mkdir -p $(dir $(AMFI_BINARY))
+	@clang -arch arm64e -O2 -framework CoreFoundation -framework Security \
+		-o $(AMFI_BINARY) $(AMFI_SOURCE)
+	@file $(AMFI_BINARY) | grep -q arm64e \
+		|| (echo "Error: $(AMFI_BINARY) is not arm64e." >&2; exit 1)
+	@codesign --force --sign - $(AMFI_BINARY)
+	@echo "  signed: vphone-amfi-allow"
+
+bundle: build $(AMFI_BINARY) $(INFO_PLIST)
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	@cp -f $(BINARY) $(BUNDLE_BIN)
 	@cp -f $(VM_BINARY) $(BUNDLE_VM)
 	@cp -f $(ARCHIVE_BINARY) $(BUNDLE_ARCHIVE)
+	@cp -f $(ASKPASS_BINARY) $(BUNDLE_ASKPASS)
+	@cp -f $(AMFI_BINARY) $(BUNDLE_AMFI)
 	@cp -f $(INFO_PLIST) $(BUNDLE)/Contents/Info.plist
 	@cp -f sources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@cp -f $(SCRIPTS)/vphoned/signcert.p12 $(BUNDLE)/Contents/Resources/signcert.p12
@@ -296,6 +322,8 @@ bundle: build $(INFO_PLIST)
 	@# nested binaries FIRST, or `codesign -v` reports "nested code is modified".
 	@codesign --force --sign - $(BUNDLE_BIN)
 	@codesign --force --sign - $(BUNDLE_ARCHIVE)
+	@codesign --force --sign - $(BUNDLE_ASKPASS)
+	@codesign --force --sign - $(BUNDLE_AMFI)
 	@codesign --force --sign - --entitlements $(ENTITLEMENTS) $(BUNDLE_VM)
 	@codesign -v $(BUNDLE_VM) \
 		|| (echo "Error: the bundle seal did not verify after signing." >&2; exit 1)
@@ -319,7 +347,7 @@ vphoned:
 # VM management
 # ═══════════════════════════════════════════════════════════════════
 
-.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfi_command boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
+.PHONY: vm_new vm_backup vm_restore vm_switch vm_list amfi_allow amfi_status amfi_off boot_host_preflight boot boot_less boot_dfu boot_binary_check boot_binary_check_less
 
 vm_new:
 	CPU="$(CPU)" MEMORY="$(MEMORY)" \
@@ -364,56 +392,49 @@ check-aux: bundle
 	@zsh $(SCRIPTS)/check_aux.sh
 
 # vphone-vm carries the private virtualization entitlements, so amfid is the one
-# thing that can refuse it. Opening a window for it is the user's own business:
-# this project ships no bypass and depends on none. What it can do is save the
-# cdhash from being copied out of `codesign -dv` by hand, so this target prints
-# the exact command line for the binaries THIS build produced — and prints only.
-# It installs nothing, runs nothing, needs no sudo, and does not care whether
-# amfidont is on the machine at all.
+# thing that can refuse it. `vphone-amfi-allow` is how this project gets past
+# that, and this target runs it for the binaries THIS build produced.
+#
+# It needs root, and it asks — it does not assume a passwordless sudo and it
+# does not hold a password. It needs `Debugging Restrictions: disabled` in
+# `csrutil status` as well, for task_for_pid; without it the tool says so and
+# changes nothing.
 #
 # It depends on `bundle` because `make boot` needs BOTH copies of vphone-vm let
 # through: boot_binary_check runs .build/release/vphone-vm, and the boot itself
 # runs the one inside the .app. Their cdhashes differ — different signing
 # identifier (`vphone-vm-<hash>` vs `com.vphone.cli`), sealed bundle resources
 # on one and none on the other, and they are not even the same length — so an
-# allowlist given one cdhash covers exactly half the flow.
+# allowlist given one cdhash covers exactly half the flow. Both are passed.
 #
-# The paths are printed resolved (`pwd -P`). .build/release is a symlink to
-# .build/out/Products/Release, and amfid judges the vnode path it is handed,
-# not the symlink the user typed — a `--path` entry naming the symlink matches
-# nothing, silently.
-amfi_command: bundle
+# The paths are resolved (`pwd -P`). .build/release is a symlink to
+# .build/out/Products/Release, and the requirement is evaluated against the
+# vnode path, not the symlink that was typed.
+amfi_allow: bundle
 	@set -e; \
-	paths=""; hashes=""; \
+	binaries=""; \
 	for b in "$(CURDIR)/$(VM_BINARY)" "$(CURDIR)/$(BUNDLE_VM)"; do \
 		[ -f "$$b" ] || continue; \
-		h="$$(codesign -dv --verbose=4 "$$b" 2>&1 | sed -n 's/^CDHash=//p' | head -1)"; \
-		[ -n "$$h" ] || continue; \
 		d="$$(cd "$$(dirname "$$b")" && pwd -P)"; \
-		case " $$paths " in *" $$d "*) ;; *) paths="$$paths $$d";; esac; \
-		case " $$hashes " in *" $$h "*) ;; *) hashes="$$hashes $$h";; esac; \
+		binaries="$$binaries $$d/$$(basename "$$b")"; \
 	done; \
-	if [ -z "$$hashes" ]; then \
-		echo "Error: no CDHash on $(VM_BINARY) — run 'make build' first." >&2; \
+	if [ -z "$$binaries" ]; then \
+		echo "Error: $(VM_BINARY) not built — run 'make build' first." >&2; \
 		exit 1; \
 	fi; \
-	echo "vphone-vm is the only entitled binary, so it is the only one amfid can"; \
-	echo "refuse. Allow it with an AMFI bypass of your choosing — the project does"; \
-	echo "not install, start or require one. With amfidont, for this build:"; \
+	echo "Allowing this build past amfid (needs root):"; \
+	for b in $$binaries; do echo "  $$b"; done; \
 	echo ""; \
-	printf '  sudo amfidont daemon'; \
-	for d in $$paths; do printf " \\\\\n    --path '%s'" "$$d"; done; \
-	for h in $$hashes; do printf " \\\\\n    --cdhash %s" "$$h"; done; \
-	printf " \\\\\n    --spoof-apple --verbose\n"; \
-	echo ""; \
-	echo "It is an allowlist: only the paths and cdhashes above are let through."; \
-	echo "Re-run this target after every build — the cdhash changes with the binary."; \
-	echo "Leave the daemon running in its own terminal, then 'make boot' in another."; \
-	echo ""; \
-	echo "amfidont is not part of this project and is not built here."; \
-	echo "It installs with the SYSTEM python (Homebrew's refuses, PEP 668):"; \
-	echo "  xcrun python3 -m pip install --user amfidont    # needs Xcode"; \
-	echo "  ~/Library/Python/3.9/bin/amfidont"
+	sudo "$(CURDIR)/$(AMFI_BINARY)" allow $$binaries
+
+# What the allowlist looks like right now, and whether the host can carry one.
+# Reads only; no root.
+amfi_status: $(AMFI_BINARY)
+	@"$(CURDIR)/$(AMFI_BINARY)" status
+
+# Put the machine back: drops the preference and restarts amfid clean.
+amfi_off:
+	@sudo "$(CURDIR)/$(AMFI_BINARY)" off
 
 boot_host_preflight: build
 	zsh $(SCRIPTS)/boot_host_preflight.sh
@@ -431,9 +452,9 @@ define BOOT_BINARY_CHECK
 	if [ $$rc -ne 0 ]; then \
 		echo "Error: signed vphone-vm failed to launch (exit $$rc)." >&2; \
 		echo "Check private virtualization entitlement support and ensure SIP/AMFI are disabled on the host." >&2; \
-		echo "If it was SIGKILLed, amfid refused the entitlements and an AMFI bypass has to allow" >&2; \
-		echo "vphone-vm first. That is yours to run; for the command line, with this build's cdhash:" >&2; \
-		echo "  make amfi_command" >&2; \
+		echo "If it was SIGKILLed, amfid refused the entitlements and this build has to be" >&2; \
+		echo "allowed past it first. That step needs root, so it is not run for you:" >&2; \
+		echo "  make amfi_allow" >&2; \
 		if [ -s "$$tmp_log" ]; then \
 			echo "--- vphone-cli preflight log ---" >&2; \
 			tail -n 40 "$$tmp_log" >&2; \

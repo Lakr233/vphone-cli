@@ -70,14 +70,16 @@ typeset -a REGISTERED_REMAINING=(
 # reporting it. `is_registered` still folds python3.13 and friends onto
 # `python3`, so a versioned lookup fails under the name people will search for.
 #
-# The AMFI bypass is deliberately NOT on that list and must never be added to
-# it. Whatever program lets amfid accept vphone-vm's entitlements — amfidont or
-# anything else — is the user's, run by hand from their own shell. Nothing here
-# installs it, spawns it, or looks for it on PATH, so it is not a dependency of
-# this bundle and its absence is not a debt to pay down; `make amfi_command`
-# only prints a command line for the user to run. If a script ever does reach
-# for one, gate 2 below should fail: that would be the project taking on the
-# dependency, which is exactly what it stopped doing.
+# The AMFI bypass is not on that list either, and for the opposite reason to
+# the one that used to be written here: it is not an external program any more.
+# `vphone-amfi-allow` is built from this repository's own C, ships in the
+# bundle, and links CoreFoundation, Security and libSystem — so gate 1 weighs it
+# like everything else rather than it being someone else's problem. It was
+# `amfidont`, installed by the user into the user's own Python, back when the
+# honest thing to say was that the bypass was theirs and not ours.
+#
+# What still must not appear is a LOOKUP: `make amfi_allow` runs the binary by
+# absolute path, and any `command -v` for an AMFI tool is gate 2's business.
 
 # Programs macOS ships that we depend on and intend to keep. This is the
 # honest boundary of "zero dependencies" — widening it means editing this file,
@@ -242,9 +244,7 @@ check_sources() {
   #
   # Two things are not interpreter use here. Comment lines: the repo explains
   # what the Python used to do in a lot of places, and that history is worth
-  # keeping. And `echo`/`print` lines: `make amfi_command` prints the command
-  # that installs amfidont, which is the USER's tool, in the USER's own python,
-  # run from the USER's own shell — nothing here installs or spawns it.
+  # keeping. And `echo`/`print` lines, which name a command without running it.
   #
   # check_aux.sh excludes itself, because a scanner that looks for a word
   # necessarily contains it.
