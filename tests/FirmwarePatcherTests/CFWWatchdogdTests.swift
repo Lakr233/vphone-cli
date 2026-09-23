@@ -1,13 +1,14 @@
 // CFWWatchdogdTests.swift — parity, anchoring and idempotence for the
 // watchdogd hv_vmm_present cache patch.
 //
-// Two independent references are available for this patch and both are used:
+// Two independent references were available for this patch and both are used:
 //
 //   * `scripts/patchers/cfw_patch_watchdogd.py`, driven exactly as
-//     `cfw_install_exp.sh` drives it (`cfw.py patch-watchdogd <binary>`). The
-//     central test runs it and `CFWWatchdogd` over two clones of the same
-//     pristine binary and compares the results byte for byte — patched
-//     instructions and re-attested code slots alike.
+//     `cfw_install_exp.sh` drove it (`cfw.py patch-watchdogd <binary>`). That
+//     Python is gone; what it wrote over the pristine binary is frozen in
+//     ``WatchdogdGolden`` below, and the central test grades `CFWWatchdogd`
+//     against it byte for byte — patched instructions and re-attested code
+//     slots alike, because that verb re-attested on its own.
 //   * `/usr/bin/codesign`, which recomputes the slot hashes itself. It has no
 //     part in this code, so a binary that verifies under it is evidence the
 //     re-attestation is right rather than self-consistent.
@@ -39,8 +40,6 @@ enum WatchdogdFixture {
     /// negative case.
     static let seputil = pristineDirectory.appending(path: "seputil")
 
-    static let python = repositoryRoot.appending(path: ".venv/bin/python3")
-    static let cfwCLI = repositoryRoot.appending(path: "scripts/patchers/cfw.py")
     static let codesign = URL(filePath: "/usr/bin/codesign")
 
     static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
@@ -51,7 +50,6 @@ enum WatchdogdFixture {
 
     static var hasWatchdogd: Bool { exists(watchdogd) }
     static var hasSeputil: Bool { exists(seputil) }
-    static var hasPythonReference: Bool { hasWatchdogd && exists(python) && exists(cfwCLI) }
     static var hasCodesign: Bool { hasWatchdogd && exists(codesign) }
 
     /// A private copy of `source` the caller may modify freely. Deliberately
@@ -110,6 +108,38 @@ enum WatchdogdFixture {
         }
         return found
     }
+}
+
+// MARK: - The frozen reference
+
+/// What `scripts/patchers/` produced on this fixture, recorded before it was
+/// deleted.
+///
+/// Every value below was taken at repo commit `78cbeea`, with
+/// `.venv/bin/python3` driving `scripts/patchers/`, over the real iOS 27.0 /
+/// 24A435 / iPhone17,3 `/usr/libexec/watchdogd` whose own digest is
+/// ``pristine``.
+enum WatchdogdGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/watchdogd`
+    static let pristine = "0309b868a214f9841279db3e2ef901f26e8c05b2dc616eeb551f2b2f0e06207f"
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-watchdogd <clone>`
+    ///
+    /// Unlike the other CFW Mach-O verbs, this one re-attested on its own:
+    /// stdout ended `wrote 2 site(s)` and then
+    /// `re-attest updated 2 slot(s) across 2 unique (CD, page) pair(s)`,
+    /// rewriting slots 4 and 10 (`4f3c398a.. -> f287fa91..` and
+    /// `75fa0b5a.. -> ff44ac69..`). So this digest covers both halves.
+    static let patched = "963cd44591763ac928f7fb9fab0e50e573bc456e5efe9c17e96fe8d220494b13"
+
+    /// The two code slots that run re-attested.
+    static let reattestedSlots = [4, 10]
+
+    /// `cfw.py patch-watchdogd` run a SECOND time over ``patched``: it printed
+    /// `all 2 matching site(s) already patched — nothing to do` and left the
+    /// file byte for byte alone, so the digest is ``patched`` again. Both
+    /// implementations agree that a patched binary needs nothing done to it.
+    static let patchedTwice = patched
 }
 
 // MARK: - Anchoring
@@ -391,54 +421,64 @@ struct CFWWatchdogdPatchTests {
 
 @Suite("watchdogd hv_vmm_present cache — independent references")
 struct CFWWatchdogdReferenceTests {
-    /// The migration plan's gate for P1.2: the Swift patcher and the Python it
-    /// replaces must produce the same bytes from the same input.
-    @Test(.enabled(if: WatchdogdFixture.hasPythonReference))
-    func matchesThePythonReferenceByteForByte() throws {
-        let reference = try WatchdogdFixture.scratchCopy(
-            of: WatchdogdFixture.watchdogd, named: "watchdogd-python"
+    /// The fixture the frozen digests were taken over. Without this a digest
+    /// mismatch below would read as a patcher bug when the real cause is a
+    /// different firmware's `watchdogd`.
+    @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
+    func fixtureMatchesTheGoldens() throws {
+        #expect(
+            WatchdogdFixture.digest(try Data(contentsOf: WatchdogdFixture.watchdogd))
+                == WatchdogdGolden.pristine,
+            """
+            this is not the 24A435 watchdogd WatchdogdGolden was recorded from \
+            — re-derive the goldens before reading a failure below as a \
+            patcher bug
+            """
         )
-        defer { try? FileManager.default.removeItem(at: reference.deletingLastPathComponent()) }
+    }
 
-        let result = try WatchdogdFixture.run(WatchdogdFixture.python, [
-            WatchdogdFixture.cfwCLI.path, "patch-watchdogd", reference.path,
-        ])
-        #expect(result.status == 0, "reference patcher failed: \(result.output)")
-
+    /// The migration plan's gate for P1.2: the Swift patcher and the Python it
+    /// replaced must produce the same bytes from the same input.
+    @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
+    func matchesTheFrozenReferenceByteForByte() throws {
         var mine = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        try CFWWatchdogd.patch(&mine, log: nil)
+        let report = try CFWWatchdogd.patch(&mine, log: nil)
 
-        let theirs = try Data(contentsOf: reference)
         // Printed so the parity claim is checkable from outside this process:
-        // `shasum -a 256` over either patcher's output has to read the same.
+        // `shasum -a 256` over this patcher's output has to read the same.
         print("""
         watchdogd parity: \
         pristine=\(WatchdogdFixture.digest(try Data(contentsOf: WatchdogdFixture.watchdogd))) \
-        python=\(WatchdogdFixture.digest(theirs)) \
+        golden=\(WatchdogdGolden.patched) \
         swift=\(WatchdogdFixture.digest(mine))
         """)
-        #expect(mine.count == theirs.count)
-        #expect(mine == theirs, "Swift and Python output must be identical")
+        #expect(report.sitesWritten == 2)
+        #expect(report.rehashedSlots.map(\.pageIndex).sorted() == WatchdogdGolden.reattestedSlots)
+        #expect(
+            WatchdogdFixture.digest(mine) == WatchdogdGolden.patched,
+            "Swift output must be identical to the frozen reference's"
+        )
     }
 
-    /// The Python's idempotent path, for the same reason: both implementations
-    /// must agree that a patched binary needs nothing done to it.
-    @Test(.enabled(if: WatchdogdFixture.hasPythonReference))
-    func agreesWithThePythonOnAnAlreadyPatchedBinary() throws {
+    /// The reference's idempotent path, for the same reason: both
+    /// implementations agree that a patched binary needs nothing done to it.
+    @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
+    func agreesWithTheFrozenReferenceOnAnAlreadyPatchedBinary() throws {
         let file = try WatchdogdFixture.scratchCopy(
             of: WatchdogdFixture.watchdogd, named: "watchdogd-twice"
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
         try CFWWatchdogd.patch(at: file, log: nil)
-        let afterSwift = try Data(contentsOf: file)
+        let afterFirst = try Data(contentsOf: file)
+        #expect(WatchdogdFixture.digest(afterFirst) == WatchdogdGolden.patched)
 
-        let result = try WatchdogdFixture.run(WatchdogdFixture.python, [
-            WatchdogdFixture.cfwCLI.path, "patch-watchdogd", file.path,
-        ])
-        #expect(result.status == 0, "reference patcher failed: \(result.output)")
-        #expect(result.output.contains("already patched"))
-        #expect(try Data(contentsOf: file) == afterSwift)
+        // The frozen half: the reference, handed this exact file, reported
+        // `all 2 matching site(s) already patched — nothing to do` and wrote
+        // nothing. This port lands on the same bytes when it re-runs.
+        let second = try CFWWatchdogd.patch(at: file, log: nil)
+        #expect(second.outcome == .alreadyPatched)
+        #expect(WatchdogdFixture.digest(try Data(contentsOf: file)) == WatchdogdGolden.patchedTwice)
     }
 
     /// `codesign` recomputes the page hashes independently of this code. If the

@@ -1,5 +1,14 @@
 # Capturing the patcher reference snapshot
 
+> **Historical.** Everything below describes a facility that lived in the Python
+> patchers — `--emit-records`, `VPHONE_PATCH_RECORDS`, `cfw_records.py` — and
+> left with them when `scripts/patchers/` was removed. It is kept because the
+> port was built against the records it describes, and because shipping code
+> still cites its findings (`CFWJetsam.swift` quotes the non-idempotency note).
+> To run any of it, recover `scripts/patchers/` from git history at `78cbeea`.
+> The parity evidence itself is no longer re-derived at test time: it is frozen
+> into the `FrozenReference` / `*Golden` enums in `tests/FirmwarePatcherTests/`.
+
 Migration plan **P1.0**, the step marked 不可跳过. These patches rewrite pages
 TXM hashes, so a wrong byte in the Swift port is a boot panic, not a failing
 test. Capture the reference off a real install first; port against it second.

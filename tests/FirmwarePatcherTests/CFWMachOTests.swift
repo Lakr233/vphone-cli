@@ -1,18 +1,20 @@
 // CFWMachOTests.swift — Mach-O load-command insertion and code-signature re-attestation.
 //
-// Both modules replace something that still exists in the tree, so both are
-// tested against it rather than against expectations written down by hand:
+// Both modules replace something outside this code, so both are tested against
+// it rather than against expectations written down by hand:
 //
-//   * `CFWInjectDylib` against `.tools/bin/insert_dylib`, byte for byte.
+//   * `CFWInjectDylib` against `.tools/bin/insert_dylib`, byte for byte, while
+//     that submodule build is still in the tree.
 //   * `CFWMachOCodeSignature` against `scripts/patchers/cfw_macho_codesign.py`,
-//     byte for byte.
+//     byte for byte. That Python is gone, so what it wrote is frozen in
+//     ``MachOCodeSignGolden`` below — over the real 24A435 `seputil` rather
+//     than a local build product, because a golden is only worth what its
+//     input is reproducible.
 //
-// Those two comparisons are the migration plan's stated gate (P1.1), and they
-// stop being available when P1.5 deletes the Python and the submodule — the
-// tests that need them are gated on the reference still being present, so they
-// skip instead of failing once it is gone. Everything that can be asserted
-// without a reference is asserted unconditionally, first among them the short
-// tail slot, which is the known regression in independent re-signing.
+// Those two comparisons are the migration plan's stated gate (P1.1). Everything
+// that can be asserted without a reference is asserted unconditionally, first
+// among them the short tail slot, which is the known regression in independent
+// re-signing.
 
 import CryptoKit
 @testable import FirmwarePatcher
@@ -33,23 +35,38 @@ enum MachOFixture {
     /// codeLimit — the shape that produces a short tail slot.
     static let signedBinary = repositoryRoot.appending(path: ".build/release/vphone-letmein")
     static let insertDylib = repositoryRoot.appending(path: ".tools/bin/insert_dylib")
-    static let python = repositoryRoot.appending(path: ".venv/bin/python3")
-    static let pythonCodeSign = repositoryRoot.appending(path: "scripts/patchers/cfw_macho_codesign.py")
+
+    /// The real 24A435 `seputil`: ad-hoc signed, arm64e, SHA-256 CD, and a
+    /// codeLimit that is not page aligned. Unlike ``signedBinary`` it does not
+    /// change between builds, which is what makes a frozen digest mean
+    /// anything. Not in the repo — `ipsws/` never is.
+    static let pristineSeputil = repositoryRoot
+        .appending(path: "ipsws/ref_extract/macho_pristine/seputil")
 
     static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
 
     static var hasSignedBinary: Bool { exists(signedBinary) }
     static var hasInsertDylib: Bool { exists(insertDylib) }
-    static var hasPythonReference: Bool { exists(python) && exists(pythonCodeSign) }
+    static var hasPristineSeputil: Bool { exists(pristineSeputil) }
     static var hasCodesign: Bool { exists(URL(filePath: "/usr/bin/codesign")) }
 
-    /// A private copy of `signedBinary` that the caller may modify freely.
-    static func scratchCopy(_ name: String) throws -> URL {
+    /// SHA-256 as `shasum -a 256` prints it.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+    }
+
+    /// A private copy of `source` that the caller may modify freely.
+    static func scratchCopy(_ name: String, of source: URL? = nil) throws -> URL {
         let directory = URL(filePath: NSTemporaryDirectory())
             .appending(path: "CFWMachOTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = directory.appending(path: name)
-        try FileManager.default.copyItem(at: signedBinary, to: destination)
+        try FileManager.default.copyItem(at: source ?? signedBinary, to: destination)
+        // Both sources are 0755 already; this is only so a reference tree
+        // someone made read-only does not turn into a failing patch test.
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: destination.path
+        )
         return destination
     }
 
@@ -242,13 +259,27 @@ struct CFWMachOCodeSignatureTests {
         #expect(after[legacyRange] == before[legacyRange], "the SHA-1 CD must be untouched")
     }
 
-    // MARK: Cross-check against the Python
+    // MARK: Cross-check against the frozen Python
 
     /// The plan's P1.1 gate: the Swift and the Python must produce the same
     /// file, byte for byte, from the same input and the same offsets.
-    @Test(.enabled(if: MachOFixture.hasSignedBinary && MachOFixture.hasPythonReference))
-    func matchesThePythonReattester() throws {
-        let data = try Data(contentsOf: MachOFixture.signedBinary)
+    ///
+    /// The whole experiment is derived from the code directory, not typed in,
+    /// and then each derived value is checked against what the frozen run used
+    /// — so a fixture that drifted fails on the offsets rather than silently
+    /// comparing a different experiment's digest.
+    @Test(.enabled(if: MachOFixture.hasPristineSeputil))
+    func matchesTheFrozenPythonReattester() throws {
+        try #require(
+            try MachOFixture.digest(of: MachOFixture.pristineSeputil)
+                == MachOCodeSignGolden.pristine,
+            """
+            this is not the 24A435 seputil MachOCodeSignGolden was recorded \
+            from — re-derive the golden before reading a failure here as a bug
+            """
+        )
+
+        let data = try Data(contentsOf: MachOFixture.pristineSeputil)
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: data)?.first)
         // First page, a middle page, the short tail page, and one offset past
         // codeLimit that both implementations must ignore.
@@ -258,48 +289,67 @@ struct CFWMachOCodeSignatureTests {
             directory.codeLimit - 1,
             directory.codeLimit + 8,
         ]
+        #expect(offsets == MachOCodeSignGolden.offsets)
+        #expect(directory.codeLimit == MachOCodeSignGolden.codeLimit)
 
-        let swiftFile = try MachOFixture.scratchCopy("swift")
-        let pythonFile = swiftFile.deletingLastPathComponent().appending(path: "python")
-        try FileManager.default.copyItem(at: swiftFile, to: pythonFile)
+        let swiftFile = try MachOFixture.scratchCopy("swift", of: MachOFixture.pristineSeputil)
+        defer { try? FileManager.default.removeItem(at: swiftFile.deletingLastPathComponent()) }
         // Only the covered offsets are actually modified — the one past
         // codeLimit lands in the signature blob itself, and corrupting that
         // would be testing the parser's behaviour on garbage rather than the
         // agreement between the two implementations.
         for offset in offsets where offset < directory.codeLimit {
             try MachOFixture.flipByte(at: offset, in: swiftFile)
-            try MachOFixture.flipByte(at: offset, in: pythonFile)
         }
 
         let records = try CFWMachOCodeSignature.reattest(fileAt: swiftFile, modifiedOffsets: offsets)
         #expect(records.contains { $0.isTailSlot }, "the offset set must exercise the tail slot")
-
-        let script = """
-        import sys
-        sys.path.insert(0, "scripts/patchers")
-        import cfw_macho_codesign as ref
-        ref.reattest_modified_offsets(sys.argv[1], [int(a) for a in sys.argv[2:]], verbose=False)
-        """
-        let python = Process()
-        python.executableURL = MachOFixture.python
-        python.arguments = ["-c", script, pythonFile.path] + offsets.map(String.init)
-        python.currentDirectoryURL = MachOFixture.repositoryRoot
-        let pipe = Pipe()
-        python.standardOutput = pipe
-        python.standardError = pipe
-        try python.run()
-        let output = pipe.fileHandleForReading.readDataToEndOfFile()
-        python.waitUntilExit()
-        try #require(
-            python.terminationStatus == 0,
-            "reference implementation failed: \(String(decoding: output, as: UTF8.self))"
-        )
+        #expect(records.map(\.pageIndex).sorted() == MachOCodeSignGolden.rewrittenSlots)
 
         #expect(
-            try Data(contentsOf: swiftFile) == (try Data(contentsOf: pythonFile)),
-            "Swift and Python re-attestation must agree byte for byte"
+            try MachOFixture.digest(of: swiftFile) == MachOCodeSignGolden.reattested,
+            "Swift and the frozen Python re-attestation must agree byte for byte"
         )
     }
+}
+
+// MARK: - The frozen re-attestation reference
+
+/// What `scripts/patchers/cfw_macho_codesign.py` produced, recorded before it
+/// was deleted.
+///
+/// Taken at repo commit `78cbeea` with `.venv/bin/python3`, over the real iOS
+/// 27.0 / 24A435 / iPhone17,3 `seputil` whose digest is ``pristine``:
+///
+/// ```
+/// .venv/bin/python3 - <<'PY'
+/// import sys; sys.path.insert(0, "scripts/patchers")
+/// import cfw_macho_codesign as r
+/// p = "<clone of ipsws/ref_extract/macho_pristine/seputil>"
+/// offsets = [16, 90119, 183887, 183896]        # codeLimit is 183888
+/// d = bytearray(open(p, "rb").read())
+/// for o in offsets:
+///     if o < 183888: d[o] ^= 0xFF
+/// open(p, "wb").write(bytes(d))
+/// r.reattest_modified_offsets(p, offsets, verbose=True)
+/// PY
+/// ```
+///
+/// which printed `file off 0x2CE58 past codeLimit 0x2CE50 — skipping` and then
+/// `wrote cd_index=0 slot 0`, `slot 22`, `slot 44 [tail, 3664B]`.
+private enum MachOCodeSignGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/seputil`
+    static let pristine = "13e40e74d92928cf9e36fae75970dfcf4c0a4c1040eeac39d1c335407e841474"
+
+    /// The four offsets above, and the codeLimit the last two straddle.
+    static let offsets = [16, 90_119, 183_887, 183_896]
+    static let codeLimit = 183_888
+
+    /// The three slots the reference rewrote; the fourth offset was skipped.
+    static let rewrittenSlots = [0, 22, 44]
+
+    /// `shasum -a 256` of the file that run left behind.
+    static let reattested = "554de26a946547253a04c844e28acdc271b92c701322187e51d0b1d900fa4b1b"
 }
 
 // MARK: - Dylib Injection

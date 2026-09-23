@@ -121,12 +121,12 @@ stage_display_and_boot_fixes() {
         26.0*|18.*)
             echo "  [*] Patching IOMobileFramebuffer SwapEnd payload size (-> 0x560)..."
             [[ -d "$DSC_DIR" ]] || die "dyld cache dir missing: $DSC_DIR"
-            cfw_py patch-iomfb-swapend "$DSC_DIR" --target-size 0x560
+            cfw_cli patch-iomfb-swapend "$DSC_DIR" --target-size 0x560
             ;;
         27.*)
             echo "  [*] Forcing IOMobileFramebuffer present onto the kern (method-5) path..."
             [[ -d "$DSC_DIR" ]] || die "dyld cache dir missing: $DSC_DIR"
-            cfw_py patch-iomfb-force-kern "$DSC_DIR"
+            cfw_cli patch-iomfb-force-kern "$DSC_DIR"
             ;;
     esac
 
@@ -136,18 +136,18 @@ stage_display_and_boot_fixes() {
                 # 27's cache + 512 MiB maxSlide overflows the 6 GiB shared region
                 # -> dyld cannot map libSystem -> launchd (pid 1) panics.
                 echo "  [*] Checking dyld cache maxSlide vs kernel shared region..."
-                cfw_py patch-dsc-maxslide "$DSC_DIR"
+                cfw_cli patch-dsc-maxslide "$DSC_DIR"
                 # libxpc LWCR self-check crash-loops every daemon that pins an
                 # entitlement peer-requirement under our code-signing setup.
                 echo "  [*] Patching libxpc LWCR self-check..."
-                cfw_py patch-xpc-lwcr "$DSC_DIR"
+                cfw_cli patch-xpc-lwcr "$DSC_DIR"
                 # missing MAC sysctl -> launchd abort.
                 echo "  [*] Patching os_lockdown_mode_enabled..."
-                cfw_py patch-lockdown-mode "$DSC_DIR"
+                cfw_cli patch-lockdown-mode "$DSC_DIR"
 
                 if [[ "$want_lsd_reg" == "1" ]]; then
                     echo "  [*] Patching lsd embedded-registration gate..."
-                    cfw_py patch-lsd-embedded-reg "$DSC_DIR"
+                    cfw_cli patch-lsd-embedded-reg "$DSC_DIR"
                 else
                     echo "  [*] skip lsd embedded-registration gate (no JB registration tool)"
                 fi
@@ -156,7 +156,7 @@ stage_display_and_boot_fixes() {
         *)
             if [[ "${FORCE_DSC_MAXSLIDE:-0}" == "1" && -d "$DSC_DIR" ]]; then
                 echo "  [*] Forcing dyld cache maxSlide=0 (opt-in FORCE_DSC_MAXSLIDE=1)..."
-                cfw_py patch-dsc-maxslide "$DSC_DIR" --force
+                cfw_cli patch-dsc-maxslide "$DSC_DIR" --force
             fi
             ;;
     esac
@@ -185,7 +185,7 @@ stage_seputil() {
             fi
             ldid -e "$MNT1/usr/libexec/diskimagesiod.bak" > "$TEMP_DIR/diskimagesiod.ent.plist"
             cp "$MNT1/usr/libexec/diskimagesiod.bak" "$TEMP_DIR/diskimagesiod"
-            cfw_py patch-diskimagesiod "$TEMP_DIR/diskimagesiod"
+            cfw_cli patch-diskimagesiod "$TEMP_DIR/diskimagesiod"
             ldid_sign_ent "$TEMP_DIR/diskimagesiod" "$TEMP_DIR/diskimagesiod.ent.plist" "com.apple.diskimagesiod"
             cp -R "$TEMP_DIR/diskimagesiod" "$MNT1/usr/libexec/diskimagesiod"
             /bin/chmod 0755 "$MNT1/usr/libexec/diskimagesiod"

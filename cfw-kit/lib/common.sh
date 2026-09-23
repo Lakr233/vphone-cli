@@ -9,7 +9,8 @@
 #   - running as root, VM powered off
 #   - CFW_HOST_CONTAINER set to the attached APFS container (e.g. disk4)
 #   - cwd = the VM directory, $1 = the VM directory
-#   - VPHONE_REPO points at a vphone-cli checkout (for patchers/ and resources/)
+#   - VPHONE_REPO points at a vphone-cli checkout (for the built binary and
+#     the resources/ archives)
 
 # ── Restore caller's PATH — Nix /etc/zshenv resets PATH on zsh startup ─
 [[ -n "${_VPHONE_PATH:-}" ]] && export PATH="$_VPHONE_PATH"
@@ -22,7 +23,11 @@ die() {
 warn() { echo "[!] $*" >&2; }
 
 # ── Repo location ───────────────────────────────────────────────
-# The kit does not fork the Python patchers; it calls the repo's cfw.py.
+# The kit does not fork the patchers; it calls the repo's `vphone-cli cfw`.
+# The checkout marker is scripts/cfw_install.sh — the upstream installer this
+# kit is derived from, and the one file whose absence really does mean "not a
+# vphone-cli checkout". It is deliberately not the built binary: a fresh clone
+# has no .build yet, and "run make build" is a better error than "wrong path".
 resolve_repo() {
     local candidate="${VPHONE_REPO:-}"
     if [[ -z "$candidate" ]]; then
@@ -30,30 +35,34 @@ resolve_repo() {
         # the answer in the normal case. The other two are kept for running it
         # from outside a checkout, which is how it was developed.
         for c in "${KIT_DIR:h}" "$HOME/Documents/GitHub/Lakr233/vphone-cli" "${KIT_DIR:h}/vphone-cli"; do
-            [[ -f "$c/scripts/patchers/cfw.py" ]] && candidate="$c" && break
+            [[ -f "$c/scripts/cfw_install.sh" ]] && candidate="$c" && break
         done
     fi
     [[ -n "$candidate" ]] || die "VPHONE_REPO unset and no vphone-cli checkout found. Pass --repo <path>."
-    [[ -f "$candidate/scripts/patchers/cfw.py" ]] \
-        || die "Not a vphone-cli checkout (no scripts/patchers/cfw.py): $candidate"
+    [[ -f "$candidate/scripts/cfw_install.sh" ]] \
+        || die "Not a vphone-cli checkout (no scripts/cfw_install.sh): $candidate"
     echo "${candidate:a}"
 }
 
-# ── Python resolver — prefer project venv over whatever is in PATH ─
-resolve_python3() {
-    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-        echo "$VPHONE_PYTHON"
+# ── vphone-cli resolver — every CFW patcher lives in the binary ─
+# Same order as scripts/cfw_install_host.sh and run.sh: VPHONE_CLI_BIN when a
+# vphone-cli subcommand invoked us, otherwise the repo's dev build or the .app,
+# where the kit sits beside Contents/Resources and the binaries are one level
+# up in MacOS. Never `command -v` — it has to be the binary built from this
+# checkout, not whatever else is on PATH.
+resolve_vphone_cli() {
+    if [[ -n "${VPHONE_CLI_BIN:-}" ]]; then
+        echo "$VPHONE_CLI_BIN"
         return
     fi
-    local venv_py="$REPO_DIR/.venv/bin/python3"
-    if [[ -x "$venv_py" ]]; then
-        echo "$venv_py"
-    else
-        command -v python3 || true
-    fi
+    local c
+    for c in "$REPO_DIR/.build/release/vphone-cli" "${REPO_DIR:h}/MacOS/vphone-cli"; do
+        [[ -x "$c" ]] && { echo "$c"; return }
+    done
+    echo "$REPO_DIR/.build/release/vphone-cli"   # report the expected path
 }
 
-cfw_py() { "$PYTHON3" "$REPO_DIR/scripts/patchers/cfw.py" "$@"; }
+cfw_cli() { "$VPHONE_CLI" cfw "$@"; }
 
 # ── Signing ─────────────────────────────────────────────────────
 require_signing_tools() {
@@ -161,22 +170,32 @@ preflight() {
         fatal=1
     fi
 
-    [[ -x "$PYTHON3" ]] || { warn "python3 not found (tried: $PYTHON3)"; fatal=1; }
-    if [[ -x "$PYTHON3" ]]; then
-        local py_err
-        py_err="$("$PYTHON3" -c "import capstone, keystone" 2>&1)" || {
-            warn "Missing Python deps (using $PYTHON3): ${py_err}"
-            warn "  Fix: source $REPO_DIR/.venv/bin/activate && pip install capstone keystone-engine"
+    if [[ ! -x "$VPHONE_CLI" ]]; then
+        warn "vphone-cli not found (tried: $VPHONE_CLI) — build it with 'make build' in $REPO_DIR"
+        fatal=1
+    else
+        # Every cfw subcommand this variant will call must exist up front. Ask
+        # the binary, not a source file, by reading the verb list out of its own
+        # help. Probing `cfw <sub> --help` looks tidier and is WRONG: swift
+        # argument-parser intercepts --help anywhere in argv and prints the group
+        # help with exit 0, so every name on earth "passes". And `cfw <sub>` with
+        # no arguments cannot be used either — it exits 64 for a real verb
+        # (missing argument) and 64 for a typo, and would actually RUN any verb
+        # that happens to need no arguments.
+        local -a have
+        have=("${(@f)$("$VPHONE_CLI" cfw --help 2>&1 |
+            awk '/^SUBCOMMANDS:/ {f = 1; next} f && /^  [a-z]/ {print $1}')}")
+        if (( ${#have} == 0 )); then
+            warn "could not read the subcommand list from '$VPHONE_CLI cfw --help'"
             fatal=1
-        }
+        else
+            local sub
+            for sub in "${REQUIRED_CFW_SUBCOMMANDS[@]}"; do
+                (( ${have[(I)$sub]} )) \
+                    || { warn "vphone-cli has no 'cfw $sub' subcommand — binary too old or too new for this kit"; fatal=1; }
+            done
+        fi
     fi
-
-    # Every cfw.py subcommand this variant will call must exist up front.
-    local sub
-    for sub in "${REQUIRED_CFW_SUBCOMMANDS[@]}"; do
-        grep -q "\"$sub\"" "$REPO_DIR/scripts/patchers/cfw.py" \
-            || { warn "cfw.py has no '$sub' subcommand — repo too old or too new for this kit"; fatal=1; }
-    done
 
     (( fatal == 0 )) || die "Preflight failed — nothing was written."
     echo "[+] preflight OK"
@@ -201,7 +220,7 @@ read_ios_version() {
 
 # Patch a rootfs binary from its pristine .bak, sign it, put it back.
 # Upstream does this inline in four places; same semantics, one helper.
-patch_rootfs_binary() {  # <relpath> <cfw.py subcommand> [bundle_id]
+patch_rootfs_binary() {  # <relpath> <cfw subcommand> [bundle_id]
     local rel="$1" sub="$2" bundle_id="${3:-}"
     local live="$MNT1/$rel" bak="$MNT1/$rel.bak" work="$TEMP_DIR/${rel:t}"
 
@@ -211,7 +230,7 @@ patch_rootfs_binary() {  # <relpath> <cfw.py subcommand> [bundle_id]
         /bin/cp "$live" "$bak"
     fi
     /bin/cp "$bak" "$work"
-    cfw_py "$sub" "$work"
+    cfw_cli "$sub" "$work"
     ldid_sign "$work" "$bundle_id"
     /bin/cp -R "$work" "$live"
     /bin/chmod 0755 "$live"

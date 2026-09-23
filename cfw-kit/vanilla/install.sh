@@ -62,7 +62,7 @@ REQUIRED_CFW_SUBCOMMANDS=(
 [[ "$VANILLA_LSD_EMBEDDED_REG" == "1" ]] && REQUIRED_CFW_SUBCOMMANDS+=(patch-lsd-embedded-reg)
 
 REPO_DIR="$(resolve_repo)"
-PYTHON3="$(resolve_python3)"
+VPHONE_CLI="$(resolve_vphone_cli)"
 init_paths
 
 cleanup_on_exit() {
@@ -90,7 +90,7 @@ mkdir -p "$TEMP_DIR"
 
 echo ""
 echo "[*] Parsing iPhone BuildManifest for Cryptex paths..."
-CRYPTEX_PATHS=$(cfw_py cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
+CRYPTEX_PATHS=$(cfw_cli cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
 CRYPTEX_SYSOS=$(echo "$CRYPTEX_PATHS" | head -1)
 CRYPTEX_APPOS=$(echo "$CRYPTEX_PATHS" | tail -1)
 echo "  SystemOS: $CRYPTEX_SYSOS"

@@ -2,7 +2,7 @@ name: release
 
 # Build the portable, signed vphone-cli.app and attach it to a published
 # GitHub Release. Uses ./scripts/build.sh (the canonical build) so the .app
-# ships self-contained — bundled scripts/patchers/resources/requirements.txt/
+# ships self-contained — bundled scripts/resources/requirements.txt/
 # vphoned/.tools — not the lean `make bundle` output. Signing is ad-hoc
 # (codesign --sign -) with sources/vphone.entitlements; no secrets required.
 
@@ -23,8 +23,10 @@ jobs:
       - name: Init submodules
         # vendor/* (--recursive: libcapstone-spm builds capstone from its own
         # nested submodule) for the Swift build; scripts/resources is the CFW
-        # asset storage that build.sh bundles into the .app; scripts/repos/*
-        # provide the trustcache/insert_dylib tool sources.
+        # asset storage that build.sh bundles into the .app; scripts/repos/trustcache
+        # provides the trustcache tool source. scripts/repos/insert_dylib is
+        # deliberately NOT initialised: nothing in the product runs it, it is only
+        # the local parity reference for CFWMachOTests.matchesInsertDylib.
         run: |
           git submodule update --init --recursive --depth 1 \
             vendor/swift-argument-parser \
@@ -33,8 +35,7 @@ jobs:
             vendor/libimg4-spm \
             vendor/MachOKit \
             scripts/resources \
-            scripts/repos/trustcache \
-            scripts/repos/insert_dylib
+            scripts/repos/trustcache
 
       - name: Toolchain versions
         run: |
@@ -44,10 +45,13 @@ jobs:
       - name: Install build deps
         run: brew install ldid-procursus openssl@3
 
-      - name: Build .tools/bin/{trustcache,insert_dylib}
-        # build.sh bundles these runtime tools into the .app and errors if
-        # absent. Mirrors scripts/setup_tools.sh steps [2/4] and [3/4]; its
-        # venv ([4/4]) and sshpass ([1/4]) steps aren't needed to build.
+      - name: Build .tools/bin/trustcache
+        # The one runtime tool build.sh still bundles into the .app; it errors
+        # if absent. Mirrors scripts/setup_tools.sh step [2/4]; its venv ([4/4])
+        # and sshpass ([1/4]) steps aren't needed to build.
+        # insert_dylib ([3/4]) is deliberately not built here: `cfw inject-dylib`
+        # writes the load command in process, so the binary is only the parity
+        # reference CFWMachOTests compares against — a test this job never runs.
         run: |
           set -euo pipefail
           mkdir -p .tools/bin
@@ -58,8 +62,6 @@ jobs:
             LDFLAGS="-L${openssl_prefix}/lib" \
             -j"$(sysctl -n hw.logicalcpu)"
           cp scripts/repos/trustcache/trustcache .tools/bin/trustcache
-          clang -o .tools/bin/insert_dylib \
-            scripts/repos/insert_dylib/insert_dylib/main.c -framework Security -O2
 
       - name: Build and bundle (portable .app)
         run: ./scripts/build.sh
@@ -68,8 +70,8 @@ jobs:
         run: |
           set -euo pipefail
           res=.build/vphone-cli.app/Contents/Resources
-          for p in scripts/fw_prepare.sh scripts/patchers/cfw.py scripts/resources \
-                   requirements.txt vphoned.signed .tools/bin/trustcache .tools/bin/insert_dylib; do
+          for p in scripts/fw_prepare.sh scripts/cfw_install.sh scripts/resources \
+                   requirements.txt vphoned.signed .tools/bin/trustcache; do
             [ -e "$res/$p" ] || { echo "::error::bundle is missing $p — not portable"; exit 1; }
           done
           bin=.build/vphone-cli.app/Contents/MacOS/vphone-cli

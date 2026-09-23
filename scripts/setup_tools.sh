@@ -1,9 +1,9 @@
 #!/bin/zsh
 # setup_tools.sh — Install all required host tools for vphone-cli
 #
-# Installs brew packages, builds trustcache from source,
-# builds insert_dylib from submodule source, and creates Python venv
-# (including pymobiledevice3 restore/usbmux tooling).
+# Installs brew packages, builds trustcache from source, builds insert_dylib
+# from submodule source (a test reference — see step [3/4]), and creates the
+# Python venv for the pymobiledevice3 restore bridge.
 #
 # Run: make setup_tools
 
@@ -27,7 +27,12 @@ ensure_repo_submodule() {
 
 echo "[1/4] Checking brew packages..."
 
-BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass zstd cmake)
+# cmake and keystone are deliberately absent: both existed only so pip could
+# build keystone-engine's native library for the Python firmware patchers, and
+# those are Swift now (FirmwarePatcher's ARM64Encoder replaces keystone's asm(),
+# vendor/libcapstone-spm replaces the capstone wheel). openssl@3 stays — the
+# trustcache build below links it.
+BREW_PACKAGES=(aria2 gnu-tar openssl@3 ldid-procursus sshpass zstd)
 BREW_MISSING=()
 
 for pkg in "${BREW_PACKAGES[@]}"; do
@@ -72,9 +77,16 @@ else
     echo "  Installed: $TRUSTCACHE_BIN"
 fi
 
-# ── insert_dylib ───────────────────────────────────────────────
+# ── insert_dylib (test reference only) ─────────────────────────
+#
+# Nothing in the product runs this any more: `CFWInjectDylib` injects the weak
+# load command in-process, and the last caller that shelled out was
+# scripts/patchers/cfw.py. It is still built because it is the independent
+# reference CFWMachOTests.matchesInsertDylib compares the Swift injector
+# against, byte for byte — that test skips silently when it is missing, which
+# is the worst possible way to lose the check.
 
-echo "[3/4] insert_dylib"
+echo "[3/4] insert_dylib (byte-parity reference for CFWMachOTests)"
 
 INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then

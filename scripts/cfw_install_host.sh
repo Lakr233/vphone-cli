@@ -7,8 +7,9 @@
 # (`vphone-cli cfw flip-snapshot`) so the VM boots the live volume.
 #
 # Prereqs: VM restored (make restore) and powered off; host has gnu-tar, ipsw,
-# aea, ldid, zstd, project venv (make setup_tools). SIP disabled (project
-# baseline); NO authenticated-root/ARV change needed.
+# aea, ldid, zstd (make setup_tools) and a built vphone-cli (make build), which
+# is where every CFW patcher lives. SIP disabled (project baseline); NO
+# authenticated-root/ARV change needed.
 #
 # Usage: cfw_install_host.sh [--variant regular|dev|jb|exp] [vm_dir]
 # Runs as root (mount_apfs/chown/cp to owners-honored mounts); re-execs under
@@ -44,16 +45,12 @@ VM_DIR="${VM_DIR:a}"
 IMG="$VM_DIR/Disk.img"
 [[ -f "$IMG" ]] || { echo "[-] no Disk.img at $IMG" >&2; exit 1; }
 
-# Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd + venv python).
-# VPHONE_PYTHON overrides the venv python (e.g. a bundled .app has no .venv);
-# unset falls back to the repo venv, unchanged from before.
-if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-  P="$PROJ/.tools/bin:$(dirname "$VPHONE_PYTHON"):/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-else
-  P="$PROJ/.tools/bin:$PROJ/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-fi
+# Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd).
+# No python entry: the installers call `vphone-cli cfw <verb>` for every patch,
+# and nothing they run comes out of the venv. VPHONE_PYTHON used to be prepended
+# here for the Python patchers and is no longer read by anything downstream.
+P="$PROJ/.tools/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH="$P"
-PY="${VPHONE_PYTHON:-$PROJ/.venv/bin/python3}"
 
 if lsof "$IMG" >/dev/null 2>&1; then
   echo "[-] $IMG is in use — stop the VM first." >&2; exit 1

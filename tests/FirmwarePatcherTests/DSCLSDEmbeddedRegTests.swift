@@ -2,10 +2,12 @@
 //
 // The patch is one instruction in a 6.7 GB cache, and a wrong one is a boot
 // panic rather than a failing assertion, so the reference these tests grade
-// against is the Python that has already shipped: `cfw.py
-// patch-lsd-embedded-reg`. The centre of the suite runs both implementations
-// over two clones of the *real* cache and compares every byte of all 79 chunks
-// plus the `.symbols` side file.
+// against is the Python that shipped before this port: `cfw.py
+// patch-lsd-embedded-reg`. That Python has since been deleted, so its result
+// is frozen here instead of re-run: `FrozenReference` below records the site
+// it found, the bytes it wrote and the SHA-256 of every chunk it changed, and
+// the Swift patcher is graded against those numbers. Each constant names the
+// command that produced it.
 //
 // The cache is required. Point `VPHONE_DSC_PRISTINE` at a directory of
 // `dyld_shared_cache_arm64e*` chunks, or leave the default
@@ -20,8 +22,63 @@
 // under `VPHONE_DSC_SCRATCH` when the caller names one.
 
 @testable import FirmwarePatcher
+import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python wrote on the real 24A435 arm64e shared cache.
+///
+/// Every value below was read off one live run, recorded at commit 78cbeea:
+///
+///     .venv/bin/python3 scripts/patchers/cfw.py \
+///         patch-lsd-embedded-reg <clone of ipsws/ref_extract/dsc_pristine>
+///
+/// The Swift patcher has to land on the same site, write the same bytes and
+/// leave the same chunk files with the same digests.
+private enum FrozenReference {
+    /// Python: `[.] -[_LSDModifyClient clientIsEntitled…] @ 0x186EE9FAC`.
+    static let methodVMA: UInt64 = 0x1_86EE_9FAC
+
+    /// Python: `[.] gate: cbz w0, #0x186eea048 @ 0x186EEA024`.
+    static let gateVMA: UInt64 = 0x1_86EE_A024
+
+    /// Python: the gate it decoded at `0x186EEA024` was a `cbz`.
+    static let gateMnemonic = "cbz"
+
+    /// Python: `(fall-through sets w20=1)` — the register carrying the YES.
+    static let gateResultRegister = "w20"
+
+    /// Python: `NOP'd gate cbz -> nop … (bytes 20010034 -> 1f2003d5)`.
+    static let originalBytes = Data([0x20, 0x01, 0x00, 0x34])
+
+    /// Python: the same line's replacement half, `1f2003d5`, i.e. `ARM64.nop`.
+    static let patchedBytes = Data([0x1F, 0x20, 0x03, 0xD5])
+
+    /// Python: one `NOP'd gate` line, so one site written.
+    static let sitesWritten = 1
+
+    /// `cmp -s` of the Python's output against the pristine tree, chunk by
+    /// chunk: exactly one file moved, with this SHA-256 afterwards, from
+    /// `shasum -a 256 <python output>/dyld_shared_cache_arm64e.01`.
+    ///
+    /// The digest covers the re-attestation as well as the NOP — the Python
+    /// logged `re-attest: wrote slot 6842 of dyld_shared_cache_arm64e.01`
+    /// (`ee91dcbd.. -> 4ba06a66..`), `updated 1 slot hash(es) across 1
+    /// chunk(s)`, and a Swift run that skipped or mis-computed that slot hash
+    /// would land on a different digest here.
+    ///
+    /// Two further runs of the same Python pinned the edges: re-run over its
+    /// own output printed `already NOP at 0x186EEA024`, no `NOP'd gate` line,
+    /// `updated 0 slot hash(es)`, and left this digest standing; `--dry-run`
+    /// on a fresh clone printed `would NOP gate cbz -> nop at 0x186EEA024` and
+    /// changed no byte of any chunk.
+    static let changedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e.01":
+            "e0c33aa967c0de2d2f46ee6becf40eab5acf20c12a8e1d99bf5b14da6da12a7c",
+    ]
+}
 
 // MARK: - Fixture discovery
 
@@ -64,14 +121,6 @@ private enum LSDRegFixture {
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("vphone-dsc-lsd-embedded-reg")
     }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
-    }
-
-    static var cfwPy: URL { repoRoot.appendingPathComponent("scripts/patchers/cfw.py") }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.
     ///
@@ -116,20 +165,6 @@ private enum LSDRegFixture {
             try? FileManager.default.removeItem(at: scratchRoot)
         }
     }
-
-    /// Run the shipped Python patcher over `directory`.
-    static func runPython(on directory: URL, dryRun: Bool = false) throws -> Shell.Result {
-        let python = try #require(
-            self.python,
-            "the reference Python is required — run `make setup_venv`"
-        )
-        return try Shell.run(
-            executable: python,
-            arguments: [cfwPy.path, "patch-lsd-embedded-reg", directory.path]
-                + (dryRun ? ["--dry-run"] : []),
-            currentDirectory: repoRoot
-        )
-    }
 }
 
 // MARK: - Subprocess helper
@@ -164,6 +199,23 @@ private enum Shell {
             stdout: String(decoding: outData, as: UTF8.self),
             stderr: String(decoding: errData, as: UTF8.self)
         )
+    }
+}
+
+// MARK: - Digests
+
+/// SHA-256 of a cache chunk, streamed so a 131 MB file never lands in memory
+/// whole. The hex spelling matches `shasum -a 256`, which is what produced the
+/// frozen digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -227,6 +279,12 @@ struct DSCLSDEmbeddedRegGateTests {
             located.gate.vma
                 < located.functionVMA + UInt64(DSCLSDEmbeddedRegPatcher.maxInstructions * 4)
         )
+
+        // …and it is the exact site the reference Python reported.
+        #expect(located.functionVMA == FrozenReference.methodVMA)
+        #expect(located.gate.vma == FrozenReference.gateVMA)
+        #expect(located.gate.mnemonic == FrozenReference.gateMnemonic)
+        #expect(located.gate.resultRegister == FrozenReference.gateResultRegister)
     }
 
     @Test("the symbol resolves through the cache's own local symbol table")
@@ -237,13 +295,14 @@ struct DSCLSDEmbeddedRegGateTests {
             try chunks.resolveLocalSymbol(DSCLSDEmbeddedRegPatcher.method),
             "\(DSCLSDEmbeddedRegPatcher.method) must be in the .symbols table"
         )
+        #expect(address == FrozenReference.methodVMA)
         // It has to live in an executable mapping, or it is not the method.
         let mapping = try #require(chunks.mapping(forVMA: address))
         #expect(mapping.isExecutable)
     }
 }
 
-// MARK: - Parity against the Python
+// MARK: - Parity against the frozen reference
 
 @Suite(
     "DSC lsd embedded-registration parity",
@@ -251,35 +310,28 @@ struct DSCLSDEmbeddedRegGateTests {
     .serialized
 )
 struct DSCLSDEmbeddedRegParityTests {
-    @Test("Swift and Python produce byte-identical caches, one site each")
+    @Test("Swift reproduces the reference cache byte for byte, one site")
     func byteForByteParity() throws {
         let swiftClone = try LSDRegFixture.cloneCache(named: "swift")
-        let pythonClone = try LSDRegFixture.cloneCache(named: "python")
-        defer { LSDRegFixture.discard(swiftClone, pythonClone) }
+        defer { LSDRegFixture.discard(swiftClone) }
 
         let report = try DSCLSDEmbeddedRegPatcher.patch(
             chunksDirectory: swiftClone,
             log: nil
         )
         #expect(report.outcome == .patched)
-        #expect(report.sitesWritten == 1)
+        #expect(report.sitesWritten == FrozenReference.sitesWritten)
         #expect(report.methodIsPresent)
+        #expect(report.gate?.vma == FrozenReference.gateVMA)
 
-        let python = try LSDRegFixture.runPython(on: pythonClone)
-        #expect(python.status == 0, "python failed: \(python.stdout)\(python.stderr)")
-        // The Python names each site it writes; one NOP is the whole patch.
-        let pythonSites = python.stdout
-            .split(separator: "\n")
-            .filter { $0.contains("NOP'd gate") }
-        #expect(pythonSites.count == 1, "python wrote \(pythonSites.count) sites")
-
-        let differences = try CacheComparison.differences(between: swiftClone, and: pythonClone)
-        #expect(differences.isEmpty, "chunks differ between Swift and Python: \(differences)")
-
-        // …and both changed exactly the one chunk holding the gate's page.
+        // Exactly the chunk the Python moved, and to exactly the same bytes.
         let changed = try CacheComparison.changedFiles(in: swiftClone)
-        #expect(changed.count == 1, "Swift touched \(changed.count) chunk(s): \(changed)")
-        #expect(changed == (try CacheComparison.changedFiles(in: pythonClone)))
+        #expect(changed == FrozenReference.changedChunks.keys.sorted())
+        for name in changed {
+            let digest = try Digest.sha256(of: swiftClone.appendingPathComponent(name))
+            let frozen = FrozenReference.changedChunks[name] ?? "(not a chunk the Python moved)"
+            #expect(digest == frozen, "\(name): Swift \(digest), reference \(frozen)")
+        }
     }
 
     @Test("the recorded write names the chunk, its offset and the gate address")
@@ -299,6 +351,11 @@ struct DSCLSDEmbeddedRegParityTests {
         #expect(record.originalBytes.count == 4)
         #expect(record.afterDisasm == "nop")
         #expect(record.beforeDisasm.hasPrefix(gate.mnemonic))
+
+        // The bytes on both sides are the pair the Python printed.
+        #expect(record.originalBytes == FrozenReference.originalBytes)
+        #expect(record.patchedBytes == FrozenReference.patchedBytes)
+        #expect(record.virtualAddress == FrozenReference.gateVMA)
 
         // The offset has to name the byte that changed, in the file it names.
         let handle = try FileHandle(
@@ -334,30 +391,14 @@ struct DSCLSDEmbeddedRegRerunTests {
         #expect(second.gate?.vma == first.gate?.vma)
 
         #expect(try CacheComparison.changedFiles(in: clone) == afterFirst)
-    }
-
-    @Test("Python over a Swift-patched cache is a no-op, and the reverse too")
-    func crossImplementationRerunsAgree() throws {
-        let clone = try LSDRegFixture.cloneCache(named: "cross")
-        defer { LSDRegFixture.discard(clone) }
-
-        try DSCLSDEmbeddedRegPatcher.patch(chunksDirectory: clone, log: nil)
-        let afterSwift = try Data(
-            contentsOf: clone.appendingPathComponent("dyld_shared_cache_arm64e")
-        ).count
-
-        let python = try LSDRegFixture.runPython(on: clone)
-        #expect(python.status == 0, "python failed: \(python.stdout)\(python.stderr)")
-        #expect(python.stdout.contains("already NOP"))
-        #expect(!python.stdout.contains("NOP'd gate"))
-
-        // The Python re-run must not have moved anything.
-        #expect(
-            try Data(contentsOf: clone.appendingPathComponent("dyld_shared_cache_arm64e"))
-                .count == afterSwift
-        )
-        let report = try DSCLSDEmbeddedRegPatcher.patch(chunksDirectory: clone, log: nil)
-        #expect(report.outcome == .alreadyPatched)
+        // The reference was idempotent across runs too, so a second Swift pass
+        // has to leave the frozen digests standing.
+        for name in afterFirst {
+            #expect(
+                try Digest.sha256(of: clone.appendingPathComponent(name))
+                    == FrozenReference.changedChunks[name]
+            )
+        }
     }
 
     @Test("a dry run locates the gate and writes nothing")
@@ -372,7 +413,8 @@ struct DSCLSDEmbeddedRegRerunTests {
         )
         #expect(report.outcome == .wouldPatch)
         #expect(report.sitesWritten == 0)
-        #expect(report.gate != nil)
+        #expect(report.gate?.vma == FrozenReference.gateVMA)
+        // The reference dry run wrote nothing either.
         #expect(try CacheComparison.changedFiles(in: clone).isEmpty)
     }
 }

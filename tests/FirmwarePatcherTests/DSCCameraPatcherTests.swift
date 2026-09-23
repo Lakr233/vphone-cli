@@ -1,12 +1,16 @@
 // DSCCameraPatcherTests.swift — Parity gate for the camera DSC patcher.
 //
 // The claim these tests exist to defend is narrow and checkable: running
-// `scripts/patchers/cfw_patch_camera_dsc.py` on one clone of the real shared
-// cache and `DSCCameraPatcher` on another leaves the two clones byte for byte
-// identical, across all 79 chunk files — patched instructions, rewritten code
-// slots and everything neither touched. Nothing here asserts against a number
-// this repo wrote down once; the Python is run for real and its output is the
-// reference.
+// `DSCCameraPatcher` over a clone of the real shared cache leaves exactly the
+// bytes `scripts/patchers/cfw_patch_camera_dsc.py` left — patched instructions,
+// rewritten code slots and everything neither touched.
+//
+// That Python has been removed, so the numbers it produced are frozen in
+// `FrozenReference` below: the six sites with the address, the prologue and the
+// replacement for each, the code slots it re-attested, the SHA-256 of the two
+// chunks it changed, the patch ids its `_sym_slug` derived, and the bytes
+// keystone assembled for both replacements. Each carries the run that produced
+// it.
 //
 // The tests need the real cache. `VPHONE_DSC_PRISTINE` points at a directory of
 // `dyld_shared_cache_arm64e*` chunks, defaulting to
@@ -27,6 +31,92 @@
 import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python did on the real 24A435 arm64e shared cache.
+///
+/// Recorded from a live run at commit 78cbeea:
+///
+///     PATH=/opt/homebrew/bin:… .venv/bin/python3 \
+///         scripts/patchers/cfw_patch_camera_dsc.py <clone> <clone>/dyld_shared_cache_arm64e
+///
+/// (`/opt/homebrew/bin` because the reference shelled out to `ipsw` for symbol
+/// resolution; the Swift port resolves from the cache's own tables.)
+private enum FrozenReference {
+    /// One entry point, as the reference printed it:
+    ///
+    ///     +[_NUStyleTransferApplyProcessor processWithInputs:…]  @ 0x1BF430C04
+    ///       7f2303d5ef3bb66d → 00008052c0035fd6
+    struct Site {
+        let symbol: String
+        let vma: UInt64
+        /// The eight prologue bytes it read, as it printed them.
+        let before: String
+        /// The eight it wrote in their place.
+        let after: String
+    }
+
+    /// `[1/2] +[_NUStyleTransfer*Processor processWithInputs:…] → return NO`,
+    /// then `[2/2] +[AVCaptureDevice authorizationStatusForMediaType:] →
+    /// return Authorized`. Six sites, in the order the reference listed them.
+    static let sites: [Site] = [
+        Site(symbol: "+[_NUStyleTransferApplyProcessor processWithInputs:arguments:output:error:]",
+             vma: 0x1_BF43_0C04, before: "7f2303d5ef3bb66d", after: "00008052c0035fd6"),
+        Site(symbol: "+[_NUStyleTransferInterpolateProcessor processWithInputs:arguments:output:error:]",
+             vma: 0x1_BF43_A3A8, before: "7f2303d5ff0303d1", after: "00008052c0035fd6"),
+        Site(symbol: "+[_NUStyleTransferLearnProcessor processWithInputs:arguments:output:error:]",
+             vma: 0x1_BF42_EC54, before: "7f2303d5ff0304d1", after: "00008052c0035fd6"),
+        Site(symbol: "+[_NUStyleTransferProcessor processWithInputs:arguments:output:error:]",
+             vma: 0x1_BF43_3BD0, before: "7f2303d5ffc306d1", after: "00008052c0035fd6"),
+        Site(symbol: "+[_NUStyleTransferThumbnailProcessor processWithInputs:arguments:output:error:]",
+             vma: 0x1_BF43_5DB4, before: "7f2303d5ff8303d1", after: "00008052c0035fd6"),
+        Site(symbol: "+[AVCaptureDevice authorizationStatusForMediaType:]",
+             vma: 0x1_AD8A_12D8, before: "7f2303d5ffc301d1", after: "60008052c0035fd6"),
+    ]
+
+    static var sitesBySymbol: [String: Site] {
+        Dictionary(uniqueKeysWithValues: sites.map { ($0.symbol, $0) })
+    }
+
+    /// The `re-attest: wrote slot N of <chunk>` lines, as `<chunk>:<slot>`:
+    /// four pages for the NeutrinoCore family, one for AVFCapture.
+    static let reattestedPages: Set<String> = [
+        "dyld_shared_cache_arm64e.15:7179",
+        "dyld_shared_cache_arm64e.15:7180",
+        "dyld_shared_cache_arm64e.15:7181",
+        "dyld_shared_cache_arm64e.15:7182",
+        "dyld_shared_cache_arm64e.11:5416",
+    ]
+
+    /// `cmp -s` against the pristine tree afterwards: two chunks moved, one per
+    /// family, with these digests (`shasum -a 256`). They cover the six writes
+    /// and the five re-attested slots together.
+    static let changedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e.11":
+            "3a2cfbecd7eb029d74d930d9c8fc6d6d6066019691cf9f267a2089ac73685575",
+        "dyld_shared_cache_arm64e.15":
+            "4d7e5737d3d66725c59e0321410d05d501449301b269d7a6e25447c68ebc8cb0",
+    ]
+
+    /// `_sym_slug` from `cfw_patch_camera_dsc`, for the five style-transfer
+    /// symbols and the AVF one, in `DSCCameraPatcher`'s declaration order.
+    /// These key `cfw_records`, so a port that renames them writes records that
+    /// line up with nothing.
+    static let symbolSlugs: [String] = [
+        "NUStyleTransferProcessor_processWithInputs_arguments_output_error",
+        "NUStyleTransferThumbnailProcessor_processWithInputs_arguments_output_error",
+        "NUStyleTransferApplyProcessor_processWithInputs_arguments_output_error",
+        "NUStyleTransferLearnProcessor_processWithInputs_arguments_output_error",
+        "NUStyleTransferInterpolateProcessor_processWithInputs_arguments_output_error",
+        "AVCaptureDevice_authorizationStatusForMediaType",
+    ]
+
+    /// `cfw_asm.asm("mov w0, #0\nret").hex()` and the `#3` spelling, through
+    /// the keystone the patchers assembled with.
+    static let keystoneReturningZero = "00008052c0035fd6"
+    static let keystoneReturningThree = "60008052c0035fd6"
+}
 
 // MARK: - Fixture discovery
 
@@ -71,23 +161,6 @@ private enum CameraFixture {
             .map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("vphone-dsc-camera")
-    }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
-    }
-
-    /// `ipsw`, which the reference Python shells out to for symbol resolution.
-    /// The Swift port does not need it; running the reference does.
-    static var ipswDirectory: String? {
-        for candidate in ["/opt/homebrew/bin", "/usr/local/bin"]
-            where FileManager.default.isExecutableFile(atPath: candidate + "/ipsw")
-        {
-            return candidate
-        }
-        return nil
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.
@@ -185,129 +258,19 @@ private enum CameraSubprocess {
     }
 }
 
-// MARK: - The reference Python, run for real
-
-private enum CameraReference {
-    /// Run `cfw_patch_camera_dsc.py` over `cache`, exactly as
-    /// `patch_camera_userland.sh dsc` does.
-    @discardableResult
-    static func run(on cache: URL, extraArguments: [String] = []) throws -> CameraSubprocess.Result {
-        let python = try #require(CameraFixture.python, "project venv is required for the cross-check")
-        let ipswDirectory = try #require(
-            CameraFixture.ipswDirectory,
-            "`ipsw` is required to run the reference Python (the Swift port does not use it)"
-        )
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = ipswDirectory + ":/usr/bin:/bin:/usr/sbin:/sbin"
-        let result = try CameraSubprocess.run(
-            executable: python,
-            arguments: [
-                CameraFixture.repoRoot
-                    .appendingPathComponent("scripts/patchers/cfw_patch_camera_dsc.py").path,
-                cache.path,
-                cache.appendingPathComponent("dyld_shared_cache_arm64e").path,
-            ] + extraArguments,
-            environment: environment
-        )
-        #expect(result.status == 0, "reference Python failed: \(result.stderr)")
-        return result
-    }
-
-    /// The sites the reference reported, as `symbol -> "before → after"`.
-    ///
-    /// Parsed off the two lines it prints per site rather than off a count, so
-    /// a run that silently patched five of six cannot pass as six.
-    static func sites(in output: String) -> [String: (before: String, after: String)] {
-        var sites: [String: (String, String)] = [:]
-        var pendingSymbol: String?
-        for rawLine in output.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = String(rawLine)
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("+["), let at = trimmed.range(of: "  @ 0x") {
-                pendingSymbol = String(trimmed[trimmed.startIndex ..< at.lowerBound])
-                continue
-            }
-            if let symbol = pendingSymbol, trimmed.contains("→") {
-                let halves = trimmed.components(separatedBy: "→")
-                if halves.count == 2 {
-                    sites[symbol] = (
-                        halves[0].trimmingCharacters(in: .whitespaces),
-                        halves[1].trimmingCharacters(in: .whitespaces)
-                    )
-                }
-                pendingSymbol = nil
-            }
-        }
-        return sites
-    }
-
-    /// `_sym_slug` from the reference module, for the six real symbols.
-    static func symbolSlugs(for symbols: [String]) throws -> [String] {
-        let python = try #require(CameraFixture.python)
-        let result = try CameraSubprocess.run(
-            executable: python,
-            arguments: [
-                "-c",
-                """
-                import json, sys
-                sys.path.insert(0, sys.argv[1])
-                from cfw_patch_camera_dsc import _sym_slug
-                print(json.dumps([_sym_slug(s) for s in json.loads(sys.argv[2])]))
-                """,
-                CameraFixture.repoRoot.appendingPathComponent("scripts/patchers").path,
-                String(decoding: try JSONSerialization.data(withJSONObject: symbols), as: UTF8.self),
-            ]
-        )
-        #expect(result.status == 0, "python _sym_slug failed: \(result.stderr)")
-        return try JSONDecoder().decode([String].self, from: Data(result.stdout.utf8))
-    }
-
-    /// What keystone assembles for a source string, through the module the
-    /// patchers use.
-    static func assemble(_ source: String) throws -> String {
-        let python = try #require(CameraFixture.python)
-        let result = try CameraSubprocess.run(
-            executable: python,
-            arguments: [
-                "-c",
-                """
-                import sys
-                sys.path.insert(0, sys.argv[1])
-                from cfw_asm import asm
-                print(asm(sys.argv[2]).hex())
-                """,
-                CameraFixture.repoRoot.appendingPathComponent("scripts/patchers").path,
-                source,
-            ]
-        )
-        #expect(result.status == 0, "keystone failed: \(result.stderr)")
-        return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}
-
 // MARK: - The parity gate
 
 @Suite(.serialized, .enabled(if: CameraFixture.runs, CameraFixture.skipReason))
 struct DSCCameraPatcherParityTests {
-    /// The gate. Two clones, two implementations, one byte-for-byte comparison
-    /// across every chunk file in the cache.
-    @Test("Swift and Python leave the real cache byte-identical")
-    func swiftAndPythonAgreeByteForByte() throws {
-        _ = try #require(CameraFixture.pristine, CameraFixture.missing)
+    /// The gate. One clone, one run, one byte-for-byte comparison against the
+    /// digests the reference left on every chunk file in the cache.
+    @Test("Swift leaves the real cache in the reference's bytes")
+    func matchesTheReferenceByteForByte() throws {
+        let pristine = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let swiftSide = try CameraFixture.cloneCache(named: "camera_swift")
-        let pythonSide = try CameraFixture.cloneCache(named: "camera_python")
-        defer { CameraFixture.discard(swiftSide, pythonSide) }
+        defer { CameraFixture.discard(swiftSide) }
 
-        // The reference, run for real.
-        let referenceOutput = try CameraReference.run(on: pythonSide).stdout
-        let referenceSites = CameraReference.sites(in: referenceOutput)
-        #expect(
-            referenceSites.count == 6,
-            "the reference reported \(referenceSites.count) sites, not 6"
-        )
-
-        // The port.
         var log: [String] = []
         let result = try DSCCameraPatcher.applyAll(
             chunksDirectory: swiftSide,
@@ -319,73 +282,46 @@ struct DSCCameraPatcherParityTests {
 
         // Same addresses, same bytes before, same bytes after — checked against
         // what the reference printed, not against what the port believes.
+        let reference = FrozenReference.sitesBySymbol
+        #expect(Set(result.sites.map(\.symbol)) == Set(reference.keys))
         for site in result.sites {
             let theirs = try #require(
-                referenceSites[site.symbol],
+                reference[site.symbol],
                 "the reference did not report \(site.symbol)"
             )
+            #expect(site.vma == theirs.vma, "\(site.symbol) address")
             #expect(site.originalBytes.hex == theirs.before, "\(site.symbol) original bytes")
             #expect(site.patchedBytes.hex == theirs.after, "\(site.symbol) patched bytes")
-            #expect(
-                referenceOutput.contains("@ 0x\(String(site.vma, radix: 16, uppercase: true))"),
-                "the reference did not report \(site.symbol) at the port's address"
-            )
         }
 
-        // And the caches themselves, whole.
+        // And the caches themselves, whole: exactly the two chunks the
+        // reference moved, each to the bytes it left there.
         let mine = try CameraFixture.digests(of: swiftSide)
-        let theirs = try CameraFixture.digests(of: pythonSide)
-        #expect(mine.keys.sorted() == theirs.keys.sorted())
-        var differing: [String] = []
-        for (name, digest) in mine.sorted(by: { $0.key < $1.key })
-            where theirs[name] != digest
-        {
-            differing.append(name)
-        }
-        #expect(differing.isEmpty, "chunks differ after patching: \(differing)")
         #expect(mine.count >= 79, "only \(mine.count) chunk files were compared")
-
-        // The comparison is only worth anything if the two caches moved at all.
-        let pristineDigests = try CameraFixture.digests(
-            of: try #require(CameraFixture.pristine)
-        )
+        let pristineDigests = try CameraFixture.digests(of: pristine)
         let changed = mine.filter { pristineDigests[$0.key] != $0.value }.keys.sorted()
-        #expect(
-            changed.count == 2,
-            "expected both families to land in their own chunk; changed: \(changed)"
-        )
+        #expect(changed == FrozenReference.changedChunks.keys.sorted())
+        for name in changed {
+            let frozen = FrozenReference.changedChunks[name] ?? "(not a chunk the Python moved)"
+            #expect(mine[name] == frozen, "\(name): Swift \(mine[name] ?? "—"), reference \(frozen)")
+        }
 
         print("[camera parity] \(result.siteCount) sites, "
             + "\(result.reattestation?.updated.count ?? 0) slots rewritten, "
-            + "\(mine.count) chunk files identical to the Python's")
-        print("[camera parity] chunks that changed: \(changed.joined(separator: ", "))")
+            + "\(mine.count) chunk files, \(changed.count) with the reference's digests")
         for line in log where line.contains("re-attest: wrote") { print(line) }
     }
 
-    /// The reference re-attests per family off bare addresses; this re-attests
+    /// The reference re-attested per family off bare addresses; this re-attests
     /// once at the end off recorded spans. Same pages on this cache — which is
     /// worth checking rather than assuming, because it is the only reason the
     /// two runs can come out identical.
-    @Test("The port re-attests exactly the pages the reference does")
+    @Test("The port re-attests exactly the pages the reference did")
     func reattestedPagesMatchTheReference() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let swiftSide = try CameraFixture.cloneCache(named: "camera_pages_swift")
-        let pythonSide = try CameraFixture.cloneCache(named: "camera_pages_python")
-        defer { CameraFixture.discard(swiftSide, pythonSide) }
-
-        let referenceOutput = try CameraReference.run(on: pythonSide).stdout
-        var referencePages: Set<String> = []
-        for rawLine in referenceOutput.split(separator: "\n") {
-            let line = String(rawLine)
-            guard line.contains("re-attest: wrote slot ") else { continue }
-            let parts = line.components(separatedBy: "re-attest: wrote slot ")
-            guard parts.count == 2 else { continue }
-            let fields = parts[1].split(separator: " ")
-            guard fields.count >= 3 else { continue }
-            referencePages.insert("\(fields[2]):\(fields[0])")
-        }
-        #expect(!referencePages.isEmpty, "the reference re-attested nothing")
+        defer { CameraFixture.discard(swiftSide) }
 
         let result = try DSCCameraPatcher.applyAll(chunksDirectory: swiftSide, log: nil)
         let minePages = Set(
@@ -393,7 +329,10 @@ struct DSCCameraPatcherParityTests {
                 "\($0.chunkURL.lastPathComponent):\($0.pageIndex)"
             }
         )
-        #expect(minePages == referencePages, "swift \(minePages.sorted()) vs python \(referencePages.sorted())")
+        #expect(
+            minePages == FrozenReference.reattestedPages,
+            "swift \(minePages.sorted()) vs reference \(FrozenReference.reattestedPages.sorted())"
+        )
         print("[camera pages] \(minePages.sorted().joined(separator: ", "))")
     }
 
@@ -401,35 +340,25 @@ struct DSCCameraPatcherParityTests {
     /// keyed on. A port that renames them writes records nothing lines up with.
     @Test("Patch ids match the reference's _sym_slug")
     func patchIDsMatchTheReference() throws {
-        _ = try #require(CameraFixture.pristine, CameraFixture.missing)
-
         let symbols = DSCCameraPatcher.styleTransferSymbols
             + [DSCCameraPatcher.authorizationStatusSymbol]
-        let theirs = try CameraReference.symbolSlugs(for: symbols)
         let mine = symbols.map(DSCCameraPatcher.symbolSlug)
-        #expect(mine == theirs)
-        #expect(
-            mine.first == "NUStyleTransferProcessor_processWithInputs_arguments_output_error"
-        )
+        #expect(mine == FrozenReference.symbolSlugs)
         print("[camera slugs] \(mine.count) ids agreed, e.g. camera_dsc.nu_styletransfer.\(mine[0])")
     }
 
     /// Both replacements come out of the Keystone-checked encoders, and both
-    /// have to be what keystone itself assembles.
-    @Test("Both replacements are the bytes keystone assembles")
+    /// have to be what keystone itself assembled.
+    @Test("Both replacements are the bytes keystone assembled")
     func replacementsMatchKeystone() throws {
-        _ = try #require(CameraFixture.python, "project venv is required for the cross-check")
-
         let styleTransfer = try DSCCameraPatcher.replacement(
             returning: DSCCameraPatcher.Family.neutrinoStyleTransfer.returnValue
         )
         let authorization = try DSCCameraPatcher.replacement(
             returning: DSCCameraPatcher.Family.avfAuthorization.returnValue
         )
-        let keystoneStyleTransfer = try CameraReference.assemble("mov w0, #0\nret")
-        let keystoneAuthorization = try CameraReference.assemble("mov w0, #3\nret")
-        #expect(styleTransfer.hex == keystoneStyleTransfer)
-        #expect(authorization.hex == keystoneAuthorization)
+        #expect(styleTransfer.hex == FrozenReference.keystoneReturningZero)
+        #expect(authorization.hex == FrozenReference.keystoneReturningThree)
         #expect(styleTransfer.count == 8)
         #expect(authorization.count == 8)
         print("[camera bytes] mov w0,#0;ret = \(styleTransfer.hex), mov w0,#3;ret = \(authorization.hex)")
@@ -524,6 +453,10 @@ struct DSCCameraPatcherBehaviourTests {
 
         let afterSecond = try CameraFixture.digests(of: clone)
         #expect(afterSecond == afterFirst, "a re-run changed the cache")
+        // …and what it left standing is still the reference's bytes.
+        for (name, digest) in FrozenReference.changedChunks {
+            #expect(afterSecond[name] == digest, "\(name) drifted across the re-run")
+        }
         print("[camera idempotence] second run: 6 sites recognised as already patched, 0 slots rewritten")
     }
 

@@ -53,7 +53,7 @@ section() { print ""; print -P "%B== $* ==%b" }
 # Anything not on this list and not in the system whitelist fails.
 typeset -a REGISTERED_REMAINING=(
   ldid      # -> VPhoneSign (P0.5). Bundled today and NOT self-contained.
-  python3   # -> gone at P2.4
+  python3   # -> restore backend only (scripts/pymobiledevice3_bridge.py); gone at P2.4
   gtar      # -> vphone-archive (P0.5)
   zstd      # -> vphone-archive (P0.5)
   unzip     # -> vphone-archive (P0.5)
@@ -62,7 +62,6 @@ typeset -a REGISTERED_REMAINING=(
   aria2c    # -> deleted, curl fallback already exists (P0.5)
   ipsw      # allowed to stay: Go, statically linked, passes the rule
   sshpass   # JB environment only, frozen
-  keystone  # Python assembler dependency -> gone at P1.5/P2.4
 )
 
 # Programs macOS ships that we depend on and intend to keep. This is the

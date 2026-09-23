@@ -1,9 +1,16 @@
 // DSCFoundationTests.swift — Cross-checks for the DSC foundation layer.
 //
 // `codesign -v` does not apply to a dyld shared cache chunk, so the only
-// independent reference for any of this is the Python in `scripts/patchers/`.
-// Every test here therefore runs the Python on the same bytes and compares,
-// rather than asserting against a number this repo wrote down once.
+// independent reference for any of this was the Python in `scripts/patchers/`
+// — `cfw_dsc_chunks` and `cfw_dsc_codesign`. That Python has been removed, so
+// what it produced on the real cache is frozen in `FrozenReference` below.
+//
+// The small answers — a symbol address, a slot hash, an install name — are
+// frozen literally. The big tables (103 mappings, 416 probe reads, 78 code
+// directories, 44 string hits) are frozen as the SHA-256 of a canonical text
+// form, which `Canonical` below rebuilds from the Swift side. A digest is not
+// a number this repo invented: it is the reference's whole answer, and any
+// single field that moves changes it.
 //
 // The tests need the real cache. Point `VPHONE_DSC_PRISTINE` at a directory of
 // `dyld_shared_cache_arm64e*` chunks, or leave the default
@@ -21,8 +28,217 @@
 // — `clonefile`, so instant and free on APFS — and work in the copy.
 
 @testable import FirmwarePatcher
+import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What `cfw_dsc_chunks` and `cfw_dsc_codesign` answered on the real 24A435
+/// arm64e cache.
+///
+/// Recorded at commit 78cbeea by importing those modules from
+/// `.venv/bin/python3` and driving them over `ipsws/ref_extract/dsc_pristine`
+/// (and, for the writes, over clones of it). Each constant names the call.
+private enum FrozenReference {
+    // MARK: Layout
+
+    /// `len(_enumerate_chunks(dir))` and `len(DSCChunks(dir).mappings())`.
+    static let chunkCount = 79
+    static let mappingCount = 103
+
+    /// The first and last rows of `Canonical.mappings`, spelled out so a
+    /// digest mismatch has something human to sit next to.
+    static let firstMappingRow = "180000000 1800bc000 0 5 dyld_shared_cache_arm64e"
+    static let lastMappingRow =
+        "2d4fa8000 2fd500000 4000 1 dyld_shared_cache_arm64e.77.dyldlinkedit"
+
+    /// SHA-256 of `Canonical.mappings` — all 103 rows of
+    /// `(address, end, file_offset, init_prot, chunk)`.
+    static let mappingsSHA256 =
+        "8edc4100e0df480815d9cd3fff5855211a91b772996d771fd619713c818ee9dd"
+
+    // MARK: Reads
+
+    /// How many probe reads `Canonical.probes` covers: four per mapping
+    /// (start, last eight bytes, last byte, midpoint) plus four real code
+    /// sites.
+    static let probeCount = 416
+
+    /// SHA-256 of `Canonical.probes` — every probe's
+    /// `(vma, length, chunk, file_offset, bytes)`, so the address-to-file
+    /// translation and the bytes are frozen together.
+    static let probesSHA256 =
+        "1ab5b5a7d5bea1a4560d9b5b51415a92bbebaff4d6e0f6e8535bf70ff93174eb"
+
+    /// Four bytes before the end of the main chunk's first mapping. The next
+    /// mapping starts at 0x180400000 — a 3.3 MB hole — so bytes 4..63 of a
+    /// 64-byte read correspond to no virtual address.
+    static let overrunVMA: UInt64 = 0x1_800B_BFFC
+
+    /// `DSCChunks.bytes_at_vma(0x1800BBFFC, 64).hex()`. The reference
+    /// bounds-checked only the first byte, so it returned all 64 without
+    /// complaint — bytes 4.. are the chunk's own `CS_SuperBlob` (`fade0cc0`),
+    /// presented as if they lived at those addresses. The Swift refuses the
+    /// read instead; this is the one deliberate divergence in the layer.
+    static let overrunBytes = """
+    00000000fade0cc0000006d600000003000000000000002400000002000006c2\
+    00010000000006cefade0c020000069e0002040000000002000000be00000058
+    """
+
+    // MARK: Symbols, strings and images
+
+    /// `resolve_local_symbol(dir, "_kern_SwapEnd")`.
+    static let kernSwapEndVMA: UInt64 = 0x2_2AC0_C334
+
+    /// `DSCChunks.find_string_vmas(b"kern.hv_vmm_present")`: 44 hits across the
+    /// executable mappings, first and last as spelled here, all of them frozen
+    /// together as the SHA-256 of `Canonical.addresses`.
+    static let hvVMMStringCount = 44
+    static let hvVMMStringFirst: UInt64 = 0x1_8C2D_B790
+    static let hvVMMStringLast: UInt64 = 0x2_C08F_0F67
+    static let hvVMMStringsSHA256 =
+        "746e7059ae67f7b5ac1e083efebf1647d2090db28ffccddabf93dd873323902a"
+
+    /// `find_macho_header_before(site)` and `read_install_name_at(header)` for
+    /// three real code sites — one per image the DSC patchers touch.
+    static let images: [(site: UInt64, header: UInt64, installName: String)] = [
+        (0x2_2AC0_C334, 0x2_2AC0_B000,
+         "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer"),
+        (0x1BF4_33BD0, 0x1BF1_43000,
+         "/System/Library/PrivateFrameworks/NeutrinoCore.framework/NeutrinoCore"),
+        (0x1AD8_A12D8, 0x1AD8_4B000,
+         "/System/Library/PrivateFrameworks/AVFCapture.framework/AVFCapture"),
+    ]
+
+    // MARK: Code directories
+
+    /// How many of the 79 chunks `_read_chunk_cd_blob` found a code directory
+    /// in. The one without is the `.atlas` side file.
+    static let codeDirectoryCount = 78
+
+    /// SHA-256 of `Canonical.codeDirectories` — every chunk's
+    /// `(blobOffset, blobLength, hashOffset, hashSize, codeSlotCount,
+    /// codeLimit, pageSize)`, or `none`.
+    static let codeDirectoriesSHA256 =
+        "cba2286b4310e7b4cc45b8655e020df6c95042075f6d2a95647d5c0b92d4cca1"
+
+    /// The main chunk's row, spelled out for the same reason as the mapping
+    /// rows above.
+    static let mainChunkDirectoryRow =
+        "dyld_shared_cache_arm64e 770084 1694 190 32 47 770048 16384"
+
+    // MARK: Re-signing
+
+    /// The site the re-signing tests patch: inside `IOMobileFramebuffer`'s
+    /// `__text`, a real executable page whose slot a real patch has to re-sign.
+    static let patchSite: UInt64 = 0x2_2AC0_C334
+
+    /// `bytes_at_vma(0x22AC0C334, 4).hex()` before anything is written —
+    /// `pacibsp`.
+    static let patchSiteOriginalBytes = "7f2303d5"
+
+    /// The one diagnostic `reattest_modified_pages` returned after writing
+    /// `mov w3, #0x588` (`03b18052`) at that site.
+    static let resignChunk = "dyld_shared_cache_arm64e.38"
+    static let resignPageIndex = 2563
+    static let resignChunkOffset = 41_992_192
+    static let resignSlotOffset = 130_892_098
+    static let resignHashBefore =
+        "5351489bc2d838a51a66a62e42ff7743457107335a35ddc82d3de4620e0c3e05"
+    static let resignHashAfter =
+        "f901fd7dd3ca8226722ebce5653d066a134c83c9925812957fc01d7b086dd31e"
+
+    // MARK: The page-straddling write
+
+    /// 0x22AC0FFFC is file offset 0x280FFFC of chunk .38 — the last four bytes
+    /// of page 2563. The eight-byte stub `mov w0, #0; ret` (what
+    /// `cfw_patch_camera_dsc` writes at a function entry) ends four bytes into
+    /// page 2564.
+    static let straddleVMA: UInt64 = 0x2_2AC0_FFFC
+    static let straddleFirstPage = 2563
+    static let straddleSecondPage = 2564
+
+    /// Told that address, the reference re-attested page 2563 and stopped: its
+    /// diagnostics named `[2563]`, page 2563 came out attested, and page 2564
+    /// was left with its original slot while its bytes had moved —
+    /// `computed dfe38096…` against `stored 7ccd65fa…`. The guest dies on the
+    /// first demand-page-in of such a page, which is why the Swift covers both.
+    static let straddleReferencePages = [2563]
+    static let straddlePage2563Hash =
+        "977f5abb356687af28158070c182b3017cfd5e90ccc82ef2eba8941d43d8020c"
+    static let straddlePage2564Computed =
+        "dfe38096f5ee7aaabeab6897f37e431eeacc0e9df589243abbb577877a1061c2"
+    static let straddlePage2564Stored =
+        "7ccd65fad32f1ee09d49a463dccc1226459a3b3bc2e6a45175b9a04c0e1e5423"
+
+    // MARK: The mapping seam
+
+    /// 0x1E00DFFFE is two bytes before the end of the first mapping of
+    /// `.25.dylddata`; the next mapping continues at file offset 0x4000 of the
+    /// same file. Four bytes therefore cross both a mapping seam and a 16 KiB
+    /// page boundary. `write_at_vma` accepted it and the four bytes landed at
+    /// file offset 0x3FFE.
+    static let seamVMA: UInt64 = 0x1_E00D_FFFE
+    static let seamChunk = "dyld_shared_cache_arm64e.25.dylddata"
+    static let seamFileOffset: UInt64 = 0x3FFE
+    static let seamBytes = "11223344"
+}
+
+// MARK: - Canonical forms
+
+/// The text forms the frozen digests were taken over.
+///
+/// Each row is exactly what the reference printed: lowercase hex without
+/// padding for addresses and file offsets, decimal for everything else, single
+/// spaces between fields, one trailing newline at the end of the table.
+private enum Canonical {
+    static func hex(_ value: UInt64) -> String { String(value, radix: 16) }
+
+    static func sha256(of text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// `address end file_offset init_prot chunk`, in mapping-table order.
+    static func mappings(_ chunks: DSCChunkSet) -> String {
+        chunks.mappings.map {
+            "\(hex($0.address)) \(hex($0.endAddress)) \(hex($0.fileOffset)) "
+                + "\($0.initProt) \($0.chunkURL.lastPathComponent)"
+        }.joined(separator: "\n") + "\n"
+    }
+
+    /// `vma length chunk file_offset bytes`, in request order.
+    static func probes(
+        _ chunks: DSCChunkSet,
+        _ requests: [(UInt64, Int)]
+    ) throws -> String {
+        try requests.map { vma, length in
+            let located = try #require(chunks.findChunk(forVMA: vma))
+            let bytes = try chunks.bytesAtVMA(vma, length: length)
+            return "\(hex(vma)) \(length) \(located.chunkURL.lastPathComponent) "
+                + "\(hex(UInt64(located.fileOffset))) \(bytes.hex)"
+        }.joined(separator: "\n") + "\n"
+    }
+
+    /// One address per row, sorted ascending.
+    static func addresses(_ values: [UInt64]) -> String {
+        values.sorted().map(hex).joined(separator: "\n") + "\n"
+    }
+
+    /// `chunk blobOffset blobLength hashOffset hashSize codeSlotCount
+    /// codeLimit pageSize`, or `chunk none`, in chunk order.
+    static func codeDirectories(_ chunks: DSCChunkSet) throws -> [String] {
+        try chunks.chunkURLs.map { url in
+            let name = url.lastPathComponent
+            guard let directory = try DSCCodeSignature.readCodeDirectory(ofChunk: url) else {
+                return "\(name) none"
+            }
+            return "\(name) \(directory.blobOffset) \(directory.blobLength) "
+                + "\(directory.hashOffset) \(directory.hashSize) "
+                + "\(directory.codeSlotCount) \(directory.codeLimit) \(directory.pageSize)"
+        }
+    }
+}
 
 // MARK: - Fixture discovery
 
@@ -71,12 +287,6 @@ private enum DSCFixture {
     /// filesystem, so the clone is still a clone.
     static var scratchRoot: URL {
         repoRoot.appendingPathComponent("ipsws/scratch_dscfoundation")
-    }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     static var ipsw: URL? {
@@ -158,242 +368,52 @@ private enum Subprocess {
     }
 }
 
-// MARK: - The reference Python, driven as an oracle
+// MARK: - Slot state, read the way the reference read it
 
-/// A tiny driver around `cfw_dsc_chunks` / `cfw_dsc_codesign`, written to a
-/// temp file at test time. It adds no logic of its own — every number it
-/// prints comes out of the modules under `scripts/patchers/`, which is the
-/// point: the comparison has to be against that code, not a transcription.
-private enum PythonOracle {
-    static let source = #"""
-import hashlib
-import json
-import os
-import sys
-
-sys.path.insert(0, os.path.join(sys.argv[1], "scripts", "patchers"))
-
-from cfw_dsc_chunks import DSCChunks, _enumerate_chunks, _parse_chunk_mappings, resolve_local_symbol
-from cfw_dsc_codesign import _read_chunk_cd_blob, reattest_modified_pages
-
-command = sys.argv[2]
-chunks_dir = sys.argv[3]
-
-if command == "layout":
-    out = {"chunks": [], "mappings": []}
-    for path in _enumerate_chunks(chunks_dir):
-        out["chunks"].append(os.path.basename(path))
-    c = DSCChunks(chunks_dir)
-    for addr, end, foff, prot, cp in c.mappings():
-        out["mappings"].append({
-            "address": addr, "end": end, "file_offset": foff,
-            "init_prot": prot, "chunk": os.path.basename(cp),
-        })
-    print(json.dumps(out))
-
-elif command == "bytes":
-    # argv[4] = JSON file of [[vma, length], ...]
-    with open(sys.argv[4]) as f:
-        requests = json.load(f)
-    c = DSCChunks(chunks_dir)
-    out = []
-    for vma, length in requests:
-        cp, foff = c.find_chunk_for_vma(vma)
-        out.append({
-            "vma": vma,
-            "length": length,
-            "chunk": os.path.basename(cp),
-            "file_offset": foff,
-            "bytes": c.bytes_at_vma(vma, length).hex(),
-        })
-    print(json.dumps(out))
-
-elif command == "coderdirs":
-    out = {}
-    for path in _enumerate_chunks(chunks_dir):
-        out[os.path.basename(path)] = _read_chunk_cd_blob(path)
-    print(json.dumps(out))
-
-elif command == "patch_and_reattest":
-    # argv[4] = vma, argv[5] = replacement bytes as hex
-    vma = int(sys.argv[4], 0)
-    data = bytes.fromhex(sys.argv[5])
-    c = DSCChunks(chunks_dir)
-    before = c.bytes_at_vma(vma, len(data)).hex()
-    c.write_at_vma(vma, data)
-    diags = reattest_modified_pages(c, [vma], dry_run=False, verbose=False)
-    print(json.dumps({"before": before, "diagnostics": diags}))
-
-elif command == "write_at":
-    # argv[4] = vma, argv[5] = replacement bytes as hex. Write only, no re-sign.
-    vma = int(sys.argv[4], 0)
-    data = bytes.fromhex(sys.argv[5])
-    c = DSCChunks(chunks_dir)
-    c.write_at_vma(vma, data)
-    print(json.dumps({"ok": True}))
-
-elif command == "reattest_dry":
-    vma = int(sys.argv[4], 0)
-    c = DSCChunks(chunks_dir)
-    diags = reattest_modified_pages(c, [vma], dry_run=True, verbose=False)
-    print(json.dumps({"diagnostics": diags}))
-
-elif command == "local_symbol":
-    print(json.dumps({"address": resolve_local_symbol(chunks_dir, sys.argv[4])}))
-
-elif command == "string_vmas":
-    c = DSCChunks(chunks_dir)
-    print(json.dumps(c.find_string_vmas(sys.argv[4].encode())))
-
-elif command == "image_at":
-    # argv[4] = vma; walk back to the image header and read its install name
-    vma = int(sys.argv[4], 0)
-    c = DSCChunks(chunks_dir)
-    header = c.find_macho_header_before(vma)
-    print(json.dumps({
-        "header": header,
-        "install_name": c.read_install_name_at(header) if header else None,
-    }))
-
-elif command == "page_digest":
-    # argv[4] = chunk basename, argv[5] = page index, argv[6] = page size
-    path = os.path.join(chunks_dir, sys.argv[4])
-    page_size = int(sys.argv[6])
-    with open(path, "rb") as f:
-        f.seek(int(sys.argv[5]) * page_size)
-        page = f.read(page_size)
-    print(json.dumps({"sha256": hashlib.sha256(page).hexdigest()}))
-
-elif command == "slot_state":
-    # argv[4] = chunk basename, argv[5] = page index. What the page hashes to
-    # now, and what its code slot currently says it hashes to.
-    path = os.path.join(chunks_dir, sys.argv[4])
-    meta = _read_chunk_cd_blob(path)
-    page_index = int(sys.argv[5])
-    with open(path, "rb") as f:
-        f.seek(page_index * meta["page_size"])
-        page = f.read(meta["page_size"])
-        f.seek(meta["cd_file_off"] + meta["hash_offset"]
-               + page_index * meta["hash_size"])
-        stored = f.read(meta["hash_size"])
-    print(json.dumps({
-        "computed": hashlib.sha256(page).hexdigest(),
-        "stored": stored.hex(),
-        "page_size": meta["page_size"],
-    }))
-
-elif command == "file_bytes":
-    # argv[4] = chunk basename, argv[5] = file offset, argv[6] = length
-    path = os.path.join(chunks_dir, sys.argv[4])
-    with open(path, "rb") as f:
-        f.seek(int(sys.argv[5], 0))
-        print(json.dumps({"bytes": f.read(int(sys.argv[6])).hex()}))
-
-else:
-    raise SystemExit(f"unknown command {command}")
-"""#
-
-    static func scriptURL() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("dsc_oracle_\(ProcessInfo.processInfo.processIdentifier).py")
-        if !FileManager.default.fileExists(atPath: url.path) {
-            try source.write(to: url, atomically: true, encoding: .utf8)
-        }
-        return url
-    }
-
-    @discardableResult
-    static func run(
-        _ command: String,
-        directory: URL,
-        extra: [String] = []
-    ) throws -> Data {
-        guard let python = DSCFixture.python else { throw CocoaError(.fileNoSuchFile) }
-        let script = try scriptURL()
-        let result = try Subprocess.run(
-            executable: python,
-            arguments: [
-                script.path,
-                DSCFixture.repoRoot.path,
-                command,
-                directory.path,
-            ] + extra
-        )
-        guard result.status == 0 else {
-            Issue.record("python oracle \(command) failed: \(result.stderr)")
-            throw CocoaError(.fileReadUnknown)
-        }
-        return Data(result.stdout.utf8)
-    }
-
-    /// What one page hashes to now, and what its slot claims, read straight
-    /// out of the code directory by the reference implementation.
-    struct SlotState: Decodable {
-        let computed: String
-        let stored: String
-        let page_size: Int
-
-        var isAttested: Bool { computed == stored }
-    }
-
-    static func slotState(
+/// What one 16 KiB page hashes to now, and what its code slot claims it hashes
+/// to — the two numbers `cfw_dsc_codesign` compared, read straight out of the
+/// chunk's own code directory rather than from a patcher's bookkeeping.
+private enum SlotState {
+    static func read(
         directory: URL,
         chunk: String,
         page: Int
-    ) throws -> SlotState {
-        try JSONDecoder().decode(
-            SlotState.self,
-            from: run("slot_state", directory: directory, extra: [chunk, String(page)])
+    ) throws -> (computed: String, stored: String, isAttested: Bool) {
+        let url = directory.appendingPathComponent(chunk)
+        let cd = try #require(
+            try DSCCodeSignature.readCodeDirectory(ofChunk: url),
+            "\(chunk) carries no code directory"
         )
+        let (computed, stored) = try DSCCodeSignature.pageHashes(
+            chunkURL: url,
+            pageIndex: page,
+            directory: cd
+        )
+        return (computed.hex, stored.hex, computed == stored)
     }
 }
+
 
 // MARK: - 3.1 · Flat addressing
 
 @Suite(.serialized, .enabled(if: DSCFixture.runs, DSCFixture.skipReason))
 struct DSCFlatAddressingTests {
-    private struct PythonLayout: Decodable {
-        struct Mapping: Decodable {
-            let address: UInt64
-            let end: UInt64
-            let file_offset: UInt64
-            let init_prot: UInt32
-            let chunk: String
-        }
-
-        let chunks: [String]
-        let mappings: [Mapping]
-    }
-
-    private struct PythonBytes: Decodable {
-        let vma: UInt64
-        let length: Int
-        let chunk: String
-        let file_offset: Int
-        let bytes: String
-    }
-
-    @Test("Chunk enumeration and mapping table match cfw_dsc_chunks.py")
-    func layoutMatchesPython() throws {
+    @Test("Chunk enumeration and mapping table match the reference")
+    func layoutMatchesTheReference() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil, "project venv is required for the cross-check")
 
         let chunks = try DSCChunkSet(directory: pristine)
-        let reference = try JSONDecoder().decode(
-            PythonLayout.self,
-            from: PythonOracle.run("layout", directory: pristine)
+        #expect(chunks.chunkURLs.count == FrozenReference.chunkCount)
+        #expect(chunks.mappings.count == FrozenReference.mappingCount)
+
+        let rows = Canonical.mappings(chunks).split(separator: "\n").map(String.init)
+        #expect(rows.first == FrozenReference.firstMappingRow)
+        #expect(rows.last == FrozenReference.lastMappingRow)
+        #expect(
+            Canonical.sha256(of: Canonical.mappings(chunks))
+                == FrozenReference.mappingsSHA256,
+            "the mapping table no longer matches the reference's"
         )
-
-        #expect(chunks.chunkURLs.map(\.lastPathComponent).sorted() == reference.chunks.sorted())
-        #expect(chunks.mappings.count == reference.mappings.count)
-
-        for (mine, theirs) in zip(chunks.mappings, reference.mappings) {
-            #expect(mine.address == theirs.address)
-            #expect(mine.endAddress == theirs.end)
-            #expect(mine.fileOffset == theirs.file_offset)
-            #expect(mine.initProt == theirs.init_prot)
-            #expect(mine.chunkURL.lastPathComponent == theirs.chunk)
-        }
         print(
             "[layout] \(chunks.chunkURLs.count) chunks, \(chunks.mappings.count) mappings, "
                 + "vm 0x\(String(chunks.addressRange.lowerBound, radix: 16, uppercase: true))"
@@ -422,42 +442,31 @@ struct DSCFlatAddressingTests {
         return requests
     }
 
-    @Test("bytesAtVMA matches cfw_dsc_chunks.py across every mapping and boundary")
-    func bytesMatchPython() throws {
+    @Test("bytesAtVMA matches the reference across every mapping and boundary")
+    func bytesMatchTheReference() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let chunks = try DSCChunkSet(directory: pristine)
         let requests = probeRequests(for: chunks)
+        #expect(requests.count == FrozenReference.probeCount)
 
-        let requestFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("dsc_probe_requests.json")
-        try JSONSerialization
-            .data(withJSONObject: requests.map { [$0.0, UInt64($0.1)] })
-            .write(to: requestFile)
-
-        let reference = try JSONDecoder().decode(
-            [PythonBytes].self,
-            from: PythonOracle.run("bytes", directory: pristine, extra: [requestFile.path])
+        // Every probe's chunk, file offset and bytes, in one digest — the whole
+        // of what the reference answered for these 416 reads.
+        #expect(
+            try Canonical.sha256(of: Canonical.probes(chunks, requests))
+                == FrozenReference.probesSHA256,
+            "a read, or its address-to-file translation, no longer matches the reference"
         )
-        #expect(reference.count == requests.count)
 
         var boundaryChecks = 0
-        for theirs in reference {
-            let mine = try chunks.bytesAtVMA(theirs.vma, length: theirs.length)
-            #expect(mine.hex == theirs.bytes, "bytes differ at 0x\(String(theirs.vma, radix: 16))")
-
-            let located = try #require(chunks.findChunk(forVMA: theirs.vma))
-            #expect(located.chunkURL.lastPathComponent == theirs.chunk)
-            #expect(located.fileOffset == theirs.file_offset)
-
-            if let mapping = chunks.mapping(forVMA: theirs.vma),
-               theirs.vma + UInt64(theirs.length) == mapping.endAddress
+        for (vma, length) in requests {
+            if let mapping = chunks.mapping(forVMA: vma),
+               vma + UInt64(length) == mapping.endAddress
             {
                 boundaryChecks += 1
             }
         }
-        print("[bytes] \(reference.count) reads agreed, \(boundaryChecks) of them ending exactly on a mapping boundary")
+        print("[bytes] \(requests.count) reads agreed, \(boundaryChecks) of them ending exactly on a mapping boundary")
         #expect(boundaryChecks >= 2)
     }
 
@@ -490,22 +499,18 @@ struct DSCFlatAddressingTests {
         #expect(try chunks.bytesAtVMA(lastFour, length: 4).count == 4)
     }
 
-    /// The reference Python bounds-checks only the first byte of a read, then
-    /// reads `length` raw bytes from the file. So a read that starts near the
-    /// end of a mapping comes back padded with whatever follows in the file,
-    /// presented as the bytes at those virtual addresses. This is the one place
-    /// the Swift deliberately diverges, and the test pins both halves: what the
-    /// Python returns, and that the Swift refuses it.
-    @Test("An over-running read returns the chunk's signature in Python, and throws here")
-    func overrunningReadIsRefusedUnlikeThePython() throws {
+    /// The reference bounds-checked only the first byte of a read, then read
+    /// `length` raw bytes from the file. So a read that starts near the end of
+    /// a mapping came back padded with whatever follows in the file, presented
+    /// as the bytes at those virtual addresses. This is the one place the Swift
+    /// deliberately diverges, and the test pins both halves: what the reference
+    /// returned, and that the Swift refuses it.
+    @Test("An over-running read returned the chunk's signature; here it throws")
+    func overrunningReadIsRefusedUnlikeTheReference() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let chunks = try DSCChunkSet(directory: pristine)
-        // 0x1800BBFFC is four bytes before the end of the main chunk's first
-        // mapping. The next mapping starts at 0x180400000 — a 3.3 MB hole — so
-        // bytes 4..63 of a 64-byte read correspond to no virtual address.
-        let overrun: UInt64 = 0x1_800B_BFFC
+        let overrun = FrozenReference.overrunVMA
         let mapping = try #require(chunks.mapping(forVMA: overrun))
         #expect(mapping.endAddress == overrun + 4)
 
@@ -513,43 +518,27 @@ struct DSCFlatAddressingTests {
             _ = try chunks.bytesAtVMA(overrun, length: 64)
         }
 
-        let requestFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("dsc_overrun_request.json")
-        try JSONSerialization
-            .data(withJSONObject: [[overrun, UInt64(64)]])
-            .write(to: requestFile)
-        let theirs = try JSONDecoder().decode(
-            [PythonBytes].self,
-            from: PythonOracle.run("bytes", directory: pristine, extra: [requestFile.path])
-        )
-        let pythonBytes = try #require(theirs.first).bytes
-        #expect(pythonBytes.count == 128, "the Python returns all 64 bytes without complaint")
+        let referenceBytes = FrozenReference.overrunBytes
+        #expect(referenceBytes.count == 128, "the reference returned all 64 bytes")
         // Bytes 4.. are the chunk's own CS_SuperBlob, not code.
-        #expect(pythonBytes.contains("fade0cc0"))
+        #expect(referenceBytes.contains("fade0cc0"))
 
-        // The four bytes that really are at that address still read fine.
+        // The four bytes that really are at that address still read fine, and
+        // they are the four the reference's answer opens with.
         let inBounds = try chunks.bytesAtVMA(overrun, length: 4)
-        #expect(pythonBytes.hasPrefix(inBounds.hex))
-        print("[overrun] python returned 64 bytes at 0x\(String(overrun, radix: 16)): \(pythonBytes.prefix(48))…")
+        #expect(referenceBytes.hasPrefix(inBounds.hex))
         print("[overrun] swift threw; its in-bounds 4 bytes are \(inBounds.hex)")
     }
 
-    @Test("resolveLocalSymbol matches the Python and ipsw")
+    @Test("resolveLocalSymbol matches the reference and ipsw")
     func localSymbolMatchesReferences() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let chunks = try DSCChunkSet(directory: pristine)
         let name = "_kern_SwapEnd"
         let mine = try #require(try chunks.resolveLocalSymbol(name))
-
-        struct Answer: Decodable { let address: UInt64 }
-        let theirs = try JSONDecoder().decode(
-            Answer.self,
-            from: PythonOracle.run("local_symbol", directory: pristine, extra: [name])
-        )
-        #expect(mine == theirs.address)
-        print("[local symbol] \(name) = 0x\(String(mine, radix: 16)) (python: 0x\(String(theirs.address, radix: 16)))")
+        #expect(mine == FrozenReference.kernSwapEndVMA)
+        print("[local symbol] \(name) = 0x\(String(mine, radix: 16))")
 
         // A name that is not in the table is `nil`, and that is a different
         // answer from the table not being there — see
@@ -558,7 +547,7 @@ struct DSCFlatAddressingTests {
     }
 
     /// The `try?` this replaced spelled "I could not open the table" and "that
-    /// symbol does not exist" the same way, as `nil`. The Python raises
+    /// symbol does not exist" the same way, as `nil`. The reference raised
     /// `FileNotFoundError`; so does this, in its own vocabulary.
     @Test("A missing local symbol table is not the same answer as a missing symbol")
     func missingLocalSymbolTableIsNotAMissingSymbol() throws {
@@ -597,41 +586,31 @@ struct DSCFlatAddressingTests {
     /// The two helpers P1.3's `hv_vmm` and canonical-site finders are built on:
     /// a C-string sweep of the executable mappings, and the walk back from an
     /// address to the image that owns it.
-    @Test("String search and image lookup match cfw_dsc_chunks.py")
-    func searchHelpersMatchPython() throws {
+    @Test("String search and image lookup match the reference")
+    func searchHelpersMatchTheReference() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let chunks = try DSCChunkSet(directory: pristine)
 
         let needle = "kern.hv_vmm_present"
-        let mine = try chunks.findStringVMAs(Data(needle.utf8))
-        let theirs = try JSONDecoder().decode(
-            [UInt64].self,
-            from: PythonOracle.run("string_vmas", directory: pristine, extra: [needle])
+        let mine = try chunks.findStringVMAs(Data(needle.utf8)).sorted()
+        #expect(mine.count == FrozenReference.hvVMMStringCount)
+        #expect(mine.first == FrozenReference.hvVMMStringFirst)
+        #expect(mine.last == FrozenReference.hvVMMStringLast)
+        #expect(
+            Canonical.sha256(of: Canonical.addresses(mine))
+                == FrozenReference.hvVMMStringsSHA256,
+            "the string sweep no longer finds the reference's hits"
         )
-        #expect(mine.sorted() == theirs.sorted())
-        #expect(!mine.isEmpty)
         print("[strings] \"\(needle)\": \(mine.count) hits, first 0x\(String(mine[0], radix: 16))")
 
-        struct Image: Decodable {
-            let header: UInt64?
-            let install_name: String?
-        }
-        for site: UInt64 in [0x2_2AC0_C334, 0x1BF4_33BD0, 0x1AD8_A12D8] {
-            let header = try #require(try chunks.findMachOHeaderBefore(site))
+        for expected in FrozenReference.images {
+            let header = try #require(try chunks.findMachOHeaderBefore(expected.site))
             let name = chunks.readInstallName(atHeaderVMA: header)
-            let reference = try JSONDecoder().decode(
-                Image.self,
-                from: PythonOracle.run(
-                    "image_at",
-                    directory: pristine,
-                    extra: ["0x\(String(site, radix: 16))"]
-                )
-            )
-            #expect(header == reference.header)
-            #expect(name == reference.install_name)
-            print("[image] 0x\(String(site, radix: 16)) -> 0x\(String(header, radix: 16)) \(name ?? "<none>")")
+            #expect(header == expected.header)
+            #expect(name == expected.installName)
+            print("[image] 0x\(String(expected.site, radix: 16)) -> "
+                + "0x\(String(header, radix: 16)) \(name ?? "<none>")")
         }
     }
 }
@@ -640,65 +619,25 @@ struct DSCFlatAddressingTests {
 
 @Suite(.serialized, .enabled(if: DSCFixture.runs, DSCFixture.skipReason))
 struct DSCCodeSignatureTests {
-    private struct PythonDirectory: Decodable {
-        let cd_file_off: Int
-        let cd_length: Int
-        let hash_offset: Int
-        let hash_size: Int
-        let n_code_slots: Int
-        let code_limit: Int
-        let page_size: Int
-    }
-
-    private struct PythonDiagnostic: Decodable {
-        let chunk_path: String
-        let page_index: Int
-        let chunk_off: Int
-        let slot_off: Int
-        let sha256_before: String
-        let sha256_after: String
-    }
-
-    private struct PythonPatchResult: Decodable {
-        let before: String
-        let diagnostics: [PythonDiagnostic]
-    }
-
     /// A site inside `IOMobileFramebuffer`'s `__text` — a real executable page
     /// whose slot a real patch would have to re-sign.
-    private let patchSite: UInt64 = 0x2_2AC0_C334
+    private let patchSite = FrozenReference.patchSite
 
-    @Test("Chunk code directories match cfw_dsc_codesign.py")
-    func codeDirectoriesMatchPython() throws {
+    @Test("Chunk code directories match the reference")
+    func codeDirectoriesMatchTheReference() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let chunks = try DSCChunkSet(directory: pristine)
-        let reference = try JSONDecoder().decode(
-            [String: PythonDirectory?].self,
-            from: PythonOracle.run("coderdirs", directory: pristine)
+        let rows = try Canonical.codeDirectories(chunks)
+        let found = rows.filter { !$0.hasSuffix(" none") }.count
+        #expect(found == FrozenReference.codeDirectoryCount)
+        #expect(rows.first == FrozenReference.mainChunkDirectoryRow)
+        #expect(
+            Canonical.sha256(of: rows.joined(separator: "\n") + "\n")
+                == FrozenReference.codeDirectoriesSHA256,
+            "a chunk's code directory no longer parses the way the reference parsed it"
         )
-
-        var compared = 0
-        for url in chunks.chunkURLs {
-            let mine = try DSCCodeSignature.readCodeDirectory(ofChunk: url)
-            let theirs = reference[url.lastPathComponent] ?? nil
-            guard let theirs else {
-                #expect(mine == nil, "\(url.lastPathComponent): python found no CD, Swift did")
-                continue
-            }
-            let mine2 = try #require(mine, "\(url.lastPathComponent): python found a CD, Swift did not")
-            #expect(mine2.blobOffset == theirs.cd_file_off)
-            #expect(mine2.blobLength == theirs.cd_length)
-            #expect(mine2.hashOffset == theirs.hash_offset)
-            #expect(mine2.hashSize == theirs.hash_size)
-            #expect(mine2.codeSlotCount == theirs.n_code_slots)
-            #expect(mine2.codeLimit == theirs.code_limit)
-            #expect(mine2.pageSize == theirs.page_size)
-            compared += 1
-        }
-        print("[code directories] \(compared) chunk signatures agreed with the Python")
-        #expect(compared > 70)
+        print("[code directories] \(found) chunk signatures agreed with the reference")
     }
 
     /// The DSC path's stated invariants: 16 KiB pages, a single SHA-256 code
@@ -727,40 +666,25 @@ struct DSCCodeSignatureTests {
         #expect(checked > 70)
     }
 
-    /// The gate from the plan: patch one byte, re-sign with each
-    /// implementation in its own clone, and require the two caches to come out
-    /// byte-identical over the page and over the whole code directory.
-    @Test("Swift and Python re-signing produce byte-identical slot hashes")
-    func reSigningMatchesPythonByteForByte() throws {
+    /// The gate from the plan: patch one byte, re-sign, and require the page
+    /// and its slot to come out as the reference's did.
+    @Test("Re-signing produces the reference's slot hashes")
+    func reSigningMatchesTheReference() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let swiftSide = try DSCFixture.cloneCache(named: "resign_swift")
-        let pythonSide = try DSCFixture.cloneCache(named: "resign_python")
-        defer { DSCFixture.discard(swiftSide, pythonSide) }
+        defer { DSCFixture.discard(swiftSide) }
 
         // The replacement is a real instruction shape — `mov w3, #0x588`, the
         // immediate `cfw_patch_iomfb_swapend` writes — not a byte pattern
         // chosen to be easy.
         let replacement = Data([0x03, 0xB1, 0x80, 0x52])
 
-        // Python: write through its own writer, then re-sign.
-        let pythonResult = try JSONDecoder().decode(
-            PythonPatchResult.self,
-            from: PythonOracle.run(
-                "patch_and_reattest",
-                directory: pythonSide,
-                extra: ["0x\(String(patchSite, radix: 16))", replacement.hex]
-            )
-        )
-        #expect(pythonResult.diagnostics.count == 1)
-        let theirs = try #require(pythonResult.diagnostics.first)
-
-        // Swift: same write, same re-sign — and the re-sign is driven by what
-        // the write itself recorded, not by an address repeated by hand.
+        // Same write, same re-sign — and the re-sign is driven by what the
+        // write itself recorded, not by an address repeated by hand.
         let chunks = try DSCChunkSet(directory: swiftSide)
         let originalBytes = try chunks.bytesAtVMA(patchSite, length: replacement.count)
-        #expect(originalBytes.hex == pythonResult.before)
+        #expect(originalBytes.hex == FrozenReference.patchSiteOriginalBytes)
         let span = try chunks.write(at: patchSite, replacement)
         #expect(span == DSCWriteSpan(vma: patchSite, length: 4))
         #expect(chunks.recordedWrites == [span])
@@ -774,82 +698,55 @@ struct DSCCodeSignatureTests {
         #expect(result.isFullyAttested)
         let mine = try #require(result.updated.first)
 
-        // The hashes themselves.
-        #expect(mine.pageIndex == theirs.page_index)
-        #expect(mine.chunkOffset == theirs.chunk_off)
-        #expect(mine.slotOffset == theirs.slot_off)
-        #expect(mine.hashBefore.hex == theirs.sha256_before)
-        #expect(mine.hashAfter.hex == theirs.sha256_after)
-        #expect(mine.chunkURL.lastPathComponent == URL(fileURLWithPath: theirs.chunk_path).lastPathComponent)
+        // The hashes themselves — the reference's single diagnostic, field for
+        // field.
+        #expect(mine.chunkURL.lastPathComponent == FrozenReference.resignChunk)
+        #expect(mine.pageIndex == FrozenReference.resignPageIndex)
+        #expect(mine.chunkOffset == FrozenReference.resignChunkOffset)
+        #expect(mine.slotOffset == FrozenReference.resignSlotOffset)
+        #expect(mine.hashBefore.hex == FrozenReference.resignHashBefore)
+        #expect(mine.hashAfter.hex == FrozenReference.resignHashAfter)
 
-        // And the bytes on disk, which is the claim that actually matters.
+        // And the bytes on disk, which is the claim that actually matters: the
+        // stored slot has to be the digest of the page as it now stands.
         let chunkName = mine.chunkURL.lastPathComponent
         let directory = try #require(
             try DSCCodeSignature.readCodeDirectory(ofChunk: mine.chunkURL)
         )
-        let swiftSlots = try DSCChunkSet.read(
-            url: swiftSide.appendingPathComponent(chunkName),
-            offset: UInt64(directory.blobOffset),
-            length: directory.blobLength
-        )
-        let pythonSlots = try DSCChunkSet.read(
-            url: pythonSide.appendingPathComponent(chunkName),
-            offset: UInt64(directory.blobOffset),
-            length: directory.blobLength
-        )
-        #expect(swiftSlots == pythonSlots, "the whole code directory blob must match")
-
-        let swiftPage = try DSCChunkSet.read(
-            url: swiftSide.appendingPathComponent(chunkName),
-            offset: UInt64(mine.chunkOffset),
-            length: directory.pageSize
-        )
-        let pythonPage = try DSCChunkSet.read(
-            url: pythonSide.appendingPathComponent(chunkName),
-            offset: UInt64(mine.chunkOffset),
-            length: directory.pageSize
-        )
-        #expect(swiftPage == pythonPage, "the patched page must match")
-
-        // The stored slot has to be the digest of the page as it now stands.
         let (computed, stored) = try DSCCodeSignature.pageHashes(
             chunkURL: mine.chunkURL,
             pageIndex: mine.pageIndex,
             directory: directory
         )
         #expect(computed == stored)
-        #expect(stored.hex == theirs.sha256_after)
+        #expect(stored.hex == FrozenReference.resignHashAfter)
 
         print("[re-sign] chunk \(chunkName) page \(mine.pageIndex) slot @0x\(String(mine.slotOffset, radix: 16))")
-        print("[re-sign] swift  \(mine.hashAfter.hex)")
-        print("[re-sign] python \(theirs.sha256_after)")
+        print("[re-sign] swift     \(mine.hashAfter.hex)")
+        print("[re-sign] reference \(FrozenReference.resignHashAfter)")
         for line in log { print(line) }
     }
 
     /// The finding all three verifiers reached independently, pinned.
     ///
     /// Eight bytes — `mov w0, #0; ret`, exactly what `cfw_patch_camera_dsc.py`
-    /// writes at each of its six function entries — placed so four of them land
+    /// wrote at each of its six function entries — placed so four of them land
     /// on page 2563 and four on page 2564. Re-attesting the address alone
     /// covers one page; the other keeps its original slot hash, and the guest
-    /// dies on the first demand-page-in of it. The Python does exactly that;
+    /// dies on the first demand-page-in of it. The reference did exactly that;
     /// this checks the Swift no longer can.
-    @Test("A write across a page boundary re-attests both pages, where the Python attests one")
+    @Test("A write across a page boundary re-attests both pages, where the reference attested one")
     func pageStraddlingWriteAttestsEveryDirtiedPage() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let swiftSide = try DSCFixture.cloneCache(named: "straddle_swift")
-        let pythonSide = try DSCFixture.cloneCache(named: "straddle_python")
-        defer { DSCFixture.discard(swiftSide, pythonSide) }
+        defer { DSCFixture.discard(swiftSide) }
 
-        // 0x22AC0FFFC is file offset 0x280FFFC of chunk .38 — the last four
-        // bytes of page 2563. Eight bytes from there end four bytes into 2564.
-        let straddle: UInt64 = 0x2_2AC0_FFFC
+        let straddle = FrozenReference.straddleVMA
         let stub = Data([0x00, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6])
-        let chunkName = "dyld_shared_cache_arm64e.38"
-        let firstPage = 2563
-        let secondPage = 2564
+        let chunkName = FrozenReference.resignChunk
+        let firstPage = FrozenReference.straddleFirstPage
+        let secondPage = FrozenReference.straddleSecondPage
 
         // Swift: write, then re-attest from what the write recorded.
         let chunks = try DSCChunkSet(directory: swiftSide)
@@ -867,83 +764,62 @@ struct DSCCodeSignatureTests {
         #expect(result.updated.map(\.pageIndex) == [firstPage, secondPage])
         #expect(result.isFullyAttested)
 
-        // Both pages, checked by the reference implementation reading the code
-        // directory itself — not by this code agreeing with itself.
+        // Both pages, read back out of the chunk's own code directory rather
+        // than from the patcher's bookkeeping.
         for page in [firstPage, secondPage] {
-            let state = try PythonOracle.slotState(
-                directory: swiftSide,
-                chunk: chunkName,
-                page: page
-            )
+            let state = try SlotState.read(directory: swiftSide, chunk: chunkName, page: page)
             #expect(state.isAttested, "swift left page \(page) stale: \(state.stored)")
             print("[straddle swift] page \(page) stored \(state.stored.prefix(16))… == computed")
         }
 
-        // The Python, told the same address, covers page 2563 and leaves 2564
-        // stale. This is the bug in the reference, reproduced, so the
-        // divergence is on the record rather than assumed.
-        let pythonResult = try JSONDecoder().decode(
-            PythonPatchResult.self,
-            from: PythonOracle.run(
-                "patch_and_reattest",
-                directory: pythonSide,
-                extra: ["0x\(String(straddle, radix: 16))", stub.hex]
-            )
-        )
-        #expect(pythonResult.diagnostics.map(\.page_index) == [firstPage])
+        // Page 2563 comes out with the hash the reference also computed for it
+        // — the reference covered that one page and stopped.
+        #expect(FrozenReference.straddleReferencePages == [firstPage])
+        let first = try SlotState.read(directory: swiftSide, chunk: chunkName, page: firstPage)
+        #expect(first.computed == FrozenReference.straddlePage2563Hash)
 
-        let pythonFirst = try PythonOracle.slotState(
-            directory: pythonSide, chunk: chunkName, page: firstPage
-        )
-        let pythonSecond = try PythonOracle.slotState(
-            directory: pythonSide, chunk: chunkName, page: secondPage
-        )
-        #expect(pythonFirst.isAttested)
+        // Page 2564 is the divergence, on the record: the reference left it
+        // holding `7ccd65fa…` while its bytes hashed to `dfe38096…`. The Swift
+        // rewrote it, so the two now agree — and the value it agrees on is the
+        // one the reference computed but did not store.
+        let second = try SlotState.read(directory: swiftSide, chunk: chunkName, page: secondPage)
+        #expect(second.computed == FrozenReference.straddlePage2564Computed)
+        #expect(second.stored == FrozenReference.straddlePage2564Computed)
         #expect(
-            !pythonSecond.isAttested,
-            "the Python reference unexpectedly covered the second page too"
+            FrozenReference.straddlePage2564Stored != FrozenReference.straddlePage2564Computed,
+            "the reference's own second page was stale, which is why this test exists"
         )
-        print("[straddle python] page \(firstPage) attested, page \(secondPage) stored "
-            + "\(pythonSecond.stored.prefix(16))… vs computed \(pythonSecond.computed.prefix(16))… — STALE")
+        print("[straddle reference] page \(secondPage) was left stored "
+            + "\(FrozenReference.straddlePage2564Stored.prefix(16))… vs computed "
+            + "\(FrozenReference.straddlePage2564Computed.prefix(16))… — STALE")
 
-        // The bytes themselves still agree; only the attested page set differs.
+        // The bytes themselves are the stub, at the file offset the reference
+        // wrote them to.
         let swiftBytes = try DSCChunkSet.read(
             url: swiftSide.appendingPathComponent(chunkName),
             offset: 0x280_FFFC,
             length: 8
         )
-        let pythonBytes = try DSCChunkSet.read(
-            url: pythonSide.appendingPathComponent(chunkName),
-            offset: 0x280_FFFC,
-            length: 8
-        )
         #expect(swiftBytes == stub)
-        #expect(swiftBytes == pythonBytes)
         for line in log { print(line) }
     }
 
     /// A span may cross from one mapping into the next when the two are
     /// contiguous in address *and* in file offset inside the same chunk — 19 of
     /// the 62 adjacent mapping pairs on this cache are. The old guard compared
-    /// mapping start addresses and refused all of them, where the Python wrote
-    /// them happily. This one is accepted, and matches the Python byte for
-    /// byte; the case where the file offsets break is still refused.
-    @Test("A write across contiguous mappings of one chunk is written, and matches the Python")
+    /// mapping start addresses and refused all of them, where the reference
+    /// wrote them happily. This one is accepted, and lands where the reference
+    /// landed; the case where the file offsets break is still refused.
+    @Test("A write across contiguous mappings of one chunk lands where the reference put it")
     func contiguousMappingSeamIsWritable() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
-        try #require(DSCFixture.python != nil)
 
         let swiftSide = try DSCFixture.cloneCache(named: "seam_swift")
-        let pythonSide = try DSCFixture.cloneCache(named: "seam_python")
-        defer { DSCFixture.discard(swiftSide, pythonSide) }
+        defer { DSCFixture.discard(swiftSide) }
 
-        // 0x1E00DFFFE is two bytes before the end of the first mapping of
-        // .25.dylddata; the next mapping continues at file offset 0x4000 of the
-        // same file. Four bytes therefore cross both a mapping seam and a
-        // 16 KiB page boundary.
-        let seam: UInt64 = 0x1_E00D_FFFE
+        let seam = FrozenReference.seamVMA
         let value = Data([0x11, 0x22, 0x33, 0x44])
-        let chunkName = "dyld_shared_cache_arm64e.25.dylddata"
+        let chunkName = FrozenReference.seamChunk
 
         let chunks = try DSCChunkSet(directory: swiftSide)
         let mapping = try #require(chunks.mapping(forVMA: seam))
@@ -958,33 +834,19 @@ struct DSCCodeSignatureTests {
         // 0x3FFE..0x4001 spans pages 0 and 1 of the chunk.
         #expect(result.updated.map(\.pageIndex) + result.alreadyAttested.map(\.pageIndex) == [0, 1])
 
-        try PythonOracle.run(
-            "write_at",
-            directory: pythonSide,
-            extra: ["0x\(String(seam, radix: 16))", value.hex]
-        )
-        struct Bytes: Decodable { let bytes: String }
-        let theirs = try JSONDecoder().decode(
-            Bytes.self,
-            from: PythonOracle.run(
-                "file_bytes",
-                directory: pythonSide,
-                extra: [chunkName, "0x3ffe", "4"]
-            )
-        )
+        // The reference's `write_at_vma` put these four bytes at file offset
+        // 0x3FFE of this chunk. So must this one.
         let mine = try DSCChunkSet.read(
             url: swiftSide.appendingPathComponent(chunkName),
-            offset: 0x3FFE,
+            offset: FrozenReference.seamFileOffset,
             length: 4
         )
-        #expect(mine.hex == theirs.bytes)
+        #expect(mine.hex == FrozenReference.seamBytes)
         #expect(mine == value)
-        print("[seam] 0x\(String(seam, radix: 16)) -> \(chunkName)@0x3ffe: swift \(mine.hex), python \(theirs.bytes)")
+        print("[seam] 0x\(String(seam, radix: 16)) -> \(chunkName)@0x3ffe: \(mine.hex)")
 
         for page in [0, 1] {
-            let state = try PythonOracle.slotState(
-                directory: swiftSide, chunk: chunkName, page: page
-            )
+            let state = try SlotState.read(directory: swiftSide, chunk: chunkName, page: page)
             #expect(state.isAttested, "page \(page) left stale")
         }
 
@@ -1079,8 +941,8 @@ struct DSCCodeSignatureTests {
             Issue.record("wrong skip reason: \(overrun.skipped[0].reason)")
         }
 
-        // And the default log says all of it out loud, like the Python's
-        // verbose=True does.
+        // And the default log says all of it out loud, as the reference's
+        // verbose=True did.
         var spoken: [String] = []
         _ = try DSCCodeSignature.reattest(
             in: chunks,

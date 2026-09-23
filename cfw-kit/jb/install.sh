@@ -49,10 +49,13 @@ REQUIRED_CFW_SUBCOMMANDS=(
     patch-lsd-embedded-reg
     patch-diskimagesiod
     patch-launchd-jetsam
+    # J3's Campo fix. It was a standalone Python script outside the preflight's
+    # reach; as a cfw verb it is checked with the rest.
+    patch-campo-entitlements
 )
 
 REPO_DIR="$(resolve_repo)"
-PYTHON3="$(resolve_python3)"
+VPHONE_CLI="$(resolve_vphone_cli)"
 init_paths
 
 cleanup_on_exit() {
@@ -107,7 +110,7 @@ mkdir -p "$TEMP_DIR"
 
 echo ""
 echo "[*] Parsing iPhone BuildManifest for Cryptex paths..."
-CRYPTEX_PATHS=$(cfw_py cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
+CRYPTEX_PATHS=$(cfw_cli cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
 CRYPTEX_SYSOS=$(echo "$CRYPTEX_PATHS" | head -1)
 CRYPTEX_APPOS=$(echo "$CRYPTEX_PATHS" | tail -1)
 echo "  SystemOS: $CRYPTEX_SYSOS"
@@ -163,7 +166,7 @@ else
     echo "  [*] No userland launchd hook — pid 1 gets no injected dylib"
 fi
 
-cfw_py patch-launchd-jetsam "$TEMP_DIR/launchd"
+cfw_cli patch-launchd-jetsam "$TEMP_DIR/launchd"
 
 if [[ -s "$TEMP_DIR/launchd.entitlements" ]]; then
     ldid -S"$TEMP_DIR/launchd.entitlements" -M "-K$VM_DIR/$CFW_INPUT/signcert.p12" "$TEMP_DIR/launchd"
@@ -204,7 +207,7 @@ case "$IOS_VERSION" in
         cp "$CAMPO_BIN" "$TEMP_DIR/Campo"
         ldid -e "$TEMP_DIR/Campo" > "$TEMP_DIR/Campo.entitlements" 2>/dev/null || true
         if [[ -s "$TEMP_DIR/Campo.entitlements" ]]; then
-            "$PYTHON3" "$REPO_DIR/scripts/patchers/campo_mach_lookup_exceptions.py" "$TEMP_DIR/Campo.entitlements"
+            cfw_cli patch-campo-entitlements "$TEMP_DIR/Campo.entitlements"
             ldid_sign_ent "$TEMP_DIR/Campo" "$TEMP_DIR/Campo.entitlements"
             cp -R "$TEMP_DIR/Campo" "$CAMPO_BIN"
             /bin/chmod 0755 "$CAMPO_BIN"

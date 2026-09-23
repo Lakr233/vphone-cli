@@ -4,18 +4,20 @@
 // them rather than against a number written down by hand:
 //
 //   * `scripts/patchers/cfw_patch_seputil.py`, driven through the exact CLI
-//     `scripts/cfw_install.sh` calls — `cfw.py patch-seputil <binary>`. The
-//     Swift patcher run with `reattest: false` must produce that file byte for
-//     byte, and run with re-attestation on it must equal the Python's output
-//     put through the Python's own re-attester
-//     (`cfw_macho_codesign.reattest_modified_offsets`). The second comparison
-//     is what proves the slot hashes agree: they are compared as bytes in the
-//     file, not as values this module reported about itself.
+//     `scripts/cfw_install.sh` called — `cfw.py patch-seputil <binary>`. That
+//     Python is gone; what it produced on this fixture is frozen in
+//     ``SeputilGolden`` below, digest by digest, so the comparison survives it.
+//     The Swift patcher run with `reattest: false` must reproduce the digest of
+//     the file the Python wrote, and run with re-attestation on it must
+//     reproduce the digest of that same file put through the Python's own
+//     re-attester (`cfw_macho_codesign.reattest_modified_offsets`). The second
+//     digest is what proves the slot hashes agree: it covers the hashes where
+//     they live, in the file, not values this module reported about itself.
 //   * `/usr/bin/codesign -v`, which for a standalone Mach-O is a real second
 //     opinion on whether the signature still covers the file. The test asserts
 //     both directions — the re-attested binary verifies and the one that
-//     matches the Python does not — so a `codesign` that passed everything
-//     would fail this suite instead of quietly blessing it.
+//     matches the frozen Python digest does not — so a `codesign` that passed
+//     everything would fail this suite instead of quietly blessing it.
 //
 // The fixture is the real 24A435 / iPhone17,3 `seputil`. Point
 // `VPHONE_MACHO_PRISTINE` at a directory of pristine Mach-O binaries or leave
@@ -74,21 +76,16 @@ private enum SeputilFixture {
     static let skipReason: Comment =
         "VPHONE_MACHO_FIXTURE_OPTIONAL=1 and no macho_pristine/seputil fixture present"
 
-    static let venvMissing: Comment = """
-    the project venv is required: these tests are a comparison against \
-    scripts/patchers/cfw_patch_seputil.py, and without it there is nothing to \
-    compare against — run `make setup_venv`
-    """
-
     /// Where clones are made. Same filesystem as the repo, and deliberately
     /// *not* under `ipsws/ref_extract/`.
     static var scratchRoot: URL {
         repoRoot.appendingPathComponent("ipsws/scratch_cfwseputil")
     }
 
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
+    /// taken again from a shell over the same file.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
     }
 
     static var codesign: URL? {
@@ -165,106 +162,108 @@ private enum Subprocess {
     }
 }
 
-// MARK: - The reference Python, driven through its real CLI
+// MARK: - The frozen reference
 
-private enum PythonReference {
-    /// `cfw.py patch-seputil <binary>` — what `cfw_install.sh` runs.
-    @discardableResult
-    static func patch(_ binary: URL) throws -> String {
-        let python = try #require(SeputilFixture.python, SeputilFixture.venvMissing)
-        let result = try Subprocess.run(executable: python, arguments: [
-            SeputilFixture.repoRoot.appendingPathComponent("scripts/patchers/cfw.py").path,
-            "patch-seputil",
-            binary.path,
-        ])
-        guard result.status == 0 else {
-            Issue.record("cfw.py patch-seputil failed: \(result.stdout)\(result.stderr)")
-            throw CocoaError(.fileWriteUnknown)
-        }
-        return result.stdout
-    }
+/// What `scripts/patchers/` produced on this fixture, recorded before it was
+/// deleted.
+///
+/// Every digest below was taken at repo commit `78cbeea`, with
+/// `.venv/bin/python3` driving `scripts/patchers/`, over the real iOS 27.0 /
+/// 24A435 / iPhone17,3 `seputil` whose own digest is ``pristine``. The exact
+/// command that produced each one is on the constant.
+private enum SeputilGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/seputil`
+    static let pristine = "13e40e74d92928cf9e36fae75970dfcf4c0a4c1040eeac39d1c335407e841474"
 
-    /// `cfw_macho_codesign.reattest_modified_offsets` — the independent
-    /// re-attester, so the slot hashes this suite compares against are the
-    /// Python's own and not a second copy of the Swift maths.
-    static func reattest(_ binary: URL, offsets: [Int]) throws {
-        let python = try #require(SeputilFixture.python, SeputilFixture.venvMissing)
-        let script = """
-        import sys
-        sys.path.insert(0, "scripts/patchers")
-        import cfw_macho_codesign as ref
-        ref.reattest_modified_offsets(sys.argv[1], [int(a) for a in sys.argv[2:]], verbose=False)
-        """
-        let process = Process()
-        process.executableURL = python
-        process.arguments = ["-c", script, binary.path] + offsets.map(String.init)
-        process.currentDirectoryURL = SeputilFixture.repoRoot
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        let output = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        try #require(
-            process.terminationStatus == 0,
-            "reference re-attester failed: \(String(decoding: output, as: UTF8.self))"
-        )
-    }
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-seputil <clone of seputil>`
+    /// — the patch alone, signature left stale, which is what `cfw_install.sh`
+    /// ran before handing the file to `ldid_sign`.
+    static let patched = "75dc86f8d0668e5d06ce90111f416c058a0e57f21fa55e5f6330f67ec8d0e8b2"
+
+    /// The bytes the Python changed, from a byte diff of ``patched`` against
+    /// ``pristine``: `%s` -> `AA` at 0x1BDD2, and nothing else in the file.
+    static let modifiedOffsets = [0x1_BDD2, 0x1_BDD3]
+
+    /// ``patched``, then
+    /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts/patchers");
+    /// import cfw_macho_codesign as r;
+    /// r.reattest_modified_offsets(sys.argv[1], [114130, 114131], verbose=True)'`
+    /// — which reported `wrote cd_index=0 slot 27 (345f649b.. -> a6df3073..)`.
+    static let patchedAndReattested =
+        "01b4dd86b44c867dc9d94339eea34dcf64de37e7dbd85997f040831dca6afd0b"
+
+    /// The one code slot that re-attestation rewrote.
+    static let reattestedSlot = 27
 }
 
 // MARK: - Parity against the reference implementations
 
 @Suite("seputil gigalocker name", .enabled(if: SeputilFixture.runs, SeputilFixture.skipReason))
 struct CFWSeputilParityTests {
+    /// The fixture the frozen digests were taken over. Without this the two
+    /// tests below would report a digest mismatch when the real cause is a
+    /// different firmware's `seputil`.
+    @Test func fixtureIsTheOneTheGoldensWereTakenFrom() throws {
+        let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)
+        #expect(
+            try SeputilFixture.digest(of: pristine) == SeputilGolden.pristine,
+            """
+            this is not the 24A435 iPhone17,3 seputil the goldens in \
+            SeputilGolden were recorded from — re-derive them before reading a \
+            failure below as a patcher bug
+            """
+        )
+    }
+
     /// The plan's P1.2 gate: same input, same bytes out.
     ///
-    /// Run with `reattest: false`, which is the reference's own behaviour —
-    /// `cfw_install.sh` re-signs with `ldid` right after, so the Python leaves
+    /// Run with `reattest: false`, which was the reference's own behaviour —
+    /// `cfw_install.sh` re-signs with `ldid` right after, so the Python left
     /// the signature stale.
-    @Test func matchesTheReferencePatcherByteForByte() throws {
+    @Test func matchesTheFrozenReferencePatch() throws {
         let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)
         let swiftFile = try SeputilFixture.clone(named: "swift-plain")
-        let pythonFile = try SeputilFixture.clone(named: "python-plain")
-        defer { SeputilFixture.discard(swiftFile, pythonFile) }
+        defer { SeputilFixture.discard(swiftFile) }
 
         let outcome = try CFWSeputil.patch(fileAt: swiftFile, reattest: false, log: nil)
-        try PythonReference.patch(pythonFile)
 
         #expect(outcome.verdict == .patched)
         #expect(
-            try Data(contentsOf: swiftFile) == (try Data(contentsOf: pythonFile)),
-            "Swift and Python must produce the same seputil, byte for byte"
+            try SeputilFixture.digest(of: swiftFile) == SeputilGolden.patched,
+            "Swift must reproduce the seputil the reference wrote, byte for byte"
         )
+        // The same two bytes, at the same two offsets, that the reference moved.
+        #expect(outcome.site.modifiedOffsets == SeputilGolden.modifiedOffsets)
 
-        // And the comparison is not two copies of the input: both moved.
+        // And the comparison is not two copies of the input: the file moved.
+        #expect(try SeputilFixture.digest(of: swiftFile) != SeputilGolden.pristine)
         #expect(try Data(contentsOf: swiftFile) != (try Data(contentsOf: pristine)))
     }
 
     /// The same for the whole pipeline, re-attestation included. The Python
-    /// has no re-attesting seputil patcher, so the reference side is composed
-    /// from the two Python modules the install script composes at runtime.
+    /// had no re-attesting seputil patcher, so the frozen digest is of the two
+    /// Python modules composed the way the install script composed them.
     ///
-    /// This is the slot-hash comparison: the hashes are compared where they
-    /// live, in the file, against hashes the reference implementation computed.
-    @Test func matchesTheReferencePlusItsOwnReattester() throws {
+    /// This is the slot-hash comparison: the hashes are covered where they
+    /// live, in the file, by a digest of what the reference implementation
+    /// computed.
+    @Test func matchesTheFrozenReferencePlusItsOwnReattester() throws {
         let swiftFile = try SeputilFixture.clone(named: "swift-full")
-        let pythonFile = try SeputilFixture.clone(named: "python-full")
-        defer { SeputilFixture.discard(swiftFile, pythonFile) }
+        defer { SeputilFixture.discard(swiftFile) }
 
         let outcome = try CFWSeputil.patch(fileAt: swiftFile, log: nil)
-        try PythonReference.patch(pythonFile)
-        try PythonReference.reattest(pythonFile, offsets: outcome.site.modifiedOffsets)
 
         #expect(outcome.rehashes.count == 1, "one page was dirtied, so one slot is rewritten")
+        #expect(outcome.rehashes.first?.pageIndex == SeputilGolden.reattestedSlot)
         #expect(
-            try Data(contentsOf: swiftFile) == (try Data(contentsOf: pythonFile)),
-            "the re-attested slot hash must be the one the reference computes"
+            try SeputilFixture.digest(of: swiftFile) == SeputilGolden.patchedAndReattested,
+            "the re-attested slot hash must be the one the reference computed"
         )
     }
 
     /// `codesign -v`, in both directions. The re-attested binary verifies; the
-    /// one that reproduces the Python's bytes does not, which is why
-    /// `cfw_install.sh` has to run `ldid_sign` after the Python.
+    /// one that reproduces the frozen Python bytes does not, which is why
+    /// `cfw_install.sh` had to run `ldid_sign` after the Python.
     @Test func reattestationIsWhatMakesTheBinaryVerify() throws {
         let codesign = try #require(SeputilFixture.codesign)
         let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)

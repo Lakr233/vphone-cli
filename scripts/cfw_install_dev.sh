@@ -14,7 +14,7 @@
 #   - VM restored (make restore) and powered off
 #   - `ipsw` tool installed (brew install blacktop/tap/ipsw)
 #   - `aea` tool available (macOS 12+)
-#   - Python: make setup_tools && source .venv/bin/activate
+#   - vphone-cli built (make build) — every CFW patcher lives in it
 #   - cfw_input/ or resources/cfw_input.tar.zst + resources/cfw_dev/rpcserver_ios present
 #
 # Usage: make cfw_install_dev
@@ -29,20 +29,22 @@ SCRIPT_DIR="${0:a:h}"
 # Resolve absolute paths
 VM_DIR="$(cd "$VM_DIR" && pwd)"
 
-# ── Python resolver — prefer project venv over whatever is in PATH ─
-_resolve_python3() {
-    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-        echo "$VPHONE_PYTHON"
-        return
-    fi
-    local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
-    if [[ -x "$venv_py" ]]; then
-        echo "$venv_py"
-    else
-        command -v python3 || true
-    fi
+# ── vphone-cli resolver — every CFW patcher this script calls lives in it ─
+# Same order as scripts/cfw_install_host.sh and cfw-kit/run.sh: VPHONE_CLI_BIN
+# when a vphone-cli subcommand invoked us, otherwise a dev tree or the .app,
+# where scripts/ sits in Contents/Resources and the binaries are one level up
+# in MacOS. Never `command -v` — the binary has to be the one we built beside
+# these scripts, not whatever else is on PATH.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "${SCRIPT_DIR:h}/.build/release/vphone-cli" "${SCRIPT_DIR:h:h}/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || {
+    echo "[-] cannot find vphone-cli (the CFW patchers live in it) — run 'make build'" >&2
+    exit 1
 }
-PYTHON3="$(_resolve_python3)"
 
 # ── Configuration ───────────────────────────────────────────────
 CFW_INPUT="cfw_input"
@@ -144,12 +146,7 @@ apply_dev_overlay() {
 require_firmware_tools() {
     command -v ipsw >/dev/null 2>&1 || die "'ipsw' not found. Install: brew install blacktop/tap/ipsw"
     command -v aea >/dev/null 2>&1 || die "'aea' not found (requires macOS 12+)"
-    [[ -x "$PYTHON3" ]] || die "python3 not found (tried: $PYTHON3). Run: make setup_tools"
-    echo "[*] Python: $PYTHON3 ($("$PYTHON3" --version 2>&1))"
-    local py_err
-    py_err="$("$PYTHON3" -c "import capstone, keystone" 2>&1)" || {
-        die "Missing Python dependencies (using $PYTHON3).\n  Error: ${py_err}\n  Fix:   source ${SCRIPT_DIR:h}/.venv/bin/activate && pip install capstone keystone-engine\n  Or:    make setup_tools"
-    }
+    echo "[*] Patchers: $VPHONE_CLI cfw"
 }
 
 # ── Cleanup trap (unmount DMGs on error) ───────────────────────
@@ -199,7 +196,7 @@ mkdir -p "$TEMP_DIR"
 # ── Parse Cryptex paths from BuildManifest ─────────────────────
 echo ""
 echo "[*] Parsing iPhone BuildManifest for Cryptex paths..."
-CRYPTEX_PATHS=$("$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
+CRYPTEX_PATHS=$("$VPHONE_CLI" cfw cryptex-paths "$RESTORE_DIR/iPhone-BuildManifest.plist")
 CRYPTEX_SYSOS=$(echo "$CRYPTEX_PATHS" | head -1)
 CRYPTEX_APPOS=$(echo "$CRYPTEX_PATHS" | tail -1)
 echo "  SystemOS: $CRYPTEX_SYSOS"
@@ -259,7 +256,7 @@ fi
 
 cp "$MNT1/sbin/launchd.bak" "$TEMP_DIR/launchd"
 
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
+"$VPHONE_CLI" cfw patch-launchd-jetsam "$TEMP_DIR/launchd"
 ldid_sign "$TEMP_DIR/launchd"
 cp -R "$TEMP_DIR/launchd" "$MNT1/sbin/launchd"
 /bin/chmod 0755 $MNT1/sbin/launchd
@@ -332,7 +329,7 @@ case "$IOS_VERSION" in
         echo "  [*] Patching IOMobileFramebuffer SwapEnd payload size (iOS $IOS_VERSION -> 0x560)..."
         DSC_DIR="$MNT1/System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
         [[ -d "$DSC_DIR" ]] || die "dyld cache dir missing: $DSC_DIR"
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-iomfb-swapend "$DSC_DIR" --target-size 0x560
+        "$VPHONE_CLI" cfw patch-iomfb-swapend "$DSC_DIR" --target-size 0x560
         ;;
 esac
 
@@ -347,7 +344,7 @@ if ! [[ -e "$MNT1/usr/libexec/seputil.bak" ]]; then
 fi
 
 cp "$MNT1/usr/libexec/seputil.bak" "$TEMP_DIR/seputil"
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-seputil "$TEMP_DIR/seputil"
+"$VPHONE_CLI" cfw patch-seputil "$TEMP_DIR/seputil"
 ldid_sign "$TEMP_DIR/seputil" "com.apple.seputil"
 cp -R "$TEMP_DIR/seputil" "$MNT1/usr/libexec/seputil"
 /bin/chmod 0755 $MNT1/usr/libexec/seputil
@@ -407,7 +404,7 @@ if ! [[ -e "$MNT1/usr/libexec/launchd_cache_loader.bak" ]]; then
 fi
 
 cp "$MNT1/usr/libexec/launchd_cache_loader.bak" "$TEMP_DIR/launchd_cache_loader"
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-cache-loader "$TEMP_DIR/launchd_cache_loader"
+"$VPHONE_CLI" cfw patch-launchd-cache-loader "$TEMP_DIR/launchd_cache_loader"
 ldid_sign "$TEMP_DIR/launchd_cache_loader" "com.apple.launchd_cache_loader"
 cp -R "$TEMP_DIR/launchd_cache_loader" "$MNT1/usr/libexec/launchd_cache_loader"
 /bin/chmod 0755 $MNT1/usr/libexec/launchd_cache_loader
@@ -425,7 +422,7 @@ if ! [[ -e "$MNT1/usr/libexec/mobileactivationd.bak" ]]; then
 fi
 
 cp "$MNT1/usr/libexec/mobileactivationd.bak" "$TEMP_DIR/mobileactivationd"
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-mobileactivationd "$TEMP_DIR/mobileactivationd"
+"$VPHONE_CLI" cfw patch-mobileactivationd "$TEMP_DIR/mobileactivationd"
 ldid_sign "$TEMP_DIR/mobileactivationd"
 cp -R "$TEMP_DIR/mobileactivationd" "$MNT1/usr/libexec/mobileactivationd"
 /bin/chmod 0755 $MNT1/usr/libexec/mobileactivationd
@@ -477,7 +474,7 @@ for plist in bash.plist dropbear.plist trollvnc.plist rpcserver_ios.plist; do
     if [[ "$plist" == "dropbear.plist" ]]; then
         plist_src="$TEMP_DIR/dropbear.plist"
         cp "$INPUT_DIR/jb/LaunchDaemons/dropbear.plist" "$plist_src"
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-dropbear-plist "$plist_src"
+        "$VPHONE_CLI" cfw patch-dropbear-plist "$plist_src"
     fi
     cp -R "$plist_src" "$MNT1/System/Library/LaunchDaemons/"
     /bin/chmod 0644 $MNT1/System/Library/LaunchDaemons/$plist
@@ -494,7 +491,7 @@ fi
 
 cp "$MNT1/System/Library/xpc/launchd.plist.bak" "$TEMP_DIR/launchd.plist"
 cp "$VPHONED_SRC/vphoned.plist" "$INPUT_DIR/jb/LaunchDaemons/"
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" inject-daemons "$TEMP_DIR/launchd.plist" "$INPUT_DIR/jb/LaunchDaemons"
+"$VPHONE_CLI" cfw inject-daemons "$TEMP_DIR/launchd.plist" "$INPUT_DIR/jb/LaunchDaemons"
 cp -R "$TEMP_DIR/launchd.plist" "$MNT1/System/Library/xpc/launchd.plist"
 /bin/chmod 0644 $MNT1/System/Library/xpc/launchd.plist
 

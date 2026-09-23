@@ -12,8 +12,8 @@ base install path.
 | `launchd.plist` | untouched | untouched |
 | userland | yours to design | slot: `rootless` / `roothide`, both empty |
 
-The kit does **not** fork the Python patchers. It calls the repo's
-`scripts/patchers/cfw.py`, so patch behaviour cannot drift from upstream.
+The kit does **not** fork the patchers. It calls the repo's built
+`vphone-cli cfw <verb>`, so patch behaviour cannot drift from upstream.
 It does not modify the vphone-cli repo at all.
 
 ## Use
@@ -29,7 +29,8 @@ cd ~/Documents/GitHub/Lakr233/vphone-cli && make fw_patch      # or fw_patch_jb
 
 `run.sh` re-execs itself under `sudo` (owners-honoured mounts need root),
 attaches `Disk.img`, runs the variant installer against the mounted volumes,
-then flips the boot snapshot offline via the repo's `tools/apfs_snap_rename.py`.
+then flips the boot snapshot offline via the repo's `vphone-cli cfw
+flip-snapshot`.
 
 Check what would happen without touching anything — **no root, no attach, no
 writes**:
@@ -46,7 +47,7 @@ KIT_CHECK_ONLY=1 ./run.sh --variant jb
 | `VANILLA_LSD_EMBEDDED_REG` | `0` | vanilla, 27 bases: open lsd's JB app-registration path |
 | `FORCE_DSC_MAXSLIDE` | `0` | zero maxSlide on non-27 bases (normally self-gated to a no-op) |
 | `KIT_CHECK_ONLY` | `0` | preflight and stop |
-| `VPHONE_REPO` / `--repo` | auto | vphone-cli checkout to take `cfw.py` and resources from |
+| `VPHONE_REPO` / `--repo` | auto | vphone-cli checkout to take the built `vphone-cli` and the resources from |
 | `VPHONE_DROP_ARTIFACTS` | `0` | delete the extracted `cfw_input/` afterwards |
 
 ## Layout
@@ -68,9 +69,11 @@ the two binaries in the GPU bundle come from; this kit only installs them.
 
 **Preflight is the only safety net.** The installer streams onto a mounted
 volume with no snapshot to roll back to, so everything that can fail is checked
-before the first write: tools, Python deps, and every `cfw.py` subcommand this
-variant *and its userland slot* will call. A userland flavour is sourced before
-preflight precisely so its requirements get checked too.
+before the first write: tools, the built binary, and every `cfw` subcommand this
+variant *and its userland slot* will call — each one asked of the binary itself
+(`vphone-cli cfw <sub> --help`), not pattern-matched out of a source file. A
+userland flavour is sourced before preflight precisely so its requirements get
+checked too.
 
 **`umount` is never forced.** If something still holds a file on the volume the
 kit wants to hear about it, not paper over it with `umount -f`
@@ -89,18 +92,20 @@ Full reasoning in `docs/phase-matrix.md`.
 Done, and repeatable:
 
 - `zsh -n` on all five scripts
-- `KIT_CHECK_ONLY=1` preflight actually executed for both variants, and for
-  vanilla with the lsd flag on — all pass on this host
-- all 12 `cfw.py` subcommands the kit can call confirmed present
 - payload paths confirmed present: `cfw_input/signcert.p12`,
-  `cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar`,
-  `campo_mach_lookup_exceptions.py`, `tools/apfs_snap_rename.py`
+  `cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar`
 - slot contract exercised with a throwaway flavour: `REQUIRED_CFW_SUBCOMMANDS`
   appends reach preflight, `USERLAND_MODIFIES_LAUNCHD_PLIST=1` pulls in
   `patch-launchd-cache-loader`, and a flavour demanding a nonexistent
   subcommand is rejected with nothing written
 - `run.sh` error paths: missing `--variant`, unknown variant, unknown
   `JB_USERLAND`, empty slot
+
+**Not re-run since the patchers moved into `vphone-cli`:**
+
+- the `KIT_CHECK_ONLY=1` preflight. It no longer greps a Python file for verb
+  names; it asks the binary (`vphone-cli cfw <sub> --help`). Run it for both
+  variants, and for vanilla with the lsd flag on, before trusting the kit again.
 
 **Not done — no VM was available on the authoring host:**
 

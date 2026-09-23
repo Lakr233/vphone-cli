@@ -1,9 +1,10 @@
 // VPhoneCFWPatchCLI.swift — the `cfw` subcommands that replace the Python patchers.
 //
 // Each one is a thin face over a type in `FirmwarePatcher/CFW/`. The Python they
-// replace is still on disk (`scripts/patchers/cfw.py` and friends) and the
-// installers still call it, so the bar every command here has to clear is that
-// its stdout is the Python's stdout — `cfw_install.sh:207-208` reads
+// replace (`scripts/patchers/cfw.py` and friends) was removed once the
+// installers switched to these verbs — `git show 78cbeea:scripts/patchers` to
+// read it. The bar every command here had to clear is that its stdout is the
+// Python's stdout — `cfw_install.sh:207-208` reads
 // `cryptex-paths` with `head -1`/`tail -1`, and a human reads the rest out of an
 // install log. Where the library already prints (build-version, campo,
 // post-restore-dt), the command passes `verbose: true` and prints nothing of its

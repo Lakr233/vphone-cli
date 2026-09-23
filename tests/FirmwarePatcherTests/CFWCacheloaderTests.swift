@@ -2,10 +2,11 @@
 //
 // The patch is one instruction in a boot-critical binary, and a wrong one is a
 // guest that will not start rather than a failing assertion, so the reference
-// these tests grade against is the Python that has already shipped: `cfw.py
-// patch-launchd-cache-loader`. The centre of the suite runs both
-// implementations over two clones of the *real* iOS 27.0 / 24A435 binary and
-// compares every byte.
+// these tests grade against is the Python that shipped before this port: `cfw.py
+// patch-launchd-cache-loader`. That Python is gone; what it wrote over the
+// *real* iOS 27.0 / 24A435 binary is frozen in ``CacheLoaderGolden`` below, and
+// the centre of the suite is still that comparison — the Swift patcher's output
+// has to hash to what the Python's did.
 //
 // The binary is required. Point `VPHONE_MACHO_PRISTINE` at a directory of
 // unpatched Mach-Os, or leave the default `ipsws/ref_extract/macho_pristine` in
@@ -19,6 +20,7 @@
 // under `VPHONE_CACHELOADER_SCRATCH` when the caller names one;
 // `VPHONE_CACHELOADER_KEEP=1` leaves them behind for inspection.
 
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Testing
@@ -70,14 +72,11 @@ private enum CacheLoaderFixture {
         ProcessInfo.processInfo.environment["VPHONE_CACHELOADER_KEEP"] == "1"
     }
 
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
+    /// taken again from a shell over the same file.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
     }
-
-    static var patchersDirectory: URL { repoRoot.appendingPathComponent("scripts/patchers") }
-    static var cfwPy: URL { patchersDirectory.appendingPathComponent("cfw.py") }
 
     /// Clone the pristine binary into a file the caller may write to.
     ///
@@ -118,49 +117,6 @@ private enum CacheLoaderFixture {
         if remaining.isEmpty {
             try? FileManager.default.removeItem(at: scratchRoot)
         }
-    }
-
-    /// Run the shipped Python patcher over `binary`.
-    @discardableResult
-    static func runPython(on binary: URL) throws -> Shell.Result {
-        let python = try #require(
-            self.python,
-            "the reference Python is required — run `make setup_venv`"
-        )
-        return try Shell.run(
-            executable: python,
-            arguments: [cfwPy.path, "patch-launchd-cache-loader", binary.path],
-            currentDirectory: repoRoot
-        )
-    }
-
-    /// Recompute `binary`'s slot hashes with the Python's own re-signer — the
-    /// independent reference for the half of this port `codesign -v` grades.
-    @discardableResult
-    static func runPythonReattest(on binary: URL, offsets: [Int]) throws -> Shell.Result {
-        let python = try #require(
-            self.python,
-            "the reference Python is required — run `make setup_venv`"
-        )
-        let offsetList = offsets.map(String.init).joined(separator: ",")
-        return try Shell.run(
-            executable: python,
-            arguments: [
-                "-c",
-                """
-                import sys
-                sys.path.insert(0, sys.argv[1])
-                import cfw_macho_codesign as codesign
-                codesign.reattest_modified_offsets(
-                    sys.argv[2], [int(x) for x in sys.argv[3].split(",")], verbose=False
-                )
-                """,
-                patchersDirectory.path,
-                binary.path,
-                offsetList,
-            ],
-            currentDirectory: repoRoot
-        )
     }
 
     /// `codesign -v`, the second independent reference: it knows nothing about
@@ -209,6 +165,47 @@ private enum Shell {
             stderr: String(decoding: errData, as: UTF8.self)
         )
     }
+}
+
+// MARK: - The frozen reference
+
+/// What `scripts/patchers/` produced on this fixture, recorded before it was
+/// deleted.
+///
+/// Every value below was taken at repo commit `78cbeea`, with
+/// `.venv/bin/python3` driving `scripts/patchers/`, over the real iOS 27.0 /
+/// 24A435 / iPhone17,3 `launchd_cache_loader` whose own digest is ``pristine``.
+private enum CacheLoaderGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/launchd_cache_loader`
+    static let pristine = "ad268f24802e37a60dcbe12e796685dc0124e308487ebbcbb4d46e47176a486d"
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-launchd-cache-loader <clone>`
+    /// — one `cbz x0, #0xd20` at 0xC7C turned into a `nop`, signature left
+    /// stale. Its stdout ended `[+] NOPped at 0xC7C`.
+    static let patched = "17c5b00c82311dbfc466400ca225d92c1651f4d6697ba79cd8d59ea9309b30c7"
+
+    /// The gate the Python NOPped, from that same stdout line.
+    static let gateFileOffset = 0xC7C
+
+    /// ``patched``, then
+    /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts/patchers");
+    /// import cfw_macho_codesign as r;
+    /// r.reattest_modified_offsets(sys.argv[1], [3196], verbose=True)'`
+    /// — which reported `wrote cd_index=0 slot 0 (e4de608f.. -> 86da8821..)`.
+    static let patchedAndReattested =
+        "564e65d4251c83ede94371afbcbe60cb851ec2ce0be99959259cab415a27e5a9"
+
+    /// `cfw.py patch-launchd-cache-loader` run a SECOND time over ``patched``.
+    ///
+    /// Not what the Python should have done — what it did. It walked past its
+    /// own NOP and took the next conditional branch, printing
+    /// `[+] NOPped at 0xC84`, so the file moved again. This port stops instead,
+    /// and that divergence is deliberate; the digest keeps it visible.
+    static let patchedTwice = "e86fa5261259a9e0023539bac676b7027c4756ff2f9a74aa34c749999609868e"
+
+    /// The four bytes the Python's second run changed, from a byte diff of
+    /// ``patchedTwice`` against ``patched``.
+    static let secondRunOffsets = [0xC84, 0xC85, 0xC86, 0xC87]
 }
 
 // MARK: - Byte comparison
@@ -328,7 +325,7 @@ struct CFWCacheLoaderGateTests {
     }
 }
 
-// MARK: - Parity against the Python
+// MARK: - Parity against the frozen reference
 
 @Suite(
     "launchd_cache_loader parity",
@@ -336,25 +333,39 @@ struct CFWCacheLoaderGateTests {
     .serialized
 )
 struct CFWCacheLoaderParityTests {
-    @Test("Swift and Python produce byte-identical binaries")
+    /// The fixture the frozen digests were taken over. Without this a digest
+    /// mismatch below would read as a patcher bug when the real cause is a
+    /// different firmware's `launchd_cache_loader`.
+    @Test("the fixture is the one the goldens were recorded from")
+    func fixtureMatchesTheGoldens() throws {
+        let pristine = try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+        #expect(
+            try CacheLoaderFixture.digest(of: pristine) == CacheLoaderGolden.pristine,
+            """
+            this is not the 24A435 launchd_cache_loader CacheLoaderGolden was \
+            recorded from — re-derive the goldens before reading a failure \
+            below as a patcher bug
+            """
+        )
+    }
+
+    @Test("Swift reproduces the reference's bytes")
     func byteForByteParity() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "swift")
-        let pythonClone = try CacheLoaderFixture.clone(named: "python")
-        defer { CacheLoaderFixture.discard(swiftClone, pythonClone) }
+        defer { CacheLoaderFixture.discard(swiftClone) }
 
         let report = try CFWCacheLoaderPatcher.patch(fileAt: swiftClone, log: nil)
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == 1)
         // Off by default, because every shipped caller re-signs afterwards.
         #expect(report.reattestedSlots.isEmpty)
+        // The site the reference's `[+] NOPped at 0xC7C` named.
+        #expect(report.gate.fileOffset == CacheLoaderGolden.gateFileOffset)
 
-        let python = try CacheLoaderFixture.runPython(on: pythonClone)
-        #expect(python.status == 0, "python failed: \(python.output)")
-        #expect(python.stdout.contains("[+] NOPped at"))
-
-        let swiftBytes = try CacheLoaderFixture.bytes(of: swiftClone)
-        let pythonBytes = try CacheLoaderFixture.bytes(of: pythonClone)
-        #expect(swiftBytes == pythonBytes, "Swift and Python disagree")
+        #expect(
+            try CacheLoaderFixture.digest(of: swiftClone) == CacheLoaderGolden.patched,
+            "Swift and the frozen reference disagree"
+        )
     }
 
     @Test("exactly one instruction changes, and it is the gate")
@@ -389,8 +400,9 @@ struct CFWCacheLoaderParityTests {
         #expect(record.originalBytes != ARM64.nop)
         #expect(record.afterDisasm == "nop")
         #expect(record.beforeDisasm.hasPrefix("cbz"))
-        // Worded exactly as the Python words it, so a captured reference sorts
-        // against this port.
+        // Worded exactly as the Python worded it
+        // (scripts/patchers/cfw_patch_cache_loader.py:103 at 78cbeea), so a
+        // captured reference JSON still sorts against this port.
         #expect(record.patchDescription
             == "NOP the cache-validation branch gated on 'unsecure_cache'")
 
@@ -455,30 +467,39 @@ struct CFWCacheLoaderRerunTests {
         #expect(try CacheLoaderFixture.bytes(of: clone) == afterFirst)
     }
 
-    @Test("the Python double-applies where this port stops — the reason they diverge")
-    func pythonIsNotIdempotent() throws {
-        let pythonClone = try CacheLoaderFixture.clone(named: "python-twice")
+    @Test("the reference double-applied where this port stops — the reason they diverge")
+    func referenceWasNotIdempotent() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "swift-twice")
-        defer { CacheLoaderFixture.discard(pythonClone, swiftClone) }
+        defer { CacheLoaderFixture.discard(swiftClone) }
 
-        try CacheLoaderFixture.runPython(on: pythonClone)
-        let afterFirst = try CacheLoaderFixture.bytes(of: pythonClone)
-        let secondRun = try CacheLoaderFixture.runPython(on: pythonClone)
-        let afterSecond = try CacheLoaderFixture.bytes(of: pythonClone)
+        // The frozen half: the reference's second run moved the file again,
+        // rewriting four bytes at 0xC84 — it walked past its own NOP and took
+        // the next conditional branch. Not an assertion about what it *should*
+        // have done; a pin on what it did, so this divergence stays deliberate.
+        #expect(CacheLoaderGolden.patchedTwice != CacheLoaderGolden.patched)
+        #expect(CacheLoaderGolden.secondRunOffsets.count == 4)
+        #expect(
+            CacheLoaderGolden.secondRunOffsets
+                .allSatisfy { !(CacheLoaderGolden.gateFileOffset ..< CacheLoaderGolden.gateFileOffset + 4).contains($0) },
+            "the reference's second write was a different instruction, not the gate again"
+        )
 
-        // Not an assertion about what the Python *should* do — a pin on what it
-        // does, so this divergence is deliberate and stays visible. The Python
-        // walks past its own NOP and takes the next conditional branch.
-        #expect(secondRun.status == 0)
-        #expect(afterFirst != afterSecond, "the Python became idempotent; revisit this port")
-        let extra = ByteComparison.differingOffsets(afterFirst, afterSecond)
-        #expect(extra.count == 4)
-
+        // The Swift half, measured: two runs land exactly on one reference run.
         try CFWCacheLoaderPatcher.patch(fileAt: swiftClone, log: nil)
         try CFWCacheLoaderPatcher.patch(fileAt: swiftClone, log: nil)
-        let swiftTwice = try CacheLoaderFixture.bytes(of: swiftClone)
-        #expect(swiftTwice == afterFirst, "one Swift run twice must equal one Python run once")
-        #expect(swiftTwice != afterSecond)
+        let swiftTwice = try CacheLoaderFixture.digest(of: swiftClone)
+        #expect(swiftTwice == CacheLoaderGolden.patched, "one Swift run twice must equal one reference run once")
+        #expect(swiftTwice != CacheLoaderGolden.patchedTwice)
+
+        // And the bytes the reference's second run would have touched are still
+        // the instruction the pristine binary carries there.
+        let pristine = try CacheLoaderFixture.bytes(
+            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+        )
+        let patched = try CacheLoaderFixture.bytes(of: swiftClone)
+        let second = CacheLoaderGolden.secondRunOffsets
+        #expect(ByteComparison.differingOffsets(pristine, patched)
+            .allSatisfy { !second.contains($0) })
     }
 
     @Test("a dry run locates the site and writes nothing")
@@ -506,29 +527,30 @@ struct CFWCacheLoaderRerunTests {
     .serialized
 )
 struct CFWCacheLoaderSignatureTests {
-    @Test("the default output fails codesign, exactly as the Python's does")
+    @Test("the default output fails codesign, exactly as the reference's did")
     func defaultOutputIsUnattested() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "unattested-swift")
-        let pythonClone = try CacheLoaderFixture.clone(named: "unattested-python")
-        defer { CacheLoaderFixture.discard(swiftClone, pythonClone) }
+        defer { CacheLoaderFixture.discard(swiftClone) }
 
         try CFWCacheLoaderPatcher.patch(fileAt: swiftClone, log: nil)
-        try CacheLoaderFixture.runPython(on: pythonClone)
 
         // Both leave a stale slot hash, because both rely on the caller
         // re-signing the binary wholesale afterwards (`ldid_sign` in
         // `cfw_install*.sh`, `VPhoneSigner.sign` in the Swift call site). This
         // test exists so that shared assumption is written down where it fails
-        // loudly if a caller ever stops honouring it.
+        // loudly if a caller ever stops honouring it. That the reference's own
+        // output failed the same way is frozen: `CacheLoaderGolden.patched` is
+        // the digest of a file with the gate NOPped and slot 0 untouched, which
+        // is what `CacheLoaderGolden.patchedAndReattested` then repairs.
+        #expect(CacheLoaderGolden.patched != CacheLoaderGolden.patchedAndReattested)
         #expect(try CacheLoaderFixture.codesignVerify(swiftClone).status != 0)
-        #expect(try CacheLoaderFixture.codesignVerify(pythonClone).status != 0)
+        #expect(try CacheLoaderFixture.digest(of: swiftClone) == CacheLoaderGolden.patched)
     }
 
-    @Test("re-attested output passes codesign and matches the Python's slot hashes")
+    @Test("re-attested output passes codesign and matches the reference's slot hashes")
     func reattestedOutputVerifies() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "attested-swift")
-        let pythonClone = try CacheLoaderFixture.clone(named: "attested-python")
-        defer { CacheLoaderFixture.discard(swiftClone, pythonClone) }
+        defer { CacheLoaderFixture.discard(swiftClone) }
 
         let report = try CFWCacheLoaderPatcher.patch(
             fileAt: swiftClone,
@@ -546,25 +568,23 @@ struct CFWCacheLoaderSignatureTests {
         let verified = try CacheLoaderFixture.codesignVerify(swiftClone)
         #expect(verified.status == 0, "codesign -v failed: \(verified.output)")
 
-        // …and the Python, patching and re-signing with its own code, lands on
-        // the same bytes.
-        try CacheLoaderFixture.runPython(on: pythonClone)
-        let reattest = try CacheLoaderFixture.runPythonReattest(
-            on: pythonClone,
-            offsets: [report.gate.fileOffset]
+        // …and the reference, patching and re-signing with its own code, landed
+        // on the same bytes.
+        #expect(
+            try CacheLoaderFixture.digest(of: swiftClone)
+                == CacheLoaderGolden.patchedAndReattested,
+            "the re-attested slot hash must be the one the reference computed"
         )
-        #expect(reattest.status == 0, "python re-attest failed: \(reattest.output)")
-        #expect(try CacheLoaderFixture.bytes(of: swiftClone)
-            == (try CacheLoaderFixture.bytes(of: pythonClone)))
     }
 
     @Test("re-attesting an already-patched binary repairs it without moving an instruction")
-    func reattestRepairsPythonOutput() throws {
+    func reattestRepairsAStaleSlot() throws {
         let clone = try CacheLoaderFixture.clone(named: "repair")
         defer { CacheLoaderFixture.discard(clone) }
 
-        // The Python's output: patched, and carrying a stale slot hash.
-        try CacheLoaderFixture.runPython(on: clone)
+        // The shape the reference left behind: patched, stale slot hash.
+        try CFWCacheLoaderPatcher.patch(fileAt: clone, log: nil)
+        try #require(try CacheLoaderFixture.digest(of: clone) == CacheLoaderGolden.patched)
         let beforeRepair = try CacheLoaderFixture.bytes(of: clone)
 
         let report = try CFWCacheLoaderPatcher.patch(

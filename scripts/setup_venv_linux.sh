@@ -1,8 +1,6 @@
 #!/bin/bash
 # setup_venv_linux.sh — Create Python venv on Linux (Debian/Ubuntu).
 #
-# On Linux, keystone-engine pip package ships prebuilt .so — no manual build needed.
-#
 # Usage:
 #   bash scripts/setup_venv_linux.sh
 #
@@ -16,9 +14,9 @@ REQUIREMENTS="${PROJECT_ROOT}/requirements.txt"
 echo "=== Installing system deps ==="
 if command -v apt-get &>/dev/null; then
     apt-get update -qq
-    apt-get install -y -qq python3 python3-venv python3-pip cmake gcc g++ pkg-config 2>/dev/null
+    apt-get install -y -qq python3 python3-venv python3-pip gcc g++ pkg-config 2>/dev/null
 elif command -v dnf &>/dev/null; then
-    dnf install -y python3 python3-pip cmake gcc gcc-c++ 2>/dev/null
+    dnf install -y python3 python3-pip gcc gcc-c++ 2>/dev/null
 fi
 
 PYTHON="$(command -v python3)"
@@ -44,12 +42,8 @@ pip install -r "${REQUIREMENTS}"
 echo ""
 echo "=== Verifying imports ==="
 python3 -c "
-from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
-from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN
-from pyimg4 import IM4P
-print('  capstone  OK')
-print('  keystone  OK')
-print('  pyimg4    OK')
+import pymobiledevice3
+print('  pmd3      OK')
 "
 
 echo ""

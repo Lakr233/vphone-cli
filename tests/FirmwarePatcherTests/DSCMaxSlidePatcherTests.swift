@@ -1,11 +1,14 @@
 // DSCMaxSlidePatcherTests.swift — Parity cross-checks for `DSCMaxSlidePatcher`.
 //
 // There is no `codesign -v` for a dyld shared cache chunk and no second
-// implementation of this patch anywhere, so the only independent reference is
-// `scripts/patchers/cfw_patch_dsc_maxslide.py` — driven here through the exact
-// CLI the install scripts use, `cfw.py patch-dsc-maxslide <dir> [--dry-run]
-// [--force]`. Every claim below is "the Python did X on one clone, the Swift
-// did X on another, and the two clones are the same bytes".
+// implementation of this patch anywhere. The only independent reference was
+// `scripts/patchers/cfw_patch_dsc_maxslide.py`, driven through the CLI the
+// install scripts use: `cfw.py patch-dsc-maxslide <dir> [--dry-run] [--force]`.
+// That Python has been removed, so what it produced is frozen in
+// `FrozenReference` below — for the real cache, and for each of the five
+// synthetic gate cases, the digest of the input it saw and the digest of the
+// file it left behind. Every claim here is "the Swift, given the bytes the
+// reference was given, produces the bytes the reference produced".
 //
 // The tests need the real cache. Point `VPHONE_DSC_PRISTINE` at a directory of
 // `dyld_shared_cache_arm64e*` chunks, or leave the default
@@ -23,8 +26,115 @@
 // `clonefile` rather than 10 GB of copying.
 
 @testable import FirmwarePatcher
+import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python produced, recorded from live runs at commit
+/// 78cbeea:
+///
+///     .venv/bin/python3 scripts/patchers/cfw.py \
+///         patch-dsc-maxslide <input> [--dry-run] [--force]
+///
+/// The real-cache input was a clone of `ipsws/ref_extract/dsc_pristine`. The
+/// synthetic inputs were rebuilt byte for byte from
+/// `DSCMaxSlideGateTests.writeCache`, which is why each case carries the digest
+/// of its input as well as of its output: a test that fed the Swift something
+/// else would fail on the input digest rather than quietly compare nothing.
+private enum FrozenReference {
+    // MARK: The real 24A435 arm64e cache
+
+    /// Python: `dyld_shared_cache_arm64e: start=0x180000000 size=0x17D504000
+    /// maxSlide=0x20000000`.
+    static let realStart: UInt64 = 0x1_8000_0000
+    static let realSize: UInt64 = 0x1_7D50_4000
+    static let realMaxSlide: UInt64 = 0x2000_0000
+
+    /// Python: `overflow: span+maxSlide 0x19D504000 > region 0x180000000; set
+    /// maxSlide 0x20000000 -> 0x0`, then `DSC maxSlide patch complete`.
+    ///
+    /// `cmp -s` against the pristine tree afterwards: exactly one file moved,
+    /// the main chunk, to this digest (`shasum -a 256 <output>/…arm64e`). The
+    /// other 79 files were untouched — this patch deliberately does not
+    /// re-attest, so no code-directory slot moves.
+    static let realChangedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e":
+            "3d7197cc0714e95c0e49434ab8bbb6311952a96d5b0425b10f87d2cc060c0110",
+    ]
+
+    /// Re-running the Python over its own output printed `fits: span+maxSlide
+    /// 0x17D504000 <= region 0x180000000; no change` — the *fits* gate, not the
+    /// already-zero one — and left the digest above standing. A third run with
+    /// `--force` skipped that gate and printed `maxSlide already 0; no change`,
+    /// also writing nothing. A `--dry-run` on a fresh clone printed `would set
+    /// maxSlide 0x20000000 -> 0x0` and changed no byte.
+
+    // MARK: The synthetic gate cases
+
+    /// One synthetic case: the digest of the cache handed to the patcher, and
+    /// the digest of what it held afterwards.
+    struct GateCase {
+        let inputSHA256: String
+        let outputSHA256: String
+        /// The branch word the Python printed: `overflow`, `fits`, `forced` or
+        /// `maxSlide already 0`.
+        let branch: String
+    }
+
+    /// `writeCache(regionSize: 0x17C830000, maxSlide: 0x20000000)`, no flags.
+    /// Python: `overflow: span+maxSlide 0x19C830000 > region 0x180000000; set
+    /// maxSlide 0x20000000 -> 0x0`.
+    static let overflow = GateCase(
+        inputSHA256: "0eeb86dc953aa43a29df533a0c151cb1d8ce7f322f8fa77232d5c97733984ab3",
+        outputSHA256: "93e9ee632ab259a245f37e224e52e7f5671c8b323d04ba541483335c0d94bc6c",
+        branch: "overflow"
+    )
+
+    /// `writeCache(regionSize: 0x140904000, maxSlide: 0x20000000)`, no flags.
+    /// Python: `fits: span+maxSlide 0x160904000 <= region 0x180000000; no
+    /// change` — input and output digests are the same file.
+    static let fits = GateCase(
+        inputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
+        outputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
+        branch: "fits"
+    )
+
+    /// The same input as `fits`, with `--force`. Python: `forced: span+maxSlide
+    /// 0x160904000 fits region 0x180000000 but --force set; set maxSlide
+    /// 0x20000000 -> 0x0`.
+    static let forced = GateCase(
+        inputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
+        outputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
+        branch: "forced"
+    )
+
+    /// `writeCache(regionSize: 0x140904000, maxSlide: 0)` with `--force`.
+    /// Python: `maxSlide already 0; no change`.
+    static let forcedZero = GateCase(
+        inputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
+        outputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
+        branch: "maxSlide already 0"
+    )
+
+    /// `writeCache(regionSize: 0x190000000, maxSlide: 0)`, no flags — a span
+    /// that overruns the region with no slide left to give back. Python:
+    /// `maxSlide already 0; no change`.
+    static let overflowWithZeroSlide = GateCase(
+        inputSHA256: "f2543eb53f0f69a25c72045311292c9c428798a53683aeebd5b051509126d4b9",
+        outputSHA256: "f2543eb53f0f69a25c72045311292c9c428798a53683aeebd5b051509126d4b9",
+        branch: "maxSlide already 0"
+    )
+
+    /// The Python's own self-test fixture — a bare 0x100-byte header with no
+    /// mapping table — is the one input where the two implementations
+    /// deliberately disagree, so it has no `GateCase` above. The reference
+    /// patched it (`overflow: … set maxSlide 0x20000000 -> 0x0`, the field
+    /// reading back as 0 afterwards); the Swift refuses it, because every write
+    /// here goes through `DSCChunkSet`, which has nothing to address such a
+    /// file with. See `noMappingTableIsRefused`.
+}
 
 // MARK: - Fixture discovery
 
@@ -62,23 +172,11 @@ private enum MaxSlideFixture {
     static let skipReason: Comment =
         "VPHONE_DSC_FIXTURE_OPTIONAL=1 and no dyld_shared_cache_arm64e fixture present"
 
-    static let venvMissing: Comment = """
-    the project venv is required: these tests are a comparison against \
-    scripts/patchers/cfw_patch_dsc_maxslide.py, and without it there is nothing \
-    to compare against — run `make setup_venv`
-    """
-
     /// Where clones are made. Same filesystem as the repo, and deliberately
     /// *not* under `ipsws/ref_extract/`, which is the pristine reference the
     /// whole suite compares against.
     static var scratchRoot: URL {
         repoRoot.appendingPathComponent("ipsws/scratch_dscmaxslide")
-    }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     /// Clone the whole pristine cache into a fresh directory the caller may
@@ -175,42 +273,19 @@ private enum Subprocess {
     }
 }
 
-// MARK: - The reference Python, driven through its real CLI
+// MARK: - Digests
 
-/// `cfw.py patch-dsc-maxslide <chunks_dir> [--dry-run] [--force]` — the exact
-/// contract `scripts/cfw_install.sh` and `cfw-kit/lib/base_stages.sh` call.
-private enum PythonReference {
-    struct Run {
-        let stdout: String
-
-        /// The Python's return value, recovered from the lines it prints: it
-        /// returns 1 once it has decided the cache needs the clamp (including
-        /// on a dry run), and 0 from either "no change" branch.
-        var siteCount: Int { stdout.contains("[+] DSC maxSlide patch complete") ? 1 : 0 }
-        var saidNoChange: Bool { stdout.contains("no change") }
-        var saidWouldSet: Bool { stdout.contains("would set maxSlide") }
-    }
-
-    static func patch(
-        directory: URL,
-        dryRun: Bool = false,
-        force: Bool = false
-    ) throws -> Run {
-        let python = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
-        var arguments = [
-            MaxSlideFixture.repoRoot.appendingPathComponent("scripts/patchers/cfw.py").path,
-            "patch-dsc-maxslide",
-            directory.path,
-        ]
-        if dryRun { arguments.append("--dry-run") }
-        if force { arguments.append("--force") }
-
-        let result = try Subprocess.run(executable: python, arguments: arguments)
-        guard result.status == 0 else {
-            Issue.record("cfw.py patch-dsc-maxslide failed: \(result.stderr)")
-            throw CocoaError(.fileReadUnknown)
+/// SHA-256 of a file, streamed so a 131 MB chunk never lands in memory whole.
+/// The hex spelling matches `shasum -a 256`, which produced the frozen digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
         }
-        return Run(stdout: result.stdout)
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -285,6 +360,10 @@ struct DSCMaxSlideRealCacheTests {
             header.sharedRegionSize + header.maxSlide > DSCMaxSlidePatcher.kernelSharedRegionSize,
             "this fixture does not exercise the patch: it fits the region as it stands"
         )
+        // The three numbers the reference read out of this same header.
+        #expect(header.sharedRegionStart == FrozenReference.realStart)
+        #expect(header.sharedRegionSize == FrozenReference.realSize)
+        #expect(header.maxSlide == FrozenReference.realMaxSlide)
         print(
             "[pristine] start=0x\(String(header.sharedRegionStart, radix: 16, uppercase: true)) "
                 + "size=0x\(String(header.sharedRegionSize, radix: 16, uppercase: true)) "
@@ -292,22 +371,16 @@ struct DSCMaxSlideRealCacheTests {
         )
     }
 
-    /// The gate from the task: run each implementation on its own clone of the
-    /// real cache and require the two clones to come out byte-identical, over
-    /// every one of the 79 chunks and the symbol side file — not just over the
-    /// eight bytes the patch is about.
-    @Test("Swift and the Python patch the real cache into byte-identical clones")
-    func realCacheParityWithPython() throws {
+    /// The gate from the task: run the patcher on a clone of the real cache and
+    /// require the result to be the bytes the reference left behind, over every
+    /// one of the 79 chunks and the symbol side file — not just over the eight
+    /// bytes the patch is about.
+    @Test("Swift patches the real cache into the reference's bytes")
+    func realCacheMatchesTheReference() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
-        _ = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
 
-        let pythonSide = try MaxSlideFixture.cloneCache(named: "parity_python")
         let swiftSide = try MaxSlideFixture.cloneCache(named: "parity_swift")
-        defer { MaxSlideFixture.discard(pythonSide, swiftSide) }
-
-        let theirs = try PythonReference.patch(directory: pythonSide)
-        #expect(theirs.siteCount == 1, "the Python did not patch the real cache")
-        #expect(!theirs.saidNoChange)
+        defer { MaxSlideFixture.discard(swiftSide) }
 
         let mine = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide)
         #expect(mine.siteCount == 1, "the Swift did not patch the real cache")
@@ -318,37 +391,27 @@ struct DSCMaxSlideRealCacheTests {
         ))
         #expect(mine.writtenSpan?.length == 8, "one site, one u64")
 
-        let (matched, differing) = try Bytes.compareTrees(pythonSide, swiftSide)
-        #expect(differing.isEmpty, "clones differ in: \(differing.joined(separator: ", "))")
-        #expect(matched >= 79, "only \(matched) files compared")
-        print("[parity] \(matched) files byte-identical between the two patched clones")
+        // Exactly the file the reference moved, with exactly its bytes.
+        let (unchanged, changed) = try Bytes.compareTrees(pristine, swiftSide)
+        #expect(changed == FrozenReference.realChangedChunks.keys.sorted())
+        #expect(unchanged >= 79, "only \(unchanged) files were left alone")
+        for name in changed {
+            let digest = try Digest.sha256(of: swiftSide.appendingPathComponent(name))
+            let frozen = FrozenReference.realChangedChunks[name] ?? "(not a file the Python moved)"
+            #expect(digest == frozen, "\(name): Swift \(digest), reference \(frozen)")
+        }
 
-        // And both differ from pristine in exactly one file, by exactly the
-        // eight bytes of the field.
+        // …and the change is the eight bytes of the field and nothing else.
         let pristineMain = pristine.appendingPathComponent(MaxSlideFixture.mainChunkName)
         let head = DSCMaxSlidePatcher.HeaderField.maxSlide
         let tailOffset = UInt64(head + 8)
         let tailLength = 0x100 - head - 8
-        let pristineHead = try Bytes.read(pristineMain, offset: 0, length: head)
-        let pristineTail = try Bytes.read(pristineMain, offset: tailOffset, length: tailLength)
-        for side in [pythonSide, swiftSide] {
-            let main = side.appendingPathComponent(MaxSlideFixture.mainChunkName)
-            let differsFromPristine = try !Bytes.identical(main, pristineMain)
-            #expect(differsFromPristine)
-            let slide = try Bytes.maxSlide(of: main)
-            #expect(slide == 0)
-
-            // Everything either side of the field is untouched.
-            let patchedHead = try Bytes.read(main, offset: 0, length: head)
-            let patchedTail = try Bytes.read(main, offset: tailOffset, length: tailLength)
-            #expect(patchedHead == pristineHead)
-            #expect(patchedTail == pristineTail)
-        }
-
-        let (unchanged, changed) = try Bytes.compareTrees(pristine, swiftSide)
-        #expect(changed == [MaxSlideFixture.mainChunkName])
-        print("[parity] \(unchanged) files unchanged from pristine; only \(changed) differs")
-        print("[parity] python: \(theirs.siteCount) site, swift: \(mine.siteCount) site")
+        let main = swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        #expect(try Bytes.maxSlide(of: main) == 0)
+        #expect(try Bytes.read(main, offset: 0, length: head)
+            == Bytes.read(pristineMain, offset: 0, length: head))
+        #expect(try Bytes.read(main, offset: tailOffset, length: tailLength)
+            == Bytes.read(pristineMain, offset: tailOffset, length: tailLength))
     }
 
     /// The deliberate divergence from every other DSC patcher, pinned so nobody
@@ -405,35 +468,28 @@ struct DSCMaxSlideRealCacheTests {
             + "computed \(after.computed.hex.prefix(16))… — stale on purpose")
     }
 
-    @Test("A dry run reports the site the Python reports, and writes nothing")
-    func dryRunMatchesPythonAndWritesNothing() throws {
+    /// The reference's `--dry-run` printed `would set maxSlide 0x20000000 ->
+    /// 0x0` — one site reported, no byte written. So must this one.
+    @Test("A dry run reports the reference's site, and writes nothing")
+    func dryRunReportsTheSiteAndWritesNothing() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
-        _ = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
 
-        let pythonSide = try MaxSlideFixture.cloneMainChunk(named: "dryrun_python")
         let swiftSide = try MaxSlideFixture.cloneMainChunk(named: "dryrun_swift")
-        defer { MaxSlideFixture.discard(pythonSide, swiftSide) }
-
-        let theirs = try PythonReference.patch(directory: pythonSide, dryRun: true)
-        #expect(theirs.siteCount == 1)
-        #expect(theirs.saidWouldSet)
+        defer { MaxSlideFixture.discard(swiftSide) }
 
         let mine = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, dryRun: true)
-        #expect(mine.siteCount == 1, "a dry run still reports the site, as the Python does")
+        #expect(mine.siteCount == 1, "a dry run still reports the site, as the reference did")
         #expect(!mine.didWrite)
         #expect(mine.record?.patchID == DSCMaxSlidePatcher.patchID)
         #expect(mine.record?.patchedBytes == Data(count: 8))
         #expect(mine.record?.originalBytes.loadLE(UInt64.self, at: 0) == mine.maxSlide)
+        #expect(mine.maxSlide == FrozenReference.realMaxSlide)
 
-        let pristineMain = pristine.appendingPathComponent(MaxSlideFixture.mainChunkName)
-        for side in [pythonSide, swiftSide] {
-            let untouched = try Bytes.identical(
-                side.appendingPathComponent(MaxSlideFixture.mainChunkName),
-                pristineMain
-            )
-            #expect(untouched, "a dry run wrote to the chunk")
-        }
-        print("[dry run] python and swift both report 1 site and leave the chunk pristine")
+        let untouched = try Bytes.identical(
+            swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
+            pristine.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        )
+        #expect(untouched, "a dry run wrote to the chunk")
     }
 
     /// `8eb6c8b`'s lesson again: a patcher has to recognise its own output. A
@@ -442,18 +498,15 @@ struct DSCMaxSlideRealCacheTests {
     @Test("A second pass over an already-clamped cache is a no-op")
     func secondPassIsANoOp() throws {
         _ = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
-        _ = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
 
-        let pythonSide = try MaxSlideFixture.cloneMainChunk(named: "idem_python")
         let swiftSide = try MaxSlideFixture.cloneMainChunk(named: "idem_swift")
-        defer { MaxSlideFixture.discard(pythonSide, swiftSide) }
-
-        _ = try PythonReference.patch(directory: pythonSide)
-        let theirsAgain = try PythonReference.patch(directory: pythonSide)
-        #expect(theirsAgain.siteCount == 0)
-        #expect(theirsAgain.saidNoChange)
+        defer { MaxSlideFixture.discard(swiftSide) }
 
         let first = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide)
+        let afterFirst = try Digest.sha256(
+            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        )
+
         let mineAgain = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide)
         #expect(mineAgain.siteCount == 0)
         #expect(!mineAgain.didWrite)
@@ -461,31 +514,34 @@ struct DSCMaxSlideRealCacheTests {
         // the slide is gone this cache's span fits the region on its own
         // (0x17D504000 <= 0x180000000) — that is the whole point of the patch —
         // so the *fits* gate is what returns, and the already-zero gate behind
-        // it is never reached. The Python says the same thing in words: its
-        // second run prints "fits: … no change", not "maxSlide already 0".
+        // it is never reached. The reference said the same thing in words: its
+        // second run printed "fits: … no change", not "maxSlide already 0".
         #expect(mineAgain.outcome == .fits(
             combined: first.sharedRegionSize,
             region: DSCMaxSlidePatcher.kernelSharedRegionSize
         ))
 
         // `--force` skips the fits gate, so it is the one path that does reach
-        // the already-zero check — and it still writes nothing.
-        let theirsForced = try PythonReference.patch(directory: pythonSide, force: true)
-        #expect(theirsForced.siteCount == 0)
+        // the already-zero check — and it still writes nothing. The reference's
+        // third run printed "maxSlide already 0; no change" and left its file
+        // alone, which is what the unchanged digest below has to show.
         let mineForced = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, force: true)
         #expect(mineForced.siteCount == 0)
         #expect(mineForced.outcome == .alreadyZero)
 
-        let (_, differing) = try Bytes.compareTrees(pythonSide, swiftSide)
-        #expect(differing.isEmpty)
-        print("[idempotence] both implementations report 0 sites on the second and third pass")
+        let afterThird = try Digest.sha256(
+            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        )
+        #expect(afterThird == afterFirst, "a no-op pass rewrote the chunk")
+        #expect(afterThird == FrozenReference.realChangedChunks[MaxSlideFixture.mainChunkName])
     }
 }
 
 // MARK: - The gate, on synthetic caches
 
-/// The four branches `cfw_patch_dsc_maxslide._self_test` covers, run against
-/// both implementations on identical synthetic caches.
+/// The four branches `cfw_patch_dsc_maxslide._self_test` covered, replayed on
+/// the same synthetic caches the reference was given — see `FrozenReference`
+/// for the digests of each one, before and after.
 ///
 /// Synthetic rather than real because the real cache can only exercise one of
 /// the four: it overflows. A cache that *fits* — an 18.x or 26.x base, the case
@@ -544,52 +600,55 @@ struct DSCMaxSlideGateTests {
     /// SHARED_REGION_BASE_ARM64, which is also where the real cache starts.
     static let mappingAddress: UInt64 = 0x1_8000_0000
 
-    /// Build the same synthetic cache twice, hand one to each implementation,
-    /// and require the two files to come out identical.
+    /// Build the synthetic cache the reference was given, hand it to the Swift,
+    /// and require the file to come out with the reference's digest.
+    ///
+    /// The input digest is checked first. Without it a change to `writeCache`
+    /// would silently move the comparison onto some other cache, and the output
+    /// digest would then be measuring the wrong thing.
     private func compare(
         named name: String,
         regionSize: UInt64,
         maxSlide: UInt64,
         force: Bool = false,
+        reference: FrozenReference.GateCase,
         expectedSites: Int,
         expectedOutcome: DSCMaxSlidePatcher.Outcome,
         expectedMaxSlideAfter: UInt64
     ) throws {
-        _ = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
-
-        let pythonSide = MaxSlideFixture.scratchRoot.appendingPathComponent("\(name)_python")
         let swiftSide = MaxSlideFixture.scratchRoot.appendingPathComponent("\(name)_swift")
-        defer { MaxSlideFixture.discard(pythonSide, swiftSide) }
-        for side in [pythonSide, swiftSide] {
-            try Self.writeCache(into: side, regionSize: regionSize, maxSlide: maxSlide)
-        }
+        defer { MaxSlideFixture.discard(swiftSide) }
+        try Self.writeCache(into: swiftSide, regionSize: regionSize, maxSlide: maxSlide)
 
-        let theirs = try PythonReference.patch(directory: pythonSide, force: force)
+        let swiftMain = swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        let inputDigest = try Digest.sha256(of: swiftMain)
+        #expect(
+            inputDigest == reference.inputSHA256,
+            "\(name): this is not the cache the reference saw — \(inputDigest)"
+        )
+
         let mine = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, force: force)
-
-        #expect(theirs.siteCount == expectedSites, "python: \(theirs.stdout)")
         #expect(mine.siteCount == expectedSites)
         #expect(mine.outcome == expectedOutcome)
 
-        let pythonMain = pythonSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
-        let swiftMain = swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
-        let same = try Bytes.identical(pythonMain, swiftMain)
-        #expect(same, "\(name): the two caches differ")
-        let swiftSlide = try Bytes.maxSlide(of: swiftMain)
-        let pythonSlide = try Bytes.maxSlide(of: pythonMain)
-        #expect(swiftSlide == expectedMaxSlideAfter)
-        #expect(pythonSlide == expectedMaxSlideAfter)
-        print("[gate \(name)] both wrote \(expectedSites) site(s); maxSlide now "
-            + "0x\(String(expectedMaxSlideAfter, radix: 16, uppercase: true))")
+        let outputDigest = try Digest.sha256(of: swiftMain)
+        #expect(
+            outputDigest == reference.outputSHA256,
+            "\(name): Swift \(outputDigest), reference \(reference.outputSHA256)"
+        )
+        #expect(try Bytes.maxSlide(of: swiftMain) == expectedMaxSlideAfter)
+        print("[gate \(name)] \(expectedSites) site(s) on the reference's \(reference.branch) "
+            + "branch; maxSlide now 0x\(String(expectedMaxSlideAfter, radix: 16, uppercase: true))")
     }
 
-    @Test("An overflowing cache is clamped by both implementations")
+    @Test("An overflowing cache is clamped, as the reference clamped it")
     func overflowIsClamped() throws {
         // iOS 27.0-like: 0x17C830000 + 0x20000000 > 0x180000000.
         try compare(
             named: "overflow",
             regionSize: 0x1_7C83_0000,
             maxSlide: 0x2000_0000,
+            reference: FrozenReference.overflow,
             expectedSites: 1,
             expectedOutcome: .overflow(
                 combined: 0x1_9C83_0000,
@@ -599,13 +658,14 @@ struct DSCMaxSlideGateTests {
         )
     }
 
-    @Test("A cache that fits is left alone by both implementations")
+    @Test("A cache that fits is left alone, as the reference left it")
     func fittingCacheIsUntouched() throws {
         // 26.4-like: 0x140904000 + 0x20000000 <= 0x180000000.
         try compare(
             named: "fits",
             regionSize: 0x1_4090_4000,
             maxSlide: 0x2000_0000,
+            reference: FrozenReference.fits,
             expectedSites: 0,
             expectedOutcome: .fits(
                 combined: 0x1_6090_4000,
@@ -615,13 +675,14 @@ struct DSCMaxSlideGateTests {
         )
     }
 
-    @Test("--force clamps a cache that fits, on both implementations")
+    @Test("--force clamps a cache that fits, to the reference's bytes")
     func forceClampsAFittingCache() throws {
         try compare(
             named: "forced",
             regionSize: 0x1_4090_4000,
             maxSlide: 0x2000_0000,
             force: true,
+            reference: FrozenReference.forced,
             expectedSites: 1,
             expectedOutcome: .forced(
                 combined: 0x1_6090_4000,
@@ -631,13 +692,14 @@ struct DSCMaxSlideGateTests {
         )
     }
 
-    @Test("--force over an already-zero cache is a no-op on both implementations")
+    @Test("--force over an already-zero cache is a no-op, as it was for the reference")
     func forceOverZeroIsANoOp() throws {
         try compare(
             named: "forced_zero",
             regionSize: 0x1_4090_4000,
             maxSlide: 0,
             force: true,
+            reference: FrozenReference.forcedZero,
             expectedSites: 0,
             expectedOutcome: .alreadyZero,
             expectedMaxSlideAfter: 0
@@ -658,6 +720,7 @@ struct DSCMaxSlideGateTests {
             named: "overflow_zero",
             regionSize: 0x1_9000_0000,
             maxSlide: 0,
+            reference: FrozenReference.overflowWithZeroSlide,
             expectedSites: 0,
             expectedOutcome: .alreadyZero,
             expectedMaxSlideAfter: 0
@@ -698,10 +761,10 @@ struct DSCMaxSlideGateTests {
 
     /// dyld's own field-presence rule: the header struct ends where the mapping
     /// table begins, so a `mappingOffset` that does not reach past `maxSlide`
-    /// means this cache version has no such field. The Python has no equivalent
-    /// gate and would write eight zero bytes into whatever is at 0xF0 — here
-    /// that is a `dyld_cache_mapping_info.fileOffset`.
-    @Test("A header too short to hold maxSlide is refused, where the Python would write")
+    /// means this cache version has no such field. The reference had no
+    /// equivalent gate and would write eight zero bytes into whatever is at
+    /// 0xF0 — here that is a `dyld_cache_mapping_info.fileOffset`.
+    @Test("A header too short to hold maxSlide is refused, where the reference would write")
     func truncatedHeaderIsRefused() throws {
         let directory = MaxSlideFixture.scratchRoot.appendingPathComponent("shortheader")
         defer { MaxSlideFixture.discard(directory) }
@@ -747,37 +810,30 @@ struct DSCMaxSlideGateTests {
     }
 
     /// The Python's own self-test fixture: a bare 0x100-byte header with no
-    /// mapping table. The Python patches it; this refuses it, because every
-    /// write here goes through `DSCChunkSet`, which has nothing to address it
-    /// with. A documented divergence, and a strictly safer one — the input is
-    /// not a shared cache.
-    @Test("A header with no mapping table is refused, where the Python patches it")
+    /// mapping table. The reference patched it — it printed `overflow: … set
+    /// maxSlide 0x20000000 -> 0x0` and the field read back as 0. This refuses
+    /// it, because every write here goes through `DSCChunkSet`, which has
+    /// nothing to address such a file with. A documented divergence, and a
+    /// strictly safer one — the input is not a shared cache.
+    @Test("A header with no mapping table is refused, where the reference patched it")
     func noMappingTableIsRefused() throws {
-        _ = try #require(MaxSlideFixture.python, MaxSlideFixture.venvMissing)
-
-        let pythonSide = MaxSlideFixture.scratchRoot.appendingPathComponent("headeronly_python")
         let swiftSide = MaxSlideFixture.scratchRoot.appendingPathComponent("headeronly_swift")
-        defer { MaxSlideFixture.discard(pythonSide, swiftSide) }
+        defer { MaxSlideFixture.discard(swiftSide) }
 
-        for side in [pythonSide, swiftSide] {
-            try FileManager.default.createDirectory(at: side, withIntermediateDirectories: true)
-            var bytes = [UInt8](repeating: 0, count: 0x100)
-            for (index, byte) in Array("dyld_v1  arm64e".utf8).enumerated() { bytes[index] = byte }
-            func put(_ value: UInt64, at offset: Int) {
-                withUnsafeBytes(of: value.littleEndian) { source in
-                    for (index, byte) in source.enumerated() { bytes[offset + index] = byte }
-                }
+        try FileManager.default.createDirectory(at: swiftSide, withIntermediateDirectories: true)
+        var bytes = [UInt8](repeating: 0, count: 0x100)
+        for (index, byte) in Array("dyld_v1  arm64e".utf8).enumerated() { bytes[index] = byte }
+        func put(_ value: UInt64, at offset: Int) {
+            withUnsafeBytes(of: value.littleEndian) { source in
+                for (index, byte) in source.enumerated() { bytes[offset + index] = byte }
             }
-            put(Self.mappingAddress, at: 0xE0)
-            put(0x1_7C83_0000, at: 0xE8)
-            put(0x2000_0000, at: 0xF0)
-            try Data(bytes).write(
-                to: side.appendingPathComponent(MaxSlideFixture.mainChunkName)
-            )
         }
-
-        let theirs = try PythonReference.patch(directory: pythonSide)
-        #expect(theirs.siteCount == 1, "the Python patches a mapping-less header")
+        put(Self.mappingAddress, at: 0xE0)
+        put(0x1_7C83_0000, at: 0xE8)
+        put(0x2000_0000, at: 0xF0)
+        try Data(bytes).write(
+            to: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+        )
 
         #expect(throws: DSCError.self) {
             _ = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, verbose: false)
@@ -786,6 +842,5 @@ struct DSCMaxSlideGateTests {
             of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
         )
         #expect(untouchedSlide == 0x2000_0000, "the refusal still wrote")
-        print("[no mappings] python clamped it; swift refused and left it alone")
     }
 }

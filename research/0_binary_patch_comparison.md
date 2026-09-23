@@ -1,5 +1,13 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **`scripts/patchers/*.py` no longer exists.** The tables below cite those
+> filenames throughout, because that is where each patch was first written and
+> where its on-device validation notes were recorded. Every one is now a Swift
+> patcher reached through `vphone-cli cfw <verb>` — read a citation as "the
+> patch this became", and recover the Python itself from git history at
+> `78cbeea` if you need to run it. The port is documented in the three
+> "Swift port status" sections further down.
+
 > **EXP is a JB superset.** Everything in the baseline tables below that is `Y`
 > for JB is also `Y` for EXP. The columns are kept at three variants to avoid
 > noise — the only place EXP and JB diverge is the **Experimental additions**
@@ -203,8 +211,8 @@ each now has an in-process Swift implementation on the validated DSC foundation
 (`DSCChunkSet`, `DSCCodeSignature`, `DSCLocalSymbolTable`, `DSCSymbolResolver`).
 Every one was proven on the real 24A435 arm64e cache — `ipsws/ref_extract/dsc_pristine`,
 79 chunks + `.symbols` = 80 files, 6.7 GB — by running the Python on one `cp -c`
-clone and the Swift on another and comparing all 80 files. The Python stays in
-place until a `vphone-cli` verb replaces each `cfw.py` call site.
+clone and the Swift on another and comparing all 80 files. Every `cfw.py` call
+site is now a `vphone-cli cfw` verb — see "the CFW verbs" below.
 
 | Python | Swift | Sites | Parity on the real cache |
 | --- | --- | --- | --- |
@@ -287,11 +295,10 @@ hit this because it always copies from the `.bak` first. The Swift reports
 `already patched` and writes nothing, which is what the in-place call site in
 `CryptexFilesystemPatcherGuestPayload` needs.
 
-**Wired in.** `CryptexFilesystemPatcherGuestPayload` now calls
-`CFWCacheLoaderPatcher` and `CFWMobileactivationd` in process instead of
-spawning `cfw.py`. The shell call sites (`cfw_install*.sh`, `cfw-kit`,
-`patch_hv_vmm_userland.sh`) still run the Python until a `vphone-cli cfw` verb
-replaces them.
+**Wired in.** `CryptexFilesystemPatcherGuestPayload` calls
+`CFWCacheLoaderPatcher` and `CFWMobileactivationd` in process. Every shell call
+site (`cfw_install*.sh`, `cfw-kit`, `patch_{camera,hv_vmm}_userland.sh`) now runs
+`vphone-cli cfw <verb>` — see the next section.
 
 **A defect that review found and this branch fixed:** `CFWCacheLoaderPatcher`
 trapped on every patch with logging on, which is the default. The before/after
@@ -299,11 +306,18 @@ window starts two instructions ahead of the gate, and it converted that negative
 delta with `UInt64(Int)`, which traps even under `-O`. Every test passed
 `log: nil`, so none reached it. Now covered by `loggingPathDoesNotTrap`.
 
+**A second defect, found when the CLI verbs landed and fixed here:** a Mach-O
+whose load-command table runs past EOF — a 64-byte truncation is enough — made
+*all six* patchers die with SIGTRAP (`BinaryBuffer.swift:9` precondition, exit
+133), not a catchable error. `MachOParser` walked the table checking only that
+each command's 8-byte header fit, then read fields up to `+0x38` inside it.
+`MachOParser.forEachLoadCommand` now bounds every command by `cmdsize` and by
+the file, and each branch checks its own minimum command size; a truncated file
+yields no segments and the patcher throws `invalidFormat` like any other bad
+input.
+
 **Known, not fixed** (all LOW, none changes a byte on these binaries):
 
-* A Mach-O truncated to about 64 bytes makes `diskimagesiod` and `watchdogd`
-  trap in the shared `MachOParser` (`BinaryBuffer.swift:9` precondition) instead
-  of throwing.
 * `CFWCacheLoaderPatcher.flagSetterOnResult` accepts a flag-setting instruction
   with `x0`/`w0` in any operand, including as the destination.
 * `CFWMobileactivationd`'s ObjC cross-check is scoped to the selector, not the
@@ -313,6 +327,70 @@ delta with `UInt64(Int)`, which traps even under `-O`. Every test passed
   as already patched.
 * `CFWWatchdogdTests.swift` converts a VA to a file offset by subtracting the
   arm64 image base as a constant, in a test only.
+
+### The CFW verbs, and the end of `scripts/patchers` (2026-09-23)
+
+The fourteen ports above had no caller outside the two in-process call sites, so
+the installers still ran `cfw.py`. They no longer do. Every patch is a
+`vphone-cli cfw <verb>` with the Python's exact verb name, positional arguments
+and flags, so the shell diff is a prefix swap:
+
+```
+-  "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-seputil "$bin"
++  "$VPHONE_CLI" cfw patch-seputil "$bin"
+```
+
+26 call sites across `cfw_install{,_dev,_jb,_exp,_host}.sh`,
+`patch_{camera,hv_vmm}_userland.sh` and `cfw-kit`, whose `cfw_py` seam became
+`cfw_cli`. Each verb was proven through the built binary against its Python on
+`cp -c` clones of the real 24A435 references: the six Mach-O verbs byte-identical
+(`cmp` + matching sha256, both exit 0), the eight DSC verbs `diff -rq` clean over
+all 80 cache files on first run, second run and dry run.
+
+**Parity evidence is now frozen, not re-measured.** The CFW test suites used to
+spawn `.venv/bin/python3 scripts/patchers/…` and compare live. They now compare
+against constants recorded from that same Python at commit `78cbeea`, each with a
+provenance comment naming the command and the input digest, and each suite checks
+the fixture is the one the goldens were taken over — so a different firmware fails
+on that line instead of looking like a patcher bug. Two structural fixes were
+needed for the freeze to mean anything: the re-attester parity test was reading
+`.build/release/vphone-letmein`, a build product whose bytes change every build
+(retargeted to `macho_pristine/seputil`), and the device-tree golden is a digest
+map keyed by input digest, because that input exists in two cloudOS IPSWs.
+
+Re-deriving any of these constants means re-extracting the reference Python from
+git history — `scripts/patchers/` is gone from the working tree.
+
+**One Python bug the port deliberately does not reproduce.** A write that
+straddles a code-signature page boundary — eight bytes at `0x280FFFC..0x2810004`,
+which is what `cfw_patch_camera_dsc.py` emits when its six entry points land on
+both sides of the 2563/2564 line — re-attested only the page containing the
+address. Page 2564 kept its original slot hash (`7ccd65fa…`) while its bytes
+hashed to `dfe38096…`, and the guest dies on the first demand-page-in of it.
+`DSCCodeSignature.reattestRecordedWrites` covers every dirtied page;
+`DSCFoundationTests.pageStraddlingWriteAttestsEveryDirtiedPage` pins both the fix
+and the reference's value, so the divergence stays on the record.
+
+**Two behavioural differences kept on purpose**, both on the already-patched path
+and neither changing a byte:
+
+* `patch-camera-dsc` over an already-patched cache exits 0 where the Python
+  raised and exited 1. `cfw_install_exp.sh:126` tests that exit status and its
+  failure branch prints "likely build-version mismatch" — a *wrong* diagnosis for
+  a re-install. Exit 0 with "chunks patched" is the true one.
+* The three idempotence divergences in the section above stand: the Swift
+  recognises its own output where the Python double-applies or exits 1.
+
+**Not removed:** `scripts/repos/insert_dylib`. Nothing in the product runs it —
+`CFWInjectDylib` does the injection in process — but
+`CFWMachOTests.matchesInsertDylib` still runs the real binary as an independent
+byte-parity reference, gated on its presence. Deleting the submodule would turn
+that check into a silent skip rather than a failure. CI no longer initialises it;
+`setup_tools.sh` still builds it, relabelled as a test reference.
+
+`requirements.txt` drops `capstone`, `keystone-engine` and `pyimg4`; the venv,
+`setup_venv*.sh` and the Homebrew list exist for exactly one program now,
+`scripts/pymobiledevice3_bridge.py`.
 
 ### Installed Components
 

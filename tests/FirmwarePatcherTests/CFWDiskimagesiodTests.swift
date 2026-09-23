@@ -5,11 +5,14 @@
 // assertion — so the reference these tests grade against is not this port's
 // own opinion. It is, in order of authority:
 //
-//   1. `cfw.py patch-diskimagesiod`, the Python that has already shipped, run
-//      under the project venv over a clone of the same pristine binary;
+//   1. `cfw.py patch-diskimagesiod`, the Python that shipped before this port,
+//      run under the project venv over a clone of the same pristine binary;
 //   2. `cfw_macho_codesign.reattest_modified_offsets`, the Python's own
 //      independent re-signing implementation, for the `reattest: true` path;
 //   3. `/usr/bin/codesign -v`, which is neither implementation.
+//
+// The Python is gone. What it and its re-signer wrote is frozen digest by
+// digest in ``DiskImagesGolden`` below, with the command that produced each.
 //
 // The fixture is the real `usr/libexec/diskimagesiod` from iOS 27.0 / 24A435 /
 // iPhone17,3: 2.8 MB, arm64e, ad-hoc signed, CodeDirectory v=20400, 710+7
@@ -27,6 +30,7 @@
 // (`clonefile`: instant, and free on APFS) under the system temporary
 // directory, or under `VPHONE_MACHO_SCRATCH` when the caller names one.
 
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Testing
@@ -80,13 +84,11 @@ private enum DiskImagesFixture {
             .appendingPathComponent("vphone-macho-diskimagesiod")
     }
 
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
+    /// taken again from a shell over the same file.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
     }
-
-    static var cfwPy: URL { repoRoot.appendingPathComponent("scripts/patchers/cfw.py") }
 
     /// Clone the pristine binary into a fresh file the caller may write to.
     ///
@@ -127,46 +129,6 @@ private enum DiskImagesFixture {
         }
     }
 
-    /// Run the shipped Python patcher over `binary`.
-    @discardableResult
-    static func runPython(on binary: URL) throws -> DiskImagesShell.Result {
-        let python = try #require(
-            self.python,
-            "the reference Python is required — run `make setup_venv`"
-        )
-        let result = try DiskImagesShell.run(
-            executable: python,
-            arguments: [cfwPy.path, "patch-diskimagesiod", binary.path],
-            currentDirectory: repoRoot.appendingPathComponent("scripts")
-        )
-        #expect(result.status == 0, "cfw.py patch-diskimagesiod failed: \(result.stderr)")
-        return result
-    }
-
-    /// Re-attest `offsets` in `binary` using the Python's own independent
-    /// implementation, `cfw_macho_codesign.reattest_modified_offsets`.
-    @discardableResult
-    static func runPythonReattest(on binary: URL, offsets: [Int]) throws -> DiskImagesShell.Result {
-        let python = try #require(
-            self.python,
-            "the reference Python is required — run `make setup_venv`"
-        )
-        let list = offsets.map(String.init).joined(separator: ",")
-        let program = """
-        import sys
-        sys.path.insert(0, "scripts")
-        from patchers.cfw_macho_codesign import reattest_modified_offsets
-        reattest_modified_offsets(sys.argv[1], [\(list)], verbose=False)
-        """
-        let result = try DiskImagesShell.run(
-            executable: python,
-            arguments: ["-c", program, binary.path],
-            currentDirectory: repoRoot
-        )
-        #expect(result.status == 0, "python reattest failed: \(result.stderr)")
-        return result
-    }
-
     /// `codesign -v` on a file, which is a reference neither implementation wrote.
     static func codesignVerify(_ binary: URL) throws -> DiskImagesShell.Result {
         try DiskImagesShell.run(
@@ -189,8 +151,7 @@ private enum DiskImagesShell {
     ///
     /// The two pipes are drained on separate queues rather than one after the
     /// other. A pipe holds about 64 KiB; draining stdout to EOF first would
-    /// wedge any child that fills stderr in the meantime, and the child here is
-    /// a Python patcher that logs freely to both.
+    /// wedge any child that fills stderr in the meantime.
     @discardableResult
     static func run(
         executable: URL,
@@ -243,6 +204,56 @@ private enum DiskImagesShell {
         var standardOutput: Data { lock.withLock { out } }
         var standardError: Data { lock.withLock { err } }
     }
+}
+
+// MARK: - The frozen reference
+
+/// What `scripts/patchers/` produced on this fixture, recorded before it was
+/// deleted.
+///
+/// Every value below was taken at repo commit `78cbeea`, with
+/// `.venv/bin/python3` driving `scripts/patchers/`, over the real iOS 27.0 /
+/// 24A435 / iPhone17,3 `usr/libexec/diskimagesiod` whose own digest is
+/// ``pristine``.
+private enum DiskImagesGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/diskimagesiod`
+    static let pristine = "77e472b74d518beedb2533c409fd66ec964c90264ad35d8fa9f10f82a448af15"
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-diskimagesiod <clone>`
+    /// — the ObjC prologue at 0x320C0 replaced with `mov x0, #1 ; ret`,
+    /// signature left stale. Its stdout reported
+    /// `Found via relative method list: IMP va:0x1000320C0 foff:0x320C0`.
+    static let patched = "41daf01d25fc98317516c1aa4c3a095a0e449715907e9e71f1cff6310bcd9cbd"
+
+    /// The IMP that run resolved, from that stdout line.
+    static let impFileOffset = 0x3_20C0
+    static let impVirtualAddress: UInt64 = 0x1_0003_20C0
+
+    /// ``patched``, then
+    /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts/patchers");
+    /// import cfw_macho_codesign as r;
+    /// r.reattest_modified_offsets(sys.argv[1], [204992, 204999], verbose=True)'`
+    /// — which reported `wrote cd_index=0 slot 50 (6e2cd215.. -> b7814241..)`.
+    static let patchedAndReattested =
+        "eea1a205c3b3d14ab41acf262b67f34fcdbb14ec96e7deb5a86adb5e807cec44"
+
+    /// The one code slot that re-attestation rewrote.
+    static let reattestedSlot = 50
+
+    /// The short-tail case, which the real patch site is nowhere near. On a
+    /// *pristine* clone, byte 2905120 (0x2C5420, the middle of the last slot)
+    /// XORed with 0xFF, then the same re-attester over `[2905120]` — which
+    /// reported `wrote cd_index=0 slot 709 [tail, 2112B] (2197132a.. -> 8106b4a9..)`.
+    static let tailVictimOffset = 2_905_120
+    static let tailFlippedAndReattested =
+        "bc979503698fcb92e3db6ae46650ea3cad6c66fd119765370c1f0cd5eb7281e9"
+    static let tailSlot = 709
+    static let tailSlotLength = 2112
+
+    /// `cfw.py patch-diskimagesiod` run a SECOND time over ``patched``: it
+    /// rewrote the same eight bytes and the file did not move, so the digest is
+    /// ``patched`` again.
+    static let patchedTwice = patched
 }
 
 // MARK: - Byte comparison
@@ -325,18 +336,27 @@ struct CFWDiskimagesiodAnchorTests {
             .hasPrefix("pacibsp; stp"))
     }
 
-    @Test("the Python's own anchor walk agrees on the same offset")
-    func agreesWithPythonAnchor() throws {
+    @Test("the fixture is the one the goldens were recorded from")
+    func fixtureMatchesTheGoldens() throws {
+        let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
+        #expect(
+            try DiskImagesFixture.digest(of: pristine) == DiskImagesGolden.pristine,
+            """
+            this is not the 24A435 diskimagesiod DiskImagesGolden was recorded \
+            from — re-derive the goldens before reading a failure elsewhere in \
+            this file as a patcher bug
+            """
+        )
+    }
+
+    @Test("the reference's own anchor walk agreed on the same offset")
+    func agreesWithTheFrozenAnchor() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let site = try CFWDiskimagesiod.locate(in: try Data(contentsOf: pristine))
 
-        // The Python prints the offset it resolved; both walks must land on it.
-        let clone = try DiskImagesFixture.clone(named: "anchor")
-        defer { DiskImagesFixture.discard(clone) }
-        let output = try DiskImagesFixture.runPython(on: clone).stdout
-        let expected = "IMP va:0x\(String(site.virtualAddress ?? 0, radix: 16, uppercase: true)) "
-            + "foff:0x\(String(site.fileOffset, radix: 16, uppercase: true))"
-        #expect(output.contains(expected), "python said:\n\(output)")
+        // The offset the Python printed; both walks must land on it.
+        #expect(site.fileOffset == DiskImagesGolden.impFileOffset)
+        #expect(site.virtualAddress == DiskImagesGolden.impVirtualAddress)
     }
 
     @Test("the selector names exactly one implementation in the image")
@@ -385,10 +405,10 @@ struct CFWDiskimagesiodAnchorTests {
         let methlist = try #require(sections["__TEXT,__objc_methlist"])
         let targets: Set<UInt64> = [selectorVA, selrefVA]
 
-        // The Python only ever does the strided scan. Both walks over the same
+        // The Python only ever did the strided scan. Both walks over the same
         // section have to name the same single implementation, or the two
-        // implementations would diverge on some other firmware even though they
-        // agree on this one.
+        // implementations would have diverged on some other firmware even
+        // though they agreed on this one.
         let structural = CFWDiskimagesiod.relativeMethodListIMPs(
             in: data,
             section: methlist,
@@ -413,7 +433,7 @@ struct CFWDiskimagesiodAnchorTests {
     }
 }
 
-// MARK: - Parity against the Python
+// MARK: - Parity against the frozen reference
 
 @Suite(
     "diskimagesiod parity",
@@ -421,23 +441,23 @@ struct CFWDiskimagesiodAnchorTests {
     .serialized
 )
 struct CFWDiskimagesiodParityTests {
-    @Test("Swift and Python produce byte-identical binaries, one site each")
+    @Test("Swift reproduces the reference's bytes, one site each")
     func byteForByteParity() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift")
-        let pythonClone = try DiskImagesFixture.clone(named: "python")
-        defer { DiskImagesFixture.discard(swiftClone, pythonClone) }
+        defer { DiskImagesFixture.discard(swiftClone) }
 
         let report = try CFWDiskimagesiod.patch(fileAt: swiftClone, log: nil)
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == 1)
         // Off by default: `cfw_install.sh` re-signs with ldid straight after,
-        // and the Python does not re-attest either.
+        // and the Python did not re-attest either.
         #expect(report.rehashes.isEmpty)
+        #expect(report.site.fileOffset == DiskImagesGolden.impFileOffset)
 
-        try DiskImagesFixture.runPython(on: pythonClone)
-
-        let differences = try DiskImagesComparison.differences(between: swiftClone, and: pythonClone)
-        #expect(differences.isEmpty, "first differing offsets: \(differences.map { String($0, radix: 16) })")
+        #expect(
+            try DiskImagesFixture.digest(of: swiftClone) == DiskImagesGolden.patched,
+            "Swift and the frozen reference disagree"
+        )
     }
 
     @Test("the recorded write names the site, the bytes and both disassemblies")
@@ -529,40 +549,38 @@ struct CFWDiskimagesiodReattestTests {
         #expect(verification.status == 0, "codesign said: \(verification.stderr)")
     }
 
-    @Test("the re-attested bytes are the Python re-attest's bytes")
-    func reattestMatchesPython() throws {
+    @Test("the re-attested bytes are the reference re-attest's bytes")
+    func reattestMatchesTheFrozenReference() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift-attested")
-        let pythonClone = try DiskImagesFixture.clone(named: "python-attested")
-        defer { DiskImagesFixture.discard(swiftClone, pythonClone) }
+        defer { DiskImagesFixture.discard(swiftClone) }
 
         let report = try CFWDiskimagesiod.patch(fileAt: swiftClone, reattest: true, log: nil)
-
-        try DiskImagesFixture.runPython(on: pythonClone)
-        try DiskImagesFixture.runPythonReattest(
-            on: pythonClone,
-            offsets: [report.site.fileOffset, report.site.fileOffset + 7]
+        #expect(report.rehashes.first?.pageIndex == DiskImagesGolden.reattestedSlot)
+        #expect(
+            try DiskImagesFixture.digest(of: swiftClone) == DiskImagesGolden.patchedAndReattested,
+            "the re-attested slot hash must be the one the reference computed"
         )
-
-        let differences = try DiskImagesComparison.differences(between: swiftClone, and: pythonClone)
-        #expect(differences.isEmpty, "first differing offsets: \(differences.map { String($0, radix: 16) })")
     }
 
     @Test("a short-tail slot is hashed to codeLimit, not to the end of its page")
     func tailSlotStopsAtCodeLimit() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift-tail")
-        let pythonClone = try DiskImagesFixture.clone(named: "python-tail")
-        defer { DiskImagesFixture.discard(swiftClone, pythonClone) }
+        defer { DiskImagesFixture.discard(swiftClone) }
 
         // Land a byte inside the last, short slot. This is synthetic — the real
-        // patch site is nowhere near — and it is the only way to make both
-        // implementations recompute the slot whose length is not a page.
+        // patch site is nowhere near — and it is the only way to make the
+        // re-attester recompute the slot whose length is not a page. The victim
+        // is derived, not typed in, and then checked against the offset the
+        // frozen run used so both sides really are the same experiment.
         var data = try Data(contentsOf: swiftClone)
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: data)?.first)
         let tail = try #require(directory.slotRange(directory.codeSlotCount - 1))
         let victim = tail.lowerBound + tail.count / 2
+        #expect(victim == DiskImagesGolden.tailVictimOffset)
+        #expect(tail.count == DiskImagesGolden.tailSlotLength)
+        #expect(directory.codeSlotCount - 1 == DiskImagesGolden.tailSlot)
         data[victim] = data[victim] ^ 0xFF
         try data.write(to: swiftClone)
-        try data.write(to: pythonClone)
 
         let rehashes = try CFWMachOCodeSignature.reattest(fileAt: swiftClone, modifiedOffsets: [victim])
         let slot = try #require(rehashes.first)
@@ -570,9 +588,11 @@ struct CFWDiskimagesiodReattestTests {
         #expect(slot.hashedLength == tail.count)
         #expect(slot.pageEnd == directory.codeLimit)
 
-        try DiskImagesFixture.runPythonReattest(on: pythonClone, offsets: [victim])
-        let differences = try DiskImagesComparison.differences(between: swiftClone, and: pythonClone)
-        #expect(differences.isEmpty, "first differing offsets: \(differences.map { String($0, radix: 16) })")
+        #expect(
+            try DiskImagesFixture.digest(of: swiftClone)
+                == DiskImagesGolden.tailFlippedAndReattested,
+            "the tail slot hash must be the one the reference re-attester computed"
+        )
     }
 }
 
@@ -621,23 +641,30 @@ struct CFWDiskimagesiodIdempotenceTests {
         #expect(try DiskImagesFixture.codesignVerify(clone).status == 0)
     }
 
-    @Test("Python over a Swift-patched binary is a no-op, and the reverse too")
+    /// Running the two implementations in either order lands on one file.
+    ///
+    /// The reference half is frozen: `cfw.py patch-diskimagesiod` over its own
+    /// output rewrote the same eight bytes and the digest did not move
+    /// (``DiskImagesGolden/patchedTwice`` is ``DiskImagesGolden/patched``). So
+    /// "the reference over a Swift-patched binary" is the same experiment as
+    /// "the reference over its own output" — the two files are byte-identical
+    /// by `byteForByteParity` — and what is left to measure is this side:
+    /// Swift over the bytes the reference left behind must change nothing.
+    @Test("the reference's output is what this port reports as already patched")
     func crossImplementationRerunsAgree() throws {
-        let swiftFirst = try DiskImagesFixture.clone(named: "swift-then-python")
-        let pythonFirst = try DiskImagesFixture.clone(named: "python-then-swift")
-        defer { DiskImagesFixture.discard(swiftFirst, pythonFirst) }
+        let referenceOutput = try DiskImagesFixture.clone(named: "reference-then-swift")
+        defer { DiskImagesFixture.discard(referenceOutput) }
 
-        try CFWDiskimagesiod.patch(fileAt: swiftFirst, log: nil)
-        let afterSwift = try Data(contentsOf: swiftFirst)
-        try DiskImagesFixture.runPython(on: swiftFirst)
-        #expect(try Data(contentsOf: swiftFirst) == afterSwift)
+        // Reproduce the reference's output, and prove it is that, by digest.
+        try CFWDiskimagesiod.patch(fileAt: referenceOutput, log: nil)
+        try #require(
+            try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched
+        )
+        #expect(DiskImagesGolden.patchedTwice == DiskImagesGolden.patched)
 
-        try DiskImagesFixture.runPython(on: pythonFirst)
-        let afterPython = try Data(contentsOf: pythonFirst)
-        let report = try CFWDiskimagesiod.patch(fileAt: pythonFirst, log: nil)
+        let report = try CFWDiskimagesiod.patch(fileAt: referenceOutput, log: nil)
         #expect(report.outcome == .alreadyPatched)
-        #expect(try Data(contentsOf: pythonFirst) == afterPython)
-        #expect(try DiskImagesComparison.identical(swiftFirst, pythonFirst))
+        #expect(try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched)
     }
 
     @Test("a dry run locates the site and writes nothing")

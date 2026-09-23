@@ -2,24 +2,25 @@
 //
 // The bar for this port is not "the test passes". It is that the Swift patcher
 // and `scripts/patchers/cfw_patch_jetsam.py` produce the same bytes from the
-// same input, on the real `/sbin/launchd` out of iOS 27.0 / 24A435 — so the
-// comparison tests below run BOTH implementations, each over its own clone of
-// `ipsws/ref_extract/macho_pristine/launchd`, and diff the results.
+// same input, on the real `/sbin/launchd` out of iOS 27.0 / 24A435. That Python
+// is gone: what it wrote, and the two anchors it printed on its way there, are
+// frozen in ``JetsamGolden`` below, and the comparison tests grade the Swift
+// against those.
 //
 // `codesign -v` is the second, fully independent reference: the patcher's
 // `reattest: true` mode has to leave a binary that verifies, and the slot hash
 // it writes has to equal the one the Python's own `cfw_macho_codesign.py`
-// computes over the same patched bytes.
+// computed over the same patched bytes — also frozen.
 //
-// The reference is on its way out — plan P1.5 deletes `scripts/patchers/`, and
-// `ipsws/` is not in the repo — so every test that needs one is gated on it
-// still being there and skips rather than fails when it is not. The pure
-// decode/encode tests below have no such dependency and always run.
+// `ipsws/` is not in the repo, so every test that needs the pristine `launchd`
+// is gated on it being there and skips rather than fails when it is not. The
+// pure decode/encode tests below have no such dependency and always run.
 //
 // Set `VPHONE_JETSAM_ARTIFACTS=<dir>` to keep each run's inputs and outputs for
 // inspection from a shell; without it they land in a temporary directory.
 
 import Capstone
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Testing
@@ -37,18 +38,18 @@ enum JetsamFixture {
     /// The real, ad-hoc signed, thin arm64e `/sbin/launchd`.
     static let pristineLaunchd = repositoryRoot
         .appending(path: "ipsws/ref_extract/macho_pristine/launchd")
-    static let python = repositoryRoot.appending(path: ".venv/bin/python3")
-    static let pythonCFW = repositoryRoot.appending(path: "scripts/patchers/cfw.py")
-    static let pythonCodeSign = repositoryRoot.appending(path: "scripts/patchers/cfw_macho_codesign.py")
-    static let scriptsDirectory = repositoryRoot.appending(path: "scripts")
     static let codesign = URL(filePath: "/usr/bin/codesign")
 
     static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
 
     static var hasLaunchd: Bool { exists(pristineLaunchd) }
-    static var hasPythonReference: Bool { exists(python) && exists(pythonCFW) }
-    static var hasLaunchdAndPython: Bool { hasLaunchd && hasPythonReference }
     static var hasLaunchdAndCodesign: Bool { hasLaunchd && exists(codesign) }
+
+    /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
+    /// taken again from a shell over the same file.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+    }
 
     /// A directory for one test's artifacts. `VPHONE_JETSAM_ARTIFACTS` pins it
     /// so a shell can look at what a run produced.
@@ -87,24 +88,6 @@ enum JetsamFixture {
         return (process.terminationStatus, String(decoding: output, as: UTF8.self))
     }
 
-    /// `cfw.py patch-launchd-jetsam <file>` — the reference implementation.
-    @discardableResult
-    static func runPythonJetsam(on file: URL) throws -> (status: Int32, output: String) {
-        try run(
-            python,
-            ["patchers/cfw.py", "patch-launchd-jetsam", file.path],
-            workingDirectory: scriptsDirectory
-        )
-    }
-
-    /// The hex number the reference prints straight after `marker`, so the
-    /// expected values come out of the reference's own stdout instead of being
-    /// written down here and going stale with the next firmware.
-    static func hexAfter(_ marker: String, in output: String) -> Int? {
-        guard let range = output.range(of: marker) else { return nil }
-        return Int(String(output[range.upperBound...].prefix { $0.isHexDigit }), radix: 16)
-    }
-
     /// The first byte offset at which two files differ, or nil when equal.
     static func firstDifference(_ lhs: Data, _ rhs: Data) -> Int? {
         if lhs.count != rhs.count { return min(lhs.count, rhs.count) }
@@ -113,29 +96,82 @@ enum JetsamFixture {
     }
 }
 
-// MARK: - Against the Python reference
+// MARK: - The frozen reference
 
-@Suite("launchd jetsam guard — against the Python reference")
+/// What `scripts/patchers/` produced on this fixture, recorded before it was
+/// deleted.
+///
+/// Every value below was taken at repo commit `78cbeea`, with
+/// `.venv/bin/python3` driving `scripts/patchers/`, over the real iOS 27.0 /
+/// 24A435 / iPhone17,3 `/sbin/launchd` whose own digest is ``pristine``.
+enum JetsamGolden {
+    /// `shasum -a 256 ipsws/ref_extract/macho_pristine/launchd`
+    static let pristine = "c640246d38aaeb2d2372aff1e5aa0de59dec267f53c0dfc155f7837e717af68b"
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-launchd-jetsam <clone>`
+    /// — `cbz w0, #0xfaec` at 0xFA98 rewritten to `b #0xfaec`, signature left
+    /// stale.
+    static let patched = "cae806f55aadc0109c6b8e737b0ee4e648ce7ec1fbcce0ac9215f45b736d0fcb"
+
+    /// The two anchors that run printed on its way to the gate, not just its
+    /// answer — so a port that agreed on the gate by luck is still caught:
+    ///   "    xref at foff:0xFB0C"
+    ///   "  [+] Patched at 0xFA98: jetsam panic guard bypass"
+    static let xrefOffset = 0xFB0C
+    static let gateOffset = 0xFA98
+
+    /// ``patched``, then
+    /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts/patchers");
+    /// import cfw_macho_codesign as r;
+    /// r.reattest_modified_offsets(sys.argv[1], [64152], verbose=True)'`
+    /// — which reported `wrote cd_index=0 slot 15 (ff0c126a.. -> 361aa09d..)`.
+    static let patchedAndReattested =
+        "689236aad3bb8fe360412195ff626269ee7403be322628a5bb66517a65ad2ea2"
+
+    /// The one code slot that re-attestation rewrote.
+    static let reattestedSlot = 15
+
+    /// `cfw.py patch-launchd-jetsam` run a SECOND time over ``patched``.
+    ///
+    /// Not what the reference should have done — what it did. It landed a
+    /// second site the pristine image never had patched, printing
+    /// `[+] Patched at 0xFAB0`, so the file moved again. This port recognises
+    /// its own work and stops; the digest keeps that divergence visible.
+    static let patchedTwice = "2c979d9dbeb0de9cd4877c843f1910ccff43a5ebfdf50c1e0f6bdc5d53370979"
+
+    /// The second gate the reference took, from that stdout line.
+    static let secondRunGateOffset = 0xFAB0
+}
+
+// MARK: - Against the frozen reference
+
+@Suite("launchd jetsam guard — against the frozen reference")
 struct CFWJetsamReferenceTests {
+    /// The fixture the frozen digests were taken over. Without this a digest
+    /// mismatch below would read as a patcher bug when the real cause is a
+    /// different firmware's `launchd`.
+    @Test(.enabled(if: JetsamFixture.hasLaunchd))
+    func fixtureMatchesTheGoldens() throws {
+        #expect(
+            try JetsamFixture.digest(of: JetsamFixture.pristineLaunchd) == JetsamGolden.pristine,
+            """
+            this is not the 24A435 launchd JetsamGolden was recorded from — \
+            re-derive the goldens before reading a failure below as a patcher bug
+            """
+        )
+    }
+
     /// The whole point of the port: same input, same bytes out.
-    @Test(.enabled(if: JetsamFixture.hasLaunchdAndPython))
-    func matchesPythonByteForByte() throws {
+    @Test(.enabled(if: JetsamFixture.hasLaunchd))
+    func matchesTheFrozenReferenceByteForByte() throws {
         let work = try JetsamFixture.workDirectory("byte-equivalence")
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
-        let pythonTarget = try JetsamFixture.launchdCopy(named: "launchd.python", in: work)
 
         let outcome = try CFWJetsamPatcher.patch(fileAt: swiftTarget, log: nil)
         #expect(outcome.verdict == .patched)
-
-        let reference = try JetsamFixture.runPythonJetsam(on: pythonTarget)
-        #expect(reference.status == 0, "reference patcher failed:\n\(reference.output)")
-
-        let swiftBytes = try Data(contentsOf: swiftTarget)
-        let pythonBytes = try Data(contentsOf: pythonTarget)
-        let difference = JetsamFixture.firstDifference(swiftBytes, pythonBytes)
         #expect(
-            difference == nil,
-            "Swift and Python diverge at offset \(difference.map { "0x" + String($0, radix: 16) } ?? "-")"
+            try JetsamFixture.digest(of: swiftTarget) == JetsamGolden.patched,
+            "Swift and the frozen reference diverge"
         )
 
         // And the only thing that moved is inside the instruction the record
@@ -143,6 +179,7 @@ struct CFWJetsamReferenceTests {
         // `cbz w0, #0xfaec` is A0 02 00 34 and `b #0xfaec` is 15 00 00 14, so
         // byte 2 is 0x00 either way. Containment is the real claim — the whole
         // instruction was rewritten and nothing outside it was.
+        let swiftBytes = try Data(contentsOf: swiftTarget)
         let pristine = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let site = outcome.gateOffset ..< outcome.gateOffset + 4
         let changed = (0 ..< pristine.count).filter { pristine[$0] != swiftBytes[$0] }
@@ -152,32 +189,20 @@ struct CFWJetsamReferenceTests {
         #expect(Data(pristine[site]) == outcome.record?.originalBytes)
     }
 
-    /// The gate the reference reports is the gate this finds. Checked against
-    /// its stdout rather than a hard-coded offset, so the day the firmware
-    /// moves, this moves with it.
-    @Test(.enabled(if: JetsamFixture.hasLaunchdAndPython))
-    func agreesWithPythonOnTheSite() throws {
-        let work = try JetsamFixture.workDirectory("site-agreement")
-        let pythonTarget = try JetsamFixture.launchdCopy(named: "launchd.python", in: work)
-        let reference = try JetsamFixture.runPythonJetsam(on: pythonTarget)
-        #expect(reference.status == 0)
-
-        // Both intermediate anchors the reference prints, not just its answer,
-        // so a port that agreed on the gate by luck would still be caught:
-        //   "    xref at foff:0xFB0C"
-        //   "  [+] Patched at 0xFA98: jetsam panic guard bypass"
-        let referenceXref = try #require(JetsamFixture.hexAfter("xref at foff:0x", in: reference.output))
-        let referenceGate = try #require(JetsamFixture.hexAfter("[+] Patched at 0x", in: reference.output))
-
+    /// The gate the reference reported is the gate this finds — and the xref it
+    /// reached it through too, so a port that agreed on the gate by luck is
+    /// still caught.
+    @Test(.enabled(if: JetsamFixture.hasLaunchd))
+    func agreesWithTheFrozenReferenceOnTheSite() throws {
         let data = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let image = try CFWJetsamPatcher.Image(data: data)
         let site = try #require(try CFWJetsamPatcher.locate(in: image))
-        #expect(site.xrefOffset == referenceXref)
-        #expect(site.gateOffset == referenceGate)
+        #expect(site.xrefOffset == JetsamGolden.xrefOffset)
+        #expect(site.gateOffset == JetsamGolden.gateOffset)
 
         var patchable = data
         let outcome = try CFWJetsamPatcher.patch(&patchable, dryRun: true, log: nil)
-        #expect(outcome.gateOffset == referenceGate)
+        #expect(outcome.gateOffset == JetsamGolden.gateOffset)
         #expect(outcome.verdict == .wouldPatch)
     }
 }
@@ -214,31 +239,38 @@ struct CFWJetsamIdempotenceTests {
         #expect(JetsamFixture.firstDifference(afterFirst, afterThird) == nil)
     }
 
-    /// Where the reference goes wrong, and proof that it does: run the Python
-    /// twice and it lands a *second* site the pristine image never had patched.
-    /// Recorded here so the divergence is a measurement, not a claim.
-    @Test(.enabled(if: JetsamFixture.hasLaunchdAndPython))
-    func referenceIsNotIdempotentAndThisIs() throws {
+    /// Where the reference went wrong, and the measurement that showed it: run
+    /// twice, and it landed a *second* site the pristine image never had
+    /// patched. Frozen, so the divergence stays a measurement, not a claim.
+    @Test(.enabled(if: JetsamFixture.hasLaunchd))
+    func referenceWasNotIdempotentAndThisIs() throws {
         let work = try JetsamFixture.workDirectory("reference-double-apply")
-        let pythonTarget = try JetsamFixture.launchdCopy(named: "launchd.python", in: work)
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
 
-        try JetsamFixture.runPythonJetsam(on: pythonTarget)
-        let pythonOnce = try Data(contentsOf: pythonTarget)
-        try JetsamFixture.runPythonJetsam(on: pythonTarget)
-        let pythonTwice = try Data(contentsOf: pythonTarget)
+        // The frozen half: the reference's second run moved the file, and to a
+        // different instruction than the gate it had already rewritten.
+        #expect(
+            JetsamGolden.patchedTwice != JetsamGolden.patched,
+            "the reference was recorded as non-idempotent — re-check what this port has to preserve"
+        )
+        #expect(JetsamGolden.secondRunGateOffset != JetsamGolden.gateOffset)
 
+        // The Swift half, measured: run once, land on the reference's one-run
+        // bytes; run again, and nothing moves.
         try CFWJetsamPatcher.patch(fileAt: swiftTarget, log: nil)
         let swiftOnce = try Data(contentsOf: swiftTarget)
+        #expect(Data(SHA256.hash(data: swiftOnce)).hex == JetsamGolden.patched)
+
         try CFWJetsamPatcher.patch(fileAt: swiftTarget, log: nil)
         let swiftTwice = try Data(contentsOf: swiftTarget)
-
-        #expect(JetsamFixture.firstDifference(pythonOnce, swiftOnce) == nil)
-        #expect(
-            JetsamFixture.firstDifference(pythonOnce, pythonTwice) != nil,
-            "the reference became idempotent — re-check what this port has to preserve"
-        )
         #expect(JetsamFixture.firstDifference(swiftOnce, swiftTwice) == nil)
+        #expect(Data(SHA256.hash(data: swiftTwice)).hex != JetsamGolden.patchedTwice)
+
+        // And the instruction the reference's second run would have taken is
+        // still the one the pristine image carries there.
+        let pristine = try Data(contentsOf: JetsamFixture.pristineLaunchd)
+        let second = JetsamGolden.secondRunGateOffset ..< JetsamGolden.secondRunGateOffset + 4
+        #expect(Data(swiftTwice[second]) == Data(pristine[second]))
     }
 }
 
@@ -283,40 +315,22 @@ struct CFWJetsamSignatureTests {
         #expect(verify.status == 0, "codesign -v rejected the re-attested binary:\n\(verify.output)")
     }
 
-    /// The slot hash itself, against the Python's independent re-signer run
-    /// over the Python's own patched bytes. Two implementations, one number.
-    @Test(.enabled(if: JetsamFixture.hasLaunchdAndPython))
-    func slotHashMatchesThePythonResigner() throws {
-        guard JetsamFixture.exists(JetsamFixture.pythonCodeSign) else { return }
+    /// The slot hash itself, against the frozen output of the Python's
+    /// independent re-signer run over the Python's own patched bytes. Two
+    /// implementations, one number.
+    @Test(.enabled(if: JetsamFixture.hasLaunchd))
+    func slotHashMatchesTheFrozenResigner() throws {
         let work = try JetsamFixture.workDirectory("slot-hash")
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
-        let pythonTarget = try JetsamFixture.launchdCopy(named: "launchd.python", in: work)
 
         let outcome = try CFWJetsamPatcher.patch(fileAt: swiftTarget, reattest: true, log: nil)
         #expect(outcome.verdict == .patched)
-
-        try JetsamFixture.runPythonJetsam(on: pythonTarget)
-        let resign = try JetsamFixture.run(JetsamFixture.python, [
-            "-c",
-            """
-            import sys
-            sys.path.insert(0, \(quoted(JetsamFixture.scriptsDirectory.path)))
-            from patchers.cfw_macho_codesign import reattest_modified_offsets
-            reattest_modified_offsets(
-                \(quoted(pythonTarget.path)), [\(outcome.gateOffset)], verbose=False
-            )
-            """,
-        ])
-        #expect(resign.status == 0, "reference re-signer failed:\n\(resign.output)")
-
-        let swiftBytes = try Data(contentsOf: swiftTarget)
-        let pythonBytes = try Data(contentsOf: pythonTarget)
-        #expect(JetsamFixture.firstDifference(swiftBytes, pythonBytes) == nil)
-    }
-
-    private func quoted(_ path: String) -> String {
-        "\"" + path.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        #expect(outcome.gateOffset == JetsamGolden.gateOffset)
+        #expect(outcome.rehashes.first?.pageIndex == JetsamGolden.reattestedSlot)
+        #expect(
+            try JetsamFixture.digest(of: swiftTarget) == JetsamGolden.patchedAndReattested,
+            "the re-attested slot hash must be the one the reference computed"
+        )
     }
 }
 

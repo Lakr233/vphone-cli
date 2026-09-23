@@ -473,7 +473,7 @@ install_brew_deps() {
   require_cmd brew
 
   local deps=(
-    wget gnu-tar openssl@3 ldid-procursus sshpass keystone git-lfs
+    wget gnu-tar openssl@3 ldid-procursus sshpass git-lfs
     python@3.13 libusb ipsw
   )
 
@@ -717,8 +717,8 @@ main() {
     run_make "Project setup" build
   fi
 
-  # Activate venv so all child scripts (cfw_install, patchers, etc.) use the
-  # project Python with capstone/keystone/pyimg4 installed, not the bare system python3.
+  # The venv serves exactly one program now: scripts/pymobiledevice3_bridge.py,
+  # the restore backend. The patch pipeline is Swift and never reads it.
   export PATH="$PROJECT_ROOT/.venv/bin:$PATH"
 
   run_make "Firmware prep" vm_new

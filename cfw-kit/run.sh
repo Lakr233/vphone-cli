@@ -16,7 +16,8 @@
 #
 # Prereqs: VM restored and POWERED OFF; for the jb variant the boot chain must
 # already carry the 127 JB patches (`make fw_patch_jb`). Host needs gnu-tar,
-# zstd, ipsw, aea, ldid and the project venv (`make setup_tools`).
+# zstd, ipsw, aea, ldid (`make setup_tools`) and a built vphone-cli
+# (`make build`) — every CFW patcher the kit calls lives in that binary.
 #
 # Usage:
 #   ./run.sh --variant vanilla|jb [--repo <vphone-cli>] [vm_dir]
@@ -77,12 +78,10 @@ PROJ="$REPO_DIR"
 [[ -n "$VM_DIR" ]] || VM_DIR="$PROJ/vm"
 VM_DIR="${VM_DIR:a}"
 
-# Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd + venv python).
-if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-  P="$PROJ/.tools/bin:$(dirname "$VPHONE_PYTHON"):/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-else
-  P="$PROJ/.tools/bin:$PROJ/.venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-fi
+# Host-side install toolchain (gnu-tar/ipsw/aea/ldid/zstd). No python entry:
+# the installers call `vphone-cli cfw <verb>` for every patch, and nothing they
+# run comes out of the venv.
+P="$PROJ/.tools/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH="$P"
 
 # Variables the installers read, forwarded explicitly. An expansion-produced
@@ -91,7 +90,7 @@ kit_env=(
     CFW_HOST_CONTAINER="__unset__"
     _VPHONE_PATH="$P"
     VPHONE_REPO="$PROJ"
-    ${VPHONE_PYTHON:+VPHONE_PYTHON="$VPHONE_PYTHON"}
+    ${VPHONE_CLI_BIN:+VPHONE_CLI_BIN="$VPHONE_CLI_BIN"}
     ${JB_USERLAND:+JB_USERLAND="$JB_USERLAND"}
     ${VANILLA_LSD_EMBEDDED_REG:+VANILLA_LSD_EMBEDDED_REG="$VANILLA_LSD_EMBEDDED_REG"}
     ${FORCE_DSC_MAXSLIDE:+FORCE_DSC_MAXSLIDE="$FORCE_DSC_MAXSLIDE"}
@@ -151,16 +150,9 @@ cleanup
 trap - EXIT
 
 echo "[*] flipping boot snapshot offline (com.apple.os.update -> live volume)..."
-# Was `python3 tools/apfs_snap_rename.py`. Same resolution order as
-# scripts/cfw_install_host.sh: the env var when the CLI invoked us, otherwise a
-# dev tree or the .app, where scripts/ sits in Contents/Resources and the
-# binaries are one level up in MacOS.
-VPHONE_CLI="${VPHONE_CLI_BIN:-}"
-if [[ -z "$VPHONE_CLI" ]]; then
-  for candidate in "$PROJ/.build/release/vphone-cli" "${PROJ:h}/MacOS/vphone-cli"; do
-    [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
-  done
-fi
+# Was `python3 tools/apfs_snap_rename.py`. Same resolver the installers use for
+# the CFW patchers (lib/common.sh), so there is one search order in the kit.
+VPHONE_CLI="$(resolve_vphone_cli)"
 [[ -x "$VPHONE_CLI" ]] || { echo "[-] cannot find vphone-cli — snapshot NOT flipped; the VM will boot the stock snapshot." >&2; exit 1; }
 "$VPHONE_CLI" cfw flip-snapshot "$IMG"
 

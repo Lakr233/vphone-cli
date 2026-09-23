@@ -1,14 +1,18 @@
-// DSCHVVMMPatcherTests.swift — Python-vs-Swift parity for the hv_vmm_present
-// user-mode cstring mangle.
+// DSCHVVMMPatcherTests.swift — parity for the hv_vmm_present user-mode cstring
+// mangle.
 //
 // There is no external oracle for this patch. `codesign -v` does not apply to a
-// dyld shared cache chunk, and the only statement of what the patch should do is
-// `scripts/patchers/cfw_patch_hv_vmm_dsc.py` plus the module it imports its
-// constants from, `cfw_patch_hv_vmm.py`. So the test is not "does the Swift
-// write 29 sites" — that number is this repo's own claim. It is: run the
-// reference on one clone of the real cache, the Swift on another, and require
-// the two 6.7 GB trees to come out byte for byte identical, chunk files and
-// re-attested code directories alike.
+// dyld shared cache chunk, and the only statement of what the patch should do
+// was `scripts/patchers/cfw_patch_hv_vmm_dsc.py` plus the module it imported
+// its constants from, `cfw_patch_hv_vmm.py`. Those have been removed, so what
+// they produced on the real 24A435 arm64e cache is frozen in `FrozenReference`
+// below: the constants, the blacklist, the per-dylib verdict for all 44 dylibs
+// that carry the cstring, the SHA-256 of each of the 17 chunks that moved, the
+// drift scenario's own digests, and the two standalone Mach-O runs.
+//
+// So the test is still not "does the Swift write 29 sites" as a number this
+// repo invented — it is "does the Swift leave the bytes the reference left",
+// chunk files and re-attested code directories alike.
 //
 // The fixture is the real 24A435 arm64e cache. Point `VPHONE_DSC_PRISTINE` at a
 // directory of `dyld_shared_cache_arm64e*` chunks, or leave the default
@@ -26,8 +30,224 @@
 // disk.
 
 @testable import FirmwarePatcher
+import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference modules held, and what they did to the real cache.
+///
+/// Recorded at commit 78cbeea by driving `cfw_patch_hv_vmm` and
+/// `cfw_patch_hv_vmm_dsc` from `.venv/bin/python3` over a clone of
+/// `ipsws/ref_extract/dsc_pristine` and over the pristine binaries in
+/// `ipsws/ref_extract/macho_pristine`. Each constant names the call behind it.
+private enum FrozenReference {
+    // MARK: Constants, straight out of cfw_patch_hv_vmm
+
+    /// `NEEDLE.hex()` — `"kern.hv_vmm_present\0"`.
+    static let needleHex = "6b65726e2e68765f766d6d5f70726573656e7400"
+
+    /// `MANGLED_NEEDLE.hex()` — `"kern.Xv_vmm_present\0"`.
+    static let mangledNeedleHex = "6b65726e2e58765f766d6d5f70726573656e7400"
+
+    /// `MANGLE_OFFSET`, `ORIGINAL_BYTE.hex()`, `MANGLED_BYTE.hex()`.
+    static let mangleOffset = 5
+    static let originalByteHex = "68"
+    static let mangledByteHex = "58"
+
+    /// `list(DONT_PATCH_INSTALL_NAMES)` from `cfw_patch_hv_vmm_dsc`, in
+    /// declaration order — identity and activation first, then store, then the
+    /// consumer services.
+    static let blacklist: [String] = [
+        "/System/Library/PrivateFrameworks/AAAFoundation.framework/AAAFoundation",
+        "/System/Library/PrivateFrameworks/AuthKit.framework/AuthKit",
+        "/System/Library/PrivateFrameworks/IDSFoundation.framework/IDSFoundation",
+        "/System/Library/PrivateFrameworks/DeviceIdentity.framework/DeviceIdentity",
+        "/System/Library/PrivateFrameworks/DeviceCheckInternal.framework/DeviceCheckInternal",
+        "/System/Library/PrivateFrameworks/MobileActivation.framework/MobileActivation",
+        "/System/Library/PrivateFrameworks/ApplePushService.framework/ApplePushService",
+        "/System/Library/PrivateFrameworks/AppStoreUtilities.framework/AppStoreUtilities",
+        "/System/Library/PrivateFrameworks/CorePrescription.framework/CorePrescription",
+        "/System/Library/PrivateFrameworks/CoreCDP.framework/CoreCDP",
+        "/System/Library/PrivateFrameworks/EmailFoundation.framework/EmailFoundation",
+        "/System/Library/PrivateFrameworks/FindMyBase.framework/FindMyBase",
+        "/System/Library/PrivateFrameworks/TrialServer.framework/TrialServer",
+        "/System/Library/PrivateFrameworks/DVTInstrumentsUtilities.framework/DVTInstrumentsUtilities",
+        "/System/Library/PrivateFrameworks/WatchdogServiceManagement.framework/WatchdogServiceManagement",
+    ]
+
+    // MARK: The real cache
+
+    /// The dictionary `patch_hv_vmm_in_dsc(<clone>)` returned: every dylib that
+    /// carries the cstring, mapped to how many of its sites were mangled. The
+    /// zeros are the blacklist — seen, classified, and deliberately left with
+    /// the pristine name so they get ENOENT and conclude "not a VM".
+    static let mangledCountByInstallName: [String: Int] = [
+        "/System/Library/Frameworks/CoreML.framework/CoreML": 1,
+        "/System/Library/Frameworks/CoreVideo.framework/CoreVideo": 1,
+        "/System/Library/Frameworks/MediaToolbox.framework/MediaToolbox": 1,
+        "/System/Library/Frameworks/MetalPerformanceShadersGraph.framework/MetalPerformanceShadersGraph": 1,
+        "/System/Library/Frameworks/SoundAnalysis.framework/SoundAnalysis": 1,
+        "/System/Library/PrivateFrameworks/AAAFoundation.framework/AAAFoundation": 0,
+        "/System/Library/PrivateFrameworks/AirPlaySupport.framework/AirPlaySupport": 1,
+        "/System/Library/PrivateFrameworks/AppStoreUtilities.framework/AppStoreUtilities": 0,
+        "/System/Library/PrivateFrameworks/AppleNeuralEngine.framework/AppleNeuralEngine": 1,
+        "/System/Library/PrivateFrameworks/ApplePushService.framework/ApplePushService": 0,
+        "/System/Library/PrivateFrameworks/AuthKit.framework/AuthKit": 0,
+        "/System/Library/PrivateFrameworks/CMCapture.framework/CMCapture": 1,
+        "/System/Library/PrivateFrameworks/CloudSubscriptionFeatures.framework/CloudSubscriptionFeatures": 1,
+        "/System/Library/PrivateFrameworks/CoreCDP.framework/CoreCDP": 0,
+        "/System/Library/PrivateFrameworks/CorePrescription.framework/CorePrescription": 0,
+        "/System/Library/PrivateFrameworks/CoreRE.framework/CoreRE": 1,
+        "/System/Library/PrivateFrameworks/DVTInstrumentsUtilities.framework/DVTInstrumentsUtilities": 0,
+        "/System/Library/PrivateFrameworks/DesignLibrary.framework/DesignLibrary": 1,
+        "/System/Library/PrivateFrameworks/DeviceCheckInternal.framework/DeviceCheckInternal": 0,
+        "/System/Library/PrivateFrameworks/DeviceIdentity.framework/DeviceIdentity": 0,
+        "/System/Library/PrivateFrameworks/EmailFoundation.framework/EmailFoundation": 0,
+        "/System/Library/PrivateFrameworks/Espresso.framework/Espresso": 1,
+        "/System/Library/PrivateFrameworks/FindMyBase.framework/FindMyBase": 0,
+        "/System/Library/PrivateFrameworks/HomeAI.framework/HomeAI": 1,
+        "/System/Library/PrivateFrameworks/IDSFoundation.framework/IDSFoundation": 0,
+        "/System/Library/PrivateFrameworks/IOSurfaceAccelerator.framework/IOSurfaceAccelerator": 1,
+        "/System/Library/PrivateFrameworks/IntelligenceFlowShared.framework/IntelligenceFlowShared": 1,
+        "/System/Library/PrivateFrameworks/MagnifierSupport.framework/MagnifierSupport": 1,
+        "/System/Library/PrivateFrameworks/MobileActivation.framework/MobileActivation": 0,
+        "/System/Library/PrivateFrameworks/MobileAssetDaemon.framework/MobileAssetDaemon": 1,
+        "/System/Library/PrivateFrameworks/NeuralNetworks.framework/NeuralNetworks": 1,
+        "/System/Library/PrivateFrameworks/PhotoFoundation.framework/PhotoFoundation": 1,
+        "/System/Library/PrivateFrameworks/Recon3D.framework/Recon3D": 1,
+        "/System/Library/PrivateFrameworks/RenderBox.framework/RenderBox": 1,
+        "/System/Library/PrivateFrameworks/TrialServer.framework/TrialServer": 0,
+        "/System/Library/PrivateFrameworks/VFX.framework/VFX": 1,
+        "/System/Library/PrivateFrameworks/VisionKitCore.framework/VisionKitCore": 1,
+        "/System/Library/PrivateFrameworks/WatchdogServiceManagement.framework/WatchdogServiceManagement": 0,
+        "/System/Library/PrivateFrameworks/WebGPU.framework/WebGPU": 1,
+        "/System/Library/PrivateFrameworks/caulk.framework/caulk": 1,
+        "/System/Library/SubFrameworks/CoreAIRuntime.framework/CoreAIRuntime": 1,
+        "/System/Library/SubFrameworks/RealityCoreRenderer.framework/RealityCoreRenderer": 1,
+        "/usr/lib/libMobileGestalt.dylib": 1,
+        "/usr/lib/libafc.dylib": 1,
+    ]
+
+    /// 29 sites across 29 dylibs; the other 15 entries above are the blacklist.
+    static var totalMangled: Int { mangledCountByInstallName.values.reduce(0, +) }
+
+    /// `cmp -s` against the pristine tree after the run: 17 chunks moved, with
+    /// these digests (`shasum -a 256`). The Python logged 29 `re-attest: wrote
+    /// slot …` lines and then `re-attest: updated 29 slot hash(es) across 17
+    /// chunk(s)`, so these digests cover the mangles and the slot hashes alike.
+    ///
+    /// Re-running it over its own output wrote nothing and left them standing;
+    /// a dry run on a fresh clone changed no byte at all.
+    static let changedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e.03":
+            "fa2647de6433a45269aeb7988338ba615c280e742fb7319f887df402fdd4526e",
+        "dyld_shared_cache_arm64e.05":
+            "fa58f42ad70af3c20e081c1f19c36121e27d3150a81856f7ef9a3264e1ef0d81",
+        "dyld_shared_cache_arm64e.11":
+            "f5614f3fb7147a0ee251becd1d6dc8a815849b879376c74d25dde04a982414b3",
+        "dyld_shared_cache_arm64e.13":
+            "5be2f71398d2c0e905d361e3b6619b338cdb7ccdb5f140f747a8fe50a0abbc64",
+        "dyld_shared_cache_arm64e.15":
+            "bbbd7d80035ee4b5496860eee91ce53762ee3c3fb7b6cd69a372763e12ee8269",
+        "dyld_shared_cache_arm64e.19":
+            "30a0167148dbe1884a6afc3332656501f5931967a0a0f881f2bd98b7ef0132b7",
+        "dyld_shared_cache_arm64e.30":
+            "383bad0df1c10be753d98263bed3913e0ec247fc1152b4b3b9122c089692c902",
+        "dyld_shared_cache_arm64e.36":
+            "00ffb7b9dd847203358afb1aafad0e8b6fb219c04bde44b632267fdabcb0fc27",
+        "dyld_shared_cache_arm64e.38":
+            "607dd2ffa643e7efcb0f8fd048a4f2b6d0834658fb1f252dc0c936416a368048",
+        "dyld_shared_cache_arm64e.40":
+            "294c4445e0c99955390374a60ac9c7aa2feab8d79fe9b7df96dc016888df3944",
+        "dyld_shared_cache_arm64e.42":
+            "d82b6cf13553ced34061ed555edb646d0f197f4fe4ee41a0a5c04ee221159a5b",
+        "dyld_shared_cache_arm64e.46":
+            "d44fc4f5d4caf1f85fac3c8f60cc8b53d3ceddd92abe47eeb468323b8afb467d",
+        "dyld_shared_cache_arm64e.57":
+            "f133e1624116214f3d794da136081478de3b6e3fb1485128c44ccb3e64b81c1d",
+        "dyld_shared_cache_arm64e.59":
+            "8133b4a774accd23e4682cdf3803479527d2a5025d47a675ca3a2eac844cc08d",
+        "dyld_shared_cache_arm64e.63":
+            "4ff96a186146fa1ef029d40c55de44bcd066c38b8040b5b726b5a12ea800c4e6",
+        "dyld_shared_cache_arm64e.71":
+            "701cf056e817fb25da8b1f74f9a2d92728941012e51fd4a5f9fa69c765d66251",
+        "dyld_shared_cache_arm64e.73":
+            "a56c1e720372456224a01ab06ab593c41966b50f1c24c6168cf2ab76788b5627",
+    ]
+
+    // MARK: The drift scenario
+
+    /// The lowest-addressed pristine site inside a blacklisted dylib, which is
+    /// what the drift test mangles by hand before running the patch. Found by
+    /// walking `chunks.find_string_vmas(NEEDLE)` in order and classifying each.
+    static let driftVMA: UInt64 = 0x1_97CF_0A98
+    static let driftedInstallName =
+        "/System/Library/PrivateFrameworks/IDSFoundation.framework/IDSFoundation"
+
+    /// With that one byte pre-mangled, the reference printed `[!] drift:
+    /// …IDSFoundation is in the blacklist but already mangled at
+    /// string@0x197CF0A98 — slot will be re-attested to current bytes`, then
+    /// `1 blacklisted dylib(s) found mangled on disk` and `re-attest: updated
+    /// 30 slot hash(es) across 17 chunk(s)`.
+    ///
+    /// It did not revert the byte: the same 17 chunks moved, and only
+    /// `…arm64e.05` — the chunk IDSFoundation's cstring lives in — came out
+    /// different from the ordinary run above.
+    static let driftChangedChunks: [String: String] = changedChunks.merging([
+        "dyld_shared_cache_arm64e.05":
+            "b5483cb22495048a99437a944f761c3bc36fa4c564789d9bd345f2a5dd2b59aa",
+    ]) { _, new in new }
+
+    // MARK: Standalone Mach-O
+
+    /// One `find_string_sites` result.
+    struct MachOSite {
+        let stringVMA: UInt64
+        let fileOffset: Int
+        let section: String
+    }
+
+    /// What `patch_hv_vmm` did to one pristine binary.
+    struct MachORun {
+        /// `find_string_sites(open(<pristine>,"rb").read())`.
+        let sites: [MachOSite]
+        /// `shasum -a 256 <pristine>`, so a test that fed it something else
+        /// fails on the input rather than comparing nothing.
+        let pristineSHA256: String
+        /// `shasum -a 256` of the copy afterwards. A second `patch_hv_vmm` over
+        /// that copy returned 0 and left this digest unchanged.
+        let patchedSHA256: String
+    }
+
+    /// The two binaries `ipsws/ref_extract/macho_pristine` keeps. Each carries
+    /// exactly one occurrence of the cstring on this build.
+    static let machO: [String: MachORun] = [
+        "watchdogd": MachORun(
+            sites: [MachOSite(
+                stringVMA: 0x1_0001_1453,
+                fileOffset: 70739,
+                section: "__TEXT,__cstring"
+            )],
+            pristineSHA256:
+            "0309b868a214f9841279db3e2ef901f26e8c05b2dc616eeb551f2b2f0e06207f",
+            patchedSHA256:
+            "95c9c25c89d20ee1d46b20ee8fd7a7b90c674ef57247a666e6cb19db123220e4"
+        ),
+        "mobileactivationd": MachORun(
+            sites: [MachOSite(
+                stringVMA: 0x1_003B_BE2A,
+                fileOffset: 3_915_306,
+                section: "__TEXT,__cstring"
+            )],
+            pristineSHA256:
+            "89233513ce696cd01285f3432f3bcadd065cee07ac73bc5714836d13f24702d8",
+            patchedSHA256:
+            "29814c1318b40cd1afc8ea021604f1b165c6ce3775e3a4f02106891b84ff4129"
+        ),
+    ]
+}
 
 // MARK: - Fixture discovery
 
@@ -97,17 +317,6 @@ private enum HVVMMFixture {
         return FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-hvvmm-parity")
     }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
-    }
-
-    static let pythonMissing: Comment = """
-    the project venv is required — the reference implementation is the only \
-    oracle this patch has. Create it with `make setup_venv`.
-    """
 
     /// Clone the pristine cache into a fresh directory the caller may write to.
     static func cloneCache(named name: String) throws -> URL {
@@ -185,8 +394,8 @@ private enum Subprocess {
         process.standardOutput = out
         process.standardError = err
         try process.run()
-        // Drain before waiting: the reference prints a line per site, and a full
-        // pipe buffer would deadlock the run.
+        // Drain before waiting: `cp` of a 6.7 GB tree can fill a pipe buffer,
+        // and a full buffer would deadlock the run.
         let outData = out.fileHandleForReading.readDataToEndOfFile()
         let errData = err.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -201,186 +410,76 @@ private enum Subprocess {
 // MARK: - Byte-for-byte tree comparison
 
 private enum TreeComparison {
-    /// Files present in one tree but not the other, and files whose bytes differ.
-    struct Difference: CustomStringConvertible {
-        var onlyInLeft: [String] = []
-        var onlyInRight: [String] = []
-        var differingBytes: [String] = []
-
-        var isEmpty: Bool {
-            onlyInLeft.isEmpty && onlyInRight.isEmpty && differingBytes.isEmpty
-        }
-
-        var description: String {
-            var parts: [String] = []
-            if !onlyInLeft.isEmpty { parts.append("only in left: \(onlyInLeft)") }
-            if !onlyInRight.isEmpty { parts.append("only in right: \(onlyInRight)") }
-            if !differingBytes.isEmpty { parts.append("bytes differ: \(differingBytes)") }
-            return parts.isEmpty ? "identical" : parts.joined(separator: "; ")
-        }
-    }
-
-    /// Compare two directories file by file, byte by byte.
+    /// Every file in `directory` whose bytes differ from its twin in
+    /// `reference`, plus any file present in one and not the other.
     ///
     /// `cmp` rather than a digest: it stops at the first differing byte, so a
-    /// tree that really does differ is reported in milliseconds instead of after
-    /// hashing 6.7 GB twice.
-    static func compare(_ left: URL, _ right: URL) throws -> Difference {
-        let leftNames = Set(try FileManager.default.contentsOfDirectory(atPath: left.path))
-        let rightNames = Set(try FileManager.default.contentsOfDirectory(atPath: right.path))
+    /// tree that really does differ is reported in milliseconds instead of
+    /// after hashing 6.7 GB twice.
+    static func changedNames(in directory: URL, against reference: URL) throws -> [String] {
+        let manager = FileManager.default
+        let left = Set(try manager.contentsOfDirectory(atPath: reference.path))
+        let right = Set(try manager.contentsOfDirectory(atPath: directory.path))
+        var differing = Array(left.symmetricDifference(right))
 
-        var difference = Difference()
-        difference.onlyInLeft = leftNames.subtracting(rightNames).sorted()
-        difference.onlyInRight = rightNames.subtracting(leftNames).sorted()
-
-        for name in leftNames.intersection(rightNames).sorted() {
+        for name in left.intersection(right) {
             let result = try Subprocess.run(
                 executable: URL(fileURLWithPath: "/usr/bin/cmp"),
                 arguments: [
                     "-s",
-                    left.appendingPathComponent(name).path,
-                    right.appendingPathComponent(name).path,
+                    reference.appendingPathComponent(name).path,
+                    directory.appendingPathComponent(name).path,
                 ]
             )
-            if result.status != 0 { difference.differingBytes.append(name) }
+            if result.status != 0 { differing.append(name) }
         }
-        return difference
+        return differing.sorted()
     }
 }
 
-// MARK: - The reference Python, driven as an oracle
+// MARK: - Digests
 
-/// A driver around `cfw_patch_hv_vmm_dsc` / `cfw_patch_hv_vmm`, written to a
-/// temp file at test time.
-///
-/// It adds no logic of its own: it calls the reference entry points and prints
-/// what they return. That is the point — the comparison has to be against that
-/// code running, not against a transcription of it.
-private enum PythonOracle {
-    static let source = #"""
-import contextlib
-import json
-import os
-import sys
-
-sys.path.insert(0, os.path.join(sys.argv[1], "scripts"))
-
-from patchers.cfw_patch_hv_vmm import (
-    NEEDLE, MANGLED_NEEDLE, MANGLE_OFFSET, ORIGINAL_BYTE, MANGLED_BYTE,
-    find_string_sites, patch_hv_vmm,
-)
-from patchers.cfw_patch_hv_vmm_dsc import (
-    DONT_PATCH_INSTALL_NAMES, patch_hv_vmm_in_dsc,
-)
-
-command = sys.argv[2]
-
-if command == "constants":
-    print(json.dumps({
-        "needle": NEEDLE.hex(),
-        "mangled_needle": MANGLED_NEEDLE.hex(),
-        "mangle_offset": MANGLE_OFFSET,
-        "original_byte": ORIGINAL_BYTE.hex(),
-        "mangled_byte": MANGLED_BYTE.hex(),
-        "blacklist": list(DONT_PATCH_INSTALL_NAMES),
-    }))
-
-elif command == "patch_dsc":
-    # argv[3] = chunks dir, argv[4] = "1" for a dry run.
-    dry_run = len(sys.argv) > 4 and sys.argv[4] == "1"
-    # The patcher narrates to stdout; keep that on stderr so stdout is JSON.
-    with contextlib.redirect_stdout(sys.stderr):
-        results = patch_hv_vmm_in_dsc(sys.argv[3], dry_run=dry_run)
-    print(json.dumps({"results": results}))
-
-elif command == "macho_sites":
-    with open(sys.argv[3], "rb") as f:
-        data = f.read()
-    print(json.dumps({"sites": find_string_sites(data)}))
-
-elif command == "patch_macho":
-    with contextlib.redirect_stdout(sys.stderr):
-        count = patch_hv_vmm(sys.argv[3], dry_run=False)
-    print(json.dumps({"count": count}))
-
-else:
-    raise SystemExit(f"unknown command {command}")
-"""#
-
-    static func scriptURL() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "hv_vmm_oracle_\(ProcessInfo.processInfo.processIdentifier).py"
-            )
-        if !FileManager.default.fileExists(atPath: url.path) {
-            try source.write(to: url, atomically: true, encoding: .utf8)
+/// SHA-256 of a file, streamed so a 131 MB chunk never lands in memory whole.
+/// The hex spelling matches `shasum -a 256`, which produced the frozen digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
         }
-        return url
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    static func run(_ command: String, _ extra: [String] = []) throws -> Data {
-        guard let python = HVVMMFixture.python else { throw CocoaError(.fileNoSuchFile) }
-        let script = try scriptURL()
-        let result = try Subprocess.run(
-            executable: python,
-            arguments: [script.path, HVVMMFixture.repoRoot.path, command] + extra
-        )
-        guard result.status == 0 else {
-            Issue.record("python oracle \(command) failed: \(result.stderr)")
-            throw CocoaError(.fileReadUnknown)
+    /// Assert that `directory` holds exactly the chunks the reference changed,
+    /// with exactly the reference's bytes.
+    static func expectMatches(_ directory: URL, _ frozen: [String: String]) throws {
+        let pristine = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
+        let changed = try TreeComparison.changedNames(in: directory, against: pristine)
+        #expect(changed == frozen.keys.sorted())
+        for name in changed {
+            let digest = try sha256(of: directory.appendingPathComponent(name))
+            let expected = frozen[name] ?? "(not a chunk the Python moved)"
+            #expect(digest == expected, "\(name): Swift \(digest), reference \(expected)")
         }
-        return Data(result.stdout.utf8)
-    }
-
-    struct Constants: Decodable {
-        let needle: String
-        let mangled_needle: String
-        let mangle_offset: Int
-        let original_byte: String
-        let mangled_byte: String
-        let blacklist: [String]
-    }
-
-    struct DSCRun: Decodable {
-        let results: [String: Int]
-    }
-
-    struct MachOSites: Decodable {
-        struct Site: Decodable {
-            let string_vma: UInt64
-            let file_offset: Int
-            let section: String
-        }
-
-        let sites: [Site]
-    }
-
-    struct MachORun: Decodable {
-        let count: Int
     }
 }
 
 // MARK: - Constants
 
-/// No cache fixture here, so no fixture gate: the only thing this suite needs is
-/// the venv that holds the reference modules, and a missing venv has to fail
-/// rather than skip — without it there is no oracle and nothing was checked.
+/// No fixture needed: these are the reference modules' own constants, which the
+/// port has to carry verbatim for anything else here to mean anything.
 @Suite(.serialized)
 struct DSCHVVMMConstantsTests {
     @Test("The cstring, its mangle and the blacklist match the reference modules")
-    func constantsMatchPython() throws {
-        try #require(HVVMMFixture.python != nil, HVVMMFixture.pythonMissing)
-        let reference = try JSONDecoder().decode(
-            PythonOracle.Constants.self,
-            from: PythonOracle.run("constants")
-        )
-
-        #expect(DSCHVVMMPatcher.needle.hex == reference.needle)
-        #expect(DSCHVVMMPatcher.mangledNeedle.hex == reference.mangled_needle)
-        #expect(DSCHVVMMPatcher.mangleOffset == reference.mangle_offset)
-        #expect(Data([DSCHVVMMPatcher.originalByte]).hex == reference.original_byte)
-        #expect(Data([DSCHVVMMPatcher.mangledByte]).hex == reference.mangled_byte)
-        #expect(DSCHVVMMPatcher.dontPatchInstallNames == reference.blacklist)
+    func constantsMatchTheReference() throws {
+        #expect(DSCHVVMMPatcher.needle.hex == FrozenReference.needleHex)
+        #expect(DSCHVVMMPatcher.mangledNeedle.hex == FrozenReference.mangledNeedleHex)
+        #expect(DSCHVVMMPatcher.mangleOffset == FrozenReference.mangleOffset)
+        #expect(Data([DSCHVVMMPatcher.originalByte]).hex == FrozenReference.originalByteHex)
+        #expect(Data([DSCHVVMMPatcher.mangledByte]).hex == FrozenReference.mangledByteHex)
+        #expect(DSCHVVMMPatcher.dontPatchInstallNames == FrozenReference.blacklist)
 
         // The mangle has to preserve the namespace prefix, or the name cannot
         // resolve to any OID — see the patcher's file comment. This is the one
@@ -403,36 +502,29 @@ struct DSCHVVMMConstantsTests {
 struct DSCHVVMMCacheParityTests {
     /// The parity gate.
     ///
-    /// Reference on one clone, Swift on another, then require the two trees to
-    /// be byte identical — every chunk file, including the code directories the
-    /// re-attestation pass rewrote. A port that writes a different number of
-    /// sites, or the same number in different places, or the right bytes with
-    /// the wrong page re-hashed, fails here.
+    /// One clone, one run, then require the tree to hold exactly the chunks the
+    /// reference moved with exactly the bytes it left — code directories and
+    /// all. A port that writes a different number of sites, or the same number
+    /// in different places, or the right bytes with the wrong page re-hashed,
+    /// fails here.
     ///
-    /// The idempotence and blacklist checks ride on the same clones rather than
+    /// The idempotence and blacklist checks ride on the same clone rather than
     /// cloning 6.7 GB again for each: they are assertions about the state this
     /// test has already produced.
-    @Test("The Swift patch and the Python reference produce identical caches")
-    func swiftMatchesPythonOnTheRealCache() throws {
+    @Test("The Swift patch reproduces the reference's cache")
+    func swiftMatchesTheReferenceOnTheRealCache() throws {
         _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
-        try #require(HVVMMFixture.python != nil, HVVMMFixture.pythonMissing)
 
-        let pythonClone = try HVVMMFixture.cloneCache(named: "python")
         let swiftClone = try HVVMMFixture.cloneCache(named: "swift")
-        defer { HVVMMFixture.discard(pythonClone, swiftClone) }
+        defer { HVVMMFixture.discard(swiftClone) }
 
-        let reference = try JSONDecoder().decode(
-            PythonOracle.DSCRun.self,
-            from: PythonOracle.run("patch_dsc", [pythonClone.path])
-        )
         let result = try DSCHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
 
         // Same verdict per dylib, including the zero-count entries that record
         // "seen and deliberately left alone".
-        #expect(result.mangledCountByInstallName == reference.results)
+        #expect(result.mangledCountByInstallName == FrozenReference.mangledCountByInstallName)
 
-        let referenceTotal = reference.results.values.reduce(0, +)
-        #expect(result.mangled == referenceTotal)
+        #expect(result.mangled == FrozenReference.totalMangled)
         #expect(result.mangled > 0, "the reference patched nothing — wrong fixture?")
         #expect(result.skippedInBlacklist == DSCHVVMMPatcher.dontPatchInstallNames.count)
         #expect(result.skippedUnclassified == 0)
@@ -440,22 +532,22 @@ struct DSCHVVMMCacheParityTests {
         #expect(result.isFullyAttested)
         // One slot per dirtied page, and no site left unattested. Sites can in
         // principle share a page, so this is a bound rather than an equality —
-        // the tree comparison below is what actually pins the code directories.
+        // the digests below are what actually pin the code directories.
         let slotsRewritten = result.reattestation?.updated.count ?? 0
         #expect(slotsRewritten > 0)
         #expect(slotsRewritten <= result.mangled)
         print(
-            "[hv_vmm] python \(referenceTotal) site(s), swift \(result.mangled) site(s), "
+            "[hv_vmm] \(result.mangled) site(s), "
                 + "\(result.skippedInBlacklist) blacklisted, "
                 + "\(slotsRewritten) slot(s) re-attested"
         )
 
-        let difference = try TreeComparison.compare(pythonClone, swiftClone)
-        #expect(difference.isEmpty, "patched caches differ: \(difference)")
+        try Digest.expectMatches(swiftClone, FrozenReference.changedChunks)
 
         // Idempotence, on the cache the Swift run just produced. A second pass
         // finds no pristine cstring left, queues the mangled ones so their slots
-        // stay in sync, and must not move a byte.
+        // stay in sync, and must not move a byte. The reference behaved the same
+        // way, so the frozen digests have to survive it.
         let second = try DSCHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
         #expect(second.mangled == 0)
         #expect(second.pristineSiteCount == result.skippedInBlacklist)
@@ -463,8 +555,7 @@ struct DSCHVVMMCacheParityTests {
         #expect(second.reattestOnly == result.mangled)
         #expect(second.blacklistDrift == 0)
         #expect(second.reattestation?.updated.isEmpty == true)
-        let afterRerun = try TreeComparison.compare(pythonClone, swiftClone)
-        #expect(afterRerun.isEmpty, "a second run moved bytes: \(afterRerun)")
+        try Digest.expectMatches(swiftClone, FrozenReference.changedChunks)
 
         // The blacklist is the whole point of the design, so check it against
         // the bytes rather than against the run's own bookkeeping: every
@@ -496,7 +587,6 @@ struct DSCHVVMMCacheParityTests {
     @Test("A dry run reports the same sites and leaves every byte alone")
     func dryRunTouchesNothing() throws {
         let pristine = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
-        try #require(HVVMMFixture.python != nil, HVVMMFixture.pythonMissing)
 
         let clone = try HVVMMFixture.cloneCache(named: "dryrun")
         defer { HVVMMFixture.discard(clone) }
@@ -506,7 +596,7 @@ struct DSCHVVMMCacheParityTests {
             dryRun: true,
             log: nil
         )
-        #expect(result.mangled > 0)
+        #expect(result.mangled == FrozenReference.totalMangled)
         // A dry run writes nothing, so every page still hashes to exactly what
         // its slot says and no slot would be rewritten. What has to be true is
         // that the pass REACHED every page the patch would dirty — otherwise a
@@ -517,22 +607,17 @@ struct DSCHVVMMCacheParityTests {
         #expect(pagesReached <= result.mangled)
         #expect(result.isFullyAttested)
 
-        let difference = try TreeComparison.compare(pristine, clone)
-        #expect(difference.isEmpty, "a dry run wrote to the cache: \(difference)")
-
-        // And the same for the reference, so "dry run changes nothing" is a
-        // property of both implementations and not just of this one.
-        _ = try PythonOracle.run("patch_dsc", [clone.path, "1"])
-        let afterPython = try TreeComparison.compare(pristine, clone)
-        #expect(afterPython.isEmpty, "the reference dry run wrote too: \(afterPython)")
+        // The reference's dry run wrote nothing either.
+        let changed = try TreeComparison.changedNames(in: clone, against: pristine)
+        #expect(changed.isEmpty, "a dry run wrote to the cache: \(changed)")
     }
 
     /// The drift branch, which is the one deliberate behaviour in this patch that
     /// a port could plausibly get backwards.
     ///
     /// A blacklisted dylib found already mangled means somebody took it out of
-    /// the blacklist, ran the patch, and put it back. The reference does NOT
-    /// revert the byte and does NOT refuse: it says so loudly and re-attests the
+    /// the blacklist, ran the patch, and put it back. The reference did NOT
+    /// revert the byte and did NOT refuse: it said so loudly and re-attested the
     /// page to the bytes that are actually there, because reverting would leave
     /// the page hash right and the operator's intent wrong. A port that "fixed"
     /// this by reverting, or by treating it as an error, would pass every other
@@ -540,14 +625,12 @@ struct DSCHVVMMCacheParityTests {
     @Test("A blacklisted dylib found mangled is reported as drift, not reverted")
     func blacklistDriftIsReportedNotReverted() throws {
         _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
-        try #require(HVVMMFixture.python != nil, HVVMMFixture.pythonMissing)
 
-        let pythonClone = try HVVMMFixture.cloneCache(named: "drift-python")
         let swiftClone = try HVVMMFixture.cloneCache(named: "drift-swift")
-        defer { HVVMMFixture.discard(pythonClone, swiftClone) }
+        defer { HVVMMFixture.discard(swiftClone) }
 
         // The lowest-addressed site inside a blacklisted dylib, so the choice is
-        // the same on every run.
+        // the same on every run — and the same one the reference was given.
         let probe = try DSCChunkSet(directory: swiftClone)
         let driftVMA = try #require(
             try probe.findStringVMAs(DSCHVVMMPatcher.needle).sorted().first {
@@ -557,18 +640,17 @@ struct DSCHVVMMCacheParityTests {
             "no blacklisted dylib carries the cstring in this cache"
         )
         let driftedDylib = try #require(DSCHVVMMPatcher.classify(driftVMA, in: probe))
+        #expect(driftVMA == FrozenReference.driftVMA)
+        #expect(driftedDylib == FrozenReference.driftedInstallName)
 
-        // Mangle it by hand in both clones, without re-attesting — exactly the
-        // state a prior out-of-band run would have left behind.
-        for clone in [pythonClone, swiftClone] {
-            let chunks = try DSCChunkSet(directory: clone)
-            try chunks.write(
-                at: driftVMA &+ UInt64(DSCHVVMMPatcher.mangleOffset),
-                Data([DSCHVVMMPatcher.mangledByte])
-            )
-        }
+        // Mangle it by hand, without re-attesting — exactly the state a prior
+        // out-of-band run would have left behind, and what the reference saw.
+        let chunks = try DSCChunkSet(directory: swiftClone)
+        try chunks.write(
+            at: driftVMA &+ UInt64(DSCHVVMMPatcher.mangleOffset),
+            Data([DSCHVVMMPatcher.mangledByte])
+        )
 
-        _ = try PythonOracle.run("patch_dsc", [pythonClone.path])
         let result = try DSCHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
 
         #expect(result.blacklistDrift == 1)
@@ -587,8 +669,9 @@ struct DSCHVVMMCacheParityTests {
             .bytesAtVMA(driftVMA, length: DSCHVVMMPatcher.needle.count)
         #expect(after == DSCHVVMMPatcher.mangledNeedle)
 
-        let difference = try TreeComparison.compare(pythonClone, swiftClone)
-        #expect(difference.isEmpty, "drift handling differs from the reference: \(difference)")
+        // The same 17 chunks as the ordinary run, differing only in the one the
+        // drifted dylib lives in — which is what the reference left behind.
+        try Digest.expectMatches(swiftClone, FrozenReference.driftChangedChunks)
         print("[hv_vmm] drift on \(driftedDylib) at 0x\(String(driftVMA, radix: 16, uppercase: true))")
     }
 }
@@ -598,63 +681,52 @@ struct DSCHVVMMCacheParityTests {
 @Suite(.serialized, .enabled(if: HVVMMFixture.machORuns, HVVMMFixture.machOSkipReason))
 struct DSCHVVMMStandaloneTests {
     /// The other half of `cfw_patch_hv_vmm.py`, against the binaries the repo
-    /// keeps pristine copies of.
-    ///
-    /// `watchdogd` carries one occurrence of the cstring and `mobileactivationd`
-    /// two, so between them they cover the single-site and multi-site paths.
+    /// keeps pristine copies of. Each carries one occurrence of the cstring on
+    /// this build.
     @Test(
         "Standalone Mach-O mangling matches the reference",
         arguments: ["watchdogd", "mobileactivationd"]
     )
-    func standaloneMatchesPython(name: String) throws {
+    func standaloneMatchesTheReference(name: String) throws {
         let pristine = try #require(
             HVVMMFixture.machO(name),
             """
             ipsws/ref_extract/macho_pristine/\(name) is required — it is the \
-            only standalone Mach-O oracle this half of the port has
+            only standalone Mach-O fixture this half of the port has
             """
         )
-        try #require(HVVMMFixture.python != nil, HVVMMFixture.pythonMissing)
+        let reference = try #require(
+            FrozenReference.machO[name],
+            "no frozen reference run for this binary"
+        )
+        // The reference saw this exact file; if it has been replaced, nothing
+        // below is a comparison.
+        #expect(try Digest.sha256(of: pristine) == reference.pristineSHA256)
 
-        let pythonCopy = try HVVMMFixture.copyFile(pristine, named: "\(name).python")
         let swiftCopy = try HVVMMFixture.copyFile(pristine, named: "\(name).swift")
-        defer { HVVMMFixture.discard(pythonCopy, swiftCopy) }
+        defer { HVVMMFixture.discard(swiftCopy) }
 
         // Same sites, in the same order, before anything is written.
-        let referenceSites = try JSONDecoder().decode(
-            PythonOracle.MachOSites.self,
-            from: PythonOracle.run("macho_sites", [pristine.path])
-        ).sites
         let sites = try DSCHVVMMPatcher.findStringSites(
             inMachO: Data(contentsOf: pristine)
         )
-        #expect(sites.count == referenceSites.count)
+        #expect(sites.count == reference.sites.count)
         #expect(!sites.isEmpty, "\(name) holds no kern.hv_vmm_present cstring")
-        for (mine, theirs) in zip(sites, referenceSites) {
-            #expect(mine.stringVMA == theirs.string_vma)
-            #expect(mine.fileOffset == theirs.file_offset)
+        for (mine, theirs) in zip(sites, reference.sites) {
+            #expect(mine.stringVMA == theirs.stringVMA)
+            #expect(mine.fileOffset == theirs.fileOffset)
             #expect(mine.section == theirs.section)
         }
 
-        let referenceCount = try JSONDecoder().decode(
-            PythonOracle.MachORun.self,
-            from: PythonOracle.run("patch_macho", [pythonCopy.path])
-        ).count
         let count = try DSCHVVMMPatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
-        #expect(count == referenceCount)
         #expect(count == sites.count)
-
-        let pristineBytes = try Data(contentsOf: pristine)
-        let patchedByPython = try Data(contentsOf: pythonCopy)
-        let patchedBySwift = try Data(contentsOf: swiftCopy)
-        #expect(patchedByPython == patchedBySwift, "\(name): patched bytes differ")
-        #expect(patchedBySwift != pristineBytes, "\(name): nothing was written")
+        #expect(try Digest.sha256(of: swiftCopy) == reference.patchedSHA256)
 
         // Idempotent: the pristine literal is gone, so a second pass is a no-op.
+        // The reference's own second pass returned 0 and left its digest alone.
         let rerun = try DSCHVVMMPatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
-        let afterRerun = try Data(contentsOf: swiftCopy)
         #expect(rerun == 0)
-        #expect(afterRerun == patchedBySwift)
+        #expect(try Digest.sha256(of: swiftCopy) == reference.patchedSHA256)
         print("[hv_vmm] \(name): \(count) standalone cstring site(s), bytes match")
     }
 }

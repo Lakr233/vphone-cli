@@ -1,16 +1,19 @@
 // ARM64EncoderTests.swift — every ARM64Encoder output asserted against keystone.
 //
-// The expected words are keystone-engine's, taken from the repo venv:
+// The expected words below are keystone-engine's. They are frozen constants,
+// not a live call: they were taken at repo commit `78cbeea` from the repo venv,
+// one instruction at a time —
 //
 //   .venv/bin/python3 -c "from keystone import *; \
 //     ks = Ks(KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN); print(ks.asm('cset w0, eq')[0])"
 //
-// keystone is what the Python patchers call today, so agreement with it is the
-// migration's correctness bar: a disagreement is a bug in ARM64Encoder.
+// keystone is what the Python patchers called, so agreement with it is the
+// migration's correctness bar: a disagreement is a bug in ARM64Encoder. Nothing
+// in this file runs Python, so the bar survived `scripts/patchers/` leaving.
 //
 // `asmCallSiteCases` is not an arbitrary sample — it is the closed set of
-// instructions the 19 patchers in scripts/patchers/ actually assemble, one entry
-// per `asm(...)` / `asm_at(...)` call site, each tagged with that site.
+// instructions the 19 patchers in scripts/patchers/ assembled at 78cbeea, one
+// entry per `asm(...)` / `asm_at(...)` call site, each tagged with that site.
 // `operandCoverageCases` then exercises the rest of each encoder's operand range
 // (encoding-boundary immediates, backward branches, every shift amount), because
 // the call sites alone leave most fields pinned at one value.
@@ -23,7 +26,7 @@ import Testing
 
 /// One encoder output paired with the keystone encoding of the same instruction.
 struct ARM64EncodingCase: Sendable, CustomStringConvertible {
-    /// The assembly the Python patcher passes to keystone.
+    /// The assembly the Python patcher passed to keystone.
     let source: String
     /// keystone-engine's encoding of `source` (at `address`, where it matters).
     let keystone: UInt32
@@ -48,13 +51,14 @@ private func word(_ data: Data) -> UInt32 {
 struct ARM64EncoderKeystoneParityTests {
     // MARK: The instructions the patchers assemble
 
-    /// Every distinct `asm(...)` / `asm_at(...)` instruction in scripts/patchers/.
-    /// The three fixed ones (`nop`, `ret`, `mov x0, #1`) live in ARM64Constants and
-    /// are checked in `constantsMatchKeystone` below.
+    /// Every distinct `asm(...)` / `asm_at(...)` instruction that was in
+    /// scripts/patchers/ at 78cbeea, the last commit that carried it. The three
+    /// fixed ones (`nop`, `ret`, `mov x0, #1`) live in ARM64Constants and are
+    /// checked in `constantsMatchKeystone` below.
     ///
-    /// `origin` names the patcher and the Python expression, not a line number:
-    /// these files are being ported and the line numbers move. Re-derive the set with
-    /// `grep -rnE '\basm(_at)?\(' scripts/patchers/`.
+    /// `origin` names the patcher and the Python expression, not a line number.
+    /// The set was derived with `grep -rnE '\basm(_at)?\(' scripts/patchers/`;
+    /// that tree is gone, so re-derive from `git show 78cbeea:scripts/patchers`.
     static let asmCallSiteCases: [ARM64EncodingCase] = [
         // asm("mov w0, #0\nret") — force the camera check to return 0
         ARM64EncodingCase(
@@ -366,8 +370,8 @@ struct ARM64EncoderKeystoneParityTests {
         )
     }
 
-    /// Every `asm(...)` site in the patchers is represented, and each one
-    /// disassembles back to the mnemonic the Python source names.
+    /// Every `asm(...)` site the patchers had is represented, and each one
+    /// disassembles back to the mnemonic the Python source named.
     @Test(arguments: ARM64EncoderKeystoneParityTests.allCases)
     func roundTripsThroughCapstone(_ testCase: ARM64EncodingCase) throws {
         let data = try #require(testCase.encoded)
@@ -511,7 +515,8 @@ struct ARM64EncoderRangeTests {
     // MARK: Decode
 
     /// `decodeBranchTarget` is the inverse of `encodeB` / `encodeBL`; the two must
-    /// agree, because the patchers use the decoder to find the site they then re-encode.
+    /// agree, because the patchers use the decoder to find the site they then
+    /// re-encode.
     @Test func decodeBranchTargetInvertsEncode() throws {
         let sites: [(UInt64, UInt64)] = [
             (0x1000, 0x1010), (0x2000, 0x1000), (0, 0x40), (0x800_0000, 0),

@@ -1,27 +1,90 @@
 // CFWPlistPatchTests.swift — the three P1.4 CFW patchers, against the Python
-// they replace.
+// they replaced.
 //
 // Unit tests cover the behaviour each patcher is supposed to have. The
-// equivalence tests are the ones that matter: they run
-// `scripts/patchers/<name>.py` and the Swift over the same real input and
-// compare the outputs — semantically for the two plist patchers, byte for
-// byte for the device tree.
+// equivalence tests are the ones that matter: `scripts/patchers/<name>.py` was
+// run over the same real input the Swift gets, and what it produced is frozen
+// in ``CFWPlistPatchGolden`` below — semantically for the two plist patchers,
+// byte for byte for the device tree.
 //
 // Real input, never a hand-made stand-in:
 //   - the host's own /System/Library/CoreServices/SystemVersion.plist
 //   - a real entitlements plist dumped from a signed system binary
 //   - DeviceTree.vphone600ap.im4p, pulled out of the cloudOS IPSW
 //
-// Every equivalence test is gated on its input and on the project venv
-// existing, and skips rather than fails when they do not — but a skip is not
-// a pass, and the migration notes record which ones actually ran.
+// The first two are host-dependent: their bytes differ with every macOS build,
+// so a frozen digest of the *output* would say nothing. For those the frozen
+// value is the transform the Python applied, read off its output by diffing it
+// against its own input. The device tree is fixed inside its IPSW, so that one
+// is a digest, per IPSW.
+//
+// Every equivalence test is gated on its input, and skips rather than fails
+// when it is absent — but a skip is not a pass, and the migration notes record
+// which ones actually ran.
 
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Img4tool
 import Testing
 
-// MARK: - Fixtures and the Python reference
+// MARK: - The frozen reference
+
+/// What `scripts/patchers/` produced on these inputs, recorded before it was
+/// deleted. Measured at repo commit `78cbeea` with `.venv/bin/python3`.
+enum CFWPlistPatchGolden {
+    /// `.venv/bin/python3 scripts/patchers/cfw_patch_build_version.py \
+    ///  <copy of /System/Library/CoreServices/SystemVersion.plist> 23F77`
+    ///
+    /// Run over both `plutil -convert xml1` and `-convert binary1` copies. On
+    /// this host it printed `ProductBuildVersion '26A428' -> '23F77'` and,
+    /// diffing its output against its input, the ONLY difference was that one
+    /// key's value; the serialized format stayed what it went in as (the XML
+    /// copy came back starting `<?xml ve`, the binary one `bplist00`).
+    ///
+    /// The input is the host's own file, which differs with every macOS build,
+    /// so the frozen value is that transform, not a digest.
+    static let buildVersionTarget = "23F77"
+
+    /// `.venv/bin/python3 scripts/patchers/campo_mach_lookup_exceptions.py \
+    ///  <entitlements dumped from a signed host binary>`
+    ///
+    /// Diffing its output against its input: the only key it touched was
+    /// ``exceptionKey``, and its new value was the existing array followed by
+    /// every service from the module's own `SERVICES` list not already in it,
+    /// in `SERVICES` order. On Safari (3 unrelated entries already present) it
+    /// printed `count: 20 (+17 added)`; on loginwindow (key absent) `count: 17
+    /// (+17 added)`.
+    static let exceptionKey = "com.apple.security.exception.mach-lookup.global-name"
+    static func countLine(total: Int, added: Int) -> String {
+        "count: \(total) (+\(added) added)"
+    }
+
+    /// `.venv/bin/python3 scripts/patchers/cfw_patch_post_restore_dt.py \
+    ///  <copy of Firmware/all_flash/DeviceTree.vphone600ap.im4p>`
+    ///
+    /// Byte for byte, input digest to output digest. Two cloudOS IPSWs carry
+    /// this device tree and they are not the same file, so both pairs are here;
+    /// the test looks its input up by digest rather than assuming which IPSW
+    /// `contentsOfDirectory` hands back first. Both runs reported the same
+    /// three rewrites, and a second run printed
+    /// `DT already in target state — no change` and left the bytes alone.
+    static let deviceTree: [String: String] = [
+        // EmbeddedDeviceTrees-11156.42.1, 68380-byte DT blob
+        "df0e5ceb010ae028b6e9a3322a07379a30911ee48f385cfe23f6931896cd096a":
+            "24894ac42dc218844d1988b6fe76e45d3ef9b8506ae08f11ecd01e7a6819a38b",
+        // EmbeddedDeviceTrees-11156.100.653.0.1, 68480-byte DT blob
+        "987a9306d16a9047dc1b46fd1b3cec2aab7738aff6c5c86938ee3ada1a461e3c":
+            "ca7386a775e8e2e7b1e242ef965ffcd644c35e545aba49182e15932257b6ba91",
+    ]
+
+    /// SHA-256 as `shasum -a 256` prints it.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+    }
+}
+
+// MARK: - Fixtures
 
 enum CFWPatchFixtures {
     /// tests/FirmwarePatcherTests/<this file> → repo root.
@@ -29,9 +92,6 @@ enum CFWPatchFixtures {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-
-    static let python = repoRoot.appending(path: ".venv/bin/python3")
-    static let patchers = repoRoot.appending(path: "scripts/patchers")
 
     /// A real Apple SystemVersion.plist, in XML, with a real ProductBuildVersion.
     static let systemVersionPlist = URL(filePath: "/System/Library/CoreServices/SystemVersion.plist")
@@ -47,18 +107,6 @@ enum CFWPatchFixtures {
 
     static var availableEntitlementsDonors: [URL] {
         entitlementsDonors.filter { FileManager.default.fileExists(atPath: $0.path) }
-    }
-
-    static func pythonPatcherExists(_ name: String) -> Bool {
-        FileManager.default.fileExists(atPath: patchers.appending(path: name).path)
-    }
-
-    static var venvAvailable: Bool {
-        FileManager.default.isExecutableFile(atPath: python.path)
-    }
-
-    static func canRun(_ patcher: String) -> Bool {
-        venvAvailable && pythonPatcherExists(patcher)
     }
 
     static var systemVersionAvailable: Bool {
@@ -147,11 +195,6 @@ enum CFWPatchFixtures {
     /// the copy unpatchable.
     static func copyContents(of source: URL, to destination: URL) throws {
         try Data(contentsOf: source).write(to: destination)
-    }
-
-    @discardableResult
-    static func runPython(_ patcher: String, _ arguments: [String]) throws -> CommandResult {
-        try run(python.path, [patchers.appending(path: patcher).path] + arguments)
     }
 
     static func makeTemporaryDirectory() throws -> URL {
@@ -327,33 +370,29 @@ struct CFWBuildVersionTests {
         }
     }
 
-    @Test(.enabled(if: CFWPatchFixtures.canRun("cfw_patch_build_version.py")
-        && CFWPatchFixtures.systemVersionAvailable))
-    func matchesPythonOnARealSystemVersionPlist() throws {
+    @Test(.enabled(if: CFWPatchFixtures.systemVersionAvailable))
+    func matchesTheFrozenReferenceOnARealSystemVersionPlist() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
+        let target = CFWPlistPatchGolden.buildVersionTarget
 
         // Both plist encodings of the same real file: the rootfs copy is XML,
         // the Cryptex copy on a device can be binary.
         for format in ["xml1", "binary1"] {
-            let pythonOutput = directory.appending(path: "python-\(format).plist")
             let swiftOutput = directory.appending(path: "swift-\(format).plist")
-            for destination in [pythonOutput, swiftOutput] {
-                try CFWPatchFixtures.copyContents(of: CFWPatchFixtures.systemVersionPlist, to: destination)
-                try CFWPatchFixtures.run("/usr/bin/plutil", ["-convert", format, destination.path])
-            }
+            try CFWPatchFixtures.copyContents(of: CFWPatchFixtures.systemVersionPlist, to: swiftOutput)
+            try CFWPatchFixtures.run("/usr/bin/plutil", ["-convert", format, swiftOutput.path])
 
-            let python = try CFWPatchFixtures.runPython(
-                "cfw_patch_build_version.py",
-                [pythonOutput.path, "23F77"]
-            )
-            #expect(python.status == 0, "python: \(python.combined)")
-            try CFWBuildVersion.patch(at: swiftOutput, to: "23F77", verbose: false)
+            let before = try #require(try PlistComparison.load(swiftOutput) as? [String: Any])
+            try CFWBuildVersion.patch(at: swiftOutput, to: target, verbose: false)
+            let after = try #require(try PlistComparison.load(swiftOutput) as? [String: Any])
 
-            let difference = PlistComparison.difference(
-                try PlistComparison.load(pythonOutput),
-                try PlistComparison.load(swiftOutput)
-            )
+            // The transform the reference applied: that one key's value, and
+            // nothing else in the file.
+            #expect(after["ProductBuildVersion"] as? String == target)
+            var expected = after
+            expected["ProductBuildVersion"] = before["ProductBuildVersion"]
+            let difference = PlistComparison.difference(before, expected)
             #expect(difference == nil, "\(format): \(difference ?? "")")
 
             // The format the file went in as is the format it comes back as.
@@ -428,31 +467,42 @@ struct CFWMachLookupExceptionTests {
         }
     }
 
-    @Test(.enabled(if: CFWPatchFixtures.canRun("campo_mach_lookup_exceptions.py")
-        && CFWPatchFixtures.entitlementsDonorAvailable))
-    func matchesPythonOnRealEntitlements() throws {
+    @Test(.enabled(if: CFWPatchFixtures.entitlementsDonorAvailable))
+    func matchesTheFrozenReferenceOnRealEntitlements() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
+        let key = CFWPlistPatchGolden.exceptionKey
+        #expect(CFWMachLookupExceptions.exceptionKey == key)
 
         for donor in CFWPatchFixtures.availableEntitlementsDonors {
             let name = donor.lastPathComponent
-            let pythonOutput = directory.appending(path: "python-\(name).entitlements")
             let swiftOutput = directory.appending(path: "swift-\(name).entitlements")
-            try CFWPatchFixtures.dumpEntitlements(of: donor, to: pythonOutput)
-            try CFWPatchFixtures.copyContents(of: pythonOutput, to: swiftOutput)
+            try CFWPatchFixtures.dumpEntitlements(of: donor, to: swiftOutput)
 
-            let python = try CFWPatchFixtures.runPython(
-                "campo_mach_lookup_exceptions.py",
-                [pythonOutput.path]
-            )
-            #expect(python.status == 0, "python: \(python.combined)")
+            let before = try #require(try PlistComparison.load(swiftOutput) as? [String: Any])
+            let existing = (before[key] as? [String]) ?? []
             let outcome = try CFWMachLookupExceptions.merge(at: swiftOutput, verbose: false)
-            #expect(python.output.contains("count: \(outcome.total) (+\(outcome.added) added)"))
+            let after = try #require(try PlistComparison.load(swiftOutput) as? [String: Any])
 
-            let difference = PlistComparison.difference(
-                try PlistComparison.load(pythonOutput),
-                try PlistComparison.load(swiftOutput)
+            // The transform the reference applied: the existing array, then
+            // every service it did not already carry, in SERVICES order.
+            let expectedServices = existing
+                + CFWMachLookupExceptions.services.filter { !existing.contains($0) }
+            #expect(after[key] as? [String] == expectedServices, "\(name)")
+            // …and its own count line agreed with that arithmetic.
+            #expect(
+                CFWPlistPatchGolden.countLine(total: outcome.total, added: outcome.added)
+                    == CFWPlistPatchGolden.countLine(
+                        total: expectedServices.count,
+                        added: expectedServices.count - existing.count
+                    ),
+                "\(name)"
             )
+
+            // Nothing but that key moved.
+            var expected = after
+            if let original = before[key] { expected[key] = original } else { expected[key] = nil }
+            let difference = PlistComparison.difference(before, expected)
             #expect(difference == nil, "\(name): \(difference ?? "")")
         }
     }
@@ -563,34 +613,41 @@ struct CFWPostRestoreDeviceTreeTests {
         #expect(patched.range(of: Data("iPhone17,3\0".utf8)) != nil)
     }
 
-    @Test(.enabled(if: CFWPatchFixtures.canRun("cfw_patch_post_restore_dt.py")
-        && CFWPatchFixtures.deviceTreeAvailable))
-    func matchesPythonByteForByteOnARealDeviceTree() throws {
+    @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
+    func matchesTheFrozenReferenceByteForByteOnARealDeviceTree() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = try CFWPatchFixtures.extractDeviceTree(into: directory)
 
-        let pythonOutput = directory.appending(path: "python.im4p")
+        // Two cloudOS IPSWs carry this device tree and they are different
+        // files, so the golden is looked up by the input's own digest rather
+        // than by which IPSW the directory listing happened to hand back.
+        let input = try CFWPlistPatchGolden.digest(of: source)
+        let expected = try #require(
+            CFWPlistPatchGolden.deviceTree[input],
+            """
+            no frozen reference output for a DeviceTree.vphone600ap.im4p with \
+            digest \(input) — re-derive CFWPlistPatchGolden.deviceTree for this \
+            IPSW before reading a failure here as a patcher bug
+            """
+        )
+
         let swiftOutput = directory.appending(path: "swift.im4p")
-        try FileManager.default.copyItem(at: source, to: pythonOutput)
         try FileManager.default.copyItem(at: source, to: swiftOutput)
 
-        let python = try CFWPatchFixtures.runPython("cfw_patch_post_restore_dt.py", [pythonOutput.path])
-        #expect(python.status == 0, "python: \(python.combined)")
         let outcome = try CFWPostRestoreDeviceTree.patch(at: swiftOutput, verbose: false)
         #expect(outcome.wrote)
         #expect(outcome.changes.count == 3)
+        #expect(
+            try CFWPlistPatchGolden.digest(of: swiftOutput) == expected,
+            "IM4P differs from the frozen reference output"
+        )
 
-        let pythonBytes = try Data(contentsOf: pythonOutput)
-        let swiftBytes = try Data(contentsOf: swiftOutput)
-        #expect(pythonBytes == swiftBytes, "IM4P differs: \(pythonBytes.count)B vs \(swiftBytes.count)B")
-
-        // And the re-run is a no-op on both sides.
-        let pythonRerun = try CFWPatchFixtures.runPython("cfw_patch_post_restore_dt.py", [pythonOutput.path])
-        #expect(pythonRerun.output.contains("no change"))
+        // And the re-run is a no-op, as the reference's was: it printed
+        // `DT already in target state — no change` and the digest held.
         let swiftRerun = try CFWPostRestoreDeviceTree.patch(at: swiftOutput, verbose: false)
         #expect(!swiftRerun.wrote)
-        #expect(try Data(contentsOf: swiftOutput) == swiftBytes)
+        #expect(try CFWPlistPatchGolden.digest(of: swiftOutput) == expected)
     }
 
     /// The IMG4 path, as far as it can be checked here.

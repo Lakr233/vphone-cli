@@ -15,7 +15,8 @@ struct ResourcesTests {
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
         #expect(r.fwPrepareScript.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/fw_prepare.sh")
-        #expect(r.cfwPy.path == "/Applications/vphone-cli.app/Contents/Resources/scripts/patchers/cfw.py")
+        #expect(r.pmd3Bridge.path
+            == "/Applications/vphone-cli.app/Contents/Resources/scripts/pymobiledevice3_bridge.py")
     }
 
     @Test func devLayoutWalksUpToProjectRoot() throws {
@@ -43,14 +44,41 @@ struct ResourcesTests {
         #expect(VPhoneResources.userDataRoot().path.hasSuffix("/.vphone"))
     }
 
-    /// These all shell out; a missing interpreter must return false, not throw.
-    @Test func venvProbesAreTotalForAMissingInterpreter() {
+    /// The probe shells out; a missing interpreter must return false, not throw.
+    @Test func venvProbeIsTotalForAMissingInterpreter() {
         let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
         let missing = URL(fileURLWithPath: "/nonexistent/bin/python3")
         #expect(r.pythonIsUsable(missing) == false)
-        #expect(r.keystoneIsUsable(missing) == false)
-        #expect(r.venvIsUsable(missing) == false)
-        #expect(r.repairKeystone(missing) == false)
+    }
+
+    /// The venv exists for `scripts/pymobiledevice3_bridge.py` and nothing else
+    /// now that the firmware patchers are Swift, so the requirements must not
+    /// name a patcher-only package. capstone, keystone-engine and pyimg4 were
+    /// the three; pyimg4 still arrives transitively via pymobiledevice3.
+    @Test func fallbackRequirementsCarryNoPatcherOnlyPackages() {
+        let names = VPhoneResources.fallbackRequirements
+        for dead in ["capstone", "keystone-engine", "pyimg4"] {
+            #expect(names.contains { $0.hasPrefix(dead) } == false, "\(dead) is patcher-only")
+        }
+        #expect(names.contains { $0.hasPrefix("pymobiledevice3") })
+        #expect(names.contains("ipsw-parser"))
+    }
+
+    /// `fallbackRequirements` claims to mirror requirements.txt, so check the
+    /// real file rather than trusting the comment. Derived from `#filePath`:
+    /// `swift test` makes no promise about the working directory.
+    @Test func requirementsFileMatchesTheFallbackList() throws {
+        let repoRoot = URL(filePath: #filePath)
+            .deletingLastPathComponent() // VPhoneCoreTests
+            .deletingLastPathComponent() // tests
+            .deletingLastPathComponent() // <root>
+        let file = repoRoot.appending(path: "requirements.txt")
+        try #require(FileManager.default.fileExists(atPath: file.path))
+        let listed = try String(contentsOf: file, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+        #expect(listed == VPhoneResources.fallbackRequirements)
     }
 
     @Test func managedVenvDefaultsUnderDotVphone() {

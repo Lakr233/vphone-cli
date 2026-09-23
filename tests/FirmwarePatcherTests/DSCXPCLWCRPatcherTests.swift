@@ -1,11 +1,13 @@
 // DSCXPCLWCRPatcherTests.swift — Parity for the libxpc LWCR patch.
 //
-// The only independent reference for this patch is
-// `scripts/patchers/cfw_patch_xpc_lwcr.py`, so every test here runs that
-// Python on one clone of the real shared cache, runs `DSCXPCLWCRPatcher` on a
-// second clone, and compares the two byte for byte. A port that writes the
-// right instruction at the wrong address, or re-attests a different page,
-// fails on the bytes rather than on a number this file wrote down.
+// The only independent reference for this patch was
+// `scripts/patchers/cfw_patch_xpc_lwcr.py`, driven through `cfw.py
+// patch-xpc-lwcr`. That Python is gone, so what it produced on the real cache
+// is frozen in `FrozenReference` below — the three sites, the six instruction
+// words, and the SHA-256 of the one chunk it changed. `DSCXPCLWCRPatcher` runs
+// on a clone and is graded against those. A port that writes the right
+// instruction at the wrong address, or re-attests a different page, lands on a
+// different digest.
 //
 // Fixture: `VPHONE_DSC_PRISTINE`, or `ipsws/ref_extract/dsc_pristine` by
 // default. Without it these FAIL. A bare `guard let … else { return }` is
@@ -20,8 +22,63 @@
 
 @testable import FirmwarePatcher
 import Capstone
+import CryptoKit
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python wrote on the real 24A435 arm64e shared cache.
+///
+/// Recorded from live runs at commit 78cbeea, each line below quoting the log
+/// the run printed:
+///
+///     .venv/bin/python3 scripts/patchers/cfw.py \
+///         patch-xpc-lwcr <clone of ipsws/ref_extract/dsc_pristine>
+private enum FrozenReference {
+    /// Python: `[.] __xpc_token_satisfies_lwcr @ 0x1805DD5BC`.
+    static let functionVMA: UInt64 = 0x1_805D_D5BC
+
+    /// Python: the three `[+] wrote …` lines, in the order it printed them —
+    /// `cset w0, eq at 0x1805DD644`, `nop at 0x1805DD648`, `nop at 0x1805DD64C`.
+    static let writtenVMAs: [UInt64] = [0x1_805D_D644, 0x1_805D_D648, 0x1_805D_D64C]
+
+    /// Python: the left half of each `(… -> …)` on those same lines.
+    static let originalWords: [Data] = [
+        Data([0xE8, 0x07, 0x9F, 0x1A]),
+        Data([0x08, 0x00, 0x08, 0x4A]),
+        Data([0x88, 0x01, 0x00, 0x36]),
+    ]
+
+    /// Python: the right half — `cset w0, eq`, then two `nop`s.
+    static let patchedWords: [Data] = [
+        Data([0xE0, 0x17, 0x9F, 0x1A]),
+        Data([0x1F, 0x20, 0x03, 0xD5]),
+        Data([0x1F, 0x20, 0x03, 0xD5]),
+    ]
+
+    /// Python: the instruction text on the three `[.]` lines that precede the
+    /// writes — `cset w8, ne`, `eor w8, w0, w8`, `tbz w8, #0, #0x1805dd67c`.
+    static let idiomMnemonics = ["cset", "eor", "tbz"]
+
+    /// `cmp -s` against the pristine tree after the run: exactly one chunk
+    /// moved, to this digest, from `shasum -a 256 <output>/…arm64e.01`.
+    ///
+    /// The digest covers the re-attestation as well as the three words — the
+    /// Python logged `re-attest: wrote slot 119 of dyld_shared_cache_arm64e.01`
+    /// (`e19e728a.. -> 7a87ce53..`), `updated 1 slot hash(es) across 1
+    /// chunk(s)`.
+    ///
+    /// Two further runs pinned the edges. Re-run over its own output: `already
+    /// patched at 0x1805DD644 (cset w0,eq; nop; nop); nothing to
+    /// patch/re-attest`, no `wrote` line, digest unchanged. `--dry-run` on a
+    /// fresh clone: three `would write` lines at the same three addresses, and
+    /// no chunk changed at all.
+    static let changedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e.01":
+            "94ab6599c12bb8f12ef7f19dc8fde081b55a91cf40992a23444741b3e9d43309",
+    ]
+}
 
 // MARK: - Fixture
 
@@ -66,12 +123,6 @@ private enum LWCRFixture {
             .map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone_dsc_xpclwcr")
-    }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.
@@ -132,6 +183,41 @@ private enum LWCRFixture {
         }
         return differing.sorted()
     }
+
+    /// Which chunk files a run moved away from the pristine tree.
+    static func changedFiles(in directory: URL) throws -> [String] {
+        let pristine = try #require(self.pristine, missing)
+        return try differences(between: pristine, and: directory)
+    }
+}
+
+// MARK: - Digests
+
+/// SHA-256 of a cache chunk, streamed so a 131 MB file never lands in memory
+/// whole. The hex spelling matches `shasum -a 256`, which produced the frozen
+/// digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Assert that `directory` holds exactly the chunks the reference changed,
+    /// with exactly the reference's bytes.
+    static func expectMatchesReference(_ directory: URL) throws {
+        let changed = try LWCRFixture.changedFiles(in: directory)
+        #expect(changed == FrozenReference.changedChunks.keys.sorted())
+        for name in changed {
+            let digest = try sha256(of: directory.appendingPathComponent(name))
+            let frozen = FrozenReference.changedChunks[name] ?? "(not a chunk the Python moved)"
+            #expect(digest == frozen, "\(name): Swift \(digest), reference \(frozen)")
+        }
+    }
 }
 
 // MARK: - Subprocess helper
@@ -165,84 +251,25 @@ private enum Shell {
     }
 }
 
-// MARK: - The reference Python, driven through its own CLI
-
-private enum ReferencePython {
-    /// Addresses the reference reports writing, parsed off its own log lines:
-    ///
-    ///     [+] wrote cset w0, eq at 0x1805DD644 (e8079f1a -> e0179f1a)
-    struct Run {
-        let status: Int32
-        let stdout: String
-        let writtenVMAs: [UInt64]
-        let alreadyPatched: Bool
-    }
-
-    /// Run `cfw.py patch-xpc-lwcr <directory>`, exactly as the install scripts do.
-    static func patch(directory: URL, dryRun: Bool = false) throws -> Run {
-        guard let python = LWCRFixture.python else { throw CocoaError(.fileNoSuchFile) }
-        let script = LWCRFixture.repoRoot.appendingPathComponent("scripts/patchers/cfw.py")
-        let result = try Shell.run(
-            executable: python,
-            arguments: [script.path, "patch-xpc-lwcr", directory.path]
-                + (dryRun ? ["--dry-run"] : [])
-        )
-        var addresses: [UInt64] = []
-        for line in result.stdout.split(separator: "\n") {
-            guard line.contains("[+]"), line.contains(dryRun ? "would write" : "wrote") else {
-                continue
-            }
-            // "… at 0x1805DD644 (…)" — the address is the token after " at ".
-            guard let atRange = line.range(of: " at 0x") else { continue }
-            let rest = line[atRange.upperBound...]
-            let digits = rest.prefix { $0.isHexDigit }
-            if let value = UInt64(digits, radix: 16) { addresses.append(value) }
-        }
-        return Run(
-            status: result.status,
-            stdout: result.stdout + result.stderr,
-            writtenVMAs: addresses,
-            alreadyPatched: result.stdout.contains("already patched")
-        )
-    }
-}
-
-// MARK: - Parity against the Python, on the real cache
+// MARK: - Parity against the frozen reference, on the real cache
 
 @Suite(.serialized, .enabled(if: LWCRFixture.runs, LWCRFixture.skipReason))
 struct DSCXPCLWCRParityTests {
-    @Test("Swift and the Python patch the same three sites, byte for byte")
-    func patchedClonesAreIdentical() throws {
+    @Test("Swift patches the reference's three sites, to the reference's bytes")
+    func patchedCloneMatchesTheReference() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
-        try #require(
-            LWCRFixture.python != nil,
-            "the project venv is required for the cross-check — run `make setup_venv`"
-        )
 
-        let pythonClone = try LWCRFixture.cloneCache(named: "python")
         let swiftClone = try LWCRFixture.cloneCache(named: "swift")
-        defer { LWCRFixture.discard(pythonClone, swiftClone) }
-
-        // The two trees start out identical, or the comparison below proves
-        // nothing about the patch.
-        #expect(try LWCRFixture.differences(between: pythonClone, and: swiftClone).isEmpty)
-
-        let reference = try ReferencePython.patch(directory: pythonClone)
-        #expect(reference.status == 0, "python failed: \(reference.stdout)")
-        #expect(reference.writtenVMAs.count == 3, "python wrote \(reference.writtenVMAs.count) sites")
+        defer { LWCRFixture.discard(swiftClone) }
 
         let outcome = try DSCXPCLWCRPatcher.apply(directory: swiftClone, log: nil)
         #expect(outcome.status == .patched)
         #expect(outcome.siteCount == 3, "swift wrote \(outcome.siteCount) sites")
-        #expect(outcome.records.compactMap(\.virtualAddress) == reference.writtenVMAs)
+        #expect(outcome.records.compactMap(\.virtualAddress) == FrozenReference.writtenVMAs)
+        #expect(outcome.records.map(\.originalBytes) == FrozenReference.originalWords)
+        #expect(outcome.records.map(\.patchedBytes) == FrozenReference.patchedWords)
 
-        let differences = try LWCRFixture.differences(between: pythonClone, and: swiftClone)
-        #expect(differences.isEmpty, "chunks differ after patching: \(differences)")
-
-        print("[xpc_lwcr] python \(reference.writtenVMAs.count) sites, "
-            + "swift \(outcome.siteCount) sites, "
-            + "\(outcome.records.map { "0x" + String($0.virtualAddress ?? 0, radix: 16, uppercase: true) })"
-            + " — clones byte-identical")
+        try Digest.expectMatchesReference(swiftClone)
     }
 
     @Test("The replacement words are exactly cset w0,eq / nop / nop")
@@ -259,6 +286,10 @@ struct DSCXPCLWCRParityTests {
         #expect(outcome.records[1].patchedBytes == ARM64.nop)
         #expect(outcome.records[2].patchedBytes == ARM64.nop)
 
+        // …and the encoders agree with the words the reference actually wrote.
+        #expect(expectedCset == FrozenReference.patchedWords[0])
+        #expect(ARM64.nop == FrozenReference.patchedWords[1])
+
         // The three sites are consecutive words of one function.
         let addresses = outcome.records.compactMap(\.virtualAddress)
         #expect(addresses.count == 3)
@@ -269,47 +300,37 @@ struct DSCXPCLWCRParityTests {
     @Test("A dry run reports the same three sites and writes nothing")
     func dryRunWritesNothing() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
-        try #require(LWCRFixture.python != nil)
 
-        let untouched = try LWCRFixture.cloneCache(named: "dry_reference")
         let clone = try LWCRFixture.cloneCache(named: "dry")
-        defer { LWCRFixture.discard(untouched, clone) }
+        defer { LWCRFixture.discard(clone) }
 
         let outcome = try DSCXPCLWCRPatcher.apply(directory: clone, dryRun: true, log: nil)
         #expect(outcome.status == .patched)
         #expect(outcome.siteCount == 3)
+        // The reference's own dry run named these three and changed no chunk.
+        #expect(outcome.records.compactMap(\.virtualAddress) == FrozenReference.writtenVMAs)
 
-        let differences = try LWCRFixture.differences(between: untouched, and: clone)
-        #expect(differences.isEmpty, "a dry run modified \(differences)")
-
-        let reference = try ReferencePython.patch(directory: untouched, dryRun: true)
-        #expect(reference.writtenVMAs == outcome.records.compactMap(\.virtualAddress))
+        let changed = try LWCRFixture.changedFiles(in: clone)
+        #expect(changed.isEmpty, "a dry run modified \(changed)")
     }
 
-    @Test("Re-running over a patched cache is a no-op, in both implementations")
+    @Test("Re-running over a patched cache is a no-op")
     func secondRunIsANoOp() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
-        try #require(LWCRFixture.python != nil)
 
-        let pythonClone = try LWCRFixture.cloneCache(named: "python_twice")
         let swiftClone = try LWCRFixture.cloneCache(named: "swift_twice")
-        defer { LWCRFixture.discard(pythonClone, swiftClone) }
+        defer { LWCRFixture.discard(swiftClone) }
 
-        _ = try ReferencePython.patch(directory: pythonClone)
         _ = try DSCXPCLWCRPatcher.apply(directory: swiftClone, log: nil)
 
-        // Second pass. Neither may raise, and neither may write.
-        let second = try ReferencePython.patch(directory: pythonClone)
-        #expect(second.status == 0, "python raised on a second pass: \(second.stdout)")
-        #expect(second.alreadyPatched)
-        #expect(second.writtenVMAs.isEmpty)
-
+        // Second pass. It may not raise, and it may not write — the reference
+        // printed `already patched … nothing to patch/re-attest` here and left
+        // its own digest standing, so the bytes must still be the frozen ones.
         let outcome = try DSCXPCLWCRPatcher.apply(directory: swiftClone, log: nil)
         #expect(outcome.status == .alreadyPatched)
         #expect(outcome.siteCount == 0)
 
-        let differences = try LWCRFixture.differences(between: pythonClone, and: swiftClone)
-        #expect(differences.isEmpty, "chunks differ after a second pass: \(differences)")
+        try Digest.expectMatchesReference(swiftClone)
     }
 
     @Test("Every page the writes dirtied is re-attested")
@@ -377,6 +398,8 @@ struct DSCXPCLWCRShapeTests {
             mangledAddress,
             "the double-underscore spelling is the one Mach-O stores"
         )
+        // The reference resolved the same symbol to the same address.
+        #expect(mangled == FrozenReference.functionVMA)
         // The single-underscore source spelling is a miss, which is why the
         // patcher tries both rather than only the obvious one.
         let sourceSpelling = try chunks.resolveLocalSymbol(DSCXPCLWCRPatcher.symbol)
@@ -407,6 +430,12 @@ struct DSCXPCLWCRShapeTests {
         #expect(site.tbz.mnemonic == "tbz")
         #expect(site.eor.address == site.cset.address + 4)
         #expect(site.tbz.address == site.eor.address + 4)
+        // The same three instructions, at the same three addresses, the
+        // reference printed before it wrote.
+        #expect([site.cset.mnemonic, site.eor.mnemonic, site.tbz.mnemonic]
+            == FrozenReference.idiomMnemonics)
+        #expect([site.cset.address, site.eor.address, site.tbz.address]
+            == FrozenReference.writtenVMAs)
         // The xor's left operand is the matcher's return register, and its
         // right operand is what the cset wrote — the dataflow that makes the
         // match unambiguous.

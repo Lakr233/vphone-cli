@@ -480,8 +480,10 @@ public struct VPhoneCreateOrchestrator {
         try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resources.debsCacheDir, withIntermediateDirectories: true)
+        // No VPHONE_PYTHON: the CFW installers and cfw-kit run `vphone-cli cfw
+        // <verb>` now, so nothing under this script reads a python. Asking for
+        // one here would only force a venv bootstrap nobody uses.
         var scriptEnv: [String: String] = [
-            "VPHONE_PYTHON": try resources.pythonExecutable().path,
             "IPSW_DIR": resources.ipswCacheDir.path,
             "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
             "VPHONE_DEBS_DIR": resources.debsCacheDir.path,
@@ -509,7 +511,7 @@ public struct VPhoneCreateOrchestrator {
             var env = ProcessInfo.processInfo.environment
             for (key, value) in scriptEnv { env[key] = value }
             for (key, value) in sudoEnvExtras { env[key] = value }
-            let envKeys = (["VPHONE_PYTHON", "IPSW_DIR", "VPHONE_SEAL_DIR"] + sudoEnvExtras.keys.sorted())
+            let envKeys = (["IPSW_DIR", "VPHONE_SEAL_DIR"] + sudoEnvExtras.keys.sorted())
                 .joined(separator: ", ")
             trace("spawn /bin/zsh \(args.joined(separator: " ")) (env keys: \(envKeys))", v)
             // With an askpass credential sudo is non-interactive → honor verbosity.

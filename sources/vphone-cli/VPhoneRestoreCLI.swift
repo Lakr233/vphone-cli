@@ -110,7 +110,7 @@ struct VPhoneCFWCommand: ParsableCommand {
             VPhoneCFWPatchBuildVersionCommand.self,
             VPhoneCFWPatchCampoEntitlementsCommand.self,
             VPhoneCFWPatchPostRestoreDTCommand.self,
-        ])
+        ] + VPhoneCFWMachOVerbs.all + VPhoneCFWDSCVerbs.all)
 }
 
 /// Replaces `tools/apfs_snap_rename.py`, called from `cfw_install_host.sh`

@@ -1,11 +1,13 @@
 // DSCLockdownModePatcherTests.swift — Parity for the lockdown-mode DSC patch.
 //
-// The only independent reference for this patch is
+// The only independent reference for this patch was
 // `scripts/patchers/cfw_patch_lockdown_mode.py`, driven exactly as
-// `cfw_install.sh` drives it: `cfw.py patch-lockdown-mode <chunks_dir>`. So the
-// central test here clones the real cache twice, runs the Python on one clone
-// and `DSCLockdownModePatcher` on the other, and compares the two patched
-// directories byte for byte — chunk bytes and re-attested code slots alike.
+// `cfw_install.sh` drove it: `cfw.py patch-lockdown-mode <chunks_dir>`. That
+// Python has been removed, so what it produced on the real cache is frozen in
+// `FrozenReference` below — the block and gate addresses, the instruction word
+// on each side of the write, and the SHA-256 of the one chunk it changed. The
+// central test clones the cache, runs `DSCLockdownModePatcher` on the clone and
+// grades it against those, chunk bytes and re-attested code slot alike.
 //
 // The tests need the real cache. Point `VPHONE_DSC_PRISTINE` at a directory of
 // `dyld_shared_cache_arm64e*` chunks, or leave the default
@@ -22,9 +24,54 @@
 // directory — instant and near-free on APFS — and removed again.
 
 import Capstone
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python wrote on the real 24A435 arm64e shared cache.
+///
+/// Recorded from live runs at commit 78cbeea, each constant quoting the log
+/// line it came from:
+///
+///     .venv/bin/python3 scripts/patchers/cfw.py \
+///         patch-lockdown-mode <clone of ipsws/ref_extract/dsc_pristine>
+private enum FrozenReference {
+    /// Python: `[.] ___os_lockdown_mode_enabled_block_invoke @ 0x237EF2260`.
+    static let functionVMA: UInt64 = 0x2_37EF_2260
+
+    /// Python: `[.] gate @ 0x237EF2298: b.eq #0x237ef22bc`.
+    static let gateVMA: UInt64 = 0x2_37EF_2298
+
+    /// The same line's disassembly, which is what the gate search must find.
+    static let gateMnemonic = "b.eq"
+
+    /// Python: `[+] wrote nop at 0x237EF2298 (20010054 -> 1f2003d5)`.
+    static let originalWord = Data([0x20, 0x01, 0x00, 0x54])
+    static let patchedWord = Data([0x1F, 0x20, 0x03, 0xD5])
+
+    /// Python: one `wrote nop` line, so one site written.
+    static let sitesWritten = 1
+
+    /// `cmp -s` against the pristine tree afterwards: exactly one chunk moved,
+    /// to this digest, from `shasum -a 256 <output>/…arm64e.40`.
+    ///
+    /// The digest covers the re-attestation as well as the NOP — the Python
+    /// logged `re-attest: wrote slot 7868 of dyld_shared_cache_arm64e.40`
+    /// (`c33cc701.. -> 43ba8896..`), `updated 1 slot hash(es) across 1
+    /// chunk(s)`.
+    ///
+    /// Two further runs pinned the edges. Re-run over its own output: `[.] gate
+    /// @ 0x237EF2298: nop`, `already patched at 0x237EF2298; nothing to
+    /// patch/re-attest`, digest unchanged. `--dry-run` on a fresh clone: `would
+    /// write nop at 0x237EF2298 (20010054 -> 1f2003d5)` and no chunk changed.
+    static let changedChunks: [String: String] = [
+        "dyld_shared_cache_arm64e.40":
+            "7f8ba74581e37fbd433d42851578d4faa7e30ab2959b1d466f0ff3b9a39f6e56",
+    ]
+}
 
 // MARK: - Fixture discovery
 
@@ -61,15 +108,6 @@ private enum LockdownFixture {
 
     static let skipReason: Comment =
         "VPHONE_DSC_FIXTURE_OPTIONAL=1 and no dyld_shared_cache_arm64e fixture present"
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
-    }
-
-    /// `scripts/patchers/cfw.py`, the entry point `cfw_install.sh` calls.
-    static var cfwCLI: URL { repoRoot.appendingPathComponent("scripts/patchers/cfw.py") }
 
     /// Where clones go. Deliberately outside the working tree: the reference
     /// cache's directory is what the whole DSC suite compares against, and a
@@ -150,58 +188,33 @@ private enum Subprocess {
     }
 }
 
-// MARK: - The reference Python, driven the way the installer drives it
+// MARK: - Digests
 
-private enum PythonReference {
-    struct Run {
-        let stdout: String
-        /// Sites the Python says it wrote, counted off its own log lines.
-        let sitesWritten: Int
-        /// Sites it reached at all — written, already patched, or (on a dry
-        /// run) would-be-written.
-        let sitesFound: Int
-        /// The gate address it reported, if any.
-        let gateVMA: UInt64?
-        /// The block address it resolved, if any.
-        let functionVMA: UInt64?
-    }
-
-    /// `cfw.py patch-lockdown-mode <chunks_dir> [--dry-run]`, which is the
-    /// exact contract `cfw_install.sh` and `cfw-kit/lib/base_stages.sh` use.
-    static func patchLockdownMode(directory: URL, dryRun: Bool) throws -> Run {
-        let python = try #require(LockdownFixture.python, "project venv is required")
-        let result = try Subprocess.run(
-            executable: python,
-            arguments: [LockdownFixture.cfwCLI.path, "patch-lockdown-mode", directory.path]
-                + (dryRun ? ["--dry-run"] : [])
-        )
-        guard result.status == 0 else {
-            Issue.record("cfw.py patch-lockdown-mode failed: \(result.stdout)\n\(result.stderr)")
-            throw CocoaError(.fileReadUnknown)
+/// SHA-256 of a cache chunk, streamed so a 131 MB file never lands in memory
+/// whole. The hex spelling matches `shasum -a 256`, which produced the frozen
+/// digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
         }
-        let lines = result.stdout.split(separator: "\n").map(String.init)
-        return Run(
-            stdout: result.stdout,
-            sitesWritten: lines.filter { $0.contains("wrote nop at 0x") }.count,
-            sitesFound: lines.filter {
-                $0.contains("wrote nop at 0x")
-                    || $0.contains("would write nop at 0x")
-                    || $0.contains("already patched at 0x")
-            }.count,
-            gateVMA: lines.compactMap { line in
-                line.contains("gate @ 0x") ? hexAddress(after: "gate @ 0x", in: line) : nil
-            }.first,
-            functionVMA: lines.compactMap { line in
-                line.contains("_block_invoke @ 0x")
-                    ? hexAddress(after: "_block_invoke @ 0x", in: line) : nil
-            }.first
-        )
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func hexAddress(after marker: String, in line: String) -> UInt64? {
-        guard let range = line.range(of: marker) else { return nil }
-        let digits = line[range.upperBound...].prefix { $0.isHexDigit }
-        return UInt64(digits, radix: 16)
+    /// Assert that `directory` holds exactly the chunks the reference changed,
+    /// with exactly the reference's bytes.
+    static func expectMatchesReference(_ directory: URL) throws {
+        let pristine = try #require(LockdownFixture.pristine, LockdownFixture.missing)
+        let changed = try DirectoryComparison.changedNames(in: directory, against: pristine)
+        #expect(changed == FrozenReference.changedChunks.keys.sorted())
+        for name in changed {
+            let digest = try sha256(of: directory.appendingPathComponent(name))
+            let frozen = FrozenReference.changedChunks[name] ?? "(not a chunk the Python moved)"
+            #expect(digest == frozen, "\(name): Swift \(digest), reference \(frozen)")
+        }
     }
 }
 
@@ -238,6 +251,26 @@ private enum DirectoryComparison {
         return differing
     }
 
+    /// The names of the files in `directory` that differ from `reference`.
+    static func changedNames(in directory: URL, against reference: URL) throws -> [String] {
+        let manager = FileManager.default
+        let left = Set(try manager.contentsOfDirectory(atPath: reference.path))
+        let right = Set(try manager.contentsOfDirectory(atPath: directory.path))
+        var differing = Array(left.symmetricDifference(right))
+        for name in left.intersection(right) {
+            let result = try Subprocess.run(
+                executable: URL(fileURLWithPath: "/usr/bin/cmp"),
+                arguments: [
+                    "-s",
+                    reference.appendingPathComponent(name).path,
+                    directory.appendingPathComponent(name).path,
+                ]
+            )
+            if result.status != 0 { differing.append(name) }
+        }
+        return differing.sorted()
+    }
+
     /// A digest of every file in a cache directory, for before/after checks
     /// that only need to know whether anything moved.
     static func fingerprint(of directory: URL) throws -> [String: String] {
@@ -254,43 +287,30 @@ private enum DirectoryComparison {
     }
 }
 
-// MARK: - Parity against the Python
+// MARK: - Parity against the frozen reference
 
 @Suite(.serialized, .enabled(if: LockdownFixture.runs, LockdownFixture.skipReason))
 struct DSCLockdownModeParityTests {
-    /// The one that matters: same cache, both patchers, identical bytes out.
-    @Test("Swift and Python produce byte-identical patched caches")
-    func patchedCachesAreIdentical() throws {
+    /// The one that matters: the real cache in, the reference's bytes out.
+    @Test("Swift reproduces the reference's patched cache byte for byte")
+    func patchedCacheMatchesTheReference() throws {
         _ = try #require(LockdownFixture.pristine, LockdownFixture.missing)
-        _ = try #require(LockdownFixture.python, "project venv is required for the cross-check")
 
-        let pythonClone = try LockdownFixture.cloneCache(named: "python")
         let swiftClone = try LockdownFixture.cloneCache(named: "swift")
-        defer { LockdownFixture.discard(pythonClone, swiftClone) }
+        defer { LockdownFixture.discard(swiftClone) }
 
-        let reference = try PythonReference.patchLockdownMode(directory: pythonClone, dryRun: false)
         let outcome = try DSCLockdownModePatcher.patch(chunksDirectory: swiftClone, log: nil)
 
         #expect(outcome.verdict == .patched)
-        #expect(outcome.sitesWritten == 1)
-        #expect(reference.sitesWritten == 1)
-        #expect(
-            outcome.sitesWritten == reference.sitesWritten,
-            "site counts must match: Swift \(outcome.sitesWritten), Python \(reference.sitesWritten)"
-        )
-        #expect(outcome.gateVMA == reference.gateVMA)
-        #expect(outcome.functionVMA == reference.functionVMA)
+        #expect(outcome.sitesWritten == FrozenReference.sitesWritten)
+        #expect(outcome.gateVMA == FrozenReference.gateVMA)
+        #expect(outcome.functionVMA == FrozenReference.functionVMA)
 
-        let differences = try DirectoryComparison.differences(between: pythonClone, and: swiftClone)
-        #expect(differences.isEmpty, "patched caches differ: \(differences.joined(separator: "; "))")
+        let record = try #require(outcome.record)
+        #expect(record.originalBytes == FrozenReference.originalWord)
+        #expect(record.patchedBytes == FrozenReference.patchedWord)
 
-        let fileCount = try FileManager.default
-            .contentsOfDirectory(atPath: swiftClone.path).count
-        print(
-            "[lockdown] 1 site @ 0x"
-                + String(outcome.gateVMA ?? 0, radix: 16, uppercase: true)
-                + " — \(fileCount) files byte-identical to the Python's output"
-        )
+        try Digest.expectMatchesReference(swiftClone)
     }
 
     /// The write has to be covered by exactly one re-attested page, or the
@@ -333,18 +353,39 @@ struct DSCLockdownModeParityTests {
 
         let afterSecond = try DirectoryComparison.fingerprint(of: clone)
         #expect(afterFirst == afterSecond, "a no-op run still rewrote something")
+        // The reference was a no-op on its own output too, so the bytes here
+        // must still be the ones it left behind.
+        try Digest.expectMatchesReference(clone)
     }
 
-    /// The Python's dry run is the cheapest oracle for the reveal, and it runs
-    /// against the pristine cache without touching it.
-    @Test("Symbol and gate resolve to the same addresses as the Python")
+    /// The reference's `--dry-run` named the gate and changed no chunk. So
+    /// must this one — an install script that asks what would happen must not
+    /// be the thing that makes it happen.
+    @Test("A dry run names the reference's gate and writes nothing")
+    func dryRunWritesNothing() throws {
+        let pristine = try #require(LockdownFixture.pristine, LockdownFixture.missing)
+
+        let clone = try LockdownFixture.cloneCache(named: "dryrun")
+        defer { LockdownFixture.discard(clone) }
+
+        let outcome = try DSCLockdownModePatcher.patch(
+            chunksDirectory: clone,
+            dryRun: true,
+            log: nil
+        )
+        #expect(outcome.sitesWritten == 0)
+        #expect(outcome.sitesFound == 1)
+        #expect(outcome.gateVMA == FrozenReference.gateVMA)
+
+        let changed = try DirectoryComparison.changedNames(in: clone, against: pristine)
+        #expect(changed.isEmpty, "a dry run modified \(changed)")
+    }
+
+    /// The reveal — symbol, then gate — read off the pristine cache without
+    /// touching it, and checked against the addresses the reference printed.
+    @Test("Symbol and gate resolve to the reference's addresses")
     func revealMatchesTheReference() throws {
         let pristine = try #require(LockdownFixture.pristine, LockdownFixture.missing)
-        _ = try #require(LockdownFixture.python, "project venv is required for the cross-check")
-
-        let reference = try PythonReference.patchLockdownMode(directory: pristine, dryRun: true)
-        #expect(reference.sitesWritten == 0, "a dry run must not write")
-        #expect(reference.sitesFound == 1)
 
         let chunks = try DSCChunkSet(directory: pristine)
         let resolved = try DSCLockdownModePatcher.resolveBlockInvoke(in: chunks)
@@ -352,13 +393,13 @@ struct DSCLockdownModeParityTests {
             resolved,
             "the cache must carry an os_lockdown_mode_enabled block to compare against"
         )
-        #expect(block.vma == reference.functionVMA)
+        #expect(block.vma == FrozenReference.functionVMA)
         #expect(block.name == DSCLockdownModePatcher.symbolCandidates.first)
 
         let instructions = try DSCLockdownModePatcher.disassembleBlock(in: chunks, at: block.vma)
         let gate = try #require(DSCLockdownModePatcher.findErrorGate(instructions))
-        #expect(gate.address == reference.gateVMA)
-        #expect(gate.mnemonic == "b.eq")
+        #expect(gate.address == FrozenReference.gateVMA)
+        #expect(gate.mnemonic == FrozenReference.gateMnemonic)
 
         // The decode stops at the block's own return, not at the ceiling.
         #expect(instructions.count < DSCLockdownModePatcher.maxInstructions)

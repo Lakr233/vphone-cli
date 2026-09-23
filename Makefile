@@ -50,6 +50,10 @@ BUNDLE_LETMEIN := $(BUNDLE)/Contents/MacOS/vphone-letmein
 BUNDLE_ARCHIVE := $(BUNDLE)/Contents/MacOS/vphone-archive
 INFO_PLIST  := sources/Info.plist
 ENTITLEMENTS := sources/vphone.entitlements
+# The venv exists for exactly one program now — the pymobiledevice3 restore
+# bridge below. The firmware and CFW patchers it used to serve are Swift
+# (FirmwarePatcher, reached through `vphone-cli cfw <verb>` and `patch-firmware`),
+# so nothing in the patch pipeline touches $(PYTHON) any more.
 VENV        := .venv
 TOOLS_PREFIX := .tools
 PMD3_BRIDGE := $(CURDIR)/$(SCRIPTS)/pymobiledevice3_bridge.py
@@ -84,6 +88,7 @@ help:
 	@echo ""
 	@echo "Setup (one-time):"
 	@echo "  make setup_tools             Install all tools (brew, trustcache, insert_dylib, venv+pymobiledevice3)"
+	@echo "  make setup_venv              The venv alone — needed only for 'make restore*' (pymobiledevice3)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import FirmwarePatcher
@@ -88,8 +89,6 @@ enum CFWDaemonsFixtures {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-    static let python = repositoryRoot.appending(path: ".venv/bin/python3")
-    static let cfwPy = repositoryRoot.appending(path: "scripts/patchers/cfw.py")
     static let buildManifest = repositoryRoot.appending(path: "ipsws/ref_extract/iphone/BuildManifest.plist")
     static let cfwInputArchive = repositoryRoot.appending(path: "scripts/resources/cfw_input.tar.zst")
     static let jbSetupPlist = repositoryRoot.appending(path: "scripts/vphone_jb_setup.plist")
@@ -100,10 +99,10 @@ enum CFWDaemonsFixtures {
     /// the same file, produced by the same build system, and is world-readable.
     static let hostLaunchdPlist = URL(filePath: "/System/Library/xpc/launchd.plist")
 
-    /// Whether the Python this ports is still in the tree to compare against.
-    /// It is deleted at the end of P1, and these comparisons go with it.
-    static var pythonReferenceAvailable: Bool {
-        [python, cfwPy, buildManifest, cfwInputArchive, hostLaunchdPlist]
+    /// Whether the real inputs the frozen reference was recorded over are here.
+    /// `BuildManifest.plist` comes out of an IPSW and is never in the repo.
+    static var referenceInputsAvailable: Bool {
+        [buildManifest, cfwInputArchive, hostLaunchdPlist]
             .allSatisfy { FileManager.default.fileExists(atPath: $0.path) }
     }
 
@@ -384,126 +383,222 @@ struct CFWDaemonsTests {
     }
 }
 
-// MARK: - Equivalence against the Python
+// MARK: - The frozen reference
+
+/// What `scripts/patchers/` produced on these inputs, recorded before it was
+/// deleted.
+///
+/// Measured at repo commit `78cbeea` with `.venv/bin/python3`. Two of the three
+/// rewrites take an input that is not fixed — the host's own
+/// `/System/Library/xpc/launchd.plist` is 2.6 MB and differs with every macOS
+/// build — so for those the frozen value is the *transform*, read off the
+/// Python's output by diffing it against its own input. Each constant says
+/// which command it came from, and the transform assertions below are exactly
+/// the ones that diff reported.
+enum CFWDaemonsGolden {
+    /// `.venv/bin/python3 scripts/patchers/cfw.py cryptex-paths \
+    ///  ipsws/ref_extract/iphone/BuildManifest.plist`
+    /// printed these two lines, in this order.
+    static let cryptexSystemOS = "043-70113-702.dmg.aea"
+    static let cryptexAppOS = "043-69297-784.dmg"
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py patch-dropbear-plist <copy of
+    /// cfw_input/jb/LaunchDaemons/dropbear.plist>` — over the file whose digest
+    /// is ``dropbearSource`` — left exactly this `ProgramArguments` array and
+    /// changed no other key. `-R` dropped, the two `-r` key paths appended.
+    static let dropbearSource =
+        "2f6b05e7eeeb98559a3eb389a9c8fcb6083c2ccb9f2c105d6b132c76eece78a5"
+    static let dropbearProgramArguments = [
+        "/iosbinpack64/usr/local/bin/dropbear",
+        "--shell",
+        "/iosbinpack64/bin/bash",
+        "-E",
+        "-F",
+        "-p",
+        "22222",
+        "-a",
+        "-r",
+        "/var/dropbear/dropbear_rsa_host_key",
+        "-r",
+        "/var/dropbear/dropbear_ecdsa_host_key",
+    ]
+
+    /// `.venv/bin/python3 scripts/patchers/cfw.py inject-daemons <copy of
+    /// /System/Library/xpc/launchd.plist> <cfw_input/jb/LaunchDaemons>`.
+    ///
+    /// Diffing its output against its input: the top-level key set was
+    /// unchanged, every key but `LaunchDaemons` was untouched, no existing
+    /// `LaunchDaemons` entry moved, and exactly these four keys were added —
+    /// each one carrying the staged plist verbatim, dropbear with the rewrite
+    /// above already applied. It also printed
+    /// `[!] Missing …/vphoned.plist, skipping`.
+    static let injectedDaemonNames = ["bash", "dropbear", "trollvnc", "rpcserver_ios"]
+    static let missingDaemonCount = 1
+
+    /// The inline `plistlib` snippet at `cfw_install_jb.sh:460-469` and
+    /// `cfw_install_exp.sh:702-711`, run verbatim over the same input.
+    ///
+    /// The same diff: one key added, carrying `scripts/vphone_jb_setup.plist`
+    /// verbatim (digest ``jbSetupSource``), nothing else changed.
+    static let jbSetupKey = "/System/Library/LaunchDaemons/com.vphone.jb-setup.plist"
+    static let jbSetupSource =
+        "80ff5a830b81012c1ecfdc596bfb05557ace23ae747002233b2b88b464de9efc"
+
+    static func launchdKey(_ name: String) -> String {
+        "/System/Library/LaunchDaemons/\(name).plist"
+    }
+
+    /// SHA-256 as `shasum -a 256` prints it.
+    static func digest(of url: URL) throws -> String {
+        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+    }
+}
+
+// MARK: - Equivalence against the frozen reference
 
 /// The verification bar for this port: same real input through the Python and
 /// through the Swift, compared semantically.
 ///
-/// These run only while `scripts/patchers/` and the venv are still in the tree.
-/// When P1 finishes deleting them the suite disables itself and the unit tests
-/// above are what remains.
+/// These run only while the real inputs are here — `BuildManifest.plist` comes
+/// out of an IPSW, and `ipsws/` is not in the repo.
 @Suite(
-    "CFW daemon rewrites match the Python they replace",
-    .enabled(if: CFWDaemonsFixtures.pythonReferenceAvailable)
+    "CFW daemon rewrites match the Python they replaced",
+    .enabled(if: CFWDaemonsFixtures.referenceInputsAvailable)
 )
-struct CFWDaemonsPythonEquivalenceTests {
+struct CFWDaemonsReferenceEquivalenceTests {
     @Test("cryptex-paths on a real BuildManifest")
-    func cryptexPathsMatchPython() throws {
-        let output = try CFWDaemonsFixtures.run(CFWDaemonsFixtures.python.path, [
-            CFWDaemonsFixtures.cfwPy.path,
-            "cryptex-paths",
-            CFWDaemonsFixtures.buildManifest.path,
-        ])
-        let lines = output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        try #require(lines.count == 2)
-
+    func cryptexPathsMatchTheReference() throws {
         let swift = try CFWDaemons.cryptexPaths(buildManifest: CFWDaemonsFixtures.buildManifest)
-        #expect(swift.systemOS == lines[0])
-        #expect(swift.appOS == lines[1])
+        #expect(swift.systemOS == CFWDaemonsGolden.cryptexSystemOS)
+        #expect(swift.appOS == CFWDaemonsGolden.cryptexAppOS)
     }
 
     @Test("patch-dropbear-plist on the installer's real dropbear.plist")
-    func dropbearPlistMatchesPython() throws {
+    func dropbearPlistMatchesTheReference() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let staging = try CFWDaemonsFixtures.unpackLaunchDaemons(into: directory)
         let source = staging.appending(path: "dropbear.plist")
-
-        let pythonCopy = try CFWDaemonsFixtures.writableCopy(of: source, in: directory, named: "py.plist")
-        let swiftCopy = try CFWDaemonsFixtures.writableCopy(of: source, in: directory, named: "swift.plist")
-
-        try CFWDaemonsFixtures.run(CFWDaemonsFixtures.python.path, [
-            CFWDaemonsFixtures.cfwPy.path, "patch-dropbear-plist", pythonCopy.path,
-        ])
-        try CFWDaemons.patchDropbearPlist(at: swiftCopy)
-
-        let differences = try PlistSemantics.differences(
-            CFWDaemonsFixtures.loadPlist(pythonCopy),
-            CFWDaemonsFixtures.loadPlist(swiftCopy)
+        try #require(
+            try CFWDaemonsGolden.digest(of: source) == CFWDaemonsGolden.dropbearSource,
+            "the archive's dropbear.plist is not the one the golden was recorded over"
         )
+        let before = try CFWDaemonsFixtures.loadPlist(source)
+
+        let swiftCopy = try CFWDaemonsFixtures.writableCopy(of: source, in: directory, named: "swift.plist")
+        try CFWDaemons.patchDropbearPlist(at: swiftCopy)
+        let after = try CFWDaemonsFixtures.loadPlist(swiftCopy)
+
+        #expect(
+            (after["ProgramArguments"] as? [Any])?.compactMap { $0 as? String }
+                == CFWDaemonsGolden.dropbearProgramArguments
+        )
+        // …and nothing but that key moved, which is the other half of what the
+        // Python's own output diff said.
+        var expected = after
+        expected["ProgramArguments"] = before["ProgramArguments"]
+        let differences = PlistSemantics.differences(before, expected)
         #expect(differences.isEmpty, "\(differences)")
     }
 
     @Test("inject-daemons on a real launchd.plist and the real staging directory")
-    func injectDaemonsMatchesPython() throws {
+    func injectDaemonsMatchesTheReference() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let staging = try CFWDaemonsFixtures.unpackLaunchDaemons(into: directory)
-        let pythonCopy = try CFWDaemonsFixtures.writableCopy(
-            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "py-launchd.plist"
-        )
         let swiftCopy = try CFWDaemonsFixtures.writableCopy(
             of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist"
         )
+        let before = try CFWDaemonsFixtures.loadPlist(swiftCopy)
 
-        try CFWDaemonsFixtures.run(CFWDaemonsFixtures.python.path, [
-            CFWDaemonsFixtures.cfwPy.path, "inject-daemons", pythonCopy.path, staging.path,
-        ])
         let staged = try CFWDaemons.injectDaemons(into: swiftCopy, fromDirectory: staging)
-        #expect(staged.injectedNames == ["bash", "dropbear", "trollvnc", "rpcserver_ios"])
+        #expect(staged.injectedNames == CFWDaemonsGolden.injectedDaemonNames)
         // vphoned is staged separately by the Swift installer, so the archive's
         // directory really is missing it — the skip path is exercised for free.
-        #expect(staged.missingSources.count == 1)
+        #expect(staged.missingSources.count == CFWDaemonsGolden.missingDaemonCount)
 
-        let differences = try PlistSemantics.differences(
-            CFWDaemonsFixtures.loadPlist(pythonCopy),
-            CFWDaemonsFixtures.loadPlist(swiftCopy)
+        let after = try CFWDaemonsFixtures.loadPlist(swiftCopy)
+        try assertOnlyAdded(
+            CFWDaemonsGolden.injectedDaemonNames.map(CFWDaemonsGolden.launchdKey),
+            to: before, in: after
         )
-        #expect(differences.isEmpty, "\(differences.prefix(10))")
+
+        // Each added value is the staged plist verbatim — dropbear with the
+        // rewrite applied — which is what the reference's output diff showed.
+        let daemons = try #require(after["LaunchDaemons"] as? [String: Any])
+        for name in CFWDaemonsGolden.injectedDaemonNames {
+            var source = try CFWDaemonsFixtures.loadPlist(staging.appending(path: "\(name).plist"))
+            if name == "dropbear" {
+                var patched: PlistDict = source
+                CFWDaemons.patchDropbearDaemon(&patched)
+                source = patched
+            }
+            let injected = try #require(daemons[CFWDaemonsGolden.launchdKey(name)])
+            let differences = PlistSemantics.differences(source, injected)
+            #expect(differences.isEmpty, "\(name): \(differences.prefix(10))")
+        }
     }
 
     /// The inline `plistlib` snippet at `cfw_install_jb.sh:460-469` and
-    /// `cfw_install_exp.sh:702-711`, run verbatim against the same input as the
+    /// `cfw_install_exp.sh:702-711`, measured against the same input as the
     /// Swift single-daemon form. This is what "one implementation, three call
-    /// sites" has to mean: the inline snippet is not a second behaviour.
+    /// sites" has to mean: the inline snippet was not a second behaviour.
     @Test("the installers' inline jb-setup merge is the same merge")
     func inlineInstallerSnippetMatchesSwift() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let pythonCopy = try CFWDaemonsFixtures.writableCopy(
-            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "py-launchd.plist"
+        try #require(
+            try CFWDaemonsGolden.digest(of: CFWDaemonsFixtures.jbSetupPlist)
+                == CFWDaemonsGolden.jbSetupSource,
+            "vphone_jb_setup.plist is not the one the golden was recorded over"
         )
+
         let swiftCopy = try CFWDaemonsFixtures.writableCopy(
             of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist"
         )
+        let before = try CFWDaemonsFixtures.loadPlist(swiftCopy)
 
-        let inlineSnippet = """
-        import plistlib, sys
-        with open(sys.argv[1], 'rb') as f:
-            target = plistlib.load(f)
-        with open(sys.argv[2], 'rb') as f:
-            daemon = plistlib.load(f)
-        target.setdefault('LaunchDaemons', {})\
-        ['/System/Library/LaunchDaemons/com.vphone.jb-setup.plist'] = daemon
-        with open(sys.argv[1], 'wb') as f:
-            plistlib.dump(target, f, sort_keys=False)
-        """
-        try CFWDaemonsFixtures.run(CFWDaemonsFixtures.python.path, [
-            "-c", inlineSnippet, pythonCopy.path, CFWDaemonsFixtures.jbSetupPlist.path,
-        ])
         try CFWDaemons.injectDaemon(
             into: swiftCopy,
             name: "com.vphone.jb-setup",
             from: CFWDaemonsFixtures.jbSetupPlist
         )
 
-        let differences = try PlistSemantics.differences(
-            CFWDaemonsFixtures.loadPlist(pythonCopy),
-            CFWDaemonsFixtures.loadPlist(swiftCopy)
-        )
+        let after = try CFWDaemonsFixtures.loadPlist(swiftCopy)
+        try assertOnlyAdded([CFWDaemonsGolden.jbSetupKey], to: before, in: after)
+
+        let daemons = try #require(after["LaunchDaemons"] as? [String: Any])
+        let injected = try #require(daemons[CFWDaemonsGolden.jbSetupKey])
+        let source = try CFWDaemonsFixtures.loadPlist(CFWDaemonsFixtures.jbSetupPlist)
+        let differences = PlistSemantics.differences(source, injected)
         #expect(differences.isEmpty, "\(differences.prefix(10))")
+    }
+
+    /// The shape the reference's output diff reported, for both merges: the
+    /// top-level key set unchanged, every key but `LaunchDaemons` untouched, no
+    /// existing `LaunchDaemons` entry moved or removed, and exactly `keys`
+    /// added.
+    private func assertOnlyAdded(
+        _ keys: [String],
+        to before: [String: Any],
+        in after: [String: Any]
+    ) throws {
+        #expect(Set(before.keys).union(["LaunchDaemons"]) == Set(after.keys))
+        for key in before.keys where key != "LaunchDaemons" {
+            let differences = PlistSemantics.differences(before[key]!, after[key]!, at: key)
+            #expect(differences.isEmpty, "\(differences)")
+        }
+
+        let old = (before["LaunchDaemons"] as? [String: Any]) ?? [:]
+        let new = try #require(after["LaunchDaemons"] as? [String: Any])
+        #expect(Set(new.keys).subtracting(old.keys) == Set(keys))
+        #expect(Set(old.keys).subtracting(new.keys).isEmpty)
+        for key in old.keys where !keys.contains(key) {
+            let differences = PlistSemantics.differences(old[key]!, new[key]!, at: key)
+            #expect(differences.isEmpty, "\(differences)")
+        }
     }
 }

@@ -78,10 +78,11 @@ Legend: ✅ installed · ❌ not installed · ⬜ left to the userland slot or a
    (`SystemVersion.plist` does not exist before that).
 
 4. **Preflight before any write.** Upstream discovers a missing `zstd` or a
-   stale `cfw.py` partway through a streaming install onto a volume with no
-   snapshot to roll back to. `preflight()` checks tools, Python deps and every
-   `cfw.py` subcommand the selected variant *and its userland slot* will call,
-   then refuses with nothing written.
+   stale `vphone-cli` partway through a streaming install onto a volume with no
+   snapshot to roll back to. `preflight()` checks tools, the built binary and
+   every `cfw` subcommand the selected variant *and its userland slot* will
+   call — each asked of the binary itself with `--help`, which exits 0 only for
+   a verb it really has — then refuses with nothing written.
 
 5. **`run.sh` requires `--variant`.** Upstream `cfw_install_host.sh` defaults to
    `exp`. Defaulting to either variant here would hand someone a firmware they

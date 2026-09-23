@@ -18,23 +18,6 @@ set -euo pipefail
 VM_DIR="${1:-.}"
 SCRIPT_DIR="${0:a:h}"
 
-# ── Python resolver — prefer project venv over whatever is in PATH ─
-# Resolves to .venv/bin/python3 relative to the project root (parent of
-# scripts/), falling back to the system python3 when the venv is absent.
-_resolve_python3() {
-    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-        echo "$VPHONE_PYTHON"
-        return
-    fi
-    local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
-    if [[ -x "$venv_py" ]]; then
-        echo "$venv_py"
-    else
-        command -v python3 || true
-    fi
-}
-PYTHON3="$(_resolve_python3)"
-
 # ── vphone-cli resolver — the Swift CFW patchers the JB phases call ─
 # Same order as scripts/cfw_install_host.sh and cfw-kit/run.sh: VPHONE_CLI_BIN
 # when a vphone-cli subcommand invoked us, otherwise a dev tree or the .app,
@@ -263,7 +246,7 @@ else
     echo "  [!] BaseBin is missing; skipping launchdhook injection"
 fi
 
-"$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-launchd-jetsam "$TEMP_DIR/launchd"
+"$VPHONE_CLI" cfw patch-launchd-jetsam "$TEMP_DIR/launchd"
 
 # Re-sign with original entitlements to avoid "operation not permitted" on spawn
 if [[ -s "$TEMP_DIR/launchd.entitlements" ]]; then

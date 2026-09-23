@@ -3,8 +3,8 @@
 #
 # Mirrors patch_hv_vmm_userland.sh's shape so the EXP install pipeline can
 # call into both via a single entry-point style. The actual work happens
-# in scripts/patchers/cfw_patch_camera_dsc.py::apply_all_camera_patches,
-# invoked through cfw.py's `patch-camera-dsc` subcommand.
+# in FirmwarePatcher's DSCCameraPatcher, invoked through vphone-cli's
+# `cfw patch-camera-dsc` subcommand.
 #
 # Usage:
 #   patch_camera_userland.sh dsc <chunks_dir> <dsc_header>
@@ -22,19 +22,20 @@ SCRIPT_DIR="${0:a:h}"
 
 [[ -n "${_VPHONE_PATH:-}" ]] && export PATH="$_VPHONE_PATH"
 
-_resolve_python3() {
-    if [[ -n "${VPHONE_PYTHON:-}" ]]; then
-        echo "$VPHONE_PYTHON"
-        return
-    fi
-    local venv_py="${SCRIPT_DIR:h}/.venv/bin/python3"
-    if [[ -x "$venv_py" ]]; then
-        echo "$venv_py"
-    else
-        command -v python3 || true
-    fi
+# ── vphone-cli resolver — the patcher lives in it ─
+# Same order as scripts/cfw_install_host.sh: VPHONE_CLI_BIN when a vphone-cli
+# subcommand invoked us, otherwise a dev tree or the .app, where scripts/ sits
+# in Contents/Resources and the binaries are one level up in MacOS.
+VPHONE_CLI="${VPHONE_CLI_BIN:-}"
+if [[ -z "$VPHONE_CLI" ]]; then
+    for candidate in "${SCRIPT_DIR:h}/.build/release/vphone-cli" "${SCRIPT_DIR:h:h}/MacOS/vphone-cli"; do
+        [[ -x "$candidate" ]] && { VPHONE_CLI="$candidate"; break }
+    done
+fi
+[[ -x "$VPHONE_CLI" ]] || {
+    echo "[-] cannot find vphone-cli (the camera DSC patcher lives in it) — run 'make build'" >&2
+    exit 1
 }
-PYTHON3="$(_resolve_python3)"
 
 usage() {
     cat <<EOF >&2
@@ -52,7 +53,7 @@ case "$op" in
         (( $# >= 2 )) || usage
         echo "[*] Patching camera consumers in DSC chunks under: $1"
         echo "[*]   (symbol resolution against: $2)"
-        "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-camera-dsc "$1" "$2"
+        "$VPHONE_CLI" cfw patch-camera-dsc "$1" "$2"
         ;;
     *)
         usage

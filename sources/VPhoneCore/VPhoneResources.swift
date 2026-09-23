@@ -80,13 +80,11 @@ public struct VPhoneResources: Sendable {
     // MARK: - Assets
 
     public var scriptsDir: URL { base.appendingPathComponent("scripts") }
-    public var patchersDir: URL { scriptsDir.appendingPathComponent("patchers") }
     public var resourceArchivesDir: URL { scriptsDir.appendingPathComponent("resources") }
     public var fwPrepareScript: URL { scriptsDir.appendingPathComponent("fw_prepare.sh") }
     public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
     public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
     public var pmd3Bridge: URL { scriptsDir.appendingPathComponent("pymobiledevice3_bridge.py") }
-    public var cfwPy: URL { patchersDir.appendingPathComponent("cfw.py") }
     public var signcert: URL { scriptsDir.appendingPathComponent("vphoned/signcert.p12") }
 
     public var vphoned: URL {
@@ -117,8 +115,14 @@ public struct VPhoneResources: Sendable {
 
     /// Runtime pip deps, mirrored from requirements.txt (fallback when the
     /// bundled requirements.txt is somehow absent).
+    ///
+    /// One consumer is left: `scripts/pymobiledevice3_bridge.py`, the restore
+    /// path. The firmware patchers that needed capstone, keystone-engine and
+    /// pyimg4 are Swift now (`FirmwarePatcher`), so those three are gone. pyimg4
+    /// still ends up installed — `pymobiledevice3` and `ipsw-parser` both
+    /// require it — but nothing here asks for it directly any more.
     static let fallbackRequirements =
-        ["typer", "capstone", "keystone-engine", "pyimg4", "pymobiledevice3>=9.5.0", "ipsw-parser"]
+        ["typer", "pymobiledevice3>=9.5.0", "ipsw-parser", "setuptools"]
 
     /// Bundled/dev requirements list the managed venv is provisioned from.
     public var requirementsFile: URL { base.appendingPathComponent("requirements.txt") }
@@ -134,97 +138,42 @@ public struct VPhoneResources: Sendable {
     }
     private var managedVenvPython: URL { managedVenvDir.appendingPathComponent("bin/python3") }
 
-    /// A python is usable only if it carries an `ipsw_parser` new enough for the
-    /// bridge — the exact gap behind `IPSW has no attribute 'create_from_path'`
-    /// when an old system-python build gets picked up.
+    /// A python is usable only if it can actually run the restore bridge.
+    ///
+    /// Two halves, and both are needed. `ipsw_parser` must be new enough —
+    /// that is the gap behind `IPSW has no attribute 'create_from_path'` when
+    /// an old system-python build gets picked up. And `pymobiledevice3` must be
+    /// importable, which `ipsw_parser` does **not** imply: `pip show
+    /// ipsw-parser` lists coloredlogs, construct, plumbum, pyimg4, remotezip2,
+    /// requests and typer, and no pymobiledevice3. A venv holding only
+    /// `ipsw-parser` passes an `ipsw_parser`-only probe and then dies on
+    /// `ModuleNotFoundError: No module named 'pymobiledevice3'` at the bridge's
+    /// line 11 — an import traceback instead of "this environment is wrong".
     func pythonIsUsable(_ python: URL) -> Bool {
         guard FileManager.default.isExecutableFile(atPath: python.path) else { return false }
-        let probe = "from ipsw_parser.ipsw import IPSW; import sys; "
+        let probe = "from ipsw_parser.ipsw import IPSW; import pymobiledevice3; import sys; "
             + "sys.exit(0 if hasattr(IPSW, 'create_from_path') else 1)"
         return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
-    }
-
-    /// Must assemble, not just import — a bindings-only install imports fine
-    /// and then fails inside `fw patch`.
-    func keystoneIsUsable(_ python: URL) -> Bool {
-        let probe = "from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN; import sys; "
-            + "sys.exit(0 if bytes(Ks(KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN).asm('nop')[0]) else 1)"
-        return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
-    }
-
-    func venvIsUsable(_ python: URL) -> Bool {
-        pythonIsUsable(python) && keystoneIsUsable(python)
-    }
-
-    // MARK: - keystone native library
-
-    /// Older bottles ship only the static archive.
-    private func homebrewKeystoneLibs() -> (dylib: URL?, archive: URL?) {
-        for prefix in ["/opt/homebrew/opt/keystone/lib", "/usr/local/opt/keystone/lib"] {
-            let dir = URL(fileURLWithPath: prefix)
-            guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { continue }
-            let dylib = names.first { $0.hasPrefix("libkeystone") && $0.hasSuffix(".dylib") }
-            let archive = names.first { $0 == "libkeystone.a" }
-            if dylib != nil || archive != nil {
-                return (dylib.map(dir.appendingPathComponent), archive.map(dir.appendingPathComponent))
-            }
-        }
-        return (nil, nil)
-    }
-
-    /// Asked of the interpreter: `import keystone` is what's broken here.
-    private func keystonePackageDir(_ python: URL) -> URL? {
-        let probe = "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-        guard let r = try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]), r.succeeded else { return nil }
-        let purelib = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !purelib.isEmpty else { return nil }
-        return URL(fileURLWithPath: purelib).appendingPathComponent("keystone")
-    }
-
-    /// PyPI has no arm64 macOS wheel and the sdist ignores its build's exit
-    /// status, so a failed native build still installs bindings alone and pip
-    /// reports success. Same recovery as scripts/setup_venv.sh.
-    func repairKeystone(_ python: URL) -> Bool {
-        guard let pkgDir = keystonePackageDir(python),
-              FileManager.default.fileExists(atPath: pkgDir.path) else { return false }
-        let dest = pkgDir.appendingPathComponent("libkeystone.dylib")
-        let libs = homebrewKeystoneLibs()
-
-        if let dylib = libs.dylib {
-            try? FileManager.default.removeItem(at: dest)
-            guard (try? FileManager.default.copyItem(at: dylib, to: dest)) != nil else { return false }
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dest.path)
-        } else if let archive = libs.archive {
-            let r = try? VPhoneProcessRunner.runCapturing(
-                URL(fileURLWithPath: "/usr/bin/clang"),
-                ["-shared", "-o", dest.path, "-Wl,-all_load", archive.path,
-                 "-lc++", "-install_name", "@rpath/libkeystone.dylib"])
-            guard r?.succeeded == true else { return false }
-        } else {
-            return false
-        }
-
-        guard keystoneIsUsable(python) else { return false }
-        FileHandle.standardError.write(Data("[+] Repaired keystone native library: \(dest.path)\n".utf8))
-        return true
     }
 
     /// Resolve a python with working deps: an explicit `VPHONE_PYTHON`, the dev
     /// repo `.venv`, the managed per-user venv, else provision the managed venv
     /// on this machine. Never silently falls back to a stale system python.
+    ///
+    /// `pythonIsUsable` is the whole health check now. It used to be paired
+    /// with a keystone probe and an in-place repair of keystone's native
+    /// library, because a `fw patch` ran Python patchers; those are Swift
+    /// (`FirmwarePatcher`), and the only thing left needing an interpreter is
+    /// the pymobiledevice3 restore bridge — which is exactly what the probe
+    /// covers.
     public func pythonExecutable() throws -> URL {
         if let override = ProcessInfo.processInfo.environment["VPHONE_PYTHON"], !override.isEmpty {
             let u = URL(fileURLWithPath: override)
             if pythonIsUsable(u) { return u }
         }
         let devVenv = base.appendingPathComponent(".venv/bin/python3")
-        if venvIsUsable(devVenv) { return devVenv }
-        // Repair in place before rebuilding — a missing dylib is not worth a
-        // full re-install.
-        if pythonIsUsable(managedVenvPython),
-           keystoneIsUsable(managedVenvPython) || repairKeystone(managedVenvPython) {
-            return managedVenvPython
-        }
+        if pythonIsUsable(devVenv) { return devVenv }
+        if pythonIsUsable(managedVenvPython) { return managedVenvPython }
         return try bootstrapManagedVenv()
     }
 
@@ -262,11 +211,6 @@ public struct VPhoneResources: Sendable {
             }
             guard pythonIsUsable(py) else {
                 lastError = "The Python environment built with \(host.path) is missing a required package"; continue
-            }
-            guard keystoneIsUsable(py) || repairKeystone(py) else {
-                lastError = "Could not set up keystone in the Python environment built with \(host.path). "
-                    + "Install it with 'brew install keystone', or install cmake so it can be built"
-                continue
             }
             log("[+] Python environment ready: \(py.path)")
             return py

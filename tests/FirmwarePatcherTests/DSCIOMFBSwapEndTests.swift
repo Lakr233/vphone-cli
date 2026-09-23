@@ -2,13 +2,14 @@
 //
 // There is no independent checker for a patched dyld shared cache: `codesign -v`
 // does not apply to a cache chunk, and the only other implementation of this
-// patch is `scripts/patchers/cfw_patch_iomfb_swapend.py`. So the parity test is
-// literal. Two clones of the real 24A435 arm64e cache; the Python patches one
-// through its own CLI (`cfw.py patch-iomfb-swapend`, exactly as
-// `cfw_install*.sh` and `cfw-kit` invoke it), `DSCIOMFBSwapEndPatcher` patches
-// the other, and then all 79 chunk files are compared byte for byte. Anything
-// short of byte-identical is a failing port, including a patch that lands in the
-// right place but re-attests a different page.
+// patch was `scripts/patchers/cfw_patch_iomfb_swapend.py`, driven through
+// `cfw.py patch-iomfb-swapend` exactly as `cfw_install*.sh` and `cfw-kit`
+// invoked it. That Python has been removed, so what it produced on the real
+// 24A435 arm64e cache — at each of the three target sizes — is frozen in
+// `FrozenReference` below: the site it landed on, the size it found there, and
+// the SHA-256 of the one chunk it changed. `DSCIOMFBSwapEndPatcher` runs on a
+// clone and is graded against those. A patch that lands in the right place but
+// re-attests a different page lands on a different digest.
 //
 // The cache is required. `VPHONE_DSC_PRISTINE` points at it, defaulting to
 // `ipsws/ref_extract/dsc_pristine`, and its absence FAILS rather than passing
@@ -28,9 +29,77 @@
 // are pinned on every machine, fixture or no fixture.
 
 import Capstone
+import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
 import Testing
+
+// MARK: - The frozen reference
+
+/// What the reference Python did on the real 24A435 arm64e shared cache.
+///
+/// Recorded from live runs at commit 78cbeea, one per target size:
+///
+///     .venv/bin/python3 scripts/patchers/cfw.py patch-iomfb-swapend \
+///         <clone of ipsws/ref_extract/dsc_pristine> --target-size <size>
+private enum FrozenReference {
+    /// Python: `[.] _kern_SwapEnd @ 0x22AC0C334`.
+    static let functionVMA: UInt64 = 0x2_2AC0_C334
+
+    /// Python: the `at 0x22AC0C358` on every `patched`/`already` line — the
+    /// `mov w3, #imm` of the external-method call set-up.
+    static let siteVMA: UInt64 = 0x2_2AC0_C358
+
+    /// Python: the left half of `size 0x6E0 -> …`, i.e. what this cache's own
+    /// userland sends today.
+    static let originalSize: UInt32 = 0x6E0
+
+    /// What one target size produced.
+    struct SizeRun {
+        /// Sites the Python's `[+] patched … size … at …` lines counted.
+        let sitesWritten: Int
+        /// Whether it reported `[=] already 0x… at 0x22AC0C358` instead.
+        let wasAlreadyCorrect: Bool
+        /// The chunks `cmp -s` found moved against the pristine tree, with the
+        /// SHA-256 `shasum -a 256` read off each afterwards.
+        let changedChunks: [String: String]
+    }
+
+    /// `--target-size 0x588` (the 26.4 base). Python: `patched … _kern_SwapEnd
+    /// size 0x6E0 -> 0x588 at 0x22AC0C358`, then `re-attest: wrote slot 2563 of
+    /// dyld_shared_cache_arm64e.38` and `updated 1 slot hash(es) across 1
+    /// chunk(s)`.
+    ///
+    /// `--target-size 0x560` (the 26.1 base) is the same story with a different
+    /// immediate, and so a different digest for the same chunk.
+    ///
+    /// `--target-size 0x6E0` is the size the cache already sends: Python
+    /// printed `already 0x6E0 at 0x22AC0C358; re-attesting page only`, the
+    /// re-attestation was a no-op (`slot already matches`), and no chunk moved
+    /// at all.
+    ///
+    /// Re-running any of the three over its own output printed `already 0x… at
+    /// 0x22AC0C358`, wrote no site, and left the digest below standing.
+    static let bySize: [UInt32: SizeRun] = [
+        0x588: SizeRun(
+            sitesWritten: 1,
+            wasAlreadyCorrect: false,
+            changedChunks: [
+                "dyld_shared_cache_arm64e.38":
+                    "b49bbe7872273242c73973a451d9dac1a7ec803da8efeb5dcd1e04c7b5292f1d",
+            ]
+        ),
+        0x560: SizeRun(
+            sitesWritten: 1,
+            wasAlreadyCorrect: false,
+            changedChunks: [
+                "dyld_shared_cache_arm64e.38":
+                    "72f07ea587a523ed602d30f8f9a3508d291451a75ab90a0c578313d208b8a0e4",
+            ]
+        ),
+        0x6E0: SizeRun(sitesWritten: 0, wasAlreadyCorrect: true, changedChunks: [:]),
+    ]
+}
 
 // MARK: - Fixture discovery
 
@@ -67,11 +136,6 @@ private enum SwapEndFixture {
     static let skipReason: Comment =
         "VPHONE_DSC_FIXTURE_OPTIONAL=1 and no dyld_shared_cache_arm64e fixture present"
 
-    static let venvMissing: Comment = """
-    the project venv is required for the cross-check against \
-    scripts/patchers/cfw_patch_iomfb_swapend.py — run `make setup_venv`
-    """
-
     /// Where clones go. Deliberately *not* under `ipsws/ref_extract`: that tree
     /// is the pristine reference the rest of the suite compares against, and
     /// nothing here may leave anything in it.
@@ -79,17 +143,6 @@ private enum SwapEndFixture {
         ProcessInfo.processInfo.environment["VPHONE_DSC_SCRATCH"]
             .map { URL(fileURLWithPath: $0) }
             ?? repoRoot.appendingPathComponent("ipsws/scratch_dsciomfbswapend")
-    }
-
-    /// The project venv, which is where the reference Python lives.
-    static var python: URL? {
-        let url = repoRoot.appendingPathComponent(".venv/bin/python3")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
-    }
-
-    /// The CLI the install scripts call, which is the contract being preserved.
-    static var patcherCLI: URL {
-        repoRoot.appendingPathComponent("scripts/patchers/cfw.py")
     }
 
     /// Clone the pristine cache into a fresh directory the caller may write to.
@@ -158,43 +211,20 @@ private enum SwapEndSubprocess {
     }
 }
 
-// MARK: - What the reference Python did, read back off its own output
+// MARK: - Digests
 
-/// The Python prints one line per site it writes. Parsing that is how the test
-/// learns the *number of sites* and the address the reference chose, without
-/// this file writing either of them down.
-private struct PythonSwapEndRun {
-    /// Addresses the Python said it wrote.
-    let siteVMAs: [UInt64]
-    /// The address it reported when it found the size already correct.
-    let alreadyCorrectVMA: UInt64?
-    let output: String
-
-    var sitesWritten: Int { siteVMAs.count }
-    var alreadyCorrect: Bool { alreadyCorrectVMA != nil }
-    /// The site the Python landed on, whether or not it wrote to it.
-    var siteVMA: UInt64? { siteVMAs.first ?? alreadyCorrectVMA }
-
-    init(output: String) {
-        self.output = output
-        var written: [UInt64] = []
-        var already: UInt64?
-        for line in output.split(separator: "\n") {
-            if line.contains("[+] patched"), line.contains("_kern_SwapEnd size"),
-               let match = line.firstMatch(of: /\bat 0x([0-9A-Fa-f]+)\b/),
-               let vma = UInt64(match.1, radix: 16)
-            {
-                written.append(vma)
-            }
-            if line.contains("[=] already"),
-               let match = line.firstMatch(of: /\bat 0x([0-9A-Fa-f]+)\b/),
-               let vma = UInt64(match.1, radix: 16)
-            {
-                already = vma
-            }
+/// SHA-256 of a cache chunk, streamed so a 131 MB file never lands in memory
+/// whole. The hex spelling matches `shasum -a 256`, which produced the frozen
+/// digests.
+private enum Digest {
+    static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let block = try handle.read(upToCount: 4 << 20), !block.isEmpty {
+            hasher.update(data: block)
         }
-        siteVMAs = written
-        alreadyCorrectVMA = already
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -371,27 +401,10 @@ struct DSCIOMFBSwapEndShapeTests {
     }
 }
 
-// MARK: - 2 · Parity against the Python, on the real cache
+// MARK: - 2 · Parity against the frozen reference, on the real cache
 
 @Suite(.serialized, .enabled(if: SwapEndFixture.runs, SwapEndFixture.skipReason))
 struct DSCIOMFBSwapEndParityTests {
-    /// Run the reference Python through the CLI the install scripts use.
-    private func runPython(on directory: URL, targetSize: UInt32) throws -> PythonSwapEndRun {
-        let python = try #require(SwapEndFixture.python, SwapEndFixture.venvMissing)
-        let result = try SwapEndSubprocess.run(
-            executable: python,
-            arguments: [
-                SwapEndFixture.patcherCLI.path,
-                "patch-iomfb-swapend",
-                directory.path,
-                "--target-size",
-                "0x" + String(targetSize, radix: 16),
-            ]
-        )
-        #expect(result.status == 0, "python patcher failed: \(result.stdout)\(result.stderr)")
-        return PythonSwapEndRun(output: result.stdout)
-    }
-
     /// The three sizes that matter: the 26.4 base's, the 26.1 base's, and the
     /// size this cache's own userland already sends — which is the case where
     /// the right answer is to write nothing at all.
@@ -402,18 +415,20 @@ struct DSCIOMFBSwapEndParityTests {
     static let targetSizes: [UInt32] = [0x588, 0x560, 0x6E0]
 
     @Test(
-        "Swift and Python patch the real cache to the same bytes",
+        "Swift patches the real cache to the reference's bytes",
         arguments: targetSizes
     )
-    func matchesPythonByteForByte(targetSize: UInt32) throws {
+    func matchesTheReferenceByteForByte(targetSize: UInt32) throws {
         let pristine = try #require(SwapEndFixture.pristine, SwapEndFixture.missing)
         let suffix = String(targetSize, radix: 16)
+        let reference = try #require(
+            FrozenReference.bySize[targetSize],
+            "no frozen reference run for this target size"
+        )
 
-        let pythonClone = try SwapEndFixture.cloneCache(named: "python_\(suffix)")
         let swiftClone = try SwapEndFixture.cloneCache(named: "swift_\(suffix)")
-        defer { SwapEndFixture.discard(pythonClone, swiftClone) }
+        defer { SwapEndFixture.discard(swiftClone) }
 
-        let reference = try runPython(on: pythonClone, targetSize: targetSize)
         let mine = try DSCIOMFBSwapEndPatcher.patch(
             chunksDirectory: swiftClone,
             targetSize: targetSize,
@@ -423,42 +438,35 @@ struct DSCIOMFBSwapEndParityTests {
         // Same number of sites, at the same address, from the same source size.
         #expect(
             mine.sitesWritten == reference.sitesWritten,
-            "swift wrote \(mine.sitesWritten) site(s), python wrote \(reference.sitesWritten)"
+            "swift wrote \(mine.sitesWritten) site(s), reference \(reference.sitesWritten)"
         )
-        #expect(mine.wasAlreadyCorrect == reference.alreadyCorrect)
-        let referenceVMA = try #require(
-            reference.siteVMA,
-            "the Python reported no SwapEnd site at all: \(reference.output)"
-        )
-        #expect(mine.siteVMA == referenceVMA)
+        #expect(mine.wasAlreadyCorrect == reference.wasAlreadyCorrect)
+        #expect(mine.siteVMA == FrozenReference.siteVMA)
+        #expect(mine.originalSize == FrozenReference.originalSize)
         #expect(mine.targetSize == targetSize)
 
-        // And, the part that actually matters: identical caches.
-        let differing = try CacheComparison.differingFiles(pythonClone, swiftClone)
-        #expect(differing.isEmpty, "chunks differ between Swift and Python: \(differing)")
-
-        // A patch that changed nothing would also pass the comparison above, so
-        // pin what changed relative to the untouched cache.
+        // And, the part that actually matters: the reference's chunks, with the
+        // reference's bytes.
         let touched = try CacheComparison.differingFiles(pristine, swiftClone)
-        if mine.sitesWritten == 0 {
-            #expect(touched.isEmpty, "nothing should have been written, but \(touched) changed")
-        } else {
-            #expect(
-                touched.count == 1,
-                "expected exactly one chunk to change, got \(touched)"
-            )
+        #expect(touched.sorted() == reference.changedChunks.keys.sorted())
+        for name in touched {
+            let digest = try Digest.sha256(of: swiftClone.appendingPathComponent(name))
+            let frozen = reference.changedChunks[name] ?? "(not a chunk the Python moved)"
+            #expect(digest == frozen, "\(name): Swift \(digest), reference \(frozen)")
+        }
+
+        if mine.sitesWritten > 0 {
             let reattested = try #require(mine.reattestation)
             #expect(reattested.updated.count == 1)
             #expect(reattested.isFullyAttested)
         }
 
         print(
-            "[parity 0x\(suffix)] python \(reference.sitesWritten) site(s), "
-                + "swift \(mine.sitesWritten) site(s) "
+            "[parity 0x\(suffix)] \(mine.sitesWritten) site(s) "
                 + "(0x\(String(mine.originalSize, radix: 16, uppercase: true)) -> "
                 + "0x\(String(mine.targetSize, radix: 16, uppercase: true)) at "
                 + "0x\(String(mine.siteVMA, radix: 16, uppercase: true))); "
-                + "chunks changed: \(touched); swift vs python: identical"
+                + "chunks changed: \(touched) — digests match the reference"
         )
     }
 
@@ -476,8 +484,8 @@ struct DSCIOMFBSwapEndParityTests {
         )
         #expect(mine.sitesWritten == 0)
         #expect(mine.reattestation == nil)
-        #expect(mine.siteVMA != 0)
-        #expect(mine.originalSize != 0)
+        #expect(mine.siteVMA == FrozenReference.siteVMA)
+        #expect(mine.originalSize == FrozenReference.originalSize)
 
         let touched = try CacheComparison.differingFiles(pristine, clone)
         #expect(touched.isEmpty, "a dry run wrote to \(touched)")
@@ -523,6 +531,13 @@ struct DSCIOMFBSwapEndParityTests {
 
         let differing = try CacheComparison.differingFiles(afterFirst, clone)
         #expect(differing.isEmpty, "a second run rewrote \(differing)")
+
+        // The reference was a no-op on its own output too, so the bytes here
+        // must still be the ones it left behind for 0x588.
+        let frozen = try #require(FrozenReference.bySize[0x588])
+        for (name, digest) in frozen.changedChunks {
+            #expect(try Digest.sha256(of: clone.appendingPathComponent(name)) == digest)
+        }
         print("[idempotent] second run wrote 0 sites and changed 0 chunks")
     }
 
@@ -537,7 +552,7 @@ struct DSCIOMFBSwapEndParityTests {
             of: DSCIOMFBSwapEndPatcher.symbolName,
             inImage: DSCIOMFBSwapEndPatcher.imagePath
         )
-        #expect(functionVMA != 0)
+        #expect(functionVMA == FrozenReference.functionVMA)
 
         let disassembler = ARM64Disassembler()
         let instructions = try DSCIOMFBSwapEndPatcher.disassembleFunction(
@@ -572,6 +587,9 @@ struct DSCIOMFBSwapEndParityTests {
                 disassembler: disassembler
             )
         )
+        // The reference resolved the same function and landed on the same move.
+        #expect(site.instruction.address == FrozenReference.siteVMA)
+        #expect(size.immediate == Int64(FrozenReference.originalSize))
         print(
             "[resolve] \(DSCIOMFBSwapEndPatcher.symbolName) @ "
                 + "0x\(String(functionVMA, radix: 16, uppercase: true)), size move "
