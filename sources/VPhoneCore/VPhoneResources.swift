@@ -95,8 +95,6 @@ public struct VPhoneResources: Sendable {
     public var gpuDriverArchive: URL {
         scriptsDir.appendingPathComponent("payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
     }
-    public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
-    public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
 
     public var vphoned: URL {
         let bundled = base.appendingPathComponent("vphoned.signed")

@@ -32,31 +32,11 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         // binary is unentitled and always launches.
         let launcher: VPhoneGuestLaunchPlanner
         do {
-            launcher = try VPhoneGuestLaunchPlanner()
+            launcher = try VPhoneHostPreflight.check()
         } catch {
             FileHandle.standardError.write(Data("error: \(error)\n".utf8))
             throw ExitCode(1)
         }
-        let bootBinary = launcher.guestExecutable
-
-        // Host preflight — same gate make boot applies. Point it at the guest
-        // binary (VPHONE_CLI_BIN) so it checks what actually has to launch, not
-        // a dev .build/release path that doesn't exist inside the bundled .app.
-        let preflightArgs = ["--assert-bootable"]
-        var preflightEnv = ProcessInfo.processInfo.environment
-        preflightEnv["VPHONE_CLI_BIN"] = bootBinary.path
-        let pre = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/bin/zsh"),
-            [layout.preflightScript.path] + preflightArgs,
-            cwd: resources.base,
-            env: preflightEnv
-        )
-        if !pre.stdout.isEmpty { print(pre.stdout, terminator: "") }
-        guard pre.succeeded else {
-            FileHandle.standardError.write(Data(pre.stderr.utf8))
-            throw ExitCode(pre.exitCode == 0 ? 1 : pre.exitCode)
-        }
-
         if !dfu {
             _ = try layout.stageVphoned(into: bundle)
         }

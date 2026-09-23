@@ -300,13 +300,13 @@ amfi_off:
 	@sudo "$(CURDIR)/$(AMFI_BINARY)" off
 
 boot_host_preflight: build
-	zsh $(SCRIPTS)/boot_host_preflight.sh
+	"$(CURDIR)/$(BINARY)" host preflight
 
 # Checks the ENTITLED binary, because that is the one amfid can refuse.
 # Running `vphone-cli --help` here would prove nothing: it carries no
 # entitlements and launches on any host.
 define BOOT_BINARY_CHECK
-	@zsh $(SCRIPTS)/boot_host_preflight.sh $(1)
+	@"$(CURDIR)/$(BINARY)" host preflight --quiet
 	@tmp_log="$$(mktemp -t vphone-boot-preflight.XXXXXX)"; \
 	set +e; \
 	"$(CURDIR)/$(VM_BINARY)" --help >"$$tmp_log" 2>&1; \
@@ -394,41 +394,9 @@ restore: build
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
 
-# The `ipsw fw aea` loop below stays: decrypting the AEA images is not part of
-# what moved in-process. `vphone-cli restore --offline` then picks the same
-# first-sorted .shsh this recipe checks for, and its own AEA pass finds nothing
-# left to do after the loop has run.
+# The native restore command validates the SHSH and decrypts AEA images itself.
 restore_offline: build
 	@$(call _resolve_ecid); \
-	SHSH=$$(ls "$(VM_DIR_ABS)/"*.shsh 2>/dev/null | head -1); \
-	if [ -z "$$SHSH" ]; then \
-		echo "[-] No .shsh file in $(VM_DIR)/ — run 'make restore_get_shsh' first"; \
-		exit 1; \
-	fi; \
-	RESTORE_SRC=$$(echo "$(VM_DIR_ABS)/iPhone"*_Restore); \
-	if [ ! -d "$$RESTORE_SRC" ]; then \
-		echo "[-] No iPhone*_Restore directory in $(VM_DIR)/"; \
-		exit 1; \
-	fi; \
-	echo "[+] Decrypting AEA images in place…"; \
-	for aea in "$$RESTORE_SRC"/*.dmg.aea; do \
-		[ -f "$$aea" ] || continue; \
-		[ "$$(xxd -l 4 -p "$$aea")" = "41454131" ] || continue; \
-		base=$$(basename "$$aea"); \
-		if ! ipsw fw aea -o "$$RESTORE_SRC" "$$aea"; then \
-			echo "[-] Could not decrypt $$base with ipsw — restore stopped."; \
-			exit 1; \
-		fi; \
-		if ! mv -f "$$RESTORE_SRC/$${base%.aea}" "$$aea"; then \
-			echo "[-] Could not replace $$base with its decrypted image — restore stopped."; \
-			exit 1; \
-		fi; \
-		if [ "$$(xxd -l 4 -p "$$aea")" = "41454131" ]; then \
-			echo "[-] $$base is still encrypted after decryption — restore stopped."; \
-			exit 1; \
-		fi; \
-	done; \
-	echo "[+] Restoring offline with SHSH: $$(basename $$SHSH)"; \
 	"$(CURDIR)/$(BINARY)" restore $(RESTORE_VM_ARGS) --offline \
 		$(if $(RESTORE_UDID),--udid $(RESTORE_UDID),) \
 		--ecid "$$ECID"
@@ -439,5 +407,5 @@ restore_offline: build
 
 .PHONY: cfw_install
 
-cfw_install:
-	$(if $(call truthy,$(FRIDA)),VPHONE_FRIDA=1) zsh "$(CURDIR)/$(SCRIPTS)/cfw_install_host.sh" "$(VM_DIR_ABS)"
+cfw_install: build
+	"$(CURDIR)/$(BINARY)" cfw install $(RESTORE_VM_ARGS) --project-root "$(CURDIR)"

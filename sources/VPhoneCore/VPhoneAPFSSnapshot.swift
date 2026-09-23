@@ -6,6 +6,7 @@ public enum VPhoneAPFSSnapshotError: Error, CustomStringConvertible {
     case prefixLengthMismatch(given: Int, required: Int)
     case cannotOpen(URL, errno: Int32)
     case cannotMap(URL, errno: Int32)
+    case cannotAccess(URL, operation: String, errno: Int32)
 
     public var description: String {
         switch self {
@@ -15,6 +16,8 @@ public enum VPhoneAPFSSnapshotError: Error, CustomStringConvertible {
             "Could not open \(url.path): \(String(cString: strerror(err)))"
         case let .cannotMap(url, err):
             "Could not map \(url.path): \(String(cString: strerror(err)))"
+        case let .cannotAccess(url, operation, err):
+            "Could not \(operation) \(url.path): \(String(cString: strerror(err)))"
         }
     }
 }
@@ -198,16 +201,27 @@ public enum VPhoneAPFSSnapshot {
         }
         let length = Int(stats.st_size)
 
-        let protection = dryRun ? PROT_READ : (PROT_READ | PROT_WRITE)
-        guard let base = mmap(nil, length, protection, MAP_SHARED, fd, 0),
-              base != MAP_FAILED
-        else {
-            throw VPhoneAPFSSnapshotError.cannotMap(url, errno: errno)
+        // A Disk.img is commonly 64 GiB. Mapping and touching all of it at
+        // once can fill host RAM, even though the file is sparse. Each window
+        // starts on a page and APFS block boundary, so scan() still sees each
+        // complete metadata block and returns the same records.
+        let windowSize = 64 * 1024 * 1024
+        var blocks: [(blockOffset: Int, offsetsInBlock: [Int])] = []
+        var snapshotName: String?
+        for offset in stride(from: 0, to: length, by: windowSize) {
+            let count = min(windowSize, length - offset)
+            guard let base = mmap(nil, count, PROT_READ, MAP_PRIVATE, fd, off_t(offset)),
+                  base != MAP_FAILED else {
+                throw VPhoneAPFSSnapshotError.cannotMap(url, errno: errno)
+            }
+            let part = scan(UnsafeRawBufferPointer(start: base, count: count))
+            if snapshotName == nil { snapshotName = part.snapshotName }
+            blocks.append(contentsOf: part.blocks.map {
+                (blockOffset: offset + $0.blockOffset, offsetsInBlock: $0.offsetsInBlock)
+            })
+            _ = munmap(base, count)
         }
-        defer { munmap(base, length) }
-
-        let image = UnsafeRawBufferPointer(start: base, count: length)
-        let report = scan(image)
+        let report = Report(snapshotName: snapshotName, blocks: blocks)
 
         guard !report.isEmpty else {
             log("No com.apple.os.update-* root snapshot found. The snapshot may already be renamed.")
@@ -224,27 +238,37 @@ public enum VPhoneAPFSSnapshot {
             return report
         }
 
-        let writable = UnsafeMutableRawBufferPointer(start: base, count: length)
         for (blockOffset, offsets) in report.blocks {
-            for within in offsets {
-                let at = blockOffset + within
-                for (k, byte) in newPrefixBytes.enumerated() {
-                    writable[at + k] = byte
+            var block = Data(count: blockSize)
+            let readCount = block.withUnsafeMutableBytes {
+                pread(fd, $0.baseAddress, blockSize, off_t(blockOffset))
+            }
+            guard readCount == blockSize else {
+                throw VPhoneAPFSSnapshotError.cannotAccess(url, operation: "read", errno: errno)
+            }
+            block.withUnsafeMutableBytes { raw in
+                for within in offsets {
+                    for (k, byte) in newPrefixBytes.enumerated() {
+                        raw[within + k] = byte
+                    }
+                }
+                let sum = checksum(UnsafeRawBufferPointer(raw))
+                var littleEndian = sum.littleEndian
+                withUnsafeBytes(of: &littleEndian) { bytes in
+                    for (k, byte) in bytes.enumerated() { raw[k] = byte }
                 }
             }
-            // Recompute over the block as it now stands, then stamp it in.
-            let block = UnsafeRawBufferPointer(
-                rebasing: image[blockOffset..<blockOffset + blockSize]
-            )
-            var sum = checksum(block)
-            withUnsafeBytes(of: &sum) { bytes in
-                for (k, byte) in bytes.enumerated() { writable[blockOffset + k] = byte }
+            let written = block.withUnsafeBytes {
+                pwrite(fd, $0.baseAddress, blockSize, off_t(blockOffset))
+            }
+            guard written == blockSize else {
+                throw VPhoneAPFSSnapshotError.cannotAccess(url, operation: "write", errno: errno)
             }
             log("Block 0x\(String(blockOffset, radix: 16)): renamed \(offsets.count) record(s) and fixed the checksum.")
         }
 
-        guard msync(base, length, MS_SYNC) == 0 else {
-            throw VPhoneAPFSSnapshotError.cannotMap(url, errno: errno)
+        guard fsync(fd) == 0 else {
+            throw VPhoneAPFSSnapshotError.cannotAccess(url, operation: "sync", errno: errno)
         }
         log("Done. Root snapshot renamed to \(newPrefix)*. The VM will boot the live volume.")
         return report

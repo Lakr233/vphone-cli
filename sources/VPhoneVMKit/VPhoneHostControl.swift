@@ -18,6 +18,7 @@ import ImageIO
 ///   {"t":"swipe","x1":645,"y1":2600,"x2":645,"y2":1400,"ms":300}  → swipe
 ///   {"t":"key","name":"home"}                   → hardware key (home/power/volup/voldown)
 ///   {"t":"type","text":"Hello"}                 → set guest clipboard
+///   {"t":"ping"}                                → vphoned request/response
 ///
 /// All commands except "screenshot" wait briefly then capture a compact screen
 /// image returned as `"image":"<base64>"` in the response.  Pass `"screen":false`
@@ -199,6 +200,25 @@ class VPhoneHostControl {
         let screenDelay = json["delay"] as? Int ?? 500
 
         switch type {
+        case "ping":
+            let semaphore = DispatchSemaphore(value: 0)
+            let result = ResultBox()
+            Task { @MainActor in
+                defer { semaphore.signal() }
+                guard let controller, let control = controller.control, control.isConnected else {
+                    result.error = "guest not connected"
+                    return
+                }
+                do {
+                    try await control.sendPing()
+                    result.ok = true
+                } catch {
+                    result.error = "\(error)"
+                }
+            }
+            semaphore.wait()
+            writeResponse(fd, ok: result.ok, error: result.error)
+
         case "screenshot":
             let outputPath = json["path"] as? String
             let semaphore = DispatchSemaphore(value: 0)

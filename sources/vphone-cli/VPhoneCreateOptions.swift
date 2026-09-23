@@ -11,7 +11,6 @@ extension VPhoneCreateOrchestrator {
         public var forceDSCMaxSlide: Bool
         public var enableFrida: Bool
         public var rootPopup: Bool
-        public var interactive: Bool
         public var cpuCount: UInt
         public var memoryMB: UInt64
         public var diskSizeGB: UInt64
@@ -26,7 +25,6 @@ extension VPhoneCreateOrchestrator {
             forceDSCMaxSlide: Bool = false,
             enableFrida: Bool = false,
             rootPopup: Bool = false,
-            interactive: Bool = false,
             cpuCount: UInt = 8,
             memoryMB: UInt64 = 8192,
             diskSizeGB: UInt64 = 64,
@@ -40,7 +38,6 @@ extension VPhoneCreateOrchestrator {
             self.forceDSCMaxSlide = forceDSCMaxSlide
             self.enableFrida = enableFrida
             self.rootPopup = rootPopup
-            self.interactive = interactive
             self.cpuCount = cpuCount
             self.memoryMB = memoryMB
             self.diskSizeGB = diskSizeGB

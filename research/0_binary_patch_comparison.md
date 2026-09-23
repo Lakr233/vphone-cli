@@ -3,7 +3,7 @@
 > **Current product scope (September 2026):** the tables below preserve the
 > historical patch comparison. The public runtime now exposes only JB. Guest
 > package managers, Procursus, BaseBin hooks, and first-boot package setup are
-> outside this repository. The JB install retains the base system patches,
+> outside this repository. The native Swift JB install retains the base system patches,
 > launchd jetsam guard, debugserver entitlement edit, iOS 27 Campo entitlement
 > edit, GPU driver, and mandatory vphoned. Old variant rows are research history,
 > not available install modes.

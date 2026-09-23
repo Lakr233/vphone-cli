@@ -129,10 +129,8 @@ struct VPhoneRestoreCommand: ParsableCommand {
 
 /// The Python bridge's `recovery-probe`, under the same name.
 ///
-/// It exists for `scripts/setup_machine.sh`, which polls for a DFU endpoint
-/// from the shell and has nothing but an exit code to go on — `vm create` does
-/// the same waiting in process (`VPhoneCreateOrchestrator.waitForRecovery`) and
-/// does not go through here.
+/// A standalone DFU probe. `vm create` does the same waiting in process
+/// (`VPhoneCreateOrchestrator.waitForRecovery`).
 struct VPhoneRecoveryProbeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "recovery-probe",
@@ -164,6 +162,7 @@ struct VPhoneCFWCommand: ParsableCommand {
         abstract: "Custom-firmware install (host-mount; VM must be off; re-execs sudo)",
         subcommands: [
             VPhoneCFWInstallCommand.self,
+            VPhoneCFWInstallRootCommand.self,
             VPhoneCFWFlipSnapshotCommand.self,
             // The per-step patchers the installers used to reach through
             // scripts/patchers/cfw.py for — see VPhoneCFWPatchCLI.swift.
@@ -248,46 +247,11 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
 
-        // Env the bundled scripts read: rides along via `sudo -E` by default;
-        // --root-popup forwards it inline (do shell script's bare env).
-        try FileManager.default.createDirectory(at: resources.ipswCacheDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        var scriptEnv: [String: String] = [
-            // The script re-execs under sudo, so it cannot work out where we
-            // live from its own path in the bundled case. Tell it.
-            "VPHONE_CLI_BIN": VPhoneResources.runningExecutable().path,
-            // No VPHONE_PYTHON: the installers call `vphone-cli cfw <verb>` for
-            // every patch, and cfw_install_host.sh stopped reading it when the
-            // last Python patcher was deleted.
-            "IPSW_DIR": resources.ipswCacheDir.path,
-            "VPHONE_SEAL_DIR": resources.sealVolumeCacheDir.path,
-        ]
-        if forceDSCMaxSlide { scriptEnv["FORCE_DSC_MAXSLIDE"] = "1" }
-
-        let args = [resources.cfwInstallHostScript.path, bundle.url.path]
-        let code: Int32
-        if rootPopup {
-            // Forward SUDO_USER (sudo would set it) so the script's chown-back runs.
-            scriptEnv["SUDO_USER"] = NSUserName()
-            code = try VPhoneProcessRunner.runWithAdminPrivileges(
-                URL(fileURLWithPath: "/bin/zsh"),
-                args,
-                env: scriptEnv,
-                echo: v.showsToolDetail
-            )
-        } else {
-            var env = ProcessInfo.processInfo.environment
-            for (key, value) in scriptEnv { env[key] = value }
-            if v.tracesInternals {
-                print("[trace] spawning: /bin/zsh \(args.joined(separator: " ")) (env keys: VPHONE_CLI_BIN, IPSW_DIR, VPHONE_SEAL_DIR)")
-            }
-            code = try VPhoneProcessRunner.runStreaming(
-                URL(fileURLWithPath: "/bin/zsh"),
-                args,
-                env: env,
-                echo: v.showsToolDetail
-            )
-        }
+        let code = try VPhoneCFWInstaller.elevate(
+            bundle: bundle.url, resources: resources,
+            forceDSCMaxSlide: forceDSCMaxSlide, rootPopup: rootPopup,
+            verbose: v.showsToolDetail
+        )
         if code == 0 {
             if let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {
                 print("[cfw] recorded variant jb, device \(info.device ?? "?")")

@@ -62,6 +62,8 @@ sources/
 │   ├── VPhoneVMTransferCLI.swift     # VM transfer
 │   ├── VPhoneCreateOptions.swift     # Create-flow option set
 │   ├── VPhoneCreateOrchestrator.swift # Native `vm create` pipeline driver
+│   ├── VPhoneCFWInstaller.swift       # Native host-mount JB install
+│   ├── VPhoneHostPreflight.swift      # Native host launch check
 │   ├── VPhoneFirmwareSelection.swift # Interactive firmware picker
 │   ├── VPhoneVMSelection.swift       # Interactive VM picker
 │   └── VPhoneProgressBar.swift       # Terminal progress rendering
@@ -172,19 +174,13 @@ sources/
         ├── VPhoneTouchIDMonitor.swift # BiometricKit delegate sink
         └── VPhoneScreenRecorder.swift # VM screen recording to file
 
-scripts/                          # Shell only — the CFW patchers are `vphone-cli cfw <verb>` now,
-│                                 # and there is no Python here at all. Every .sh declares its
-│                                 # tier on line 2; `[d]` = dist (ships), `[b]` = build, `[g]` = guest
-├── dist_manifest.sh          [b] # What ships. The allowlist build.sh and `make bundle` stage from
+scripts/                          # Build scripts and payloads only; no runtime shell
+├── build.sh                  [b] # Compile, sign and bundle
+├── dist_manifest.sh          [b] # Payload allowlist staged by build.sh
 ├── guest_binaries.mk         [b] # Cross-compiles vphoned (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
-├── tail_jb_patch_logs.sh     [b] # Tail JB patch log output
-├── cfw_install.sh            [d] # Base system patches and vphoned
-├── cfw_install_jb.sh         [d] # JB system patches; no package bootstrap
-├── cfw_install_host.sh       [d] # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
-├── boot_host_preflight.sh    [d] # Why the host cannot launch vphone-vm
-├── payloads/                 [d] # Small GPU driver archive; no bootstrap payloads
+├── payloads/                     # Small GPU driver archive; no bootstrap payloads
 ├── vphoned/                      # Guest daemon source; only its plist and entitlements ship
 ├── tweakloader/ vpregister/ vcamcaptured/ camfix/ # Unshipped experimental sources
 └── repos/                        # Toolchain source (git submodule: insert_dylib)

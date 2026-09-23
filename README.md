@@ -58,6 +58,10 @@ vphone-cli vm create myphone \
 vphone-cli vm launch myphone
 ```
 
+The single supported firmware mode is JB. Creation installs vphoned and the
+required system patches, then checks that vphoned connects. It does not install
+a package manager, SSH server, or user bootstrap.
+
 ## Commands
 
 `vphone-cli vm create` runs the whole pipeline; the individual steps below let you drive it manually or re-run one stage.

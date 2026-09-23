@@ -24,7 +24,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     var forceDSCMaxSlide = false
     @Flag(
         name: .customLong("frida"),
-        help: "Opt in to Frida Stalker support: install re.frida.server (latest GitHub release) + jb/exp kernel relaxations"
+        help: "Opt in to Frida Stalker kernel relaxations"
     )
     var frida = false
     @Flag(
@@ -32,10 +32,9 @@ struct VPhoneVMCreateCommand: ParsableCommand {
         help: "Elevate the CFW host-mount via macOS's native authentication dialog (osascript) instead of a sudo prompt"
     )
     var rootPopup = false
-    @Flag(help: "Prompt at first-boot stages instead of running non-interactively") var interactive = false
     @Flag(
         name: .customLong("keep-artifacts"),
-        help: "Keep intermediate build artifacts (built restore firmware, extracted base-IPSW caches, extracted CFW input dirs) instead of removing them after use. Source archives (.ipsw / .tar.zst) are always kept."
+        help: "Keep the prepared restore tree after installation. Source IPSWs are always kept."
     )
     var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
@@ -67,7 +66,6 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             forceDSCMaxSlide: forceDSCMaxSlide,
             enableFrida: frida,
             rootPopup: rootPopup,
-            interactive: interactive,
             diskSizeGB: diskSize,
             verbosity: VPhoneVerbosity(count: verboseCount),
             keepArtifacts: keepArtifacts

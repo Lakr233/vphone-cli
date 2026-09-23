@@ -3,11 +3,6 @@ import Foundation
 import Testing
 
 struct LaunchLayoutTests {
-    @Test func resolvesArtifactPaths() {
-        let layout = VPhoneLaunchLayout(projectRoot: URL(fileURLWithPath: "/proj"))
-        #expect(layout.preflightScript.path == "/proj/scripts/boot_host_preflight.sh")
-    }
-
     @Test func delegatesToResources() {
         let resources = VPhoneResources(base: URL(fileURLWithPath: "/proj"))
         let layout = VPhoneLaunchLayout(resources: resources)

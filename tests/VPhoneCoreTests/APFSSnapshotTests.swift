@@ -148,6 +148,33 @@ struct APFSSnapshotTests {
         #expect(stored == computed)
     }
 
+    @Test("renames snapshot records on both sides of a 64 MiB scan window")
+    func renameAcrossWindows() throws {
+        let name = Self.snapshotName(hash: Self.validHash)
+        let first = Self.makeValidBlock(payload: name, at: 100)
+        let second = Self.makeValidBlock(payload: name, at: 200)
+        let url = try Self.write(first)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.seek(toOffset: 64 * 1024 * 1024)
+        try handle.write(contentsOf: Data(second))
+        try handle.close()
+
+        let report = try VPhoneAPFSSnapshot.rename(imageAt: url, log: { _ in })
+        #expect(report.blocks.map(\.blockOffset) == [0, 64 * 1024 * 1024])
+        let check = try FileHandle(forReadingFrom: url)
+        defer { try? check.close() }
+        let firstAfter = try #require(try check.read(upToCount: VPhoneAPFSSnapshot.blockSize))
+        try check.seek(toOffset: 64 * 1024 * 1024)
+        let secondAfter = try #require(try check.read(upToCount: VPhoneAPFSSnapshot.blockSize))
+        for (block, offset) in [(firstAfter, 100), (secondAfter, 200)] {
+            #expect(String(decoding: block[offset..<offset + 20], as: UTF8.self)
+                == VPhoneAPFSSnapshot.defaultNewPrefix)
+            #expect(block.withUnsafeBytes { VPhoneAPFSSnapshot.checksum($0) }
+                == block.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) })
+        }
+    }
+
     @Test("rename is idempotent: a second pass finds nothing")
     func renameIsIdempotent() throws {
         let name = Self.snapshotName(hash: Self.validHash)

@@ -515,7 +515,7 @@ check_smoke() {
   # host's own AMFI bypass allows this copy — and the copy under test is a
   # relocated one, with a path no allowlist was told about. Its exit code would
   # say something about the host, not about self-containment.
-  [[ -x "$vm" ]] && note "gate 3: vphone-vm skipped (amfid gates it; see boot_host_preflight.sh)"
+  [[ -x "$vm" ]] && note "gate 3: relocated vphone-vm skipped (host AMFI policy may gate it; run vphone-cli host preflight on the installed build)"
 
   rm -rf "$tmp"
 }

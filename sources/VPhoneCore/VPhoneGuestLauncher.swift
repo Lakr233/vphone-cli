@@ -20,54 +20,19 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
             """
 
         case let .blockedByAMFI(guest, cdHash):
-            // Both quoted: a VM bundle can sit under a path with spaces, and
-            // these lines are meant to be pasted, not retyped. The cdhash
-            // falls back to the command that prints it, so the advice stays
-            // complete even on a binary this could not read.
-            let directory = guest.deletingLastPathComponent().path
-            let cdHashArgument = cdHash.map { "--cdhash \($0)" }
-                ?? ("--cdhash \"$(codesign -dv --verbose=4 '\(guest.path)'"
-                    + " 2>&1 | sed -n 's/^CDHash=//p' | head -1)\"")
+            let helper = guest.deletingLastPathComponent()
+                .appendingPathComponent("vphone-amfi-allow")
             return """
             amfid refused to launch vphone-vm, so no guest could start.
 
-            vphone-vm is the only binary here that carries the private
-            virtualization entitlements, so it is the only one amfid can
-            refuse — vphone-cli itself is unentitled and always starts.
-            Two ways past it; pick one.
+            Binary: \(guest.path)
+            CDHash: \(cdHash ?? "unavailable")
 
-            1. Allow this one binary, with amfidont.
+            Allow this build's signed VM binary with the bundled helper:
+              sudo '\(helper.path)' allow '\(guest.path)'
 
-               amfidont is not part of vphone-cli: you install it and you
-               keep it running, and vphone-cli neither installs, starts nor
-               supervises it. Install it once with Apple's python3 —
-               Homebrew's refuses under PEP 668 — which also means Xcode
-               has to be present:
-
-                 xcrun python3 -m pip install --user amfidont
-
-               It lands in ~/Library/Python/3.9/bin, which is usually not
-               on PATH. Leave it running in another terminal, then boot
-               again:
-
-                 sudo amfidont daemon --path '\(directory)' \\
-                   \(cdHashArgument) --spoof-apple --verbose
-
-               It is an allowlist, not a switch: only the path and cdhash
-               named above are affected, and every other signature amfid
-               checks is judged exactly as it would be without it. It
-               drives amfid through LLDB, so it sets breakpoints in the
-               CPU's debug registers instead of writing amfid's pages —
-               which is why it works even where
-               `sysctl vm.cs_system_enforcement` reads 1.
-
-            2. Relax AMFI for the whole machine, and run nothing extra.
-
-               Set the amfi_get_out_of_my_way=1 boot-arg with SIP off.
-               With AMFI relaxed vphone-vm launches on its own, and no
-               daemon is involved at all.
-
-            Both are written up under "SIP/AMFI Relaxation" in README.md.
+            The allowlist is specific to this signature, so repeat after a
+            rebuild. See "SIP/AMFI Relaxation" in README.md for host settings.
             """
 
         case let .probeFailed(code, output):

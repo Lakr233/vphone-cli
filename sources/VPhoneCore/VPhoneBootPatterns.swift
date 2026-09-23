@@ -2,48 +2,16 @@ import Foundation
 
 // MARK: - VPhoneBootPatterns
 
-/// Boot-log regex patterns and device-identity normalization, ported VERBATIM
-/// from `scripts/setup_machine.sh` so the native `vm create` orchestrator
-/// (`VPhoneCreateOrchestrator`, executable target) matches the proven shell
-/// choreography exactly. Lives in VPhoneCore (rather than alongside the
-/// orchestrator) purely so `VPhoneCoreTests` can unit-test these pure,
-/// device-independent pieces — the orchestrator itself needs `FirmwarePatcher`
-/// and can't live in VPhoneCore without creating a package dependency cycle
-/// (FirmwarePatcher already depends on VPhoneCore).
+/// Boot-log matching and device-identity normalization used by `vm create`.
 public enum VPhoneBootPatterns {
-    /// `BOOT_BASH_PROMPT_REGEX` (setup_machine.sh:39) — the iosbinpack bash
-    /// prompt, or a ramdisk/root shell prompt.
-    public static let promptRegex = #"bash-[0-9]+(\.[0-9]+)+#|:/[^ ]* root#"#
-
-    /// `BOOT_PANIC_REGEX` (setup_machine.sh:40).
+    /// Kernel panic marker in the guest serial log.
     public static let panicRegex = #"(^|[^p])(panic|kernel panic|panic\.apple\.com|stackshot succeeded)"#
 
-    /// `monitor_boot_log_until` (setup_machine.sh:363-388) checks panic and
-    /// prompt with DIFFERENT case sensitivity — `grep -Eiq "$BOOT_PANIC_REGEX"`
-    /// (case-insensitive) vs. `grep -Eq "$BOOT_BASH_PROMPT_REGEX"` (case-
-    /// sensitive). A single `NSRegularExpression` has one global case-folding
-    /// setting, so the panic half is wrapped in an ICU scoped inline modifier
-    /// (`(?i:...)`) to fold ONLY that half, leaving the prompt half exactly as
-    /// case-sensitive as the shell's plain `grep -E`.
-    public static let panicOrPromptRegex = "(?i:\(panicRegex))|\(promptRegex)"
+    /// A connected guest daemon is the first-boot success marker. The old
+    /// iosbinpack shell prompt no longer exists in the JB-only guest.
+    public static let panicOrVphonedRegex = "(?i:\(panicRegex))|\\[control\\] connected to vphoned v[0-9]+"
 
-    /// `send_first_boot_commands` (setup_machine.sh:344-361) — verbatim order,
-    /// including the exact PATH string (setup_machine.sh:348).
-    public static let firstBootCommands: [String] = [
-        "export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/bin/X11:/usr/games:/iosbinpack64/usr/local/sbin:/iosbinpack64/usr/local/bin:/iosbinpack64/usr/sbin:/iosbinpack64/usr/bin:/iosbinpack64/sbin:/iosbinpack64/bin'",
-        "cp /iosbinpack64/etc/profile /var/profile",
-        "cp /iosbinpack64/etc/motd /var/motd",
-        "mkdir -p /var/dropbear",
-        "dropbearkey -t rsa -f /var/dropbear/dropbear_rsa_host_key",
-        "dropbearkey -t ecdsa -f /var/dropbear/dropbear_ecdsa_host_key",
-        "shutdown -h now",
-    ]
-
-    /// Port of `normalize_ecid` (setup_machine.sh:80-86): strip one leading
-    /// `0x` and one leading `0X` (matching the shell's two sequential `#0x`/
-    /// `#0X` strips), require 1-16 ASCII hex digits, uppercase, and left-pad
-    /// with zeros to 16 characters. `nil` for anything that isn't valid hex —
-    /// the shell's `return 1` from the `[[ =~ ]]` guard.
+    /// Accept 1-16 ASCII hex digits, with an optional 0x prefix.
     public static func normalizeECID(_ raw: String) -> String? {
         var value = raw
         if value.hasPrefix("0x") { value.removeFirst(2) }

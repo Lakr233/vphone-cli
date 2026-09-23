@@ -18,8 +18,8 @@ struct ResourcesTests {
         let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
-        #expect(r.cfwInstallHostScript.path
-            == "/Applications/vphone-cli.app/Contents/Resources/scripts/cfw_install_host.sh")
+        #expect(r.gpuDriverArchive.path
+            == "/Applications/vphone-cli.app/Contents/Resources/scripts/payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
     }
 
     @Test func devLayoutWalksUpToProjectRoot() throws {
@@ -71,7 +71,7 @@ struct ResourcesTests {
             let r = VPhoneResources(base: base)
             let rooted = [
                 r.scriptsDir, r.gpuDriverArchive,
-                r.cfwInstallHostScript, r.preflightScript, r.vphoned,
+                r.vphoned,
             ]
             for url in rooted {
                 #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")

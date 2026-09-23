@@ -10,9 +10,8 @@ public enum VPhoneMatchResult: Equatable, Sendable {
 
 // MARK: - VPhoneManagedProcess
 
-/// A long-lived child process with stdin driving and stdout/stderr
-/// regex-waiting — the primitive for DFU background boot, first-boot
-/// command injection, and boot log analysis.
+/// A long-lived child process with stdin and stdout/stderr regex-waiting,
+/// used for DFU background boot and first-boot log checks.
 public final class VPhoneManagedProcess: @unchecked Sendable {
     /// Thread-safe accumulator for the combined stdout+stderr bytes, plus an
     /// EOF flag so `waitForOutput` can tell "no more output is coming" apart

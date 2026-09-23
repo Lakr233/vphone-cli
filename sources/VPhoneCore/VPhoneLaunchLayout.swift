@@ -8,7 +8,6 @@ public struct VPhoneLaunchLayout: Sendable {
     public init(resources: VPhoneResources) { self.resources = resources }
     public init(projectRoot: URL) { self.init(resources: VPhoneResources(base: projectRoot)) }
 
-    public var preflightScript: URL { resources.preflightScript }
     public var vphoned: URL { resources.vphoned }
 
     /// Copy the built vphoned into the bundle if present and different.
