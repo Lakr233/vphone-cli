@@ -71,7 +71,7 @@ entire point of moving the entitlements off the entry point.
 > `vm.cs_system_enforcement` reads 1 — the kernel kills amfid for the dirty page
 > — so the tool was removed the same day. The spike's own findings do not depend
 > on it: what was shown is that a bypass lasting one exec suffices, not that any
-> particular tool provides it. `research/host/host_binary_split.md` has the
+> particular tool provides it. `Research/Host/host_binary_split.md` has the
 > measurement. The replacement is `amfidont`, below.
 
 ## Reproducing it

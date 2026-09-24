@@ -331,7 +331,7 @@ post-call boolean naturally becomes 0.
 * `outputs/hv_vmm_present_xref.json` — full per-binary xref dump
   (string addresses, xref addresses, classification, surrounding
   disassembly).
-* `research/hv_vmm_present_xref.json` — same dump committed in-tree.
+* `Research/hv_vmm_present_xref.json` — same dump committed in-tree.
 
 ## Patcher implementation (Dev + JB only)
 
@@ -416,7 +416,7 @@ name-to-MIB translation.
   was written and no longer does: it and `cfw_patch_hv_vmm_rootfs.py`
   were removed in the blacklist-flip redesign, which made the
   standalone rootfs mangle unnecessary. See item 8 in
-  `research/0_binary_patch_comparison.md`.)
+  `Research/0_binary_patch_comparison.md`.)
 * `scripts/patch_hv_vmm_userland.sh` — thin wrapper used by the
   install scripts.
 * `scripts/cfw_install_dev.sh` — DSC patch is applied while the

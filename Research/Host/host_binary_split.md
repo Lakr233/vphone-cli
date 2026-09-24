@@ -233,7 +233,7 @@ nothing in the tree now.
 2. **That the instructions printed on a refusal are the ones that work**, on a
    host with `vm.cs_system_enforcement` = 1 and nothing installed yet. The
    `amfidont` install and daemon invocation were measured on this machine (see
-   `research/0_binary_patch_comparison.md`); the CLI's rendering of them into
+   `Research/0_binary_patch_comparison.md`); the CLI's rendering of them into
    an error message was not measured against a fresh host.
 3. **Location and TouchID**, which depend on TCC attributing the usage strings
    to `vphone-vm`. It is `CFBundleExecutable`, so it should — but TCC's view of

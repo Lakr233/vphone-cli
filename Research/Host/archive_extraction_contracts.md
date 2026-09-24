@@ -3,7 +3,7 @@
 > 2026-09-23, branch `vphone-intg-update`. libarchive 3.8.9 from
 > `Lakr233/libarchive.xcframework` 0.1.1, macOS 26 (26A428).
 >
-> Companion to `research/host/libarchive_xcframework_validation.md`, which covers
+> Companion to `Research/Host/libarchive_xcframework_validation.md`, which covers
 > whether libzstd and the liblzma MT encoder are compiled in. This one is
 > about behaviour on disk.
 

@@ -132,7 +132,7 @@ Observed output:
 
 - `scripts/patchers/kernel_jb_patch_hook_cred_label.py` now implements faithful upstream C23 semantics
 - `scripts/patchers/kernel_jb.py` includes `patch_hook_cred_label_update_execve` in the active Group C schedule
-- `research/0_binary_patch_comparison.md` should describe C23 as a faithful wrapper trampoline, not as a mis-targeted early-return patch
+- `Research/0_binary_patch_comparison.md` should describe C23 as a faithful wrapper trampoline, not as a mis-targeted early-return patch
 
 ## Practical Effect
 

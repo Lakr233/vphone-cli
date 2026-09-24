@@ -95,7 +95,7 @@ The upstream pair is the correct semantic gate because:
 ## Files
 
 - Patcher: `scripts/patchers/kernel_jb_patch_spawn_persona.py`
-- Analysis doc: `research/kernel_jailbreak_patches/patch_spawn_validate_persona.md`
+- Analysis doc: `Research/KernelJailbreakPatches/patch_spawn_validate_persona.md`
 
 ## 2026-03-06 Rework
 

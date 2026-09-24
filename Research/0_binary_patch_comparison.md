@@ -371,7 +371,7 @@ The tests asserting a frozen digest moved off it first, onto the real 24A435
 `seputil`; the rest of `CFWMachOTests` — structural cases that only needed *some*
 signed Mach-O — kept pointing at the build product, and that stopped being viable
 when `vphone-letmein` was deleted from the tree (see
-`research/host/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
+`Research/Host/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
 the way the sibling CFW parity suites do: `macho_pristine/seputil`, resolved
 through `VPHONE_MACHO_PRISTINE` with `ipsws/ref_extract/macho_pristine` as the
 default, **failing** rather than skipping when it is absent, since a skipped test
@@ -456,7 +456,7 @@ consumers, ~15 entries). Patched dylibs query the renamed OID and get the
 truthful 1 (graphics + accel passthrough); blacklisted dylibs keep the
 original cstring, hit ENOENT on the renamed kernel, and defensively cache 0
 ("not running on a VM") for sign-in / device-attestation surfaces.
-Source-of-truth research: `research/patches/hv_vmm_present_usermode_xrefs.md`.
+Source-of-truth research: `Research/Patches/hv_vmm_present_usermode_xrefs.md`.
 
 JB and other variants are NOT affected by this patcher.
 

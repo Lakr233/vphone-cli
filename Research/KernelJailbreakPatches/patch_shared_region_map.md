@@ -134,7 +134,7 @@ Both variants emit exactly one patch:
 ## Files
 
 - Patcher: `scripts/patchers/kernel_jb_patch_shared_region.py`
-- Analysis doc: `research/kernel_jailbreak_patches/patch_shared_region_map.md`
+- Analysis doc: `Research/KernelJailbreakPatches/patch_shared_region_map.md`
 
 ## 2026-03-06 Rework
 

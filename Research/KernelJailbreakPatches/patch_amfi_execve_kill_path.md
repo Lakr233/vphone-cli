@@ -219,5 +219,5 @@ if (kill_condition) {
 - Artifacts: `research/kernel_jailbreak_patches/runtime_verification/runtime_verification_report.json`
 - Artifacts: `research/kernel_jailbreak_patches/runtime_verification/ida_runtime_patch_points.json`
 - Artifacts: `research/kernel_jailbreak_patches/runtime_verification/ida_patch_chain_report.json`
-- Artifacts: `research/kernel_jailbreak_patches/runtime_verification/ida_patch_chain_report.md`
+- Artifacts: `Research/KernelJailbreakPatches/RuntimeVerification/ida_patch_chain_report.md`
 <!-- END_RUNTIME_IDA_VERIFICATION_2026_03_05 -->

@@ -1,6 +1,6 @@
 # JB Kernel Patch Document Framework
 
-Use this structure for every `research/kernel_jailbreak_patches/patch_*.md` file.
+Use this structure for every `Research/KernelJailbreakPatches/patch_*.md` file.
 
 ## 1. Patch Metadata
 

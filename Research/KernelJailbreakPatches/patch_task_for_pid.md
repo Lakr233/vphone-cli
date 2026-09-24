@@ -129,7 +129,7 @@ Both variants emit exactly one patch:
 ## Files
 
 - Patcher: `scripts/patchers/kernel_jb_patch_task_for_pid.py`
-- Analysis doc: `research/kernel_jailbreak_patches/patch_task_for_pid.md`
+- Analysis doc: `Research/KernelJailbreakPatches/patch_task_for_pid.md`
 
 ## 2026-03-06 Rework
 

@@ -375,7 +375,7 @@ Should have moderate caller count (hundreds).
 
 **Historical problem**: the earlier repo-side “fix” still matched the wrong place. Runtime verification later showed the old hit landed in `_profile_syscallmask_destroy` underflow handling, not the real syscallmask apply wrapper.
 **Current understanding**: faithful upstream C22 is a low-wrapper shellcode patch that mutates the effective Unix/Mach/KOBJ mask bytes to all `0xFF`, then continues into the normal setter. It is not a `NULL`-mask install and not an early-return patch.
-**Current status**: rebuilt structurally as a 3-write retarget (`save selector`, `branch to cave`, `all-ones cave + setter tail`) and separately documented in `research/kernel_jailbreak_patches/patch_syscallmask_apply_to_proc.md`; user reported boot success with the rebuilt C22 on `2026-03-06`.
+**Current status**: rebuilt structurally as a 3-write retarget (`save selector`, `branch to cave`, `all-ones cave + setter tail`) and separately documented in `Research/KernelJailbreakPatches/patch_syscallmask_apply_to_proc.md`; user reported boot success with the rebuilt C22 on `2026-03-06`.
 
 ### patch_iouc_failed_macf — RETARGETED
 
@@ -402,19 +402,19 @@ Should have moderate caller count (hundreds).
 
 **Historical repo behavior**: matched `ldr x0,[xN,#0x2b8]; cbz x0; bl` pattern, which landed on `exec_handle_sugid` at `0xFFFFFE0007FB09DC` — a false positive caused by `/dev/null` string overlap in the heuristic scoring.
 **Problem**: the old matcher targeted the wrong function entirely; patching `exec_handle_sugid` instead of the real `bsd_init` rootauth gate could break boot by mutating an exec/credential path.
-**Current status**: retargeted to the real `FSIOC_KERNEL_ROOTAUTH` return check in `bsd_init`. The new matcher recovers `bsd_init` via in-kernel string xrefs, locates the rootvp panic block (`"rootvp not authenticated after mounting"`), finds the unique in-function indirect call (`BLRAA`) preceded by the `0x80046833` (`FSIOC_KERNEL_ROOTAUTH`) literal, and NOPs the subsequent `CBNZ W0, panic`. Live patch hit: `0xFFFFFE0007F7B98C` / file offset `0x00F7798C`. See `research/kernel_jailbreak_patches/patch_bsd_init_auth.md`.
+**Current status**: retargeted to the real `FSIOC_KERNEL_ROOTAUTH` return check in `bsd_init`. The new matcher recovers `bsd_init` via in-kernel string xrefs, locates the rootvp panic block (`"rootvp not authenticated after mounting"`), finds the unique in-function indirect call (`BLRAA`) preceded by the `0x80046833` (`FSIOC_KERNEL_ROOTAUTH`) literal, and NOPs the subsequent `CBNZ W0, panic`. Live patch hit: `0xFFFFFE0007F7B98C` / file offset `0x00F7798C`. See `Research/KernelJailbreakPatches/patch_bsd_init_auth.md`.
 
 ### patch_io_secure_bsd_root — RETARGETED (2026-03-06)
 
 **Historical repo behavior**: fallback heuristic selected the first `BL* + CBZ W0` site in `AppleARMPE::callPlatformFunction`, landing on the `"SecureRoot"` name-match gate at `0xFFFFFE000836E1F0` / file offset `0x0136A1F0`. This changed generic platform-function dispatch routing, not just the deny return.
 **Problem**: the patched branch was the `isEqualTo("SecureRoot")` check, not the `"SecureRootName"` policy result used by `IOSecureBSDRoot()`. The old `CBZ->B` rewrite could corrupt control flow for unrelated platform-function calls.
-**Current status**: retargeted to the final `"SecureRootName"` deny-return selector: `CSEL W22, WZR, W9, NE` at `0xFFFFFE000836E464` / file offset `0x0136A464` is replaced with `MOV W22, #0`. This preserves the string comparison, callback synchronization, and state updates, and only forces the final policy return from `kIOReturnNotPrivileged` to success. See `research/kernel_jailbreak_patches/patch_io_secure_bsd_root.md`.
+**Current status**: retargeted to the final `"SecureRootName"` deny-return selector: `CSEL W22, WZR, W9, NE` at `0xFFFFFE000836E464` / file offset `0x0136A464` is replaced with `MOV W22, #0`. This preserves the string comparison, callback synchronization, and state updates, and only forces the final policy return from `kIOReturnNotPrivileged` to success. See `Research/KernelJailbreakPatches/patch_io_secure_bsd_root.md`.
 
 ### patch_vm_fault_enter_prepare — RETARGETED (2026-03-06)
 
 **Historical repo behavior**: matcher looked for `BL(rare) + LDRB [xN,#0x2c] + TBZ` and NOPed the BL at `0xFFFFFE0007BB898C`, which was actually a `pmap_lock_phys_page()` call inside the `VM_PAGE_CONSUME_CLUSTERED` macro — breaking lock/unlock pairing in the VM fault path.
 **Problem**: the derived matcher overfit the wrong local shape. The upstream 26.1 patch targeted the `cs_bypass` fast-path gate (`TBZ W22, #3`), not the clustered-page lock helper. NOPing only the lock acquire while the unlock still ran caused unbalanced lock state, explaining boot failures.
-**Current status**: retargeted to the upstream semantic site — `TBZ W22, #3, ...` (where W22 bit 3 = `fault_info->cs_bypass`) at file offset `0x00BA9E1C` / VA `0xFFFFFE0007BADE1C` is replaced with `NOP`, forcing the `cs_bypass` fast path unconditionally. This matches XNU's `vm_fault_cs_check_violation()` logic and preserves lock pairing and page accounting. See `research/kernel_jailbreak_patches/patch_vm_fault_enter_prepare.md`.
+**Current status**: retargeted to the upstream semantic site — `TBZ W22, #3, ...` (where W22 bit 3 = `fault_info->cs_bypass`) at file offset `0x00BA9E1C` / VA `0xFFFFFE0007BADE1C` is replaced with `NOP`, forcing the `cs_bypass` fast path unconditionally. This matches XNU's `vm_fault_cs_check_violation()` logic and preserves lock pairing and page accounting. See `Research/KernelJailbreakPatches/patch_vm_fault_enter_prepare.md`.
 
 ---
 

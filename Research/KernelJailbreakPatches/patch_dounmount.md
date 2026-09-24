@@ -165,7 +165,7 @@ Both variants emit exactly one patch:
 ## Files
 
 - Patcher: `scripts/patchers/kernel_jb_patch_dounmount.py`
-- Analysis doc: `research/kernel_jailbreak_patches/patch_dounmount.md`
+- Analysis doc: `Research/KernelJailbreakPatches/patch_dounmount.md`
 
 ## 2026-03-06 Rework
 
