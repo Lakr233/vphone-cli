@@ -1,56 +1,18 @@
-<div align="right"><strong><a href="./docs/README_ko.md">🇰🇷한국어</a></strong> | <strong><a href="./docs/README_ja.md">🇯🇵日本語</a></strong> | <strong><a href="./docs/README_zh.md">🇨🇳中文</a></strong> | <strong><a href="./docs/README_ru.md">🇷🇺Русский</a></strong> | <strong><a href="./docs/README_pt.md">🇧🇷Português</a></strong> | <strong>🇬🇧English</strong></div>
+<div align="right"><strong>English</strong> · <a href="docs/README_zh.md">中文</a> · <a href="docs/README_ja.md">日本語</a> · <a href="docs/README_ko.md">한국어</a> · <a href="docs/README_ru.md">Русский</a> · <a href="docs/README_pt.md">Português</a></div>
 
 # vphone-cli
 
-Boot a virtual iPhone via Apple's Virtualization.framework using PCC research VM infrastructure.
+Boot a virtual iPhone with Apple's Virtualization.framework and PCC research VM infrastructure.
 
-![poc](./docs/demo.jpeg)
+![Virtual iPhone running on macOS](docs/demo.jpeg)
 
-## Prerequisites
+The supported firmware flow is **JB only**. It applies the required system patches and installs **vphoned** for host control. It leaves the guest user environment alone: no package manager, SSH server, VNC server, or first-boot bootstrap is installed.
 
-**To run it:**
+## Quick start
 
-- Apple Silicon
-- macOS 15+ (Sequoia)
-- [SIP/AMFI relaxation to allow private PV=3 entitlements with unsigned-binary](#sipamfi-relaxation)
+Use an Apple Silicon Mac running macOS 15 or newer. The host must permit PV=3 research guests and the private entitlements on `vphone-vm`; see [host setup](docs/guides/host-setup.md) before the first boot. A Mac running inside another VM cannot boot this guest.
 
-**Nothing else.** No Homebrew packages, no interpreter, no package environment,
-no Xcode. Everything vphone-cli runs is either a system binary under `/usr/bin`,
-`/bin`, `/usr/sbin` or `/sbin`, or is inside the `.app` — including the signer
-(it replaced `ldid`), the archive reader (`gtar`, `zstd`, `unzip`), the firmware
-catalogue and IM4P/AEA handling (`ipsw`), and the vphoned daemon installed in the guest, which is cross-compiled at build time and shipped
-rather than built on your machine. `make check-aux` is the gate that keeps it
-that way.
-
-**To build it from source**, add Xcode for the iOS SDK used to compile vphoned.
-
-## Install
-
-```bash
-brew install zqxwce/tap/vphone-cli
-```
-
-## Build
-
-```bash
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
-
-./scripts/build.sh            # build + sign vphone-cli, cross-compile the guest
-                              # binaries, bundle the .app
-
-cd .build/vphone-cli.app/Contents/MacOS/
-vphone-cli --help
-```
-
-`./scripts/setup_tools.sh` is optional and builds one thing: `insert_dylib`, the
-independent reference a Mach-O test compares the Swift dylib injector against.
-Nothing shipped runs it.
-
-## Quick Start
-
-One command creates a VM end-to-end (download → patch → DFU restore → CFW install → first boot):
-
-```bash
+```sh
 vphone-cli vm create myphone \
   --iphone-source /path/to/iPhone17,3_Restore.ipsw \
   --cloudos-source /path/to/cloudOS.ipsw
@@ -58,195 +20,46 @@ vphone-cli vm create myphone \
 vphone-cli vm launch myphone
 ```
 
-The single supported firmware mode is JB. Creation installs vphoned and the
-required system patches, then checks that vphoned connects. It does not install
-a package manager, SSH server, or user bootstrap.
+`vm create` prepares and patches firmware, restores the VM, installs the JB system changes and vphoned, then boots once to check a real vphoned ping. **It stops that verification boot before returning.** Run `vm launch` to keep using the VM. The create flow needs network access for Apple's restore ticket and asks for administrator authentication during CFW installation.
 
-## Commands
+For local validation, iPhone17,3 **26.6.2 (23G90)** and **27.0 (24A435)** both reached the lock screen and answered vphoned ping with cloudOS **26.4 (23E5207q)**. See [compatibility and evidence](docs/guides/compatibility.md); other firmware combinations are not implied by these results.
 
-`vphone-cli vm create` runs the whole pipeline; the individual steps below let you drive it manually or re-run one stage.
+## Install or build
 
-### Manage
+A distributed `.app` uses macOS system tools and its own bundled binaries; it does not need Homebrew, Python, or Xcode to run. Building from source does not install a separate runtime environment.
 
-```bash
-vphone-cli vm list                         # list VMs (--json for scripting)
-vphone-cli vm info myphone                  # show one VM
-vphone-cli vm new myphone                   # create an empty bundle (cpu/mem/disk options)
-vphone-cli vm config myphone --cpu 8 --memory 8192
-vphone-cli vm clone myphone myphone-2       # fast APFS clone, fresh device identity
-vphone-cli vm export myphone --out myphone.tzst   # zstd fast by default (--max = xz -9); --out may be a dir (auto-names <vm>.tzst/.txz); skips restore dir + staging files
-vphone-cli vm import myphone.tzst --name restored
-vphone-cli vm rename myphone iphone16
-vphone-cli vm delete iphone16
+Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
+
+```sh
+git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+cd vphone-cli
+make build
+.build/release/vphone-cli --help
 ```
 
-### Build a VM manually (what `vm create` automates)
+`make build` signs and bundles the binaries. After every rebuild, a host using the AMFI allowlist must run `make amfi_allow` again because the signed cdhash changes. See [host setup](docs/guides/host-setup.md).
 
-```bash
-vphone-cli vm new myphone                              # 1. empty bundle
-vphone-cli fw prepare myphone --iphone-source /path/to/iPhone17,3_Restore.ipsw \
-  --cloudos-source /path/to/cloudOS.ipsw                # 2. merge IPSWs
-vphone-cli fw patch myphone                             # 3. patch the JB boot chain
+## Everyday commands
 
-vphone-cli vm launch myphone --dfu &                    # 4. boot into DFU (background)
-vphone-cli restore myphone                              #    fetch a ticket and DFU restore
-vphone-cli vm stop myphone                              #    stop the DFU boot
+| Task | Command |
+| --- | --- |
+| List VMs | `vphone-cli vm list` |
+| Inspect a VM | `vphone-cli vm info myphone` |
+| Start its window | `vphone-cli vm launch myphone` |
+| Stop it | `vphone-cli vm stop myphone` |
+| Back it up | `vphone-cli vm export myphone --out myphone.tzst` |
+| Restore a backup | `vphone-cli vm import myphone.tzst --name restored` |
+| Inspect firmware pairings | `vphone-cli fw catalog` |
+| Check the host | `vphone-cli host preflight` |
 
-vphone-cli cfw install myphone                          # 5. install CFW (host-mount; asks for sudo)
-vphone-cli vm launch myphone                            # 6. first boot
-```
+VMs and downloaded firmware live under `~/.vphone/` by default. `VPHONE_ROOT` relocates the tree; `VPHONE_LIBRARY_ROOT` overrides just the VM library. Use `vphone-cli <group> --help` for current command options.
 
-Update to a newer iOS by pointing `fw prepare` at an IPSW: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`.
+## Documentation
 
-The restore command runs in `vphone-cli`'s own process. It drives vendored
-libirecovery and idevicerestore directly — no external restore tool, no setup
-step before the first one works. Use `restore --get-shsh` separately if you
-need to save a ticket, then add `--offline` to restore from that `.shsh`
-instead of asking Apple for a fresh one.
-
-## Firmware Mode
-
-The CLI exposes one firmware mode: JB. There is no `--variant` choice.
-
-See [`research/0_binary_patch_comparison.md`](./research/0_binary_patch_comparison.md) for the per-component breakdown.
-
-## Running & Connecting
-
-- **SSH (jailbreak):** `ssh -p 22222 mobile@<vm-ip>` (password `alpine`)
-- **VNC:** `vnc://<vm-ip>:5901`
-
-## Locations
-
-Everything vphone-cli creates lives under `~/.vphone/` — kept outside the repo and the `.app` so the signed bundle stays portable. Redirect the whole tree with `$VPHONE_ROOT`:
-
-| Path              | Contents                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `~/.vphone/`      | The per-user data root — override the entire location with `$VPHONE_ROOT`.                   |
-| `~/.vphone/VMs/`  | VM bundles — one directory per VM. This is the library; override with `$VPHONE_LIBRARY_ROOT`. |
-| `~/.vphone/ipsws/`| Downloaded iPhone + cloudOS IPSWs, cached and reused across VMs.                              |
-| `~/.vphone/tools/`| Cached APFS seal-volume artifacts used by firmware patching.                       |
-
-Precedence: the per-item override `$VPHONE_LIBRARY_ROOT` wins over `$VPHONE_ROOT`, which wins over the `~/.vphone` default. The `ipsws/`, `tools/`, and `debs/` caches always sit directly under whichever root is active.
-
-## SIP/AMFI Relaxation
-
-**Option A — fully disable SIP, then disable AMFI via boot-arg (most permissive).** 
-
-In Recovery (long-press power → Terminal):
-
-```bash
-csrutil disable
-csrutil allow-research-guests enable
-```
-
-Then reboot into macOS and set the AMFI boot-arg (needs SIP fully off to take effect):
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # reboot after
-```
-
-This is still the simplest path, and the only one that needs nothing running
-alongside the VM: with AMFI relaxed, `vphone-vm` launches on its own.
-
-**Option B — keep SIP on (debug-only relaxed) and allowlist this build** (AMFI
-stays enabled the rest of the time, and for every binary you did not allow).
-
-In Recovery:
-
-```bash
-csrutil enable --without debug
-csrutil allow-research-guests enable
-```
-
-Then reboot into macOS and run:
-
-```bash
-make amfi_allow     # asks for root; run it again after every build
-make amfi_status    # show the allowlist, and whether this host can carry one
-make amfi_off       # remove it and restart amfid clean
-```
-
-That runs `vphone-amfi-allow`, which is built from this repository's own C and
-ships inside the `.app`. It writes two things:
-
-* the cdhashes of **both** copies of `vphone-vm` into
-  `/Library/Preferences/com.apple.security.coderequirements.plist`, which AMFI
-  already reads — this is a feature amfid ships, not a hole;
-* one byte of amfid's **heap**, to flip the `_isRunningInternalBuild` flag that
-  makes it consult that file in the first place.
-
-Both, because `make boot` launches both: `boot_binary_check` runs
-`.build/release/vphone-vm` and the boot itself runs the one inside the `.app`.
-They sign under different identifiers and hash differently, so allowing one
-covers exactly half the flow.
-
-**Re-run it after every build.** It allowlists cdhashes, and those change with
-every signature — including a bare `swift build`.
-
-`vphone-vm` is the binary to allow. `vphone-cli` carries no entitlements and
-always launches, so its cdhash is not the one you want.
-
-> **Be clear about what this allows.** It is an allowlist keyed on cdhash:
-> amfid keeps enforcing for every binary you did not name. `make amfi_off`
-> removes the file and restarts amfid.
->
-> The one byte is in amfid's heap, not its `__TEXT`, and that is the whole
-> reason this works. Earlier attempts patched the code — `vphone-letmein`
-> overwrote the `ldrb` in `-[AMFIPathValidator_macos validateWithError:]`, and
-> LLDB-based tools plant a `BRK` for a breakpoint. Both leave a dirty unsigned
-> executable page, and on a host where `sysctl vm.cs_system_enforcement` reads
-> 1 — as it does on macOS 27.0 (26A428), arm64e, with exactly the `csrutil`
-> settings above — the kernel validates that page on the next fault, kills
-> amfid, and takes the guest down with it. The sysctl is read-only at runtime,
-> so no amount of care makes "patch the code" survive it. A heap write is not
-> code, so enforcement has nothing to object to.
-
-## Tested Environments
-
-| Host            | iPhone                | CloudOS         |
-| --------------- | --------------------- | --------------- |
-| Mac16,11 27.0b2 | `17,3_18.6.2_22G100`  | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0_23A341`    | `26.1-23B85`    |
-| Mac16,8 26.5.1  | `17,3_26.0.1_23A355`  | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.1_23B85`     | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.1-23B85`    |
-| Mac16,12 26.3   | `17,3_26.3_23D127`    | `26.3-23D128`   |
-| Mac16,12 26.3   | `17,3_26.3.1_23D8133` | `26.3-23D128`   |
-| Mac16,11 26.2   | `17,3_26.4_23E246`    | `26.4-23E5207q` |
-| Mac16,11 26.2   | `17,3_26.5_23F77`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.5.2_23F84`   | `26.4-23E5207q` |
-| Mac16,6 26.4.1  | `17,3_26.6_23G71`     | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_26.6.1_23G83`   | `26.4-23E5207q` |
-| Mac16,6 26.6.1  | `17,3_26.6.2_23G90`   | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5380h`  | `26.4-23E5207q` |
-| Mac16,6 26.4.1  | `17,3_27.0_24A5390f`  | `26.4-23E5207q` |
-| Mac16,6 26.6.1  | `17,3_27.0_24A5408d`  | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5418b`  | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5424a`  | `26.4-23E5207q` |
-| Mac16,11 27.0b2 | `17,3_27.0_24A5430a`  | `26.4-23E5207q` |
-| Mac16,6 26.6.1  | `17,3_27.0_24A435`    | `26.4-23E5207q` |
-
-## FAQ
-
-**`zsh: killed ./vphone-vm`** — AMFI/debug restrictions aren't bypassed; see [SIP/AMFI Relaxation](#sipamfi-relaxation) — either `amfi_get_out_of_my_way=1` (Option A), or `make amfi_allow` for this build (Option B). If you ran it before your last build, run it again: the allowlist is keyed on cdhash, and signing changes that. Note this cannot happen to `vphone-cli` itself: it carries no entitlements, so if *it* is being killed, something else is wrong.
-
-**`Virtualization is not available on this hardware`** — your Mac is itself a VM; PV=3 guest boot can't nest. Use a non-nested macOS 15+ host.
-
-**Stuck on "Press home to continue"** — connect via VNC and right-click (two-finger click) to simulate the home button.
-
-**System apps won't install** — during iOS setup, don't pick Japan or the EU as your region (extra regulatory checks the VM can't satisfy); pick e.g. United States.
-
-**App crashes on launch with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`** — re-patch with `vphone-cli fw patch <name> --force-exc-guard`, then re-restore/install ([#291](https://github.com/Lakr233/vphone-cli/issues/291)). Always on for iOS 18 bases.
-
-**Install a `.ipa`/`.tipa`** — use the running VM's Install menu (drag-drop or file picker).
-
-**Do I need Homebrew, or Xcode, to use this?** — No. `vphone-cli` runs on a clean macOS 15+: everything it shells out to is in `/usr/bin`, `/bin`, `/usr/sbin` or `/sbin`, and everything else is inside the `.app`. `make check-aux` is the gate that keeps it that way — it walks the bundle's dependency closure, checks the bundle holds exactly what it is supposed to, scans every shipped script for a `PATH` lookup, and smoke-tests the binaries with `env -i PATH=/usr/bin:/bin`. Building from source needs Xcode for the iOS SDK used to compile vphoned.
-
-**`cfw install` hangs re-signing a system binary (e.g. `Campo`), memory climbing unbounded** — this was a bug in `ldid-procursus` up to `2.1.5-procursus7`: `bytes(uint64_t)` called `__builtin_clzll(0)` with no zero-guard, which is undefined behavior, and on that build resolved to a `0`-length that underflowed an unsigned loop counter, so `ldid` span writing one byte at a time into a growing buffer instead of terminating. Any entitlements plist with an integer value of exactly `0` triggered it, and some real Apple system binaries have one. It cannot happen any more: signing is `vphone-cli sign`, in-process, and `ldid` is not installed, invoked or shipped.
-
-## Automation
-
-`vphone-cli` exposes a host control socket (`<bundle>/vphone.sock`) for programmatic control — screenshots, touch, swipes, hardware keys, clipboard — each action returning an inline screenshot for AI-driven E2E testing. See [vphone-mcp](https://github.com/pluginslab/vphone-mcp) for an MCP server wrapping it.
+- [Documentation index](docs/README.md) — setup, workflows, compatibility, troubleshooting, and translations.
+- [Create and run a VM](docs/guides/create-and-run.md) — full flow, manual stages, storage, and vphoned.
+- [Research index](research/README.md) — patch inventory, firmware analysis, restore work, and historical notes.
+- [Patch inventory](research/0_binary_patch_comparison.md) — per-component patch breakdown and historical variant comparison. Only JB is exposed by the current CLI.
 
 ## Acknowledgements
 

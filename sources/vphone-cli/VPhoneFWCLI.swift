@@ -72,7 +72,7 @@ struct VPhoneFWListCommand: ParsableCommand {
     )
 
     @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
-    @Option(help: "README.md holding the 'Tested Environments' table") var readme: String
+    @Option(help: "Compatibility Markdown holding the 'Tested Environments' table") var readme: String
 
     func run() throws {
         let code = VPhoneFirmwareMatrixCommandLine.list(
@@ -100,7 +100,7 @@ struct VPhoneFWResolveCommand: ParsableCommand {
     @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
     @Option(help: "iOS version to match; empty matches any") var version: String = ""
     @Option(help: "Build to match; empty matches any") var build: String = ""
-    @Option(help: "README.md holding the 'Tested Environments' table") var readme: String
+    @Option(help: "Compatibility Markdown holding the 'Tested Environments' table") var readme: String
 
     func run() throws {
         let code = VPhoneFirmwareMatrixCommandLine.resolve(
@@ -204,7 +204,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
 
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-        let readme = resources.base.appendingPathComponent("README.md").path
+        let readme = resources.base.appendingPathComponent("docs/guides/compatibility.md").path
         let needsCatalog = list || iphoneVersion != nil || iphoneBuild != nil
         let urls = if needsCatalog {
             try vphoneRunBlocking {

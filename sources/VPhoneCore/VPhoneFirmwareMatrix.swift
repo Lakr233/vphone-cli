@@ -4,7 +4,7 @@ import Foundation
 
 /// How much confidence this project has in one downloadable iPhone firmware.
 ///
-/// `supported` means the README's "Tested Environments" table records a boot on
+/// `supported` means the compatibility guide's "Tested Environments" table records a boot on
 /// that exact version/build; `notTested` means Apple still serves it but nobody
 /// wrote a row for it. `unsupported` is never a table verdict — it is the
 /// prefix the selector puts on "nothing matched", and it exists here only
@@ -90,7 +90,7 @@ public struct VPhoneFirmwareRelease: Sendable, Hashable {
 
 // MARK: - VPhoneFirmwareBuildID
 
-/// The (version, build) pair the README table and the URL list are joined on.
+/// The (version, build) pair the compatibility table and the URL list are joined on.
 public struct VPhoneFirmwareBuildID: Sendable, Hashable {
     public let version: String
     public let build: String
@@ -138,25 +138,25 @@ public enum VPhoneFirmwareSelection: Sendable, Equatable {
 
 // MARK: - VPhoneFirmwareMatrix
 
-/// The firmware support matrix: the README's "Tested Environments" table joined
+/// The firmware support matrix: the compatibility guide's "Tested Environments" table joined
 /// against the restore images Apple still serves.
 ///
 /// This replaces the two Python heredocs that used to live inside
 /// `scripts/fw_prepare.sh` (`list_firmwares` and `resolve_selector_from_downloads`).
-/// They were 166 lines that duplicated the same three parsers — the README
+/// They were 166 lines that duplicated the same three parsers — the Markdown
 /// section scan, the URL scan, and the version sort — once each, so this is one
 /// parser with two renderers on top of it.
 public enum VPhoneFirmwareMatrix {
     // MARK: Parsing
 
-    /// Every `(version, build)` the README's "Tested Environments" section
+    /// Every `(version, build)` the compatibility guide's "Tested Environments" section
     /// records for `device`.
     ///
     /// The section runs from the `## Tested Environments` heading to the next
     /// `## ` heading. Inside it, any backticked `17,3_26.1_23B85` cell whose
     /// device part equals `device` minus its `iPhone` prefix counts as tested;
     /// the cloudOS column uses `26.1-23B85`, which cannot match. A missing
-    /// README is not an error — it just means nothing is known to be tested.
+    /// guide is not an error — it just means nothing is known to be tested.
     public static func testedBuilds(readme: String?, device: String) -> Set<VPhoneFirmwareBuildID> {
         guard let readme else { return [] }
         let deviceSuffix = device.hasPrefix("iPhone")
@@ -213,7 +213,7 @@ public enum VPhoneFirmwareMatrix {
         return found
     }
 
-    /// The verdict for one release, given what the README records.
+    /// The verdict for one release, given what the compatibility guide records.
     public static func support(
         of release: VPhoneFirmwareRelease,
         tested: Set<VPhoneFirmwareBuildID>

@@ -1,5 +1,10 @@
 # VPhone-CLI Manifest Implementation & Code Clarity Review
 
+> **Historical snapshot.** This document describes the earlier shell/Python
+> manifest implementation. Those commands and files have since been replaced
+> by the native Swift workflow. See the [current VM guide](../../docs/guides/create-and-run.md)
+> and [research index](../README.md).
+
 ## Summary
 
 1. **Implemented VM manifest system** compatible with security-pcc's VMBundle.Config format
