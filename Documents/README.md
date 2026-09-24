@@ -1,6 +1,6 @@
 # Documentation
 
-[Project overview](../README.md) · [Research notes](../Research/README.md)
+[Research notes](../Research/README.md)
 
 Start with the [one-command VM flow](Guides/create-and-run.md). The guides below describe the current **JB-only** CLI. Older patch variants and installation experiments remain in research notes as historical context, not supported user workflows.
 
@@ -13,9 +13,9 @@ Start with the [one-command VM flow](Guides/create-and-run.md). The guides below
 
 ## Translations
 
-[English](../README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md)
+[中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md)
 
-These pages give a translated overview and quick start. The English guides above hold the detailed, current procedures so that a change to the host or firmware flow has one place to update.
+These pages give a translated overview and quick start. The guides above hold the detailed, current procedures so that a change to the host or firmware flow has one place to update.
 
 ## For contributors
 

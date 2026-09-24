@@ -1,4 +1,4 @@
-<div align="right"><strong>English</strong> · <a href="Documents/README_zh.md">中文</a> · <a href="Documents/README_ja.md">日本語</a> · <a href="Documents/README_ko.md">한국어</a></div>
+<div align="right"><a href="Documents/README.md">Documentation and translations</a></div>
 
 # vphone-cli
 
@@ -76,13 +76,6 @@ changes. See [host setup](Documents/Guides/host-setup.md) and the
 | Check the host | `vphone-cli host preflight` |
 
 VMs and downloaded firmware live under `~/.vphone/` by default. `VPHONE_ROOT` relocates the tree; `VPHONE_LIBRARY_ROOT` overrides just the VM library. Use `vphone-cli <group> --help` for current command options.
-
-## Documentation
-
-- [Documentation index](Documents/README.md) — setup, workflows, compatibility, troubleshooting, and translations.
-- [Create and run a VM](Documents/Guides/create-and-run.md) — full flow, manual stages, storage, and vphoned.
-- [Research index](Research/README.md) — patch inventory, firmware analysis, restore work, and historical notes.
-- [Patch inventory](Research/0_binary_patch_comparison.md) — per-component patch breakdown and historical variant comparison. Only JB is exposed by the current CLI.
 
 ## Acknowledgements
 
