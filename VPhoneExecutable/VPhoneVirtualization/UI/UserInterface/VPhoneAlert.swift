@@ -1,31 +1,58 @@
 import AppKit
 
+/// Presents alerts and open panels as sheets on the window they belong to:
+/// the window passed in, or the VM display window for menu actions. When
+/// neither is available, for example with --no-graphics, they run app-modal.
 @MainActor
 enum VPhoneAlert {
-    @discardableResult
-    static func run(
-        title: String,
-        message: String,
-        style: NSAlert.Style,
-        buttons: [String] = ["OK"],
-    ) -> NSApplication.ModalResponse {
-        makeAlert(title: title, message: message, style: style, buttons: buttons).runModal()
-    }
+    /// The VM display window. Set when it is created.
+    static weak var hostWindow: NSWindow?
 
     static func present(
         title: String,
         message: String,
         style: NSAlert.Style,
-        attachedTo window: NSWindow?,
         buttons: [String] = ["OK"],
+        on window: NSWindow? = nil,
         completion: ((NSApplication.ModalResponse) -> Void)? = nil,
     ) {
-        let alert = makeAlert(title: title, message: message, style: style, buttons: buttons)
-        if let window {
+        present(makeAlert(title: title, message: message, style: style, buttons: buttons), on: window, completion: completion)
+    }
+
+    static func present(
+        _ alert: NSAlert,
+        on window: NSWindow? = nil,
+        completion: ((NSApplication.ModalResponse) -> Void)? = nil,
+    ) {
+        if let window = presentingWindow(window) {
+            // AppKit queues the sheet if another one is already showing.
             alert.beginSheetModal(for: window) { response in completion?(response) }
         } else {
-            completion?(alert.runModal())
+            let response = alert.runModal()
+            completion?(response)
         }
+    }
+
+    static func present(
+        _ panel: NSSavePanel,
+        on window: NSWindow? = nil,
+        completion: @escaping (NSApplication.ModalResponse) -> Void,
+    ) {
+        if let window = presentingWindow(window) {
+            panel.beginSheetModal(for: window) { response in completion(response) }
+        } else {
+            completion(panel.runModal())
+        }
+    }
+
+    private static func presentingWindow(_ preferred: NSWindow?) -> NSWindow? {
+        guard let window = preferred ?? hostWindow, window.isVisible || window.isMiniaturized else { return nil }
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        return window
     }
 
     private static func makeAlert(

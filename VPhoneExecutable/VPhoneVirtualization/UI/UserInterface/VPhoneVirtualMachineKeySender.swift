@@ -29,7 +29,7 @@ class VPhoneVirtualMachineKeySender {
             return true
         }
 
-        VPhoneAlert.run(
+        VPhoneAlert.present(
             title: "Guest Agent Not Connected",
             message: "The guest agent is not connected. Wait for it to connect, then try again.",
             style: .warning,

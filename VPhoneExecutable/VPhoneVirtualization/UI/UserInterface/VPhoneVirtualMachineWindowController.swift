@@ -51,6 +51,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
 
         window.isReleasedWhenClosed = false
         window.level = .normal
+        VPhoneAlert.hostWindow = window
         window.contentAspectRatio = windowSize
         window.title = VPhoneLocalization.text("vphone — Starting…")
         window.subtitle = makeSubtitle(ip: nil)

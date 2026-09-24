@@ -56,7 +56,7 @@ extension VPhoneMenuController {
 
     @objc func installIPAFromDisk() {
         guard control.isConnected else {
-            VPhoneAlert.run(
+            VPhoneAlert.present(
                 title: "Install App Package", message: "The guest is not connected. Start a VM, then try again.",
                 style: .warning)
             return
@@ -70,14 +70,18 @@ extension VPhoneMenuController {
         panel.prompt = VPhoneLocalization.text("Install")
         panel.message = VPhoneLocalization.text("Choose an IPA or TIPA package to install in the guest.")
 
-        let response = panel.runModal()
-        guard response == .OK, let url = panel.url else { return }
+        VPhoneAlert.present(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.installIPA(from: url)
+        }
+    }
 
+    private func installIPA(from url: URL) {
         Task {
             do {
                 let result = try await control.installIPA(localURL: url)
                 print("[install] \(result)")
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Install App Package",
                     message: VPhoneLocalization.installedMessage(
                         for: url.lastPathComponent,
@@ -86,7 +90,7 @@ extension VPhoneMenuController {
                     style: .informational,
                 )
             } catch {
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Install App Package",
                     message: "Unable to install the app package. Check the file and guest connection, then try again.",
                     style: .warning)
@@ -107,15 +111,20 @@ extension VPhoneMenuController {
         alert.addButton(withTitle: VPhoneLocalization.text("Cancel"))
         alert.window.initialFirstResponder = field
 
-        guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return }
-        let url = field.stringValue
+        VPhoneAlert.present(alert) { [weak self] response in
+            guard response == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return }
+            self?.openOnGuest(field.stringValue)
+        }
+    }
+
+    private func openOnGuest(_ url: String) {
         Task {
             do {
                 try await control.openURL(url)
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Open URL", message: VPhoneLocalization.format("Opened %@", url), style: .informational)
             } catch {
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Open URL",
                     message: "Unable to open the URL on the guest. Check the URL and guest connection, then try again.",
                     style: .warning)

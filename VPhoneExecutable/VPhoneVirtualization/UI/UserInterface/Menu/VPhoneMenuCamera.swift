@@ -97,12 +97,14 @@ extension VPhoneMenuController {
         ]
         panel.prompt = VPhoneLocalization.text("Use as Camera Source")
         panel.title = VPhoneLocalization.text("Choose Video File")
-        panel.runModal()
-        guard let url = panel.url else { return }
-        cameraServer?.setSource(.videoFile, videoURL: url)
-        refreshCameraSourceCheckmarks()
-        cameraStartStopItem?.isEnabled =
-            (cameraServer?.isConnected ?? false) && (cameraServer?.sourceKind ?? .off) == .videoFile
+        VPhoneAlert.present(panel) { [weak self] response in
+            guard let self, response == .OK, let url = panel.url else { return }
+            cameraServer?.setSource(.videoFile, videoURL: url)
+            refreshCameraSourceCheckmarks()
+            cameraStartStopItem?.isEnabled =
+                (cameraServer?.isConnected ?? false) &&
+                (cameraServer?.sourceKind ?? .off) == .videoFile
+        }
     }
 
     @objc func toggleCameraStreaming() {

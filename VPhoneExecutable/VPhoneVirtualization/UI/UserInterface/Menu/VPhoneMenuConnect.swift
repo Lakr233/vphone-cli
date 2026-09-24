@@ -121,13 +121,13 @@ extension VPhoneMenuController {
         Task {
             do {
                 let enabled = try await control.isDeveloperModeEnabled()
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Developer Mode",
                     message: enabled ? "Developer Mode is enabled." : "Developer Mode is disabled.",
                     style: .informational,
                 )
             } catch {
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Developer Mode",
                     message: "Unable to read Developer Mode status. Check that the guest agent is connected, "
                         + "then try again.",
@@ -141,9 +141,9 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.sendPing()
-                VPhoneAlert.run(title: "Ping", message: "The guest responded.", style: .informational)
+                VPhoneAlert.present(title: "Ping", message: "The guest responded.", style: .informational)
             } catch {
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Ping",
                     message: "The guest did not respond. Check that the guest agent is connected, then try again.",
                     style: .warning,
@@ -156,9 +156,9 @@ extension VPhoneMenuController {
         Task {
             do {
                 let hash = try await control.guestBinaryHash()
-                VPhoneAlert.run(title: "Guest Agent Hash", message: "SHA-256: \(hash)", style: .informational)
+                VPhoneAlert.present(title: "Guest Agent Hash", message: "SHA-256: \(hash)", style: .informational)
             } catch {
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Guest Agent Hash",
                     message: "Unable to read the guest agent hash. Check that the guest agent is connected, "
                         + "then try again.",

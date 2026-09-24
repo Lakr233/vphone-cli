@@ -107,7 +107,6 @@ extension VPhoneMenuController {
             title: title,
             message: message,
             style: style,
-            attachedTo: NSApp.keyWindow ?? activeCaptureView()?.window,
         )
     }
 
@@ -116,7 +115,6 @@ extension VPhoneMenuController {
             title: "Recording",
             message: VPhoneLocalization.format("Saved to %@", url.path),
             style: .informational,
-            attachedTo: NSApp.keyWindow ?? activeCaptureView()?.window,
             buttons: ["OK", "Reveal in Finder"],
         ) { response in
             if response == .alertSecondButtonReturn {

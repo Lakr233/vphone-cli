@@ -9,6 +9,7 @@ struct VPhoneFileBrowserView: View {
     @State private var newFolderName = ""
     @State private var fileToRename: VPhoneRemoteFile?
     @State private var renameName = ""
+    @State private var isDropTargeted = false
 
     private let controlBarHeight: CGFloat = 24
 
@@ -19,7 +20,6 @@ struct VPhoneFileBrowserView: View {
                 .overlay(controlBar.frame(maxHeight: .infinity, alignment: .bottom))
                 .opacity(model.isTransferring ? 0.25 : 1)
                 .searchable(text: $model.searchText, prompt: "Filter files")
-                .onDrop(of: [.fileURL], isTargeted: nil, perform: dropFiles)
                 .disabled(model.isTransferring)
                 .toolbar { toolbarContent }
             if model.isTransferring {
@@ -28,8 +28,12 @@ struct VPhoneFileBrowserView: View {
                     .background(.thickMaterial)
                     .zIndex(100)
             }
+            if isDropTargeted {
+                dropHighlight
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: dropFiles)
         .task { await model.refresh() }
         .alert(
             "Error",
@@ -335,8 +339,11 @@ struct VPhoneFileBrowserView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        guard panel.runModal() == .OK else { return }
-        Task { await model.uploadFiles(urls: panel.urls) }
+        // Toolbar and context menu actions come from the Files window, which is key.
+        VPhoneAlert.present(panel, on: NSApp.keyWindow) { response in
+            guard response == .OK else { return }
+            Task { await model.uploadFiles(urls: panel.urls) }
+        }
     }
 
     func downloadAction() {
@@ -345,8 +352,10 @@ struct VPhoneFileBrowserView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.prompt = VPhoneLocalization.text("Save Here")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task { await model.downloadSelected(to: url) }
+        VPhoneAlert.present(panel, on: NSApp.keyWindow) { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { await model.downloadSelected(to: url) }
+        }
     }
 
     func createFolder() {
@@ -369,7 +378,25 @@ struct VPhoneFileBrowserView: View {
             && !trimmed.contains("/") && !trimmed.contains("\0")
     }
 
+    /// Shown over the whole window while files are dragged in from Finder.
+    var dropHighlight: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .strokeBorder(Color.accentColor, lineWidth: 2)
+            .background(Color.accentColor.opacity(0.08))
+            .overlay {
+                Label("Drop to Upload to \(model.currentPath)", systemImage: "square.and.arrow.up")
+                    .font(.headline)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+            }
+            .padding(4)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
     func dropFiles(_ providers: [NSItemProvider]) -> Bool {
+        guard !model.isTransferring else { return false }
         let validProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
         guard !validProviders.isEmpty else { return false }
         Task { @MainActor in

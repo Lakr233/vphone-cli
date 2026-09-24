@@ -109,14 +109,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
         Task { @MainActor in
             guard let control, control.isConnected else {
-                VPhoneAlert.run(title: "Install App Package", message: "Guest is not connected.", style: .warning)
+                VPhoneAlert.present(title: "Install App Package", message: "Guest is not connected.", style: .warning)
                 return
             }
 
             do {
                 let result = try await control.installIPA(localURL: url)
                 print("[install] \(result)")
-                VPhoneAlert.run(
+                VPhoneAlert.present(
                     title: "Install App Package",
                     message: VPhoneLocalization.installedMessage(
                         for: url.lastPathComponent,
@@ -125,7 +125,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                     style: .informational,
                 )
             } catch {
-                VPhoneAlert.run(title: "Install App Package", message: "\(error)", style: .warning)
+                VPhoneAlert.present(title: "Install App Package", message: "\(error)", style: .warning)
             }
         }
         return true
