@@ -29,16 +29,31 @@
 > and `ProgramArguments[0]` paths are translated to physical kernel paths in
 > the in-memory XPC plist. The hook also tries to remove PID 1's existing
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
-> `SystemHook-vphone.dylib` is not injected into processes in this phase. When
-> loaded for diagnosis, it logs only PID and executable path to
-> `/var/mobile/Library/Caches/vphone-systemhook.log`; it does not load ElleKit.
-> ElleKit chain loading, `DISABLE_TWEAKS`, and tweak filters remain a later step.
-> An isolated experiment patched PID 1's `posix_spawn` with the old baseline
-> ElleKit `MSHookFunction` and inserted the diagnostic SystemHook. The hook
-> reached `xpcproxy` (327 probe log lines), but the launched package daemon
-> had no `DYLD_INSERT_LIBRARIES` and did not load SystemHook. Adding that
-> variable to the daemon plist was also ineffective. The experimental spawn
-> patch is therefore excluded from the installed launchd hook.
+> When a bootstrap and its ElleKit library exist, the launchd hook uses
+> `MSHookFunction` on PID 1's `posix_spawn` to add
+> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy` and
+> directly spawned bootstrap programs. `SystemHook-vphone.dylib` interposes
+> `posix_spawnp` inside `xpcproxy` to carry that environment into the final
+> executable. Both stages preserve an existing `DYLD_INSERT_LIBRARIES`, avoid
+> duplicate insertion, and honor `DISABLE_TWEAKS`, `_SafeMode`, and
+> `_MSSafeMode` in the target environment. The dylib logs PID, executable path,
+> xpcproxy label, and spawn decisions under `/var/mobile/Library/Caches`.
+> It still does not load ElleKit, TweakLoader, or individual tweaks in target
+> processes. Tweak selection and sandbox behavior require separate validation.
+> On the rootless iOS 26.6.2 clone, `xpcproxy` called `posix_spawnp` for the
+> package probe, and the final daemon reported
+> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` and
+> `systemhook_loaded=1`, including after its timed restart. Hooking only PID 1
+> reached `xpcproxy` but did not reach the final daemon; the `posix_spawnp`
+> bridge closes that observed gap. With `DISABLE_TWEAKS=1` in that same daemon
+> plist, the final process instead reported `DYLD_INSERT_LIBRARIES=<absent>`
+> and `systemhook_loaded=0`; the bridge logged `decision=disabled`. This
+> chain was also tested with a RootHide-shaped `.jbroot-<16 hex>` fixture on the
+> cloned VM: launchd imported its plist, translated `/usr/bin/...` to the
+> physical randomized root, loaded ElleKit from that root, and the final
+> daemon reported `systemhook_loaded=1` both at load and after its timed
+> restart. This validates path handling and injection through the randomized
+> root, not a complete RootHide bootstrap or a real tweak package.
 > The cloned `vphone-launchdhook-lab-26.6.2` booted with the weak dylib and
 > retained a healthy vphoned API. Rootless and RootHide probes, each tested
 > after reboot, were imported and spawned by launchd. The RootHide probe's
