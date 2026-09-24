@@ -25,6 +25,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         keySender: VPhoneVirtualMachineKeySender,
         control: VPhoneGuestControl,
         ecid: String?,
+        sceneIdentifier: String,
     ) {
         self.control = control
         self.ecid = ecid
@@ -57,13 +58,16 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         window.title = VPhoneLocalization.text("vphone — Starting…")
         window.subtitle = makeSubtitle(ip: nil)
         window.contentView = vmView
-        if let ecid {
-            if !window.setFrameAutosaveName("vphone-\(ecid)") {
-                window.center()
-            }
-        } else {
+
+        // The scene belongs to the VM, not to the app: every VM directory keeps
+        // its own window frame, and a newly created VM opens centered instead
+        // of inheriting the last frame another VM saved.
+        let sceneName = "vphone-scene-\(sceneIdentifier)"
+        window.identifier = NSUserInterfaceItemIdentifier(sceneName)
+        if !window.setFrameUsingName(sceneName) {
             window.center()
         }
+        window.setFrameAutosaveName(sceneName)
 
         // Toolbar with unified style for two-line title
         let toolbar = NSToolbar(identifier: "vphone-toolbar")
