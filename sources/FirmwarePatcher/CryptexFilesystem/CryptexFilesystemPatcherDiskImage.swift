@@ -95,7 +95,9 @@ extension CryptexFilesystemPatcher {
         let body = output.range(of: "<?xml").map { String(output[$0.lowerBound...]) } ?? output
         guard let data = body.data(using: .utf8),
               let root = try? PropertyListSerialization.propertyList(
-                  from: data, options: [], format: nil,
+                  from: data,
+                  options: [],
+                  format: nil,
               ) as? [String: Any]
         else {
             throw ProcessError.failed(0, "diskutil did not return a plist:\n\(output)")

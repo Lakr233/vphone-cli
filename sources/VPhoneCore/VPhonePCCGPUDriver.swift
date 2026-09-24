@@ -66,7 +66,9 @@ public enum VPhonePCCGPUDriver {
         let actual = properties["DTPlatformVersion"] as? String ?? "unknown"
         guard actual == expectedPlatformVersion else {
             throw Error.wrongPlatformVersion(
-                source, expected: expectedPlatformVersion, actual: actual,
+                source,
+                expected: expectedPlatformVersion,
+                actual: actual,
             )
         }
     }

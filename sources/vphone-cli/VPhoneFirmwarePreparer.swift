@@ -35,7 +35,8 @@ enum VPhoneFirmwarePreparer {
     ) throws {
         let fm = FileManager.default
         let existing = try fm.contentsOfDirectory(
-            at: bundle.url, includingPropertiesForKeys: [.isDirectoryKey],
+            at: bundle.url,
+            includingPropertiesForKeys: [.isDirectoryKey],
         )
         for candidate in existing where candidate.lastPathComponent.contains("Restore") {
             if try candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
@@ -76,13 +77,15 @@ enum VPhoneFirmwarePreparer {
         if let gpuDriverBundle {
             print("[*] Staging GPU driver from local bundle...")
             try VPhonePCCGPUDriver.stage(
-                from: gpuDriverBundle, into: phoneTree,
+                from: gpuDriverBundle,
+                into: phoneTree,
                 expectedPlatformVersion: cloud.version,
             )
         } else {
             print("[*] Restoring cloudOS in a temporary vphone VM to extract its GPU driver...")
             try VPhonePCCGPURecovery.stage(
-                cloudOSDirectory: cloudTree, into: phoneTree,
+                cloudOSDirectory: cloudTree,
+                into: phoneTree,
                 expectedPlatformVersion: cloud.version,
             )
         }
@@ -177,7 +180,8 @@ enum VPhoneFirmwarePreparer {
     private static func makeUserWritable(_ directory: URL) throws {
         let fm = FileManager.default
         guard let entries = fm.enumerator(
-            at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey],
+            at: directory,
+            includingPropertiesForKeys: [.isSymbolicLinkKey],
         ) else { return }
         for case let file as URL in entries {
             let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey])
@@ -187,7 +191,8 @@ enum VPhoneFirmwarePreparer {
             let attributes = try fm.attributesOfItem(atPath: file.path)
             let mode = (attributes[.posixPermissions] as? NSNumber)?.uint16Value ?? 0o644
             try fm.setAttributes(
-                [.posixPermissions: NSNumber(value: mode | 0o200)], ofItemAtPath: file.path,
+                [.posixPermissions: NSNumber(value: mode | 0o200)],
+                ofItemAtPath: file.path,
             )
         }
     }

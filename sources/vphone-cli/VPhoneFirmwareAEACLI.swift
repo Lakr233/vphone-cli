@@ -73,7 +73,8 @@ struct VPhoneFirmwareIM4PCreateCommand: ParsableCommand {
 
     func run() throws {
         let im4p = try IM4P(
-            fourcc: fourcc, description: version,
+            fourcc: fourcc,
+            description: version,
             payload: Data(contentsOf: file, options: .mappedIfSafe),
         )
         try im4p.data.write(to: output)
@@ -89,8 +90,11 @@ struct VPhoneFirmwareIM4PExtractCommand: ParsableCommand {
     @Argument(help: "The IM4P container", transform: URL.init(fileURLWithPath:))
     var file: URL
 
-    @Option(name: .customLong("output"), help: "Where to write the payload",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: .customLong("output"),
+        help: "Where to write the payload",
+        transform: URL.init(fileURLWithPath:)
+    )
     var output: URL
 
     func run() throws {

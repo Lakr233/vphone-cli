@@ -121,7 +121,8 @@ enum MachOFixture {
         // The fixture is 0755 already; this is only so a reference tree
         // someone made read-only does not turn into a failing patch test.
         try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755], ofItemAtPath: destination.path,
+            [.posixPermissions: 0o755],
+            ofItemAtPath: destination.path,
         )
         return destination
     }
@@ -226,18 +227,32 @@ struct CustomFirmwareMachOCodeSignatureTests {
     /// pinned directly.
     @Test func `slot ranges follow code limit alignment`() {
         let aligned = CustomFirmwareCodeDirectory(
-            slotType: 0, offset: 0, length: 0, hashOffset: 0, hashSize: 32,
-            hashType: 2, pageSize: 4096, pageSizeLog2: 12,
-            codeSlotCount: 2, codeLimit: 8192,
+            slotType: 0,
+            offset: 0,
+            length: 0,
+            hashOffset: 0,
+            hashSize: 32,
+            hashType: 2,
+            pageSize: 4096,
+            pageSizeLog2: 12,
+            codeSlotCount: 2,
+            codeLimit: 8192,
         )
         #expect(aligned.slotRange(0) == 0 ..< 4096)
         #expect(aligned.slotRange(1) == 4096 ..< 8192)
         #expect(aligned.slotRange(2) == nil)
 
         let short = CustomFirmwareCodeDirectory(
-            slotType: 0, offset: 0, length: 0, hashOffset: 0, hashSize: 32,
-            hashType: 2, pageSize: 4096, pageSizeLog2: 12,
-            codeSlotCount: 2, codeLimit: 5000,
+            slotType: 0,
+            offset: 0,
+            length: 0,
+            hashOffset: 0,
+            hashSize: 32,
+            hashType: 2,
+            pageSize: 4096,
+            pageSizeLog2: 12,
+            codeSlotCount: 2,
+            codeLimit: 5000,
         )
         #expect(short.slotRange(0) == 0 ..< 4096)
         #expect(short.slotRange(1) == 4096 ..< 5000)

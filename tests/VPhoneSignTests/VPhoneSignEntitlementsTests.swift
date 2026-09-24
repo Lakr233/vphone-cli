@@ -39,7 +39,9 @@ struct VPhoneSignEntitlementsTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let plist = VPhoneSignParityTests.sampleEntitlements
         let file = try VPhoneSignFixtures.sign(
-            VPhoneSignFixtures.url("hello-arm64"), in: directory, entitlements: plist,
+            VPhoneSignFixtures.url("hello-arm64"),
+            in: directory,
+            entitlements: plist,
         )
 
         let read = try VPhoneSigner.entitlements(ofFileAt: file)
@@ -251,7 +253,9 @@ struct VPhoneSignEntitlementsTests {
     @Test
     func `a binary plist is refused rather than read as XML`() throws {
         let binary = try PropertyListSerialization.data(
-            fromPropertyList: ["k": true], format: .binary, options: 0,
+            fromPropertyList: ["k": true],
+            format: .binary,
+            options: 0,
         )
         #expect(throws: VPhoneSignError.self) {
             _ = try VPhoneSignEntitlements(xml: binary)

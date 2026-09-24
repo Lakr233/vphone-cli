@@ -51,7 +51,9 @@ struct VPhoneSignParityTests {
             let name = source.lastPathComponent
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements,
+                source,
+                in: directory,
+                entitlements: Self.sampleEntitlements,
             )
             try VPhoneSignFixtures.expect("\(name).entitlements", matches: Data(contentsOf: ours))
         }
@@ -78,7 +80,10 @@ struct VPhoneSignParityTests {
             }
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true,
+                source,
+                in: directory,
+                entitlements: Self.sampleEntitlements,
+                mergesExisting: true,
             )
             try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
         }
@@ -159,7 +164,10 @@ struct VPhoneSignParityTests {
             )
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true,
+                source,
+                in: directory,
+                entitlements: Self.sampleEntitlements,
+                mergesExisting: true,
             )
             try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
 
@@ -206,7 +214,9 @@ struct VPhoneSignParityTests {
         // reads the name off the file it was handed
         let name = "named-for-this-test"
         let file = try VPhoneSignFixtures.copy(
-            VPhoneSignFixtures.url("hello-arm64"), into: directory, as: name,
+            VPhoneSignFixtures.url("hello-arm64"),
+            into: directory,
+            as: name,
         )
         try VPhoneSigner.sign(fileAt: file)
 

@@ -64,7 +64,8 @@ public enum VPhoneArchiveReader {
                     }
                     guard read > 0 else {
                         throw VPhoneArchiveError.readFailed(
-                            path: archive.path, reason: archiveErrorString(reader),
+                            path: archive.path,
+                            reason: archiveErrorString(reader),
                         )
                     }
                     data.append(contentsOf: buffer[0 ..< Int(read)])
@@ -99,7 +100,8 @@ public enum VPhoneArchiveReader {
 
         guard archive_read_open_filename(reader, archive.path, blockSize) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: archive.path, reason: archiveErrorString(reader),
+                path: archive.path,
+                reason: archiveErrorString(reader),
             )
         }
         return try body(reader)
@@ -116,7 +118,8 @@ public enum VPhoneArchiveReader {
         }
         guard status == ARCHIVE_OK || status == ARCHIVE_WARN else {
             throw VPhoneArchiveError.readFailed(
-                path: archive.path, reason: archiveErrorString(reader),
+                path: archive.path,
+                reason: archiveErrorString(reader),
             )
         }
         return entry

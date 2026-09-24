@@ -19,7 +19,8 @@ extension CryptexFilesystemPatcher {
         // Mapped: the mtree .aar this wraps is the whole system volume's
         // metadata and runs to hundreds of megabytes.
         let im4p = try IM4P(
-            fourcc: fourcc, description: description,
+            fourcc: fourcc,
+            description: description,
             payload: Data(contentsOf: payload, options: .mappedIfSafe),
         )
         try im4p.data.write(to: im4pPath)

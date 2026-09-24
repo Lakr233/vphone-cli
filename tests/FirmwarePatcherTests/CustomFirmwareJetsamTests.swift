@@ -561,7 +561,11 @@ struct CustomFirmwareJetsamDecodeTests {
 
         // tbz w8, #1, #8 — three operands, target last, from the encoder.
         let tbz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: false, register: 8, bit: 1, from: 0, to: 8,
+            nonzero: false,
+            register: 8,
+            bit: 1,
+            from: 0,
+            to: 8,
         ))
         let tbzInsn = try #require(disassembler.disassembleOne(tbz, at: 0))
         #expect(tbzInsn.mnemonic == "tbz")

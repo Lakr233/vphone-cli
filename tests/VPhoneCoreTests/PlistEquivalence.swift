@@ -52,7 +52,8 @@ enum PlistEquivalence {
             }
             for key in Set(l.keys).intersection(r.keys).sorted() {
                 found += differences(
-                    between: l[key]!, and: r[key]!,
+                    between: l[key]!,
+                    and: r[key]!,
                     at: path.isEmpty ? key : "\(path).\(key)",
                 )
             }
@@ -110,10 +111,12 @@ enum PlistEquivalence {
     /// Parse two plist files and report every semantic difference.
     static func differences(betweenFileAt lhs: URL, andFileAt rhs: URL) throws -> [Difference] {
         let left = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: lhs), format: nil,
+            from: Data(contentsOf: lhs),
+            format: nil,
         )
         let right = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: rhs), format: nil,
+            from: Data(contentsOf: rhs),
+            format: nil,
         )
         return differences(between: left, and: right)
     }

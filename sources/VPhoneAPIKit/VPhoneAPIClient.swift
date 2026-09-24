@@ -111,8 +111,11 @@ public struct VPhoneAPIClient: Sendable {
     /// Runs any icli subcommand inside the guest. Arguments are passed as an
     /// array to the pinned icli executable, without a shell. The result holds
     /// its exit code, decoded JSON output (or text), and stderr.
-    public func runIcli(_ arguments: [String], stdin: String? = nil,
-                        stdinData: Data? = nil) async throws -> VPhoneJSONValue {
+    public func runIcli(
+        _ arguments: [String],
+        stdin: String? = nil,
+        stdinData: Data? = nil
+    ) async throws -> VPhoneJSONValue {
         guard stdin == nil || stdinData == nil else {
             throw VPhoneAPIError(code: "input", message: "Pass either stdin or stdinData")
         }
@@ -138,8 +141,11 @@ public struct VPhoneAPIClient: Sendable {
 
     /// Sends a host file to an absolute guest path without loading it into
     /// memory. The guest stages it beside the destination and renames it.
-    public func uploadFile(from localURL: URL, toGuestPath guestPath: String,
-                           permissions: String = "644") async throws -> VPhoneJSONValue {
+    public func uploadFile(
+        from localURL: URL,
+        toGuestPath guestPath: String,
+        permissions: String = "644"
+    ) async throws -> VPhoneJSONValue {
         var request = URLRequest(url: try fileURL(guestPath, mode: permissions))
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")

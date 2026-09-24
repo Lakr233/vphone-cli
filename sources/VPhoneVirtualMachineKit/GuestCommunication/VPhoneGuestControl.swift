@@ -223,8 +223,12 @@ final class VPhoneGuestControl {
     }
 
     func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
-        let response = try await http(method: "PUT", path: try filePath(path, mode: permissions), body: data,
-                                      contentType: "application/octet-stream")
+        let response = try await http(
+            method: "PUT",
+            path: try filePath(path, mode: permissions),
+            body: data,
+            contentType: "application/octet-stream"
+        )
         guard response.status == 200 else { throw try httpError(response) }
     }
 
@@ -252,9 +256,13 @@ final class VPhoneGuestControl {
 
     func clipboardGet() async throws -> ClipboardContent {
         let (info, image) = try await sendRequest(["t": "clipboard_get"])
-        return ClipboardContent(text: info["text"] as? String, types: info["types"] as? [String] ?? [],
-                                hasImage: info["has_image"] as? Bool ?? false,
-                                changeCount: info["change_count"] as? Int ?? 0, imageData: image)
+        return ClipboardContent(
+            text: info["text"] as? String,
+            types: info["types"] as? [String] ?? [],
+            hasImage: info["has_image"] as? Bool ?? false,
+            changeCount: info["change_count"] as? Int ?? 0,
+            imageData: image
+        )
     }
 
     func clipboardSet(text: String) async throws {
@@ -262,14 +270,24 @@ final class VPhoneGuestControl {
     }
 
     func clipboardSet(imageData: Data) async throws {
-        let response = try await http(method: "PUT", path: "/v1/clipboard/image", body: imageData,
-                                      contentType: "application/octet-stream")
+        let response = try await http(
+            method: "PUT",
+            path: "/v1/clipboard/image",
+            body: imageData,
+            contentType: "application/octet-stream"
+        )
         guard response.status == 200 else { throw try httpError(response) }
     }
 
-    func sendLocation(latitude: Double, longitude: Double, altitude: Double,
-                      horizontalAccuracy: Double, verticalAccuracy: Double,
-                      speed: Double, course: Double) {
+    func sendLocation(
+        latitude: Double,
+        longitude: Double,
+        altitude: Double,
+        horizontalAccuracy: Double,
+        verticalAccuracy: Double,
+        speed: Double,
+        course: Double
+    ) {
         Task {
             do { _ = try await call("location.set", params: [
                 "latitude": latitude, "longitude": longitude, "altitude": altitude,
@@ -301,16 +319,25 @@ final class VPhoneGuestControl {
         return .guestError(error?["message"] as? String ?? "HTTP \(response.status)")
     }
 
-    private func http(method: String, path: String, body: Data = Data(),
-                      contentType: String = "application/json") async throws -> VPhoneHTTPResponse {
+    private func http(
+        method: String,
+        path: String,
+        body: Data = Data(),
+        contentType: String = "application/json"
+    ) async throws -> VPhoneHTTPResponse {
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
             (continuation: CheckedContinuation<VPhoneSocketResult, Never>) in
             device.connect(toPort: 1339) { continuation.resume(returning: VPhoneSocketResult($0)) }
         }
         let connection = try socket.result.get()
-        let transaction = VPhoneHTTPTransaction(connection: connection, method: method, path: path,
-                                                body: body, contentType: contentType)
+        let transaction = VPhoneHTTPTransaction(
+            connection: connection,
+            method: method,
+            path: path,
+            body: body,
+            contentType: contentType
+        )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do { continuation.resume(returning: try transaction.run()) }
@@ -337,8 +364,13 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     let body: Data
     let contentType: String
 
-    init(connection: VZVirtioSocketConnection, method: String, path: String,
-         body: Data, contentType: String) {
+    init(
+        connection: VZVirtioSocketConnection,
+        method: String,
+        path: String,
+        body: Data,
+        contentType: String
+    ) {
         self.connection = connection
         self.method = method
         self.path = path
@@ -365,7 +397,9 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         var received = Data()
         let marker = Data("\r\n\r\n".utf8)
         while received.range(of: marker) == nil {
-            guard received.count < 64 * 1024 else { throw VPhoneGuestControl.ControlError.protocolError("HTTP headers too large") }
+            guard received.count < 64 * 1024 else {
+                throw VPhoneGuestControl.ControlError.protocolError("HTTP headers too large")
+            }
             try readMore(fd, into: &received)
         }
         let boundary = received.range(of: marker)!

@@ -43,8 +43,11 @@ extension KernelJailbreakPatcher {
         var replacements: [(VmMapDeleteGate, Data)] = []
         for gate in gates.sorted(by: { $0.offset < $1.offset }) {
             guard let bytes = ARM64Encoder.encodeTestBitBranch(
-                nonzero: gate.nonzero, register: gate.register, bit: 13,
-                from: gate.offset, to: gate.target,
+                nonzero: gate.nonzero,
+                register: gate.register,
+                bit: 13,
+                from: gate.offset,
+                to: gate.target,
             ),
                 let decoded = disasm.disassembleOne(bytes, at: UInt64(gate.offset)),
                 decoded.mnemonic == (gate.nonzero ? "tbnz" : "tbz"),

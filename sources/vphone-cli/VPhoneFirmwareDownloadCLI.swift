@@ -112,7 +112,8 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         let manifestData = try await zip.read(manifestEntry)
 
         guard let manifest = try PropertyListSerialization.propertyList(
-            from: manifestData, format: nil,
+            from: manifestData,
+            format: nil,
         ) as? [String: Any],
             let identities = manifest["BuildIdentities"] as? [[String: Any]]
         else {
@@ -147,7 +148,8 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         let attached = try run("/usr/bin/hdiutil",
                                ["attach", "-readonly", "-nobrowse", "-plist", dmg.path])
         guard let plist = try PropertyListSerialization.propertyList(
-            from: Data(attached.utf8), format: nil,
+            from: Data(attached.utf8),
+            format: nil,
         ) as? [String: Any],
             let entities = plist["system-entities"] as? [[String: Any]],
             let mount = entities.compactMap({ $0["mount-point"] as? String }).first

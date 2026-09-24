@@ -114,7 +114,8 @@ enum WatchdogdFixture {
             where instruction.mnemonic == "bl"
         {
             guard let target = ARM64Encoder.decodeBranchTarget(
-                insn: CustomFirmwareWatchdogd.word(of: instruction), pc: instruction.address,
+                insn: CustomFirmwareWatchdogd.word(of: instruction),
+                pc: instruction.address,
             ) else { continue }
             if symbols.name(forBranchTarget: target) == "_sysctlbyname" {
                 found.append(instruction.address)
@@ -270,19 +271,31 @@ struct CustomFirmwareWatchdogdAnchorTests {
 
         // add x9, … ; mov x0, x9 ; bl — the literal is the call's argument.
         #expect(try CustomFirmwareWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: 0),
+            inRegister: "x9",
+            from: 1,
+            toCallAt: 3,
+            in: stream(movingInto: 0),
         ))
         // The same shape moving into x1 is some other call's argument.
         #expect(try !CustomFirmwareWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: 1),
+            inRegister: "x9",
+            from: 1,
+            toCallAt: 3,
+            in: stream(movingInto: 1),
         ))
         // No move at all, and the pointer never reaches x0.
         #expect(try !CustomFirmwareWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: nil),
+            inRegister: "x9",
+            from: 1,
+            toCallAt: 3,
+            in: stream(movingInto: nil),
         ))
         // The direct form the shipped binary uses needs no move.
         #expect(try CustomFirmwareWatchdogd.passesLiteral(
-            inRegister: "x0", from: 1, toCallAt: 3, in: stream(movingInto: nil),
+            inRegister: "x0",
+            from: 1,
+            toCallAt: 3,
+            in: stream(movingInto: nil),
         ))
     }
 
@@ -481,7 +494,8 @@ struct CustomFirmwareWatchdogdReferenceTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `agrees with the frozen reference on an already patched binary`() throws {
         let file = try WatchdogdFixture.scratchCopy(
-            of: WatchdogdFixture.watchdogd, named: "watchdogd-twice",
+            of: WatchdogdFixture.watchdogd,
+            named: "watchdogd-twice",
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
@@ -503,7 +517,8 @@ struct CustomFirmwareWatchdogdReferenceTests {
     @Test(.enabled(if: WatchdogdFixture.hasCodesign))
     func `patched binary still verifies under codesign`() throws {
         let file = try WatchdogdFixture.scratchCopy(
-            of: WatchdogdFixture.watchdogd, named: "watchdogd-signed",
+            of: WatchdogdFixture.watchdogd,
+            named: "watchdogd-signed",
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 

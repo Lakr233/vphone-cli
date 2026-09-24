@@ -168,7 +168,9 @@ static CMSampleBufferRef cfx_build_cmsb(void) {
   if (cvr != kCVReturnSuccess || !pb) { free(pixels); return NULL; }
   CMVideoFormatDescriptionRef desc = NULL;
   OSStatus s = CMVideoFormatDescriptionCreateForImageBuffer(
-      kCFAllocatorDefault, pb, &desc);
+      kCFAllocatorDefault,
+      pb,
+      &desc);
   if (s != noErr || !desc) { CVPixelBufferRelease(pb); return NULL; }
   CMSampleTimingInfo timing = {
       .duration = CMTimeMake(1, 30),
@@ -177,7 +179,14 @@ static CMSampleBufferRef cfx_build_cmsb(void) {
   };
   CMSampleBufferRef cmsb = NULL;
   s = CMSampleBufferCreateForImageBuffer(
-      kCFAllocatorDefault, pb, true, NULL, NULL, desc, &timing, &cmsb);
+      kCFAllocatorDefault,
+      pb,
+      true,
+      NULL,
+      NULL,
+      desc,
+      &timing,
+      &cmsb);
   CFRelease(desc);
   CVPixelBufferRelease(pb);
   return (s == noErr) ? cmsb : NULL;
@@ -237,9 +246,11 @@ static IMP cfx_orig_capturePhoto = NULL;
 static IOSurfaceRef cfx_build_iosurface_from_shm(uint32_t *outW, uint32_t *outH) CF_RETURNS_RETAINED;
 static CGImageRef cfx_build_cgimage_from_shm(void) CF_RETURNS_RETAINED;
 static NSData *cfx_build_jpeg_from_shm(void);
-static id cfx_build_avcapturephoto_with_request(IOSurfaceRef surf,
-                                                uint32_t w, uint32_t h,
-                                                id captureRequest);
+static id cfx_build_avcapturephoto_with_request(
+    IOSurfaceRef surf,
+    uint32_t w,
+    uint32_t h,
+    id captureRequest);
 static BOOL cfx_output_is_for_vcam(id self);
 
 // Associated-object keys (used by fileDataRepresentation /
@@ -255,12 +266,17 @@ static const void *CFX_ASSOC_CGIMG_KEY = &CFX_ASSOC_CGIMG_KEY;
 static NSData *cfx_stamp_photo(id photo) {
   NSData *jpeg = cfx_build_jpeg_from_shm();
   CGImageRef cgImg = cfx_build_cgimage_from_shm();
-  if (jpeg) objc_setAssociatedObject(photo, CFX_ASSOC_JPEG_KEY, jpeg,
-                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  if (jpeg) objc_setAssociatedObject(
+      photo,
+      CFX_ASSOC_JPEG_KEY,
+      jpeg,
+      OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   if (cgImg) {
-    objc_setAssociatedObject(photo, CFX_ASSOC_CGIMG_KEY,
-                             (__bridge id)cgImg,
-                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(
+        photo,
+        CFX_ASSOC_CGIMG_KEY,
+        (__bridge id)cgImg,
+        OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     CGImageRelease(cgImg);
   }
   return jpeg;
@@ -380,9 +396,11 @@ static void cfx_preview_start_timer(void) {
   if (cfx_preview_timer) return;
   dispatch_queue_t q = dispatch_queue_create("com.vphone.camfix.preview", DISPATCH_QUEUE_SERIAL);
   cfx_preview_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
-  dispatch_source_set_timer(cfx_preview_timer,
-                              dispatch_time(DISPATCH_TIME_NOW, 0),
-                              33333333ull, 2000000ull);
+  dispatch_source_set_timer(
+      cfx_preview_timer,
+      dispatch_time(DISPATCH_TIME_NOW, 0),
+      33333333ull,
+      2000000ull);
   dispatch_source_set_event_handler(cfx_preview_timer, ^{
     @autoreleasepool { cfx_pump_preview_once(); }
   });
@@ -423,12 +441,17 @@ static id cfx_pv_initWithSession_hook(id self, SEL _cmd, AVCaptureSession *sessi
 }
 
 __attribute__((ns_returns_retained))
-static id cfx_pv_initWithSessionMakeConnection_hook(id self, SEL _cmd,
-                                                      AVCaptureSession *session,
-                                                      BOOL makeConnection) {
+static id cfx_pv_initWithSessionMakeConnection_hook(
+    id self,
+    SEL _cmd,
+    AVCaptureSession *session,
+    BOOL makeConnection) {
   typedef id (*Fn)(id, SEL, AVCaptureSession *, BOOL);
   id ret = ((Fn)cfx_orig_pv_initWithSessionMakeConnection)(
-      self, _cmd, session, makeConnection);
+      self,
+      _cmd,
+      session,
+      makeConnection);
   BOOL forVcam = (session != nil) && cfx_session_is_for_vcam(session);
   cfxlog(@"[PVLayer _initWithSession:%p makeConnection:%d] ret=%p forVcam=%d cls=%@",
          session,
@@ -446,7 +469,10 @@ static void cfx_pv_setSession_hook(id self, SEL _cmd, AVCaptureSession *session)
   ((Fn)cfx_orig_pv_setSession)(self, _cmd, session);
   BOOL forVcam = (session != nil) && cfx_session_is_for_vcam(session);
   cfxlog(@"[PVLayer setSession:%p] self=%p forVcam=%d cls=%@",
-         session, self, forVcam, NSStringFromClass([self class]));
+         session,
+         self,
+         forVcam,
+         NSStringFromClass([self class]));
   if (session && forVcam) cfx_adopt_preview_layer(self);
 }
 
@@ -507,7 +533,8 @@ static void cfx_scan_preview_layers(void) {
   NSUInteger after = cfx_preview_layers.count;
   if (after > before) {
     cfxlog(@"[scan] adopted %lu preview layer(s) (total=%lu)",
-           (unsigned long)(after - before), (unsigned long)after);
+           (unsigned long)(after - before),
+           (unsigned long)after);
     cfx_preview_start_timer();
   }
 }
@@ -655,16 +682,25 @@ static BOOL cfx_stub_lensStabSupported(id self, SEL _cmd) {
 static void cfx_install_capturerequest_stubs(void) {
   Class cls = NSClassFromString(@"CAMStillImageCaptureRequest");
   if (!cls) { cfxlog(@"CAMStillImageCaptureRequest missing"); return; }
-  if (class_addMethod(cls, NSSelectorFromString(@"resolvedSettings"),
-                      (IMP)cfx_stub_resolvedSettings, "@@:")) {
+  if (class_addMethod(
+          cls,
+          NSSelectorFromString(@"resolvedSettings"),
+          (IMP)cfx_stub_resolvedSettings,
+          "@@:")) {
     cfxlog(@"stubbed resolvedSettings on CAMStillImageCaptureRequest");
   }
-  if (class_addMethod(cls, NSSelectorFromString(@"unresolvedSettings"),
-                      (IMP)cfx_stub_unresolvedSettings, "@@:")) {
+  if (class_addMethod(
+          cls,
+          NSSelectorFromString(@"unresolvedSettings"),
+          (IMP)cfx_stub_unresolvedSettings,
+          "@@:")) {
     cfxlog(@"stubbed unresolvedSettings on CAMStillImageCaptureRequest");
   }
-  if (class_addMethod(cls, NSSelectorFromString(@"lensStabilizationSupported"),
-                      (IMP)cfx_stub_lensStabSupported, "B@:")) {
+  if (class_addMethod(
+          cls,
+          NSSelectorFromString(@"lensStabilizationSupported"),
+          (IMP)cfx_stub_lensStabSupported,
+          "B@:")) {
     cfxlog(@"stubbed lensStabilizationSupported on CAMStillImageCaptureRequest");
   }
 }
@@ -701,7 +737,10 @@ static NSData *cfx_build_jpeg_from_shm(void) {
 
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
   CGDataProviderRef dp = CGDataProviderCreateWithData(
-      NULL, copy, len, cfx_cg_release_data);
+      NULL,
+      copy,
+      len,
+      cfx_cg_release_data);
   CGImageRef img = CGImageCreate(
       w,
       h,
@@ -743,7 +782,10 @@ static CGImageRef cfx_build_cgimage_from_shm(void) CF_RETURNS_RETAINED {
   memcpy(copy, cfx_shm_base + CFX_SHM_HEADER_SIZE, len);
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
   CGDataProviderRef dp = CGDataProviderCreateWithData(
-      NULL, copy, len, cfx_cg_release_data);
+      NULL,
+      copy,
+      len,
+      cfx_cg_release_data);
   CGImageRef img = CGImageCreate(
       w,
       h,
@@ -800,8 +842,10 @@ static IOSurfaceRef cfx_build_iosurface_from_shm(uint32_t *outW, uint32_t *outH)
 // Walk class_copyMethodList for `cls` (or its metaclass when looking for
 // class methods) and return the selector with the most colons that starts
 // with `prefix`. Returns NULL if nothing matches.
-static SEL cfx_find_selector_by_prefix(Class cls, NSString *prefix,
-                                       BOOL classMethod) {
+static SEL cfx_find_selector_by_prefix(
+    Class cls,
+    NSString *prefix,
+    BOOL classMethod) {
   if (!cls || !prefix.length) return NULL;
   Class c = classMethod ? object_getClass(cls) : cls;
   unsigned int n = 0;
@@ -846,15 +890,19 @@ static NSString *cfx_normalize_first_label(NSString *label) {
 // whether and what to write into `outBuf` (already zeroed). If the block
 // doesn't recognize the label, leave outBuf alone — nil for objects,
 // zeroed bytes for structs/primitives.
-typedef void (^cfx_arg_resolver_t)(NSString *label, const char *typeEnc,
-                                   void *outBuf);
+typedef void (^cfx_arg_resolver_t)(
+    NSString *label,
+    const char *typeEnc,
+    void *outBuf);
 
 // Build + invoke `[target selector]` with arguments filled by `resolver`.
 // Works whether `target` is an alloc'd instance (for inits) or a Class
 // (for class-method factories). Returns the result if it's an object
 // return type, nil otherwise.
-static id cfx_invoke_with_labeled_args(id target, SEL selector,
-                                       cfx_arg_resolver_t resolver) {
+static id cfx_invoke_with_labeled_args(
+    id target,
+    SEL selector,
+    cfx_arg_resolver_t resolver) {
   NSMethodSignature *sig = nil;
   @try { sig = [target methodSignatureForSelector:selector]; }
   @catch (NSException *e) { return nil; }

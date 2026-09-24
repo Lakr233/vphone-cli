@@ -191,7 +191,8 @@ NSDictionary *vp_handle_keychain_command(NSDictionary *msg) {
         NSArray *dbItems = query_keychain_db(filterClass, diag);
 
         NSLog(@"vphoned: keychain_list: %lu items (sqlite), diag: %@",
-              (unsigned long)dbItems.count, diag);
+              (unsigned long)dbItems.count,
+              diag);
 
         NSMutableDictionary *resp = vp_make_response(@"keychain_list", reqId);
         resp[@"items"] = dbItems;

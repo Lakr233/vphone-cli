@@ -18,7 +18,8 @@ enum VPhoneArchivePaths {
     static func resolved(_ url: URL) throws -> URL {
         guard let resolved = realpath(url.path, nil) else {
             throw VPhoneArchiveError.cannotOpen(
-                path: url.path, reason: String(cString: strerror(errno)),
+                path: url.path,
+                reason: String(cString: strerror(errno)),
             )
         }
         defer { free(resolved) }

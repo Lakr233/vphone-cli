@@ -100,7 +100,8 @@ struct FirmwareManifestSelectionTests {
             Self.identity(deviceClass: "vresearch101ap", variant: "Research Erase Install"),
         ]
         let (release, research) = try FirmwareManifest.findCloudOS(
-            identities, deviceClass: "vresearch101ap",
+            identities,
+            deviceClass: "vresearch101ap",
         )
         #expect(release == 2)
         #expect(research == 3) // the first research one, not the last

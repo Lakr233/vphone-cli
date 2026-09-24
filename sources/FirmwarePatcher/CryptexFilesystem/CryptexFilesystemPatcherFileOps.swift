@@ -39,7 +39,8 @@ extension CryptexFilesystemPatcher {
     /// Follows symlinks, which is what chmod(1) does without `-h`.
     func setMode(_ mode: Int, at url: URL) throws {
         try FileManager.default.setAttributes(
-            [.posixPermissions: mode], ofItemAtPath: url.path,
+            [.posixPermissions: mode],
+            ofItemAtPath: url.path,
         )
     }
 
@@ -77,7 +78,8 @@ extension CryptexFilesystemPatcher {
             try FileManager.default.removeItem(at: link)
         }
         try FileManager.default.createSymbolicLink(
-            atPath: link.path, withDestinationPath: destination,
+            atPath: link.path,
+            withDestinationPath: destination,
         )
     }
 

@@ -35,7 +35,8 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                 do {
                     upload = try GuestFileUpload(
                         destination: requestPath == "/v1/clipboard/image"
-                            ? "/var/root/Library/Caches/vphoned-clipboard-image" : GuestFileTransfer.path(from: request.uri),
+                            ? "/var/root/Library/Caches/vphoned-clipboard-image"
+                            : GuestFileTransfer.path(from: request.uri),
                         fileIO: fileIO,
                         channel: context.channel,
                         mode: try Self.uploadMode(from: request.uri),
@@ -81,8 +82,11 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                     } catch { Self.send(APIWire.error(String(describing: error)), on: context.channel) }
                 } else if head.method == .GET {
                     do {
-                        GuestFileTransfer.download(path: try GuestFileTransfer.path(from: head.uri),
-                                                   fileIO: fileIO, channel: context.channel)
+                        GuestFileTransfer.download(
+                            path: try GuestFileTransfer.path(from: head.uri),
+                            fileIO: fileIO,
+                            channel: context.channel
+                        )
                     } catch {
                         Self.send(APIWire.error(String(describing: error)), on: context.channel)
                     }
@@ -195,7 +199,10 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
             headers.add(name: "Content-Length", value: String(reply.data.count))
             headers.add(name: "Connection", value: "close")
             let status = HTTPResponseStatus(statusCode: reply.status)
-            channel.write(HTTPServerResponsePart.head(.init(version: .http1_1, status: status, headers: headers)), promise: nil)
+            channel.write(
+                HTTPServerResponsePart.head(.init(version: .http1_1, status: status, headers: headers)),
+                promise: nil
+            )
             var buffer = channel.allocator.buffer(capacity: reply.data.count)
             buffer.writeBytes(reply.data)
             channel.write(HTTPServerResponsePart.body(.byteBuffer(buffer)), promise: nil)

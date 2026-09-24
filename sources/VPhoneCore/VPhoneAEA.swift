@@ -129,7 +129,9 @@ public enum VPhoneAEA {
         var recipient = try HPKE.Recipient(
             privateKey: privateKey,
             ciphersuite: HPKE.Ciphersuite(
-                kem: .P256_HKDF_SHA256, kdf: .HKDF_SHA256, aead: .AES_GCM_256,
+                kem: .P256_HKDF_SHA256,
+                kdf: .HKDF_SHA256,
+                aead: .AES_GCM_256,
             ),
             info: Data(),
             encapsulatedKey: encapsulated,

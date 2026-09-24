@@ -109,18 +109,24 @@ extension CustomFirmwareWatchdogd {
     ) -> Site? {
         // Layer 3: the call, and the import it resolves to.
         guard let callIndex = firstIndex(
-            in: instructions, from: addIndex + 1, within: argumentSetupWindow,
+            in: instructions,
+            from: addIndex + 1,
+            within: argumentSetupWindow,
             where: { $0.mnemonic == "bl" },
         ) else { return nil }
         let call = instructions[callIndex]
         guard let target = ARM64Encoder.decodeBranchTarget(
-            insn: word(of: call), pc: call.address,
+            insn: word(of: call),
+            pc: call.address,
         ), symbols.name(forBranchTarget: target) == sysctlFunction else { return nil }
 
         // Layer 2, concluded: the literal has to be the call's `name` argument,
         // not just something this stretch of code also mentions.
         guard passesLiteral(
-            inRegister: pointerRegister, from: addIndex, toCallAt: callIndex, in: instructions,
+            inRegister: pointerRegister,
+            from: addIndex,
+            toCallAt: callIndex,
+            in: instructions,
         ) else { return nil }
 
         // Layer 4a: the gate, which must be the very next instruction — the
@@ -158,14 +164,18 @@ extension CustomFirmwareWatchdogd {
         // Layer 5: the store of that same register into an ADRP-relative
         // __DATA address — the cached global.
         guard let storeIndex = firstIndex(
-            in: instructions, from: valueIndex + 1, within: valueToStoreWindow,
+            in: instructions,
+            from: valueIndex + 1,
+            within: valueToStoreWindow,
             where: { $0.mnemonic == "strb" && registerName($0, 0) == valueRegister },
         ) else { return nil }
         let store = instructions[storeIndex]
         guard let memory = memoryOperand(store) else { return nil }
         guard let basePage = pageAddress(
             ofRegister: UInt32(memory.base.rawValue),
-            before: storeIndex, notBefore: addIndex, in: instructions,
+            before: storeIndex,
+            notBefore: addIndex,
+            in: instructions,
         ) else { return nil }
         let cachedByte = basePage &+ UInt64(bitPattern: Int64(memory.disp))
         guard let segment = segments.first(where: {

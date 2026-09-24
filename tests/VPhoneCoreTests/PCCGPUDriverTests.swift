@@ -9,7 +9,8 @@ struct PCCGPUDriverTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let source = root.appendingPathComponent(VPhonePCCGPUDriver.name)
         try FileManager.default.createDirectory(
-            at: source.appendingPathComponent("_CodeSignature"), withIntermediateDirectories: true,
+            at: source.appendingPathComponent("_CodeSignature"),
+            withIntermediateDirectories: true,
         )
         for file in ["AppleParavirtGPUMetalIOGPUFamily",
                      "_CodeSignature/CodeResources"]
@@ -37,7 +38,8 @@ struct PCCGPUDriverTests {
 
         #expect(throws: VPhonePCCGPUDriver.Error.self) {
             try VPhonePCCGPUDriver.stage(
-                from: source, into: restore,
+                from: source,
+                into: restore,
                 expectedPlatformVersion: "26.1",
             )
         }
@@ -45,7 +47,9 @@ struct PCCGPUDriverTests {
         try FileManager.default.removeItem(at: source.appendingPathComponent("_CodeSignature/CodeResources"))
         #expect(throws: VPhonePCCGPUDriver.Error.self) {
             try VPhonePCCGPUDriver.stage(
-                from: source, into: restore, expectedPlatformVersion: "26.4",
+                from: source,
+                into: restore,
+                expectedPlatformVersion: "26.4",
             )
         }
     }

@@ -161,7 +161,11 @@ struct ARM64EncoderTests {
         // The vm_map_delete --frida patch retargets `tbz/tbnz w8,#9` to bit 13
         // (current-protection.X → max_protection.X), preserving sense and target.
         let tbz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: false, register: 8, bit: 13, from: 0x1000, to: 0x1020,
+            nonzero: false,
+            register: 8,
+            bit: 13,
+            from: 0x1000,
+            to: 0x1020,
         ))
         let tbzI = try #require(disasm.disassembleOne(tbz, at: 0x1000))
         #expect(tbzI.mnemonic == "tbz")
@@ -170,7 +174,11 @@ struct ARM64EncoderTests {
         #expect(tbzI.operandString.contains("0x1020"))
 
         let tbnz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: true, register: 8, bit: 13, from: 0x2000, to: 0x1F00,
+            nonzero: true,
+            register: 8,
+            bit: 13,
+            from: 0x2000,
+            to: 0x1F00,
         ))
         let tbnzI = try #require(disasm.disassembleOne(tbnz, at: 0x2000))
         #expect(tbnzI.mnemonic == "tbnz")

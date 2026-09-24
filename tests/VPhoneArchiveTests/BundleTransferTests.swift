@@ -187,7 +187,9 @@ struct BundleTransferTests {
 
         #expect(throws: VPhoneBundleTransferError.self) {
             _ = try VPhoneBundleTransfer.importArchive(
-                from: archive, name: nil, in: VPhoneLibrary(root: root.appendingPathComponent("library")),
+                from: archive,
+                name: nil,
+                in: VPhoneLibrary(root: root.appendingPathComponent("library")),
             )
         }
     }
@@ -206,7 +208,10 @@ struct BundleTransferTests {
         func pack() throws {
             try? fm.removeItem(at: archive)
             try VPhoneArchiveWriter.create(
-                archive: archive, from: bundleDir, topLevel: "original", compression: .gzip(level: 1),
+                archive: archive,
+                from: bundleDir,
+                topLevel: "original",
+                compression: .gzip(level: 1),
             )
         }
         try pack()
@@ -217,7 +222,9 @@ struct BundleTransferTests {
         #expect(try fm.contentsOfDirectory(atPath: lib.root.path).isEmpty)
 
         let manifest = VPhoneVirtualMachineManifest(
-            cpuCount: 2, memorySize: 2048 * 1024 * 1024, romImages: nil,
+            cpuCount: 2,
+            memorySize: 2048 * 1024 * 1024,
+            romImages: nil,
         )
         try manifest.write(to: config)
         try pack()
@@ -268,7 +275,9 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         let imported = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot),
+            from: archive,
+            name: "copy",
+            in: VPhoneLibrary(root: dstRoot),
         )
         try body(archive, imported)
     }
@@ -369,7 +378,9 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         _ = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot),
+            from: archive,
+            name: "copy",
+            in: VPhoneLibrary(root: dstRoot),
         ) {
             imp.add($0, $1)
         }
@@ -408,7 +419,8 @@ struct BundleTransferTests {
         try Data(repeating: 0x7A, count: 100 * 1024).write(to: payload)
         for alias in ["linked_b.bin", "linked_c.bin"] {
             try FileManager.default.linkItem(
-                at: payload, to: bundle.url.appendingPathComponent(alias),
+                at: payload,
+                to: bundle.url.appendingPathComponent(alias),
             )
         }
 
@@ -481,7 +493,9 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         let imported = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "fromlegacy", in: VPhoneLibrary(root: dstRoot),
+            from: archive,
+            name: "fromlegacy",
+            in: VPhoneLibrary(root: dstRoot),
         )
         #expect(imported.name == "fromlegacy")
         #expect(imported.manifest.cpuCount == 6)

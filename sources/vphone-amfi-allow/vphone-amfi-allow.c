@@ -133,8 +133,11 @@ static Class manager_class(void) {
     }
     cls = objc_getClass(MANAGER_CLASS);
     if (!cls) {
-        fprintf(stderr, "error: class %s not found — this macOS build is not supported\n",
-                MANAGER_CLASS);
+        fprintf(
+            stderr,
+            "error: class %s not found — this macOS build is not supported\n",
+            MANAGER_CLASS
+        );
         exit(1);
     }
     return cls;
@@ -143,8 +146,12 @@ static Class manager_class(void) {
 static ptrdiff_t ivar_offset(const char *name) {
     Ivar iv = class_getInstanceVariable(manager_class(), name);
     if (!iv) {
-        fprintf(stderr, "error: ivar %s not found on %s — this macOS build is not supported\n",
-                name, MANAGER_CLASS);
+        fprintf(
+            stderr,
+            "error: ivar %s not found on %s — this macOS build is not supported\n",
+            name,
+            MANAGER_CLASS
+        );
         exit(1);
     }
     return ivar_getOffset(iv);
@@ -253,11 +260,14 @@ static int attach_amfid(const char *self_path) {
     }
     kern_return_t kr = task_for_pid(mach_task_self(), g_amfid, &g_task);
     if (kr != KERN_SUCCESS) {
-        fprintf(stderr,
-                "error: task_for_pid(%d): %s\n"
-                "       needs root and SIP debugging restrictions off "
-                "(csrutil enable --without debug)\n",
-                g_amfid, mach_error_string(kr));
+        fprintf(
+            stderr,
+            "error: task_for_pid(%d): %s\n"
+            "       needs root and SIP debugging restrictions off "
+            "(csrutil enable --without debug)\n",
+            g_amfid,
+            mach_error_string(kr)
+        );
         return 0;
     }
     return 1;
@@ -267,8 +277,12 @@ static int read_amfid(mach_vm_address_t addr, void *buf, size_t len) {
     mach_vm_size_t got = 0;
     kern_return_t kr = mach_vm_read_overwrite(g_task, addr, len, (mach_vm_address_t)buf, &got);
     if (kr != KERN_SUCCESS) {
-        fprintf(stderr, "error: read %#llx from amfid: %s\n", (unsigned long long)addr,
-                mach_error_string(kr));
+        fprintf(
+            stderr,
+            "error: read %#llx from amfid: %s\n",
+            (unsigned long long)addr,
+            mach_error_string(kr)
+        );
         return 0;
     }
     return got == len;
@@ -282,8 +296,12 @@ static int write_amfid_byte(mach_vm_address_t addr, uint8_t value) {
     if (current == value) return 1; // never write what is already there
     kern_return_t kr = mach_vm_write(g_task, addr, (vm_offset_t)&value, 1);
     if (kr != KERN_SUCCESS) {
-        fprintf(stderr, "error: write %#llx in amfid: %s\n", (unsigned long long)addr,
-                mach_error_string(kr));
+        fprintf(
+            stderr,
+            "error: write %#llx in amfid: %s\n",
+            (unsigned long long)addr,
+            mach_error_string(kr)
+        );
         return 0;
     }
     uint8_t back = 0;
@@ -316,8 +334,13 @@ static mach_vm_address_t amfid_manager(const char *self_path) {
     uintptr_t remote_isa = 0, local_isa = (uintptr_t)manager_class();
     if (!read_amfid((mach_vm_address_t)remote, &remote_isa, sizeof(remote_isa))) return 0;
     if ((remote_isa & kISAClassBits) != (local_isa & kISAClassBits)) {
-        fprintf(stderr, "error: %#lx in amfid is not an %s (isa %#lx)\n", (unsigned long)remote,
-                MANAGER_CLASS, (unsigned long)remote_isa);
+        fprintf(
+            stderr,
+            "error: %#lx in amfid is not an %s (isa %#lx)\n",
+            (unsigned long)remote,
+            MANAGER_CLASS,
+            (unsigned long)remote_isa
+        );
         return 0;
     }
 
@@ -329,8 +352,13 @@ static mach_vm_address_t amfid_manager(const char *self_path) {
                     1))
         return 0;
     if (flags[0] > 1 || flags[1] > 1) {
-        fprintf(stderr, "error: %s ivars do not read as booleans (%u, %u)\n", MANAGER_CLASS,
-                flags[0], flags[1]);
+        fprintf(
+            stderr,
+            "error: %s ivars do not read as booleans (%u, %u)\n",
+            MANAGER_CLASS,
+            flags[0],
+            flags[1]
+        );
         return 0;
     }
     return (mach_vm_address_t)remote;
@@ -349,7 +377,9 @@ static CFStringRef stock_requirement(void) {
     Class cls = manager_class();
     id mgr = ((id(*)(id, SEL))objc_msgSend)((id)cls, sel_registerName("sharedManager"));
     SecRequirementRef stock = ((SecRequirementRef(*)(id, SEL))objc_msgSend)(
-        mgr, sel_registerName("restrictedRequirement"));
+        mgr,
+        sel_registerName("restrictedRequirement")
+    );
     CFStringRef text = NULL;
     if (!stock || SecRequirementCopyString(stock, kSecCSDefaultFlags, &text) != errSecSuccess ||
         !text) {
@@ -368,7 +398,11 @@ static CFStringRef requirement_for(int count, char **paths) {
 
     for (int i = 0; i < count; i++) {
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(
-            NULL, (const UInt8 *)paths[i], (CFIndex)strlen(paths[i]), false);
+            NULL,
+            (const UInt8 *)paths[i],
+            (CFIndex)strlen(paths[i]),
+            false
+        );
         SecStaticCodeRef code = NULL;
         OSStatus st = SecStaticCodeCreateWithPath(url, kSecCSDefaultFlags, &code);
         CFRelease(url);
@@ -384,8 +418,12 @@ static CFStringRef requirement_for(int count, char **paths) {
         st = SecCodeCopySigningInformation(code, kSecCSSigningInformation, &info);
         CFRelease(code);
         if (st != errSecSuccess) {
-            fprintf(stderr, "error: %s: cannot read signing information (%d)\n", paths[i],
-                    (int)st);
+            fprintf(
+                stderr,
+                "error: %s: cannot read signing information (%d)\n",
+                paths[i],
+                (int)st
+            );
             exit(1);
         }
 
@@ -419,8 +457,12 @@ static CFStringRef requirement_for(int count, char **paths) {
 }
 
 static int write_prefs(CFStringRef requirement) {
-    CFMutableDictionaryRef d = CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks,
-                                                         &kCFTypeDictionaryValueCallBacks);
+    CFMutableDictionaryRef d = CFDictionaryCreateMutable(
+        NULL,
+        0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
     CFDictionarySetValue(d, CFSTR("Entitlements"), requirement);
     // Setting Entitlements alone also turns _allowUnsafeDynamicLinking on
     // (checkCodeRequirementsPreferenceUnsynchronized, 0x23cea5758), which would
@@ -465,8 +507,11 @@ static int sysctl_int(const char *name) {
 
 static void report(const char *self_path) {
     printf("host\n");
-    printf("  vm.cs_system_enforcement   %d%s\n", sysctl_int("vm.cs_system_enforcement"),
-           sysctl_int("vm.cs_system_enforcement") == 1 ? "  (code patching is fatal here)" : "");
+    printf(
+        "  vm.cs_system_enforcement   %d%s\n",
+        sysctl_int("vm.cs_system_enforcement"),
+        sysctl_int("vm.cs_system_enforcement") == 1 ? "  (code patching is fatal here)" : ""
+    );
     printf("  preference file            %s\n",
            access(PREFS_PATH, R_OK) == 0 ? PREFS_PATH : PREFS_PATH " (absent)");
 
@@ -492,8 +537,11 @@ static void report(const char *self_path) {
     printf("  %s          %#llx\n", MANAGER_CLASS, (unsigned long long)mgr);
     printf("  _isRunningInternalBuild    %u%s\n", internal, internal ? "  (preference honoured)" : "");
     printf("  _allowUnsafeDynamicLinking %u\n", unsafe_linking);
-    printf("  _restrictedRequirement     %#lx%s\n", (unsigned long)restricted,
-           restricted ? "" : "  (nothing would be allowed)");
+    printf(
+        "  _restrictedRequirement     %#lx%s\n",
+        (unsigned long)restricted,
+        restricted ? "" : "  (nothing would be allowed)"
+    );
 }
 
 // --------------------------------------------------------------------------
@@ -530,8 +578,11 @@ static int cmd_allow(const char *self_path, int count, char **paths, int hold_se
         uintptr_t restricted = 0;
         if (read_amfid(mgr + req_off, &restricted, sizeof(restricted)) && restricted &&
             restricted != before) {
-            printf("amfid adopted the requirement (_restrictedRequirement %#lx -> %#lx)\n",
-                   (unsigned long)before, (unsigned long)restricted);
+            printf(
+                "amfid adopted the requirement (_restrictedRequirement %#lx -> %#lx)\n",
+                (unsigned long)before,
+                (unsigned long)restricted
+            );
             goto live;
         }
         usleep(100 * 1000);

@@ -96,7 +96,8 @@ public struct VPhoneRemoteZip: Sendable {
 
         let directory = try await range(of: url, from: directoryOffset, count: directorySize)
         return try VPhoneRemoteZip(
-            url: url, entries: parseCentralDirectory(directory, expected: entryCount),
+            url: url,
+            entries: parseCentralDirectory(directory, expected: entryCount),
         )
     }
 

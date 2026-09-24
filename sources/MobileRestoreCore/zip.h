@@ -120,9 +120,13 @@ int zip_delete(zip_t *archive, zip_uint64_t index);
 void zip_stat_init(zip_stat_t *st);
 int zip_stat(zip_t *archive, const char *fname, zip_flags_t flags, zip_stat_t *st);
 int zip_stat_index(zip_t *archive, zip_uint64_t index, zip_flags_t flags, zip_stat_t *st);
-int zip_file_get_external_attributes(zip_t *archive, zip_uint64_t index,
-                                     zip_flags_t flags, zip_uint8_t *opsys,
-                                     zip_uint32_t *attributes);
+int zip_file_get_external_attributes(
+    zip_t *archive,
+    zip_uint64_t index,
+    zip_flags_t flags,
+    zip_uint8_t *opsys,
+    zip_uint32_t *attributes
+);
 
 zip_file_t *zip_fopen_index(zip_t *archive, zip_uint64_t index, zip_flags_t flags);
 int zip_fclose(zip_file_t *file);

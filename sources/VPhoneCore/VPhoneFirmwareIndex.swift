@@ -176,7 +176,8 @@ public enum VPhoneFirmwareIndex {
 
         let json = try decompressXZ(compressed)
         try? FileManager.default.createDirectory(
-            at: cache.deletingLastPathComponent(), withIntermediateDirectories: true,
+            at: cache.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
         )
         try? json.write(to: cache)
         return json
@@ -190,8 +191,11 @@ public enum VPhoneFirmwareIndex {
     /// advance and is two orders of magnitude larger than the input.
     static func decompressXZ(_ input: Data) throws -> Data {
         var stream = compression_stream(
-            dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!, dst_size: 0,
-            src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!, src_size: 0, state: nil,
+            dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!,
+            dst_size: 0,
+            src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!,
+            src_size: 0,
+            state: nil,
         )
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
             == COMPRESSION_STATUS_OK

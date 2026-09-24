@@ -158,7 +158,8 @@ extension KernelJailbreakPatcher {
                   ldrOps[1].type == AARCH64_OP_MEM
             else { off += 4; continue }
             let ldrDstReg = ldrOps[0].reg
-            guard let ldrDstName = disasm.firstRegisterName(ldrInsn), ldrDstName.hasPrefix("w") else { off += 4; continue }
+            guard let ldrDstName = disasm.firstRegisterName(ldrInsn),
+                  ldrDstName.hasPrefix("w") else { off += 4; continue }
 
             // tbz/tbnz wN, #6, <target>   (same register the byte was loaded into)
             guard brInsn.mnemonic == "tbz" || brInsn.mnemonic == "tbnz",

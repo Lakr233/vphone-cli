@@ -196,7 +196,8 @@ public enum VPhoneAPFSSnapshot {
         let newPrefixBytes = Array(newPrefix.utf8)
         guard newPrefixBytes.count == oldPrefix.count else {
             throw VPhoneAPFSSnapshotError.prefixLengthMismatch(
-                given: newPrefixBytes.count, required: oldPrefix.count,
+                given: newPrefixBytes.count,
+                required: oldPrefix.count,
             )
         }
 

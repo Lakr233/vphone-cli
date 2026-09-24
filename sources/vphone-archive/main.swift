@@ -38,24 +38,36 @@ struct Extract: ParsableCommand {
         abstract: "Unpack an archive into a directory",
     )
 
-    @Option(name: [.customShort("f"), .long], help: "Archive to read",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("f"), .long],
+        help: "Archive to read",
+        transform: URL.init(fileURLWithPath:)
+    )
     var file: URL
 
-    @Option(name: [.customShort("C"), .customLong("directory")],
-            help: "Where to unpack it", transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("C"), .customLong("directory")],
+        help: "Where to unpack it",
+        transform: URL.init(fileURLWithPath:)
+    )
     var destination: URL = .init(fileURLWithPath: ".")
 
-    @Flag(name: [.customShort("p"), .customLong("preserve-permissions")],
-          help: "Restore modes, and — as root — the archive's numeric uid/gid")
+    @Flag(
+        name: [.customShort("p"), .customLong("preserve-permissions")],
+        help: "Restore modes, and — as root — the archive's numeric uid/gid"
+    )
     var preservePermissions = false
 
-    @Flag(name: .customLong("no-overwrite-dir"),
-          help: "Leave an existing directory's mode, owner and mtime alone")
+    @Flag(
+        name: .customLong("no-overwrite-dir"),
+        help: "Leave an existing directory's mode, owner and mtime alone"
+    )
     var noOverwriteDir = false
 
-    @Flag(name: .customLong("numeric-owner"),
-          help: "Accepted for compatibility; ownership is always restored by number")
+    @Flag(
+        name: .customLong("numeric-owner"),
+        help: "Accepted for compatibility; ownership is always restored by number"
+    )
     var numericOwner = false
 
     @Flag(name: [.customShort("v"), .long], help: "Print each member as it is written")
@@ -73,7 +85,9 @@ struct Extract: ParsableCommand {
         options.noOverwriteDir = noOverwriteDir
 
         let written = try VPhoneArchiveExtractor.extract(
-            file, into: destination, options: options,
+            file,
+            into: destination,
+            options: options,
             progress: verbose ? { print($0.currentPath) } : nil,
         )
         if !verbose {
@@ -90,12 +104,18 @@ struct Create: ParsableCommand {
         abstract: "Pack a directory into an archive",
     )
 
-    @Option(name: [.customShort("f"), .long], help: "Archive to write",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("f"), .long],
+        help: "Archive to write",
+        transform: URL.init(fileURLWithPath:)
+    )
     var file: URL
 
-    @Option(name: [.customShort("C"), .customLong("directory")],
-            help: "Directory to pack", transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("C"), .customLong("directory")],
+        help: "Directory to pack",
+        transform: URL.init(fileURLWithPath:)
+    )
     var source: URL = .init(fileURLWithPath: ".")
 
     @Option(help: "tar dialect: gnutar, pax or ustar")
@@ -141,8 +161,11 @@ struct Create: ParsableCommand {
         }
 
         let written = try VPhoneArchiveWriter.create(
-            archive: file, from: source,
-            format: tarFormat, compression: compression, excluding: exclude,
+            archive: file,
+            from: source,
+            format: tarFormat,
+            compression: compression,
+            excluding: exclude,
             progress: verbose ? { print($0.currentPath) } : nil,
         )
         if !verbose {
@@ -163,12 +186,18 @@ struct Decompress: ParsableCommand {
         """,
     )
 
-    @Option(name: [.customShort("f"), .long], help: "File to decompress",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("f"), .long],
+        help: "File to decompress",
+        transform: URL.init(fileURLWithPath:)
+    )
     var file: URL
 
-    @Option(name: [.customShort("o"), .long], help: "Where to write the result",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("o"), .long],
+        help: "Where to write the result",
+        transform: URL.init(fileURLWithPath:)
+    )
     var output: URL
 
     func run() throws {
@@ -181,11 +210,15 @@ struct Decompress: ParsableCommand {
 
 struct List: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "list", abstract: "List an archive's members",
+        commandName: "list",
+        abstract: "List an archive's members",
     )
 
-    @Option(name: [.customShort("f"), .long], help: "Archive to read",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("f"), .long],
+        help: "Archive to read",
+        transform: URL.init(fileURLWithPath:)
+    )
     var file: URL
 
     @Flag(name: [.customShort("v"), .long], help: "Include mode, owner and size")
@@ -212,8 +245,11 @@ struct Cat: ParsableCommand {
         abstract: "Write one member to stdout without unpacking the archive",
     )
 
-    @Option(name: [.customShort("f"), .long], help: "Archive to read",
-            transform: URL.init(fileURLWithPath:))
+    @Option(
+        name: [.customShort("f"), .long],
+        help: "Archive to read",
+        transform: URL.init(fileURLWithPath:)
+    )
     var file: URL
 
     @Argument(help: "Member path inside the archive")
@@ -246,12 +282,16 @@ struct Fingerprint: ParsableCommand {
     @Argument(help: "Tree to describe", transform: URL.init(fileURLWithPath:))
     var tree: URL
 
-    @Argument(help: "Second tree; given, the two are compared",
-              transform: URL.init(fileURLWithPath:))
+    @Argument(
+        help: "Second tree; given, the two are compared",
+        transform: URL.init(fileURLWithPath:)
+    )
     var other: URL?
 
-    @Flag(name: .customLong("no-content-hashes"),
-          help: "Skip file digests — much faster, and enough to compare metadata")
+    @Flag(
+        name: .customLong("no-content-hashes"),
+        help: "Skip file digests — much faster, and enough to compare metadata"
+    )
     var noContentHashes = false
 
     func run() throws {
@@ -265,7 +305,8 @@ struct Fingerprint: ParsableCommand {
         }
 
         let second = try VPhoneTreeFingerprint.capture(
-            other, includeContentHashes: !noContentHashes,
+            other,
+            includeContentHashes: !noContentHashes,
         )
         let differences = first.differences(from: second)
         guard differences.isEmpty else {

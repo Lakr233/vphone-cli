@@ -34,8 +34,11 @@ struct VPhoneCustomFirmwareInstaller {
             args.append("--force-dsc-maxslide")
         }
         if geteuid() == 0 {
-            try VPhoneCustomFirmwareInstaller(bundle: bundle, resources: resources,
-                                   forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide).run()
+            try VPhoneCustomFirmwareInstaller(
+                bundle: bundle,
+                resources: resources,
+                forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide
+            ).run()
             return 0
         }
         if rootPopup {
@@ -43,7 +46,10 @@ struct VPhoneCustomFirmwareInstaller {
             env["SUDO_USER"] = NSUserName()
             env["SUDO_UID"] = String(getuid())
             return try VPhoneProcessRunner.runWithAdminPrivileges(
-                exe, args, env: env, echo: verbose,
+                exe,
+                args,
+                env: env,
+                echo: verbose,
             )
         }
         var env = ProcessInfo.processInfo.environment
@@ -53,7 +59,10 @@ struct VPhoneCustomFirmwareInstaller {
             args.insert("-A", at: 0)
         }
         return try VPhoneProcessRunner.runForeground(
-            URL(fileURLWithPath: "/usr/bin/sudo"), args, env: env, echo: verbose,
+            URL(fileURLWithPath: "/usr/bin/sudo"),
+            args,
+            env: env,
+            echo: verbose,
         )
     }
 
@@ -88,7 +97,8 @@ struct VPhoneCustomFirmwareInstaller {
 
         let info = try tool("/usr/sbin/diskutil", ["info", "-plist", "\(baseDisk)s1"], quiet: true)
         guard let plist = try PropertyListSerialization.propertyList(
-            from: Data(info.utf8), format: nil,
+            from: Data(info.utf8),
+            format: nil,
         ) as? [String: Any],
             let container = plist["APFSContainerReference"] as? String,
             container.hasPrefix("disk")
@@ -145,11 +155,21 @@ struct VPhoneCustomFirmwareInstaller {
         } else if forceDyldSharedCacheMaxSlide {
             try patch("patch-dsc-maxslide", [dsc.path, "--force"])
         }
-        try patchMachO(system: system, work: work,
-                       path: "usr/libexec/seputil", verb: "patch-seputil", identifier: "com.apple.seputil")
+        try patchMachO(
+            system: system,
+            work: work,
+            path: "usr/libexec/seputil",
+            verb: "patch-seputil",
+            identifier: "com.apple.seputil"
+        )
         if version.hasPrefix("27.") {
-            try patchMachO(system: system, work: work,
-                           path: "usr/libexec/diskimagesiod", verb: "patch-diskimagesiod", preserveEntitlements: true)
+            try patchMachO(
+                system: system,
+                work: work,
+                path: "usr/libexec/diskimagesiod",
+                verb: "patch-diskimagesiod",
+                preserveEntitlements: true
+            )
         }
         try renameGigalocker(data: data)
         let gpuSource = VPhonePCCGPUDriver.stagedBundle(in: restore)
@@ -179,14 +199,27 @@ struct VPhoneCustomFirmwareInstaller {
         {
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o644)], ofItemAtPath: file.path)
         }
-        try patchMachO(system: system, work: work,
-                       path: "usr/libexec/launchd_cache_loader", verb: "patch-launchd-cache-loader",
-                       identifier: "com.apple.launchd_cache_loader")
-        try patchMachO(system: system, work: work,
-                       path: "usr/libexec/mobileactivationd", verb: "patch-mobileactivationd")
+        try patchMachO(
+            system: system,
+            work: work,
+            path: "usr/libexec/launchd_cache_loader",
+            verb: "patch-launchd-cache-loader",
+            identifier: "com.apple.launchd_cache_loader"
+        )
+        try patchMachO(
+            system: system,
+            work: work,
+            path: "usr/libexec/mobileactivationd",
+            verb: "patch-mobileactivationd"
+        )
         try installVphoned(system: system, work: work)
-        try patchMachO(system: system, work: work,
-                       path: "sbin/launchd", verb: "patch-launchd-jetsam", preserveEntitlements: true)
+        try patchMachO(
+            system: system,
+            work: work,
+            path: "sbin/launchd",
+            verb: "patch-launchd-jetsam",
+            preserveEntitlements: true
+        )
         try patchDebugserver(system: system, work: work)
         if version.hasPrefix("27.") {
             try patchCampo(system: system, work: work)
@@ -205,17 +238,30 @@ struct VPhoneCustomFirmwareInstaller {
             let encrypted = restore.appendingPathComponent(paths.systemOS)
             let plain = work.appendingPathComponent("SystemOS.dmg")
             let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: encrypted) }
-            try tool("/usr/bin/aea", ["decrypt", "-i", encrypted.path,
-                                      "-o", plain.path, "-key-value", key], quiet: true)
+            try tool(
+                "/usr/bin/aea",
+                ["decrypt", "-i", encrypted.path,
+                 "-o", plain.path, "-key-value", key],
+                quiet: true
+            )
             let osMount = work.appendingPathComponent("mnt-os")
             let appMount = work.appendingPathComponent("mnt-app")
             try fm.createDirectory(at: osMount, withIntermediateDirectories: true)
             try fm.createDirectory(at: appMount, withIntermediateDirectories: true)
-            try tool("/usr/bin/hdiutil", ["attach", "-mountpoint", osMount.path,
-                                          plain.path, "-nobrowse", "-owners", "off"], quiet: true)
+            try tool(
+                "/usr/bin/hdiutil",
+                ["attach", "-mountpoint", osMount.path,
+                 plain.path, "-nobrowse", "-owners", "off"],
+                quiet: true
+            )
             defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", osMount.path], quiet: true) }
-            try tool("/usr/bin/hdiutil", ["attach", "-mountpoint", appMount.path,
-                                          restore.appendingPathComponent(paths.appOS).path, "-nobrowse", "-owners", "off"], quiet: true)
+            try tool(
+                "/usr/bin/hdiutil",
+                ["attach", "-mountpoint", appMount.path,
+                 restore.appendingPathComponent(paths.appOS).path,
+                 "-nobrowse", "-owners", "off"],
+                quiet: true
+            )
             defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", appMount.path], quiet: true) }
             for (source, destination) in [(osMount, os), (appMount, app)] {
                 // The restored rootfs has dangling Cryptex symlinks. fileExists
@@ -266,8 +312,14 @@ struct VPhoneCustomFirmwareInstaller {
         try replace(temp, at: launchd, mode: 0o644)
     }
 
-    private func patchMachO(system: URL, work: URL, path: String, verb: String,
-                            identifier: String? = nil, preserveEntitlements: Bool = false) throws
+    private func patchMachO(
+        system: URL,
+        work: URL,
+        path: String,
+        verb: String,
+        identifier: String? = nil,
+        preserveEntitlements: Bool = false
+    ) throws
     {
         let target = system.appendingPathComponent(path)
         let backup = target.appendingPathExtension("bak")
@@ -331,8 +383,13 @@ struct VPhoneCustomFirmwareInstaller {
         try patch("patch-campo-entitlements", [ent.path])
         let staged = work.appendingPathComponent("Campo")
         try fm.copyItem(at: target, to: staged)
-        try VPhoneSigner.sign(fileAt: staged,
-                              options: .init(entitlements: Data(contentsOf: ent, options: .mappedIfSafe), mergesExisting: true))
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(
+                entitlements: Data(contentsOf: ent, options: .mappedIfSafe),
+                mergesExisting: true
+            )
+        )
         try replace(staged, at: target, mode: 0o755)
     }
 
@@ -355,7 +412,8 @@ struct VPhoneCustomFirmwareInstaller {
             "System/Library/CoreServices/SystemVersion.plist",
         )
         guard let value = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: plist, options: .mappedIfSafe), format: nil,
+            from: Data(contentsOf: plist, options: .mappedIfSafe),
+            format: nil,
         ) as? [String: Any],
             let version = value["ProductVersion"] as? String
         else {
@@ -365,7 +423,9 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     private func symlink(_ destination: String, at path: URL) throws {
-        if fm.fileExists(atPath: path.path) || (try? path.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+        if fm.fileExists(atPath: path.path)
+            || (try? path.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+        {
             try fm.removeItem(at: path)
         }
         try fm.createSymbolicLink(atPath: path.path, withDestinationPath: destination)

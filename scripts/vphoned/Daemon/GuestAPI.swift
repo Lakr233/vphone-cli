@@ -39,9 +39,27 @@ enum GuestAPI {
         let ip = addresses.first(where: { $0.hasPrefix("en") && !$0.contains("127.0.0.1") })?
             .split(separator: " ").last.map(String.init)
         let version = ProcessInfo.processInfo.operatingSystemVersion
-        return ["name": "vphoned", "api_version": 1, "status": "ok", "binary_hash": binaryHash,
-                "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)", "ip": ip ?? "",
-                "capabilities": ["touch", "hid", "apps", "url", "files", "clipboard", "location", "keychain", "ipa_install", "camera", "icli"]]
+        return [
+            "name": "vphoned",
+            "api_version": 1,
+            "status": "ok",
+            "binary_hash": binaryHash,
+            "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
+            "ip": ip ?? "",
+            "capabilities": [
+                "touch",
+                "hid",
+                "apps",
+                "url",
+                "files",
+                "clipboard",
+                "location",
+                "keychain",
+                "ipa_install",
+                "camera",
+                "icli"
+            ]
+        ]
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
@@ -92,7 +110,11 @@ enum GuestAPI {
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
-            return ["bundle_id": id, "name": apps.first?["name"] ?? "", "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0]
+            return [
+                "bundle_id": id,
+                "name": apps.first?["name"] ?? "",
+                "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0
+            ]
         case "apps.open_url":
             return try openAppURL(try string(params, "url"), bundleID: params["bundle_id"] as? String)
         case "apps.install":
@@ -155,20 +177,29 @@ enum GuestAPI {
             return try readPreference(domain: try string(params, "domain"), key: params["key"] as? String)
         case "settings.set":
             let rawValue = params["value"] ?? NSNull()
-            let type = params["type"] as? String ?? (rawValue is Bool ? "bool" : rawValue is NSNumber ? "float" : rawValue is String ? "string" : "json")
+            let type = params["type"] as? String
+                ?? (rawValue is Bool ? "bool"
+                    : rawValue is NSNumber ? "float"
+                    : rawValue is String ? "string" : "json")
             let text: String
             if type == "json" {
                 text = String(data: try JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
             } else { text = String(describing: rawValue) }
-            return try writePreference(domain: try string(params, "domain"), key: try string(params, "key"), value: PreferenceValue(text: text, type: type))
+            return try writePreference(
+                domain: try string(params, "domain"),
+                key: try string(params, "key"),
+                value: PreferenceValue(text: text, type: type)
+            )
         case "accessibility.tree":
             throw GuestAPIError.operationFailed("The accessibility tree is not available on this guest yet.")
         case "keychain.list":
             return try native(["t": "keychain_list", "class": params["class"] as? String ?? ""])
         case "keychain.add":
             return try native([
-                "t": "keychain_add", "account": try string(params, "account"),
-                "service": try string(params, "service"), "password": try string(params, "password"),
+                "t": "keychain_add",
+                "account": try string(params, "account"),
+                "service": try string(params, "service"),
+                "password": try string(params, "password"),
             ])
         case "agent.apply_update":
             let expected = try string(params, "sha256")
@@ -177,9 +208,14 @@ enum GuestAPI {
             let data = try Data(contentsOf: URL(fileURLWithPath: next), options: .mappedIfSafe)
             let actual = sha256Hex(data)
             guard actual == expected else { throw GuestAPIError.invalidRequest("Update hash mismatch") }
-            guard chmod(next, 0o755) == 0 else { throw GuestAPIError.operationFailed("Could not make update executable") }
+            guard chmod(next, 0o755) == 0 else {
+                throw GuestAPIError.operationFailed("Could not make update executable")
+            }
             guard rename(next, cache) == 0 else { throw GuestAPIError.operationFailed("Could not install update") }
-            try Data(expected.utf8).write(to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v2"), options: .atomic)
+            try Data(expected.utf8).write(
+                to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v2"),
+                options: .atomic
+            )
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]
         default:

@@ -165,7 +165,11 @@ public struct VPhoneVirtualMachineCreator {
         print("[*] Waiting 5s for cleanup before CFW install...")
         Thread.sleep(forTimeInterval: 5)
         print("\n=== CFW install (host-mount) ===")
-        try runCustomFirmwareInstall(options: options, bundleURL: bundleURL, sudoEnvironmentExtras: sudoEnvironmentExtras)
+        try runCustomFirmwareInstall(
+            options: options,
+            bundleURL: bundleURL,
+            sudoEnvironmentExtras: sudoEnvironmentExtras
+        )
 
         // CFW install is the last consumer of the built restore tree (it copies
         // the SystemOS/AppOS cryptexes from it onto Disk.img); reclaim it now.
@@ -417,7 +421,11 @@ public struct VPhoneVirtualMachineCreator {
 
     // MARK: - CFW install
 
-    private func runCustomFirmwareInstall(options: Options, bundleURL: URL, sudoEnvironmentExtras: [String: String]) throws {
+    private func runCustomFirmwareInstall(
+        options: Options,
+        bundleURL: URL,
+        sudoEnvironmentExtras: [String: String]
+    ) throws {
         let v = options.verbosity
         // --sudo-password (askpass) wins over --root-popup.
         let usePopup = options.rootPopup && sudoEnvironmentExtras["SUDO_ASKPASS"] == nil

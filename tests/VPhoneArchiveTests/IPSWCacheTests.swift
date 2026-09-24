@@ -16,7 +16,9 @@ private final class IPSWStubProtocol: URLProtocol {
 
     override func startLoading() {
         let response = HTTPURLResponse(
-            url: request.url!, statusCode: Self.status, httpVersion: "HTTP/1.1",
+            url: request.url!,
+            statusCode: Self.status,
+            httpVersion: "HTTP/1.1",
             headerFields: ["Content-Length": String(Self.payload.count)],
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -36,7 +38,9 @@ struct IPSWCacheTests {
             "ProductVersion": "26.6.2", "ProductBuildVersion": "23G90",
         ]
         let data = try PropertyListSerialization.data(
-            fromPropertyList: manifest, format: .xml, options: 0,
+            fromPropertyList: manifest,
+            format: .xml,
+            options: 0,
         )
         try data.write(to: files.appendingPathComponent("BuildManifest.plist"))
         let archive = root.appendingPathComponent("input.ipsw")
@@ -50,7 +54,8 @@ struct IPSWCacheTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let source = try fixture(in: root)
         let result = try await VPhoneIPSWCache.resolve(
-            source.path, in: root.appendingPathComponent("cache"),
+            source.path,
+            in: root.appendingPathComponent("cache"),
         )
         #expect(result.file == source)
         #expect(result.version == "26.6.2")
@@ -77,7 +82,9 @@ struct IPSWCacheTests {
         try Data("damaged".utf8).write(to: cached)
 
         let result = try await VPhoneIPSWCache.resolve(
-            url.absoluteString, in: cacheDir, session: session,
+            url.absoluteString,
+            in: cacheDir,
+            session: session,
         )
         #expect(result.file == cached)
         #expect(result.build == "23G90")
@@ -85,7 +92,9 @@ struct IPSWCacheTests {
 
         IPSWStubProtocol.status = 503
         let reused = try await VPhoneIPSWCache.resolve(
-            url.absoluteString, in: cacheDir, session: session,
+            url.absoluteString,
+            in: cacheDir,
+            session: session,
         )
         #expect(reused.file == cached)
     }

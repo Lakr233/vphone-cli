@@ -273,7 +273,8 @@ struct CryptexFileOpsTests {
 
     @Test func `a plist without A max key is an error`() {
         let withoutMax = Self.sizesPlist.replacingOccurrences(
-            of: "<key>max</key>", with: "<key>maximum</key>",
+            of: "<key>max</key>",
+            with: "<key>maximum</key>",
         )
         #expect(throws: ProcessError.self) {
             try CryptexFilesystemPatcher.maxResizeSize(fromDiskutilPlist: withoutMax)

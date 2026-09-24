@@ -68,7 +68,8 @@ static int open_shm(void) {
   int fd = open(VPHONED_VCAM_SHM_PATH, O_RDWR | O_CREAT, 0644);
   if (fd < 0) {
     vvc_logf("vphoned_vcam: open(%s) failed: %s",
-          VPHONED_VCAM_SHM_PATH, strerror(errno));
+          VPHONED_VCAM_SHM_PATH,
+          strerror(errno));
     return -1;
   }
   if (ftruncate(fd, VPHONED_VCAM_SHM_TOTAL_SIZE) < 0) {
@@ -78,8 +79,13 @@ static int open_shm(void) {
   }
   /* Make sure other processes can map this file read-only. */
   fchmod(fd, 0644);
-  void *base = mmap(NULL, VPHONED_VCAM_SHM_TOTAL_SIZE,
-                    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  void *base = mmap(
+      NULL,
+      VPHONED_VCAM_SHM_TOTAL_SIZE,
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED,
+      fd,
+      0);
   close(fd);
   if (base == MAP_FAILED) {
     vvc_logf("vphoned_vcam: mmap failed: %s", strerror(errno));
@@ -123,8 +129,10 @@ static void publish_frame(uint32_t w,
       (_Atomic uint64_t *)&hdr->seq, memory_order_acquire);
   /* Mark write in progress (odd seq). */
   uint64_t writing_seq = (prev_seq | 1ull) + 2ull;
-  atomic_store_explicit((_Atomic uint64_t *)&hdr->seq, writing_seq,
-                        memory_order_release);
+  atomic_store_explicit(
+      (_Atomic uint64_t *)&hdr->seq,
+      writing_seq,
+      memory_order_release);
 
   hdr->width = w;
   hdr->height = h;
@@ -136,8 +144,10 @@ static void publish_frame(uint32_t w,
   memcpy(dst, pixels, pixel_len);
 
   /* Mark write done (even seq). */
-  atomic_store_explicit((_Atomic uint64_t *)&hdr->seq, writing_seq + 1ull,
-                        memory_order_release);
+  atomic_store_explicit(
+      (_Atomic uint64_t *)&hdr->seq,
+      writing_seq + 1ull,
+      memory_order_release);
 
   if (s_notify_token >= 0) {
     notify_post(VPHONED_VCAM_NOTIFY_NAME);
@@ -154,7 +164,8 @@ static void handle_client(int fd) {
     if (total_len < 4 || header_len + 4 > total_len ||
         total_len > VPHONED_VCAM_SHM_MAX_PIXELS + 4096) {
       vvc_logf("vphoned_vcam: framing error total=%u header=%u",
-            total_len, header_len);
+            total_len,
+            header_len);
       break;
     }
     uint8_t *header_buf = (uint8_t *)malloc(header_len);
@@ -202,7 +213,10 @@ static void handle_client(int fd) {
     frames++;
     if ((frames & 29) == 1) {
       vvc_logf("vphoned_vcam: published frame #%llu w=%u h=%u bpr=%u",
-            (unsigned long long)frames, w, h, bpr);
+            (unsigned long long)frames,
+            w,
+            h,
+            bpr);
     }
   }
   vvc_logf("vphoned_vcam: client disconnected (%llu frames)",
@@ -235,7 +249,8 @@ static void *listener_thread(__unused void *unused) {
   };
   if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
     vvc_logf("vphoned_vcam: bind(%d) failed: %s",
-          VPHONED_VCAM_VSOCK_PORT, strerror(errno));
+          VPHONED_VCAM_VSOCK_PORT,
+          strerror(errno));
     close(srv);
     return NULL;
   }
@@ -245,7 +260,8 @@ static void *listener_thread(__unused void *unused) {
     return NULL;
   }
   vvc_logf("vphoned_vcam: listening on vsock %d, shm=%s",
-        VPHONED_VCAM_VSOCK_PORT, VPHONED_VCAM_SHM_PATH);
+        VPHONED_VCAM_VSOCK_PORT,
+        VPHONED_VCAM_SHM_PATH);
 
   for (;;) {
     int fd = accept(srv, NULL, NULL);

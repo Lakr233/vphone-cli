@@ -269,10 +269,14 @@ struct CustomFirmwareCacheLoaderGateTests {
         // Recomputed here from the two instructions, independently of how the
         // patcher found them: page(ADRP) + imm(ADD) has to be the literal.
         let adrp = try #require(disassembler.disassembleOne(
-            in: data, at: anchor.referenceFileOffset, address: anchor.referenceVMA,
+            in: data,
+            at: anchor.referenceFileOffset,
+            address: anchor.referenceVMA,
         ))
         let add = try #require(disassembler.disassembleOne(
-            in: data, at: anchor.referenceFileOffset + 4, address: anchor.referenceVMA + 4,
+            in: data,
+            at: anchor.referenceFileOffset + 4,
+            address: anchor.referenceVMA + 4,
         ))
         #expect(adrp.mnemonic == "adrp")
         #expect(add.mnemonic == "add")

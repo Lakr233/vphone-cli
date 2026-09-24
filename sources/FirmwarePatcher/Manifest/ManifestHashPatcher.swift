@@ -110,7 +110,8 @@ public final class ManifestHashPatcher: Patcher {
             // while SHA384 walked it; mapping means the kernel pages it in
             // ahead of the hash and evicts behind it.
             let componentData = try Data(
-                contentsOf: restoreDir.appendingPathComponent(path), options: .mappedIfSafe,
+                contentsOf: restoreDir.appendingPathComponent(path),
+                options: .mappedIfSafe,
             )
             let finalData = try patchIm4pTypeTag(comp, info["Img4PayloadType"] as? String, componentData)
             let shaHash = SHA384.hash(data: finalData)

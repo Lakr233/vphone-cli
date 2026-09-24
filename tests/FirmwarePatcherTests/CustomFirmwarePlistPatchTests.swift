@@ -392,7 +392,10 @@ struct CustomFirmwareBuildVersionTests {
         // the Cryptex copy on a device can be binary.
         for format in ["xml1", "binary1"] {
             let swiftOutput = directory.appending(path: "swift-\(format).plist")
-            try CustomFirmwarePatchFixtures.copyContents(of: CustomFirmwarePatchFixtures.systemVersionPlist, to: swiftOutput)
+            try CustomFirmwarePatchFixtures.copyContents(
+                of: CustomFirmwarePatchFixtures.systemVersionPlist,
+                to: swiftOutput
+            )
             try CustomFirmwarePatchFixtures.run("/usr/bin/plutil", ["-convert", format, swiftOutput.path])
 
             let before = try #require(try PlistComparison.load(swiftOutput) as? [String: Any])

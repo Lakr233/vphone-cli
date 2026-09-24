@@ -124,7 +124,10 @@ public enum VPhoneSigner {
         for (index, slice) in file.slices.enumerated() {
             let alignment = file.architectures.map { Int($0[index].alignment) } ?? slice.linkeditAlignment
             let signature = try signature(
-                for: slice, identifier: identifier, digests: digests, options: options,
+                for: slice,
+                identifier: identifier,
+                digests: digests,
+                options: options,
             )
             let executable = slice.executableSegment
             try images.append(slice.signed(
@@ -170,7 +173,8 @@ public enum VPhoneSigner {
         case .ldid:
             signature.teamIdentifier = options.identity?.teamIdentifier ?? ""
             signature.requirementsBlob = VPhoneCodeSignature.requirements(
-                identifier: identifier, commonName: options.identity?.commonName ?? "",
+                identifier: identifier,
+                commonName: options.identity?.commonName ?? "",
             )
             signature.cmsReservation = options.identity == nil ? nil : cmsReservation
         case .appleAdHoc:

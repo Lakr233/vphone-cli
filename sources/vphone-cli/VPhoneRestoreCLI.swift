@@ -253,8 +253,10 @@ struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
 
         let code = try VPhoneCustomFirmwareInstaller.elevate(
-            bundle: bundle.url, resources: resources,
-            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide, rootPopup: rootPopup,
+            bundle: bundle.url,
+            resources: resources,
+            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
+            rootPopup: rootPopup,
             verbose: v.showsToolDetail,
         )
         if code == 0 {

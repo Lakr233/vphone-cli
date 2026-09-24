@@ -30,7 +30,9 @@ struct VPhoneSignStyleTests {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = try VPhoneSignFixtures.sign(
-            VPhoneSignFixtures.url("hello-arm64"), in: directory, style: .appleAdHoc,
+            VPhoneSignFixtures.url("hello-arm64"),
+            in: directory,
+            style: .appleAdHoc,
         )
 
         for slice in try VPhoneSignBlobs(fileAt: file).slices {
@@ -125,7 +127,9 @@ struct VPhoneSignStyleTests {
         // not through the shared helper: the mode has to be set between the
         // copy and the signature
         let file = try VPhoneSignFixtures.copy(
-            VPhoneSignFixtures.url("hello-arm64"), into: directory, as: "binary",
+            VPhoneSignFixtures.url("hello-arm64"),
+            into: directory,
+            as: "binary",
         )
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
 

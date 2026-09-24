@@ -50,8 +50,12 @@ zip_t *zip_open(const char *path, int flags, int *errorp)
     if (errorp) {
         *errorp = 21; /* ZIP_ER_OPNOTSUPP */
     }
-    logger(LL_ERROR, "Cannot open '%s' as a zip archive: %s.\n",
-           path ? path : "(null)", VPHONE_ZIP_REASON);
+    logger(
+        LL_ERROR,
+        "Cannot open '%s' as a zip archive: %s.\n",
+        path ? path : "(null)",
+        VPHONE_ZIP_REASON
+    );
     return NULL;
 }
 
@@ -64,10 +68,13 @@ zip_t *zip_open(const char *path, int flags, int *errorp)
  */
 static void vphone_zip_unreachable(const char *fn)
 {
-    logger(LL_ERROR,
-           "internal error: %s() was called on a zip handle that cannot "
-           "exist (%s)\n",
-           fn, VPHONE_ZIP_REASON);
+    logger(
+        LL_ERROR,
+        "internal error: %s() was called on a zip handle that cannot "
+        "exist (%s)\n",
+        fn,
+        VPHONE_ZIP_REASON
+    );
 }
 
 int zip_close(zip_t *archive)
@@ -158,9 +165,13 @@ int zip_stat_index(zip_t *archive, zip_uint64_t index, zip_flags_t flags, zip_st
     return -1;
 }
 
-int zip_file_get_external_attributes(zip_t *archive, zip_uint64_t index,
-                                     zip_flags_t flags, zip_uint8_t *opsys,
-                                     zip_uint32_t *attributes)
+int zip_file_get_external_attributes(
+    zip_t *archive,
+    zip_uint64_t index,
+    zip_flags_t flags,
+    zip_uint8_t *opsys,
+    zip_uint32_t *attributes
+)
 {
     (void)archive;
     (void)index;

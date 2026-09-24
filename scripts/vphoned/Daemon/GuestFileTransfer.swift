@@ -30,9 +30,16 @@ enum GuestFileTransfer {
             headers.add(name: "Content-Type", value: "application/octet-stream")
             headers.add(name: "Content-Length", value: String(region.readableBytes))
             headers.add(name: "Connection", value: "close")
-            channel.write(HTTPServerResponsePart.head(.init(version: .http1_1, status: .ok, headers: headers)), promise: nil)
-            fileIO.readChunked(fileRegion: region, chunkSize: 64 * 1024,
-                               allocator: channel.allocator, eventLoop: channel.eventLoop) { bytes in
+            channel.write(
+                HTTPServerResponsePart.head(.init(version: .http1_1, status: .ok, headers: headers)),
+                promise: nil
+            )
+            fileIO.readChunked(
+                fileRegion: region,
+                chunkSize: 64 * 1024,
+                allocator: channel.allocator,
+                eventLoop: channel.eventLoop
+            ) { bytes in
                 channel.writeAndFlush(HTTPServerResponsePart.body(.byteBuffer(bytes)))
             }.whenComplete { result in
                 try? handle.close()
@@ -62,9 +69,13 @@ final class GuestFileUpload: @unchecked Sendable {
     private let onCommit: ((String) throws -> Void)?
     private let mode: mode_t
 
-    init(destination: String, fileIO: NonBlockingFileIO, channel: Channel,
-         mode: mode_t = 0o644,
-         onCommit: ((String) throws -> Void)? = nil) throws {
+    init(
+        destination: String,
+        fileIO: NonBlockingFileIO,
+        channel: Channel,
+        mode: mode_t = 0o644,
+        onCommit: ((String) throws -> Void)? = nil
+    ) throws {
         let parent = (destination as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
         let temporary = destination + ".vphoned-" + UUID().uuidString + ".tmp"

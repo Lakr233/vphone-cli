@@ -100,7 +100,9 @@ struct VPhoneSignEntitlements: Equatable {
             ("com.apple.private.amfi.can-load-cdhash", 0x100), ("com.apple.private.amfi.can-execute-cdhash", 0x100),
         ]
         return flags.reduce(mainBinary ? 1 : 0) { result, flag in
-            entries.first { $0.key.utf8.elementsEqual(flag.key.utf8) }?.value == .boolean(true) ? result | flag.bit : result
+            entries.first { $0.key.utf8.elementsEqual(flag.key.utf8) }?.value == .boolean(true)
+                ? result | flag.bit
+                : result
         }
     }
 
@@ -114,7 +116,9 @@ struct VPhoneSignEntitlements: Equatable {
     /// refused rather than signed.
     func xml() throws -> Data {
         let foundation = try? PropertyListSerialization.data(
-            fromPropertyList: Self.foundation(.dictionary(entries)), format: .xml, options: 0,
+            fromPropertyList: Self.foundation(.dictionary(entries)),
+            format: .xml,
+            options: 0,
         )
         guard Self.document(.dictionary(entries), sorted: true) == foundation else {
             throw VPhoneSignError.unsupportedEntitlements("Foundation and libplist would write this list differently")
@@ -213,7 +217,9 @@ struct VPhoneSignEntitlements: Equatable {
                 return
             }
             out += "<dict>\n".utf8
-            for entry in sorted ? entries.sorted(by: { $0.key.utf16.lexicographicallyPrecedes($1.key.utf16) }) : entries {
+            for entry in sorted
+                ? entries.sorted(by: { $0.key.utf16.lexicographicallyPrecedes($1.key.utf16) })
+                : entries {
                 out += indent + [0x09]
                 text("key", entry.key)
                 write(entry.value, depth: depth + 1, sorted: sorted, into: &out)

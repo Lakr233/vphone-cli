@@ -182,7 +182,10 @@ extension KernelJailbreakPatcher {
             // explicit shape tested, so this stays anchored on that flag and cannot
             // drift onto an unrelated fused compare.
             guard findEntryFlagMask(
-                before: off, limit: start, reg: flagsReg, bit: entryFlagBit,
+                before: off,
+                limit: start,
+                reg: flagsReg,
+                bit: entryFlagBit,
             ) != nil else { continue }
 
             // And the block it guards must be the downgrade.

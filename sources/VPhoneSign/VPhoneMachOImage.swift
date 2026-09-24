@@ -204,7 +204,10 @@ struct VPhoneMachOImage {
     /// number of CodeDirectories has a different CDHash. So it is
     /// reproduced, not corrected.
     private static func digests(
-        in image: Data, command: UInt32, at start: Int, size: Int,
+        in image: Data,
+        command: UInt32,
+        at start: Int,
+        size: Int,
     ) throws -> [VPhoneCodeSignature.Digest]? {
         /// A packed version: patch, minor, then major in the high 16 bits.
         func version(_ value: UInt32) -> (major: UInt32, minor: UInt32) {
@@ -337,13 +340,19 @@ struct VPhoneMachOImage {
                 + (segment.sections.isEmpty && segment.fileSize > 0 ? [segment.fileOffset] : [])
         }
         let firstContent = content.filter { $0 > 0 }.min() ?? 0
-        guard UInt64(Self.headerSize + max(rebuilt, commandsSize)) <= firstContent, firstContent <= UInt64(codeEnd) else {
-            throw VPhoneSignError.noRoom("content starts at \(firstContent), \(Self.headerSize + rebuilt) bytes of commands")
+        guard UInt64(Self.headerSize + max(rebuilt, commandsSize)) <= firstContent,
+              firstContent <= UInt64(codeEnd)
+        else {
+            throw VPhoneSignError.noRoom(
+                "content starts at \(firstContent), \(Self.headerSize + rebuilt) bytes of commands"
+            )
         }
 
         var area = Data()
         for command in carried {
-            var bytes = image.subdata(in: Self.headerSize + command.offset ..< Self.headerSize + command.offset + command.size)
+            var bytes = image.subdata(
+                in: Self.headerSize + command.offset ..< Self.headerSize + command.offset + command.size
+            )
             // ldid sets the size of every __LINKEDIT there is
             if command.command == UInt32(LC_SEGMENT_64), Self.name(in: bytes, at: 8) == Self.linkedit {
                 let start: UInt64 = bytes.littleEndianValue(at: 40)

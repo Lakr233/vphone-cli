@@ -53,7 +53,8 @@ int main(int argc, char **argv) {
             return 1;
         }
         LSApplicationWorkspace *ws = ((id (*)(id, SEL))objc_msgSend)(
-            workspaceClass, @selector(defaultWorkspace));
+            workspaceClass,
+            @selector(defaultWorkspace));
         if (!ws) {
             fprintf(stderr, "LaunchServices workspace could not be opened\n");
             return 1;

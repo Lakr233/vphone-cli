@@ -319,7 +319,8 @@ public enum CustomFirmwareInjectDylib {
                 "no room for a \(commandSize)-byte load command at 0x\(String(commandOffset, radix: 16))",
             )
         }
-        if !options.allowNonEmptyPadding, data[commandOffset ..< commandOffset + commandSize].contains(where: { $0 != 0 }) {
+        if !options.allowNonEmptyPadding,
+           data[commandOffset ..< commandOffset + commandSize].contains(where: { $0 != 0 }) {
             // insert_dylib --all-yes overwrites here. Refusing is the whole
             // reason this is a Swift port: the bytes past the load commands are
             // the first section, and clobbering them is silent.

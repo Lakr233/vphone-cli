@@ -76,7 +76,9 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
         // 1.2.840.113635.100.9.1: a plist of every cdhash, truncated to 20
         // bytes, which is the form the older attribute carries.
         if let plist = try? PropertyListSerialization.data(
-            fromPropertyList: ["cdhashes": cdHashes.map { $0.prefix(20) }], format: .xml, options: 0,
+            fromPropertyList: ["cdhashes": cdHashes.map { $0.prefix(20) }],
+            format: .xml,
+            options: 0,
         ) {
             attributes.append(attribute(VPhoneDER.OID.hashAgility, [VPhoneDER.octetString(plist)]))
         }
@@ -127,7 +129,10 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
     private func sign(_ content: Data) throws -> Data {
         var error: Unmanaged<CFError>?
         guard let signature = SecKeyCreateSignature(
-            key, .rsaSignatureMessagePKCS1v15SHA256, content as CFData, &error,
+            key,
+            .rsaSignatureMessagePKCS1v15SHA256,
+            content as CFData,
+            &error,
         ) as Data? else {
             throw VPhoneSignError.signingFailed(
                 (error?.takeRetainedValue()).map { "\($0)" } ?? "SecKeyCreateSignature gave no signature",
@@ -143,7 +148,9 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
     // MARK: Reading the certificate
 
     private static func certificateFields(_ certificate: Data) throws -> (
-        issuer: Data, subject: Data, serialNumber: Data,
+        issuer: Data,
+        subject: Data,
+        serialNumber: Data,
     ) {
         let tbs = try VPhoneDER.children(of: VPhoneDER.element(in: certificate, at: 0).content)
         guard let first = tbs.first else { throw VPhoneSignError.identityUnreadable("an empty certificate") }

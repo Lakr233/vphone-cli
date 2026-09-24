@@ -224,7 +224,9 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
 
         if list {
             let code = VPhoneFirmwareMatrixCommandLine.list(
-                device: "iPhone17,3", readmePath: readme, downloadURLs: urls,
+                device: "iPhone17,3",
+                readmePath: readme,
+                downloadURLs: urls,
             )
             if code != 0 {
                 throw ExitCode(code)
@@ -238,7 +240,9 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
                 throw ValidationError("Use either --iphone-source or --iphone-version/--iphone-build.")
             }
             let selection = VPhoneFirmwareMatrix.selection(
-                device: "iPhone17,3", version: iphoneVersion ?? "", build: iphoneBuild ?? "",
+                device: "iPhone17,3",
+                version: iphoneVersion ?? "",
+                build: iphoneBuild ?? "",
                 readme: try? String(contentsOfFile: readme, encoding: .utf8),
                 downloadURLs: urls,
                 style: .forStream(FileHandle.standardError.fileDescriptor),
@@ -257,9 +261,11 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
         try VPhoneFirmwarePreparer.prepare(
-            iPhoneSource: phone, cloudOSSource: cloud,
+            iPhoneSource: phone,
+            cloudOSSource: cloud,
             gpuDriverBundle: gpuDriverBundle.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
-            bundle: bundle, resources: resources,
+            bundle: bundle,
+            resources: resources,
         )
     }
 }

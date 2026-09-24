@@ -19,7 +19,12 @@ extension CustomFirmwareDiskimagesiod {
         // cstring in a "direct selector" list. Both are accepted, exactly as
         // the Python does, so a missing selref is not fatal on its own.
         var targets: Set<UInt64> = [selectorVA]
-        if let selrefsSection = section(sections, "__DATA_CONST,__objc_selrefs", "__DATA,__objc_selrefs", "__AUTH_CONST,__objc_selrefs"),
+        if let selrefsSection = section(
+            sections,
+            "__DATA_CONST,__objc_selrefs",
+            "__DATA,__objc_selrefs",
+            "__AUTH_CONST,__objc_selrefs"
+        ),
            let selrefVA = selectorReferenceVA(
                in: data,
                selrefs: selrefsSection,

@@ -48,7 +48,8 @@ struct ExtractPermissionsTests {
             try fm.createDirectory(at: source, withIntermediateDirectories: true)
             try Data("#!/bin/sh\n".utf8).write(to: source.appendingPathComponent(setuidFile))
             try fm.createDirectory(
-                at: source.appendingPathComponent(wideDirectory), withIntermediateDirectories: true,
+                at: source.appendingPathComponent(wideDirectory),
+                withIntermediateDirectories: true,
             )
             try Data("owo\n".utf8).write(to: source.appendingPathComponent(worldWritableFile))
             // chmod after the writes: creating a file resets its mode.
@@ -141,7 +142,9 @@ struct ExtractPermissionsTests {
         } }
 
         try VPhoneArchiveExtractor.extract(
-            fixture.archive, into: ours, options: .intoHostDirectory,
+            fixture.archive,
+            into: ours,
+            options: .intoHostDirectory,
         )
         let untarred = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/bin/tar"),
@@ -170,7 +173,9 @@ struct ExtractPermissionsTests {
         defer { try? fm.removeItem(at: destination) }
 
         try VPhoneArchiveExtractor.extract(
-            fixture.archive, into: destination, options: .intoHostDirectory,
+            fixture.archive,
+            into: destination,
+            options: .intoHostDirectory,
         )
 
         for name in Fixture.archivedModes.keys.sorted() {

@@ -185,7 +185,10 @@ struct CustomFirmwareDaemonsTests {
         let arguments = daemon["ProgramArguments"] as? [Any] ?? []
         let strings = arguments.compactMap { $0 as? String }
         #expect(!strings.contains("-R"))
-        #expect(Array(strings.suffix(CustomFirmwareDaemons.dropbearKeyArguments.count)) == CustomFirmwareDaemons.dropbearKeyArguments)
+        #expect(
+            Array(strings.suffix(CustomFirmwareDaemons.dropbearKeyArguments.count))
+                == CustomFirmwareDaemons.dropbearKeyArguments
+        )
     }
 
     @Test

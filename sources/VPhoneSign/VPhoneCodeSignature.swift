@@ -121,7 +121,11 @@ struct VPhoneCodeSignature {
         var directories: [Data] = []
         for (index, digest) in digests.enumerated() {
             let directory = directory(
-                digest: digest, code: code, codeLimit: codeLimit, executable: executable, blobs: blobs,
+                digest: digest,
+                code: code,
+                codeLimit: codeLimit,
+                executable: executable,
+                blobs: blobs,
             )
             directories.append(directory)
             blobs.append((index == 0 ? 0 : 0x1000 + UInt32(index) - 1, directory))

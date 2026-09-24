@@ -57,7 +57,8 @@ struct NewVirtualMachineManifestTests {
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil,
+            from: Data(contentsOf: url),
+            format: nil,
         ) as? [String: Any]
 
         // Absent, not null: the host OS decides when the key is missing.
@@ -73,7 +74,8 @@ struct NewVirtualMachineManifestTests {
 
         try VPhoneVirtualMachineManifest.newVM(platformFusing: .dev).write(to: url)
         let parsed = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil,
+            from: Data(contentsOf: url),
+            format: nil,
         ) as? [String: Any]
 
         #expect(parsed?["platformFusing"] as? String == "dev")
@@ -87,7 +89,8 @@ struct NewVirtualMachineManifestTests {
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try #require(PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil,
+            from: Data(contentsOf: url),
+            format: nil,
         ) as? [String: Any])
 
         #expect(parsed.keys.sorted() == [
@@ -121,7 +124,8 @@ struct NewVirtualMachineManifestTests {
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try #require(PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil,
+            from: Data(contentsOf: url),
+            format: nil,
         ) as? [String: Any])
 
         // A number that becomes "8" parses fine and fails much later.

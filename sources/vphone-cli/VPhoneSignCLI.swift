@@ -96,7 +96,8 @@ struct VPhoneSignCommand: ParsableCommand {
         options.style = appleAdHoc ? .appleAdHoc : .ldid
         if let pkcs12 {
             options.identity = try VPhoneSignIdentity(
-                pkcs12: Data(contentsOf: pkcs12, options: .mappedIfSafe), password: "",
+                pkcs12: Data(contentsOf: pkcs12, options: .mappedIfSafe),
+                password: "",
             )
         }
         try VPhoneSigner.sign(fileAt: file, options: options)

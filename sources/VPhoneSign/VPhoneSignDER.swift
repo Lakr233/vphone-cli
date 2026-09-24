@@ -174,7 +174,12 @@ enum VPhoneDER {
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let text = String(
             format: "%02d%02d%02d%02d%02d%02dZ",
-            parts.year! % 100, parts.month!, parts.day!, parts.hour!, parts.minute!, parts.second!,
+            parts.year! % 100,
+            parts.month!,
+            parts.day!,
+            parts.hour!,
+            parts.minute!,
+            parts.second!,
         )
         return encode(0x17, Data(text.utf8))
     }

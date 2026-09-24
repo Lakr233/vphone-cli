@@ -48,7 +48,9 @@ struct RoundTripTests {
 
         try VPhoneArchiveWriter.create(archive: archive, from: source, compression: compression)
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: .intoHostDirectory,
+            archive,
+            into: destination,
+            options: .intoHostDirectory,
         )
 
         #expect(try String(
@@ -173,10 +175,12 @@ struct RoundTripTests {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
             try Data("same\n".utf8).write(to: url.appendingPathComponent("f.txt"))
             try FileManager.default.setAttributes(
-                [.modificationDate: when], ofItemAtPath: url.appendingPathComponent("f.txt").path,
+                [.modificationDate: when],
+                ofItemAtPath: url.appendingPathComponent("f.txt").path,
             )
             try FileManager.default.setAttributes(
-                [.modificationDate: when], ofItemAtPath: url.path,
+                [.modificationDate: when],
+                ofItemAtPath: url.path,
             )
         }
         defer {
@@ -291,7 +295,9 @@ struct RoundTripTests {
         defer { try? FileManager.default.removeItem(at: staging) }
         try FileManager.default.copyItem(at: tar, to: staging.appendingPathComponent("inner.tar"))
         try VPhoneArchiveWriter.create(
-            archive: compressed, from: staging, compression: .zstd(level: 3),
+            archive: compressed,
+            from: staging,
+            compression: .zstd(level: 3),
         )
 
         // What decompress gives back is the tar.zst's single stream, which
@@ -326,7 +332,9 @@ struct RoundTripTests {
 
         #expect(throws: VPhoneArchiveError.self) {
             try VPhoneArchiveExtractor.extract(
-                archive, into: destination, options: .intoHostDirectory,
+                archive,
+                into: destination,
+                options: .intoHostDirectory,
             )
         }
         #expect(!FileManager.default.fileExists(

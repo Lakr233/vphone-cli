@@ -33,7 +33,10 @@ enum VPhonePCCGPURecovery {
         let library = VPhoneLibrary(root: temporaryLibrary)
         let name = "pcc-\(UUID().uuidString.lowercased())"
         let vm = try VPhoneBundleOperations.create(.init(
-            name: name, cpuCount: 8, memoryMB: 8192, diskSizeGB: 64,
+            name: name,
+            cpuCount: 8,
+            memoryMB: 8192,
+            diskSizeGB: 64,
             romSource: VPhoneBundleOperations.defaultROMSource(),
             sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
         ), in: library)
@@ -74,8 +77,11 @@ enum VPhonePCCGPURecovery {
 
         print("[*] Restoring cloudOS to temporary vphone VM (ECID 0x\(VPhoneRestoreIdentity.formatECID(ecid)))...")
         try VPhoneRestoreService.restore(
-            vmDir: vm.url, ecid: ecid, udid: VPhoneRestoreOperations.resolveUDID(bundle: vm),
-            erase: true, ticketPath: nil,
+            vmDir: vm.url,
+            ecid: ecid,
+            udid: VPhoneRestoreOperations.resolveUDID(bundle: vm),
+            erase: true,
+            ticketPath: nil,
             onEvent: VPhoneRestoreConsole.handler(level: .info),
         )
         dfu.terminate()
@@ -105,7 +111,8 @@ enum VPhonePCCGPURecovery {
 
         let info = try run("/usr/sbin/diskutil", ["info", "-plist", "\(baseDisk)s1"])
         guard let plist = try PropertyListSerialization.propertyList(
-            from: Data(info.utf8), format: nil,
+            from: Data(info.utf8),
+            format: nil,
         ) as? [String: Any],
             let container = plist["APFSContainerReference"] as? String,
             container.hasPrefix("disk")
@@ -122,7 +129,8 @@ enum VPhonePCCGPURecovery {
             path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",
         )
         try VPhonePCCGPUDriver.stage(
-            from: source, into: restoreDirectory,
+            from: source,
+            into: restoreDirectory,
             expectedPlatformVersion: expectedPlatformVersion,
         )
         print("[+] GPU driver staged from cloudOS restored by vphone-cli")

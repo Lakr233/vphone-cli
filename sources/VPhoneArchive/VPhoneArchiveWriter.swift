@@ -73,7 +73,8 @@ public enum VPhoneArchiveWriter {
 
         guard archive_write_open_filename(writer, archive.path) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: archive.path, reason: archiveErrorString(writer),
+                path: archive.path,
+                reason: archiveErrorString(writer),
             )
         }
         defer { archive_write_close(writer) }
@@ -107,7 +108,8 @@ public enum VPhoneArchiveWriter {
         let resolvedRoot = try VPhoneArchivePaths.resolved(root)
         guard archive_read_disk_open(disk, resolvedRoot.path) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: resolvedRoot.path, reason: archiveErrorString(disk),
+                path: resolvedRoot.path,
+                reason: archiveErrorString(disk),
             )
         }
 
@@ -144,7 +146,8 @@ public enum VPhoneArchiveWriter {
             }
             guard status == ARCHIVE_OK || status == ARCHIVE_WARN else {
                 throw VPhoneArchiveError.readFailed(
-                    path: root.path, reason: archiveErrorString(disk),
+                    path: root.path,
+                    reason: archiveErrorString(disk),
                 )
             }
 
@@ -175,7 +178,8 @@ public enum VPhoneArchiveWriter {
 
             guard archive_write_header(writer, resolved) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: stored, reason: archiveErrorString(writer),
+                    path: stored,
+                    reason: archiveErrorString(writer),
                 )
             }
 
@@ -210,14 +214,16 @@ public enum VPhoneArchiveWriter {
 
         guard archive_read_open_filename(reader, input.path, 10240) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: input.path, reason: archiveErrorString(reader),
+                path: input.path,
+                reason: archiveErrorString(reader),
             )
         }
 
         var entry: OpaquePointer?
         guard archive_read_next_header(reader, &entry) == ARCHIVE_OK else {
             throw VPhoneArchiveError.readFailed(
-                path: input.path, reason: archiveErrorString(reader),
+                path: input.path,
+                reason: archiveErrorString(reader),
             )
         }
 
@@ -237,7 +243,8 @@ public enum VPhoneArchiveWriter {
             }
             guard read > 0 else {
                 throw VPhoneArchiveError.readFailed(
-                    path: input.path, reason: archiveErrorString(reader),
+                    path: input.path,
+                    reason: archiveErrorString(reader),
                 )
             }
             try handle.write(contentsOf: buffer[0 ..< Int(read)])
@@ -254,7 +261,8 @@ public enum VPhoneArchiveWriter {
     ) throws {
         guard archive_write_set_filter_option(writer, filter, key, value) == ARCHIVE_OK else {
             throw VPhoneArchiveError.writeFailed(
-                path: "<filter \(filter)>", reason: archiveErrorString(writer),
+                path: "<filter \(filter)>",
+                reason: archiveErrorString(writer),
             )
         }
     }
@@ -291,7 +299,8 @@ public enum VPhoneArchiveWriter {
             }
             guard sent > 0 else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: path, reason: archiveErrorString(writer),
+                    path: path,
+                    reason: archiveErrorString(writer),
                 )
             }
             onBytes(Int64(sent))

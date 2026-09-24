@@ -29,7 +29,8 @@ struct NoOverwriteDirTests {
         try Data("from archive\n".utf8).write(to: dir.appendingPathComponent("inside.txt"))
         try Data("beside\n".utf8).write(to: staging.appendingPathComponent("beside.txt"))
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: directoryMode)], ofItemAtPath: dir.path,
+            [.posixPermissions: NSNumber(value: directoryMode)],
+            ofItemAtPath: dir.path,
         )
 
         let archive = FileManager.default.temporaryDirectory
@@ -88,11 +89,14 @@ struct NoOverwriteDirTests {
         let existing = destination.appendingPathComponent("dir")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path,
+            [.posixPermissions: NSNumber(value: 0o700)],
+            ofItemAtPath: existing.path,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: true),
         )
 
         #expect(try Self.mode(of: existing) == 0o700)
@@ -110,11 +114,14 @@ struct NoOverwriteDirTests {
         let existing = destination.appendingPathComponent("dir")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path,
+            [.posixPermissions: NSNumber(value: 0o700)],
+            ofItemAtPath: existing.path,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: false),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: false),
         )
 
         // `man 3 archive_write_disk`: "existing directories will have their
@@ -141,7 +148,9 @@ struct NoOverwriteDirTests {
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: true),
         )
 
         // This is the difference from ARCHIVE_EXTRACT_NO_OVERWRITE, which
@@ -164,7 +173,9 @@ struct NoOverwriteDirTests {
         try Data("stale\n".utf8).write(to: beside)
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: true),
         )
 
         // The other half of why ARCHIVE_EXTRACT_NO_OVERWRITE is not a
@@ -182,7 +193,9 @@ struct NoOverwriteDirTests {
         }
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: true),
         )
 
         let dir = destination.appendingPathComponent("dir")
@@ -204,11 +217,14 @@ struct NoOverwriteDirTests {
         let elsewhere = destination.appendingPathComponent("elsewhere")
         try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(
-            at: destination.appendingPathComponent("dir"), withDestinationURL: elsewhere,
+            at: destination.appendingPathComponent("dir"),
+            withDestinationURL: elsewhere,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+            archive,
+            into: destination,
+            options: Self.installOptions(noOverwriteDir: true),
         )
 
         // Two things have to hold, and both do.

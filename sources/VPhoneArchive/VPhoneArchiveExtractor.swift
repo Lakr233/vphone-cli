@@ -50,7 +50,8 @@ public enum VPhoneArchiveExtractor {
 
         guard archive_read_open_filename(reader, archive.path, blockSize) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: archive.path, reason: archiveErrorString(reader),
+                path: archive.path,
+                reason: archiveErrorString(reader),
             )
         }
 
@@ -80,7 +81,8 @@ public enum VPhoneArchiveExtractor {
             }
             guard status == ARCHIVE_OK || status == ARCHIVE_WARN, let entry else {
                 throw VPhoneArchiveError.readFailed(
-                    path: archive.path, reason: archiveErrorString(reader),
+                    path: archive.path,
+                    reason: archiveErrorString(reader),
                 )
             }
 
@@ -100,7 +102,8 @@ public enum VPhoneArchiveExtractor {
             let targetPath = target.standardized.path
             guard targetPath == destinationPath || targetPath.hasPrefix(destinationPath + "/") else {
                 throw VPhoneArchiveError.pathEscapesDestination(
-                    member: memberPath, destination: destinationPath,
+                    member: memberPath,
+                    destination: destinationPath,
                 )
             }
             archive_entry_set_pathname(entry, targetPath)
@@ -120,7 +123,8 @@ public enum VPhoneArchiveExtractor {
                 let resolvedLink = linkTarget.standardized.path
                 guard resolvedLink.hasPrefix(destinationPath + "/") else {
                     throw VPhoneArchiveError.pathEscapesDestination(
-                        member: linkPath, destination: destinationPath,
+                        member: linkPath,
+                        destination: destinationPath,
                     )
                 }
                 archive_entry_set_hardlink(entry, resolvedLink)
@@ -135,13 +139,16 @@ public enum VPhoneArchiveExtractor {
 
             guard archive_write_header(writer, entry) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: target.path, reason: archiveErrorString(writer),
+                    path: target.path,
+                    reason: archiveErrorString(writer),
                 )
             }
 
             if archive_entry_size(entry) > 0 {
                 bytes += try copyData(
-                    from: reader, to: writer, isCancelled: isCancelled,
+                    from: reader,
+                    to: writer,
+                    isCancelled: isCancelled,
                     onBlock: bytesRead.map { report in
                         { report(archive_filter_bytes(reader, -1)) }
                     },
@@ -150,7 +157,8 @@ public enum VPhoneArchiveExtractor {
 
             guard archive_write_finish_entry(writer) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: target.path, reason: archiveErrorString(writer),
+                    path: target.path,
+                    reason: archiveErrorString(writer),
                 )
             }
 
@@ -232,13 +240,15 @@ public enum VPhoneArchiveExtractor {
             }
             guard status == ARCHIVE_OK || status == ARCHIVE_WARN else {
                 throw VPhoneArchiveError.readFailed(
-                    path: "<member data>", reason: archiveErrorString(reader),
+                    path: "<member data>",
+                    reason: archiveErrorString(reader),
                 )
             }
 
             guard archive_write_data_block(writer, buffer, size, offset) >= ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: "<member data>", reason: archiveErrorString(writer),
+                    path: "<member data>",
+                    reason: archiveErrorString(writer),
                 )
             }
             total += Int64(size)

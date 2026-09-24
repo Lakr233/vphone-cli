@@ -144,11 +144,17 @@ static void vphone_emit(int level, const char *message)
  * &client->tss_recoveryos_root_ticket instead, so comparing the out-parameter
  * against &client->tss separates them exactly.
  */
-int vphone_offline_tss_lookup(struct idevicerestore_client_t *client,
-                              plist_t build_identity, plist_t *tss);
+int vphone_offline_tss_lookup(
+    struct idevicerestore_client_t *client,
+    plist_t build_identity,
+    plist_t *tss
+);
 
-int vphone_offline_tss_lookup(struct idevicerestore_client_t *client,
-                              plist_t build_identity, plist_t *tss)
+int vphone_offline_tss_lookup(
+    struct idevicerestore_client_t *client,
+    plist_t build_identity,
+    plist_t *tss
+)
 {
     (void)build_identity;
 
@@ -646,8 +652,12 @@ int vphone_restore_run(const struct vphone_restore_options *options)
         goto done;
     }
     if (stat(options->restore_dir, &st) != 0) {
-        logger(LL_ERROR, "Cannot use '%s' as a restore directory: %s\n",
-               options->restore_dir, strerror(errno));
+        logger(
+            LL_ERROR,
+            "Cannot use '%s' as a restore directory: %s\n",
+            options->restore_dir,
+            strerror(errno)
+        );
         result = VPHONE_RESTORE_E_NO_RESTORE_DIR;
         goto done;
     }
@@ -665,8 +675,11 @@ int vphone_restore_run(const struct vphone_restore_options *options)
             result = VPHONE_RESTORE_E_TICKET;
             goto done;
         }
-        logger(LL_INFO, "Restoring offline with the TSS response at '%s'\n",
-               options->ticket_path);
+        logger(
+            LL_INFO,
+            "Restoring offline with the TSS response at '%s'\n",
+            options->ticket_path
+        );
     }
 
     result = vphone_drive_idevicerestore(options);

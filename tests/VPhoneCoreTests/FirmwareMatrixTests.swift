@@ -407,7 +407,10 @@ struct FirmwareMatrixRealDataTests {
         #expect(releases.count == 31)
         #expect(Set(releases.map(\.build)).count == 31)
 
-        let tested = try VPhoneFirmwareMatrix.testedBuilds(readme: RealData.repositoryCompatibilityGuide(), device: Fixture.d)
+        let tested = try VPhoneFirmwareMatrix.testedBuilds(
+            readme: RealData.repositoryCompatibilityGuide(),
+            device: Fixture.d
+        )
         var supported = 0, notTested = 0
         for release in releases {
             let id = VPhoneFirmwareBuildID(version: release.version, build: release.build)

@@ -112,11 +112,16 @@ extension CustomFirmwareMobileactivationd {
             return nil
         }
         guard let selrefVA = selectorReferenceVirtualAddress(
-            to: selectorVA, in: data, sections: sections, imageBase: imageBase,
+            to: selectorVA,
+            in: data,
+            sections: sections,
+            imageBase: imageBase,
         ) else { return nil }
 
         return methodImplementation(
-            forSelectorReference: selrefVA, in: data, sections: sections,
+            forSelectorReference: selrefVA,
+            in: data,
+            sections: sections,
         )
     }
 
@@ -211,7 +216,9 @@ extension CustomFirmwareMobileactivationd {
         for name in candidates {
             guard let section = sections[name] else { continue }
             if let imp = methodImplementation(
-                forSelectorReference: selrefVA, in: data, section: section,
+                forSelectorReference: selrefVA,
+                in: data,
+                section: section,
             ) {
                 return imp
             }

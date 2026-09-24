@@ -65,7 +65,9 @@ public enum VPhoneIPSWCache {
         let size = try Int64(fm.attributesOfItem(atPath: downloaded.path)[.size] as? UInt64 ?? 0)
         if response.expectedContentLength > 0, size != response.expectedContentLength {
             throw Error.incompleteDownload(
-                url, expected: response.expectedContentLength, actual: size,
+                url,
+                expected: response.expectedContentLength,
+                actual: size,
             )
         }
 

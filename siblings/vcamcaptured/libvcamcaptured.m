@@ -103,12 +103,16 @@ static void vcc_log(NSString *fmt, ...) {
   va_end(args);
   NSString *line = [NSString
       stringWithFormat:@"%@ [vcamcaptured:%d:%@] %@\n",
-                       [NSDate.date description], getpid(),
-                       NSProcessInfo.processInfo.processName ?: @"?", msg];
+                       [NSDate.date description],
+                       getpid(),
+                       NSProcessInfo.processInfo.processName ?: @"?",
+                       msg];
   NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
   if (!data.length) return;
-  int fd = open(kSentinelPath.fileSystemRepresentation,
-                O_WRONLY | O_CREAT | O_APPEND, 0644);
+  int fd = open(
+      kSentinelPath.fileSystemRepresentation,
+      O_WRONLY | O_CREAT | O_APPEND,
+      0644);
   if (fd >= 0) {
     (void)write(fd, data.bytes, data.length);
     close(fd);
@@ -298,14 +302,21 @@ static int vcc_patch_two_nops(uintptr_t pc) {
 
   // (a) vm_protect with VM_PROT_COPY (= 0x10) to force COW.
   kern_return_t kr = vm_protect(
-      self_task, (vm_address_t)page_start, span, FALSE,
+      self_task,
+      (vm_address_t)page_start,
+      span,
+      FALSE,
       VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
   if (kr == KERN_SUCCESS) {
     uint32_t nop = 0xD503201Fu;
     ((uint32_t *)pc)[0] = nop;
     ((uint32_t *)pc)[1] = nop;
-    kr = vm_protect(self_task, (vm_address_t)page_start, span, FALSE,
-                    VM_PROT_READ | VM_PROT_EXECUTE);
+    kr = vm_protect(
+        self_task,
+        (vm_address_t)page_start,
+        span,
+        FALSE,
+        VM_PROT_READ | VM_PROT_EXECUTE);
     if (kr == KERN_SUCCESS) {
       sys_icache_invalidate((void *)pc, 8);
       vcc_log(@"  vm_protect+COPY patch OK @ 0x%lx",
@@ -313,7 +324,8 @@ static int vcc_patch_two_nops(uintptr_t pc) {
       return 1;
     }
     vcc_log(@"  vm_protect restore RX failed: %d (page=0x%lx)",
-            kr, (unsigned long)page_start);
+            kr,
+            (unsigned long)page_start);
     // Continue to try (b).
   } else {
     vcc_log(@"  vm_protect+COPY failed: %d", kr);
@@ -331,8 +343,12 @@ static int vcc_patch_two_nops(uintptr_t pc) {
   uintptr_t scratch_pc = scratch + (pc - page_start);
   ((uint32_t *)scratch_pc)[0] = nop;
   ((uint32_t *)scratch_pc)[1] = nop;
-  kr = vm_protect(self_task, scratch, span, FALSE,
-                  VM_PROT_READ | VM_PROT_EXECUTE);
+  kr = vm_protect(
+      self_task,
+      scratch,
+      span,
+      FALSE,
+      VM_PROT_READ | VM_PROT_EXECUTE);
   if (kr != KERN_SUCCESS) {
     vcc_log(@"  vm_protect RX scratch failed: %d", kr);
     vm_deallocate(self_task, scratch, span);
@@ -340,19 +356,32 @@ static int vcc_patch_two_nops(uintptr_t pc) {
   }
   vm_address_t target = (vm_address_t)page_start;
   vm_prot_t cur_prot = 0, max_prot = 0;
-  kr = vm_remap(self_task, &target, span, 0,
-                VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
-                self_task, scratch, FALSE,
-                &cur_prot, &max_prot, VM_INHERIT_NONE);
+  kr = vm_remap(
+      self_task,
+      &target,
+      span,
+      0,
+      VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
+      self_task,
+      scratch,
+      FALSE,
+      &cur_prot,
+      &max_prot,
+      VM_INHERIT_NONE);
   if (kr != KERN_SUCCESS) {
     vcc_log(@"  vm_remap FIXED|OVERWRITE failed: %d (cur=0x%x max=0x%x)",
-            kr, cur_prot, max_prot);
+            kr,
+            cur_prot,
+            max_prot);
     vm_deallocate(self_task, scratch, span);
     return 0;
   }
   sys_icache_invalidate((void *)pc, 8);
   vcc_log(@"  vm_remap OK: page=0x%lx span=%zu (cur=0x%x max=0x%x)",
-          (unsigned long)page_start, (size_t)span, cur_prot, max_prot);
+          (unsigned long)page_start,
+          (size_t)span,
+          cur_prot,
+          max_prot);
   return 1;
 }
 
@@ -367,7 +396,9 @@ static int vcc_patch_word(uintptr_t pc,
   uint32_t cur = ((const uint32_t *)pc)[0];
   if (cur != expected_word) {
     vcc_log(@"  patch_word @ 0x%lx: expected 0x%08x, found 0x%08x — skip",
-            (unsigned long)pc, expected_word, cur);
+            (unsigned long)pc,
+            expected_word,
+            cur);
     return 0;
   }
   uintptr_t page_size = (uintptr_t)getpagesize();
@@ -378,22 +409,31 @@ static int vcc_patch_word(uintptr_t pc,
   mach_port_t self_task = mach_task_self();
 
   kern_return_t kr = vm_protect(
-      self_task, (vm_address_t)page_start, span, FALSE,
+      self_task,
+      (vm_address_t)page_start,
+      span,
+      FALSE,
       VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
   if (kr != KERN_SUCCESS) {
     vcc_log(@"  patch_word vm_protect+COPY failed: %d", kr);
     return 0;
   }
   ((uint32_t *)pc)[0] = new_word;
-  kr = vm_protect(self_task, (vm_address_t)page_start, span, FALSE,
-                  VM_PROT_READ | VM_PROT_EXECUTE);
+  kr = vm_protect(
+      self_task,
+      (vm_address_t)page_start,
+      span,
+      FALSE,
+      VM_PROT_READ | VM_PROT_EXECUTE);
   if (kr != KERN_SUCCESS) {
     vcc_log(@"  patch_word restore RX failed: %d", kr);
     return 0;
   }
   sys_icache_invalidate((void *)pc, 4);
   vcc_log(@"  patch_word OK @ 0x%lx: 0x%08x -> 0x%08x",
-          (unsigned long)pc, expected_word, new_word);
+          (unsigned long)pc,
+          expected_word,
+          new_word);
   return 1;
 }
 
@@ -414,7 +454,10 @@ static unsigned vcc_scan_and_patch(const vcc_image_t *img,
     if (vcc_patch_word(pc, needle, replacement)) hits++;
   }
   vcc_log(@"  scan_and_patch %s (0x%08x -> 0x%08x): %u hit(s)",
-          what ? what : "?", needle, replacement, hits);
+          what ? what : "?",
+          needle,
+          replacement,
+          hits);
   return hits;
 }
 
@@ -546,11 +589,16 @@ static uintptr_t vcc_find_data_xref(const vcc_image_t *img, unsigned offset) {
   }
   if (tie) {
     vcc_log(@"  xref scan #%u: %u candidates tied at %u hits — refusing to pick",
-            offset, n_cands, best_hits);
+            offset,
+            n_cands,
+            best_hits);
     return 0;
   }
   vcc_log(@"  xref scan #%u: %u candidates, winner 0x%lx with %u hits",
-          offset, n_cands, (unsigned long)cands[best].addr, best_hits);
+          offset,
+          n_cands,
+          (unsigned long)cands[best].addr,
+          best_hits);
   return cands[best].addr;
 }
 
@@ -818,11 +866,14 @@ static id vcc_build_backing(void) {
                                                          @selector(alloc));
       id fmtObj = nil;
       if (fmtAlloc) {
-        fmtObj = ((id (*)(id, SEL, id))objc_msgSend)(fmtAlloc, fmtInitSel,
-                                                       fmtDict);
+        fmtObj = ((id (*)(id, SEL, id))objc_msgSend)(
+            fmtAlloc,
+            fmtInitSel,
+            fmtDict);
       }
       vcc_log(@"  FigCaptureSourceVideoFormat (%@) = %p",
-              fmtDict[@"Name"], fmtObj);
+              fmtDict[@"Name"],
+              fmtObj);
       if (fmtObj) [formatObjs addObject:fmtObj];
     }
     formats = formatObjs;
@@ -839,10 +890,18 @@ static id vcc_build_backing(void) {
   if (!alloced) return nil;
   uint32_t mediaTypeVideo = 0x76696465;  // 'vide'
   id backing = ((id (*)(id, SEL, uint32_t, id, id, id, id, id, id))objc_msgSend)(
-      alloced, initSel, mediaTypeVideo, attrs,
-      [NSMutableDictionary dictionary], formats, @[], @[], @[]);
+      alloced,
+      initSel,
+      mediaTypeVideo,
+      attrs,
+      [NSMutableDictionary dictionary],
+      formats,
+      @[],
+      @[],
+      @[]);
   vcc_log(@"  backing = %p (attrs.count=%lu formats.count=%lu)",
-          backing, (unsigned long)attrs.count,
+          backing,
+          (unsigned long)attrs.count,
           (unsigned long)formats.count);
   return backing;
 }

@@ -129,7 +129,8 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
         )
         guard result.succeeded,
               let plist = try? PropertyListSerialization.propertyList(
-                  from: Data(result.stdout.utf8), format: nil,
+                  from: Data(result.stdout.utf8),
+                  format: nil,
               ) as? [String: Any]
         else { return false }
         return plist["com.apple.private.virtualization"] as? Bool == true &&

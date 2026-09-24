@@ -105,7 +105,11 @@ extension VPhoneSignEntitlements {
                         try open(dictionary: name == "dict")
                     }
                 case "/dict", "/array":
-                    guard !empty, let frame = stack.popLast(), frame.isDictionary == (name == "/dict"), frame.key == nil else {
+                    guard !empty,
+                          let frame = stack.popLast(),
+                          frame.isDictionary == (name == "/dict"),
+                          frame.key == nil
+                    else {
                         throw Self.refuse("<\(name)> closes a container that is not open, or a key without a value")
                     }
                     guard !stack.isEmpty else {
@@ -128,7 +132,8 @@ extension VPhoneSignEntitlements {
                     // libplist's decoder skips what it does not know; base64
                     // that reads back the same is what the two agree on
                     let encoded = try empty ? "" : String(
-                        decoding: text(closing: name, skippingSpace: true).filter { !Self.isSpace($0) }, as: UTF8.self,
+                        decoding: text(closing: name, skippingSpace: true).filter { !Self.isSpace($0) },
+                        as: UTF8.self,
                     )
                     guard let value = Data(base64Encoded: encoded), value.base64EncodedString() == encoded else {
                         throw Self.refuse("a <data> whose base64 does not read back the same")
@@ -186,7 +191,9 @@ extension VPhoneSignEntitlements {
             }
             var name = bytes[start ..< at]
             if at < bytes.count, bytes[at] != UInt8(ascii: ">") {
-                guard name.elementsEqual("plist".utf8) else { throw Self.refuse("attributes on <\(String(decoding: name, as: UTF8.self))>") }
+                guard name.elementsEqual("plist".utf8) else {
+                    throw Self.refuse("attributes on <\(String(decoding: name, as: UTF8.self))>")
+                }
                 while at < bytes.count, bytes[at] != UInt8(ascii: "<"), bytes[at] != UInt8(ascii: ">") {
                     if bytes[at] == UInt8(ascii: "\"") {
                         at = try closingQuote()
@@ -209,7 +216,9 @@ extension VPhoneSignEntitlements {
             if skippingSpace {
                 skipSpace()
             }
-            guard let end = bytes[at...].firstIndex(of: UInt8(ascii: "<")) else { throw Self.refuse("<\(name)> is never closed") }
+            guard let end = bytes[at...].firstIndex(of: UInt8(ascii: "<")) else {
+                throw Self.refuse("<\(name)> is never closed")
+            }
             let text = bytes[at ..< end]
             at = end + 1
             try expect("/" + name)
@@ -353,7 +362,9 @@ extension VPhoneSignEntitlements {
                     at += 1
                     continue
                 }
-                guard let end = text[at...].firstIndex(of: UInt8(ascii: ";")) else { throw refuse("an entity that is never closed") }
+                guard let end = text[at...].firstIndex(of: UInt8(ascii: ";")) else {
+                    throw refuse("an entity that is never closed")
+                }
                 let name = text[(at + 1) ..< end]
                 switch String(decoding: name, as: UTF8.self) {
                 case "amp": bytes.append(UInt8(ascii: "&"))
@@ -365,7 +376,10 @@ extension VPhoneSignEntitlements {
                     let hex = name.dropFirst().first.map { $0 | 0x20 == UInt8(ascii: "x") } == true
                     let digits = name.dropFirst(hex ? 2 : 1)
                     guard name.first == UInt8(ascii: "#"), name.count <= 8, !digits.isEmpty,
-                          digits.allSatisfy({ (0x30 ... 0x39).contains($0) || hex && (0x61 ... 0x66).contains($0 | 0x20) }),
+                          digits.allSatisfy({
+                              (0x30 ... 0x39).contains($0)
+                                  || hex && (0x61 ... 0x66).contains($0 | 0x20)
+                          }),
                           let value = UInt32(String(decoding: digits, as: UTF8.self), radix: hex ? 16 : 10), value != 0,
                           let scalar = Unicode.Scalar(value)
                     else { throw refuse("an entity libplist matches by its first letters") }

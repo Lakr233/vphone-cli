@@ -72,9 +72,13 @@ struct VPhoneSignPKCS12 {
             return try VPhoneDER.element(in: fields[1].content, at: 0).content
         case VPhoneDER.OID.encryptedData:
             let encrypted = try VPhoneDER.children(of: VPhoneDER.element(in: fields[1].content, at: 0).content)
-            guard encrypted.count >= 2 else { throw VPhoneSignError.identityUnreadable("an EncryptedData without content") }
+            guard encrypted.count >= 2 else {
+                throw VPhoneSignError.identityUnreadable("an EncryptedData without content")
+            }
             let info = try VPhoneDER.children(of: encrypted[1].content)
-            guard info.count >= 3 else { throw VPhoneSignError.identityUnreadable("an EncryptedContentInfo without content") }
+            guard info.count >= 3 else {
+                throw VPhoneSignError.identityUnreadable("an EncryptedContentInfo without content")
+            }
             // [0] IMPLICIT OCTET STRING: the content is the value itself
             return try decrypt(info[2].content, algorithm: info[1], password: password)
         default:
@@ -87,7 +91,9 @@ struct VPhoneSignPKCS12 {
     /// An EncryptedPrivateKeyInfo.
     private static func decryptPrivateKey(_ encoded: Data, password: String) throws -> Data {
         let fields = try VPhoneDER.children(of: VPhoneDER.element(in: encoded, at: 0).content)
-        guard fields.count >= 2 else { throw VPhoneSignError.identityUnreadable("an EncryptedPrivateKeyInfo without content") }
+        guard fields.count >= 2 else {
+            throw VPhoneSignError.identityUnreadable("an EncryptedPrivateKeyInfo without content")
+        }
         return try decrypt(fields[1].content, algorithm: fields[0], password: password)
     }
 
@@ -170,10 +176,14 @@ struct VPhoneSignPKCS12 {
                     // an empty password is a real password here: the pointer
                     // may be null, which CCKeyDerivationPBKDF accepts with a
                     // length of zero
-                    bytes.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) }, bytes.count,
-                    salt.baseAddress, salt.count,
-                    prf, UInt32(iterations),
-                    &key, key.count,
+                    bytes.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) },
+                    bytes.count,
+                    salt.baseAddress,
+                    salt.count,
+                    prf,
+                    UInt32(iterations),
+                    &key,
+                    key.count,
                 )
             }
         }
@@ -186,10 +196,17 @@ struct VPhoneSignPKCS12 {
         let status = [UInt8](ciphertext).withUnsafeBufferPointer { input in
             [UInt8](iv).withUnsafeBufferPointer { iv in
                 CCCrypt(
-                    CCOperation(kCCDecrypt), CCAlgorithm(kCCAlgorithmAES), CCOptions(kCCOptionPKCS7Padding),
-                    key, key.count, iv.baseAddress,
-                    input.baseAddress, input.count,
-                    &plaintext, plaintext.count, &written,
+                    CCOperation(kCCDecrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    key,
+                    key.count,
+                    iv.baseAddress,
+                    input.baseAddress,
+                    input.count,
+                    &plaintext,
+                    plaintext.count,
+                    &written,
                 )
             }
         }

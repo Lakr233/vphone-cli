@@ -21,7 +21,8 @@ enum VPhoneHostPreflight {
 
 struct VPhoneHostCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "host", subcommands: [VPhoneHostPreflightCommand.self],
+        commandName: "host",
+        subcommands: [VPhoneHostPreflightCommand.self],
     )
 }
 

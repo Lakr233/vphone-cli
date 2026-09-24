@@ -379,7 +379,9 @@ public final class DyldSharedCacheChunkSet {
         var results: [UInt64] = []
         for mapping in mappings where mapping.isExecutable {
             let buffer = try Self.window(
-                over: mapping, at: mapping.fileOffset, length: Int(mapping.size),
+                over: mapping,
+                at: mapping.fileOffset,
+                length: Int(mapping.size),
             )
             var searchFrom = buffer.startIndex
             while searchFrom < buffer.endIndex,

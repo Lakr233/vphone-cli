@@ -51,7 +51,12 @@ extension KernelJailbreakPatcher {
 
         var candidates: [(off: Int, state: String)] = []
         for off in stride(from: scanStart, to: adrpOff, by: 4) {
-            guard let state = matchRootauthBranchSite(off, errLo: errLo, errHi: errHi, imagebootNeeded: imagebootNeeded) else { continue }
+            guard let state = matchRootauthBranchSite(
+                off,
+                errLo: errLo,
+                errHi: errHi,
+                imagebootNeeded: imagebootNeeded
+            ) else { continue }
             candidates.append((off, state))
         }
 

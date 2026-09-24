@@ -165,7 +165,12 @@ struct VPhoneCustomFirmwareInjectDylibCommand: ParsableCommand {
     var dylibPath: String
 
     func run() throws {
-        let injections = try CustomFirmwareInjectDylib.inject(dylibPath: dylibPath, into: binary, weak: true, policy: .strip)
+        let injections = try CustomFirmwareInjectDylib.inject(
+            dylibPath: dylibPath,
+            into: binary,
+            weak: true,
+            policy: .strip
+        )
         for injection in injections {
             let stripped = injection.removedCodeSignature ? ", signature stripped" : ""
             print("  [+] LC_LOAD_WEAK_DYLIB \(dylibPath) -> \(binary.lastPathComponent) "

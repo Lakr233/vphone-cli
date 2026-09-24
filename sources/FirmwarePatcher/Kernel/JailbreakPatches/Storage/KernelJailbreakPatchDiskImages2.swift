@@ -133,8 +133,20 @@ extension KernelJailbreakPatcher {
             return true
         }
         guard let (rnpStart, rnpEnd) = findDI2RegisterNotifFunc(),
-              let f1 = findUniqueFieldLoad(funcStart: rnpStart, funcEnd: rnpEnd, mnemonic: "ldrh", disp: 0xD8, requireWDest: false),
-              let f2 = findUniqueFieldLoad(funcStart: rnpStart, funcEnd: rnpEnd, mnemonic: "ldr", disp: 0xE8, requireWDest: true)
+              let f1 = findUniqueFieldLoad(
+                  funcStart: rnpStart,
+                  funcEnd: rnpEnd,
+                  mnemonic: "ldrh",
+                  disp: 0xD8,
+                  requireWDest: false
+              ),
+              let f2 = findUniqueFieldLoad(
+                  funcStart: rnpStart,
+                  funcEnd: rnpEnd,
+                  mnemonic: "ldr",
+                  disp: 0xE8,
+                  requireWDest: true
+              )
         else {
             log("  [~] notification-port bound-check loads not both present — skipping GATE2 (all-or-nothing)")
             return true
