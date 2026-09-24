@@ -8,7 +8,7 @@
 > provisioning blocks in `setup_tools.sh` and `setup_machine.sh`. D1 — zero
 > Python — is met.
 >
-> What replaced it: `sources/VPhoneRestore` (1,040 lines of Swift) over two
+> What replaced it: `Sources/VPhoneRestore` (1,040 lines of Swift) over two
 > vendored C targets, `MobileRecoveryCore` (libirecovery) and
 > `MobileRestoreCore` (idevicerestore), with everything else arriving as
 > prebuilt xcframeworks.
@@ -48,7 +48,7 @@ product can `#include <plist/plist.h>`, `<libimobiledevice/libimobiledevice.h>`,
 
 Two things are not in that package, and both are load-bearing.
 
-### `sources/MobileRecoveryCore` — libirecovery 1.3.1
+### `Sources/MobileRecoveryCore` — libirecovery 1.3.1
 
 4,629 lines. It talks to iBoot and iBSS over USB, which is the half of a restore
 `idevicerestore` does not get from libimobiledevice. Upstream ships it as an
@@ -61,7 +61,7 @@ for libusb; that is deliberate here too, because a libusb backend would put a
 Homebrew dylib in the link and gate 1 rejects it. It is also what
 `research/restore/p2_dfu_spike.md` proved works — see below.
 
-### `sources/MobileRestoreCore` — idevicerestore
+### `Sources/MobileRestoreCore` — idevicerestore
 
 20,918 lines, of which **1,399 are ours** and each of those files says so at the
 top:
@@ -70,7 +70,7 @@ top:
 | --- | ---: | --- |
 | `vphone_restore_bridge.c` | 703 | the library entry point upstream's `main()` was |
 | `vphone_zip_stub.c` | 260 | libzip's twenty-two entry points, each failing loudly |
-| `include/vphone_restore_bridge.h` | 166 | the target's only public header |
+| `Include/vphone_restore_bridge.h` | 166 | the target's only public header |
 | `zip.h` | 143 | libzip's signatures, so upstream's `.c` compiles unchanged |
 | `config.h` | 127 | what `./configure` would have written |
 
@@ -113,7 +113,7 @@ restore backend in the bundle.
 
 ## The Swift layer
 
-`sources/VPhoneRestore` is what actually replaces the bridge script. The Python
+`Sources/VPhoneRestore` is what actually replaces the bridge script. The Python
 had four commands; three are ported with the same arguments, the same errors and
 the same two lines of output that scripts and people have been grepping for
 (`[+] SHSH saved: …`, `[+] Using cached SHSH: …`).

@@ -2,7 +2,7 @@
  * vphone_restore_bridge.h
  *
  * The one public header of MobileRestoreCore, and the only thing in this
- * target's include/ directory. Everything else here — idevicerestore's own
+ * target's Include/ directory. Everything else here — idevicerestore's own
  * sources, config.h and the libzip stub — is private to the target, so a
  * Swift caller sees this file and nothing else.
  *

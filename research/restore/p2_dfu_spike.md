@@ -6,7 +6,7 @@
 > re-evaluate if it fails, rather than vendoring idevicerestore on an assumption.
 
 > **Since answered and acted on.** The migration this spike unblocked is done:
-> the restore path is `sources/VPhoneRestore` over vendored libirecovery and
+> the restore path is `Sources/VPhoneRestore` over vendored libirecovery and
 > idevicerestore, and `scripts/pymobiledevice3_bridge.py` no longer exists.
 > Everything below is written as of the day of the spike, when it still did.
 > `research/restore/p2_restore_off_python.md` has what P2 went on to do.

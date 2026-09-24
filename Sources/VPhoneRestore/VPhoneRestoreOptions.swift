@@ -10,7 +10,7 @@ import MobileRestoreCore
 /// closure, never a function pointer.
 public struct VPhoneRestoreOptions: Sendable, Equatable {
     /// The extracted `iPhone*_Restore` directory. A `.ipsw` archive is
-    /// rejected: this build has no libzip (see `sources/MobileRestoreCore/zip.h`).
+    /// rejected: this build has no libzip (see `Sources/MobileRestoreCore/zip.h`).
     public var restoreDirectory: URL
 
     /// Where personalized components and `shshOnly`'s output land. `nil` is

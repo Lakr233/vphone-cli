@@ -295,14 +295,14 @@ check_sources() {
   # "/usr/local/bin:" as a PATH element, which is a directory in the GUEST, not
   # a program on this host.
   hits=$(grep -rnE '(opt/homebrew|usr/local)/(bin|opt|lib|sbin)/[A-Za-z0-9_.-]+' \
-           --include='*.swift' sources/ 2>/dev/null | grep -v ':[0-9]*: *//')
+           --include='*.swift' Sources/ 2>/dev/null | grep -v ':[0-9]*: *//')
   if [[ -n "$hits" ]]; then
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       fail "gate 2 [dist]: hardcoded prefix in Swift — $line"
     done <<< "$hits"
   else
-    green "  ok    gate 2 [dist]: no Homebrew path anywhere in sources/"
+    green "  ok    gate 2 [dist]: no Homebrew path anywhere in Sources/"
   fi
 
   # --- Shell: one file at a time, judged by its own tier. ---
@@ -376,9 +376,9 @@ check_sources() {
   # through that mapping is a SIGBUS — a killed process with no failed
   # assertion, which is how it presented. Those reads say so in the spelling:
   # `Data(contentsOfFileToRewrite:)`, defined once, in
-  # sources/FirmwarePatcher/Binary/InPlaceRewrite.swift, with the reason.
+  # Sources/FirmwarePatcher/Binary/InPlaceRewrite.swift, with the reason.
   #
-  # So the rule for sources/ is: no bare `Data(contentsOf:)`. Either it is
+  # So the rule for Sources/ is: no bare `Data(contentsOf:)`. Either it is
   # mapped, or it names itself as the rewrite case.
   #
   # tests/ is deliberately NOT covered, and that is not laziness. What a test
@@ -387,7 +387,7 @@ check_sources() {
   # over, which is the one shape where mapping is wrong. Holding the tests to
   # the production rule would trade a memory problem they do not have for a
   # SIGBUS they would.
-  hits=$(grep -rn 'Data(contentsOf:' --include='*.swift' sources/ 2>/dev/null \
+  hits=$(grep -rn 'Data(contentsOf:' --include='*.swift' Sources/ 2>/dev/null \
          | grep -v 'mappedIfSafe' \
          | grep -vE ':[0-9]+: *//')
   if [[ -n "$hits" ]]; then
@@ -396,7 +396,7 @@ check_sources() {
       fail "gate 2: unmapped file read — ${line%%:*}:${${line#*:}%%:*} (add options: .mappedIfSafe)"
     done <<< "$hits"
   else
-    green "  ok    gate 2: every file read in sources/ is mapped or a declared rewrite"
+    green "  ok    gate 2: every file read in Sources/ is mapped or a declared rewrite"
   fi
 
   # --- No interpreter, in any tier. ---

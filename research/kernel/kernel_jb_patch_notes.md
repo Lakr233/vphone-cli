@@ -8,7 +8,7 @@ Last updated: 2026-03-07
 > XNU-backed ones — carried into the Swift port and are why this file is kept;
 > the commands are not runnable as written. There is no Python in this
 > repository and no environment to install any into. The port lives in
-> `sources/FirmwarePatcher/Kernel/JailbreakPatches/`; to run anything below, recover
+> `Sources/FirmwarePatcher/Kernel/JailbreakPatches/`; to run anything below, recover
 > the patchers from git history at `78cbeea`.
 
 ## Overview

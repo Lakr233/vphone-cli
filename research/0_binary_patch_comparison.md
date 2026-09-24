@@ -281,7 +281,7 @@ addresses (49 gates each, zero verdict differences).
 ### Swift port status — the six independent Mach-O patchers (2026-09-23)
 
 Rows 1, 2, 3, 5 and 13 above, plus the EXP `watchdogd` patch, now have Swift
-implementations under `sources/FirmwarePatcher/CustomFirmware/ExecutablePatches/`. The patches did not
+implementations under `Sources/FirmwarePatcher/CustomFirmware/ExecutablePatches/`. The patches did not
 change. Each was run against its Python on two `cp -c` clones of the real 24A435
 binary in `ipsws/ref_extract/macho_pristine/`, both with re-attestation off (what
 the Python emits) and on (against `cfw_macho_codesign.reattest_modified_offsets`).
@@ -427,7 +427,7 @@ that check into a silent skip rather than a failure. CI no longer initialises it
 list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,
 `scripts/setup_venv_linux.sh`, the `make setup_venv` target and
 `scripts/pymobiledevice3_bridge.py` are all gone — the restore backend was the
-last program holding any of them up, and it is `sources/VPhoneRestore` over
+last program holding any of them up, and it is `Sources/VPhoneRestore` over
 vendored libirecovery and idevicerestore now
 (`research/restore/p2_restore_off_python.md`). No Python is tracked in this repository
 and nothing resolves a `python3` at runtime.
@@ -1114,7 +1114,7 @@ cache rebuild.
   - `patch_sandbox_hooks_extended`
   - `patch_post_validation_additional`
 - 2026-03-07 host-side note:
-  - reviewed private Virtualization.framework display APIs against the recorder pipeline in `sources/vphone-cli/Devices/VPhoneScreenRecorder.swift`.
+  - reviewed private Virtualization.framework display APIs against the recorder pipeline in `Sources/VPhoneVirtualMachineKit/HostDevices/VPhoneScreenRecorder.swift`.
   - replaced the old AppKit-first recorder path with a private-display-only implementation built around hidden `VZGraphicsDisplay._takeScreenshotWithCompletionHandler:` capture.
   - added still screenshot actions that can copy the captured image to the pasteboard or save a PNG to disk using the same private capture path.
   - `make build` is used as the sanity check path; live VM validation is still needed to confirm the exact screenshot object type returned on macOS 15.

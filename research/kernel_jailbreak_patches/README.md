@@ -2,7 +2,7 @@
 
 [Research library](../README.md) · [Patch comparison](../0_binary_patch_comparison.md) · [Document framework](PATCH_DOC_FRAMEWORK.md)
 
-These notes explain the source anchors, binary matches and validation evidence for individual JB kernel patches. The Swift implementations live under `sources/FirmwarePatcher/Kernel/JailbreakPatches/`; the notes are research records, not commands to apply a patch by hand.
+These notes explain the source anchors, binary matches and validation evidence for individual JB kernel patches. The Swift implementations live under `Sources/FirmwarePatcher/Kernel/JailbreakPatches/`; the notes are research records, not commands to apply a patch by hand.
 
 | Area | Patch notes |
 | --- | --- |

@@ -119,11 +119,11 @@ Two details that are easy to get wrong:
    page fault is a **SIGBUS** — a killed process, no failed assertion, nothing
    in the log. Those reads say so in the spelling:
    `Data(contentsOfFileToRewrite:)`, defined once in
-   `sources/FirmwarePatcher/Binary/InPlaceRewrite.swift`.
+   `Sources/FirmwarePatcher/Binary/InPlaceRewrite.swift`.
    `VPhoneSigner` keeps its mapping and is safe *because* it renames over the
    file rather than truncating it; rename does not invalidate a mapping.
 
-`make check-aux` enforces the rule for `sources/`. **`tests/` is deliberately
+`make check-aux` enforces the rule for `Sources/`. **`tests/` is deliberately
 outside it**: a test opens a committed fixture of a few megabytes, so mapping
 buys nothing, and those fixtures are exactly what the patch tests mutate and
 write back over. Holding the tests to the production rule would trade a memory
@@ -141,7 +141,7 @@ problem they do not have for a SIGBUS they would.
 | 1 | recursive `otool -L` over the bundle; every absolute path fails, including one that resolves inside the bundle today |
 | 1b | the same, on a copy moved elsewhere and renamed |
 | 1c | the bundle holds the dist manifest and **nothing else** — a build-tier file inside it is a hard failure, and so is a stale file the manifest does not name |
-| 2 | per-tier source scan: `PATH` lookups, Homebrew paths, dist scripts exec'ing build-tier scripts, unmapped reads in `sources/`, and any interpreter anywhere |
+| 2 | per-tier source scan: `PATH` lookups, Homebrew paths, dist scripts exec'ing build-tier scripts, unmapped reads in `Sources/`, and any interpreter anywhere |
 | 3 | each entry binary doing its smallest real job under `env -i PATH=/usr/bin:/bin` |
 
 **Gate 4 is still missing**: a machine with no Homebrew at all, running a

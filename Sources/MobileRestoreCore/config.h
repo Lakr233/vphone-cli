@@ -4,8 +4,8 @@
  * Hand-written stand-in for the config.h that idevicerestore's autotools build
  * generates. It is NOT an upstream file: everything else under this target is
  * upstream's own source, and this is the one file SwiftPM has to supply in
- * autoconf's place. It lives beside the .c files rather than in include/ for
- * the same reason MobileRecoveryCore's does — include/ is this target's public
+ * autoconf's place. It lives beside the .c files rather than in Include/ for
+ * the same reason MobileRecoveryCore's does — Include/ is this target's public
  * header directory and becomes the generated module's umbrella, and no
  * dependent should inherit a PACKAGE_VERSION it did not ask for. Two targets
  * in this package now carry a config.h, and if both were public they would

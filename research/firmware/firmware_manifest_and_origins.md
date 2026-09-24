@@ -413,7 +413,7 @@ compatible[] list see when enumerating identifiers, now reports
   in isolation.
 
 Wiring: all 5 patches are declared in
-`sources/FirmwarePatcher/DeviceTree/DeviceTreePatcher.swift` under
+`Sources/FirmwarePatcher/DeviceTree/DeviceTreePatcher.swift` under
 `propertyPatches`. The serializer rebuilds the entire tree on every run,
 so each new value is written at the same slot length as the original.
 The `compatible` patch uses a new `PropertyValue.bytes(Data)` case that

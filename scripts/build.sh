@@ -32,16 +32,16 @@ ASKPASS_BINARY=".build/release/vphone-ask-for-permission"
 # Not built by `swift build`: SwiftPM emits arm64 and this one has to be arm64e
 # to walk amfid's ObjC runtime. See the header of its C file.
 AMFI_BINARY=".build/release/vphone-amfi-allow"
-AMFI_SOURCE="sources/vphone-amfi-allow/vphone-amfi-allow.c"
+AMFI_SOURCE="Sources/VPhoneAMFIAllow/vphone-amfi-allow.c"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
 BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
 BUNDLE_ARCHIVE="${BUNDLE}/Contents/MacOS/vphone-archive"
 BUNDLE_ASKPASS="${BUNDLE}/Contents/MacOS/vphone-ask-for-permission"
 BUNDLE_AMFI="${BUNDLE}/Contents/MacOS/vphone-amfi-allow"
-INFO_PLIST="sources/Info.plist"
-ENTITLEMENTS="sources/vphone.entitlements"
-BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
+INFO_PLIST="Sources/Info.plist"
+ENTITLEMENTS="Sources/vphone.entitlements"
+BUILD_INFO="Sources/VPhoneCore/VPhoneBuildInfo.swift"
 GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 for arg in "$@"; do
@@ -109,7 +109,7 @@ cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
 cp -f "$ASKPASS_BINARY" "$BUNDLE_ASKPASS"
 cp -f "$AMFI_BINARY" "$BUNDLE_AMFI"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
-cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
+cp -f "Sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 rm -f "${BUNDLE}/Contents/Resources/signcert.p12"
 # The bundle is built over whatever is already there, so these two are removed
 # although nothing copies either one any more: bundles built before VPhoneSign

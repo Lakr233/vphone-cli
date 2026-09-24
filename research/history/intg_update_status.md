@@ -55,7 +55,7 @@ is 2,396 lines against 2,410 at the branch base.
 | P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`d2_d3_self_containment.md`](../host/d2_d3_self_containment.md) |
 | **P1.0–1.5** | CFW patchers | ✅ **complete** — `scripts/patchers/` deleted at `d90371a`, 26 files / 6,539 lines into 24 `vphone-cli cfw` verbs |
 | **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `research/restore/p2_dfu_spike.md` |
-| **P2.1–2.2** | vendor libirecovery + idevicerestore | ✅ `sources/MobileRecoveryCore`, `sources/MobileRestoreCore` |
+| **P2.1–2.2** | vendor libirecovery + idevicerestore | ✅ `Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore` |
 | **P2.3** | Swift wrapper + call-site replacement | ◐ **built and unit-tested; 4 of the 7 behaviour rows still need a device** |
 | **P2.4** | Python → zero | ✅ **complete** — see D1 above |
 | P3, P4 | shell | ❌ not started |
@@ -81,7 +81,7 @@ embedded in shell heredocs. All of it is gone.
 | what | lines at `6d5ce7d` | where it went |
 | --- | ---: | --- |
 | `scripts/patchers/` (26 files) | 5,098 | 24 `vphone-cli cfw` verbs (P1) |
-| `scripts/pymobiledevice3_bridge.py` | 268 | `sources/VPhoneRestore` + two C targets (P2) |
+| `scripts/pymobiledevice3_bridge.py` | 268 | `Sources/VPhoneRestore` + two C targets (P2) |
 | `scripts/fw_manifest.py` | 237 | no callers — deleted |
 | `scripts/vm_manifest.py` | 123 | `VPhoneVirtualMachineManifest.swift` |
 | `tools/apfs_snap_rename.py` | 95 | `vphone-cli cfw flip-snapshot` |
@@ -254,7 +254,7 @@ Recorded because they were measured, not reasoned about.
 - **`ipsw` / `aea` / `ldid` are called by absolute `/opt/homebrew` path from
   Swift**, not through `PATH`. §1.4 counts the shell call sites. Gate 2 lists
   all of them.
-- **`sources/vphone.entitlements` has 7 keys**, not the 4 the plan says or the
+- **`Sources/vphone.entitlements` has 7 keys**, not the 4 the plan says or the
   5 `CLAUDE.md` said. Two of them — location and BiometricKit — belong to
   `Devices/`, which is why they all landed on `vphone-vm`.
 - **The Python inventory in §1.2.1 misses a file.** It lists five blocks of
@@ -288,7 +288,7 @@ Re-run these rather than trusting the tables:
 
 ```zsh
 git ls-files '*.py'                                     # D1: must print nothing
-grep -rn '_resolve_python3' scripts/ sources/ Makefile  # must print nothing
+grep -rn '_resolve_python3' scripts/ Sources/ Makefile  # must print nothing
 grep -rn '<<.*PY' scripts/                              # heredocs: must print nothing
 grep -rn 'python' scripts/*.sh                          # comments only, no call sites
 

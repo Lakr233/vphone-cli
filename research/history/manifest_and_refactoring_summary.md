@@ -17,7 +17,7 @@
 
 ### Files Created
 
-- `sources/VPhoneCore/VPhoneVirtualMachineManifest.swift` - Manifest structure (compatible with security-pcc)
+- `Sources/VPhoneCore/VPhoneVirtualMachineManifest.swift` - Manifest structure (compatible with security-pcc)
 - `scripts/vm_manifest.py` - Python script to generate config.plist
 
 ### Changes Made

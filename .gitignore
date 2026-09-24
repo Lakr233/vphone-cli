@@ -335,7 +335,7 @@ __marimo__/
 /references/
 scripts/vphoned/vphoned
 /cfw_input/
-sources/VPhoneCore/VPhoneBuildInfo.swift
+Sources/VPhoneCore/VPhoneBuildInfo.swift
 # libarchive drops zero-byte tar.XXXXXXXX files in the process's working
 # directory while restoring macOS metadata — a relative mkstemp template in
 # its own sources, so TMPDIR does not redirect them. Harmless, but they should

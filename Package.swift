@@ -43,7 +43,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", exact: "2.83.0"),
     ],
     targets: [
-        .target(name: "VPhoneAPIKit", path: "sources/VPhoneAPIKit"),
+        .target(name: "VPhoneAPIKit", path: "Sources/VPhoneAPIKit"),
         .target(
             name: "FirmwarePatcher",
             dependencies: [
@@ -60,14 +60,14 @@ let package = Package(
                 "VPhoneArchive",
                 "VPhoneCore",
             ],
-            path: "sources/FirmwarePatcher",
+            path: "Sources/FirmwarePatcher",
         ),
         .target(
             name: "VPhoneCore",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "sources/VPhoneCore",
+            path: "Sources/VPhoneCore",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
             ],
@@ -83,7 +83,7 @@ let package = Package(
                 .product(name: "LibArchive", package: "libarchive.xcframework"),
                 "VPhoneCore",
             ],
-            path: "sources/VPhoneArchive",
+            path: "Sources/VPhoneArchive",
         ),
         // Ad-hoc and PKCS#12 Mach-O code signing, byte for byte what ldid
         // writes. It replaces ldid, which is the only program this project
@@ -93,7 +93,7 @@ let package = Package(
         // PKCS#12 and the CMS.
         .target(
             name: "VPhoneSign",
-            path: "sources/VPhoneSign",
+            path: "Sources/VPhoneSign",
             linkerSettings: [
                 .linkedFramework("Security"),
             ],
@@ -117,13 +117,13 @@ let package = Package(
                 // libusbmuxd, as prebuilt xcframeworks.
                 .product(name: "AppleMobileDeviceLibrary", package: "AppleMobileDeviceLibrary"),
             ],
-            path: "sources/MobileRecoveryCore",
+            path: "Sources/MobileRecoveryCore",
             // Upstream's LGPL-2.1 text. It ships with the source; it does not
             // compile, so SwiftPM has to be told it is not an input.
             exclude: ["COPYING"],
-            publicHeadersPath: "include",
+            publicHeadersPath: "Include",
             cSettings: [
-                // config.h sits beside libirecovery.c rather than in include/,
+                // config.h sits beside libirecovery.c rather than in Include/,
                 // so it stays out of the module's umbrella and no dependent
                 // ever sees a PACKAGE_VERSION it did not ask for.
                 .headerSearchPath("."),
@@ -143,7 +143,7 @@ let package = Package(
         // and the last reason this repository has a venv. Upstream is a
         // program; here it is a library, built with IDEVICERESTORE_NOMAIN so
         // its main(), getopt table and signal handling are excluded, and
-        // driven through sources/MobileRestoreCore/include/vphone_restore_bridge.h.
+        // driven through Sources/MobileRestoreCore/Include/vphone_restore_bridge.h.
         //
         // Two files in this target are not upstream's and both say so at the
         // top: config.h, which is what ./configure would have written, and the
@@ -161,17 +161,17 @@ let package = Package(
                 // libimobiledevice, its glue, libplist, libusbmuxd, libtatsu.
                 .product(name: "AppleMobileDeviceLibrary", package: "AppleMobileDeviceLibrary"),
             ],
-            path: "sources/MobileRestoreCore",
+            path: "Sources/MobileRestoreCore",
             // Upstream's LGPL-2.1 text, which ships with the source and does
             // not compile.
             exclude: ["COPYING"],
-            publicHeadersPath: "include",
+            publicHeadersPath: "Include",
             cSettings: [
                 // Reaches config.h and the libzip stub, both of which sit
-                // beside the .c files rather than in include/ — include/ is
+                // beside the .c files rather than in Include/ — Include/ is
                 // the generated module's umbrella, and neither a second
                 // PACKAGE_VERSION nor a fake <zip.h> belongs in a header a
-                // dependent imports. include/ holds the bridge header alone.
+                // dependent imports. Include/ holds the bridge header alone.
                 .headerSearchPath("."),
                 .define("HAVE_CONFIG_H", to: "1"),
                 .define("IRECV_STATIC", to: "1"),
@@ -201,7 +201,7 @@ let package = Package(
                 "MobileRecoveryCore",
                 "MobileRestoreCore",
             ],
-            path: "sources/VPhoneRestore",
+            path: "Sources/VPhoneRestore",
             linkerSettings: [
                 .linkedLibrary("z"),
             ],
@@ -219,7 +219,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 "VPhoneCore",
             ],
-            path: "sources/VPhoneVirtualMachineKit",
+            path: "Sources/VPhoneVirtualMachineKit",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
@@ -228,7 +228,7 @@ let package = Package(
                 .linkedFramework("AVFoundation"),
             ],
         ),
-        // The only binary signed with sources/vphone.entitlements.
+        // The only binary signed with Sources/vphone.entitlements.
         .executableTarget(
             name: "vphone-vm",
             dependencies: [
@@ -236,7 +236,7 @@ let package = Package(
                 "VPhoneCore",
                 "VPhoneVirtualMachineKit",
             ],
-            path: "sources/vphone-vm",
+            path: "Sources/VPhoneVM",
             // Swift 6.4 may autolink compatibility dylibs for generic code in
             // dependencies even when this executable has no symbol references.
             // Strip those unused load commands so the shipped app remains
@@ -264,7 +264,7 @@ let package = Package(
                 "VPhoneCore",
                 "VPhoneRestore",
             ],
-            path: "sources/vphone-cli",
+            path: "Sources/VPhoneCLI",
         ),
         .executableTarget(
             name: "vphone-archive",
@@ -273,7 +273,7 @@ let package = Package(
                 "VPhoneArchive",
                 "VPhoneCore",
             ],
-            path: "sources/vphone-archive",
+            path: "Sources/VPhoneArchiveCLI",
         ),
         // The SUDO_ASKPASS program, and the probe behind `VPhoneSudo.route()`.
         // No ArgumentParser and no VPhoneCore: it is two verbs, it runs while
@@ -282,7 +282,7 @@ let package = Package(
         // put AppKit under vphone-cli.
         .executableTarget(
             name: "vphone-ask-for-permission",
-            path: "sources/vphone-ask-for-permission",
+            path: "Sources/VPhoneAskForPermission",
         ),
         // `vphone-amfi-allow` is NOT here, and cannot be: SwiftPM emits arm64
         // and it has to be arm64e to read amfid's ObjC runtime. `scripts/build.sh`
