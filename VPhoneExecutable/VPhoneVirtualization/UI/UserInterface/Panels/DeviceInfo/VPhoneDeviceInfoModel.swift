@@ -305,9 +305,12 @@ final class VPhoneDeviceInfoModel {
         let present = tools.keys.filter { tools.bool($0) == true }.sorted()
         let missing = tools.keys.filter { tools.bool($0) != true }.sorted()
         let basebin = report.string("basebin_version") ?? ""
+        let layout = report.string("layout")
         return VPhoneDeviceInfoSection(kind: .environment, title: Self.text("Jailbreak Environment"), rows: [
+            VPhoneDeviceInfoRow(label: Self.text("Jailbreak Layout"), value: layout ?? Self.text("Not Detected"), tone: layout == nil ? nil : .info),
+            VPhoneDeviceInfoRow(label: Self.text("jbroot"), value: Self.value(report.string("jbroot"))),
             VPhoneDeviceInfoRow(label: Self.text("jbroot Source"), value: Self.value(report.string("jbroot_source"))),
-            VPhoneDeviceInfoRow(label: Self.text("Rootfs Prefix"), value: Self.value(report.string("rootfs_prefix"))),
+            VPhoneDeviceInfoRow(label: Self.text("System Root Path"), value: Self.value(report.string("rootfs_prefix"))),
             VPhoneDeviceInfoRow(label: Self.text("Markers"), value: markers.isEmpty ? Self.text("None") : markers.joined(separator: ", ")),
             VPhoneDeviceInfoRow(label: Self.text("BaseBin Version"), value: basebin.isEmpty ? "—" : basebin),
             VPhoneDeviceInfoRow(label: Self.text("Bootstrap Tools"), value: present.isEmpty ? Self.text("None") : present.joined(separator: ", ")),

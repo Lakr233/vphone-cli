@@ -19134,34 +19134,6 @@
         }
       }
     },
-    "Rootfs Prefix" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rootfs プレフィックス"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rootfs 접두사"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tiền tố rootfs"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rootfs 前缀"
-          }
-        }
-      }
-    },
     "roothide" : {
       "localizations" : {
         "en" : {
@@ -23054,6 +23026,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "系统"
+          }
+        }
+      }
+    },
+    "System Root Path" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムルートパス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 루트 경로"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đường dẫn gốc hệ thống"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统根路径"
           }
         }
       }
