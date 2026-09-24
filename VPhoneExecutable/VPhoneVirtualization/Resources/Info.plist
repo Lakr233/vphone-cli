@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.vphone.app</string>
+	<!-- The app launches vphone-vm; vphone-cli is a companion executable in
+	     Contents/MacOS. -->
+	<key>CFBundleExecutable</key>
+	<string>vphone-vm</string>
+	<key>CFBundleName</key>
+	<string>VPhone</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+</dict>
+</plist>

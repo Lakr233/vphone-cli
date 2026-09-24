@@ -168,12 +168,9 @@ check_closure() {
   while IFS= read -r obj; do queue+=("$obj"); done < <(
     find "$root" -type f -perm -u+x 2>/dev/null \
       | while IFS= read -r f; do
-          # Resources/guest holds the iOS guest daemon and related resources,
-          # plus vphoned.signed for a live install. They are arm64
-          # iphoneos Mach-Os; they never run on this host and their link lines
-          # say nothing about whether this .app is self-contained.
-          [[ "$f" == */Contents/Resources/guest/* ]] && continue
-          [[ "${f:t}" == "vphoned.signed" ]] && continue
+          # These three iOS Mach-Os are shipped under Contents/MacOS as guest
+          # payload. Their link lines do not describe host dependencies.
+          [[ "${f:t}" == "vphoned" || "${f:t}" == "vphoned.signed" || "${f:t}" == "icli" ]] && continue
           file "$f" 2>/dev/null | grep -q "Mach-O" && print -r -- "$f"
         done
   )

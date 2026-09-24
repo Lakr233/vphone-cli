@@ -1,0 +1,64 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 70;
+	objects = {
+/* Begin PBXFileReference section */
+		EE0000000000000000000031 /* VPhoneEscalator */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VPhoneEscalator; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		EE0000000000000000000021 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+/* Begin PBXFrameworksBuildPhase section */
+		EE0000000000000000000041 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+/* Begin PBXGroup section */
+		EE0000000000000000000002 = {isa = PBXGroup; children = (EE0000000000000000000021 /* Sources */, EE0000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
+		EE0000000000000000000003 /* Products */ = {isa = PBXGroup; children = (EE0000000000000000000031 /* VPhoneEscalator */, ); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+		EE0000000000000000000011 /* VPhoneEscalator */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EE0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneEscalator" */;
+			buildPhases = (EE0000000000000000000051 /* Sources */, EE0000000000000000000041 /* Frameworks */, );
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (EE0000000000000000000021 /* Sources */, );
+			name = VPhoneEscalator;
+			productName = VPhoneEscalator;
+			productReference = EE0000000000000000000031 /* VPhoneEscalator */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+		EE0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {LastUpgradeCheck = 2700; };
+			buildConfigurationList = EE0000000000000000000080 /* Build configuration list for PBXProject "VPhoneEscalator" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			knownRegions = (en, Base, );
+			mainGroup = EE0000000000000000000002;
+			productRefGroup = EE0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (EE0000000000000000000011 /* VPhoneEscalator */, );
+		};
+/* End PBXProject section */
+/* Begin PBXSourcesBuildPhase section */
+		EE0000000000000000000051 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+/* Begin XCBuildConfiguration section */
+		EE0000000000000000000061 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64e; CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 15.0; OTHER_LDFLAGS = ("$(inherited)", "-framework", CoreFoundation, "-framework", Security, ); PRODUCT_NAME = VPhoneEscalator; SDKROOT = macosx; }; name = Debug; };
+		EE0000000000000000000062 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64e; CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 15.0; OTHER_LDFLAGS = ("$(inherited)", "-framework", CoreFoundation, "-framework", Security, ); PRODUCT_NAME = VPhoneEscalator; SDKROOT = macosx; }; name = Release; };
+		EE0000000000000000000071 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64e; CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; }; name = Debug; };
+		EE0000000000000000000072 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = arm64e; CODE_SIGNING_ALLOWED = NO; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; }; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+		EE0000000000000000000080 /* Build configuration list for PBXProject "VPhoneEscalator" */ = {isa = XCConfigurationList; buildConfigurations = (EE0000000000000000000071 /* Debug */, EE0000000000000000000072 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		EE0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneEscalator" */ = {isa = XCConfigurationList; buildConfigurations = (EE0000000000000000000061 /* Debug */, EE0000000000000000000062 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = EE0000000000000000000001 /* Project object */;
+}

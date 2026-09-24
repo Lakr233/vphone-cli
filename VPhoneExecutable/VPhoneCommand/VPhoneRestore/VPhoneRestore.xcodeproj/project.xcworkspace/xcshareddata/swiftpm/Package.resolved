@@ -1,0 +1,24 @@
+{
+  "originHash" : "4625450bd4826f7cdca0997ee4b7286a611e663de2265f4188a0316fc46cf30a",
+  "pins" : [
+    {
+      "identity" : "applemobiledevicelibrary",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/AppleMobileDeviceLibrary.git",
+      "state" : {
+        "revision" : "553a0bf1b55812b1a08c727b1a3084e88871343b",
+        "version" : "1.0.1790243523"
+      }
+    },
+    {
+      "identity" : "openssl-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/openssl-spm.git",
+      "state" : {
+        "revision" : "9f3b525d960fe71e534482310e96cd9c4f2faa17",
+        "version" : "3.6.2"
+      }
+    }
+  ],
+  "version" : 3
+}

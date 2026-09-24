@@ -1,0 +1,4 @@
+module MobileRestoreCore {
+    header "vphone_restore_bridge.h"
+    export *
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:VPhoneExecutable/VPhoneVirtualization/VPhoneVirtualization.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:VPhoneKit/VPhoneKit.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:VPhoneDaemon/VPhoneDaemon.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:VPhoneExecutable/VPhoneEscalator/VPhoneEscalator.xcodeproj">
+   </FileRef>
+</Workspace>
