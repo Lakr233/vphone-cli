@@ -9,6 +9,8 @@ enum GuestIrisinInstaller {
     private static let releaseURL = URL(string: "https://api.github.com/repos/Lakr233/Irisin/releases/latest")!
     private static let serviceLabel = "wiki.qaq.irisind"
     private static let installLock = NSLock()
+    private static let progressLock = NSLock()
+    nonisolated(unsafe) private static var progress: [String: Any] = ["phase": "idle"]
     private static let completionMarker = Bundle.main.executableURL!
         .deletingLastPathComponent()
         .appendingPathComponent(".vphoned-boostrap-completed")
@@ -19,7 +21,38 @@ enum GuestIrisinInstaller {
         guard !itemExists(completionMarker) else {
             throw GuestAPIError.operationFailed("Irisin bootstrap already completed: \(completionMarker.path)")
         }
+        setProgress(["phase": "preparing", "layout": layout])
+        do {
+            let result = try performInstall(jailbreak: jailbreak, layout: layout)
+            setProgress(["phase": "completed", "layout": layout,
+                         "version": result["version"] ?? "", "jbroot": result["jbroot"] ?? ""])
+            return result
+        } catch {
+            setProgress(["phase": "failed", "layout": layout, "error": String(describing: error)])
+            throw error
+        }
+    }
 
+    static func status() -> [String: Any] {
+        progressLock.lock()
+        defer { progressLock.unlock() }
+        return progress
+    }
+
+    private static func setProgress(_ value: [String: Any]) {
+        progressLock.lock()
+        progress = value
+        progressLock.unlock()
+    }
+
+    private static func downloadProgress(received: Int64, total: Int64) {
+        progressLock.lock()
+        progress["downloaded_bytes"] = received
+        if total > 0 { progress["total_bytes"] = total }
+        progressLock.unlock()
+    }
+
+    private static func performInstall(jailbreak: [String: Any], layout: String) throws -> [String: Any] {
         let detectedLayout = jailbreak["layout"] as? String
         guard layout == "rootless" || layout == "roothide" else {
             throw GuestAPIError.invalidRequest("layout must be rootless or roothide")
@@ -38,18 +71,21 @@ enum GuestIrisinInstaller {
 
         let architecture = layout == "roothide" ? "iphoneos-arm64e" : "iphoneos-arm64"
         let release = try releaseAsset(architecture: architecture)
+        setProgress(["phase": "downloading", "layout": layout, "tag": release.tag,
+                     "downloaded_bytes": 0])
         let work = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphoned-irisin-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: work) }
 
         let package = work.appendingPathComponent(release.name)
-        let packageData = try fetch(release.url)
+        let packageData = try fetch(release.url, reportDownload: true)
         let digest = SHA256.hash(data: packageData).map { String(format: "%02x", $0) }.joined()
         guard digest == release.digest else {
             throw GuestAPIError.operationFailed("Irisin release asset SHA-256 mismatch")
         }
         try packageData.write(to: package, options: .atomic)
+        setProgress(["phase": "extracting", "layout": layout, "tag": release.tag])
 
         let metadata = try readDeb(package.path)
         let control = metadata["control"] as? [String: String] ?? [:]
@@ -87,6 +123,7 @@ enum GuestIrisinInstaller {
 
         var replaced: [(target: URL, backup: URL?)] = []
         do {
+            setProgress(["phase": "installing", "layout": layout, "tag": release.tag])
             for (source, target) in components {
                 replaced.append(try replace(source, at: target))
             }
@@ -335,7 +372,7 @@ enum GuestIrisinInstaller {
         }
     }
 
-    private static func fetch(_ url: URL) throws -> Data {
+    private static func fetch(_ url: URL, reportDownload: Bool = false) throws -> Data {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 180
@@ -349,9 +386,20 @@ enum GuestIrisinInstaller {
             result.finish(data: data, response: response, error: error)
         }
         task.resume()
-        guard result.semaphore.wait(timeout: .now() + 190) == .success else {
-            task.cancel()
-            throw GuestAPIError.operationFailed("Irisin download timed out")
+        let deadline = Date().addingTimeInterval(190)
+        while result.semaphore.wait(timeout: .now() + 0.2) != .success {
+            if reportDownload {
+                downloadProgress(received: task.countOfBytesReceived,
+                                 total: task.countOfBytesExpectedToReceive)
+            }
+            if Date() >= deadline {
+                task.cancel()
+                throw GuestAPIError.operationFailed("Irisin download timed out")
+            }
+        }
+        if reportDownload {
+            downloadProgress(received: task.countOfBytesReceived,
+                             total: task.countOfBytesExpectedToReceive)
         }
         let (data, response) = try result.value!.get()
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

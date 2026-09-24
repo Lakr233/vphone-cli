@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Install Bootstrap…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Install Bootstrap…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装引导环境…" } }
+    } },
+    "Install Bootstrap": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Install Bootstrap" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装引导环境" } }
+    } },
+    "Choose the bootstrap layout. This installs the latest Irisin release once in the guest.": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Choose the bootstrap layout. This installs the latest Irisin release once in the guest." } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择引导环境布局。将在客体中安装一次最新版 Irisin。" } }
+    } },
+    "Rootless": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Rootless" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "Rootless" } }
+    } },
+    "RootHide": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "RootHide" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "RootHide" } }
+    } },
+    "Installing the latest Irisin release in the guest.": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Installing the latest Irisin release in the guest." } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在客体中安装最新版 Irisin。" } }
+    } },
+    "Preparing bootstrap…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Preparing bootstrap…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在准备引导环境…" } }
+    } },
+    "Downloading Irisin…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Downloading Irisin…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在下载 Irisin…" } }
+    } },
+    "Downloading Irisin: %@ of %@": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Downloading Irisin: %@ of %@" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在下载 Irisin：%@ / %@" } }
+    } },
+    "Extracting Irisin…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Extracting Irisin…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在解压 Irisin…" } }
+    } },
+    "Registering Irisin…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Registering Irisin…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在注册 Irisin…" } }
+    } },
+    "Bootstrap installed": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Bootstrap installed" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "引导环境已安装" } }
+    } },
+    "Bootstrap installation failed": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Bootstrap installation failed" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "引导环境安装失败" } }
+    } },
+    "Installed Irisin %@ in %@.": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Installed Irisin %@ in %@." } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "已安装 Irisin %@，位置：%@。" } }
+    } },
+    "Daemon start: %@": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Daemon start: %@" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "守护进程启动：%@" } }
+    } },
     ", low power": {
       "localizations": {
         "en": {

@@ -203,6 +203,8 @@ enum GuestAPI {
                 jailbreak: jailbreakInfo(),
                 layout: layout,
             )
+        case "bootstrap.status":
+            return GuestIrisinInstaller.status()
         case "input.touch":
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")

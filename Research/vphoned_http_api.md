@@ -48,6 +48,13 @@ script runs and the dpkg database is not changed. The reply includes the tag,
 bootstrap path, registration record, and launchd status. A successful bootstrap
 writes `.vphoned-boostrap-completed` beside the running vphoned binary; later
 requests refuse to bootstrap again when that marker exists.
+The VM window exposes the same operation at Guest > Install Bootstrap…;
+choose Rootless or RootHide in the confirmation sheet. The item is enabled
+when vphoned advertises `bootstrap_install`. Its sheet polls
+`GET /v1/bootstrap/status` (RPC `bootstrap.status`) while installation runs.
+The status reports `phase` and, during download, `downloaded_bytes` and
+`total_bytes` when the server provides a length. The sheet shows the download
+progress, then the installation result without closing.
 
 ## HTTP and WebSocket contract
 
