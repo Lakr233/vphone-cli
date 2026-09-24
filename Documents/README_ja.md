@@ -40,7 +40,7 @@ vphone-cli vm launch myphone
 
 VM を起動したら、macOS のメニューバーで **Guest > Install Bootstrap…** を選び、環境のレイアウトを選択します。これによりゲスト内に Irisin がインストールされます。
 
-初回の環境準備では、Irisin で `coreutils`、`debianutils`、`dash` などの基本パッケージを選択します。**Install** ボタンを長押しし、**Bootstrap Install** を選んでください。このモードでは、選択したすべてのパッケージを先に展開してからインストール処理を再実行します。これにより、`debianutils` には `bash` が必要で、`bash` には設定済みの `debianutils` が必要という初期段階の依存関係を回避できます。基本パッケージの導入後は通常のインストールを使用できます。
+初回の環境準備では、Irisin で `apt` と `bash` を選択します。**Install** ボタンを長押しし、**Bootstrap Install** を選んでください。このモードでは、今回のインストールに含まれるすべてのパッケージを先に展開してからインストール処理を再実行します。これにより、`debianutils` には `bash` が必要で、`bash` には設定済みの `debianutils` が必要という初期段階の依存関係を回避できます。初回の準備後は通常のインストールを使用できます。
 
 ## 日常の操作
 
