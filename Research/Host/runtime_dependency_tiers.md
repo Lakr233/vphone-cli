@@ -63,8 +63,10 @@ that does not work on a clean Mac.
 
 ### The compile/install split
 
-Five Mach-Os run inside the guest: `vphoned`, `TweakLoader.dylib`,
-`vpregister`, `libvcamcaptured.dylib`, `libcamfix.dylib`. Every one used to be
+The guest bundle includes `vphoned`, `vpregister`, `libvcamcaptured.dylib`,
+`libcamfix.dylib`, `launchdhook-vphone.dylib`, and the currently inert
+`SystemHook-vphone.dylib`. ElleKit's `TweakLoader.dylib` is installed later by
+Irisin into the chosen bootstrap. The earlier guest binaries used to be
 compiled at CFW-install time — three by the installers, and `vphoned` twice
 more (again by `FirmwarePatcher.buildVphoned`). That made a full Xcode install
 a prerequisite for putting firmware on a VM.
@@ -79,10 +81,9 @@ framework list included. That looks arbitrary and is load-bearing:
 `-framework` order decides `LC_LOAD_DYLIB` order, which decides the indirect
 symbol table's numbering. With it, `vpregister` and `libvcamcaptured.dylib`
 come out **byte-identical** to what the installers used to produce.
-`TweakLoader.dylib` differs in exactly two fields per slice — `LC_UUID`
-(content-derived, differs between any two links) and `LC_ID_DYLIB` (it takes no
-`-install_name`, so this defaults to the output path; nothing reads it, the
-guest loads the file by absolute path from `/var/jb/usr/lib`).
+The vphone launchd hook is compiled as C and links only `libSystem`; it is
+loaded through a short `/vh` alias during boot. The process hook currently has
+no constructor, spawn interception, or ElleKit chain load.
 
 ---
 
