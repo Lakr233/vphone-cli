@@ -53,8 +53,11 @@ receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
 SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.1
-owns general device operations; they run on a serial worker queue because its
-in-process bridge is synchronous. The vphone-specific IPA signing and all-app
+owns general device operations. Each HTTP or WebSocket request runs independently
+on a concurrent worker queue, so a stalled system service does not block HID,
+file browsing, or unrelated requests. The host serializes the input events it
+sends so touch and key sequences retain their order. State polling uses its own
+worker queue. The vphone-specific IPA signing and all-app
 keychain view remain in native Objective-C modules. The VM GUI uses HTTP over
 VSOCK 1339 directly; host TCP forwarding is opt-in. The former length-prefixed
 VSOCK 1337 protocol and duplicate ObjC command handlers have been removed.

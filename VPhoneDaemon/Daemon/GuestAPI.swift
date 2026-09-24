@@ -21,9 +21,10 @@ enum GuestAPIError: Error, CustomStringConvertible {
 /// IcliKit owns general device work; only vphone-specific installation and
 /// keychain enumeration cross into the older daemon code.
 enum GuestAPI {
-    // IcliKit's in-process bridge is synchronous and has not been audited for
-    // concurrent callers. Keep its operations off NIO loops and in one order.
-    static let queue = DispatchQueue(label: "vphoned.api.operations", qos: .userInitiated)
+    // Each request executes independently. A synchronous system service such
+    // as powerd may wait during boot; it must not hold up HID or file requests.
+    static let queue = DispatchQueue(label: "vphoned.api.operations", qos: .userInitiated,
+                                     attributes: .concurrent)
     static let binaryHash: String = {
         guard let url = Bundle.main.executableURL,
               let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return "unknown" }
