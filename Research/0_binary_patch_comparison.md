@@ -9,13 +9,21 @@
 > below. Old variant rows are research history,
 > not available install modes.
 
-> **Current launchd hook (2026-09-24; source/build verification only):**
+> **Current launchd hook (2026-09-25; isolated VM verification):**
 > `cfw install` now places `launchdhook-vphone.dylib` and an inert
 > `SystemHook-vphone.dylib` in `/usr/lib`, links `/vh` to the launchd hook,
 > inserts a weak `/vh` load command for the
 > launchd hook after `patch-launchd-jetsam`, and re-signs launchd. The hook
 > extends launchd's `Paths` and `LaunchDaemons` values with the selected
 > bootstrap's `Library/LaunchDaemons` (plus `basebin/LaunchDaemons` when present).
+> It reads each real plist from the bootstrap root but inserts it under a
+> distinct `/System/Library/LaunchDaemons/vphone.*.plist` cache key. On the
+> tested iOS 26.6.2 cache loader, otherwise identical entries keyed by
+> `/var/jb/Library/LaunchDaemons/...` or `/Library/LaunchDaemons/...` were
+> ignored; a System key was imported and its executable ran. The old binary
+> in `zqxwce/vphone-cli-storage` at `2ef6b06` uses the real `/var/jb` key
+> and `MSHookFunction` to intercept `xpc_dictionary_get_value`; it also
+> requires `/cores/systemhook.dylib` and `/cores/libellekit.dylib` at startup.
 > A single `.jbroot-<16 hex>` under the RootHide application container is
 > accepted; ambiguous roots are ignored. RootHide bootstrap-relative `Program`
 > and `ProgramArguments[0]` paths are translated to physical kernel paths in
@@ -23,11 +31,16 @@
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
 > `SystemHook-vphone.dylib` is not injected into processes in this phase; ElleKit
 > chain loading, `DISABLE_TWEAKS`, and tweak filters remain a later step.
-> **Validation needed on a disposable VM before relying on this at boot:**
-> confirm launchd loads the weak dylib and dyld interposition fires; install
-> one RootHide and one rootless daemon on separate VM copies, reboot each, and
-> inspect their `launchctl print` executable paths; verify PID 1's effective
-> jetsam limit separately from the existing panic-guard patch.
+> The cloned `vphone-launchdhook-lab-26.6.2` booted with the weak dylib and
+> retained a healthy vphoned API. Rootless and RootHide probes, each tested
+> after reboot, were imported and spawned by launchd. The RootHide probe's
+> plist named `/usr/bin/vphone-hook-daemon-probe`, which does not exist outside
+> its randomized root; successful spawn confirms the in-memory physical-path
+> translation. A read-only `MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES` probe
+> returned active/inactive `-1/-1` for PID 1 with this hook. With `/vh`
+> removed but the existing `patch-launchd-jetsam` left in place, the same
+> probe returned `50/50` MB with fatal attributes. These tests used a cloned
+> VM disk and separate host API port; the original VM was not modified.
 
 > **`scripts/patchers/*.py` no longer exists.** The tables below cite those
 > filenames throughout, because that is where each patch was first written and
