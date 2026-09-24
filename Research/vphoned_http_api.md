@@ -24,7 +24,7 @@ The guest links IcliKit directly. App registration refresh is available through
 JPEG with `mime_type`, `width`, and `height`; the current VM produces 1290×2796.
 The host's Save/Copy Screenshot menu decodes this guest image. It omits the
 notch and cutout drawn by the host VM window.
-`apps.install` accepts IPA and TIPA archives. IcliKit 0.6.7 validates and
+`apps.install` accepts IPA and TIPA archives. IcliKit 0.6.8 validates and
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.
 `apps.uninstall` delegates removal to IcliKit and requires `force=true`.
@@ -60,7 +60,7 @@ WebSocket fragmentation is reassembled before forwarding. On disconnect, the
 guest tunnel and the host TCP-to-VSOCK proxy let their final queued write
 finish before closing the opposite socket, with a five-second drain limit.
 
-`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.7 checks
+`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.8 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
 it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
 `Workspace-ForegroundFocal`. The Home screen's widget renderer can also hold
@@ -90,7 +90,7 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.7
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.8
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
@@ -110,6 +110,45 @@ verified by SHA-256, made executable, and activated through launchd restart.
 This intentionally breaks compatibility with guests that still have the old
 daemon: install a guest image carrying this vphoned build before using the new
 host control client.
+
+## Method catalog
+
+Every method is reachable through `POST /v1/rpc` and the WebSocket. The
+original methods also have REST routes in `GuestHyperTextHandler.swift`; the
+methods added with the host panels are RPC-only. Each area is one file,
+`VPhoneDaemon/Daemon/GuestAPI+<Area>.swift`, and each method is a thin call
+into the IcliKit function named in parentheses, so IcliKit's source is the
+reference for result keys. Methods marked **force** refuse to run unless the
+request carries `"force": true`.
+
+| Area | Methods |
+| --- | --- |
+| Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode, agent), `device.screen`, `device.network`, `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
+| Display, audio | `display.brightness {value?}`, `display.rotation {orientation?}`, `display.rotation_lock {locked}`, `audio.volume {value?, category?}`, `audio.state` |
+| Input | `input.touch`, `input.hid`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points |
+| UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot` |
+| Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `memory.jetsam` |
+| launchd | `services.list`, `status`, `print`, `dump`, `disabled`, `start`, `enable`, `load`; `services.stop`, `disable`, `remove`, `signal`, `unload` **force**; `launchd.getenv`, `setenv`, `unsetenv` |
+| Logs | `logs.syslog {seconds, process?, level?, max_lines?}` (a bounded capture of at most 60 s), `logs.crashes {bundle_id?}`, `logs.crash {path}` |
+| Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory and returns its path), `security.ssl_killswitch` |
+| Apps | `apps.list`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force** |
+| System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `diagnostics.self_test` |
+| Files | `files.list`, `mkdir`, `remove`, `rename`, `read {binary?, limit?}`, `write`, `find`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
+| Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current` |
+| Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
+| Packages (read-only) | `packages.list`, `status`, `info {path}`, `compare`, `tweaks`, `repos` |
+
+`processes.list` joins icli's kernel process list with `proc_pid_rusage`
+footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),
+the jetsam priority band and limit, and the RunningBoard bundle identifier.
+Account passwords, boot logo rendering and package installation, removal and
+repository changes are deliberately not exposed. `/v1/health` lists the new
+areas in `capabilities` (`device_info`, `display`, `audio`, `input_gestures`,
+`ui_inspection`, `processes`, `services`, `logs`, `network_capture`,
+`app_details`, `system_control`, `file_tools`, `packages`) so a host can hide
+panels an older agent cannot serve. icli failures reach the caller with
+icli's own error `code` (`failed`, `unavailable`, `device_locked`, …) and
+message.
 
 ## Connection failure behavior
 
