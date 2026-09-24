@@ -20,8 +20,8 @@ enum GuestAPIError: Error, CustomStringConvertible {
 }
 
 /// The API boundary is deliberately small: named operations and JSON values.
-/// IcliKit owns general device work, including Keychain metadata. Only
-/// vphone-specific installation crosses into the native daemon code.
+/// IcliKit owns general device work, including app installation and Keychain
+/// metadata. vphone signs app code before IcliKit installs it.
 enum GuestAPI {
     // Each request executes independently. A synchronous system service such
     // as powerd may wait during boot; it must not hold up HID or file requests.
@@ -149,6 +149,8 @@ enum GuestAPI {
             ]
         case "apps.terminate":
             return try killApp(string(params, "bundle_id"), force: true)
+        case "apps.uninstall":
+            return try uninstallApp(string(params, "bundle_id"), force: params["force"] as? Bool == true)
         case "apps.foreground":
             let front = frontmostApp()
             let id = front["bundle_id"] as? String ?? ""
@@ -167,12 +169,19 @@ enum GuestAPI {
         case "apps.open_url":
             return try openAppURL(string(params, "url"), bundleID: params["bundle_id"] as? String)
         case "apps.install":
-            return try native([
-                "t": "ipa_install",
-                "path": string(params, "path"),
-                "registration": params["registration"] as? String ?? "User",
-                "cert_path": params["cert_path"] as? String ?? "",
-            ])
+            let path = try string(params, "path")
+            let certificate = params["cert_path"] as? String ?? ""
+            let registration: AppRegistrationType = params["registration"] as? String == "System" ? .system : .user
+            defer {
+                try? FileManager.default.removeItem(atPath: path)
+                if !certificate.isEmpty { try? FileManager.default.removeItem(atPath: certificate) }
+            }
+            var result = try installIPAInContainer(path, registration: registration) { app in
+                try signAppForInstall(app, certificate: certificate)
+            }
+            let id = result["bundle_id"] as? String ?? "app"
+            result["msg"] = "Installed \(id) as a \(registration.rawValue) app."
+            return result
         case "input.touch":
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")
@@ -285,16 +294,16 @@ enum GuestAPI {
         }
     }
 
-    private static func native(_ message: [String: Any]) throws -> [String: Any] {
-        let result = vp_native_api_command(message) as? [String: Any] ?? [:]
-        if result["t"] as? String == "err" {
-            throw GuestAPIError.operationFailed(result["msg"] as? String ?? "Guest operation failed")
+    private static func signAppForInstall(_ app: String, certificate: String) throws {
+        let usableCertificate = FileManager.default.fileExists(atPath: certificate) ? certificate : ""
+        let error = app.withCString { appPath in
+            if usableCertificate.isEmpty { return vp_sign_app_for_install(appPath, nil) }
+            return usableCertificate.withCString { vp_sign_app_for_install(appPath, $0) }
         }
-        var payload = result
-        payload.removeValue(forKey: "v")
-        payload.removeValue(forKey: "t")
-        payload.removeValue(forKey: "id")
-        return payload
+        if let error {
+            defer { free(error) }
+            throw GuestAPIError.operationFailed(String(cString: error))
+        }
     }
 
     private static func fileList(_ path: String) throws -> [String: Any] {

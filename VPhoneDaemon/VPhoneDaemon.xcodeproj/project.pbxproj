@@ -13,7 +13,6 @@
 		C10000000000000000000014 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000063 /* NIOHTTP1 */; };
 		C10000000000000000000015 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000064 /* NIOPosix */; };
 		C10000000000000000000016 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000065 /* NIOWebSocket */; };
-		C10000000000000000000017 /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000066 /* LibArchive */; };
 		C10000000000000000000018 /* IcliSystem in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000068 /* IcliSystem */; };
 /* End PBXBuildFile section */
 
@@ -56,7 +55,6 @@
 				C10000000000000000000014 /* NIOHTTP1 in Frameworks */,
 				C10000000000000000000015 /* NIOPosix in Frameworks */,
 				C10000000000000000000016 /* NIOWebSocket in Frameworks */,
-				C10000000000000000000017 /* LibArchive in Frameworks */,
 				C10000000000000000000018 /* IcliSystem in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -128,7 +126,6 @@
 				C10000000000000000000063 /* NIOHTTP1 */,
 				C10000000000000000000064 /* NIOPosix */,
 				C10000000000000000000065 /* NIOWebSocket */,
-				C10000000000000000000066 /* LibArchive */,
 				C10000000000000000000068 /* IcliSystem */,
 			);
 			productName = vphoned;
@@ -155,7 +152,6 @@
 			packageReferences = (
 				C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */,
 				C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */,
-				C10000000000000000000073 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
 				C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */,
 			);
 			projectDirPath = "";
@@ -224,7 +220,6 @@
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Native",
 					"$(PROJECT_DIR)/Native/Include",
-					"$(PROJECT_DIR)/Native/Vendor/LibArchive",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
@@ -247,7 +242,6 @@
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Native",
 					"$(PROJECT_DIR)/Native/Include",
-					"$(PROJECT_DIR)/Native/Vendor/LibArchive",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
@@ -351,7 +345,7 @@
 			repositoryURL = "https://github.com/owngoal-dev/icli.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.6.5;
+				version = 0.6.6;
 			};
 		};
 		C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
@@ -360,14 +354,6 @@
 			requirement = {
 				kind = exactVersion;
 				version = 2.83.0;
-			};
-		};
-		C10000000000000000000073 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Lakr233/libarchive.xcframework.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.1;
 			};
 		};
 		C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
@@ -405,11 +391,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */;
 			productName = NIOWebSocket;
-		};
-		C10000000000000000000066 /* LibArchive */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C10000000000000000000073 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */;
-			productName = LibArchive;
 		};
 		C10000000000000000000068 /* IcliSystem */ = {
 			isa = XCSwiftPackageProductDependency;

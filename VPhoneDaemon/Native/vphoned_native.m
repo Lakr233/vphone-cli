@@ -1,5 +1,4 @@
 #import "Include/VphonedNative.h"
-#import "vphoned_install.h"
 #import <CommonCrypto/CommonDigest.h>
 #include <mach-o/dyld.h>
 #include <unistd.h>
@@ -7,12 +6,6 @@
 static const char *cache = "/var/root/Library/Caches/vphoned";
 static const char *marker = "/var/root/Library/Caches/vphoned.api-v2";
 static const char *pending = "/var/root/Library/Caches/vphoned.api-v2.pending";
-
-NSDictionary *vp_native_api_command(NSDictionary *message) {
-    NSString *type = message[@"t"];
-    if ([type isEqualToString:@"ipa_install"]) return vp_handle_custom_install(message);
-    return @{@"t": @"err", @"msg": @"Unknown native operation"};
-}
 
 void vp_native_bootstrap_cached_binary(void) {
     // A cached update gets one attempt to bind. If it fails, launchd restarts

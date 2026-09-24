@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import VPhoneSign
 
-/// The native IPA installer prepares each executable's guest entitlements.
+/// vphone prepares each executable's guest entitlements before IcliKit installs it.
 /// Sign them with the same bundled signer used by the host CLI, without a
 /// package-manager supplied ldid executable inside the VM.
 @_cdecl("vp_guest_sign_binary")

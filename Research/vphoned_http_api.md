@@ -24,6 +24,10 @@ The guest links IcliKit directly. App registration refresh is available through
 JPEG with `mime_type`, `width`, and `height`; the current VM produces 1290×2796.
 The host's Save/Copy Screenshot menu decodes this guest image. It omits the
 notch and cutout drawn by the host VM window.
+`apps.install` accepts IPA and TIPA archives. IcliKit 0.6.6 validates and
+extracts the archive, then calls vphone's signer on the temporary app bundle
+before IcliKit copies it into a container, registers it, and owns rollback.
+`apps.uninstall` delegates removal to IcliKit and requires `force=true`.
 
 ## HTTP and WebSocket contract
 
@@ -35,7 +39,7 @@ directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
 
-`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.5 checks
+`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.6 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
 it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
 `Workspace-ForegroundFocal`. The Home screen's widget renderer can also hold
@@ -62,7 +66,7 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.5
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.6
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
