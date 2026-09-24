@@ -10,17 +10,17 @@
 		5036445030653D1000CAADDF /* Capstone in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000201 /* Capstone */; };
 		5036445130653D1000CAADDF /* Img4tool in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000202 /* Img4tool */; };
 		5036445230653D1000CAADDF /* MachOKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000203 /* MachOKit */; };
-		5036445330653D1000CAADDF /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* LibArchive */; };
+		5036445330653D1000CAADDF /* ArchiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* ArchiveKit */; };
 		50364C1A30653DE900CAADDF /* Capstone in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000201 /* Capstone */; };
 		50364C1B30653DE900CAADDF /* Img4tool in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000202 /* Img4tool */; };
 		50364C1C30653DE900CAADDF /* MachOKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000203 /* MachOKit */; };
-		50364C1D30653DE900CAADDF /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* LibArchive */; };
+		50364C1D30653DE900CAADDF /* ArchiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* ArchiveKit */; };
 		50364C1E30653DE900CAADDF /* libVPhoneSign.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000032 /* libVPhoneSign.a */; };
 		BB0000000000000000000101 /* Capstone in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000201 /* Capstone */; };
 		BB0000000000000000000102 /* Img4tool in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000202 /* Img4tool */; };
 		BB0000000000000000000103 /* MachOKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000203 /* MachOKit */; };
 		BB0000000000000000000104 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000204 /* ArgumentParser */; };
-		BB0000000000000000000105 /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* LibArchive */; };
+		BB0000000000000000000105 /* ArchiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* ArchiveKit */; };
 		BB0000000000000000000106 /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000206 /* AppleMobileDeviceLibrary */; };
 		BB0000000000000000000107 /* libFirmwarePatcher.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000033 /* libFirmwarePatcher.a */; };
 		BB0000000000000000000108 /* libVPhoneSign.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000032 /* libVPhoneSign.a */; };
@@ -81,7 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5036445330653D1000CAADDF /* LibArchive in Frameworks */,
+				5036445330653D1000CAADDF /* ArchiveKit in Frameworks */,
 				5036445230653D1000CAADDF /* MachOKit in Frameworks */,
 				5036445130653D1000CAADDF /* Img4tool in Frameworks */,
 				5036445030653D1000CAADDF /* Capstone in Frameworks */,
@@ -105,7 +105,7 @@
 				BB0000000000000000000101 /* Capstone in Frameworks */,
 				BB0000000000000000000102 /* Img4tool in Frameworks */,
 				BB0000000000000000000103 /* MachOKit in Frameworks */,
-				BB0000000000000000000105 /* LibArchive in Frameworks */,
+				BB0000000000000000000105 /* ArchiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,7 +118,7 @@
 				BB0000000000000000000107 /* libFirmwarePatcher.a in Frameworks */,
 				BB0000000000000000000108 /* libVPhoneSign.a in Frameworks */,
 				50364C1B30653DE900CAADDF /* Img4tool in Frameworks */,
-				50364C1D30653DE900CAADDF /* LibArchive in Frameworks */,
+				50364C1D30653DE900CAADDF /* ArchiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,7 +184,7 @@
 				BB0000000000000000000201 /* Capstone */,
 				BB0000000000000000000202 /* Img4tool */,
 				BB0000000000000000000203 /* MachOKit */,
-				BB0000000000000000000205 /* LibArchive */,
+				BB0000000000000000000205 /* ArchiveKit */,
 				BB0000000000000000000206 /* AppleMobileDeviceLibrary */,
 			);
 			productName = "vphone-cli";
@@ -231,7 +231,7 @@
 				BB0000000000000000000201 /* Capstone */,
 				BB0000000000000000000202 /* Img4tool */,
 				BB0000000000000000000203 /* MachOKit */,
-				BB0000000000000000000205 /* LibArchive */,
+				BB0000000000000000000205 /* ArchiveKit */,
 			);
 			productName = FirmwarePatcher;
 			productReference = BB0000000000000000000033 /* libFirmwarePatcher.a */;
@@ -258,7 +258,7 @@
 				BB0000000000000000000201 /* Capstone */,
 				BB0000000000000000000202 /* Img4tool */,
 				BB0000000000000000000203 /* MachOKit */,
-				BB0000000000000000000205 /* LibArchive */,
+				BB0000000000000000000205 /* ArchiveKit */,
 			);
 			productName = FirmwarePatcherTests;
 			productReference = BB0000000000000000000034 /* FirmwarePatcherTests.xctest */;
@@ -756,7 +756,7 @@
 			repositoryURL = "https://github.com/Lakr233/libarchive.xcframework.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.1;
+				minimumVersion = 1.0.0;
 			};
 		};
 		BB0000000000000000000176 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */ = {
@@ -790,10 +790,10 @@
 			package = BB0000000000000000000174 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
 			productName = ArgumentParser;
 		};
-		BB0000000000000000000205 /* LibArchive */ = {
+		BB0000000000000000000205 /* ArchiveKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BB0000000000000000000175 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */;
-			productName = LibArchive;
+			productName = ArchiveKit;
 		};
 		BB0000000000000000000206 /* AppleMobileDeviceLibrary */ = {
 			isa = XCSwiftPackageProductDependency;

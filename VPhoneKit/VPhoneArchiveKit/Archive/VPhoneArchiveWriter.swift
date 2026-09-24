@@ -1,5 +1,5 @@
 import Foundation
-import LibArchive
+import ArchiveKit
 
 /// Creating archives, and plain decompression.
 public enum VPhoneArchiveWriter {

@@ -1,5 +1,5 @@
 import Foundation
-import LibArchive
+import ArchiveKit
 import Testing
 @testable import VPhoneArchiveKit
 import VPhoneCoreKit

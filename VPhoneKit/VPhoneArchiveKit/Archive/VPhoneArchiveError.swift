@@ -1,5 +1,5 @@
 import Foundation
-import LibArchive
+import ArchiveKit
 
 public enum VPhoneArchiveError: Error, CustomStringConvertible {
     case cannotOpen(path: String, reason: String)
