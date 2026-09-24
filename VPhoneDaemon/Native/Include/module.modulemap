@@ -1,0 +1,4 @@
+module VphonedNative {
+    header "VphonedNative.h"
+    export *
+}

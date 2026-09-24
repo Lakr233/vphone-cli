@@ -1,0 +1,608 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 70;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5036468030653D1000CAADDF /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000181 /* ArgumentParser */; };
+		5036468130653D1000CAADDF /* libVPhoneCoreKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000031 /* libVPhoneCoreKit.a */; };
+		5036468330653D1000CAADDF /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000182 /* LibArchive */; };
+		AA0000000000000000000101 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000181 /* ArgumentParser */; };
+		AA0000000000000000000102 /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000182 /* LibArchive */; };
+		AA0000000000000000000103 /* libVPhoneCoreKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000031 /* libVPhoneCoreKit.a */; };
+		AA0000000000000000000104 /* libVPhoneCoreKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000031 /* libVPhoneCoreKit.a */; };
+		AA0000000000000000000105 /* libVPhoneArchiveKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000032 /* libVPhoneArchiveKit.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0000000000000000000122 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000011;
+			remoteInfo = VPhoneCoreKit;
+		};
+		AA0000000000000000000125 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000011;
+			remoteInfo = VPhoneCoreKit;
+		};
+		AA0000000000000000000126 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000012;
+			remoteInfo = VPhoneArchiveKit;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AA0000000000000000000031 /* libVPhoneCoreKit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVPhoneCoreKit.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000032 /* libVPhoneArchiveKit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVPhoneArchiveKit.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000033 /* libVPhoneExternalAccessKit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVPhoneExternalAccessKit.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000034 /* VPhoneCoreKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VPhoneCoreKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000035 /* VPhoneArchiveKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VPhoneArchiveKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA0000000000000000000021 /* VPhoneCoreKit */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneCoreKit; sourceTree = "<group>"; };
+		AA0000000000000000000022 /* VPhoneArchiveKit */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneArchiveKit; sourceTree = "<group>"; };
+		AA0000000000000000000023 /* VPhoneExternalAccessKit */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneExternalAccessKit; sourceTree = "<group>"; };
+		AA0000000000000000000024 /* VPhoneCoreKitTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneCoreKitTests; sourceTree = "<group>"; };
+		AA0000000000000000000025 /* VPhoneArchiveKitTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneArchiveKitTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA0000000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000101 /* ArgumentParser in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000042 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000102 /* LibArchive in Frameworks */,
+				AA0000000000000000000103 /* libVPhoneCoreKit.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000043 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000044 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5036468030653D1000CAADDF /* ArgumentParser in Frameworks */,
+				AA0000000000000000000104 /* libVPhoneCoreKit.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000045 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5036468130653D1000CAADDF /* libVPhoneCoreKit.a in Frameworks */,
+				AA0000000000000000000105 /* libVPhoneArchiveKit.a in Frameworks */,
+				5036468330653D1000CAADDF /* LibArchive in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000021 /* VPhoneCoreKit */,
+				AA0000000000000000000022 /* VPhoneArchiveKit */,
+				AA0000000000000000000023 /* VPhoneExternalAccessKit */,
+				AA0000000000000000000024 /* VPhoneCoreKitTests */,
+				AA0000000000000000000025 /* VPhoneArchiveKitTests */,
+				AA0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000031 /* libVPhoneCoreKit.a */,
+				AA0000000000000000000032 /* libVPhoneArchiveKit.a */,
+				AA0000000000000000000033 /* libVPhoneExternalAccessKit.a */,
+				AA0000000000000000000034 /* VPhoneCoreKitTests.xctest */,
+				AA0000000000000000000035 /* VPhoneArchiveKitTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA0000000000000000000011 /* VPhoneCoreKit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneCoreKit" */;
+			buildPhases = (
+				AA0000000000000000000051 /* Sources */,
+				AA0000000000000000000041 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000021 /* VPhoneCoreKit */,
+			);
+			name = VPhoneCoreKit;
+			packageProductDependencies = (
+				AA0000000000000000000181 /* ArgumentParser */,
+			);
+			productName = VPhoneCoreKit;
+			productReference = AA0000000000000000000031 /* libVPhoneCoreKit.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		AA0000000000000000000012 /* VPhoneArchiveKit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000082 /* Build configuration list for PBXNativeTarget "VPhoneArchiveKit" */;
+			buildPhases = (
+				AA0000000000000000000052 /* Sources */,
+				AA0000000000000000000042 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000000000000000000121 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000022 /* VPhoneArchiveKit */,
+			);
+			name = VPhoneArchiveKit;
+			packageProductDependencies = (
+				AA0000000000000000000182 /* LibArchive */,
+			);
+			productName = VPhoneArchiveKit;
+			productReference = AA0000000000000000000032 /* libVPhoneArchiveKit.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		AA0000000000000000000013 /* VPhoneExternalAccessKit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000083 /* Build configuration list for PBXNativeTarget "VPhoneExternalAccessKit" */;
+			buildPhases = (
+				AA0000000000000000000053 /* Sources */,
+				AA0000000000000000000043 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000023 /* VPhoneExternalAccessKit */,
+			);
+			name = VPhoneExternalAccessKit;
+			productName = VPhoneExternalAccessKit;
+			productReference = AA0000000000000000000033 /* libVPhoneExternalAccessKit.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		AA0000000000000000000014 /* VPhoneCoreKitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000084 /* Build configuration list for PBXNativeTarget "VPhoneCoreKitTests" */;
+			buildPhases = (
+				AA0000000000000000000054 /* Sources */,
+				AA0000000000000000000044 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000000000000000000123 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000024 /* VPhoneCoreKitTests */,
+			);
+			name = VPhoneCoreKitTests;
+			packageProductDependencies = (
+				AA0000000000000000000181 /* ArgumentParser */,
+			);
+			productName = VPhoneCoreKitTests;
+			productReference = AA0000000000000000000034 /* VPhoneCoreKitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AA0000000000000000000015 /* VPhoneArchiveKitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000085 /* Build configuration list for PBXNativeTarget "VPhoneArchiveKitTests" */;
+			buildPhases = (
+				AA0000000000000000000055 /* Sources */,
+				AA0000000000000000000045 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000000000000000000124 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000025 /* VPhoneArchiveKitTests */,
+			);
+			name = VPhoneArchiveKitTests;
+			packageProductDependencies = (
+				AA0000000000000000000182 /* LibArchive */,
+			);
+			productName = VPhoneArchiveKitTests;
+			productReference = AA0000000000000000000035 /* VPhoneArchiveKitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = AA0000000000000000000080 /* Build configuration list for PBXProject "VPhoneKit" */;
+			compatibilityVersion = "Xcode 16.0.Superseded.1";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA0000000000000000000002;
+			packageReferences = (
+				AA0000000000000000000171 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+				AA0000000000000000000172 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000011 /* VPhoneCoreKit */,
+				AA0000000000000000000012 /* VPhoneArchiveKit */,
+				AA0000000000000000000013 /* VPhoneExternalAccessKit */,
+				AA0000000000000000000014 /* VPhoneCoreKitTests */,
+				AA0000000000000000000015 /* VPhoneArchiveKitTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA0000000000000000000051 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000052 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000053 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000054 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000055 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA0000000000000000000121 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000000000000000000011 /* VPhoneCoreKit */;
+			targetProxy = AA0000000000000000000122 /* PBXContainerItemProxy */;
+		};
+		AA0000000000000000000123 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000000000000000000011 /* VPhoneCoreKit */;
+			targetProxy = AA0000000000000000000125 /* PBXContainerItemProxy */;
+		};
+		AA0000000000000000000124 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000000000000000000012 /* VPhoneArchiveKit */;
+			targetProxy = AA0000000000000000000126 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA0000000000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				ENABLE_TESTABILITY = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneCoreKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneCoreKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA0000000000000000000063 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				ENABLE_TESTABILITY = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneArchiveKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000064 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneArchiveKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA0000000000000000000065 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneExternalAccessKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000066 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = VPhoneExternalAccessKit;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA0000000000000000000067 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.core.tests;
+				PRODUCT_NAME = VPhoneCoreKitTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000068 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.core.tests;
+				PRODUCT_NAME = VPhoneCoreKitTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA0000000000000000000069 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lVPhoneCoreKit",
+					"-lVPhoneArchiveKit",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.archive.tests;
+				PRODUCT_NAME = VPhoneArchiveKitTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA000000000000000000006A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lVPhoneCoreKit",
+					"-lVPhoneArchiveKit",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.archive.tests;
+				PRODUCT_NAME = VPhoneArchiveKitTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA0000000000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA0000000000000000000080 /* Build configuration list for PBXProject "VPhoneKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000071 /* Debug */,
+				AA0000000000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneCoreKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000061 /* Debug */,
+				AA0000000000000000000062 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000082 /* Build configuration list for PBXNativeTarget "VPhoneArchiveKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000063 /* Debug */,
+				AA0000000000000000000064 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000083 /* Build configuration list for PBXNativeTarget "VPhoneExternalAccessKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000065 /* Debug */,
+				AA0000000000000000000066 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000084 /* Build configuration list for PBXNativeTarget "VPhoneCoreKitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000067 /* Debug */,
+				AA0000000000000000000068 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000085 /* Build configuration list for PBXNativeTarget "VPhoneArchiveKitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000069 /* Debug */,
+				AA000000000000000000006A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000000000000000000171 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.3.1;
+			};
+		};
+		AA0000000000000000000172 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Lakr233/libarchive.xcframework.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000181 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000171 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
+		AA0000000000000000000182 /* LibArchive */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000172 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */;
+			productName = LibArchive;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA0000000000000000000001 /* Project object */;
+}

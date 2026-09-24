@@ -1,0 +1,592 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 70;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5036460F30653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
+		5036461130653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
+		CC0000000000000000000101 /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
+		CC0000000000000000000102 /* libVPhoneRestore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000031 /* libVPhoneRestore.a */; };
+		CC0000000000000000000103 /* libMobileRecoveryCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000032 /* libMobileRecoveryCore.a */; };
+		CC0000000000000000000104 /* libMobileRestoreCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000033 /* libMobileRestoreCore.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CC0000000000000000000122 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC0000000000000000000012;
+			remoteInfo = MobileRecoveryCore;
+		};
+		CC0000000000000000000124 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC0000000000000000000013;
+			remoteInfo = MobileRestoreCore;
+		};
+		CC0000000000000000000126 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC0000000000000000000011;
+			remoteInfo = VPhoneRestore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		CC0000000000000000000031 /* libVPhoneRestore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVPhoneRestore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000032 /* libMobileRecoveryCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMobileRecoveryCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000033 /* libMobileRestoreCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMobileRestoreCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000034 /* VPhoneRestoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VPhoneRestoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CC0000000000000000000021 /* VPhoneRestore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneRestore; sourceTree = "<group>"; };
+		CC0000000000000000000022 /* MobileRecoveryCore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MobileRecoveryCore; sourceTree = "<group>"; };
+		CC0000000000000000000023 /* MobileRestoreCore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MobileRestoreCore; sourceTree = "<group>"; };
+		CC0000000000000000000024 /* VPhoneRestoreTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneRestoreTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CC0000000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000042 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC0000000000000000000101 /* AppleMobileDeviceLibrary in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000043 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5036460F30653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000044 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC0000000000000000000102 /* libVPhoneRestore.a in Frameworks */,
+				CC0000000000000000000103 /* libMobileRecoveryCore.a in Frameworks */,
+				CC0000000000000000000104 /* libMobileRestoreCore.a in Frameworks */,
+				5036461130653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		CC0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				CC0000000000000000000021 /* VPhoneRestore */,
+				CC0000000000000000000022 /* MobileRecoveryCore */,
+				CC0000000000000000000023 /* MobileRestoreCore */,
+				CC0000000000000000000024 /* VPhoneRestoreTests */,
+				CC0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CC0000000000000000000031 /* libVPhoneRestore.a */,
+				CC0000000000000000000032 /* libMobileRecoveryCore.a */,
+				CC0000000000000000000033 /* libMobileRestoreCore.a */,
+				CC0000000000000000000034 /* VPhoneRestoreTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CC0000000000000000000011 /* VPhoneRestore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneRestore" */;
+			buildPhases = (
+				CC0000000000000000000051 /* Sources */,
+				CC0000000000000000000041 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CC0000000000000000000121 /* PBXTargetDependency */,
+				CC0000000000000000000123 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000021 /* VPhoneRestore */,
+			);
+			name = VPhoneRestore;
+			productName = VPhoneRestore;
+			productReference = CC0000000000000000000031 /* libVPhoneRestore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		CC0000000000000000000012 /* MobileRecoveryCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000082 /* Build configuration list for PBXNativeTarget "MobileRecoveryCore" */;
+			buildPhases = (
+				CC0000000000000000000052 /* Sources */,
+				CC0000000000000000000042 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000022 /* MobileRecoveryCore */,
+			);
+			name = MobileRecoveryCore;
+			packageProductDependencies = (
+				CC0000000000000000000201 /* AppleMobileDeviceLibrary */,
+			);
+			productName = MobileRecoveryCore;
+			productReference = CC0000000000000000000032 /* libMobileRecoveryCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		CC0000000000000000000013 /* MobileRestoreCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000083 /* Build configuration list for PBXNativeTarget "MobileRestoreCore" */;
+			buildPhases = (
+				CC0000000000000000000053 /* Sources */,
+				CC0000000000000000000043 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CC0000000000000000000121 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000023 /* MobileRestoreCore */,
+			);
+			name = MobileRestoreCore;
+			packageProductDependencies = (
+				CC0000000000000000000201 /* AppleMobileDeviceLibrary */,
+			);
+			productName = MobileRestoreCore;
+			productReference = CC0000000000000000000033 /* libMobileRestoreCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		CC0000000000000000000014 /* VPhoneRestoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000084 /* Build configuration list for PBXNativeTarget "VPhoneRestoreTests" */;
+			buildPhases = (
+				CC0000000000000000000054 /* Sources */,
+				CC0000000000000000000044 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CC0000000000000000000125 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000024 /* VPhoneRestoreTests */,
+			);
+			name = VPhoneRestoreTests;
+			packageProductDependencies = (
+				CC0000000000000000000201 /* AppleMobileDeviceLibrary */,
+			);
+			productName = VPhoneRestoreTests;
+			productReference = CC0000000000000000000034 /* VPhoneRestoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CC0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = CC0000000000000000000080 /* Build configuration list for PBXProject "VPhoneRestore" */;
+			compatibilityVersion = "Xcode 16.0.Superseded.1";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = CC0000000000000000000002;
+			packageReferences = (
+				CC0000000000000000000171 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CC0000000000000000000011 /* VPhoneRestore */,
+				CC0000000000000000000012 /* MobileRecoveryCore */,
+				CC0000000000000000000013 /* MobileRestoreCore */,
+				CC0000000000000000000014 /* VPhoneRestoreTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CC0000000000000000000051 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000052 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000053 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000054 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CC0000000000000000000121 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC0000000000000000000012 /* MobileRecoveryCore */;
+			targetProxy = CC0000000000000000000122 /* PBXContainerItemProxy */;
+		};
+		CC0000000000000000000123 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC0000000000000000000013 /* MobileRestoreCore */;
+			targetProxy = CC0000000000000000000124 /* PBXContainerItemProxy */;
+		};
+		CC0000000000000000000125 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC0000000000000000000011 /* VPhoneRestore */;
+			targetProxy = CC0000000000000000000126 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		CC0000000000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				ENABLE_TESTABILITY = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lMobileRecoveryCore",
+					"-lMobileRestoreCore",
+				);
+				PRODUCT_NAME = VPhoneRestore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lMobileRecoveryCore",
+					"-lMobileRestoreCore",
+				);
+				PRODUCT_NAME = VPhoneRestore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		CC0000000000000000000063 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"HAVE_CONFIG_H=1",
+					"IRECV_STATIC=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore",
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MODULEMAP_FILE = "$(PROJECT_DIR)/MobileRecoveryCore/Include/module.modulemap";
+				PRODUCT_NAME = MobileRecoveryCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000064 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"HAVE_CONFIG_H=1",
+					"IRECV_STATIC=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore",
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MODULEMAP_FILE = "$(PROJECT_DIR)/MobileRecoveryCore/Include/module.modulemap";
+				PRODUCT_NAME = MobileRecoveryCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		CC0000000000000000000065 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"HAVE_CONFIG_H=1",
+					"IRECV_STATIC=1",
+					"IDEVICERESTORE_NOMAIN=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRestoreCore",
+					"$(PROJECT_DIR)/MobileRestoreCore/Core",
+					"$(PROJECT_DIR)/MobileRestoreCore/Transfer",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware/Images",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware/Containers",
+					"$(PROJECT_DIR)/MobileRestoreCore/Recovery",
+					"$(PROJECT_DIR)/MobileRestoreCore/Bridge",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MODULEMAP_FILE = "$(PROJECT_DIR)/MobileRestoreCore/Include/module.modulemap";
+				PRODUCT_NAME = MobileRestoreCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000066 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"HAVE_CONFIG_H=1",
+					"IRECV_STATIC=1",
+					"IDEVICERESTORE_NOMAIN=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRestoreCore",
+					"$(PROJECT_DIR)/MobileRestoreCore/Core",
+					"$(PROJECT_DIR)/MobileRestoreCore/Transfer",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware/Images",
+					"$(PROJECT_DIR)/MobileRestoreCore/Firmware/Containers",
+					"$(PROJECT_DIR)/MobileRestoreCore/Recovery",
+					"$(PROJECT_DIR)/MobileRestoreCore/Bridge",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MODULEMAP_FILE = "$(PROJECT_DIR)/MobileRestoreCore/Include/module.modulemap";
+				PRODUCT_NAME = MobileRestoreCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		CC0000000000000000000067 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lcurl",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.restore.tests;
+				PRODUCT_NAME = VPhoneRestoreTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000068 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/MobileRecoveryCore/Include",
+					"$(PROJECT_DIR)/MobileRestoreCore/Include",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lcurl",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vphone.restore.tests;
+				PRODUCT_NAME = VPhoneRestoreTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		CC0000000000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CC0000000000000000000080 /* Build configuration list for PBXProject "VPhoneRestore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000071 /* Debug */,
+				CC0000000000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000081 /* Build configuration list for PBXNativeTarget "VPhoneRestore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000061 /* Debug */,
+				CC0000000000000000000062 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000082 /* Build configuration list for PBXNativeTarget "MobileRecoveryCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000063 /* Debug */,
+				CC0000000000000000000064 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000083 /* Build configuration list for PBXNativeTarget "MobileRestoreCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000065 /* Debug */,
+				CC0000000000000000000066 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000084 /* Build configuration list for PBXNativeTarget "VPhoneRestoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000067 /* Debug */,
+				CC0000000000000000000068 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CC0000000000000000000171 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Lakr233/AppleMobileDeviceLibrary.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.1790243523;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CC0000000000000000000201 /* AppleMobileDeviceLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC0000000000000000000171 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */;
+			productName = AppleMobileDeviceLibrary;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = CC0000000000000000000001 /* Project object */;
+}

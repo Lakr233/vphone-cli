@@ -4,14 +4,16 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 
 ## Quick Reference
 
-- **Build:** `make build`
-- **Boot (GUI):** `make boot`
-- **Boot (DFU):** `make boot_dfu`
-- **All targets:** `make help`
-- **Python venv:** `make setup_venv` (installs to `.venv/`, activate with `source .venv/bin/activate`)
-- **Platform:** macOS 15+ (Sequoia), SIP/AMFI disabled
-- **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic)
-- **Python deps:** `capstone`, `keystone-engine`, `pyimg4` (see `requirements.txt`)
+- **Build:** `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle build`
+- **Test:** Run the Xcode test schemes in their owning projects. The `VPhone` build validates the finished bundle.
+- **Boot (GUI):** `vphone-cli vm launch <name>`
+- **Boot (DFU):** `vphone-cli vm launch <name> --dfu`
+- **AMFI refuses `vphone-vm`?** Use the bundled `VPhoneEscalator` allowlist tool as shown in `Documents/Guides/host-setup.md`. Repeat after the VM cdhash changes.
+- **Restore:** `vphone-cli restore` runs in process over the vendored recovery and restore C modules in `VPhoneExecutable/VPhoneCommand/VPhoneRestore`.
+- **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `Documents/Guides/host-setup.md`; neither is installed by this project.
+- **Language:** Swift 6.0 in handwritten Xcode projects, private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic).
+- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. There are no git submodules. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Tiers.** The build machine may use Xcode and build tools. The shipped `VPhone.bundle` must use only system libraries and its own contents at runtime. Guest components run inside the VM. `Build/ValidateBundle.sh` checks bundle admission as part of the `VPhone` build.
 
 ## Workflow Rules
 
@@ -19,114 +21,44 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - Ignore `/TODO.md` if it exists locally; it is intentionally not part of the repo workflow anymore.
 - Track plan, progress, assumptions, blockers, and next actions in commit history, code comments when warranted, and current research docs instead of a repo TODO file.
 
-For any changes applying new patches, also update research/0_binary_patch_comparison.md. Dont forget this.
+For any changes applying new patches, also update Research/0_binary_patch_comparison.md. Dont forget this.
 
 ## Local Skills
 
-- If working on kernel analysis, symbolication lookups, or kernel patch reasoning, read `skills/kernel-analysis-vphone600/SKILL.md` first.
+- If working on kernel analysis, symbolication lookups, or kernel patch reasoning, read `Skills/kernel-analysis-vphone600/SKILL.md` first.
 - Use this skill as the default procedure for `vphone600` kernel work.
 
-## Firmware Variants
+## Firmware Mode
 
-| Variant          | Boot Chain     |    CFW    | Make Targets                       |
-| ---------------- | :------------: | :-------: | ---------------------------------- |
-| **Regular**      | 52 patches     | 10 phases | `fw_patch` + `cfw_install`         |
-| **Development**  | 66 patches     | 12 phases | `fw_patch_dev` + `cfw_install_dev` |
-| **Jailbreak**    | 127 patches    | 14 phases | `fw_patch_jb` + `cfw_install_jb`   |
-| **Experimental** | 141 patches    | 18 phases | `fw_patch_exp` + `cfw_install_exp` |
+The public CLI exposes only JB: `vphone-cli fw patch` and `vphone-cli cfw install`.
+The guest contains vphoned and required system patches; package-manager
+bootstrap and first-boot installation are outside this project. Do not add
+another public variant.
 
-> JB finalization (symlinks, Sileo, apt, TrollStore) runs automatically on first boot via `/cores/vphone_jb_setup.sh` LaunchDaemon. Monitor progress: `/var/log/vphone_jb_setup.log`.
-
-> EXP is a JB superset that patches the kernel and DSC to make some Apple services think the device is not a VM, while keeping VM-specific services (graphics passthrough, compute/accel fast paths) working correctly. Other variants are deliberately NOT affected by these changes.
-
-See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
+See `Research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
 
 ## Architecture
 
-```
-Makefile                          # Single entry point — run `make help`
+`VPhone.xcworkspace` contains handwritten Xcode projects. Do not introduce project generators, SwiftPM app targets, recovered references, or linked source folders. Source folders should carry the owning project or target name.
 
-sources/
-├── vphone.entitlements               # Private API entitlements (5 keys)
-└── vphone-cli/                       # Swift 6.0 executable (pure Swift, no ObjC)
-    ├── main.swift                    # Entry point — NSApplication + AppDelegate
-    ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
-    ├── VPhoneCLI.swift               # ArgumentParser options (no execution logic)
-    ├── VPhoneBuildInfo.swift         # Auto-generated build-time commit hash
-    │
-    │   # VM core
-    ├── VPhoneVirtualMachine.swift    # @MainActor VM configuration and lifecycle
-    ├── VPhoneHardwareModel.swift     # PV=3 hardware model via Dynamic
-    ├── VPhoneVirtualMachineView.swift # Touch-enabled VZVirtualMachineView + helpers
-    ├── VPhoneError.swift             # Error types
-    │
-    │   # Guest daemon client (vsock)
-    ├── VPhoneControl.swift           # Host-side vsock client for vphoned (length-prefixed JSON)
-    │
-    │   # Window & UI
-    ├── VPhoneWindowController.swift  # @MainActor VM window management + toolbar
-    ├── VPhoneKeyHelper.swift         # Keyboard/hardware key event dispatch to VM
-    ├── VPhoneLocationProvider.swift  # CoreLocation → guest forwarding over vsock
-    ├── VPhoneScreenRecorder.swift    # VM screen recording to file
-    │
-    │   # Menu bar (extensions on VPhoneMenuController)
-    ├── VPhoneMenuController.swift    # Menu bar controller
-    ├── VPhoneMenuKeys.swift          # Keys menu — home, power, volume, spotlight
-    ├── VPhoneMenuType.swift          # Type menu — paste ASCII text to guest
-    ├── VPhoneMenuLocation.swift      # Location menu — host location sync toggle
-    ├── VPhoneMenuConnect.swift       # Connect menu — devmode, ping, version, file browser
-    ├── VPhoneMenuInstall.swift       # Install menu — IPA installation to guest
-    ├── VPhoneMenuRecord.swift        # Record menu — screen recording controls
-    ├── VPhoneMenuBattery.swift       # Battery menu — battery status display
-    │
-    │   # IPA installation
-    ├── VPhoneIPAInstaller.swift      # IPA extraction, signing, and installation
-    ├── VPhoneSigner.swift            # Mach-O binary signing utilities
-    │
-    │   # File browser (SwiftUI)
-    ├── VPhoneFileWindowController.swift # File browser window (NSHostingController)
-    ├── VPhoneFileBrowserView.swift   # SwiftUI file browser with search + drag-drop
-    ├── VPhoneFileBrowserModel.swift  # @Observable file browser state + transfers
-    └── VPhoneRemoteFile.swift        # Remote file data model
+- `VPhoneExecutable/VPhoneVirtualization`: `VPhone.bundle`, `vphone-vm`, and `VPhoneVirtualMachineKit`. The bundle is the distributable output and has no app launcher.
+- `VPhoneExecutable/VPhoneCommand`: `vphone-cli`, firmware patcher, signer, and command tests.
+- `VPhoneExecutable/VPhoneCommand/VPhoneRestore`: native restore code and tests.
+- `VPhoneExecutable/VPhoneEscalator`: the AMFI allowlist program, built for arm64e. It is not a general privilege service.
+- `VPhoneKit`: shared core, archive, and external access kits with their tests.
+- `VPhoneDaemon`: guest `vphoned`, native operations, and daemon configuration.
+- `VPhoneGuestComponents`: guest dylibs built by Makefile from the bundle build phase.
 
-scripts/
-├── vphoned/                      # Guest daemon (ObjC, runs inside iOS VM over vsock)
-├── patchers/                     # Python CFW patcher modules
-│   └── cfw.py                    #   CFW binary patcher entrypoint
-├── resources/                    # Resource archives (git submodule)
-├── repos/                        # Toolchain source repos (git submodules: trustcache, insert_dylib, libimobiledevice stack)
-├── patches/                      # Build-time patches (libirecovery)
-├── fw_prepare.sh                 # Download IPSWs, merge cloudOS into iPhone
-├── fw_manifest.py                # Generate hybrid BuildManifest/Restore plists
-├── cfw_install.sh                # Install CFW (regular)
-├── cfw_install_dev.sh            # Regular + rpcserver daemon
-├── cfw_install_jb.sh             # Regular + jetsam fix + procursus
-├── cfw_install_exp.sh            # JB + experimental research patches (hv_vmm rename, DT identity)
-├── cfw_install_host.sh           # Host-mount CFW driver (attaches Disk.img, VM off; re-execs sudo)
-├── vm_create.sh                  # Create VM directory
-├── setup_machine.sh              # Full automation (setup → first boot)
-├── setup_tools.sh                # Install deps, build toolchain from submodules, create venv
-├── setup_venv.sh                 # Create Python venv
-├── setup_venv_linux.sh           # Create Python venv (Linux)
-├── setup_libimobiledevice.sh     # Build libimobiledevice stack from scripts/repos submodules
-└── tail_jb_patch_logs.sh         # Tail JB patch log output
-
-tools/
-└── apfs_snap_rename.py           # Offline APFS boot-snapshot flip (used by cfw_install_host.sh)
-
-research/                         # Detailed firmware/patch documentation
-```
+The `VPhone` scheme puts all shipped Mach-O files in `VPhone.bundle/Contents/MacOS`. Guest configuration is in `Contents/Resources`. Xcode targets have `CODE_SIGNING_ALLOWED=NO`; the bundle build phase signs each binary ad hoc with only its own entitlements, then seals the outer bundle. `VPhoneVirtualization.entitlements` belongs to `vphone-vm`; `VPhoneDaemon.entitlements` belongs to `vphoned`. The bundle and CLI have no private entitlements.
 
 ### Key Patterns
 
-- **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
-- **App lifecycle:** `main.swift` → `NSApplication` + `VPhoneAppDelegate`. CLI args parsed before run loop. AppDelegate drives VM start/window/shutdown.
-- **Configuration:** `ArgumentParser` → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
-- **Guest daemon (vphoned):** ObjC daemon inside iOS VM, vsock port 1337, length-prefixed JSON protocol. Host side is `VPhoneControl` with auto-reconnect.
-- **Menu system:** `VPhoneMenuController` + per-menu extensions (Keys, Type, Location, Connect, Install, Record).
-- **File browser:** SwiftUI (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) in `NSHostingController`. Search, sort, upload/download, drag-drop via `VPhoneControl`.
-- **IPA installation:** `VPhoneIPAInstaller` extracts + re-signs via `VPhoneSigner` + installs over vsock.
-- **Screen recording:** `VPhoneScreenRecorder` captures VM display. Controls via Record menu.
+- `vphone-cli` is the unentitled entry point. `VPhoneGuestLaunchPlanner` resolves `vphone-vm` beside the running executable, checks its entitlements, probes AMFI, and reports the exact allowlist command on refusal. It never obtains root itself.
+- `VPhoneEscalator` manages AMFI cdhash admission only. It writes amfid heap state, not executable code. Root authorization and installation are owned by the user or a future workstation application; this repository has no SMJobBless or sudo password flow.
+- Host VM artifacts, caches, and archives created by vphone use mode `0777` for workstation access. Symlinks are not followed when changing permissions. Guest filesystem modes inside `Disk.img` remain unchanged.
+- `VPhoneRestore` runs in the CLI process over vendored libirecovery and idevicerestore. No Python or runtime Homebrew dependency is allowed.
+- The VM process owns AppKit windows and the guest control connection. `vphoned` serves HTTP and WebSocket over VSOCK 1339, with camera data on 1338.
+- The guest HTTP client, menus, file browser, IPA installation, and screen recorder live in `VPhoneVirtualMachineKit`.
 
 ---
 
@@ -148,25 +80,48 @@ research/                         # Detailed firmware/patch documentation
 - Use `zsh` with `set -euo pipefail`.
 - Scripts resolve their own directory via `${0:a:h}` or `$(cd "$(dirname "$0")" && pwd)`.
 
-### Python Scripts
+### Patchers
+
+Every patcher is Swift, in `VPhoneExecutable/VPhoneCommand/FirmwarePatcher`.
+The public firmware mode is JB; the CFW/DSC patchers are `vphone-cli cfw <verb>`.
+
+- Disassembly is Capstone via `ARM64Disassembler` (the `libcapstone-spm` package). Assembly is `ARM64Encoder` plus the pre-encoded constants in `ARM64` (`ARM64Constants.swift`) — together they replace keystone's `asm()` / `asm_at()`, and `ARM64.nop` / `ARM64.movW0_0` are the old `NOP` / `MOV_W0_0`. IM4P containers go through `IM4PHandler` (the `libimg4-spm` package), which replaces pyimg4. Both resolve by URL; there is no `vendor/` directory to check out first.
+- Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.
+- Each patch logged with offset and before/after state.
+- No interpreter or runtime native-library repair: the `VPhone` Xcode scheme builds the complete bundle.
+
+### Python
+
+There is none, and adding any is a regression.
+
+- No `.py` file is tracked in this repository, no shell script embeds a Python
+  heredoc, and nothing resolves a `python3` at runtime. `git ls-files '*.py'`
+  returns nothing; that is the standing check.
+- There is no environment to activate and no dependency list to install. The
+  restore backend was the last holdout and is now `VPhoneExecutable/VPhoneCommand/VPhoneRestore` over
+  two vendored C targets — see `Research/Restore/native_restore_architecture.md`.
+- A patch, a probe, a format reader or a device protocol belongs in Swift,
+  where it is built, signed, gated by `Build/ValidateBundle.sh` and tested with
+  everything else. Adding an interpreter back brings with it a provisioning
+  step, a silent system-`python3` fallback, and a dependency closure
+  `Build/ValidateBundle.sh` cannot see.
+- There is no counter-example left. `amfidont` used to be cited as one — a
+  third-party tool the user installed into their own Python — and it is gone
+  too: the AMFI allowlist tool is `VPhoneExecutable/VPhoneEscalator`, one C
+  file built by Xcode for arm64e, with no runtime interpreter or LLDB.
 
 ### Kernel patcher guardrails
 
 - For kernel patchers, never hardcode file offsets, virtual addresses, or preassembled instruction bytes inside patch logic.
-- All instruction matching must be derived from Capstone decode results (mnemonic / operands / control-flow), not exact operand-string text when a semantic operand check is possible.
-- All replacement instruction bytes must come from Keystone-backed helpers already used by the project (for example `asm(...)`, `NOP`, `MOV_W0_0`, etc.).
+- All instruction matching must be derived from Capstone decode results (mnemonic / operands / control-flow), not exact operand-string text when a semantic operand check is possible. `ARM64Disassembler` is the only decoder — match on the decoded mnemonic and operand detail, never on a formatted operand string.
+- All replacement instruction bytes must come from Keystone-backed helpers already used by the project: `ARM64Encoder.encode*` and the `ARM64` constants, which were generated by keystone-engine, verified by Capstone round-trip, and are asserted word for word against keystone in `VPhoneExecutable/VPhoneCommand/FirmwarePatcherTests/Core/ARM64EncoderTests.swift`. Never write a literal instruction word at a patch site. A new instruction means a new encoder plus its keystone-checked test case, not a raw `Data`. Keystone is deliberately **not** a project dependency any more — nothing at runtime or in the test suite calls it, and the expected words are frozen constants. To derive a new one, stand keystone up in a throwaway environment **outside this repository** (`brew install keystone`, plus `keystone-engine` in a scratch interpreter somewhere under `/tmp`) and run the one-liner in that test file's header against it. There is no dependency list here to add it to and no environment here to install it into; creating either is the regression the "Python" section above forbids. Do not invent an expected word without checking it.
 - Prefer source-backed semantic anchors: in-image symbol lookup, string xrefs, local call-flow, and XNU correlation. Do not depend on repo-exported per-kernel symbol dumps at runtime.
 - When retargeting a patch, write the reveal procedure and validation steps into the relevant research doc or commit notes before handing off for testing. Do not create `TODO.md`.
-- For `patch_bsd_init_auth` specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
-
-- Patchers use `capstone` (disassembly), `keystone-engine` (assembly), `pyimg4` (IM4P handling).
-- Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.
-- Each patch logged with offset and before/after state.
-- Use project venv (`source .venv/bin/activate`). Create with `make setup_venv`.
+- For `patchBsdInitAuth` (`Kernel/JailbreakPatches/Storage/KernelJailbreakPatchBsdInitAuth.swift`, named `patch_bsd_init_auth` in the research docs) specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
 
 ## Build & Sign
 
-The binary requires private entitlements for PV=3 virtualization. Always use `make build` — never `swift build` alone, as the unsigned binary will fail at runtime.
+The VM process requires private entitlements for PV=3 virtualization. Build the `VPhone` scheme in Xcode; its final build phase ad hoc signs each child and seals `VPhone.bundle`. `swift build` alone does not produce the distributable bundle.
 
 ## Design System
 

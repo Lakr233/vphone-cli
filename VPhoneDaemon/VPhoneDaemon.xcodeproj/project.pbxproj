@@ -1,0 +1,403 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 71;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C10000000000000000000011 /* libVphonedNative.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* libVphonedNative.a */; };
+		C10000000000000000000012 /* IcliKit in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000061 /* IcliKit */; };
+		C10000000000000000000013 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000062 /* NIOCore */; };
+		C10000000000000000000014 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000063 /* NIOHTTP1 */; };
+		C10000000000000000000015 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000064 /* NIOPosix */; };
+		C10000000000000000000016 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000065 /* NIOWebSocket */; };
+		C10000000000000000000018 /* IcliSystem in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000068 /* IcliSystem */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000021 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C100000000000000000000F0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10000000000000000000081;
+			remoteInfo = VphonedNative;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		C10000000000000000000001 /* libVphonedNative.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVphonedNative.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000002 /* vphoned */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = vphoned; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		C10000000000000000000031 /* Native */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Native; sourceTree = "<group>"; };
+		C10000000000000000000032 /* Daemon */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Daemon; sourceTree = "<group>"; };
+		C10000000000000000000033 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000042 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C10000000000000000000011 /* libVphonedNative.a in Frameworks */,
+				C10000000000000000000012 /* IcliKit in Frameworks */,
+				C10000000000000000000013 /* NIOCore in Frameworks */,
+				C10000000000000000000014 /* NIOHTTP1 in Frameworks */,
+				C10000000000000000000015 /* NIOPosix in Frameworks */,
+				C10000000000000000000016 /* NIOWebSocket in Frameworks */,
+				C10000000000000000000018 /* IcliSystem in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C10000000000000000000051 = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000031 /* Native */,
+				C10000000000000000000032 /* Daemon */,
+				C10000000000000000000033 /* Configuration */,
+				C10000000000000000000052 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C10000000000000000000052 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000001 /* libVphonedNative.a */,
+				C10000000000000000000002 /* vphoned */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C10000000000000000000081 /* VphonedNative */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000091 /* Build configuration list for PBXNativeTarget "VphonedNative" */;
+			buildPhases = (
+				C100000000000000000000A1 /* Sources */,
+				C10000000000000000000041 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C10000000000000000000031 /* Native */,
+			);
+			name = VphonedNative;
+			productName = VphonedNative;
+			productReference = C10000000000000000000001 /* libVphonedNative.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		C10000000000000000000082 /* vphoned */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000092 /* Build configuration list for PBXNativeTarget "vphoned" */;
+			buildPhases = (
+				C100000000000000000000A4 /* Build Guest Signer */,
+				C100000000000000000000A2 /* Sources */,
+				C10000000000000000000042 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C10000000000000000000022 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C10000000000000000000032 /* Daemon */,
+			);
+			name = vphoned;
+			packageProductDependencies = (
+				C10000000000000000000061 /* IcliKit */,
+				C10000000000000000000062 /* NIOCore */,
+				C10000000000000000000063 /* NIOHTTP1 */,
+				C10000000000000000000064 /* NIOPosix */,
+				C10000000000000000000065 /* NIOWebSocket */,
+				C10000000000000000000068 /* IcliSystem */,
+			);
+			productName = vphoned;
+			productReference = C10000000000000000000002 /* vphoned */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C100000000000000000000F0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = C10000000000000000000093 /* Build configuration list for PBXProject "VPhoneDaemon" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C10000000000000000000051;
+			packageReferences = (
+				C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */,
+				C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C10000000000000000000081 /* VphonedNative */,
+				C10000000000000000000082 /* vphoned */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C100000000000000000000A4 /* Build Guest Signer */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build Guest Signer";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\n/usr/bin/env -i HOME=\"$HOME\" TMPDIR=\"${TMPDIR:-/tmp}\" PATH=\"/usr/bin:/bin:/usr/sbin:/sbin\" /usr/bin/xcodebuild -project \"$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj\" -scheme VPhoneSign -configuration \"$CONFIGURATION\" -destination 'generic/platform=iOS' -derivedDataPath \"$root/.build/XcodeSignGuest-$CONFIGURATION\" CODE_SIGNING_ALLOWED=NO build\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C100000000000000000000A1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C100000000000000000000A2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C10000000000000000000022 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C10000000000000000000081 /* VphonedNative */;
+			targetProxy = C10000000000000000000021 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		C100000000000000000000B1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"VPHONED_BUILD_HASH=\\\"unknown\\\"",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Native",
+					"$(PROJECT_DIR)/Native/Include",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		C100000000000000000000B2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEFINES_MODULE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"VPHONED_BUILD_HASH=\\\"unknown\\\"",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Native",
+					"$(PROJECT_DIR)/Native/Include",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		C100000000000000000000B3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				DEFINES_MODULE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
+				OTHER_LDFLAGS = "-lVPhoneSign";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		C100000000000000000000B4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				DEFINES_MODULE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
+				OTHER_LDFLAGS = "-lVPhoneSign";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		C100000000000000000000B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		C100000000000000000000B6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C10000000000000000000091 /* Build configuration list for PBXNativeTarget "VphonedNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C100000000000000000000B1 /* Debug */,
+				C100000000000000000000B2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10000000000000000000092 /* Build configuration list for PBXNativeTarget "vphoned" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C100000000000000000000B3 /* Debug */,
+				C100000000000000000000B4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10000000000000000000093 /* Build configuration list for PBXProject "VPhoneDaemon" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C100000000000000000000B5 /* Debug */,
+				C100000000000000000000B6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/owngoal-dev/icli.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.6.7;
+			};
+		};
+		C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.83.0;
+			};
+		};
+		C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C10000000000000000000061 /* IcliKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */;
+			productName = IcliKit;
+		};
+		C10000000000000000000062 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		C10000000000000000000063 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
+		C10000000000000000000064 /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
+		};
+		C10000000000000000000065 /* NIOWebSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOWebSocket;
+		};
+		C10000000000000000000068 /* IcliSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */;
+			productName = IcliSystem;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = C100000000000000000000F0 /* Project object */;
+}

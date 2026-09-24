@@ -1,0 +1,4 @@
+module MobileRecoveryCore {
+    header "libirecovery.h"
+    export *
+}

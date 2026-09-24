@@ -1,0 +1,324 @@
+import Foundation
+import Observation
+
+@Observable
+@MainActor
+class VPhoneFileBrowserModel {
+    let control: VPhoneGuestControl
+    private let quickLookController: VPhoneQuickLookController
+    /// Tracks an in-flight Quick Look download so it can be cancelled on selection change.
+    private var quickLookTask: Task<Void, Never>?
+
+    var currentPath = "/var/mobile"
+    var files: [VPhoneRemoteFile] = []
+    var isLoading = false
+    var error: String?
+    var searchText = ""
+    var selection = Set<VPhoneRemoteFile.ID>()
+    var sortOrder = [KeyPathComparator(\VPhoneRemoteFile.name)]
+
+    // Transfer progress
+    var transferName: String?
+    var transferCurrent: Int64 = 0
+    var transferTotal: Int64 = 0
+    var isTransferring: Bool {
+        transferName != nil
+    }
+
+    /// Navigation stacks
+    private var pathHistory: [String] = []
+    private var forwardHistory: [String] = []
+    private var refreshGeneration = 0
+
+    init(control: VPhoneGuestControl, quickLookController: VPhoneQuickLookController) {
+        self.control = control
+        self.quickLookController = quickLookController
+    }
+
+    // MARK: - Computed
+
+    var breadcrumbs: [(name: String, path: String)] {
+        var result = [("/", "/")]
+        let components = currentPath.split(separator: "/", omittingEmptySubsequences: true)
+        var running = ""
+        for c in components {
+            running += "/\(c)"
+            result.append((String(c), running))
+        }
+        return result
+    }
+
+    var filteredFiles: [VPhoneRemoteFile] {
+        let list: [VPhoneRemoteFile]
+        if searchText.isEmpty {
+            list = files
+        } else {
+            let query = searchText.lowercased()
+            list = files.filter { $0.name.lowercased().contains(query) }
+        }
+        return list.sorted(using: sortOrder)
+    }
+
+    var statusText: String {
+        let count = filteredFiles.count
+        if !searchText.isEmpty {
+            return VPhoneLocalization.format("%@ items (filtered)", String(count))
+        }
+        return count == 1
+            ? VPhoneLocalization.text("1 item")
+            : VPhoneLocalization.format("%@ items", String(count))
+    }
+
+    // MARK: - Navigation
+
+    func navigate(to path: String) {
+        pathHistory.append(currentPath)
+        forwardHistory.removeAll()
+        currentPath = path
+        refreshGeneration += 1
+        selection.removeAll()
+        Task { await refresh() }
+    }
+
+    func goBack() {
+        guard let prev = pathHistory.popLast() else { return }
+        forwardHistory.append(currentPath)
+        currentPath = prev
+        refreshGeneration += 1
+        selection.removeAll()
+        Task { await refresh() }
+    }
+
+    func goForward() {
+        guard let next = forwardHistory.popLast() else { return }
+        pathHistory.append(currentPath)
+        currentPath = next
+        refreshGeneration += 1
+        selection.removeAll()
+        Task { await refresh() }
+    }
+
+    func goToBreadcrumb(_ path: String) {
+        guard path != currentPath else { return }
+        navigate(to: path)
+    }
+
+    var canGoBack: Bool {
+        !pathHistory.isEmpty
+    }
+
+    var canGoForward: Bool {
+        !forwardHistory.isEmpty
+    }
+
+    func openItem(_ file: VPhoneRemoteFile) {
+        if file.isDirectoryLike {
+            navigate(to: file.path)
+        }
+    }
+
+    // MARK: - Quick Look
+
+    func quickLookSelected() {
+        guard let id = selection.first,
+              let file = filteredFiles.first(where: { $0.id == id }),
+              !file.isDirectoryLike
+        else { return }
+
+        quickLookTask?.cancel()
+
+        quickLookTask = Task { @MainActor in
+            do {
+                let data = try await control.downloadFile(path: file.path)
+                guard !Task.isCancelled else { return }
+                quickLookController.open(data: data, filename: file.name)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.error = VPhoneLocalization.format("Quick Look download failed: %@", String(describing: error))
+            }
+            quickLookTask = nil
+        }
+    }
+
+    func closeQuickLook() {
+        quickLookTask?.cancel()
+        quickLookTask = nil
+        quickLookController.close()
+    }
+
+    // MARK: - Refresh
+
+    func refresh() async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let path = currentPath
+        isLoading = true
+        error = nil
+        do {
+            let entries = try await control.listFiles(path: path)
+            guard generation == refreshGeneration, path == currentPath else { return }
+            files = entries.compactMap { VPhoneRemoteFile(dir: path, entry: $0) }
+            selection.formIntersection(Set(files.map(\.id)))
+        } catch {
+            guard generation == refreshGeneration, path == currentPath else { return }
+            self.error = "\(error)"
+            files = []
+        }
+        isLoading = false
+    }
+
+    // MARK: - File Operations
+
+    func downloadSelected(to directory: URL) async {
+        let selected = files.filter { selection.contains($0.id) }
+        for file in selected {
+            if file.isDirectoryLike {
+                await downloadDirectory(file, to: directory, ancestors: [])
+            } else {
+                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
+            }
+            if error != nil {
+                break
+            }
+        }
+        transferName = nil
+    }
+
+    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: URL) async {
+        transferName = name
+        transferTotal = Int64(size)
+        transferCurrent = 0
+        do {
+            let data = try await control.downloadFile(path: remotePath)
+            transferCurrent = Int64(data.count)
+            let dest = directory.appendingPathComponent(name)
+            try data.write(to: dest)
+            print("[files] downloaded \(remotePath) (\(data.count) bytes)")
+        } catch {
+            self.error = VPhoneLocalization.format("Download failed: %@", String(describing: error))
+        }
+    }
+
+    private func downloadDirectory(
+        _ file: VPhoneRemoteFile,
+        to localParent: URL,
+        ancestors: Set<String>,
+    ) async {
+        guard !file.isSymbolicLink || file.resolvedPath != nil else {
+            error = VPhoneLocalization.format("Download requires an updated guest agent to follow %@.", file.path)
+            return
+        }
+        let resolvedPath = file.resolvedPath ?? file.path
+        guard !ancestors.contains(resolvedPath) else {
+            error = VPhoneLocalization.format("Directory link creates a cycle at %@.", file.path)
+            return
+        }
+        let ancestors = ancestors.union([resolvedPath])
+        let localDir = localParent.appendingPathComponent(file.name)
+        do {
+            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+        } catch {
+            self.error = VPhoneLocalization.format("Create directory failed: %@", String(describing: error))
+            return
+        }
+
+        let entries: [[String: Any]]
+        do {
+            entries = try await control.listFiles(path: file.path)
+        } catch {
+            self.error = VPhoneLocalization.format("List directory failed: %@", String(describing: error))
+            return
+        }
+
+        let children = entries.compactMap { VPhoneRemoteFile(dir: file.path, entry: $0) }
+        for child in children {
+            if child.isDirectoryLike {
+                await downloadDirectory(child, to: localDir, ancestors: ancestors)
+            } else {
+                await downloadFile(
+                    remotePath: child.path,
+                    name: child.name,
+                    size: child.size,
+                    to: localDir,
+                )
+            }
+            if error != nil {
+                return
+            }
+        }
+    }
+
+    func uploadFiles(urls: [URL]) async {
+        var uploadError: String?
+        for url in urls {
+            let name = url.lastPathComponent
+            // Mapped: this is a drag-and-drop target, so the size is the
+            // user's choice and the transfer chunks it anyway.
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
+                uploadError = VPhoneLocalization.format("Could not read \"%@\" from disk.", name)
+                break
+            }
+            let dest = (currentPath as NSString).appendingPathComponent(name)
+            transferName = name
+            transferTotal = Int64(data.count)
+            transferCurrent = 0
+            do {
+                try await control.uploadFile(path: dest, data: data)
+                transferCurrent = Int64(data.count)
+                print("[files] uploaded \(name) (\(data.count) bytes)")
+            } catch {
+                uploadError = VPhoneLocalization.format("Upload failed for \"%@\": %@", name, String(describing: error))
+                break
+            }
+        }
+        transferName = nil
+        await refresh()
+        // Set error after refresh so refresh() doesn't clear it before the alert fires.
+        if let e = uploadError {
+            error = e
+        }
+    }
+
+    func createNewFolder(name: String) async {
+        guard !files.contains(where: { $0.name == name }) else {
+            error = VPhoneLocalization.format("An item named %@ already exists.", name)
+            return
+        }
+        let path = (currentPath as NSString).appendingPathComponent(name)
+        do {
+            try await control.createDirectory(path: path)
+            await refresh()
+        } catch {
+            self.error = VPhoneLocalization.format("Create folder failed: %@", String(describing: error))
+        }
+    }
+
+    func deleteSelected() async {
+        let selected = files.filter { selection.contains($0.id) }
+        for file in selected {
+            do {
+                try await control.deleteFile(path: file.path)
+            } catch {
+                self.error = VPhoneLocalization.format("Delete failed: %@", String(describing: error))
+                return
+            }
+        }
+        selection.removeAll()
+        await refresh()
+    }
+
+    func renameFile(_ file: VPhoneRemoteFile, to newName: String) async {
+        guard newName != file.name else { return }
+        guard !files.contains(where: { $0.dir == file.dir && $0.name == newName }) else {
+            error = VPhoneLocalization.format("An item named %@ already exists.", newName)
+            return
+        }
+        let newPath = (file.dir as NSString).appendingPathComponent(newName)
+        do {
+            try await control.renameFile(from: file.path, to: newPath)
+            await refresh()
+        } catch {
+            self.error = VPhoneLocalization.format("Rename failed: %@", String(describing: error))
+        }
+    }
+}
