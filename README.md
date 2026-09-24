@@ -43,11 +43,11 @@ Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh scripts/build.sh
+zsh Scripts/build.sh
 .build/release/vphone-cli --help
 ```
 
-`scripts/build.sh` builds, signs, and bundles the binaries. Run `swift test` for the Swift tests and `zsh scripts/check_aux.sh` for the bundle checks. After every rebuild, a host using the AMFI allowlist must allow the new signed binaries because their cdhashes change. See [host setup](docs/guides/host-setup.md).
+`Scripts/build.sh` builds, signs, and bundles the binaries. Run `swift test` for the Swift tests and `zsh Scripts/check_aux.sh` for the bundle checks. After every rebuild, a host using the AMFI allowlist must allow the new signed binaries because their cdhashes change. See [host setup](docs/guides/host-setup.md).
 
 ## Everyday commands
 

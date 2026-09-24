@@ -31,7 +31,7 @@ cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh scripts/build.sh
+zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 

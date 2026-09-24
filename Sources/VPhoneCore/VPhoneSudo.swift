@@ -120,7 +120,7 @@ public enum VPhoneSudoError: Error, CustomStringConvertible {
         case let .helperMissing(path):
             """
             vphone-ask-for-permission is not next to this binary (looked at \(path)).
-            It is built by `scripts/build.sh`; without it there is no way to ask for a \
+            It is built by `Scripts/build.sh`; without it there is no way to ask for a \
             password from a window session with no terminal.
             """
         }

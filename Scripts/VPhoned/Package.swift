@@ -18,10 +18,10 @@ let package = Package(
             name: "VphonedNative",
             path: ".",
             sources: nativeSources,
-            publicHeadersPath: "include",
+            publicHeadersPath: "Include",
             cSettings: [
                 .headerSearchPath("."),
-                .headerSearchPath("vendor/libarchive"),
+                .headerSearchPath("Vendor/LibArchive"),
                 .define("VPHONED_BUILD_HASH", to: "\"\(gitHash)\""),
                 .unsafeFlags(["-fobjc-arc"]),
             ],

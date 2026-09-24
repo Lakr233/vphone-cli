@@ -14,8 +14,9 @@
 #
 # Every script declares which it is, on line 2:  `# vphone-tier: <tier>`
 #
-# This prints the dist payload — paths relative to scripts/, one per line, for
-# `rsync -a --files-from=-`. It is an ALLOWLIST derived from those declarations,
+# This prints the dist payload — paths relative to Contents/Resources/scripts/.
+# build.sh maps the VPhoned plist source files back to the shipped vphoned/ path.
+# It is an ALLOWLIST derived from those declarations,
 # which is the point: the bundler used to work from a list of exclusions, so
 # anything new shipped by default and the build-only `setup_tools.sh`,
 # `build.sh` and `check_aux.sh` all ended up inside the .app. An
@@ -58,9 +59,9 @@ done
 # vphone-cli itself opens it by name; the greppable proof is in the comment.
 #
 # What is deliberately ABSENT is as important:
-#   repos/            toolchain submodules — build tier, sources only
+#   Repos/            toolchain submodules — build tier, sources only
 #   ../siblings/       guest sources and GPU provenance; not copied into the
 #                      shipped app (GPU extraction runs in native fw prepare)
-#   vphoned/*.m *.h vendor/  same, and it is the bulk of scripts/
+#   VPhoned/*.m *.h Vendor/  same, and it is the bulk of Scripts/
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
 print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

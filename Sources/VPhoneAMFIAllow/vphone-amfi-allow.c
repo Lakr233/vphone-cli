@@ -3,7 +3,7 @@
 //
 // This is the project's copy of github.com/Lakr233/amfi-allow (MIT), which is
 // one C file and no dependencies, so it is carried here rather than pulled in:
-// it cannot be a SwiftPM dependency, because `scripts/build.sh` has to build it
+// it cannot be a SwiftPM dependency, because `Scripts/build.sh` has to build it
 // for arm64e and SwiftPM only emits arm64. Keep it in step with upstream; the
 // only local changes are this header and the usage text.
 //

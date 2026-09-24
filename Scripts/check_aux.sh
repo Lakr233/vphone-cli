@@ -17,7 +17,7 @@
 # hold ONE list applied to the entire repository, so `xcrun` in a build script
 # and `xcrun` in something the .app ships counted the same — and the list
 # shrinking said nothing about whether the product was any closer to standing on
-# its own. Each script declares its tier on line 2; see scripts/dist_manifest.sh.
+# its own. Each script declares its tier on line 2; see Scripts/dist_manifest.sh.
 #
 # The gates, none of which proves self-containment on its own:
 #
@@ -135,8 +135,8 @@ check_tiers() {
     TIER[$name]="$tier"
     case "$tier" in
       build|dist|guest) ;;
-      undeclared) fail "gate 0: scripts/$name has no '# vphone-tier:' on line 2" ;;
-      *)          fail "gate 0: scripts/$name declares unknown tier '$tier'" ;;
+      undeclared) fail "gate 0: Scripts/$name has no '# vphone-tier:' on line 2" ;;
+      *)          fail "gate 0: Scripts/$name declares unknown tier '$tier'" ;;
     esac
   done < <(zsh "$SCRIPT_DIR/dist_manifest.sh" --tiers)
   (( ${#TIER} )) || { fail "gate 0: no scripts found"; return }
@@ -254,7 +254,7 @@ check_bundle_contents() {
 
   # Nothing may appear under Resources/scripts that the manifest did not put
   # there — a stale file from an older bundle is exactly as dangerous as a
-  # wrongly-declared one, and `scripts/build.sh` builds over whatever is already on
+  # wrongly-declared one, and `Scripts/build.sh` builds over whatever is already on
   # disk.
   local -a manifest=()
   while IFS= read -r name; do manifest+=("$name"); done \
@@ -311,7 +311,7 @@ check_sources() {
   # lines is the difference between a gate people read and one they learn to
   # ignore. `which is enough for...` in a comment is not a PATH lookup.
   local -a dist_clean=()
-  for file in scripts/*.sh; do
+  for file in Scripts/*.sh; do
     tier="${TIER[${file:t}]:-undeclared}"
     [[ "$tier" == guest ]] && continue     # runs in iOS; not our PATH
     [[ "$tier" == build ]] && continue     # may assume Xcode and Homebrew
@@ -413,9 +413,9 @@ check_sources() {
   # check_aux.sh excludes itself, because a scanner that looks for a word
   # necessarily contains it.
   hits=$(grep -rnE 'python[0-9.]*' --include='*.sh' \
-              scripts/ Tests/ 2>/dev/null \
+              Scripts/ Tests/ 2>/dev/null \
           | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
-          | grep -vE '^scripts/check_aux\.sh:' \
+          | grep -vE '^Scripts/check_aux\.sh:' \
           | grep -vE '(echo|print)[[:space:]]')
   if [[ -n "$hits" ]]; then
     while IFS= read -r line; do
@@ -532,7 +532,7 @@ check_smoke() {
 print -P "%Bvphone-cli admission gates%b"
 
 if [[ ! -d "$BUNDLE" ]]; then
-  red "no bundle at $BUNDLE — run 'zsh scripts/build.sh' first"
+  red "no bundle at $BUNDLE — run 'zsh Scripts/build.sh' first"
   exit 2
 fi
 

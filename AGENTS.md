@@ -4,16 +4,16 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 
 ## Quick Reference
 
-- **Build:** `zsh scripts/build.sh` (builds, signs, and bundles the app)
-- **Test:** `swift test`; then `zsh scripts/check_aux.sh` for bundle admission gates
+- **Build:** `zsh Scripts/build.sh` (builds, signs, and bundles the app)
+- **Test:** `swift test`; then `zsh Scripts/check_aux.sh` for bundle admission gates
 - **Boot (GUI):** `vphone-cli vm launch <name>`
 - **Boot (DFU):** `vphone-cli vm launch <name> --dfu`
 - **AMFI refuses `vphone-vm`?** Use the bundled `vphone-amfi-allow` helper as shown in `docs/guides/host-setup.md`. Repeat after every build because it allowlists cdhashes. See Key Patterns.
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/restore/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `docs/guides/host-setup.md`; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
-- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. The only git submodule is `scripts/repos/insert_dylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
-- **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `scripts/dist_manifest.sh` reads those and is what `scripts/build.sh` stages from, so a script that declares nothing ships nowhere. `scripts/check_aux.sh` runs the admission gates. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
+- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. The only git submodule is `Scripts/Repos/InsertDylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `Scripts/dist_manifest.sh` reads those and is what `Scripts/build.sh` stages from, so a script that declares nothing ships nowhere. `Scripts/check_aux.sh` runs the admission gates. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
 
 ## Workflow Rules
 
@@ -178,13 +178,13 @@ Sources/
         ├── VPhoneTouchIDMonitor.swift # BiometricKit delegate sink
         └── VPhoneScreenRecorder.swift # VM screen recording to file
 
-scripts/                          # Build scripts and payloads only; no runtime shell
+Scripts/                          # Build scripts and payloads only; no runtime shell
 ├── build.sh                  [b] # Compile, sign and bundle
 ├── dist_manifest.sh          [b] # Payload allowlist staged by build.sh
 ├── check_aux.sh              [b] # The self-containment admission gates
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
-├── vphoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
-└── repos/                        # Toolchain source (git submodule: insert_dylib)
+├── VPhoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
+└── Repos/                        # Toolchain source (git submodule: InsertDylib)
 
 siblings/                         # Guest component sources/provenance; separate package
 ├── camfix/ vcamcaptured/          # Camera hooks and filter plists
@@ -197,7 +197,7 @@ research/                         # Detailed firmware/patch documentation
 ### Key Patterns
 
 - **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
-- **The AMFI bypass is ours, and it writes heap, not code.** `vphone-amfi-allow` (`Sources/VPhoneAMFIAllow/`, this project's copy of [Lakr233/amfi-allow](https://github.com/Lakr233/amfi-allow)) puts the cdhashes of both `vphone-vm` copies into `/Library/Preferences/com.apple.security.coderequirements.plist` — a file AMFI already reads — and flips one byte of `_isRunningInternalBuild` in amfid's `AMFIRequirementsManager` singleton so it consults that file. It is an **allowlist**, scoped to the cdhashes you name; do not describe it as a global switch. The helper's `allow`, `status`, and `off` commands manage it; see `docs/guides/host-setup.md`. It is a **per-build** step, because a cdhash changes with every signature. It must be **arm64e** to match amfid's slice, and `scripts/build.sh` builds it with clang. The heap write is the load-bearing detail: `vphone-letmein` and LLDB-based tools dirty an executable page, and on a host with `vm.cs_system_enforcement = 1` the kernel kills amfid for that and takes the guest with it.
+- **The AMFI bypass is ours, and it writes heap, not code.** `vphone-amfi-allow` (`Sources/VPhoneAMFIAllow/`, this project's copy of [Lakr233/amfi-allow](https://github.com/Lakr233/amfi-allow)) puts the cdhashes of both `vphone-vm` copies into `/Library/Preferences/com.apple.security.coderequirements.plist` — a file AMFI already reads — and flips one byte of `_isRunningInternalBuild` in amfid's `AMFIRequirementsManager` singleton so it consults that file. It is an **allowlist**, scoped to the cdhashes you name; do not describe it as a global switch. The helper's `allow`, `status`, and `off` commands manage it; see `docs/guides/host-setup.md`. It is a **per-build** step, because a cdhash changes with every signature. It must be **arm64e** to match amfid's slice, and `Scripts/build.sh` builds it with clang. The heap write is the load-bearing detail: `vphone-letmein` and LLDB-based tools dirty an executable page, and on a host with `vm.cs_system_enforcement = 1` the kernel kills amfid for that and takes the guest with it.
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — checks its two PV=3 entitlements, then probes with `vphone-vm --help` for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
 - **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `research/restore/p2_restore_off_python.md` has the decision and the behaviour table.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
@@ -238,7 +238,7 @@ one verb per patch, driven by `scripts/cfw_install*.sh` only.
 - Disassembly is Capstone via `ARM64Disassembler` (the `libcapstone-spm` package). Assembly is `ARM64Encoder` plus the pre-encoded constants in `ARM64` (`ARM64Constants.swift`) — together they replace keystone's `asm()` / `asm_at()`, and `ARM64.nop` / `ARM64.movW0_0` are the old `NOP` / `MOV_W0_0`. IM4P containers go through `IM4PHandler` (the `libimg4-spm` package), which replaces pyimg4. Both resolve by URL; there is no `vendor/` directory to check out first.
 - Dynamic pattern finding (string anchors, ADRP+ADD xrefs, BL frequency) — no hardcoded offsets.
 - Each patch logged with offset and before/after state.
-- No interpreter, no Python environment, no native-library repair: `scripts/build.sh` builds the complete app.
+- No interpreter, no Python environment, no native-library repair: `Scripts/build.sh` builds the complete app.
 
 ### Python
 
@@ -251,10 +251,10 @@ There is none, and adding any is a regression.
   restore backend was the last holdout and is now `Sources/VPhoneRestore` over
   two vendored C targets — see `research/restore/p2_restore_off_python.md`.
 - A patch, a probe, a format reader or a device protocol belongs in Swift,
-  where it is built, signed, gated by `scripts/check_aux.sh` and tested with
+  where it is built, signed, gated by `Scripts/check_aux.sh` and tested with
   everything else. Adding an interpreter back brings with it a provisioning
   step, a silent system-`python3` fallback, and a dependency closure
-  `scripts/check_aux.sh` cannot see.
+  `Scripts/check_aux.sh` cannot see.
 - There is no counter-example left. `amfidont` used to be cited as one — a
   third-party tool the user installed into their own Python — and it is gone
   too: the AMFI bypass is `Sources/VPhoneAMFIAllow`, one C file built by
@@ -271,7 +271,7 @@ There is none, and adding any is a regression.
 
 ## Build & Sign
 
-The binary requires private entitlements for PV=3 virtualization. Always use `zsh scripts/build.sh` — never `swift build` alone, as the unsigned binary will fail at runtime.
+The binary requires private entitlements for PV=3 virtualization. Always use `zsh Scripts/build.sh` — never `swift build` alone, as the unsigned binary will fail at runtime.
 
 ## Design System
 

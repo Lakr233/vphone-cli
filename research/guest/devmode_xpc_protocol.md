@@ -104,7 +104,7 @@ Added as `devmode` capability in vphoned guest agent:
 
 ### Entitlements
 
-Added to `scripts/vphoned/entitlements.plist`:
+Added to `Scripts/VPhoned/entitlements.plist`:
 
 ```xml
 <key>com.apple.private.amfi.developer-mode-control</key>

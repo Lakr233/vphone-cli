@@ -34,7 +34,7 @@
 | **D4** shell → zero | P3 required, P4 in scope | **0%.** The dist tier is ten `.sh` files; the tiers and gates are what make it possible to convert them one at a time without losing track of what ships |
 
 D4 going up is not an accounting artifact. `cfw-kit/` (1,036 lines) and
-`scripts/check_aux.sh` (327) are both new on this branch; everything else nets
+`Scripts/check_aux.sh` (327) are both new on this branch; everything else nets
 to −85. The 5,098 lines of Python that left `scripts/patchers/` did not take any
 shell with them, because the installers called into that Python and now call
 into `vphone-cli cfw` instead — same scripts, different callee. `cfw_install*.sh`
@@ -110,11 +110,11 @@ Two corrections to the earlier ledger's arithmetic:
 > whether the product was any closer to standing on its own. Kept because the
 > shape of the old list is what the tier split was a response to.
 >
-> **Now**: `zsh scripts/check_aux.sh` reports gates 0, 1, 1b, 1c, 2 and 3 all
+> **Now**: `zsh Scripts/check_aux.sh` reports gates 0, 1, 1b, 1c, 2 and 3 all
 > green, with the **dist tier's registered list empty**. See
 > [`d2_d3_self_containment.md`](../host/d2_d3_self_containment.md).
 
-`zsh scripts/check_aux.sh --fast`, as of the previous revision:
+`zsh Scripts/check_aux.sh --fast`, as of the previous revision:
 
 - **Gate 1 (dependency closure)** and **gate 1b (relocation)** both report
   nothing. This is the change since the last revision of this file, which
@@ -152,7 +152,7 @@ against 5,895 in 22 files at `6d5ce7d`. The largest single files:
 | `scripts/cfw_install.sh` | 579 |
 | `scripts/cfw_install_dev.sh` | 512 |
 | `scripts/cfw_install_jb.sh` | 484 |
-| `scripts/check_aux.sh` | 327 |
+| `Scripts/check_aux.sh` | 327 |
 | `scripts/vphone_jb_setup.sh` | 312 |
 | `cfw-kit/` (5 files) | 1,036 |
 
@@ -290,9 +290,9 @@ Re-run these rather than trusting the tables:
 git ls-files '*.py'                                     # D1: must print nothing
 grep -rn '_resolve_python3' scripts/ Sources/ Makefile  # must print nothing
 grep -rn '<<.*PY' scripts/                              # heredocs: must print nothing
-grep -rn 'python' scripts/*.sh                          # comments only, no call sites
+grep -rn 'python' Scripts/*.sh                          # comments only, no call sites
 
-zsh scripts/check_aux.sh --fast                         # D2: gates 1, 1b, 2
+zsh Scripts/check_aux.sh --fast                         # D2: gates 1, 1b, 2
 find .build/vphone-cli.app -type f                      # D2: what the bundle ships
 
 git ls-files scripts cfw-kit | grep '\.sh$' | xargs wc -l   # D4

@@ -1,6 +1,6 @@
 // CustomFirmwareInjectDylib.swift — LC_LOAD_DYLIB / LC_LOAD_WEAK_DYLIB insertion.
 //
-// Replaces the `insert_dylib` binary built from `scripts/repos/insert_dylib`,
+// Replaces the `insert_dylib` binary built from `Scripts/Repos/InsertDylib`,
 // whose only caller is the launchdhook injection in `cfw_install_jb.sh` and
 // `cfw_install_exp.sh`:
 //

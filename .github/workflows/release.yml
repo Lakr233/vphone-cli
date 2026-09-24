@@ -27,14 +27,14 @@ jobs:
       - name: Build and bundle (portable .app)
         env:
           SWIFT_JOBS: "4"
-        run: ./scripts/build.sh
+        run: ./Scripts/build.sh
 
       - name: Verify application bundle
         run: |
           set -euo pipefail
           codesign --verify --strict .build/vphone-cli.app
           test -x .build/vphone-cli.app/Contents/Resources/guest/vphoned
-          zsh scripts/check_aux.sh
+          zsh Scripts/check_aux.sh
 
       - name: Package app
         env:

@@ -17,16 +17,16 @@
 #                    /System/Library/SecurityResearch. It was also the last file
 #                    in the bundle linking /opt/homebrew's libcrypto.3.
 #
-# So: no Homebrew, no interpreter, no environment. `scripts/build.sh` builds the app.
+# So: no Homebrew, no interpreter, no environment. `Scripts/build.sh` builds the app.
 #
-# Run: zsh scripts/setup_tools.sh before the optional byte-parity test.
+# Run: zsh Scripts/setup_tools.sh before the optional byte-parity test.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TOOLS_PREFIX="${TOOLS_PREFIX:-$PROJECT_DIR/.tools}"
-REPOS_DIR="$SCRIPT_DIR/repos"
+REPOS_DIR="$SCRIPT_DIR/Repos"
 
 ensure_repo_submodule() {
     local rel_path="$1"
@@ -55,8 +55,8 @@ INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then
     echo "  Already built: $INSERT_DYLIB_BIN"
 else
-    INSERT_DYLIB_DIR="$REPOS_DIR/insert_dylib"
-    ensure_repo_submodule "scripts/repos/insert_dylib"
+    INSERT_DYLIB_DIR="$REPOS_DIR/InsertDylib"
+    ensure_repo_submodule "Scripts/Repos/InsertDylib"
     echo "  Building insert_dylib..."
     mkdir -p "$TOOLS_PREFIX/bin"
     clang -o "$INSERT_DYLIB_BIN" "$INSERT_DYLIB_DIR/insert_dylib/main.c" -framework Security -O2

@@ -28,8 +28,8 @@ Every script declares its tier on **line 2**:
 # vphone-tier: dist
 ```
 
-`scripts/dist_manifest.sh` reads those declarations and prints the dist
-payload. `scripts/build.sh` and `make bundle` both stage from it, so the
+`Scripts/dist_manifest.sh` reads those declarations and prints the dist
+payload. `Scripts/build.sh` and `make bundle` both stage from it, so the
 bundler is an **allowlist**. It used to be a list of exclusions, which is how
 the `.app` came to carry `build.sh`, `check_aux.sh` and `setup_tools.sh` — the
 last of which runs `brew install`. An undeclared script now ships nowhere and

@@ -172,7 +172,7 @@ strings. That process is `vphone-vm`.
 It launches perfectly. The AMFI probe therefore concludes nothing is wrong, the
 boot proceeds, and it fails much later trying to create a PV=3 machine — far
 from the cause. A bare `swift build -c release` leaves exactly that state
-behind, because only `make build` / `scripts/build.sh` sign. Both now verify
+behind, because only `make build` / `Scripts/build.sh` sign. Both now verify
 the entitlements actually landed and fail if they did not. This was found by
 walking into it.
 

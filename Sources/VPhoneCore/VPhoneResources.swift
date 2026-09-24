@@ -153,7 +153,7 @@ public struct VPhoneResources: Sendable {
     // was the dangerous one: a `PATH` fallback makes a missing environment look
     // like a working one, right up until a restore fails on a stranger's
     // machine. Nothing in this package may resolve an interpreter again — see
-    // the "Python" section in AGENTS.md, and `scripts/check_aux.sh`, which now
+    // the "Python" section in AGENTS.md, and `Scripts/check_aux.sh`, which now
     // fails outright on a python3 lookup instead of registering it.
 
     // With the interpreter went the last `PATH` lookup in this package. Every

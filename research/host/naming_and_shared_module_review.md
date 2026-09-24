@@ -73,6 +73,6 @@ dependencies remain owned by the packages that use them.
 ## Verification
 
 - `swift test --jobs 4`: 340 tests in 74 suites passed.
-- `zsh scripts/build.sh`: host binaries, signed app, and iOS guest built.
-- `zsh scripts/check_aux.sh`: all admission gates passed.
+- `zsh Scripts/build.sh`: host binaries, signed app, and iOS guest built.
+- `zsh Scripts/check_aux.sh`: all admission gates passed.
 - `vphone-cli --help`: public `vm`, `fw`, and `cfw` command names remain present.

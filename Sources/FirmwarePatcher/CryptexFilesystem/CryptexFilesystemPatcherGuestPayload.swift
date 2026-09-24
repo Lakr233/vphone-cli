@@ -97,7 +97,7 @@ extension CryptexFilesystemPatcher {
     /// sources shipped inside the .app — which meant installing CFW onto a VM
     /// required Xcode and the iPhoneOS SDK on a machine whose only job is to run
     /// that VM. vphoned is cross-compiled at build time now
-    /// (`scripts/build.sh`) and staged into the bundle.
+    /// (`Scripts/build.sh`) and staged into the bundle.
     func stageVphoned(to vphonedBin: URL) throws {
         let prebuilt = try VPhoneGuestBinaries.resolve("vphoned")
         try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)

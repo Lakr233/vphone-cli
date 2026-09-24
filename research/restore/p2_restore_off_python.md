@@ -279,7 +279,7 @@ Moving the restore backend into the package is what finally emptied `vendor/`.
 - **`vendor/` is gone.** Every one of the seven dependencies resolves by URL;
   `Package.resolved` pins fourteen once transitives are counted.
 - **Submodules went from 9 to 3**: `scripts/resources`,
-  `scripts/repos/trustcache`, `scripts/repos/insert_dylib`. The other six were
+  `scripts/repos/trustcache`, `Scripts/Repos/InsertDylib`. The other six were
   SwiftPM checkouts this repository pinned by commit, which meant a
   `git submodule update` before any build and a tree that could sit at an
   unreleased commit — MachOKit was four commits past 0.46.1, Dynamic two past

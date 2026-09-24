@@ -31,7 +31,7 @@ vphone-cli vm launch myphone
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh scripts/build.sh
+zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 

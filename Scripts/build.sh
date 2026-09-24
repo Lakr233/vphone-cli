@@ -9,7 +9,7 @@
 # resulting `vphone-cli` binary — this script is the only build entrypoint.
 #
 # Usage:
-#   ./scripts/build.sh              # build + sign + bundle + guest binaries
+#   ./Scripts/build.sh              # build + sign + bundle + guest binaries
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
@@ -139,11 +139,11 @@ IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)" \
   || { echo "Error: iPhoneOS SDK is required on the build machine" >&2; exit 1; }
 mkdir -p .build/guest
 echo "=== Building vphoned (arm64, iphoneos) ==="
-GIT_HASH="$GIT_HASH" swift build --package-path scripts/vphoned \
+GIT_HASH="$GIT_HASH" swift build --package-path Scripts/VPhoned \
   --scratch-path .build/vphoned-swiftpm --triple arm64-apple-ios15.0 \
   --sdk "$IOS_SDK" -c release --product vphoned \
   --jobs "${SWIFT_JOBS:-4}"
-GUEST_BIN_DIR="$(swift build --package-path scripts/vphoned \
+GUEST_BIN_DIR="$(swift build --package-path Scripts/VPhoned \
   --scratch-path .build/vphoned-swiftpm --triple arm64-apple-ios15.0 \
   --sdk "$IOS_SDK" -c release --show-bin-path)"
 cp -f "$GUEST_BIN_DIR/vphoned" .build/guest/vphoned
@@ -162,7 +162,7 @@ cp -f "$ICLI_BIN_DIR/icli" .build/guest/icli
 echo "=== Signing vphoned ==="
 cp .build/guest/vphoned .build/vphoned
 "$BINARY" sign \
-  --entitlements scripts/vphoned/entitlements.plist --merge \
+  --entitlements Scripts/VPhoned/entitlements.plist --merge \
   .build/vphoned
 cp .build/vphoned .build/vphoned.signed
 echo "  signed → .build/vphoned.signed"
@@ -204,8 +204,10 @@ mkdir -p "${RES}/scripts"
 # An ALLOWLIST, from each script's own `# vphone-tier:` line. This used to be a
 # list of exclusions, which meant anything new shipped by default — and so the
 # .app carried build.sh, check_aux.sh and setup_tools.sh, the last of which runs
-# `brew install`. See scripts/dist_manifest.sh for the three tiers.
-zsh scripts/dist_manifest.sh | rsync -a --files-from=- scripts/ "${RES}/scripts/"
+# `brew install`. See Scripts/dist_manifest.sh for the three tiers.
+zsh Scripts/dist_manifest.sh | sed '/^vphoned\//d' | rsync -a --files-from=- Scripts/ "${RES}/scripts/"
+mkdir -p "${RES}/scripts/vphoned"
+cp -f Scripts/VPhoned/vphoned.plist Scripts/VPhoned/entitlements.plist "${RES}/scripts/vphoned/"
 # Only vphoned and icli ship into the guest; old build outputs may still contain
 # binaries for the removed bootstrap and must not leak into the bundle.
 mkdir -p "${RES}/guest"

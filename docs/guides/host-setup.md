@@ -9,11 +9,11 @@ The VM needs an Apple Silicon Mac running macOS 15 or newer. PV=3 research guest
 A distributed `.app` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
 
 ```sh
-zsh scripts/build.sh
+zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-Use `scripts/build.sh` rather than bare `swift build`: the latter does not perform the required signing and bundling. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the bundled allowlist helper command.
+Use `Scripts/build.sh` rather than bare `swift build`: the latter does not perform the required signing and bundling. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the bundled allowlist helper command.
 
 ## Permit the entitled VM binary
 

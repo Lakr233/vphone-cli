@@ -333,7 +333,7 @@ __marimo__/
 /updates-cdn
 /research/jb_asm_refs
 /references/
-scripts/vphoned/vphoned
+Scripts/VPhoned/vphoned
 /cfw_input/
 Sources/VPhoneCore/VPhoneBuildInfo.swift
 # libarchive drops zero-byte tar.XXXXXXXX files in the process's working

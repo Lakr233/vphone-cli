@@ -416,7 +416,7 @@ and neither changing a byte:
 * The three idempotence divergences in the section above stand: the Swift
   recognises its own output where the Python double-applies or exits 1.
 
-**Not removed:** `scripts/repos/insert_dylib`. Nothing in the product runs it —
+**Not removed:** `Scripts/Repos/InsertDylib`. Nothing in the product runs it —
 `CFWInjectDylib` does the injection in process — but
 `CFWMachOTests.matchesInsertDylib` still runs the real binary as an independent
 byte-parity reference, gated on its presence. Deleting the submodule would turn
@@ -1119,7 +1119,7 @@ cache rebuild.
   - added still screenshot actions that can copy the captured image to the pasteboard or save a PNG to disk using the same private capture path.
   - `make build` is used as the sanity check path; live VM validation is still needed to confirm the exact screenshot object type returned on macOS 15.
 - 2026-03-15 tooling source sync update:
-  - removed ad-hoc `git clone` source fetching from `scripts/setup_tools.sh` and `scripts/setup_libimobiledevice.sh`.
+  - removed ad-hoc `git clone` source fetching from `Scripts/setup_tools.sh` and `scripts/setup_libimobiledevice.sh`.
   - added pinned git-submodule sources under `scripts/repos/` for: `trustcache`, `insert_dylib`, `libplist`, `libimobiledevice-glue`, `libusbmuxd`, `libtatsu`, `libimobiledevice`, `libirecovery`, `idevicerestore`.
   - setup scripts now initialize required submodules via `git submodule update --init --recursive <path>` and stage build copies under local tool build directories.
 - 2026-06-15 cloudOS 26.5 (23F77) JB retargeting — P0 (sudo/setuid):
