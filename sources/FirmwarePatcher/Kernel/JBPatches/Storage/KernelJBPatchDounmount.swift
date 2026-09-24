@@ -31,7 +31,7 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "jb.dounmount.nop_cleanup_bl",
             virtualAddress: fileOffsetToVA(patchOff),
-            description: "NOP [_dounmount upstream cleanup call]"
+            description: "NOP [_dounmount upstream cleanup call]",
         )
         return true
     }
@@ -73,7 +73,9 @@ extension KernelJBPatcher {
             hits.append(Int(i4.address))
         }
 
-        if hits.count == 1 { return hits[0] }
+        if hits.count == 1 {
+            return hits[0]
+        }
         return nil
     }
 

@@ -11,8 +11,13 @@ public struct VPhoneBundle: Sendable {
         self.manifest = manifest
     }
 
-    public var name: String { url.lastPathComponent }
-    public var configURL: URL { url.appendingPathComponent("config.plist") }
+    public var name: String {
+        url.lastPathComponent
+    }
+
+    public var configURL: URL {
+        url.appendingPathComponent("config.plist")
+    }
 
     public var diskSizeBytes: Int64 {
         let disk = url.appendingPathComponent(manifest.diskImage)
@@ -22,7 +27,8 @@ public struct VPhoneBundle: Sendable {
 
     public static func load(at url: URL) throws -> VPhoneBundle {
         let manifest = try VPhoneVirtualMachineManifest.load(
-            from: url.appendingPathComponent("config.plist"))
+            from: url.appendingPathComponent("config.plist"),
+        )
         return VPhoneBundle(url: url, manifest: manifest)
     }
 }

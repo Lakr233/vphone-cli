@@ -18,7 +18,7 @@ extension Data {
             return nil
         }
 
-        let chars = hex.map { $0 }
+        let chars = hex.map(\.self)
         let bytes = stride(from: 0, to: chars.count, by: 2)
             .map { String(chars[$0]) + String(chars[$0 + 1]) }
             .compactMap { UInt8($0, radix: 16) }
@@ -34,7 +34,8 @@ extension CryptexFilesystemPatcher {
             let key = String(key.dropFirst(4))
             if let unwrapped = Data(fromHexString: key),
                let encoded = String(data: unwrapped, encoding: .utf8),
-               let data = Data(fromHexString: encoded) {
+               let data = Data(fromHexString: encoded)
+            {
                 return "base64:\(data.base64EncodedString())"
             }
             return key

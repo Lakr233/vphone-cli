@@ -112,5 +112,7 @@ extension VPhoneRestoreBackendError: CustomStringConvertible {
 // MARK: - LocalizedError
 
 extension VPhoneRestoreBackendError: LocalizedError {
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

@@ -4,10 +4,10 @@
 /// `vm launch` always streams it, `vm create` never does — neither depends
 /// on the verbosity level.
 public enum VPhoneVerbosity: Int, Comparable, Sendable {
-    case quiet = 0    // tool banners + [*]/[+] markers only
-    case info = 1     // + wrapped-subprocess stdout + pmd3 restore log (INFO, colorful)
-    case debug = 2    // + pmd3 DEBUG logs (deeper restore detail)
-    case trace = 3    // + vphone-cli internal trace (spawned argv/env, managed-process events)
+    case quiet = 0 // tool banners + [*]/[+] markers only
+    case info = 1 // + wrapped-subprocess stdout + pmd3 restore log (INFO, colorful)
+    case debug = 2 // + pmd3 DEBUG logs (deeper restore detail)
+    case trace = 3 // + vphone-cli internal trace (spawned argv/env, managed-process events)
 
     public static func < (lhs: VPhoneVerbosity, rhs: VPhoneVerbosity) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -18,6 +18,11 @@ public enum VPhoneVerbosity: Int, Comparable, Sendable {
         self = VPhoneVerbosity(rawValue: min(max(count, 0), 3)) ?? .trace
     }
 
-    public var showsToolDetail: Bool { self >= .info }
-    public var tracesInternals: Bool { self >= .trace }
+    public var showsToolDetail: Bool {
+        self >= .info
+    }
+
+    public var tracesInternals: Bool {
+        self >= .trace
+    }
 }

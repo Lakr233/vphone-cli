@@ -53,13 +53,17 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         window?.makeFirstResponder(self)
         let localPoint = convert(event.locationInWindow, from: nil)
         currentTouchSwipeAim = hitTestEdge(at: localPoint)
-        if sendTouchEvent(phase: 0, localPoint: localPoint, timestamp: event.timestamp) { return }
+        if sendTouchEvent(phase: 0, localPoint: localPoint, timestamp: event.timestamp) {
+            return
+        }
         super.mouseDown(with: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
         let localPoint = convert(event.locationInWindow, from: nil)
-        if sendTouchEvent(phase: 1, localPoint: localPoint, timestamp: event.timestamp) { return }
+        if sendTouchEvent(phase: 1, localPoint: localPoint, timestamp: event.timestamp) {
+            return
+        }
         super.mouseDragged(with: event)
     }
 
@@ -119,9 +123,9 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                     title: "Install App Package",
                     message: VPhoneInstallPackage.successMessage(
                         for: url.lastPathComponent,
-                        detail: result
+                        detail: result,
                     ),
-                    style: .informational
+                    style: .informational,
                 )
             } catch {
                 showAlert(title: "Install App Package", message: "\(error)", style: .warning)
@@ -136,7 +140,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         ]
         guard let urls = sender.draggingPasteboard.readObjects(
             forClasses: [NSURL.self],
-            options: options
+            options: options,
         ) as? [URL] else {
             return nil
         }
@@ -186,7 +190,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             context: nil,
             eventNumber: 0,
             clickCount: type == .leftMouseUp ? 0 : 1,
-            pressure: type == .leftMouseUp ? 0.0 : 1.0
+            pressure: type == .leftMouseUp ? 0.0 : 1.0,
         )
     }
 
@@ -196,7 +200,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             pixelX: pixelX,
             pixelY: pixelY,
             screenWidth: screenWidth,
-            screenHeight: screenHeight
+            screenHeight: screenHeight,
         )
         let windowPoint = convert(localPoint, to: nil)
 
@@ -205,8 +209,8 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
             guard let self else { return }
-            if let upEvent = self.synthesizeMouseEvent(type: .leftMouseUp, at: windowPoint) {
-                self.mouseUp(with: upEvent)
+            if let upEvent = synthesizeMouseEvent(type: .leftMouseUp, at: windowPoint) {
+                mouseUp(with: upEvent)
             }
         }
     }
@@ -219,13 +223,13 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         toY: Double,
         screenWidth: Int,
         screenHeight: Int,
-        durationMs: Int = 300
+        durationMs: Int = 300,
     ) {
         let startLocal = pixelToLocal(
             pixelX: fromX,
             pixelY: fromY,
             screenWidth: screenWidth,
-            screenHeight: screenHeight
+            screenHeight: screenHeight,
         )
         let endLocal = pixelToLocal(pixelX: toX, pixelY: toY, screenWidth: screenWidth, screenHeight: screenHeight)
         let startWindow = convert(startLocal, to: nil)
@@ -238,7 +242,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             mouseDown(with: downEvent)
         }
 
-        for i in 1...steps {
+        for i in 1 ... steps {
             let t = Double(i) / Double(steps)
             let x = startWindow.x + (endWindow.x - startWindow.x) * t
             let y = startWindow.y + (endWindow.y - startWindow.y) * t
@@ -248,15 +252,15 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             if i < steps {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self else { return }
-                    if let dragEvent = self.synthesizeMouseEvent(type: .leftMouseDragged, at: pt) {
-                        self.mouseDragged(with: dragEvent)
+                    if let dragEvent = synthesizeMouseEvent(type: .leftMouseDragged, at: pt) {
+                        mouseDragged(with: dragEvent)
                     }
                 }
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self else { return }
-                    if let upEvent = self.synthesizeMouseEvent(type: .leftMouseUp, at: pt) {
-                        self.mouseUp(with: upEvent)
+                    if let upEvent = synthesizeMouseEvent(type: .leftMouseUp, at: pt) {
+                        mouseUp(with: upEvent)
                     }
                 }
             }
@@ -287,7 +291,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             phase: phase,
             location: normalizedPoint,
             swipeAim: currentTouchSwipeAim,
-            timestamp: timestamp
+            timestamp: timestamp,
         )
 
         guard let touchObj = touch.asObject else {

@@ -134,7 +134,7 @@ public enum CFWInjectDylib {
         into url: URL,
         weak: Bool = true,
         policy: CodeSignaturePolicy = .strip,
-        allowNonEmptyPadding: Bool = false
+        allowNonEmptyPadding: Bool = false,
     ) throws -> [CFWDylibInjection] {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -145,7 +145,7 @@ public enum CFWInjectDylib {
             into: &data,
             weak: weak,
             policy: policy,
-            allowNonEmptyPadding: allowNonEmptyPadding
+            allowNonEmptyPadding: allowNonEmptyPadding,
         )
         try data.write(to: url)
         return injections
@@ -158,16 +158,18 @@ public enum CFWInjectDylib {
         into data: inout Data,
         weak: Bool = true,
         policy: CodeSignaturePolicy = .strip,
-        allowNonEmptyPadding: Bool = false
+        allowNonEmptyPadding: Bool = false,
     ) throws -> [CFWDylibInjection] {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
         guard data.holds(0, 4) else { throw PatcherError.invalidFormat("file is too small to be a Mach-O") }
 
         let options = Options(
             dylibPath: dylibPath,
             weak: weak,
             policy: policy,
-            allowNonEmptyPadding: allowNonEmptyPadding
+            allowNonEmptyPadding: allowNonEmptyPadding,
         )
         switch data.loadBEValue(UInt32.self, at: 0) {
         case fatMagic:
@@ -181,9 +183,11 @@ public enum CFWInjectDylib {
                 into: &data,
                 headerOffset: 0,
                 sliceSize: &sliceSize,
-                options: options
+                options: options,
             )
-            if sliceSize < data.count { data = data.prefix(sliceSize) }
+            if sliceSize < data.count {
+                data = data.prefix(sliceSize)
+            }
             return [injection]
         }
     }
@@ -230,17 +234,17 @@ public enum CFWInjectDylib {
                 // Zero whatever the move left behind, so the gap is not stale code.
                 data.zeroBytes(
                     at: Swift.min(cursor, originalOffset) + originalSize,
-                    count: abs(cursor - originalOffset)
+                    count: abs(cursor - originalOffset),
                 )
                 data.storeBE(UInt32(cursor), at: entry + 8)
             }
 
             var sliceSize = originalSize
-            injections.append(try injectSlice(
+            try injections.append(injectSlice(
                 into: &data,
                 headerOffset: cursor,
                 sliceSize: &sliceSize,
-                options: options
+                options: options,
             ))
 
             if sliceSize < originalSize, index < archCount - 1 {
@@ -251,7 +255,9 @@ public enum CFWInjectDylib {
             data.storeBE(UInt32(sliceSize), at: entry + 12)
         }
 
-        if fileSize < data.count { data = data.prefix(fileSize) }
+        if fileSize < data.count {
+            data = data.prefix(fileSize)
+        }
         return injections
     }
 
@@ -261,7 +267,7 @@ public enum CFWInjectDylib {
         into data: inout Data,
         headerOffset: Int,
         sliceSize: inout Int,
-        options: Options
+        options: Options,
     ) throws -> CFWDylibInjection {
         guard data.holds(headerOffset, machHeader64Size) else {
             throw PatcherError.invalidFormat("Mach-O header at 0x\(String(headerOffset, radix: 16)) is truncated")
@@ -284,7 +290,7 @@ public enum CFWInjectDylib {
             in: data,
             headerOffset: headerOffset,
             commandsOffset: commandsOffset,
-            ncmds: Int(ncmds)
+            ncmds: Int(ncmds),
         )
 
         var removedCodeSignature = false
@@ -294,7 +300,7 @@ public enum CFWInjectDylib {
                 headerOffset: headerOffset,
                 sliceSize: &sliceSize,
                 signature: signature,
-                layout: layout
+                layout: layout,
             )
             ncmds -= 1
             sizeofcmds -= signature.commandSize
@@ -310,7 +316,7 @@ public enum CFWInjectDylib {
 
         guard data.holds(commandOffset, commandSize), commandOffset + commandSize <= headerOffset + sliceSize else {
             throw PatcherError.invalidFormat(
-                "no room for a \(commandSize)-byte load command at 0x\(String(commandOffset, radix: 16))"
+                "no room for a \(commandSize)-byte load command at 0x\(String(commandOffset, radix: 16))",
             )
         }
         if !options.allowNonEmptyPadding, data[commandOffset ..< commandOffset + commandSize].contains(where: { $0 != 0 }) {
@@ -319,7 +325,7 @@ public enum CFWInjectDylib {
             // the first section, and clobbering them is silent.
             throw PatcherError.invalidFormat(
                 "load-command padding at 0x\(String(commandOffset, radix: 16)) is not empty; "
-                    + "inserting would overwrite \(commandSize) bytes of the first section"
+                    + "inserting would overwrite \(commandSize) bytes of the first section",
             )
         }
 
@@ -350,7 +356,7 @@ public enum CFWInjectDylib {
                 touched: [
                     (headerOffset + 16) ..< (headerOffset + 24),
                     commandOffset ..< commandOffset + commandSize,
-                ]
+                ],
             )
         }
 
@@ -363,7 +369,7 @@ public enum CFWInjectDylib {
             loadCommandSize: commandSize,
             isWeak: options.weak,
             removedCodeSignature: removedCodeSignature,
-            rehashedSlots: rehashed
+            rehashedSlots: rehashed,
         )
     }
 
@@ -389,9 +395,9 @@ public enum CFWInjectDylib {
 
     static func scanLoadCommands(
         in data: Data,
-        headerOffset: Int,
+        headerOffset _: Int,
         commandsOffset: Int,
-        ncmds: Int
+        ncmds: Int,
     ) throws -> SliceLayout {
         var layout = SliceLayout()
         var offset = commandsOffset
@@ -414,7 +420,7 @@ public enum CFWInjectDylib {
                     commandOffset: offset,
                     commandSize: cmdsize,
                     dataOffset: Int(data.loadLEValue(UInt32.self, at: offset + 8)),
-                    dataSize: Int(data.loadLEValue(UInt32.self, at: offset + 12))
+                    dataSize: Int(data.loadLEValue(UInt32.self, at: offset + 12)),
                 )
                 layout.codeSignatureIsLast = index == ncmds - 1
             case lcSegment64:
@@ -460,7 +466,7 @@ public enum CFWInjectDylib {
         headerOffset: Int,
         sliceSize: inout Int,
         signature: CodeSignatureCommand,
-        layout: SliceLayout
+        layout: SliceLayout,
     ) throws {
         data.zeroBytes(at: signature.commandOffset, count: signature.commandSize)
 
@@ -506,7 +512,7 @@ public enum CFWInjectDylib {
         in data: inout Data,
         headerOffset: Int,
         sliceSize: Int,
-        touched: [Range<Int>]
+        touched: [Range<Int>],
     ) throws -> [CFWSlotRehash] {
         var slice = Data(data[headerOffset ..< headerOffset + sliceSize])
         let offsets = touched.flatMap { range in range.map { $0 - headerOffset } }

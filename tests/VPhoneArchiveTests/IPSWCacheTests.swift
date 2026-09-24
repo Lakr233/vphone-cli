@@ -6,13 +6,18 @@ private final class IPSWStubProtocol: URLProtocol {
     nonisolated(unsafe) static var payload = Data()
     nonisolated(unsafe) static var status = 200
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         let response = HTTPURLResponse(
             url: request.url!, statusCode: Self.status, httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Length": String(Self.payload.count)]
+            headerFields: ["Content-Length": String(Self.payload.count)],
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.payload)
@@ -31,7 +36,7 @@ struct IPSWCacheTests {
             "ProductVersion": "26.6.2", "ProductBuildVersion": "23G90",
         ]
         let data = try PropertyListSerialization.data(
-            fromPropertyList: manifest, format: .xml, options: 0
+            fromPropertyList: manifest, format: .xml, options: 0,
         )
         try data.write(to: files.appendingPathComponent("BuildManifest.plist"))
         let archive = root.appendingPathComponent("input.ipsw")
@@ -39,13 +44,13 @@ struct IPSWCacheTests {
         return archive
     }
 
-    @Test func localSourceReadsManifestWithoutCopying() async throws {
+    @Test func `local source reads manifest without copying`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let source = try fixture(in: root)
         let result = try await VPhoneIPSWCache.resolve(
-            source.path, in: root.appendingPathComponent("cache")
+            source.path, in: root.appendingPathComponent("cache"),
         )
         #expect(result.file == source)
         #expect(result.version == "26.6.2")
@@ -53,7 +58,7 @@ struct IPSWCacheTests {
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("cache").path))
     }
 
-    @Test func downloadReplacesInvalidCacheOnlyAfterValidation() async throws {
+    @Test func `download replaces invalid cache only after validation`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -65,14 +70,14 @@ struct IPSWCacheTests {
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
 
-        let url = URL(string: "https://example.invalid/input.ipsw")!
+        let url = try #require(URL(string: "https://example.invalid/input.ipsw"))
         let cacheDir = root.appendingPathComponent("cache")
         try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
         let cached = cacheDir.appendingPathComponent(VPhoneIPSWCache.cacheName(for: url))
         try Data("damaged".utf8).write(to: cached)
 
         let result = try await VPhoneIPSWCache.resolve(
-            url.absoluteString, in: cacheDir, session: session
+            url.absoluteString, in: cacheDir, session: session,
         )
         #expect(result.file == cached)
         #expect(result.build == "23G90")
@@ -80,12 +85,12 @@ struct IPSWCacheTests {
 
         IPSWStubProtocol.status = 503
         let reused = try await VPhoneIPSWCache.resolve(
-            url.absoluteString, in: cacheDir, session: session
+            url.absoluteString, in: cacheDir, session: session,
         )
         #expect(reused.file == cached)
     }
 
-    @Test func failedDownloadLeavesNoReusableCache() async throws {
+    @Test func `failed download leaves no reusable cache`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -96,13 +101,13 @@ struct IPSWCacheTests {
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
 
-        let url = URL(string: "https://example.invalid/input.ipsw")!
+        let url = try #require(URL(string: "https://example.invalid/input.ipsw"))
         let cacheDir = root.appendingPathComponent("cache")
         await #expect(throws: VPhoneIPSWCache.Error.self) {
             try await VPhoneIPSWCache.resolve(url.absoluteString, in: cacheDir, session: session)
         }
         #expect(!FileManager.default.fileExists(
-            atPath: cacheDir.appendingPathComponent(VPhoneIPSWCache.cacheName(for: url)).path
+            atPath: cacheDir.appendingPathComponent(VPhoneIPSWCache.cacheName(for: url)).path,
         ))
     }
 }

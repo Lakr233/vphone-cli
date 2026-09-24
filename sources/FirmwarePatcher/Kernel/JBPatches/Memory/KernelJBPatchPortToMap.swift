@@ -55,7 +55,7 @@ extension KernelJBPatcher {
                     bBytes,
                     patchID: "jb.port_to_map.skip_panic",
                     virtualAddress: fileOffsetToVA(back + 4),
-                    description: "b 0x\(String(format: "%X", branchTarget)) [_convert_port_to_map skip panic]"
+                    description: "b 0x\(String(format: "%X", branchTarget)) [_convert_port_to_map skip panic]",
                 )
                 return true
             }

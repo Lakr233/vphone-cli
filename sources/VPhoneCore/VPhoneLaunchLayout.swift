@@ -5,10 +5,17 @@ import Foundation
 public struct VPhoneLaunchLayout: Sendable {
     public let resources: VPhoneResources
 
-    public init(resources: VPhoneResources) { self.resources = resources }
-    public init(projectRoot: URL) { self.init(resources: VPhoneResources(base: projectRoot)) }
+    public init(resources: VPhoneResources) {
+        self.resources = resources
+    }
 
-    public var vphoned: URL { resources.vphoned }
+    public init(projectRoot: URL) {
+        self.init(resources: VPhoneResources(base: projectRoot))
+    }
+
+    public var vphoned: URL {
+        resources.vphoned
+    }
 
     /// Copy the built vphoned into the bundle if present and different.
     @discardableResult
@@ -20,10 +27,13 @@ public struct VPhoneLaunchLayout: Sendable {
         let dst = bundle.url.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: dst.path),
            let a = try? Data(contentsOf: vphoned, options: .mappedIfSafe),
-           let b = try? Data(contentsOf: dst, options: .mappedIfSafe), a == b {
+           let b = try? Data(contentsOf: dst, options: .mappedIfSafe), a == b
+        {
             return false
         }
-        if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+        if fm.fileExists(atPath: dst.path) {
+            try fm.removeItem(at: dst)
+        }
         try fm.copyItem(at: vphoned, to: dst)
         return true
     }

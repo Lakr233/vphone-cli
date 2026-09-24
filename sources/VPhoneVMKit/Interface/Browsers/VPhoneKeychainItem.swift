@@ -38,7 +38,9 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
     }
 
     var displayValue: String {
-        if value.isEmpty { return "-" }
+        if value.isEmpty {
+            return "-"
+        }
         if valueEncoding == "base64" {
             return "[\(ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file)) binary]"
         }
@@ -46,10 +48,18 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
     }
 
     var displayName: String {
-        if !label.isEmpty { return label }
-        if !account.isEmpty { return account }
-        if !service.isEmpty { return service }
-        if !server.isEmpty { return server }
+        if !label.isEmpty {
+            return label
+        }
+        if !account.isEmpty {
+            return account
+        }
+        if !service.isEmpty {
+            return service
+        }
+        if !server.isEmpty {
+            return server
+        }
         return "(unnamed)"
     }
 

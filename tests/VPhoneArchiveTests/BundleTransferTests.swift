@@ -32,7 +32,7 @@ struct BundleTransferTests {
     private func makeBundle(
         _ name: String,
         cpuCount: UInt = 2,
-        in library: VPhoneLibrary
+        in library: VPhoneLibrary,
     ) throws -> VPhoneBundle {
         let rom = try fakeROM(); let seprom = try fakeROM()
         defer {
@@ -46,9 +46,9 @@ struct BundleTransferTests {
                 memoryMB: 2048,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: library
+            in: library,
         )
     }
 
@@ -58,7 +58,7 @@ struct BundleTransferTests {
 
     // MARK: - Round trip
 
-    @Test func exportThenImportRoundTrips() throws {
+    @Test func `export then import round trips`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -79,7 +79,7 @@ struct BundleTransferTests {
         #expect(try lib2.bundle(named: "copy").manifest.cpuCount == 8)
     }
 
-    @Test func importRejectsExistingName() throws {
+    @Test func `import rejects existing name`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -92,7 +92,7 @@ struct BundleTransferTests {
         }
     }
 
-    @Test func importWithRenameDoesNotClobberArchivedNameCollision() throws {
+    @Test func `import with rename does not clobber archived name collision`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -110,12 +110,12 @@ struct BundleTransferTests {
         let imported = try VPhoneBundleTransfer.importArchive(from: archive, name: "renamed", in: lib)
         #expect(imported.name == "renamed")
         #expect(imported.manifest.cpuCount == 4)
-        #expect(try lib.bundle(named: "orig").manifest.cpuCount == 16)  // untouched
+        #expect(try lib.bundle(named: "orig").manifest.cpuCount == 16) // untouched
     }
 
     // MARK: - Exclusions
 
-    @Test func exportExcludesRestoreDirByDefault() throws {
+    @Test func `export excludes restore dir by default`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -130,7 +130,7 @@ struct BundleTransferTests {
         #expect(!members.contains { $0.contains("iPhone_Restore") })
     }
 
-    @Test func exportIncludesRestoreDirWhenAsked() throws {
+    @Test func `export includes restore dir when asked`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -145,7 +145,7 @@ struct BundleTransferTests {
         #expect(members.contains("orig/iPhone_Restore/marker"))
     }
 
-    @Test func exportExcludesRegenerableStagingFiles() throws {
+    @Test func `export excludes regenerable staging files`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -173,7 +173,7 @@ struct BundleTransferTests {
 
     // MARK: - Malformed input
 
-    @Test func importRejectsMultiTopLevelArchive() throws {
+    @Test func `import rejects multi top level archive`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         // An archive with TWO top-level dirs is not a single bundle → badArchive.
@@ -187,11 +187,12 @@ struct BundleTransferTests {
 
         #expect(throws: VPhoneBundleTransferError.self) {
             _ = try VPhoneBundleTransfer.importArchive(
-                from: archive, name: nil, in: VPhoneLibrary(root: root.appendingPathComponent("library")))
+                from: archive, name: nil, in: VPhoneLibrary(root: root.appendingPathComponent("library")),
+            )
         }
     }
 
-    @Test func importRejectsInvalidManifestWithoutReservingName() throws {
+    @Test func `import rejects invalid manifest without reserving name`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let fm = FileManager.default
@@ -205,7 +206,8 @@ struct BundleTransferTests {
         func pack() throws {
             try? fm.removeItem(at: archive)
             try VPhoneArchiveWriter.create(
-                archive: archive, from: bundleDir, topLevel: "original", compression: .gzip(level: 1))
+                archive: archive, from: bundleDir, topLevel: "original", compression: .gzip(level: 1),
+            )
         }
         try pack()
         #expect(throws: VPhoneManifestError.self) {
@@ -215,7 +217,8 @@ struct BundleTransferTests {
         #expect(try fm.contentsOfDirectory(atPath: lib.root.path).isEmpty)
 
         let manifest = VPhoneVirtualMachineManifest(
-            cpuCount: 2, memorySize: 2048 * 1024 * 1024, romImages: nil)
+            cpuCount: 2, memorySize: 2048 * 1024 * 1024, romImages: nil,
+        )
         try manifest.write(to: config)
         try pack()
         let imported = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib)
@@ -229,7 +232,7 @@ struct BundleTransferTests {
     private static let xzMagic: [UInt8] = [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]
 
     private func magic(_ url: URL, _ n: Int) throws -> [UInt8] {
-        Array(try Data(contentsOf: url).prefix(n))
+        try Array(Data(contentsOf: url).prefix(n))
     }
 
     /// Takes a body rather than returning the pair, because it makes two
@@ -244,7 +247,7 @@ struct BundleTransferTests {
     /// was the one place that could not.
     private func withExportAndImport(
         _ compression: VPhoneBundleTransfer.ExportCompression?,
-        _ body: (_ archive: URL, _ imported: VPhoneBundle) throws -> Void
+        _ body: (_ archive: URL, _ imported: VPhoneBundle) throws -> Void,
     ) throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -257,7 +260,7 @@ struct BundleTransferTests {
                 to: archive,
                 includeIPSW: false,
                 compression: compression,
-                in: lib
+                in: lib,
             )
         } else {
             try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib)
@@ -265,14 +268,15 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         let imported = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot))
+            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot),
+        )
         try body(archive, imported)
     }
 
-    // The `try` is hoisted out of `#expect` in these three: inside a throwing
-    // closure the macro's expansion does not carry the throw out, so
-    // `#expect(try magic(...))` is "errors thrown from here are not handled".
-    @Test func exportDefaultsToFastZstd() throws {
+    /// The `try` is hoisted out of `#expect` in these three: inside a throwing
+    /// closure the macro's expansion does not carry the throw out, so
+    /// `#expect(try magic(...))` is "errors thrown from here are not handled".
+    @Test func `export defaults to fast zstd`() throws {
         try withExportAndImport(nil) { archive, imported in
             let magic = try magic(archive, 4)
             #expect(magic == Self.zstdMagic)
@@ -280,7 +284,7 @@ struct BundleTransferTests {
         }
     }
 
-    @Test func exportFastProducesZstdAndRoundTrips() throws {
+    @Test func `export fast produces zstd and round trips`() throws {
         try withExportAndImport(.fast) { archive, imported in
             let magic = try magic(archive, 4)
             #expect(magic == Self.zstdMagic)
@@ -288,7 +292,7 @@ struct BundleTransferTests {
         }
     }
 
-    @Test func exportMaxProducesXzAndRoundTrips() throws {
+    @Test func `export max produces xz and round trips`() throws {
         try withExportAndImport(.max) { archive, imported in
             let magic = try magic(archive, 6)
             #expect(magic == Self.xzMagic)
@@ -299,14 +303,14 @@ struct BundleTransferTests {
     /// Replaces the old `compressionPresetTarArgs`, which pinned the same
     /// contract as `tar` flag strings. The levels are not tuning: `.tzst` and
     /// `.txz` files produced at these settings are already in circulation.
-    @Test func compressionPresetsPinLevelsAndExtensions() {
+    @Test func `compression presets pin levels and extensions`() {
         #expect(VPhoneBundleTransfer.ExportCompression.fast.archiveCompression == .zstd(level: 3))
         #expect(VPhoneBundleTransfer.ExportCompression.max.archiveCompression == .xz(level: 9))
         #expect(VPhoneBundleTransfer.ExportCompression.fast.fileExtension == "tzst")
         #expect(VPhoneBundleTransfer.ExportCompression.max.fileExtension == "txz")
     }
 
-    @Test func exportToDirectoryAutoNamesWithExtension() throws {
+    @Test func `export to directory auto names with extension`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -318,7 +322,7 @@ struct BundleTransferTests {
             bundleNamed: "orig",
             to: outDir,
             includeIPSW: false,
-            in: lib
+            in: lib,
         )
         #expect(zstdOut == outDir.appendingPathComponent("orig.tzst"))
         #expect(FileManager.default.fileExists(atPath: zstdOut.path))
@@ -327,7 +331,7 @@ struct BundleTransferTests {
             to: outDir,
             includeIPSW: false,
             compression: .max,
-            in: lib
+            in: lib,
         )
         #expect(xzOut == outDir.appendingPathComponent("orig.txz"))
         #expect(FileManager.default.fileExists(atPath: xzOut.path))
@@ -335,11 +339,13 @@ struct BundleTransferTests {
 
     // MARK: - Progress
 
-    @Test func exportAndImportReportProgress() throws {
+    @Test func `export and import report progress`() throws {
         final class Collector {
             private(set) var dones: [Int64] = []
             private(set) var total: Int64 = 0
-            func add(_ done: Int64, _ total: Int64) { dones.append(done); self.total = total }
+            func add(_ done: Int64, _ total: Int64) {
+                dones.append(done); self.total = total
+            }
         }
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -352,9 +358,9 @@ struct BundleTransferTests {
             exp.add($0, $1)
         }
         #expect(!exp.dones.isEmpty)
-        #expect(exp.total > 0)                                   // bundle logical size
-        #expect(exp.dones.last! > 0)
-        #expect(exp.dones == exp.dones.sorted())                 // monotonically non-decreasing
+        #expect(exp.total > 0) // bundle logical size
+        #expect(try #require(exp.dones.last) > 0)
+        #expect(exp.dones == exp.dones.sorted()) // monotonically non-decreasing
         // A bar that only moved once per member would sit at zero for the whole
         // export: Disk.img is one entry and everything else is tiny.
         #expect(exp.dones.count > 1)
@@ -363,14 +369,15 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         _ = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot)) {
+            from: archive, name: "copy", in: VPhoneLibrary(root: dstRoot),
+        ) {
             imp.add($0, $1)
         }
         let archiveSize = try Data(contentsOf: archive).count
         #expect(!imp.dones.isEmpty)
-        #expect(imp.total == Int64(archiveSize))                 // total == compressed file size
+        #expect(imp.total == Int64(archiveSize)) // total == compressed file size
         #expect(imp.dones == imp.dones.sorted())
-        #expect(imp.dones.last! == Int64(archiveSize))           // whole archive accounted for
+        #expect(imp.dones.last == Int64(archiveSize)) // whole archive accounted for
 
         // That last one cannot fail on its own: `importArchive` reports
         // `(total, total)` unconditionally once extraction returns, precisely
@@ -389,7 +396,7 @@ struct BundleTransferTests {
     /// many names it has — the writer's link resolver turns the later names
     /// into size-0 references. Counting each name's size instead put the total
     /// permanently above the packed bytes, so the bar could not reach 100%.
-    @Test func exportProgressTotalCountsAHardlinkedFileOnce() throws {
+    @Test func `export progress total counts A hardlinked file once`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -401,13 +408,16 @@ struct BundleTransferTests {
         try Data(repeating: 0x7A, count: 100 * 1024).write(to: payload)
         for alias in ["linked_b.bin", "linked_c.bin"] {
             try FileManager.default.linkItem(
-                at: payload, to: bundle.url.appendingPathComponent(alias))
+                at: payload, to: bundle.url.appendingPathComponent(alias),
+            )
         }
 
         final class Collector {
             private(set) var done: Int64 = 0
             private(set) var total: Int64 = 0
-            func add(_ done: Int64, _ total: Int64) { self.done = done; self.total = total }
+            func add(_ done: Int64, _ total: Int64) {
+                self.done = done; self.total = total
+            }
         }
         let progress = Collector()
         let archive = root.appendingPathComponent("orig.tzst")
@@ -430,7 +440,7 @@ struct BundleTransferTests {
     /// an entry for that directory itself — what `tar -C <library> <name>`
     /// produced. `importArchive` requires it, and so does every archive already
     /// written by an older copy of this program.
-    @Test func exportCarriesOneTopLevelBundleDirectory() throws {
+    @Test func `export carries one top level bundle directory`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -452,9 +462,9 @@ struct BundleTransferTests {
     ///
     /// gzip rather than zstd only so the check does not need a `zstd(1)` on
     /// PATH — which is the whole point of the migration. The compressor is
-    /// detected either way; `research/archive_extraction_contracts.md` records
+    /// detected either way; `research/host/archive_extraction_contracts.md` records
     /// the .tzst and .txz runs.
-    @Test func importReadsArchiveWrittenByTheOldTarPipeline() throws {
+    @Test func `import reads archive written by the old tar pipeline`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -471,7 +481,8 @@ struct BundleTransferTests {
         let dstRoot = try makeRoot()
         defer { try? FileManager.default.removeItem(at: dstRoot) }
         let imported = try VPhoneBundleTransfer.importArchive(
-            from: archive, name: "fromlegacy", in: VPhoneLibrary(root: dstRoot))
+            from: archive, name: "fromlegacy", in: VPhoneLibrary(root: dstRoot),
+        )
         #expect(imported.name == "fromlegacy")
         #expect(imported.manifest.cpuCount == 6)
         #expect(FileManager.default.fileExists(atPath: imported.url.appendingPathComponent("Disk.img").path))
@@ -480,7 +491,7 @@ struct BundleTransferTests {
     /// And the other direction: what this writes is an ordinary tar. Checked
     /// after `decompress`, so the check does not need a `zstd(1)` either; the
     /// zstd stream itself is pinned by the magic-byte tests above.
-    @Test func systemTarReadsWhatExportWrites() throws {
+    @Test func `system tar reads what export writes`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)

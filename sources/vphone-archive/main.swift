@@ -26,7 +26,7 @@ struct VPhoneArchiveCLI: ParsableCommand {
             Extract.self, Create.self, Decompress.self,
             List.self, Cat.self, Fingerprint.self,
         ],
-        defaultSubcommand: Extract.self
+        defaultSubcommand: Extract.self,
     )
 }
 
@@ -35,7 +35,7 @@ struct VPhoneArchiveCLI: ParsableCommand {
 struct Extract: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "extract",
-        abstract: "Unpack an archive into a directory"
+        abstract: "Unpack an archive into a directory",
     )
 
     @Option(name: [.customShort("f"), .long], help: "Archive to read",
@@ -44,7 +44,7 @@ struct Extract: ParsableCommand {
 
     @Option(name: [.customShort("C"), .customLong("directory")],
             help: "Where to unpack it", transform: URL.init(fileURLWithPath:))
-    var destination: URL = URL(fileURLWithPath: ".")
+    var destination: URL = .init(fileURLWithPath: ".")
 
     @Flag(name: [.customShort("p"), .customLong("preserve-permissions")],
           help: "Restore modes, and — as root — the archive's numeric uid/gid")
@@ -74,9 +74,11 @@ struct Extract: ParsableCommand {
 
         let written = try VPhoneArchiveExtractor.extract(
             file, into: destination, options: options,
-            progress: verbose ? { print($0.currentPath) } : nil
+            progress: verbose ? { print($0.currentPath) } : nil,
         )
-        if !verbose { print("extracted \(written) entries to \(destination.path)") }
+        if !verbose {
+            print("extracted \(written) entries to \(destination.path)")
+        }
     }
 }
 
@@ -85,7 +87,7 @@ struct Extract: ParsableCommand {
 struct Create: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Pack a directory into an archive"
+        abstract: "Pack a directory into an archive",
     )
 
     @Option(name: [.customShort("f"), .long], help: "Archive to write",
@@ -94,7 +96,7 @@ struct Create: ParsableCommand {
 
     @Option(name: [.customShort("C"), .customLong("directory")],
             help: "Directory to pack", transform: URL.init(fileURLWithPath:))
-    var source: URL = URL(fileURLWithPath: ".")
+    var source: URL = .init(fileURLWithPath: ".")
 
     @Option(help: "tar dialect: gnutar, pax or ustar")
     var format: String = "gnutar"
@@ -115,10 +117,12 @@ struct Create: ParsableCommand {
     var verbose = false
 
     func validate() throws {
-        if zstd, xz { throw ValidationError("choose one of --zstd or --xz") }
+        if zstd, xz {
+            throw ValidationError("choose one of --zstd or --xz")
+        }
         guard VPhoneArchiveFormat(rawValue: format) != nil else {
             throw ValidationError(
-                "unknown format '\(format)' (gnutar, pax, ustar)"
+                "unknown format '\(format)' (gnutar, pax, ustar)",
             )
         }
     }
@@ -139,9 +143,11 @@ struct Create: ParsableCommand {
         let written = try VPhoneArchiveWriter.create(
             archive: file, from: source,
             format: tarFormat, compression: compression, excluding: exclude,
-            progress: verbose ? { print($0.currentPath) } : nil
+            progress: verbose ? { print($0.currentPath) } : nil,
         )
-        if !verbose { print("packed \(written) entries into \(file.path)") }
+        if !verbose {
+            print("packed \(written) entries into \(file.path)")
+        }
     }
 }
 
@@ -154,7 +160,7 @@ struct Decompress: ParsableCommand {
         discussion: """
         What `zstd -d -f x.tar.zst -o x.tar` does. The result is still a tar;
         use `extract` to unpack it.
-        """
+        """,
     )
 
     @Option(name: [.customShort("f"), .long], help: "File to decompress",
@@ -175,7 +181,7 @@ struct Decompress: ParsableCommand {
 
 struct List: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "list", abstract: "List an archive's members"
+        commandName: "list", abstract: "List an archive's members",
     )
 
     @Option(name: [.customShort("f"), .long], help: "Archive to read",
@@ -203,7 +209,7 @@ struct List: ParsableCommand {
 struct Cat: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cat",
-        abstract: "Write one member to stdout without unpacking the archive"
+        abstract: "Write one member to stdout without unpacking the archive",
     )
 
     @Option(name: [.customShort("f"), .long], help: "Archive to read",
@@ -234,7 +240,7 @@ struct Fingerprint: ParsableCommand {
 
         With one path, writes JSON. With two, prints the differences and exits
         non-zero if there are any.
-        """
+        """,
     )
 
     @Argument(help: "Tree to describe", transform: URL.init(fileURLWithPath:))
@@ -254,16 +260,18 @@ struct Fingerprint: ParsableCommand {
         guard let other else {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            print(String(decoding: try encoder.encode(first), as: UTF8.self))
+            try print(String(decoding: encoder.encode(first), as: UTF8.self))
             return
         }
 
         let second = try VPhoneTreeFingerprint.capture(
-            other, includeContentHashes: !noContentHashes
+            other, includeContentHashes: !noContentHashes,
         )
         let differences = first.differences(from: second)
         guard differences.isEmpty else {
-            for line in differences { print(line) }
+            for line in differences {
+                print(line)
+            }
             print("\n\(differences.count) difference(s)")
             throw ExitCode(1)
         }

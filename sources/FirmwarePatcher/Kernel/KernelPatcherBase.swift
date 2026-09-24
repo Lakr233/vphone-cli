@@ -79,7 +79,7 @@ open class KernelPatcherBase {
         _ patchBytes: Data,
         patchID: String,
         virtualAddress: UInt64? = nil,
-        description: String
+        description: String,
     ) {
         let originalBytes = buffer.readBytes(at: offset, count: patchBytes.count)
 
@@ -99,7 +99,7 @@ open class KernelPatcherBase {
             patchedBytes: patchBytes,
             beforeDisasm: beforeStr,
             afterDisasm: afterStr,
-            description: description
+            description: description,
         )
 
         patches.append(record)
@@ -273,7 +273,9 @@ open class KernelPatcherBase {
                                 let immhi = (adrpInsn >> 5) & 0x7FFFF
                                 let immlo = (adrpInsn >> 29) & 0x3
                                 var imm = Int((immhi << 2) | immlo)
-                                if imm & (1 << 20) != 0 { imm -= 1 << 21 }
+                                if imm & (1 << 20) != 0 {
+                                    imm -= 1 << 21
+                                }
                                 let pageDelta = imm << 12
                                 let pcPage = (back - 4) & ~0xFFF
                                 let strFoff = pcPage + pageDelta + addImm
@@ -292,11 +294,15 @@ open class KernelPatcherBase {
                     }
                     back -= 4
                 }
-                if confirmed >= 3 { break }
+                if confirmed >= 3 {
+                    break
+                }
             }
             if confirmed >= 3 {
                 panicOffset = targetOff
-                if verbose { print(String(format: "  [*] _panic at foff 0x%X (%d callers)", targetOff, callers.count)) }
+                if verbose {
+                    print(String(format: "  [*] _panic at foff 0x%X (%d callers)", targetOff, callers.count))
+                }
                 return
             }
         }
@@ -308,7 +314,9 @@ open class KernelPatcherBase {
             panicOffset = first.key
         }
         if let p = panicOffset {
-            if verbose { print(String(format: "  [*] _panic (fallback) at foff 0x%X", p)) }
+            if verbose {
+                print(String(format: "  [*] _panic (fallback) at foff 0x%X", p))
+            }
         }
     }
 
@@ -424,9 +432,13 @@ open class KernelPatcherBase {
             else { continue }
 
             var execAddr: UInt64 = 0
-            if let n = execAddrAny as? UInt64 { execAddr = n }
-            else if let n = execAddrAny as? Int { execAddr = UInt64(bitPattern: Int64(n)) }
-            else if let n = execAddrAny as? NSNumber { execAddr = n.uint64Value }
+            if let n = execAddrAny as? UInt64 {
+                execAddr = n
+            } else if let n = execAddrAny as? Int {
+                execAddr = UInt64(bitPattern: Int64(n))
+            } else if let n = execAddrAny as? NSNumber {
+                execAddr = n.uint64Value
+            }
             execAddr &= 0xFFFF_FFFF_FFFF_FFFF
             guard execAddr > baseVA else { continue }
             let kextFoff = Int(execAddr - baseVA)

@@ -43,7 +43,7 @@ public enum VPhoneAPFSSnapshotError: Error, CustomStringConvertible {
 /// same SHA-256.
 public enum VPhoneAPFSSnapshot {
     public static let blockSize = 4096
-    public static let oldPrefix = Array("com.apple.os.update-".utf8)  // 20 bytes
+    public static let oldPrefix = Array("com.apple.os.update-".utf8) // 20 bytes
     public static let defaultNewPrefix = "orig-fs.disabled.rn-"
 
     /// One `com.apple.os.update-*` record, and where it lives.
@@ -60,8 +60,13 @@ public enum VPhoneAPFSSnapshot {
         /// Records grouped by block, in ascending block order.
         public let blocks: [(blockOffset: Int, offsetsInBlock: [Int])]
 
-        public var recordCount: Int { blocks.reduce(0) { $0 + $1.offsetsInBlock.count } }
-        public var isEmpty: Bool { blocks.isEmpty }
+        public var recordCount: Int {
+            blocks.reduce(0) { $0 + $1.offsetsInBlock.count }
+        }
+
+        public var isEmpty: Bool {
+            blocks.isEmpty
+        }
     }
 
     // MARK: - Checksum
@@ -97,9 +102,9 @@ public enum VPhoneAPFSSnapshot {
 
     private static func isHexDigit(_ byte: UInt8) -> Bool {
         switch byte {
-        case UInt8(ascii: "0")...UInt8(ascii: "9"),
-             UInt8(ascii: "a")...UInt8(ascii: "f"),
-             UInt8(ascii: "A")...UInt8(ascii: "F"):
+        case UInt8(ascii: "0") ... UInt8(ascii: "9"),
+             UInt8(ascii: "a") ... UInt8(ascii: "f"),
+             UInt8(ascii: "A") ... UInt8(ascii: "F"):
             true
         default:
             false
@@ -145,28 +150,32 @@ public enum VPhoneAPFSSnapshot {
 
             let hashStart = i + oldPrefix.count
             var allHex = true
-            for k in 0..<hashLength {
-                if !isHexDigit(image[hashStart + k]) { allHex = false; break }
+            for k in 0 ..< hashLength {
+                if !isHexDigit(image[hashStart + k]) {
+                    allHex = false; break
+                }
             }
             guard allHex else { i += 1; continue }
 
             let blockOffset = (i / blockSize) * blockSize
             guard blockOffset + blockSize <= image.count else { i += 1; continue }
-            let block = UnsafeRawBufferPointer(rebasing: image[blockOffset..<blockOffset + blockSize])
+            let block = UnsafeRawBufferPointer(rebasing: image[blockOffset ..< blockOffset + blockSize])
             guard blockIsValid(block) else { i += 1; continue }
 
             if name == nil {
-                let bytes = (0..<needLength).map { image[i + $0] }
+                let bytes = (0 ..< needLength).map { image[i + $0] }
                 name = String(decoding: bytes, as: UTF8.self)
             }
-            if byBlock[blockOffset] == nil { order.append(blockOffset) }
+            if byBlock[blockOffset] == nil {
+                order.append(blockOffset)
+            }
             byBlock[blockOffset, default: []].append(i - blockOffset)
             i += 1
         }
 
         return Report(
             snapshotName: name,
-            blocks: order.sorted().map { ($0, byBlock[$0]!) }
+            blocks: order.sorted().map { ($0, byBlock[$0]!) },
         )
     }
 
@@ -182,12 +191,12 @@ public enum VPhoneAPFSSnapshot {
         imageAt url: URL,
         newPrefix: String = defaultNewPrefix,
         dryRun: Bool = false,
-        log: (String) -> Void = { print($0) }
+        log: (String) -> Void = { print($0) },
     ) throws -> Report {
         let newPrefixBytes = Array(newPrefix.utf8)
         guard newPrefixBytes.count == oldPrefix.count else {
             throw VPhoneAPFSSnapshotError.prefixLengthMismatch(
-                given: newPrefixBytes.count, required: oldPrefix.count
+                given: newPrefixBytes.count, required: oldPrefix.count,
             )
         }
 
@@ -211,11 +220,14 @@ public enum VPhoneAPFSSnapshot {
         for offset in stride(from: 0, to: length, by: windowSize) {
             let count = min(windowSize, length - offset)
             guard let base = mmap(nil, count, PROT_READ, MAP_PRIVATE, fd, off_t(offset)),
-                  base != MAP_FAILED else {
+                  base != MAP_FAILED
+            else {
                 throw VPhoneAPFSSnapshotError.cannotMap(url, errno: errno)
             }
             let part = scan(UnsafeRawBufferPointer(start: base, count: count))
-            if snapshotName == nil { snapshotName = part.snapshotName }
+            if snapshotName == nil {
+                snapshotName = part.snapshotName
+            }
             blocks.append(contentsOf: part.blocks.map {
                 (blockOffset: offset + $0.blockOffset, offsetsInBlock: $0.offsetsInBlock)
             })
@@ -255,7 +267,9 @@ public enum VPhoneAPFSSnapshot {
                 let sum = checksum(UnsafeRawBufferPointer(raw))
                 var littleEndian = sum.littleEndian
                 withUnsafeBytes(of: &littleEndian) { bytes in
-                    for (k, byte) in bytes.enumerated() { raw[k] = byte }
+                    for (k, byte) in bytes.enumerated() {
+                        raw[k] = byte
+                    }
                 }
             }
             let written = block.withUnsafeBytes {

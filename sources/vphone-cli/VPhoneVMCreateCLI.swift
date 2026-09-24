@@ -7,7 +7,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
         commandName: "create",
         abstract: "Create a VM end-to-end (prepare → patch → restore → CFW → first boot)",
         discussion: "Runs the JB pipeline for a fresh VM. Needs an internet connection "
-            + "(IPSW download), a non-nested macOS host, and sudo (CFW host-mount)."
+            + "(IPSW download), a non-nested macOS host, and sudo (CFW host-mount).",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -19,22 +19,22 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     var sudoPassword: String?
     @Flag(
         name: .customLong("force-dsc-maxslide"),
-        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)"
+        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)",
     )
     var forceDSCMaxSlide = false
     @Flag(
         name: .customLong("frida"),
-        help: "Opt in to Frida Stalker kernel relaxations"
+        help: "Opt in to Frida Stalker kernel relaxations",
     )
     var frida = false
     @Flag(
         name: .customLong("root-popup"),
-        help: "Elevate the CFW host-mount via macOS's native authentication dialog (osascript) instead of a sudo prompt"
+        help: "Elevate the CFW host-mount via macOS's native authentication dialog (osascript) instead of a sudo prompt",
     )
     var rootPopup = false
     @Flag(
         name: .customLong("keep-artifacts"),
-        help: "Keep the prepared restore tree after installation. Source IPSWs are always kept."
+        help: "Keep the prepared restore tree after installation. Source IPSWs are always kept.",
     )
     var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
@@ -56,7 +56,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
         let orchestrator = VPhoneCreateOrchestrator(
             library: lib.library,
             resources: resources,
-            launcher: launcher
+            launcher: launcher,
         )
         try orchestrator.run(.init(
             name: name,
@@ -68,7 +68,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             rootPopup: rootPopup,
             diskSizeGB: diskSize,
             verbosity: VPhoneVerbosity(count: verboseCount),
-            keepArtifacts: keepArtifacts
+            keepArtifacts: keepArtifacts,
         ))
     }
 }

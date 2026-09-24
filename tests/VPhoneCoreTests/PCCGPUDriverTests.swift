@@ -1,9 +1,9 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 struct PCCGPUDriverTests {
-    @Test func selectsVphone600OSImage() throws {
+    @Test func `selects vphone 600 OS image`() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("pcc-gpu-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -14,7 +14,7 @@ struct PCCGPUDriverTests {
             identity(device: "vphone600ap", os: "PCC-OS.dmg.aea"),
         ]
         let manifest = try PropertyListSerialization.data(
-            fromPropertyList: ["BuildIdentities": identities], format: .binary, options: 0
+            fromPropertyList: ["BuildIdentities": identities], format: .binary, options: 0,
         )
         try manifest.write(to: directory.appendingPathComponent("BuildManifest.plist"))
 
@@ -24,14 +24,14 @@ struct PCCGPUDriverTests {
             == directory.appending(path: ".pcc-gpu/AppleParavirtGPUMetalIOGPUFamily.bundle"))
     }
 
-    @Test func refusesPathOutsidePCCDirectory() throws {
+    @Test func `refuses path outside PCC directory`() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("pcc-gpu-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let manifest = try PropertyListSerialization.data(
             fromPropertyList: ["BuildIdentities": [identity(device: "vphone600ap", os: "../outside.dmg")]],
-            format: .binary, options: 0
+            format: .binary, options: 0,
         )
         try manifest.write(to: directory.appendingPathComponent("BuildManifest.plist"))
 

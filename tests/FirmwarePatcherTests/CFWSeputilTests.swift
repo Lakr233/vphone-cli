@@ -64,7 +64,9 @@ private enum SeputilFixture {
     }
 
     /// The suite runs unless the binary is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 iPhone17,3 seputil is required — put it at \
@@ -85,7 +87,7 @@ private enum SeputilFixture {
     /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
     /// taken again from a shell over the same file.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     static var codesign: URL? {
@@ -98,21 +100,21 @@ private enum SeputilFixture {
         guard let pristine else { throw CocoaError(.fileNoSuchFile) }
         try FileManager.default.createDirectory(
             at: scratchRoot,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let destination = scratchRoot.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: destination)
 
         var result = try Subprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
-            arguments: ["-c", pristine.path, destination.path]
+            arguments: ["-c", pristine.path, destination.path],
         )
         if result.status != 0 {
             // A fixture on another volume cannot be cloned. Copying is slower
             // but correct, and a refusal here would look like a patch bug.
             result = try Subprocess.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: [pristine.path, destination.path]
+                arguments: [pristine.path, destination.path],
             )
         }
         guard result.status == 0 else { throw CocoaError(.fileWriteUnknown) }
@@ -122,7 +124,9 @@ private enum SeputilFixture {
     /// Discard clones, and the scratch root with them once the last one is
     /// gone, so a test run leaves the working tree as it found it.
     static func discard(_ clones: URL...) {
-        for clone in clones { try? FileManager.default.removeItem(at: clone) }
+        for clone in clones {
+            try? FileManager.default.removeItem(at: clone)
+        }
         let remaining = (try? FileManager.default
             .contentsOfDirectory(atPath: scratchRoot.path)) ?? []
         if remaining.isEmpty {
@@ -157,7 +161,7 @@ private enum Subprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -182,7 +186,7 @@ private enum SeputilGolden {
 
     /// The bytes the Python changed, from a byte diff of ``patched`` against
     /// ``pristine``: `%s` -> `AA` at 0x1BDD2, and nothing else in the file.
-    static let modifiedOffsets = [0x1_BDD2, 0x1_BDD3]
+    static let modifiedOffsets = [0x1BDD2, 0x1BDD3]
 
     /// ``patched``, then
     /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts/patchers");
@@ -203,7 +207,7 @@ struct CFWSeputilParityTests {
     /// The fixture the frozen digests were taken over. Without this the two
     /// tests below would report a digest mismatch when the real cause is a
     /// different firmware's `seputil`.
-    @Test func fixtureIsTheOneTheGoldensWereTakenFrom() throws {
+    @Test func `fixture is the one the goldens were taken from`() throws {
         let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)
         #expect(
             try SeputilFixture.digest(of: pristine) == SeputilGolden.pristine,
@@ -211,7 +215,7 @@ struct CFWSeputilParityTests {
             this is not the 24A435 iPhone17,3 seputil the goldens in \
             SeputilGolden were recorded from — re-derive them before reading a \
             failure below as a patcher bug
-            """
+            """,
         )
     }
 
@@ -220,7 +224,7 @@ struct CFWSeputilParityTests {
     /// Run with `reattest: false`, which was the reference's own behaviour —
     /// `cfw_install.sh` re-signs with `ldid` right after, so the Python left
     /// the signature stale.
-    @Test func matchesTheFrozenReferencePatch() throws {
+    @Test func `matches the frozen reference patch`() throws {
         let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)
         let swiftFile = try SeputilFixture.clone(named: "swift-plain")
         defer { SeputilFixture.discard(swiftFile) }
@@ -230,14 +234,14 @@ struct CFWSeputilParityTests {
         #expect(outcome.verdict == .patched)
         #expect(
             try SeputilFixture.digest(of: swiftFile) == SeputilGolden.patched,
-            "Swift must reproduce the seputil the reference wrote, byte for byte"
+            "Swift must reproduce the seputil the reference wrote, byte for byte",
         )
         // The same two bytes, at the same two offsets, that the reference moved.
         #expect(outcome.site.modifiedOffsets == SeputilGolden.modifiedOffsets)
 
         // And the comparison is not two copies of the input: the file moved.
         #expect(try SeputilFixture.digest(of: swiftFile) != SeputilGolden.pristine)
-        #expect(try Data(contentsOf: swiftFile) != (try Data(contentsOf: pristine)))
+        #expect(try Data(contentsOf: swiftFile) != Data(contentsOf: pristine))
     }
 
     /// The same for the whole pipeline, re-attestation included. The Python
@@ -247,7 +251,7 @@ struct CFWSeputilParityTests {
     /// This is the slot-hash comparison: the hashes are covered where they
     /// live, in the file, by a digest of what the reference implementation
     /// computed.
-    @Test func matchesTheFrozenReferencePlusItsOwnReattester() throws {
+    @Test func `matches the frozen reference plus its own reattester`() throws {
         let swiftFile = try SeputilFixture.clone(named: "swift-full")
         defer { SeputilFixture.discard(swiftFile) }
 
@@ -257,14 +261,14 @@ struct CFWSeputilParityTests {
         #expect(outcome.rehashes.first?.pageIndex == SeputilGolden.reattestedSlot)
         #expect(
             try SeputilFixture.digest(of: swiftFile) == SeputilGolden.patchedAndReattested,
-            "the re-attested slot hash must be the one the reference computed"
+            "the re-attested slot hash must be the one the reference computed",
         )
     }
 
     /// `codesign -v`, in both directions. The re-attested binary verifies; the
     /// one that reproduces the frozen Python bytes does not, which is why
     /// `cfw_install.sh` had to run `ldid_sign` after the Python.
-    @Test func reattestationIsWhatMakesTheBinaryVerify() throws {
+    @Test func `reattestation is what makes the binary verify`() throws {
         let codesign = try #require(SeputilFixture.codesign)
         let pristine = try #require(SeputilFixture.pristine, SeputilFixture.missing)
         let reattested = try SeputilFixture.clone(named: "swift-verify")
@@ -292,7 +296,7 @@ struct CFWSeputilParityTests {
     /// wrote: the literal no longer reads `%s/%s.gl`, so a patcher that only
     /// knows the pristine spelling fails here instead of reporting "already
     /// patched". That is the bug `8eb6c8b` fixed for two DSC gates.
-    @Test func aSecondRunChangesNothing() throws {
+    @Test func `a second run changes nothing`() throws {
         let file = try SeputilFixture.clone(named: "twice")
         defer { SeputilFixture.discard(file) }
 
@@ -316,7 +320,7 @@ struct CFWSeputilParityTests {
     }
 
     /// A dry run reports the site and leaves the file alone.
-    @Test func aDryRunWritesNothing() throws {
+    @Test func `a dry run writes nothing`() throws {
         let file = try SeputilFixture.clone(named: "dry")
         defer { SeputilFixture.discard(file) }
         let before = try Data(contentsOf: file)
@@ -332,7 +336,7 @@ struct CFWSeputilParityTests {
 
     /// What the patcher anchored on, stated in full: the literal, the field
     /// inside it, and the instruction that materialises its address.
-    @Test func anchorsOnTheReferencedGigalockerLiteral() throws {
+    @Test func `anchors on the referenced gigalocker literal`() throws {
         let file = try SeputilFixture.clone(named: "anchor")
         defer { SeputilFixture.discard(file) }
         let data = try Data(contentsOf: file)
@@ -363,7 +367,7 @@ struct CFWSeputilParityTests {
 
     /// The record carries the reference's own `patchID`, `component` and
     /// wording, so a captured reference JSON compares field for field.
-    @Test func recordsTheSiteTheWayTheReferenceDoes() throws {
+    @Test func `records the site the way the reference does`() throws {
         let file = try SeputilFixture.clone(named: "record")
         defer { SeputilFixture.discard(file) }
 
@@ -384,7 +388,7 @@ struct CFWSeputilParityTests {
     /// Exactly the dirtied page is re-hashed, and the short tail slot — which
     /// this fixture has, and which is the known regression in independent
     /// Mach-O re-signing — is left alone because nothing was written in it.
-    @Test func reattestationTouchesOnlyTheDirtiedPage() throws {
+    @Test func `reattestation touches only the dirtied page`() throws {
         let file = try SeputilFixture.clone(named: "pages")
         defer { SeputilFixture.discard(file) }
         let before = try Data(contentsOf: file)
@@ -392,7 +396,7 @@ struct CFWSeputilParityTests {
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: before)?.first)
         try #require(
             directory.codeLimit % directory.pageSize != 0,
-            "this fixture is supposed to have a short tail slot"
+            "this fixture is supposed to have a short tail slot",
         )
 
         let outcome = try CFWSeputil.patch(fileAt: file, log: nil)
@@ -425,7 +429,7 @@ struct CFWSeputilParityTests {
     /// and patches it. Here the `adrp`/`add` that materialises the literal is
     /// erased first, and the patcher has to stop rather than rewrite bytes no
     /// code reads.
-    @Test func refusesALiteralNothingReferences() throws {
+    @Test func `refuses A literal nothing references`() throws {
         let file = try SeputilFixture.clone(named: "unreferenced")
         defer { SeputilFixture.discard(file) }
         var data = try Data(contentsOf: file)
@@ -460,7 +464,7 @@ struct CFWSeputilShapeTests {
             sectionName: "__cstring",
             address: address,
             size: UInt64(size),
-            fileOffset: offset
+            fileOffset: offset,
         )
     }
 
@@ -474,7 +478,7 @@ struct CFWSeputilShapeTests {
         return data
     }
 
-    @Test func readsTheFieldAfterTheLastSeparator() {
+    @Test func `reads the field after the last separator`() {
         // The mountpoint field is left alone; the one after the last "/" moves.
         let field = try? #require(CFWSeputil.fileField(of: Array("%s/%s.gl".utf8)))
         #expect(field == 3 ..< 5)
@@ -487,19 +491,19 @@ struct CFWSeputilShapeTests {
         #expect(CFWSeputil.fileField(of: Array(".gl".utf8)) == nil)
     }
 
-    @Test func classifiesOnlyTheTwoSpellingsItWrites() {
+    @Test func `classifies only the two spellings it writes`() {
         #expect(CFWSeputil.pristineness(of: ArraySlice("%s".utf8)) == true)
         #expect(CFWSeputil.pristineness(of: ArraySlice("AA".utf8)) == false)
         #expect(CFWSeputil.pristineness(of: ArraySlice("BB".utf8)) == nil)
     }
 
-    @Test func matchesWholeLiteralsOnly() throws {
+    @Test func `matches whole literals only`() throws {
         // "%s.gl" is the next literal after "%s/%s.gl" on the real binary, and
         // also its tail; a substring search sees both, a literal search one.
         let data = cstrings(["%s/%s.gl", "%s.gl", "/mnt7"])
         let site = try CFWSeputil.findSite(
             in: data,
-            cstring: section(at: 0, size: data.count, address: 0x1_0000_0000)
+            cstring: section(at: 0, size: data.count, address: 0x1_0000_0000),
         )
         #expect(site.literalOffset == 16)
         #expect(site.literal == "%s/%s.gl")
@@ -507,34 +511,34 @@ struct CFWSeputilShapeTests {
         #expect(site.fieldVMA == 0x1_0000_0013)
     }
 
-    @Test func findsTheAlreadyPatchedSpelling() throws {
+    @Test func `finds the already patched spelling`() throws {
         let data = cstrings(["%s/AA.gl"])
         let site = try CFWSeputil.findSite(
             in: data,
-            cstring: section(at: 0, size: data.count, address: 0x1_0000_0000)
+            cstring: section(at: 0, size: data.count, address: 0x1_0000_0000),
         )
         #expect(site.isPristine == false)
         #expect(site.fieldOffset == 19)
     }
 
-    @Test func refusesWhenThereIsNoCandidate() {
+    @Test func `refuses when there is no candidate`() {
         let data = cstrings(["%s.gl", "/mnt7", "/private/xarts"])
         #expect(throws: PatcherError.self) {
             try CFWSeputil.findSite(
                 in: data,
-                cstring: section(at: 0, size: data.count, address: 0x1_0000_0000)
+                cstring: section(at: 0, size: data.count, address: 0x1_0000_0000),
             )
         }
     }
 
     /// Two candidates is not a coin flip to be taken; it is a binary this
     /// patcher does not recognise.
-    @Test func refusesWhenThereAreTwoCandidates() {
+    @Test func `refuses when there are two candidates`() {
         let data = cstrings(["%s/%s.gl", "/mnt7", "%s/%s.gl"])
         #expect(throws: PatcherError.self) {
             try CFWSeputil.findSite(
                 in: data,
-                cstring: section(at: 0, size: data.count, address: 0x1_0000_0000)
+                cstring: section(at: 0, size: data.count, address: 0x1_0000_0000),
             )
         }
     }
@@ -547,26 +551,26 @@ struct CFWSeputilShapeTests {
             sectionName: "__text",
             address: address,
             size: UInt64(size),
-            fileOffset: 0
+            fileOffset: 0,
         )
     }
 
-    @Test func pairsAnAdrpWithItsAdd() throws {
+    @Test func `pairs an adrp with its add`() throws {
         let pc: UInt64 = 0x1_0000_0000
         let target: UInt64 = 0x1_0001_BDCF
         var code = try #require(ARM64Encoder.encodeADRP(rd: 2, pc: pc, target: target))
-        code.append(try #require(ARM64Encoder.encodeAddImm12(rd: 2, rn: 2, imm12: 0xDCF)))
+        try code.append(#require(ARM64Encoder.encodeAddImm12(rd: 2, rn: 2, imm12: 0xDCF)))
 
         #expect(CFWSeputil.references(to: target, in: code, text: text(size: 8, address: pc)) == [pc + 4])
         // A different literal on the same page is a different address.
         #expect(CFWSeputil.references(to: target + 1, in: code, text: text(size: 8, address: pc)).isEmpty)
     }
 
-    @Test func rejectsAnAddIntoAnotherRegister() throws {
+    @Test func `rejects an add into another register`() throws {
         let pc: UInt64 = 0x1_0000_0000
         let target: UInt64 = 0x1_0001_BDCF
         var code = try #require(ARM64Encoder.encodeADRP(rd: 2, pc: pc, target: target))
-        code.append(try #require(ARM64Encoder.encodeAddImm12(rd: 3, rn: 3, imm12: 0xDCF)))
+        try code.append(#require(ARM64Encoder.encodeAddImm12(rd: 3, rn: 3, imm12: 0xDCF)))
         #expect(CFWSeputil.references(to: target, in: code, text: text(size: 8, address: pc)).isEmpty)
     }
 
@@ -574,7 +578,7 @@ struct CFWSeputilShapeTests {
     /// Treating it as the latter would pair it with an `adrp` it has nothing to
     /// do with, so the `sh` bit is read off the encoding — the Swift Capstone
     /// wrapper does not expose an operand's shift.
-    @Test func rejectsAShiftedAddImmediate() throws {
+    @Test func `rejects A shifted add immediate`() throws {
         let pc: UInt64 = 0x1_0000_0000
         let target: UInt64 = 0x1_0001_BDCF
         let adrp = try #require(ARM64Encoder.encodeADRP(rd: 2, pc: pc, target: target))

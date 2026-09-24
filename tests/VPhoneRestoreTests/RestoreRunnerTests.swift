@@ -37,7 +37,9 @@ struct RestoreRunnerTests {
             lock.lock()
             defer { lock.unlock() }
             return events.compactMap { event in
-                if case let .log(_, message) = event { return message }
+                if case let .log(_, message) = event {
+                    return message
+                }
                 return nil
             }
         }
@@ -46,7 +48,9 @@ struct RestoreRunnerTests {
             lock.lock()
             defer { lock.unlock() }
             return events.compactMap { event in
-                if case let .log(level, message) = event, level == .error { return message }
+                if case let .log(level, message) = event, level == .error {
+                    return message
+                }
                 return nil
             }
         }
@@ -62,14 +66,14 @@ struct RestoreRunnerTests {
 
     // MARK: - Restore directory
 
-    @Test func anAbsentRestoreDirectoryIsRejectedAndReported() throws {
+    @Test func `an absent restore directory is rejected and reported`() throws {
         let absent = URL(fileURLWithPath: "/nonexistent/vphone/iPhone17,3_Restore")
         let collector = Collector()
 
         #expect(throws: VPhoneRestoreBackendError.restoreDirectoryUnusable(absent)) {
             try VPhoneRestoreRunner.run(
                 VPhoneRestoreOptions(restoreDirectory: absent),
-                onEvent: { collector.record($0) }
+                onEvent: { collector.record($0) },
             )
         }
 
@@ -80,7 +84,7 @@ struct RestoreRunnerTests {
         #expect(errors.contains { $0.contains("/nonexistent/vphone/iPhone17,3_Restore") })
     }
 
-    @Test func aFileIsNotARestoreDirectory() throws {
+    @Test func `a file is not A restore directory`() throws {
         try withTemporaryDirectory { root in
             // This build has no libzip, so a .ipsw is refused here by name
             // rather than failing four layers down in src/ipsw.c.
@@ -91,7 +95,7 @@ struct RestoreRunnerTests {
             #expect(throws: VPhoneRestoreBackendError.restoreDirectoryUnusable(archive)) {
                 try VPhoneRestoreRunner.run(
                     VPhoneRestoreOptions(restoreDirectory: archive),
-                    onEvent: { collector.record($0) }
+                    onEvent: { collector.record($0) },
                 )
             }
             #expect(collector.errorMessages.contains { $0.contains("not a directory") })
@@ -100,7 +104,7 @@ struct RestoreRunnerTests {
 
     // MARK: - Ticket
 
-    @Test func anOfflineTicketThatIsNotAPlistIsRejected() throws {
+    @Test func `an offline ticket that is not A plist is rejected`() throws {
         try withTemporaryDirectory { root in
             // A real directory, so the run gets past the restore-dir checks and
             // into the offline-ticket loader — still without a device, because
@@ -114,14 +118,14 @@ struct RestoreRunnerTests {
             #expect(throws: VPhoneRestoreBackendError.ticketUnreadable(ticket)) {
                 try VPhoneRestoreRunner.run(
                     VPhoneRestoreOptions(restoreDirectory: restoreDirectory, ticketPath: ticket),
-                    onEvent: { collector.record($0) }
+                    onEvent: { collector.record($0) },
                 )
             }
             #expect(collector.errorMessages.contains { $0.contains(ticket.path) })
         }
     }
 
-    @Test func aRunWithoutACallbackIsStillSafe() throws {
+    @Test func `a run without A callback is still safe`() throws {
         // The default handler discards, and the C side takes NULL for the
         // context it never uses. Nothing here may dereference it anyway.
         let absent = URL(fileURLWithPath: "/nonexistent/vphone/iPhone17,3_Restore")
@@ -132,7 +136,7 @@ struct RestoreRunnerTests {
 
     // MARK: - The facade
 
-    @Test func fetchingASHSHStopsAtTheMissingRestoreTree() throws {
+    @Test func `fetching ASHSH stops at the missing restore tree`() throws {
         // `VPhoneRestoreBridge` finds the restore tree BEFORE it starts a run,
         // so an empty bundle never reaches idevicerestore at all.
         try withTemporaryDirectory { root in
@@ -142,7 +146,7 @@ struct RestoreRunnerTests {
         }
     }
 
-    @Test func restoringStopsAtTheMissingRestoreTree() throws {
+    @Test func `restoring stops at the missing restore tree`() throws {
         try withTemporaryDirectory { root in
             #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
                 try VPhoneRestoreBridge.restore(
@@ -150,13 +154,13 @@ struct RestoreRunnerTests {
                     ecid: nil,
                     udid: nil,
                     erase: true,
-                    ticketPath: nil
+                    ticketPath: nil,
                 )
             }
         }
     }
 
-    @Test func theCachedSHSHNoticeIsPrintedBeforeTheRestoreStarts() throws {
+    @Test func `the cached SHSH notice is printed before the restore starts`() throws {
         try withTemporaryDirectory { root in
             // Python printed "[+] Using cached SHSH: …" the moment it loaded
             // the blob. Users grep for that line, so it has to survive — and it
@@ -174,7 +178,7 @@ struct RestoreRunnerTests {
                     udid: nil,
                     erase: true,
                     ticketPath: ticket,
-                    onEvent: { collector.record($0) }
+                    onEvent: { collector.record($0) },
                 )
             }
             #expect(collector.messages.contains("[+] Using cached SHSH: \(ticket.path)"))

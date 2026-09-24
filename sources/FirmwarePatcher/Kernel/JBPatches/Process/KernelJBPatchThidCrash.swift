@@ -52,7 +52,7 @@ extension KernelJBPatcher {
                 Data([0, 0, 0, 0]),
                 patchID: "kernelcache_jb.thid_should_crash",
                 virtualAddress: va,
-                description: "zero [_thid_should_crash]"
+                description: "zero [_thid_should_crash]",
             )
             return true
         }

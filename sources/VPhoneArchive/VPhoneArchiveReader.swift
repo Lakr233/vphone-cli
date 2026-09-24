@@ -50,20 +50,24 @@ public enum VPhoneArchiveReader {
 
                 var data = Data()
                 let hint = archive_entry_size(entry)
-                if hint > 0 { data.reserveCapacity(Int(hint)) }
+                if hint > 0 {
+                    data.reserveCapacity(Int(hint))
+                }
 
                 var buffer = [UInt8](repeating: 0, count: 65536)
                 while true {
                     let read = buffer.withUnsafeMutableBytes {
                         archive_read_data(reader, $0.baseAddress, $0.count)
                     }
-                    if read == 0 { break }
+                    if read == 0 {
+                        break
+                    }
                     guard read > 0 else {
                         throw VPhoneArchiveError.readFailed(
-                            path: archive.path, reason: archiveErrorString(reader)
+                            path: archive.path, reason: archiveErrorString(reader),
                         )
                     }
-                    data.append(contentsOf: buffer[0..<Int(read)])
+                    data.append(contentsOf: buffer[0 ..< Int(read)])
                 }
                 return data
             }
@@ -85,7 +89,7 @@ public enum VPhoneArchiveReader {
 
     private static func withReader<T>(
         _ archive: URL,
-        _ body: (OpaquePointer?) throws -> T
+        _ body: (OpaquePointer?) throws -> T,
     ) throws -> T {
         let reader = archive_read_new()
         archive_read_support_format_all(reader)
@@ -95,7 +99,7 @@ public enum VPhoneArchiveReader {
 
         guard archive_read_open_filename(reader, archive.path, blockSize) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: archive.path, reason: archiveErrorString(reader)
+                path: archive.path, reason: archiveErrorString(reader),
             )
         }
         return try body(reader)
@@ -103,14 +107,16 @@ public enum VPhoneArchiveReader {
 
     private static func nextHeader(
         _ reader: OpaquePointer?,
-        archive: URL
+        archive: URL,
     ) throws -> OpaquePointer? {
         var entry: OpaquePointer?
         let status = archive_read_next_header(reader, &entry)
-        if status == ARCHIVE_EOF { return nil }
+        if status == ARCHIVE_EOF {
+            return nil
+        }
         guard status == ARCHIVE_OK || status == ARCHIVE_WARN else {
             throw VPhoneArchiveError.readFailed(
-                path: archive.path, reason: archiveErrorString(reader)
+                path: archive.path, reason: archiveErrorString(reader),
             )
         }
         return entry
@@ -130,7 +136,7 @@ public enum VPhoneArchiveReader {
             uid: Int(archive_entry_uid(entry)),
             gid: Int(archive_entry_gid(entry)),
             modified: mtime,
-            linkTarget: archive_entry_symlink(entry).map { String(cString: $0) }
+            linkTarget: archive_entry_symlink(entry).map { String(cString: $0) },
         )
     }
 }

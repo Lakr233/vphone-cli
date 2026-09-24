@@ -21,14 +21,22 @@ private final class VPhoneBiometricDelegate: NSObject {
     /// First param: non-zero = finger pressed, 0 = finger released (or context ID on some versions).
     @objc func touchIDButtonPressed(_ pressed: Int, client: AnyObject?) {
         print("[touchid-bk] touchIDButtonPressed: %ld (client: %@)", pressed, client.debugDescription)
-        if pressed != 0 { onFingerDown?() } else { onFingerUp?() }
+        if pressed != 0 {
+            onFingerDown?()
+        } else {
+            onFingerUp?()
+        }
     }
 
     /// Fired by BKPresenceDetectOperation when finger presence changes.
     /// Second param is BOOL-encoded: non-zero = finger on sensor, 0 = finger off.
-    @objc func operation(_ operation: AnyObject, presenceStateChanged state: Int) {
+    @objc func operation(_: AnyObject, presenceStateChanged state: Int) {
         print("[touchid-bk] presenceStateChanged: %ld", state)
-        if state != 0 { onFingerDown?() } else { onFingerUp?() }
+        if state != 0 {
+            onFingerDown?()
+        } else {
+            onFingerUp?()
+        }
     }
 
     /// Called by BiometricKit singleton on finger presence change.
@@ -47,18 +55,18 @@ private final class VPhoneBiometricDelegate: NSObject {
     @objc func statusMessage(_ status: UInt, client: AnyObject?) {
         print("[touchid-bk] statusMessage: %lu (client: %@)", status, client.debugDescription)
         switch status {
-        case 1:  onFingerDown?()
-        case 0:  onFingerUp?()
+        case 1: onFingerDown?()
+        case 0: onFingerUp?()
         default: break
         }
     }
 
     /// 3-arg variant of statusMessage seen on BKDevice (some OS versions).
-    @objc func statusMessage(_ status: UInt, details: AnyObject?, client: AnyObject?) {
+    @objc func statusMessage(_ status: UInt, details _: AnyObject?, client _: AnyObject?) {
         print("[touchid-bk] statusMessage:details: %lu", status)
         switch status {
-        case 1:  onFingerDown?()
-        case 0:  onFingerUp?()
+        case 1: onFingerDown?()
+        case 0: onFingerUp?()
         default: break
         }
     }
@@ -80,13 +88,13 @@ private final class VPhoneBiometricDelegate: NSObject {
     // MARK: - Debug: catch unexpected messages in dev builds
 
     #if DEBUG
-    override func responds(to aSelector: Selector!) -> Bool {
-        let result = super.responds(to: aSelector)
-        if !result {
-            print("[touchid-bk] delegate asked about unknown selector: %@", NSStringFromSelector(aSelector))
+        override func responds(to aSelector: Selector!) -> Bool {
+            let result = super.responds(to: aSelector)
+            if !result {
+                print("[touchid-bk] delegate asked about unknown selector: %@", NSStringFromSelector(aSelector))
+            }
+            return result
         }
-        return result
-    }
     #endif
 }
 
@@ -115,8 +123,8 @@ final class VPhoneTouchIDMonitor {
     }
 
     // BiometricKit objects, retained as AnyObject via Dynamic
-    private var bkManager: AnyObject?                  // BiometricKit singleton
-    private var bkDelegate: VPhoneBiometricDelegate?   // strong ref so it lives as long as the session
+    private var bkManager: AnyObject? // BiometricKit singleton
+    private var bkDelegate: VPhoneBiometricDelegate? // strong ref so it lives as long as the session
     private var reconnectTimer: DispatchWorkItem?
 
     // Tap detection state — all MainActor-isolated
@@ -137,7 +145,9 @@ final class VPhoneTouchIDMonitor {
     func start(control: VPhoneControl, window: NSWindow) {
         self.control = control
         self.window = window
-        if isEnabled { connectBiometricKit() }
+        if isEnabled {
+            connectBiometricKit()
+        }
     }
 
     func stop() {
@@ -239,9 +249,9 @@ final class VPhoneTouchIDMonitor {
         // and transitions us back to the finger-up state.
         fingerLiftedTimer?.cancel()
         let liftTimer = DispatchWorkItem { [weak self] in
-            guard let self, self.fingerIsDown else { return }
-            self.fingerIsDown = false
-            self.fingerLiftedTimer = nil
+            guard let self, fingerIsDown else { return }
+            fingerIsDown = false
+            fingerLiftedTimer = nil
         }
         fingerLiftedTimer = liftTimer
         DispatchQueue.main.asyncAfter(deadline: .now() + fingerLiftDebounce, execute: liftTimer)
@@ -274,10 +284,10 @@ final class VPhoneTouchIDMonitor {
             doubleTapTimer?.cancel()
             let timer = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                self.tapCount = 0
-                self.doubleTapTimer = nil
+                tapCount = 0
+                doubleTapTimer = nil
                 guard let control = self.control,
-                      self.window?.isKeyWindow == true,
+                      window?.isKeyWindow == true,
                       control.isConnected else { return }
                 control.sendHIDPress(page: 0x0C, usage: 0x40)
                 print("[touchid] Home sent")

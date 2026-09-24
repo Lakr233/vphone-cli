@@ -62,7 +62,7 @@ extension KernelJBPatcher {
                   let rd = wRegisterNumber(orig),
                   let bytes = ARM64Encoder.encodeMovzW(rd: rd, imm16: Self.tssFlagsCleared),
                   let check = disasm.disassembleOne(bytes, at: UInt64(setterOff)),
-                  (check.mnemonic == "mov" || check.mnemonic == "movz"),
+                  check.mnemonic == "mov" || check.mnemonic == "movz",
                   let ops = check.aarch64?.operands, ops.count == 2,
                   ops[1].type == AARCH64_OP_IMM, ops[1].imm == Int64(Self.tssFlagsCleared)
             else {
@@ -74,7 +74,7 @@ extension KernelJBPatcher {
                 bytes,
                 patchID: "kernelcache_frida.thread_set_state_entitlement_flag",
                 virtualAddress: fileOffsetToVA(setterOff),
-                description: "clear TSSF_CHECK_ENTITLEMENT (0x201 -> 0x1) [thread_set_state user setter, --frida]"
+                description: "clear TSSF_CHECK_ENTITLEMENT (0x201 -> 0x1) [thread_set_state user setter, --frida]",
             )
         }
         return true

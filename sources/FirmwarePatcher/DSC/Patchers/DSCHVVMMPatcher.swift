@@ -77,6 +77,7 @@ import Foundation
 /// shared cache and over standalone Mach-Os.
 public enum DSCHVVMMPatcher {
     // MARK: - The cstring and its mangle
+
     //
     // Port of the five constants `cfw_patch_hv_vmm.py` exports. They are derived
     // from the sysctl name rather than written out as bytes, so "byte 5" is the
@@ -121,6 +122,7 @@ public enum DSCHVVMMPatcher {
     ]
 
     // MARK: - Blacklist
+
     //
     // A dylib named here keeps `"kern.hv_vmm_present\0"`. With the kernel rename
     // in place that name is ENOENT, the dylib's defensive check takes the skip
@@ -216,7 +218,7 @@ public enum DSCHVVMMPatcher {
             refused: 0,
             reattestOnly: 0,
             blacklistDrift: 0,
-            reattestation: nil
+            reattestation: nil,
         )
     }
 
@@ -231,14 +233,14 @@ public enum DSCHVVMMPatcher {
     public static func patch(
         chunksDirectory: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Result {
         let chunks = try DSCChunkSet(directory: chunksDirectory)
         log?(
             "  [.] \(chunksDirectory.path): \(chunks.chunkURLs.count) chunk(s), "
                 + "\(chunks.mappings.count) mapping(s), "
                 + "vm 0x\(hex(chunks.addressRange.lowerBound))"
-                + "..0x\(hex(chunks.addressRange.upperBound))"
+                + "..0x\(hex(chunks.addressRange.upperBound))",
         )
         return try patch(in: chunks, dryRun: dryRun, log: log)
     }
@@ -257,7 +259,7 @@ public enum DSCHVVMMPatcher {
     public static func patch(
         in chunks: DSCChunkSet,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Result {
         log?("  [.] locating cstring \"kern.hv_vmm_present\\0\"…")
         let pristineSites = try chunks.findStringVMAs(needle).sorted()
@@ -270,17 +272,17 @@ public enum DSCHVVMMPatcher {
         guard !pristineSites.isEmpty || !alreadyMangledSites.isEmpty else {
             log?(
                 "  [-] cstring not present in any executable mapping; nothing to "
-                    + "do (either patched already or absent)"
+                    + "do (either patched already or absent)",
             )
             return .empty
         }
         log?(
             "  [.] \(pristineSites.count) pristine + \(alreadyMangledSites.count) "
-                + "already-mangled cstring occurrence(s) found"
+                + "already-mangled cstring occurrence(s) found",
         )
         log?(
             "  [.] resolving containing dylib for each occurrence (blacklist has "
-                + "\(dontPatchSet.count) entries — these stay unpatched)…"
+                + "\(dontPatchSet.count) entries — these stay unpatched)…",
         )
 
         var mangledCountByInstallName: [String: Int] = [:]
@@ -312,7 +314,7 @@ public enum DSCHVVMMPatcher {
             if dontPatchSet.contains(installName) {
                 log?(
                     "      [.] SKIP (blacklisted — stays unpatched, will hit "
-                        + "ENOENT): \(installName)  string@0x\(hex(vma))"
+                        + "ENOENT): \(installName)  string@0x\(hex(vma))",
                 )
                 skippedInBlacklist += 1
                 note(label, in: &mangledCountByInstallName)
@@ -334,7 +336,7 @@ public enum DSCHVVMMPatcher {
                 // below picks the page up through `alreadyMangledSites`.
                 log?(
                     "      [.] already mangled at byte \(mangleOffset): \(label)  "
-                        + "string@0x\(hex(vma))"
+                        + "string@0x\(hex(vma))",
                 )
                 note(label, in: &mangledCountByInstallName)
                 continue
@@ -342,7 +344,7 @@ public enum DSCHVVMMPatcher {
             guard current == needle else {
                 log?(
                     "      [-] unexpected bytes at 0x\(hex(vma)) (\(current.hex)); "
-                        + "refusing  (\(label))"
+                        + "refusing  (\(label))",
                 )
                 refused += 1
                 continue
@@ -359,7 +361,7 @@ public enum DSCHVVMMPatcher {
                     + "string@0x\(hex(vma))  byte \(mangleOffset) "
                     + "(\(Character(UnicodeScalar(originalByte))) -> "
                     + "\(Character(UnicodeScalar(mangledByte))))  now queries "
-                    + "kern.Xv_vmm_present, will see 1 (in a VM)"
+                    + "kern.Xv_vmm_present, will see 1 (in a VM)",
             )
             mangledCountByInstallName[label, default: 0] += 1
             mangled += 1
@@ -388,7 +390,7 @@ public enum DSCHVVMMPatcher {
                     "      [!] drift: \(installName) is in the blacklist but "
                         + "already mangled at string@0x\(hex(vma)) — slot will be "
                         + "re-attested to current bytes; consider whether you "
-                        + "actually want this dylib re-patched"
+                        + "actually want this dylib re-patched",
                 )
                 reattestOnlySpans.append(span)
                 blacklistDrift += 1
@@ -400,13 +402,13 @@ public enum DSCHVVMMPatcher {
         if reattestOnly > 0 {
             log?(
                 "  [.] also queueing \(reattestOnly) already-mangled cstring "
-                    + "page(s) for re-attestation"
+                    + "page(s) for re-attestation",
             )
         }
         if blacklistDrift > 0 {
             log?(
                 "  [.] \(blacklistDrift) blacklisted dylib(s) found mangled on "
-                    + "disk — see drift warnings above"
+                    + "disk — see drift warnings above",
             )
         }
 
@@ -425,20 +427,20 @@ public enum DSCHVVMMPatcher {
         if !spans.isEmpty {
             log?(
                 "  [.] \(dryRun ? "dry-run: would re-attest" : "re-attesting") "
-                    + "\(spans.count) modified page span(s)…"
+                    + "\(spans.count) modified page span(s)…",
             )
             reattestation = try DSCCodeSignature.reattest(
                 in: chunks,
                 modifiedSpans: spans,
                 dryRun: dryRun,
-                log: log
+                log: log,
             )
         }
 
         log?(
             "  [+] DSC patch complete: \(mangled) cstring(s) mangled, "
                 + "\(skippedInBlacklist) in-blacklist (left unpatched), "
-                + "\(skippedUnclassified) unclassified, \(refused) refused/error"
+                + "\(skippedUnclassified) unclassified, \(refused) refused/error",
         )
         return Result(
             pristineSiteCount: pristineSites.count,
@@ -450,7 +452,7 @@ public enum DSCHVVMMPatcher {
             refused: refused,
             reattestOnly: reattestOnly,
             blacklistDrift: blacklistDrift,
-            reattestation: reattestation
+            reattestation: reattestation,
         )
     }
 
@@ -479,10 +481,13 @@ public enum DSCHVVMMPatcher {
     /// alone" from "never seen", and the reference's `results.get(label, 0)`
     /// spelling of it is easy to mistake for a no-op.
     private static func note(_ label: String, in counts: inout [String: Int]) {
-        if counts[label] == nil { counts[label] = 0 }
+        if counts[label] == nil {
+            counts[label] = 0
+        }
     }
 
     // MARK: - Standalone Mach-O
+
     //
     // The other half of `cfw_patch_hv_vmm.py`: the same mangle applied to a
     // Mach-O on disk rather than to a dylib inside the cache. No caller in this
@@ -534,8 +539,8 @@ public enum DSCHVVMMPatcher {
                         MachOStringSite(
                             stringVMA: section.address &+ UInt64(position),
                             fileOffset: start + position,
-                            section: name
-                        )
+                            section: name,
+                        ),
                     )
                 }
                 searchFrom = found.lowerBound + 1
@@ -561,7 +566,7 @@ public enum DSCHVVMMPatcher {
     public static func patchStandaloneMachO(
         at url: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Int {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -572,12 +577,12 @@ public enum DSCHVVMMPatcher {
             if isAlreadyMangled(data) {
                 log?(
                     "  [.] \(url.path): already mangled (no original "
-                        + "'kern.hv_vmm_present' cstring present)"
+                        + "'kern.hv_vmm_present' cstring present)",
                 )
             } else {
                 log?(
                     "  [.] \(url.path): 'kern.hv_vmm_present' cstring not "
-                        + "present — nothing to do"
+                        + "present — nothing to do",
                 )
             }
             return 0
@@ -593,14 +598,14 @@ public enum DSCHVVMMPatcher {
                 log?(
                     "  [.] string@0x\(hex(site.stringVMA)) already mangled "
                         + "(byte \(mangleOffset) is already "
-                        + "'\(Character(UnicodeScalar(mangledByte)))')"
+                        + "'\(Character(UnicodeScalar(mangledByte)))')",
                 )
                 continue
             }
             guard original == needle else {
                 log?(
                     "  [-] string@0x\(hex(site.stringVMA)) bytes look unexpected "
-                        + "(\(Data(original).hex)); skipping"
+                        + "(\(Data(original).hex)); skipping",
                 )
                 continue
             }
@@ -609,7 +614,7 @@ public enum DSCHVVMMPatcher {
                     + "byte \(mangleOffset) "
                     + "'\(Character(UnicodeScalar(originalByte)))' -> "
                     + "'\(Character(UnicodeScalar(mangledByte)))'  "
-                    + "('kern.hv_vmm_present' -> 'kern.Xv_vmm_present')"
+                    + "('kern.hv_vmm_present' -> 'kern.Xv_vmm_present')",
             )
             data[data.startIndex + site.fileOffset + mangleOffset] = mangledByte
             patched += 1
@@ -651,7 +656,7 @@ public enum DSCHVVMMPatcher {
         let magic = data.loadLE(UInt32.self, at: 0)
         guard magic == 0xFEED_FACF else {
             throw PatcherError.invalidFormat(
-                "not a 64-bit Mach-O (magic=0x\(String(magic, radix: 16, uppercase: true)))"
+                "not a 64-bit Mach-O (magic=0x\(String(magic, radix: 16, uppercase: true)))",
             )
         }
 
@@ -673,13 +678,15 @@ public enum DSCHVVMMPatcher {
                     guard sectionOffset + 80 <= data.count else { break }
                     let sectionName = fixedWidthName(data, at: sectionOffset)
                     let key = "\(segmentName),\(sectionName)"
-                    if byName[key] == nil { ordered.append(key) }
+                    if byName[key] == nil {
+                        ordered.append(key)
+                    }
                     byName[key] = MachOSection(
                         segmentName: segmentName,
                         sectionName: sectionName,
                         address: data.loadLE(UInt64.self, at: sectionOffset + 32),
                         size: data.loadLE(UInt64.self, at: sectionOffset + 40),
-                        fileOffset: data.loadLE(UInt32.self, at: sectionOffset + 48)
+                        fileOffset: data.loadLE(UInt32.self, at: sectionOffset + 48),
                     )
                     sectionOffset += 80
                 }

@@ -25,8 +25,8 @@
 // `cp -c` — an APFS clone, so instant and near-free — into
 // `ipsws/scratch_dsc_forcekern`, and removed again at the end.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -219,7 +219,9 @@ private enum ForceKernFixture {
     }
 
     /// The suite runs unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real arm64e shared cache is required — put it at \
@@ -249,15 +251,15 @@ private enum ForceKernFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let result = try ForceKernShell.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
-                + (try FileManager.default.contentsOfDirectory(atPath: pristine.path))
+                + (FileManager.default.contentsOfDirectory(atPath: pristine.path))
                 .sorted()
                 .map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         guard result.status == 0 else {
             throw CocoaError(.fileWriteUnknown)
@@ -306,7 +308,7 @@ private enum ForceKernShell {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 
@@ -327,9 +329,11 @@ private enum ForceKernShell {
                     "-s",
                     left.appendingPathComponent(name).path,
                     right.appendingPathComponent(name).path,
-                ]
+                ],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return (differing, leftNames.count)
     }
@@ -381,8 +385,8 @@ private enum Digest {
 @Suite(.serialized, .enabled(if: ForceKernFixture.runs, ForceKernFixture.skipReason))
 struct DSCIOMFBForceKernParityTests {
     /// The one test that decides whether this port is done.
-    @Test("Swift force-kern reproduces the reference cache byte for byte")
-    func matchesReferenceByteForByte() throws {
+    @Test
+    func `Swift force-kern reproduces the reference cache byte for byte`() throws {
         _ = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let swiftClone = try ForceKernFixture.cloneCache(named: "swift")
@@ -390,17 +394,17 @@ struct DSCIOMFBForceKernParityTests {
 
         let outcome = try DSCIOMFBForceKernPatcher.patch(
             chunksDirectory: swiftClone,
-            log: nil
+            log: nil,
         )
 
         #expect(
             outcome.writtenSiteCount == FrozenReference.newlyForced,
-            "swift wrote \(outcome.writtenSiteCount) sites, reference \(FrozenReference.newlyForced)"
+            "swift wrote \(outcome.writtenSiteCount) sites, reference \(FrozenReference.newlyForced)",
         )
         // The same entry points, not merely the same count.
         #expect(
             Set(outcome.forced.map(\.entry.publicName))
-                == Set(FrozenReference.forcedPairs.map(\.publicName))
+                == Set(FrozenReference.forcedPairs.map(\.publicName)),
         )
         #expect(Set(outcome.notTrampolines.map(\.entry.publicName))
             == Set(FrozenReference.leftOnVirtPath))
@@ -412,8 +416,8 @@ struct DSCIOMFBForceKernParityTests {
     /// patch already forced must write nothing and leave every byte alone. The
     /// Python printed `all 31 entrypoint(s) already forced; nothing to
     /// patch/re-attest` here, with its digest unchanged.
-    @Test("A second run is a no-op on an already-forced cache")
-    func secondRunIsANoOp() throws {
+    @Test
+    func `A second run is a no-op on an already-forced cache`() throws {
         _ = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let clone = try ForceKernFixture.cloneCache(named: "idempotence")
@@ -435,8 +439,8 @@ struct DSCIOMFBForceKernParityTests {
     }
 
     /// A dry run must classify everything and touch nothing.
-    @Test("A dry run reports the reference's sites and writes no bytes")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run reports the reference's sites and writes no bytes`() throws {
         _ = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let clone = try ForceKernFixture.cloneCache(named: "dryrun")
@@ -446,7 +450,7 @@ struct DSCIOMFBForceKernParityTests {
         let dry = try DSCIOMFBForceKernPatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(dry.writtenSiteCount == FrozenReference.newlyForced)
         #expect(dry.records.isEmpty)
@@ -466,12 +470,12 @@ struct DSCIOMFBForceKernDiscoveryTests {
     /// Discovery has to agree with the reference's, which read the same image
     /// through `ipsw dyld symaddr`. Compared here without `ipsw`: the pairs the
     /// resolver finds are the pairs the reference logged.
-    @Test("Every discovered pair matches the reference's, name and address")
-    func discoveryMatchesReference() throws {
+    @Test
+    func `Every discovered pair matches the reference's, name and address`() throws {
         let pristine = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e")
+            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e"),
         )
         let entries = try DSCIOMFBForceKernPatcher.discoverEntryPoints(resolver: resolver)
         #expect(entries.count >= DSCIOMFBForceKernPatcher.requiredSuffixes.count)
@@ -490,7 +494,7 @@ struct DSCIOMFBForceKernDiscoveryTests {
             let theirs = String(pair.publicAddress, radix: 16, uppercase: true)
             #expect(
                 entry.publicAddress == pair.publicAddress,
-                "\(pair.publicName): swift 0x\(mine) vs reference 0x\(theirs)"
+                "\(pair.publicName): swift 0x\(mine) vs reference 0x\(theirs)",
             )
             // …and the sibling it would branch to, which is the half of the
             // pair a name-only comparison would miss.
@@ -500,8 +504,8 @@ struct DSCIOMFBForceKernDiscoveryTests {
     }
 
     /// The three the reference refuses to ship without.
-    @Test("The required entry points are present and forcible")
-    func requiredEntryPointsAreForcible() throws {
+    @Test
+    func `The required entry points are present and forcible`() throws {
         let pristine = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         let resolver = try DSCSymbolResolver(chunks: chunks)
@@ -511,16 +515,16 @@ struct DSCIOMFBForceKernDiscoveryTests {
         for required in DSCIOMFBForceKernPatcher.requiredSuffixes {
             let entry = try #require(
                 entries.first { $0.suffix == required },
-                "no entry point discovered for \(required)"
+                "no entry point discovered for \(required)",
             )
-            let instructions = disassembler.disassemble(
-                try chunks.bytesAtVMA(entry.publicAddress, length: 16),
+            let instructions = try disassembler.disassemble(
+                chunks.bytesAtVMA(entry.publicAddress, length: 16),
                 at: entry.publicAddress,
-                count: 4
+                count: 4,
             )
             #expect(
                 DSCIOMFBForceKernPatcher.isDispatchTrampoline(instructions),
-                "\(entry.publicName) is not a thin dispatch trampoline"
+                "\(entry.publicName) is not a thin dispatch trampoline",
             )
         }
     }
@@ -529,8 +533,8 @@ struct DSCIOMFBForceKernDiscoveryTests {
     /// reference left four entry points on the virt path on this cache, and so
     /// must this. A matcher that accepted everything would still pass the byte
     /// comparison only if it happened to agree — it does not, so pin it.
-    @Test("Non-trampoline entry points are recognised and left alone")
-    func nonTrampolinesAreLeftAlone() throws {
+    @Test
+    func `Non-trampoline entry points are recognised and left alone`() throws {
         let pristine = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let clone = try ForceKernFixture.cloneCache(named: "shapes")
@@ -538,12 +542,12 @@ struct DSCIOMFBForceKernDiscoveryTests {
         let dry = try DSCIOMFBForceKernPatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
 
         #expect(
             dry.notTrampolines.map(\.entry.publicName).sorted()
-                == FrozenReference.leftOnVirtPath.sorted()
+                == FrozenReference.leftOnVirtPath.sorted(),
         )
         #expect(dry.forced.count + dry.notTrampolines.count + dry.alreadyForced.count == dry.sites.count)
 
@@ -553,10 +557,10 @@ struct DSCIOMFBForceKernDiscoveryTests {
         let chunks = try DSCChunkSet(directory: pristine)
         let disassembler = ARM64Disassembler()
         for site in dry.notTrampolines {
-            let instructions = disassembler.disassemble(
-                try chunks.bytesAtVMA(site.entry.publicAddress, length: 16),
+            let instructions = try disassembler.disassemble(
+                chunks.bytesAtVMA(site.entry.publicAddress, length: 16),
                 at: site.entry.publicAddress,
-                count: 4
+                count: 4,
             )
             #expect(!DSCIOMFBForceKernPatcher.isDispatchTrampoline(instructions))
             print("[force-kern] left on virt: \(site.entry.publicName) — \(site.originalDisassembly)")
@@ -566,8 +570,8 @@ struct DSCIOMFBForceKernDiscoveryTests {
     /// Each written site is a 4-byte `b` at the public entry point, aimed at the
     /// kern sibling — checked from the record the patcher emits, which is what
     /// the record-comparison harness consumes.
-    @Test("Every record is a four-byte branch to the paired kern implementation")
-    func recordsDescribeTheBranches() throws {
+    @Test
+    func `Every record is a four-byte branch to the paired kern implementation`() throws {
         _ = try #require(ForceKernFixture.pristine, ForceKernFixture.missing)
 
         let clone = try ForceKernFixture.cloneCache(named: "records")
@@ -576,7 +580,7 @@ struct DSCIOMFBForceKernDiscoveryTests {
 
         #expect(outcome.records.count == outcome.writtenSiteCount)
         let kernAddresses = Dictionary(
-            uniqueKeysWithValues: FrozenReference.forcedPairs.map { ($0.publicAddress, $0.kernAddress) }
+            uniqueKeysWithValues: FrozenReference.forcedPairs.map { ($0.publicAddress, $0.kernAddress) },
         )
         let chunks = try DSCChunkSet(directory: clone)
         let disassembler = ARM64Disassembler()
@@ -587,10 +591,10 @@ struct DSCIOMFBForceKernDiscoveryTests {
             #expect(record.originalBytes != record.patchedBytes)
             let address = try #require(record.virtualAddress)
             let instruction = try #require(
-                disassembler.disassembleOne(
-                    try chunks.bytesAtVMA(address, length: 4),
-                    at: address
-                )
+                try disassembler.disassembleOne(
+                    chunks.bytesAtVMA(address, length: 4),
+                    at: address,
+                ),
             )
             #expect(instruction.mnemonic == "b")
             // …and it lands on the kern sibling the reference named for this
@@ -600,7 +604,7 @@ struct DSCIOMFBForceKernDiscoveryTests {
             let site = "0x\(String(address, radix: 16))"
             #expect(
                 instruction.operandString == expected,
-                "\(site) branches to \(instruction.operandString), reference paired it with \(expected)"
+                "\(site) branches to \(instruction.operandString), reference paired it with \(expected)",
             )
         }
     }

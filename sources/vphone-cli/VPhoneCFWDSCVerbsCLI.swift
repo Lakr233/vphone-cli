@@ -87,12 +87,12 @@ struct VPhoneCFWPatchHVVMMDSCCommand: ParsableCommand {
 
         Runs while the SystemOS cryptex is mounted on the host, wrapped by
         `scripts/patch_hv_vmm_userland.sh dsc`.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -103,7 +103,7 @@ struct VPhoneCFWPatchHVVMMDSCCommand: ParsableCommand {
         try DSCHVVMMPatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -132,19 +132,19 @@ struct VPhoneCFWPatchIOMFBSwapEndCommand: ParsableCommand {
 
         Already-correct is a no-op that still re-attests, so re-running over a
         patched cache is safe.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
     @Option(
         name: .customLong("target-size"),
         help: "Payload size the base kernel's userclient accepts (hex or decimal)",
-        transform: VPhoneCFWDSCVerbs.parseCInteger
+        transform: VPhoneCFWDSCVerbs.parseCInteger,
     )
     var targetSize: UInt32 = DSCIOMFBSwapEndPatcher.defaultTargetSize
 
@@ -156,7 +156,7 @@ struct VPhoneCFWPatchIOMFBSwapEndCommand: ParsableCommand {
             chunksDirectory: chunksDirectory,
             targetSize: targetSize,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -187,12 +187,12 @@ struct VPhoneCFWPatchIOMFBForceKernCommand: ParsableCommand {
         Pairs with the KernelJBPatchIomfbSwap kernel patches, which make the
         userclient accept 27's native 0x6e0 SwapEnd struct. Modified pages are
         re-attested; an already-forced cache is a no-op.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -203,7 +203,7 @@ struct VPhoneCFWPatchIOMFBForceKernCommand: ParsableCommand {
         try DSCIOMFBForceKernPatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -231,12 +231,12 @@ struct VPhoneCFWPatchDSCMaxSlideCommand: ParsableCommand {
 
         No re-attestation: maxSlide lives in the cache header, which is not one
         of the cs_validate'd code pages.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -250,7 +250,7 @@ struct VPhoneCFWPatchDSCMaxSlideCommand: ParsableCommand {
         try DSCMaxSlidePatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
-            force: force
+            force: force,
         )
     }
 }
@@ -278,12 +278,12 @@ struct VPhoneCFWPatchLSDEmbeddedRegCommand: ParsableCommand {
         error — a LaunchServices rewrite has to stop the install rather than be
         guessed at, because the silent alternative boots a guest in which no app
         can register.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -294,7 +294,7 @@ struct VPhoneCFWPatchLSDEmbeddedRegCommand: ParsableCommand {
         try DSCLSDEmbeddedRegPatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -320,12 +320,12 @@ struct VPhoneCFWPatchXPCLWCRCommand: ParsableCommand {
         Self-gating: the symbol is absent on pre-iOS-27 libxpc, which is
         reported and exits 0, and a cache already carrying the patched shape is
         a no-op. A cache with the symbol but neither shape is an error.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -336,7 +336,7 @@ struct VPhoneCFWPatchXPCLWCRCommand: ParsableCommand {
         try DSCXPCLWCRPatcher.apply(
             directory: chunksDirectory,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -360,12 +360,12 @@ struct VPhoneCFWPatchLockdownModeCommand: ParsableCommand {
 
         Self-gating: pre-iOS-27 userlands have no such symbol, which is reported
         and exits 0, and a cache already patched is a no-op.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
@@ -376,7 +376,7 @@ struct VPhoneCFWPatchLockdownModeCommand: ParsableCommand {
         try DSCLockdownModePatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }
@@ -404,18 +404,18 @@ struct VPhoneCFWPatchCameraDSCCommand: ParsableCommand {
         `pacibsp` nor the replacement already in place, which is otherwise
         refused rather than overwritten blind. Modified pages are re-attested;
         an already-patched cache is a no-op.
-        """
+        """,
     )
 
     @Argument(
         help: "The guest's /System/Library/Caches/com.apple.dyld directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var chunksDirectory: URL
 
     @Argument(
         help: "The dyld_shared_cache_arm64e file symbols resolve against (not a chunk)",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var dscHeader: URL
 
@@ -431,7 +431,7 @@ struct VPhoneCFWPatchCameraDSCCommand: ParsableCommand {
             symbolCacheURL: dscHeader,
             dryRun: dryRun,
             force: force,
-            log: VPhoneCFWDSCVerbs.stdout
+            log: VPhoneCFWDSCVerbs.stdout,
         )
     }
 }

@@ -120,7 +120,7 @@ public class IBootPatcher: Patcher {
             patchedBytes: patchBytes,
             beforeDisasm: beforeStr,
             afterDisasm: afterStr,
-            description: description
+            description: description,
         )
         patches.append(record)
 
@@ -142,7 +142,7 @@ public class IBootPatcher: Patcher {
             patchedBytes: data,
             beforeDisasm: "",
             afterDisasm: repr(txt),
-            description: description
+            description: description,
         )
         patches.append(record)
 

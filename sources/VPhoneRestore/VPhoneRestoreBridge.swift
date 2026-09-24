@@ -19,7 +19,7 @@ public enum VPhoneRestoreBridge {
     public static func recoveryProbe(
         ecid: UInt64?,
         timeout: Int,
-        isRecovery: Bool? = nil
+        isRecovery: Bool? = nil,
     ) throws -> VPhoneRecoveryDevice {
         try VPhoneRecoveryProbe.probe(ecid: ecid, timeout: timeout, isRecovery: isRecovery)
     }
@@ -45,7 +45,7 @@ public enum VPhoneRestoreBridge {
         udid: String?,
         out: URL?,
         debugLevel: Int32 = 0,
-        onEvent: @escaping VPhoneRestoreEventHandler = { _ in }
+        onEvent: @escaping VPhoneRestoreEventHandler = { _ in },
     ) throws -> URL {
         let restoreDirectory = try VPhoneRestoreLayout.findRestoreDirectory(in: vmDir)
 
@@ -67,9 +67,9 @@ public enum VPhoneRestoreBridge {
                 ecid: ecid ?? 0,
                 erase: true,
                 shshOnly: true,
-                debugLevel: debugLevel
+                debugLevel: debugLevel,
             ),
-            onEvent: onEvent
+            onEvent: onEvent,
         )
 
         let written = try locateWrittenSHSH(under: cacheDirectory, requestedECID: ecid)
@@ -104,7 +104,7 @@ public enum VPhoneRestoreBridge {
         erase: Bool,
         ticketPath: URL?,
         debugLevel: Int32 = 0,
-        onEvent: @escaping VPhoneRestoreEventHandler = { _ in }
+        onEvent: @escaping VPhoneRestoreEventHandler = { _ in },
     ) throws {
         let restoreDirectory = try VPhoneRestoreLayout.findRestoreDirectory(in: vmDir)
 
@@ -124,9 +124,9 @@ public enum VPhoneRestoreBridge {
                 ecid: ecid ?? 0,
                 erase: erase,
                 ticketPath: ticketPath,
-                debugLevel: debugLevel
+                debugLevel: debugLevel,
             ),
-            onEvent: onEvent
+            onEvent: onEvent,
         )
     }
 
@@ -141,7 +141,7 @@ public enum VPhoneRestoreBridge {
         let shshDirectory = cacheDirectory.appendingPathComponent("shsh", isDirectory: true)
         let candidates = ((try? FileManager.default.contentsOfDirectory(
             at: shshDirectory,
-            includingPropertiesForKeys: nil
+            includingPropertiesForKeys: nil,
         )) ?? [])
             .filter { $0.pathExtension == "shsh" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -153,7 +153,9 @@ public enum VPhoneRestoreBridge {
             let match = candidates.first {
                 VPhoneRestoreTicket.ecid(fromSHSHFilename: $0.lastPathComponent) == requestedECID
             }
-            if let match { return match }
+            if let match {
+                return match
+            }
         }
         return candidates[0]
     }

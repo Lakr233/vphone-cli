@@ -80,7 +80,7 @@ extension KernelJBPatcher {
                     patchBytes,
                     patchID: "iouc_macf_gate",
                     virtualAddress: va,
-                    description: "b #0x\(String(format: "%X", delta)) [IOUC MACF deny → allow]"
+                    description: "b #0x\(String(format: "%X", delta)) [IOUC MACF deny → allow]",
                 )
                 return true
             }
@@ -138,7 +138,9 @@ extension KernelJBPatcher {
             {
                 sawIndirectCall = true
             }
-            if sawSlotLoad, sawIndirectCall { return true }
+            if sawSlotLoad, sawIndirectCall {
+                return true
+            }
             off += 4
         }
         return false

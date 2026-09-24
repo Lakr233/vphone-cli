@@ -80,7 +80,7 @@ enum CFWPlistPatchGolden {
 
     /// SHA-256 as `shasum -a 256` prints it.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 }
 
@@ -124,16 +124,20 @@ enum CFWPatchFixtures {
         let ipswDirectory = repoRoot.appending(path: "ipsws")
         let candidates = (try? FileManager.default.contentsOfDirectory(
             at: ipswDirectory,
-            includingPropertiesForKeys: nil
+            includingPropertiesForKeys: nil,
         )) ?? []
         for candidate in candidates where candidate.pathExtension == "ipsw" {
             let listing = (try? run("/usr/bin/unzip", ["-l", candidate.path, deviceTreeEntry]))?.output ?? ""
-            if listing.contains(deviceTreeEntry) { return candidate }
+            if listing.contains(deviceTreeEntry) {
+                return candidate
+            }
         }
         return nil
     }
 
-    static var deviceTreeAvailable: Bool { ipswWithDeviceTree() != nil }
+    static var deviceTreeAvailable: Bool {
+        ipswWithDeviceTree() != nil
+    }
 
     /// Extract the device tree IM4P into `directory` and return its path.
     static func extractDeviceTree(into directory: URL) throws -> URL {
@@ -167,8 +171,13 @@ enum CFWPatchFixtures {
         let status: Int32
         let outputData: Data
         let errorData: Data
-        var output: String { String(decoding: outputData, as: UTF8.self) }
-        var combined: String { output + String(decoding: errorData, as: UTF8.self) }
+        var output: String {
+            String(decoding: outputData, as: UTF8.self)
+        }
+
+        var combined: String {
+            output + String(decoding: errorData, as: UTF8.self)
+        }
     }
 
     @discardableResult
@@ -186,7 +195,7 @@ enum CFWPatchFixtures {
         return CommandResult(
             status: process.terminationStatus,
             outputData: outputData,
-            errorData: errorData
+            errorData: errorData,
         )
     }
 
@@ -218,6 +227,7 @@ enum CFWTestError: Error, CustomStringConvertible {
 }
 
 // MARK: - Semantic plist comparison
+
 //
 // Migration plan §7.1: same key set, same array order, same value types,
 // same Data bytes. Serialized key order and the XML-vs-binary encoding are
@@ -225,7 +235,9 @@ enum CFWTestError: Error, CustomStringConvertible {
 
 enum PlistComparison {
     static func tag(_ value: Any) -> String {
-        if CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() { return "bool" }
+        if CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() {
+            return "bool"
+        }
         switch value {
         case is [String: Any]: return "dict"
         case is [Any]: return "array"
@@ -292,7 +304,7 @@ enum PlistComparison {
         try PropertyListSerialization.propertyList(
             from: Data(contentsOf: url),
             options: [],
-            format: nil
+            format: nil,
         )
     }
 }
@@ -300,14 +312,14 @@ enum PlistComparison {
 // MARK: - CFWBuildVersion
 
 struct CFWBuildVersionTests {
-    @Test func detectsXMLAndBinaryFormats() {
+    @Test func `detects XML and binary formats`() {
         #expect(CFWBuildVersion.detectFormat(Data("<?xml version=\"1.0\"?>".utf8)) == .xml)
         #expect(CFWBuildVersion.detectFormat(Data("\n\t <plist>".utf8)) == .xml)
         #expect(CFWBuildVersion.detectFormat(Data("bplist00".utf8)) == .binary)
         #expect(CFWBuildVersion.detectFormat(Data()) == .binary)
     }
 
-    @Test func rewritesTheKeyAndLeavesEverythingElseAlone() throws {
+    @Test func `rewrites the key and leaves everything else alone`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "SystemVersion.plist")
@@ -329,7 +341,7 @@ struct CFWBuildVersionTests {
         #expect(patched?["ProductName"] as? String == "iPhone OS")
     }
 
-    @Test func isIdempotentAndHonoursDryRun() throws {
+    @Test func `is idempotent and honours dry run`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "SystemVersion.plist")
@@ -346,7 +358,7 @@ struct CFWBuildVersionTests {
         #expect(try Data(contentsOf: url) == before)
     }
 
-    @Test func refusesAPlistWithoutTheKey() throws {
+    @Test func `refuses A plist without the key`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "SystemVersion.plist")
@@ -358,7 +370,7 @@ struct CFWBuildVersionTests {
         }
     }
 
-    @Test func refusesANonDictionaryRoot() throws {
+    @Test func `refuses A non dictionary root`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "root-array.plist")
@@ -371,7 +383,7 @@ struct CFWBuildVersionTests {
     }
 
     @Test(.enabled(if: CFWPatchFixtures.systemVersionAvailable))
-    func matchesTheFrozenReferenceOnARealSystemVersionPlist() throws {
+    func `matches the frozen reference on A real system version plist`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let target = CFWPlistPatchGolden.buildVersionTarget
@@ -411,7 +423,7 @@ struct CFWMachLookupExceptionTests {
             .write(to: url)
     }
 
-    @Test func addsEveryServiceWhenTheKeyIsAbsent() throws {
+    @Test func `adds every service when the key is absent`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "Campo.entitlements")
@@ -427,7 +439,7 @@ struct CFWMachLookupExceptionTests {
         #expect(patched?["platform-application"] as? Bool == true)
     }
 
-    @Test func keepsExistingEntriesFirstAndDoesNotDuplicate() throws {
+    @Test func `keeps existing entries first and does not duplicate`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "Campo.entitlements")
@@ -444,7 +456,7 @@ struct CFWMachLookupExceptionTests {
         #expect(Set(merged).isSuperset(of: CFWMachLookupExceptions.services))
     }
 
-    @Test func isIdempotent() throws {
+    @Test func `is idempotent`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "Campo.entitlements")
@@ -457,7 +469,7 @@ struct CFWMachLookupExceptionTests {
         #expect(try Data(contentsOf: url) == once)
     }
 
-    @Test func refusesAnExceptionKeyThatIsNotAnArray() throws {
+    @Test func `refuses an exception key that is not an array`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "Campo.entitlements")
@@ -468,7 +480,7 @@ struct CFWMachLookupExceptionTests {
     }
 
     @Test(.enabled(if: CFWPatchFixtures.entitlementsDonorAvailable))
-    func matchesTheFrozenReferenceOnRealEntitlements() throws {
+    func `matches the frozen reference on real entitlements`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let key = CFWPlistPatchGolden.exceptionKey
@@ -494,14 +506,18 @@ struct CFWMachLookupExceptionTests {
                 CFWPlistPatchGolden.countLine(total: outcome.total, added: outcome.added)
                     == CFWPlistPatchGolden.countLine(
                         total: expectedServices.count,
-                        added: expectedServices.count - existing.count
+                        added: expectedServices.count - existing.count,
                     ),
-                "\(name)"
+                "\(name)",
             )
 
             // Nothing but that key moved.
             var expected = after
-            if let original = before[key] { expected[key] = original } else { expected[key] = nil }
+            if let original = before[key] {
+                expected[key] = original
+            } else {
+                expected[key] = nil
+            }
             let difference = PlistComparison.difference(before, expected)
             #expect(difference == nil, "\(name): \(difference ?? "")")
         }
@@ -512,7 +528,9 @@ struct CFWMachLookupExceptionTests {
 
 enum DERTestEncoder {
     static func length(_ count: Int) -> Data {
-        if count < 0x80 { return Data([UInt8(count)]) }
+        if count < 0x80 {
+            return Data([UInt8(count)])
+        }
         var bytes: [UInt8] = []
         var remaining = count
         while remaining > 0 {
@@ -550,7 +568,9 @@ enum DERTestEncoder {
             if first & 0x80 != 0 {
                 let byteCount = Int(first & 0x7F)
                 count = 0
-                for index in 0 ..< byteCount { count = (count << 8) | Int(data[cursor + index]) }
+                for index in 0 ..< byteCount {
+                    count = (count << 8) | Int(data[cursor + index])
+                }
                 cursor += byteCount
             }
             return (tag, cursor, count)
@@ -572,7 +592,7 @@ enum DERTestEncoder {
 
 struct CFWPostRestoreDeviceTreeTests {
     @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
-    func parseAndSerializeRoundTripsARealDeviceTree() throws {
+    func `parse and serialize round trips A real device tree`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let im4p = try CFWPatchFixtures.extractDeviceTree(into: directory)
@@ -590,7 +610,7 @@ struct CFWPostRestoreDeviceTreeTests {
     }
 
     @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
-    func rewritesExactlyTheThreeRestoreFatalProperties() throws {
+    func `rewrites exactly the three restore fatal properties`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let im4p = try CFWPatchFixtures.extractDeviceTree(into: directory)
@@ -614,7 +634,7 @@ struct CFWPostRestoreDeviceTreeTests {
     }
 
     @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
-    func matchesTheFrozenReferenceByteForByteOnARealDeviceTree() throws {
+    func `matches the frozen reference byte for byte on A real device tree`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = try CFWPatchFixtures.extractDeviceTree(into: directory)
@@ -629,7 +649,7 @@ struct CFWPostRestoreDeviceTreeTests {
             no frozen reference output for a DeviceTree.vphone600ap.im4p with \
             digest \(input) — re-derive CFWPlistPatchGolden.deviceTree for this \
             IPSW before reading a failure here as a patcher bug
-            """
+            """,
         )
 
         let swiftOutput = directory.appending(path: "swift.im4p")
@@ -640,7 +660,7 @@ struct CFWPostRestoreDeviceTreeTests {
         #expect(outcome.changes.count == 3)
         #expect(
             try CFWPlistPatchGolden.digest(of: swiftOutput) == expected,
-            "IM4P differs from the frozen reference output"
+            "IM4P differs from the frozen reference output",
         )
 
         // And the re-run is a no-op, as the reference's was: it printed
@@ -660,7 +680,7 @@ struct CFWPostRestoreDeviceTreeTests {
     /// every element around it must come back byte for byte, because the
     /// manifest and restore info are carried, never re-encoded.
     @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
-    func preservesEverythingAroundTheIM4PInAnIMG4() throws {
+    func `preserves everything around the IM 4 P in an IMG 4`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = try CFWPatchFixtures.extractDeviceTree(into: directory)
@@ -698,7 +718,7 @@ struct CFWPostRestoreDeviceTreeTests {
     }
 
     @Test(.enabled(if: CFWPatchFixtures.deviceTreeAvailable))
-    func refusesAPayloadThatIsNotADeviceTree() throws {
+    func `refuses A payload that is not A device tree`() throws {
         let directory = try CFWPatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "not-a-dt.im4p")

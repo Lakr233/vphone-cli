@@ -20,14 +20,14 @@ import Testing
 struct VPhoneSignParityTests {
     // MARK: - Ad-hoc, which is nearly every call
 
-    @Test("ldid -S")
-    func adHoc() throws {
+    @Test
+    func `ldid -S`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         // a corpus that shrank to nothing would make every one of these pass
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         #expect(
             corpus.contains { (try? Data(contentsOf: $0).prefix(4)) == Data([0xCA, 0xFE, 0xBA, 0xBE]) },
-            "no fat binary in the corpus"
+            "no fat binary in the corpus",
         )
         for source in corpus {
             let directory = try VPhoneSignFixtures.temporaryDirectory()
@@ -41,8 +41,8 @@ struct VPhoneSignParityTests {
 
     // MARK: - Entitlements
 
-    @Test("ldid -S<entitlements>")
-    func entitlements() throws {
+    @Test
+    func `ldid -S<entitlements>`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         for source in corpus {
@@ -51,7 +51,7 @@ struct VPhoneSignParityTests {
             let name = source.lastPathComponent
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements
+                source, in: directory, entitlements: Self.sampleEntitlements,
             )
             try VPhoneSignFixtures.expect("\(name).entitlements", matches: Data(contentsOf: ours))
         }
@@ -64,8 +64,8 @@ struct VPhoneSignParityTests {
     /// nothing anybody here composed. The five `hello-*` files carry none,
     /// which is the other half of the claim: over them the merge has to be a
     /// no-op and land exactly where `ldid -S<ent>` lands.
-    @Test("ldid -S<entitlements> -M over a seeded signature")
-    func merged() throws {
+    @Test
+    func `ldid -S<entitlements> -M over a seeded signature`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         var seeded = 0
@@ -78,7 +78,7 @@ struct VPhoneSignParityTests {
             }
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true
+                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true,
             )
             try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
         }
@@ -101,8 +101,8 @@ struct VPhoneSignParityTests {
     /// `seeded-promotedcontentd` a value above `Int32.max`,
     /// `seeded-runningboardd` two different ones and
     /// `seeded-sysdiagnose_helper` six.
-    @Test("ldid -S -M over a binary's own entitlements, which is what cfw_install calls")
-    func mergedWithoutAFile() throws {
+    @Test
+    func `ldid -S -M over a binary's own entitlements, which is what cfw_install calls`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         var merged = 0
@@ -111,7 +111,9 @@ struct VPhoneSignParityTests {
             defer { try? FileManager.default.removeItem(at: directory) }
             let name = source.lastPathComponent
             let carries = try VPhoneSigner.entitlements(ofFileAt: source).contains { !$0.isEmpty }
-            if carries { merged += 1 }
+            if carries {
+                merged += 1
+            }
 
             let ours = try VPhoneSignFixtures.sign(source, in: directory, mergesExisting: true)
             try VPhoneSignFixtures.expect("\(name).mergeOwn", matches: Data(contentsOf: ours))
@@ -123,7 +125,7 @@ struct VPhoneSignParityTests {
                 #expect(
                     VPhoneSignFixtures.expected["\(name).mergeOwn"]
                         != VPhoneSignFixtures.expected["\(name).adhoc"],
-                    "\(name): ldid's -S -M and its -S agree, so the merge carried nothing"
+                    "\(name): ldid's -S -M and its -S agree, so the merge carried nothing",
                 )
             }
         }
@@ -140,8 +142,8 @@ struct VPhoneSignParityTests {
     /// corpus; what this adds is the guard that every one of the seven really
     /// did arrive with a list, and that merging over it is not the same as
     /// replacing it.
-    @Test("ldid -S<entitlements> -M over a binary's own entitlements")
-    func mergedOverOwnEntitlements() throws {
+    @Test
+    func `ldid -S<entitlements> -M over a binary's own entitlements`() throws {
         let seeded = try VPhoneSignFixtures.seeded
         // Without this the loop body can never run and the test passes having
         // compared nothing. Its sibling `mergedWithoutAFile` carries the same
@@ -153,11 +155,11 @@ struct VPhoneSignParityTests {
             let name = source.lastPathComponent
             #expect(
                 try VPhoneSigner.entitlements(ofFileAt: source).contains { !$0.isEmpty },
-                "\(name) carries no entitlements, so there is nothing here to merge over"
+                "\(name) carries no entitlements, so there is nothing here to merge over",
             )
 
             let ours = try VPhoneSignFixtures.sign(
-                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true
+                source, in: directory, entitlements: Self.sampleEntitlements, mergesExisting: true,
             )
             try VPhoneSignFixtures.expect("\(name).mergeSample", matches: Data(contentsOf: ours))
 
@@ -165,7 +167,7 @@ struct VPhoneSignParityTests {
             #expect(
                 VPhoneSignFixtures.expected["\(name).mergeSample"]
                     != VPhoneSignFixtures.expected["\(name).entitlements"],
-                "\(name): ldid's -S<ent> -M and its -S<ent> agree, so the merge dropped the existing list"
+                "\(name): ldid's -S<ent> -M and its -S<ent> agree, so the merge dropped the existing list",
             )
         }
     }
@@ -173,8 +175,8 @@ struct VPhoneSignParityTests {
     /// `-I`, which a handful of call sites use to sign under an Apple
     /// identifier (`com.apple.seputil` and friends) rather than the file's
     /// name.
-    @Test("ldid -I<identifier>")
-    func explicitIdentifier() throws {
+    @Test
+    func `ldid -I<identifier>`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         for source in corpus {
@@ -196,15 +198,15 @@ struct VPhoneSignParityTests {
     /// production logic — `options.identifier ?? url.lastPathComponent` —
     /// covered by nothing, so it is covered here, and structurally: the name
     /// is read back out of the CodeDirectory rather than compared to a digest.
-    @Test("an unset identifier defaults to the file's name, as ldid does")
-    func identifierDefaultsToTheFileName() throws {
+    @Test
+    func `an unset identifier defaults to the file's name, as ldid does`() throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         // deliberately not the fixture's name: the claim is that the signer
         // reads the name off the file it was handed
         let name = "named-for-this-test"
         let file = try VPhoneSignFixtures.copy(
-            try VPhoneSignFixtures.url("hello-arm64"), into: directory, as: name
+            VPhoneSignFixtures.url("hello-arm64"), into: directory, as: name,
         )
         try VPhoneSigner.sign(fileAt: file)
 
@@ -218,8 +220,8 @@ struct VPhoneSignParityTests {
 
     /// Signing twice must land on the same bytes, or a rebuild of the CFW
     /// would produce a different image every time.
-    @Test("signing an already-signed file is idempotent")
-    func idempotent() throws {
+    @Test
+    func `signing an already-signed file is idempotent`() throws {
         for source in try VPhoneSignFixtures.fixtures {
             let directory = try VPhoneSignFixtures.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }

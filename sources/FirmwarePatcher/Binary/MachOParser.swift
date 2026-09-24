@@ -44,7 +44,7 @@ public enum MachOParser {
     /// and the caller sees an empty/partial result it can reject normally.
     static func forEachLoadCommand(
         in data: Data,
-        _ body: (_ cmd: UInt32, _ offset: Int, _ cmdsize: Int) -> Void
+        _ body: (_ cmd: UInt32, _ offset: Int, _ cmdsize: Int) -> Void,
     ) {
         guard data.count > 32 else { return }
         let ncmds = data.loadLE(UInt32.self, at: 16)
@@ -85,7 +85,7 @@ public enum MachOParser {
                 vmAddr: vmAddr,
                 vmSize: vmSize,
                 fileOffset: fileOff,
-                fileSize: fileSize
+                fileSize: fileSize,
             ))
         }
         return segments
@@ -125,7 +125,7 @@ public enum MachOParser {
                     sectionName: sectName,
                     address: addr,
                     size: size,
-                    fileOffset: fileOff
+                    fileOffset: fileOff,
                 )
                 sectOff += section64Size
             }
@@ -180,7 +180,9 @@ public enum MachOParser {
             // Read null-terminated string
             var strEnd = strStart
             while strEnd < data.count, strEnd < symtab.stroff + symtab.strsize {
-                if data[strEnd] == 0 { break }
+                if data[strEnd] == 0 {
+                    break
+                }
                 strEnd += 1
             }
 

@@ -74,14 +74,14 @@ extension KernelPatcher {
                 ARM64.movX0_0,
                 patchID: "kernel.sandbox.\(hook.name).mov_x0_0",
                 virtualAddress: va,
-                description: "mov x0,#0 [_hook_\(hook.name)]"
+                description: "mov x0,#0 [_hook_\(hook.name)]",
             )
             emit(
                 funcOff + 4,
                 ARM64.ret,
                 patchID: "kernel.sandbox.\(hook.name).ret",
                 virtualAddress: va.map { $0 + 4 },
-                description: "ret [_hook_\(hook.name)]"
+                description: "ret [_hook_\(hook.name)]",
             )
 
             log("  [+] ops[\(hook.index)] \(hook.name) at foff 0x\(String(format: "%X", funcOff))")

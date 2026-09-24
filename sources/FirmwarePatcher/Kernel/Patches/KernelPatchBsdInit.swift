@@ -123,7 +123,7 @@ extension KernelPatcher {
                     ARM64.nop,
                     patchID: "kernel.bsd_init_rootvp",
                     virtualAddress: va,
-                    description: "NOP \(insn.mnemonic) (rootvp auth) [_bsd_init]"
+                    description: "NOP \(insn.mnemonic) (rootvp auth) [_bsd_init]",
                 )
                 return true
             }

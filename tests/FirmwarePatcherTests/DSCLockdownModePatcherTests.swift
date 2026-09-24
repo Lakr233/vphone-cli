@@ -98,7 +98,9 @@ private enum LockdownFixture {
     }
 
     /// The suite runs unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -127,14 +129,14 @@ private enum LockdownFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let entries = try FileManager.default.contentsOfDirectory(atPath: pristine.path).sorted()
         let result = try Subprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
                 + entries.map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         guard result.status == 0 else {
             Issue.record("clone failed: \(result.stderr)")
@@ -183,7 +185,7 @@ private enum Subprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -240,11 +242,11 @@ private enum DirectoryComparison {
                 arguments: [
                     lhs.appendingPathComponent(name).path,
                     rhs.appendingPathComponent(name).path,
-                ]
+                ],
             )
             if result.status != 0 {
                 differing.append("\(name): \(result.stdout)\(result.stderr)".trimmingCharacters(
-                    in: .whitespacesAndNewlines
+                    in: .whitespacesAndNewlines,
                 ))
             }
         }
@@ -254,8 +256,8 @@ private enum DirectoryComparison {
     /// The names of the files in `directory` that differ from `reference`.
     static func changedNames(in directory: URL, against reference: URL) throws -> [String] {
         let manager = FileManager.default
-        let left = Set(try manager.contentsOfDirectory(atPath: reference.path))
-        let right = Set(try manager.contentsOfDirectory(atPath: directory.path))
+        let left = try Set(manager.contentsOfDirectory(atPath: reference.path))
+        let right = try Set(manager.contentsOfDirectory(atPath: directory.path))
         var differing = Array(left.symmetricDifference(right))
         for name in left.intersection(right) {
             let result = try Subprocess.run(
@@ -264,9 +266,11 @@ private enum DirectoryComparison {
                     "-s",
                     reference.appendingPathComponent(name).path,
                     directory.appendingPathComponent(name).path,
-                ]
+                ],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return differing.sorted()
     }
@@ -279,7 +283,7 @@ private enum DirectoryComparison {
         for name in names {
             let result = try Subprocess.run(
                 executable: URL(fileURLWithPath: "/sbin/md5"),
-                arguments: ["-q", directory.appendingPathComponent(name).path]
+                arguments: ["-q", directory.appendingPathComponent(name).path],
             )
             digests[name] = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -292,8 +296,8 @@ private enum DirectoryComparison {
 @Suite(.serialized, .enabled(if: LockdownFixture.runs, LockdownFixture.skipReason))
 struct DSCLockdownModeParityTests {
     /// The one that matters: the real cache in, the reference's bytes out.
-    @Test("Swift reproduces the reference's patched cache byte for byte")
-    func patchedCacheMatchesTheReference() throws {
+    @Test
+    func `Swift reproduces the reference's patched cache byte for byte`() throws {
         _ = try #require(LockdownFixture.pristine, LockdownFixture.missing)
 
         let swiftClone = try LockdownFixture.cloneCache(named: "swift")
@@ -316,8 +320,8 @@ struct DSCLockdownModeParityTests {
     /// The write has to be covered by exactly one re-attested page, or the
     /// guest takes a `KERN_PROTECTION_FAILURE` the first time it faults the
     /// page in. The Python re-attests one slot here; so must this.
-    @Test("The write is re-attested, and only the page it dirtied")
-    func reattestationCoversTheWrite() throws {
+    @Test
+    func `The write is re-attested, and only the page it dirtied`() throws {
         _ = try #require(LockdownFixture.pristine, LockdownFixture.missing)
 
         let clone = try LockdownFixture.cloneCache(named: "reattest")
@@ -333,8 +337,8 @@ struct DSCLockdownModeParityTests {
     /// A second pass over an installed cache is how this patch is actually met
     /// in the field — `cfw_install` re-runs. It must report a no-op rather than
     /// raise, and must not move a byte.
-    @Test("A second run is a no-op on an already-patched cache")
-    func secondRunIsANoOp() throws {
+    @Test
+    func `A second run is a no-op on an already-patched cache`() throws {
         _ = try #require(LockdownFixture.pristine, LockdownFixture.missing)
 
         let clone = try LockdownFixture.cloneCache(named: "idempotence")
@@ -361,8 +365,8 @@ struct DSCLockdownModeParityTests {
     /// The reference's `--dry-run` named the gate and changed no chunk. So
     /// must this one — an install script that asks what would happen must not
     /// be the thing that makes it happen.
-    @Test("A dry run names the reference's gate and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run names the reference's gate and writes nothing`() throws {
         let pristine = try #require(LockdownFixture.pristine, LockdownFixture.missing)
 
         let clone = try LockdownFixture.cloneCache(named: "dryrun")
@@ -371,7 +375,7 @@ struct DSCLockdownModeParityTests {
         let outcome = try DSCLockdownModePatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(outcome.sitesWritten == 0)
         #expect(outcome.sitesFound == 1)
@@ -383,15 +387,15 @@ struct DSCLockdownModeParityTests {
 
     /// The reveal — symbol, then gate — read off the pristine cache without
     /// touching it, and checked against the addresses the reference printed.
-    @Test("Symbol and gate resolve to the reference's addresses")
-    func revealMatchesTheReference() throws {
+    @Test
+    func `Symbol and gate resolve to the reference's addresses`() throws {
         let pristine = try #require(LockdownFixture.pristine, LockdownFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
         let resolved = try DSCLockdownModePatcher.resolveBlockInvoke(in: chunks)
         let block = try #require(
             resolved,
-            "the cache must carry an os_lockdown_mode_enabled block to compare against"
+            "the cache must carry an os_lockdown_mode_enabled block to compare against",
         )
         #expect(block.vma == FrozenReference.functionVMA)
         #expect(block.name == DSCLockdownModePatcher.symbolCandidates.first)
@@ -431,7 +435,7 @@ struct DSCLockdownModeGateTests {
         return Stream(
             instructions: instructions,
             gateIndex: gateIndex,
-            comparisonIndex: gateIndex - 1
+            comparisonIndex: gateIndex - 1,
         )
     }
 
@@ -449,8 +453,8 @@ struct DSCLockdownModeGateTests {
         return ARM64.encodeU32(rewritten)
     }
 
-    @Test("The live b.eq gate is found, and it is the one the patch NOPs")
-    func findsTheLiveGate() throws {
+    @Test
+    func `The live b.eq gate is found, and it is the one the patch NOPs`() throws {
         let stream = try realStream()
         let comparison = stream.instructions[stream.comparisonIndex]
         #expect(comparison.mnemonic == "cmn")
@@ -460,21 +464,21 @@ struct DSCLockdownModeGateTests {
         #expect(stream.instructions[..<stream.comparisonIndex].contains { $0.mnemonic == "bl" })
     }
 
-    @Test("A cmn with no preceding call is not a gate")
-    func rejectsComparisonWithoutACall() throws {
+    @Test
+    func `A cmn with no preceding call is not a gate`() throws {
         let stream = try realStream()
         let withoutCalls = stream.instructions.filter { $0.mnemonic != "bl" }
         #expect(DSCLockdownModePatcher.findErrorGate(withoutCalls) == nil)
     }
 
-    @Test("A cmn with the wrong immediate is not a gate")
-    func rejectsWrongImmediate() throws {
+    @Test
+    func `A cmn with the wrong immediate is not a gate`() throws {
         let stream = try realStream()
         let comparison = stream.instructions[stream.comparisonIndex]
         let disassembler = ARM64Disassembler()
         let mutated = try #require(disassembler.disassembleOne(
             word(of: comparison, withImmediate: 2),
-            at: comparison.address
+            at: comparison.address,
         ))
         #expect(mutated.mnemonic == "cmn")
         #expect(DSCLockdownModePatcher.immediate(of: mutated, at: 1) == 2)
@@ -484,20 +488,20 @@ struct DSCLockdownModeGateTests {
         #expect(DSCLockdownModePatcher.findErrorGate(instructions) == nil)
     }
 
-    @Test("An unrelated instruction in the branch slot is not a gate")
-    func rejectsUnrelatedBranchSlot() throws {
+    @Test
+    func `An unrelated instruction in the branch slot is not a gate`() throws {
         let stream = try realStream()
         let filler = try #require(
             stream.instructions.first { $0.mnemonic != "b.eq" && $0.mnemonic != "nop" },
-            "the block must contain some instruction that is neither b.eq nor nop"
+            "the block must contain some instruction that is neither b.eq nor nop",
         )
         var instructions = stream.instructions
         instructions[stream.gateIndex] = filler
         #expect(DSCLockdownModePatcher.findErrorGate(instructions) == nil)
     }
 
-    @Test("A truncated stream that ends on the cmn is not a gate")
-    func rejectsTruncatedStream() throws {
+    @Test
+    func `A truncated stream that ends on the cmn is not a gate`() throws {
         let stream = try realStream()
         let truncated = Array(stream.instructions[...stream.comparisonIndex])
         #expect(DSCLockdownModePatcher.findErrorGate(truncated) == nil)
@@ -505,8 +509,8 @@ struct DSCLockdownModeGateTests {
 
     /// The already-patched shape, read off a cache this code actually patched
     /// rather than off a synthesised stream.
-    @Test("A NOPed gate is still recognised, at the same address")
-    func findsAnAlreadyNOPedGate() throws {
+    @Test
+    func `A NOPed gate is still recognised, at the same address`() throws {
         _ = try #require(LockdownFixture.pristine, LockdownFixture.missing)
         let clone = try LockdownFixture.cloneCache(named: "nopedgate")
         defer { LockdownFixture.discard(clone) }

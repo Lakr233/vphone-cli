@@ -16,7 +16,7 @@ public enum VPhoneBundleOps {
             memoryMB: UInt64,
             diskSizeGB: UInt64,
             romSource: URL,
-            sepromSource: URL
+            sepromSource: URL,
         ) {
             self.name = name; self.cpuCount = cpuCount; self.memoryMB = memoryMB
             self.diskSizeGB = diskSizeGB; self.romSource = romSource; self.sepromSource = sepromSource
@@ -29,6 +29,7 @@ public enum VPhoneBundleOps {
     public static func defaultROMSource() -> URL {
         frameworkResources.appendingPathComponent("AVPBooter.vresearch1.bin")
     }
+
     public static func defaultSEPROMSource() -> URL {
         frameworkResources.appendingPathComponent("AVPSEPBooter.vresearch1.bin")
     }
@@ -77,7 +78,8 @@ public enum VPhoneBundleOps {
                 cpuCount: spec.cpuCount,
                 memorySize: spec.memoryMB * 1024 * 1024,
                 romImages: .init(avpBooter: "AVPBooter.vresearch1.bin",
-                                 avpSEPBooter: "AVPSEPBooter.vresearch1.bin"))
+                                 avpSEPBooter: "AVPSEPBooter.vresearch1.bin"),
+            )
             try manifest.write(to: dir.appendingPathComponent("config.plist"))
 
             return VPhoneBundle(url: dir, manifest: manifest)
@@ -95,7 +97,7 @@ public enum VPhoneBundleOps {
         cpuCount: UInt?,
         memoryMB: UInt64?,
         networkMode: VPhoneVirtualMachineManifest.NetworkConfig.NetworkMode? = nil,
-        bridgeInterface: String? = nil
+        bridgeInterface: String? = nil,
     ) throws -> VPhoneBundle {
         let bundle = try library.bundle(named: name)
         let editsNetwork = networkMode != nil || bridgeInterface != nil
@@ -103,12 +105,14 @@ public enum VPhoneBundleOps {
             ? try VPhoneNetworking.merge(
                 into: bundle.manifest.networkConfig,
                 mode: networkMode,
-                bridgeInterface: bridgeInterface)
+                bridgeInterface: bridgeInterface,
+            )
             : nil
         let updated = bundle.manifest.updating(
             cpuCount: cpuCount,
             memorySize: memoryMB.map { $0 * 1024 * 1024 },
-            networkConfig: network)
+            networkConfig: network,
+        )
         try updated.write(to: bundle.configURL)
         return VPhoneBundle(url: bundle.url, manifest: updated)
     }
@@ -118,7 +122,7 @@ public enum VPhoneBundleOps {
     public static func rename(
         bundleNamed name: String,
         to newName: String,
-        in library: VPhoneLibrary
+        in library: VPhoneLibrary,
     ) throws -> VPhoneBundle {
         try requireValidName(newName)
         let src = try library.bundle(named: name).url
@@ -144,17 +148,19 @@ public enum VPhoneBundleOps {
     public static func clone(
         bundleNamed name: String,
         to newName: String,
-        in library: VPhoneLibrary
+        in library: VPhoneLibrary,
     ) throws -> VPhoneBundle {
         try requireValidName(newName)
         let src = try library.bundle(named: name).url
         let dst = library.url(forName: newName)
         let fm = FileManager.default
-        if fm.fileExists(atPath: dst.path) { throw VPhoneLibraryError.alreadyExists(name: newName) }
+        if fm.fileExists(atPath: dst.path) {
+            throw VPhoneLibraryError.alreadyExists(name: newName)
+        }
 
         // APFS CoW clone; fall back to a plain recursive copy off-APFS.
         if clonefile(src.path, dst.path, 0) != 0 {
-            try? fm.removeItem(at: dst)  // clear any partial clonefile output first
+            try? fm.removeItem(at: dst) // clear any partial clonefile output first
             try fm.copyItem(at: src, to: dst)
         }
         try resetIdentity(inBundleAt: dst)
@@ -165,10 +171,14 @@ public enum VPhoneBundleOps {
         let fm = FileManager.default
         for name in ["nvram.bin", "udid-prediction.txt"] {
             let u = dir.appendingPathComponent(name)
-            if fm.fileExists(atPath: u.path) { try fm.removeItem(at: u) }
+            if fm.fileExists(atPath: u.path) {
+                try fm.removeItem(at: u)
+            }
         }
         let entries = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
-        for u in entries where u.pathExtension == "shsh" { try fm.removeItem(at: u) }
+        for u in entries where u.pathExtension == "shsh" {
+            try fm.removeItem(at: u)
+        }
         let configURL = dir.appendingPathComponent("config.plist")
         let manifest = try VPhoneVirtualMachineManifest.load(from: configURL)
         try manifest.updating(machineIdentifier: Data()).write(to: configURL)

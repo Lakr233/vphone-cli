@@ -42,15 +42,27 @@ enum WatchdogdFixture {
 
     static let codesign = URL(filePath: "/usr/bin/codesign")
 
-    static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+    static func exists(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
 
     /// SHA-256 as `shasum -a 256` prints it, so a digest in this run's output
     /// can be compared against one taken from a shell.
-    static func digest(_ data: Data) -> String { Data(SHA256.hash(data: data)).hex }
+    static func digest(_ data: Data) -> String {
+        Data(SHA256.hash(data: data)).hex
+    }
 
-    static var hasWatchdogd: Bool { exists(watchdogd) }
-    static var hasSeputil: Bool { exists(seputil) }
-    static var hasCodesign: Bool { hasWatchdogd && exists(codesign) }
+    static var hasWatchdogd: Bool {
+        exists(watchdogd)
+    }
+
+    static var hasSeputil: Bool {
+        exists(seputil)
+    }
+
+    static var hasCodesign: Bool {
+        hasWatchdogd && exists(codesign)
+    }
 
     /// A private copy of `source` the caller may modify freely. Deliberately
     /// outside the working tree.
@@ -102,9 +114,11 @@ enum WatchdogdFixture {
             where instruction.mnemonic == "bl"
         {
             guard let target = ARM64Encoder.decodeBranchTarget(
-                insn: CFWWatchdogd.word(of: instruction), pc: instruction.address
+                insn: CFWWatchdogd.word(of: instruction), pc: instruction.address,
             ) else { continue }
-            if symbols.name(forBranchTarget: target) == "_sysctlbyname" { found.append(instruction.address) }
+            if symbols.name(forBranchTarget: target) == "_sysctlbyname" {
+                found.append(instruction.address)
+            }
         }
         return found
     }
@@ -148,7 +162,7 @@ enum WatchdogdGolden {
 struct CFWWatchdogdAnchorTests {
     /// The shape the patch is written against, read off the real binary.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func locatesBothCacheSites() throws {
+    func `locates both cache sites`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let sites = try CFWWatchdogd.locateSites(in: data)
 
@@ -159,12 +173,12 @@ struct CFWWatchdogdAnchorTests {
             // The gate really is the `cbnz w0` right after the call...
             #expect(site.gateVMA == site.callVMA + 4)
             let gate = try #require(ARM64Disassembler().disassembleOne(
-                data.subdata(in: site.gateFileOffset ..< site.gateFileOffset + 4), at: site.gateVMA
+                data.subdata(in: site.gateFileOffset ..< site.gateFileOffset + 4), at: site.gateVMA,
             ))
             #expect(gate.mnemonic == "cbnz")
             // ...and the value really is a `cset`.
             let value = try #require(ARM64Disassembler().disassembleOne(
-                data.subdata(in: site.valueFileOffset ..< site.valueFileOffset + 4), at: site.valueVMA
+                data.subdata(in: site.valueFileOffset ..< site.valueFileOffset + 4), at: site.valueVMA,
             ))
             #expect(value.mnemonic == "cset")
             #expect(value.aarch64?.conditionCode == AArch64CC_NE)
@@ -174,7 +188,7 @@ struct CFWWatchdogdAnchorTests {
     /// The cached byte is a zero-filled global, which is why the skipped store
     /// leaves it reading 0 and why forcing the stored value to 1 is the fix.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func cachedByteLivesInZeroFilledData() throws {
+    func `cached byte lives in zero filled data`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let sites = try CFWWatchdogd.locateSites(in: data)
         let sections = MachOParser.parseSections(from: data)
@@ -194,21 +208,23 @@ struct CFWWatchdogdAnchorTests {
     /// matched on "a call followed by cbnz w0" alone would have to be checked
     /// by hand; this states the number.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func rejectsTheOtherSysctlCallSites() throws {
+    func `rejects the other sysctl call sites`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let calls = try WatchdogdFixture.sysctlCallSites(in: data)
         let sites = try CFWWatchdogd.locateSites(in: data)
 
         #expect(calls.count == 5, "24A435 watchdogd calls sysctlbyname five times")
         #expect(sites.count == 2)
-        for site in sites { #expect(calls.contains(site.callVMA)) }
+        for site in sites {
+            #expect(calls.contains(site.callVMA))
+        }
     }
 
     /// The in-image symbol lookup the anchor rests on, checked on its own: a
     /// stub address in `__auth_stubs` resolves through the indirect symbol
     /// table to the imported name.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func resolvesTheImportThroughTheIndirectSymbolTable() throws {
+    func `resolves the import through the indirect symbol table`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let symbols = try #require(CFWWatchdogdSymbolTargets(data: data))
         let sites = try CFWWatchdogd.locateSites(in: data)
@@ -219,7 +235,7 @@ struct CFWWatchdogdAnchorTests {
                 let offset = Int(call.callVMA - 0x1_0000_0000)
                 return data.loadLE(UInt32.self, at: offset)
             }(),
-            pc: call.callVMA
+            pc: call.callVMA,
         ))
         #expect(symbols.importName(atStub: target) == "_sysctlbyname")
         // An address that is not a stub resolves to nothing rather than to the
@@ -236,7 +252,7 @@ struct CFWWatchdogdAnchorTests {
     /// patch working when a later build schedules the argument differently, so
     /// it is checked here instead of assumed.
     @Test
-    func acceptsTheLiteralReachingX0ThroughAMove() throws {
+    func `accepts the literal reaching X 0 through A move`() throws {
         let base: UInt64 = 0x1_0000_0000
 
         func stream(movingInto destination: UInt32?) throws -> [Instruction] {
@@ -253,20 +269,20 @@ struct CFWWatchdogdAnchorTests {
         }
 
         // add x9, … ; mov x0, x9 ; bl — the literal is the call's argument.
-        #expect(CFWWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: try stream(movingInto: 0)
+        #expect(try CFWWatchdogd.passesLiteral(
+            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: 0),
         ))
         // The same shape moving into x1 is some other call's argument.
-        #expect(!CFWWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: try stream(movingInto: 1)
+        #expect(try !CFWWatchdogd.passesLiteral(
+            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: 1),
         ))
         // No move at all, and the pointer never reaches x0.
-        #expect(!CFWWatchdogd.passesLiteral(
-            inRegister: "x9", from: 1, toCallAt: 3, in: try stream(movingInto: nil)
+        #expect(try !CFWWatchdogd.passesLiteral(
+            inRegister: "x9", from: 1, toCallAt: 3, in: stream(movingInto: nil),
         ))
         // The direct form the shipped binary uses needs no move.
-        #expect(CFWWatchdogd.passesLiteral(
-            inRegister: "x0", from: 1, toCallAt: 3, in: try stream(movingInto: nil)
+        #expect(try CFWWatchdogd.passesLiteral(
+            inRegister: "x0", from: 1, toCallAt: 3, in: stream(movingInto: nil),
         ))
     }
 
@@ -274,7 +290,7 @@ struct CFWWatchdogdAnchorTests {
     /// error, not a silent no-op: "no site" and "already patched" must not be
     /// the same answer.
     @Test(.enabled(if: WatchdogdFixture.hasSeputil))
-    func rejectsABinaryWithoutTheCacheSite() throws {
+    func `rejects A binary without the cache site`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.seputil)
         #expect(throws: PatcherError.self) {
             try CFWWatchdogd.locateSites(in: data)
@@ -288,7 +304,7 @@ struct CFWWatchdogdAnchorTests {
 struct CFWWatchdogdPatchTests {
     /// Both instructions, and nothing else in `__TEXT`.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func rewritesTwoInstructionsPerSite() throws {
+    func `rewrites two instructions per site`() throws {
         let original = try Data(contentsOf: WatchdogdFixture.watchdogd)
         var data = original
         let report = try CFWWatchdogd.patch(&data, log: nil)
@@ -320,7 +336,7 @@ struct CFWWatchdogdPatchTests {
     /// Every page that was written gets its slot re-hashed — checked against
     /// the code directory's own slot arithmetic rather than the patcher's.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func reattestsThePageOfEveryWrittenInstruction() throws {
+    func `reattests the page of every written instruction`() throws {
         var data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let report = try CFWWatchdogd.patch(&data, log: nil)
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: data)?.first)
@@ -332,7 +348,7 @@ struct CFWWatchdogdPatchTests {
             let range = try #require(directory.slotRange(slot.pageIndex))
             let stored = data.subdata(
                 in: directory.slotHashOffset(slot.pageIndex)
-                    ..< directory.slotHashOffset(slot.pageIndex) + directory.hashSize
+                    ..< directory.slotHashOffset(slot.pageIndex) + directory.hashSize,
             )
             #expect(stored == slot.after)
             #expect(slot.pageStart ..< slot.pageEnd == range)
@@ -344,7 +360,7 @@ struct CFWWatchdogdPatchTests {
     /// second run must change nothing at all — not the instructions, not the
     /// code directory, not one byte of the file.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func secondRunChangesNothing() throws {
+    func `second run changes nothing`() throws {
         var data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let first = try CFWWatchdogd.patch(&data, log: nil)
         #expect(first.outcome == .patched)
@@ -366,7 +382,7 @@ struct CFWWatchdogdPatchTests {
 
     /// A dry run reports the sites and writes nothing.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func dryRunWritesNothing() throws {
+    func `dry run writes nothing`() throws {
         let original = try Data(contentsOf: WatchdogdFixture.watchdogd)
         var data = original
         let report = try CFWWatchdogd.patch(&data, dryRun: true, log: nil)
@@ -377,7 +393,7 @@ struct CFWWatchdogdPatchTests {
 
     /// The file-backed entry point, which is what the install script calls.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func patchesInPlaceOnDisk() throws {
+    func `patches in place on disk`() throws {
         let file = try WatchdogdFixture.scratchCopy(of: WatchdogdFixture.watchdogd, named: "watchdogd")
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
@@ -400,7 +416,7 @@ struct CFWWatchdogdPatchTests {
     /// A second run over a file on disk leaves its bytes, and its mtime,
     /// untouched — `.alreadyPatched` must not write at all.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func secondRunOnDiskWritesNothing() throws {
+    func `second run on disk writes nothing`() throws {
         let file = try WatchdogdFixture.scratchCopy(of: WatchdogdFixture.watchdogd, named: "watchdogd")
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
@@ -425,30 +441,30 @@ struct CFWWatchdogdReferenceTests {
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `watchdogd`.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func fixtureMatchesTheGoldens() throws {
+    func `fixture matches the goldens`() throws {
         #expect(
-            WatchdogdFixture.digest(try Data(contentsOf: WatchdogdFixture.watchdogd))
+            try WatchdogdFixture.digest(Data(contentsOf: WatchdogdFixture.watchdogd))
                 == WatchdogdGolden.pristine,
             """
             this is not the 24A435 watchdogd WatchdogdGolden was recorded from \
             — re-derive the goldens before reading a failure below as a \
             patcher bug
-            """
+            """,
         )
     }
 
     /// The migration plan's gate for P1.2: the Swift patcher and the Python it
     /// replaced must produce the same bytes from the same input.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func matchesTheFrozenReferenceByteForByte() throws {
+    func `matches the frozen reference byte for byte`() throws {
         var mine = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let report = try CFWWatchdogd.patch(&mine, log: nil)
 
         // Printed so the parity claim is checkable from outside this process:
         // `shasum -a 256` over this patcher's output has to read the same.
-        print("""
+        try print("""
         watchdogd parity: \
-        pristine=\(WatchdogdFixture.digest(try Data(contentsOf: WatchdogdFixture.watchdogd))) \
+        pristine=\(WatchdogdFixture.digest(Data(contentsOf: WatchdogdFixture.watchdogd))) \
         golden=\(WatchdogdGolden.patched) \
         swift=\(WatchdogdFixture.digest(mine))
         """)
@@ -456,16 +472,16 @@ struct CFWWatchdogdReferenceTests {
         #expect(report.rehashedSlots.map(\.pageIndex).sorted() == WatchdogdGolden.reattestedSlots)
         #expect(
             WatchdogdFixture.digest(mine) == WatchdogdGolden.patched,
-            "Swift output must be identical to the frozen reference's"
+            "Swift output must be identical to the frozen reference's",
         )
     }
 
     /// The reference's idempotent path, for the same reason: both
     /// implementations agree that a patched binary needs nothing done to it.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
-    func agreesWithTheFrozenReferenceOnAnAlreadyPatchedBinary() throws {
+    func `agrees with the frozen reference on an already patched binary`() throws {
         let file = try WatchdogdFixture.scratchCopy(
-            of: WatchdogdFixture.watchdogd, named: "watchdogd-twice"
+            of: WatchdogdFixture.watchdogd, named: "watchdogd-twice",
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
@@ -478,16 +494,16 @@ struct CFWWatchdogdReferenceTests {
         // nothing. This port lands on the same bytes when it re-runs.
         let second = try CFWWatchdogd.patch(at: file, log: nil)
         #expect(second.outcome == .alreadyPatched)
-        #expect(WatchdogdFixture.digest(try Data(contentsOf: file)) == WatchdogdGolden.patchedTwice)
+        #expect(try WatchdogdFixture.digest(Data(contentsOf: file)) == WatchdogdGolden.patchedTwice)
     }
 
     /// `codesign` recomputes the page hashes independently of this code. If the
     /// re-attestation were wrong — the short tail slot being the classic way —
     /// this is where it shows.
     @Test(.enabled(if: WatchdogdFixture.hasCodesign))
-    func patchedBinaryStillVerifiesUnderCodesign() throws {
+    func `patched binary still verifies under codesign`() throws {
         let file = try WatchdogdFixture.scratchCopy(
-            of: WatchdogdFixture.watchdogd, named: "watchdogd-signed"
+            of: WatchdogdFixture.watchdogd, named: "watchdogd-signed",
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 

@@ -28,14 +28,14 @@ extension KernelJBPatcher {
             ARM64.movX0_0,
             patchID: "jb.proc_security_policy.mov_x0_0",
             virtualAddress: fileOffsetToVA(policy),
-            description: "mov x0,#0 [_proc_security_policy]"
+            description: "mov x0,#0 [_proc_security_policy]",
         )
         emit(
             policy + 4,
             ARM64.ret,
             patchID: "jb.proc_security_policy.ret",
             virtualAddress: fileOffsetToVA(policy + 4),
-            description: "ret [_proc_security_policy]"
+            description: "ret [_proc_security_policy]",
         )
         return true
     }

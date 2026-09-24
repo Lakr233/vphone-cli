@@ -33,12 +33,14 @@ public enum VPhoneIPSWCache {
     public static func resolve(
         _ source: String,
         in cacheDirectory: URL,
-        session: URLSession = .shared
+        session: URLSession = .shared,
     ) async throws -> Archive {
         guard let url = URL(string: source), let scheme = url.scheme?.lowercased() else {
             return try inspect(URL(fileURLWithPath: source))
         }
-        if scheme == "file" { return try inspect(url) }
+        if scheme == "file" {
+            return try inspect(url)
+        }
         guard scheme == "http" || scheme == "https" else {
             throw Error.unsupportedSource(source)
         }
@@ -47,7 +49,9 @@ public enum VPhoneIPSWCache {
         try fm.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
         let cache = cacheDirectory.appendingPathComponent(cacheName(for: url))
         if fm.fileExists(atPath: cache.path) {
-            if let valid = try? inspect(cache) { return valid }
+            if let valid = try? inspect(cache) {
+                return valid
+            }
             try fm.removeItem(at: cache)
         }
 
@@ -61,7 +65,7 @@ public enum VPhoneIPSWCache {
         let size = try Int64(fm.attributesOfItem(atPath: downloaded.path)[.size] as? UInt64 ?? 0)
         if response.expectedContentLength > 0, size != response.expectedContentLength {
             throw Error.incompleteDownload(
-                url, expected: response.expectedContentLength, actual: size
+                url, expected: response.expectedContentLength, actual: size,
             )
         }
 
@@ -79,7 +83,7 @@ public enum VPhoneIPSWCache {
         }
         guard let data = try? VPhoneArchiveReader.readMember("BuildManifest.plist", from: file),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
-                as? [String: Any],
+              as? [String: Any],
               let version = plist["ProductVersion"] as? String, !version.isEmpty,
               let build = plist["ProductBuildVersion"] as? String, !build.isEmpty
         else {

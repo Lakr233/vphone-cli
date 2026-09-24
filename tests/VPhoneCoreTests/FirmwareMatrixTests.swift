@@ -13,7 +13,7 @@
 //
 // Colour was compared in three conditions, each running both implementations
 // through the identical wrapper: a pipe, a real pty via script(1), and NO_COLOR
-// set. Those runs also covered the repository's own README.md against a live
+// set. Those runs also covered the repository's compatibility guide against a live
 // `ipsw download ipsw --device iPhone17,3 --urls` capture.
 //
 // Trailing spaces are written as `\u{20}` on purpose: the Python padded the
@@ -29,9 +29,9 @@
 // numbers before text instead of crashing; `nonNumericComponentsStillOrder`
 // below pins that choice down.
 
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 // MARK: - Frozen fixture
 
@@ -164,39 +164,39 @@ private enum Golden {
 // MARK: - Byte-for-byte equivalence with the Python
 
 struct FirmwareMatrixGoldenTests {
-    @Test func listingMatchesPythonPlain() {
+    @Test func `listing matches python plain`() {
         let out = VPhoneFirmwareMatrix.listing(
             device: Fixture.d, readme: Fixture.readme,
-            downloadURLs: Fixture.urls, style: Fixture.plain
+            downloadURLs: Fixture.urls, style: Fixture.plain,
         )
         #expect(out == .matrix(Golden.listPlain))
     }
 
-    @Test func listingMatchesPythonColored() {
+    @Test func `listing matches python colored`() {
         let out = VPhoneFirmwareMatrix.listing(
             device: Fixture.d, readme: Fixture.readme,
-            downloadURLs: Fixture.urls, style: Fixture.colored
+            downloadURLs: Fixture.urls, style: Fixture.colored,
         )
         #expect(out == .matrix(Golden.listColored))
     }
 
-    @Test func ambiguousVersionMatchesPython() {
+    @Test func `ambiguous version matches python`() {
         for (style, golden) in [
             (Fixture.plain, Golden.ambiguousPlain),
             (Fixture.colored, Golden.ambiguousColored),
         ] {
             let out = VPhoneFirmwareMatrix.selection(
                 device: Fixture.d, version: "27.0", build: "",
-                readme: Fixture.readme, downloadURLs: Fixture.urls, style: style
+                readme: Fixture.readme, downloadURLs: Fixture.urls, style: style,
             )
             #expect(out == .ambiguous(golden))
         }
     }
 
-    @Test func resolvedSelectorMatchesPython() {
+    @Test func `resolved selector matches python`() {
         let out = VPhoneFirmwareMatrix.selection(
             device: Fixture.d, version: "26.3", build: "",
-            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.colored
+            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.colored,
         )
         guard case let .selected(release, support) = out else {
             Issue.record("expected a selection, got \(out)")
@@ -211,7 +211,7 @@ struct FirmwareMatrixGoldenTests {
         // Only a hit has a line; the failure cases have nothing to hand back.
         #expect(VPhoneFirmwareMatrix.selection(
             device: Fixture.d, version: "99.9", build: "",
-            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.plain
+            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.plain,
         ).resolvedLine == nil)
     }
 
@@ -220,23 +220,23 @@ struct FirmwareMatrixGoldenTests {
         ("", "99Z99", "Unsupported: no downloadable IPSW matched device=iPhone17,3 build=99Z99\n"),
         ("99.9", "99Z99", "Unsupported: no downloadable IPSW matched device=iPhone17,3 version=99.9 build=99Z99\n"),
     ])
-    func missMatchesPython(version: String, build: String, expected: String) {
+    func `miss matches python`(version: String, build: String, expected: String) {
         let out = VPhoneFirmwareMatrix.selection(
             device: Fixture.d, version: version, build: build,
-            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.plain
+            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.plain,
         )
         #expect(out == .unmatched(expected))
         let colored = VPhoneFirmwareMatrix.selection(
             device: Fixture.d, version: version, build: build,
-            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.colored
+            readme: Fixture.readme, downloadURLs: Fixture.urls, style: Fixture.colored,
         )
         #expect(colored == .unmatched("\u{1B}[31mUnsupported\u{1B}[0m" + expected.dropFirst("Unsupported".count)))
     }
 
-    @Test func emptyDownloadListIsAnError() {
+    @Test func `empty download list is an error`() {
         let out = VPhoneFirmwareMatrix.listing(
             device: "iPhone99,9", readme: Fixture.readme,
-            downloadURLs: Fixture.urls, style: Fixture.colored
+            downloadURLs: Fixture.urls, style: Fixture.colored,
         )
         // Plain even in colour, exactly as the Python printed it.
         #expect(out == .nothingDownloadable("No downloadable IPSWs found for iPhone99,9\n"))
@@ -246,7 +246,7 @@ struct FirmwareMatrixGoldenTests {
 // MARK: - Parsing
 
 struct FirmwareMatrixParsingTests {
-    @Test func readsOnlyTheTestedEnvironmentsSectionAndOnlyThisDevice() {
+    @Test func `reads only the tested environments section and only this device`() {
         let tested = VPhoneFirmwareMatrix.testedBuilds(readme: Fixture.readme, device: Fixture.d)
         #expect(tested.count == 7)
         #expect(tested.contains(VPhoneFirmwareBuildID(version: "26.3.1", build: "23D8133")))
@@ -258,11 +258,11 @@ struct FirmwareMatrixParsingTests {
         #expect(!tested.contains(VPhoneFirmwareBuildID(version: "26.1", build: "23B85")))
     }
 
-    @Test func aMissingReadmeMeansNothingIsTested() {
+    @Test func `a missing readme means nothing is tested`() {
         #expect(VPhoneFirmwareMatrix.testedBuilds(readme: nil, device: Fixture.d).isEmpty)
         let out = VPhoneFirmwareMatrix.listing(
             device: Fixture.d, readme: nil,
-            downloadURLs: Fixture.urls, style: Fixture.plain
+            downloadURLs: Fixture.urls, style: Fixture.plain,
         )
         guard case let .matrix(text) = out else {
             Issue.record("expected a matrix")
@@ -272,7 +272,7 @@ struct FirmwareMatrixParsingTests {
         #expect(text.components(separatedBy: "Not Tested").count == 1 + 9 + 1)
     }
 
-    @Test func rejectsLookalikeURLs() {
+    @Test func `rejects lookalike UR ls`() {
         let found = VPhoneFirmwareMatrix.releases(downloadURLs: Fixture.urls, device: Fixture.d)
         // 9 real lines, 1 exact duplicate dropped, 3 lookalikes rejected.
         #expect(found.count == 9)
@@ -281,7 +281,7 @@ struct FirmwareMatrixParsingTests {
         #expect(!found.contains { $0.build == "23B85" })
     }
 
-    @Test func toleratesSurroundingWhitespaceAndBlankLines() {
+    @Test func `tolerates surrounding whitespace and blank lines`() {
         let urls = "\n   \(Fixture.url263)   \n\n"
         let found = VPhoneFirmwareMatrix.releases(downloadURLs: urls, device: Fixture.d)
         #expect(found.count == 1)
@@ -289,14 +289,14 @@ struct FirmwareMatrixParsingTests {
         #expect(found.first?.url == Fixture.url263)
     }
 
-    @Test func parsesTheRepositoryReadme() throws {
-        let tested = VPhoneFirmwareMatrix.testedBuilds(
-            readme: try RealData.repositoryReadme(),
-            device: Fixture.d
+    @Test func `parses the repository compatibility guide`() throws {
+        let tested = try VPhoneFirmwareMatrix.testedBuilds(
+            readme: RealData.repositoryCompatibilityGuide(),
+            device: Fixture.d,
         )
-        // The live table is edited often, so this asserts the shape, not a count.
-        #expect(tested.count >= 15)
-        #expect(tested.contains(VPhoneFirmwareBuildID(version: "26.1", build: "23B85")))
+        #expect(tested.count == 2)
+        #expect(tested.contains(VPhoneFirmwareBuildID(version: "26.6.2", build: "23G90")))
+        #expect(tested.contains(VPhoneFirmwareBuildID(version: "27.0", build: "24A435")))
         #expect(tested.allSatisfy { !$0.version.isEmpty && !$0.build.isEmpty })
         #expect(tested.allSatisfy { !$0.version.contains("`") && !$0.build.contains("`") })
     }
@@ -304,22 +304,22 @@ struct FirmwareMatrixParsingTests {
 
 // MARK: - Real data
 
-/// The repository's own README table joined against a real `ipsw download ipsw
+/// The repository's compatibility table joined against a real `ipsw download ipsw
 /// --device iPhone17,3 --urls` capture — the two inputs the shell actually fed
 /// the Python, rather than anything shaped to suit the parser.
 ///
-/// The README is read live, so these assert invariants rather than a golden: a
+/// The guide is read live, so these assert invariants rather than a golden: a
 /// row added to the table must not turn the suite red for the agent who added
 /// it. The cross-check is against a second parser written here on purpose in a
 /// different style — column splitting instead of a regex — so a regex that
 /// drifts has something independent to disagree with.
 private enum RealData {
-    static func repositoryReadme() throws -> String {
+    static func repositoryCompatibilityGuide() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("README.md")
+            .appendingPathComponent("docs/guides/compatibility.md")
         return try String(contentsOf: url, encoding: .utf8)
     }
 
@@ -363,7 +363,7 @@ private enum RealData {
     /// The same table, read by splitting on `|` and `_` instead of by regex.
     static func testedBuildsByColumnSplitting(
         in readme: String,
-        deviceSuffix: String
+        deviceSuffix: String,
     ) -> Set<VPhoneFirmwareBuildID> {
         // A different way to find the section too: cut the document at its `## `
         // headings rather than scanning line by line for them.
@@ -387,18 +387,18 @@ private enum RealData {
 }
 
 struct FirmwareMatrixRealDataTests {
-    @Test func theReadmeParserAgreesWithAnIndependentColumnSplitter() throws {
-        let readme = try RealData.repositoryReadme()
+    @Test func `the compatibility parser agrees with an independent column splitter`() throws {
+        let readme = try RealData.repositoryCompatibilityGuide()
         let byRegex = VPhoneFirmwareMatrix.testedBuilds(readme: readme, device: Fixture.d)
         let bySplitting = RealData.testedBuildsByColumnSplitting(in: readme, deviceSuffix: "17,3")
-        #expect(!bySplitting.isEmpty, "the README table moved — fix the test, not the parser")
+        #expect(!bySplitting.isEmpty, "the compatibility table moved — fix the test, not the parser")
         #expect(byRegex == bySplitting)
     }
 
-    @Test func aLiveDownloadCaptureParsesWholeAndJoinsAgainstTheReadme() throws {
+    @Test func `a live download capture parses whole and joins against the guide`() throws {
         let releases = VPhoneFirmwareMatrix.releases(
             downloadURLs: RealData.liveURLs,
-            device: Fixture.d
+            device: Fixture.d,
         )
         // Every line of the capture is a restore image for this device, so the
         // URL parser has to claim all 31 — a silent drop is the failure mode
@@ -407,7 +407,7 @@ struct FirmwareMatrixRealDataTests {
         #expect(releases.count == 31)
         #expect(Set(releases.map(\.build)).count == 31)
 
-        let tested = VPhoneFirmwareMatrix.testedBuilds(readme: try RealData.repositoryReadme(), device: Fixture.d)
+        let tested = try VPhoneFirmwareMatrix.testedBuilds(readme: RealData.repositoryCompatibilityGuide(), device: Fixture.d)
         var supported = 0, notTested = 0
         for release in releases {
             let id = VPhoneFirmwareBuildID(version: release.version, build: release.build)
@@ -430,10 +430,10 @@ struct FirmwareMatrixRealDataTests {
     /// Apple serves one build per version, so `--list` over live data is fully
     /// ordered by version alone. This is the property the shell's `sorted(…,
     /// reverse=True)` was there to produce.
-    @Test func theLiveCaptureListsNewestFirst() {
+    @Test func `the live capture lists newest first`() {
         let out = VPhoneFirmwareMatrix.listing(
             device: Fixture.d, readme: nil,
-            downloadURLs: RealData.liveURLs, style: Fixture.plain
+            downloadURLs: RealData.liveURLs, style: Fixture.plain,
         )
         guard case let .matrix(text) = out else {
             Issue.record("expected a matrix")
@@ -461,7 +461,7 @@ struct FirmwareMatrixOrderingTests {
         VPhoneFirmwareRelease(version: version, build: build, url: "/\(version)_\(build)")
     }
 
-    @Test func sortsVersionsNewestFirstWithNumericComponents() {
+    @Test func `sorts versions newest first with numeric components`() {
         // Lexically "18.6.2" > "26.0" and "26.4.1" > "26.4"; numerically neither.
         let sorted = [
             release("26.4", "a"), release("18.6.2", "a"), release("26.4.1", "a"),
@@ -470,7 +470,7 @@ struct FirmwareMatrixOrderingTests {
         #expect(sorted.map(\.version) == ["27.0", "26.10", "26.4.1", "26.4", "26.0", "18.6.2"])
     }
 
-    @Test func sortsBuildsByCodePointDescending() {
+    @Test func `sorts builds by code point descending`() {
         // 24A435 vs 24A5430a is the case that separates a string sort from a
         // "looks numeric" one: '4' < '5' at index 3, so 24A5430a wins.
         let sorted = [
@@ -479,12 +479,12 @@ struct FirmwareMatrixOrderingTests {
         #expect(sorted.map(\.build) == ["24A5430a", "24A5390f", "24A435"])
     }
 
-    @Test func aShorterVersionSortsBelowItsOwnPrefixExtension() {
+    @Test func `a shorter version sorts below its own prefix extension`() {
         #expect(VPhoneFirmwareMatrix.isNewer(release("26.4.1", "a"), than: release("26.4", "a")))
         #expect(!VPhoneFirmwareMatrix.isNewer(release("26.4", "a"), than: release("26.4.1", "a")))
     }
 
-    @Test func nonNumericComponentsStillOrder() {
+    @Test func `non numeric components still order`() {
         #expect(VPhoneFirmwareMatrix.versionKey("26.beta") == [.number(26), .text("beta")])
         #expect(VPhoneFirmwareMatrix.versionKey("") == [.text("")])
         #expect(VPhoneFirmwareMatrix.VersionPart.number(9) < .text("0"))
@@ -494,14 +494,14 @@ struct FirmwareMatrixOrderingTests {
 // MARK: - Column padding
 
 struct FirmwareMatrixPaddingTests {
-    @Test func leftJustifyingNeverTruncates() {
+    @Test func `left justifying never truncates`() {
         // `String.padding(toLength:)` would cut this to 12 and lose the build.
         #expect(VPhoneFirmwareMatrix.leftJustified("27.0.1.2.3.4.5", 12) == "27.0.1.2.3.4.5")
         #expect(VPhoneFirmwareMatrix.leftJustified("26.3", 12) == "26.3        ")
         #expect(VPhoneFirmwareMatrix.leftJustified("", 3) == "   ")
     }
 
-    @Test func paddingGoesInsideTheColourEscape() {
+    @Test func `padding goes inside the colour escape`() {
         // Outside the escape the text would be the same width on screen but a
         // different byte string, and every golden above would break.
         #expect(Fixture.colored.render(.supported, width: 11) == "\u{1B}[32mSupported  \u{1B}[0m")
@@ -509,10 +509,10 @@ struct FirmwareMatrixPaddingTests {
         #expect(Fixture.plain.render(.supported, width: 11) == "Supported  ")
     }
 
-    @Test func anOverlongVersionStillLeavesOneSpaceBeforeTheNextColumn() {
+    @Test func `an overlong version still leaves one space before the next column`() {
         let urls = "/iPhone17,3_26.4.10.20.30_23E246_Restore.ipsw"
         let out = VPhoneFirmwareMatrix.listing(
-            device: Fixture.d, readme: nil, downloadURLs: urls, style: Fixture.plain
+            device: Fixture.d, readme: nil, downloadURLs: urls, style: Fixture.plain,
         )
         guard case let .matrix(text) = out else {
             Issue.record("expected a matrix")
@@ -529,11 +529,15 @@ struct FirmwareMatrixColorPolicyTests {
     /// descriptors, so `isatty` is answering for real here.
     private func withTTY<T>(_ body: (Int32) throws -> T) rethrows -> T {
         let fd = posix_openpt(O_RDWR | O_NOCTTY)
-        defer { if fd >= 0 { close(fd) } }
+        defer {
+            if fd >= 0 {
+                close(fd)
+            }
+        }
         return try body(fd)
     }
 
-    @Test func honoursNoColorClicolorForceAndIsattyPerStream() throws {
+    @Test func `honours no color clicolor force and isatty per stream`() throws {
         let pipe = Pipe()
         let pipeFD = pipe.fileHandleForWriting.fileDescriptor
         try withTTY { ttyFD in
@@ -571,7 +575,7 @@ struct FirmwareMatrixColorPolicyTests {
 
 struct FirmwareMatrixCommandLineTests {
     private func capture(
-        _ body: (FileHandle, FileHandle) -> Int32
+        _ body: (FileHandle, FileHandle) -> Int32,
     ) -> (code: Int32, out: String, err: String) {
         let outPipe = Pipe(), errPipe = Pipe()
         let code = body(outPipe.fileHandleForWriting, errPipe.fileHandleForWriting)
@@ -582,12 +586,12 @@ struct FirmwareMatrixCommandLineTests {
         return (code, out, err)
     }
 
-    @Test func listGoesToStdoutAndExitsZero() {
+    @Test func `list goes to stdout and exits zero`() {
         let r = Fixture.withReadmeFile { path in
             capture { out, err in
                 VPhoneFirmwareMatrixCommandLine.list(
                     device: Fixture.d, readmePath: path, downloadURLs: Fixture.urls,
-                    environment: [:], stdout: out, stderr: err
+                    environment: [:], stdout: out, stderr: err,
                 )
             }
         }
@@ -596,12 +600,12 @@ struct FirmwareMatrixCommandLineTests {
         #expect(r.err.isEmpty)
     }
 
-    @Test func anEmptyDeviceListGoesToStderrAndExitsOne() {
+    @Test func `an empty device list goes to stderr and exits one`() {
         let r = Fixture.withReadmeFile { path in
             capture { out, err in
                 VPhoneFirmwareMatrixCommandLine.list(
                     device: "iPhone99,9", readmePath: path, downloadURLs: Fixture.urls,
-                    environment: [:], stdout: out, stderr: err
+                    environment: [:], stdout: out, stderr: err,
                 )
             }
         }
@@ -610,12 +614,12 @@ struct FirmwareMatrixCommandLineTests {
         #expect(r.err == "No downloadable IPSWs found for iPhone99,9\n")
     }
 
-    @Test func aResolvedSelectorGoesToStdoutAndExitsZero() {
+    @Test func `a resolved selector goes to stdout and exits zero`() {
         let r = Fixture.withReadmeFile { path in
             capture { out, err in
                 VPhoneFirmwareMatrixCommandLine.resolve(
                     device: Fixture.d, version: "26.3", build: "", readmePath: path,
-                    downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err
+                    downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err,
                 )
             }
         }
@@ -626,12 +630,12 @@ struct FirmwareMatrixCommandLineTests {
 
     /// 2, not 1. `fw_prepare.sh` forwards this status verbatim so a caller can
     /// tell "pick a build" from "there is no such firmware".
-    @Test func anAmbiguousVersionGoesToStderrAndExitsTwo() {
+    @Test func `an ambiguous version goes to stderr and exits two`() {
         let r = Fixture.withReadmeFile { path in
             capture { out, err in
                 VPhoneFirmwareMatrixCommandLine.resolve(
                     device: Fixture.d, version: "27.0", build: "", readmePath: path,
-                    downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err
+                    downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err,
                 )
             }
         }
@@ -640,13 +644,13 @@ struct FirmwareMatrixCommandLineTests {
         #expect(r.err == Golden.ambiguousPlain)
     }
 
-    @Test func aMissGoesToStderrAndExitsOne() {
+    @Test func `a miss goes to stderr and exits one`() {
         let r = Fixture.withReadmeFile { path in
             capture { out, err in
                 VPhoneFirmwareMatrixCommandLine.resolve(
                     device: Fixture.d, version: "99.9", build: "", readmePath: path,
                     downloadURLs: Fixture.urls, environment: [:],
-                    stdout: out, stderr: err
+                    stdout: out, stderr: err,
                 )
             }
         }
@@ -655,11 +659,11 @@ struct FirmwareMatrixCommandLineTests {
         #expect(r.err == "Unsupported: no downloadable IPSW matched device=iPhone17,3 version=99.9\n")
     }
 
-    @Test func anUnreadableReadmePathIsNotAnError() {
+    @Test func `an unreadable readme path is not an error`() {
         let r = capture { out, err in
             VPhoneFirmwareMatrixCommandLine.list(
                 device: Fixture.d, readmePath: "/nonexistent/README.md",
-                downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err
+                downloadURLs: Fixture.urls, environment: [:], stdout: out, stderr: err,
             )
         }
         #expect(r.code == 0)
@@ -670,7 +674,7 @@ struct FirmwareMatrixCommandLineTests {
     /// The half that is easy to get wrong: each command styles the stream it
     /// writes to, not the process. `list` writes its table to stdout, so a
     /// terminal on stderr must not colour it.
-    @Test func listStylesStdoutNotStderr() throws {
+    @Test func `list styles stdout not stderr`() throws {
         let fd = posix_openpt(O_RDWR | O_NOCTTY)
         try #require(fd >= 0)
         defer { close(fd) }
@@ -679,7 +683,7 @@ struct FirmwareMatrixCommandLineTests {
         let code = Fixture.withReadmeFile { path in
             VPhoneFirmwareMatrixCommandLine.list(
                 device: Fixture.d, readmePath: path, downloadURLs: Fixture.urls,
-                environment: [:], stdout: outPipe.fileHandleForWriting, stderr: tty
+                environment: [:], stdout: outPipe.fileHandleForWriting, stderr: tty,
             )
         }
         try outPipe.fileHandleForWriting.close()
@@ -692,7 +696,7 @@ struct FirmwareMatrixCommandLineTests {
     /// And the mirror image: the selector's failures are stderr's, so a
     /// terminal on stdout must not colour them. This is the case that keeps
     /// escapes out of `selection="$(resolve_selector_from_downloads …)"`.
-    @Test func resolveStylesStderrNotStdout() throws {
+    @Test func `resolve styles stderr not stdout`() throws {
         let fd = posix_openpt(O_RDWR | O_NOCTTY)
         try #require(fd >= 0)
         defer { close(fd) }
@@ -702,7 +706,7 @@ struct FirmwareMatrixCommandLineTests {
             VPhoneFirmwareMatrixCommandLine.resolve(
                 device: Fixture.d, version: "99.9", build: "", readmePath: path,
                 downloadURLs: Fixture.urls, environment: [:],
-                stdout: tty, stderr: errPipe.fileHandleForWriting
+                stdout: tty, stderr: errPipe.fileHandleForWriting,
             )
         }
         try errPipe.fileHandleForWriting.close()

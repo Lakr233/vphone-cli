@@ -8,7 +8,7 @@ import Testing
 struct RestoreEventTests {
     // MARK: - Log levels
 
-    @Test func levelsMatchIdevicerestoresEnum() {
+    @Test func `levels match idevicerestores enum`() {
         // src/log.h: LL_ERROR = 0 … LL_DEBUG = 5. Lower is more severe.
         #expect(VPhoneRestoreLogLevel.error.rawValue == 0)
         #expect(VPhoneRestoreLogLevel.warning.rawValue == 1)
@@ -18,7 +18,7 @@ struct RestoreEventTests {
         #expect(VPhoneRestoreLogLevel.debug.rawValue == 5)
     }
 
-    @Test func severityOrdersTheOtherWayRound() {
+    @Test func `severity orders the other way round`() {
         #expect(VPhoneRestoreLogLevel.error < VPhoneRestoreLogLevel.info)
         #expect(VPhoneRestoreLogLevel.info < VPhoneRestoreLogLevel.debug)
         // Which is what the console sink's `messageLevel <= level` relies on:
@@ -28,13 +28,13 @@ struct RestoreEventTests {
     }
 
     @Test(arguments: [Int32(-1), 6, 99])
-    func anUnknownLevelBecomesInfo(_ raw: Int32) {
+    func `an unknown level becomes info`(_ raw: Int32) {
         // Rather than dropping the line, which is the one outcome nobody can
         // debug.
         #expect(VPhoneRestoreLogLevel(clamping: raw) == .info)
     }
 
-    @Test func aKnownLevelSurvivesClamping() {
+    @Test func `a known level survives clamping`() {
         for level in VPhoneRestoreLogLevel.allCases {
             #expect(VPhoneRestoreLogLevel(clamping: level.rawValue) == level)
         }
@@ -42,7 +42,7 @@ struct RestoreEventTests {
 
     // MARK: - Steps
 
-    @Test func stepsCarryTheCSideNames() {
+    @Test func `steps carry the C side names`() {
         // vphone_restore_step_name(), so a renumbered RESTORE_STEP_* shows up
         // here rather than in a user's log.
         #expect(VPhoneRestoreStep.detect.name == "detect")
@@ -55,15 +55,15 @@ struct RestoreEventTests {
         #expect(VPhoneRestoreStep.uploadImage.name == "upload image")
     }
 
-    @Test func theStepsAreNumberedZeroUpwards() {
+    @Test func `the steps are numbered zero upwards`() {
         let ordered: [VPhoneRestoreStep] = [
             .detect, .prepare, .uploadFilesystem, .verifyFilesystem,
             .flashFirmware, .flashBaseband, .flashFUD, .uploadImage,
         ]
-        #expect(ordered.map(\.rawValue) == Array(Int32(0)...Int32(7)))
+        #expect(ordered.map(\.rawValue) == Array(Int32(0) ... Int32(7)))
     }
 
-    @Test func anUnknownStepStillRoundTrips() {
+    @Test func `an unknown step still round trips`() {
         let step = VPhoneRestoreStep(rawValue: 42)
         #expect(step.rawValue == 42)
         #expect(step.name == "unknown")
@@ -71,7 +71,7 @@ struct RestoreEventTests {
 
     // MARK: - Recovery modes
 
-    @Test func onlyTheFourRecoveryProductIDsCountAsRecovery() {
+    @Test func `only the four recovery product I ds count as recovery`() {
         // pymobiledevice3's `Mode.is_recovery`: everything that is not WTF and
         // not DFU. The probe's --is-recovery filter is this predicate.
         #expect(VPhoneRecoveryMode.recovery1.isRecovery)
@@ -85,7 +85,7 @@ struct RestoreEventTests {
         #expect(!VPhoneRecoveryMode.portDFU.isRecovery)
     }
 
-    @Test func modesMatchLibirecoverysProductIDs() {
+    @Test func `modes match libirecoverys product I ds`() {
         #expect(VPhoneRecoveryMode.recovery1.rawValue == 0x1280)
         #expect(VPhoneRecoveryMode.recovery4.rawValue == 0x1283)
         #expect(VPhoneRecoveryMode.wtf.rawValue == 0x1222)
@@ -93,13 +93,13 @@ struct RestoreEventTests {
         #expect(VPhoneRecoveryMode.portDFU.rawValue == 0xF014)
     }
 
-    @Test func anUnknownModeIsReportableAndNotRecovery() {
+    @Test func `an unknown mode is reportable and not recovery`() {
         let mode = VPhoneRecoveryMode(rawValue: 0x1234)
         #expect(!mode.isRecovery)
         #expect(mode.description == "mode 0x1234")
     }
 
-    @Test func modesDescribeThemselves() {
+    @Test func `modes describe themselves`() {
         #expect(VPhoneRecoveryMode.recovery3.description == "recovery")
         #expect(VPhoneRecoveryMode.dfu.description == "DFU")
         #expect(VPhoneRecoveryMode.portDFU.description == "port DFU")
@@ -107,7 +107,7 @@ struct RestoreEventTests {
 
     // MARK: - Timeout message
 
-    @Test func aProbeWithAPastDeadlineGivesUpWithoutHanging() {
+    @Test func `a probe with A past deadline gives up without hanging`() {
         // Python's `while time.monotonic() < deadline` never ran the body when
         // the timeout was zero, and neither does this — which is what makes it
         // safe for `vm create` to call it ninety times in a row.
@@ -124,14 +124,14 @@ struct RestoreEventTests {
         }
     }
 
-    @Test func theTimeoutMessageIsThePythonsWordForWord() {
+    @Test func `the timeout message is the pythons word for word`() {
         let error = VPhoneRestoreBackendError.recoveryProbeTimedOut(mode: "dfu/recovery")
         #expect("\(error)" == "Timed out waiting for dfu/recovery endpoint")
     }
 
     // MARK: - Error messages
 
-    @Test func theRestoreTreeMessagesAreThePythonsWordForWord() {
+    @Test func `the restore tree messages are the pythons word for word`() {
         let none = VPhoneRestoreBackendError.noRestoreDirectory(URL(fileURLWithPath: "/tmp/vm"))
         #expect("\(none)" == "No iPhone*_Restore directory found in /tmp/vm")
         let several = VPhoneRestoreBackendError.multipleRestoreDirectories(["a", "b"])

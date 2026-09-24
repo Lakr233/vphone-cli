@@ -102,7 +102,7 @@ public enum DSCLockdownModePatcher {
             functionVMA: UInt64? = nil,
             gateVMA: UInt64? = nil,
             record: PatchRecord? = nil,
-            reattestation: DSCReattestation? = nil
+            reattestation: DSCReattestation? = nil,
         ) {
             self.verdict = verdict
             self.symbolName = symbolName
@@ -113,12 +113,16 @@ public enum DSCLockdownModePatcher {
         }
 
         /// Sites this run put on disk — 1 on a live patch, 0 otherwise.
-        public var sitesWritten: Int { verdict == .patched ? 1 : 0 }
+        public var sitesWritten: Int {
+            verdict == .patched ? 1 : 0
+        }
 
         /// Sites this run found, patched or already patched. This is the number
         /// `patch_lockdown_mode` returns: 0 when the symbol is absent, 1
         /// otherwise.
-        public var sitesFound: Int { verdict == .symbolAbsent ? 0 : 1 }
+        public var sitesFound: Int {
+            verdict == .symbolAbsent ? 0 : 1
+        }
     }
 
     // MARK: - Entry points
@@ -128,7 +132,7 @@ public enum DSCLockdownModePatcher {
     public static func patch(
         chunksDirectory: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Outcome {
         try patch(in: DSCChunkSet(directory: chunksDirectory), dryRun: dryRun, log: log)
     }
@@ -144,17 +148,17 @@ public enum DSCLockdownModePatcher {
     public static func patch(
         in chunks: DSCChunkSet,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Outcome {
         log?(
             "  [.] \(chunks.directory.path) "
-                + "(\(chunks.chunkURLs.count) chunk(s), \(chunks.mappings.count) mapping(s))"
+                + "(\(chunks.chunkURLs.count) chunk(s), \(chunks.mappings.count) mapping(s))",
         )
 
         guard let block = try resolveBlockInvoke(in: chunks) else {
             log?(
                 "      [=] os_lockdown_mode_enabled not present "
-                    + "(pre-iOS-27 userland); nothing to patch"
+                    + "(pre-iOS-27 userland); nothing to patch",
             )
             return Outcome(verdict: .symbolAbsent)
         }
@@ -164,7 +168,7 @@ public enum DSCLockdownModePatcher {
         guard let gate = findErrorGate(instructions) else {
             throw PatcherError.patchSiteNotFound(
                 "lockdown_mode: `cmn wR,#1; b.eq <crash>` sysctl-error gate not found "
-                    + "(nor an already-NOPed one)"
+                    + "(nor an already-NOPed one)",
             )
         }
         log?("      [.] gate @ 0x\(hex(gate.address)): \(gate.mnemonic) \(gate.operandString)")
@@ -174,20 +178,20 @@ public enum DSCLockdownModePatcher {
         guard current != nop else {
             log?(
                 "      [=] already patched at 0x\(hex(gate.address)); "
-                    + "nothing to patch/re-attest"
+                    + "nothing to patch/re-attest",
             )
             return Outcome(
                 verdict: .alreadyPatched,
                 symbolName: block.name,
                 functionVMA: block.vma,
-                gateVMA: gate.address
+                gateVMA: gate.address,
             )
         }
 
         let record = try record(for: gate, original: current, replacement: nop, in: chunks)
         log?(
             "      [+] \(dryRun ? "would write" : "wrote") nop at 0x\(hex(gate.address)) "
-                + "(\(current.hex) -> \(nop.hex))"
+                + "(\(current.hex) -> \(nop.hex))",
         )
         guard !dryRun else {
             return Outcome(
@@ -195,7 +199,7 @@ public enum DSCLockdownModePatcher {
                 symbolName: block.name,
                 functionVMA: block.vma,
                 gateVMA: gate.address,
-                record: record
+                record: record,
             )
         }
 
@@ -203,7 +207,7 @@ public enum DSCLockdownModePatcher {
         let reattestation = try DSCCodeSignature.reattestRecordedWrites(in: chunks, log: log)
         guard try chunks.bytesAtVMA(gate.address, length: nop.count) == nop else {
             throw PatcherError.patchVerificationFailed(
-                "lockdown_mode: post-write verify failed at 0x\(hex(gate.address))"
+                "lockdown_mode: post-write verify failed at 0x\(hex(gate.address))",
             )
         }
         log?("  [+] lockdown-mode crash patch complete")
@@ -214,7 +218,7 @@ public enum DSCLockdownModePatcher {
             functionVMA: block.vma,
             gateVMA: gate.address,
             record: record,
-            reattestation: reattestation
+            reattestation: reattestation,
         )
     }
 
@@ -262,7 +266,9 @@ public enum DSCLockdownModePatcher {
         for insn in disassembler.disassemble(window, at: vma, count: maxInstructions) {
             guard insn.id != 0 else { break }
             decoded.append(insn)
-            if insn.mnemonic == "ret" || insn.mnemonic == "retab" { break }
+            if insn.mnemonic == "ret" || insn.mnemonic == "retab" {
+                break
+            }
         }
         return decoded
     }
@@ -281,11 +287,15 @@ public enum DSCLockdownModePatcher {
         var sawCall = false
         for index in 0 ..< (instructions.count - 1) {
             let insn = instructions[index]
-            if insn.mnemonic == "bl" { sawCall = true }
+            if insn.mnemonic == "bl" {
+                sawCall = true
+            }
             guard sawCall else { continue }
             guard insn.mnemonic == "cmn", immediate(of: insn, at: 1) == 1 else { continue }
             let gate = instructions[index + 1]
-            if gate.mnemonic == "b.eq" || gate.mnemonic == "nop" { return gate }
+            if gate.mnemonic == "b.eq" || gate.mnemonic == "nop" {
+                return gate
+            }
         }
         return nil
     }
@@ -308,7 +318,7 @@ public enum DSCLockdownModePatcher {
         for gate: Instruction,
         original: Data,
         replacement: Data,
-        in chunks: DSCChunkSet
+        in chunks: DSCChunkSet,
     ) throws -> PatchRecord {
         let span = DSCWriteSpan(vma: gate.address, length: replacement.count)
         let (chunkURL, range) = try chunks.fileRange(of: span)
@@ -322,7 +332,7 @@ public enum DSCLockdownModePatcher {
             beforeDisasm: "\(gate.mnemonic) \(gate.operandString)",
             afterDisasm: "nop",
             description: "NOP `\(gate.mnemonic) \(gate.operandString)` so a missing "
-                + "security.mac.lockdown_mode_state_public sysctl reads 0 instead of aborting"
+                + "security.mac.lockdown_mode_state_public sysctl reads 0 instead of aborting",
         )
     }
 

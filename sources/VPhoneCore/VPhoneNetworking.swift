@@ -37,7 +37,10 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
             "--bridge-interface is only valid with --network bridged."
         }
     }
-    public var errorDescription: String? { description }
+
+    public var errorDescription: String? {
+        description
+    }
 }
 
 // MARK: - Networking helpers
@@ -71,8 +74,12 @@ public enum VPhoneNetworking {
         // and let vphone-vm — which is entitled — decide at boot, where the
         // error can name the real problem.
         guard !available.isEmpty else {
-            if let requested { return requested }
-            if let current { return current }
+            if let requested {
+                return requested
+            }
+            if let current {
+                return current
+            }
             throw VPhoneNetworkingError.bridgeInterfaceMustBeNamed
         }
 
@@ -85,7 +92,7 @@ public enum VPhoneNetworking {
         if let current, available.contains(current) {
             return current
         }
-        return available[0]  // non-empty, guarded above
+        return available[0] // non-empty, guarded above
     }
 
     /// Merge partial edits onto an existing config, validating the result.
@@ -93,7 +100,7 @@ public enum VPhoneNetworking {
     public static func merge(
         into current: NetworkConfig,
         mode: NetworkMode?,
-        bridgeInterface: String?
+        bridgeInterface: String?,
     ) throws -> NetworkConfig {
         let newMode = mode ?? current.mode
         if newMode == .hostOnly {
@@ -131,7 +138,8 @@ public enum VPhoneNetworking {
             guard let iface = VZBridgedNetworkInterface.networkInterfaces.first(where: { $0.identifier == id }) else {
                 throw VPhoneNetworkingError.bridgeInterfaceNotFound(
                     requested: id,
-                    available: availableBridgeInterfaces())
+                    available: availableBridgeInterfaces(),
+                )
             }
             let net = VZVirtioNetworkDeviceConfiguration()
             net.attachment = VZBridgedNetworkDeviceAttachment(interface: iface)

@@ -68,7 +68,9 @@ enum MachOFixture {
 
     /// The fixture every signed-Mach-O test below operates on, or a failure
     /// that names what is missing instead of a silent skip.
-    static func signedBinary() throws -> URL { try #require(pristineSeputil, missing) }
+    static func signedBinary() throws -> URL {
+        try #require(pristineSeputil, missing)
+    }
 
     /// Opt-out for a machine that cannot carry the extracted IPSW.
     static var fixtureIsOptional: Bool {
@@ -77,7 +79,9 @@ enum MachOFixture {
 
     /// A fixture-backed test runs unless the binary is absent *and* the caller
     /// opted out, so a green run cannot mean the fixture quietly went away.
-    static var runs: Bool { pristineSeputil != nil || !fixtureIsOptional }
+    static var runs: Bool {
+        pristineSeputil != nil || !fixtureIsOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 seputil is required — put it at \
@@ -88,14 +92,21 @@ enum MachOFixture {
 
     static let insertDylib = repositoryRoot.appending(path: ".tools/bin/insert_dylib")
 
-    static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+    static func exists(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
 
-    static var hasInsertDylib: Bool { exists(insertDylib) }
-    static var hasCodesign: Bool { exists(URL(filePath: "/usr/bin/codesign")) }
+    static var hasInsertDylib: Bool {
+        exists(insertDylib)
+    }
+
+    static var hasCodesign: Bool {
+        exists(URL(filePath: "/usr/bin/codesign"))
+    }
 
     /// SHA-256 as `shasum -a 256` prints it.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     /// A private copy of `source` — the fixture by default — that the caller
@@ -110,7 +121,7 @@ enum MachOFixture {
         // The fixture is 0755 already; this is only so a reference tree
         // someone made read-only does not turn into a failing patch test.
         try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755], ofItemAtPath: destination.path
+            [.posixPermissions: 0o755], ofItemAtPath: destination.path,
         )
         return destination
     }
@@ -169,8 +180,8 @@ struct CFWMachOCodeSignatureTests {
     /// that TXM kills the first time that page is faulted in, and nothing about
     /// the file looks wrong until then.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func tailSlotHashesOnlyUpToCodeLimit() throws {
-        let data = try Data(contentsOf: try MachOFixture.signedBinary())
+    func `tail slot hashes only up to code limit`() throws {
+        let data = try Data(contentsOf: MachOFixture.signedBinary())
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: data)?.first)
 
         let lastSlot = directory.codeSlotCount - 1
@@ -185,7 +196,7 @@ struct CFWMachOCodeSignatureTests {
         try MachOFixture.flipByte(at: directory.codeLimit - 1, in: file)
         let records = try CFWMachOCodeSignature.reattest(
             fileAt: file,
-            modifiedOffsets: [directory.codeLimit - 1]
+            modifiedOffsets: [directory.codeLimit - 1],
         )
         let record = try #require(records.first)
         #expect(records.count == 1)
@@ -198,7 +209,7 @@ struct CFWMachOCodeSignatureTests {
         #expect(record.after == shortHash)
         #expect(
             patched[record.hashFileOffset ..< record.hashFileOffset + directory.hashSize] == shortHash,
-            "the slot on disk must hold the hash of the short range"
+            "the slot on disk must hold the hash of the short range",
         )
 
         // And state the failure mode directly: a full-page hash is a different
@@ -213,11 +224,11 @@ struct CFWMachOCodeSignatureTests {
     /// tail, and the last slot must cover a whole page. No binary on a build
     /// machine reliably has a page-aligned codeLimit, so the boundary maths is
     /// pinned directly.
-    @Test func slotRangesFollowCodeLimitAlignment() {
+    @Test func `slot ranges follow code limit alignment`() {
         let aligned = CFWCodeDirectory(
             slotType: 0, offset: 0, length: 0, hashOffset: 0, hashSize: 32,
             hashType: 2, pageSize: 4096, pageSizeLog2: 12,
-            codeSlotCount: 2, codeLimit: 8192
+            codeSlotCount: 2, codeLimit: 8192,
         )
         #expect(aligned.slotRange(0) == 0 ..< 4096)
         #expect(aligned.slotRange(1) == 4096 ..< 8192)
@@ -226,13 +237,13 @@ struct CFWMachOCodeSignatureTests {
         let short = CFWCodeDirectory(
             slotType: 0, offset: 0, length: 0, hashOffset: 0, hashSize: 32,
             hashType: 2, pageSize: 4096, pageSizeLog2: 12,
-            codeSlotCount: 2, codeLimit: 5000
+            codeSlotCount: 2, codeLimit: 5000,
         )
         #expect(short.slotRange(0) == 0 ..< 4096)
         #expect(short.slotRange(1) == 4096 ..< 5000)
     }
 
-    @Test func offsetsPastCodeLimitBelongToNoSlot() {
+    @Test func `offsets past code limit belong to no slot`() {
         #expect(CFWMachOCodeSignature.pageBounds(fileOffset: 4095, pageSize: 4096, codeLimit: 5000)?.index == 0)
         #expect(CFWMachOCodeSignature.pageBounds(fileOffset: 4999, pageSize: 4096, codeLimit: 5000)?.end == 5000)
         #expect(CFWMachOCodeSignature.pageBounds(fileOffset: 5000, pageSize: 4096, codeLimit: 5000) == nil)
@@ -250,8 +261,8 @@ struct CFWMachOCodeSignatureTests {
     /// the two, so a reader that took the page size from the architecture, the
     /// file size or a constant would have to get one of them wrong.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func pageSizeComesFromTheCodeDirectory() throws {
-        let shipped = try Data(contentsOf: try MachOFixture.signedBinary())
+    func `page size comes from the code directory`() throws {
+        let shipped = try Data(contentsOf: MachOFixture.signedBinary())
         let directory = try #require(CFWMachOCodeSignature.codeDirectories(in: shipped)?.first)
         #expect(directory.pageSize == 1 << Int(directory.pageSizeLog2))
         #expect(directory.pageSize == 4096, "the shipped iOS signature uses 4 KiB pages")
@@ -262,51 +273,51 @@ struct CFWMachOCodeSignatureTests {
     /// The other half of the same claim, and the one a constant gets wrong: the
     /// host signer covers the very same file with 16 KiB pages.
     @Test(.enabled(if: MachOFixture.runs && MachOFixture.hasCodesign, MachOFixture.missing))
-    func pageSizeFollowsWhoeverSignedTheFile() throws {
-        let shipped = try Data(contentsOf: try MachOFixture.signedBinary())
+    func `page size follows whoever signed the file`() throws {
+        let shipped = try Data(contentsOf: MachOFixture.signedBinary())
         let iOSDirectory = try #require(CFWMachOCodeSignature.codeDirectories(in: shipped)?.first)
 
         let file = try MachOFixture.scratchCopy("pagesize")
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let signing = try MachOFixture.run(
             URL(filePath: "/usr/bin/codesign"),
-            ["-f", "-s", "-", "--digest-algorithm=sha256", file.path]
+            ["-f", "-s", "-", "--digest-algorithm=sha256", file.path],
         )
         try #require(signing.status == 0, "could not re-sign the fixture: \(signing.output)")
 
         let hostDirectory = try #require(
-            CFWMachOCodeSignature.codeDirectories(in: try Data(contentsOf: file))?.first
+            try CFWMachOCodeSignature.codeDirectories(in: Data(contentsOf: file))?.first,
         )
         #expect(hostDirectory.pageSize == 1 << Int(hostDirectory.pageSizeLog2))
         #expect(hostDirectory.pageSize == 16384, "the host signer uses 16 KiB pages")
         #expect(
             hostDirectory.pageSize != iOSDirectory.pageSize,
-            "one file, two page sizes — the whole point of reading it from the CD"
+            "one file, two page sizes — the whole point of reading it from the CD",
         )
         // Same code, so the same codeLimit, covered by a quarter as many slots.
         #expect(hostDirectory.codeLimit == iOSDirectory.codeLimit)
         #expect(hostDirectory.codeSlotCount < iOSDirectory.codeSlotCount)
     }
 
-    @Test func unsignedDataIsRejected() {
+    @Test func `unsigned data is rejected`() {
         var data = Data(repeating: 0, count: 4096)
         #expect(throws: PatcherError.self) {
             try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: [0])
         }
     }
 
-    @Test func noOffsetsIsANoOp() throws {
+    @Test func `no offsets is A no op`() throws {
         var data = Data(repeating: 0, count: 16)
         #expect(try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: []).isEmpty)
     }
 
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func unchangedPagesAreNotRewritten() throws {
+    func `unchanged pages are not rewritten`() throws {
         let file = try MachOFixture.scratchCopy("untouched")
         // Nothing was modified, so every slot already matches and no write happens.
         let records = try CFWMachOCodeSignature.reattest(fileAt: file, modifiedOffsets: [0, 4096, 8192])
         #expect(records.isEmpty)
-        #expect(try Data(contentsOf: file) == (try Data(contentsOf: try MachOFixture.signedBinary())))
+        #expect(try Data(contentsOf: file) == Data(contentsOf: MachOFixture.signedBinary()))
     }
 
     // MARK: Multiple code directories
@@ -315,11 +326,11 @@ struct CFWMachOCodeSignatureTests {
     /// SHA-256 CD is recomputed; the SHA-1 CD is left byte-for-byte alone and
     /// reported, which is what `unsupportedCodeDirectories(in:)` is for.
     @Test(.enabled(if: MachOFixture.runs && MachOFixture.hasCodesign, MachOFixture.missing))
-    func onlySHA256CodeDirectoriesAreUpdated() throws {
+    func `only SHA 256 code directories are updated`() throws {
         let file = try MachOFixture.scratchCopy("dual")
         let signing = try MachOFixture.run(
             URL(filePath: "/usr/bin/codesign"),
-            ["-f", "-s", "-", "--digest-algorithm=sha1,sha256", file.path]
+            ["-f", "-s", "-", "--digest-algorithm=sha1,sha256", file.path],
         )
         try #require(signing.status == 0, "could not build a dual-CD fixture: \(signing.output)")
 
@@ -349,14 +360,14 @@ struct CFWMachOCodeSignatureTests {
     /// — so a fixture that drifted fails on the offsets rather than silently
     /// comparing a different experiment's digest.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func matchesTheFrozenPythonReattester() throws {
+    func `matches the frozen python reattester`() throws {
         let pristine = try MachOFixture.signedBinary()
         try #require(
             try MachOFixture.digest(of: pristine) == MachOCodeSignGolden.pristine,
             """
             this is not the 24A435 seputil MachOCodeSignGolden was recorded \
             from — re-derive the golden before reading a failure here as a bug
-            """
+            """,
         )
 
         let data = try Data(contentsOf: pristine)
@@ -388,7 +399,7 @@ struct CFWMachOCodeSignatureTests {
 
         #expect(
             try MachOFixture.digest(of: swiftFile) == MachOCodeSignGolden.reattested,
-            "Swift and the frozen Python re-attestation must agree byte for byte"
+            "Swift and the frozen Python re-attestation must agree byte for byte",
         )
     }
 }
@@ -422,7 +433,7 @@ private enum MachOCodeSignGolden {
     static let pristine = "13e40e74d92928cf9e36fae75970dfcf4c0a4c1040eeac39d1c335407e841474"
 
     /// The four offsets above, and the codeLimit the last two straddle.
-    static let offsets = [16, 90_119, 183_887, 183_896]
+    static let offsets = [16, 90119, 183_887, 183_896]
     static let codeLimit = 183_888
 
     /// The three slots the reference rewrote; the fourth offset was skipped.
@@ -439,7 +450,7 @@ struct CFWInjectDylibTests {
     /// What `cfw_install_jb.sh` does to launchd, minus ldid: the weak load of
     /// `/b` has to appear and the header has to grow to match.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func insertsAWeakLoadCommand() throws {
+    func `inserts A weak load command`() throws {
         let file = try MachOFixture.scratchCopy("weak")
         let before = try Data(contentsOf: file)
         let injections = try CFWInjectDylib.inject(dylibPath: "/b", into: file)
@@ -472,13 +483,13 @@ struct CFWInjectDylibTests {
     /// stripped LC_CODE_SIGNATURE would free, so it has to fit in the padding
     /// as shipped — 32 bytes in this fixture, for a 32-byte command.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func keepingTheSignatureRehashesTheHeaderPage() throws {
+    func `keeping the signature rehashes the header page`() throws {
         let file = try MachOFixture.scratchCopy("keep")
         let before = try Data(contentsOf: file)
         let injection = try #require(try CFWInjectDylib.inject(
             dylibPath: "/b",
             into: file,
-            policy: .keepAndReattest
+            policy: .keepAndReattest,
         ).first)
         #expect(!injection.removedCodeSignature)
         #expect(injection.rehashedSlots.map(\.pageIndex) == [0])
@@ -497,7 +508,7 @@ struct CFWInjectDylibTests {
     /// space" and writes the command over the first section. Refusing is the
     /// deliberate difference; this pins it.
     @Test(.enabled(if: MachOFixture.runs, MachOFixture.missing))
-    func refusesToOverwriteOccupiedPadding() throws {
+    func `refuses to overwrite occupied padding`() throws {
         let file = try MachOFixture.scratchCopy("occupied")
         var data = try Data(contentsOf: file)
         let sizeofcmds = Int(data.loadLE(UInt32.self, at: 20))
@@ -513,7 +524,7 @@ struct CFWInjectDylibTests {
         }
     }
 
-    @Test func rejectsWhatItCannotHandle() {
+    @Test func `rejects what it cannot handle`() {
         var empty = Data([0xCA, 0xFE, 0xBA, 0xBF, 0, 0, 0, 1])
         #expect(throws: PatcherError.self) {
             try CFWInjectDylib.inject(dylibPath: "/b", into: &empty)
@@ -527,21 +538,21 @@ struct CFWInjectDylibTests {
     /// The migration gate for this half: identical output to the C tool it
     /// replaces, on the exact command line the CFW scripts use.
     @Test(.enabled(if: MachOFixture.runs && MachOFixture.hasInsertDylib, MachOFixture.missing))
-    func matchesInsertDylib() throws {
+    func `matches insert dylib`() throws {
         let swiftFile = try MachOFixture.scratchCopy("swift")
         let referenceFile = swiftFile.deletingLastPathComponent().appending(path: "reference")
-        try FileManager.default.copyItem(at: try MachOFixture.signedBinary(), to: referenceFile)
+        try FileManager.default.copyItem(at: MachOFixture.signedBinary(), to: referenceFile)
 
         try CFWInjectDylib.inject(dylibPath: "/b", into: swiftFile)
         let reference = try MachOFixture.run(
             MachOFixture.insertDylib,
-            ["--weak", "--inplace", "--all-yes", "/b", referenceFile.path]
+            ["--weak", "--inplace", "--all-yes", "/b", referenceFile.path],
         )
         try #require(reference.status == 0, "insert_dylib failed: \(reference.output)")
 
         #expect(
-            try Data(contentsOf: swiftFile) == (try Data(contentsOf: referenceFile)),
-            "Swift injection must match insert_dylib byte for byte"
+            try Data(contentsOf: swiftFile) == Data(contentsOf: referenceFile),
+            "Swift injection must match insert_dylib byte for byte",
         )
     }
 }

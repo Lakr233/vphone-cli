@@ -25,8 +25,8 @@
 // `ipsws/scratch_dscmaxslide/`, on the same filesystem, so `cp -c` is a
 // `clonefile` rather than 10 GB of copying.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -64,12 +64,12 @@ private enum FrozenReference {
             "3d7197cc0714e95c0e49434ab8bbb6311952a96d5b0425b10f87d2cc060c0110",
     ]
 
-    /// Re-running the Python over its own output printed `fits: span+maxSlide
-    /// 0x17D504000 <= region 0x180000000; no change` — the *fits* gate, not the
-    /// already-zero one — and left the digest above standing. A third run with
-    /// `--force` skipped that gate and printed `maxSlide already 0; no change`,
-    /// also writing nothing. A `--dry-run` on a fresh clone printed `would set
-    /// maxSlide 0x20000000 -> 0x0` and changed no byte.
+    // Re-running the Python over its own output printed `fits: span+maxSlide
+    // 0x17D504000 <= region 0x180000000; no change` — the *fits* gate, not the
+    // already-zero one — and left the digest above standing. A third run with
+    // `--force` skipped that gate and printed `maxSlide already 0; no change`,
+    // also writing nothing. A `--dry-run` on a fresh clone printed `would set
+    // maxSlide 0x20000000 -> 0x0` and changed no byte.
 
     // MARK: The synthetic gate cases
 
@@ -89,7 +89,7 @@ private enum FrozenReference {
     static let overflow = GateCase(
         inputSHA256: "0eeb86dc953aa43a29df533a0c151cb1d8ce7f322f8fa77232d5c97733984ab3",
         outputSHA256: "93e9ee632ab259a245f37e224e52e7f5671c8b323d04ba541483335c0d94bc6c",
-        branch: "overflow"
+        branch: "overflow",
     )
 
     /// `writeCache(regionSize: 0x140904000, maxSlide: 0x20000000)`, no flags.
@@ -98,7 +98,7 @@ private enum FrozenReference {
     static let fits = GateCase(
         inputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
         outputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
-        branch: "fits"
+        branch: "fits",
     )
 
     /// The same input as `fits`, with `--force`. Python: `forced: span+maxSlide
@@ -107,7 +107,7 @@ private enum FrozenReference {
     static let forced = GateCase(
         inputSHA256: "88c50a6f8304c87bca21e6c01da193d8022673c12d03d4d0dfd52340b3fca718",
         outputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
-        branch: "forced"
+        branch: "forced",
     )
 
     /// `writeCache(regionSize: 0x140904000, maxSlide: 0)` with `--force`.
@@ -115,7 +115,7 @@ private enum FrozenReference {
     static let forcedZero = GateCase(
         inputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
         outputSHA256: "73e12cacf1350c07ad38991f4e845e51f64199815061e0ea1889d19f53f4beda",
-        branch: "maxSlide already 0"
+        branch: "maxSlide already 0",
     )
 
     /// `writeCache(regionSize: 0x190000000, maxSlide: 0)`, no flags — a span
@@ -124,16 +124,16 @@ private enum FrozenReference {
     static let overflowWithZeroSlide = GateCase(
         inputSHA256: "f2543eb53f0f69a25c72045311292c9c428798a53683aeebd5b051509126d4b9",
         outputSHA256: "f2543eb53f0f69a25c72045311292c9c428798a53683aeebd5b051509126d4b9",
-        branch: "maxSlide already 0"
+        branch: "maxSlide already 0",
     )
 
-    /// The Python's own self-test fixture — a bare 0x100-byte header with no
-    /// mapping table — is the one input where the two implementations
-    /// deliberately disagree, so it has no `GateCase` above. The reference
-    /// patched it (`overflow: … set maxSlide 0x20000000 -> 0x0`, the field
-    /// reading back as 0 afterwards); the Swift refuses it, because every write
-    /// here goes through `DSCChunkSet`, which has nothing to address such a
-    /// file with. See `noMappingTableIsRefused`.
+    // The Python's own self-test fixture — a bare 0x100-byte header with no
+    // mapping table — is the one input where the two implementations
+    // deliberately disagree, so it has no `GateCase` above. The reference
+    // patched it (`overflow: … set maxSlide 0x20000000 -> 0x0`, the field
+    // reading back as 0 afterwards); the Swift refuses it, because every write
+    // here goes through `DSCChunkSet`, which has nothing to address such a
+    // file with. See `noMappingTableIsRefused`.
 }
 
 // MARK: - Fixture discovery
@@ -161,7 +161,9 @@ private enum MaxSlideFixture {
     }
 
     /// The suites run unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -188,7 +190,7 @@ private enum MaxSlideFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let sources = try FileManager.default
             .contentsOfDirectory(atPath: pristine.path)
@@ -197,14 +199,14 @@ private enum MaxSlideFixture {
 
         var result = try Subprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
-            arguments: ["-c", "-R"] + sources + [destination.path]
+            arguments: ["-c", "-R"] + sources + [destination.path],
         )
         if result.status != 0 {
             // A fixture pointed at another volume cannot be cloned. Copying is
             // slow but correct, and a refusal here would look like a patch bug.
             result = try Subprocess.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: ["-R"] + sources + [destination.path]
+                arguments: ["-R"] + sources + [destination.path],
             )
         }
         guard result.status == 0 else { throw CocoaError(.fileWriteUnknown) }
@@ -219,11 +221,11 @@ private enum MaxSlideFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         try FileManager.default.copyItem(
             at: pristine.appendingPathComponent(mainChunkName),
-            to: destination.appendingPathComponent(mainChunkName)
+            to: destination.appendingPathComponent(mainChunkName),
         )
         return destination
     }
@@ -268,7 +270,7 @@ private enum Subprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -297,7 +299,7 @@ private enum Bytes {
     static func identical(_ lhs: URL, _ rhs: URL) throws -> Bool {
         try Subprocess.run(
             executable: URL(fileURLWithPath: "/usr/bin/cmp"),
-            arguments: ["-s", lhs.path, rhs.path]
+            arguments: ["-s", lhs.path, rhs.path],
         ).status == 0
     }
 
@@ -314,7 +316,7 @@ private enum Bytes {
         for name in leftNames {
             if try identical(
                 lhs.appendingPathComponent(name),
-                rhs.appendingPathComponent(name)
+                rhs.appendingPathComponent(name),
             ) {
                 matched += 1
             } else {
@@ -342,8 +344,8 @@ struct DSCMaxSlideRealCacheTests {
     /// The gate this cache trips, stated once: 24A435's arm64e cache records a
     /// 0x17D504000 span and a 0x20000000 slide, which together overrun the
     /// kernel's 0x180000000 region by 0x1D504000.
-    @Test("The pristine cache is one that overflows the kernel's shared region")
-    func pristineCacheOverflowsTheRegion() throws {
+    @Test
+    func `The pristine cache is one that overflows the kernel's shared region`() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -351,14 +353,14 @@ struct DSCMaxSlideRealCacheTests {
         let header = try DSCMaxSlidePatcher.readHeader(
             from: chunks,
             at: headerVMA,
-            chunkName: MaxSlideFixture.mainChunkName
+            chunkName: MaxSlideFixture.mainChunkName,
         )
 
         #expect(header.sharedRegionStart == chunks.addressRange.lowerBound)
         #expect(header.maxSlide != 0, "the fixture is already patched; re-extract it")
         #expect(
             header.sharedRegionSize + header.maxSlide > DSCMaxSlidePatcher.kernelSharedRegionSize,
-            "this fixture does not exercise the patch: it fits the region as it stands"
+            "this fixture does not exercise the patch: it fits the region as it stands",
         )
         // The three numbers the reference read out of this same header.
         #expect(header.sharedRegionStart == FrozenReference.realStart)
@@ -367,7 +369,7 @@ struct DSCMaxSlideRealCacheTests {
         print(
             "[pristine] start=0x\(String(header.sharedRegionStart, radix: 16, uppercase: true)) "
                 + "size=0x\(String(header.sharedRegionSize, radix: 16, uppercase: true)) "
-                + "maxSlide=0x\(String(header.maxSlide, radix: 16, uppercase: true))"
+                + "maxSlide=0x\(String(header.maxSlide, radix: 16, uppercase: true))",
         )
     }
 
@@ -375,8 +377,8 @@ struct DSCMaxSlideRealCacheTests {
     /// require the result to be the bytes the reference left behind, over every
     /// one of the 79 chunks and the symbol side file — not just over the eight
     /// bytes the patch is about.
-    @Test("Swift patches the real cache into the reference's bytes")
-    func realCacheMatchesTheReference() throws {
+    @Test
+    func `Swift patches the real cache into the reference's bytes`() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
 
         let swiftSide = try MaxSlideFixture.cloneCache(named: "parity_swift")
@@ -387,7 +389,7 @@ struct DSCMaxSlideRealCacheTests {
         #expect(mine.didWrite)
         #expect(mine.outcome == .overflow(
             combined: mine.sharedRegionSize + mine.maxSlide,
-            region: DSCMaxSlidePatcher.kernelSharedRegionSize
+            region: DSCMaxSlidePatcher.kernelSharedRegionSize,
         ))
         #expect(mine.writtenSpan?.length == 8, "one site, one u64")
 
@@ -418,8 +420,8 @@ struct DSCMaxSlideRealCacheTests {
     /// "fixes" it: the header page's code slot is left stale on purpose, because
     /// `maxSlide` is kernel-read cache metadata rather than a `cs_validate`'d
     /// code page. The code directory must come out of the patch untouched.
-    @Test("The patch leaves the code directory alone and the header page unattested")
-    func headerPageIsDeliberatelyNotReattested() throws {
+    @Test
+    func `The patch leaves the code directory alone and the header page unattested`() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
 
         let clone = try MaxSlideFixture.cloneMainChunk(named: "noreattest")
@@ -429,12 +431,12 @@ struct DSCMaxSlideRealCacheTests {
 
         let directory = try #require(
             try DSCCodeSignature.readCodeDirectory(ofChunk: main),
-            "the main chunk should carry a code directory"
+            "the main chunk should carry a code directory",
         )
         let before = try DSCCodeSignature.pageHashes(
             chunkURL: main,
             pageIndex: 0,
-            directory: directory
+            directory: directory,
         )
         #expect(before.computed == before.stored, "page 0 was not attested before the patch")
 
@@ -445,24 +447,24 @@ struct DSCMaxSlideRealCacheTests {
         let mineBlob = try Bytes.read(
             main,
             offset: UInt64(directory.blobOffset),
-            length: directory.blobLength
+            length: directory.blobLength,
         )
         let pristineBlob = try Bytes.read(
             pristineMain,
             offset: UInt64(directory.blobOffset),
-            length: directory.blobLength
+            length: directory.blobLength,
         )
         #expect(mineBlob == pristineBlob, "the patch rewrote a code slot it must not rewrite")
 
         let after = try DSCCodeSignature.pageHashes(
             chunkURL: main,
             pageIndex: 0,
-            directory: directory
+            directory: directory,
         )
         #expect(after.stored == before.stored)
         #expect(
             after.computed != after.stored,
-            "page 0's slot still matches, so something re-attested it"
+            "page 0's slot still matches, so something re-attested it",
         )
         print("[no re-attest] page 0 stored \(after.stored.hex.prefix(16))… "
             + "computed \(after.computed.hex.prefix(16))… — stale on purpose")
@@ -470,8 +472,8 @@ struct DSCMaxSlideRealCacheTests {
 
     /// The reference's `--dry-run` printed `would set maxSlide 0x20000000 ->
     /// 0x0` — one site reported, no byte written. So must this one.
-    @Test("A dry run reports the reference's site, and writes nothing")
-    func dryRunReportsTheSiteAndWritesNothing() throws {
+    @Test
+    func `A dry run reports the reference's site, and writes nothing`() throws {
         let pristine = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
 
         let swiftSide = try MaxSlideFixture.cloneMainChunk(named: "dryrun_swift")
@@ -487,7 +489,7 @@ struct DSCMaxSlideRealCacheTests {
 
         let untouched = try Bytes.identical(
             swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
-            pristine.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            pristine.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
         #expect(untouched, "a dry run wrote to the chunk")
     }
@@ -495,8 +497,8 @@ struct DSCMaxSlideRealCacheTests {
     /// `8eb6c8b`'s lesson again: a patcher has to recognise its own output. A
     /// second pass over a clamped cache is a no-op, not an error and not a
     /// second write.
-    @Test("A second pass over an already-clamped cache is a no-op")
-    func secondPassIsANoOp() throws {
+    @Test
+    func `A second pass over an already-clamped cache is a no-op`() throws {
         _ = try #require(MaxSlideFixture.pristine, MaxSlideFixture.missing)
 
         let swiftSide = try MaxSlideFixture.cloneMainChunk(named: "idem_swift")
@@ -504,7 +506,7 @@ struct DSCMaxSlideRealCacheTests {
 
         let first = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide)
         let afterFirst = try Digest.sha256(
-            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
 
         let mineAgain = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide)
@@ -518,7 +520,7 @@ struct DSCMaxSlideRealCacheTests {
         // second run printed "fits: … no change", not "maxSlide already 0".
         #expect(mineAgain.outcome == .fits(
             combined: first.sharedRegionSize,
-            region: DSCMaxSlidePatcher.kernelSharedRegionSize
+            region: DSCMaxSlidePatcher.kernelSharedRegionSize,
         ))
 
         // `--force` skips the fits gate, so it is the one path that does reach
@@ -530,7 +532,7 @@ struct DSCMaxSlideRealCacheTests {
         #expect(mineForced.outcome == .alreadyZero)
 
         let afterThird = try Digest.sha256(
-            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
         #expect(afterThird == afterFirst, "a no-op pass rewrote the chunk")
         #expect(afterThird == FrozenReference.realChangedChunks[MaxSlideFixture.mainChunkName])
@@ -561,23 +563,29 @@ struct DSCMaxSlideGateTests {
         regionSize: UInt64,
         maxSlide: UInt64,
         mappingOffset: Int = 0x238,
-        magic: String = "dyld_v1  arm64e"
+        magic: String = "dyld_v1  arm64e",
     ) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var bytes = [UInt8](repeating: 0, count: 0x4000)
 
         func put(_ value: UInt64, at offset: Int) {
             withUnsafeBytes(of: value.littleEndian) { source in
-                for (index, byte) in source.enumerated() { bytes[offset + index] = byte }
+                for (index, byte) in source.enumerated() {
+                    bytes[offset + index] = byte
+                }
             }
         }
         func put32(_ value: UInt32, at offset: Int) {
             withUnsafeBytes(of: value.littleEndian) { source in
-                for (index, byte) in source.enumerated() { bytes[offset + index] = byte }
+                for (index, byte) in source.enumerated() {
+                    bytes[offset + index] = byte
+                }
             }
         }
 
-        for (index, byte) in Array(magic.utf8).prefix(16).enumerated() { bytes[index] = byte }
+        for (index, byte) in Array(magic.utf8).prefix(16).enumerated() {
+            bytes[index] = byte
+        }
         put32(UInt32(mappingOffset), at: 0x10)
         put32(1, at: 0x14) // mappingCount
 
@@ -593,7 +601,7 @@ struct DSCMaxSlideGateTests {
         put(maxSlide, at: 0xF0) // maxSlide
 
         try Data(bytes).write(
-            to: directory.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            to: directory.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
     }
 
@@ -614,7 +622,7 @@ struct DSCMaxSlideGateTests {
         reference: FrozenReference.GateCase,
         expectedSites: Int,
         expectedOutcome: DSCMaxSlidePatcher.Outcome,
-        expectedMaxSlideAfter: UInt64
+        expectedMaxSlideAfter: UInt64,
     ) throws {
         let swiftSide = MaxSlideFixture.scratchRoot.appendingPathComponent("\(name)_swift")
         defer { MaxSlideFixture.discard(swiftSide) }
@@ -624,7 +632,7 @@ struct DSCMaxSlideGateTests {
         let inputDigest = try Digest.sha256(of: swiftMain)
         #expect(
             inputDigest == reference.inputSHA256,
-            "\(name): this is not the cache the reference saw — \(inputDigest)"
+            "\(name): this is not the cache the reference saw — \(inputDigest)",
         )
 
         let mine = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, force: force)
@@ -634,15 +642,15 @@ struct DSCMaxSlideGateTests {
         let outputDigest = try Digest.sha256(of: swiftMain)
         #expect(
             outputDigest == reference.outputSHA256,
-            "\(name): Swift \(outputDigest), reference \(reference.outputSHA256)"
+            "\(name): Swift \(outputDigest), reference \(reference.outputSHA256)",
         )
         #expect(try Bytes.maxSlide(of: swiftMain) == expectedMaxSlideAfter)
         print("[gate \(name)] \(expectedSites) site(s) on the reference's \(reference.branch) "
             + "branch; maxSlide now 0x\(String(expectedMaxSlideAfter, radix: 16, uppercase: true))")
     }
 
-    @Test("An overflowing cache is clamped, as the reference clamped it")
-    func overflowIsClamped() throws {
+    @Test
+    func `An overflowing cache is clamped, as the reference clamped it`() throws {
         // iOS 27.0-like: 0x17C830000 + 0x20000000 > 0x180000000.
         try compare(
             named: "overflow",
@@ -652,14 +660,14 @@ struct DSCMaxSlideGateTests {
             expectedSites: 1,
             expectedOutcome: .overflow(
                 combined: 0x1_9C83_0000,
-                region: DSCMaxSlidePatcher.kernelSharedRegionSize
+                region: DSCMaxSlidePatcher.kernelSharedRegionSize,
             ),
-            expectedMaxSlideAfter: 0
+            expectedMaxSlideAfter: 0,
         )
     }
 
-    @Test("A cache that fits is left alone, as the reference left it")
-    func fittingCacheIsUntouched() throws {
+    @Test
+    func `A cache that fits is left alone, as the reference left it`() throws {
         // 26.4-like: 0x140904000 + 0x20000000 <= 0x180000000.
         try compare(
             named: "fits",
@@ -669,14 +677,14 @@ struct DSCMaxSlideGateTests {
             expectedSites: 0,
             expectedOutcome: .fits(
                 combined: 0x1_6090_4000,
-                region: DSCMaxSlidePatcher.kernelSharedRegionSize
+                region: DSCMaxSlidePatcher.kernelSharedRegionSize,
             ),
-            expectedMaxSlideAfter: 0x2000_0000
+            expectedMaxSlideAfter: 0x2000_0000,
         )
     }
 
-    @Test("--force clamps a cache that fits, to the reference's bytes")
-    func forceClampsAFittingCache() throws {
+    @Test
+    func `--force clamps a cache that fits, to the reference's bytes`() throws {
         try compare(
             named: "forced",
             regionSize: 0x1_4090_4000,
@@ -686,14 +694,14 @@ struct DSCMaxSlideGateTests {
             expectedSites: 1,
             expectedOutcome: .forced(
                 combined: 0x1_6090_4000,
-                region: DSCMaxSlidePatcher.kernelSharedRegionSize
+                region: DSCMaxSlidePatcher.kernelSharedRegionSize,
             ),
-            expectedMaxSlideAfter: 0
+            expectedMaxSlideAfter: 0,
         )
     }
 
-    @Test("--force over an already-zero cache is a no-op, as it was for the reference")
-    func forceOverZeroIsANoOp() throws {
+    @Test
+    func `--force over an already-zero cache is a no-op, as it was for the reference`() throws {
         try compare(
             named: "forced_zero",
             regionSize: 0x1_4090_4000,
@@ -702,7 +710,7 @@ struct DSCMaxSlideGateTests {
             reference: FrozenReference.forcedZero,
             expectedSites: 0,
             expectedOutcome: .alreadyZero,
-            expectedMaxSlideAfter: 0
+            expectedMaxSlideAfter: 0,
         )
     }
 
@@ -714,8 +722,8 @@ struct DSCMaxSlideGateTests {
     /// The span has to exceed the region by itself — a 0x17C830000 span with a
     /// zero slide *fits*, and takes the fits branch instead, which is what both
     /// implementations do and what an earlier version of this test got wrong.
-    @Test("A cache that overruns the region with no slide left is left alone")
-    func overflowWithZeroSlideIsANoOp() throws {
+    @Test
+    func `A cache that overruns the region with no slide left is left alone`() throws {
         try compare(
             named: "overflow_zero",
             regionSize: 0x1_9000_0000,
@@ -723,14 +731,14 @@ struct DSCMaxSlideGateTests {
             reference: FrozenReference.overflowWithZeroSlide,
             expectedSites: 0,
             expectedOutcome: .alreadyZero,
-            expectedMaxSlideAfter: 0
+            expectedMaxSlideAfter: 0,
         )
     }
 
     // MARK: - Refusals
 
-    @Test("A missing main chunk is a named failure, not a crash")
-    func missingMainChunkThrows() throws {
+    @Test
+    func `A missing main chunk is a named failure, not a crash`() throws {
         let empty = MaxSlideFixture.scratchRoot.appendingPathComponent("empty")
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
         defer { MaxSlideFixture.discard(empty) }
@@ -743,15 +751,15 @@ struct DSCMaxSlideGateTests {
     /// The Python checks `hdr[:7] != b"dyld_v1"`; so does this. A `dyld_v2`
     /// header still parses as a cache far enough to reach the check, which is
     /// what makes the check worth having.
-    @Test("A file that is not a dyld_v1 cache is refused")
-    func wrongMagicIsRefused() throws {
+    @Test
+    func `A file that is not a dyld_v1 cache is refused`() throws {
         let directory = MaxSlideFixture.scratchRoot.appendingPathComponent("badmagic")
         defer { MaxSlideFixture.discard(directory) }
         try Self.writeCache(
             into: directory,
             regionSize: 0x1_7C83_0000,
             maxSlide: 0x2000_0000,
-            magic: "dyld_v2  arm64e"
+            magic: "dyld_v2  arm64e",
         )
 
         #expect(throws: PatcherError.self) {
@@ -764,8 +772,8 @@ struct DSCMaxSlideGateTests {
     /// means this cache version has no such field. The reference had no
     /// equivalent gate and would write eight zero bytes into whatever is at
     /// 0xF0 — here that is a `dyld_cache_mapping_info.fileOffset`.
-    @Test("A header too short to hold maxSlide is refused, where the reference would write")
-    func truncatedHeaderIsRefused() throws {
+    @Test
+    func `A header too short to hold maxSlide is refused, where the reference would write`() throws {
         let directory = MaxSlideFixture.scratchRoot.appendingPathComponent("shortheader")
         defer { MaxSlideFixture.discard(directory) }
         // Mapping table at 0xC0: the header struct then ends at 0xC0, well
@@ -775,7 +783,7 @@ struct DSCMaxSlideGateTests {
             into: directory,
             regionSize: 0x1_7C83_0000,
             maxSlide: 0x2000_0000,
-            mappingOffset: 0xC0
+            mappingOffset: 0xC0,
         )
 
         #expect(throws: PatcherError.self) {
@@ -786,14 +794,14 @@ struct DSCMaxSlideGateTests {
     /// The corroboration check: a header whose `sharedRegionStart` is not the
     /// cache's lowest mapped address is not laid out the way these offsets
     /// assume, so the write is refused rather than aimed at an unknown field.
-    @Test("A header that disagrees with the mapping table is refused")
-    func headerDisagreeingWithMappingsIsRefused() throws {
+    @Test
+    func `A header that disagrees with the mapping table is refused`() throws {
         let directory = MaxSlideFixture.scratchRoot.appendingPathComponent("mismatch")
         defer { MaxSlideFixture.discard(directory) }
         try Self.writeCache(
             into: directory,
             regionSize: 0x1_7C83_0000,
-            maxSlide: 0x2000_0000
+            maxSlide: 0x2000_0000,
         )
         // Move sharedRegionStart away from the mapping's address.
         let main = directory.appendingPathComponent(MaxSlideFixture.mainChunkName)
@@ -815,31 +823,35 @@ struct DSCMaxSlideGateTests {
     /// it, because every write here goes through `DSCChunkSet`, which has
     /// nothing to address such a file with. A documented divergence, and a
     /// strictly safer one — the input is not a shared cache.
-    @Test("A header with no mapping table is refused, where the reference patched it")
-    func noMappingTableIsRefused() throws {
+    @Test
+    func `A header with no mapping table is refused, where the reference patched it`() throws {
         let swiftSide = MaxSlideFixture.scratchRoot.appendingPathComponent("headeronly_swift")
         defer { MaxSlideFixture.discard(swiftSide) }
 
         try FileManager.default.createDirectory(at: swiftSide, withIntermediateDirectories: true)
         var bytes = [UInt8](repeating: 0, count: 0x100)
-        for (index, byte) in Array("dyld_v1  arm64e".utf8).enumerated() { bytes[index] = byte }
+        for (index, byte) in Array("dyld_v1  arm64e".utf8).enumerated() {
+            bytes[index] = byte
+        }
         func put(_ value: UInt64, at offset: Int) {
             withUnsafeBytes(of: value.littleEndian) { source in
-                for (index, byte) in source.enumerated() { bytes[offset + index] = byte }
+                for (index, byte) in source.enumerated() {
+                    bytes[offset + index] = byte
+                }
             }
         }
         put(Self.mappingAddress, at: 0xE0)
         put(0x1_7C83_0000, at: 0xE8)
         put(0x2000_0000, at: 0xF0)
         try Data(bytes).write(
-            to: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            to: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
 
         #expect(throws: DSCError.self) {
             _ = try DSCMaxSlidePatcher.patch(chunksDirectory: swiftSide, verbose: false)
         }
         let untouchedSlide = try Bytes.maxSlide(
-            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName)
+            of: swiftSide.appendingPathComponent(MaxSlideFixture.mainChunkName),
         )
         #expect(untouchedSlide == 0x2000_0000, "the refusal still wrote")
     }

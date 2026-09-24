@@ -22,7 +22,9 @@ enum VPhoneDER {
         /// Where the next element starts.
         let end: Int
 
-        var isConstructed: Bool { tag & 0x20 != 0 }
+        var isConstructed: Bool {
+            tag & 0x20 != 0
+        }
     }
 
     // MARK: Reading
@@ -54,7 +56,7 @@ enum VPhoneDER {
             tag: tag,
             content: data.subdata(in: cursor ..< cursor + length),
             encoded: data.subdata(in: index ..< cursor + length),
-            end: cursor + length
+            end: cursor + length,
         )
     }
 
@@ -126,7 +128,9 @@ enum VPhoneDER {
         }.reduce(Data(), +))
     }
 
-    static func octetString(_ content: Data) -> Data { encode(0x04, content) }
+    static func octetString(_ content: Data) -> Data {
+        encode(0x04, content)
+    }
 
     static func integer(_ value: Int) -> Data {
         var bytes: [UInt8] = []
@@ -170,7 +174,7 @@ enum VPhoneDER {
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let text = String(
             format: "%02d%02d%02d%02d%02d%02dZ",
-            parts.year! % 100, parts.month!, parts.day!, parts.hour!, parts.minute!, parts.second!
+            parts.year! % 100, parts.month!, parts.day!, parts.hour!, parts.minute!, parts.second!,
         )
         return encode(0x17, Data(text.utf8))
     }

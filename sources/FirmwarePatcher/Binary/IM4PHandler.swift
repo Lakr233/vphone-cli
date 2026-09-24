@@ -42,7 +42,7 @@ public enum IM4PHandler {
     public static func save(
         patchedData: Data,
         originalIM4P: IM4P?,
-        to url: URL
+        to url: URL,
     ) throws {
         if let original = originalIM4P {
             // Rebuild the IM4P container with the patched payload. Do not force
@@ -52,7 +52,7 @@ public enum IM4PHandler {
             let newIM4P = try IM4P(
                 fourcc: original.fourcc,
                 description: original.description,
-                payload: patchedData
+                payload: patchedData,
             )
             let output: Data = if paypPreservingFourCCs.contains(original.fourcc) {
                 try appendPAYPIfPresent(from: original.data, to: newIM4P.data)

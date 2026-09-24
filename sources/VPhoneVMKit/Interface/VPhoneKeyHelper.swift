@@ -25,19 +25,21 @@ class VPhoneKeyHelper {
     // MARK: - Connection Guard
 
     private func requireConnection() -> Bool {
-        if control.isConnected { return true }
+        if control.isConnected {
+            return true
+        }
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 110),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Guest Agent Not Connected"
         panel.center()
 
         let msg = NSTextField(
-            labelWithString: "The guest agent is not connected. Wait for it to connect, then try again."
+            labelWithString: "The guest agent is not connected. Wait for it to connect, then try again.",
         )
         msg.frame = NSRect(x: 20, y: 50, width: 340, height: 44)
         msg.lineBreakMode = .byWordWrapping

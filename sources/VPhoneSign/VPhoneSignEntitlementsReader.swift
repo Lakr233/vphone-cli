@@ -128,7 +128,7 @@ extension VPhoneSignEntitlements {
                     // libplist's decoder skips what it does not know; base64
                     // that reads back the same is what the two agree on
                     let encoded = try empty ? "" : String(
-                        decoding: text(closing: name, skippingSpace: true).filter { !Self.isSpace($0) }, as: UTF8.self
+                        decoding: text(closing: name, skippingSpace: true).filter { !Self.isSpace($0) }, as: UTF8.self,
                     )
                     guard let value = Data(base64Encoded: encoded), value.base64EncodedString() == encoded else {
                         throw Self.refuse("a <data> whose base64 does not read back the same")
@@ -337,7 +337,7 @@ extension VPhoneSignEntitlements {
                 raw: isNegative ? 0 &- magnitude : magnitude,
                 // libplist's `length == 16`: above INT64_MAX and unsigned,
                 // which is the only case `plist_to_xml` prints with %llu
-                isUnsigned: !isNegative && magnitude > UInt64(Int64.max)
+                isUnsigned: !isNegative && magnitude > UInt64(Int64.max),
             )
         }
 

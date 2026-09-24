@@ -2,8 +2,13 @@ import Foundation
 import VPhoneCore
 
 enum VPhoneFirmwareSelection {
-    private static var isTTY: Bool { isatty(FileHandle.standardInput.fileDescriptor) != 0 }
-    private static func err(_ s: String) { FileHandle.standardError.write(Data((s + "\n").utf8)) }
+    private static var isTTY: Bool {
+        isatty(FileHandle.standardInput.fileDescriptor) != 0
+    }
+
+    private static func err(_ s: String) {
+        FileHandle.standardError.write(Data((s + "\n").utf8))
+    }
 
     /// Resolve `vm create`'s iPhone/cloudOS sources, prompting on a TTY for
     /// whichever component the user didn't pass. Non-interactive or fully
@@ -14,7 +19,7 @@ enum VPhoneFirmwareSelection {
             cloudos: cloudos,
             isInteractive: isTTY,
             read: { readLine(strippingNewline: true) },
-            write: { err($0) }
+            write: { err($0) },
         )
     }
 }

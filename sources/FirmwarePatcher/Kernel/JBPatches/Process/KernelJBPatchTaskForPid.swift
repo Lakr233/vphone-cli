@@ -58,7 +58,7 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "kernelcache_jb.task_for_pid",
             virtualAddress: va,
-            description: "NOP [_task_for_pid pid==0 gate]"
+            description: "NOP [_task_for_pid pid==0 gate]",
         )
         return true
     }
@@ -107,8 +107,12 @@ extension KernelJBPatcher {
         while prevOff < off {
             let prevInsns = disasm.disassemble(in: buffer.data, at: prevOff, count: 1)
             guard let prev = prevInsns.first else { prevOff += 4; continue }
-            if pidLoad == nil, isWLdrFromXImm(prev, imm: 8) { pidLoad = prev }
-            if taskptrLoad == nil, isXLdrFromXImm(prev, imm: 0x10) { taskptrLoad = prev }
+            if pidLoad == nil, isWLdrFromXImm(prev, imm: 8) {
+                pidLoad = prev
+            }
+            if taskptrLoad == nil, isXLdrFromXImm(prev, imm: 0x10) {
+                taskptrLoad = prev
+            }
             prevOff += 4
         }
         guard let pid = pidLoad, taskptrLoad != nil else { return nil }

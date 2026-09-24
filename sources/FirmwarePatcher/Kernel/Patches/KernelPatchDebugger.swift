@@ -63,14 +63,14 @@ extension KernelPatcher {
             ARM64.movX0_1,
             patchID: "kernel.debugger.mov_x0_1",
             virtualAddress: va,
-            description: "mov x0,#1 [_PE_i_can_has_debugger]"
+            description: "mov x0,#1 [_PE_i_can_has_debugger]",
         )
         emit(
             offset + 4,
             ARM64.ret,
             patchID: "kernel.debugger.ret",
             virtualAddress: va.map { $0 + 4 },
-            description: "ret [_PE_i_can_has_debugger]"
+            description: "ret [_PE_i_can_has_debugger]",
         )
     }
 
@@ -101,7 +101,9 @@ extension KernelPatcher {
             //   [31:30]=10, [29:27]=111, [26]=0, [25]=0, [24]=1  → 0xB9400000 mask 0xFFC00000
             guard insn & 0xFFC0_0000 == 0xB940_0000 else { continue }
             let rn = (insn >> 5) & 0x1F
-            if rn == 8 { return true }
+            if rn == 8 {
+                return true
+            }
         }
         return false
     }

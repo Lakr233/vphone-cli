@@ -57,23 +57,35 @@ enum MobileactivationdFixture {
         return FileManager.default.temporaryDirectory.appending(path: "CFWMobileactivationdTests")
     }()
 
-    static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+    static func exists(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
 
-    static var hasPristine: Bool { exists(pristine) }
-    static var hasLaunchd: Bool { exists(launchd) }
-    static var hasCodesign: Bool { hasPristine && exists(codesign) }
+    static var hasPristine: Bool {
+        exists(pristine)
+    }
+
+    static var hasLaunchd: Bool {
+        exists(launchd)
+    }
+
+    static var hasCodesign: Bool {
+        hasPristine && exists(codesign)
+    }
 
     /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
     /// taken again from a shell over the same file.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     /// A named, writable copy of the pristine binary under ``artifacts``.
     static func copyOfPristine(named name: String) throws -> URL {
         try FileManager.default.createDirectory(at: artifacts, withIntermediateDirectories: true)
         let destination = artifacts.appending(path: name)
-        if exists(destination) { try FileManager.default.removeItem(at: destination) }
+        if exists(destination) {
+            try FileManager.default.removeItem(at: destination)
+        }
         try FileManager.default.copyItem(at: pristine, to: destination)
         return destination
     }
@@ -92,7 +104,6 @@ enum MobileactivationdFixture {
         process.waitUntilExit()
         return (process.terminationStatus, String(decoding: output, as: UTF8.self))
     }
-
 }
 
 // MARK: - The frozen reference
@@ -115,7 +126,7 @@ enum MobileactivationdGolden {
     static let patched = "9f26bf92a2a80133e763c6426949e262ad26d51485b5184548744bd37e1f4095"
 
     /// The IMP the Python's symbol-table anchor resolved to, from that stdout.
-    static let impFileOffset = 0x2E_C368
+    static let impFileOffset = 0x2EC368
 
     /// ``patched``, then
     /// `.venv/bin/python3 -c 'import sys; sys.path.insert(0, "scripts");
@@ -149,7 +160,7 @@ enum MobileactivationdGolden {
 @Suite("mobileactivationd should_hactivate — shell runner")
 struct CFWMobileactivationdRunnerTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["VPHONE_PATCH_FILE"] != nil))
-    func runPatcherFromEnvironment() throws {
+    func `run patcher from environment`() throws {
         let environment = ProcessInfo.processInfo.environment
         let path = try #require(environment["VPHONE_PATCH_FILE"])
         let resign = environment["VPHONE_PATCH_RESIGN"] != "0"
@@ -163,7 +174,7 @@ struct CFWMobileactivationdRunnerTests {
                 + " foff=0x\(String(report.anchor.fileOffset, radix: 16, uppercase: true))"
                 + " section=\(report.anchor.section)"
                 + " anchor=\(report.anchor.source.rawValue)"
-                + " rehashes=\(report.slotRehashes.count)"
+                + " rehashes=\(report.slotRehashes.count)",
         )
         for rehash in report.slotRehashes {
             print("RUNNER   \(rehash.description)")
@@ -182,17 +193,17 @@ struct CFWMobileactivationdAnchorTests {
     /// other — and they agree. That agreement is the evidence the anchor is the
     /// method and not something that merely sorts first.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func bothAnchorsResolveAndAgree() throws {
+    func `both anchors resolve and agree`() throws {
         let data = try Data(contentsOf: MobileactivationdFixture.pristine)
         let segments = MachOParser.parseSegments(from: data)
 
         let bySymbol = try #require(
             CFWMobileactivationd.symbolVirtualAddress(in: data),
-            "LC_SYMTAB should carry -[DeviceType should_hactivate]"
+            "LC_SYMTAB should carry -[DeviceType should_hactivate]",
         )
         let byMetadata = try #require(
             CFWMobileactivationd.objcMetadataVirtualAddress(in: data, segments: segments),
-            "the ObjC method lists should carry the same IMP"
+            "the ObjC method lists should carry the same IMP",
         )
         #expect(bySymbol == byMetadata)
 
@@ -201,7 +212,7 @@ struct CFWMobileactivationdAnchorTests {
         #expect(anchor.virtualAddress == bySymbol)
         #expect(anchor.section == "__TEXT,__text", "the IMP must be code, not data")
         #expect(
-            MachOParser.vaToFileOffset(anchor.virtualAddress, segments: segments) == anchor.fileOffset
+            MachOParser.vaToFileOffset(anchor.virtualAddress, segments: segments) == anchor.fileOffset,
         )
     }
 
@@ -214,11 +225,11 @@ struct CFWMobileactivationdAnchorTests {
     /// The naive search is reproduced below rather than described, so the
     /// contrast is measured here and does not depend on that Python existing.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func selectorLookupSkipsTheIvarName() throws {
+    func `selector lookup skips the ivar name`() throws {
         let data = try Data(contentsOf: MobileactivationdFixture.pristine)
         let sections = MachOParser.parseSections(from: data)
         let selectorVA = try #require(
-            CFWMobileactivationd.selectorVirtualAddress(in: data, sections: sections)
+            CFWMobileactivationd.selectorVirtualAddress(in: data, sections: sections),
         )
 
         let methname = try #require(sections["__TEXT,__objc_methname"])
@@ -237,7 +248,7 @@ struct CFWMobileactivationdAnchorTests {
     /// A binary without the method is a hard stop, not a silent skip: every
     /// caller of this patch needs it to have happened.
     @Test(.enabled(if: MobileactivationdFixture.hasLaunchd))
-    func missingMethodThrows() throws {
+    func `missing method throws`() throws {
         let data = try Data(contentsOf: MobileactivationdFixture.launchd)
         #expect(throws: PatcherError.self) {
             try CFWMobileactivationd.locateIMP(in: data)
@@ -248,7 +259,7 @@ struct CFWMobileactivationdAnchorTests {
     /// asserted against keystone in `ARM64EncoderTests`; this pins that the
     /// patch asks it for the right instruction, and that the pair reads back as
     /// `mov x0, #1 ; ret`.
-    @Test func replacementIsMovX0OneThenRet() throws {
+    @Test func `replacement is mov X 0 one then ret`() throws {
         let bytes = try CFWMobileactivationd.replacementBytes()
         #expect(bytes.count == 8)
         #expect(bytes == ARM64.movX0_1 + ARM64.ret)
@@ -266,12 +277,12 @@ struct CFWMobileactivationdAnchorTests {
 
     /// Both words of the getter are re-hashed, so a getter that straddles a
     /// page boundary does not leave the second page's slot stale.
-    @Test func touchedOffsetsCoverBothWords() throws {
+    @Test func `touched offsets cover both words`() throws {
         let anchor = CFWMobileactivationd.Anchor(
             virtualAddress: 0x1_0000_0FFC,
             fileOffset: 0xFFC,
             source: .symbolTable,
-            section: "__TEXT,__text"
+            section: "__TEXT,__text",
         )
         let bytes = try CFWMobileactivationd.replacementBytes()
         let offsets = CFWMobileactivationd.touchedOffsets(anchor, bytes)
@@ -288,7 +299,7 @@ struct CFWMobileactivationdParityTests {
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `mobileactivationd`.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func fixtureMatchesTheGoldens() throws {
+    func `fixture matches the goldens`() throws {
         #expect(
             try MobileactivationdFixture.digest(of: MobileactivationdFixture.pristine)
                 == MobileactivationdGolden.pristine,
@@ -296,7 +307,7 @@ struct CFWMobileactivationdParityTests {
             this is not the 24A435 mobileactivationd MobileactivationdGolden \
             was recorded from — re-derive the goldens before reading a failure \
             below as a patcher bug
-            """
+            """,
         )
     }
 
@@ -306,7 +317,7 @@ struct CFWMobileactivationdParityTests {
     /// `resign: false` because the Python patcher did not re-sign — the
     /// `ldid_sign` in `cfw_install.sh` does — so this compares like with like.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func matchesTheFrozenReferenceBytes() throws {
+    func `matches the frozen reference bytes`() throws {
         let swiftFile = try MobileactivationdFixture.copyOfPristine(named: "swift.bin")
 
         let report = try CFWMobileactivationd.patch(fileAt: swiftFile, resign: false, log: nil)
@@ -316,7 +327,7 @@ struct CFWMobileactivationdParityTests {
         #expect(report.slotRehashes.isEmpty, "resign: false must not touch the signature")
         #expect(
             try MobileactivationdFixture.digest(of: swiftFile) == MobileactivationdGolden.patched,
-            "Swift output must be byte-identical to the reference's"
+            "Swift output must be byte-identical to the reference's",
         )
 
         // And the one site it changed is the one the reference's symtab anchor
@@ -340,7 +351,7 @@ struct CFWMobileactivationdParityTests {
     /// The raw patch does not: `codesign` rejects it, which is what makes this
     /// step load-bearing rather than decorative.
     @Test(.enabled(if: MobileactivationdFixture.hasCodesign))
-    func reattestedOutputMatchesTheFrozenReferenceAndVerifies() throws {
+    func `reattested output matches the frozen reference and verifies`() throws {
         let swiftFile = try MobileactivationdFixture.copyOfPristine(named: "swift-resigned.bin")
 
         let report = try CFWMobileactivationd.patch(fileAt: swiftFile, resign: true, log: nil)
@@ -351,7 +362,7 @@ struct CFWMobileactivationdParityTests {
         let swiftBytes = try Data(contentsOf: swiftFile)
         #expect(
             Data(SHA256.hash(data: swiftBytes)).hex == MobileactivationdGolden.patchedAndReattested,
-            "re-attested output must match the reference's"
+            "re-attested output must match the reference's",
         )
 
         // The slot hash itself, not just the file: read it back out.
@@ -359,7 +370,7 @@ struct CFWMobileactivationdParityTests {
         #expect(swiftBytes[slot] == rehash.after)
 
         let verified = try MobileactivationdFixture.run(
-            MobileactivationdFixture.codesign, ["-v", swiftFile.path]
+            MobileactivationdFixture.codesign, ["-v", swiftFile.path],
         )
         #expect(verified.status == 0, "codesign -v rejected the patched binary: \(verified.output)")
 
@@ -367,7 +378,7 @@ struct CFWMobileactivationdParityTests {
         let unsigned = try MobileactivationdFixture.copyOfPristine(named: "swift-unsigned.bin")
         try CFWMobileactivationd.patch(fileAt: unsigned, resign: false, log: nil)
         let rejected = try MobileactivationdFixture.run(
-            MobileactivationdFixture.codesign, ["-v", unsigned.path]
+            MobileactivationdFixture.codesign, ["-v", unsigned.path],
         )
         #expect(rejected.status != 0, "an un-re-attested patch should not verify")
     }
@@ -376,7 +387,7 @@ struct CFWMobileactivationdParityTests {
     /// neither an error nor a double-apply. `8eb6c8b` fixed exactly this class
     /// of bug for the DSC gates; it does not get to come back here.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func secondRunChangesNothing() throws {
+    func `second run changes nothing`() throws {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-idempotent.bin")
 
         let first = try CFWMobileactivationd.patch(fileAt: file, log: nil)
@@ -401,7 +412,7 @@ struct CFWMobileactivationdParityTests {
     /// on the next run rather than reported as already done and left to be
     /// SIGKILLed on first page-in.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func rerunRepairsAStaleSlot() throws {
+    func `rerun repairs A stale slot`() throws {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-stale-slot.bin")
         try CFWMobileactivationd.patch(fileAt: file, resign: false, log: nil)
 
@@ -413,7 +424,7 @@ struct CFWMobileactivationdParityTests {
 
     /// A dry run reports the site and leaves the file exactly as it found it.
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
-    func dryRunWritesNothing() throws {
+    func `dry run writes nothing`() throws {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-dry-run.bin")
         let before = try Data(contentsOf: file)
 

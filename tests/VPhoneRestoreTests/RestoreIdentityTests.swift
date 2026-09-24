@@ -9,7 +9,7 @@ import Testing
 struct RestoreIdentityTests {
     // MARK: - Accepted
 
-    @Test func absentECIDIsNotAnError() throws {
+    @Test func `absent ECID is not an error`() throws {
         let fromNil = try VPhoneRestoreIdentity.parseECID(nil)
         #expect(fromNil == nil)
         // Python's `if not value: return None` — "" is falsy, so it is "unset",
@@ -27,18 +27,18 @@ struct RestoreIdentityTests {
         ("0", UInt64(0)),
         ("ffffffffffffffff", UInt64.max),
     ])
-    func hexWithOrWithoutPrefix(_ input: String, _ expected: UInt64) throws {
+    func `hex with or without prefix`(_ input: String, _ expected: UInt64) throws {
         let parsed = try VPhoneRestoreIdentity.parseECID(input)
         #expect(parsed == expected)
     }
 
-    @Test func formatsAsSixteenUppercaseHexDigits() {
+    @Test func `formats as sixteen uppercase hex digits`() {
         #expect(VPhoneRestoreIdentity.formatECID(0x1234) == "0000000000001234")
         #expect(VPhoneRestoreIdentity.formatECID(0xAABB_CCDD_EEFF_0011) == "AABBCCDDEEFF0011")
         #expect(VPhoneRestoreIdentity.formatECID(0) == "0000000000000000")
     }
 
-    @Test func roundTripsThroughTheFormattedForm() throws {
+    @Test func `round trips through the formatted form`() throws {
         let original: UInt64 = 0x0000_0001_1A2B_3C4D
         let reparsed = try VPhoneRestoreIdentity.parseECID(VPhoneRestoreIdentity.formatECID(original))
         #expect(reparsed == original)
@@ -47,14 +47,14 @@ struct RestoreIdentityTests {
     // MARK: - Rejected
 
     @Test(arguments: ["   ", "\t", "0x", "0X", "  0x  "])
-    func presentButWithoutDigits(_ input: String) {
+    func `present but without digits`(_ input: String) {
         #expect(throws: VPhoneRestoreBackendError.ecidEmpty) {
             try VPhoneRestoreIdentity.parseECID(input)
         }
     }
 
     @Test(arguments: ["ghij", "12 34", "0x12g", "-1", "12.34", "0x0x12", "１２３４"])
-    func nonHexIsRejectedAndReportedAsTyped(_ input: String) {
+    func `non hex is rejected and reported as typed`(_ input: String) {
         // The payload is the ORIGINAL string, not the lower-cased,
         // prefix-stripped one — Python's `f"Invalid ECID: {value}"`.
         #expect(throws: VPhoneRestoreBackendError.ecidInvalid(input)) {
@@ -62,7 +62,7 @@ struct RestoreIdentityTests {
         }
     }
 
-    @Test func seventeenHexDigitsDoNotFitAnECID() {
+    @Test func `seventeen hex digits do not fit an ECID`() {
         // Python's ints are unbounded, so this is the one rejection the bridge
         // adds. Truncating silently would target a different device.
         #expect(throws: VPhoneRestoreBackendError.ecidTooLarge("00000000000000001")) {
@@ -73,14 +73,14 @@ struct RestoreIdentityTests {
         }
     }
 
-    @Test func invalidECIDCarriesThePythonMessage() {
+    @Test func `invalid ECID carries the python message`() {
         #expect("\(VPhoneRestoreBackendError.ecidEmpty)" == "ECID is empty")
         #expect("\(VPhoneRestoreBackendError.ecidInvalid("zz"))" == "Invalid ECID: zz")
     }
 
     // MARK: - UDID
 
-    @Test func udidIsTrimmedAndUpperCased() {
+    @Test func `udid is trimmed and upper cased`() {
         // Not cosmetic: usbmuxd and udid-prediction.txt both report upper-case
         // hex, so a lower-case --udid would match nothing.
         #expect(VPhoneRestoreIdentity.normalizeUDID(" abcdef01-0001020304050607 ")
@@ -89,7 +89,7 @@ struct RestoreIdentityTests {
             == "ABCDEF01-0001020304050607")
     }
 
-    @Test func absentOrEmptyUDIDMeansMatchAnyDevice() {
+    @Test func `absent or empty UDID means match any device`() {
         #expect(VPhoneRestoreIdentity.normalizeUDID(nil) == nil)
         // Python kept "" and every call site then treated it as falsy; nil says
         // the same thing once, where it cannot be got wrong.

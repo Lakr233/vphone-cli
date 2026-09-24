@@ -65,7 +65,9 @@ public class KernelJBPatcherBase: KernelPatcherBase {
             tempOff += Int(cmdsize)
         }
 
-        if verbose { print("[*] Symbol table: \(symbols.count) symbols resolved") }
+        if verbose {
+            print("[*] Symbol table: \(symbols.count) symbols resolved")
+        }
     }
 
     /// Parse LC_SYMTAB from a fileset entry Mach-O whose header starts at `mhOff`.
@@ -110,14 +112,18 @@ public class KernelJBPatcherBase: KernelPatcherBase {
             guard nameOff < size else { continue }
             var nameEnd = nameOff
             while nameEnd < size, nameEnd - nameOff < 512 {
-                if raw[nameEnd] == 0 { break }
+                if raw[nameEnd] == 0 {
+                    break
+                }
                 nameEnd += 1
             }
             guard nameEnd > nameOff else { continue }
             guard let name = String(data: raw[nameOff ..< nameEnd], encoding: .ascii) else { continue }
             // foff = n_value - base_va
             let foff = Int(Int64(bitPattern: nValue) - Int64(bitPattern: baseVA))
-            if foff >= 0, foff < size { symbols[name] = foff }
+            if foff >= 0, foff < size {
+                symbols[name] = foff
+            }
         }
     }
 
@@ -186,7 +192,9 @@ public class KernelJBPatcherBase: KernelPatcherBase {
         var off = funcStart + 4
         while off + 4 <= limit {
             let insn = raw.loadLE(UInt32.self, at: off)
-            if insn == ARM64.pacibspU32 { return off }
+            if insn == ARM64.pacibspU32 {
+                return off
+            }
             off += 4
         }
         return limit
@@ -218,7 +226,9 @@ public class KernelJBPatcherBase: KernelPatcherBase {
     /// loads `0x3EA` into `w1` immediately ahead of a `BL` (the priv-check call) —
     /// no offsets, no preassembled bytes, no version-pinned switch literal.
     func findProcSecurityPolicy() -> Int? {
-        if let cached = procSecurityPolicyOff { return cached >= 0 ? cached : nil }
+        if let cached = procSecurityPolicyOff {
+            return cached >= 0 ? cached : nil
+        }
         let raw = buffer.original
 
         var funcs = Set<Int>()
@@ -235,7 +245,9 @@ public class KernelJBPatcherBase: KernelPatcherBase {
                 let blA = off + 4 <= limit ? raw.loadLE(UInt32.self, at: off + 4) : 0
                 let blB = off + 8 <= limit ? raw.loadLE(UInt32.self, at: off + 8) : 0
                 guard ARM64Inst.isBL(blA) || ARM64Inst.isBL(blB) else { continue }
-                if let fn = findFunctionStart(off) { funcs.insert(fn) }
+                if let fn = findFunctionStart(off) {
+                    funcs.insert(fn)
+                }
             }
         }
 

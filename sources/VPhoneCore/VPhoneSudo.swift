@@ -32,7 +32,9 @@ public enum VPhoneSudo {
     /// the running image, never through `PATH`, the same rule `vphone-vm`
     /// follows — a bypass planted earlier on `PATH` must not be able to answer
     /// a question about privilege.
-    public static var helper: URL { VPhoneResources.siblingExecutable("vphone-ask-for-permission") }
+    public static var helper: URL {
+        VPhoneResources.siblingExecutable("vphone-ask-for-permission")
+    }
 
     /// Which of the three applies right now.
     ///
@@ -56,9 +58,13 @@ public enum VPhoneSudo {
     @discardableResult
     public static func authorize(reason: String, echo: Bool = true) throws -> Route {
         let route = route()
-        if route == .timestamp { return route }
+        if route == .timestamp {
+            return route
+        }
 
-        if echo { print("[sudo] \(reason)") }
+        if echo {
+            print("[sudo] \(reason)")
+        }
 
         let sudo = URL(fileURLWithPath: "/usr/bin/sudo")
 
@@ -90,13 +96,13 @@ public enum VPhoneSudo {
         _ arguments: [String],
         reason: String,
         cwd: URL? = nil,
-        echo: Bool = true
+        echo: Bool = true,
     ) throws -> Int32 {
         try authorize(reason: reason, echo: echo)
         return try VPhoneProcessRunner.runForeground(
             URL(fileURLWithPath: "/usr/bin/sudo"),
             ["--", executable.path] + arguments,
-            cwd: cwd
+            cwd: cwd,
         )
     }
 }

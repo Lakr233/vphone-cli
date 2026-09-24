@@ -99,14 +99,14 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Developer Mode",
                     message: enabled ? "Developer Mode is enabled." : "Developer Mode is disabled.",
-                    style: .informational
+                    style: .informational,
                 )
             } catch {
                 showAlert(
                     title: "Developer Mode",
                     message: "Unable to read Developer Mode status. Check that the guest agent is connected, "
                         + "then try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -121,7 +121,7 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Ping",
                     message: "The guest did not respond. Check that the guest agent is connected, then try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -137,7 +137,7 @@ extension VPhoneMenuController {
                     title: "Guest Version",
                     message: "Unable to read the guest version. Check that the guest agent is connected, "
                         + "then try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -167,7 +167,7 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Clipboard",
                     message: "Unable to read the guest clipboard. Try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -178,7 +178,7 @@ extension VPhoneMenuController {
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 150),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Set Clipboard Text"
         panel.center()
@@ -222,7 +222,7 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Clipboard",
                     message: "Unable to set the guest clipboard. Try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -235,7 +235,7 @@ extension VPhoneMenuController {
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 160),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Read Setting"
         panel.center()
@@ -286,7 +286,7 @@ extension VPhoneMenuController {
                 if let dict = value as? [String: Any] {
                     let data = try JSONSerialization.data(
                         withJSONObject: dict,
-                        options: [.prettyPrinted, .sortedKeys]
+                        options: [.prettyPrinted, .sortedKeys],
                     )
                     display = String(data: data, encoding: .utf8) ?? "\(dict)"
                 } else {
@@ -296,13 +296,13 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Setting: \(domain)\(key.map { ".\($0)" } ?? "")",
                     message: truncated,
-                    style: .informational
+                    style: .informational,
                 )
             } catch {
                 showAlert(
                     title: "Read Setting",
                     message: "Unable to read that setting. Check the domain and key, then try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -313,7 +313,7 @@ extension VPhoneMenuController {
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Write Setting"
         panel.center()
@@ -391,18 +391,18 @@ extension VPhoneMenuController {
                     domain: domain,
                     key: key,
                     value: value,
-                    type: type.isEmpty ? nil : type
+                    type: type.isEmpty ? nil : type,
                 )
                 showAlert(
                     title: "Write Setting",
                     message: "Set \(domain).\(key) = \(rawValue)",
-                    style: .informational
+                    style: .informational,
                 )
             } catch {
                 showAlert(
                     title: "Write Setting",
                     message: "Unable to write that setting. Check the domain, key and type, then try again.",
-                    style: .warning
+                    style: .warning,
                 )
             }
         }
@@ -410,12 +410,12 @@ extension VPhoneMenuController {
 
     // MARK: - Alert
 
-    func showAlert(title: String, message: String, style: NSAlert.Style) {
+    func showAlert(title: String, message: String, style _: NSAlert.Style) {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 120),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = title
         panel.center()

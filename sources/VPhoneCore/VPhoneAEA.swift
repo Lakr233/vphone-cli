@@ -124,17 +124,17 @@ public enum VPhoneAEA {
         }
 
         let privateKey = try P256.KeyAgreement.PrivateKey(
-            pemRepresentation: String(decoding: pem, as: UTF8.self)
+            pemRepresentation: String(decoding: pem, as: UTF8.self),
         )
         var recipient = try HPKE.Recipient(
             privateKey: privateKey,
             ciphersuite: HPKE.Ciphersuite(
-                kem: .P256_HKDF_SHA256, kdf: .HKDF_SHA256, aead: .AES_GCM_256
+                kem: .P256_HKDF_SHA256, kdf: .HKDF_SHA256, aead: .AES_GCM_256,
             ),
             info: Data(),
-            encapsulatedKey: encapsulated
+            encapsulatedKey: encapsulated,
         )
-        return "base64:" + (try recipient.open(wrapped)).base64EncodedString()
+        return try "base64:" + (recipient.open(wrapped)).base64EncodedString()
     }
 
     // MARK: - Re-encryption metadata
@@ -172,7 +172,9 @@ public enum VPhoneAEA {
 }
 
 private extension Data {
-    var hexString: String { map { String(format: "%02x", $0) }.joined() }
+    var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 // MARK: - Running one async call from synchronous code
@@ -189,12 +191,12 @@ private extension Data {
 /// caller's actor, or a call made on the main actor would block the queue the
 /// work is waiting to run on.
 public func vphoneRunBlocking<T: Sendable>(
-    _ body: @escaping @Sendable () async throws -> T
+    _ body: @escaping @Sendable () async throws -> T,
 ) throws -> T {
     let semaphore = DispatchSemaphore(value: 0)
     nonisolated(unsafe) var result: Result<T, Swift.Error>!
     Task.detached {
-        do { result = .success(try await body()) } catch { result = .failure(error) }
+        do { result = try await .success(body()) } catch { result = .failure(error) }
         semaphore.signal()
     }
     semaphore.wait()

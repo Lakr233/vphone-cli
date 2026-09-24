@@ -41,7 +41,7 @@ public enum VPhoneFirmwarePicker {
         isInteractive: Bool,
         maxRetries: Int = 5,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> VPhoneFirmwareSources {
         let iphone = (iphone?.isEmpty == true) ? nil : iphone
         let cloudos = (cloudos?.isEmpty == true) ? nil : cloudos
@@ -55,7 +55,7 @@ public enum VPhoneFirmwarePicker {
             let p = try pickPairing(maxRetries: maxRetries, read: read, write: write)
             return VPhoneFirmwareSources(iphoneSource: p.iosURL, cloudosSource: p.cloudosURL)
         }
-        if iphone == nil {   // cloudOS supplied, choose the iPhone build
+        if iphone == nil { // cloudOS supplied, choose the iPhone build
             let p = try pickIPhone(maxRetries: maxRetries, read: read, write: write)
             return VPhoneFirmwareSources(iphoneSource: p.iosURL, cloudosSource: cloudos)
         }
@@ -69,17 +69,19 @@ public enum VPhoneFirmwarePicker {
     static func pickPairing(
         maxRetries: Int,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> VPhoneFirmwarePairing {
         let pairings = VPhoneFirmwareCatalog.pairings
         let w = pairings.map(\.iosName.count).max() ?? 0
         let idx = try choose(
             "Select a firmware pairing to download:",
             pairings.map { $0.iosName.padding(toLength: w, withPad: " ", startingAt: 0)
-                + "  (→ \($0.cloudosName))" },
+                + "  (→ \($0.cloudosName))"
+            },
             maxRetries: maxRetries,
             read: read,
-            write: write)
+            write: write,
+        )
         let p = pairings[idx]
         write("→ \(p.iosName) + \(p.cloudosName)")
         return p
@@ -88,7 +90,7 @@ public enum VPhoneFirmwarePicker {
     static func pickIPhone(
         maxRetries: Int,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> VPhoneFirmwarePairing {
         let pairings = VPhoneFirmwareCatalog.pairings
         let idx = try choose(
@@ -96,7 +98,8 @@ public enum VPhoneFirmwarePicker {
             pairings.map(\.iosName),
             maxRetries: maxRetries,
             read: read,
-            write: write)
+            write: write,
+        )
         let p = pairings[idx]
         write("→ \(p.iosName)")
         return p
@@ -105,7 +108,7 @@ public enum VPhoneFirmwarePicker {
     static func pickCloudOS(
         maxRetries: Int,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> VPhoneCloudOSOption {
         let options = VPhoneFirmwareCatalog.cloudOSOptions
         let idx = try choose(
@@ -113,7 +116,8 @@ public enum VPhoneFirmwarePicker {
             options.map(\.name),
             maxRetries: maxRetries,
             read: read,
-            write: write)
+            write: write,
+        )
         let c = options[idx]
         write("→ \(c.name)")
         return c
@@ -125,21 +129,25 @@ public enum VPhoneFirmwarePicker {
         _ labels: [String],
         maxRetries: Int,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> Int {
         write(prompt)
-        let iw = String(labels.count).count   // right-align indices so labels start in one column
+        let iw = String(labels.count).count // right-align indices so labels start in one column
         for (i, label) in labels.enumerated() {
             let n = String(i + 1)
             let padded = String(repeating: " ", count: iw - n.count) + n
             write("  [\(padded)] \(label)")
         }
-        for _ in 0..<maxRetries {
+        for _ in 0 ..< maxRetries {
             write("Enter number: ")
             guard let line = read() else { throw VPhoneFirmwarePickerError.aborted }
             let choice = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if choice.isEmpty { continue }
-            if let n = Int(choice), n >= 1, n <= labels.count { return n - 1 }
+            if choice.isEmpty {
+                continue
+            }
+            if let n = Int(choice), n >= 1, n <= labels.count {
+                return n - 1
+            }
             write("  '\(choice)' is not a valid selection.")
         }
         throw VPhoneFirmwarePickerError.invalidSelection

@@ -69,7 +69,9 @@ extension KernelJBPatcher {
 
             // Function end = next PACIBSP (capped at 0x800 bytes).
             var funcEnd = findFuncEnd(funcStart, maxSize: 0x800)
-            if let (_, ke) = kernTextRange { funcEnd = min(funcEnd, ke) }
+            if let (_, ke) = kernTextRange {
+                funcEnd = min(funcEnd, ke)
+            }
 
             // Scan backward from funcEnd for MOV W0, #1 followed by LDP X29, X30, [SP, #imm].
             var targetOff = -1
@@ -97,7 +99,7 @@ extension KernelJBPatcher {
                 targetOff,
                 ARM64.movW0_0,
                 patchID: "jb.amfi_execve.kill_return",
-                description: "mov w0,#0 [AMFI kill return → allow]"
+                description: "mov w0,#0 [AMFI kill return → allow]",
             )
 
             log("  [+] Patched kill return at 0x\(String(format: "%X", targetOff)) (func 0x\(String(format: "%X", funcStart)))")

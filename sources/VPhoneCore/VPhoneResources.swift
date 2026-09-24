@@ -1,4 +1,4 @@
-import Darwin  // _NSGetExecutablePath
+import Darwin // _NSGetExecutablePath
 import Foundation
 
 // MARK: - VPhoneResources
@@ -6,7 +6,9 @@ import Foundation
 public struct VPhoneResources: Sendable {
     public let base: URL
 
-    public init(base: URL) { self.base = base }
+    public init(base: URL) {
+        self.base = base
+    }
 
     // MARK: - Resolution
 
@@ -32,7 +34,9 @@ public struct VPhoneResources: Sendable {
             return realPath(URL(fileURLWithPath: path))
         }
         // Only reachable if PATH_MAX was somehow too small for our own path.
-        if let exe = Bundle.main.executableURL { return realPath(exe) }
+        if let exe = Bundle.main.executableURL {
+            return realPath(exe)
+        }
         return realPath(URL(fileURLWithPath: CommandLine.arguments[0]))
     }
 
@@ -73,14 +77,15 @@ public struct VPhoneResources: Sendable {
     public static func resolve(executablePath: String? = nil) -> VPhoneResources {
         let exe = executablePath.map { realPath(URL(fileURLWithPath: $0)) }
             ?? runningExecutable()
-        let macos = exe.deletingLastPathComponent()             // …/Contents/MacOS
+        let macos = exe.deletingLastPathComponent() // …/Contents/MacOS
         if macos.lastPathComponent == "MacOS",
-           macos.deletingLastPathComponent().lastPathComponent == "Contents" {
+           macos.deletingLastPathComponent().lastPathComponent == "Contents"
+        {
             return VPhoneResources(base: macos.deletingLastPathComponent()
-                .appendingPathComponent("Resources"))            // …/Contents/Resources
+                .appendingPathComponent("Resources")) // …/Contents/Resources
         }
         var dir = macos
-        for _ in 0..<6 {
+        for _ in 0 ..< 6 {
             if FileManager.default.fileExists(atPath: dir.appendingPathComponent("scripts").path) {
                 return VPhoneResources(base: dir)
             }
@@ -91,11 +96,15 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Assets
 
-    public var scriptsDir: URL { base.appendingPathComponent("scripts") }
+    public var scriptsDir: URL {
+        base.appendingPathComponent("scripts")
+    }
 
     public var vphoned: URL {
         let bundled = base.appendingPathComponent("vphoned.signed")
-        if FileManager.default.fileExists(atPath: bundled.path) { return bundled }
+        if FileManager.default.fileExists(atPath: bundled.path) {
+            return bundled
+        }
         // Dev fallback: build.sh stages the signed daemon under .build (a
         // gitignored build-output dir) rather than cluttering the repo root.
         return base.appendingPathComponent(".build/vphoned.signed")
@@ -113,8 +122,13 @@ public struct VPhoneResources: Sendable {
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vphone")
     }
 
-    public var ipswCacheDir: URL { Self.userDataRoot().appendingPathComponent("ipsws") }
-    public var sealVolumeCacheDir: URL { Self.userDataRoot().appendingPathComponent("tools") }
+    public var ipswCacheDir: URL {
+        Self.userDataRoot().appendingPathComponent("ipsws")
+    }
+
+    public var sealVolumeCacheDir: URL {
+        Self.userDataRoot().appendingPathComponent("tools")
+    }
 
     // MARK: - No interpreter
 

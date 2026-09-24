@@ -40,7 +40,7 @@ public struct PatchRecord: Codable, Equatable, Sendable {
         patchedBytes: Data,
         beforeDisasm: String = "",
         afterDisasm: String = "",
-        description: String
+        description: String,
     ) {
         self.patchID = patchID
         self.component = component
@@ -63,7 +63,7 @@ extension PatchRecord: CustomStringConvertible {
             addr,
             beforeDisasm.isEmpty ? originalBytes.hex : beforeDisasm,
             afterDisasm.isEmpty ? patchedBytes.hex : afterDisasm,
-            patchID
+            patchID,
         )
     }
 }

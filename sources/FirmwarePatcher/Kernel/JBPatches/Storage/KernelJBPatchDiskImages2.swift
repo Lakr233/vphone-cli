@@ -57,7 +57,7 @@ extension KernelJBPatcher {
         return nopAbiVersionGate(
             funcSig: "static IOReturn DIDeviceCreatorUserClient::CreateDevice(OSObject *, void *, IOExternalMethodArguments *)",
             patchID: "di2_createdevice_abi",
-            desc: "nop [DI2 CreateDevice controller-ABI cmp#9/b.ne gate]"
+            desc: "nop [DI2 CreateDevice controller-ABI cmp#9/b.ne gate]",
         )
     }
 
@@ -69,7 +69,7 @@ extension KernelJBPatcher {
         return nopAbiVersionGate(
             funcSig: "static IOReturn DIDeviceIOUserClient::Connect(OSObject *, void *, IOExternalMethodArguments *)",
             patchID: "di2_connect_abi",
-            desc: "nop [DI2 Connect daemon-ABI cmp#9/b.ne gate]"
+            desc: "nop [DI2 Connect daemon-ABI cmp#9/b.ne gate]",
         )
     }
 
@@ -95,7 +95,7 @@ extension KernelJBPatcher {
             guard let cmp = disasAt(off), cmp.mnemonic == "cmp",
                   let ops = cmp.aarch64?.operands, ops.count == 2,
                   ops[0].type == AARCH64_OP_REG,
-                  (disasm.firstRegisterName(cmp)?.hasPrefix("w") ?? false),
+                  disasm.firstRegisterName(cmp)?.hasPrefix("w") ?? false,
                   ops[1].type == AARCH64_OP_IMM, ops[1].imm == 9
             else { continue }
             guard let nxt = disasAt(off + 4), nxt.mnemonic == "b.ne" else { continue }
@@ -145,12 +145,12 @@ extension KernelJBPatcher {
         ok = applyFieldLoadMov800(
             at: f1,
             patchID: "di2_notif_boundcheck_d8",
-            desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field1 @+0xd8]"
+            desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field1 @+0xd8]",
         ) && ok
         ok = applyFieldLoadMov800(
             at: f2,
             patchID: "di2_notif_boundcheck_e8",
-            desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field2 @+0xe8]"
+            desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field2 @+0xe8]",
         ) && ok
         return ok
     }
@@ -159,7 +159,7 @@ extension KernelJBPatcher {
     /// count * 8), unique within the function. Function pinned by its C++ signature.
     private func findDI2AllocPortsSizeSite() -> Int? {
         guard let sigOff = buffer.findString(
-            "static IOReturn DIDeviceIOUserClient::AllocPortsArray(OSObject *, void *, IOExternalMethodArguments *)"
+            "static IOReturn DIDeviceIOUserClient::AllocPortsArray(OSObject *, void *, IOExternalMethodArguments *)",
         ) else { return nil }
         let refs = findStringRefs(sigOff)
         guard let ref = refs.first, let funcStart = findFunctionStart(ref.adrpOff) else { return nil }
@@ -196,7 +196,7 @@ extension KernelJBPatcher {
         funcEnd: Int,
         mnemonic: String,
         disp: Int64,
-        requireWDest: Bool
+        requireWDest: Bool,
     ) -> Int? {
         var hits: [Int] = []
         var off = funcStart
@@ -207,7 +207,9 @@ extension KernelJBPatcher {
                   ops[0].type == AARCH64_OP_REG,
                   ops[1].type == AARCH64_OP_MEM, ops[1].mem.disp == disp
             else { continue }
-            if requireWDest, !(disasm.firstRegisterName(ins)?.hasPrefix("w") ?? false) { continue }
+            if requireWDest, !(disasm.firstRegisterName(ins)?.hasPrefix("w") ?? false) {
+                continue
+            }
             hits.append(off)
         }
         return hits.count == 1 ? hits[0] : nil
@@ -224,7 +226,7 @@ extension KernelJBPatcher {
             bytes,
             patchID: "di2_allocports_size",
             virtualAddress: fileOffsetToVA(lslOff),
-            description: "mov x1,#0x4000 [DI2 AllocPortsArray widen notif-ports alloc to 0x800 entries]"
+            description: "mov x1,#0x4000 [DI2 AllocPortsArray widen notif-ports alloc to 0x800 entries]",
         )
         return true
     }
@@ -242,13 +244,17 @@ extension KernelJBPatcher {
     // MARK: - Register-name → index helpers
 
     private func wRegIndex(_ name: String) -> UInt32? {
-        if name == "wzr" { return 31 }
+        if name == "wzr" {
+            return 31
+        }
         guard name.hasPrefix("w"), let n = UInt32(name.dropFirst()), n < 31 else { return nil }
         return n
     }
 
     private func xRegIndex(_ name: String) -> UInt32? {
-        if name == "xzr" { return 31 }
+        if name == "xzr" {
+            return 31
+        }
         guard name.hasPrefix("x"), let n = UInt32(name.dropFirst()), n < 31 else { return nil }
         return n
     }

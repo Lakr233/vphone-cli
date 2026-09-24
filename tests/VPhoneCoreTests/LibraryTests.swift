@@ -1,6 +1,6 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 // Serialized: defaultRootHonorsEnvOverride / defaultRootIsShellSafe mutate the
 // process-global VPHONE_LIBRARY_ROOT; run in parallel they race (a set/unset
@@ -19,12 +19,12 @@ struct LibraryTests {
         let manifest = VPhoneVirtualMachineManifest(
             cpuCount: 8,
             memorySize: 8 * 1024 * 1024 * 1024,
-            romImages: .init(avpBooter: "AVPBooter.vresearch1.bin", avpSEPBooter: "AVPSEPBooter.vresearch1.bin")
+            romImages: .init(avpBooter: "AVPBooter.vresearch1.bin", avpSEPBooter: "AVPSEPBooter.vresearch1.bin"),
         )
         try manifest.write(to: dir.appendingPathComponent("config.plist"))
     }
 
-    @Test func scansOnlyDirsWithManifest() throws {
+    @Test func `scans only dirs with manifest`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try writeBundle("alpha", in: root)
@@ -32,14 +32,14 @@ struct LibraryTests {
         // A stray dir without config.plist must be ignored.
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent("junk"),
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
 
         let names = try VPhoneLibrary(root: root).bundles().map(\.name)
         #expect(names == ["alpha", "beta"])
     }
 
-    @Test func bundleNamedThrowsWhenMissing() throws {
+    @Test func `bundle named throws when missing`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(throws: VPhoneLibraryError.self) {
@@ -47,19 +47,19 @@ struct LibraryTests {
         }
     }
 
-    // These three go through `ProcessEnvironment` rather than calling `setenv`
-    // and `unsetenv` directly. `.serialized` on this suite orders these tests
-    // against each other, but `ResourcesTests` drives the same two variables
-    // from its own serialized suite, and nothing ordered the two suites — so
-    // the bare `unsetenv` that used to open `defaultRootIsShellSafe` could
-    // clear `VPHONE_ROOT` in the middle of a ResourcesTests assertion.
-    @Test func defaultRootHonorsEnvOverride() {
+    /// These three go through `ProcessEnvironment` rather than calling `setenv`
+    /// and `unsetenv` directly. `.serialized` on this suite orders these tests
+    /// against each other, but `ResourcesTests` drives the same two variables
+    /// from its own serialized suite, and nothing ordered the two suites — so
+    /// the bare `unsetenv` that used to open `defaultRootIsShellSafe` could
+    /// clear `VPHONE_ROOT` in the middle of a ResourcesTests assertion.
+    @Test func `default root honors env override`() {
         ProcessEnvironment.withOverrides(["VPHONE_LIBRARY_ROOT": "/tmp/vphone-test-root"]) {
             #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root")
         }
     }
 
-    @Test func defaultRootHonorsVPHONERoot() {
+    @Test func `default root honors VPHONE root`() {
         ProcessEnvironment.withOverrides([
             "VPHONE_LIBRARY_ROOT": nil,
             "VPHONE_ROOT": "/tmp/vphone-test-root",
@@ -68,7 +68,7 @@ struct LibraryTests {
         }
     }
 
-    @Test func defaultRootIsShellSafe() {
+    @Test func `default root is shell safe`() {
         // The default root feeds the shell/make firmware pipeline; a space in it
         // (e.g. "Application Support") breaks unquoted expansion. Must stay space-free.
         ProcessEnvironment.withOverrides([
@@ -79,7 +79,7 @@ struct LibraryTests {
         }
     }
 
-    @Test func scanReportsCorruptBundlesInsteadOfDropping() throws {
+    @Test func `scan reports corrupt bundles instead of dropping`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try writeBundle("good", in: root)

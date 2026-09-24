@@ -1,6 +1,6 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 /// Creating, editing, renaming and cloning a bundle. Export and import moved to
 /// `VPhoneArchiveTests/BundleTransferTests` with the implementation, which needs
@@ -18,7 +18,7 @@ struct BundleOpsTests {
         return f
     }
 
-    @Test func createsBundleWithSparseDiskAndManifest() throws {
+    @Test func `creates bundle with sparse disk and manifest`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -30,22 +30,22 @@ struct BundleOpsTests {
             memoryMB: 8192,
             diskSizeGB: 64,
             romSource: rom,
-            sepromSource: seprom
+            sepromSource: seprom,
         )
         let bundle = try VPhoneBundleOps.create(spec, in: VPhoneLibrary(root: root))
 
         #expect(bundle.manifest.cpuCount == 8)
         #expect(bundle.manifest.memorySize == 8192 * 1024 * 1024)
         let disk = bundle.url.appendingPathComponent("Disk.img")
-        let size = (try FileManager.default.attributesOfItem(atPath: disk.path)[.size] as? NSNumber)?.int64Value
+        let size = try (FileManager.default.attributesOfItem(atPath: disk.path)[.size] as? NSNumber)?.int64Value
         #expect(size == Int64(64 * 1024 * 1024 * 1024))
         #expect(FileManager.default.fileExists(atPath: bundle.url.appendingPathComponent("SEPStorage").path))
         #expect(
-            FileManager.default.fileExists(atPath: bundle.url.appendingPathComponent("AVPBooter.vresearch1.bin").path)
+            FileManager.default.fileExists(atPath: bundle.url.appendingPathComponent("AVPBooter.vresearch1.bin").path),
         )
     }
 
-    @Test func rejectsDuplicateName() throws {
+    @Test func `rejects duplicate name`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -56,7 +56,7 @@ struct BundleOpsTests {
             memoryMB: 2048,
             diskSizeGB: 1,
             romSource: rom,
-            sepromSource: seprom
+            sepromSource: seprom,
         )
         _ = try VPhoneBundleOps.create(spec, in: VPhoneLibrary(root: root))
         #expect(throws: VPhoneLibraryError.self) {
@@ -64,7 +64,7 @@ struct BundleOpsTests {
         }
     }
 
-    @Test func rejectsInvalidNames() throws {
+    @Test func `rejects invalid names`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -79,15 +79,15 @@ struct BundleOpsTests {
                         memoryMB: 2048,
                         diskSizeGB: 1,
                         romSource: rom,
-                        sepromSource: seprom
+                        sepromSource: seprom,
                     ),
-                    in: lib
+                    in: lib,
                 )
             }
         }
     }
 
-    @Test func rollsBackPartialBundleOnFailure() throws {
+    @Test func `rolls back partial bundle on failure`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
@@ -102,16 +102,16 @@ struct BundleOpsTests {
                     memoryMB: 2048,
                     diskSizeGB: 1,
                     romSource: missingRom,
-                    sepromSource: missingRom
+                    sepromSource: missingRom,
                 ),
-                in: lib
+                in: lib,
             )
         }
         // The half-built directory must be removed so the name is reusable.
         #expect(!FileManager.default.fileExists(atPath: lib.url(forName: "partial").path))
     }
 
-    @Test func updateConfigPersistsFields() throws {
+    @Test func `update config persists fields`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -124,9 +124,9 @@ struct BundleOpsTests {
                 memoryMB: 8192,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: lib
+            in: lib,
         )
 
         let updated = try VPhoneBundleOps.updateConfig(bundleNamed: "cfg", in: lib, cpuCount: 4, memoryMB: nil)
@@ -139,7 +139,7 @@ struct BundleOpsTests {
         #expect(updated.manifest.networkConfig.mode == .nat)
     }
 
-    @Test func updateConfigPersistsNetwork() throws {
+    @Test func `update config persists network`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -152,9 +152,9 @@ struct BundleOpsTests {
                 memoryMB: 8192,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: lib
+            in: lib,
         )
 
         let updated = try VPhoneBundleOps.updateConfig(
@@ -162,7 +162,7 @@ struct BundleOpsTests {
             in: lib,
             cpuCount: nil,
             memoryMB: nil,
-            networkMode: .off
+            networkMode: .off,
         )
         #expect(updated.manifest.networkConfig.mode == .off)
         // Persisted across a fresh load, and cpu/memory untouched.
@@ -171,7 +171,7 @@ struct BundleOpsTests {
         #expect(reloaded.cpuCount == 8)
     }
 
-    @Test func updateConfigRejectsBadNetwork() throws {
+    @Test func `update config rejects bad network`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -184,9 +184,9 @@ struct BundleOpsTests {
                 memoryMB: 2048,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: lib
+            in: lib,
         )
 
         #expect(throws: VPhoneNetworkingError.hostOnlyUnsupported) {
@@ -195,14 +195,14 @@ struct BundleOpsTests {
                 in: lib,
                 cpuCount: nil,
                 memoryMB: nil,
-                networkMode: .hostOnly
+                networkMode: .hostOnly,
             )
         }
         // A rejected edit must not have mutated the on-disk manifest.
         #expect(try lib.bundle(named: "bad").manifest.networkConfig.mode == .nat)
     }
 
-    @Test func renameThenDelete() throws {
+    @Test func `rename then delete`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -215,9 +215,9 @@ struct BundleOpsTests {
                 memoryMB: 2048,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: lib
+            in: lib,
         )
 
         let renamed = try VPhoneBundleOps.rename(bundleNamed: "old", to: "shiny", in: lib)
@@ -228,7 +228,7 @@ struct BundleOpsTests {
         #expect(try lib.bundles().isEmpty)
     }
 
-    @Test func renameRejectsExistingTarget() throws {
+    @Test func `rename rejects existing target`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -242,9 +242,9 @@ struct BundleOpsTests {
                     memoryMB: 2048,
                     diskSizeGB: 1,
                     romSource: rom,
-                    sepromSource: seprom
+                    sepromSource: seprom,
                 ),
-                in: lib
+                in: lib,
             )
         }
         #expect(throws: VPhoneLibraryError.alreadyExists(name: "b")) {
@@ -252,7 +252,7 @@ struct BundleOpsTests {
         }
     }
 
-    @Test func cloneCopiesBundleAndResetsIdentity() throws {
+    @Test func `clone copies bundle and resets identity`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -265,9 +265,9 @@ struct BundleOpsTests {
                 memoryMB: 4096,
                 diskSizeGB: 1,
                 romSource: rom,
-                sepromSource: seprom
+                sepromSource: seprom,
             ),
-            in: lib
+            in: lib,
         )
         // Simulate a booted/restored VM: identity artifacts present + non-empty machineIdentifier.
         let fm = FileManager.default
@@ -292,7 +292,7 @@ struct BundleOpsTests {
         #expect(try lib.bundle(named: "src").manifest.machineIdentifier == Data([9, 9]))
     }
 
-    @Test func cloneRejectsExistingTarget() throws {
+    @Test func `clone rejects existing target`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -306,9 +306,9 @@ struct BundleOpsTests {
                     memoryMB: 2048,
                     diskSizeGB: 1,
                     romSource: rom,
-                    sepromSource: seprom
+                    sepromSource: seprom,
                 ),
-                in: lib
+                in: lib,
             )
         }
         #expect(throws: VPhoneLibraryError.alreadyExists(name: "b")) {

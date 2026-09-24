@@ -47,26 +47,26 @@ struct VPhoneSignCommand: ParsableCommand {
         the file already carries, rather than replacing them. Without it, a
         re-sign silently drops the sandbox profile and private entitlements a
         binary like diskimagesiod cannot run without.
-        """
+        """,
     )
 
     @Argument(help: "The Mach-O to sign, in place", transform: URL.init(fileURLWithPath:))
     var file: URL
 
-    // Long spellings only, deliberately. ldid's short flags take their value
-    // attached (-S"$ent", -K"$p12"), which ArgumentParser reads as an unknown
-    // option; offering -S and -K here would invite exactly that call and answer
-    // it with a parse error about something else.
+    /// Long spellings only, deliberately. ldid's short flags take their value
+    /// attached (-S"$ent", -K"$p12"), which ArgumentParser reads as an unknown
+    /// option; offering -S and -K here would invite exactly that call and answer
+    /// it with a parse error about something else.
     @Option(
         name: .customLong("entitlements"),
         help: "Entitlements plist to embed, as the file holds it",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var entitlements: URL?
 
     @Option(
         name: .customLong("identifier"),
-        help: "Signing identifier. Defaults to the file's name, as ldid does."
+        help: "Signing identifier. Defaults to the file's name, as ldid does.",
     )
     var identifier: String?
 
@@ -76,13 +76,13 @@ struct VPhoneSignCommand: ParsableCommand {
     @Option(
         name: .customLong("pkcs12"),
         help: "Sign for real with this .p12 (no password) instead of ad-hoc",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var pkcs12: URL?
 
     @Flag(
         name: .customLong("apple-adhoc"),
-        help: "Write an ad-hoc signature in Apple's shape (codesign --sign -) rather than ldid's"
+        help: "Write an ad-hoc signature in Apple's shape (codesign --sign -) rather than ldid's",
     )
     var appleAdHoc = false
 
@@ -96,7 +96,7 @@ struct VPhoneSignCommand: ParsableCommand {
         options.style = appleAdHoc ? .appleAdHoc : .ldid
         if let pkcs12 {
             options.identity = try VPhoneSignIdentity(
-                pkcs12: Data(contentsOf: pkcs12, options: .mappedIfSafe), password: ""
+                pkcs12: Data(contentsOf: pkcs12, options: .mappedIfSafe), password: "",
             )
         }
         try VPhoneSigner.sign(fileAt: file, options: options)
@@ -117,7 +117,7 @@ struct VPhoneDumpEntitlementsCommand: ParsableCommand {
 
         A slice with no entitlements contributes nothing, so a file with none at
         all prints nothing and still exits zero.
-        """
+        """,
     )
 
     @Argument(help: "The Mach-O to read", transform: URL.init(fileURLWithPath:))

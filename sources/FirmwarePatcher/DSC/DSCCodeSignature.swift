@@ -126,7 +126,9 @@ public struct DSCReattestationSkip: Sendable {
     }
 
     public let reason: Reason
-    public var description: String { reason.description }
+    public var description: String {
+        reason.description
+    }
 }
 
 /// What one re-attestation run did.
@@ -144,11 +146,15 @@ public struct DSCReattestation: Sendable {
     public let skipped: [DSCReattestationSkip]
 
     /// Pages the run actually reached — rewritten plus already-correct.
-    public var pagesAttested: Int { updated.count + alreadyAttested.count }
+    public var pagesAttested: Int {
+        updated.count + alreadyAttested.count
+    }
 
     /// True when every page the caller's spans touched now carries a slot hash
     /// that matches its contents. False the moment anything was skipped.
-    public var isFullyAttested: Bool { skipped.isEmpty }
+    public var isFullyAttested: Bool {
+        skipped.isEmpty
+    }
 
     public var summary: String {
         "\(updated.count) slot(s) rewritten, \(alreadyAttested.count) already correct, "
@@ -188,7 +194,7 @@ public enum DSCCodeSignature {
         let indexData = try DSCChunkSet.read(
             url: url,
             offset: signatureOffset + 12,
-            length: Int(blobCount) * 8
+            length: Int(blobCount) * 8,
         )
         guard indexData.count == Int(blobCount) * 8 else { return nil }
 
@@ -230,7 +236,7 @@ public enum DSCCodeSignature {
             hashSize: hashSize,
             codeSlotCount: codeSlotCount,
             codeLimit: codeLimit,
-            pageSize: pageSize
+            pageSize: pageSize,
         )
     }
 
@@ -266,7 +272,7 @@ public enum DSCCodeSignature {
         in chunks: DSCChunkSet,
         modifiedSpans: some Sequence<DSCWriteSpan>,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stderrLog
+        log: ((String) -> Void)? = stderrLog,
     ) throws -> DSCReattestation {
         var pagesByChunk: [URL: Set<Int>] = [:]
         var directories: [URL: DSCChunkCodeDirectory?] = [:]
@@ -310,7 +316,7 @@ public enum DSCCodeSignature {
                     skip(.pageBeyondCodeSlots(
                         chunk: chunkURL.lastPathComponent,
                         page: pageIndex,
-                        codeSlotCount: directory.codeSlotCount
+                        codeSlotCount: directory.codeSlotCount,
                     ))
                     continue
                 }
@@ -318,7 +324,7 @@ public enum DSCCodeSignature {
                     skip(.pageBeyondCodeLimit(
                         chunk: chunkURL.lastPathComponent,
                         page: pageIndex,
-                        codeLimit: directory.codeLimit
+                        codeLimit: directory.codeLimit,
                     ))
                     continue
                 }
@@ -329,7 +335,7 @@ public enum DSCCodeSignature {
         guard !pagesByChunk.isEmpty else {
             log?(
                 "      [.] re-attest: no eligible pages "
-                    + "(\(skipped.count) skipped)"
+                    + "(\(skipped.count) skipped)",
             )
             return DSCReattestation(updated: [], alreadyAttested: [], skipped: skipped)
         }
@@ -354,7 +360,7 @@ public enum DSCCodeSignature {
                         chunk: chunkURL.lastPathComponent,
                         page: pageIndex,
                         got: pageData.count,
-                        wanted: directory.pageSize
+                        wanted: directory.pageSize,
                     ))
                     continue
                 }
@@ -365,11 +371,11 @@ public enum DSCCodeSignature {
 
                 guard oldHash != newHash else {
                     alreadyAttested.append(
-                        DSCPageReference(chunkURL: chunkURL, pageIndex: pageIndex)
+                        DSCPageReference(chunkURL: chunkURL, pageIndex: pageIndex),
                     )
                     log?(
                         "      [.] re-attest: page \(pageIndex) of "
-                            + "\(chunkURL.lastPathComponent) slot already matches (no-op)"
+                            + "\(chunkURL.lastPathComponent) slot already matches (no-op)",
                     )
                     continue
                 }
@@ -381,7 +387,7 @@ public enum DSCCodeSignature {
                 log?(
                     "      [+] re-attest: \(dryRun ? "would write" : "wrote") slot "
                         + "\(pageIndex) of \(chunkURL.lastPathComponent)  "
-                        + "(\(Data(oldHash.prefix(4)).hex).. -> \(Data(newHash.prefix(4)).hex)..)"
+                        + "(\(Data(oldHash.prefix(4)).hex).. -> \(Data(newHash.prefix(4)).hex)..)",
                 )
                 records.append(
                     DSCSlotReattestation(
@@ -390,8 +396,8 @@ public enum DSCCodeSignature {
                         chunkOffset: pageOffset,
                         slotOffset: slotOffset,
                         hashBefore: oldHash,
-                        hashAfter: newHash
-                    )
+                        hashAfter: newHash,
+                    ),
                 )
             }
         }
@@ -399,12 +405,12 @@ public enum DSCCodeSignature {
         log?(
             "  [+] re-attest: \(dryRun ? "would update" : "updated") \(records.count) "
                 + "slot hash(es) across \(pagesByChunk.count) chunk(s), "
-                + "\(alreadyAttested.count) already correct, \(skipped.count) skipped"
+                + "\(alreadyAttested.count) already correct, \(skipped.count) skipped",
         )
         return DSCReattestation(
             updated: records,
             alreadyAttested: alreadyAttested,
-            skipped: skipped
+            skipped: skipped,
         )
     }
 
@@ -417,13 +423,13 @@ public enum DSCCodeSignature {
     public static func reattestRecordedWrites(
         in chunks: DSCChunkSet,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stderrLog
+        log: ((String) -> Void)? = stderrLog,
     ) throws -> DSCReattestation {
         try reattest(
             in: chunks,
             modifiedSpans: chunks.recordedWrites,
             dryRun: dryRun,
-            log: log
+            log: log,
         )
     }
 
@@ -436,17 +442,17 @@ public enum DSCCodeSignature {
     public static func pageHashes(
         chunkURL: URL,
         pageIndex: Int,
-        directory: DSCChunkCodeDirectory
+        directory: DSCChunkCodeDirectory,
     ) throws -> (computed: Data, stored: Data) {
         let page = try DSCChunkSet.read(
             url: chunkURL,
             offset: UInt64(pageIndex * directory.pageSize),
-            length: directory.pageSize
+            length: directory.pageSize,
         )
         let stored = try DSCChunkSet.read(
             url: chunkURL,
             offset: UInt64(directory.slotOffset(forPage: pageIndex)),
-            length: directory.hashSize
+            length: directory.hashSize,
         )
         return (Data(SHA256.hash(data: page)), stored)
     }

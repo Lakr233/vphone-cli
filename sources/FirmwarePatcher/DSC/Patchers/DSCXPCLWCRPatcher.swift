@@ -99,7 +99,9 @@ public enum DSCXPCLWCRPatcher {
 
         /// Sites written — the number the Python prints, and the number the
         /// parity test compares.
-        public var siteCount: Int { records.count }
+        public var siteCount: Int {
+            records.count
+        }
     }
 
     // MARK: - Entry point
@@ -114,7 +116,7 @@ public enum DSCXPCLWCRPatcher {
     public static func apply(
         directory: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Outcome {
         let chunks = try DSCChunkSet(directory: directory)
         return try apply(chunks: chunks, dryRun: dryRun, log: log)
@@ -131,7 +133,7 @@ public enum DSCXPCLWCRPatcher {
     public static func apply(
         chunks: DSCChunkSet,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> Outcome {
         log?("  [.] \(chunks.directory.path) — \(chunks.chunkURLs.count) chunk(s), "
             + "\(chunks.mappings.count) mapping(s)")
@@ -154,7 +156,7 @@ public enum DSCXPCLWCRPatcher {
                 status: .symbolAbsent,
                 functionVMA: nil,
                 resolvedName: nil,
-                records: []
+                records: [],
             )
         }
         log?("  [.] \(resolvedName) @ 0x\(hex(functionVMA))")
@@ -163,7 +165,7 @@ public enum DSCXPCLWCRPatcher {
         let instructions = try disassembleFunction(
             in: chunks,
             at: functionVMA,
-            disassembler: disassembler
+            disassembler: disassembler,
         )
 
         guard let site = findConsistencyCheck(in: instructions, disassembler: disassembler) else {
@@ -175,12 +177,12 @@ public enum DSCXPCLWCRPatcher {
                     status: .alreadyPatched,
                     functionVMA: functionVMA,
                     resolvedName: resolvedName,
-                    records: []
+                    records: [],
                 )
             }
             throw PatcherError.patchSiteNotFound(
                 "\(symbol): LWCR consistency idiom (cset wC,ne; eor wE,w0,wC; tbz wE,#0) "
-                    + "not found at 0x\(hex(functionVMA))"
+                    + "not found at 0x\(hex(functionVMA))",
             )
         }
 
@@ -218,7 +220,7 @@ public enum DSCXPCLWCRPatcher {
                 original: current,
                 chunkName: location?.chunkURL.lastPathComponent ?? chunks.directory.lastPathComponent,
                 fileOffset: location?.fileOffset ?? 0,
-                disassembler: disassembler
+                disassembler: disassembler,
             ))
         }
 
@@ -229,7 +231,7 @@ public enum DSCXPCLWCRPatcher {
                 let readBack = try chunks.bytesAtVMA(edit.address, length: edit.bytes.count)
                 guard readBack == edit.bytes else {
                     throw PatcherError.patchVerificationFailed(
-                        "post-write verify failed at 0x\(hex(edit.address))"
+                        "post-write verify failed at 0x\(hex(edit.address))",
                     )
                 }
             }
@@ -243,7 +245,7 @@ public enum DSCXPCLWCRPatcher {
             status: records.isEmpty ? .alreadyPatched : .patched,
             functionVMA: functionVMA,
             resolvedName: resolvedName,
-            records: records
+            records: records,
         )
     }
 
@@ -268,7 +270,7 @@ public enum DSCXPCLWCRPatcher {
     /// dataflow between the three is what makes the match unambiguous.
     static func findConsistencyCheck(
         in instructions: [Instruction],
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> ConsistencyCheck? {
         guard instructions.count >= 2 else { return nil }
         for index in 0 ..< (instructions.count - 1) {
@@ -295,7 +297,9 @@ public enum DSCXPCLWCRPatcher {
                 if candidate.mnemonic == "cset", register(candidate, 0, disassembler) == source {
                     // The condition is read off Capstone's decode, not the
                     // printed operand text.
-                    if candidate.aarch64?.conditionCode == AArch64CC_NE { cset = candidate }
+                    if candidate.aarch64?.conditionCode == AArch64CC_NE {
+                        cset = candidate
+                    }
                     break
                 }
                 back -= 1
@@ -320,7 +324,7 @@ public enum DSCXPCLWCRPatcher {
     /// already-patched cache the idiom is gone by construction.
     static func findPatchedShape(
         in instructions: [Instruction],
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> Instruction? {
         guard instructions.count >= 3 else { return nil }
         for index in 0 ..< (instructions.count - 2) {
@@ -362,13 +366,15 @@ public enum DSCXPCLWCRPatcher {
     static func disassembleFunction(
         in chunks: DSCChunkSet,
         at vma: UInt64,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) throws -> [Instruction] {
         let window = try chunks.readAtVMA(vma, length: maxInstructions * 4, allowShort: true)
         var result: [Instruction] = []
         for insn in disassembler.disassemble(window, at: vma) {
             result.append(insn)
-            if insn.mnemonic == "ret" || insn.mnemonic == "retab" { break }
+            if insn.mnemonic == "ret" || insn.mnemonic == "retab" {
+                break
+            }
         }
         return result
     }
@@ -379,7 +385,7 @@ public enum DSCXPCLWCRPatcher {
     static func register(
         _ insn: Instruction,
         _ index: Int,
-        _ disassembler: ARM64Disassembler
+        _ disassembler: ARM64Disassembler,
     ) -> String? {
         guard let operands = insn.aarch64?.operands, index < operands.count else { return nil }
         let operand = operands[index]
@@ -408,7 +414,7 @@ public enum DSCXPCLWCRPatcher {
         original: Data,
         chunkName: String,
         fileOffset: Int,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> PatchRecord {
         PatchRecord(
             patchID: "\(recordGroup).\(edit.label.split(separator: " ").first ?? "")"
@@ -421,7 +427,7 @@ public enum DSCXPCLWCRPatcher {
             beforeDisasm: disassembler.disassembleOne(original, at: edit.address).map(text) ?? "",
             afterDisasm: disassembler.disassembleOne(edit.bytes, at: edit.address).map(text) ?? "",
             description: "\(symbol): `\(edit.label)` — derive matched from error_code "
-                + "and drop the abort"
+                + "and drop the abort",
         )
     }
 

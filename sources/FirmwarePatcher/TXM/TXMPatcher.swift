@@ -69,7 +69,7 @@ public class TXMPatcher: Patcher {
             patchedBytes: patchBytes,
             beforeDisasm: beforeStr,
             afterDisasm: afterStr,
-            description: description
+            description: description,
         )
 
         patches.append(record)
@@ -110,7 +110,7 @@ extension TXMPatcher {
                 legacyBL,
                 ARM64.movX0_0,
                 patchID: "txm.trustcache_bypass",
-                description: "trustcache bypass: legacy binary-search call → mov x0, #0"
+                description: "trustcache bypass: legacy binary-search call → mov x0, #0",
             )
             return
         }
@@ -120,7 +120,7 @@ extension TXMPatcher {
                 selector24BL,
                 ARM64.movX0_0,
                 patchID: "txm.trustcache_bypass",
-                description: "trustcache bypass: selector24 hash-flags call → mov x0, #0"
+                description: "trustcache bypass: selector24 hash-flags call → mov x0, #0",
             )
             return
         }
@@ -129,7 +129,7 @@ extension TXMPatcher {
             print("  [-] TXM: selector24 hash-flags site and legacy binary-search site not found")
         }
         throw PatcherError.patchSiteNotFound(
-            "selector24 hash-flags call / legacy binary-search trustcache site not found"
+            "selector24 hash-flags call / legacy binary-search trustcache site not found",
         )
     }
 
@@ -204,7 +204,9 @@ extension TXMPatcher {
             if insn == pacibspU32 {
                 return scan
             }
-            if scan == 0 { break }
+            if scan == 0 {
+                break
+            }
             scan -= 4
         }
         return nil

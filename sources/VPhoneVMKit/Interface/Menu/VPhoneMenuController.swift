@@ -27,6 +27,7 @@ class VPhoneMenuController {
     var touchIDMonitor: VPhoneTouchIDMonitor? {
         didSet { touchIDMonitor?.isEnabled = touchIDMenuItem?.state == .on }
     }
+
     var touchIDMenuItem: NSMenuItem?
     var locationProvider: VPhoneLocationProvider?
     var locationMenuItem: NSMenuItem?
@@ -68,7 +69,7 @@ class VPhoneMenuController {
             let buildItem = NSMenuItem(
                 title: "Build: \(VPhoneBuildInfo.commitHash)",
                 action: nil,
-                keyEquivalent: ""
+                keyEquivalent: "",
             )
         #else
             let buildItem = NSMenuItem(title: "Build: unknown", action: nil, keyEquivalent: "")
@@ -79,7 +80,7 @@ class VPhoneMenuController {
         appMenu.addItem(
             withTitle: "Quit vphone",
             action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
+            keyEquivalent: "q",
         )
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
@@ -95,12 +96,12 @@ class VPhoneMenuController {
         windowMenu.addItem(
             withTitle: "Close",
             action: #selector(NSWindow.performClose(_:)),
-            keyEquivalent: "w"
+            keyEquivalent: "w",
         )
         windowMenu.addItem(
             withTitle: "Minimize",
             action: #selector(NSWindow.performMiniaturize(_:)),
-            keyEquivalent: "m"
+            keyEquivalent: "m",
         )
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)

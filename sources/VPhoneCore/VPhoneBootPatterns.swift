@@ -10,8 +10,12 @@ public enum VPhoneBootPatterns {
     /// Accept 1-16 ASCII hex digits, with an optional 0x prefix.
     public static func normalizeECID(_ raw: String) -> String? {
         var value = raw
-        if value.hasPrefix("0x") { value.removeFirst(2) }
-        if value.hasPrefix("0X") { value.removeFirst(2) }
+        if value.hasPrefix("0x") {
+            value.removeFirst(2)
+        }
+        if value.hasPrefix("0X") {
+            value.removeFirst(2)
+        }
         guard !value.isEmpty, value.count <= 16, value.allSatisfy(isASCIIHexDigit) else {
             return nil
         }
@@ -23,7 +27,7 @@ public enum VPhoneBootPatterns {
     /// that the shell's `[[ =~ ^[0-9A-Fa-f]{1,16}$ ]]` would reject.
     private static func isASCIIHexDigit(_ c: Character) -> Bool {
         guard let ascii = c.asciiValue else { return false }
-        return (0x30...0x39).contains(ascii) || (0x41...0x46).contains(ascii) || (0x61...0x66).contains(ascii)
+        return (0x30 ... 0x39).contains(ascii) || (0x41 ... 0x46).contains(ascii) || (0x61 ... 0x66).contains(ascii)
     }
 
     // `parseHVVmmPresent` lived here: the string form of `sysctl -n

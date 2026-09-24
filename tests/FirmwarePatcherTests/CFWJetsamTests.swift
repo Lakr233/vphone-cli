@@ -40,15 +40,22 @@ enum JetsamFixture {
         .appending(path: "ipsws/ref_extract/macho_pristine/launchd")
     static let codesign = URL(filePath: "/usr/bin/codesign")
 
-    static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+    static func exists(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
 
-    static var hasLaunchd: Bool { exists(pristineLaunchd) }
-    static var hasLaunchdAndCodesign: Bool { hasLaunchd && exists(codesign) }
+    static var hasLaunchd: Bool {
+        exists(pristineLaunchd)
+    }
+
+    static var hasLaunchdAndCodesign: Bool {
+        hasLaunchd && exists(codesign)
+    }
 
     /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
     /// taken again from a shell over the same file.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     /// A directory for one test's artifacts. `VPHONE_JETSAM_ARTIFACTS` pins it
@@ -73,7 +80,7 @@ enum JetsamFixture {
     static func run(
         _ tool: URL,
         _ arguments: [String],
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
     ) throws -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = tool
@@ -90,8 +97,12 @@ enum JetsamFixture {
 
     /// The first byte offset at which two files differ, or nil when equal.
     static func firstDifference(_ lhs: Data, _ rhs: Data) -> Int? {
-        if lhs.count != rhs.count { return min(lhs.count, rhs.count) }
-        for index in 0 ..< lhs.count where lhs[index] != rhs[index] { return index }
+        if lhs.count != rhs.count {
+            return min(lhs.count, rhs.count)
+        }
+        for index in 0 ..< lhs.count where lhs[index] != rhs[index] {
+            return index
+        }
         return nil
     }
 }
@@ -151,19 +162,19 @@ struct CFWJetsamReferenceTests {
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `launchd`.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func fixtureMatchesTheGoldens() throws {
+    func `fixture matches the goldens`() throws {
         #expect(
             try JetsamFixture.digest(of: JetsamFixture.pristineLaunchd) == JetsamGolden.pristine,
             """
             this is not the 24A435 launchd JetsamGolden was recorded from — \
             re-derive the goldens before reading a failure below as a patcher bug
-            """
+            """,
         )
     }
 
     /// The whole point of the port: same input, same bytes out.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func matchesTheFrozenReferenceByteForByte() throws {
+    func `matches the frozen reference byte for byte`() throws {
         let work = try JetsamFixture.workDirectory("byte-equivalence")
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
 
@@ -171,7 +182,7 @@ struct CFWJetsamReferenceTests {
         #expect(outcome.verdict == .patched)
         #expect(
             try JetsamFixture.digest(of: swiftTarget) == JetsamGolden.patched,
-            "Swift and the frozen reference diverge"
+            "Swift and the frozen reference diverge",
         )
 
         // And the only thing that moved is inside the instruction the record
@@ -193,7 +204,7 @@ struct CFWJetsamReferenceTests {
     /// reached it through too, so a port that agreed on the gate by luck is
     /// still caught.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func agreesWithTheFrozenReferenceOnTheSite() throws {
+    func `agrees with the frozen reference on the site`() throws {
         let data = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let image = try CFWJetsamPatcher.Image(data: data)
         let site = try #require(try CFWJetsamPatcher.locate(in: image))
@@ -215,7 +226,7 @@ struct CFWJetsamIdempotenceTests {
     /// different branch on an already-patched binary; this one recognises its
     /// own work and stops.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func secondRunChangesNothing() throws {
+    func `second run changes nothing`() throws {
         let work = try JetsamFixture.workDirectory("idempotence")
         let target = try JetsamFixture.launchdCopy(named: "launchd", in: work)
 
@@ -243,7 +254,7 @@ struct CFWJetsamIdempotenceTests {
     /// twice, and it landed a *second* site the pristine image never had
     /// patched. Frozen, so the divergence stays a measurement, not a claim.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func referenceWasNotIdempotentAndThisIs() throws {
+    func `reference was not idempotent and this is`() throws {
         let work = try JetsamFixture.workDirectory("reference-double-apply")
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
 
@@ -251,7 +262,7 @@ struct CFWJetsamIdempotenceTests {
         // different instruction than the gate it had already rewritten.
         #expect(
             JetsamGolden.patchedTwice != JetsamGolden.patched,
-            "the reference was recorded as non-idempotent — re-check what this port has to preserve"
+            "the reference was recorded as non-idempotent — re-check what this port has to preserve",
         )
         #expect(JetsamGolden.secondRunGateOffset != JetsamGolden.gateOffset)
 
@@ -281,7 +292,7 @@ struct CFWJetsamSignatureTests {
     /// Default is the reference's behaviour: the four bytes and nothing else,
     /// because every call site re-signs with `ldid` straight afterwards.
     @Test(.enabled(if: JetsamFixture.hasLaunchdAndCodesign))
-    func defaultLeavesTheSignatureStale() throws {
+    func `default leaves the signature stale`() throws {
         let work = try JetsamFixture.workDirectory("stale-signature")
         let target = try JetsamFixture.launchdCopy(named: "launchd", in: work)
 
@@ -295,7 +306,7 @@ struct CFWJetsamSignatureTests {
     /// `reattest: true` has to leave a binary `codesign` accepts — one page's
     /// slot hash, recomputed, tail slot included.
     @Test(.enabled(if: JetsamFixture.hasLaunchdAndCodesign))
-    func reattestedBinaryVerifies() throws {
+    func `reattested binary verifies`() throws {
         let work = try JetsamFixture.workDirectory("reattested")
         let target = try JetsamFixture.launchdCopy(named: "launchd", in: work)
 
@@ -307,7 +318,7 @@ struct CFWJetsamSignatureTests {
         let patched = try Data(contentsOf: target)
         let directory = try #require(
             CFWMachOCodeSignature.codeDirectories(in: patched)?
-                .first { $0.hashType == CFWMachOCodeSignature.hashTypeSHA256 }
+                .first { $0.hashType == CFWMachOCodeSignature.hashTypeSHA256 },
         )
         #expect(rehash.pageIndex == outcome.gateOffset / directory.pageSize)
 
@@ -319,7 +330,7 @@ struct CFWJetsamSignatureTests {
     /// independent re-signer run over the Python's own patched bytes. Two
     /// implementations, one number.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func slotHashMatchesTheFrozenResigner() throws {
+    func `slot hash matches the frozen resigner`() throws {
         let work = try JetsamFixture.workDirectory("slot-hash")
         let swiftTarget = try JetsamFixture.launchdCopy(named: "launchd.swift", in: work)
 
@@ -329,7 +340,7 @@ struct CFWJetsamSignatureTests {
         #expect(outcome.rehashes.first?.pageIndex == JetsamGolden.reattestedSlot)
         #expect(
             try JetsamFixture.digest(of: swiftTarget) == JetsamGolden.patchedAndReattested,
-            "the re-attested slot hash must be the one the reference computed"
+            "the re-attested slot hash must be the one the reference computed",
         )
     }
 }
@@ -342,7 +353,7 @@ struct CFWJetsamAnchoringTests {
     /// the xref is inside the function, the gate is inside the function and
     /// before the xref, and the gate's target really does return.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func revealStepsAreSelfConsistent() throws {
+    func `reveal steps are self consistent`() throws {
         let data = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let image = try CFWJetsamPatcher.Image(data: data)
         let site = try #require(try CFWJetsamPatcher.locate(in: image))
@@ -361,7 +372,7 @@ struct CFWJetsamAnchoringTests {
         // The anchor string starts where the xref computes it to start.
         let page = CFWJetsamPatcher.adrpPage(
             data.loadLE(UInt32.self, at: site.xrefOffset),
-            at: image.virtualAddress(ofTextOffset: site.xrefOffset)
+            at: image.virtualAddress(ofTextOffset: site.xrefOffset),
         )
         #expect(site.stringVMA & ~0xFFF == page)
 
@@ -375,7 +386,7 @@ struct CFWJetsamAnchoringTests {
     /// The gate is the *earliest* qualifying branch in the function — any later
     /// one leaves more of the jetsam path running.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func gateIsTheEarliestQualifyingBranch() throws {
+    func `gate is the earliest qualifying branch`() throws {
         let data = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let image = try CFWJetsamPatcher.Image(data: data)
         let site = try #require(try CFWJetsamPatcher.locate(in: image))
@@ -390,7 +401,7 @@ struct CFWJetsamAnchoringTests {
             else { continue }
             #expect(
                 !CFWJetsamPatcher.isReturnBlock(target, in: image),
-                "0x\(String(offset, radix: 16)) qualifies and is earlier than the chosen gate"
+                "0x\(String(offset, radix: 16)) qualifies and is earlier than the chosen gate",
             )
         }
     }
@@ -400,7 +411,7 @@ struct CFWJetsamAnchoringTests {
     /// different, later branch, so checking the picked site afterwards would
     /// not catch it.
     @Test(.enabled(if: JetsamFixture.hasLaunchd))
-    func patchedShapeIsRecognisedInPlace() throws {
+    func `patched shape is recognised in place`() throws {
         var data = try Data(contentsOf: JetsamFixture.pristineLaunchd)
         let outcome = try CFWJetsamPatcher.patch(&data, log: nil)
         #expect(outcome.verdict == .patched)
@@ -417,7 +428,7 @@ struct CFWJetsamAnchoringTests {
         let gate = try #require(CFWJetsamPatcher.findReturnGate(
             from: site.gateOffset + 4,
             to: site.xrefOffset,
-            in: image
+            in: image,
         ))
         #expect(!gate.isUnconditional)
         #expect(gate.offset > outcome.gateOffset)
@@ -432,7 +443,7 @@ struct CFWJetsamDecodeTests {
     /// `ADD Xd, Xn, #imm12, LSL #0` only — an `LSL #12` form or a
     /// shifted-register add would make the xref land on the wrong string.
     @Test
-    func addImmediatePredicateRejectsTheNeighbours() throws {
+    func `add immediate predicate rejects the neighbours`() throws {
         let disassembler = ARM64Disassembler()
         // The real thing: the ADD half of the string xref, straight out of the
         // project encoder rather than typed in.
@@ -451,7 +462,7 @@ struct CFWJetsamDecodeTests {
     /// `adrpPage` against Capstone, which resolves the page for us. The inputs
     /// come from `ARM64Encoder.encodeADRP`, so nothing here is a typed-in word.
     @Test
-    func adrpPageAgreesWithCapstone() throws {
+    func `adrp page agrees with capstone`() throws {
         let disassembler = ARM64Disassembler()
         for (pc, target) in [
             (UInt64(0x1_0000_FB0C), UInt64(0x1_0006_5A09)), // forward
@@ -472,7 +483,7 @@ struct CFWJetsamDecodeTests {
     /// The replacement is `ARM64Encoder`'s, and it decodes back to a `b` at the
     /// intended target — never a hand-written instruction word.
     @Test
-    func replacementBranchRoundTrips() throws {
+    func `replacement branch round trips`() throws {
         let disassembler = ARM64Disassembler()
         for (site, target) in [(0xFA98, 0xFAEC), (0x1000, 0x800), (0x40, 0x40)] {
             let encoded = try #require(ARM64Encoder.encodeB(from: site, to: target))
@@ -488,7 +499,7 @@ struct CFWJetsamDecodeTests {
     /// mnemonic prefix gets each of the last three rows below wrong: `brk` is
     /// not a branch, and a conditional branch falls through.
     @Test
-    func blockBoundariesComeFromCapstoneGroups() throws {
+    func `block boundaries come from capstone groups`() throws {
         let disassembler = ARM64Disassembler()
         func decode(_ bytes: Data) throws -> Instruction {
             try #require(disassembler.disassembleOne(bytes, at: 0))
@@ -502,9 +513,9 @@ struct CFWJetsamDecodeTests {
 
         // Control leaves: an unconditional relative jump and a relative call,
         // both straight out of `ARM64Encoder`.
-        for bytes in [
-            try #require(ARM64Encoder.encodeB(from: 0, to: 8)),
-            try #require(ARM64Encoder.encodeBL(from: 0, to: 8)),
+        for bytes in try [
+            #require(ARM64Encoder.encodeB(from: 0, to: 8)),
+            #require(ARM64Encoder.encodeBL(from: 0, to: 8)),
         ] {
             let insn = try decode(bytes)
             #expect(CFWJetsamPatcher.leavesBlock(insn))
@@ -545,12 +556,12 @@ struct CFWJetsamDecodeTests {
     /// `cbz`/`tbz` put the target last; reading the last immediate is what
     /// keeps one code path covering all of them.
     @Test
-    func branchTargetReadsTheLastImmediate() throws {
+    func `branch target reads the last immediate`() throws {
         let disassembler = ARM64Disassembler()
 
         // tbz w8, #1, #8 — three operands, target last, from the encoder.
         let tbz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: false, register: 8, bit: 1, from: 0, to: 8
+            nonzero: false, register: 8, bit: 1, from: 0, to: 8,
         ))
         let tbzInsn = try #require(disassembler.disassembleOne(tbz, at: 0))
         #expect(tbzInsn.mnemonic == "tbz")
@@ -571,7 +582,7 @@ struct CFWJetsamDecodeTests {
     /// A substring anchor has to widen to the whole C string, because that is
     /// what an ADRP+ADD points at.
     @Test
-    func cStringStartWidensToTheWholeString() throws {
+    func `c string start widens to the whole string`() throws {
         var bytes = Data("first\u{0}jetsam property category (%s) is not initialized\u{0}".utf8)
         var hit = try #require(bytes.range(of: Data("property".utf8))?.lowerBound)
         #expect(CFWJetsamPatcher.cStringStart(in: bytes, containing: hit, sectionStart: 0) == 6)

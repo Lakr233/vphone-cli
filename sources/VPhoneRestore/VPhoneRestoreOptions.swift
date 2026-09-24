@@ -52,7 +52,7 @@ public struct VPhoneRestoreOptions: Sendable, Equatable {
         ticketPath: URL? = nil,
         shshOnly: Bool = false,
         keepPers: Bool = false,
-        debugLevel: Int32 = 0
+        debugLevel: Int32 = 0,
     ) {
         self.restoreDirectory = restoreDirectory
         self.cacheDirectory = cacheDirectory
@@ -113,7 +113,9 @@ final class VPhoneCStringBag {
     }
 
     func releaseAll() {
-        for allocation in allocations { free(allocation) }
+        for allocation in allocations {
+            free(allocation)
+        }
         allocations.removeAll()
     }
 }

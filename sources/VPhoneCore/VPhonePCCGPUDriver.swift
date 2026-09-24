@@ -65,28 +65,31 @@ public enum VPhonePCCGPUDriver {
 
         let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: encrypted) }
         try run("/usr/bin/aea", [
-            "decrypt", "-t", "4", "-i", encrypted.path, "-o", plain.path, "-key-value", key
+            "decrypt", "-t", "4", "-i", encrypted.path, "-o", plain.path, "-key-value", key,
         ])
         defer {
             _ = try? VPhoneProcessRunner.runCapturing(
-                URL(fileURLWithPath: "/usr/bin/hdiutil"), ["detach", mount.path]
+                URL(fileURLWithPath: "/usr/bin/hdiutil"), ["detach", mount.path],
             )
         }
         try run("/usr/bin/hdiutil", [
             "attach", "-readonly", "-nobrowse", "-owners", "off",
-            "-mountpoint", mount.path, plain.path
+            "-mountpoint", mount.path, plain.path,
         ])
 
         let source = mount.appending(path: "System/Library/Extensions/\(name)")
         guard fm.fileExists(atPath: source.path) else { throw Error.missingBundle(source) }
         for file in ["AppleParavirtGPUMetalIOGPUFamily",
-                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib", "Info.plist"] {
+                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib", "Info.plist"]
+        {
             let member = source.appendingPathComponent(file)
             guard fm.fileExists(atPath: member.path) else { throw Error.missingBundle(member) }
         }
         try fm.createDirectory(at: destination.deletingLastPathComponent(),
                                withIntermediateDirectories: true)
-        if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
+        if fm.fileExists(atPath: destination.path) {
+            try fm.removeItem(at: destination)
+        }
         try fm.copyItem(at: source, to: destination)
         print("[+] GPU driver staged from PCC OS: \(destination.path)")
     }

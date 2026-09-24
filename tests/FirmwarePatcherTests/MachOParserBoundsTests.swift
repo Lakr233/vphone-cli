@@ -39,7 +39,7 @@ struct MachOParserBoundsTests {
         vmAddr: UInt64,
         vmSize: UInt64,
         nsects: UInt32,
-        cmdsize: UInt32
+        cmdsize: UInt32,
     ) -> Data {
         var data = Data()
         func append32(_ value: UInt32) {
@@ -66,16 +66,16 @@ struct MachOParserBoundsTests {
 
     // MARK: - Positive control
 
-    // Without this, "returns nothing" would be indistinguishable from a guard
-    // that rejects everything.
-    @Test func aWellFormedSegmentStillParses() {
+    /// Without this, "returns nothing" would be indistinguishable from a guard
+    /// that rejects everything.
+    @Test func `a well formed segment still parses`() {
         var image = Self.header(ncmds: 1, sizeofcmds: 72)
         image.append(Self.segment(
             name: "__TEXT",
             vmAddr: 0x1_0000_0000,
             vmSize: 0x4000,
             nsects: 0,
-            cmdsize: 72
+            cmdsize: 72,
         ))
 
         let segments = MachOParser.parseSegments(from: image)
@@ -87,9 +87,9 @@ struct MachOParserBoundsTests {
 
     // MARK: - Truncation
 
-    // The original repro: `head -c 64 ipsws/ref_extract/macho_pristine/seputil`.
-    // Header says 23 commands in 2312 bytes; the file holds 64.
-    @Test func aTruncatedLoadCommandTableYieldsNothingInsteadOfTrapping() {
+    /// The original repro: `head -c 64 ipsws/ref_extract/macho_pristine/seputil`.
+    /// Header says 23 commands in 2312 bytes; the file holds 64.
+    @Test func `a truncated load command table yields nothing instead of trapping`() {
         var image = Self.header(ncmds: 23, sizeofcmds: 2312)
         image.append(Data(repeating: 0, count: 32)) // half of one LC_SEGMENT_64
         #expect(image.count == 64)
@@ -100,16 +100,16 @@ struct MachOParserBoundsTests {
         #expect(MachOParser.findSymbol(containing: "anything", in: image) == nil)
     }
 
-    // A command whose body is one byte short of fitting is still a command the
-    // walk must not enter — the last field read lives at the very end of it.
-    @Test func aSegmentOneByteShortOfFittingIsNotParsed() {
+    /// A command whose body is one byte short of fitting is still a command the
+    /// walk must not enter — the last field read lives at the very end of it.
+    @Test func `a segment one byte short of fitting is not parsed`() {
         var image = Self.header(ncmds: 1, sizeofcmds: 72)
         image.append(Self.segment(
             name: "__TEXT",
             vmAddr: 0x1_0000_0000,
             vmSize: 0x4000,
             nsects: 0,
-            cmdsize: 72
+            cmdsize: 72,
         ))
         image.removeLast()
 
@@ -118,9 +118,9 @@ struct MachOParserBoundsTests {
 
     // MARK: - Malformed sizes
 
-    // `cmdsize == 0` used to advance the cursor by zero, re-reading the same
-    // command `ncmds` times. Bounded, but it is not a table worth trusting.
-    @Test func aZeroSizedCommandStopsTheWalk() {
+    /// `cmdsize == 0` used to advance the cursor by zero, re-reading the same
+    /// command `ncmds` times. Bounded, but it is not a table worth trusting.
+    @Test func `a zero sized command stops the walk`() {
         var image = Self.header(ncmds: 4, sizeofcmds: 32)
         var zero = Data()
         withUnsafeBytes(of: UInt32(0x19).littleEndian) { zero.append(contentsOf: $0) }
@@ -131,16 +131,16 @@ struct MachOParserBoundsTests {
         #expect(MachOParser.parseSegments(from: image).isEmpty)
     }
 
-    // `nsects` is inside the command but the section table it describes is not:
-    // the command declares one section and then stops at the fixed 72 bytes.
-    @Test func aSectionTableOutsideItsCommandIsNotRead() {
+    /// `nsects` is inside the command but the section table it describes is not:
+    /// the command declares one section and then stops at the fixed 72 bytes.
+    @Test func `a section table outside its command is not read`() {
         var image = Self.header(ncmds: 1, sizeofcmds: 72)
         image.append(Self.segment(
             name: "__TEXT",
             vmAddr: 0x1_0000_0000,
             vmSize: 0x4000,
             nsects: 1, // claims a section_64 that cmdsize leaves no room for
-            cmdsize: 72
+            cmdsize: 72,
         ))
         image.append(Data(repeating: 0xFF, count: 80)) // trailing bytes, not ours to read
 
@@ -152,7 +152,7 @@ struct MachOParserBoundsTests {
 
     // MARK: - Not a Mach-O at all
 
-    @Test func nonMachOInputIsRejectedWithoutReading() {
+    @Test func `non mach O input is rejected without reading`() {
         let text = Data("this is not a mach-o, not even a little bit of one".utf8)
         #expect(MachOParser.parseSegments(from: text).isEmpty)
         #expect(MachOParser.parseSections(from: text).isEmpty)

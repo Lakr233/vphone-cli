@@ -8,7 +8,7 @@ public enum VPhoneVMPickerError: Error, CustomStringConvertible, Equatable {
 
     public var description: String {
         switch self {
-        case .emptyLibrary(let root):
+        case let .emptyLibrary(root):
             "No VMs found in \(root). Create one with 'vphone-cli vm create <name>'."
         case .notInteractive:
             "No VM name given, and this is not an interactive terminal. Pass the VM name as an argument."
@@ -32,22 +32,32 @@ public enum VPhoneVMPicker {
         isInteractive: Bool,
         maxRetries: Int = 5,
         read: () -> String?,
-        write: (String) -> Void
+        write: (String) -> Void,
     ) throws -> String {
-        if let provided, !provided.isEmpty { return provided }
+        if let provided, !provided.isEmpty {
+            return provided
+        }
         guard isInteractive else { throw VPhoneVMPickerError.notInteractive }
         guard !names.isEmpty else { throw VPhoneVMPickerError.emptyLibrary(root: libraryRoot) }
 
         write("Select a VM:")
-        for (i, name) in names.enumerated() { write("  [\(i + 1)] \(name)") }
+        for (i, name) in names.enumerated() {
+            write("  [\(i + 1)] \(name)")
+        }
 
-        for _ in 0..<maxRetries {
+        for _ in 0 ..< maxRetries {
             write("Enter number or name: ")
             guard let line = read() else { throw VPhoneVMPickerError.aborted }
             let choice = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if choice.isEmpty { continue }
-            if let idx = Int(choice), idx >= 1, idx <= names.count { return names[idx - 1] }
-            if let match = names.first(where: { $0 == choice }) { return match }
+            if choice.isEmpty {
+                continue
+            }
+            if let idx = Int(choice), idx >= 1, idx <= names.count {
+                return names[idx - 1]
+            }
+            if let match = names.first(where: { $0 == choice }) {
+                return match
+            }
             write("  '\(choice)' is not a valid selection.")
         }
         throw VPhoneVMPickerError.invalidSelection

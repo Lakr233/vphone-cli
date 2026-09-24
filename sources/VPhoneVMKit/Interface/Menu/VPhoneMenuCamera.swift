@@ -11,7 +11,7 @@ extension VPhoneMenuController {
         let status = NSMenuItem(
             title: "Camera server: disconnected",
             action: nil,
-            keyEquivalent: ""
+            keyEquivalent: "",
         )
         status.isEnabled = false
         cameraStatusItem = status
@@ -26,14 +26,14 @@ extension VPhoneMenuController {
 
         let testPattern = makeItem(
             "Source: Test Pattern",
-            action: #selector(setCameraSourceTestPattern)
+            action: #selector(setCameraSourceTestPattern),
         )
         cameraSourceTestPatternItem = testPattern
         menu.addItem(testPattern)
 
         let videoFile = makeItem(
             "Source: Video File…",
-            action: #selector(setCameraSourceVideoFile)
+            action: #selector(setCameraSourceVideoFile),
         )
         cameraSourceVideoFileItem = videoFile
         menu.addItem(videoFile)
@@ -42,7 +42,7 @@ extension VPhoneMenuController {
 
         let startStop = makeItem(
             "Start Streaming",
-            action: #selector(toggleCameraStreaming)
+            action: #selector(toggleCameraStreaming),
         )
         startStop.isEnabled = false
         cameraStartStopItem = startStop

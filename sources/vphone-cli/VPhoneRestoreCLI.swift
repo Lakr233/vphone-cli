@@ -10,12 +10,16 @@ extension VPhoneVerbosity {
     /// for `.info` (pymobiledevice3's colorful INFO), two for `.debug` and
     /// `.trace`. In process that single count becomes two knobs, and both are
     /// needed — see `restoreDebugLevel`.
-    var restoreLogLevel: VPhoneRestoreLogLevel { self >= .debug ? .debug : .info }
+    var restoreLogLevel: VPhoneRestoreLogLevel {
+        self >= .debug ? .debug : .info
+    }
 
     /// idevicerestore's own level ceiling (`-d`). Raising the console sink
     /// without raising this one prints nothing extra, because the messages it
     /// would show are never emitted.
-    var restoreDebugLevel: Int32 { self >= .debug ? 1 : 0 }
+    var restoreDebugLevel: Int32 {
+        self >= .debug ? 1 : 0
+    }
 }
 
 // MARK: - restore
@@ -23,7 +27,7 @@ extension VPhoneVerbosity {
 struct VPhoneRestoreCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "restore",
-        abstract: "DFU-restore firmware into a VM bundle (requires a running DFU boot)"
+        abstract: "DFU-restore firmware into a VM bundle (requires a running DFU boot)",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -34,10 +38,10 @@ struct VPhoneRestoreCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Device UDID (optional)") var udid: String?
     @Option(name: .shortAndLong, help: "Device ECID (default: read from the bundle's udid-prediction.txt)")
     var ecid: String?
-    // The Python exposed this as `--erase/--no-erase`, defaulting to erase, and
-    // `VPhoneRestoreOptions.erase` has carried it since the port. Only the flag
-    // was missing, which left `Behavior.Update` reachable from the library and
-    // its unit test but not from the command line.
+    /// The Python exposed this as `--erase/--no-erase`, defaulting to erase, and
+    /// `VPhoneRestoreOptions.erase` has carried it since the port. Only the flag
+    /// was missing, which left `Behavior.Update` reachable from the library and
+    /// its unit test but not from the command line.
     @Flag(name: .customLong("no-erase"), help: "Update in place instead of erasing (upstream's Behavior.Update)")
     var noErase = false
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
@@ -69,7 +73,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
                 udid: udid,
                 out: nil,
                 debugLevel: v.restoreDebugLevel,
-                onEvent: onEvent
+                onEvent: onEvent,
             )
             return
         }
@@ -100,7 +104,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
             erase: !noErase,
             ticketPath: ticket,
             debugLevel: v.restoreDebugLevel,
-            onEvent: onEvent
+            onEvent: onEvent,
         )
         recordRestoreVersions(bundle: bundle)
     }
@@ -111,7 +115,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
     private func recordRestoreVersions(bundle: VPhoneBundle) {
         guard let info = VPhoneRestoreInfo.derive(fromBundle: bundle) else {
             FileHandle.standardError.write(
-                Data("warning: could not record restore versions (metadata not found)\n".utf8)
+                Data("warning: could not record restore versions (metadata not found)\n".utf8),
             )
             return
         }
@@ -134,7 +138,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
 struct VPhoneRecoveryProbeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "recovery-probe",
-        abstract: "Wait briefly for a DFU/recovery endpoint; exit 0 if one answered"
+        abstract: "Wait briefly for a DFU/recovery endpoint; exit 0 if one answered",
     )
 
     @Option(name: .shortAndLong, help: "Device ECID (hex, 0x optional; default: the only device attached)")
@@ -143,8 +147,8 @@ struct VPhoneRecoveryProbeCommand: ParsableCommand {
 
     func run() throws {
         let device = try VPhoneRestoreBridge.recoveryProbe(
-            ecid: try VPhoneRestoreIdentity.parseECID(ecid),
-            timeout: timeout
+            ecid: VPhoneRestoreIdentity.parseECID(ecid),
+            timeout: timeout,
         )
         // The Python printed nothing at all and its one caller discarded both
         // streams. One line costs that caller nothing and is the difference
@@ -174,7 +178,8 @@ struct VPhoneCFWCommand: ParsableCommand {
             VPhoneCFWPatchBuildVersionCommand.self,
             VPhoneCFWPatchCampoEntitlementsCommand.self,
             VPhoneCFWPatchPostRestoreDTCommand.self,
-        ] + VPhoneCFWMachOVerbs.all + VPhoneCFWDSCVerbs.all)
+        ] + VPhoneCFWMachOVerbs.all + VPhoneCFWDSCVerbs.all,
+    )
 }
 
 /// Replaces `tools/apfs_snap_rename.py`, called from `cfw_install_host.sh`
@@ -193,7 +198,7 @@ struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
         so identical strings baked into on-volume binaries are left alone.
 
         The VM must be powered off.
-        """
+        """,
     )
 
     @Argument(help: "Path to the VM's Disk.img", transform: URL.init(fileURLWithPath:))
@@ -204,7 +209,7 @@ struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
 
     @Option(
         name: .customLong("new-prefix"),
-        help: "Replacement prefix. Must be exactly as long as 'com.apple.os.update-'."
+        help: "Replacement prefix. Must be exactly as long as 'com.apple.os.update-'.",
     )
     var newPrefix: String = VPhoneAPFSSnapshot.defaultNewPrefix
 
@@ -216,24 +221,24 @@ struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
 struct VPhoneCFWInstallCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "install",
-        abstract: "Install CFW into a VM bundle via host mount"
+        abstract: "Install CFW into a VM bundle via host mount",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Flag(
         name: .customLong("force-dsc-maxslide"),
-        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)"
+        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)",
     )
     var forceDSCMaxSlide = false
     @Flag(
         name: .customLong("root-popup"),
-        help: "Elevate via macOS's native authentication dialog (osascript) instead of the sudo re-exec"
+        help: "Elevate via macOS's native authentication dialog (osascript) instead of the sudo re-exec",
     )
     var rootPopup = false
     @Flag(
         name: .customLong("keep-artifacts"),
-        help: "Keep the extracted firmware after install (default: removed to save space)"
+        help: "Keep the extracted firmware after install (default: removed to save space)",
     )
     var keepArtifacts = false
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
@@ -250,7 +255,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         let code = try VPhoneCFWInstaller.elevate(
             bundle: bundle.url, resources: resources,
             forceDSCMaxSlide: forceDSCMaxSlide, rootPopup: rootPopup,
-            verbose: v.showsToolDetail
+            verbose: v.showsToolDetail,
         )
         if code == 0 {
             if let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {

@@ -13,7 +13,9 @@ public struct VPhoneProcessResult: Sendable {
         self.stderr = stderr
     }
 
-    public var succeeded: Bool { exitCode == 0 }
+    public var succeeded: Bool {
+        exitCode == 0
+    }
 }
 
 // MARK: - VPhoneProcessRunner
@@ -25,8 +27,13 @@ public enum VPhoneProcessRunner {
     private final class DataBox: @unchecked Sendable {
         private let lock = NSLock()
         private var data = Data()
-        func append(_ chunk: Data) { lock.lock(); data.append(chunk); lock.unlock() }
-        func take() -> Data { lock.lock(); defer { lock.unlock() }; return data }
+        func append(_ chunk: Data) {
+            lock.lock(); data.append(chunk); lock.unlock()
+        }
+
+        func take() -> Data {
+            lock.lock(); defer { lock.unlock() }; return data
+        }
     }
 
     /// Run `executable args` to completion, capturing stdout/stderr.
@@ -40,13 +47,17 @@ public enum VPhoneProcessRunner {
         _ executable: URL,
         _ args: [String],
         cwd: URL? = nil,
-        env: [String: String]? = nil
+        env: [String: String]? = nil,
     ) throws -> VPhoneProcessResult {
         let process = Process()
         process.executableURL = executable
         process.arguments = args
-        if let cwd { process.currentDirectoryURL = cwd }
-        if let env { process.environment = env }
+        if let cwd {
+            process.currentDirectoryURL = cwd
+        }
+        if let env {
+            process.environment = env
+        }
 
         let outPipe = Pipe()
         let errPipe = Pipe()
@@ -60,13 +71,19 @@ public enum VPhoneProcessRunner {
         group.enter()
         outPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
-            if chunk.isEmpty { handle.readabilityHandler = nil; group.leave() }
-            else { outBox.append(chunk) }
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil; group.leave()
+            } else {
+                outBox.append(chunk)
+            }
         }
         errPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
-            if chunk.isEmpty { handle.readabilityHandler = nil; group.leave() }
-            else { errBox.append(chunk) }
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil; group.leave()
+            } else {
+                errBox.append(chunk)
+            }
         }
 
         try process.run()
@@ -76,7 +93,8 @@ public enum VPhoneProcessRunner {
         return VPhoneProcessResult(
             exitCode: process.terminationStatus,
             stdout: String(decoding: outBox.take(), as: UTF8.self),
-            stderr: String(decoding: errBox.take(), as: UTF8.self))
+            stderr: String(decoding: errBox.take(), as: UTF8.self),
+        )
     }
 
     // `runCountingTarPipe` lived here: a two-stage `/usr/bin/tar` pipe with a
@@ -100,13 +118,17 @@ public enum VPhoneProcessRunner {
         _ args: [String],
         cwd: URL? = nil,
         env: [String: String]? = nil,
-        echo: Bool = true
+        echo: Bool = true,
     ) throws -> Int32 {
         let process = Process()
         process.executableURL = executable
         process.arguments = args
-        if let cwd { process.currentDirectoryURL = cwd }
-        if let env { process.environment = env }
+        if let cwd {
+            process.currentDirectoryURL = cwd
+        }
+        if let env {
+            process.environment = env
+        }
 
         if !echo {
             let devNull = FileHandle.nullDevice
@@ -134,13 +156,17 @@ public enum VPhoneProcessRunner {
         _ args: [String],
         cwd: URL? = nil,
         env: [String: String]? = nil,
-        echo: Bool = true
+        echo: Bool = true,
     ) throws -> Int32 {
         let process = Process()
         process.executableURL = executable
         process.arguments = args
-        if let cwd { process.currentDirectoryURL = cwd }
-        if let env { process.environment = env }
+        if let cwd {
+            process.currentDirectoryURL = cwd
+        }
+        if let env {
+            process.environment = env
+        }
         // When echo is false, suppress the child's normal output — but it still
         // becomes the terminal's foreground group below, so an interactive sudo
         // it runs still prompts/reads via /dev/tty (independent of stdout/stderr).
@@ -169,13 +195,17 @@ public enum VPhoneProcessRunner {
         defer {
             signal(SIGTTOU, prevTTOU)
             signal(SIGTTIN, prevTTIN)
-            if openedTTY { close(ttyFD) }
+            if openedTTY {
+                close(ttyFD)
+            }
         }
 
         try process.run()
-        _ = tcsetpgrp(ttyFD, process.processIdentifier)   // hand the tty to the child
+        _ = tcsetpgrp(ttyFD, process.processIdentifier) // hand the tty to the child
         process.waitUntilExit()
-        if savedFg > 0 { _ = tcsetpgrp(ttyFD, savedFg) }  // take it back
+        if savedFg > 0 {
+            _ = tcsetpgrp(ttyFD, savedFg)
+        } // take it back
         return process.terminationStatus
     }
 
@@ -187,9 +217,11 @@ public enum VPhoneProcessRunner {
         _ executable: URL,
         _ args: [String],
         env: [String: String] = [:],
-        echo: Bool = true
+        echo: Bool = true,
     ) throws -> Int32 {
-        func shQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        func shQuote(_ s: String) -> String {
+            "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
         var tokens = env.sorted { $0.key < $1.key }.map { "\($0.key)=\(shQuote($0.value))" }
         tokens.append(shQuote(executable.path))
         tokens += args.map(shQuote)

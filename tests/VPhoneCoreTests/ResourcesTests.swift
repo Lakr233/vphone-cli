@@ -1,6 +1,6 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 /// `.serialized` because several of these set and unset `VPHONE_ROOT`, and the
 /// environment is process-global: run in parallel, one test's
@@ -14,22 +14,22 @@ import Testing
 /// which is the lock that actually spans them.
 @Suite(.serialized)
 struct ResourcesTests {
-    @Test func bundledLayoutResolvesToContentsResources() {
+    @Test func `bundled layout resolves to contents resources`() {
         let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
     }
 
-    @Test func devLayoutWalksUpToProjectRoot() throws {
+    @Test func `dev layout walks up to project root`() throws {
         // Fake a dev tree: <root>/.build/release/vphone-cli with a <root>/scripts dir.
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent(".build/release"),
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent("scripts"),
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         defer { try? FileManager.default.removeItem(at: root) }
         let exe = root.appendingPathComponent(".build/release/vphone-cli").path
@@ -37,7 +37,7 @@ struct ResourcesTests {
         #expect(r.base.path == root.resolvingSymlinksInPath().path)
     }
 
-    @Test func cacheDirsAreHomeRelative() {
+    @Test func `cache dirs are home relative`() {
         // The VPHONE_ROOT override would relocate the cache; assert the default
         // with the variable held clear, rather than bailing out when some other
         // suite happens to have set it — that skip was the old way of living
@@ -47,7 +47,7 @@ struct ResourcesTests {
         }
     }
 
-    @Test func userDataRootHonorsVPHONERoot() {
+    @Test func `user data root honors VPHONE root`() {
         ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
             let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
             #expect(VPhoneResources.userDataRoot().path == "/tmp/vphone-test-root")
@@ -61,7 +61,7 @@ struct ResourcesTests {
     /// interpreter. That claim is what the deleted venv tests used to guard
     /// from the other side, so assert it directly: every URL this type hands
     /// out is rooted in `base` or in the user data root.
-    @Test func everyResourceIsRootedInTheBaseOrTheDataRoot() {
+    @Test func `every resource is rooted in the base or the data root`() {
         ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
             let base = URL(fileURLWithPath: "/x")
             let r = VPhoneResources(base: base)
@@ -80,7 +80,7 @@ struct ResourcesTests {
 
     /// A companion binary is found beside the running image, never on `PATH` —
     /// the property that made the interpreter ladder removable.
-    @Test func siblingExecutableSitsBesideTheRunningImage() {
+    @Test func `sibling executable sits beside the running image`() {
         let me = VPhoneResources.runningExecutable()
         let sibling = VPhoneResources.siblingExecutable("vphone-vm")
         #expect(sibling.deletingLastPathComponent().path == me.deletingLastPathComponent().path)

@@ -10,8 +10,8 @@ struct VPhoneSignStyleTests {
     /// CMS blob — and rejects this signer's `.ldid` output for the same two
     /// reasons, which is the point. `.appleAdHoc` is the shape it accepts,
     /// kept for anything that has to satisfy the host rather than the guest.
-    @Test("the Apple ad-hoc style passes codesign --verify")
-    func appleAdHocVerifies() throws {
+    @Test
+    func `the Apple ad-hoc style passes codesign --verify`() throws {
         let codesign = URL(fileURLWithPath: "/usr/bin/codesign")
         for source in try VPhoneSignFixtures.fixtures {
             let directory = try VPhoneSignFixtures.temporaryDirectory()
@@ -25,12 +25,12 @@ struct VPhoneSignStyleTests {
         }
     }
 
-    @Test("the Apple ad-hoc style sets the flag and writes the empty wrapper")
-    func appleAdHocShape() throws {
+    @Test
+    func `the Apple ad-hoc style sets the flag and writes the empty wrapper`() throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = try VPhoneSignFixtures.sign(
-            try VPhoneSignFixtures.url("hello-arm64"), in: directory, style: .appleAdHoc
+            VPhoneSignFixtures.url("hello-arm64"), in: directory, style: .appleAdHoc,
         )
 
         for slice in try VPhoneSignBlobs(fileAt: file).slices {
@@ -48,8 +48,8 @@ struct VPhoneSignStyleTests {
 
     // MARK: - Refusing rather than corrupting
 
-    @Test("a file that is not a Mach-O is refused")
-    func refusesSomethingElse() throws {
+    @Test
+    func `a file that is not a Mach-O is refused`() throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("script.sh")
@@ -61,8 +61,8 @@ struct VPhoneSignStyleTests {
         #expect(try Data(contentsOf: file) == Data("#!/bin/sh\necho hello\n".utf8))
     }
 
-    @Test("a truncated Mach-O is refused rather than signed over garbage")
-    func refusesATruncatedMachO() throws {
+    @Test
+    func `a truncated Mach-O is refused rather than signed over garbage`() throws {
         let whole = try Data(contentsOf: VPhoneSignFixtures.url("hello-arm64"))
         #expect(throws: VPhoneSignError.self) {
             _ = try VPhoneSigner.sign(whole.prefix(whole.count / 3), options: .init(identifier: "x"))
@@ -72,8 +72,8 @@ struct VPhoneSignStyleTests {
     /// A Java class file opens with the four bytes of a fat Mach-O. Reading
     /// the next two as an architecture count is how a signer ends up writing
     /// over something it does not understand.
-    @Test("something that only starts like a fat Mach-O is refused")
-    func refusesAJavaClass() throws {
+    @Test
+    func `something that only starts like a fat Mach-O is refused`() throws {
         var file = Data([0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x41])
         file.append(Data(count: 512))
         #expect(throws: VPhoneSignError.self) {
@@ -87,8 +87,8 @@ struct VPhoneSignStyleTests {
     /// slice on a guess is worse than saying so — and this is the rule that
     /// took the old corpus of fat system binaries out of this suite, so it is
     /// worth one test of its own.
-    @Test("an x86_64 slice is refused rather than signed on a guess")
-    func refusesAnX86Slice() throws {
+    @Test
+    func `an x86_64 slice is refused rather than signed on a guess`() throws {
         // MH_MAGIC_64, CPU_TYPE_X86_64, CPU_SUBTYPE_X86_64_ALL, MH_EXECUTE,
         // then ncmds/sizeofcmds/flags/reserved, all zero
         var header = Data()
@@ -104,8 +104,8 @@ struct VPhoneSignStyleTests {
     /// parent's indices. Every offset in the signer counts from the start of
     /// the file, so a slice that starts anywhere else has to be handled
     /// before the first byte is read.
-    @Test("a Data slice that does not start at zero signs the same as a copy")
-    func signsANonZeroBasedSlice() throws {
+    @Test
+    func `a Data slice that does not start at zero signs the same as a copy`() throws {
         let whole = try Data(contentsOf: VPhoneSignFixtures.url("hello-arm64"))
         let padded = Data(count: 7) + whole
         let slice = padded[7...]
@@ -118,14 +118,14 @@ struct VPhoneSignStyleTests {
     /// Signing a read-only file is the normal case, not the exception:
     /// everything unpacked out of an IPSW is mode 444, and the whole CFW
     /// pipeline signs those in place.
-    @Test("a read-only file is signed and keeps its mode")
-    func signsAReadOnlyFile() throws {
+    @Test
+    func `a read-only file is signed and keeps its mode`() throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         // not through the shared helper: the mode has to be set between the
         // copy and the signature
         let file = try VPhoneSignFixtures.copy(
-            try VPhoneSignFixtures.url("hello-arm64"), into: directory, as: "binary"
+            VPhoneSignFixtures.url("hello-arm64"), into: directory, as: "binary",
         )
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
 

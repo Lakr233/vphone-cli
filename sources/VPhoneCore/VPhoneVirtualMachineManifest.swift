@@ -19,7 +19,10 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
         }
     }
-    public var errorDescription: String? { description }
+
+    public var errorDescription: String? {
+        description
+    }
 }
 
 /// VPhoneVirtualMachineManifest represents the on-disk VM configuration manifest.
@@ -93,7 +96,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             width: 1290,
             height: 2796,
             pixelsPerInch: 460,
-            scale: 3.0
+            scale: 3.0,
         )
 
         public init(width: Int, height: Int, pixelsPerInch: Int, scale: Double) {
@@ -135,7 +138,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         /// The names `vm create` copies the ROMs in as.
         public static let `default` = ROMImages(
             avpBooter: "AVPBooter.vresearch1.bin",
-            avpSEPBooter: "AVPSEPBooter.vresearch1.bin"
+            avpSEPBooter: "AVPSEPBooter.vresearch1.bin",
         )
 
         public init(avpBooter: String, avpSEPBooter: String) {
@@ -157,7 +160,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         diskImage: String = "Disk.img",
         nvramStorage: String = "nvram.bin",
         romImages: ROMImages?,
-        sepStorage: String = "SEPStorage"
+        sepStorage: String = "SEPStorage",
     ) {
         self.platformType = platformType
         self.platformFusing = platformFusing
@@ -187,13 +190,13 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
     public static func newVM(
         cpuCount: UInt = 8,
         memoryMB: UInt64 = 8192,
-        platformFusing: PlatformFusing? = nil
+        platformFusing: PlatformFusing? = nil,
     ) -> VPhoneVirtualMachineManifest {
         VPhoneVirtualMachineManifest(
             platformFusing: platformFusing,
             cpuCount: cpuCount,
             memorySize: memoryMB * 1024 * 1024,
-            romImages: .default
+            romImages: .default,
         )
     }
 
@@ -242,7 +245,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         cpuCount: UInt? = nil,
         memorySize: UInt64? = nil,
         machineIdentifier: Data? = nil,
-        networkConfig: NetworkConfig? = nil
+        networkConfig: NetworkConfig? = nil,
     ) -> VPhoneVirtualMachineManifest {
         VPhoneVirtualMachineManifest(
             platformType: platformType,
@@ -255,7 +258,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             diskImage: diskImage,
             nvramStorage: nvramStorage,
             romImages: romImages,
-            sepStorage: sepStorage
+            sepStorage: sepStorage,
         )
     }
 }

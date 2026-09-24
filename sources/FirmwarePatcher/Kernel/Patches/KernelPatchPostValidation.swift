@@ -51,7 +51,7 @@ extension KernelPatcher {
                     ARM64.nop,
                     patchID: "kernel.post_validation.nop_tbnz",
                     virtualAddress: va,
-                    description: "NOP \(insn.mnemonic) \(insn.operandString) [txm post-validation]"
+                    description: "NOP \(insn.mnemonic) \(insn.operandString) [txm post-validation]",
                 )
                 return true
             }
@@ -98,7 +98,9 @@ extension KernelPatcher {
             // Collect BL targets by direct instruction decode across the caller body.
             var blTargets = Set<Int>()
             for scan in stride(from: callerStart, to: callerEnd, by: 4) {
-                if scan > callerStart, buffer.readU32(at: scan) == ARM64.pacibspU32 { break }
+                if scan > callerStart, buffer.readU32(at: scan) == ARM64.pacibspU32 {
+                    break
+                }
                 if let target = decodeBL(at: scan) {
                     blTargets.insert(target)
                 }
@@ -112,7 +114,9 @@ extension KernelPatcher {
 
                 for off in stride(from: target, to: calleeEnd - 4, by: 4) {
                     // Stop at next function boundary.
-                    if off > target, buffer.readU32(at: off) == ARM64.pacibspU32 { break }
+                    if off > target, buffer.readU32(at: off) == ARM64.pacibspU32 {
+                        break
+                    }
 
                     let insns = disasm.disassemble(in: buffer.data, at: off, count: 2)
                     guard insns.count >= 2 else { continue }
@@ -151,7 +155,7 @@ extension KernelPatcher {
             ARM64.cmpW0W0,
             patchID: "kernel.post_validation.cmp_w0_w0",
             virtualAddress: fileOffsetToVA(patchOff),
-            description: "cmp w0,w0 (was cmp w0,#imm) [postValidation]"
+            description: "cmp w0,w0 (was cmp w0,#imm) [postValidation]",
         )
         return true
     }

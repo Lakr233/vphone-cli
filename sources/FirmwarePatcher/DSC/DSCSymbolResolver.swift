@@ -66,7 +66,9 @@ public final class DSCSymbolResolver {
         if let infos = cache.imageInfos {
             for info in infos {
                 guard let path = info.path(in: cache) else { continue }
-                if addresses[path] == nil { addresses[path] = info.address }
+                if addresses[path] == nil {
+                    addresses[path] = info.address
+                }
             }
         }
         imageAddresses = addresses
@@ -84,7 +86,9 @@ public final class DSCSymbolResolver {
         try self.init(mainCacheURL: chunks.mainCacheURL)
     }
 
-    public var hasLocalSymbols: Bool { localSymbols != nil }
+    public var hasLocalSymbols: Bool {
+        localSymbols != nil
+    }
 
     /// Fail now if the local symbol table is not there.
     ///
@@ -100,7 +104,9 @@ public final class DSCSymbolResolver {
     }
 
     /// Every image path in the cache, sorted.
-    public var imagePaths: [String] { imageAddresses.keys.sorted() }
+    public var imagePaths: [String] {
+        imageAddresses.keys.sorted()
+    }
 
     /// The mach header address of `imagePath`.
     public func headerAddress(ofImage imagePath: String) throws -> UInt64 {
@@ -118,7 +124,9 @@ public final class DSCSymbolResolver {
     /// tables reports the exported address — the one a caller of the public
     /// entry point would branch to.
     public func symbols(inImage imagePath: String) throws -> [String: Resolution] {
-        if let cached = symbolCacheByImage[imagePath] { return cached }
+        if let cached = symbolCacheByImage[imagePath] {
+            return cached
+        }
         let headerAddress = try headerAddress(ofImage: imagePath)
 
         var result: [String: Resolution] = [:]
@@ -131,7 +139,7 @@ public final class DSCSymbolResolver {
                     result[exported.name] = Resolution(
                         name: exported.name,
                         address: address,
-                        source: .exportTrie
+                        source: .exportTrie,
                     )
                 }
             }
@@ -144,7 +152,7 @@ public final class DSCSymbolResolver {
                     result[name] = Resolution(
                         name: name,
                         address: address,
-                        source: .localSymbols
+                        source: .localSymbols,
                     )
                 }
             }
@@ -174,7 +182,7 @@ public final class DSCSymbolResolver {
     /// has lost five ObjC methods to a rename wants to see all five.
     public func addresses(
         of symbols: [String],
-        inImage imagePath: String
+        inImage imagePath: String,
     ) throws -> [String: UInt64] {
         let table = try self.symbols(inImage: imagePath)
         var result: [String: UInt64] = [:]
@@ -190,7 +198,7 @@ public final class DSCSymbolResolver {
             try requireLocalSymbols()
             throw DSCError.symbolNotFound(
                 symbol: missing.joined(separator: ", "),
-                image: imagePath
+                image: imagePath,
             )
         }
         return result
@@ -203,7 +211,7 @@ public final class DSCSymbolResolver {
     /// them and pairs each with its `_kern_` sibling.
     public func symbols(
         inImage imagePath: String,
-        withPrefix prefix: String
+        withPrefix prefix: String,
     ) throws -> [String: UInt64] {
         try symbols(inImage: imagePath)
             .filter { $0.key.hasPrefix(prefix) }

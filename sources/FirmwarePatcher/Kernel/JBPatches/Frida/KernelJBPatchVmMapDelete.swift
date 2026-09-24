@@ -44,13 +44,13 @@ extension KernelJBPatcher {
         for gate in gates.sorted(by: { $0.offset < $1.offset }) {
             guard let bytes = ARM64Encoder.encodeTestBitBranch(
                 nonzero: gate.nonzero, register: gate.register, bit: 13,
-                from: gate.offset, to: gate.target
+                from: gate.offset, to: gate.target,
             ),
-            let decoded = disasm.disassembleOne(bytes, at: UInt64(gate.offset)),
-            decoded.mnemonic == (gate.nonzero ? "tbnz" : "tbz"),
-            let ops = decoded.aarch64?.operands, ops.count == 3,
-            ops[1].type == AARCH64_OP_IMM, ops[1].imm == 13,
-            ops[2].type == AARCH64_OP_IMM, Int(ops[2].imm) == gate.target
+                let decoded = disasm.disassembleOne(bytes, at: UInt64(gate.offset)),
+                decoded.mnemonic == (gate.nonzero ? "tbnz" : "tbz"),
+                let ops = decoded.aarch64?.operands, ops.count == 3,
+                ops[1].type == AARCH64_OP_IMM, ops[1].imm == 13,
+                ops[2].type == AARCH64_OP_IMM, Int(ops[2].imm) == gate.target
             else {
                 log("  [-] failed to assemble/verify max-X gate at 0x\(String(format: "%X", gate.offset))")
                 return false
@@ -64,7 +64,7 @@ extension KernelJBPatcher {
                 bytes,
                 patchID: "kernelcache_frida.vm_map_delete_immutable_code",
                 virtualAddress: fileOffsetToVA(gate.offset),
-                description: "\(gate.nonzero ? "tbnz" : "tbz") entry max_protection.X [vm_map_delete immutable-code \(gate.shape), --frida]"
+                description: "\(gate.nonzero ? "tbnz" : "tbz") entry max_protection.X [vm_map_delete immutable-code \(gate.shape), --frida]",
             )
         }
         return true
@@ -124,7 +124,7 @@ extension KernelJBPatcher {
                 register: flagsReg,
                 nonzero: false,
                 target: exec,
-                shape: "shape-A"
+                shape: "shape-A",
             )
         }
 
@@ -143,7 +143,7 @@ extension KernelJBPatcher {
                 register: flagsReg,
                 nonzero: true,
                 target: exec,
-                shape: "shape-B"
+                shape: "shape-B",
             )
         }
 
@@ -189,8 +189,9 @@ extension KernelJBPatcher {
             guard insns[i].mnemonic == "ldrb", let devReg = destRegister(insns[i]) else { continue }
             for j in (i + 1) ..< min(insns.count, i + 4) {
                 let m = insns[j].mnemonic
-                if (m == "tbz" || m == "tbnz"),
-                   bitBranch(insns[j], mnemonic: m, register: devReg, bit: 0) != nil {
+                if m == "tbz" || m == "tbnz",
+                   bitBranch(insns[j], mnemonic: m, register: devReg, bit: 0) != nil
+                {
                     return true
                 }
             }

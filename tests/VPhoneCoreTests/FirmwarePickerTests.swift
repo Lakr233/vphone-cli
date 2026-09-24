@@ -1,5 +1,5 @@
-@testable import VPhoneCore
 import Testing
+@testable import VPhoneCore
 
 struct FirmwarePickerTests {
     /// A scripted stdin: pops one line per `read()` call.
@@ -10,11 +10,11 @@ struct FirmwarePickerTests {
 
     // MARK: - Catalog integrity
 
-    @Test func catalogHasTwentyFivePairings() {
+    @Test func `catalog has twenty five pairings`() {
         #expect(VPhoneFirmwareCatalog.pairings.count == 25)
     }
 
-    @Test func everyPairingIsPopulated() {
+    @Test func `every pairing is populated`() {
         for p in VPhoneFirmwareCatalog.pairings {
             #expect(!p.iosName.isEmpty)
             #expect(p.iosURL.hasPrefix("https://"))
@@ -24,51 +24,51 @@ struct FirmwarePickerTests {
         }
     }
 
-    @Test func cloudOSOptionsAreDistinctInFirstSeenOrder() {
+    @Test func `cloud OS options are distinct in first seen order`() {
         let opts = VPhoneFirmwareCatalog.cloudOSOptions
         #expect(opts.map(\.name) == ["cloudOS 26.1", "cloudOS 26.2", "cloudOS 26.3", "cloudOS 26.4"])
-        #expect(Set(opts.map(\.url)).count == opts.count)   // no dup URLs
+        #expect(Set(opts.map(\.url)).count == opts.count) // no dup URLs
     }
 
     // MARK: - Passthrough
 
-    @Test func bothProvidedPassesThrough() throws {
+    @Test func `both provided passes through`() throws {
         let out = try VPhoneFirmwarePicker.resolve(
             iphone: "a.ipsw",
             cloudos: "b.dmg",
             isInteractive: true,
             read: { nil },
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == VPhoneFirmwareSources(iphoneSource: "a.ipsw", cloudosSource: "b.dmg"))
     }
 
-    @Test func nonInteractivePassesThroughEvenWhenIncomplete() throws {
+    @Test func `non interactive passes through even when incomplete`() throws {
         let out = try VPhoneFirmwarePicker.resolve(
             iphone: nil,
             cloudos: nil,
             isInteractive: false,
             read: { nil },
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == VPhoneFirmwareSources(iphoneSource: nil, cloudosSource: nil))
     }
 
-    @Test func emptyStringsTreatedAsUnset() throws {
+    @Test func `empty strings treated as unset`() throws {
         // Non-interactive + empty → passthrough as nil (no prompt), not "".
         let out = try VPhoneFirmwarePicker.resolve(
             iphone: "",
             cloudos: "",
             isInteractive: false,
             read: { nil },
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == VPhoneFirmwareSources(iphoneSource: nil, cloudosSource: nil))
     }
 
     // MARK: - Prompt: neither provided
 
-    @Test func neitherProvidedPicksFullPairing() throws {
+    @Test func `neither provided picks full pairing`() throws {
         // "1" → first pairing (iOS 18.6.2 → cloudOS 26.1).
         let first = VPhoneFirmwareCatalog.pairings[0]
         let out = try VPhoneFirmwarePicker.resolve(
@@ -76,13 +76,13 @@ struct FirmwarePickerTests {
             cloudos: nil,
             isInteractive: true,
             read: reader(["1"]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == VPhoneFirmwareSources(iphoneSource: first.iosURL, cloudosSource: first.cloudosURL))
     }
 
-    @Test func neitherProvidedResolvesBothFromChosenPairing() throws {
-        let idx = 8   // iOS 26.4 (menu number 9), paired with cloudOS 26.4
+    @Test func `neither provided resolves both from chosen pairing`() throws {
+        let idx = 8 // iOS 26.4 (menu number 9), paired with cloudOS 26.4
         let p = VPhoneFirmwareCatalog.pairings[idx]
         #expect(p.iosName == "iOS 26.4")
         let out = try VPhoneFirmwarePicker.resolve(
@@ -90,7 +90,7 @@ struct FirmwarePickerTests {
             cloudos: nil,
             isInteractive: true,
             read: reader([String(idx + 1)]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out.iphoneSource == p.iosURL)
         #expect(out.cloudosSource == p.cloudosURL)
@@ -98,7 +98,7 @@ struct FirmwarePickerTests {
 
     // MARK: - Prompt: only one side missing
 
-    @Test func iPhoneProvidedPromptsForCloudOSOnly() throws {
+    @Test func `i phone provided prompts for cloud OS only`() throws {
         // cloudOS menu: [1]26.1 [2]26.2 [3]26.3 [4]26.4 → pick 4.
         let opts = VPhoneFirmwareCatalog.cloudOSOptions
         let out = try VPhoneFirmwarePicker.resolve(
@@ -106,36 +106,36 @@ struct FirmwarePickerTests {
             cloudos: nil,
             isInteractive: true,
             read: reader(["4"]),
-            write: { _ in }
+            write: { _ in },
         )
-        #expect(out.iphoneSource == "custom.ipsw")           // untouched
-        #expect(out.cloudosSource == opts[3].url)            // chosen cloudOS 26.4
+        #expect(out.iphoneSource == "custom.ipsw") // untouched
+        #expect(out.cloudosSource == opts[3].url) // chosen cloudOS 26.4
     }
 
-    @Test func cloudOSProvidedPromptsForIPhoneOnly() throws {
-        let p = VPhoneFirmwareCatalog.pairings[3]            // iOS 26.1 (menu 4)
+    @Test func `cloud OS provided prompts for I phone only`() throws {
+        let p = VPhoneFirmwareCatalog.pairings[3] // iOS 26.1 (menu 4)
         #expect(p.iosName == "iOS 26.1")
         let out = try VPhoneFirmwarePicker.resolve(
             iphone: nil,
             cloudos: "custom.dmg",
             isInteractive: true,
             read: reader(["4"]),
-            write: { _ in }
+            write: { _ in },
         )
-        #expect(out.iphoneSource == p.iosURL)                // chosen iPhone build
-        #expect(out.cloudosSource == "custom.dmg")           // untouched
+        #expect(out.iphoneSource == p.iosURL) // chosen iPhone build
+        #expect(out.cloudosSource == "custom.dmg") // untouched
     }
 
     // MARK: - Menu formatting
 
-    @Test func pairingMenuIsColumnAligned() throws {
+    @Test func `pairing menu is column aligned`() throws {
         var lines: [String] = []
         _ = try VPhoneFirmwarePicker.resolve(
             iphone: nil,
             cloudos: nil,
             isInteractive: true,
             read: reader(["1"]),
-            write: { lines.append($0) }
+            write: { lines.append($0) },
         )
         let menu = lines.filter { $0.hasPrefix("  [") }
         #expect(menu.count == 25)
@@ -149,31 +149,31 @@ struct FirmwarePickerTests {
 
     // MARK: - Retry / abort semantics
 
-    @Test func retriesThenSucceeds() throws {
+    @Test func `retries then succeeds`() throws {
         let first = VPhoneFirmwareCatalog.pairings[0]
         let out = try VPhoneFirmwarePicker.resolve(
             iphone: nil,
             cloudos: nil,
             isInteractive: true,
             read: reader(["", "999", "garbage", "1"]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out.iphoneSource == first.iosURL)
     }
 
-    @Test func eofAborts() {
+    @Test func `eof aborts`() {
         #expect(throws: VPhoneFirmwarePickerError.aborted) {
             _ = try VPhoneFirmwarePicker.resolve(
                 iphone: nil,
                 cloudos: nil,
                 isInteractive: true,
                 read: { nil },
-                write: { _ in }
+                write: { _ in },
             )
         }
     }
 
-    @Test func tooManyInvalidThrows() {
+    @Test func `too many invalid throws`() {
         #expect(throws: VPhoneFirmwarePickerError.invalidSelection) {
             _ = try VPhoneFirmwarePicker.resolve(
                 iphone: nil,
@@ -181,7 +181,7 @@ struct FirmwarePickerTests {
                 isInteractive: true,
                 maxRetries: 2,
                 read: reader(["x", "y", "z"]),
-                write: { _ in }
+                write: { _ in },
             )
         }
     }

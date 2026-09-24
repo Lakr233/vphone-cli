@@ -48,7 +48,7 @@ public struct VPhoneSignOptions {
         entitlements: Data? = nil,
         mergesExisting: Bool = false,
         style: Style = .ldid,
-        identity: (any VPhoneSigningIdentity)? = nil
+        identity: (any VPhoneSigningIdentity)? = nil,
     ) {
         self.identifier = identifier
         self.entitlements = entitlements
@@ -123,11 +123,11 @@ public enum VPhoneSigner {
         var images: [Data] = []
         for (index, slice) in file.slices.enumerated() {
             let alignment = file.architectures.map { Int($0[index].alignment) } ?? slice.linkeditAlignment
-            let signature = try self.signature(
-                for: slice, identifier: identifier, digests: digests, options: options
+            let signature = try signature(
+                for: slice, identifier: identifier, digests: digests, options: options,
             )
             let executable = slice.executableSegment
-            images.append(try slice.signed(
+            try images.append(slice.signed(
                 alignment: alignment,
                 signatureSize: { signature.allocation(codeLimit: $0) },
                 makeSignature: { code, codeLimit in
@@ -135,16 +135,16 @@ public enum VPhoneSigner {
                         code: code,
                         codeLimit: codeLimit,
                         executable: executable,
-                        cms: cmsBuilder(options: options)
+                        cms: cmsBuilder(options: options),
                     )
-                }
+                },
             ))
         }
         return try file.assembled(images)
     }
 
     private static func cmsBuilder(
-        options: VPhoneSignOptions
+        options: VPhoneSignOptions,
     ) -> ((Data, [Data]) throws -> Data)? {
         if let identity = options.identity {
             return { try identity.cms(codeDirectory: $0, cdHashes: $1) }
@@ -159,7 +159,7 @@ public enum VPhoneSigner {
         for slice: VPhoneMachOImage,
         identifier: String,
         digests: [VPhoneCodeSignature.Digest],
-        options: VPhoneSignOptions
+        options: VPhoneSignOptions,
     ) throws -> VPhoneCodeSignature {
         var signature = VPhoneCodeSignature(identifier: identifier)
         signature.digests = digests
@@ -170,7 +170,7 @@ public enum VPhoneSigner {
         case .ldid:
             signature.teamIdentifier = options.identity?.teamIdentifier ?? ""
             signature.requirementsBlob = VPhoneCodeSignature.requirements(
-                identifier: identifier, commonName: options.identity?.commonName ?? ""
+                identifier: identifier, commonName: options.identity?.commonName ?? "",
             )
             signature.cmsReservation = options.identity == nil ? nil : cmsReservation
         case .appleAdHoc:
@@ -182,8 +182,8 @@ public enum VPhoneSigner {
         let existing = options.mergesExisting ? slice.embeddedEntitlements : nil
         if existing?.isEmpty == false || options.entitlements?.isEmpty == false {
             var combined = try VPhoneSignEntitlements(xml: existing ?? Data())
-            combined.merge(try VPhoneSignEntitlements(xml: options.entitlements ?? Data()))
-            signature.entitlements = (try combined.xml(), combined.der)
+            try combined.merge(VPhoneSignEntitlements(xml: options.entitlements ?? Data()))
+            signature.entitlements = try (combined.xml(), combined.der)
             signature.executableSegmentFlags = combined.executableSegmentFlags(mainBinary: mainBinary)
         } else {
             signature.executableSegmentFlags = mainBinary ? 1 : 0

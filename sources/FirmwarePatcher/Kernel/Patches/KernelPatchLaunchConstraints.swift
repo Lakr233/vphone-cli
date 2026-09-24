@@ -54,14 +54,14 @@ extension KernelPatcher {
                 ARM64.movW0_0,
                 patchID: "launch_constraints_mov",
                 virtualAddress: va0,
-                description: "mov w0,#0 [_proc_check_launch_constraints]"
+                description: "mov w0,#0 [_proc_check_launch_constraints]",
             )
             emit(
                 funcStart + 4,
                 ARM64.ret,
                 patchID: "launch_constraints_ret",
                 virtualAddress: va1,
-                description: "ret [_proc_check_launch_constraints]"
+                description: "ret [_proc_check_launch_constraints]",
             )
             return true
         }

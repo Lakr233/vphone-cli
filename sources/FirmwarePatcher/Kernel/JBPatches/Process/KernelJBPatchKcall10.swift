@@ -45,7 +45,7 @@ extension KernelJBPatcher {
         let (mungerTarget, _, matchCount) = findMunge32ForNarg(
             sysEntOff: sysEntOff,
             narg: Self.kcall10_narg,
-            argBytes: Self.kcall10_arg_bytes
+            argBytes: Self.kcall10_arg_bytes,
         )
         guard mungerTarget >= 0 else {
             log("  [-] no unique reusable 8-arg munge32 helper found")
@@ -83,7 +83,7 @@ extension KernelJBPatcher {
             caveOff,
             caveBytes,
             patchID: "jb.kcall10.cave",
-            description: "kcall10 ABI-correct cave (target + 7 args -> uint64 x0)"
+            description: "kcall10 ABI-correct cave (target + 7 args -> uint64 x0)",
         )
 
         emit(
@@ -93,10 +93,10 @@ extension KernelJBPatcher {
                 nextVal: callNext,
                 diversity: Self.sysent_pac_diversity,
                 key: 0,
-                addrDiv: 0
+                addrDiv: 0,
             ),
             patchID: "jb.kcall10.sy_call",
-            description: "sysent[439].sy_call = cave 0x\(String(format: "%X", caveOff)) (auth rebase, div=0xBCAD, next=\(callNext)) [kcall10]"
+            description: "sysent[439].sy_call = cave 0x\(String(format: "%X", caveOff)) (auth rebase, div=0xBCAD, next=\(callNext)) [kcall10]",
         )
 
         emit(
@@ -106,10 +106,10 @@ extension KernelJBPatcher {
                 nextVal: mungeNext,
                 diversity: mungeDiv,
                 key: mungeKey,
-                addrDiv: mungeAddrDiv
+                addrDiv: mungeAddrDiv,
             ),
             patchID: "jb.kcall10.sy_munge",
-            description: "sysent[439].sy_arg_munge32 = 8-arg helper 0x\(String(format: "%X", mungerTarget)) [kcall10]"
+            description: "sysent[439].sy_arg_munge32 = 8-arg helper 0x\(String(format: "%X", mungerTarget)) [kcall10]",
         )
 
         // sy_return_type (u32) + sy_narg (u16) + sy_arg_bytes (u16)
@@ -123,7 +123,7 @@ extension KernelJBPatcher {
             entry439 + 16,
             metadata,
             patchID: "jb.kcall10.sysent_meta",
-            description: "sysent[439].sy_return_type=7,sy_narg=8,sy_arg_bytes=0x20 [kcall10]"
+            description: "sysent[439].sy_return_type=7,sy_narg=8,sy_arg_bytes=0x20 [kcall10]",
         )
 
         return true
@@ -144,8 +144,12 @@ extension KernelJBPatcher {
         for seg in segments where execSegNames.contains(seg.name) && seg.fileSize > 0 {
             execRanges.append((Int(seg.fileOffset), Int(seg.fileOffset + seg.fileSize)))
         }
-        if execRanges.isEmpty { execRanges = codeRanges.map { ($0.start, $0.end) } }
-        func inExec(_ fo: Int) -> Bool { fo > 0 && execRanges.contains { fo >= $0.0 && fo < $0.1 } }
+        if execRanges.isEmpty {
+            execRanges = codeRanges.map { ($0.start, $0.end) }
+        }
+        func inExec(_ fo: Int) -> Bool {
+            fo > 0 && execRanges.contains { fo >= $0.0 && fo < $0.1 }
+        }
 
         func validEntry(_ o: Int) -> Bool {
             guard o + Self.sysent_entry_size <= buffer.count else { return false }
@@ -170,7 +174,9 @@ extension KernelJBPatcher {
                         n += 1
                         off += Self.sysent_entry_size
                     }
-                    if n > bestLen { bestLen = n; bestBase = runStart }
+                    if n > bestLen {
+                        bestLen = n; bestBase = runStart
+                    }
                 } else {
                     off += 8 // entries are 8-byte aligned
                 }
@@ -193,7 +199,7 @@ extension KernelJBPatcher {
     private func findMunge32ForNarg(
         sysEntOff: Int,
         narg: UInt16,
-        argBytes: UInt16
+        argBytes: UInt16,
     ) -> (Int, Int, Int) {
         var candidates: [Int: [Int]] = [:]
         for idx in 0 ..< Self.sysent_max_entries {
@@ -301,7 +307,7 @@ extension KernelJBPatcher {
         nextVal: UInt32,
         diversity: UInt32,
         key: UInt32,
-        addrDiv: UInt32
+        addrDiv: UInt32,
     ) -> Data {
         let val: UInt64 =
             (UInt64(targetFoff) & 0x3FFF_FFFF) |

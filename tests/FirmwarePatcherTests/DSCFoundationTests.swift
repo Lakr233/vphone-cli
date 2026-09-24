@@ -27,8 +27,8 @@
 // Nothing here writes to the pristine directory. The re-signing tests clone it
 // — `clonefile`, so instant and free on APFS — and work in the copy.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -105,9 +105,9 @@ private enum FrozenReference {
     static let images: [(site: UInt64, header: UInt64, installName: String)] = [
         (0x2_2AC0_C334, 0x2_2AC0_B000,
          "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer"),
-        (0x1BF4_33BD0, 0x1BF1_43000,
+        (0x1_BF43_3BD0, 0x1_BF14_3000,
          "/System/Library/PrivateFrameworks/NeutrinoCore.framework/NeutrinoCore"),
-        (0x1AD8_A12D8, 0x1AD8_4B000,
+        (0x1_AD8A_12D8, 0x1_AD84_B000,
          "/System/Library/PrivateFrameworks/AVFCapture.framework/AVFCapture"),
     ]
 
@@ -193,7 +193,9 @@ private enum FrozenReference {
 /// padding for addresses and file offsets, decimal for everything else, single
 /// spaces between fields, one trailing newline at the end of the table.
 private enum Canonical {
-    static func hex(_ value: UInt64) -> String { String(value, radix: 16) }
+    static func hex(_ value: UInt64) -> String {
+        String(value, radix: 16)
+    }
 
     static func sha256(of text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -210,7 +212,7 @@ private enum Canonical {
     /// `vma length chunk file_offset bytes`, in request order.
     static func probes(
         _ chunks: DSCChunkSet,
-        _ requests: [(UInt64, Int)]
+        _ requests: [(UInt64, Int)],
     ) throws -> String {
         try requests.map { vma, length in
             let located = try #require(chunks.findChunk(forVMA: vma))
@@ -265,7 +267,9 @@ private enum DSCFixture {
     }
 
     /// The suites run unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -301,15 +305,15 @@ private enum DSCFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let result = try Subprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
-                + (try FileManager.default.contentsOfDirectory(atPath: pristine.path))
+                + (FileManager.default.contentsOfDirectory(atPath: pristine.path))
                 .sorted()
                 .map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         guard result.status == 0 else {
             throw CocoaError(.fileWriteUnknown)
@@ -345,12 +349,14 @@ private enum Subprocess {
     static func run(
         executable: URL,
         arguments: [String],
-        currentDirectory: URL? = nil
+        currentDirectory: URL? = nil,
     ) throws -> Result {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+        if let currentDirectory {
+            process.currentDirectoryURL = currentDirectory
+        }
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out
@@ -363,7 +369,7 @@ private enum Subprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -377,29 +383,28 @@ private enum SlotState {
     static func read(
         directory: URL,
         chunk: String,
-        page: Int
+        page: Int,
     ) throws -> (computed: String, stored: String, isAttested: Bool) {
         let url = directory.appendingPathComponent(chunk)
         let cd = try #require(
             try DSCCodeSignature.readCodeDirectory(ofChunk: url),
-            "\(chunk) carries no code directory"
+            "\(chunk) carries no code directory",
         )
         let (computed, stored) = try DSCCodeSignature.pageHashes(
             chunkURL: url,
             pageIndex: page,
-            directory: cd
+            directory: cd,
         )
         return (computed.hex, stored.hex, computed == stored)
     }
 }
 
-
 // MARK: - 3.1 · Flat addressing
 
 @Suite(.serialized, .enabled(if: DSCFixture.runs, DSCFixture.skipReason))
 struct DSCFlatAddressingTests {
-    @Test("Chunk enumeration and mapping table match the reference")
-    func layoutMatchesTheReference() throws {
+    @Test
+    func `Chunk enumeration and mapping table match the reference`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -412,12 +417,12 @@ struct DSCFlatAddressingTests {
         #expect(
             Canonical.sha256(of: Canonical.mappings(chunks))
                 == FrozenReference.mappingsSHA256,
-            "the mapping table no longer matches the reference's"
+            "the mapping table no longer matches the reference's",
         )
         print(
             "[layout] \(chunks.chunkURLs.count) chunks, \(chunks.mappings.count) mappings, "
                 + "vm 0x\(String(chunks.addressRange.lowerBound, radix: 16, uppercase: true))"
-                + "..0x\(String(chunks.addressRange.upperBound, radix: 16, uppercase: true))"
+                + "..0x\(String(chunks.addressRange.upperBound, radix: 16, uppercase: true))",
         )
     }
 
@@ -436,14 +441,14 @@ struct DSCFlatAddressingTests {
             }
         }
         // Real code sites, not just mapping arithmetic.
-        for site: UInt64 in [0x2_2AC0_C334, 0x1BF4_33BD0, 0x1AD8_A12D8, 0x2_2AC0_C1B0] {
+        for site: UInt64 in [0x2_2AC0_C334, 0x1_BF43_3BD0, 0x1_AD8A_12D8, 0x2_2AC0_C1B0] {
             requests.append((site, 32))
         }
         return requests
     }
 
-    @Test("bytesAtVMA matches the reference across every mapping and boundary")
-    func bytesMatchTheReference() throws {
+    @Test
+    func `bytesAtVMA matches the reference across every mapping and boundary`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -455,7 +460,7 @@ struct DSCFlatAddressingTests {
         #expect(
             try Canonical.sha256(of: Canonical.probes(chunks, requests))
                 == FrozenReference.probesSHA256,
-            "a read, or its address-to-file translation, no longer matches the reference"
+            "a read, or its address-to-file translation, no longer matches the reference",
         )
 
         var boundaryChecks = 0
@@ -470,8 +475,8 @@ struct DSCFlatAddressingTests {
         #expect(boundaryChecks >= 2)
     }
 
-    @Test("A read or write that leaves its chunk is refused, not truncated")
-    func boundaryCrossingIsRefused() throws {
+    @Test
+    func `A read or write that leaves its chunk is refused, not truncated`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         let mapping = try #require(chunks.mappings.first { $0.size > 64 })
@@ -505,8 +510,8 @@ struct DSCFlatAddressingTests {
     /// as the bytes at those virtual addresses. This is the one place the Swift
     /// deliberately diverges, and the test pins both halves: what the reference
     /// returned, and that the Swift refuses it.
-    @Test("An over-running read returned the chunk's signature; here it throws")
-    func overrunningReadIsRefusedUnlikeTheReference() throws {
+    @Test
+    func `An over-running read returned the chunk's signature; here it throws`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -530,8 +535,8 @@ struct DSCFlatAddressingTests {
         print("[overrun] swift threw; its in-bounds 4 bytes are \(inBounds.hex)")
     }
 
-    @Test("resolveLocalSymbol matches the reference and ipsw")
-    func localSymbolMatchesReferences() throws {
+    @Test
+    func `resolveLocalSymbol matches the reference and ipsw`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -549,14 +554,14 @@ struct DSCFlatAddressingTests {
     /// The `try?` this replaced spelled "I could not open the table" and "that
     /// symbol does not exist" the same way, as `nil`. The reference raised
     /// `FileNotFoundError`; so does this, in its own vocabulary.
-    @Test("A missing local symbol table is not the same answer as a missing symbol")
-    func missingLocalSymbolTableIsNotAMissingSymbol() throws {
+    @Test
+    func `A missing local symbol table is not the same answer as a missing symbol`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let clone = try DSCFixture.cloneCache(named: "symbols_removed")
         defer { DSCFixture.discard(clone) }
         try FileManager.default.removeItem(
-            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols")
+            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols"),
         )
 
         let chunks = try DSCChunkSet(directory: clone)
@@ -570,14 +575,14 @@ struct DSCFlatAddressingTests {
         // And the resolver built on the same cache says so rather than
         // reporting entry points with no siblings.
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: clone.appendingPathComponent("dyld_shared_cache_arm64e")
+            mainCacheURL: clone.appendingPathComponent("dyld_shared_cache_arm64e"),
         )
         #expect(!resolver.hasLocalSymbols)
         #expect(throws: DSCError.self) { try resolver.requireLocalSymbols() }
         #expect(throws: DSCError.self) {
             _ = try resolver.address(
                 of: "_kern_SwapEnd",
-                inImage: "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer"
+                inImage: "/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer",
             )
         }
         print("[symbols missing] resolveLocalSymbol and the resolver both report the absent table")
@@ -586,8 +591,8 @@ struct DSCFlatAddressingTests {
     /// The two helpers P1.3's `hv_vmm` and canonical-site finders are built on:
     /// a C-string sweep of the executable mappings, and the walk back from an
     /// address to the image that owns it.
-    @Test("String search and image lookup match the reference")
-    func searchHelpersMatchTheReference() throws {
+    @Test
+    func `String search and image lookup match the reference`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -600,7 +605,7 @@ struct DSCFlatAddressingTests {
         #expect(
             Canonical.sha256(of: Canonical.addresses(mine))
                 == FrozenReference.hvVMMStringsSHA256,
-            "the string sweep no longer finds the reference's hits"
+            "the string sweep no longer finds the reference's hits",
         )
         print("[strings] \"\(needle)\": \(mine.count) hits, first 0x\(String(mine[0], radix: 16))")
 
@@ -623,8 +628,8 @@ struct DSCCodeSignatureTests {
     /// whose slot a real patch would have to re-sign.
     private let patchSite = FrozenReference.patchSite
 
-    @Test("Chunk code directories match the reference")
-    func codeDirectoriesMatchTheReference() throws {
+    @Test
+    func `Chunk code directories match the reference`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let chunks = try DSCChunkSet(directory: pristine)
@@ -635,15 +640,15 @@ struct DSCCodeSignatureTests {
         #expect(
             Canonical.sha256(of: rows.joined(separator: "\n") + "\n")
                 == FrozenReference.codeDirectoriesSHA256,
-            "a chunk's code directory no longer parses the way the reference parsed it"
+            "a chunk's code directory no longer parses the way the reference parsed it",
         )
         print("[code directories] \(found) chunk signatures agreed with the reference")
     }
 
     /// The DSC path's stated invariants: 16 KiB pages, a single SHA-256 code
     /// directory, and no short tail slot.
-    @Test("Every signed chunk is 16 KiB paged, SHA-256, and chunk-aligned")
-    func dscPathShapeHolds() throws {
+    @Test
+    func `Every signed chunk is 16 KiB paged, SHA-256, and chunk-aligned`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         var checked = 0
@@ -658,7 +663,7 @@ struct DSCCodeSignatureTests {
             let covered = directory.codeSlotCount * directory.pageSize
             #expect(
                 covered == directory.codeLimit,
-                "\(url.lastPathComponent) has a short tail slot: codeLimit \(directory.codeLimit), slots cover \(covered)"
+                "\(url.lastPathComponent) has a short tail slot: codeLimit \(directory.codeLimit), slots cover \(covered)",
             )
             checked += 1
         }
@@ -668,8 +673,8 @@ struct DSCCodeSignatureTests {
 
     /// The gate from the plan: patch one byte, re-sign, and require the page
     /// and its slot to come out as the reference's did.
-    @Test("Re-signing produces the reference's slot hashes")
-    func reSigningMatchesTheReference() throws {
+    @Test
+    func `Re-signing produces the reference's slot hashes`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let swiftSide = try DSCFixture.cloneCache(named: "resign_swift")
@@ -692,7 +697,7 @@ struct DSCCodeSignatureTests {
         var log: [String] = []
         let result = try DSCCodeSignature.reattestRecordedWrites(
             in: chunks,
-            log: { log.append($0) }
+            log: { log.append($0) },
         )
         #expect(result.updated.count == 1)
         #expect(result.isFullyAttested)
@@ -711,12 +716,12 @@ struct DSCCodeSignatureTests {
         // stored slot has to be the digest of the page as it now stands.
         let chunkName = mine.chunkURL.lastPathComponent
         let directory = try #require(
-            try DSCCodeSignature.readCodeDirectory(ofChunk: mine.chunkURL)
+            try DSCCodeSignature.readCodeDirectory(ofChunk: mine.chunkURL),
         )
         let (computed, stored) = try DSCCodeSignature.pageHashes(
             chunkURL: mine.chunkURL,
             pageIndex: mine.pageIndex,
-            directory: directory
+            directory: directory,
         )
         #expect(computed == stored)
         #expect(stored.hex == FrozenReference.resignHashAfter)
@@ -724,7 +729,9 @@ struct DSCCodeSignatureTests {
         print("[re-sign] chunk \(chunkName) page \(mine.pageIndex) slot @0x\(String(mine.slotOffset, radix: 16))")
         print("[re-sign] swift     \(mine.hashAfter.hex)")
         print("[re-sign] reference \(FrozenReference.resignHashAfter)")
-        for line in log { print(line) }
+        for line in log {
+            print(line)
+        }
     }
 
     /// The finding all three verifiers reached independently, pinned.
@@ -735,8 +742,8 @@ struct DSCCodeSignatureTests {
     /// covers one page; the other keeps its original slot hash, and the guest
     /// dies on the first demand-page-in of it. The reference did exactly that;
     /// this checks the Swift no longer can.
-    @Test("A write across a page boundary re-attests both pages, where the reference attested one")
-    func pageStraddlingWriteAttestsEveryDirtiedPage() throws {
+    @Test
+    func `A write across a page boundary re-attests both pages, where the reference attested one`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let swiftSide = try DSCFixture.cloneCache(named: "straddle_swift")
@@ -754,12 +761,12 @@ struct DSCCodeSignatureTests {
         #expect(span.length == 8)
         let (writtenChunk, writtenRange) = try chunks.fileRange(of: span)
         #expect(writtenChunk.lastPathComponent == chunkName)
-        #expect(writtenRange == 0x280_FFFC ..< 0x281_0004)
+        #expect(writtenRange == 0x280FFFC ..< 0x2810004)
 
         var log: [String] = []
         let result = try DSCCodeSignature.reattestRecordedWrites(
             in: chunks,
-            log: { log.append($0) }
+            log: { log.append($0) },
         )
         #expect(result.updated.map(\.pageIndex) == [firstPage, secondPage])
         #expect(result.isFullyAttested)
@@ -787,7 +794,7 @@ struct DSCCodeSignatureTests {
         #expect(second.stored == FrozenReference.straddlePage2564Computed)
         #expect(
             FrozenReference.straddlePage2564Stored != FrozenReference.straddlePage2564Computed,
-            "the reference's own second page was stale, which is why this test exists"
+            "the reference's own second page was stale, which is why this test exists",
         )
         print("[straddle reference] page \(secondPage) was left stored "
             + "\(FrozenReference.straddlePage2564Stored.prefix(16))… vs computed "
@@ -797,11 +804,13 @@ struct DSCCodeSignatureTests {
         // wrote them to.
         let swiftBytes = try DSCChunkSet.read(
             url: swiftSide.appendingPathComponent(chunkName),
-            offset: 0x280_FFFC,
-            length: 8
+            offset: 0x280FFFC,
+            length: 8,
         )
         #expect(swiftBytes == stub)
-        for line in log { print(line) }
+        for line in log {
+            print(line)
+        }
     }
 
     /// A span may cross from one mapping into the next when the two are
@@ -810,8 +819,8 @@ struct DSCCodeSignatureTests {
     /// mapping start addresses and refused all of them, where the reference
     /// wrote them happily. This one is accepted, and lands where the reference
     /// landed; the case where the file offsets break is still refused.
-    @Test("A write across contiguous mappings of one chunk lands where the reference put it")
-    func contiguousMappingSeamIsWritable() throws {
+    @Test
+    func `A write across contiguous mappings of one chunk lands where the reference put it`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let swiftSide = try DSCFixture.cloneCache(named: "seam_swift")
@@ -839,7 +848,7 @@ struct DSCCodeSignatureTests {
         let mine = try DSCChunkSet.read(
             url: swiftSide.appendingPathComponent(chunkName),
             offset: FrozenReference.seamFileOffset,
-            length: 4
+            length: 4,
         )
         #expect(mine.hex == FrozenReference.seamBytes)
         #expect(mine == value)
@@ -855,7 +864,7 @@ struct DSCCodeSignatureTests {
             chunks.mappings.first { mapping in
                 guard let next = chunks.mapping(forVMA: mapping.endAddress) else { return false }
                 return next.chunkURL != mapping.chunkURL
-            }
+            },
         )
         #expect(throws: DSCError.self) {
             _ = try chunks.write(at: crossChunk.endAddress - 2, Data([0, 0, 0, 0]))
@@ -865,8 +874,8 @@ struct DSCCodeSignatureTests {
     /// `8eb6c8b` fixed a patcher that did not recognise its own output. The
     /// same trap applies here: a second re-sign of an already-attested page has
     /// to be a no-op, not a rewrite and not an error.
-    @Test("Re-signing twice is a no-op the second time")
-    func reSigningIsIdempotent() throws {
+    @Test
+    func `Re-signing twice is a no-op the second time`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let clone = try DSCFixture.cloneCache(named: "resign_idempotent")
@@ -888,7 +897,7 @@ struct DSCCodeSignatureTests {
         let third = try DSCCodeSignature.reattest(
             in: chunks,
             modifiedSpans: [patchSite, patchSite + 4, patchSite + 8].map(DSCWriteSpan.byte(at:)),
-            log: nil
+            log: nil,
         )
         #expect(third.updated.isEmpty)
         #expect(third.alreadyAttested.count == 1)
@@ -899,8 +908,8 @@ struct DSCCodeSignatureTests {
     /// "I skipped an address I could not map", "everything already matched" and
     /// "you passed me nothing" were the same value. They are three different
     /// values now, and the default log is no longer silent.
-    @Test("A skipped page is distinguishable from nothing to do")
-    func skipsAreReportedNotSwallowed() throws {
+    @Test
+    func `A skipped page is distinguishable from nothing to do`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
 
@@ -908,7 +917,7 @@ struct DSCCodeSignatureTests {
             in: chunks,
             modifiedSpans: [DSCWriteSpan.byte(at: 0xDEAD_0000_0000)],
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(stray.updated.isEmpty)
         #expect(stray.skipped.count == 1)
@@ -923,7 +932,7 @@ struct DSCCodeSignatureTests {
             in: chunks,
             modifiedSpans: [] as [DSCWriteSpan],
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(nothing.skipped.isEmpty)
         #expect(nothing.isFullyAttested, "nothing to do is a clean run")
@@ -934,7 +943,7 @@ struct DSCCodeSignatureTests {
             in: chunks,
             modifiedSpans: [DSCWriteSpan(vma: mapping.endAddress - 2, length: 64)],
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(overrun.skipped.count == 1)
         if case .spanNotAddressable = overrun.skipped[0].reason {} else {
@@ -948,14 +957,16 @@ struct DSCCodeSignatureTests {
             in: chunks,
             modifiedSpans: [DSCWriteSpan.byte(at: 0xDEAD_0000_0000)],
             dryRun: true,
-            log: { spoken.append($0) }
+            log: { spoken.append($0) },
         )
         #expect(spoken.contains { $0.contains("not mapped in any chunk") })
-        for line in spoken { print("[skip log] \(line)") }
+        for line in spoken {
+            print("[skip log] \(line)")
+        }
     }
 
-    @Test("A dry run computes the same hash it would have written, and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run computes the same hash it would have written, and writes nothing`() throws {
         _ = try #require(DSCFixture.pristine, DSCFixture.missing)
 
         let clone = try DSCFixture.cloneCache(named: "resign_dryrun")
@@ -967,18 +978,18 @@ struct DSCCodeSignatureTests {
         let dry = try DSCCodeSignature.reattestRecordedWrites(
             in: chunks,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(dry.updated.count == 1)
         let record = try #require(dry.updated.first)
 
         let directory = try #require(
-            try DSCCodeSignature.readCodeDirectory(ofChunk: record.chunkURL)
+            try DSCCodeSignature.readCodeDirectory(ofChunk: record.chunkURL),
         )
         let (_, storedAfterDryRun) = try DSCCodeSignature.pageHashes(
             chunkURL: record.chunkURL,
             pageIndex: record.pageIndex,
-            directory: directory
+            directory: directory,
         )
         #expect(storedAfterDryRun == record.hashBefore, "a dry run must not touch the slot")
 
@@ -1038,7 +1049,7 @@ struct DSCSymbolResolverTests {
                 "dyld", "symaddr",
                 cache.appendingPathComponent("dyld_shared_cache_arm64e").path,
                 "--image", image,
-            ]
+            ],
         )
         guard result.status == 0 else { return [:] }
 
@@ -1053,21 +1064,23 @@ struct DSCSymbolResolverTests {
             else { continue }
             var rest = line[line.index(after: colon)...]
                 .trimmingCharacters(in: .whitespaces)
-            guard rest.hasPrefix("(") , let close = rest.firstIndex(of: ")") else { continue }
+            guard rest.hasPrefix("("), let close = rest.firstIndex(of: ")") else { continue }
             rest = String(rest[rest.index(after: close)...]).trimmingCharacters(in: .whitespaces)
             // The name may be followed by a tab and the image name; ObjC method
             // names contain spaces, so split on tabs only.
             let name = rest.split(separator: "\t").first.map(String.init) ?? rest
-            if symbols[name] == nil { symbols[name] = address }
+            if symbols[name] == nil {
+                symbols[name] = address
+            }
         }
         return symbols
     }
 
-    @Test("Every symbol the three DSC patchers look up resolves, and agrees with ipsw")
-    func requiredSymbolsResolveAndAgree() throws {
+    @Test
+    func `Every symbol the three DSC patchers look up resolves, and agrees with ipsw`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e")
+            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e"),
         )
         #expect(resolver.hasLocalSymbols)
 
@@ -1084,7 +1097,7 @@ struct DSCSymbolResolverTests {
                 if let theirs = reference[name] {
                     #expect(
                         mine == theirs,
-                        "\(name): swift 0x\(String(mine, radix: 16)) vs ipsw 0x\(String(theirs, radix: 16))"
+                        "\(name): swift 0x\(String(mine, radix: 16)) vs ipsw 0x\(String(theirs, radix: 16))",
                     )
                     agreed += 1
                     print("[symbol] \(name) = 0x\(String(mine, radix: 16)) (ipsw agrees)")
@@ -1098,11 +1111,11 @@ struct DSCSymbolResolverTests {
         #expect(agreed >= 13, "ipsw confirmed only \(agreed) symbols")
     }
 
-    @Test("The force-kern discovery shape is reproduced without ipsw")
-    func forceKernPairsAreDiscoverable() throws {
+    @Test
+    func `The force-kern discovery shape is reproduced without ipsw`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e")
+            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e"),
         )
         try resolver.requireLocalSymbols()
 
@@ -1110,7 +1123,7 @@ struct DSCSymbolResolverTests {
         let all = try resolver.symbols(inImage: Self.ioMobileFramebuffer)
         let entryPoints = try resolver.symbols(
             inImage: Self.ioMobileFramebuffer,
-            withPrefix: publicPrefix
+            withPrefix: publicPrefix,
         )
 
         var pairs: [(String, UInt64, String, UInt64)] = []
@@ -1125,7 +1138,7 @@ struct DSCSymbolResolverTests {
         for required in ["SwapBegin", "SwapEnd", "SwapSetLayer"] {
             #expect(
                 pairs.contains { $0.0 == publicPrefix + required.dropFirst(4) },
-                "missing entry point for \(required)"
+                "missing entry point for \(required)",
             )
         }
         for pair in pairs {
@@ -1134,16 +1147,16 @@ struct DSCSymbolResolverTests {
         #expect(pairs.count >= 3)
     }
 
-    @Test("A missing symbol and a missing image both fail loudly")
-    func missingLookupsThrow() throws {
+    @Test
+    func `A missing symbol and a missing image both fail loudly`() throws {
         let pristine = try #require(DSCFixture.pristine, DSCFixture.missing)
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e")
+            mainCacheURL: pristine.appendingPathComponent("dyld_shared_cache_arm64e"),
         )
         #expect(throws: DSCError.self) {
             _ = try resolver.address(
                 of: "_this_symbol_does_not_exist",
-                inImage: Self.ioMobileFramebuffer
+                inImage: Self.ioMobileFramebuffer,
             )
         }
         #expect(throws: DSCError.self) {

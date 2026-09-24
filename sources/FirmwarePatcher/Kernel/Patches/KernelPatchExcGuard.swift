@@ -67,7 +67,7 @@ extension KernelPatcher {
                 guard ioff + 4 <= buffer.count else { break }
                 let iraw = buffer.readU32(at: ioff)
                 // TBZ/TBNZ: [30:25] = 01101x
-                if (iraw & 0x7E000000) == 0x36000000 {
+                if (iraw & 0x7E00_0000) == 0x3600_0000 {
                     hasTbCheck = true
                 }
                 // After TBZ, look for BL
@@ -93,7 +93,7 @@ extension KernelPatcher {
                     ARM64.ret,
                     patchID: "kernel.thread_guard_violation",
                     virtualAddress: va,
-                    description: "PACIBSP→RET (disable guard violation delivery)"
+                    description: "PACIBSP→RET (disable guard violation delivery)",
                 )
                 return true
             }

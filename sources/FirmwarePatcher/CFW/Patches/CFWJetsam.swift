@@ -51,7 +51,7 @@
 // is a live bug in the reference: rewriting the gate drops it out of the
 // conditional-branch set, so the Python's backward scan walks past it and
 // patches the *next* branch into the same return block — a second, wrong site
-// on a binary that was already correct (`research/patch_reference_capture.md`,
+// on a binary that was already correct (`research/patches/patch_reference_capture.md`,
 // "The non-idempotency itself is a separate, pre-existing bug"). The fix has to
 // live inside the scan, because on a re-run neither implementation picks the
 // site it patched before. So the scan collects unconditional `b`s into a return
@@ -160,7 +160,7 @@ public enum CFWJetsamPatcher {
             returnBlockOffset: Int,
             functionOffset: Int,
             record: PatchRecord? = nil,
-            rehashes: [CFWSlotRehash] = []
+            rehashes: [CFWSlotRehash] = [],
         ) {
             self.verdict = verdict
             self.anchor = anchor
@@ -173,7 +173,9 @@ public enum CFWJetsamPatcher {
         }
 
         /// Sites this run put on disk — 1 on a live patch, 0 otherwise.
-        public var sitesWritten: Int { verdict == .patched ? 1 : 0 }
+        public var sitesWritten: Int {
+            verdict == .patched ? 1 : 0
+        }
     }
 
     // MARK: - Entry points
@@ -188,7 +190,7 @@ public enum CFWJetsamPatcher {
         fileAt url: URL,
         dryRun: Bool = false,
         reattest: Bool = false,
-        log: ((String) -> Void)? = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+        log: ((String) -> Void)? = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) },
     ) throws -> Outcome {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -207,15 +209,17 @@ public enum CFWJetsamPatcher {
         _ data: inout Data,
         dryRun: Bool = false,
         reattest: Bool = false,
-        log: ((String) -> Void)? = nil
+        log: ((String) -> Void)? = nil,
     ) throws -> Outcome {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let image = try Image(data: data)
         guard let site = try locate(in: image, log: log) else {
             throw PatcherError.patchSiteNotFound(
                 "launchd jetsam: no anchor string resolved to a conditional branch "
-                    + "into its function's return block"
+                    + "into its function's return block",
             )
         }
 
@@ -229,7 +233,7 @@ public enum CFWJetsamPatcher {
             log?(String(
                 format: "  [=] already patched at 0x%X: b 0x%X (jetsam panic guard bypass)",
                 site.gateOffset,
-                site.returnBlockOffset
+                site.returnBlockOffset,
             ))
             return Outcome(
                 verdict: .alreadyPatched,
@@ -237,7 +241,7 @@ public enum CFWJetsamPatcher {
                 gateOffset: site.gateOffset,
                 gateVMA: gateVMA,
                 returnBlockOffset: site.returnBlockOffset,
-                functionOffset: site.functionOffset
+                functionOffset: site.functionOffset,
             )
         }
 
@@ -246,8 +250,8 @@ public enum CFWJetsamPatcher {
                 String(
                     format: "launchd jetsam: b 0x%X is out of range from 0x%X",
                     site.returnBlockOffset,
-                    site.gateOffset
-                )
+                    site.gateOffset,
+                ),
             )
         }
 
@@ -263,8 +267,8 @@ public enum CFWJetsamPatcher {
             afterDisasm: describe(branch, at: site.gateOffset),
             description: String(
                 format: "conditional branch -> unconditional b 0x%X (jetsam panic guard bypass)",
-                site.returnBlockOffset
-            )
+                site.returnBlockOffset,
+            ),
         )
 
         log?(String(
@@ -272,7 +276,7 @@ public enum CFWJetsamPatcher {
             dryRun ? "[.] would patch" : "[+] patching",
             site.gateOffset,
             record.beforeDisasm,
-            record.afterDisasm
+            record.afterDisasm,
         ))
 
         guard !dryRun else {
@@ -283,21 +287,23 @@ public enum CFWJetsamPatcher {
                 gateVMA: gateVMA,
                 returnBlockOffset: site.returnBlockOffset,
                 functionOffset: site.functionOffset,
-                record: record
+                record: record,
             )
         }
 
         data.replaceSubrange(site.gateOffset ..< site.gateOffset + 4, with: branch)
         guard Data(data[site.gateOffset ..< site.gateOffset + 4]) == branch else {
             throw PatcherError.patchVerificationFailed(
-                String(format: "launchd jetsam: post-write verify failed at 0x%X", site.gateOffset)
+                String(format: "launchd jetsam: post-write verify failed at 0x%X", site.gateOffset),
             )
         }
 
         var rehashes: [CFWSlotRehash] = []
         if reattest {
             rehashes = try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: [site.gateOffset])
-            for rehash in rehashes { log?("  [.] re-attest \(rehash)") }
+            for rehash in rehashes {
+                log?("  [.] re-attest \(rehash)")
+            }
         }
 
         log?(String(format: "  [+] Patched at 0x%X: jetsam panic guard bypass", site.gateOffset))
@@ -309,7 +315,7 @@ public enum CFWJetsamPatcher {
             returnBlockOffset: site.returnBlockOffset,
             functionOffset: site.functionOffset,
             record: record,
-            rehashes: rehashes
+            rehashes: rehashes,
         )
     }
 
@@ -350,9 +356,13 @@ public enum CFWJetsamPatcher {
                 .sorted { $0.fileOffset < $1.fileOffset }
         }
 
-        var textEnd: Int { textOffset + textSize }
+        var textEnd: Int {
+            textOffset + textSize
+        }
 
-        func isInText(_ offset: Int) -> Bool { offset >= textOffset && offset < textEnd }
+        func isInText(_ offset: Int) -> Bool {
+            offset >= textOffset && offset < textEnd
+        }
 
         /// VA of a `__TEXT,__text` file offset. `__text` is one contiguous
         /// mapping, so the two differ by a constant.
@@ -413,7 +423,7 @@ public enum CFWJetsamPatcher {
                 functionOffset: functionOffset,
                 gateOffset: gate.offset,
                 returnBlockOffset: gate.target,
-                isAlreadyPatched: gate.isUnconditional
+                isAlreadyPatched: gate.isUnconditional,
             )
         }
         return nil
@@ -489,7 +499,9 @@ public enum CFWJetsamPatcher {
     ///
     /// Requiring `sh == 0` is what keeps `add xd, xn, #imm, lsl #12` out; a
     /// shifted-register `add` has a different `[28:24]` and never reaches here.
-    static func isAddImm64(_ word: UInt32) -> Bool { (word & 0xFFC0_0000) == 0x9100_0000 }
+    static func isAddImm64(_ word: UInt32) -> Bool {
+        (word & 0xFFC0_0000) == 0x9100_0000
+    }
 
     /// First instruction of the function containing `offset`.
     ///
@@ -507,7 +519,9 @@ public enum CFWJetsamPatcher {
         let floor = max(image.textOffset, offset - maxFunctionPrologueScan)
         var scan = offset - 4
         while scan >= floor {
-            if image.data.loadLE(UInt32.self, at: scan) == ARM64.pacibspU32 { return scan }
+            if image.data.loadLE(UInt32.self, at: scan) == ARM64.pacibspU32 {
+                return scan
+            }
             scan -= 4
         }
         return max(image.textOffset, offset - fallbackScanWindow)
@@ -534,7 +548,7 @@ public enum CFWJetsamPatcher {
     static func findReturnGate(
         from start: Int,
         to end: Int,
-        in image: Image
+        in image: Image,
     ) -> (offset: Int, target: Int, isUnconditional: Bool)? {
         var liveGate: (offset: Int, target: Int)?
         var patchedGate: (offset: Int, target: Int)?
@@ -550,11 +564,15 @@ public enum CFWJetsamPatcher {
             guard isReturnBlock(target, in: image) else { continue }
 
             if unconditional {
-                if patchedGate == nil { patchedGate = (offset, target) }
+                if patchedGate == nil {
+                    patchedGate = (offset, target)
+                }
             } else if liveGate == nil {
                 liveGate = (offset, target)
             }
-            if liveGate != nil, patchedGate != nil { break }
+            if liveGate != nil, patchedGate != nil {
+                break
+            }
         }
 
         switch (liveGate, patchedGate) {
@@ -609,7 +627,9 @@ public enum CFWJetsamPatcher {
     /// is a breakpoint (`CS_GRP_INT`) and ends nothing, and `hasPrefix("bl")`
     /// would only reach the authenticated calls by accident.
     static func leavesBlock(_ insn: Instruction) -> Bool {
-        if insn.groups.contains(UInt8(CS_GRP_CALL.rawValue)) { return true }
+        if insn.groups.contains(UInt8(CS_GRP_CALL.rawValue)) {
+            return true
+        }
         return insn.groups.contains(UInt8(CS_GRP_JUMP.rawValue))
             && !conditionalBranchMnemonics.contains(insn.mnemonic)
     }
@@ -624,8 +644,12 @@ public enum CFWJetsamPatcher {
             let probe = offset + step * 4
             guard probe + 4 <= image.textEnd else { return false }
             guard let insn = disassembler.disassembleOne(in: image.data, at: probe) else { continue }
-            if isReturn(insn) { return true }
-            if leavesBlock(insn) { return false }
+            if isReturn(insn) {
+                return true
+            }
+            if leavesBlock(insn) {
+                return false
+            }
         }
         return false
     }

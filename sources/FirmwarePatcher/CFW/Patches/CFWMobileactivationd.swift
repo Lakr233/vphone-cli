@@ -122,7 +122,9 @@ public enum CFWMobileactivationd {
 
         /// Sites whose bytes this run changed. The parity number: the Python
         /// writes exactly one, and so must this.
-        public var sitesWritten: Int { record == nil ? 0 : 1 }
+        public var sitesWritten: Int {
+            record == nil ? 0 : 1
+        }
     }
 
     // MARK: - Patching
@@ -146,7 +148,7 @@ public enum CFWMobileactivationd {
         fileAt url: URL,
         resign: Bool = true,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -170,9 +172,11 @@ public enum CFWMobileactivationd {
         _ data: inout Data,
         resign: Bool = true,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let anchor = try locateIMP(in: data)
         log?("  [.] \(method) @ 0x\(hex(anchor.virtualAddress)) "
@@ -182,7 +186,7 @@ public enum CFWMobileactivationd {
         let patched = try replacementBytes()
         guard data.count >= anchor.fileOffset + patched.count else {
             throw PatcherError.invalidFormat(
-                "\(method): IMP at 0x\(hex(UInt64(anchor.fileOffset))) is past the end of the file"
+                "\(method): IMP at 0x\(hex(UInt64(anchor.fileOffset))) is past the end of the file",
             )
         }
         let original = Data(data[anchor.fileOffset ..< anchor.fileOffset + patched.count])
@@ -206,14 +210,14 @@ public enum CFWMobileactivationd {
                 outcome: .alreadyPatched,
                 anchor: anchor,
                 record: nil,
-                slotRehashes: rehashes
+                slotRehashes: rehashes,
             )
         }
 
         guard isPlausibleGetterBody(body) else {
             throw PatcherError.invalidFormat(
                 "\(method): body at 0x\(hex(anchor.virtualAddress)) reads `\(text(of: body))`, "
-                    + "which is not a two-instruction body this patch can replace"
+                    + "which is not a two-instruction body this patch can replace",
             )
         }
 
@@ -224,12 +228,12 @@ public enum CFWMobileactivationd {
         }
 
         data.replaceSubrange(anchor.fileOffset ..< anchor.fileOffset + patched.count, with: patched)
-        log?("      [+] after:  \(text(of: try decodeBody(patched, at: anchor.virtualAddress)))")
+        try log?("      [+] after:  \(text(of: decodeBody(patched, at: anchor.virtualAddress)))")
 
         let written = Data(data[anchor.fileOffset ..< anchor.fileOffset + patched.count])
         guard written == patched else {
             throw PatcherError.patchVerificationFailed(
-                "\(method): site at 0x\(hex(UInt64(anchor.fileOffset))) reads \(written.hex) after write"
+                "\(method): site at 0x\(hex(UInt64(anchor.fileOffset))) reads \(written.hex) after write",
             )
         }
 
@@ -237,7 +241,7 @@ public enum CFWMobileactivationd {
         if resign {
             rehashes = try CFWMachOCodeSignature.reattest(
                 &data,
-                modifiedOffsets: touchedOffsets(anchor, patched)
+                modifiedOffsets: touchedOffsets(anchor, patched),
             )
             log?("  [.] re-attested \(rehashes.count) slot(s): "
                 + rehashes.map(\.description).joined(separator: ", "))
@@ -248,7 +252,7 @@ public enum CFWMobileactivationd {
         }
 
         log?("  [+] Patched at 0x\(hex(UInt64(anchor.fileOffset))): mov x0, #1; ret")
-        return Report(
+        return try Report(
             outcome: .patched,
             anchor: anchor,
             record: PatchRecord(
@@ -259,10 +263,10 @@ public enum CFWMobileactivationd {
                 originalBytes: original,
                 patchedBytes: patched,
                 beforeDisasm: text(of: body),
-                afterDisasm: text(of: try decodeBody(patched, at: anchor.virtualAddress)),
-                description: "\(method) -> mov x0, #1; ret"
+                afterDisasm: text(of: decodeBody(patched, at: anchor.virtualAddress)),
+                description: "\(method) -> mov x0, #1; ret",
             ),
-            slotRehashes: rehashes
+            slotRehashes: rehashes,
         )
     }
 
@@ -286,7 +290,7 @@ public enum CFWMobileactivationd {
     /// dirties two slots, and hashing only the first would leave the tail slot
     /// stale — a SIGKILL the first time that page is demand-paged in.
     static func touchedOffsets(_ anchor: Anchor, _ patched: Data) -> [Int] {
-        stride(from: anchor.fileOffset, to: anchor.fileOffset + patched.count, by: 4).map { $0 }
+        stride(from: anchor.fileOffset, to: anchor.fileOffset + patched.count, by: 4).map(\.self)
     }
 
     // MARK: - Anchoring
@@ -313,7 +317,7 @@ public enum CFWMobileactivationd {
             guard symbol == metadata else {
                 throw PatcherError.invalidFormat(
                     "\(method): symbol table says 0x\(hex(symbol)) but the ObjC method list "
-                        + "says 0x\(hex(metadata)) — refusing to guess which is the IMP"
+                        + "says 0x\(hex(metadata)) — refusing to guess which is the IMP",
                 )
             }
             source = .symbolTableAndObjCMetadata
@@ -326,19 +330,19 @@ public enum CFWMobileactivationd {
             virtualAddress = metadata
         case (nil, nil):
             throw PatcherError.patchSiteNotFound(
-                "\(method): neither LC_SYMTAB nor the ObjC method lists carry it"
+                "\(method): neither LC_SYMTAB nor the ObjC method lists carry it",
             )
         }
 
         guard let fileOffset = MachOParser.vaToFileOffset(virtualAddress, segments: segments) else {
             throw PatcherError.invalidFormat(
-                "\(method): VA 0x\(hex(virtualAddress)) maps to no segment"
+                "\(method): VA 0x\(hex(virtualAddress)) maps to no segment",
             )
         }
         guard let section = executableSection(containing: virtualAddress, in: data) else {
             throw PatcherError.invalidFormat(
                 "\(method): VA 0x\(hex(virtualAddress)) is not inside an executable section — "
-                    + "the anchor resolved to data, not code"
+                    + "the anchor resolved to data, not code",
             )
         }
 
@@ -346,7 +350,7 @@ public enum CFWMobileactivationd {
             virtualAddress: virtualAddress,
             fileOffset: fileOffset,
             source: source,
-            section: section
+            section: section,
         )
     }
 
@@ -378,7 +382,9 @@ public enum CFWMobileactivationd {
 
             guard let name = cString(in: data, at: symtab.stroff + strx,
                                      limit: symtab.stroff + symtab.strsize) else { continue }
-            if name == method { return value }
+            if name == method {
+                return value
+            }
         }
         return nil
     }
@@ -388,7 +394,7 @@ public enum CFWMobileactivationd {
     /// method-list entry whose `name` field points at that selref -> its `imp`.
     static func objcMetadataVirtualAddress(
         in data: Data,
-        segments: [MachOSegmentInfo]
+        segments: [MachOSegmentInfo],
     ) -> UInt64? {
         let sections = MachOParser.parseSections(from: data)
         guard let imageBase = segments.first(where: { $0.name == "__TEXT" })?.vmAddr else {
@@ -398,11 +404,11 @@ public enum CFWMobileactivationd {
             return nil
         }
         guard let selrefVA = selectorReferenceVirtualAddress(
-            to: selectorVA, in: data, sections: sections, imageBase: imageBase
+            to: selectorVA, in: data, sections: sections, imageBase: imageBase,
         ) else { return nil }
 
         return methodImplementation(
-            forSelectorReference: selrefVA, in: data, sections: sections
+            forSelectorReference: selrefVA, in: data, sections: sections,
         )
     }
 
@@ -416,7 +422,7 @@ public enum CFWMobileactivationd {
     /// is what separates a whole selector from a suffix of something longer.
     static func selectorVirtualAddress(
         in data: Data,
-        sections: [String: MachOSectionInfo]
+        sections: [String: MachOSectionInfo],
     ) -> UInt64? {
         let candidates = ["__TEXT,__objc_methname", "__DATA,__objc_methname"]
         guard let section = candidates.compactMap({ sections[$0] }).first else { return nil }
@@ -450,7 +456,7 @@ public enum CFWMobileactivationd {
         to selectorVA: UInt64,
         in data: Data,
         sections: [String: MachOSectionInfo],
-        imageBase: UInt64
+        imageBase: UInt64,
     ) -> UInt64? {
         let candidates = [
             "__DATA,__objc_selrefs",
@@ -486,7 +492,7 @@ public enum CFWMobileactivationd {
     static func methodImplementation(
         forSelectorReference selrefVA: UInt64,
         in data: Data,
-        sections: [String: MachOSectionInfo]
+        sections: [String: MachOSectionInfo],
     ) -> UInt64? {
         let candidates = [
             "__TEXT,__objc_methlist",
@@ -497,8 +503,10 @@ public enum CFWMobileactivationd {
         for name in candidates {
             guard let section = sections[name] else { continue }
             if let imp = methodImplementation(
-                forSelectorReference: selrefVA, in: data, section: section
-            ) { return imp }
+                forSelectorReference: selrefVA, in: data, section: section,
+            ) {
+                return imp
+            }
         }
         return nil
     }
@@ -513,7 +521,7 @@ public enum CFWMobileactivationd {
     static func methodImplementation(
         forSelectorReference selrefVA: UInt64,
         in data: Data,
-        section: MachOSectionInfo
+        section: MachOSectionInfo,
     ) -> UInt64? {
         let smallMethodListFlag: UInt32 = 0x8000_0000
         let entrySizeMask: UInt32 = 0x0000_FFFC
@@ -574,7 +582,7 @@ public enum CFWMobileactivationd {
                 if initprot & vmProtExecute != 0 {
                     let raw = data[offset + 8 ..< offset + 24]
                     executableSegments.insert(
-                        String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+                        String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self),
                     )
                 }
             }
@@ -598,7 +606,7 @@ public enum CFWMobileactivationd {
         guard decoded.count == 2, decoded.allSatisfy({ $0.id != 0 }) else {
             throw PatcherError.invalidFormat(
                 "\(method): the eight bytes at 0x\(hex(va)) (\(bytes.hex)) are not two "
-                    + "decodable instructions"
+                    + "decodable instructions",
             )
         }
         return decoded
@@ -615,10 +623,12 @@ public enum CFWMobileactivationd {
     static func isPlausibleGetterBody(_ body: [Instruction]) -> Bool {
         guard body.count == 2 else { return false }
         // A getter: `ldr…/mov… ; ret`.
-        if body[1].mnemonic == "ret" || body[1].mnemonic.hasPrefix("reta") { return true }
+        if body[1].mnemonic == "ret" || body[1].mnemonic.hasPrefix("reta") {
+            return true
+        }
         // A real function: a recognisable prologue in the first word, so the
         // eight bytes are the head of a function and an early return is safe.
-        let prologue: Set<String> = ["pacibsp", "paciasp", "stp", "sub"]
+        let prologue: Set = ["pacibsp", "paciasp", "stp", "sub"]
         return prologue.contains(body[0].mnemonic)
     }
 
@@ -635,7 +645,9 @@ public enum CFWMobileactivationd {
         guard offset >= 0, offset < min(limit, data.count) else { return nil }
         var end = offset
         let stop = min(limit, data.count)
-        while end < stop, data[end] != 0 { end += 1 }
+        while end < stop, data[end] != 0 {
+            end += 1
+        }
         return String(data: data[offset ..< end], encoding: .ascii)
     }
 

@@ -29,8 +29,8 @@
 import Foundation
 
 extension KernelJBPatcher {
-    private static let swapEndExpectedSize: UInt32 = 0x588   // 26.4 kernel's native SwapEnd struct size
-    private static let swapEndIOS27Size: UInt32 = 0x6e0      // iOS 27's native IOMFBSwapRec size
+    private static let swapEndExpectedSize: UInt32 = 0x588 // 26.4 kernel's native SwapEnd struct size
+    private static let swapEndIOS27Size: UInt32 = 0x6E0 // iOS 27's native IOMFBSwapRec size
     private static let kIOUCVariableStructureSize: UInt32 = 0xFFFF_FFFF
 
     /// The swap_submit handler has a SECOND, internal exact-size gate beyond the
@@ -78,7 +78,7 @@ extension KernelJBPatcher {
         word = (word & ~(UInt32(0xFFF) << 10)) | (Self.swapEndIOS27Size << 10)
         var le = word.littleEndian
         var newBytes = Data(count: 4)
-        withUnsafeBytes(of: &le) { newBytes.replaceSubrange(0..<4, with: $0) }
+        withUnsafeBytes(of: &le) { newBytes.replaceSubrange(0 ..< 4, with: $0) }
 
         let va = fileOffsetToVA(cmpOff)
         emit(
@@ -86,7 +86,7 @@ extension KernelJBPatcher {
             newBytes,
             patchID: "iomfb_swapend_handler_size",
             virtualAddress: va,
-            description: "swap_submit cmp w2,#0x588 -> #0x6e0 [accept iOS 27 native SwapEnd struct]"
+            description: "swap_submit cmp w2,#0x588 -> #0x6e0 [accept iOS 27 native SwapEnd struct]",
         )
         return true
     }
@@ -129,7 +129,7 @@ extension KernelJBPatcher {
         let sizeFieldOff = entryOff + 12
         var newBytes = Data(count: 4)
         var v = Self.kIOUCVariableStructureSize.littleEndian
-        withUnsafeBytes(of: &v) { newBytes.replaceSubrange(0..<4, with: $0) }
+        withUnsafeBytes(of: &v) { newBytes.replaceSubrange(0 ..< 4, with: $0) }
 
         let va = fileOffsetToVA(sizeFieldOff)
         emit(
@@ -137,7 +137,7 @@ extension KernelJBPatcher {
             newBytes,
             patchID: "iomfb_swapend_variable_size",
             virtualAddress: va,
-            description: "SwapEnd checkStructureInputSize 0x588 -> variable [accept iOS 27 native IOMFBSwapRec]"
+            description: "SwapEnd checkStructureInputSize 0x588 -> variable [accept iOS 27 native IOMFBSwapRec]",
         )
         return true
     }

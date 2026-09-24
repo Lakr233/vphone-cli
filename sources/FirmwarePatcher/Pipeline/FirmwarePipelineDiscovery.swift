@@ -21,7 +21,7 @@ extension FirmwarePipeline {
         let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(
             at: vmDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
         )
         .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         .filter { $0.lastPathComponent.contains("Restore") }

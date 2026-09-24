@@ -133,13 +133,23 @@ public enum DSCIOMFBForceKernPatcher {
         /// The re-attestation pass, or `nil` when nothing was written.
         public let reattestation: DSCReattestation?
 
-        public var forced: [Site] { sites.filter { $0.disposition == .forced } }
-        public var alreadyForced: [Site] { sites.filter { $0.disposition == .alreadyForced } }
-        public var notTrampolines: [Site] { sites.filter { $0.disposition == .notATrampoline } }
+        public var forced: [Site] {
+            sites.filter { $0.disposition == .forced }
+        }
+
+        public var alreadyForced: [Site] {
+            sites.filter { $0.disposition == .alreadyForced }
+        }
+
+        public var notTrampolines: [Site] {
+            sites.filter { $0.disposition == .notATrampoline }
+        }
 
         /// How many 4-byte sites this run put on disk. The reference returns
         /// exactly this number.
-        public var writtenSiteCount: Int { forced.count }
+        public var writtenSiteCount: Int {
+            forced.count
+        }
 
         /// Suffixes now on the kern path, whether this run did it or a previous
         /// one did.
@@ -158,7 +168,7 @@ public enum DSCIOMFBForceKernPatcher {
     public static func patch(
         chunksDirectory: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Outcome {
         let chunks = try DSCChunkSet(directory: chunksDirectory)
         let resolver = try DSCSymbolResolver(chunks: chunks)
@@ -176,7 +186,7 @@ public enum DSCIOMFBForceKernPatcher {
         chunks: DSCChunkSet,
         resolver: DSCSymbolResolver,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Outcome {
         log?("  [.] \(chunks.chunkURLs.count) chunk(s), \(chunks.mappings.count) mapping(s)")
 
@@ -192,7 +202,7 @@ public enum DSCIOMFBForceKernPatcher {
         // check below has to be able to refuse while the cache is still clean.
         var sites: [Site] = []
         for entry in entries {
-            sites.append(try classify(entry, chunks: chunks, disassembler: disassembler))
+            try sites.append(classify(entry, chunks: chunks, disassembler: disassembler))
         }
 
         let covered = Set(sites.filter { $0.disposition != .notATrampoline }.map(\.entry.suffix))
@@ -202,7 +212,7 @@ public enum DSCIOMFBForceKernPatcher {
             let already = sites.filter { $0.disposition == .alreadyForced }.map(\.entry.suffix).sorted()
             throw PatcherError.patchSiteNotFound(
                 "force-kern did not cover required entrypoints \(missing) "
-                    + "(forcible: \(forcible); already forced: \(already))"
+                    + "(forcible: \(forcible); already forced: \(already))",
             )
         }
 
@@ -216,7 +226,7 @@ public enum DSCIOMFBForceKernPatcher {
                 log?(
                     "      [+] \(site.entry.publicName) @ 0x\(hex(site.entry.publicAddress)): "
                         + "'\(site.originalDisassembly)' -> 'b \(site.entry.kernName)' "
-                        + "(0x\(hex(site.entry.kernAddress)))"
+                        + "(0x\(hex(site.entry.kernAddress)))",
                 )
             }
         }
@@ -229,14 +239,14 @@ public enum DSCIOMFBForceKernPatcher {
 
         var records: [PatchRecord] = []
         for site in toWrite {
-            records.append(try force(site, chunks: chunks))
+            try records.append(force(site, chunks: chunks))
         }
 
         var reattestation: DSCReattestation?
         if records.isEmpty {
             log?(
                 "  [=] all \(sites.count { $0.disposition == .alreadyForced }) entrypoint(s) "
-                    + "already forced; nothing to patch/re-attest"
+                    + "already forced; nothing to patch/re-attest",
             )
         } else {
             log?("  [.] re-attesting the pages \(records.count) write(s) dirtied...")
@@ -244,7 +254,7 @@ public enum DSCIOMFBForceKernPatcher {
             guard result.isFullyAttested else {
                 throw PatcherError.patchVerificationFailed(
                     "re-attestation skipped \(result.skipped.count) page(s): "
-                        + result.skipped.map(\.description).joined(separator: "; ")
+                        + result.skipped.map(\.description).joined(separator: "; "),
                 )
             }
             reattestation = result
@@ -255,7 +265,7 @@ public enum DSCIOMFBForceKernPatcher {
         let alreadyCount = sites.count { $0.disposition == .alreadyForced }
         log?(
             "  [+] IOMFB force-kern complete: \(forcedCount) newly forced, "
-                + "\(alreadyCount) already -> _kern_*"
+                + "\(alreadyCount) already -> _kern_*",
         )
         return Outcome(sites: sites, records: records, reattestation: reattestation)
     }
@@ -269,7 +279,7 @@ public enum DSCIOMFBForceKernPatcher {
     /// and which of them kept a kern implementation, is a property of the cache
     /// being patched and changes between OS versions.
     public static func discoverEntryPoints(
-        resolver: DSCSymbolResolver
+        resolver: DSCSymbolResolver,
     ) throws -> [EntryPoint] {
         let all = try resolver.symbols(inImage: imagePath)
         let publicEntries = try resolver.symbols(inImage: imagePath, withPrefix: publicPrefix)
@@ -285,8 +295,8 @@ public enum DSCIOMFBForceKernPatcher {
                     publicName: publicName,
                     publicAddress: publicAddress,
                     kernName: kernName,
-                    kernAddress: kern.address
-                )
+                    kernAddress: kern.address,
+                ),
             )
         }
         entries.sort { ($0.suffix, $0.publicName) < ($1.suffix, $1.publicName) }
@@ -298,12 +308,12 @@ public enum DSCIOMFBForceKernPatcher {
     private static func classify(
         _ entry: EntryPoint,
         chunks: DSCChunkSet,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) throws -> Site {
-        let instructions = disassembler.disassemble(
-            try chunks.bytesAtVMA(entry.publicAddress, length: 4 * 4),
+        let instructions = try disassembler.disassemble(
+            chunks.bytesAtVMA(entry.publicAddress, length: 4 * 4),
             at: entry.publicAddress,
-            count: 4
+            count: 4,
         )
         let first = instructions.first
         let text = first.map { "\($0.mnemonic) \($0.operandString)" } ?? "<undecodable>"
@@ -367,11 +377,11 @@ public enum DSCIOMFBForceKernPatcher {
         let entry = site.entry
         guard let branch = ARM64Encoder.encodeB(
             from: Int(entry.publicAddress),
-            to: Int(entry.kernAddress)
+            to: Int(entry.kernAddress),
         ), branch.count == 4 else {
             throw PatcherError.patchVerificationFailed(
                 "cannot encode b 0x\(hex(entry.publicAddress)) -> 0x\(hex(entry.kernAddress)) "
-                    + "for \(entry.publicName)"
+                    + "for \(entry.publicName)",
             )
         }
 
@@ -390,7 +400,7 @@ public enum DSCIOMFBForceKernPatcher {
             beforeDisasm: site.originalDisassembly,
             afterDisasm: "b #0x\(hex(entry.kernAddress).lowercased())",
             description: "\(entry.publicName) trampoline -> b \(entry.kernName) "
-                + "(0x\(hex(entry.kernAddress)))"
+                + "(0x\(hex(entry.kernAddress)))",
         )
     }
 
@@ -399,7 +409,7 @@ public enum DSCIOMFBForceKernPatcher {
     private static func verify(
         _ sites: [Site],
         chunks: DSCChunkSet,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) throws {
         for site in sites {
             let address = site.entry.publicAddress
@@ -410,7 +420,7 @@ public enum DSCIOMFBForceKernPatcher {
                   UInt64(bitPattern: target) == site.entry.kernAddress
             else {
                 throw PatcherError.patchVerificationFailed(
-                    "post-write verify failed at 0x\(hex(address)) for \(site.entry.publicName)"
+                    "post-write verify failed at 0x\(hex(address)) for \(site.entry.publicName)",
                 )
             }
         }

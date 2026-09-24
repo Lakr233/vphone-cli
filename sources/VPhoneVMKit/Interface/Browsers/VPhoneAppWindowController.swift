@@ -22,7 +22,7 @@ class VPhoneAppWindowController {
             contentRect: NSRect(x: 0, y: 0, width: 650, height: 500),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         window.title = "Apps"
         window.subtitle = "vphone"
@@ -42,7 +42,7 @@ class VPhoneAppWindowController {
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
-            queue: .main
+            queue: .main,
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.window = nil

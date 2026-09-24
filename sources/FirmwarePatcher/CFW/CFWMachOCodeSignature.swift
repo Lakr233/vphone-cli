@@ -24,9 +24,9 @@ import Foundation
 
 // MARK: - Byte Reading
 
-// The Mach-O header and load commands are little-endian; everything inside the
-// CS_SuperBlob is big-endian. Data.loadLE covers the first half, so this file
-// only needs the second.
+/// The Mach-O header and load commands are little-endian; everything inside the
+/// CS_SuperBlob is big-endian. Data.loadLE covers the first half, so this file
+/// only needs the second.
 private extension Data {
     func loadBE<T: FixedWidthInteger>(_: T.Type, at offset: Int) -> T {
         var value: T = .zero
@@ -96,8 +96,13 @@ public struct CFWSlotRehash: Sendable, Equatable {
     public let pageSize: Int
 
     /// Bytes actually hashed. Less than `pageSize` for the tail slot.
-    public var hashedLength: Int { pageEnd - pageStart }
-    public var isTailSlot: Bool { hashedLength != pageSize }
+    public var hashedLength: Int {
+        pageEnd - pageStart
+    }
+
+    public var isTailSlot: Bool {
+        hashedLength != pageSize
+    }
 }
 
 extension CFWSlotRehash: CustomStringConvertible {
@@ -109,7 +114,7 @@ extension CFWSlotRehash: CustomStringConvertible {
             tail,
             hashFileOffset,
             String(before.hex.prefix(8)),
-            String(after.hex.prefix(8))
+            String(after.hex.prefix(8)),
         )
     }
 }
@@ -151,7 +156,7 @@ public enum CFWMachOCodeSignature {
                 guard data.fits(offset, 16) else { return nil }
                 return (
                     Int(data.loadLE(UInt32.self, at: offset + 8)),
-                    Int(data.loadLE(UInt32.self, at: offset + 12))
+                    Int(data.loadLE(UInt32.self, at: offset + 12)),
                 )
             }
             guard cmdsize > 0 else { return nil }
@@ -177,7 +182,7 @@ public enum CFWMachOCodeSignature {
 
     static func superBlobEntries(
         in data: Data,
-        at superBlobOffset: Int
+        at superBlobOffset: Int,
     ) -> [(slotType: UInt32, offset: Int, magic: UInt32)]? {
         guard data.fits(superBlobOffset, 12) else { return nil }
         let magic = data.loadBE(UInt32.self, at: superBlobOffset)
@@ -229,7 +234,7 @@ public enum CFWMachOCodeSignature {
             pageSize: pageSize,
             pageSizeLog2: pageSizeLog2,
             codeSlotCount: codeSlotCount,
-            codeLimit: codeLimit
+            codeLimit: codeLimit,
         )
     }
 
@@ -238,7 +243,7 @@ public enum CFWMachOCodeSignature {
     public static func pageBounds(
         fileOffset: Int,
         pageSize: Int,
-        codeLimit: Int
+        codeLimit: Int,
     ) -> (index: Int, start: Int, end: Int)? {
         guard fileOffset >= 0, fileOffset < codeLimit, pageSize > 0 else { return nil }
         let index = fileOffset / pageSize
@@ -267,12 +272,16 @@ public enum CFWMachOCodeSignature {
     public static func reattest(
         _ data: inout Data,
         modifiedOffsets: some Sequence<Int>,
-        dryRun: Bool = false
+        dryRun: Bool = false,
     ) throws -> [CFWSlotRehash] {
         let offsets = Array(modifiedOffsets)
-        if offsets.isEmpty { return [] }
+        if offsets.isEmpty {
+            return []
+        }
 
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         guard let directories = codeDirectories(in: data) else {
             throw PatcherError.invalidFormat("no LC_CODE_SIGNATURE / CS_CodeDirectory found")
@@ -289,14 +298,14 @@ public enum CFWMachOCodeSignature {
             guard directory.hashSize == SHA256.byteCount else {
                 throw PatcherError.invalidFormat(
                     "SHA-256 CodeDirectory at 0x\(String(directory.offset, radix: 16)) "
-                        + "declares hashSize \(directory.hashSize), expected \(SHA256.byteCount)"
+                        + "declares hashSize \(directory.hashSize), expected \(SHA256.byteCount)",
                 )
             }
             for fileOffset in offsets {
                 guard let bounds = pageBounds(
                     fileOffset: fileOffset,
                     pageSize: directory.pageSize,
-                    codeLimit: directory.codeLimit
+                    codeLimit: directory.codeLimit,
                 ) else { continue }
                 guard bounds.index < directory.codeSlotCount else { continue }
                 work[SlotKey(cdIndex: cdIndex, pageIndex: bounds.index)] = bounds.start ..< bounds.end
@@ -313,7 +322,9 @@ public enum CFWMachOCodeSignature {
 
             let newHash = Data(SHA256.hash(data: data[range]))
             let oldHash = data[slotOffset ..< slotOffset + directory.hashSize]
-            if oldHash == newHash { continue }
+            if oldHash == newHash {
+                continue
+            }
 
             if !dryRun {
                 data.replaceSubrange(slotOffset ..< slotOffset + directory.hashSize, with: newHash)
@@ -327,7 +338,7 @@ public enum CFWMachOCodeSignature {
                 hashFileOffset: slotOffset,
                 before: Data(oldHash),
                 after: newHash,
-                pageSize: directory.pageSize
+                pageSize: directory.pageSize,
             ))
         }
         return records
@@ -338,7 +349,7 @@ public enum CFWMachOCodeSignature {
     public static func reattest(
         fileAt url: URL,
         modifiedOffsets: some Sequence<Int>,
-        dryRun: Bool = false
+        dryRun: Bool = false,
     ) throws -> [CFWSlotRehash] {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)

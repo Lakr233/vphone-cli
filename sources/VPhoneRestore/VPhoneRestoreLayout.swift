@@ -49,7 +49,7 @@ public enum VPhoneRestoreLayout {
                 var isDirectory: ObjCBool = false
                 let exists = fm.fileExists(
                     atPath: vmDir.appendingPathComponent(name).path,
-                    isDirectory: &isDirectory
+                    isDirectory: &isDirectory,
                 )
                 return exists && isDirectory.boolValue
             }

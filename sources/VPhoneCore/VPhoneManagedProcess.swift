@@ -59,13 +59,17 @@ public final class VPhoneManagedProcess: @unchecked Sendable {
         _ args: [String],
         cwd: URL? = nil,
         env: [String: String]? = nil,
-        echo: Bool = true
+        echo: Bool = true,
     ) {
         self.echo = echo
         process.executableURL = executable
         process.arguments = args
-        if let cwd { process.currentDirectoryURL = cwd }
-        if let env { process.environment = env }
+        if let cwd {
+            process.currentDirectoryURL = cwd
+        }
+        if let env {
+            process.environment = env
+        }
     }
 
     /// Spawn the child with a piped stdin and a combined piped stdout/stderr.
@@ -76,8 +80,8 @@ public final class VPhoneManagedProcess: @unchecked Sendable {
         process.standardOutput = outPipe
         process.standardError = outPipe
 
-        let box = self.box
-        let echo = self.echo
+        let box = box
+        let echo = echo
         outPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
             if chunk.isEmpty {
@@ -106,24 +110,30 @@ public final class VPhoneManagedProcess: @unchecked Sendable {
         let deadline = Date().addingTimeInterval(timeout)
 
         while true {
-            if matches(re, box.snapshotText()) { return .matched }
+            if matches(re, box.snapshotText()) {
+                return .matched
+            }
 
             if !process.isRunning {
-                while !box.hasReachedEOF() && Date() < deadline {
+                while !box.hasReachedEOF(), Date() < deadline {
                     Thread.sleep(forTimeInterval: 0.02)
                 }
-                if matches(re, box.snapshotText()) { return .matched }
+                if matches(re, box.snapshotText()) {
+                    return .matched
+                }
                 return .exited(process.terminationStatus)
             }
 
-            if Date() >= deadline { return .timedOut }
+            if Date() >= deadline {
+                return .timedOut
+            }
             Thread.sleep(forTimeInterval: 0.05)
         }
     }
 
     private func matches(_ re: NSRegularExpression?, _ text: String) -> Bool {
         guard let re else { return false }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
         return re.firstMatch(in: text, options: [], range: range) != nil
     }
 
@@ -149,7 +159,7 @@ public final class VPhoneManagedProcess: @unchecked Sendable {
         process.interrupt()
 
         let deadline = Date().addingTimeInterval(2)
-        while process.isRunning && Date() < deadline {
+        while process.isRunning, Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
         }
         if process.isRunning {

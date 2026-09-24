@@ -297,7 +297,7 @@ public final class TXMDevPatcher: TXMPatcher {
                 body,
                 ARM64.movW0_0xA1,
                 patchID: "txm_dev.selector24_bypass_mov",
-                description: "selector24 bypass: mov w0, #0xa1 (PASS)"
+                description: "selector24 bypass: mov w0, #0xa1 (PASS)",
             )
 
             guard let bInsn = ARM64Encoder.encodeB(from: body + 4, to: epilogueOff) else {
@@ -308,7 +308,7 @@ public final class TXMDevPatcher: TXMPatcher {
                 body + 4,
                 bInsn,
                 patchID: "txm_dev.selector24_bypass_b",
-                description: "selector24 bypass: b epilogue"
+                description: "selector24 bypass: b epilogue",
             )
             return
         }
@@ -353,7 +353,7 @@ public final class TXMDevPatcher: TXMPatcher {
             cands[0],
             ARM64.movX0_1,
             patchID: "txm_dev.get_task_allow",
-            description: "get-task-allow: bl -> mov x0,#1"
+            description: "get-task-allow: bl -> mov x0,#1",
         )
     }
 
@@ -425,7 +425,7 @@ public final class TXMDevPatcher: TXMPatcher {
             stubOff,
             branchToShellcode,
             patchID: "txm_dev.sel42_29_branch",
-            description: "selector42|29: branch to shellcode"
+            description: "selector42|29: branch to shellcode",
         )
 
         // Shellcode body at cave
@@ -433,25 +433,25 @@ public final class TXMDevPatcher: TXMPatcher {
             cave,
             ARM64.nop,
             patchID: "txm_dev.sel42_29_shell_nop",
-            description: "selector42|29 shellcode pad: udf -> nop"
+            description: "selector42|29 shellcode pad: udf -> nop",
         )
         emit(
             cave + 4,
             ARM64.movX0_1,
             patchID: "txm_dev.sel42_29_shell_mov1",
-            description: "selector42|29 shellcode: mov x0,#1"
+            description: "selector42|29 shellcode: mov x0,#1",
         )
         emit(
             cave + 8,
             ARM64.strbW0X20_30,
             patchID: "txm_dev.sel42_29_shell_strb",
-            description: "selector42|29 shellcode: strb w0,[x20,#0x30]"
+            description: "selector42|29 shellcode: strb w0,[x20,#0x30]",
         )
         emit(
             cave + 12,
             ARM64.movX0X20,
             patchID: "txm_dev.sel42_29_shell_mov20",
-            description: "selector42|29 shellcode: mov x0,x20"
+            description: "selector42|29 shellcode: mov x0,x20",
         )
 
         // Branch back to stub_off + 4 (skip the redirected first instruction)
@@ -463,7 +463,7 @@ public final class TXMDevPatcher: TXMPatcher {
             cave + 16,
             branchBack,
             patchID: "txm_dev.sel42_29_shell_ret",
-            description: "selector42|29 shellcode: branch back"
+            description: "selector42|29 shellcode: branch back",
         )
     }
 
@@ -515,7 +515,7 @@ public final class TXMDevPatcher: TXMPatcher {
             cands[0],
             ARM64.movW0_1,
             patchID: "txm_dev.debugger_entitlement",
-            description: "debugger entitlement: bl -> mov w0,#1"
+            description: "debugger entitlement: bl -> mov w0,#1",
         )
     }
 
@@ -557,7 +557,7 @@ public final class TXMDevPatcher: TXMPatcher {
             cands[0],
             ARM64.nop,
             patchID: "txm_dev.developer_mode_bypass",
-            description: "developer mode bypass"
+            description: "developer mode bypass",
         )
     }
 }

@@ -136,7 +136,9 @@ public enum VPhoneFirmwareIndex {
         for i in 0 ..< max(lhs.count, rhs.count) {
             let l = i < lhs.count ? lhs[i] : 0
             let r = i < rhs.count ? rhs[i] : 0
-            if l != r { return l < r ? .orderedAscending : .orderedDescending }
+            if l != r {
+                return l < r ? .orderedAscending : .orderedDescending
+            }
         }
         return .orderedSame
     }
@@ -156,7 +158,8 @@ public enum VPhoneFirmwareIndex {
         if let attributes = try? FileManager.default.attributesOfItem(atPath: cache.path),
            let modified = attributes[.modificationDate] as? Date,
            Date().timeIntervalSince(modified) < maxAge,
-           let cached = try? Data(contentsOf: cache, options: .mappedIfSafe) {
+           let cached = try? Data(contentsOf: cache, options: .mappedIfSafe)
+        {
             return cached
         }
 
@@ -165,13 +168,15 @@ public enum VPhoneFirmwareIndex {
             // A stale catalogue beats no catalogue: the network is the thing
             // most likely to be missing, and last week's list still has every
             // firmware from last week.
-            if let cached = try? Data(contentsOf: cache, options: .mappedIfSafe) { return cached }
+            if let cached = try? Data(contentsOf: cache, options: .mappedIfSafe) {
+                return cached
+            }
             throw Error.fetchFailed(catalogueURL, http.statusCode)
         }
 
         let json = try decompressXZ(compressed)
         try? FileManager.default.createDirectory(
-            at: cache.deletingLastPathComponent(), withIntermediateDirectories: true
+            at: cache.deletingLastPathComponent(), withIntermediateDirectories: true,
         )
         try? json.write(to: cache)
         return json
@@ -186,10 +191,10 @@ public enum VPhoneFirmwareIndex {
     static func decompressXZ(_ input: Data) throws -> Data {
         var stream = compression_stream(
             dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!, dst_size: 0,
-            src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!, src_size: 0, state: nil
+            src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!, src_size: 0, state: nil,
         )
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
-                == COMPRESSION_STATUS_OK
+            == COMPRESSION_STATUS_OK
         else { throw Error.decompressionFailed }
         defer { compression_stream_destroy(&stream) }
 
@@ -207,7 +212,7 @@ public enum VPhoneFirmwareIndex {
                 stream.dst_ptr = chunk
                 stream.dst_size = chunkSize
                 status = compression_stream_process(
-                    &stream, Int32(COMPRESSION_STREAM_FINALIZE.rawValue)
+                    &stream, Int32(COMPRESSION_STREAM_FINALIZE.rawValue),
                 )
                 output.append(chunk, count: chunkSize - stream.dst_size)
             } while status == COMPRESSION_STATUS_OK

@@ -29,8 +29,8 @@
 // are made with `clonefile` so a 6.7 GB copy is instant and costs almost no
 // disk.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -131,7 +131,9 @@ private enum FrozenReference {
     ]
 
     /// 29 sites across 29 dylibs; the other 15 entries above are the blacklist.
-    static var totalMangled: Int { mangledCountByInstallName.values.reduce(0, +) }
+    static var totalMangled: Int {
+        mangledCountByInstallName.values.reduce(0, +)
+    }
 
     /// `cmp -s` against the pristine tree after the run: 17 chunks moved, with
     /// these digests (`shasum -a 256`). The Python logged 29 `re-attest: wrote
@@ -228,23 +230,23 @@ private enum FrozenReference {
             sites: [MachOSite(
                 stringVMA: 0x1_0001_1453,
                 fileOffset: 70739,
-                section: "__TEXT,__cstring"
+                section: "__TEXT,__cstring",
             )],
             pristineSHA256:
             "0309b868a214f9841279db3e2ef901f26e8c05b2dc616eeb551f2b2f0e06207f",
             patchedSHA256:
-            "95c9c25c89d20ee1d46b20ee8fd7a7b90c674ef57247a666e6cb19db123220e4"
+            "95c9c25c89d20ee1d46b20ee8fd7a7b90c674ef57247a666e6cb19db123220e4",
         ),
         "mobileactivationd": MachORun(
             sites: [MachOSite(
                 stringVMA: 0x1_003B_BE2A,
                 fileOffset: 3_915_306,
-                section: "__TEXT,__cstring"
+                section: "__TEXT,__cstring",
             )],
             pristineSHA256:
             "89233513ce696cd01285f3432f3bcadd065cee07ac73bc5714836d13f24702d8",
             patchedSHA256:
-            "29814c1318b40cd1afc8ea021604f1b165c6ce3775e3a4f02106891b84ff4129"
+            "29814c1318b40cd1afc8ea021604f1b165c6ce3775e3a4f02106891b84ff4129",
         ),
     ]
 }
@@ -282,7 +284,9 @@ private enum HVVMMFixture {
     }
 
     /// The suites run unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     /// Same rule for the standalone Mach-O fixtures, which live under the same
     /// gitignored `ipsws/` tree and are therefore absent on a fresh clone.
@@ -327,7 +331,7 @@ private enum HVVMMFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let sources = try FileManager.default
             .contentsOfDirectory(atPath: pristine.path)
@@ -339,12 +343,12 @@ private enum HVVMMFixture {
         // than reporting a fixture problem as a patch failure.
         var result = try Subprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
-            arguments: ["-c", "-R"] + sources + [destination.path]
+            arguments: ["-c", "-R"] + sources + [destination.path],
         )
         if result.status != 0 {
             result = try Subprocess.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: ["-R"] + sources + [destination.path]
+                arguments: ["-R"] + sources + [destination.path],
             )
         }
         guard result.status == 0 else { throw CocoaError(.fileWriteUnknown) }
@@ -355,7 +359,7 @@ private enum HVVMMFixture {
     static func copyFile(_ source: URL, named name: String) throws -> URL {
         try FileManager.default.createDirectory(
             at: scratchRoot,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let destination = scratchRoot.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: destination)
@@ -404,7 +408,7 @@ private enum Subprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -420,8 +424,8 @@ private enum TreeComparison {
     /// after hashing 6.7 GB twice.
     static func changedNames(in directory: URL, against reference: URL) throws -> [String] {
         let manager = FileManager.default
-        let left = Set(try manager.contentsOfDirectory(atPath: reference.path))
-        let right = Set(try manager.contentsOfDirectory(atPath: directory.path))
+        let left = try Set(manager.contentsOfDirectory(atPath: reference.path))
+        let right = try Set(manager.contentsOfDirectory(atPath: directory.path))
         var differing = Array(left.symmetricDifference(right))
 
         for name in left.intersection(right) {
@@ -431,9 +435,11 @@ private enum TreeComparison {
                     "-s",
                     reference.appendingPathComponent(name).path,
                     directory.appendingPathComponent(name).path,
-                ]
+                ],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return differing.sorted()
     }
@@ -474,8 +480,8 @@ private enum Digest {
 /// port has to carry verbatim for anything else here to mean anything.
 @Suite(.serialized)
 struct DSCHVVMMConstantsTests {
-    @Test("The cstring, its mangle and the blacklist match the reference modules")
-    func constantsMatchTheReference() throws {
+    @Test
+    func `The cstring, its mangle and the blacklist match the reference modules`() {
         #expect(DSCHVVMMPatcher.needle.hex == FrozenReference.needleHex)
         #expect(DSCHVVMMPatcher.mangledNeedle.hex == FrozenReference.mangledNeedleHex)
         #expect(DSCHVVMMPatcher.mangleOffset == FrozenReference.mangleOffset)
@@ -513,8 +519,8 @@ struct DSCHVVMMCacheParityTests {
     /// The idempotence and blacklist checks ride on the same clone rather than
     /// cloning 6.7 GB again for each: they are assertions about the state this
     /// test has already produced.
-    @Test("The Swift patch reproduces the reference's cache")
-    func swiftMatchesTheReferenceOnTheRealCache() throws {
+    @Test
+    func `The Swift patch reproduces the reference's cache`() throws {
         _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
 
         let swiftClone = try HVVMMFixture.cloneCache(named: "swift")
@@ -541,7 +547,7 @@ struct DSCHVVMMCacheParityTests {
         print(
             "[hv_vmm] \(result.mangled) site(s), "
                 + "\(result.skippedInBlacklist) blacklisted, "
-                + "\(slotsRewritten) slot(s) re-attested"
+                + "\(slotsRewritten) slot(s) re-attested",
         )
 
         try Digest.expectMatches(swiftClone, FrozenReference.changedChunks)
@@ -567,11 +573,11 @@ struct DSCHVVMMCacheParityTests {
         for vma in try chunks.findStringVMAs(DSCHVVMMPatcher.needle) {
             let installName = try #require(
                 DSCHVVMMPatcher.classify(vma, in: chunks),
-                "a pristine cstring survived in a dylib that cannot be named"
+                "a pristine cstring survived in a dylib that cannot be named",
             )
             #expect(
                 DSCHVVMMPatcher.dontPatchSet.contains(installName),
-                "\(installName) is not blacklisted but kept the original cstring"
+                "\(installName) is not blacklisted but kept the original cstring",
             )
             blacklistedSitesSeen += 1
         }
@@ -581,13 +587,13 @@ struct DSCHVVMMCacheParityTests {
             let installName = try #require(DSCHVVMMPatcher.classify(vma, in: chunks))
             #expect(
                 !DSCHVVMMPatcher.dontPatchSet.contains(installName),
-                "\(installName) is blacklisted but was mangled"
+                "\(installName) is blacklisted but was mangled",
             )
         }
     }
 
-    @Test("A dry run reports the same sites and leaves every byte alone")
-    func dryRunTouchesNothing() throws {
+    @Test
+    func `A dry run reports the same sites and leaves every byte alone`() throws {
         let pristine = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
 
         let clone = try HVVMMFixture.cloneCache(named: "dryrun")
@@ -596,7 +602,7 @@ struct DSCHVVMMCacheParityTests {
         let result = try DSCHVVMMPatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(result.mangled == FrozenReference.totalMangled)
         // A dry run writes nothing, so every page still hashes to exactly what
@@ -624,8 +630,8 @@ struct DSCHVVMMCacheParityTests {
     /// the page hash right and the operator's intent wrong. A port that "fixed"
     /// this by reverting, or by treating it as an error, would pass every other
     /// test in this file.
-    @Test("A blacklisted dylib found mangled is reported as drift, not reverted")
-    func blacklistDriftIsReportedNotReverted() throws {
+    @Test
+    func `A blacklisted dylib found mangled is reported as drift, not reverted`() throws {
         _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
 
         let swiftClone = try HVVMMFixture.cloneCache(named: "drift-swift")
@@ -639,7 +645,7 @@ struct DSCHVVMMCacheParityTests {
                 guard let name = DSCHVVMMPatcher.classify($0, in: probe) else { return false }
                 return DSCHVVMMPatcher.dontPatchSet.contains(name)
             },
-            "no blacklisted dylib carries the cstring in this cache"
+            "no blacklisted dylib carries the cstring in this cache",
         )
         let driftedDylib = try #require(DSCHVVMMPatcher.classify(driftVMA, in: probe))
         #expect(driftVMA == FrozenReference.driftVMA)
@@ -650,7 +656,7 @@ struct DSCHVVMMCacheParityTests {
         let chunks = try DSCChunkSet(directory: swiftClone)
         try chunks.write(
             at: driftVMA &+ UInt64(DSCHVVMMPatcher.mangleOffset),
-            Data([DSCHVVMMPatcher.mangledByte])
+            Data([DSCHVVMMPatcher.mangledByte]),
         )
 
         let result = try DSCHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
@@ -661,7 +667,7 @@ struct DSCHVVMMCacheParityTests {
         #expect(result.refused == 0)
         #expect(
             result.skippedInBlacklist == DSCHVVMMPatcher.dontPatchInstallNames.count - 1,
-            "the drifted site is no longer pristine, so it is not counted as skipped"
+            "the drifted site is no longer pristine, so it is not counted as skipped",
         )
         #expect(result.mangledCountByInstallName[driftedDylib] == nil)
         #expect(result.isFullyAttested)
@@ -686,20 +692,19 @@ struct DSCHVVMMStandaloneTests {
     /// keeps pristine copies of. Each carries one occurrence of the cstring on
     /// this build.
     @Test(
-        "Standalone Mach-O mangling matches the reference",
-        arguments: ["watchdogd", "mobileactivationd"]
+        arguments: ["watchdogd", "mobileactivationd"],
     )
-    func standaloneMatchesTheReference(name: String) throws {
+    func `Standalone Mach-O mangling matches the reference`(name: String) throws {
         let pristine = try #require(
             HVVMMFixture.machO(name),
             """
             ipsws/ref_extract/macho_pristine/\(name) is required — it is the \
             only standalone Mach-O fixture this half of the port has
-            """
+            """,
         )
         let reference = try #require(
             FrozenReference.machO[name],
-            "no frozen reference run for this binary"
+            "no frozen reference run for this binary",
         )
         // The reference saw this exact file; if it has been replaced, nothing
         // below is a comparison.
@@ -710,7 +715,7 @@ struct DSCHVVMMStandaloneTests {
 
         // Same sites, in the same order, before anything is written.
         let sites = try DSCHVVMMPatcher.findStringSites(
-            inMachO: Data(contentsOf: pristine)
+            inMachO: Data(contentsOf: pristine),
         )
         #expect(sites.count == reference.sites.count)
         #expect(!sites.isEmpty, "\(name) holds no kern.hv_vmm_present cstring")

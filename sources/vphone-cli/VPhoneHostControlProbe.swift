@@ -11,7 +11,9 @@ enum VPhoneHostControlProbe {
         address.sun_family = sa_family_t(AF_UNIX)
         withUnsafeMutablePointer(to: &address.sun_path) { pointer in
             pointer.withMemoryRebound(to: CChar.self, capacity: path.count) { destination in
-                for (index, byte) in path.enumerated() { destination[index] = byte }
+                for (index, byte) in path.enumerated() {
+                    destination[index] = byte
+                }
             }
         }
 
@@ -49,7 +51,8 @@ enum VPhoneHostControlProbe {
             guard count > 0 else { return false }
             reply.append(contentsOf: buffer.prefix(count))
             if let newline = reply.firstIndex(of: 0x0A),
-               let json = try? JSONSerialization.jsonObject(with: Data(reply[..<newline])) as? [String: Any] {
+               let json = try? JSONSerialization.jsonObject(with: Data(reply[..<newline])) as? [String: Any]
+            {
                 return json["ok"] as? Bool == true
             }
         }

@@ -61,7 +61,7 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "kernelcache_jb.nvram_verify_permission",
             virtualAddress: va,
-            description: "NOP [verifyPermission NVRAM]"
+            description: "NOP [verifyPermission NVRAM]",
         )
         return true
     }

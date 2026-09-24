@@ -18,7 +18,7 @@ enum VPhoneArchivePaths {
     static func resolved(_ url: URL) throws -> URL {
         guard let resolved = realpath(url.path, nil) else {
             throw VPhoneArchiveError.cannotOpen(
-                path: url.path, reason: String(cString: strerror(errno))
+                path: url.path, reason: String(cString: strerror(errno)),
             )
         }
         defer { free(resolved) }
@@ -30,8 +30,12 @@ enum VPhoneArchivePaths {
     /// Empty when it *is* the root, which the caller skips: an archive should
     /// not carry an entry for the directory it was made from.
     static func relative(_ absolute: String, under root: String) -> String {
-        if absolute == root { return "" }
-        if absolute.hasPrefix(root + "/") { return String(absolute.dropFirst(root.count + 1)) }
+        if absolute == root {
+            return ""
+        }
+        if absolute.hasPrefix(root + "/") {
+            return String(absolute.dropFirst(root.count + 1))
+        }
         return absolute
     }
 }

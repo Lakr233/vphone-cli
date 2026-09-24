@@ -86,7 +86,7 @@ public enum CFWDaemons {
         guard let dict = try PropertyListSerialization.propertyList(
             from: data,
             options: [],
-            format: nil
+            format: nil,
         ) as? PlistDict else {
             throw DaemonError.invalidPlist(url.path)
         }
@@ -105,7 +105,7 @@ public enum CFWDaemons {
         let data = try PropertyListSerialization.data(
             fromPropertyList: plist,
             format: .xml,
-            options: 0
+            options: 0,
         )
         try data.write(to: url)
     }

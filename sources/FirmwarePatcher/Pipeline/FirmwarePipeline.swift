@@ -95,7 +95,7 @@ public final class FirmwarePipeline {
         noBinpack: Bool = false,
         forceExcGuard: Bool = false,
         enableFrida: Bool = false,
-        loader: (any FirmwareLoader)? = nil
+        loader: (any FirmwareLoader)? = nil,
     ) {
         self.vmDirectory = vmDirectory
         self.variant = variant
@@ -143,7 +143,7 @@ public final class FirmwarePipeline {
             restoreDir: restoreDir,
             iosBaseIs18: iosBaseIs18,
             iosBaseIs27: iosBaseIs27,
-            cloudOSIsFridaCapable: cloudOSIsFridaCapable
+            cloudOSIsFridaCapable: cloudOSIsFridaCapable,
         )
         log("[*] Patching \(components.count) boot-chain components ...")
 
@@ -164,7 +164,7 @@ public final class FirmwarePipeline {
             let (currentData, componentRecords) = try patchData(
                 rawData,
                 componentName: component.name,
-                patcherFactories: component.patcherFactories
+                patcherFactories: component.patcherFactories,
             )
 
             try loader.save(currentData, to: fileURL)
@@ -183,7 +183,7 @@ public final class FirmwarePipeline {
     func patchData(
         _ rawData: Data,
         componentName: String,
-        patcherFactories: [(Data, Bool) -> any Patcher]
+        patcherFactories: [(Data, Bool) -> any Patcher],
     ) throws -> (Data, [PatchRecord]) {
         var currentData = rawData
         var componentRecords: [PatchRecord] = []
@@ -215,15 +215,33 @@ public final class FirmwarePipeline {
     /// access where possible and fall back to manual patch application.
     func extractPatchedData(from patcher: any Patcher, fallback: Data, records: [PatchRecord]) -> Data {
         // Try known patcher types that expose their buffer.
-        if let avp = patcher as? AVPBooterPatcher { return avp.buffer.data }
-        if let iboot = patcher as? IBootPatcher { return iboot.buffer.data }
-        if let txm = patcher as? TXMPatcher { return txm.buffer.data }
-        if let kp = patcher as? KernelPatcher { return kp.buffer.data }
-        if let kjb = patcher as? KernelJBPatcher { return kjb.buffer.data }
-        if let kexp = patcher as? KernelEXPPatcher { return kexp.buffer.data }
-        if let dt = patcher as? DeviceTreePatcher { return dt.patchedData }
-        if let fs = patcher as? CryptexFilesystemPatcher { return fs.patchedData }
-        if let mh = patcher as? ManifestHashPatcher { return mh.patchedData }
+        if let avp = patcher as? AVPBooterPatcher {
+            return avp.buffer.data
+        }
+        if let iboot = patcher as? IBootPatcher {
+            return iboot.buffer.data
+        }
+        if let txm = patcher as? TXMPatcher {
+            return txm.buffer.data
+        }
+        if let kp = patcher as? KernelPatcher {
+            return kp.buffer.data
+        }
+        if let kjb = patcher as? KernelJBPatcher {
+            return kjb.buffer.data
+        }
+        if let kexp = patcher as? KernelEXPPatcher {
+            return kexp.buffer.data
+        }
+        if let dt = patcher as? DeviceTreePatcher {
+            return dt.patchedData
+        }
+        if let fs = patcher as? CryptexFilesystemPatcher {
+            return fs.patchedData
+        }
+        if let mh = patcher as? ManifestHashPatcher {
+            return mh.patchedData
+        }
 
         // Fallback: apply records manually to a copy of the original data.
         var data = fallback

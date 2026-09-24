@@ -17,8 +17,8 @@ struct VPhoneSignEntitlementsTests {
     ///
     /// The seeded fixtures carry the interesting cases: a long sandbox profile
     /// in a `<data>`, arrays, and the integers.
-    @Test("dump matches ldid -e byte for byte")
-    func dumpMatchesLdid() throws {
+    @Test
+    func `dump matches ldid -e byte for byte`() throws {
         let corpus = try VPhoneSignFixtures.fixtures
         #expect(corpus.count >= 12, "only \(corpus.count) fixtures: too few to say anything")
         var withEntitlements = 0
@@ -26,18 +26,20 @@ struct VPhoneSignEntitlementsTests {
             let name = source.lastPathComponent
             let ours = try VPhoneSigner.entitlements(ofFileAt: source).reduce(Data(), +)
             try VPhoneSignFixtures.expect("\(name).dump", matches: ours)
-            if !ours.isEmpty { withEntitlements += 1 }
+            if !ours.isEmpty {
+                withEntitlements += 1
+            }
         }
         #expect(withEntitlements >= 7, "only \(withEntitlements) fixtures had entitlements to print")
     }
 
-    @Test("a file this signed reads back the entitlements it was given")
-    func roundTrip() throws {
+    @Test
+    func `a file this signed reads back the entitlements it was given`() throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let plist = VPhoneSignParityTests.sampleEntitlements
         let file = try VPhoneSignFixtures.sign(
-            try VPhoneSignFixtures.url("hello-arm64"), in: directory, entitlements: plist
+            VPhoneSignFixtures.url("hello-arm64"), in: directory, entitlements: plist,
         )
 
         let read = try VPhoneSigner.entitlements(ofFileAt: file)
@@ -54,8 +56,8 @@ struct VPhoneSignEntitlementsTests {
 
     // MARK: - What the writer must agree with libplist about
 
-    @Test("the XML writer keeps the order libplist keeps, not Foundation's")
-    func keepsInsertionOrder() throws {
+    @Test
+    func `the XML writer keeps the order libplist keeps, not Foundation's`() throws {
         // "b" before "a": Foundation would sort them, libplist would not, and
         // the bytes are hashed into the signature
         let plist = Data("""
@@ -72,14 +74,14 @@ struct VPhoneSignEntitlementsTests {
 
         """.utf8)
         let entitlements = try VPhoneSignEntitlements(xml: plist)
-        let written = String(decoding: try entitlements.xml(), as: UTF8.self)
+        let written = try String(decoding: entitlements.xml(), as: UTF8.self)
         let zeta = try #require(written.range(of: "zeta"))
         let alpha = try #require(written.range(of: "alpha"))
         #expect(zeta.lowerBound < alpha.lowerBound, "the keys were sorted")
     }
 
-    @Test("a merge replaces a key where it stands and appends a new one")
-    func mergeKeepsPositions() throws {
+    @Test
+    func `a merge replaces a key where it stands and appends a new one`() throws {
         var base = try VPhoneSignEntitlements(xml: Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
@@ -87,7 +89,7 @@ struct VPhoneSignEntitlementsTests {
         \t<key>second</key><true/>
         </dict></plist>
         """.utf8))
-        base.merge(try VPhoneSignEntitlements(xml: Data("""
+        try base.merge(VPhoneSignEntitlements(xml: Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
         \t<key>first</key><string>new</string>
@@ -101,8 +103,8 @@ struct VPhoneSignEntitlementsTests {
     /// The executable segment flags ldid derives. Getting these wrong is
     /// silent: the binary signs, and then the guest refuses to debug it or
     /// lets it do something it should not.
-    @Test("executable segment flags follow the entitlements")
-    func executableSegmentFlags() throws {
+    @Test
+    func `executable segment flags follow the entitlements`() throws {
         let entitlements = try VPhoneSignEntitlements(xml: Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
@@ -136,7 +138,6 @@ struct VPhoneSignEntitlementsTests {
     /// asserted present, since a signature that wrote neither would have
     /// nothing to disagree about.
     @Test(
-        "every <integer> ldid takes is carried the way ldid carries it",
         arguments: [
             "0", // 020100 — the one that broke spindump
             "-1", // 0208ffffffffffffffff, the same bits as 2^64-1
@@ -158,9 +159,9 @@ struct VPhoneSignEntitlementsTests {
             "9223372036854775808", // above Int64.max: libplist prints it unsigned
             "18446744073709551615", // UInt64.max
             "  42  ", // libplist skips the space around it
-        ]
+        ],
     )
-    func integerSpellingsMatchLdid(_ spelling: String) throws {
+    func `every <integer> ldid takes is carried the way ldid carries it`(_ spelling: String) throws {
         let directory = try VPhoneSignFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -171,10 +172,10 @@ struct VPhoneSignEntitlementsTests {
         // `binary` is the identifier these rows were frozen under; see the
         // regeneration note in VPhoneSignFixtures
         let ours = try VPhoneSignFixtures.sign(
-            try VPhoneSignFixtures.url("hello-arm64"),
+            VPhoneSignFixtures.url("hello-arm64"),
             in: directory,
             identifier: "binary",
-            entitlements: plist
+            entitlements: plist,
         )
         try VPhoneSignFixtures.expect("integer.\(spelling)", matches: Data(contentsOf: ours))
 
@@ -182,7 +183,7 @@ struct VPhoneSignEntitlementsTests {
             for slot in [UInt32(5), 7] {
                 #expect(
                     slice[slot] != nil,
-                    "<integer>\(spelling)</integer> slice \(index): no slot \(slot)"
+                    "<integer>\(spelling)</integer> slice \(index): no slot \(slot)",
                 )
             }
         }
@@ -200,10 +201,9 @@ struct VPhoneSignEntitlementsTests {
     /// observation for the same reason every other row is — running ldid to
     /// re-confirm it would put the dependency back.
     @Test(
-        "what ldid's DER has no room for is refused, as ldid refuses it",
-        arguments: ["<date>2020-01-01T00:00:00Z</date>", "<real>1.5</real>"]
+        arguments: ["<date>2020-01-01T00:00:00Z</date>", "<real>1.5</real>"],
     )
-    func refusesWhatItCannotCarry(_ value: String) throws {
+    func `what ldid's DER has no room for is refused, as ldid refuses it`(_ value: String) throws {
         let plist = Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict><key>k</key>\(value)</dict></plist>
@@ -227,7 +227,6 @@ struct VPhoneSignEntitlementsTests {
     /// No claim about the installed ldid is made here: it accepts these
     /// today. That is the point of refusing them.
     @Test(
-        "an <integer> the two libplists disagree about is refused",
         arguments: [
             "42abc", // released reads 42; master stops on the trailing text
             "abc", // released reads 0
@@ -237,9 +236,9 @@ struct VPhoneSignEntitlementsTests {
             "-18446744073709551615", // released wraps it; master calls it out of range
             "0x", // a hex prefix with no digits: released reads the 0 and stops
             "--1", // the one both agree on and this refuses anyway; see integer(_:)
-        ]
+        ],
     )
-    func refusesWhatTwoLibplistsReadDifferently(_ spelling: String) throws {
+    func `an <integer> the two libplists disagree about is refused`(_ spelling: String) throws {
         let plist = Data("""
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict><key>k</key><integer>\(spelling)</integer></dict></plist>
@@ -249,10 +248,10 @@ struct VPhoneSignEntitlementsTests {
         }
     }
 
-    @Test("a binary plist is refused rather than read as XML")
-    func refusesABinaryPlist() throws {
+    @Test
+    func `a binary plist is refused rather than read as XML`() throws {
         let binary = try PropertyListSerialization.data(
-            fromPropertyList: ["k": true], format: .binary, options: 0
+            fromPropertyList: ["k": true], format: .binary, options: 0,
         )
         #expect(throws: VPhoneSignError.self) {
             _ = try VPhoneSignEntitlements(xml: binary)

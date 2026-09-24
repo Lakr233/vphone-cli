@@ -4,7 +4,7 @@ import Foundation
 
 /// How much confidence this project has in one downloadable iPhone firmware.
 ///
-/// `supported` means the README's "Tested Environments" table records a boot on
+/// `supported` means the compatibility guide's "Tested Environments" table records a boot on
 /// that exact version/build; `notTested` means Apple still serves it but nobody
 /// wrote a row for it. `unsupported` is never a table verdict — it is the
 /// prefix the selector puts on "nothing matched", and it exists here only
@@ -49,7 +49,7 @@ public struct VPhoneStatusStyle: Sendable, Equatable {
     /// The policy above, resolved for one file descriptor.
     public static func forStream(
         _ fileDescriptor: Int32,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
     ) -> VPhoneStatusStyle {
         if let noColor = environment["NO_COLOR"], !noColor.isEmpty {
             return VPhoneStatusStyle(isColored: false)
@@ -90,7 +90,7 @@ public struct VPhoneFirmwareRelease: Sendable, Hashable {
 
 // MARK: - VPhoneFirmwareBuildID
 
-/// The (version, build) pair the README table and the URL list are joined on.
+/// The (version, build) pair the compatibility table and the URL list are joined on.
 public struct VPhoneFirmwareBuildID: Sendable, Hashable {
     public let version: String
     public let build: String
@@ -138,32 +138,32 @@ public enum VPhoneFirmwareSelection: Sendable, Equatable {
 
 // MARK: - VPhoneFirmwareMatrix
 
-/// The firmware support matrix: the README's "Tested Environments" table joined
+/// The firmware support matrix: the compatibility guide's "Tested Environments" table joined
 /// against the restore images Apple still serves.
 ///
 /// This replaces the two Python heredocs that used to live inside
 /// `scripts/fw_prepare.sh` (`list_firmwares` and `resolve_selector_from_downloads`).
-/// They were 166 lines that duplicated the same three parsers — the README
+/// They were 166 lines that duplicated the same three parsers — the Markdown
 /// section scan, the URL scan, and the version sort — once each, so this is one
 /// parser with two renderers on top of it.
 public enum VPhoneFirmwareMatrix {
     // MARK: Parsing
 
-    /// Every `(version, build)` the README's "Tested Environments" section
+    /// Every `(version, build)` the compatibility guide's "Tested Environments" section
     /// records for `device`.
     ///
     /// The section runs from the `## Tested Environments` heading to the next
     /// `## ` heading. Inside it, any backticked `17,3_26.1_23B85` cell whose
     /// device part equals `device` minus its `iPhone` prefix counts as tested;
     /// the cloudOS column uses `26.1-23B85`, which cannot match. A missing
-    /// README is not an error — it just means nothing is known to be tested.
+    /// guide is not an error — it just means nothing is known to be tested.
     public static func testedBuilds(readme: String?, device: String) -> Set<VPhoneFirmwareBuildID> {
         guard let readme else { return [] }
         let deviceSuffix = device.hasPrefix("iPhone")
             ? String(device.dropFirst("iPhone".count))
             : device
         guard let cell = try? NSRegularExpression(
-            pattern: "`(\\d+,\\d+)_([^_`]+)_([A-Za-z0-9]+)`"
+            pattern: "`(\\d+,\\d+)_([^_`]+)_([A-Za-z0-9]+)`",
         ) else { return [] }
 
         var tested: Set<VPhoneFirmwareBuildID> = []
@@ -173,7 +173,9 @@ public enum VPhoneFirmwareMatrix {
                 inSection = true
                 continue
             }
-            if inSection, line.hasPrefix("## ") { break }
+            if inSection, line.hasPrefix("## ") {
+                break
+            }
             guard inSection else { continue }
 
             for match in cell.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
@@ -208,15 +210,17 @@ public enum VPhoneFirmwareMatrix {
                   let build = group(3, of: match, in: line)
             else { continue }
             let release = VPhoneFirmwareRelease(version: version, build: build, url: line)
-            if seen.insert(release).inserted { found.append(release) }
+            if seen.insert(release).inserted {
+                found.append(release)
+            }
         }
         return found
     }
 
-    /// The verdict for one release, given what the README records.
+    /// The verdict for one release, given what the compatibility guide records.
     public static func support(
         of release: VPhoneFirmwareRelease,
-        tested: Set<VPhoneFirmwareBuildID>
+        tested: Set<VPhoneFirmwareBuildID>,
     ) -> VPhoneFirmwareSupport {
         tested.contains(VPhoneFirmwareBuildID(version: release.version, build: release.build))
             ? .supported
@@ -230,7 +234,7 @@ public enum VPhoneFirmwareMatrix {
         device: String,
         readme: String?,
         downloadURLs: String,
-        style: VPhoneStatusStyle
+        style: VPhoneStatusStyle,
     ) -> VPhoneFirmwareListing {
         let releases = releases(downloadURLs: downloadURLs, device: device)
         guard !releases.isEmpty else {
@@ -269,7 +273,7 @@ public enum VPhoneFirmwareMatrix {
         build: String,
         readme: String?,
         downloadURLs: String,
-        style: VPhoneStatusStyle
+        style: VPhoneStatusStyle,
     ) -> VPhoneFirmwareSelection {
         let matches = releases(downloadURLs: downloadURLs, device: device).filter {
             (version.isEmpty || $0.version == version) && (build.isEmpty || $0.build == build)
@@ -330,7 +334,11 @@ public enum VPhoneFirmwareMatrix {
     /// prefix, so `26.4` < `26.4.1`.
     static func versionKey(_ version: String) -> [VersionPart] {
         version.components(separatedBy: ".").map { part in
-            if let number = Int(part) { .number(number) } else { .text(part) }
+            if let number = Int(part) {
+                .number(number)
+            } else {
+                .text(part)
+            }
         }
     }
 
@@ -342,14 +350,20 @@ public enum VPhoneFirmwareMatrix {
     /// behaviour to reproduce, so the order here is total and reproducible.
     static func isNewer(_ lhs: VPhoneFirmwareRelease, than rhs: VPhoneFirmwareRelease) -> Bool {
         let (l, r) = (versionKey(lhs.version), versionKey(rhs.version))
-        for (lp, rp) in zip(l, r) where lp != rp { return rp < lp }
-        if l.count != r.count { return r.count < l.count }
+        for (lp, rp) in zip(l, r) where lp != rp {
+            return rp < lp
+        }
+        if l.count != r.count {
+            return r.count < l.count
+        }
         return hasHigherBuild(lhs, than: rhs)
     }
 
     /// Build descending, URL descending as the tie-break.
     static func hasHigherBuild(_ lhs: VPhoneFirmwareRelease, than rhs: VPhoneFirmwareRelease) -> Bool {
-        if lhs.build != rhs.build { return codePointsAscending(rhs.build, lhs.build) }
+        if lhs.build != rhs.build {
+            return codePointsAscending(rhs.build, lhs.build)
+        }
         return codePointsAscending(rhs.url, lhs.url)
     }
 
@@ -379,7 +393,9 @@ public enum VPhoneFirmwareMatrix {
             case (nil, .some): return true
             case (.some, nil): return false
             case let (.some(l), .some(r)):
-                if l.value != r.value { return l.value < r.value }
+                if l.value != r.value {
+                    return l.value < r.value
+                }
             }
         }
     }
@@ -389,8 +405,12 @@ public enum VPhoneFirmwareMatrix {
     static func normalizedLines(of text: String) -> [String] {
         var normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
         normalized = normalized.replacingOccurrences(of: "\r", with: "\n")
-        if normalized.hasSuffix("\n") { normalized.removeLast() }
-        if normalized.isEmpty { return [] }
+        if normalized.hasSuffix("\n") {
+            normalized.removeLast()
+        }
+        if normalized.isEmpty {
+            return []
+        }
         return normalized.components(separatedBy: "\n")
     }
 
@@ -418,14 +438,14 @@ public enum VPhoneFirmwareMatrixCommandLine {
         downloadURLs: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         stdout: FileHandle = .standardOutput,
-        stderr: FileHandle = .standardError
+        stderr: FileHandle = .standardError,
     ) -> Int32 {
         let readme = try? String(contentsOfFile: readmePath, encoding: .utf8)
         switch VPhoneFirmwareMatrix.listing(
             device: device,
             readme: readme,
             downloadURLs: downloadURLs,
-            style: .forStream(stdout.fileDescriptor, environment: environment)
+            style: .forStream(stdout.fileDescriptor, environment: environment),
         ) {
         case let .matrix(text):
             write(text, to: stdout)
@@ -446,7 +466,7 @@ public enum VPhoneFirmwareMatrixCommandLine {
         downloadURLs: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         stdout: FileHandle = .standardOutput,
-        stderr: FileHandle = .standardError
+        stderr: FileHandle = .standardError,
     ) -> Int32 {
         let readme = try? String(contentsOfFile: readmePath, encoding: .utf8)
         let selection = VPhoneFirmwareMatrix.selection(
@@ -455,7 +475,7 @@ public enum VPhoneFirmwareMatrixCommandLine {
             build: build,
             readme: readme,
             downloadURLs: downloadURLs,
-            style: .forStream(stderr.fileDescriptor, environment: environment)
+            style: .forStream(stderr.fileDescriptor, environment: environment),
         )
         switch selection {
         case .selected:
