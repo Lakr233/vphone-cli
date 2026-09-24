@@ -59,10 +59,8 @@ done
 #
 # What is deliberately ABSENT is as important:
 #   repos/            toolchain submodules — build tier, sources only
-#   tweakloader/ vpregister/ vcamcaptured/ camfix/   .m sources; the compiled
-#                     artifacts ship in Contents/Resources/guest instead, so the
-#                     install needs no iPhoneOS SDK
+#   ../siblings/       guest sources and GPU provenance; not copied into the
+#                      shipped app (GPU extraction runs in native fw prepare)
 #   vphoned/*.m *.h vendor/ Makefile   same, and it is the bulk of scripts/
-print -r -- "payloads/AppleParavirtGPUMetalIOGPUFamily.tar" # guest GPU driver
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
 print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

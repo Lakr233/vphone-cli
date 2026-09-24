@@ -180,10 +180,13 @@ scripts/                          # Build scripts and payloads only; no runtime 
 ├── guest_binaries.mk         [b] # Cross-compiles vphoned (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
-├── payloads/                     # Small GPU driver archive; no bootstrap payloads
 ├── vphoned/                      # Guest daemon source; only its plist and entitlements ship
-├── tweakloader/ vpregister/ vcamcaptured/ camfix/ # Unshipped experimental sources
 └── repos/                        # Toolchain source (git submodule: insert_dylib)
+
+siblings/                         # Guest component sources/provenance; separate package
+├── camfix/ vcamcaptured/          # Camera hooks and filter plists
+├── tweakloader/ vpregister/       # Loader and iOS 27 app registrar
+└── gpu/                           # PCC firmware provenance; no Apple binary
 
 research/                         # Detailed firmware/patch documentation
 ```

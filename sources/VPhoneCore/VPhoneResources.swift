@@ -92,9 +92,6 @@ public struct VPhoneResources: Sendable {
     // MARK: - Assets
 
     public var scriptsDir: URL { base.appendingPathComponent("scripts") }
-    public var gpuDriverArchive: URL {
-        scriptsDir.appendingPathComponent("payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
-    }
 
     public var vphoned: URL {
         let bundled = base.appendingPathComponent("vphoned.signed")

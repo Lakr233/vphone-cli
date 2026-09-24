@@ -6,6 +6,7 @@
 // (no args = scan /var/jb/Applications/*.app).
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
+#import <objc/message.h>
 @interface LSApplicationWorkspace : NSObject
 + (instancetype)defaultWorkspace;
 - (BOOL)registerContainerizedApplicationWithInfoDictionaries:(NSArray *)infos
@@ -46,7 +47,17 @@ static BOOL register_app(LSApplicationWorkspace *ws, NSString *path) {
 int main(int argc, char **argv) {
     @autoreleasepool {
         dlopen("/System/Library/Frameworks/CoreServices.framework/CoreServices", RTLD_NOW);
-        LSApplicationWorkspace *ws = [LSApplicationWorkspace defaultWorkspace];
+        Class workspaceClass = NSClassFromString(@"LSApplicationWorkspace");
+        if (!workspaceClass) {
+            fprintf(stderr, "LaunchServices workspace is unavailable\n");
+            return 1;
+        }
+        LSApplicationWorkspace *ws = ((id (*)(id, SEL))objc_msgSend)(
+            workspaceClass, @selector(defaultWorkspace));
+        if (!ws) {
+            fprintf(stderr, "LaunchServices workspace could not be opened\n");
+            return 1;
+        }
         NSMutableArray *paths = [NSMutableArray array];
         for (int i = 1; i < argc; i++) [paths addObject:@(argv[i])];
         if (paths.count == 0) {

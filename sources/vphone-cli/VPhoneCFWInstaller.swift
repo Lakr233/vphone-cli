@@ -2,7 +2,6 @@ import ArgumentParser
 import Darwin
 import FirmwarePatcher
 import Foundation
-import VPhoneArchive
 import VPhoneCore
 import VPhoneSign
 
@@ -137,10 +136,14 @@ struct VPhoneCFWInstaller {
                 path: "usr/libexec/diskimagesiod", verb: "patch-diskimagesiod", preserveEntitlements: true)
         }
         try renameGigalocker(data: data)
-        try VPhoneArchiveExtractor.extract(resources.gpuDriverArchive, into: system,
-            options: .ontoGuestVolume)
+        let gpuSource = VPhonePCCGPUDriver.stagedBundle(in: restore)
+        guard fm.fileExists(atPath: gpuSource.path) else {
+            throw ValidationError("PCC GPU driver is missing: \(gpuSource.path). Re-run fw prepare with the PCC IPSW.")
+        }
         let gpu = system.appendingPathComponent(
             "System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")
+        if fm.fileExists(atPath: gpu.path) { try fm.removeItem(at: gpu) }
+        try fm.copyItem(at: gpuSource, to: gpu)
         try tool("/usr/sbin/chown", ["-R", "0:0", gpu.path])
         for file in [gpu, gpu.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"),
                      gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib"),
