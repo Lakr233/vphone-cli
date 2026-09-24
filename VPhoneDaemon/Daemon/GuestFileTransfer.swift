@@ -66,6 +66,7 @@ final class GuestFileUpload: @unchecked Sendable {
     private let fileIO: NonBlockingFileIO
     private var offset: Int64 = 0
     private var writes: EventLoopFuture<Void>
+    private var pendingWrites = 0
     private let onCommit: ((String) throws -> Void)?
     private let mode: mode_t
 
@@ -93,13 +94,18 @@ final class GuestFileUpload: @unchecked Sendable {
     func append(_ buffer: ByteBuffer, channel: Channel) {
         let start = offset
         offset += Int64(buffer.readableBytes)
+        pendingWrites += 1
         _ = channel.setOption(ChannelOptions.autoRead, value: false)
         writes = writes.flatMap { [fileIO, handle] in
             fileIO.write(fileHandle: handle, toOffset: start, buffer: buffer, eventLoop: channel.eventLoop)
         }
-        writes.whenComplete { [self] _ in
-            _ = self
-            _ = channel.setOption(ChannelOptions.autoRead, value: true)
+        writes.whenComplete { [self] result in
+            pendingWrites -= 1
+            if case .failure = result {
+                channel.close(promise: nil)
+            } else if pendingWrites == 0, channel.isActive {
+                _ = channel.setOption(ChannelOptions.autoRead, value: true)
+            }
         }
     }
 

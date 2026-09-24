@@ -56,6 +56,9 @@ TCP connection and closes it when the WebSocket closes. For example, with
 `--api-listen 127.0.0.1:8765`, `ws://127.0.0.1:8765/v1/ports/22` carries
 the guest SSH byte stream. An SSH client still needs a local TCP-to-WebSocket
 bridge; SSH cannot use a WebSocket URL directly.
+WebSocket fragmentation is reassembled before forwarding. On disconnect, the
+guest tunnel and the host TCP-to-VSOCK proxy let their final queued write
+finish before closing the opposite socket, with a five-second drain limit.
 
 `apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.7 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
@@ -69,7 +72,10 @@ confirmation remains an error.
 
 Upload accepts an optional octal `mode` query parameter (default `644`) and
 creates missing parent directories. Download follows file symlinks, matching
-the previous file browser behavior.
+the previous file browser behavior. Uploads write to a temporary file and
+replace the destination only after the complete request body is written. The
+daemon pauses socket reads while disk writes are pending and removes an
+unfinished temporary file after a disconnect.
 
 `POST /v1/rpc` accepts `{ "id": "...", "method": "device.snapshot",
 "params": {} }`. JSON operations return

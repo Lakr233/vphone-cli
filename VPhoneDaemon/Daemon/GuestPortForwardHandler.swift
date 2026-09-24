@@ -13,6 +13,8 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
     private var pending: [ByteBuffer] = []
     private var pendingBytes = 0
     private let maximumPendingBytes = 1 << 20
+    private var lastBackendWrite: EventLoopFuture<Void>?
+    private var closing = false
 
     init(port: Int) {
         self.port = port
@@ -33,23 +35,28 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         _ = webSocket.setOption(ChannelOptions.autoRead, value: false)
         ClientBootstrap(group: context.eventLoop)
             .connectTimeout(.seconds(5))
-            .channelInitializer { backend in
-                backend.pipeline.addHandler(GuestPortBackendHandler(webSocket: webSocket))
+            .channelInitializer { [weak self] backend in
+                backend.pipeline.addHandler(GuestPortBackendHandler(webSocket: webSocket) { [weak self] in
+                    self?.closing == false
+                })
             }
             .connect(host: "127.0.0.1", port: port)
             .whenComplete { result in
-                guard webSocket.isActive else {
+                guard webSocket.isActive, !self.closing else {
                     if case let .success(backend) = result { backend.close(promise: nil) }
                     return
                 }
                 switch result {
                 case let .success(backend):
                     self.backend = backend
-                    for chunk in self.pending { backend.write(chunk, promise: nil) }
-                    backend.flush()
+                    for chunk in self.pending.dropLast() { backend.write(chunk, promise: nil) }
+                    if let chunk = self.pending.last {
+                        self.lastBackendWrite = backend.writeAndFlush(chunk)
+                        self.lastBackendWrite?.whenFailure { _ in self.closeWithError(on: webSocket) }
+                    }
                     self.pending.removeAll()
                     self.pendingBytes = 0
-                    _ = webSocket.setOption(ChannelOptions.autoRead, value: true)
+                    _ = webSocket.setOption(ChannelOptions.autoRead, value: backend.isWritable)
                 case .failure:
                     self.closeWithError(on: webSocket)
                 }
@@ -58,11 +65,14 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = unwrapInboundIn(data)
+        guard !closing else { return }
         switch frame.opcode {
         case .binary:
             let chunk = frame.unmaskedData
             if let backend {
-                backend.writeAndFlush(chunk, promise: nil)
+                lastBackendWrite = backend.writeAndFlush(chunk)
+                let webSocket = context.channel
+                lastBackendWrite?.whenFailure { _ in self.closeWithError(on: webSocket) }
             } else {
                 pendingBytes += chunk.readableBytes
                 guard pendingBytes <= maximumPendingBytes else {
@@ -75,6 +85,7 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
             context.writeAndFlush(wrapOutboundOut(WebSocketFrame(fin: true, opcode: .pong,
                                                                   data: frame.unmaskedData)), promise: nil)
         case .connectionClose:
+            closing = true
             let webSocket = context.channel
             context.writeAndFlush(wrapOutboundOut(WebSocketFrame(fin: true, opcode: .connectionClose,
                                                                   data: frame.unmaskedData))).whenComplete { _ in
@@ -91,8 +102,24 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        backend?.close(promise: nil)
+        closing = true
+        if let backend {
+            if let lastBackendWrite {
+                // A WebSocket close can arrive in the same read as the final data
+                // frame. Let NIO flush those bytes before closing the TCP socket.
+                let timeout = context.eventLoop.scheduleTask(in: .seconds(5)) {
+                    backend.close(promise: nil)
+                }
+                lastBackendWrite.whenComplete { _ in
+                    timeout.cancel()
+                    backend.close(promise: nil)
+                }
+            } else {
+                backend.close(promise: nil)
+            }
+        }
         backend = nil
+        lastBackendWrite = nil
         pending.removeAll()
         context.fireChannelInactive()
     }
@@ -102,6 +129,8 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
     }
 
     private func closeWithError(on channel: Channel) {
+        guard !closing, channel.isActive else { return }
+        closing = true
         var data = channel.allocator.buffer(capacity: 2)
         data.writeInteger(UInt16(1011), endianness: .big)
         channel.writeAndFlush(WebSocketFrame(fin: true, opcode: .connectionClose,
@@ -115,14 +144,16 @@ private final class GuestPortBackendHandler: ChannelInboundHandler, @unchecked S
     typealias InboundIn = ByteBuffer
 
     let webSocket: Channel
+    let shouldForward: @Sendable () -> Bool
     private var lastWrite: EventLoopFuture<Void>?
 
-    init(webSocket: Channel) {
+    init(webSocket: Channel, shouldForward: @escaping @Sendable () -> Bool) {
         self.webSocket = webSocket
+        self.shouldForward = shouldForward
     }
 
     func channelRead(context _: ChannelHandlerContext, data: NIOAny) {
-        guard webSocket.isActive else { return }
+        guard webSocket.isActive, shouldForward() else { return }
         let frame = WebSocketFrame(fin: true, opcode: .binary, data: unwrapInboundIn(data))
         lastWrite = webSocket.writeAndFlush(frame)
     }
@@ -146,7 +177,7 @@ private final class GuestPortBackendHandler: ChannelInboundHandler, @unchecked S
     }
 
     private func closeWebSocket() {
-        guard webSocket.isActive else { return }
+        guard webSocket.isActive, shouldForward() else { return }
         var data = webSocket.allocator.buffer(capacity: 2)
         data.writeInteger(UInt16(1000), endianness: .big)
         webSocket.writeAndFlush(WebSocketFrame(fin: true, opcode: .connectionClose,

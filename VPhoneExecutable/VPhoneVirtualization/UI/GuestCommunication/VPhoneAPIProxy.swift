@@ -96,17 +96,28 @@ private final class GuestSocketProvider: @unchecked Sendable {
                         let guestRelay = ByteRelay(connection: connection)
                         let hostRelay = ByteRelay(connection: connection)
                         ClientBootstrap(group: self.group)
+                            .channelOption(ChannelOptions.autoRead, value: false)
                             .channelInitializer { guest in guest.pipeline.addHandler(guestRelay) }
                             .withConnectedSocket(fd)
                             .flatMap { guest in
                                 guestRelay.peer = host
                                 hostRelay.peer = guest
                                 return host.pipeline.addHandler(hostRelay)
+                                    .flatMap {
+                                        host.setOption(ChannelOptions.autoRead, value: guest.isWritable)
+                                            .flatMap {
+                                                guest.setOption(ChannelOptions.autoRead, value: host.isWritable)
+                                            }
+                                    }
+                                    .flatMapError { error in
+                                        guest.close(promise: nil)
+                                        return host.eventLoop.makeFailedFuture(error)
+                                    }
                             }
                             .whenComplete { result in
                                 switch result {
                                 case .success:
-                                    host.setOption(ChannelOptions.autoRead, value: true).cascade(to: promise)
+                                    promise.succeed(())
                                 case let .failure(error):
                                     print("[api] guest relay failed: \(error)")
                                     promise.fail(error)
@@ -129,6 +140,7 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
     private let connection: VZVirtioSocketConnection
     private let lock = NSLock()
     private var _peer: Channel?
+    private var lastWrite: EventLoopFuture<Void>?
 
     var peer: Channel? {
         get {
@@ -149,7 +161,7 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
 
     func channelRead(context _: ChannelHandlerContext, data: NIOAny) {
         guard let peer else { return }
-        peer.writeAndFlush(unwrapInboundIn(data), promise: nil)
+        lastWrite = peer.writeAndFlush(unwrapInboundIn(data))
     }
 
     func channelWritabilityChanged(context: ChannelHandlerContext) {
@@ -162,7 +174,22 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
         let other = _peer
         _peer = nil
         lock.unlock()
-        other?.close(promise: nil)
+        if let other {
+            if let lastWrite {
+                // A close can follow the last TCP chunk before the other event
+                // loop has written it. Drain that write before closing its socket.
+                let timeout = context.eventLoop.scheduleTask(in: .seconds(5)) {
+                    other.close(promise: nil)
+                }
+                lastWrite.whenComplete { _ in
+                    timeout.cancel()
+                    other.close(promise: nil)
+                }
+            } else {
+                other.close(promise: nil)
+            }
+        }
+        lastWrite = nil
         context.fireChannelInactive()
     }
 
