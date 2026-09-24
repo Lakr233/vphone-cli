@@ -63,6 +63,21 @@ The status reports `phase` and, during download, `downloaded_bytes` and
 `total_bytes` when the server provides a length. The sheet shows the download
 progress, then the installation result without closing.
 
+`GET /v1/bootstrap/inspect` (RPC `bootstrap.inspect`) reports the layout and
+path recorded by a completed vphoned installation, or `installed: false`.
+`POST /v1/bootstrap/uninstall` (RPC `bootstrap.uninstall`) requires
+`{"jbroot":"<path from inspect>","force":true}`. It accepts only the
+rootless `/var/jb` directory or a valid RootHide `.jbroot-<16 hex>` directory
+recorded by vphoned. A rootless `/var/jb` symlink is accepted only when its
+target is a physical directory under `/private/preboot`; the target and link
+are both removed. The daemon rejects a changed path and symlinked child
+directories. It unloads the bootstrap's launch daemons, unregisters apps in
+its `Applications` directory, deletes the bootstrap root and completion marker,
+then schedules a full guest reboot. If cleanup fails, the marker remains so
+the operation can be retried. Irisin's mobile Documents data outside the
+bootstrap is retained. Guest > Uninstall Bootstrap… shows the recorded path
+in a destructive confirmation alert before sending the request.
+
 ## HTTP and WebSocket contract
 
 JSON resource routes cover device state, apps, input, location, Developer Mode, low power
@@ -171,7 +186,7 @@ request carries `"force": true`.
 | Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current` |
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
 | Packages (read-only) | `packages.list`, `status`, `info {path}`, `compare`, `tweaks`, `repos` |
-| Bootstrap | `bootstrap.install {layout}`, `bootstrap.status`, `bootstrap.firmware` (see above) |
+| Bootstrap | `bootstrap.install {layout}`, `bootstrap.status`, `bootstrap.inspect`, `bootstrap.uninstall {jbroot, force}`, `bootstrap.firmware` (see above) |
 
 `processes.list` joins icli's kernel process list with `proc_pid_rusage`
 footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),

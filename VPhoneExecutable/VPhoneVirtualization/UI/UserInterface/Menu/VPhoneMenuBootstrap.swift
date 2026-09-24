@@ -1,12 +1,16 @@
 import AppKit
 
-// MARK: - Bootstrap Installation
+// MARK: - Bootstrap Installation and Removal
 
 /// Installs the Irisin bootstrap in the guest from the Guest menu and shows
 /// vphoned's progress while it downloads, extracts and registers it.
 extension VPhoneMenuController {
     func updateBootstrapAvailability(available: Bool) {
-        installBootstrapItem?.isEnabled = available && !isInstallingBootstrap
+        installBootstrapItem?.isEnabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
+    }
+
+    func updateBootstrapUninstallAvailability(available: Bool) {
+        uninstallBootstrapItem?.isEnabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
     }
 
     @objc func installBootstrap() {
@@ -29,6 +33,7 @@ extension VPhoneMenuController {
     private func performBootstrapInstallation(layout: String) {
         isInstallingBootstrap = true
         installBootstrapItem?.isEnabled = false
+        uninstallBootstrapItem?.isEnabled = false
         let alert = NSAlert()
         alert.messageText = VPhoneLocalization.text("Install Bootstrap")
         alert.informativeText = VPhoneLocalization.text("Installing the latest Irisin release in the guest.")
@@ -52,6 +57,9 @@ extension VPhoneMenuController {
                 isInstallingBootstrap = false
                 updateBootstrapAvailability(
                     available: control.isConnected && control.guestCapabilities.contains("bootstrap_install"),
+                )
+                updateBootstrapUninstallAvailability(
+                    available: control.isConnected && control.guestCapabilities.contains("bootstrap_uninstall"),
                 )
                 indicator.stopAnimation(nil)
                 close.isEnabled = true
@@ -84,6 +92,75 @@ extension VPhoneMenuController {
                 alert.informativeText = String(describing: error)
             }
         }
+    }
+
+    @objc func uninstallBootstrap() {
+        guard !isInstallingBootstrap && !isUninstallingBootstrap else { return }
+        isUninstallingBootstrap = true
+        updateBootstrapAvailability(available: false)
+        updateBootstrapUninstallAvailability(available: false)
+        Task {
+            do {
+                let installation = try await control.installedBootstrap()
+                guard installation["installed"] as? Bool == true,
+                      let root = installation["jbroot"] as? String else {
+                    VPhoneAlert.present(
+                        title: "Uninstall Bootstrap",
+                        message: "No completed bootstrap installation was found.",
+                        style: .informational,
+                    )
+                    finishBootstrapUninstall()
+                    return
+                }
+                VPhoneAlert.present(
+                    title: "Uninstall Bootstrap",
+                    message: VPhoneLocalization.format(
+                        "Permanently delete the bootstrap at %@ and restart the guest?", root,
+                    ),
+                    style: .warning,
+                    buttons: ["Delete and Restart", "Cancel"],
+                ) { response in
+                    guard response == .alertFirstButtonReturn else {
+                        self.finishBootstrapUninstall()
+                        return
+                    }
+                    Task {
+                        do {
+                            _ = try await self.control.uninstallBootstrap(at: root)
+                            VPhoneAlert.present(
+                                title: "Uninstall Bootstrap",
+                                message: "Bootstrap removed. The guest is restarting.",
+                                style: .informational,
+                            )
+                        } catch {
+                            VPhoneAlert.present(
+                                title: "Bootstrap removal failed",
+                                message: String(describing: error),
+                                style: .warning,
+                            )
+                        }
+                        self.finishBootstrapUninstall()
+                    }
+                }
+            } catch {
+                VPhoneAlert.present(
+                    title: "Bootstrap removal failed",
+                    message: String(describing: error),
+                    style: .warning,
+                )
+                finishBootstrapUninstall()
+            }
+        }
+    }
+
+    private func finishBootstrapUninstall() {
+        isUninstallingBootstrap = false
+        updateBootstrapAvailability(
+            available: control.isConnected && control.guestCapabilities.contains("bootstrap_install"),
+        )
+        updateBootstrapUninstallAvailability(
+            available: control.isConnected && control.guestCapabilities.contains("bootstrap_uninstall"),
+        )
     }
 
     private func updateBootstrapProgress(

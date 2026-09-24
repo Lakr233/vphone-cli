@@ -323,6 +323,20 @@ final class VPhoneGuestControl {
         return try await call("bootstrap.status")
     }
 
+    func installedBootstrap() async throws -> [String: Any] {
+        guard guestCapabilities.contains("bootstrap_uninstall") else {
+            throw ControlError.unsupportedCapability("bootstrap_uninstall")
+        }
+        return try await call("bootstrap.inspect")
+    }
+
+    func uninstallBootstrap(at root: String) async throws -> [String: Any] {
+        guard guestCapabilities.contains("bootstrap_uninstall") else {
+            throw ControlError.unsupportedCapability("bootstrap_uninstall")
+        }
+        return try await call("bootstrap.uninstall", params: ["jbroot": root, "force": true])
+    }
+
     func clipboardGet() async throws -> ClipboardContent {
         let (info, image) = try await sendRequest(["t": "clipboard_get"])
         return ClipboardContent(

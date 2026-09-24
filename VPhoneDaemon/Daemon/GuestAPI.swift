@@ -63,6 +63,7 @@ enum GuestAPI {
                 "keychain",
                 "ipa_install",
                 "bootstrap_install",
+                "bootstrap_uninstall",
                 "port_forward",
                 "camera",
                 "screenshot",
@@ -220,6 +221,11 @@ enum GuestAPI {
             )
         case "bootstrap.status":
             return GuestIrisinInstaller.status()
+        case "bootstrap.inspect":
+            return try GuestIrisinInstaller.installedBootstrap()
+        case "bootstrap.uninstall":
+            try requireForce(params, "uninstall the bootstrap")
+            return try GuestIrisinInstaller.uninstall(expectedRoot: string(params, "jbroot"))
         case "bootstrap.firmware":
             return try GuestIrisinInstaller.repairFirmwareRecord()
         case "input.touch":

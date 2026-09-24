@@ -176,6 +176,8 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         case (.POST, "/v1/apps/install"): "apps.install"
         case (.POST, "/v1/bootstrap/install"): "bootstrap.install"
         case (.GET, "/v1/bootstrap/status"): "bootstrap.status"
+        case (.GET, "/v1/bootstrap/inspect"): "bootstrap.inspect"
+        case (.POST, "/v1/bootstrap/uninstall"): "bootstrap.uninstall"
         case (.POST, "/v1/bootstrap/firmware"): "bootstrap.firmware"
         case (.POST, "/v1/input/touch"): "input.touch"
         case (.POST, "/v1/input/hid"): "input.hid"

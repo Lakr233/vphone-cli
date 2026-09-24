@@ -37,6 +37,11 @@ extension VPhoneMenuController {
         installBootstrapItem = installBootstrap
         menu.addItem(installBootstrap)
 
+        let uninstallBootstrap = makeItem("Uninstall Bootstrap…", action: #selector(uninstallBootstrap))
+        uninstallBootstrap.isEnabled = false
+        uninstallBootstrapItem = uninstallBootstrap
+        menu.addItem(uninstallBootstrap)
+
         menu.addItem(NSMenuItem.separator())
 
         let clipGet = makeItem(

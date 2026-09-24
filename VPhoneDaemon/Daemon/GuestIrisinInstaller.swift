@@ -39,6 +39,117 @@ enum GuestIrisinInstaller {
         return progress
     }
 
+    static func installedBootstrap() throws -> [String: Any] {
+        guard let installation = try completedBootstrap() else { return ["installed": false] }
+        return ["installed": true, "layout": installation.layout, "jbroot": installation.root]
+    }
+
+    static func uninstall(expectedRoot: String) throws -> [String: Any] {
+        installLock.lock()
+        defer { installLock.unlock() }
+        guard let installation = try completedBootstrap() else {
+            throw GuestAPIError.operationFailed("No completed vphoned bootstrap was found")
+        }
+        let root = installation.root
+        guard expectedRoot == root else {
+            throw GuestAPIError.invalidRequest("Bootstrap path changed; inspect it again before uninstalling")
+        }
+
+        let files = FileManager.default
+        let rootURL = URL(fileURLWithPath: root, isDirectory: true)
+        let removal = try removalRoot(root, layout: installation.layout)
+        if try directoryExistsWithoutSymlink(removal.physicalPath) {
+            for relative in ["Library/LaunchDaemons", "basebin/LaunchDaemons"] {
+                let directory = rootURL.appendingPathComponent(relative, isDirectory: true).path
+                guard try physicalChildDirectoryExists(root: root, relative: relative) else { continue }
+                let plists = try files.contentsOfDirectory(atPath: directory)
+                    .filter { $0.hasSuffix(".plist") }
+                    .sorted()
+                    .map { directory + "/" + $0 }
+                for plist in plists {
+                    var info = stat()
+                    guard lstat(plist, &info) == 0, info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else {
+                        throw GuestAPIError.operationFailed("Bootstrap service is not a regular plist: \(plist)")
+                    }
+                }
+                if !plists.isEmpty { _ = try loadServices(plists, load: false, override: false) }
+            }
+
+            let apps = rootURL.appendingPathComponent("Applications", isDirectory: true).path
+            if try physicalChildDirectoryExists(root: root, relative: "Applications") {
+                _ = try unregisterAppsInDirectory(apps, force: true)
+            }
+            try files.removeItem(atPath: removal.physicalPath)
+        }
+        if removal.isSymlink { try files.removeItem(at: rootURL) }
+        try files.removeItem(at: completionMarker)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+            do {
+                _ = try requestReboot(userspace: false, force: true)
+            } catch {
+                NSLog("vphoned: bootstrap removed but reboot failed: %@", String(describing: error))
+            }
+        }
+        return ["jbroot": root, "layout": installation.layout, "deleted": true, "reboot_scheduled": true]
+    }
+
+    private static func completedBootstrap() throws -> (layout: String, root: String)? {
+        guard itemExists(completionMarker) else { return nil }
+        let data = try Data(contentsOf: completionMarker)
+        guard let marker = try JSONSerialization.jsonObject(with: data) as? [String: String],
+              let layout = marker["layout"], let root = marker["jbroot"],
+              (layout == "rootless" && root == "/var/jb") ||
+              (layout == "roothide" && root.hasPrefix("/private/var/containers/Bundle/Application/")
+               && roothideName(String(root.dropFirst("/private/var/containers/Bundle/Application/".count))))
+        else { throw GuestAPIError.operationFailed("Completed bootstrap marker has an invalid root") }
+        return (layout, root)
+    }
+
+    private static func directoryExistsWithoutSymlink(_ path: String) throws -> Bool {
+        var info = stat()
+        if lstat(path, &info) != 0 {
+            if errno == ENOENT { return false }
+            throw GuestAPIError.operationFailed("Could not inspect bootstrap directory: \(path)")
+        }
+        guard info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) else {
+            throw GuestAPIError.operationFailed("Bootstrap directory is not a physical directory: \(path)")
+        }
+        return true
+    }
+
+    private static func physicalChildDirectoryExists(root: String, relative: String) throws -> Bool {
+        var path = root
+        for component in relative.split(separator: "/") {
+            path += "/" + component
+            guard try directoryExistsWithoutSymlink(path) else { return false }
+        }
+        return true
+    }
+
+    private static func removalRoot(_ root: String, layout: String) throws -> (physicalPath: String, isSymlink: Bool) {
+        var info = stat()
+        guard lstat(root, &info) == 0 else {
+            if errno == ENOENT { return (root, false) }
+            throw GuestAPIError.operationFailed("Could not inspect bootstrap root: \(root)")
+        }
+        if info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) { return (root, false) }
+        guard layout == "rootless", info.st_mode & mode_t(S_IFMT) == mode_t(S_IFLNK) else {
+            throw GuestAPIError.operationFailed("Bootstrap root is not a directory: \(root)")
+        }
+        var target = [CChar](repeating: 0, count: Int(PATH_MAX))
+        let count = readlink(root, &target, target.count - 1)
+        guard count > 0 else { throw GuestAPIError.operationFailed("Could not read bootstrap link: \(root)") }
+        guard let physicalPath = String(
+            bytes: target.prefix(count).map { UInt8(bitPattern: $0) }, encoding: .utf8,
+        ) else { throw GuestAPIError.operationFailed("Bootstrap link has an invalid path: \(root)") }
+        guard physicalPath.hasPrefix("/private/preboot/"),
+              physicalPath != "/private/preboot/",
+              physicalPath == (physicalPath as NSString).standardizingPath else {
+            throw GuestAPIError.operationFailed("Rootless bootstrap link has an unexpected target: \(physicalPath)")
+        }
+        return (physicalPath, true)
+    }
+
     private static func setProgress(_ value: [String: Any]) {
         progressLock.lock()
         progress = value
