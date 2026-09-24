@@ -59,8 +59,8 @@ done
 #
 # What is deliberately ABSENT is as important:
 #   repos/            toolchain submodules — build tier, sources only
-#   ../siblings/       optional guest sources and archives; not part of the
-#                      shipped app or automatic VM installation
+#   ../siblings/       guest sources and GPU provenance; not copied into the
+#                      shipped app (GPU extraction runs in native fw prepare)
 #   vphoned/*.m *.h vendor/ Makefile   same, and it is the bulk of scripts/
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
 print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

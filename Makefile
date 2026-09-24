@@ -74,7 +74,7 @@ help:
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
-	@echo "  make siblings_package        Build + archive optional guest components"
+	@echo "  make siblings_package        Archive four optional guest components + GPU provenance"
 	@echo "  make clean                   Remove build/tooling artifacts only"
 	@echo "    Options: CLEAN_VM=1        Also remove VM_DIR=$(VM_DIR) after confirmation"
 	@echo "             CLEAN_IPSW=1      Also remove ipsws/ after confirmation"

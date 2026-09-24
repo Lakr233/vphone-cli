@@ -1,5 +1,5 @@
-# Optional guest components. Build on the developer machine with the iPhoneOS SDK.
-# Nothing here is staged into vphone-cli.app or installed in a VM.
+# Sibling guest components. The four source components compile with the iPhoneOS SDK.
+# The GPU item is provenance only: fw prepare extracts the actual Apple bundle.
 
 OUT := $(abspath ../.build/siblings)
 STAGE := $(OUT)/stage
@@ -13,17 +13,18 @@ TWEAKLOADER := $(STAGE)/tweakloader/TweakLoader.dylib
 VPREGISTER := $(STAGE)/vpregister/vpregister
 ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(TWEAKLOADER) $(VPREGISTER)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist
+GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
 .PHONY: all package clean
 
-all: $(ARTIFACTS) $(PLISTS)
+all: $(ARTIFACTS) $(PLISTS) $(GPU_PROVENANCE)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured tweakloader vpregister
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured tweakloader vpregister gpu
 	@echo "Packaged $(ARCHIVE)"
 
-$(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/tweakloader $(STAGE)/vpregister:
+$(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/tweakloader $(STAGE)/vpregister $(STAGE)/gpu:
 	@mkdir -p $@
 
 $(CAMFIX): camfix/libcamfix.m | $(STAGE)/camfix
@@ -56,6 +57,9 @@ $(STAGE)/camfix/libcamfix.plist: camfix/libcamfix.plist | $(STAGE)/camfix
 	@cp $< $@
 
 $(STAGE)/vcamcaptured/libvcamcaptured.plist: vcamcaptured/libvcamcaptured.plist | $(STAGE)/vcamcaptured
+	@cp $< $@
+
+$(GPU_PROVENANCE): gpu/README.md | $(STAGE)/gpu
 	@cp $< $@
 
 clean:
