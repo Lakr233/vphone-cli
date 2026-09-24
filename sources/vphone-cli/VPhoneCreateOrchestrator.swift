@@ -246,6 +246,7 @@ public struct VPhoneCreateOrchestrator {
         let bundle = try VPhoneBundle.load(at: bundleURL)
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
+            gpuDriverBundle: options.gpuDriverBundle,
             bundle: bundle, cacheDirectory: resources.ipswCacheDir,
         )
         print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")

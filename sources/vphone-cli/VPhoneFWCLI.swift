@@ -200,6 +200,8 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
     @Argument(help: "VM name") var name: String?
     @Option(name: .shortAndLong, help: "iPhone IPSW URL or local path") var iphoneSource: String?
     @Option(name: .shortAndLong, help: "cloudOS IPSW URL or local path") var cloudosSource: String?
+    @Option(help: "GPU driver bundle from the same cloudOS build, for offline AEA recovery")
+    var gpuDriverBundle: String?
     @Option(help: "iPhone version to resolve to an IPSW") var iphoneVersion: String?
     @Option(help: "iPhone build to resolve to an IPSW") var iphoneBuild: String?
     @Flag(help: "List downloadable IPSWs and exit") var list = false
@@ -256,6 +258,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
+            gpuDriverBundle: gpuDriverBundle.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
             bundle: bundle, cacheDirectory: resources.ipswCacheDir,
         )
     }

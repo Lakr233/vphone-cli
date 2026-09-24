@@ -40,6 +40,43 @@ struct PCCGPUDriverTests {
         }
     }
 
+    @Test func `stages a validated local bundle without an AEA key request`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pcc-gpu-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent(VPhonePCCGPUDriver.name)
+        try FileManager.default.createDirectory(
+            at: source.appendingPathComponent("_CodeSignature"), withIntermediateDirectories: true,
+        )
+        for file in ["AppleParavirtGPUMetalIOGPUFamily",
+                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib",
+                     "_CodeSignature/CodeResources"]
+        {
+            try Data(file.utf8).write(to: source.appendingPathComponent(file))
+        }
+        let info = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleIdentifier":
+                "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily"],
+            format: .binary, options: 0,
+        )
+        try info.write(to: source.appendingPathComponent("Info.plist"))
+
+        let restore = root.appendingPathComponent("restore")
+        try VPhonePCCGPUDriver.stage(
+            from: root.appendingPathComponent("missing-cloudos"),
+            into: restore,
+            cachedBundle: source,
+        )
+        let staged = VPhonePCCGPUDriver.stagedBundle(in: restore)
+        #expect(try Data(contentsOf: staged.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"))
+            == Data("AppleParavirtGPUMetalIOGPUFamily".utf8))
+
+        try FileManager.default.removeItem(at: source.appendingPathComponent("_CodeSignature/CodeResources"))
+        #expect(throws: VPhonePCCGPUDriver.Error.self) {
+            try VPhonePCCGPUDriver.stage(from: root, into: restore, cachedBundle: source)
+        }
+    }
+
     private func identity(device: String, os: String) -> [String: Any] {
         ["Info": ["DeviceClass": device],
          "Manifest": ["OS": ["Info": ["Path": os]]]]

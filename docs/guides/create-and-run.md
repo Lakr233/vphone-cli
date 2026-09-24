@@ -17,6 +17,8 @@ vphone-cli vm create myphone \
 
 Creation runs prepare → JB patch → online DFU restore → host-mounted CFW installation → first GUI boot. It needs network access for the restore ticket. CFW installation needs administrator authentication; on a host without an interactive terminal, `--root-popup` uses a macOS authentication dialog. The default virtual disk is 64 GB. `--keep-artifacts` retains the large prepared restore tree; omit it when disk space matters.
 
+If Apple's WKMS server no longer serves the AEA key for the selected PCC image, `vm create` and `fw prepare` accept `--gpu-driver-bundle /path/to/AppleParavirtGPUMetalIOGPUFamily.bundle`. Supply a complete bundle previously extracted from **the same cloudOS build**. The CLI validates its files and identifier, then stages it in the restore tree without decrypting the PCC OS image. The iPhone restore still uses its own AEA keys and an online restore ticket.
+
 Success ends with `First boot: vphoned ping succeeded` and `JB VM created; vphoned connected`. **The verification VM is then stopped.** The ping proves the daemon answered over the host control socket during that boot; it does not leave a running VM behind.
 
 ```sh
