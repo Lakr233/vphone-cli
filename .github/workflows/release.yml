@@ -1,12 +1,17 @@
 name: release
 
-# Build the portable, signed vphone-cli.app and attach it to a published
-# GitHub Release. Validate the actual application bundle; no Homebrew
-# packages or separately provisioned runtime tools are required.
+# Build the self-contained VPhone.bundle and attach it to a published
+# GitHub Release. The Xcode scheme signs and validates the bundle.
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and upload
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,31 +22,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Toolchain versions
         run: |
           swift --version
           xcodebuild -version
 
-      - name: Build and bundle (portable .app)
+      - name: Build VPhone.bundle
         env:
           SWIFT_JOBS: "4"
-        run: ./Scripts/build.sh
+        run: |
+          xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
+            -configuration Release -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .build/XcodeBundle -jobs 4 build
 
-      - name: Verify application bundle
+      - name: Verify bundle
         run: |
           set -euo pipefail
-          codesign --verify --strict .build/vphone-cli.app
-          test -x .build/vphone-cli.app/Contents/Resources/guest/vphoned
-          zsh Scripts/check_aux.sh
+          zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh \
+            .build/XcodeBundle/Build/Products/Release/VPhone.bundle
 
-      - name: Package app
+      - name: Package bundle
         env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: ditto -c -k --keepParent .build/vphone-cli.app "vphone-cli-${TAG}.zip"
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          ditto -c -k --keepParent \
+            .build/XcodeBundle/Build/Products/Release/VPhone.bundle \
+            "VPhone-${TAG}.zip"
 
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" "vphone-cli-${TAG}.zip" --clobber
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" "VPhone-${TAG}.zip" --clobber

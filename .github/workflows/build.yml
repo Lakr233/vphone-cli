@@ -1,0 +1,36 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Build VPhone.bundle
+        env:
+          SWIFT_JOBS: "4"
+        run: |
+          xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
+            -configuration Debug -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .build/XcodeBundle -jobs 4 build
+
+      - name: Verify bundle
+        run: |
+          set -euo pipefail
+          zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh \
+            .build/XcodeBundle/Build/Products/Debug/VPhone.bundle
