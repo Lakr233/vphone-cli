@@ -150,22 +150,12 @@ struct BundleTransferTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let lib = VPhoneLibrary(root: root)
         let b = try makeBundle("orig", in: lib)
-        let fm = FileManager.default
         try Data([0]).write(to: b.url.appendingPathComponent(".vphoned.signed"))
-        try fm.createDirectory(at: b.url.appendingPathComponent("cfw_input/jb"), withIntermediateDirectories: true)
-        try Data([0]).write(to: b.url.appendingPathComponent("cfw_input/jb/f"))
-        try fm.createDirectory(at: b.url.appendingPathComponent("cfw_jb_input"), withIntermediateDirectories: true)
-        try Data([0]).write(to: b.url.appendingPathComponent("cfw_jb_input/f"))
-        try fm.createDirectory(at: b.url.appendingPathComponent(".cfw_temp"), withIntermediateDirectories: true)
-        try Data([0]).write(to: b.url.appendingPathComponent(".cfw_temp/f"))
 
         let archive = root.appendingPathComponent("orig.tgz")
         try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib)
         let members = try VPhoneArchiveReader.entries(of: archive).map(\.path)
         #expect(!members.contains { $0.contains(".vphoned.signed") })
-        #expect(!members.contains { $0.contains("cfw_input") })
-        #expect(!members.contains { $0.contains("cfw_jb_input") })
-        #expect(!members.contains { $0.contains(".cfw_temp") })
         // The real payload still travels.
         #expect(members.contains("orig/Disk.img"))
         #expect(members.contains("orig/config.plist"))

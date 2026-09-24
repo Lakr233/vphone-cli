@@ -19,9 +19,8 @@ public enum VPhoneArchiveWriter {
     /// `vm export` needs it: an export holds exactly one top-level bundle
     /// directory, and import checks for exactly that.
     ///
-    /// `excluding` takes `fnmatch` patterns, matched against the path relative
-    /// to `root` — not against `topLevel/...`, so a VM whose name happens to
-    /// contain `cfw_input` does not exclude its own contents.
+    /// `excluding` takes `fnmatch` patterns matched against paths relative to
+    /// `root`, not against `topLevel/...`.
     ///
     /// `bytesPacked` reports the running total of file bytes copied, as they
     /// are copied. `progress` fires once per entry, which is enough for a

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import VPhoneRestore
 
-/// `find_restore_dir` and `derive_shsh_output`. Both rules are contracts:
+/// Restore directory and ticket naming rules. Both are contracts:
 /// `--offline` picks the first `*.shsh` in a bundle, and restoring from
 /// whichever of two firmware trees happened to sort first would flash a build
 /// nobody chose.
@@ -82,8 +82,7 @@ struct RestoreLayoutTests {
 
     @Test func `a file with the right name is not A restore tree`() throws {
         try withTemporaryDirectory { root in
-            // Python's `if p.is_dir()`. A stray file would otherwise be handed
-            // to idevicerestore as a restore directory.
+            // A stray file must not be handed to idevicerestore as a restore directory.
             try Data("not a tree".utf8)
                 .write(to: root.appendingPathComponent("iPhone17,3_Restore"))
             #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
@@ -111,17 +110,16 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func `a symlink to A directory counts`() throws {
+    @Test func `a symlink to a shared directory is not a restore tree`() throws {
         try withTemporaryDirectory { root in
-            // Python's glob + `p.is_dir()` follows symlinks, and a bundle that
-            // points at a shared firmware tree is a reasonable thing to build.
             try makeDirectory("real_tree", in: root)
             try FileManager.default.createSymbolicLink(
                 at: root.appendingPathComponent("iPhone17,3_Restore"),
                 withDestinationURL: root.appendingPathComponent("real_tree"),
             )
-            let found = try VPhoneRestoreLayout.findRestoreDirectory(in: root)
-            #expect(found.lastPathComponent == "iPhone17,3_Restore")
+            #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
+                try VPhoneRestoreLayout.findRestoreDirectory(in: root)
+            }
         }
     }
 

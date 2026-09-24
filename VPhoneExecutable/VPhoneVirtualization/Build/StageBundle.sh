@@ -79,8 +79,6 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /bin/cp "$compatibility_library" "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/install_name_tool -change @rpath/libswiftCompatibilitySpan.dylib \
     @loader_path/libswiftCompatibilitySpan.vphone.dylib "$macos/vphone-vm"
-/bin/rm -f "$macos/libswiftCompatibilitySpan.dylib" \
-    "$macos/libswiftCompatibilitySpan.dylib.original"
 /bin/rm -f "$bundle/Contents/Frameworks/libswiftCompatibilitySpan.dylib"
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"

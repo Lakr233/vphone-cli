@@ -191,14 +191,10 @@ public enum VPhoneBundleOperations {
 
     // MARK: - Export
 
-    /// Regenerable staging artifacts that never need to travel in an export:
-    /// `.vphoned.signed` is re-staged on the next launch, and the CFW install
-    /// inputs/temp are consumed at install time (the result already lives in
-    /// `Disk.img`). Always excluded.
+    /// `.vphoned.signed` is re-staged on the next launch and need not be exported.
     ///
     /// Export itself is `VPhoneBundleTransfer` in `VPhoneArchiveKit` — it needs
     /// libarchive, and this does not. The list stays here because it describes
     /// what a bundle is, and `VPhoneRestoreInfo` is checked against it.
-    public static let exportExcludePatterns =
-        ["*.vphoned.signed", "*cfw_input*", "*cfw_jb_input*", "*.cfw_temp*"]
+    public static let exportExcludePatterns = ["*.vphoned.signed"]
 }

@@ -40,6 +40,7 @@ enum VPhonePCCGPURecovery {
             romSource: VPhoneBundleOperations.defaultROMSource(),
             sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
         ), in: library)
+        let temporaryRestore = vm.url.appending(path: "iPhonePCC_Restore")
         defer {
             let diskImage = vm.url.appendingPathComponent("Disk.img")
             if let info = try? run("/usr/bin/hdiutil", ["info"]),
@@ -51,12 +52,9 @@ enum VPhonePCCGPURecovery {
             }
         }
 
-        // The restore backend accepts a linked directory. Reuse the already
-        // extracted cloudOS tree instead of writing a second copy of its OS image.
-        try fm.createSymbolicLink(
-            at: vm.url.appending(path: "iPhonePCC_Restore"),
-            withDestinationURL: cloudOSDirectory,
-        )
+        // The manifest already consumed this tree. Move it into the temporary
+        // machine so restore reads only from that machine's directory.
+        try fm.moveItem(at: cloudOSDirectory, to: temporaryRestore)
         let launcher = try VPhoneGuestLaunchPlanner()
         let (executable, arguments) = launcher.plan(["--config", vm.configURL.path, "--dfu"])
         let dfu = VPhoneManagedProcess(executable, arguments, cwd: vm.url, echo: false)

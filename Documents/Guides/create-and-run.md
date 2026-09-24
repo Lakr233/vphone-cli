@@ -58,7 +58,7 @@ The online restore obtains its ticket in process. For an offline restore, see `v
 | `~/.vphone/machines/<name>/` | One VM, including its disk, `config.plist`, and patch work files |
 | `~/.vphone/machines/<name>/.ipsw-cache/` | Remote source IPSWs downloaded for that VM; local IPSWs are read in place |
 
-`VPHONE_ROOT` relocates the VM library. `VPHONE_LIBRARY_ROOT` takes precedence for the library alone. Downloaded IPSWs remain cached inside their VM; the prepared restore tree is removed after a successful `vm create` unless `--keep-artifacts` is set. JB patching does not create `~/.vphone/tools`.
+`VPHONE_ROOT` relocates the VM library. `VPHONE_LIBRARY_ROOT` takes precedence for the library alone. Downloaded IPSWs remain cached inside their VM; the prepared restore tree is removed after a successful `vm create` unless `--keep-artifacts` is set.
 
 ```sh
 vphone-cli vm list
