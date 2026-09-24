@@ -20,7 +20,8 @@ file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
 for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
-    vpregister libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib TweakLoader.dylib \
+    vpregister libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib \
+    launchdhook-vphone.dylib SystemHook-vphone.dylib \
     libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ -f "$macos/$name" ]] || { print -u2 "Missing binary: Contents/MacOS/$name"; exit 1; }
     /usr/bin/file "$macos/$name" | /usr/bin/grep -q 'Mach-O' || {
