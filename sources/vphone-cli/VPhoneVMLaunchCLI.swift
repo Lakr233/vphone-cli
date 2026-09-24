@@ -12,12 +12,20 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
     @Argument(help: "VM name") var name: String?
     @Flag(name: .shortAndLong, help: "Boot into DFU mode (headless)") var dfu = false
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar") var headless = false
+    @Option(help: "Expose the guest HTTP/WebSocket API on host:port (for example 127.0.0.1:8765)")
+    var apiListen: String?
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned; valid: 6000...65535)")
     var kernelDebugPort: Int?
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
+
+    func validate() throws {
+        if dfu, apiListen != nil {
+            throw ValidationError("`--api-listen` is unavailable with `--dfu`.")
+        }
+    }
 
     func run() throws {
         let v = VPhoneVerbosity(count: verboseCount)
@@ -44,6 +52,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         var args = ["--config", bundle.configURL.path]
         if dfu { args.append("--dfu") }
         if headless { args.append("--headless") }
+        if let apiListen { args += ["--api-listen", apiListen] }
         if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }
 
         if v.tracesInternals {

@@ -12,7 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#import "vphoned_protocol.h"
+#import "vphoned_response.h"
 
 typedef struct __SecCode const *SecStaticCodeRef;
 typedef CF_OPTIONS(uint32_t, SecCSFlags) {

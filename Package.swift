@@ -7,7 +7,10 @@ let package = Package(
     platforms: [
         .macOS(.v15),
     ],
-    products: [],
+    products: [
+        .library(name: "VPhoneKit", targets: ["VPhoneKit"]),
+        .library(name: "VPhoneVMKit", targets: ["VPhoneVMKit"]),
+    ],
     // Resolved by SwiftPM, not carried as submodules. Every one of these was a
     // `.package(path: "vendor/…")` over a checkout this repository pinned by
     // commit, which meant a `git submodule update` before any build and a tree
@@ -35,8 +38,13 @@ let package = Package(
         // arrives through SwiftPM instead of a pip install into a venv, and
         // the C targets below include its headers directly.
         .package(url: "https://github.com/Lakr233/AppleMobileDeviceLibrary.git", from: "1.0.1790070576"),
+        // 2.84+ links libswiftCompatibilitySpan when built with Swift 6.4.
+        // 2.83 keeps the guest binary self-contained on older iOS bases.
+        .package(url: "https://github.com/apple/swift-nio.git", exact: "2.83.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
     ],
     targets: [
+        .target(name: "VPhoneKit", path: "sources/VPhoneKit"),
         .target(
             name: "FirmwarePatcher",
             dependencies: [
@@ -209,7 +217,10 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Dynamic", package: "Dynamic"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 "VPhoneCore",
+                "VPhoneKit",
             ],
             path: "sources/VPhoneVMKit",
             linkerSettings: [
@@ -228,7 +239,12 @@ let package = Package(
                 "VPhoneCore",
                 "VPhoneVMKit",
             ],
-            path: "sources/vphone-vm"
+            path: "sources/vphone-vm",
+            // Swift 6.4 may autolink compatibility dylibs for generic code in
+            // dependencies even when this executable has no symbol references.
+            // Strip those unused load commands so the shipped app remains
+            // independent of the build machine's Swift toolchain.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])]
         ),
         // The user-facing entry point. Note it depends on neither VPhoneVMKit
         // nor any of the five frameworks above: it never builds a machine, it

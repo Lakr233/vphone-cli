@@ -85,6 +85,10 @@ extension CryptexFilesystemPatcher {
             )
         )
         try setMode(0o755, at: targetBin)
+        let icli = try VPhoneGuestBinaries.resolve("icli")
+        let targetIcli = target.appending(path: "/usr/bin/icli")
+        try FileManager.default.copyItem(at: icli, to: targetIcli)
+        try setMode(0o755, at: targetIcli)
     }
 
     /// Copy in the prebuilt guest daemon.

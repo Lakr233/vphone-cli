@@ -58,6 +58,17 @@ vphone-cli vm create myphone \
 vphone-cli vm launch myphone
 ```
 
+To expose the guest HTTP and WebSocket API on the host for local tools or an
+app using `VPhoneKit`, opt in when launching:
+
+```bash
+vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
+curl http://127.0.0.1:8765/openapi.json
+```
+
+The API is off by default. See [the API contract](research/vphoned_http_api.md)
+for routes, WebSocket messages, and the Swift Kit client.
+
 The single supported firmware mode is JB. Creation installs vphoned and the
 required system patches, then checks that vphoned connects. It does not install
 a package manager, SSH server, or user bootstrap.

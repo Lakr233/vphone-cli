@@ -12,7 +12,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`sources/MobileRecoveryCore`, `sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in README's "SIP/AMFI Relaxation"; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
-- **Dependencies:** seven SwiftPM packages, every one resolved by URL and **every one by version** — there is no `vendor/` directory, no `branch:` requirement, and `Package.resolved` pins fourteen once transitives are counted. The only git submodule is `scripts/repos/insert_dylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. The only git submodule is `scripts/repos/insert_dylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
 - **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `scripts/dist_manifest.sh` reads those and is what `build.sh` and `make bundle` stage from, so a script that declares nothing ships nowhere. `make check-aux` gates all of it. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
 
 ## Workflow Rules
@@ -88,6 +88,9 @@ sources/
 │   ├── VPhoneArchivePaths.swift      # realpath(3) — NOT the Foundation equivalents
 │   └── VPhoneTreeFingerprint.swift   # Compare two extracted trees, field by field
 │
+├── VPhoneKit/                        # Public unentitled HTTP/WebSocket API client for vphone-ui
+│   └── VPhoneAPIClient.swift          # Typed JSON values, RPC, events, streaming file transfer
+│
 ├── VPhoneSign/                       # Mach-O code signing — replaces ldid, byte for byte
 │   ├── VPhoneSigner.swift            # Ad-hoc and PKCS#12 signing
 │   ├── VPhoneCodeSignature.swift     # SuperBlob / CodeDirectory construction
@@ -134,7 +137,8 @@ sources/
     │   └── VPhoneError.swift         # Error types
     │
     ├── Guest/                        # Guest daemon client (vsock)
-    │   ├── VPhoneControl.swift       # Host-side vsock client for vphoned (length-prefixed JSON)
+    │   ├── VPhoneControl.swift       # Host-side HTTP client over direct VSOCK 1339
+    │   ├── VPhoneAPIProxy.swift      # Opt-in TCP to guest VSOCK 1339 transparent proxy
     │   ├── VPhoneControlApps.swift   # Installed apps — list and launch
     │   ├── VPhoneControlKeychain.swift # Keychain dump
     │   └── VPhoneControlSystem.swift # Device, battery, location, devmode
@@ -180,7 +184,7 @@ scripts/                          # Build scripts and payloads only; no runtime 
 ├── guest_binaries.mk         [b] # Cross-compiles vphoned (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates — `make check-aux`
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
-├── vphoned/                      # Guest daemon source; only its plist and entitlements ship
+├── vphoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
 └── repos/                        # Toolchain source (git submodule: insert_dylib)
 
 siblings/                         # Guest component sources/provenance; separate package
@@ -200,7 +204,7 @@ research/                         # Detailed firmware/patch documentation
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
 - **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.
 - **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
-- **Guest daemon (vphoned):** ObjC daemon inside iOS VM, vsock port 1337, length-prefixed JSON protocol. Host side is `VPhoneControl` with auto-reconnect.
+- **Guest daemon (vphoned):** SwiftNIO HTTP/WebSocket API on VSOCK 1339, using IcliKit for common device operations. The complete pinned icli CLI is installed inside the guest and available through `icli.execute` with an argv array. `VPhoneControl` reaches HTTP directly over VSOCK; the former length-prefixed service on 1337 is removed. Camera data remains on 1338. The host exposes 1339 only when boot is given `--api-listen`.
 - **Menu system:** `VPhoneMenuController` + per-menu extensions (Keys, Type, Location, Connect, Install, Record).
 - **File browser:** SwiftUI (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) in `NSHostingController`. Search, sort, upload/download, drag-drop via `VPhoneControl`.
 - **IPA installation:** `VPhoneIPAInstaller` extracts + re-signs via `VPhoneSigner` + installs over vsock.

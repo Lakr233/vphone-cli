@@ -57,6 +57,9 @@ public struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar")
     public var headless: Bool = false
 
+    @Option(help: "Expose the guest HTTP/WebSocket API on the host, for example 127.0.0.1:8765")
+    public var apiListen: String?
+
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
     public var kernelDebugPort: Int?
 
@@ -96,6 +99,19 @@ public struct VPhoneBootCLI: ParsableCommand {
             )
         }
 
+        if dfu, apiListen != nil {
+            throw ValidationError("`--api-listen` is unavailable with `--dfu`.")
+        }
+        if let apiListen {
+            let address = URLComponents(string: "tcp://\(apiListen)")
+            guard let address, let host = address.host, !host.isEmpty,
+                  let port = address.port, (0...65535).contains(port),
+                  address.path.isEmpty, address.query == nil, address.fragment == nil
+            else {
+                throw ValidationError("`--api-listen` requires host:port, for example 127.0.0.1:8765.")
+            }
+        }
+
         guard let packageURL = installPackageURL else { return }
 
         guard FileManager.default.fileExists(atPath: packageURL.path) else {
@@ -125,6 +141,7 @@ public struct VPhoneBootCLI: ParsableCommand {
         var args = ["--config", config.path]
         if dfu { args.append("--dfu") }
         if headless { args.append("--headless") }
+        if let apiListen { args += ["--api-listen", apiListen] }
         if vphonedBin != ".vphoned.signed" { args += ["--vphoned-bin", vphonedBin] }
         if let port = kernelDebugPort { args += ["--kernel-debug-port", String(port)] }
         if let ipa = installIPA { args += ["--install-ipa", ipa.path] }

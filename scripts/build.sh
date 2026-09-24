@@ -144,6 +144,11 @@ cp .build/guest/vphoned .build/vphoned.signed
   --entitlements scripts/vphoned/entitlements.plist --merge \
   .build/vphoned.signed
 echo "  signed → .build/vphoned.signed"
+echo "=== Signing icli ==="
+"$BINARY" sign \
+  --entitlements .build/vphoned-swiftpm/checkouts/icli/Resources/icli.entitlements --merge \
+  .build/guest/icli
+echo "  signed → .build/guest/icli"
 
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
 RES="${BUNDLE}/Contents/Resources"
@@ -172,10 +177,11 @@ zsh scripts/dist_manifest.sh | rsync -a --files-from=- scripts/ "${RES}/scripts/
 # binaries for the removed bootstrap and must not leak into the bundle.
 mkdir -p "${RES}/guest"
 cp -f .build/guest/vphoned "${RES}/guest/vphoned"
+cp -f .build/guest/icli "${RES}/guest/icli"
 [[ -f .build/vphoned.signed ]] && cp -f .build/vphoned.signed "${RES}/vphoned.signed" || true
 # README.md holds the Tested-Environments table used by `fw prepare`.
 cp -f README.md "${RES}/README.md"
-echo "  bundled: scripts/ (dist tier), guest/vphoned, vphoned.signed, README.md"
+echo "  bundled: scripts/ (dist tier), guest/vphoned, guest/icli, vphoned.signed, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —
