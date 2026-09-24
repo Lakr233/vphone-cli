@@ -41,8 +41,7 @@ BUNDLE_ASKPASS="${BUNDLE}/Contents/MacOS/vphone-ask-for-permission"
 BUNDLE_AMFI="${BUNDLE}/Contents/MacOS/vphone-amfi-allow"
 INFO_PLIST="Sources/Info.plist"
 ENTITLEMENTS="Sources/vphone.entitlements"
-BUILD_INFO="Sources/VPhoneCore/VPhoneBuildInfo.swift"
-GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_HASH="$(git rev-parse --verify --short HEAD 2>/dev/null || echo unknown)"
 
 for arg in "$@"; do
   case "$arg" in
@@ -53,8 +52,6 @@ done
 
 # --- Build + sign the binary ---
 echo "=== Building vphone-cli (${GIT_HASH}) ==="
-echo '// Auto-generated — do not edit' > "$BUILD_INFO"
-echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUILD_INFO"
 swift build -c release --jobs "${SWIFT_JOBS:-4}"
 
 # vphone-amfi-allow, which SwiftPM cannot produce: it reads amfid's ObjC runtime
@@ -109,6 +106,9 @@ cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
 cp -f "$ASKPASS_BINARY" "$BUNDLE_ASKPASS"
 cp -f "$AMFI_BINARY" "$BUNDLE_AMFI"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
+if [[ "$GIT_HASH" != unknown ]]; then
+  /usr/libexec/PlistBuddy -c "Add :VPhoneBuildHash string ${GIT_HASH}" "${BUNDLE}/Contents/Info.plist"
+fi
 cp -f "Sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 rm -f "${BUNDLE}/Contents/Resources/signcert.p12"
 # The bundle is built over whatever is already there, so these two are removed
