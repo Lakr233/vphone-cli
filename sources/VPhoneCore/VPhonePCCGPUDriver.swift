@@ -9,6 +9,7 @@ public enum VPhonePCCGPUDriver {
         case missingOSPath(URL)
         case unsafeOSPath(String)
         case missingBundle(URL)
+        case invalidCachedBundle(URL)
         case toolFailed(String, String)
 
         public var errorDescription: String? {
@@ -19,6 +20,8 @@ public enum VPhonePCCGPUDriver {
                 "PCC manifest has an unsafe OS image path: \(path)"
             case let .missingBundle(path):
                 "PCC OS image has no GPU driver bundle at \(path.path)"
+            case let .invalidCachedBundle(path):
+                "GPU driver bundle is incomplete or has the wrong identifier: \(path.path)"
             case let .toolFailed(tool, detail):
                 "\(tool) failed while extracting the PCC GPU driver: \(detail)"
             }
@@ -53,10 +56,27 @@ public enum VPhonePCCGPUDriver {
     /// Called during `fw prepare`, while the extracted PCC tree still exists.
     /// Only the small bundle survives in the VM's restore tree; the decrypted
     /// system image and mount are discarded before firmware preparation ends.
-    public static func stage(from cloudOSDirectory: URL, into restoreDirectory: URL) throws {
+    public static func stage(
+        from cloudOSDirectory: URL,
+        into restoreDirectory: URL,
+        cachedBundle: URL? = nil,
+    ) throws {
         let fm = FileManager.default
-        let encrypted = try osImage(in: cloudOSDirectory)
         let destination = stagedBundle(in: restoreDirectory)
+        if let cachedBundle {
+            let source = cachedBundle.standardizedFileURL.resolvingSymlinksInPath()
+            try validateBundle(at: source)
+            try fm.createDirectory(at: destination.deletingLastPathComponent(),
+                                   withIntermediateDirectories: true)
+            if fm.fileExists(atPath: destination.path) {
+                try fm.removeItem(at: destination)
+            }
+            try fm.copyItem(at: source, to: destination)
+            print("[+] GPU driver staged from local bundle: \(destination.path)")
+            return
+        }
+
+        let encrypted = try osImage(in: cloudOSDirectory)
         let scratch = restoreDirectory.appendingPathComponent(".pcc-gpu-extract-\(UUID().uuidString)")
         let plain = scratch.appendingPathComponent("OS.dmg")
         let mount = scratch.appendingPathComponent("mount")
@@ -92,6 +112,29 @@ public enum VPhonePCCGPUDriver {
         }
         try fm.copyItem(at: source, to: destination)
         print("[+] GPU driver staged from PCC OS: \(destination.path)")
+    }
+
+    private static func validateBundle(at source: URL) throws {
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: source.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw Error.invalidCachedBundle(source)
+        }
+        for file in ["AppleParavirtGPUMetalIOGPUFamily",
+                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib", "Info.plist",
+                     "_CodeSignature/CodeResources"]
+        {
+            guard fm.fileExists(atPath: source.appendingPathComponent(file).path) else {
+                throw Error.invalidCachedBundle(source)
+            }
+        }
+        let infoURL = source.appendingPathComponent("Info.plist")
+        let info = try Data(contentsOf: infoURL, options: .mappedIfSafe)
+        let plist = try PropertyListSerialization.propertyList(from: info, format: nil)
+        guard let properties = plist as? [String: Any],
+              properties["CFBundleIdentifier"] as? String ==
+              "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily"
+        else { throw Error.invalidCachedBundle(source) }
     }
 
     private static func run(_ tool: String, _ args: [String]) throws {

@@ -14,6 +14,8 @@ struct VPhoneVMCreateCommand: ParsableCommand {
     @Argument(help: "new VM name") var name: String
     @Option(name: .shortAndLong, help: "iPhone IPSW URL or local path") var iphoneSource: String?
     @Option(name: .shortAndLong, help: "cloudOS IPSW URL or local path") var cloudosSource: String?
+    @Option(help: "GPU driver bundle from the same cloudOS build, for offline AEA recovery")
+    var gpuDriverBundle: String?
     @Option(name: .shortAndLong, help: "Disk size (GB)") var diskSize: UInt64 = 64
     @Option(name: .shortAndLong, help: "sudo password for the CFW host-mount install (via askpass; never logged)")
     var sudoPassword: String?
@@ -62,6 +64,7 @@ struct VPhoneVMCreateCommand: ParsableCommand {
             name: name,
             iphoneSource: sources.iphoneSource,
             cloudosSource: sources.cloudosSource,
+            gpuDriverBundle: gpuDriverBundle.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
             sudoPassword: sudoPassword,
             forceDSCMaxSlide: forceDSCMaxSlide,
             enableFrida: frida,

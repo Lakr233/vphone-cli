@@ -1,3 +1,4 @@
+import Foundation
 import VPhoneCore
 
 // MARK: - Create Options
@@ -7,6 +8,7 @@ public extension VPhoneCreateOrchestrator {
         public var name: String
         public var iphoneSource: String?
         public var cloudosSource: String?
+        public var gpuDriverBundle: URL?
         public var sudoPassword: String?
         public var forceDSCMaxSlide: Bool
         public var enableFrida: Bool
@@ -21,6 +23,7 @@ public extension VPhoneCreateOrchestrator {
             name: String,
             iphoneSource: String? = nil,
             cloudosSource: String? = nil,
+            gpuDriverBundle: URL? = nil,
             sudoPassword: String? = nil,
             forceDSCMaxSlide: Bool = false,
             enableFrida: Bool = false,
@@ -34,6 +37,7 @@ public extension VPhoneCreateOrchestrator {
             self.name = name
             self.iphoneSource = iphoneSource
             self.cloudosSource = cloudosSource
+            self.gpuDriverBundle = gpuDriverBundle
             self.sudoPassword = sudoPassword
             self.forceDSCMaxSlide = forceDSCMaxSlide
             self.enableFrida = enableFrida

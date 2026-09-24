@@ -437,7 +437,7 @@ and nothing resolves a `python3` at runtime.
 | #   | Component                  | Description                                                                                                        | Regular | Dev | JB  |
 | --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ | :-----: | :-: | :-: |
 | 1   | Cryptex SystemOS + AppOS   | Decrypt AEA + mount + copy to device                                                                               |    Y    |  Y  |  Y  |
-| 2   | GPU driver                 | AppleParavirtGPUMetalIOGPUFamily bundle, extracted from the selected PCC OS image during `fw prepare`              |    Y    |  Y  |  Y  |
+| 2   | GPU driver                 | AppleParavirtGPUMetalIOGPUFamily bundle, extracted from the selected PCC OS image during `fw prepare`, or supplied from the same cloudOS build with `--gpu-driver-bundle` if Apple's AEA key is unavailable |    Y    |  Y  |  Y  |
 | 3   | `iosbinpack64`             | Jailbreak tools (base set)                                                                                         |    Y    |  Y  |  Y  |
 | 4   | `iosbinpack64` dev overlay | Replace `rpcserver_ios` with dev build                                                                             |    -    |  Y  |  -  |
 | 5   | `vphoned`                  | vsock HID/control daemon (built + signed)                                                                          |    Y    |  Y  |  Y  |
