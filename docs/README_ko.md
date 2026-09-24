@@ -1,4 +1,4 @@
-<div align="right"><a href="../README.md">English</a> · <a href="README_zh.md">中文</a> · <a href="README_ja.md">日本語</a> · <strong>한국어</strong> · <a href="README_ru.md">Русский</a> · <a href="README_pt.md">Português</a></div>
+<div align="right"><a href="../README.md">English</a> · <a href="README_zh.md">中文</a> · <a href="README_ja.md">日本語</a> · <strong>한국어</strong></div>
 
 # vphone-cli
 

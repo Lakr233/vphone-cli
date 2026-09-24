@@ -13,7 +13,7 @@ Start with the [one-command VM flow](guides/create-and-run.md). The guides below
 
 ## Translations
 
-[中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Русский](README_ru.md) · [Português](README_pt.md)
+[English](../README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md)
 
 These pages give a translated overview and quick start. The English guides above hold the detailed, current procedures so that a change to the host or firmware flow has one place to update.
 
