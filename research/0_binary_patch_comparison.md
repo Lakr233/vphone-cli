@@ -371,7 +371,7 @@ The tests asserting a frozen digest moved off it first, onto the real 24A435
 `seputil`; the rest of `CFWMachOTests` — structural cases that only needed *some*
 signed Mach-O — kept pointing at the build product, and that stopped being viable
 when `vphone-letmein` was deleted from the tree (see
-`research/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
+`research/host/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
 the way the sibling CFW parity suites do: `macho_pristine/seputil`, resolved
 through `VPHONE_MACHO_PRISTINE` with `ipsws/ref_extract/macho_pristine` as the
 default, **failing** rather than skipping when it is absent, since a skipped test
@@ -429,7 +429,7 @@ list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,
 `scripts/pymobiledevice3_bridge.py` are all gone — the restore backend was the
 last program holding any of them up, and it is `sources/VPhoneRestore` over
 vendored libirecovery and idevicerestore now
-(`research/p2_restore_off_python.md`). No Python is tracked in this repository
+(`research/restore/p2_restore_off_python.md`). No Python is tracked in this repository
 and nothing resolves a `python3` at runtime.
 
 ### Installed Components
@@ -455,7 +455,7 @@ consumers, ~15 entries). Patched dylibs query the renamed OID and get the
 truthful 1 (graphics + accel passthrough); blacklisted dylibs keep the
 original cstring, hit ENOENT on the renamed kernel, and defensively cache 0
 ("not running on a VM") for sign-in / device-attestation surfaces.
-Source-of-truth research: `research/hv_vmm_present_usermode_xrefs.md`.
+Source-of-truth research: `research/patches/hv_vmm_present_usermode_xrefs.md`.
 
 JB and other variants are NOT affected by this patcher.
 

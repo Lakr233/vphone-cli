@@ -9,7 +9,7 @@
 > the restore path is `sources/VPhoneRestore` over vendored libirecovery and
 > idevicerestore, and `scripts/pymobiledevice3_bridge.py` no longer exists.
 > Everything below is written as of the day of the spike, when it still did.
-> `research/p2_restore_off_python.md` has what P2 went on to do.
+> `research/restore/p2_restore_off_python.md` has what P2 went on to do.
 
 ## Why it was a real question
 
@@ -71,7 +71,7 @@ entire point of moving the entitlements off the entry point.
 > `vm.cs_system_enforcement` reads 1 — the kernel kills amfid for the dirty page
 > — so the tool was removed the same day. The spike's own findings do not depend
 > on it: what was shown is that a bypass lasting one exec suffices, not that any
-> particular tool provides it. `research/host_binary_split.md` has the
+> particular tool provides it. `research/host/host_binary_split.md` has the
 > measurement. The replacement is `amfidont`, below.
 
 ## Reproducing it
@@ -113,4 +113,4 @@ It was not, and cannot be from device enumeration alone: pymobiledevice3 ran
 Whether the two behave the same only shows up during an actual restore. That stays
 an open risk on P2.2 and must not be assumed away — it is called out here so the
 next person does not read "P2.0 passed" as covering it. It is still open;
-`research/p2_restore_off_python.md` carries it forward.
+`research/restore/p2_restore_off_python.md` carries it forward.

@@ -13,7 +13,7 @@
 //
 // Colour was compared in three conditions, each running both implementations
 // through the identical wrapper: a pipe, a real pty via script(1), and NO_COLOR
-// set. Those runs also covered the repository's own README.md against a live
+// set. Those runs also covered the repository's compatibility guide against a live
 // `ipsw download ipsw --device iPhone17,3 --urls` capture.
 //
 // Trailing spaces are written as `\u{20}` on purpose: the Python padded the
@@ -289,14 +289,14 @@ struct FirmwareMatrixParsingTests {
         #expect(found.first?.url == Fixture.url263)
     }
 
-    @Test func parsesTheRepositoryReadme() throws {
+    @Test func parsesTheRepositoryCompatibilityGuide() throws {
         let tested = VPhoneFirmwareMatrix.testedBuilds(
-            readme: try RealData.repositoryReadme(),
+            readme: try RealData.repositoryCompatibilityGuide(),
             device: Fixture.d
         )
-        // The live table is edited often, so this asserts the shape, not a count.
-        #expect(tested.count >= 15)
-        #expect(tested.contains(VPhoneFirmwareBuildID(version: "26.1", build: "23B85")))
+        #expect(tested.count == 2)
+        #expect(tested.contains(VPhoneFirmwareBuildID(version: "26.6.2", build: "23G90")))
+        #expect(tested.contains(VPhoneFirmwareBuildID(version: "27.0", build: "24A435")))
         #expect(tested.allSatisfy { !$0.version.isEmpty && !$0.build.isEmpty })
         #expect(tested.allSatisfy { !$0.version.contains("`") && !$0.build.contains("`") })
     }
@@ -304,22 +304,22 @@ struct FirmwareMatrixParsingTests {
 
 // MARK: - Real data
 
-/// The repository's own README table joined against a real `ipsw download ipsw
+/// The repository's compatibility table joined against a real `ipsw download ipsw
 /// --device iPhone17,3 --urls` capture — the two inputs the shell actually fed
 /// the Python, rather than anything shaped to suit the parser.
 ///
-/// The README is read live, so these assert invariants rather than a golden: a
+/// The guide is read live, so these assert invariants rather than a golden: a
 /// row added to the table must not turn the suite red for the agent who added
 /// it. The cross-check is against a second parser written here on purpose in a
 /// different style — column splitting instead of a regex — so a regex that
 /// drifts has something independent to disagree with.
 private enum RealData {
-    static func repositoryReadme() throws -> String {
+    static func repositoryCompatibilityGuide() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("README.md")
+            .appendingPathComponent("docs/guides/compatibility.md")
         return try String(contentsOf: url, encoding: .utf8)
     }
 
@@ -387,15 +387,15 @@ private enum RealData {
 }
 
 struct FirmwareMatrixRealDataTests {
-    @Test func theReadmeParserAgreesWithAnIndependentColumnSplitter() throws {
-        let readme = try RealData.repositoryReadme()
+    @Test func theCompatibilityParserAgreesWithAnIndependentColumnSplitter() throws {
+        let readme = try RealData.repositoryCompatibilityGuide()
         let byRegex = VPhoneFirmwareMatrix.testedBuilds(readme: readme, device: Fixture.d)
         let bySplitting = RealData.testedBuildsByColumnSplitting(in: readme, deviceSuffix: "17,3")
-        #expect(!bySplitting.isEmpty, "the README table moved — fix the test, not the parser")
+        #expect(!bySplitting.isEmpty, "the compatibility table moved — fix the test, not the parser")
         #expect(byRegex == bySplitting)
     }
 
-    @Test func aLiveDownloadCaptureParsesWholeAndJoinsAgainstTheReadme() throws {
+    @Test func aLiveDownloadCaptureParsesWholeAndJoinsAgainstTheGuide() throws {
         let releases = VPhoneFirmwareMatrix.releases(
             downloadURLs: RealData.liveURLs,
             device: Fixture.d
@@ -407,7 +407,7 @@ struct FirmwareMatrixRealDataTests {
         #expect(releases.count == 31)
         #expect(Set(releases.map(\.build)).count == 31)
 
-        let tested = VPhoneFirmwareMatrix.testedBuilds(readme: try RealData.repositoryReadme(), device: Fixture.d)
+        let tested = VPhoneFirmwareMatrix.testedBuilds(readme: try RealData.repositoryCompatibilityGuide(), device: Fixture.d)
         var supported = 0, notTested = 0
         for release in releases {
             let id = VPhoneFirmwareBuildID(version: release.version, build: release.build)

@@ -33,7 +33,8 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
               sudo '\(helper.path)' allow '\(guest.path)'
 
             The allowlist is specific to this signature, so repeat after a
-            rebuild. See "SIP/AMFI Relaxation" in README.md for host settings.
+            rebuild. See https://github.com/Lakr233/vphone-cli/blob/main/docs/guides/host-setup.md
+            for host settings.
             """
 
         case let .missingEntitlements(guest):
