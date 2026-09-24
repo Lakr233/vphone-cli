@@ -44,13 +44,16 @@ enum VPhoneFirmwarePreparer {
             }
         }
 
+        // Remote IPSWs belong to this VM, not a writable shared directory.
+        // Local IPSWs are read in place and are never copied into the cache.
+        let cacheDirectory = bundle.url.appendingPathComponent(".ipsw-cache", isDirectory: true)
         print("[*] Resolving iPhone IPSW...")
         let phone = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(iPhoneSource, in: resources.ipswCacheDir)
+            try await VPhoneIPSWCache.resolve(iPhoneSource, in: cacheDirectory)
         }
         print("[*] Resolving cloudOS IPSW...")
         let cloud = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(cloudOSSource, in: resources.ipswCacheDir)
+            try await VPhoneIPSWCache.resolve(cloudOSSource, in: cacheDirectory)
         }
         try checkIPhoneName(iPhoneSource, archive: phone)
         print("[+] iPhone \(phone.version) (\(phone.build)); cloudOS \(cloud.version) (\(cloud.build))")
@@ -60,9 +63,17 @@ enum VPhoneFirmwarePreparer {
         let staging = bundle.url.appendingPathComponent(".firmware-prepare-\(UUID().uuidString)")
         let phoneTree = staging.appendingPathComponent(name)
         let cloudTree = staging.appendingPathComponent("cloudOS")
-        try fm.createDirectory(at: phoneTree, withIntermediateDirectories: true)
-        try fm.createDirectory(at: cloudTree, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: staging) }
+        try fm.createDirectory(at: staging, withIntermediateDirectories: false)
+        defer {
+            let entries = (try? fm.contentsOfDirectory(atPath: staging.path)) ?? []
+            if entries.contains(where: { $0.hasPrefix(".pcc-system-") || $0.hasPrefix(".pcc-restoration-") }) {
+                fputs("warning: PCC mount may still be active; left staging at \(staging.path)\n", stderr)
+            } else {
+                try? fm.removeItem(at: staging)
+            }
+        }
+        try fm.createDirectory(at: phoneTree, withIntermediateDirectories: false)
+        try fm.createDirectory(at: cloudTree, withIntermediateDirectories: false)
 
         print("[*] Extracting iPhone IPSW...")
         try VPhoneArchiveExtractor.extract(phone.file, into: phoneTree, options: .intoHostDirectory)

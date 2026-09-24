@@ -37,8 +37,8 @@ struct ResourcesTests {
         #expect(r.base.path == root.resolvingSymlinksInPath().path)
     }
 
-    @Test func `cache dirs are home relative`() {
-        // The VPHONE_ROOT override would relocate the cache; assert the default
+    @Test func `VM root is home relative`() {
+        // The VPHONE_ROOT override would relocate the library; assert the default
         // with the variable held clear, rather than bailing out when some other
         // suite happens to have set it — that skip was the old way of living
         // with the race `ProcessEnvironment` now closes.
@@ -49,10 +49,7 @@ struct ResourcesTests {
 
     @Test func `user data root honors VPHONE root`() {
         ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
-            let r = VPhoneResources(base: URL(fileURLWithPath: "/x"))
             #expect(VPhoneResources.userDataRoot().path == "/tmp/vphone-test-root")
-            #expect(r.ipswCacheDir.path == "/tmp/vphone-test-root/ipsws")
-            #expect(r.sealVolumeCacheDir.path == "/tmp/vphone-test-root/tools")
         }
     }
 
@@ -60,7 +57,7 @@ struct ResourcesTests {
     /// scripts under `scriptsDir`, and nothing else — no `PATH` walk, no
     /// interpreter. That claim is what the deleted venv tests used to guard
     /// from the other side, so assert it directly: every URL this type hands
-    /// out is rooted in `base` or in the user data root.
+    /// out is rooted in `base`.
     @Test func `every resource is rooted in the base or the data root`() {
         ProcessEnvironment.withOverrides(["VPHONE_ROOT": "/tmp/vphone-test-root"]) {
             let base = URL(fileURLWithPath: "/x")
@@ -71,9 +68,6 @@ struct ResourcesTests {
             ]
             for url in rooted {
                 #expect(url.path.hasPrefix("/x/"), "\(url.path) escapes the resource base")
-            }
-            for url in [r.ipswCacheDir, r.sealVolumeCacheDir] {
-                #expect(url.path.hasPrefix("/tmp/vphone-test-root/"))
             }
         }
     }

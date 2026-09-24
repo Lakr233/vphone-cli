@@ -54,11 +54,9 @@ extension CryptexFilesystemPatcher {
 
     private func identifyApfsSealvolume() throws -> URL {
         let iosVersion = try getProductVersion()
-        // VPHONE_SEAL_DIR (set by the Command's `fw prepare`/`fw patch`) must agree with
-        // wherever fw_prepare.sh's download_apfs_sealvolume() wrote the file; unset
-        // (manual development flow) falls back to the historical repo-relative `.tools/`.
+        // The optional filesystem merge reads a seal tool staged inside the VM.
         let sealDir = ProcessInfo.processInfo.environment["VPHONE_SEAL_DIR"].map { URL(fileURLWithPath: $0) }
-            ?? vphoneCliDirectory.appending(path: ".tools")
+            ?? restoreDir.appendingPathComponent(".tools")
         let path = sealDir.appendingPathComponent("apfs_sealvolume_\(iosVersion)")
         guard FileManager.default.fileExists(atPath: path.path) else {
             throw FirmwareManifest.ManifestError.fileNotFound(path.path)

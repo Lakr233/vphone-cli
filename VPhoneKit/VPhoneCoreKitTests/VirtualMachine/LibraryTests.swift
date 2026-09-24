@@ -64,7 +64,7 @@ struct LibraryTests {
             "VPHONE_LIBRARY_ROOT": nil,
             "VPHONE_ROOT": "/tmp/vphone-test-root",
         ]) {
-            #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root/VMs")
+            #expect(VPhoneLibrary.defaultRoot().path == "/tmp/vphone-test-root/machines")
         }
     }
 

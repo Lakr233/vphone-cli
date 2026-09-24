@@ -29,7 +29,7 @@ enum VPhonePCCGPURecovery {
     ) throws {
         let fm = FileManager.default
         let temporaryLibrary = restoreDirectory.deletingLastPathComponent()
-            .appending(path: ".pcc-restoration")
+            .appending(path: ".pcc-restoration-\(UUID().uuidString)")
         let library = VPhoneLibrary(root: temporaryLibrary)
         let name = "pcc-\(UUID().uuidString.lowercased())"
         let vm = try VPhoneBundleOperations.create(.init(
@@ -40,7 +40,16 @@ enum VPhonePCCGPURecovery {
             romSource: VPhoneBundleOperations.defaultROMSource(),
             sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
         ), in: library)
-        defer { try? fm.removeItem(at: temporaryLibrary) }
+        defer {
+            let diskImage = vm.url.appendingPathComponent("Disk.img")
+            if let info = try? run("/usr/bin/hdiutil", ["info"]),
+               !info.contains(diskImage.path)
+            {
+                try? fm.removeItem(at: temporaryLibrary)
+            } else {
+                fputs("warning: PCC disk image may still be attached; left \(temporaryLibrary.path)\n", stderr)
+            }
+        }
 
         // The restore backend accepts a linked directory. Reuse the already
         // extracted cloudOS tree instead of writing a second copy of its OS image.
@@ -107,8 +116,34 @@ enum VPhonePCCGPURecovery {
         guard let baseDisk = attached.split(whereSeparator: \.isNewline).first?
             .split(whereSeparator: \.isWhitespace).first.map(String.init),
             baseDisk.hasPrefix("/dev/disk")
-        else { throw Error.toolFailed("hdiutil", "attached no disk device") }
-        defer { _ = try? run("/usr/bin/hdiutil", ["detach", baseDisk]) }
+        else {
+            if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
+                _ = try? run("/usr/bin/hdiutil", ["detach", "-force", String(attached[range])])
+            }
+            throw Error.toolFailed("hdiutil", "attached no disk device")
+        }
+        var mountToClean: URL?
+        defer {
+            if (try? run("/usr/bin/hdiutil", ["detach", baseDisk])) == nil {
+                _ = try? run("/usr/bin/hdiutil", ["detach", "-force", baseDisk])
+            }
+            if let mountToClean {
+                do {
+                    guard let mounts = fm.mountedVolumeURLs(
+                        includingResourceValuesForKeys: nil, options: [],
+                    ) else {
+                        throw Error.toolFailed("hdiutil", "could not verify detached volumes")
+                    }
+                    let root = mountToClean.resolvingSymlinksInPath().path
+                    guard !mounts.contains(where: { $0.resolvingSymlinksInPath().path == root }) else {
+                        throw Error.toolFailed("hdiutil", "PCC volume is still mounted")
+                    }
+                    try fm.removeItem(at: mountToClean)
+                } catch {
+                    fputs("warning: left PCC mount directory at \(mountToClean.path): \(error)\n", stderr)
+                }
+            }
+        }
 
         let info = try run("/usr/sbin/diskutil", ["info", "-plist", "\(baseDisk)s1"])
         guard let plist = try PropertyListSerialization.propertyList(
@@ -121,10 +156,16 @@ enum VPhonePCCGPURecovery {
 
         let mount = restoreDirectory.deletingLastPathComponent()
             .appending(path: ".pcc-system-\(UUID().uuidString)")
-        try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: mount) }
+        try fm.createDirectory(at: mount, withIntermediateDirectories: false)
+        mountToClean = mount
+        var mounted = false
+        defer {
+            if mounted, (try? run("/sbin/umount", [mount.path])) == nil {
+                _ = try? run("/sbin/umount", ["-f", mount.path])
+            }
+        }
         try run("/sbin/mount_apfs", ["-o", "rdonly", "/dev/\(container)s1", mount.path])
-        defer { _ = try? run("/sbin/umount", [mount.path]) }
+        mounted = true
 
         let source = mount.appending(
             path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",

@@ -86,7 +86,7 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
 // MARK: - Shared options
 
 struct VPhoneLibraryOption: ParsableArguments {
-    @Option(name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/VMs or $VPHONE_LIBRARY_ROOT)")
+    @Option(name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/machines or $VPHONE_LIBRARY_ROOT)")
     var libraryRoot: String?
 
     var library: VPhoneLibrary {

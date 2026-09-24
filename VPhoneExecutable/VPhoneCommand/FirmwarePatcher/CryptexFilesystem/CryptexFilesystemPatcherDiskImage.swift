@@ -167,8 +167,23 @@ extension CryptexFilesystemPatcher {
             throw ProcessError.failed(process.terminationStatus, output)
         }
 
-        let root = try parsePlist(data: data)
+        let root: PlistDict
+        do {
+            root = try parsePlist(data: data)
+        } catch {
+            if let output = String(data: data, encoding: .utf8),
+               let range = output.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression)
+            {
+                _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", String(output[range])])
+            }
+            throw error
+        }
         guard let entries = root["system-entities"] as? [Any] else {
+            if let output = String(data: data, encoding: .utf8),
+               let range = output.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression)
+            {
+                _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", String(output[range])])
+            }
             throw FirmwareManifest.ManifestError.missingKey("system-entities")
         }
         for entry in entries {
@@ -180,16 +195,33 @@ extension CryptexFilesystemPatcher {
             }
             let device = entry["dev-entry"] as? String ?? ""
             let mountPoint = entry["mount-point"] as? String ?? ""
+            guard !device.isEmpty, !mountPoint.isEmpty else { continue }
 
+            attachedDevices.insert(device)
             if forceRW {
-                _ = try runProcess("/sbin/mount", ["-u", "-w", device, mountPoint])
+                do {
+                    _ = try runProcess("/sbin/mount", ["-u", "-w", device, mountPoint])
+                } catch {
+                    try? detachImage(deviceNode: device)
+                    throw error
+                }
             }
             return (device, mountPoint)
+        }
+        if let device = (entries.compactMap { ($0 as? PlistDict)?["dev-entry"] as? String })
+            .first(where: { $0.hasPrefix("/dev/disk") })
+        {
+            _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", device])
         }
         throw FirmwareManifest.ManifestError.missingKey("dev-entry or mount-point")
     }
 
     func detachImage(deviceNode: String) throws {
-        _ = try runProcess("/usr/bin/hdiutil", ["detach", deviceNode])
+        do {
+            _ = try runProcess("/usr/bin/hdiutil", ["detach", deviceNode])
+        } catch {
+            _ = try runProcess("/usr/bin/hdiutil", ["detach", "-force", deviceNode])
+        }
+        attachedDevices.remove(deviceNode)
     }
 }

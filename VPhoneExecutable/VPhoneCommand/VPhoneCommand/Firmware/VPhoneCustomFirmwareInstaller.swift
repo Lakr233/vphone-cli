@@ -70,9 +70,27 @@ struct VPhoneCustomFirmwareInstaller {
             .split(whereSeparator: \.isWhitespace).first.map(String.init),
             baseDisk.hasPrefix("/dev/disk")
         else {
+            if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
+                _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", String(attached[range])], quiet: true)
+            }
             throw ValidationError("hdiutil attached no disk device")
         }
-        defer { _ = try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true) }
+        var diskAttached = true
+        var workToClean: URL?
+        defer {
+            if diskAttached,
+               (try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)) == nil
+            {
+                _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", baseDisk], quiet: true)
+            }
+            if let workToClean {
+                do {
+                    try removeWorkDirectory(workToClean)
+                } catch {
+                    fputs("warning: left CFW work directory at \(workToClean.path): \(error)\n", stderr)
+                }
+            }
+        }
 
         let info = try tool("/usr/sbin/diskutil", ["info", "-plist", "\(baseDisk)s1"], quiet: true)
         guard let plist = try PropertyListSerialization.propertyList(
@@ -87,21 +105,36 @@ struct VPhoneCustomFirmwareInstaller {
         let work = bundle.appendingPathComponent(".cfw-native-\(UUID().uuidString)")
         let system = work.appendingPathComponent("system")
         let data = work.appendingPathComponent("data")
-        try fm.createDirectory(at: system, withIntermediateDirectories: true)
-        try fm.createDirectory(at: data, withIntermediateDirectories: true)
+        try fm.createDirectory(at: work, withIntermediateDirectories: false)
+        workToClean = work
+        var systemMounted = false
+        var dataMounted = false
         defer {
-            _ = try? tool("/sbin/umount", [data.path], quiet: true)
-            _ = try? tool("/sbin/umount", [system.path], quiet: true)
-            try? fm.removeItem(at: work)
+            if dataMounted,
+               (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
+            {
+                _ = try? tool("/sbin/umount", ["-f", data.path], quiet: true)
+            }
+            if systemMounted,
+               (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
+            {
+                _ = try? tool("/sbin/umount", ["-f", system.path], quiet: true)
+            }
         }
+        try fm.createDirectory(at: system, withIntermediateDirectories: false)
+        try fm.createDirectory(at: data, withIntermediateDirectories: false)
         try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s1", system.path])
+        systemMounted = true
         try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s3", data.path])
+        dataMounted = true
         print("[*] JB system install: \(bundle.lastPathComponent)")
         try installMounted(system: system, data: data, work: work)
         _ = try tool("/sbin/umount", [data.path])
+        dataMounted = false
         _ = try tool("/sbin/umount", [system.path])
+        systemMounted = false
         _ = try tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)
-        try fm.removeItem(at: work)
+        diskAttached = false
         try VPhoneAPFSSnapshot.rename(imageAt: diskImage)
         print("[+] JB system install complete; vphoned is installed, no package bootstrap was staged")
     }
@@ -209,6 +242,7 @@ struct VPhoneCustomFirmwareInstaller {
                 buildManifest: restore.appendingPathComponent("iPhone-BuildManifest.plist"),
             )
             let encrypted = restore.appendingPathComponent(paths.systemOS)
+            let appImage = restore.appendingPathComponent(paths.appOS)
             let plain = work.appendingPathComponent("SystemOS.dmg")
             let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: encrypted) }
             try tool(
@@ -231,7 +265,7 @@ struct VPhoneCustomFirmwareInstaller {
             try tool(
                 "/usr/bin/hdiutil",
                 ["attach", "-mountpoint", appMount.path,
-                 restore.appendingPathComponent(paths.appOS).path,
+                 appImage.path,
                  "-nobrowse", "-owners", "off"],
                 quiet: true,
             )
@@ -245,7 +279,9 @@ struct VPhoneCustomFirmwareInstaller {
                     try fm.removeItem(at: destination)
                 }
                 try fm.createDirectory(at: destination, withIntermediateDirectories: true)
-                try tool("/bin/cp", ["-R", source.appendingPathComponent(".").path, destination.path])
+                for entry in try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) {
+                    try fm.copyItem(at: entry, to: destination.appendingPathComponent(entry.lastPathComponent))
+                }
             }
         }
         try symlink("../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
@@ -402,8 +438,25 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     private func replace(_ source: URL, at destination: URL, mode: Int) throws {
-        try tool("/bin/cp", ["-f", source.path, destination.path], quiet: true)
+        if fm.fileExists(atPath: destination.path) {
+            try fm.removeItem(at: destination)
+        }
+        try fm.copyItem(at: source, to: destination)
         try fm.setAttributes([.posixPermissions: NSNumber(value: mode)], ofItemAtPath: destination.path)
+    }
+
+    private func removeWorkDirectory(_ work: URL) throws {
+        guard let mounts = fm.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: []) else {
+            throw ValidationError("Could not verify that CFW volumes are detached")
+        }
+        let root = work.resolvingSymlinksInPath().path
+        guard !mounts.contains(where: {
+            let path = $0.resolvingSymlinksInPath().path
+            return path == root || path.hasPrefix(root + "/")
+        }) else {
+            throw ValidationError("CFW volume is still mounted under \(work.path)")
+        }
+        try fm.removeItem(at: work)
     }
 
     @discardableResult

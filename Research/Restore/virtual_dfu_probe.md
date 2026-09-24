@@ -90,7 +90,7 @@ Boot the VM first, leaving it running. On a host with AMFI relaxed at boot,
 that is just:
 
 ```
-.../vphone-vm --config ~/.vphone/VMs/<name>/config.plist --dfu
+.../vphone-vm --config ~/.vphone/machines/<name>/config.plist --dfu
 ```
 
 Where amfid still refuses it, allow that one binary first — in another terminal,

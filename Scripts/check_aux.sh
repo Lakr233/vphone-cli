@@ -7,6 +7,16 @@ bundle="${1:-$root/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle}"
 macos="$bundle/Contents/MacOS"
 resources="$bundle/Contents/Resources"
 
+file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
+    "$root/VPhoneDaemon" "$root/VPhoneGuestComponents" \
+    -type d \( -name Build -o -name .build -o -name '*Tests' -o -name '*TestFixtures' \) -prune -o \
+    -type f -name '*.swift' -exec /usr/bin/grep -nE '"/(usr/)?bin/(cp|mv|rm)"' {} + || true)"
+[[ -z "$file_copy_spawns" ]] || {
+    print -u2 "Host file operations must use in-process file APIs, not spawned cp/mv/rm:"
+    print -u2 -- "$file_copy_spawns"
+    exit 1
+}
+
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
 for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \

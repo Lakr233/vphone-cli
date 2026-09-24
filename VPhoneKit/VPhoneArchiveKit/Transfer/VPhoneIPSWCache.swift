@@ -60,12 +60,32 @@ public enum VPhoneIPSWCache {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 3 * 60 * 60
-        let (downloaded, response) = try await session.download(for: request)
-        defer { try? fm.removeItem(at: downloaded) }
+        let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw Error.unexpectedHTTP(url, (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
-        let size = try Int64(fm.attributesOfItem(atPath: downloaded.path)[.size] as? UInt64 ?? 0)
+        let pending = cacheDirectory.appendingPathComponent(".\(cache.lastPathComponent).\(UUID().uuidString).partial")
+        defer { try? fm.removeItem(at: pending) }
+        guard fm.createFile(atPath: pending.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let output = try FileHandle(forWritingTo: pending)
+        defer { try? output.close() }
+        var buffer = Data()
+        var size: Int64 = 0
+        for try await byte in bytes {
+            buffer.append(byte)
+            if buffer.count >= 1024 * 1024 {
+                try output.write(contentsOf: buffer)
+                size += Int64(buffer.count)
+                buffer.removeAll(keepingCapacity: true)
+            }
+        }
+        if !buffer.isEmpty {
+            try output.write(contentsOf: buffer)
+            size += Int64(buffer.count)
+        }
+        try output.close()
         if response.expectedContentLength > 0, size != response.expectedContentLength {
             throw Error.incompleteDownload(
                 url,
@@ -74,9 +94,6 @@ public enum VPhoneIPSWCache {
             )
         }
 
-        let pending = cacheDirectory.appendingPathComponent(".\(cache.lastPathComponent).\(UUID().uuidString).partial")
-        defer { try? fm.removeItem(at: pending) }
-        try fm.moveItem(at: downloaded, to: pending)
         let metadata = try inspect(pending)
         try fm.moveItem(at: pending, to: cache)
         try VPhoneHostFilePermissions.makeAccessible(at: cache)

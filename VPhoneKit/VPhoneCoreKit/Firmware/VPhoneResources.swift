@@ -114,23 +114,13 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Cache dirs
 
-    /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both
-    /// `VPhoneResources` (ipsws/tools) and `VPhoneLibrary` (VMs) derive
-    /// from this so one variable redirects everything vphone-cli creates.
+    /// The per-user VM library root: `$VPHONE_ROOT` when set, else `~/.vphone`.
     public static func userDataRoot() -> URL {
         if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         let home = VPhoneInvokingUser.current?.home ?? FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".vphone")
-    }
-
-    public var ipswCacheDir: URL {
-        Self.userDataRoot().appendingPathComponent("ipsws")
-    }
-
-    public var sealVolumeCacheDir: URL {
-        Self.userDataRoot().appendingPathComponent("tools")
     }
 
     // MARK: - No interpreter

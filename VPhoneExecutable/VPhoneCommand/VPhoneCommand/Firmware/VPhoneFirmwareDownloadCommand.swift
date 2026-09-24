@@ -80,7 +80,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         }
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
-        let ramdisk = try vphoneRunBlocking { try await Self.fetchRamdisk(version: version) }
+        let ramdisk = try vphoneRunBlocking { try await Self.fetchRamdisk(version: version, in: output) }
         defer { try? FileManager.default.removeItem(at: ramdisk.deletingLastPathComponent()) }
 
         try Self.copyOut(of: ramdisk, to: destination)
@@ -105,7 +105,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
 
     /// Resolve the macOS release, then take BuildManifest.plist and the restore
     /// ramdisk out of its IPSW without downloading the IPSW.
-    private static func fetchRamdisk(version: String) async throws -> URL {
+    private static func fetchRamdisk(version: String, in output: URL) async throws -> URL {
         let release = try await VPhoneFirmwareIndex.macOSRelease(version: version)
         print("  macOS \(release.version) (\(release.build))")
 
@@ -137,11 +137,15 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         print("  ramdisk: \(path)")
 
         let im4p = try await zip.read(zip.entry(endingWith: path))
-        let work = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("vphone-sealtool-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        let work = output.appendingPathComponent(".vphone-sealtool-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: false)
         let dmg = work.appendingPathComponent("ramdisk.dmg")
-        try IM4P(im4p).payload().write(to: dmg)
+        do {
+            try IM4P(im4p).payload().write(to: dmg)
+        } catch {
+            try? FileManager.default.removeItem(at: work)
+            throw error
+        }
         return dmg
     }
 

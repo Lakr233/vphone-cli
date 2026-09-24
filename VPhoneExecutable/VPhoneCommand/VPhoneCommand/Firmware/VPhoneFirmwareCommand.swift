@@ -264,7 +264,6 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         defer {
             try? VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
-            try? VPhoneHostFilePermissions.makeAccessible(at: resources.ipswCacheDir)
         }
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone,
@@ -274,7 +273,6 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
             resources: resources,
         )
         try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
-        try VPhoneHostFilePermissions.makeAccessible(at: resources.ipswCacheDir)
     }
 }
 
@@ -298,15 +296,7 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         defer {
             try? VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
-            try? VPhoneHostFilePermissions.makeAccessible(at: VPhoneResources.resolve().sealVolumeCacheDir)
         }
-
-        // In-process pipeline (no subprocess) — CryptexFilesystemPatcher's
-        // apfs_sealvolume read honors VPHONE_SEAL_DIR from *this* process's
-        // environment, so set it here to agree with `fw prepare`'s write.
-        let resources = VPhoneResources.resolve()
-        try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        setenv("VPHONE_SEAL_DIR", resources.sealVolumeCacheDir.path, 1)
 
         let pipeline = FirmwarePipeline(
             vmDirectory: bundle.url,
@@ -318,7 +308,6 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
         )
         let records = try pipeline.patchAll()
         try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
-        try VPhoneHostFilePermissions.makeAccessible(at: resources.sealVolumeCacheDir)
         print("[fw patch] applied \(records.count) JB patches")
     }
 }

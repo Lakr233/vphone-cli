@@ -44,11 +44,11 @@ public struct VPhoneLibrary: Sendable {
         if let override = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"] {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
-        // `~/.vphone/VMs` — deliberately space-free: bundle paths flow into the
+        // `~/.vphone/machines` — deliberately space-free: bundle paths flow into the
         // shell/make firmware pipeline, and "Application Support" (a space) breaks
         // any unquoted expansion there. Keep the default path shell-safe.
         return VPhoneResources.userDataRoot()
-            .appendingPathComponent("VMs", isDirectory: true)
+            .appendingPathComponent("machines", isDirectory: true)
     }
 
     public func url(forName name: String) -> URL {

@@ -54,9 +54,9 @@ public enum VPhoneRestoreService {
         // when a file of that name is already there ("SHSH '%s' already
         // present."), and a stale blob from a previous firmware would then be
         // what got copied out.
-        let cacheDirectory = FileManager.default.temporaryDirectory
+        let cacheDirectory = vmDir
             .appendingPathComponent("vphone-shsh-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: cacheDirectory) }
 
         try VPhoneRestoreRunner.run(

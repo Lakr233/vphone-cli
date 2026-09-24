@@ -26,12 +26,12 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let restoreDir: URL
     public let verbose: Bool
     public let noBinpack: Bool
-    let vphoneCliDirectory = URL(filePath: "./")
     let resources = VPhoneResources.resolve()
 
     var buildManiest: Data
     var rebuiltData: Data?
     var tmpDirectories: [URL] = []
+    var attachedDevices: Set<String> = []
 
     // MARK: - Init
 
@@ -48,8 +48,15 @@ public final class CryptexFilesystemPatcher: Patcher {
     }
 
     deinit {
-        for tmp in tmpDirectories {
-            try? FileManager.default.removeItem(at: tmp)
+        for device in Array(attachedDevices) {
+            try? detachImage(deviceNode: device)
+        }
+        if attachedDevices.isEmpty {
+            for tmp in tmpDirectories {
+                try? FileManager.default.removeItem(at: tmp)
+            }
+        } else {
+            fputs("warning: filesystem patch image is still attached; left VM work files in \(restoreDir.path)\n", stderr)
         }
     }
 
@@ -177,9 +184,8 @@ public final class CryptexFilesystemPatcher: Patcher {
     }
 
     func createTmpDir() throws -> URL {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appending(path: "vphone-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        let tmpDir = restoreDir.appending(path: ".filesystem-patch-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: false)
         tmpDirectories.append(tmpDir)
         return tmpDir
     }

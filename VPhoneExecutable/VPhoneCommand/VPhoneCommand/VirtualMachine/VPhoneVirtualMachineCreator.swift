@@ -99,7 +99,7 @@ public struct VPhoneVirtualMachineCreator {
         }
 
         let bundleURL = library.url(forName: options.name)
-        let ownedOutputs = [bundleURL, resources.ipswCacheDir, resources.sealVolumeCacheDir]
+        let ownedOutputs = [bundleURL]
         var ownershipRestored = false
         var permissionsRestored = false
         defer {
@@ -225,12 +225,6 @@ public struct VPhoneVirtualMachineCreator {
         bundleURL: URL,
         verbosity v: VPhoneVerbosity,
     ) throws {
-        // In-process pipeline (no subprocess) — CryptexFilesystemPatcher's
-        // apfs_sealvolume read honors VPHONE_SEAL_DIR from *this* process's
-        // environment, so set it here to agree with `fw prepare`'s write.
-        try FileManager.default.createDirectory(at: resources.sealVolumeCacheDir, withIntermediateDirectories: true)
-        setenv("VPHONE_SEAL_DIR", resources.sealVolumeCacheDir.path, 1)
-
         trace("in-process FirmwarePipeline.patchAll variant=jb", v)
         let pipeline = FirmwarePipeline(
             vmDirectory: bundleURL,
