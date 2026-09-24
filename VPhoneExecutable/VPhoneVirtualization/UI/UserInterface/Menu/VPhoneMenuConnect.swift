@@ -117,12 +117,12 @@ extension VPhoneMenuController {
             title: "Install Bootstrap",
             message: "Choose the bootstrap layout. This installs the latest Irisin release once in the guest.",
             style: .informational,
-            buttons: ["Rootless", "RootHide", "Cancel"],
+            buttons: ["roothide", "rootless (deprecated)", "Cancel"],
         ) { [weak self] response in
             let layout: String
             switch response {
-            case .alertFirstButtonReturn: layout = "rootless"
-            case .alertSecondButtonReturn: layout = "roothide"
+            case .alertFirstButtonReturn: layout = "roothide"
+            case .alertSecondButtonReturn: layout = "rootless"
             default: return
             }
             self?.performBootstrapInstallation(layout: layout)

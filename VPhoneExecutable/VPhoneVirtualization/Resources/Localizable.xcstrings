@@ -17,13 +17,13 @@
       "en": { "stringUnit": { "state": "translated", "value": "Choose the bootstrap layout. This installs the latest Irisin release once in the guest." } },
       "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择引导环境布局。将在客体中安装一次最新版 Irisin。" } }
     } },
-    "Rootless": { "localizations": {
-      "en": { "stringUnit": { "state": "translated", "value": "Rootless" } },
-      "zh-Hans": { "stringUnit": { "state": "translated", "value": "Rootless" } }
+    "roothide": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "roothide" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "隐根" } }
     } },
-    "RootHide": { "localizations": {
-      "en": { "stringUnit": { "state": "translated", "value": "RootHide" } },
-      "zh-Hans": { "stringUnit": { "state": "translated", "value": "RootHide" } }
+    "rootless (deprecated)": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "rootless (deprecated)" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "无根（弃用）" } }
     } },
     "Installing the latest Irisin release in the guest.": { "localizations": {
       "en": { "stringUnit": { "state": "translated", "value": "Installing the latest Irisin release in the guest." } },
