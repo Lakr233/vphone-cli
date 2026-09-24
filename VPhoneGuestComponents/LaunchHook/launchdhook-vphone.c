@@ -62,7 +62,7 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
             vpLogSpawn("app-disabled", path, status == 0 && pid ? *pid : -1, status);
         return status;
     }
-    VPInjectionEnvironment injected = vpInsertHook(envp);
+    VPInjectionEnvironment injected = vpInsertHook(envp, vpBootRoot);
     int status = vpOriginalSpawn(pid, path, actions, attributes, argv, injected.values ? injected.values : envp);
     vpLogInjection(injected.values ? "inserted" : "unchanged", path, status);
     vpLogSpawn(injected.values ? "inserted" : "unchanged", path, status == 0 && pid ? *pid : -1,
@@ -92,6 +92,7 @@ static void vpInstallSpawnHook(const char *root) {
     snprintf(vpBootRoot, sizeof(vpBootRoot), "%s", root);
     hook((void *)posix_spawn, (void *)vpSpawn, (void **)&vpOriginalSpawn);
     installed = vpOriginalSpawn != NULL;
+    vpLogInjection("bootstrap-root", vpBootRoot, 0);
     vpLogInjection(installed ? "installed" : "install-failed", path, 0);
 }
 

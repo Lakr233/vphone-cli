@@ -17,9 +17,13 @@ The archive is a local build artifact, not a VM bootstrap. `cfw install` places
 both hooks in `/usr/lib`. After a bootstrap installs ElleKit, the launchd hook
 inserts SystemHook into `xpcproxy`, bootstrap executables, and apps started
 directly by launchd. Inside `xpcproxy`, SystemHook carries itself into the
-final executable through `posix_spawnp`. It logs PID and executable path to
+final executable through `posix_spawnp`. Injected App and bootstrap processes
+carry the hook to their child executables through `posix_spawn`, `posix_spawnp`,
+and `execve`. SystemHook loads the selected bootstrap's
+`usr/lib/TweakLoader.dylib` in App and bootstrap processes when it exists;
+ElleKit owns tweak selection and loading. It logs PID and executable path to
 `/var/mobile/Library/Caches/vphone-systemhook.log`, falling back to the app's
-own `Library/Caches` when sandboxed. It does not load ElleKit or tweaks.
+own `Library/Caches` when sandboxed.
 `DISABLE_TWEAKS=1` and the safe-mode flags skip injection.
 Irisin installs ElleKit's own `TweakLoader.dylib` in the selected bootstrap.
 The required GPU bundle is extracted from the selected PCC firmware by
