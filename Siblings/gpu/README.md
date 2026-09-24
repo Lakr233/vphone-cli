@@ -19,7 +19,7 @@ Metal compilation, leaving the host VM window black even while vphoned connects.
 
 `main.mm` is the compiler-plugin reimplementation from
 [0xjohnnydev's metal-patch](https://github.com/0xjohnnydev/0xjohnnydev.github.io/blob/main/blog/assets/metal-patch/main.mm).
-`make -C siblings gpu` builds and ad-hoc signs it for iPhoneOS arm64e.
+`make -C Siblings gpu` builds and ad-hoc signs it for iPhoneOS arm64e.
 `Scripts/build.sh` stores it as `Resources/gpu/compiler-plugin.tar.zst` in the
 app. `fw prepare` extracts that archive and puts the dylib alongside the
 firmware-sourced GPU driver before exposing the complete restore tree.

@@ -1,6 +1,6 @@
 # Sibling guest components
 
-`make -C siblings package` cross-compiles four
+`make -C Siblings package` cross-compiles four
 optional guest components with Xcode's iPhoneOS SDK and writes
 `.build/siblings/siblings.tar`. The archive contains signed arm64e binaries,
 two tweak filter plists, and the GPU provenance note:

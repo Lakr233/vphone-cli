@@ -171,7 +171,7 @@ echo "  signed → .build/vphoned.signed"
 # omits the compiler plugin needed by MTLCompilerService. Build our guest
 # implementation and ship it compressed for fw prepare to merge.
 echo "=== Building PCC GPU compiler plugin (arm64e, iphoneos) ==="
-make -C siblings gpu
+make -C Siblings gpu
 GPU_PLUGIN=".build/siblings/stage/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
 if ! file "$GPU_PLUGIN" | grep -q arm64e; then
   echo "Error: ${GPU_PLUGIN} is not arm64e." >&2

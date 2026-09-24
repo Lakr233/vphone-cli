@@ -60,7 +60,7 @@ done
 #
 # What is deliberately ABSENT is as important:
 #   Repos/            toolchain submodules — build tier, sources only
-#   ../siblings/       guest sources and GPU provenance; not copied into the
+#   ../Siblings/       guest sources and GPU provenance; not copied into the
 #                      shipped app (GPU extraction runs in native fw prepare)
 #   VPhoned/*.m *.h Vendor/  same, and it is the bulk of Scripts/
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons

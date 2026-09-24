@@ -186,9 +186,9 @@ Scripts/                          # Build scripts and payloads only; no runtime 
 ├── VPhoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
 └── Repos/                        # Toolchain source (git submodule: InsertDylib)
 
-siblings/                         # Guest component sources/provenance; separate package
-├── camfix/ vcamcaptured/          # Camera hooks and filter plists
-├── tweakloader/ vpregister/       # Loader and iOS 27 app registrar
+Siblings/                         # Guest component sources/provenance; separate package
+├── CamFix/ VCamCaptured/          # Camera hooks and filter plists
+├── TweakLoader/ VPRegister/       # Loader and iOS 27 app registrar
 └── gpu/                           # PCC firmware provenance; no Apple binary
 
 research/                         # Detailed firmware/patch documentation

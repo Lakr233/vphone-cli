@@ -30,7 +30,7 @@ package: all
 $(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/tweakloader $(STAGE)/vpregister $(STAGE)/gpu:
 	@mkdir -p $@
 
-$(CAMFIX): camfix/libcamfix.m | $(STAGE)/camfix
+$(CAMFIX): CamFix/libcamfix.m | $(STAGE)/camfix
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
 		-install_name /var/jb/usr/lib/libcamfix.dylib \
 		-o $@ $< \
@@ -39,20 +39,20 @@ $(CAMFIX): camfix/libcamfix.m | $(STAGE)/camfix
 		-framework CoreGraphics -framework QuartzCore
 	@codesign --force --sign - $@
 
-$(VCAMCAPTURED): vcamcaptured/libvcamcaptured.m | $(STAGE)/vcamcaptured
+$(VCAMCAPTURED): VCamCaptured/libvcamcaptured.m | $(STAGE)/vcamcaptured
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
 		-install_name /var/jb/usr/lib/libvcamcaptured.dylib \
 		-o $@ $< \
 		-framework Foundation -framework CoreMedia -framework CoreVideo
 	@codesign --force --sign - $@
 
-$(TWEAKLOADER): tweakloader/TweakLoader.m | $(STAGE)/tweakloader
+$(TWEAKLOADER): TweakLoader/TweakLoader.m | $(STAGE)/tweakloader
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
 		-install_name /var/jb/usr/lib/TweakLoader.dylib \
 		-o $@ $< -framework Foundation
 	@codesign --force --sign - $@
 
-$(VPREGISTER): vpregister/vpregister.m | $(STAGE)/vpregister
+$(VPREGISTER): VPRegister/vpregister.m | $(STAGE)/vpregister
 	$(CLANG) $(COMMON_FLAGS) -o $@ $< -framework Foundation
 	@codesign --force --sign - $@
 
@@ -64,10 +64,10 @@ $(GPU_PLUGIN): gpu/main.mm | $(STAGE)/gpu
 		-o $@ $<
 	@codesign --force --sign - $@
 
-$(STAGE)/camfix/libcamfix.plist: camfix/libcamfix.plist | $(STAGE)/camfix
+$(STAGE)/camfix/libcamfix.plist: CamFix/libcamfix.plist | $(STAGE)/camfix
 	@cp $< $@
 
-$(STAGE)/vcamcaptured/libvcamcaptured.plist: vcamcaptured/libvcamcaptured.plist | $(STAGE)/vcamcaptured
+$(STAGE)/vcamcaptured/libvcamcaptured.plist: VCamCaptured/libvcamcaptured.plist | $(STAGE)/vcamcaptured
 	@cp $< $@
 
 $(GPU_PROVENANCE): gpu/README.md | $(STAGE)/gpu
