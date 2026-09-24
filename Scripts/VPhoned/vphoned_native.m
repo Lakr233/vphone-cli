@@ -18,8 +18,8 @@ NSDictionary *vp_native_api_command(NSDictionary *message) {
 }
 
 void vp_native_bootstrap_cached_binary(void) {
-    // v1 cached binaries could fail before binding and put launchd in a crash
-    // loop. A v2 update gets one attempt; the bundled daemon is the fallback.
+    // A cached update gets one attempt to bind. If it fails, launchd restarts
+    // the bundled daemon, which remains the fallback.
     if (access(cache, X_OK) != 0 || access(marker, R_OK) != 0) return;
     NSData *binary = [NSData dataWithContentsOfFile:@(cache) options:NSDataReadingMappedIfSafe error:nil];
     NSString *expected = [NSString stringWithContentsOfFile:@(marker) encoding:NSUTF8StringEncoding error:nil];
