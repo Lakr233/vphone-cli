@@ -40,7 +40,7 @@ vphone-cli vm launch myphone
 
 启动虚拟机后，在 macOS 菜单栏选择 **Guest > Install Bootstrap…**，再选择所需的环境布局。此操作会在访客系统内安装 Irisin。
 
-目前需要在 Irisin 中依次安装 `coreutils`、`debianutils`、`dash` 等基础软件包。如果安装因软件包脚本出错而失败，请打开失败操作页面左上角的 **More** 菜单，选择 **Ignore Script Errors and Retry**。Irisin 仍会运行脚本，但会忽略脚本错误继续安装。环境就绪后，即可恢复正常安装。后续版本会改善这段初始配置流程。
+首次准备环境时，在 Irisin 中选中 `coreutils`、`debianutils`、`dash` 等基础软件包，长按**安装**按钮，然后选择**引导安装（Bootstrap Install）**。这种模式会先解压所有选中的软件包，再重新执行安装流程，以绕过初始阶段的依赖循环：`debianutils` 需要 `bash`，而 `bash` 又需要已经配置好的 `debianutils`。基础软件包安装完成后，即可使用普通安装模式。
 
 ## 日常使用
 

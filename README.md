@@ -40,7 +40,7 @@ Version 2.x starts only VMs created with its `schemaVersion=2` format. Older VMs
 
 After launching the VM, choose **Guest > Install Bootstrap…** from the macOS menu bar and select a layout. This installs Irisin in the guest.
 
-For now, install `coreutils`, `debianutils`, `dash`, and other essential packages in Irisin one at a time. If a package script causes an installation to fail, open the **More** menu at the top left of the failed operation and choose **Ignore Script Errors and Retry**. Irisin still runs the scripts but continues past their errors. Once the environment is ready, return to normal installation. A later release will improve this initial setup.
+For the first setup, select `coreutils`, `debianutils`, `dash`, and the other essential packages in Irisin. Press and hold the **Install** button, then choose **Bootstrap Install**. This mode unpacks all selected packages before running the installation steps again. It resolves the initial dependency cycle where `debianutils` needs `bash`, but `bash` needs `debianutils` to have been configured. Use regular installation after the essential packages are set up.
 
 ## Everyday use
 
