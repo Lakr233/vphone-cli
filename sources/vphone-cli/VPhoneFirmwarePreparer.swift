@@ -76,9 +76,19 @@ enum VPhoneFirmwarePreparer {
         print(gpuDriverBundle == nil
             ? "[*] Extracting GPU driver from cloudOS PCC image..."
             : "[*] Staging GPU driver from local bundle...")
-        try VPhonePCCGPUDriver.stage(
-            from: cloudTree, into: phoneTree, cachedBundle: gpuDriverBundle,
-        )
+        do {
+            try VPhonePCCGPUDriver.stage(
+                from: cloudTree, into: phoneTree, cachedBundle: gpuDriverBundle,
+                expectedPlatformVersion: cloud.version,
+            )
+        } catch let failure as VPhoneAEA.Error {
+            guard case .keyFetchFailed = failure, gpuDriverBundle == nil else { throw failure }
+            print("[*] PCC AEA key unavailable; restoring cloudOS in a temporary vphone VM...")
+            try VPhonePCCGPURecovery.stage(
+                cloudOSDirectory: cloudTree, into: phoneTree,
+                expectedPlatformVersion: cloud.version,
+            )
+        }
 
         // The destination did not exist at entry and the staging directory is
         // on the same volume. One rename exposes the complete restore tree.

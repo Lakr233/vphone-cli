@@ -49,14 +49,14 @@ struct PCCGPUDriverTests {
             at: source.appendingPathComponent("_CodeSignature"), withIntermediateDirectories: true,
         )
         for file in ["AppleParavirtGPUMetalIOGPUFamily",
-                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib",
                      "_CodeSignature/CodeResources"]
         {
             try Data(file.utf8).write(to: source.appendingPathComponent(file))
         }
         let info = try PropertyListSerialization.data(
             fromPropertyList: ["CFBundleIdentifier":
-                "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily"],
+                "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily",
+                "DTPlatformVersion": "26.4"],
             format: .binary, options: 0,
         )
         try info.write(to: source.appendingPathComponent("Info.plist"))
@@ -66,10 +66,18 @@ struct PCCGPUDriverTests {
             from: root.appendingPathComponent("missing-cloudos"),
             into: restore,
             cachedBundle: source,
+            expectedPlatformVersion: "26.4",
         )
         let staged = VPhonePCCGPUDriver.stagedBundle(in: restore)
         #expect(try Data(contentsOf: staged.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"))
             == Data("AppleParavirtGPUMetalIOGPUFamily".utf8))
+
+        #expect(throws: VPhonePCCGPUDriver.Error.self) {
+            try VPhonePCCGPUDriver.stage(
+                from: root, into: restore, cachedBundle: source,
+                expectedPlatformVersion: "26.1",
+            )
+        }
 
         try FileManager.default.removeItem(at: source.appendingPathComponent("_CodeSignature/CodeResources"))
         #expect(throws: VPhonePCCGPUDriver.Error.self) {

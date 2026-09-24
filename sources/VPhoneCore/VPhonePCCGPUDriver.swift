@@ -10,6 +10,7 @@ public enum VPhonePCCGPUDriver {
         case unsafeOSPath(String)
         case missingBundle(URL)
         case invalidCachedBundle(URL)
+        case wrongPlatformVersion(URL, expected: String, actual: String)
         case toolFailed(String, String)
 
         public var errorDescription: String? {
@@ -22,6 +23,8 @@ public enum VPhonePCCGPUDriver {
                 "PCC OS image has no GPU driver bundle at \(path.path)"
             case let .invalidCachedBundle(path):
                 "GPU driver bundle is incomplete or has the wrong identifier: \(path.path)"
+            case let .wrongPlatformVersion(path, expected, actual):
+                "GPU driver at \(path.path) is for iPhoneOS \(actual), expected cloudOS \(expected)"
             case let .toolFailed(tool, detail):
                 "\(tool) failed while extracting the PCC GPU driver: \(detail)"
             }
@@ -60,12 +63,13 @@ public enum VPhonePCCGPUDriver {
         from cloudOSDirectory: URL,
         into restoreDirectory: URL,
         cachedBundle: URL? = nil,
+        expectedPlatformVersion: String? = nil,
     ) throws {
         let fm = FileManager.default
         let destination = stagedBundle(in: restoreDirectory)
         if let cachedBundle {
             let source = cachedBundle.standardizedFileURL.resolvingSymlinksInPath()
-            try validateBundle(at: source)
+            try validateBundle(at: source, expectedPlatformVersion: expectedPlatformVersion)
             try fm.createDirectory(at: destination.deletingLastPathComponent(),
                                    withIntermediateDirectories: true)
             if fm.fileExists(atPath: destination.path) {
@@ -99,12 +103,7 @@ public enum VPhonePCCGPUDriver {
 
         let source = mount.appending(path: "System/Library/Extensions/\(name)")
         guard fm.fileExists(atPath: source.path) else { throw Error.missingBundle(source) }
-        for file in ["AppleParavirtGPUMetalIOGPUFamily",
-                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib", "Info.plist"]
-        {
-            let member = source.appendingPathComponent(file)
-            guard fm.fileExists(atPath: member.path) else { throw Error.missingBundle(member) }
-        }
+        try validateBundle(at: source, expectedPlatformVersion: expectedPlatformVersion)
         try fm.createDirectory(at: destination.deletingLastPathComponent(),
                                withIntermediateDirectories: true)
         if fm.fileExists(atPath: destination.path) {
@@ -114,14 +113,14 @@ public enum VPhonePCCGPUDriver {
         print("[+] GPU driver staged from PCC OS: \(destination.path)")
     }
 
-    private static func validateBundle(at source: URL) throws {
+    static func validateBundle(at source: URL, expectedPlatformVersion: String?) throws {
         let fm = FileManager.default
         var isDirectory: ObjCBool = false
         guard fm.fileExists(atPath: source.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw Error.invalidCachedBundle(source)
         }
         for file in ["AppleParavirtGPUMetalIOGPUFamily",
-                     "libAppleParavirtCompilerPluginIOGPUFamily.dylib", "Info.plist",
+                     "Info.plist",
                      "_CodeSignature/CodeResources"]
         {
             guard fm.fileExists(atPath: source.appendingPathComponent(file).path) else {
@@ -135,6 +134,14 @@ public enum VPhonePCCGPUDriver {
               properties["CFBundleIdentifier"] as? String ==
               "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily"
         else { throw Error.invalidCachedBundle(source) }
+        if let expectedPlatformVersion {
+            let actual = properties["DTPlatformVersion"] as? String ?? "unknown"
+            guard actual == expectedPlatformVersion else {
+                throw Error.wrongPlatformVersion(
+                    source, expected: expectedPlatformVersion, actual: actual,
+                )
+            }
+        }
     }
 
     private static func run(_ tool: String, _ args: [String]) throws {

@@ -1227,13 +1227,19 @@ passed (the filter is detected, and libzstd is static in the xcframework).
 
 The application no longer ships `AppleParavirtGPUMetalIOGPUFamily.tar`. During
 `fw prepare`, the PCC `BuildManifest.plist` selects the vphone600 OS image. The
-preparer decrypts and read-only mounts that image, copies its complete
-`AppleParavirtGPUMetalIOGPUFamily.bundle` into the VM restore tree, then removes
-the temporary decrypted image. Both the JB host-mount installer and the legacy
-filesystem merge copy this staged bundle into the guest. The executable,
-compiler-plugin dylib, plist, and signature resources therefore come from the
-same PCC release as the selected kernel; no separately downloaded GPU binary is
-required. This is a payload-source change, not a new binary patch.
+preparer decrypts and read-only mounts that image when Apple serves its AEA
+key, copies its complete `AppleParavirtGPUMetalIOGPUFamily.bundle` into the VM
+restore tree, then removes the temporary image. When WKMS returns 403,
+`vphone-cli` creates a temporary PV=3 VM, boots it in DFU, and restores the
+selected cloudOS IPSW through its own `VPhoneRestoreBridge`. The preparer
+copies the bundle from its sealed System volume and removes the temporary VM.
+Both the JB host-mount installer and the filesystem merge copy this staged
+bundle into the iPhone guest. The 26.4 `23E5207q` restored bundle has
+`DTPlatformVersion=26.4`, `CFBundleVersion=64.4.4`, and binary SHA-256
+`29ba36c7bc87d82c40fa1cecdf357e7a383fa70eb46df0d75869f5ac562aedbc`.
+It lacks the compiler-plugin dylib present in the 26.1 bundle, so the installer
+only sets that file's permissions if it exists. This is a payload-source and
+installation change, not a new binary patch.
 
 **`find -name '._*' -delete` → `deleteAppleDoubleFiles`,** and this one was nearly a
 silent regression worth writing down. On a volume with native extended attributes,

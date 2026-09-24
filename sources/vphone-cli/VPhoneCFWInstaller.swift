@@ -71,8 +71,8 @@ struct VPhoneCFWInstaller {
         }
         let capacity = try bundle.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage ?? 0
-        guard capacity > 100 * 1024 * 1024 * 1024 else {
-            throw ValidationError("Less than 100 GiB available; CFW install stopped before mounting")
+        guard capacity > 50 * 1024 * 1024 * 1024 else {
+            throw ValidationError("Less than 50 GiB available; CFW install stopped before mounting")
         }
 
         let attached = try tool("/usr/bin/hdiutil", [
@@ -165,10 +165,13 @@ struct VPhoneCFWInstaller {
         try fm.copyItem(at: gpuSource, to: gpu)
         try tool("/usr/sbin/chown", ["-R", "0:0", gpu.path])
         for file in [gpu, gpu.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"),
-                     gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib"),
                      gpu.appendingPathComponent("_CodeSignature")]
         {
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: file.path)
+        }
+        let compilerPlugin = gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
+        if fm.fileExists(atPath: compilerPlugin.path) {
+            try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: compilerPlugin.path)
         }
         for file in [gpu.appendingPathComponent("Info.plist"),
                      gpu.appendingPathComponent("_CodeSignature/CodeResources")]
