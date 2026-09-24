@@ -47,6 +47,13 @@ daemon_products="$root/.build/XcodeDaemon/Build/Products/$configuration-iphoneos
 amfi_products="$root/.build/XcodeAMFIAllow/Build/Products/$configuration"
 guest_products="$root/.build/guest-components/stage"
 
+# The iOS 26 Swift runtime lacks this symbol. Swift Collections 1.7.0 emits
+# it with Xcode 27 even when vphoned targets iOS 15, causing a dyld crash loop.
+if /usr/bin/nm -u "$daemon_products/vphoned" | /usr/bin/grep -q '_swift_initBorrow'; then
+    print -u2 -- "vphoned requires _swift_initBorrow, which is unavailable on iOS 26"
+    exit 1
+fi
+
 /bin/rm -rf "$macos" "$resources"
 /bin/mkdir -p "$macos" "$resources/scripts/vphoned" "$resources/guest"
 /bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"

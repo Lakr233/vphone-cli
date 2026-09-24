@@ -201,6 +201,7 @@
 				C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */,
 				C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */,
 				C10000000000000000000073 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
+				C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */,
 			);
 			projectDirPath = "";
 			projectRoot = "";
@@ -427,6 +428,14 @@
 			requirement = {
 				kind = exactVersion;
 				version = 0.1.1;
+			};
+		};
+		C10000000000000000000074 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.6.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

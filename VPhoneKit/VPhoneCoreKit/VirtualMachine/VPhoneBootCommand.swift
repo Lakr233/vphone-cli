@@ -74,6 +74,26 @@ public struct VPhoneBootCommand: ParsableCommand {
 
     public init() {}
 
+    /// Construct a forwarding command without leaving any ArgumentParser
+    /// property wrapper in its undecoded definition state.
+    public init(
+        config: URL,
+        dfu: Bool = false,
+        headless: Bool = false,
+        apiListen: String? = nil,
+        kernelDebugPort: Int? = nil,
+        vphonedBin: String = ".vphoned.signed",
+        installIPA: URL? = nil,
+    ) {
+        self.config = config
+        self.dfu = dfu
+        self.headless = headless
+        self.apiListen = apiListen
+        self.kernelDebugPort = kernelDebugPort
+        self.vphonedBin = vphonedBin
+        self.installIPA = installIPA
+    }
+
     /// DFU mode is always headless.
     public var noGraphics: Bool {
         dfu || headless
