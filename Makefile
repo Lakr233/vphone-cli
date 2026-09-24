@@ -74,6 +74,7 @@ help:
 	@echo "Build:"
 	@echo "  make build                   Build + sign vphone-cli"
 	@echo "  make vphoned                 Cross-compile + sign vphoned for iOS"
+	@echo "  make siblings_package        Build + archive optional guest components"
 	@echo "  make clean                   Remove build/tooling artifacts only"
 	@echo "    Options: CLEAN_VM=1        Also remove VM_DIR=$(VM_DIR) after confirmation"
 	@echo "             CLEAN_IPSW=1      Also remove ipsws/ after confirmation"
@@ -228,9 +229,8 @@ $(AMFI_BINARY): $(AMFI_SOURCE)
 bundle:
 	@zsh $(SCRIPTS)/build.sh
 
-# The five iOS binaries the guest runs. Compiled here, on the build machine,
-# because compiling them at CFW-install time is what made Xcode a prerequisite
-# for running a VM. See scripts/guest_binaries.mk.
+# The required guest daemon is compiled on the build machine, so running a VM
+# never requires Xcode. Optional sibling components have their own package.
 include $(SCRIPTS)/guest_binaries.mk
 
 # vphoned for a live guest. This target only prepares the build artifact;
@@ -241,6 +241,10 @@ vphoned: $(GUEST_DIR)/vphoned $(BINARY)
 	@$(BINARY) sign --entitlements $(SCRIPTS)/vphoned/entitlements.plist --merge \
 		.build/vphoned.signed
 	@echo "  signed → .build/vphoned.signed"
+
+.PHONY: siblings_package
+siblings_package:
+	@$(MAKE) --no-print-directory -C siblings package
 
 # ═══════════════════════════════════════════════════════════════════
 # VM management

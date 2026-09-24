@@ -182,8 +182,11 @@ scripts/                          # Build scripts and payloads only; no runtime 
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
 ├── payloads/                     # Small GPU driver archive; no bootstrap payloads
 ├── vphoned/                      # Guest daemon source; only its plist and entitlements ship
-├── tweakloader/ vpregister/ vcamcaptured/ camfix/ # Unshipped experimental sources
 └── repos/                        # Toolchain source (git submodule: insert_dylib)
+
+siblings/                         # Optional guest components; separate Makefile/package
+├── camfix/ vcamcaptured/          # Camera hooks and filter plists
+└── tweakloader/ vpregister/       # Loader and iOS 27 app registrar
 
 research/                         # Detailed firmware/patch documentation
 ```

@@ -168,8 +168,8 @@ check_closure() {
   while IFS= read -r obj; do queue+=("$obj"); done < <(
     find "$root" -type f -perm -u+x 2>/dev/null \
       | while IFS= read -r f; do
-          # Resources/guest holds the five iOS binaries the CFW installers copy
-          # into the VM, plus vphoned.signed for a live install. They are arm64
+          # Resources/guest holds the iOS guest daemon and related resources,
+          # plus vphoned.signed for a live install. They are arm64
           # iphoneos Mach-Os; they never run on this host and their link lines
           # say nothing about whether this .app is self-contained.
           [[ "$f" == */Contents/Resources/guest/* ]] && continue
