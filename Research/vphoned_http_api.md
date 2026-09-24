@@ -28,6 +28,26 @@ notch and cutout drawn by the host VM window.
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.
 `apps.uninstall` delegates removal to IcliKit and requires `force=true`.
+`POST /v1/bootstrap/install` (or RPC method `bootstrap.install`) accepts
+`{"layout":"rootless"}` or `{"layout":"roothide"}` and installs the latest
+published `Lakr233/Irisin` release as the selected bootstrap's initial app.
+Rootless uses `/var/jb`. RootHide reuses the sole valid `.jbroot-<16 hex>` under
+`/var/containers/Bundle/Application`, or creates
+`.jbroot-000114514191980C` when none exists. The selected stem is zero padded
+and its final byte carries RootHide's XOR checksum. Missing bootstrap directories are created.
+It selects the matching architecture, verifies the release
+asset's GitHub SHA-256 digest and Debian control fields, then uses IcliKit to
+extract the `.deb` into a temporary directory. It copies the full payload
+into the bootstrap, creates Irisin's mobile-owned data directory, registers
+the app with IcliKit, and loads the daemon through IcliKit. It also attempts
+to start the daemon; a launchd start error is returned as
+`service_start_warning` while the installed bootstrap remains available.
+RootHide's plist gets a physical daemon path and `__Patched`
+marker before launchd reads it. This is a manual payload install: no maintainer
+script runs and the dpkg database is not changed. The reply includes the tag,
+bootstrap path, registration record, and launchd status. A successful bootstrap
+writes `.vphoned-boostrap-completed` beside the running vphoned binary; later
+requests refuse to bootstrap again when that marker exists.
 
 ## HTTP and WebSocket contract
 
