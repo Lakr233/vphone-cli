@@ -126,7 +126,9 @@ enum GuestAPI {
                     let after = try runningApps()["apps"] as? [[String: Any]] ?? []
                     guard let pid = after.first(where: { $0["bundle_id"] as? String == id })?["pid"] as? Int
                     else { throw IcliError.failed(message) }
-                    if GuestForeground.current()["bundle_id"] as? String == id {
+                    let front = frontmostApp()
+                    if front["verified"] as? Bool == true,
+                       front["bundle_id"] as? String == id {
                         return ["pid": pid, "frontmost_verified": true]
                     }
                     guard !wasRunning else { throw IcliError.failed(message) }
@@ -138,14 +140,17 @@ enum GuestAPI {
                 }
             }
             let running = try? runningApps()["apps"] as? [[String: Any]]
+            let front = frontmostApp()
             return [
                 "pid": running?.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0,
-                "frontmost_verified": params["url"] == nil,
+                "frontmost_verified": params["url"] == nil
+                    && front["verified"] as? Bool == true
+                    && front["bundle_id"] as? String == id,
             ]
         case "apps.terminate":
             return try killApp(string(params, "bundle_id"), force: true)
         case "apps.foreground":
-            let front = GuestForeground.current()
+            let front = frontmostApp()
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []

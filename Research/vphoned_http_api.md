@@ -35,13 +35,12 @@ directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
 
-`apps.launch` returns a PID and `frontmost_verified`. On the iOS 26 research VM,
-IcliKit can keep reporting SpringBoardEducation after an app reaches the screen.
-The guest checks RunningBoard's live focal assertion in that case and accepts
-it only when one app owns it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older
-systems may use `Workspace-ForegroundFocal`. The Home screen's widget renderer
-can hold `UIFocal`, so it is excluded as an app candidate. `apps.foreground`
-also reports `verified` and `source`. If no unique focal app can be confirmed,
+`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.4 checks
+RunningBoard's live focal assertion and accepts it only when one real app owns
+it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
+`Workspace-ForegroundFocal`. The Home screen's widget renderer can also hold
+`UIFocal`, so the Kit excludes it. `apps.foreground` reports the Kit's
+`verified` and `source` values. If no unique focal app can be confirmed,
 a newly started process is reported with `frontmost_verified=false` and a
 warning. A failed start or an already running app without foreground
 confirmation remains an error.
@@ -63,7 +62,7 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.3
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.4
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
