@@ -7,7 +7,7 @@ import VphonedNative
 
 vp_native_bootstrap_cached_binary()
 vp_vcam_start()
-GuestIrisinInstaller.refreshFirmwareOnStartup()
+GuestIrisinInstaller.refreshBootstrapOnStartup()
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 let filePool = NIOThreadPool(numberOfThreads: 2)

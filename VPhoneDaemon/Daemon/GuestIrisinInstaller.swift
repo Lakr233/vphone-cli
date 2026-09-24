@@ -238,6 +238,7 @@ enum GuestIrisinInstaller {
             for (source, target) in components {
                 replaced.append(try replace(source, at: target))
             }
+            if layout == "roothide" { try ensureRootHideLinks(root: root) }
             let registration = try registerApp(installedApp.path)
             let loaded = try loadServices([installedPlist.path], load: true, override: false)
             var started: [String: Any]?
@@ -312,12 +313,58 @@ enum GuestIrisinInstaller {
                 "firmware_version": firmware.version, "dpkg_database_updated": firmware.updated]
     }
 
-    static func refreshFirmwareOnStartup() {
+    static func refreshBootstrapOnStartup() {
         guard itemExists(completionMarker) else { return }
+        do {
+            if let installation = try completedBootstrap(), installation.layout == "roothide" {
+                try ensureRootHideLinks(root: installation.root)
+            }
+        } catch {
+            NSLog("vphoned: could not repair RootHide loader links: %@", String(describing: error))
+        }
         do {
             _ = try repairFirmwareRecord()
         } catch {
             NSLog("vphoned: could not refresh bootstrap firmware record: %@", String(describing: error))
+        }
+    }
+
+    /// RootHide's @loader_path references resolve through a .jbroot link in
+    /// each directory containing bootstrap Mach-O files. Seed the standard
+    /// directories before a package manager installs its first shell.
+    private static func ensureRootHideLinks(root: String) throws {
+        guard try directoryExistsWithoutSymlink(root) else {
+            throw GuestAPIError.operationFailed("RootHide bootstrap root is missing: \(root)")
+        }
+        let files = FileManager.default
+
+        func link(_ path: String, target: String) throws {
+            var info = stat()
+            if lstat(path, &info) == 0 {
+                guard info.st_mode & mode_t(S_IFMT) == mode_t(S_IFLNK),
+                      try files.destinationOfSymbolicLink(atPath: path) == target else {
+                    throw GuestAPIError.operationFailed("RootHide loader link has an unexpected target: \(path)")
+                }
+                return
+            }
+            guard errno == ENOENT else {
+                throw GuestAPIError.operationFailed("Could not inspect RootHide loader link: \(path)")
+            }
+            try files.createSymbolicLink(atPath: path, withDestinationPath: target)
+        }
+
+        try link(root + "/.jbroot", target: ".")
+        for relative in ["bin", "sbin", "usr/bin", "usr/sbin", "usr/lib", "usr/libexec"] {
+            var directory = root
+            for component in relative.split(separator: "/") {
+                directory += "/" + component
+                if try !directoryExistsWithoutSymlink(directory) {
+                    try files.createDirectory(atPath: directory, withIntermediateDirectories: false)
+                }
+            }
+            let depth = relative.split(separator: "/").count
+            let target = String(repeating: "../", count: depth) + ".jbroot"
+            try link(directory + "/.jbroot", target: target)
         }
     }
 

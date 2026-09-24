@@ -49,7 +49,13 @@ script runs. For this minimal vphone bootstrap, vphoned writes a real installed
 `Library/dpkg/status`; Irisin's installed list, resolver, and helper then read
 the same record. If the status already contains firmware from another
 bootstrap, vphoned preserves it. A vphoned-owned record is updated after an
-iOS version change when vphoned starts. `POST /v1/bootstrap/firmware` (RPC `bootstrap.firmware`)
+iOS version change when vphoned starts. For RootHide, vphoned also creates
+the `.jbroot` loader links in the bootstrap root and standard executable and
+library directories. On startup it repairs missing links for an existing
+completed installation without replacing links that point elsewhere. These
+links let `@loader_path/.jbroot/usr/lib/...` dependencies resolve when a
+package manager later installs tools such as `dash`.
+`POST /v1/bootstrap/firmware` (RPC `bootstrap.firmware`)
 repairs the record for a bootstrap already identified by the completion marker
 without running another install. The reply includes the tag,
 bootstrap path, registration record, and launchd status. A successful bootstrap
