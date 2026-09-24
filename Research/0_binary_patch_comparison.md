@@ -10,7 +10,7 @@
 > not available install modes.
 
 > **Current launchd hook (2026-09-25; isolated VM verification):**
-> `cfw install` now places `launchdhook-vphone.dylib` and an inert
+> `cfw install` now places `launchdhook-vphone.dylib` and a diagnostic
 > `SystemHook-vphone.dylib` in `/usr/lib`, links `/vh` to the launchd hook,
 > inserts a weak `/vh` load command for the
 > launchd hook after `patch-launchd-jetsam`, and re-signs launchd. The hook
@@ -29,8 +29,16 @@
 > and `ProgramArguments[0]` paths are translated to physical kernel paths in
 > the in-memory XPC plist. The hook also tries to remove PID 1's existing
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
-> `SystemHook-vphone.dylib` is not injected into processes in this phase; ElleKit
-> chain loading, `DISABLE_TWEAKS`, and tweak filters remain a later step.
+> `SystemHook-vphone.dylib` is not injected into processes in this phase. When
+> loaded for diagnosis, it logs only PID and executable path to
+> `/var/mobile/Library/Caches/vphone-systemhook.log`; it does not load ElleKit.
+> ElleKit chain loading, `DISABLE_TWEAKS`, and tweak filters remain a later step.
+> An isolated experiment patched PID 1's `posix_spawn` with the old baseline
+> ElleKit `MSHookFunction` and inserted the diagnostic SystemHook. The hook
+> reached `xpcproxy` (327 probe log lines), but the launched package daemon
+> had no `DYLD_INSERT_LIBRARIES` and did not load SystemHook. Adding that
+> variable to the daemon plist was also ineffective. The experimental spawn
+> patch is therefore excluded from the installed launchd hook.
 > The cloned `vphone-launchdhook-lab-26.6.2` booted with the weak dylib and
 > retained a healthy vphoned API. Rootless and RootHide probes, each tested
 > after reboot, were imported and spawned by launchd. The RootHide probe's

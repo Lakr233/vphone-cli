@@ -9,16 +9,19 @@ tweak filter plists, and the GPU provenance note:
 | Camera app hook | `camfix/libcamfix.dylib`, `camfix/libcamfix.plist` |
 | Camera daemon hook | `vcamcaptured/libvcamcaptured.dylib`, `vcamcaptured/libvcamcaptured.plist` |
 | Launchd hook | `launchhook/launchdhook-vphone.dylib` |
-| Reserved process hook | `systemhook/SystemHook-vphone.dylib` |
+| Process-load probe | `systemhook/SystemHook-vphone.dylib` |
+| iOS 27 app registrar | `vpregister/vpregister` |
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
 
 The archive is a local build artifact, not a VM bootstrap. The launchd hook is
 installed by `cfw install` to discover package daemons after reboot; the process
-hook is staged but has no injection or chain-load behavior yet. Irisin installs
-ElleKit's own `TweakLoader.dylib` in the selected bootstrap. The required GPU bundle is
-instead extracted from the selected PCC firmware by `vphone-cli fw prepare`
-and copied into the VM during JB installation. No Apple GPU binary is stored
-in this directory, the archive, or the shipped app.
+hook is staged but is not injected automatically. If loaded for diagnosis, its
+constructor appends the PID and executable path to
+`/var/mobile/Library/Caches/vphone-systemhook.log`; it does not load ElleKit.
+Irisin installs ElleKit's own `TweakLoader.dylib` in the selected bootstrap.
+The required GPU bundle is extracted from the selected PCC firmware by
+`vphone-cli fw prepare` and copied into the VM during JB installation. No
+Apple GPU binary is stored in this directory, the archive, or the shipped app.
 
 See `Research/Guest/virtual_camera_transport.md` for the camera transport
 validation and the hook installation prerequisites.
