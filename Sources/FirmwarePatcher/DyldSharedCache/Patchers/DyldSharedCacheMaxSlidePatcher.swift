@@ -37,7 +37,7 @@
 // kernel while it is setting the mapping up — not a `cs_validate`'d code page.
 // The Python reference states the same thing and backs it with a live test: a
 // cache poked to maxSlide=0 booted with "dyld cache mapped system-wide" and 0
-// panics, and `research/0_binary_patch_comparison.md` row 10 records the
+// panics, and `Research/0_binary_patch_comparison.md` row 10 records the
 // on-device validation on `17,3_27.0_24A5380h` + cloudOS 26.4.
 //
 // So `DyldSharedCacheCodeSignature.reattestRecordedWrites(in:)` is *not* called here, and

@@ -497,7 +497,7 @@ public enum DyldSharedCacheHypervisorVirtualMachinePatcher {
     // dedicated two-instruction patch instead. It is here because it is the rest
     // of the module this file ports, it is the only way to check the cstring
     // definition above against a real Mach-O, and the EXP rootfs list in
-    // `research/0_binary_patch_comparison.md` still names six files it applies
+    // `Research/0_binary_patch_comparison.md` still names six files it applies
     // to.
 
     /// Mangle every cstring site in the Mach-O at `url`.

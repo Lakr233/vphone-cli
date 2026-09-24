@@ -1,6 +1,6 @@
 # Firmware compatibility
 
-[Documentation](../README.md) · [Create a VM](create-and-run.md) · [Patch inventory](../../research/0_binary_patch_comparison.md)
+[Documentation](../README.md) · [Create a VM](create-and-run.md) · [Patch inventory](../../Research/0_binary_patch_comparison.md)
 
 ## Tested Environments
 

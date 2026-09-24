@@ -212,7 +212,9 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
 
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-        let readme = resources.base.appendingPathComponent("docs/guides/compatibility.md").path
+        let sourceGuide = resources.base.appendingPathComponent("Documents/Guides/compatibility.md")
+        let bundleGuide = resources.base.appendingPathComponent("docs/guides/compatibility.md")
+        let readme = FileManager.default.fileExists(atPath: sourceGuide.path) ? sourceGuide.path : bundleGuide.path
         let needsCatalog = list || iphoneVersion != nil || iphoneBuild != nil
         let urls = if needsCatalog {
             try vphoneRunBlocking {

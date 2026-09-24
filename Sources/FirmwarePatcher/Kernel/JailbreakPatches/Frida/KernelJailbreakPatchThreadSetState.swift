@@ -3,7 +3,7 @@
 // Frida follows an existing thread via thread_set_state_from_user, whose flags
 // carry TSSF_CHECK_ENTITLEMENT and trip GUARD_TYPE_MACH_PORT. Clear that bit in the
 // user setters (`mov w6,#0x201` → `mov w6,#0x1`) rather than the check itself.
-// Reveal + validation: research/kernel_jailbreak_patches/patch_thread_set_state.md.
+// Reveal + validation: Research/KernelJailbreakPatches/patch_thread_set_state.md.
 
 import Capstone
 import Foundation

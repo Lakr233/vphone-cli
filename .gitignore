@@ -165,7 +165,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+Documents/_build/
 
 # PyBuilder
 .pybuilder/
@@ -331,7 +331,7 @@ __marimo__/
 /.swiftpm
 *.ipsw
 /updates-cdn
-/research/jb_asm_refs
+/Research/jb_asm_refs
 /references/
 Scripts/VPhoned/vphoned
 /cfw_input/
@@ -345,9 +345,9 @@ tar.????????
 setup_logs/
 /testing_results
 /.ida-mcp
-/research/reference/xnu
-/research/artifacts
-/research/xnu
+/Research/Reference/xnu
+/Research/artifacts
+/Research/xnu
 /vm
 /vm.backups
 /vm-*/

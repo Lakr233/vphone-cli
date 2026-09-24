@@ -1,7 +1,7 @@
 // DyldSharedCacheXPCLWCRPatcher.swift — libxpc's Lightweight Code Requirement self-check.
 //
 // Swift port of `scripts/patchers/cfw_patch_xpc_lwcr.py` (`cfw.py
-// patch-xpc-lwcr`). See research/0_binary_patch_comparison.md #15.
+// patch-xpc-lwcr`). See Research/0_binary_patch_comparison.md #15.
 //
 // What breaks
 // -----------

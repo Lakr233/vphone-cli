@@ -4,7 +4,7 @@
 // vm_map_delete's immutable-code exception tests current-protection EXECUTE, which
 // is clear, so re-instrumentation fails with KERN_PROTECTION_FAILURE. Retarget the
 // test from current-X (packed [entry,#0x38] bit 9) to max-X (bit 13).
-// Reveal + validation: research/kernel_jailbreak_patches/patch_vm_map_delete_immutable_code.md.
+// Reveal + validation: Research/KernelJailbreakPatches/patch_vm_map_delete_immutable_code.md.
 
 import Capstone
 import Foundation

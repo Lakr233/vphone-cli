@@ -1,7 +1,7 @@
 // CustomFirmwareMachLookupExceptions.swift — Campo backboard/frontboard mach-lookups.
 //
 // Swift port of scripts/patchers/campo_mach_lookup_exceptions.py (JB-3b).
-// See research/0_binary_patch_comparison.md #14.
+// See Research/0_binary_patch_comparison.md #14.
 //
 // iOS 27's temporary sandbox denies Campo.app the backboard/frontboard
 // services it needs to put a window on screen. The install step dumps

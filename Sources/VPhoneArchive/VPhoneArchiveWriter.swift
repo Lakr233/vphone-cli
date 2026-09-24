@@ -64,7 +64,7 @@ public enum VPhoneArchiveWriter {
             // is worth about 4.8x -- but only above one xz block, roughly
             // 192 MiB at level 9. A smaller archive gets no benefit, and that
             // is arithmetic rather than a fault. See
-            // research/host/libarchive_xcframework_validation.md.
+            // Research/Host/libarchive_xcframework_validation.md.
             try setFilterOption(writer, "xz", "threads", "0")
         case let .gzip(level):
             archive_write_add_filter_gzip(writer)

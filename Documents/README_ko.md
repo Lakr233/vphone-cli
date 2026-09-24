@@ -10,7 +10,7 @@ Apple Virtualization.framework와 PCC 연구용 VM 기반으로 가상 iPhone을
 
 ## 빠른 시작
 
-Apple Silicon Mac, macOS 15 이상, 그리고 PV=3 연구용 VM과 `vphone-vm` 권한을 허용하는 [호스트 설정](guides/host-setup.md)이 필요합니다.
+Apple Silicon Mac, macOS 15 이상, 그리고 PV=3 연구용 VM과 `vphone-vm` 권한을 허용하는 [호스트 설정](Guides/host-setup.md)이 필요합니다.
 
 ```sh
 vphone-cli vm create myphone \
@@ -22,7 +22,7 @@ vphone-cli vm launch myphone
 
 `vm create`는 준비, JB 패치, DFU 복원, CFW 설치를 수행하고 첫 부팅에서 vphoned에 실제로 ping합니다. **검증용 부팅은 성공 후 종료됩니다.** 계속 사용하려면 `vm launch`를 실행하세요. 복원에는 네트워크가, CFW 설치에는 관리자 인증이 필요합니다.
 
-cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`)이 잠금 화면에 도달하고 vphoned ping에 응답했습니다. 범위는 [호환성 기록](guides/compatibility.md)을 참고하세요.
+cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`)이 잠금 화면에 도달하고 vphoned ping에 응답했습니다. 범위는 [호환성 기록](Guides/compatibility.md)을 참고하세요.
 
 ## 설치와 빌드
 
@@ -35,4 +35,4 @@ zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-AMFI 허용 목록을 사용하는 호스트에서는 빌드할 때마다 [호스트 설정 가이드](guides/host-setup.md)에 따라 서명된 VM 바이너리를 다시 허용하세요. 현재 가이드와 연구 자료는 [문서 목차](README.md)에 모았습니다. 상세 가이드는 현재 영어로 제공됩니다.
+AMFI 허용 목록을 사용하는 호스트에서는 빌드할 때마다 [호스트 설정 가이드](Guides/host-setup.md)에 따라 서명된 VM 바이너리를 다시 허용하세요. 현재 가이드와 연구 자료는 [문서 목차](README.md)에 모았습니다. 상세 가이드는 현재 영어로 제공됩니다.

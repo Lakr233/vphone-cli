@@ -221,7 +221,7 @@ cp -f .build/guest/gpu-compiler-plugin.tar.zst "${RES}/gpu/compiler-plugin.tar.z
 rm -f "${RES}/README.md"
 rm -rf "${RES}/docs"
 mkdir -p "${RES}/docs/guides"
-cp -f docs/guides/compatibility.md "${RES}/docs/guides/compatibility.md"
+cp -f Documents/Guides/compatibility.md "${RES}/docs/guides/compatibility.md"
 echo "  bundled: scripts/ (dist tier), guest/vphoned, guest/icli, gpu/compiler-plugin.tar.zst, vphoned.signed, compatibility.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
@@ -250,4 +250,4 @@ echo "  vphoned            : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
 echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements."
-echo "Allow the new vphone-vm signatures after each build; see docs/guides/host-setup.md."
+echo "Allow the new vphone-vm signatures after each build; see Documents/Guides/host-setup.md."

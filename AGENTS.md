@@ -8,9 +8,9 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Test:** `swift test`; then `zsh Scripts/check_aux.sh` for bundle admission gates
 - **Boot (GUI):** `vphone-cli vm launch <name>`
 - **Boot (DFU):** `vphone-cli vm launch <name> --dfu`
-- **AMFI refuses `vphone-vm`?** Use the bundled `vphone-amfi-allow` helper as shown in `docs/guides/host-setup.md`. Repeat after every build because it allowlists cdhashes. See Key Patterns.
-- **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/restore/p2_restore_off_python.md`.
-- **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `docs/guides/host-setup.md`; neither is installed by this project.
+- **AMFI refuses `vphone-vm`?** Use the bundled `vphone-amfi-allow` helper as shown in `Documents/Guides/host-setup.md`. Repeat after every build because it allowlists cdhashes. See Key Patterns.
+- **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `Research/Restore/p2_restore_off_python.md`.
+- **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `Documents/Guides/host-setup.md`; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
 - **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. There are no git submodules. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
 - **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `Scripts/dist_manifest.sh` reads those and is what `Scripts/build.sh` stages from, so a script that declares nothing ships nowhere. `Scripts/check_aux.sh` runs the admission gates. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
@@ -21,11 +21,11 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - Ignore `/TODO.md` if it exists locally; it is intentionally not part of the repo workflow anymore.
 - Track plan, progress, assumptions, blockers, and next actions in commit history, code comments when warranted, and current research docs instead of a repo TODO file.
 
-For any changes applying new patches, also update research/0_binary_patch_comparison.md. Dont forget this.
+For any changes applying new patches, also update Research/0_binary_patch_comparison.md. Dont forget this.
 
 ## Local Skills
 
-- If working on kernel analysis, symbolication lookups, or kernel patch reasoning, read `skills/kernel-analysis-vphone600/SKILL.md` first.
+- If working on kernel analysis, symbolication lookups, or kernel patch reasoning, read `Skills/kernel-analysis-vphone600/SKILL.md` first.
 - Use this skill as the default procedure for `vphone600` kernel work.
 
 ## Firmware Mode
@@ -35,7 +35,7 @@ The guest contains vphoned and required system patches; package-manager
 bootstrap and first-boot installation are outside this project. Do not add
 another public variant.
 
-See `research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
+See `Research/` for detailed firmware pipeline, component origins, patch breakdowns, and boot flow documentation.
 
 ## Architecture
 
@@ -189,15 +189,15 @@ Siblings/                         # Guest component sources/provenance; separate
 ├── TweakLoader/ VPRegister/       # Loader and iOS 27 app registrar
 └── gpu/                           # PCC firmware provenance; no Apple binary
 
-research/                         # Detailed firmware/patch documentation
+Research/                         # Detailed firmware/patch documentation
 ```
 
 ### Key Patterns
 
 - **Three host binaries, one of them entitled.** `vphone-cli` carries no entitlements, so it launches on any host and is always there to explain what is wrong. `vphone-vm` holds all 7 private keys and is the only thing amfid can refuse. `vphone-archive` does the unpacking. **Do not sign `vphone-cli` with entitlements** — that is how it used to be, and it is why the entry point could not start without a bypass already running.
-- **The AMFI bypass is ours, and it writes heap, not code.** `vphone-amfi-allow` (`Sources/VPhoneAMFIAllow/`, this project's copy of [Lakr233/amfi-allow](https://github.com/Lakr233/amfi-allow)) puts the cdhashes of both `vphone-vm` copies into `/Library/Preferences/com.apple.security.coderequirements.plist` — a file AMFI already reads — and flips one byte of `_isRunningInternalBuild` in amfid's `AMFIRequirementsManager` singleton so it consults that file. It is an **allowlist**, scoped to the cdhashes you name; do not describe it as a global switch. The helper's `allow`, `status`, and `off` commands manage it; see `docs/guides/host-setup.md`. It is a **per-build** step, because a cdhash changes with every signature. It must be **arm64e** to match amfid's slice, and `Scripts/build.sh` builds it with clang. The heap write is the load-bearing detail: `vphone-letmein` and LLDB-based tools dirty an executable page, and on a host with `vm.cs_system_enforcement = 1` the kernel kills amfid for that and takes the guest with it.
+- **The AMFI bypass is ours, and it writes heap, not code.** `vphone-amfi-allow` (`Sources/VPhoneAMFIAllow/`, this project's copy of [Lakr233/amfi-allow](https://github.com/Lakr233/amfi-allow)) puts the cdhashes of both `vphone-vm` copies into `/Library/Preferences/com.apple.security.coderequirements.plist` — a file AMFI already reads — and flips one byte of `_isRunningInternalBuild` in amfid's `AMFIRequirementsManager` singleton so it consults that file. It is an **allowlist**, scoped to the cdhashes you name; do not describe it as a global switch. The helper's `allow`, `status`, and `off` commands manage it; see `Documents/Guides/host-setup.md`. It is a **per-build** step, because a cdhash changes with every signature. It must be **arm64e** to match amfid's slice, and `Scripts/build.sh` builds it with clang. The heap write is the load-bearing detail: `vphone-letmein` and LLDB-based tools dirty an executable page, and on a host with `vm.cs_system_enforcement = 1` the kernel kills amfid for that and takes the guest with it.
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — checks its two PV=3 entitlements, then probes with `vphone-vm --help` for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
-- **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `research/restore/p2_restore_off_python.md` has the decision and the behaviour table.
+- **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `Research/Restore/p2_restore_off_python.md` has the decision and the behaviour table.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
 - **App lifecycle:** `VPhoneVM/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneVirtualMachineAppDelegate`. Entry points hold no logic.
 - **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
@@ -247,7 +247,7 @@ There is none, and adding any is a regression.
   returns nothing; that is the standing check.
 - There is no environment to activate and no dependency list to install. The
   restore backend was the last holdout and is now `Sources/VPhoneRestore` over
-  two vendored C targets — see `research/restore/p2_restore_off_python.md`.
+  two vendored C targets — see `Research/Restore/p2_restore_off_python.md`.
 - A patch, a probe, a format reader or a device protocol belongs in Swift,
   where it is built, signed, gated by `Scripts/check_aux.sh` and tested with
   everything else. Adding an interpreter back brings with it a provisioning

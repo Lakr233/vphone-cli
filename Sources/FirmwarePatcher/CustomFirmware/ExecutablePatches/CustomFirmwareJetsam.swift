@@ -51,7 +51,7 @@
 // is a live bug in the reference: rewriting the gate drops it out of the
 // conditional-branch set, so the Python's backward scan walks past it and
 // patches the *next* branch into the same return block — a second, wrong site
-// on a binary that was already correct (`research/patches/patch_reference_capture.md`,
+// on a binary that was already correct (`Research/Patches/patch_reference_capture.md`,
 // "The non-idempotency itself is a separate, pre-existing bug"). The fix has to
 // live inside the scan, because on a re-run neither implementation picks the
 // site it patched before. So the scan collects unconditional `b`s into a return

@@ -2,7 +2,7 @@
 
 > **Historical snapshot.** This document describes the earlier shell/Python
 > manifest implementation. Those commands and files have since been replaced
-> by the native Swift workflow. See the [current VM guide](../../docs/guides/create-and-run.md)
+> by the native Swift workflow. See the [current VM guide](../../Documents/Guides/create-and-run.md)
 > and [research index](../README.md).
 
 ## Summary

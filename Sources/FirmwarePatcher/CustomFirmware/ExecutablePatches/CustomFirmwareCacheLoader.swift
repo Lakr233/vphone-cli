@@ -22,7 +22,7 @@
 // skip and the loader refuses anything but the stock cache. NOP'ing the one
 // `cbz` makes the unsecure path unconditional, which is what lets a MODIFIED
 // `/System/Library/xpc/launchd.plist` be loaded — the only reason this patch
-// exists (`research/0_binary_patch_comparison.md`, "Allow modified
+// exists (`Research/0_binary_patch_comparison.md`, "Allow modified
 // launchd.plist"). A flavour that does not rewrite `launchd.plist` does not
 // need it; see `cfw-kit/lib/base_stages.sh:stage_launchd_cache_loader`.
 //

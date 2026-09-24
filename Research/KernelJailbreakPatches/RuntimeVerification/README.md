@@ -3,7 +3,7 @@
 > **Archived research procedure.** The commands and local file paths below
 > describe the 2026-03-05 investigation and may not exist in the current
 > checkout. For the current JB flow, see the
-> [VM guide](../../../docs/guides/create-and-run.md) and
+> [VM guide](../../../Documents/Guides/create-and-run.md) and
 > [patch notes index](../README.md).
 
 This folder contains runtime + IDA verification artifacts for jailbreak kernel patches.

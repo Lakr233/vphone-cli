@@ -20,7 +20,7 @@
 >
 > **Updated at `a908f81`**, after D2 and D3 landed. The D2/D3 rows below are
 > rewritten; the D4 row is not, and the detail is in
-> [`d2_d3_self_containment.md`](../host/d2_d3_self_containment.md), which is the
+> [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md), which is the
 > handover for that work — what the tiers are, what each removed program was
 > replaced by, what was verified against the real tool, and what is left open.
 
@@ -52,7 +52,7 @@ is 2,396 lines against 2,410 at the branch base.
 | P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
 | P0.5 | switch the archive call sites | ✅ **done at `356bec6`.** `$TAR` is gone from `cfw_install*.sh`; only `cfw-kit` still finds `gtar`, and it is build tier and does not ship |
 | P0.5 | `VPhoneSign`, drop `ldid` | ✅ **done at `356bec6`.** The installers and the Makefile call `vphone-cli sign`; nothing looks `ldid` up any more except `cfw-kit` |
-| P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`d2_d3_self_containment.md`](../host/d2_d3_self_containment.md) |
+| P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md) |
 | **P1.0–1.5** | CFW patchers | ✅ **complete** — `scripts/patchers/` deleted at `d90371a`, 26 files / 6,539 lines into 24 `vphone-cli cfw` verbs |
 | **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `research/restore/p2_dfu_spike.md` |
 | **P2.1–2.2** | vendor libirecovery + idevicerestore | ✅ `Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore` |
@@ -112,7 +112,7 @@ Two corrections to the earlier ledger's arithmetic:
 >
 > **Now**: `zsh Scripts/check_aux.sh` reports gates 0, 1, 1b, 1c, 2 and 3 all
 > green, with the **dist tier's registered list empty**. See
-> [`d2_d3_self_containment.md`](../host/d2_d3_self_containment.md).
+> [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md).
 
 `zsh Scripts/check_aux.sh --fast`, as of the previous revision:
 

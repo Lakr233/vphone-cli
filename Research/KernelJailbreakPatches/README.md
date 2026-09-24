@@ -11,6 +11,6 @@ These notes explain the source anchors, binary matches and validation evidence f
 | Tasks, ports and threads | [convert port to map](patch_convert_port_to_map.md), [task conversion](patch_task_conversion_eval_internal.md), [task for PID](patch_task_for_pid.md), [thread set state](patch_thread_set_state.md), [thread crash gate](patch_thid_should_crash.md) |
 | VM and shared regions | [VM fault](patch_vm_fault_enter_prepare.md), [immutable map delete](patch_vm_map_delete_immutable_code.md), [VM map protect](patch_vm_map_protect.md), [shared region map](patch_shared_region_map.md) |
 | Process and syscall paths | [proc PID info](patch_proc_pidinfo.md), [syscall mask](patch_syscallmask_apply_to_proc.md), [kcall10](patch_kcall10.md) |
-| Follow-up evidence | [26.5 hook fixes](26.5_jb_hook_fixes.md), [post-validation additions](patch_post_validation_additional.md), [runtime verification archive](runtime_verification/README.md) |
+| Follow-up evidence | [26.5 hook fixes](26.5_jb_hook_fixes.md), [post-validation additions](patch_post_validation_additional.md), [runtime verification archive](RuntimeVerification/README.md) |
 
-For the supported firmware flow, use `vphone-cli fw patch` or `vphone-cli vm create`; see the [user guide](../../docs/guides/create-and-run.md).
+For the supported firmware flow, use `vphone-cli fw patch` or `vphone-cli vm create`; see the [user guide](../../Documents/Guides/create-and-run.md).

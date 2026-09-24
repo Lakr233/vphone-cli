@@ -5,26 +5,26 @@ description: Analyze vphone600 kernel artifacts using the local symbol database 
 
 # Kernel Analysis Vphone600
 
-Use the local `research/kernel_symbols` dataset as the first source of truth for symbol lookup.
-Use `research/reference/xnu` as the source-level reference for semantics and structure.
+Use the local `Research/KernelSymbols` dataset as the first source of truth for symbol lookup.
+Use `Research/Reference/xnu` as the source-level reference for semantics and structure.
 
 ## Required Paths
 
-- `research/kernel_symbols/kernel_symbols.db`
-- `research/kernel_symbols/kernel_index.tsv` (plain-text `kernel_name → json_path` index with `json_sha256`)
-- `research/kernel_symbols/json/` — the recovered symbol datasets:
+- `Research/KernelSymbols/kernel_symbols.db`
+- `Research/KernelSymbols/kernel_index.tsv` (plain-text `kernel_name → json_path` index with `json_sha256`)
+- `Research/KernelSymbols/json/` — the recovered symbol datasets:
   - `kernelcache.release.vphone600.bin.symbols.json`
   - `kernelcache.research.vphone600.bin.symbols.json`
-- `research/reference/xnu`
+- `Research/Reference/xnu`
 
 The `json_path` column in both the database and `kernel_index.tsv` records the absolute path from symbolication
-time and may not match this checkout; resolve the JSON files under `research/kernel_symbols/json/` instead.
+time and may not match this checkout; resolve the JSON files under `Research/KernelSymbols/json/` instead.
 
-If `research/reference/xnu` is missing, create it with a shallow clone:
+If `Research/Reference/xnu` is missing, create it with a shallow clone:
 
 ```bash
-mkdir -p research/reference
-git clone --depth 1 https://github.com/apple-oss-distributions/xnu.git research/reference/xnu
+mkdir -p Research/Reference
+git clone --depth 1 https://github.com/apple-oss-distributions/xnu.git Research/Reference/xnu
 ```
 
 ## Workflow
@@ -32,7 +32,7 @@ git clone --depth 1 https://github.com/apple-oss-distributions/xnu.git research/
 1. Confirm scope is `vphone600` only.
 2. Query `kernel_symbols.db` to select `release` or `research` dataset by name.
 3. Load the linked JSON symbol file and perform symbol/address lookups.
-4. Cross-reference candidate code paths in `research/reference/xnu`.
+4. Cross-reference candidate code paths in `Research/Reference/xnu`.
 5. Report findings with explicit kernel name, symbol path, and address.
 
 ## Output Rules

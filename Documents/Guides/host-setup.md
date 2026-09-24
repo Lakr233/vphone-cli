@@ -61,4 +61,4 @@ For a distributed app without a source checkout, run `vphone-cli host preflight`
 
 ## What the build contains
 
-`vphone-cli` orchestrates the work without private entitlements. `vphone-vm` is the signed, entitled GUI/VM process. `vphone-archive` handles archives. The project also bundles vphoned, compiled for iOS at build time; it is installed into each created guest. The [research notes on the binary split](../../research/host/host_binary_split.md) record the implementation history, including superseded approaches.
+`vphone-cli` orchestrates the work without private entitlements. `vphone-vm` is the signed, entitled GUI/VM process. `vphone-archive` handles archives. The project also bundles vphoned, compiled for iOS at build time; it is installed into each created guest. The [research notes on the binary split](../../Research/Host/host_binary_split.md) record the implementation history, including superseded approaches.

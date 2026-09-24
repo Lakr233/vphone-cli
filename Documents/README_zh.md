@@ -10,7 +10,7 @@
 
 ## 快速开始
 
-需要 Apple Silicon Mac、macOS 15 或更新版本，以及允许 PV=3 研究虚拟机和 `vphone-vm` 私有授权的宿主机设置。先看[宿主机准备](guides/host-setup.md)。
+需要 Apple Silicon Mac、macOS 15 或更新版本，以及允许 PV=3 研究虚拟机和 `vphone-vm` 私有授权的宿主机设置。先看[宿主机准备](Guides/host-setup.md)。
 
 ```sh
 vphone-cli vm create myphone \
@@ -22,7 +22,7 @@ vphone-cli vm launch myphone
 
 `vm create` 会完成固件准备、JB 补丁、DFU 恢复、CFW 安装，并在首次启动时真正 ping 一次 vphoned。**验收成功后，它会关闭这次临时启动**；要继续使用，请再执行 `vm launch`。恢复阶段需要网络，CFW 安装需要管理员认证。两个 VM 请依次创建，避免磁盘与内存占用叠加。
 
-已用 cloudOS 26.4（`23E5207q`）验证 iPhone17,3 的 iOS 26.6.2（`23G90`）和 27.0（`24A435`）：两者都到达锁屏并收到 vphoned ping。其他组合请看[兼容性记录](guides/compatibility.md)，不要把它们视为已完成同等验收。
+已用 cloudOS 26.4（`23E5207q`）验证 iPhone17,3 的 iOS 26.6.2（`23G90`）和 27.0（`24A435`）：两者都到达锁屏并收到 vphoned ping。其他组合请看[兼容性记录](Guides/compatibility.md)，不要把它们视为已完成同等验收。
 
 ## 安装与构建
 
@@ -35,7 +35,7 @@ zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-采用 AMFI 白名单的宿主机，每次重编译后都要按[宿主机准备](guides/host-setup.md)中的步骤重新允许签名后的 VM 程序。
+采用 AMFI 白名单的宿主机，每次重编译后都要按[宿主机准备](Guides/host-setup.md)中的步骤重新允许签名后的 VM 程序。
 
 ## 常用命令
 
@@ -48,4 +48,4 @@ zsh Scripts/build.sh
 | 导入备份 | `vphone-cli vm import myphone.tzst --name restored` |
 | 查看固件配对 | `vphone-cli fw catalog` |
 
-虚拟机和固件缓存默认位于 `~/.vphone/`。完整步骤、手动流水线和存储路径见[创建与运行指南](guides/create-and-run.md)。[文档目录](README.md)汇总其余指南；[研究目录](../research/README.md)收录补丁与实现记录。详细指南目前以英文为准。
+虚拟机和固件缓存默认位于 `~/.vphone/`。完整步骤、手动流水线和存储路径见[创建与运行指南](Guides/create-and-run.md)。[文档目录](README.md)汇总其余指南；[研究目录](../Research/README.md)收录补丁与实现记录。详细指南目前以英文为准。

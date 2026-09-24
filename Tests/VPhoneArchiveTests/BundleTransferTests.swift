@@ -474,7 +474,7 @@ struct BundleTransferTests {
     ///
     /// gzip rather than zstd only so the check does not need a `zstd(1)` on
     /// PATH — which is the whole point of the migration. The compressor is
-    /// detected either way; `research/host/archive_extraction_contracts.md` records
+    /// detected either way; `Research/Host/archive_extraction_contracts.md` records
     /// the .tzst and .txz runs.
     @Test func `import reads archive written by the old tar pipeline`() throws {
         let root = try makeRoot()
