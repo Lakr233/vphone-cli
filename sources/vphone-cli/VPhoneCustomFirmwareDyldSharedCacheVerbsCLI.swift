@@ -24,7 +24,7 @@ import Foundation
 enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
     static let all: [ParsableCommand.Type] = [
-        VPhoneCustomFirmwarePatchHVVMMDyldSharedCacheCommand.self,
+        VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand.self,
         VPhoneCustomFirmwarePatchIOMFBSwapEndCommand.self,
         VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
         VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand.self,
@@ -64,7 +64,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
 
 // MARK: - patch-hv-vmm-dsc
 
-struct VPhoneCustomFirmwarePatchHVVMMDyldSharedCacheCommand: ParsableCommand {
+struct VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "patch-hv-vmm-dsc",
         abstract: "Mangle the \"kern.hv_vmm_present\" sysctl name in the userland dyld cache",
@@ -100,7 +100,7 @@ struct VPhoneCustomFirmwarePatchHVVMMDyldSharedCacheCommand: ParsableCommand {
     var dryRun = false
 
     func run() throws {
-        try DyldSharedCacheHVVMMPatcher.patch(
+        try DyldSharedCacheHypervisorVirtualMachinePatcher.patch(
             chunksDirectory: chunksDirectory,
             dryRun: dryRun,
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,

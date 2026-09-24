@@ -77,7 +77,7 @@ import Foundation
 /// Forces `-[DIDiskArb isMountCompleteWithExpectedCount:diskTracker:]` to
 /// return YES so MobileStorageMounter stops waiting on a mount that will never
 /// be reported.
-public enum CustomFirmwareDiskimagesiod {
+public enum CustomFirmwareDiskImage {
     // MARK: - Identity
 
     /// The component name the Python records this write under.
@@ -135,7 +135,7 @@ public enum CustomFirmwareDiskimagesiod {
 
         /// True when the site already holds this patch's own output.
         public var isAlreadyPatched: Bool {
-            original == CustomFirmwareDiskimagesiod.replacement
+            original == CustomFirmwareDiskImage.replacement
         }
     }
 

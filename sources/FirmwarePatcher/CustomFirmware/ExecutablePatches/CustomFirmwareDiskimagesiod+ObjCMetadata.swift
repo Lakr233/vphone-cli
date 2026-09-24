@@ -1,6 +1,6 @@
 import Foundation
 
-extension CustomFirmwareDiskimagesiod {
+extension CustomFirmwareDiskImage {
     // MARK: - ObjC metadata
 
     /// selector cstring → selref → method-list entry → IMP.

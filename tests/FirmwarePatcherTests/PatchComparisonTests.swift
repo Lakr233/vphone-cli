@@ -13,7 +13,7 @@
 // So the suites below run when someone still has the JSON and skip when they
 // do not, rather than erroring on a missing file and reading as a regression.
 // What still guards the patchers without them is the frozen-digest work
-// elsewhere in this directory — `FrozenReference` in DyldSharedCacheHVVMMPatcherTests and
+// elsewhere in this directory — `FrozenReference` in DyldSharedCacheHypervisorVirtualMachinePatcherTests and
 // the `matchesTheFrozenReference*` tests — which carry the reference values in
 // the source instead of in a file nobody has.
 

@@ -1,6 +1,6 @@
 import Foundation
 
-extension DyldSharedCacheHVVMMPatcher {
+extension DyldSharedCacheHypervisorVirtualMachinePatcher {
     /// One occurrence of the pristine cstring in a standalone Mach-O.
     public struct MachOStringSite: Sendable, Equatable {
         /// Address the literal is mapped at.

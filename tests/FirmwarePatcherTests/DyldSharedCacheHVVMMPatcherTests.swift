@@ -253,7 +253,7 @@ private enum FrozenReference {
 
 // MARK: - Fixture discovery
 
-private enum HVVMMFixture {
+private enum HypervisorVirtualMachineFixture {
     static let repoRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
@@ -463,7 +463,7 @@ private enum Digest {
     /// Assert that `directory` holds exactly the chunks the reference changed,
     /// with exactly the reference's bytes.
     static func expectMatches(_ directory: URL, _ frozen: [String: String]) throws {
-        let pristine = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
+        let pristine = try #require(HypervisorVirtualMachineFixture.pristine, HypervisorVirtualMachineFixture.missing)
         let changed = try TreeComparison.changedNames(in: directory, against: pristine)
         #expect(changed == frozen.keys.sorted())
         for name in changed {
@@ -479,35 +479,35 @@ private enum Digest {
 /// No fixture needed: these are the reference modules' own constants, which the
 /// port has to carry verbatim for anything else here to mean anything.
 @Suite(.serialized)
-struct DyldSharedCacheHVVMMConstantsTests {
+struct DyldSharedCacheHypervisorVirtualMachineConstantsTests {
     @Test
     func `The cstring, its mangle and the blacklist match the reference modules`() {
-        #expect(DyldSharedCacheHVVMMPatcher.needle.hex == FrozenReference.needleHex)
-        #expect(DyldSharedCacheHVVMMPatcher.mangledNeedle.hex == FrozenReference.mangledNeedleHex)
-        #expect(DyldSharedCacheHVVMMPatcher.mangleOffset == FrozenReference.mangleOffset)
-        #expect(Data([DyldSharedCacheHVVMMPatcher.originalByte]).hex == FrozenReference.originalByteHex)
-        #expect(Data([DyldSharedCacheHVVMMPatcher.mangledByte]).hex == FrozenReference.mangledByteHex)
-        #expect(DyldSharedCacheHVVMMPatcher.dontPatchInstallNames == FrozenReference.blacklist)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.needle.hex == FrozenReference.needleHex)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle.hex == FrozenReference.mangledNeedleHex)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.mangleOffset == FrozenReference.mangleOffset)
+        #expect(Data([DyldSharedCacheHypervisorVirtualMachinePatcher.originalByte]).hex == FrozenReference.originalByteHex)
+        #expect(Data([DyldSharedCacheHypervisorVirtualMachinePatcher.mangledByte]).hex == FrozenReference.mangledByteHex)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchInstallNames == FrozenReference.blacklist)
 
         // The mangle has to preserve the namespace prefix, or the name cannot
         // resolve to any OID — see the patcher's file comment. This is the one
         // property of the patch that is not a transcription of the reference.
-        let prefix = Data(DyldSharedCacheHVVMMPatcher.sysctlNamespace.utf8)
-        #expect(DyldSharedCacheHVVMMPatcher.needle.prefix(prefix.count) == prefix)
-        #expect(DyldSharedCacheHVVMMPatcher.mangledNeedle.prefix(prefix.count) == prefix)
-        #expect(DyldSharedCacheHVVMMPatcher.needle.count == DyldSharedCacheHVVMMPatcher.mangledNeedle.count)
-        let differing = zip(DyldSharedCacheHVVMMPatcher.needle, DyldSharedCacheHVVMMPatcher.mangledNeedle)
+        let prefix = Data(DyldSharedCacheHypervisorVirtualMachinePatcher.sysctlNamespace.utf8)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.needle.prefix(prefix.count) == prefix)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle.prefix(prefix.count) == prefix)
+        #expect(DyldSharedCacheHypervisorVirtualMachinePatcher.needle.count == DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle.count)
+        let differing = zip(DyldSharedCacheHypervisorVirtualMachinePatcher.needle, DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle)
             .enumerated()
             .filter { $0.element.0 != $0.element.1 }
             .map(\.offset)
-        #expect(differing == [DyldSharedCacheHVVMMPatcher.mangleOffset])
+        #expect(differing == [DyldSharedCacheHypervisorVirtualMachinePatcher.mangleOffset])
     }
 }
 
 // MARK: - The real cache
 
-@Suite(.serialized, .enabled(if: HVVMMFixture.runs, HVVMMFixture.skipReason))
-struct DyldSharedCacheHVVMMCacheParityTests {
+@Suite(.serialized, .enabled(if: HypervisorVirtualMachineFixture.runs, HypervisorVirtualMachineFixture.skipReason))
+struct DyldSharedCacheHypervisorVirtualMachineCacheParityTests {
     /// The parity gate.
     ///
     /// One clone, one run, then require the tree to hold exactly the chunks the
@@ -521,12 +521,12 @@ struct DyldSharedCacheHVVMMCacheParityTests {
     /// test has already produced.
     @Test
     func `The Swift patch reproduces the reference's cache`() throws {
-        _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
+        _ = try #require(HypervisorVirtualMachineFixture.pristine, HypervisorVirtualMachineFixture.missing)
 
-        let swiftClone = try HVVMMFixture.cloneCache(named: "swift")
-        defer { HVVMMFixture.discard(swiftClone) }
+        let swiftClone = try HypervisorVirtualMachineFixture.cloneCache(named: "swift")
+        defer { HypervisorVirtualMachineFixture.discard(swiftClone) }
 
-        let result = try DyldSharedCacheHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
+        let result = try DyldSharedCacheHypervisorVirtualMachinePatcher.patch(chunksDirectory: swiftClone, log: nil)
 
         // Same verdict per dylib, including the zero-count entries that record
         // "seen and deliberately left alone".
@@ -534,7 +534,7 @@ struct DyldSharedCacheHVVMMCacheParityTests {
 
         #expect(result.mangled == FrozenReference.totalMangled)
         #expect(result.mangled > 0, "the reference patched nothing — wrong fixture?")
-        #expect(result.skippedInBlacklist == DyldSharedCacheHVVMMPatcher.dontPatchInstallNames.count)
+        #expect(result.skippedInBlacklist == DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchInstallNames.count)
         #expect(result.skippedUnclassified == 0)
         #expect(result.refused == 0)
         #expect(result.isFullyAttested)
@@ -556,7 +556,7 @@ struct DyldSharedCacheHVVMMCacheParityTests {
         // finds no pristine cstring left, queues the mangled ones so their slots
         // stay in sync, and must not move a byte. The reference behaved the same
         // way, so the frozen digests have to survive it.
-        let second = try DyldSharedCacheHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
+        let second = try DyldSharedCacheHypervisorVirtualMachinePatcher.patch(chunksDirectory: swiftClone, log: nil)
         #expect(second.mangled == 0)
         #expect(second.pristineSiteCount == result.skippedInBlacklist)
         #expect(second.alreadyMangledSiteCount == result.mangled)
@@ -570,23 +570,23 @@ struct DyldSharedCacheHVVMMCacheParityTests {
         // blacklisted dylib in the cache must still hold the pristine cstring.
         let chunks = try DyldSharedCacheChunkSet(directory: swiftClone)
         var blacklistedSitesSeen = 0
-        for vma in try chunks.findStringVMAs(DyldSharedCacheHVVMMPatcher.needle) {
+        for vma in try chunks.findStringVMAs(DyldSharedCacheHypervisorVirtualMachinePatcher.needle) {
             let installName = try #require(
-                DyldSharedCacheHVVMMPatcher.classify(vma, in: chunks),
+                DyldSharedCacheHypervisorVirtualMachinePatcher.classify(vma, in: chunks),
                 "a pristine cstring survived in a dylib that cannot be named",
             )
             #expect(
-                DyldSharedCacheHVVMMPatcher.dontPatchSet.contains(installName),
+                DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchSet.contains(installName),
                 "\(installName) is not blacklisted but kept the original cstring",
             )
             blacklistedSitesSeen += 1
         }
         #expect(blacklistedSitesSeen == result.skippedInBlacklist)
 
-        for vma in try chunks.findStringVMAs(DyldSharedCacheHVVMMPatcher.mangledNeedle) {
-            let installName = try #require(DyldSharedCacheHVVMMPatcher.classify(vma, in: chunks))
+        for vma in try chunks.findStringVMAs(DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle) {
+            let installName = try #require(DyldSharedCacheHypervisorVirtualMachinePatcher.classify(vma, in: chunks))
             #expect(
-                !DyldSharedCacheHVVMMPatcher.dontPatchSet.contains(installName),
+                !DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchSet.contains(installName),
                 "\(installName) is blacklisted but was mangled",
             )
         }
@@ -594,12 +594,12 @@ struct DyldSharedCacheHVVMMCacheParityTests {
 
     @Test
     func `A dry run reports the same sites and leaves every byte alone`() throws {
-        let pristine = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
+        let pristine = try #require(HypervisorVirtualMachineFixture.pristine, HypervisorVirtualMachineFixture.missing)
 
-        let clone = try HVVMMFixture.cloneCache(named: "dryrun")
-        defer { HVVMMFixture.discard(clone) }
+        let clone = try HypervisorVirtualMachineFixture.cloneCache(named: "dryrun")
+        defer { HypervisorVirtualMachineFixture.discard(clone) }
 
-        let result = try DyldSharedCacheHVVMMPatcher.patch(
+        let result = try DyldSharedCacheHypervisorVirtualMachinePatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
             log: nil,
@@ -632,22 +632,22 @@ struct DyldSharedCacheHVVMMCacheParityTests {
     /// test in this file.
     @Test
     func `A blacklisted dylib found mangled is reported as drift, not reverted`() throws {
-        _ = try #require(HVVMMFixture.pristine, HVVMMFixture.missing)
+        _ = try #require(HypervisorVirtualMachineFixture.pristine, HypervisorVirtualMachineFixture.missing)
 
-        let swiftClone = try HVVMMFixture.cloneCache(named: "drift-swift")
-        defer { HVVMMFixture.discard(swiftClone) }
+        let swiftClone = try HypervisorVirtualMachineFixture.cloneCache(named: "drift-swift")
+        defer { HypervisorVirtualMachineFixture.discard(swiftClone) }
 
         // The lowest-addressed site inside a blacklisted dylib, so the choice is
         // the same on every run — and the same one the reference was given.
         let probe = try DyldSharedCacheChunkSet(directory: swiftClone)
         let driftVMA = try #require(
-            try probe.findStringVMAs(DyldSharedCacheHVVMMPatcher.needle).sorted().first {
-                guard let name = DyldSharedCacheHVVMMPatcher.classify($0, in: probe) else { return false }
-                return DyldSharedCacheHVVMMPatcher.dontPatchSet.contains(name)
+            try probe.findStringVMAs(DyldSharedCacheHypervisorVirtualMachinePatcher.needle).sorted().first {
+                guard let name = DyldSharedCacheHypervisorVirtualMachinePatcher.classify($0, in: probe) else { return false }
+                return DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchSet.contains(name)
             },
             "no blacklisted dylib carries the cstring in this cache",
         )
-        let driftedDylib = try #require(DyldSharedCacheHVVMMPatcher.classify(driftVMA, in: probe))
+        let driftedDylib = try #require(DyldSharedCacheHypervisorVirtualMachinePatcher.classify(driftVMA, in: probe))
         #expect(driftVMA == FrozenReference.driftVMA)
         #expect(driftedDylib == FrozenReference.driftedInstallName)
 
@@ -655,18 +655,18 @@ struct DyldSharedCacheHVVMMCacheParityTests {
         // out-of-band run would have left behind, and what the reference saw.
         let chunks = try DyldSharedCacheChunkSet(directory: swiftClone)
         try chunks.write(
-            at: driftVMA &+ UInt64(DyldSharedCacheHVVMMPatcher.mangleOffset),
-            Data([DyldSharedCacheHVVMMPatcher.mangledByte]),
+            at: driftVMA &+ UInt64(DyldSharedCacheHypervisorVirtualMachinePatcher.mangleOffset),
+            Data([DyldSharedCacheHypervisorVirtualMachinePatcher.mangledByte]),
         )
 
-        let result = try DyldSharedCacheHVVMMPatcher.patch(chunksDirectory: swiftClone, log: nil)
+        let result = try DyldSharedCacheHypervisorVirtualMachinePatcher.patch(chunksDirectory: swiftClone, log: nil)
 
         #expect(result.blacklistDrift == 1)
         #expect(result.alreadyMangledSiteCount == 1)
         #expect(result.reattestOnly == 0)
         #expect(result.refused == 0)
         #expect(
-            result.skippedInBlacklist == DyldSharedCacheHVVMMPatcher.dontPatchInstallNames.count - 1,
+            result.skippedInBlacklist == DyldSharedCacheHypervisorVirtualMachinePatcher.dontPatchInstallNames.count - 1,
             "the drifted site is no longer pristine, so it is not counted as skipped",
         )
         #expect(result.mangledCountByInstallName[driftedDylib] == nil)
@@ -674,8 +674,8 @@ struct DyldSharedCacheHVVMMCacheParityTests {
 
         // Not reverted: the byte is still mangled afterwards.
         let after = try DyldSharedCacheChunkSet(directory: swiftClone)
-            .bytesAtVMA(driftVMA, length: DyldSharedCacheHVVMMPatcher.needle.count)
-        #expect(after == DyldSharedCacheHVVMMPatcher.mangledNeedle)
+            .bytesAtVMA(driftVMA, length: DyldSharedCacheHypervisorVirtualMachinePatcher.needle.count)
+        #expect(after == DyldSharedCacheHypervisorVirtualMachinePatcher.mangledNeedle)
 
         // The same 17 chunks as the ordinary run, differing only in the one the
         // drifted dylib lives in — which is what the reference left behind.
@@ -686,8 +686,8 @@ struct DyldSharedCacheHVVMMCacheParityTests {
 
 // MARK: - Standalone Mach-O
 
-@Suite(.serialized, .enabled(if: HVVMMFixture.machORuns, HVVMMFixture.machOSkipReason))
-struct DyldSharedCacheHVVMMStandaloneTests {
+@Suite(.serialized, .enabled(if: HypervisorVirtualMachineFixture.machORuns, HypervisorVirtualMachineFixture.machOSkipReason))
+struct DyldSharedCacheHypervisorVirtualMachineStandaloneTests {
     /// The other half of `cfw_patch_hv_vmm.py`, against the binaries the repo
     /// keeps pristine copies of. Each carries one occurrence of the cstring on
     /// this build.
@@ -696,7 +696,7 @@ struct DyldSharedCacheHVVMMStandaloneTests {
     )
     func `Standalone Mach-O mangling matches the reference`(name: String) throws {
         let pristine = try #require(
-            HVVMMFixture.machO(name),
+            HypervisorVirtualMachineFixture.machO(name),
             """
             ipsws/ref_extract/macho_pristine/\(name) is required — it is the \
             only standalone Mach-O fixture this half of the port has
@@ -710,11 +710,11 @@ struct DyldSharedCacheHVVMMStandaloneTests {
         // below is a comparison.
         #expect(try Digest.sha256(of: pristine) == reference.pristineSHA256)
 
-        let swiftCopy = try HVVMMFixture.copyFile(pristine, named: "\(name).swift")
-        defer { HVVMMFixture.discard(swiftCopy) }
+        let swiftCopy = try HypervisorVirtualMachineFixture.copyFile(pristine, named: "\(name).swift")
+        defer { HypervisorVirtualMachineFixture.discard(swiftCopy) }
 
         // Same sites, in the same order, before anything is written.
-        let sites = try DyldSharedCacheHVVMMPatcher.findStringSites(
+        let sites = try DyldSharedCacheHypervisorVirtualMachinePatcher.findStringSites(
             inMachO: Data(contentsOf: pristine),
         )
         #expect(sites.count == reference.sites.count)
@@ -725,13 +725,13 @@ struct DyldSharedCacheHVVMMStandaloneTests {
             #expect(mine.section == theirs.section)
         }
 
-        let count = try DyldSharedCacheHVVMMPatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
+        let count = try DyldSharedCacheHypervisorVirtualMachinePatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
         #expect(count == sites.count)
         #expect(try Digest.sha256(of: swiftCopy) == reference.patchedSHA256)
 
         // Idempotent: the pristine literal is gone, so a second pass is a no-op.
         // The reference's own second pass returned 0 and left its digest alone.
-        let rerun = try DyldSharedCacheHVVMMPatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
+        let rerun = try DyldSharedCacheHypervisorVirtualMachinePatcher.patchStandaloneMachO(at: swiftCopy, log: nil)
         #expect(rerun == 0)
         #expect(try Digest.sha256(of: swiftCopy) == reference.patchedSHA256)
         print("[hv_vmm] \(name): \(count) standalone cstring site(s), bytes match")

@@ -93,7 +93,7 @@
 import Capstone
 import Foundation
 
-public enum CustomFirmwareWatchdogd {
+public enum CustomFirmwareWatchDog {
     // MARK: - Anchors
 
     /// Component name carried by every ``PatchRecord`` this patcher emits.

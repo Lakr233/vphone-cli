@@ -6,7 +6,7 @@
 //   * `scripts/patchers/cfw_patch_watchdogd.py`, driven exactly as
 //     `cfw_install_exp.sh` drove it (`cfw.py patch-watchdogd <binary>`). That
 //     Python is gone; what it wrote over the pristine binary is frozen in
-//     ``WatchdogdGolden`` below, and the central test grades `CustomFirmwareWatchdogd`
+//     ``WatchdogdGolden`` below, and the central test grades `CustomFirmwareWatchDog`
 //     against it byte for byte — patched instructions and re-attested code
 //     slots alike, because that verb re-attested on its own.
 //   * `/usr/bin/codesign`, which recomputes the slot hashes itself. It has no
@@ -103,7 +103,7 @@ enum WatchdogdFixture {
     /// calls" is measured against an independent count.
     static func sysctlCallSites(in data: Data) throws -> [UInt64] {
         let text = try text(in: data)
-        guard let symbols = CustomFirmwareWatchdogdSymbolTargets(data: data) else {
+        guard let symbols = CustomFirmwareWatchDogSymbolTargets(data: data) else {
             throw PatcherError.invalidFormat("fixture has no symbol table")
         }
         let start = Int(text.fileOffset)
@@ -114,7 +114,7 @@ enum WatchdogdFixture {
             where instruction.mnemonic == "bl"
         {
             guard let target = ARM64Encoder.decodeBranchTarget(
-                insn: CustomFirmwareWatchdogd.word(of: instruction),
+                insn: CustomFirmwareWatchDog.word(of: instruction),
                 pc: instruction.address,
             ) else { continue }
             if symbols.name(forBranchTarget: target) == "_sysctlbyname" {
@@ -160,12 +160,12 @@ enum WatchdogdGolden {
 // MARK: - Anchoring
 
 @Suite("watchdogd hv_vmm_present cache — anchoring")
-struct CustomFirmwareWatchdogdAnchorTests {
+struct CustomFirmwareWatchDogAnchorTests {
     /// The shape the patch is written against, read off the real binary.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `locates both cache sites`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let sites = try CustomFirmwareWatchdogd.locateSites(in: data)
+        let sites = try CustomFirmwareWatchDog.locateSites(in: data)
 
         #expect(sites.count == 2, "24A435 watchdogd caches the answer in two functions")
         for site in sites {
@@ -191,7 +191,7 @@ struct CustomFirmwareWatchdogdAnchorTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `cached byte lives in zero filled data`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let sites = try CustomFirmwareWatchdogd.locateSites(in: data)
+        let sites = try CustomFirmwareWatchDog.locateSites(in: data)
         let sections = MachOParser.parseSections(from: data)
         let zeroFilled = ["__DATA,__bss", "__DATA,__common"].compactMap { sections[$0] }
         #expect(!zeroFilled.isEmpty)
@@ -212,7 +212,7 @@ struct CustomFirmwareWatchdogdAnchorTests {
     func `rejects the other sysctl call sites`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
         let calls = try WatchdogdFixture.sysctlCallSites(in: data)
-        let sites = try CustomFirmwareWatchdogd.locateSites(in: data)
+        let sites = try CustomFirmwareWatchDog.locateSites(in: data)
 
         #expect(calls.count == 5, "24A435 watchdogd calls sysctlbyname five times")
         #expect(sites.count == 2)
@@ -227,8 +227,8 @@ struct CustomFirmwareWatchdogdAnchorTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `resolves the import through the indirect symbol table`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let symbols = try #require(CustomFirmwareWatchdogdSymbolTargets(data: data))
-        let sites = try CustomFirmwareWatchdogd.locateSites(in: data)
+        let symbols = try #require(CustomFirmwareWatchDogSymbolTargets(data: data))
+        let sites = try CustomFirmwareWatchDog.locateSites(in: data)
         let call = try #require(sites.first)
 
         let target = try #require(ARM64Encoder.decodeBranchTarget(
@@ -270,28 +270,28 @@ struct CustomFirmwareWatchdogdAnchorTests {
         }
 
         // add x9, … ; mov x0, x9 ; bl — the literal is the call's argument.
-        #expect(try CustomFirmwareWatchdogd.passesLiteral(
+        #expect(try CustomFirmwareWatchDog.passesLiteral(
             inRegister: "x9",
             from: 1,
             toCallAt: 3,
             in: stream(movingInto: 0),
         ))
         // The same shape moving into x1 is some other call's argument.
-        #expect(try !CustomFirmwareWatchdogd.passesLiteral(
+        #expect(try !CustomFirmwareWatchDog.passesLiteral(
             inRegister: "x9",
             from: 1,
             toCallAt: 3,
             in: stream(movingInto: 1),
         ))
         // No move at all, and the pointer never reaches x0.
-        #expect(try !CustomFirmwareWatchdogd.passesLiteral(
+        #expect(try !CustomFirmwareWatchDog.passesLiteral(
             inRegister: "x9",
             from: 1,
             toCallAt: 3,
             in: stream(movingInto: nil),
         ))
         // The direct form the shipped binary uses needs no move.
-        #expect(try CustomFirmwareWatchdogd.passesLiteral(
+        #expect(try CustomFirmwareWatchDog.passesLiteral(
             inRegister: "x0",
             from: 1,
             toCallAt: 3,
@@ -306,7 +306,7 @@ struct CustomFirmwareWatchdogdAnchorTests {
     func `rejects A binary without the cache site`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.seputil)
         #expect(throws: PatcherError.self) {
-            try CustomFirmwareWatchdogd.locateSites(in: data)
+            try CustomFirmwareWatchDog.locateSites(in: data)
         }
     }
 }
@@ -314,13 +314,13 @@ struct CustomFirmwareWatchdogdAnchorTests {
 // MARK: - Patching
 
 @Suite("watchdogd hv_vmm_present cache — patching")
-struct CustomFirmwareWatchdogdPatchTests {
+struct CustomFirmwareWatchDogPatchTests {
     /// Both instructions, and nothing else in `__TEXT`.
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `rewrites two instructions per site`() throws {
         let original = try Data(contentsOf: WatchdogdFixture.watchdogd)
         var data = original
-        let report = try CustomFirmwareWatchdogd.patch(&data, log: nil)
+        let report = try CustomFirmwareWatchDog.patch(&data, log: nil)
 
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == 2)
@@ -351,7 +351,7 @@ struct CustomFirmwareWatchdogdPatchTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `reattests the page of every written instruction`() throws {
         var data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let report = try CustomFirmwareWatchdogd.patch(&data, log: nil)
+        let report = try CustomFirmwareWatchDog.patch(&data, log: nil)
         let directory = try #require(CustomFirmwareMachOCodeSignature.codeDirectories(in: data)?.first)
 
         let writtenPages = Set(report.records.map { $0.fileOffset / directory.pageSize })
@@ -375,11 +375,11 @@ struct CustomFirmwareWatchdogdPatchTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `second run changes nothing`() throws {
         var data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let first = try CustomFirmwareWatchdogd.patch(&data, log: nil)
+        let first = try CustomFirmwareWatchDog.patch(&data, log: nil)
         #expect(first.outcome == .patched)
 
         let afterFirst = data
-        let second = try CustomFirmwareWatchdogd.patch(&data, log: nil)
+        let second = try CustomFirmwareWatchDog.patch(&data, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(second.sitesWritten == 0)
         #expect(second.records.isEmpty)
@@ -398,7 +398,7 @@ struct CustomFirmwareWatchdogdPatchTests {
     func `dry run writes nothing`() throws {
         let original = try Data(contentsOf: WatchdogdFixture.watchdogd)
         var data = original
-        let report = try CustomFirmwareWatchdogd.patch(&data, dryRun: true, log: nil)
+        let report = try CustomFirmwareWatchDog.patch(&data, dryRun: true, log: nil)
         #expect(report.outcome == .wouldPatch)
         #expect(report.records.count == 4)
         #expect(data == original)
@@ -413,11 +413,11 @@ struct CustomFirmwareWatchdogdPatchTests {
         let attributes = FileManager.default.attributesOfItem(atPath:)
         let modeBefore = try attributes(file.path)[.posixPermissions] as? NSNumber
 
-        let report = try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        let report = try CustomFirmwareWatchDog.patch(at: file, log: nil)
         #expect(report.outcome == .patched)
 
         var expected = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        try CustomFirmwareWatchdogd.patch(&expected, log: nil)
+        try CustomFirmwareWatchDog.patch(&expected, log: nil)
         #expect(try Data(contentsOf: file) == expected)
 
         // watchdogd is installed executable and stays that way: the patch
@@ -433,12 +433,12 @@ struct CustomFirmwareWatchdogdPatchTests {
         let file = try WatchdogdFixture.scratchCopy(of: WatchdogdFixture.watchdogd, named: "watchdogd")
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
-        try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        try CustomFirmwareWatchDog.patch(at: file, log: nil)
         let afterFirst = try Data(contentsOf: file)
         let stampAfterFirst = try FileManager.default
             .attributesOfItem(atPath: file.path)[.modificationDate] as? Date
 
-        let second = try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        let second = try CustomFirmwareWatchDog.patch(at: file, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(try Data(contentsOf: file) == afterFirst)
         #expect(try FileManager.default
@@ -449,7 +449,7 @@ struct CustomFirmwareWatchdogdPatchTests {
 // MARK: - Independent references
 
 @Suite("watchdogd hv_vmm_present cache — independent references")
-struct CustomFirmwareWatchdogdReferenceTests {
+struct CustomFirmwareWatchDogReferenceTests {
     /// The fixture the frozen digests were taken over. Without this a digest
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `watchdogd`.
@@ -471,7 +471,7 @@ struct CustomFirmwareWatchdogdReferenceTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `matches the frozen reference byte for byte`() throws {
         var mine = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let report = try CustomFirmwareWatchdogd.patch(&mine, log: nil)
+        let report = try CustomFirmwareWatchDog.patch(&mine, log: nil)
 
         // Printed so the parity claim is checkable from outside this process:
         // `shasum -a 256` over this patcher's output has to read the same.
@@ -499,14 +499,14 @@ struct CustomFirmwareWatchdogdReferenceTests {
         )
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
 
-        try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        try CustomFirmwareWatchDog.patch(at: file, log: nil)
         let afterFirst = try Data(contentsOf: file)
         #expect(WatchdogdFixture.digest(afterFirst) == WatchdogdGolden.patched)
 
         // The frozen half: the reference, handed this exact file, reported
         // `all 2 matching site(s) already patched — nothing to do` and wrote
         // nothing. This port lands on the same bytes when it re-runs.
-        let second = try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        let second = try CustomFirmwareWatchDog.patch(at: file, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(try WatchdogdFixture.digest(Data(contentsOf: file)) == WatchdogdGolden.patchedTwice)
     }
@@ -525,7 +525,7 @@ struct CustomFirmwareWatchdogdReferenceTests {
         let before = try WatchdogdFixture.run(WatchdogdFixture.codesign, ["-v", "-v", file.path])
         #expect(before.status == 0, "fixture must verify before patching: \(before.output)")
 
-        try CustomFirmwareWatchdogd.patch(at: file, log: nil)
+        try CustomFirmwareWatchDog.patch(at: file, log: nil)
 
         let after = try WatchdogdFixture.run(WatchdogdFixture.codesign, ["-v", "-v", file.path])
         #expect(after.status == 0, "patched binary must still verify: \(after.output)")

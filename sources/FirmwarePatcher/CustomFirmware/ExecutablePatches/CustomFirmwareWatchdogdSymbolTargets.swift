@@ -19,7 +19,7 @@ import Foundation
 /// which that shared parser exposes. It carries this patcher's name because
 /// this patcher is its only caller — the first time a second one needs the same
 /// lookup, move it to `Binary/` under a neutral name rather than growing a copy.
-struct CustomFirmwareWatchdogdSymbolTargets {
+struct CustomFirmwareWatchDogSymbolTargets {
     /// A section of branch-island stubs, one per imported symbol.
     struct StubSection {
         let address: UInt64

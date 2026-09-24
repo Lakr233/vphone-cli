@@ -1,6 +1,6 @@
 import Foundation
 
-extension CustomFirmwareMobileactivationd {
+extension CustomFirmwareMobileActivation {
     // MARK: - Anchoring
 
     /// Resolve the IMP of ``method``, by symbol and by ObjC metadata.

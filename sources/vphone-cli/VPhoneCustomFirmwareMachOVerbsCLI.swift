@@ -189,7 +189,7 @@ struct VPhoneCustomFirmwarePatchMobileactivationdCommand: ParsableCommand {
     func run() throws {
         try requireUntruncatedMachO(at: binary)
         // resign: false — the Python's bytes, for the `ldid_sign` that follows.
-        try CustomFirmwareMobileactivationd.patch(fileAt: binary, resign: false, log: machOVerbLog)
+        try CustomFirmwareMobileActivation.patch(fileAt: binary, resign: false, log: machOVerbLog)
     }
 }
 
@@ -260,7 +260,7 @@ struct VPhoneCustomFirmwarePatchWatchdogdCommand: ParsableCommand {
 
     func run() throws {
         try requireUntruncatedMachO(at: binary)
-        try CustomFirmwareWatchdogd.patch(at: binary, dryRun: dryRun, log: machOVerbLog)
+        try CustomFirmwareWatchDog.patch(at: binary, dryRun: dryRun, log: machOVerbLog)
     }
 }
 
@@ -291,7 +291,7 @@ struct VPhoneCustomFirmwarePatchDiskimagesiodCommand: ParsableCommand {
         try requireUntruncatedMachO(at: binary)
         // Off in the library and off in the Python: cfw_install.sh re-signs
         // with the extracted com.apple.diskimagesiod entitlements right after.
-        try CustomFirmwareDiskimagesiod.patch(fileAt: binary, reattest: false, log: machOVerbLog)
+        try CustomFirmwareDiskImage.patch(fileAt: binary, reattest: false, log: machOVerbLog)
     }
 }
 

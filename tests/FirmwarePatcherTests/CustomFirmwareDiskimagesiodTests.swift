@@ -302,7 +302,7 @@ private enum DiskImagesComparison {
 // MARK: - The replacement bytes
 
 @Suite("diskimagesiod replacement encoding")
-struct CustomFirmwareDiskimagesiodEncodingTests {
+struct CustomFirmwareDiskImageEncodingTests {
     @Test
     func `mov x0, #1 built from ISA fields is the keystone-verified constant`() throws {
         let encoded = try #require(ARM64Encoder.encodeMovzX(rd: 0, imm16: 1))
@@ -313,10 +313,10 @@ struct CustomFirmwareDiskimagesiodEncodingTests {
 
     @Test
     func `the patch writes exactly mov x0, #1 ; ret`() {
-        #expect(CustomFirmwareDiskimagesiod.replacement.count == 8)
-        #expect(CustomFirmwareDiskimagesiod.replacement == ARM64.movX0_1 + ARM64.ret)
+        #expect(CustomFirmwareDiskImage.replacement.count == 8)
+        #expect(CustomFirmwareDiskImage.replacement == ARM64.movX0_1 + ARM64.ret)
         #expect(
-            CustomFirmwareDiskimagesiod.disassemblyText(of: CustomFirmwareDiskimagesiod.replacement, at: nil)
+            CustomFirmwareDiskImage.disassemblyText(of: CustomFirmwareDiskImage.replacement, at: nil)
                 == "mov x0, #1; ret",
         )
     }
@@ -329,17 +329,17 @@ struct CustomFirmwareDiskimagesiodEncodingTests {
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
     .serialized,
 )
-struct CustomFirmwareDiskimagesiodAnchorTests {
+struct CustomFirmwareDiskImageAnchorTests {
     @Test
     func `the IMP resolves through the relative method list, into __TEXT,__text`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let data = try Data(contentsOf: pristine)
-        let site = try CustomFirmwareDiskimagesiod.locate(in: data)
+        let site = try CustomFirmwareDiskImage.locate(in: data)
 
         // Shipped diskimagesiod is stripped, so the symbol-table anchor misses
         // and the ObjC metadata walk is what answers.
         #expect(site.anchor == .relativeMethodList)
-        #expect(MachOParser.findSymbol(containing: CustomFirmwareDiskimagesiod.symbolFragment, in: data) == nil)
+        #expect(MachOParser.findSymbol(containing: CustomFirmwareDiskImage.symbolFragment, in: data) == nil)
 
         let sections = MachOParser.parseSections(from: data)
         let text = try #require(sections["__TEXT,__text"])
@@ -353,7 +353,7 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
 
         // A real ObjC method prologue, not yet patched.
         #expect(!site.isAlreadyPatched)
-        #expect(CustomFirmwareDiskimagesiod.disassemblyText(of: site.original, at: va)
+        #expect(CustomFirmwareDiskImage.disassemblyText(of: site.original, at: va)
             .hasPrefix("pacibsp; stp"))
     }
 
@@ -373,7 +373,7 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
     @Test
     func `the reference's own anchor walk agreed on the same offset`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
-        let site = try CustomFirmwareDiskimagesiod.locate(in: Data(contentsOf: pristine))
+        let site = try CustomFirmwareDiskImage.locate(in: Data(contentsOf: pristine))
 
         // The offset the Python printed; both walks must land on it.
         #expect(site.fileOffset == DiskImagesGolden.impFileOffset)
@@ -387,24 +387,24 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
         let sections = MachOParser.parseSections(from: data)
 
         let selectorVA = try #require(
-            CustomFirmwareDiskimagesiod.selectorStringVA(in: data, sections: sections),
+            CustomFirmwareDiskImage.selectorStringVA(in: data, sections: sections),
         )
         let selrefs = try #require(sections["__DATA,__objc_selrefs"])
-        let selrefVA = try #require(CustomFirmwareDiskimagesiod.selectorReferenceVA(
+        let selrefVA = try #require(CustomFirmwareDiskImage.selectorReferenceVA(
             in: data,
             selrefs: selrefs,
             selectorVA: selectorVA,
-            imageBase: CustomFirmwareDiskimagesiod.imageBase(sections),
+            imageBase: CustomFirmwareDiskImage.imageBase(sections),
         ))
 
         let methlist = try #require(sections["__TEXT,__objc_methlist"])
-        let imps = CustomFirmwareDiskimagesiod.relativeMethodListIMPs(
+        let imps = CustomFirmwareDiskImage.relativeMethodListIMPs(
             in: data,
             section: methlist,
             naming: [selectorVA, selrefVA],
         )
         #expect(imps.count == 1)
-        #expect(try imps.first == (CustomFirmwareDiskimagesiod.locate(in: data)).virtualAddress)
+        #expect(try imps.first == (CustomFirmwareDiskImage.locate(in: data)).virtualAddress)
     }
 
     @Test
@@ -414,14 +414,14 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
         let sections = MachOParser.parseSections(from: data)
 
         let selectorVA = try #require(
-            CustomFirmwareDiskimagesiod.selectorStringVA(in: data, sections: sections),
+            CustomFirmwareDiskImage.selectorStringVA(in: data, sections: sections),
         )
         let selrefs = try #require(sections["__DATA,__objc_selrefs"])
-        let selrefVA = try #require(CustomFirmwareDiskimagesiod.selectorReferenceVA(
+        let selrefVA = try #require(CustomFirmwareDiskImage.selectorReferenceVA(
             in: data,
             selrefs: selrefs,
             selectorVA: selectorVA,
-            imageBase: CustomFirmwareDiskimagesiod.imageBase(sections),
+            imageBase: CustomFirmwareDiskImage.imageBase(sections),
         ))
         let methlist = try #require(sections["__TEXT,__objc_methlist"])
         let targets: Set<UInt64> = [selectorVA, selrefVA]
@@ -430,12 +430,12 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
         // section have to name the same single implementation, or the two
         // implementations would have diverged on some other firmware even
         // though they agreed on this one.
-        let structural = CustomFirmwareDiskimagesiod.relativeMethodListIMPs(
+        let structural = CustomFirmwareDiskImage.relativeMethodListIMPs(
             in: data,
             section: methlist,
             naming: targets,
         )
-        let strided = CustomFirmwareDiskimagesiod.scanRelativeMethodEntryIMPs(
+        let strided = CustomFirmwareDiskImage.scanRelativeMethodEntryIMPs(
             in: data,
             section: methlist,
             naming: targets,
@@ -449,7 +449,7 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
         let unrelated = try #require(DiskImagesFixture.unrelated, DiskImagesFixture.missing)
         let data = try Data(contentsOf: unrelated)
         #expect(throws: PatcherError.self) {
-            try CustomFirmwareDiskimagesiod.locate(in: data)
+            try CustomFirmwareDiskImage.locate(in: data)
         }
     }
 }
@@ -461,13 +461,13 @@ struct CustomFirmwareDiskimagesiodAnchorTests {
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
     .serialized,
 )
-struct CustomFirmwareDiskimagesiodParityTests {
+struct CustomFirmwareDiskImageParityTests {
     @Test
     func `Swift reproduces the reference's bytes, one site each`() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift")
         defer { DiskImagesFixture.discard(swiftClone) }
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: swiftClone, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: swiftClone, log: nil)
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == 1)
         // Off by default: `cfw_install.sh` re-signs with ldid straight after,
@@ -486,7 +486,7 @@ struct CustomFirmwareDiskimagesiodParityTests {
         let clone = try DiskImagesFixture.clone(named: "record")
         defer { DiskImagesFixture.discard(clone) }
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: clone, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: clone, log: nil)
         let record = try #require(report.record)
 
         #expect(record.patchID == "diskimagesiod.is_mount_complete")
@@ -494,7 +494,7 @@ struct CustomFirmwareDiskimagesiodParityTests {
         #expect(record.fileOffset == report.site.fileOffset)
         #expect(record.virtualAddress == report.site.virtualAddress)
         #expect(record.originalBytes == report.site.original)
-        #expect(record.patchedBytes == CustomFirmwareDiskimagesiod.replacement)
+        #expect(record.patchedBytes == CustomFirmwareDiskImage.replacement)
         #expect(record.afterDisasm == "mov x0, #1; ret")
         #expect(record.beforeDisasm.hasPrefix("pacibsp"))
         #expect(record.patchDescription.contains("isMountCompleteWithExpectedCount:diskTracker:"))
@@ -511,7 +511,7 @@ struct CustomFirmwareDiskimagesiodParityTests {
         defer { DiskImagesFixture.discard(clone) }
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: clone, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: clone, log: nil)
         let differences = try DiskImagesComparison.differences(
             between: pristine,
             and: clone,
@@ -531,7 +531,7 @@ struct CustomFirmwareDiskimagesiodParityTests {
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
     .serialized,
 )
-struct CustomFirmwareDiskimagesiodReattestTests {
+struct CustomFirmwareDiskImageReattestTests {
     @Test
     func `the fixture really does have the short tail slot this path regressed on`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
@@ -554,10 +554,10 @@ struct CustomFirmwareDiskimagesiodReattestTests {
         let attested = try DiskImagesFixture.clone(named: "attested")
         defer { DiskImagesFixture.discard(bare, attested) }
 
-        try CustomFirmwareDiskimagesiod.patch(fileAt: bare, log: nil)
+        try CustomFirmwareDiskImage.patch(fileAt: bare, log: nil)
         #expect(try DiskImagesFixture.codesignVerify(bare).status != 0)
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: attested, reattest: true, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: attested, reattest: true, log: nil)
         #expect(report.outcome == .patched)
         #expect(report.rehashes.count == 1)
 
@@ -575,7 +575,7 @@ struct CustomFirmwareDiskimagesiodReattestTests {
         let swiftClone = try DiskImagesFixture.clone(named: "swift-attested")
         defer { DiskImagesFixture.discard(swiftClone) }
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: swiftClone, reattest: true, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: swiftClone, reattest: true, log: nil)
         #expect(report.rehashes.first?.pageIndex == DiskImagesGolden.reattestedSlot)
         #expect(
             try DiskImagesFixture.digest(of: swiftClone) == DiskImagesGolden.patchedAndReattested,
@@ -624,17 +624,17 @@ struct CustomFirmwareDiskimagesiodReattestTests {
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
     .serialized,
 )
-struct CustomFirmwareDiskimagesiodIdempotenceTests {
+struct CustomFirmwareDiskImageIdempotenceTests {
     @Test
     func `a second Swift run recognises its own output and writes nothing`() throws {
         let clone = try DiskImagesFixture.clone(named: "twice")
         defer { DiskImagesFixture.discard(clone) }
 
-        try CustomFirmwareDiskimagesiod.patch(fileAt: clone, log: nil)
+        try CustomFirmwareDiskImage.patch(fileAt: clone, log: nil)
         let afterFirst = try Data(contentsOf: clone)
         let attributes = try FileManager.default.attributesOfItem(atPath: clone.path)
 
-        let second = try CustomFirmwareDiskimagesiod.patch(fileAt: clone, log: nil)
+        let second = try CustomFirmwareDiskImage.patch(fileAt: clone, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(second.sitesWritten == 0)
         #expect(second.record == nil)
@@ -651,10 +651,10 @@ struct CustomFirmwareDiskimagesiodIdempotenceTests {
         let clone = try DiskImagesFixture.clone(named: "twice-attested")
         defer { DiskImagesFixture.discard(clone) }
 
-        try CustomFirmwareDiskimagesiod.patch(fileAt: clone, reattest: true, log: nil)
+        try CustomFirmwareDiskImage.patch(fileAt: clone, reattest: true, log: nil)
         let afterFirst = try Data(contentsOf: clone)
 
-        let second = try CustomFirmwareDiskimagesiod.patch(fileAt: clone, reattest: true, log: nil)
+        let second = try CustomFirmwareDiskImage.patch(fileAt: clone, reattest: true, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(second.sitesWritten == 0)
         #expect(second.rehashes.isEmpty, "the stored slot hashes were already current")
@@ -677,13 +677,13 @@ struct CustomFirmwareDiskimagesiodIdempotenceTests {
         defer { DiskImagesFixture.discard(referenceOutput) }
 
         // Reproduce the reference's output, and prove it is that, by digest.
-        try CustomFirmwareDiskimagesiod.patch(fileAt: referenceOutput, log: nil)
+        try CustomFirmwareDiskImage.patch(fileAt: referenceOutput, log: nil)
         try #require(
             try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched,
         )
         #expect(DiskImagesGolden.patchedTwice == DiskImagesGolden.patched)
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: referenceOutput, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: referenceOutput, log: nil)
         #expect(report.outcome == .alreadyPatched)
         #expect(try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched)
     }
@@ -694,7 +694,7 @@ struct CustomFirmwareDiskimagesiodIdempotenceTests {
         defer { DiskImagesFixture.discard(clone) }
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
 
-        let report = try CustomFirmwareDiskimagesiod.patch(fileAt: clone, reattest: true, dryRun: true, log: nil)
+        let report = try CustomFirmwareDiskImage.patch(fileAt: clone, reattest: true, dryRun: true, log: nil)
         #expect(report.outcome == .wouldPatch)
         #expect(report.sitesWritten == 0)
         #expect(report.rehashes.isEmpty)

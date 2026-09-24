@@ -158,14 +158,14 @@ enum MobileactivationdGolden {
 /// `VPHONE_PATCH_RESIGN=0` skips re-attestation, which is what reproduces
 /// ``MobileactivationdGolden/patched`` exactly.
 @Suite("mobileactivationd should_hactivate — shell runner")
-struct CustomFirmwareMobileactivationdRunnerTests {
+struct CustomFirmwareMobileActivationRunnerTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["VPHONE_PATCH_FILE"] != nil))
     func `run patcher from environment`() throws {
         let environment = ProcessInfo.processInfo.environment
         let path = try #require(environment["VPHONE_PATCH_FILE"])
         let resign = environment["VPHONE_PATCH_RESIGN"] != "0"
 
-        let report = try CustomFirmwareMobileactivationd.patch(fileAt: URL(filePath: path), resign: resign)
+        let report = try CustomFirmwareMobileActivation.patch(fileAt: URL(filePath: path), resign: resign)
 
         print(
             "RUNNER outcome=\(report.outcome.rawValue)"
@@ -187,7 +187,7 @@ struct CustomFirmwareMobileactivationdRunnerTests {
 // MARK: - Anchoring
 
 @Suite("mobileactivationd should_hactivate — anchoring")
-struct CustomFirmwareMobileactivationdAnchorTests {
+struct CustomFirmwareMobileActivationAnchorTests {
     /// The two routes are independent — `LC_SYMTAB` on one side, the
     /// `__objc_methname` -> `__objc_selrefs` -> relative method list walk on the
     /// other — and they agree. That agreement is the evidence the anchor is the
@@ -198,16 +198,16 @@ struct CustomFirmwareMobileactivationdAnchorTests {
         let segments = MachOParser.parseSegments(from: data)
 
         let bySymbol = try #require(
-            CustomFirmwareMobileactivationd.symbolVirtualAddress(in: data),
+            CustomFirmwareMobileActivation.symbolVirtualAddress(in: data),
             "LC_SYMTAB should carry -[DeviceType should_hactivate]",
         )
         let byMetadata = try #require(
-            CustomFirmwareMobileactivationd.objcMetadataVirtualAddress(in: data, segments: segments),
+            CustomFirmwareMobileActivation.objcMetadataVirtualAddress(in: data, segments: segments),
             "the ObjC method lists should carry the same IMP",
         )
         #expect(bySymbol == byMetadata)
 
-        let anchor = try CustomFirmwareMobileactivationd.locateIMP(in: data)
+        let anchor = try CustomFirmwareMobileActivation.locateIMP(in: data)
         #expect(anchor.source == .symbolTableAndObjCMetadata)
         #expect(anchor.virtualAddress == bySymbol)
         #expect(anchor.section == "__TEXT,__text", "the IMP must be code, not data")
@@ -229,7 +229,7 @@ struct CustomFirmwareMobileactivationdAnchorTests {
         let data = try Data(contentsOf: MobileactivationdFixture.pristine)
         let sections = MachOParser.parseSections(from: data)
         let selectorVA = try #require(
-            CustomFirmwareMobileactivationd.selectorVirtualAddress(in: data, sections: sections),
+            CustomFirmwareMobileActivation.selectorVirtualAddress(in: data, sections: sections),
         )
 
         let methname = try #require(sections["__TEXT,__objc_methname"])
@@ -239,7 +239,7 @@ struct CustomFirmwareMobileactivationdAnchorTests {
 
         // That naive search finds an earlier, wrong offset on this binary — so
         // this is not an assertion that passes either way.
-        let needle = Data(CustomFirmwareMobileactivationd.selector.utf8) + Data([0])
+        let needle = Data(CustomFirmwareMobileActivation.selector.utf8) + Data([0])
         let naive = try #require(data.range(of: needle)?.lowerBound)
         #expect(naive < offset)
         #expect(data[naive - 1] == UInt8(ascii: "_"))
@@ -251,7 +251,7 @@ struct CustomFirmwareMobileactivationdAnchorTests {
     func `missing method throws`() throws {
         let data = try Data(contentsOf: MobileactivationdFixture.launchd)
         #expect(throws: PatcherError.self) {
-            try CustomFirmwareMobileactivationd.locateIMP(in: data)
+            try CustomFirmwareMobileActivation.locateIMP(in: data)
         }
     }
 
@@ -260,7 +260,7 @@ struct CustomFirmwareMobileactivationdAnchorTests {
     /// patch asks it for the right instruction, and that the pair reads back as
     /// `mov x0, #1 ; ret`.
     @Test func `replacement is mov X 0 one then ret`() throws {
-        let bytes = try CustomFirmwareMobileactivationd.replacementBytes()
+        let bytes = try CustomFirmwareMobileActivation.replacementBytes()
         #expect(bytes.count == 8)
         #expect(bytes == ARM64.movX0_1 + ARM64.ret)
 
@@ -278,14 +278,14 @@ struct CustomFirmwareMobileactivationdAnchorTests {
     /// Both words of the getter are re-hashed, so a getter that straddles a
     /// page boundary does not leave the second page's slot stale.
     @Test func `touched offsets cover both words`() throws {
-        let anchor = CustomFirmwareMobileactivationd.Anchor(
+        let anchor = CustomFirmwareMobileActivation.Anchor(
             virtualAddress: 0x1_0000_0FFC,
             fileOffset: 0xFFC,
             source: .symbolTable,
             section: "__TEXT,__text",
         )
-        let bytes = try CustomFirmwareMobileactivationd.replacementBytes()
-        let offsets = CustomFirmwareMobileactivationd.touchedOffsets(anchor, bytes)
+        let bytes = try CustomFirmwareMobileActivation.replacementBytes()
+        let offsets = CustomFirmwareMobileActivation.touchedOffsets(anchor, bytes)
         #expect(offsets == [0xFFC, 0x1000])
         #expect(Set(offsets.map { $0 / 4096 }).count == 2, "the two words are on different pages")
     }
@@ -294,7 +294,7 @@ struct CustomFirmwareMobileactivationdAnchorTests {
 // MARK: - Byte parity with the frozen reference
 
 @Suite("mobileactivationd should_hactivate — parity and idempotence")
-struct CustomFirmwareMobileactivationdParityTests {
+struct CustomFirmwareMobileActivationParityTests {
     /// The fixture the frozen digests were taken over. Without this a digest
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `mobileactivationd`.
@@ -320,7 +320,7 @@ struct CustomFirmwareMobileactivationdParityTests {
     func `matches the frozen reference bytes`() throws {
         let swiftFile = try MobileactivationdFixture.copyOfPristine(named: "swift.bin")
 
-        let report = try CustomFirmwareMobileactivationd.patch(fileAt: swiftFile, resign: false, log: nil)
+        let report = try CustomFirmwareMobileActivation.patch(fileAt: swiftFile, resign: false, log: nil)
 
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == 1)
@@ -354,7 +354,7 @@ struct CustomFirmwareMobileactivationdParityTests {
     func `reattested output matches the frozen reference and verifies`() throws {
         let swiftFile = try MobileactivationdFixture.copyOfPristine(named: "swift-resigned.bin")
 
-        let report = try CustomFirmwareMobileactivationd.patch(fileAt: swiftFile, resign: true, log: nil)
+        let report = try CustomFirmwareMobileActivation.patch(fileAt: swiftFile, resign: true, log: nil)
         let rehash = try #require(report.slotRehashes.first)
         #expect(report.slotRehashes.count == 1)
         #expect(rehash.pageIndex == MobileactivationdGolden.reattestedSlot)
@@ -376,7 +376,7 @@ struct CustomFirmwareMobileactivationdParityTests {
 
         // The contrast: without re-attestation it is rejected.
         let unsigned = try MobileactivationdFixture.copyOfPristine(named: "swift-unsigned.bin")
-        try CustomFirmwareMobileactivationd.patch(fileAt: unsigned, resign: false, log: nil)
+        try CustomFirmwareMobileActivation.patch(fileAt: unsigned, resign: false, log: nil)
         let rejected = try MobileactivationdFixture.run(
             MobileactivationdFixture.codesign, ["-v", unsigned.path],
         )
@@ -390,11 +390,11 @@ struct CustomFirmwareMobileactivationdParityTests {
     func `second run changes nothing`() throws {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-idempotent.bin")
 
-        let first = try CustomFirmwareMobileactivationd.patch(fileAt: file, log: nil)
+        let first = try CustomFirmwareMobileActivation.patch(fileAt: file, log: nil)
         #expect(first.outcome == .patched)
         let afterFirst = try Data(contentsOf: file)
 
-        let second = try CustomFirmwareMobileactivationd.patch(fileAt: file, log: nil)
+        let second = try CustomFirmwareMobileActivation.patch(fileAt: file, log: nil)
         #expect(second.outcome == .alreadyPatched)
         #expect(second.sitesWritten == 0)
         #expect(second.record == nil)
@@ -402,7 +402,7 @@ struct CustomFirmwareMobileactivationdParityTests {
         #expect(second.anchor == first.anchor)
         #expect(try Data(contentsOf: file) == afterFirst)
 
-        let third = try CustomFirmwareMobileactivationd.patch(fileAt: file, log: nil)
+        let third = try CustomFirmwareMobileActivation.patch(fileAt: file, log: nil)
         #expect(third.outcome == .alreadyPatched)
         #expect(try Data(contentsOf: file) == afterFirst)
     }
@@ -414,9 +414,9 @@ struct CustomFirmwareMobileactivationdParityTests {
     @Test(.enabled(if: MobileactivationdFixture.hasPristine))
     func `rerun repairs A stale slot`() throws {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-stale-slot.bin")
-        try CustomFirmwareMobileactivationd.patch(fileAt: file, resign: false, log: nil)
+        try CustomFirmwareMobileActivation.patch(fileAt: file, resign: false, log: nil)
 
-        let repaired = try CustomFirmwareMobileactivationd.patch(fileAt: file, resign: true, log: nil)
+        let repaired = try CustomFirmwareMobileActivation.patch(fileAt: file, resign: true, log: nil)
         #expect(repaired.outcome == .alreadyPatched)
         #expect(repaired.slotRehashes.count == 1, "the stale slot must be recomputed")
         #expect(repaired.record == nil, "no code bytes changed the second time")
@@ -428,7 +428,7 @@ struct CustomFirmwareMobileactivationdParityTests {
         let file = try MobileactivationdFixture.copyOfPristine(named: "swift-dry-run.bin")
         let before = try Data(contentsOf: file)
 
-        let report = try CustomFirmwareMobileactivationd.patch(fileAt: file, dryRun: true, log: nil)
+        let report = try CustomFirmwareMobileActivation.patch(fileAt: file, dryRun: true, log: nil)
         #expect(report.outcome == .wouldPatch)
         #expect(report.sitesWritten == 0)
         #expect(report.anchor.section == "__TEXT,__text")

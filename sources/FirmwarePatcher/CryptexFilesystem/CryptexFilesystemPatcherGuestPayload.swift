@@ -146,7 +146,7 @@ extension CryptexFilesystemPatcher {
         let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
         // `resign: false` because the sign below replaces the signature, and
         // re-attesting would refuse an unsigned input the Python accepted.
-        try CustomFirmwareMobileactivationd.patch(fileAt: mobileActivationdPath, resign: false)
+        try CustomFirmwareMobileActivation.patch(fileAt: mobileActivationdPath, resign: false)
         try setMode(0o755, at: mobileActivationdPath)
 
         try VPhoneSigner.sign(

@@ -75,7 +75,7 @@ import Foundation
 
 /// The user-mode `kern.hv_vmm_present` cstring mangle, over a chunked dyld
 /// shared cache and over standalone Mach-Os.
-public enum DyldSharedCacheHVVMMPatcher {
+public enum DyldSharedCacheHypervisorVirtualMachinePatcher {
     // MARK: - The cstring and its mangle
 
     //

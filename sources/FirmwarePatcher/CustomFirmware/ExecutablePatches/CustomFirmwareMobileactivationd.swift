@@ -57,7 +57,7 @@ import Foundation
 
 /// Forces `-[DeviceType should_hactivate]` to return YES, so the guest
 /// self-activates instead of waiting on Apple's activation service.
-public enum CustomFirmwareMobileactivationd {
+public enum CustomFirmwareMobileActivation {
     // MARK: - Identity
 
     /// The ObjC method whose result is forced.
