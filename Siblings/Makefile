@@ -56,7 +56,7 @@ $(VPREGISTER): VPRegister/vpregister.m | $(STAGE)/vpregister
 	$(CLANG) $(COMMON_FLAGS) -o $@ $< -framework Foundation
 	@codesign --force --sign - $@
 
-$(GPU_PLUGIN): gpu/main.mm | $(STAGE)/gpu
+$(GPU_PLUGIN): GraphicLoader/main.mm | $(STAGE)/gpu
 	xcrun --sdk iphoneos clang++ -arch arm64e -miphoneos-version-min=26.1 \
 		-std=c++17 -O2 -dynamiclib -Wl,-undefined,dynamic_lookup \
 		-Wl,-not_for_dyld_shared_cache \
@@ -70,7 +70,7 @@ $(STAGE)/camfix/libcamfix.plist: CamFix/libcamfix.plist | $(STAGE)/camfix
 $(STAGE)/vcamcaptured/libvcamcaptured.plist: VCamCaptured/libvcamcaptured.plist | $(STAGE)/vcamcaptured
 	@cp $< $@
 
-$(GPU_PROVENANCE): gpu/README.md | $(STAGE)/gpu
+$(GPU_PROVENANCE): GraphicLoader/README.md | $(STAGE)/gpu
 	@cp $< $@
 
 clean:

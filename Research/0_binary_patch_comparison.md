@@ -1242,7 +1242,7 @@ It lacks the compiler-plugin dylib present in the 26.1 bundle. A first boot
 without it connected vphoned but left the VM window black: `MTLCompilerService`
 repeatedly aborted in `messageHandler`, and `backboardd` reported
 `XPC_ERROR_CONNECTION_INTERRUPTED` after repeated Metal compilation attempts.
-The repository now builds `Siblings/gpu/main.mm` (the 0xjohnnydev compiler
+The repository now builds `Siblings/GraphicLoader/main.mm` (the 0xjohnnydev compiler
 plugin reimplementation) into an arm64e iPhoneOS dylib. `build.sh` signs and
 compresses it into `vphone-cli.app/Contents/Resources/gpu/compiler-plugin.tar.zst`.
 `fw prepare` decompresses and merges that dylib into the firmware-sourced GPU

@@ -187,7 +187,7 @@ Scripts/                          # Build scripts and payloads only; no runtime 
 Siblings/                         # Guest component sources/provenance; separate package
 ├── CamFix/ VCamCaptured/          # Camera hooks and filter plists
 ├── TweakLoader/ VPRegister/       # Loader and iOS 27 app registrar
-└── gpu/                           # PCC firmware provenance; no Apple binary
+└── GraphicLoader/                 # PCC firmware provenance; no Apple binary
 
 Research/                         # Detailed firmware/patch documentation
 ```
