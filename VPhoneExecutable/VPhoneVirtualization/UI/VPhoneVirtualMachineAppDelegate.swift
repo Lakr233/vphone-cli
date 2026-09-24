@@ -118,6 +118,11 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 keySender: keySender,
                 control: control,
                 ecid: vm.ecidHex,
+                sceneIdentifier: options.configURL
+                    .deletingLastPathComponent()
+                    .standardizedFileURL
+                    .resolvingSymlinksInPath()
+                    .path,
             )
             windowController = wc
 
