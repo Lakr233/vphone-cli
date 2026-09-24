@@ -29,8 +29,8 @@
 > and `ProgramArguments[0]` paths are translated to physical kernel paths in
 > the in-memory XPC plist. The hook also tries to remove PID 1's existing
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
-> When a bootstrap and its ElleKit library exist, the launchd hook uses
-> `MSHookFunction` on PID 1's `posix_spawn` to add
+> The launchd hook interposes PID 1's `posix_spawn` without loading ElleKit,
+> so process injection remains available before a package manager installs it. It adds
 > `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy`,
 > directly spawned bootstrap programs, and app executables under the system
 > or application bundle paths. `SystemHook-vphone.dylib` interposes
@@ -94,6 +94,15 @@
 > removed but the existing `patch-launchd-jetsam` left in place, the same
 > probe returned `50/50` MB with fatal attributes. These tests used a cloned
 > VM disk and separate host API port; the original VM was not modified.
+> On 2026-09-25, the new interposed spawn hook was installed on the existing
+> `vphone-launchdhook-lab-26.6.2` rootless VM and read back byte-for-byte.
+> After a cold boot, launchd imported `wiki.qaq.ighostvtd.plist`; the service
+> and its `wiki.qaq.ighostvt.service` Mach endpoint were running. The daemon's
+> `DISABLE_TWEAKS=1` kept TweakLoader out of that process. Launchd logged a
+> successful Calculator spawn; Calculator reached the foreground and its own
+> sandbox log recorded `SystemHook-vphone.dylib` and a successful load of the
+> installed ElleKit `TweakLoader.dylib`. This checks the injection chain, but
+> does not prove that a particular tweak took effect.
 
 > **`scripts/patchers/*.py` no longer exists.** The tables below cite those
 > filenames throughout, because that is where each patch was first written and

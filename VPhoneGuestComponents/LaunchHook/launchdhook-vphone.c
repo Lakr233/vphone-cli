@@ -13,9 +13,6 @@
 #include <unistd.h>
 #include <xpc/xpc.h>
 
-static int (*vpOriginalSpawn)(pid_t *restrict, const char *restrict, const posix_spawn_file_actions_t *restrict,
-                              const posix_spawnattr_t *restrict, char *const argv[restrict],
-                              char *const envp[restrict]);
 static char vpBootRoot[PATH_MAX];
 
 static void vpLogInjection(const char *event, const char *path, int status) {
@@ -57,43 +54,18 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
     int appProgram = vpIsAppProgram(path);
     if (!path || (strcmp(path, "/usr/libexec/xpcproxy") != 0 && !bootstrapProgram && !appProgram) ||
         vpInjectionDisabled(envp)) {
-        int status = vpOriginalSpawn(pid, path, actions, attributes, argv, envp);
+        int status = posix_spawn(pid, path, actions, attributes, argv, envp);
         if (appProgram)
             vpLogSpawn("app-disabled", path, status == 0 && pid ? *pid : -1, status);
         return status;
     }
     VPInjectionEnvironment injected = vpInsertHook(envp, vpBootRoot);
-    int status = vpOriginalSpawn(pid, path, actions, attributes, argv, injected.values ? injected.values : envp);
+    int status = posix_spawn(pid, path, actions, attributes, argv, injected.values ? injected.values : envp);
     vpLogInjection(injected.values ? "inserted" : "unchanged", path, status);
     vpLogSpawn(injected.values ? "inserted" : "unchanged", path, status == 0 && pid ? *pid : -1,
                status);
     vpFreeEnvironment(&injected);
     return status;
-}
-
-static void vpInstallSpawnHook(const char *root) {
-    static int installed;
-    if (installed || access(VP_SYSTEM_HOOK, R_OK) != 0)
-        return;
-    char path[PATH_MAX];
-    int used = snprintf(path, sizeof(path), "%s/usr/lib/libellekit.dylib", root);
-    if (used <= 0 || (size_t)used >= sizeof(path) || access(path, R_OK) != 0)
-        return;
-    void *ellekit = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    if (!ellekit) {
-        vpLogInjection("ellekit-dlopen-failed", path, 0);
-        return;
-    }
-    void (*hook)(void *, void *, void **) = dlsym(ellekit, "MSHookFunction");
-    if (!hook) {
-        vpLogInjection("ellekit-symbol-missing", path, 0);
-        return;
-    }
-    snprintf(vpBootRoot, sizeof(vpBootRoot), "%s", root);
-    hook((void *)posix_spawn, (void *)vpSpawn, (void **)&vpOriginalSpawn);
-    installed = vpOriginalSpawn != NULL;
-    vpLogInjection("bootstrap-root", vpBootRoot, 0);
-    vpLogInjection(installed ? "installed" : "install-failed", path, 0);
 }
 
 // Neither bootstrap exists on the first boot. RootHide is chosen once and
@@ -241,7 +213,10 @@ static xpc_object_t vpGetValue(xpc_object_t dictionary, const char *key) {
         vpLogInjection("bootstrap-unavailable", key, 0);
         return value;
     }
-    vpInstallSpawnHook(root);
+    if (!vpBootRoot[0]) {
+        snprintf(vpBootRoot, sizeof(vpBootRoot), "%s", root);
+        vpLogInjection("bootstrap-root", vpBootRoot, 0);
+    }
     char path[PATH_MAX];
     int used = snprintf(path, sizeof(path), "%s/Library/LaunchDaemons", root);
     if (used < 0 || (size_t)used >= sizeof(path))
@@ -276,12 +251,14 @@ __attribute__((constructor)) static void vpLaunchHookInit(void) {
     memorystatus_control(VPSetJetsamHighWaterMark, 1, (uint32_t)-1, NULL, 0);
 }
 
-// This image is loaded by launchd's LC_LOAD_WEAK_DYLIB. The spawn hook handles
-// xpcproxy, direct bootstrap executables, and apps; SystemHook owns xpcproxy's exec.
+// This image is loaded by launchd's LC_LOAD_WEAK_DYLIB. Interposing spawn here
+// keeps the injection chain available before ElleKit is installed. SystemHook
+// owns xpcproxy's exec and loads ElleKit's TweakLoader when it appears.
 __attribute__((used, section("__DATA,__interpose"))) static const struct {
     const void *replacement;
     const void *replacee;
 } vpInterpose[] = {
     {(const void *)vpGetValue, (const void *)xpc_dictionary_get_value},
+    {(const void *)vpSpawn, (const void *)posix_spawn},
     {(const void *)vpMemoryStatus, (const void *)memorystatus_control},
 };
