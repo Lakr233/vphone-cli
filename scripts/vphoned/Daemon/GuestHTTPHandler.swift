@@ -24,14 +24,14 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         switch unwrapInboundIn(data) {
-        case .head(let request):
+        case let .head(request):
             head = request
             body.removeAll(keepingCapacity: true)
             exceededLimit = false
             upload = nil
             uploadError = nil
             let requestPath = request.uri.split(separator: "?", maxSplits: 1).first
-            if request.method == .PUT && (requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image") {
+            if request.method == .PUT, requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image" {
                 do {
                     upload = try GuestFileUpload(
                         destination: requestPath == "/v1/clipboard/image"
@@ -39,17 +39,17 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                             : GuestFileTransfer.path(from: request.uri),
                         fileIO: fileIO,
                         channel: context.channel,
-                        mode: try Self.uploadMode(from: request.uri),
+                        mode: Self.uploadMode(from: request.uri),
                         onCommit: requestPath == "/v1/clipboard/image" ? { path in
                             _ = try setClipboardImage(Data(contentsOf: URL(fileURLWithPath: path)))
                             unlink(path)
-                        } : nil
+                        } : nil,
                     )
                 } catch { uploadError = error }
             }
-        case .body(var buffer):
+        case var .body(buffer):
             let requestPath = head?.uri.split(separator: "?", maxSplits: 1).first
-            if head?.method == .PUT && (requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image") {
+            if head?.method == .PUT, requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image" {
                 upload?.append(buffer, channel: context.channel)
                 return
             }
@@ -72,7 +72,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                         upload?.finish(channel: context.channel)
                     }
                     upload = nil
-                } else if head.method == .GET && path == "/v1/clipboard/image" {
+                } else if head.method == .GET, path == "/v1/clipboard/image" {
                     do {
                         guard let image = try clipboardImagePNG() else {
                             Self.send(APIWire.error("Clipboard has no image", status: 404), on: context.channel)
@@ -82,10 +82,10 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                     } catch { Self.send(APIWire.error(String(describing: error)), on: context.channel) }
                 } else if head.method == .GET {
                     do {
-                        GuestFileTransfer.download(
-                            path: try GuestFileTransfer.path(from: head.uri),
+                        try GuestFileTransfer.download(
+                            path: GuestFileTransfer.path(from: head.uri),
                             fileIO: fileIO,
-                            channel: context.channel
+                            channel: context.channel,
                         )
                     } catch {
                         Self.send(APIWire.error(String(describing: error)), on: context.channel)
@@ -105,11 +105,11 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
 
     private func handle(_ head: HTTPRequestHead, body: Data, channel: Channel) {
         let path = head.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? head.uri
-        if head.method == .GET && path == "/openapi.json" {
+        if head.method == .GET, path == "/openapi.json" {
             Self.send(APIReply(status: 200, data: OpenAPIDocument.data), on: channel)
             return
         }
-        if head.method == .GET && path == "/v1/health" {
+        if head.method == .GET, path == "/v1/health" {
             Self.send(.json(GuestAPI.health()), on: channel)
             return
         }
@@ -127,7 +127,9 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                 var params = try Self.parameters(body)
                 let components = URLComponents(string: "http://vphoned\(head.uri)")
                 for item in components?.queryItems ?? [] {
-                    if let value = item.value { params[item.name] = value }
+                    if let value = item.value {
+                        params[item.name] = value
+                    }
                 }
                 request = APIRequest(method: method, params: params, id: nil)
             }
@@ -140,7 +142,9 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
     }
 
     private static func parameters(_ body: Data) throws -> [String: Any] {
-        if body.isEmpty { return [:] }
+        if body.isEmpty {
+            return [:]
+        }
         guard let object = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
             throw GuestAPIError.invalidRequest("Request body must be a JSON object")
         }
@@ -153,7 +157,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
             return 0o644
         }
         guard !value.isEmpty, value.count <= 4,
-              value.utf8.allSatisfy({ (48...55).contains($0) }),
+              value.utf8.allSatisfy({ (48 ... 55).contains($0) }),
               let mode = UInt16(value, radix: 8), mode <= 0o777
         else { throw GuestAPIError.invalidRequest("mode must be an octal permission, up to 0777") }
         return mode_t(mode)
@@ -201,7 +205,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
             let status = HTTPResponseStatus(statusCode: reply.status)
             channel.write(
                 HTTPServerResponsePart.head(.init(version: .http1_1, status: status, headers: headers)),
-                promise: nil
+                promise: nil,
             )
             var buffer = channel.allocator.buffer(capacity: reply.data.count)
             buffer.writeBytes(reply.data)
@@ -210,7 +214,11 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                 channel.close(promise: nil)
             }
         }
-        if channel.eventLoop.inEventLoop { write() } else { channel.eventLoop.execute(write) }
+        if channel.eventLoop.inEventLoop {
+            write()
+        } else {
+            channel.eventLoop.execute(write)
+        }
     }
 
     func channelInactive(context: ChannelHandlerContext) {
@@ -218,7 +226,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
         context.fireChannelInactive()
     }
 
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
+    func errorCaught(context: ChannelHandlerContext, error _: Error) {
         context.close(promise: nil)
     }
 }
@@ -236,7 +244,9 @@ private final class HTTPJob: @unchecked Sendable {
 
     func run() {
         let reply = APIWire.execute(request)
-        if reply.status == 200 { hub.broadcast(name: "operation.completed", data: ["method": request.method]) }
+        if reply.status == 200 {
+            hub.broadcast(name: "operation.completed", data: ["method": request.method])
+        }
         GuestHTTPHandler.send(reply, on: channel)
     }
 }

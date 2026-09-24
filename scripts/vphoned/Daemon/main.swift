@@ -31,15 +31,15 @@ do {
                             NIOWebSocketFrameAggregator(
                                 minNonFinalFragmentSize: 1,
                                 maxAccumulatedFrameCount: 32,
-                                maxAccumulatedFrameSize: 1 << 20
+                                maxAccumulatedFrameSize: 1 << 20,
                             ),
                             GuestWebSocketHandler(hub: hub),
                         ])
                     }
-                }
+                },
             )
             return channel.pipeline.configureHTTPServerPipeline(
-                withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in })
+                withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
             ).flatMap { channel.pipeline.addHandler(http) }
         }
         .bind(to: VsockAddress(cid: .any, port: 1339))

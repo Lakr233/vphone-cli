@@ -394,7 +394,7 @@ struct CustomFirmwareBuildVersionTests {
             let swiftOutput = directory.appending(path: "swift-\(format).plist")
             try CustomFirmwarePatchFixtures.copyContents(
                 of: CustomFirmwarePatchFixtures.systemVersionPlist,
-                to: swiftOutput
+                to: swiftOutput,
             )
             try CustomFirmwarePatchFixtures.run("/usr/bin/plutil", ["-convert", format, swiftOutput.path])
 

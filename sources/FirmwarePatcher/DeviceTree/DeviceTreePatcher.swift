@@ -30,7 +30,10 @@ public final class DeviceTreePatcher: Patcher {
     /// A single property in a device tree node.
     final class DTProperty {
         var name: String
-        var length: Int { value.count }
+        var length: Int {
+            value.count
+        }
+
         var flags: UInt16
         var value: Data
         /// File offset of the property value within the flat binary.

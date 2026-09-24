@@ -1,4 +1,4 @@
-// CustomFirmwareWatchdogdDiscovery.swift — Locate watchdogd VM-presence cache sites.
+// CustomFirmwareWatchDogDiscovery.swift — Locate watchdogd VM-presence cache sites.
 
 import Capstone
 import Foundation

@@ -55,7 +55,7 @@ extension KernelJailbreakPatcher {
                 off,
                 errLo: errLo,
                 errHi: errHi,
-                imagebootNeeded: imagebootNeeded
+                imagebootNeeded: imagebootNeeded,
             ) else { continue }
             candidates.append((off, state))
         }

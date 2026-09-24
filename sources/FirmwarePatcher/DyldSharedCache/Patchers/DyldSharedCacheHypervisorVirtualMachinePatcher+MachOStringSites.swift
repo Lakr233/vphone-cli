@@ -1,8 +1,8 @@
 import Foundation
 
-extension DyldSharedCacheHypervisorVirtualMachinePatcher {
+public extension DyldSharedCacheHypervisorVirtualMachinePatcher {
     /// One occurrence of the pristine cstring in a standalone Mach-O.
-    public struct MachOStringSite: Sendable, Equatable {
+    struct MachOStringSite: Sendable, Equatable {
         /// Address the literal is mapped at.
         public let stringVMA: UInt64
         /// Offset of the literal in the file.
@@ -19,7 +19,7 @@ extension DyldSharedCacheHypervisorVirtualMachinePatcher {
     ///
     /// - Throws: ``PatcherError/invalidFormat(_:)`` when `data` is not a 64-bit
     ///   little-endian Mach-O. A fat binary has to be sliced first.
-    public static func findStringSites(inMachO data: Data) throws -> [MachOStringSite] {
+    static func findStringSites(inMachO data: Data) throws -> [MachOStringSite] {
         let image = data.startIndex == 0 ? data : Data(data)
         var sites: [MachOStringSite] = []
         for (name, section) in try machOSections(of: image)
@@ -55,14 +55,14 @@ extension DyldSharedCacheHypervisorVirtualMachinePatcher {
     /// Only for saying something useful in the log: ``findStringSites(inMachO:)``
     /// already returns nothing for an already-patched binary, so the patch flow
     /// is idempotent with or without this.
-    public static func isAlreadyMangled(_ data: Data) -> Bool {
+    static func isAlreadyMangled(_ data: Data) -> Bool {
         data.range(of: mangledNeedle) != nil
     }
 
     // MARK: - Minimal Mach-O section table
 
     /// One `section_64`, reduced to what the string scan needs.
-    struct MachOSection {
+    internal struct MachOSection {
         let segmentName: String
         let sectionName: String
         let address: UInt64
@@ -77,7 +77,7 @@ extension DyldSharedCacheHypervisorVirtualMachinePatcher {
     /// ones while keeping the earlier one's position, which is what the
     /// reference's dict does and is the only reason the two agree on the order
     /// sites come back in.
-    static func machOSections(of data: Data) throws -> [(String, MachOSection)] {
+    internal static func machOSections(of data: Data) throws -> [(String, MachOSection)] {
         guard data.count >= 32 else {
             throw PatcherError.invalidFormat("truncated Mach-O header (\(data.count) bytes)")
         }
@@ -133,5 +133,4 @@ extension DyldSharedCacheHypervisorVirtualMachinePatcher {
         let terminated = field.prefix { $0 != 0 }
         return String(decoding: terminated, as: UTF8.self)
     }
-
 }

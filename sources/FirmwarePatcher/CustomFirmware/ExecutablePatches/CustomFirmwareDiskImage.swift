@@ -1,4 +1,4 @@
-// CustomFirmwareDiskimagesiod.swift — force diskimagesiod's DDI mount-completion gate open.
+// CustomFirmwareDiskImage.swift — force diskimagesiod's DDI mount-completion gate open.
 //
 // Swift port of `scripts/patchers/cfw_patch_diskimagesiod.py`, driven by
 // `cfw.py patch-diskimagesiod <binary>` and, in the shipped installers, by
@@ -58,7 +58,7 @@
 // caller's (unsigned) LR without ever having pushed a frame, so overwriting
 // `pacibsp; stp …` loses nothing that the new epilogue needs. Both words come
 // from the encoder — `ARM64Encoder.encodeMovzX` builds MOVZ from its ISA fields
-// and `ARM64.ret` is the keystone-derived constant; `CustomFirmwareDiskimagesiodTests`
+// and `ARM64.ret` is the keystone-derived constant; `CustomFirmwareDiskImageTests`
 // asserts the two agree with `ARM64.movX0_1`.
 //
 // Re-signing
@@ -103,7 +103,7 @@ public enum CustomFirmwareDiskImage {
     /// MOVZ is built from its ISA fields by ``ARM64Encoder/encodeMovzX(rd:imm16:shift:)``;
     /// the `?? ARM64.movX0_1` arm is unreachable (that encoder returns `nil`
     /// only for a shift above 48) and exists so this stays a plain `let` with
-    /// no trap in it. `CustomFirmwareDiskimagesiodTests` asserts the two spellings are the
+    /// no trap in it. `CustomFirmwareDiskImageTests` asserts the two spellings are the
     /// same four bytes.
     public static let replacement: Data =
         (ARM64Encoder.encodeMovzX(rd: 0, imm16: 1) ?? ARM64.movX0_1) + ARM64.ret

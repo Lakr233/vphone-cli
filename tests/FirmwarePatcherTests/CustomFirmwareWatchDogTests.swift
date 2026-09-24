@@ -1,4 +1,4 @@
-// CustomFirmwareWatchdogdTests.swift — parity, anchoring and idempotence for the
+// CustomFirmwareWatchDogTests.swift — parity, anchoring and idempotence for the
 // watchdogd hv_vmm_present cache patch.
 //
 // Two independent references were available for this patch and both are used:

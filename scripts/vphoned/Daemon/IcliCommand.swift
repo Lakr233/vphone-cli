@@ -39,9 +39,15 @@ enum IcliCommand {
         let stdoutFD = open(outputURL.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
         let stderrFD = open(errorURL.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
         guard stdinFD >= 0, stdoutFD >= 0, stderrFD >= 0 else {
-            if stdinFD >= 0 { close(stdinFD) }
-            if stdoutFD >= 0 { close(stdoutFD) }
-            if stderrFD >= 0 { close(stderrFD) }
+            if stdinFD >= 0 {
+                close(stdinFD)
+            }
+            if stdoutFD >= 0 {
+                close(stdoutFD)
+            }
+            if stderrFD >= 0 {
+                close(stderrFD)
+            }
             throw GuestAPIError.operationFailed("Could not prepare icli output")
         }
         defer { close(stdinFD); close(stdoutFD); close(stderrFD) }
@@ -54,7 +60,11 @@ enum IcliCommand {
         posix_spawn_file_actions_adddup2(&actions, stderrFD, STDERR_FILENO)
         var argv = (["/usr/bin/icli"] + arguments).map { strdup($0) as UnsafeMutablePointer<CChar>? }
         argv.append(nil)
-        defer { argv.forEach { if let value = $0 { free(value) } } }
+        defer { for item in argv {
+            if let value = item {
+                free(value)
+            }
+        } }
         var pid: pid_t = 0
         let spawnStatus = argv.withUnsafeMutableBufferPointer { pointer in
             posix_spawn(&pid, "/usr/bin/icli", &actions, nil, pointer.baseAddress, environ)
@@ -67,9 +77,13 @@ enum IcliCommand {
         var status: Int32 = 0
         while true {
             let waited = waitpid(pid, &status, WNOHANG)
-            if waited == pid { break }
+            if waited == pid {
+                break
+            }
             if waited < 0 {
-                if errno == EINTR { continue }
+                if errno == EINTR {
+                    continue
+                }
                 kill(pid, SIGKILL)
                 _ = waitpid(pid, &status, 0)
                 throw GuestAPIError.operationFailed("Could not wait for icli")
@@ -84,13 +98,14 @@ enum IcliCommand {
         let stdoutSize = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber
         let stderrSize = try FileManager.default.attributesOfItem(atPath: errorURL.path)[.size] as? NSNumber
         guard (stdoutSize?.int64Value ?? 0) <= 64 << 20,
-              (stderrSize?.int64Value ?? 0) <= 1 << 20 else {
+              (stderrSize?.int64Value ?? 0) <= 1 << 20
+        else {
             throw GuestAPIError.operationFailed("icli output exceeded the API limit")
         }
         let stdout = try Data(contentsOf: outputURL, options: .mappedIfSafe)
         let stderr = try Data(contentsOf: errorURL, options: .mappedIfSafe)
         let parsed = try? JSONSerialization.jsonObject(with: stdout, options: [.fragmentsAllowed])
-        let code = (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : -Int(status & 0x7f)
+        let code = (status & 0x7F) == 0 ? Int((status >> 8) & 0xFF) : -Int(status & 0x7F)
         return [
             "exit_code": code,
             "output": parsed ?? String(decoding: stdout, as: UTF8.self),

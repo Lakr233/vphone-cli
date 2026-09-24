@@ -168,7 +168,7 @@ public struct VPhoneVirtualMachineCreator {
         try runCustomFirmwareInstall(
             options: options,
             bundleURL: bundleURL,
-            sudoEnvironmentExtras: sudoEnvironmentExtras
+            sudoEnvironmentExtras: sudoEnvironmentExtras,
         )
 
         // CFW install is the last consumer of the built restore tree (it copies
@@ -424,7 +424,7 @@ public struct VPhoneVirtualMachineCreator {
     private func runCustomFirmwareInstall(
         options: Options,
         bundleURL: URL,
-        sudoEnvironmentExtras: [String: String]
+        sudoEnvironmentExtras: [String: String],
     ) throws {
         let v = options.verbosity
         // --sudo-password (askpass) wins over --root-popup.

@@ -7,7 +7,9 @@ final class GuestWebSocketHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias OutboundOut = WebSocketFrame
 
     private let hub: APIEventHub
-    init(hub: APIEventHub) { self.hub = hub }
+    init(hub: APIEventHub) {
+        self.hub = hub
+    }
 
     func handlerAdded(context: ChannelHandlerContext) {
         hub.add(context.channel)
@@ -46,7 +48,7 @@ final class GuestWebSocketHandler: ChannelInboundHandler, @unchecked Sendable {
         context.fireChannelInactive()
     }
 
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
+    func errorCaught(context: ChannelHandlerContext, error _: Error) {
         context.close(promise: nil)
     }
 
@@ -57,7 +59,11 @@ final class GuestWebSocketHandler: ChannelInboundHandler, @unchecked Sendable {
             buffer.writeBytes(data)
             channel.writeAndFlush(WebSocketFrame(fin: true, opcode: .text, data: buffer), promise: nil)
         }
-        if channel.eventLoop.inEventLoop { write() } else { channel.eventLoop.execute(write) }
+        if channel.eventLoop.inEventLoop {
+            write()
+        } else {
+            channel.eventLoop.execute(write)
+        }
     }
 }
 
@@ -75,6 +81,8 @@ private final class WebSocketJob: @unchecked Sendable {
     func run() {
         let reply = APIWire.execute(request)
         GuestWebSocketHandler.send(reply.data, on: channel)
-        if reply.status == 200 { hub.broadcast(name: "operation.completed", data: ["method": request.method]) }
+        if reply.status == 200 {
+            hub.broadcast(name: "operation.completed", data: ["method": request.method])
+        }
     }
 }

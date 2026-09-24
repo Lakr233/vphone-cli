@@ -32,13 +32,13 @@ enum GuestFileTransfer {
             headers.add(name: "Connection", value: "close")
             channel.write(
                 HTTPServerResponsePart.head(.init(version: .http1_1, status: .ok, headers: headers)),
-                promise: nil
+                promise: nil,
             )
             fileIO.readChunked(
                 fileRegion: region,
                 chunkSize: 64 * 1024,
                 allocator: channel.allocator,
-                eventLoop: channel.eventLoop
+                eventLoop: channel.eventLoop,
             ) { bytes in
                 channel.writeAndFlush(HTTPServerResponsePart.body(.byteBuffer(bytes)))
             }.whenComplete { result in
@@ -74,7 +74,7 @@ final class GuestFileUpload: @unchecked Sendable {
         fileIO: NonBlockingFileIO,
         channel: Channel,
         mode: mode_t = 0o644,
-        onCommit: ((String) throws -> Void)? = nil
+        onCommit: ((String) throws -> Void)? = nil,
     ) throws {
         let parent = (destination as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
@@ -83,9 +83,9 @@ final class GuestFileUpload: @unchecked Sendable {
         guard fd >= 0 else { throw GuestAPIError.operationFailed("Could not create upload file") }
         self.destination = destination
         self.temporary = temporary
-        self.handle = NIOFileHandle(_deprecatedTakingOwnershipOfDescriptor: fd)
+        handle = NIOFileHandle(_deprecatedTakingOwnershipOfDescriptor: fd)
         self.fileIO = fileIO
-        self.writes = channel.eventLoop.makeSucceededFuture(())
+        writes = channel.eventLoop.makeSucceededFuture(())
         self.onCommit = onCommit
         self.mode = mode
     }
@@ -108,7 +108,7 @@ final class GuestFileUpload: @unchecked Sendable {
             do {
                 try handle.close()
                 switch result {
-                case .failure(let error): throw error
+                case let .failure(error): throw error
                 case .success: break
                 }
                 guard chmod(temporary, mode) == 0 else {
@@ -127,7 +127,9 @@ final class GuestFileUpload: @unchecked Sendable {
     }
 
     deinit {
-        if handle.isOpen { try? handle.close() }
+        if handle.isOpen {
+            try? handle.close()
+        }
         unlink(temporary)
     }
 }

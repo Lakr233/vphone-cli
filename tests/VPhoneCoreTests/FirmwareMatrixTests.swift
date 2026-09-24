@@ -409,7 +409,7 @@ struct FirmwareMatrixRealDataTests {
 
         let tested = try VPhoneFirmwareMatrix.testedBuilds(
             readme: RealData.repositoryCompatibilityGuide(),
-            device: Fixture.d
+            device: Fixture.d,
         )
         var supported = 0, notTested = 0
         for release in releases {

@@ -37,7 +37,7 @@ struct VPhoneCustomFirmwareInstaller {
             try VPhoneCustomFirmwareInstaller(
                 bundle: bundle,
                 resources: resources,
-                forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide
+                forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
             ).run()
             return 0
         }
@@ -160,7 +160,7 @@ struct VPhoneCustomFirmwareInstaller {
             work: work,
             path: "usr/libexec/seputil",
             verb: "patch-seputil",
-            identifier: "com.apple.seputil"
+            identifier: "com.apple.seputil",
         )
         if version.hasPrefix("27.") {
             try patchMachO(
@@ -168,7 +168,7 @@ struct VPhoneCustomFirmwareInstaller {
                 work: work,
                 path: "usr/libexec/diskimagesiod",
                 verb: "patch-diskimagesiod",
-                preserveEntitlements: true
+                preserveEntitlements: true,
             )
         }
         try renameGigalocker(data: data)
@@ -204,13 +204,13 @@ struct VPhoneCustomFirmwareInstaller {
             work: work,
             path: "usr/libexec/launchd_cache_loader",
             verb: "patch-launchd-cache-loader",
-            identifier: "com.apple.launchd_cache_loader"
+            identifier: "com.apple.launchd_cache_loader",
         )
         try patchMachO(
             system: system,
             work: work,
             path: "usr/libexec/mobileactivationd",
-            verb: "patch-mobileactivationd"
+            verb: "patch-mobileactivationd",
         )
         try installVphoned(system: system, work: work)
         try patchMachO(
@@ -218,7 +218,7 @@ struct VPhoneCustomFirmwareInstaller {
             work: work,
             path: "sbin/launchd",
             verb: "patch-launchd-jetsam",
-            preserveEntitlements: true
+            preserveEntitlements: true,
         )
         try patchDebugserver(system: system, work: work)
         if version.hasPrefix("27.") {
@@ -242,7 +242,7 @@ struct VPhoneCustomFirmwareInstaller {
                 "/usr/bin/aea",
                 ["decrypt", "-i", encrypted.path,
                  "-o", plain.path, "-key-value", key],
-                quiet: true
+                quiet: true,
             )
             let osMount = work.appendingPathComponent("mnt-os")
             let appMount = work.appendingPathComponent("mnt-app")
@@ -252,7 +252,7 @@ struct VPhoneCustomFirmwareInstaller {
                 "/usr/bin/hdiutil",
                 ["attach", "-mountpoint", osMount.path,
                  plain.path, "-nobrowse", "-owners", "off"],
-                quiet: true
+                quiet: true,
             )
             defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", osMount.path], quiet: true) }
             try tool(
@@ -260,7 +260,7 @@ struct VPhoneCustomFirmwareInstaller {
                 ["attach", "-mountpoint", appMount.path,
                  restore.appendingPathComponent(paths.appOS).path,
                  "-nobrowse", "-owners", "off"],
-                quiet: true
+                quiet: true,
             )
             defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", appMount.path], quiet: true) }
             for (source, destination) in [(osMount, os), (appMount, app)] {
@@ -318,9 +318,8 @@ struct VPhoneCustomFirmwareInstaller {
         path: String,
         verb: String,
         identifier: String? = nil,
-        preserveEntitlements: Bool = false
-    ) throws
-    {
+        preserveEntitlements: Bool = false,
+    ) throws {
         let target = system.appendingPathComponent(path)
         let backup = target.appendingPathExtension("bak")
         if !fm.fileExists(atPath: backup.path) {
@@ -387,8 +386,8 @@ struct VPhoneCustomFirmwareInstaller {
             fileAt: staged,
             options: .init(
                 entitlements: Data(contentsOf: ent, options: .mappedIfSafe),
-                mergesExisting: true
-            )
+                mergesExisting: true,
+            ),
         )
         try replace(staged, at: target, mode: 0o755)
     }

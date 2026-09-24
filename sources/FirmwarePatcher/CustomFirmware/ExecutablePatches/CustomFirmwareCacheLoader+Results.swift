@@ -1,8 +1,8 @@
-extension CustomFirmwareCacheLoaderPatcher {
+public extension CustomFirmwareCacheLoaderPatcher {
     // MARK: - Results
 
     /// The boot-arg string the gate is built around, and the code that loads it.
-    public struct Anchor: Sendable, Equatable {
+    struct Anchor: Sendable, Equatable {
         /// Which of ``anchorTokens`` matched.
         public let token: String
         /// The whole null-terminated string the token sits inside.
@@ -22,7 +22,7 @@ extension CustomFirmwareCacheLoaderPatcher {
 
     /// The conditional branch that skips the unsecure-cache path — or the NOP a
     /// previous run already left in its place.
-    public struct Gate: Sendable, Equatable {
+    struct Gate: Sendable, Equatable {
         public let fileOffset: Int
         public let vma: UInt64
         /// Capstone's mnemonic: `cbz`/`cbnz`/`tbz`/`tbnz`/`b.<cond>`, or `nop`
@@ -49,7 +49,7 @@ extension CustomFirmwareCacheLoaderPatcher {
     }
 
     /// What a run did.
-    public enum Outcome: String, Sendable, Equatable {
+    enum Outcome: String, Sendable, Equatable {
         /// The gate already held a NOP. Nothing was written.
         case alreadyPatched
         /// `dryRun` was set, so the site was located and reported only.
@@ -59,7 +59,7 @@ extension CustomFirmwareCacheLoaderPatcher {
     }
 
     /// The outcome of one run, and the site it acted on.
-    public struct Report: Sendable {
+    struct Report: Sendable {
         public let outcome: Outcome
         public let anchor: Anchor
         public let gate: Gate

@@ -57,7 +57,7 @@ class VPhoneHostAutomationServer {
         screenRecorder: VPhoneScreenRecorder,
         control: VPhoneGuestControl,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ) {
         self.captureView = captureView
         self.screenRecorder = screenRecorder
@@ -149,7 +149,7 @@ class VPhoneHostAutomationServer {
             bitsPerComponent: 8,
             bytesPerRow: dstW,
             space: gray,
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
+            bitmapInfo: CGImageAlphaInfo.none.rawValue,
         ) else { return nil }
 
         // High contrast: bump brightness
@@ -184,8 +184,9 @@ class VPhoneHostAutomationServer {
             var timeout = timeval(tv_sec: 15, tv_usec: 0)
             guard setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, &timeout,
                              socklen_t(MemoryLayout<timeval>.size)) == 0,
-                  setsockopt(clientFD, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-                             socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+                setsockopt(clientFD, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                           socklen_t(MemoryLayout<timeval>.size)) == 0
+            else {
                 close(clientFD)
                 continue
             }
@@ -284,7 +285,7 @@ class VPhoneHostAutomationServer {
                     pixelX: x,
                     pixelY: y,
                     screenWidth: controller.screenWidth,
-                    screenHeight: controller.screenHeight
+                    screenHeight: controller.screenHeight,
                 )
                 result.ok = true
                 if wantScreen {
@@ -320,7 +321,7 @@ class VPhoneHostAutomationServer {
                     toY: y2,
                     screenWidth: controller.screenWidth,
                     screenHeight: controller.screenHeight,
-                    durationMs: durationMs
+                    durationMs: durationMs,
                 )
                 result.ok = true
                 if wantScreen {
@@ -414,7 +415,9 @@ class VPhoneHostAutomationServer {
             let n = read(fd, &buffer, buffer.count)
             guard n > 0 else { break }
             accumulated.append(contentsOf: buffer[..<n])
-            if accumulated.contains(0x0A) { break }
+            if accumulated.contains(0x0A) {
+                break
+            }
         }
 
         if let nlRange = accumulated.firstIndex(of: 0x0A) {
@@ -428,12 +431,18 @@ class VPhoneHostAutomationServer {
         ok: Bool,
         path: String? = nil,
         error: String? = nil,
-        image: String? = nil
+        image: String? = nil,
     ) {
         var dict: [String: Any] = ["ok": ok]
-        if let path { dict["path"] = path }
-        if let error { dict["error"] = error }
-        if let image { dict["image"] = image }
+        if let path {
+            dict["path"] = path
+        }
+        if let error {
+            dict["error"] = error
+        }
+        if let image {
+            dict["image"] = image
+        }
 
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               var json = String(data: data, encoding: .utf8)
@@ -445,8 +454,12 @@ class VPhoneHostAutomationServer {
             var offset = 0
             while remaining > 0 {
                 let written = write(fd, ptr.advanced(by: offset), remaining)
-                if written < 0 && errno == EINTR { continue }
-                if written <= 0 { break }
+                if written < 0, errno == EINTR {
+                    continue
+                }
+                if written <= 0 {
+                    break
+                }
                 offset += written
                 remaining -= written
             }

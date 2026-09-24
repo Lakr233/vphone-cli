@@ -138,14 +138,14 @@ extension KernelJailbreakPatcher {
                   funcEnd: rnpEnd,
                   mnemonic: "ldrh",
                   disp: 0xD8,
-                  requireWDest: false
+                  requireWDest: false,
               ),
               let f2 = findUniqueFieldLoad(
                   funcStart: rnpStart,
                   funcEnd: rnpEnd,
                   mnemonic: "ldr",
                   disp: 0xE8,
-                  requireWDest: true
+                  requireWDest: true,
               )
         else {
             log("  [~] notification-port bound-check loads not both present — skipping GATE2 (all-or-nothing)")

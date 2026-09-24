@@ -1,4 +1,4 @@
-// CustomFirmwareWatchdogdSymbolTargets.swift — Resolve watchdogd branch targets.
+// CustomFirmwareWatchDogSymbolTargets.swift — Resolve watchdogd branch targets.
 
 import Foundation
 

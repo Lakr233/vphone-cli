@@ -41,32 +41,32 @@ struct Extract: ParsableCommand {
     @Option(
         name: [.customShort("f"), .long],
         help: "Archive to read",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var file: URL
 
     @Option(
         name: [.customShort("C"), .customLong("directory")],
         help: "Where to unpack it",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var destination: URL = .init(fileURLWithPath: ".")
 
     @Flag(
         name: [.customShort("p"), .customLong("preserve-permissions")],
-        help: "Restore modes, and — as root — the archive's numeric uid/gid"
+        help: "Restore modes, and — as root — the archive's numeric uid/gid",
     )
     var preservePermissions = false
 
     @Flag(
         name: .customLong("no-overwrite-dir"),
-        help: "Leave an existing directory's mode, owner and mtime alone"
+        help: "Leave an existing directory's mode, owner and mtime alone",
     )
     var noOverwriteDir = false
 
     @Flag(
         name: .customLong("numeric-owner"),
-        help: "Accepted for compatibility; ownership is always restored by number"
+        help: "Accepted for compatibility; ownership is always restored by number",
     )
     var numericOwner = false
 
@@ -107,14 +107,14 @@ struct Create: ParsableCommand {
     @Option(
         name: [.customShort("f"), .long],
         help: "Archive to write",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var file: URL
 
     @Option(
         name: [.customShort("C"), .customLong("directory")],
         help: "Directory to pack",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var source: URL = .init(fileURLWithPath: ".")
 
@@ -189,14 +189,14 @@ struct Decompress: ParsableCommand {
     @Option(
         name: [.customShort("f"), .long],
         help: "File to decompress",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var file: URL
 
     @Option(
         name: [.customShort("o"), .long],
         help: "Where to write the result",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var output: URL
 
@@ -217,7 +217,7 @@ struct List: ParsableCommand {
     @Option(
         name: [.customShort("f"), .long],
         help: "Archive to read",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var file: URL
 
@@ -248,7 +248,7 @@ struct Cat: ParsableCommand {
     @Option(
         name: [.customShort("f"), .long],
         help: "Archive to read",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var file: URL
 
@@ -284,13 +284,13 @@ struct Fingerprint: ParsableCommand {
 
     @Argument(
         help: "Second tree; given, the two are compared",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var other: URL?
 
     @Flag(
         name: .customLong("no-content-hashes"),
-        help: "Skip file digests — much faster, and enough to compare metadata"
+        help: "Skip file digests — much faster, and enough to compare metadata",
     )
     var noContentHashes = false
 

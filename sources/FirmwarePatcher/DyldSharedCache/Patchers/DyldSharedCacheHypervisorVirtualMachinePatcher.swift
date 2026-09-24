@@ -1,4 +1,4 @@
-// DyldSharedCacheHVVMMPatcher.swift — the `kern.hv_vmm_present` user-mode cstring mangle.
+// DyldSharedCacheHypervisorVirtualMachinePatcher.swift — the `kern.hv_vmm_present` user-mode cstring mangle.
 //
 // Port of BOTH `scripts/patchers/cfw_patch_hv_vmm_dsc.py` (the DSC orchestrator)
 // and `scripts/patchers/cfw_patch_hv_vmm.py` (the cstring definition and the

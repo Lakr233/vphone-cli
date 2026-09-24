@@ -93,7 +93,7 @@ struct VPhoneFirmwareIM4PExtractCommand: ParsableCommand {
     @Option(
         name: .customLong("output"),
         help: "Where to write the payload",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var output: URL
 

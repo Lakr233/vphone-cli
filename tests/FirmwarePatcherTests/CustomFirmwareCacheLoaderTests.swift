@@ -1,4 +1,4 @@
-// CustomFirmwareCacheloaderTests.swift — parity for the launchd_cache_loader unsecure-cache gate.
+// CustomFirmwareCacheLoaderTests.swift — parity for the launchd_cache_loader unsecure-cache gate.
 //
 // The patch is one instruction in a boot-critical binary, and a wrong one is a
 // guest that will not start rather than a failing assertion, so the reference

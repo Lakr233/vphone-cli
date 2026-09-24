@@ -16,9 +16,9 @@ final class VPhoneGuestControl {
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
-            case .unsupportedCapability(let value): "guest does not support capability: \(value)"
-            case .protocolError(let value): "API protocol error: \(value)"
-            case .guestError(let value): value
+            case let .unsupportedCapability(value): "guest does not support capability: \(value)"
+            case let .protocolError(value): "API protocol error: \(value)"
+            case let .guestError(value): value
             }
         }
     }
@@ -74,11 +74,13 @@ final class VPhoneGuestControl {
             let response = try await http(method: "GET", path: "/v1/health")
             guard response.status == 200,
                   let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
-                  info["api_version"] as? Int == 1 else {
+                  info["api_version"] as? Int == 1
+            else {
                 throw ControlError.protocolError("incompatible guest API")
             }
             if let binary = guestBinaryURL,
-               let data = try? Data(contentsOf: binary, options: .mappedIfSafe) {
+               let data = try? Data(contentsOf: binary, options: .mappedIfSafe)
+            {
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
                 if hash != info["binary_hash"] as? String {
                     print("[control] updating vphoned over HTTP...")
@@ -98,7 +100,9 @@ final class VPhoneGuestControl {
                 onConnect?(guestCapabilities)
             }
         } catch {
-            if !isConnected { print("[control] probe failed: \(error)") }
+            if !isConnected {
+                print("[control] probe failed: \(error)")
+            }
             setDisconnected()
         }
     }
@@ -109,16 +113,28 @@ final class VPhoneGuestControl {
         guestCapabilities = []
         guestIPAddress = nil
         guestIOSVersion = nil
-        if wasConnected { onDisconnect?() }
+        if wasConnected {
+            onDisconnect?()
+        }
     }
 
-    func sendHIDPress(page: UInt32, usage: UInt32) { sendHID(page: page, usage: usage, down: nil) }
-    func sendHIDDown(page: UInt32, usage: UInt32) { sendHID(page: page, usage: usage, down: true) }
-    func sendHIDUp(page: UInt32, usage: UInt32) { sendHID(page: page, usage: usage, down: false) }
+    func sendHIDPress(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: nil)
+    }
+
+    func sendHIDDown(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: true)
+    }
+
+    func sendHIDUp(page: UInt32, usage: UInt32) {
+        sendHID(page: page, usage: usage, down: false)
+    }
 
     private func sendHID(page: UInt32, usage: UInt32, down: Bool?) {
         var params: [String: Any] = ["page": page, "usage": usage]
-        if let down { params["down"] = down }
+        if let down {
+            params["down"] = down
+        }
         enqueueInput("input.hid", params: params)
     }
 
@@ -141,7 +157,9 @@ final class VPhoneGuestControl {
         try await call("developer_mode.status")["enabled"] as? Bool ?? false
     }
 
-    func sendPing() async throws { _ = try await http(method: "GET", path: "/v1/health") }
+    func sendPing() async throws {
+        _ = try await http(method: "GET", path: "/v1/health")
+    }
 
     func guestBinaryHash() async throws -> String {
         let response = try await http(method: "GET", path: "/v1/health")
@@ -156,7 +174,7 @@ final class VPhoneGuestControl {
             throw ControlError.protocolError("missing operation")
         }
         if type == "file_get" {
-            return ([:], try await downloadFile(path: request["path"] as? String ?? ""))
+            return try await ([:], downloadFile(path: request["path"] as? String ?? ""))
         }
         if type == "clipboard_get" {
             var info = try await call("clipboard.get")
@@ -190,7 +208,9 @@ final class VPhoneGuestControl {
         var params = request
         params.removeValue(forKey: "t")
         var result = try await call(method, params: params)
-        if result["ok"] == nil { result["ok"] = true }
+        if result["ok"] == nil {
+            result["ok"] = true
+        }
         return (result, nil)
     }
 
@@ -217,7 +237,7 @@ final class VPhoneGuestControl {
     }
 
     func downloadFile(path: String) async throws -> Data {
-        let response = try await http(method: "GET", path: try filePath(path))
+        let response = try await http(method: "GET", path: filePath(path))
         guard response.status == 200 else { throw try httpError(response) }
         return response.body
     }
@@ -225,9 +245,9 @@ final class VPhoneGuestControl {
     func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
         let response = try await http(
             method: "PUT",
-            path: try filePath(path, mode: permissions),
+            path: filePath(path, mode: permissions),
             body: data,
-            contentType: "application/octet-stream"
+            contentType: "application/octet-stream",
         )
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -261,7 +281,7 @@ final class VPhoneGuestControl {
             types: info["types"] as? [String] ?? [],
             hasImage: info["has_image"] as? Bool ?? false,
             changeCount: info["change_count"] as? Int ?? 0,
-            imageData: image
+            imageData: image,
         )
     }
 
@@ -274,7 +294,7 @@ final class VPhoneGuestControl {
             method: "PUT",
             path: "/v1/clipboard/image",
             body: imageData,
-            contentType: "application/octet-stream"
+            contentType: "application/octet-stream",
         )
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -286,7 +306,7 @@ final class VPhoneGuestControl {
         horizontalAccuracy: Double,
         verticalAccuracy: Double,
         speed: Double,
-        course: Double
+        course: Double,
     ) {
         Task {
             do { _ = try await call("location.set", params: [
@@ -299,7 +319,8 @@ final class VPhoneGuestControl {
 
     func sendLocationStop() {
         Task { do { _ = try await call("location.clear") }
-               catch { print("[control] location clear: \(error)") } }
+            catch { print("[control] location clear: \(error)") }
+        }
     }
 
     private func filePath(_ guestPath: String, mode: String? = nil) throws -> String {
@@ -309,7 +330,9 @@ final class VPhoneGuestControl {
         var components = URLComponents()
         components.path = "/v1/files/content"
         components.queryItems = [URLQueryItem(name: "path", value: guestPath)]
-        if let mode { components.queryItems?.append(URLQueryItem(name: "mode", value: mode)) }
+        if let mode {
+            components.queryItems?.append(URLQueryItem(name: "mode", value: mode))
+        }
         return components.string ?? ""
     }
 
@@ -323,7 +346,7 @@ final class VPhoneGuestControl {
         method: String,
         path: String,
         body: Data = Data(),
-        contentType: String = "application/json"
+        contentType: String = "application/json",
     ) async throws -> VPhoneHTTPResponse {
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
@@ -336,11 +359,11 @@ final class VPhoneGuestControl {
             method: method,
             path: path,
             body: body,
-            contentType: contentType
+            contentType: contentType,
         )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                do { continuation.resume(returning: try transaction.run()) }
+                do { try continuation.resume(returning: transaction.run()) }
                 catch { continuation.resume(throwing: error) }
             }
         }
@@ -354,7 +377,9 @@ private struct VPhoneHTTPResponse: Sendable {
 
 private struct VPhoneSocketResult: @unchecked Sendable {
     let result: Result<VZVirtioSocketConnection, any Error>
-    init(_ result: Result<VZVirtioSocketConnection, any Error>) { self.result = result }
+    init(_ result: Result<VZVirtioSocketConnection, any Error>) {
+        self.result = result
+    }
 }
 
 private final class VPhoneHTTPTransaction: @unchecked Sendable {
@@ -369,7 +394,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         method: String,
         path: String,
         body: Data,
-        contentType: String
+        contentType: String,
     ) {
         self.connection = connection
         self.method = method
@@ -386,13 +411,16 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         var timeout = timeval(tv_sec: 120, tv_usec: 0)
         guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
                          socklen_t(MemoryLayout<timeval>.size)) == 0,
-              setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-                         socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                       socklen_t(MemoryLayout<timeval>.size)) == 0
+        else {
             throw VPhoneGuestControl.ControlError.notConnected
         }
         let headers = "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
         try write(fd, data: Data(headers.utf8))
-        if !body.isEmpty { try write(fd, data: body) }
+        if !body.isEmpty {
+            try write(fd, data: body)
+        }
 
         var received = Data()
         let marker = Data("\r\n\r\n".utf8)
@@ -410,11 +438,14 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         }
         guard let lengthLine = lines.first(where: { $0.lowercased().hasPrefix("content-length:") }),
               let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
-              length >= 0, length <= 2_147_483_647 else {
+              length >= 0, length <= 2_147_483_647
+        else {
             throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
         }
         var payload = Data(received[boundary.upperBound...])
-        while payload.count < length { try readMore(fd, into: &payload) }
+        while payload.count < length {
+            try readMore(fd, into: &payload)
+        }
         guard payload.count == length else {
             throw VPhoneGuestControl.ControlError.protocolError("HTTP body length mismatch")
         }
@@ -427,8 +458,12 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             var offset = 0
             while offset < bytes.count {
                 let sent = Darwin.write(fd, base + offset, bytes.count - offset)
-                if sent < 0 && errno == EINTR { continue }
-                if sent <= 0 { throw VPhoneGuestControl.ControlError.notConnected }
+                if sent < 0, errno == EINTR {
+                    continue
+                }
+                if sent <= 0 {
+                    throw VPhoneGuestControl.ControlError.notConnected
+                }
                 offset += sent
             }
         }
@@ -437,8 +472,12 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     private func readMore(_ fd: Int32, into data: inout Data) throws {
         var bytes = [UInt8](repeating: 0, count: 32 * 1024)
         var count = 0
-        repeat { count = Darwin.read(fd, &bytes, bytes.count) } while count < 0 && errno == EINTR
-        guard count > 0 else { throw VPhoneGuestControl.ControlError.notConnected }
+        repeat {
+            count = Darwin.read(fd, &bytes, bytes.count)
+        } while count < 0 && errno == EINTR
+        guard count > 0 else {
+            throw VPhoneGuestControl.ControlError.notConnected
+        }
         data.append(contentsOf: bytes[..<count])
     }
 }

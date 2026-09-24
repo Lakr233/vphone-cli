@@ -59,187 +59,187 @@ private enum FrozenReference {
             publicName: "_IOMobileFramebufferSwapBegin",
             publicAddress: 0x2_2AC0_C1B0,
             kernName: "_kern_SwapBegin",
-            kernAddress: 0x2_2AC0_C1CC
+            kernAddress: 0x2_2AC0_C1CC,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapCancel",
             publicAddress: 0x2_2AC1_23C8,
             kernName: "_kern_SwapCancel",
-            kernAddress: 0x2_2AC3_D4AC
+            kernAddress: 0x2_2AC3_D4AC,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapCancelAll",
             publicAddress: 0x2_2AC1_24F4,
             kernName: "_kern_SwapCancelAll",
-            kernAddress: 0x2_2AC1_2510
+            kernAddress: 0x2_2AC1_2510,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapCancelAllGetCurrent",
             publicAddress: 0x2_2AC1_2468,
             kernName: "_kern_SwapCancelAllGetCurrent",
-            kernAddress: 0x2_2AC1_2484
+            kernAddress: 0x2_2AC1_2484,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapDebugInfo",
             publicAddress: 0x2_2AC0_C734,
             kernName: "_kern_SwapDebugInfo",
-            kernAddress: 0x2_2AC0_C328
+            kernAddress: 0x2_2AC0_C328,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapEnd",
             publicAddress: 0x2_2AC0_C750,
             kernName: "_kern_SwapEnd",
-            kernAddress: 0x2_2AC0_C334
+            kernAddress: 0x2_2AC0_C334,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapGetCurrent",
             publicAddress: 0x2_2AC3_A85C,
             kernName: "_kern_SwapGetCurrent",
-            kernAddress: 0x2_2AC3_D518
+            kernAddress: 0x2_2AC3_D518,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSecureLayer",
             publicAddress: 0x2_2AC3_A528,
             kernName: "_kern_SwapSecureLayer",
-            kernAddress: 0x2_2AC3_CB9C
+            kernAddress: 0x2_2AC3_CB9C,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetAmbientLux",
             publicAddress: 0x2_2AC0_D0F4,
             kernName: "_kern_SwapSetAmbientLux",
-            kernAddress: 0x2_2AC0_D110
+            kernAddress: 0x2_2AC0_D110,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetBrightness",
             publicAddress: 0x2_2AC0_D214,
             kernName: "_kern_SwapSetBrightness",
-            kernAddress: 0x2_2AC0_D230
+            kernAddress: 0x2_2AC0_D230,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetBrightnessLimit",
             publicAddress: 0x2_2AC1_25B0,
             kernName: "_kern_SwapSetBrightnessLimit",
-            kernAddress: 0x2_2AC1_25CC
+            kernAddress: 0x2_2AC1_25CC,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetColorMatrix",
             publicAddress: 0x2_2AC3_A800,
             kernName: "_kern_SwapSetColorMatrix",
-            kernAddress: 0x2_2AC3_D2E0
+            kernAddress: 0x2_2AC3_D2E0,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetDisplayEdr",
             publicAddress: 0x2_2AC1_2634,
             kernName: "_kern_SwapSetDisplayEdr",
-            kernAddress: 0x2_2AC1_2650
+            kernAddress: 0x2_2AC1_2650,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetDisplayEdrHeadroom",
             publicAddress: 0x2_2AC1_278C,
             kernName: "_kern_SwapSetDisplayEdrHeadroom",
-            kernAddress: 0x2_2AC1_2724
+            kernAddress: 0x2_2AC1_2724,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetEventSignal",
             publicAddress: 0x2_2AC0_BE50,
             kernName: "_kern_SwapSetEventSignal",
-            kernAddress: 0x2_2AC0_CEBC
+            kernAddress: 0x2_2AC0_CEBC,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetEventSignalOnGlass",
             publicAddress: 0x2_2AC3_A560,
             kernName: "_kern_SwapSetEventSignalOnGlass",
-            kernAddress: 0x2_2AC3_CDB0
+            kernAddress: 0x2_2AC3_CDB0,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetEventWait",
             publicAddress: 0x2_2AC0_BE6C,
             kernName: "_kern_SwapSetEventWait",
-            kernAddress: 0x2_2AC0_BF58
+            kernAddress: 0x2_2AC0_BF58,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetIndicatorBrightnessLimit",
             publicAddress: 0x2_2AC1_2594,
             kernName: "_kern_SwapSetIndicatorBrightnessLimit",
-            kernAddress: 0x2_2AC1_26B8
+            kernAddress: 0x2_2AC1_26B8,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetLFCTimestamps",
             publicAddress: 0x2_2AC3_A7AC,
             kernName: "_kern_SwapSetLFCTimestamps",
-            kernAddress: 0x2_2AC3_DA6C
+            kernAddress: 0x2_2AC3_DA6C,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetLayer",
             publicAddress: 0x2_2AC0_CEA0,
             kernName: "_kern_SwapSetLayer",
-            kernAddress: 0x2_2AC0_C8F4
+            kernAddress: 0x2_2AC0_C8F4,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetLayerEDRCompensation",
             publicAddress: 0x2_2AC0_C194,
             kernName: "_kern_SwapSetLayerEDRCompensation",
-            kernAddress: 0x2_2AC0_BE88
+            kernAddress: 0x2_2AC0_BE88,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetPostBlendLayer",
             publicAddress: 0x2_2AC3_A544,
             kernName: "_kern_SwapSetPostBlendLayer",
-            kernAddress: 0x2_2AC3_CC3C
+            kernAddress: 0x2_2AC3_CC3C,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetPostBlendLayerEventSignal",
             publicAddress: 0x2_2AC3_A5B4,
             kernName: "_kern_SwapSetPostBlendLayerEventSignal",
-            kernAddress: 0x2_2AC3_CE98
+            kernAddress: 0x2_2AC3_CE98,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetPostBlendLayerEventSignalOnGlass",
             publicAddress: 0x2_2AC3_A598,
             kernName: "_kern_SwapSetPostBlendLayerEventSignalOnGlass",
-            kernAddress: 0x2_2AC3_CE58
+            kernAddress: 0x2_2AC3_CE58,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetPostBlendLayerEventWait",
             publicAddress: 0x2_2AC3_A57C,
             kernName: "_kern_SwapSetPostBlendLayerEventWait",
-            kernAddress: 0x2_2AC3_CDE8
+            kernAddress: 0x2_2AC3_CDE8,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetPulseWidthMaximization",
             publicAddress: 0x2_2AC4_1AC0,
             kernName: "_kern_SwapSetPulseWidthMaximization",
-            kernAddress: 0x2_2AC3_D1F4
+            kernAddress: 0x2_2AC3_D1F4,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetResTransitionStrength",
             publicAddress: 0x2_2AC4_1ADC,
             kernName: "_kern_SwapSetResTransitionStrength",
-            kernAddress: 0x2_2AC3_D238
+            kernAddress: 0x2_2AC3_D238,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSetSecureAnimation",
             publicAddress: 0x2_2AC0_F354,
             kernName: "_kern_SwapSetSecureAnimation",
-            kernAddress: 0x2_2AC0_F370
+            kernAddress: 0x2_2AC0_F370,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapSubtitleRegion",
             publicAddress: 0x2_2AC3_A720,
             kernName: "_kern_SwapSubtitleRegion",
-            kernAddress: 0x2_2AC3_CF08
+            kernAddress: 0x2_2AC3_CF08,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapWait",
             publicAddress: 0x2_2AC0_C298,
             kernName: "_kern_SwapWait",
-            kernAddress: 0x2_2AC0_C2B4
+            kernAddress: 0x2_2AC0_C2B4,
         ),
         Pair(
             publicName: "_IOMobileFramebufferSwapWaitWithTimeout",
             publicAddress: 0x2_2AC3_A840,
             kernName: "_kern_SwapWaitWithTimeout",
-            kernAddress: 0x2_2AC3_D420
+            kernAddress: 0x2_2AC3_D420,
         ),
     ]
 

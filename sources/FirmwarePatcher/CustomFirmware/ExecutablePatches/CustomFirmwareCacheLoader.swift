@@ -1,4 +1,4 @@
-// CustomFirmwareCacheloader.swift — open launchd_cache_loader's unsecure-cache gate.
+// CustomFirmwareCacheLoader.swift — open launchd_cache_loader's unsecure-cache gate.
 //
 // Swift port of `scripts/patchers/cfw_patch_cache_loader.py`, driven today by
 // `cfw.py patch-launchd-cache-loader <binary>`.

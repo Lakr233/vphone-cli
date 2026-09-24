@@ -31,7 +31,7 @@ let package = Package(
                 .linkedFramework("Foundation"),
                 .linkedFramework("Security"),
                 .linkedFramework("CoreServices"),
-            ]
+            ],
         ),
         .executableTarget(
             name: "vphoned",
@@ -44,7 +44,7 @@ let package = Package(
                 .product(name: "NIOWebSocket", package: "swift-nio"),
             ],
             path: "Daemon",
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])]
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])],
         ),
-    ]
+    ],
 )

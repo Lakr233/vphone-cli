@@ -1,4 +1,4 @@
-// CustomFirmwareWatchdogd.swift — force watchdogd's cached "am I a VM?" byte to 1.
+// CustomFirmwareWatchDog.swift — force watchdogd's cached "am I a VM?" byte to 1.
 //
 // Port of `scripts/patchers/cfw_patch_watchdogd.py` (453 lines). EXP only.
 //

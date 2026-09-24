@@ -312,5 +312,4 @@ extension CustomFirmwareMobileActivation {
         }
         return nil
     }
-
 }

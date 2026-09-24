@@ -1,4 +1,4 @@
-// CustomFirmwareDiskimagesiodTests.swift — parity for the diskimagesiod DDI mount gate.
+// CustomFirmwareDiskImageTests.swift — parity for the diskimagesiod DDI mount gate.
 //
 // The patch is eight bytes over an ObjC method prologue, and a wrong eight
 // bytes is a daemon that crashes on first call rather than a failing

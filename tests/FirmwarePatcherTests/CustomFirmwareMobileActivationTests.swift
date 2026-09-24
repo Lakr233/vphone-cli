@@ -1,4 +1,4 @@
-// CustomFirmwareMobileactivationdTests.swift — `-[DeviceType should_hactivate]` -> YES.
+// CustomFirmwareMobileActivationTests.swift — `-[DeviceType should_hactivate]` -> YES.
 //
 // The bar here is not "the Swift patcher did something". It is that this port
 // and `scripts/patchers/cfw_patch_mobileactivationd.py` produce the same bytes

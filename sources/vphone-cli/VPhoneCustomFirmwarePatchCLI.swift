@@ -169,7 +169,7 @@ struct VPhoneCustomFirmwareInjectDylibCommand: ParsableCommand {
             dylibPath: dylibPath,
             into: binary,
             weak: true,
-            policy: .strip
+            policy: .strip,
         )
         for injection in injections {
             let stripped = injection.removedCodeSignature ? ", signature stripped" : ""

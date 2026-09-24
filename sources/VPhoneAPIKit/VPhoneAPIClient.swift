@@ -11,22 +11,29 @@ public indirect enum VPhoneJSONValue: Codable, Sendable, Equatable {
 
     public init(from decoder: any Decoder) throws {
         let value = try decoder.singleValueContainer()
-        if value.decodeNil() { self = .null }
-        else if let bool = try? value.decode(Bool.self) { self = .bool(bool) }
-        else if let number = try? value.decode(Double.self) { self = .number(number) }
-        else if let string = try? value.decode(String.self) { self = .string(string) }
-        else if let object = try? value.decode([String: VPhoneJSONValue].self) { self = .object(object) }
-        else { self = .array(try value.decode([VPhoneJSONValue].self)) }
+        if value.decodeNil() {
+            self = .null
+        } else if let bool = try? value.decode(Bool.self) {
+            self = .bool(bool)
+        } else if let number = try? value.decode(Double.self) {
+            self = .number(number)
+        } else if let string = try? value.decode(String.self) {
+            self = .string(string)
+        } else if let object = try? value.decode([String: VPhoneJSONValue].self) {
+            self = .object(object)
+        } else {
+            self = try .array(value.decode([VPhoneJSONValue].self))
+        }
     }
 
     public func encode(to encoder: any Encoder) throws {
         var value = encoder.singleValueContainer()
         switch self {
-        case .object(let object): try value.encode(object)
-        case .array(let array): try value.encode(array)
-        case .string(let string): try value.encode(string)
-        case .number(let number): try value.encode(number)
-        case .bool(let bool): try value.encode(bool)
+        case let .object(object): try value.encode(object)
+        case let .array(array): try value.encode(array)
+        case let .string(string): try value.encode(string)
+        case let .number(number): try value.encode(number)
+        case let .bool(bool): try value.encode(bool)
         case .null: try value.encodeNil()
         }
     }
@@ -35,7 +42,9 @@ public indirect enum VPhoneJSONValue: Codable, Sendable, Equatable {
 public struct VPhoneAPIError: Error, Codable, Sendable, CustomStringConvertible {
     public let code: String
     public let message: String
-    public var description: String { "\(code): \(message)" }
+    public var description: String {
+        "\(code): \(message)"
+    }
 }
 
 public struct VPhoneAPIResponse: Codable, Sendable {
@@ -70,7 +79,7 @@ public struct VPhoneAPIClient: Sendable {
     public func call(
         _ method: String,
         params: [String: VPhoneJSONValue] = [:],
-        id: VPhoneJSONValue = .string(UUID().uuidString)
+        id: VPhoneJSONValue = .string(UUID().uuidString),
     ) async throws -> VPhoneJSONValue {
         let request = Request(id: id, method: method, params: params)
         var http = URLRequest(url: baseURL.appending(path: "v1/rpc"))
@@ -83,8 +92,10 @@ public struct VPhoneAPIClient: Sendable {
             throw VPhoneAPIError(code: "transport", message: "No HTTP response")
         }
         let value = try JSONDecoder().decode(VPhoneAPIResponse.self, from: data)
-        if let error = value.error { throw error }
-        guard (200..<300).contains(response.statusCode), let result = value.result else {
+        if let error = value.error {
+            throw error
+        }
+        guard (200 ..< 300).contains(response.statusCode), let result = value.result else {
             throw VPhoneAPIError(code: "protocol", message: "Missing result (HTTP \(response.statusCode))")
         }
         return result
@@ -114,14 +125,18 @@ public struct VPhoneAPIClient: Sendable {
     public func runIcli(
         _ arguments: [String],
         stdin: String? = nil,
-        stdinData: Data? = nil
+        stdinData: Data? = nil,
     ) async throws -> VPhoneJSONValue {
         guard stdin == nil || stdinData == nil else {
             throw VPhoneAPIError(code: "input", message: "Pass either stdin or stdinData")
         }
         var params: [String: VPhoneJSONValue] = ["argv": .array(arguments.map(VPhoneJSONValue.string))]
-        if let stdin { params["stdin"] = .string(stdin) }
-        if let stdinData { params["stdin_base64"] = .string(stdinData.base64EncodedString()) }
+        if let stdin {
+            params["stdin"] = .string(stdin)
+        }
+        if let stdinData {
+            params["stdin_base64"] = .string(stdinData.base64EncodedString())
+        }
         return try await call("icli.execute", params: params)
     }
 
@@ -144,9 +159,9 @@ public struct VPhoneAPIClient: Sendable {
     public func uploadFile(
         from localURL: URL,
         toGuestPath guestPath: String,
-        permissions: String = "644"
+        permissions: String = "644",
     ) async throws -> VPhoneJSONValue {
-        var request = URLRequest(url: try fileURL(guestPath, mode: permissions))
+        var request = try URLRequest(url: fileURL(guestPath, mode: permissions))
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.upload(for: request, fromFile: localURL)
@@ -167,7 +182,9 @@ public struct VPhoneAPIClient: Sendable {
                                              resolvingAgainstBaseURL: false)
         else { throw VPhoneAPIError(code: "path", message: "Guest path must be absolute") }
         components.queryItems = [URLQueryItem(name: "path", value: guestPath)]
-        if let mode { components.queryItems?.append(URLQueryItem(name: "mode", value: mode)) }
+        if let mode {
+            components.queryItems?.append(URLQueryItem(name: "mode", value: mode))
+        }
         guard let url = components.url else { throw VPhoneAPIError(code: "url", message: "Invalid file URL") }
         return url
     }
@@ -182,12 +199,14 @@ public struct VPhoneAPIClient: Sendable {
 public actor VPhoneAPIWebSocket {
     private let task: URLSessionWebSocketTask
 
-    init(task: URLSessionWebSocketTask) { self.task = task }
+    init(task: URLSessionWebSocketTask) {
+        self.task = task
+    }
 
     public func send(
         _ method: String,
         params: [String: VPhoneJSONValue] = [:],
-        id: VPhoneJSONValue = .string(UUID().uuidString)
+        id: VPhoneJSONValue = .string(UUID().uuidString),
     ) async throws {
         let object: [String: VPhoneJSONValue] = [
             "id": id, "method": .string(method), "params": .object(params),
@@ -200,16 +219,16 @@ public actor VPhoneAPIWebSocket {
         let message = try await task.receive()
         let data: Data
         switch message {
-        case .data(let bytes): data = bytes
-        case .string(let text): data = Data(text.utf8)
+        case let .data(bytes): data = bytes
+        case let .string(text): data = Data(text.utf8)
         @unknown default: throw VPhoneAPIError(code: "protocol", message: "Unknown WebSocket message")
         }
         let object = try JSONDecoder().decode([String: VPhoneJSONValue].self, from: data)
         switch object["type"] {
         case .string("response"):
-            return .response(try JSONDecoder().decode(VPhoneAPIResponse.self, from: data))
+            return try .response(JSONDecoder().decode(VPhoneAPIResponse.self, from: data))
         case .string("event"):
-            return .event(try JSONDecoder().decode(VPhoneAPIEvent.self, from: data))
+            return try .event(JSONDecoder().decode(VPhoneAPIEvent.self, from: data))
         default:
             throw VPhoneAPIError(code: "protocol", message: "Unknown WebSocket envelope")
         }

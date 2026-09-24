@@ -187,7 +187,7 @@ struct CustomFirmwareDaemonsTests {
         #expect(!strings.contains("-R"))
         #expect(
             Array(strings.suffix(CustomFirmwareDaemons.dropbearKeyArguments.count))
-                == CustomFirmwareDaemons.dropbearKeyArguments
+                == CustomFirmwareDaemons.dropbearKeyArguments,
         )
     }
 

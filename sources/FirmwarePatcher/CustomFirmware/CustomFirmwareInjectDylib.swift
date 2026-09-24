@@ -320,7 +320,8 @@ public enum CustomFirmwareInjectDylib {
             )
         }
         if !options.allowNonEmptyPadding,
-           data[commandOffset ..< commandOffset + commandSize].contains(where: { $0 != 0 }) {
+           data[commandOffset ..< commandOffset + commandSize].contains(where: { $0 != 0 })
+        {
             // insert_dylib --all-yes overwrites here. Refusing is the whole
             // reason this is a Swift port: the bytes past the load commands are
             // the first section, and clobbering them is silent.

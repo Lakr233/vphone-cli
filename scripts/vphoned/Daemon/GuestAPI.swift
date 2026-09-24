@@ -1,6 +1,6 @@
-import Foundation
 import CryptoKit
 import Darwin
+import Foundation
 import IcliKit
 import VphonedNative
 
@@ -11,8 +11,8 @@ enum GuestAPIError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .invalidRequest(let message), .operationFailed(let message): message
-        case .unsupportedMethod(let method): "Unknown method: \(method)"
+        case let .invalidRequest(message), let .operationFailed(message): message
+        case let .unsupportedMethod(method): "Unknown method: \(method)"
         }
     }
 }
@@ -57,8 +57,8 @@ enum GuestAPI {
                 "keychain",
                 "ipa_install",
                 "camera",
-                "icli"
-            ]
+                "icli",
+            ],
         ]
     }
 
@@ -85,9 +85,15 @@ enum GuestAPI {
                 let path = app["bundle_path"] as? String ?? ""
                 let type = app["type"] as? String
                     ?? (path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user")
-                if filter == "running" && pid == 0 { return nil }
-                if filter == "user" && type != "user" { return nil }
-                if filter == "system" && type != "system" { return nil }
+                if filter == "running" && pid == 0 {
+                    return nil
+                }
+                if filter == "user" && type != "user" {
+                    return nil
+                }
+                if filter == "system" && type != "system" {
+                    return nil
+                }
                 info["pid"] = pid
                 info["type"] = type
                 info["state"] = pid > 0 ? "running" : "not_running"
@@ -96,15 +102,18 @@ enum GuestAPI {
                 return info
             }]
         case "apps.search":
-            return try searchApps(try string(params, "query"))
+            return try searchApps(string(params, "query"))
         case "apps.launch":
             let id = try string(params, "bundle_id")
-            if let url = params["url"] as? String { _ = try openAppURL(url, bundleID: id) }
-            else { _ = try launchApp(id) }
+            if let url = params["url"] as? String {
+                _ = try openAppURL(url, bundleID: id)
+            } else {
+                _ = try launchApp(id)
+            }
             let running = try? runningApps()["apps"] as? [[String: Any]]
             return ["pid": running?.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0]
         case "apps.terminate":
-            return try killApp(try string(params, "bundle_id"), force: true)
+            return try killApp(string(params, "bundle_id"), force: true)
         case "apps.foreground":
             let front = frontmostApp()
             let id = front["bundle_id"] as? String ?? ""
@@ -113,14 +122,14 @@ enum GuestAPI {
             return [
                 "bundle_id": id,
                 "name": apps.first?["name"] ?? "",
-                "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0
+                "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0,
             ]
         case "apps.open_url":
-            return try openAppURL(try string(params, "url"), bundleID: params["bundle_id"] as? String)
+            return try openAppURL(string(params, "url"), bundleID: params["bundle_id"] as? String)
         case "apps.install":
             return try native([
                 "t": "ipa_install",
-                "path": try string(params, "path"),
+                "path": string(params, "path"),
                 "registration": params["registration"] as? String ?? "User",
                 "cert_path": params["cert_path"] as? String ?? "",
             ])
@@ -145,7 +154,7 @@ enum GuestAPI {
                 horizontalAccuracy: number(params, "horizontal_accuracy", default: 5),
                 verticalAccuracy: number(params, "vertical_accuracy", default: 5),
                 speed: (params["speed"] as? NSNumber)?.doubleValue,
-                course: (params["course"] as? NSNumber)?.doubleValue
+                course: (params["course"] as? NSNumber)?.doubleValue,
             )
         case "location.clear":
             return try clearSimulatedLocation()
@@ -163,32 +172,33 @@ enum GuestAPI {
         case "clipboard.get":
             return try clipboardInfo()
         case "clipboard.set":
-            return try setClipboard(try string(params, "text"))
+            return try setClipboard(string(params, "text"))
         case "files.list":
-            return try fileList(try string(params, "path"))
+            return try fileList(string(params, "path"))
         case "files.mkdir":
-            return try makeDirectory(try string(params, "path"), mode: nil)
+            return try makeDirectory(string(params, "path"), mode: nil)
         case "files.remove":
-            return try removePath(try string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
+            return try removePath(string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
                                   force: true)
         case "files.rename":
-            return try movePath(try string(params, "from"), to: try string(params, "to"))
+            return try movePath(string(params, "from"), to: string(params, "to"))
         case "settings.get":
-            return try readPreference(domain: try string(params, "domain"), key: params["key"] as? String)
+            return try readPreference(domain: string(params, "domain"), key: params["key"] as? String)
         case "settings.set":
             let rawValue = params["value"] ?? NSNull()
             let type = params["type"] as? String
                 ?? (rawValue is Bool ? "bool"
                     : rawValue is NSNumber ? "float"
                     : rawValue is String ? "string" : "json")
-            let text: String
-            if type == "json" {
-                text = String(data: try JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
-            } else { text = String(describing: rawValue) }
+            let text: String = if type == "json" {
+                try String(data: JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
+            } else {
+                String(describing: rawValue)
+            }
             return try writePreference(
-                domain: try string(params, "domain"),
-                key: try string(params, "key"),
-                value: PreferenceValue(text: text, type: type)
+                domain: string(params, "domain"),
+                key: string(params, "key"),
+                value: PreferenceValue(text: text, type: type),
             )
         case "accessibility.tree":
             throw GuestAPIError.operationFailed("The accessibility tree is not available on this guest yet.")
@@ -197,9 +207,9 @@ enum GuestAPI {
         case "keychain.add":
             return try native([
                 "t": "keychain_add",
-                "account": try string(params, "account"),
-                "service": try string(params, "service"),
-                "password": try string(params, "password"),
+                "account": string(params, "account"),
+                "service": string(params, "service"),
+                "password": string(params, "password"),
             ])
         case "agent.apply_update":
             let expected = try string(params, "sha256")
@@ -214,7 +224,7 @@ enum GuestAPI {
             guard rename(next, cache) == 0 else { throw GuestAPIError.operationFailed("Could not install update") }
             try Data(expected.utf8).write(
                 to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v2"),
-                options: .atomic
+                options: .atomic,
             )
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]

@@ -205,9 +205,9 @@ extension KernelPatcher {
 
         guard let plist = try? PropertyListSerialization.propertyList(
             from: Data(xmlData),
-            format: nil
+            format: nil,
         ) as? [String: Any],
-              let items = plist["_PrelinkInfoDictionary"] as? [[String: Any]]
+            let items = plist["_PrelinkInfoDictionary"] as? [[String: Any]]
         else {
             return nil
         }
@@ -222,7 +222,7 @@ extension KernelPatcher {
             // _PrelinkExecutableLoadAddr is the kext's load address
             guard let loadAddrRaw = item["_PrelinkExecutableLoadAddr"],
                   let loadAddrInt = (loadAddrRaw as? UInt64)
-                      ?? (loadAddrRaw as? Int).map({ UInt64(bitPattern: Int64($0)) })
+                  ?? (loadAddrRaw as? Int).map({ UInt64(bitPattern: Int64($0)) })
             else {
                 continue
             }

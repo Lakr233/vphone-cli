@@ -1,4 +1,4 @@
-// DyldSharedCacheHVVMMPatcherTests.swift — parity for the hv_vmm_present user-mode cstring
+// DyldSharedCacheHypervisorVirtualMachinePatcherTests.swift — parity for the hv_vmm_present user-mode cstring
 // mangle.
 //
 // There is no external oracle for this patch. `codesign -v` does not apply to a

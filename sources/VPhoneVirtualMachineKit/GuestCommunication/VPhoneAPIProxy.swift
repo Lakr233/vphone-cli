@@ -14,7 +14,7 @@ public final class VPhoneAPIProxy {
 
         public var description: String {
             switch self {
-            case .invalidListenAddress(let value):
+            case let .invalidListenAddress(value):
                 "Invalid API listen address '\(value)'; use host:port, for example 127.0.0.1:8765"
             }
         }
@@ -29,19 +29,19 @@ public final class VPhoneAPIProxy {
     public init(device: VZVirtioSocketDevice, listen: String) throws {
         guard let components = URLComponents(string: "tcp://\(listen)"),
               let host = components.host, !host.isEmpty,
-              let port = components.port, (0...65535).contains(port),
+              let port = components.port, (0 ... 65535).contains(port),
               components.path.isEmpty, components.query == nil, components.fragment == nil
         else { throw ProxyError.invalidListenAddress(listen) }
         self.host = host
         self.port = port
-        self.provider = GuestSocketProvider(device: device, group: group)
+        provider = GuestSocketProvider(device: device, group: group)
     }
 
     /// Starts only when the boot command explicitly supplied `--api-listen`.
     /// The returned URL contains the actual port when the caller requested 0.
     @discardableResult
     public func start() async throws -> URL {
-        let provider = self.provider
+        let provider = provider
         let channel = try await ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 128)
             .childChannelOption(ChannelOptions.autoRead, value: false)
@@ -61,7 +61,9 @@ public final class VPhoneAPIProxy {
         server?.close(promise: nil)
         server = nil
         group.shutdownGracefully { error in
-            if let error { print("[api] proxy shutdown: \(error)") }
+            if let error {
+                print("[api] proxy shutdown: \(error)")
+            }
         }
     }
 }
@@ -82,10 +84,10 @@ private final class GuestSocketProvider: @unchecked Sendable {
             device.connect(toPort: guestPort) { result in
                 Task { @MainActor in
                     switch result {
-                    case .failure(let error):
+                    case let .failure(error):
                         print("[api] guest connection failed: \(error)")
                         promise.fail(error)
-                    case .success(let connection):
+                    case let .success(connection):
                         let fd = dup(connection.fileDescriptor)
                         guard fd >= 0 else {
                             promise.fail(POSIXError(.EBADF))
@@ -105,7 +107,7 @@ private final class GuestSocketProvider: @unchecked Sendable {
                                 switch result {
                                 case .success:
                                     host.setOption(ChannelOptions.autoRead, value: true).cascade(to: promise)
-                                case .failure(let error):
+                                case let .failure(error):
                                     print("[api] guest relay failed: \(error)")
                                     promise.fail(error)
                                 }
@@ -141,9 +143,11 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    init(connection: VZVirtioSocketConnection) { self.connection = connection }
+    init(connection: VZVirtioSocketConnection) {
+        self.connection = connection
+    }
 
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+    func channelRead(context _: ChannelHandlerContext, data: NIOAny) {
         guard let peer else { return }
         peer.writeAndFlush(unwrapInboundIn(data), promise: nil)
     }
@@ -162,7 +166,7 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
         context.fireChannelInactive()
     }
 
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
+    func errorCaught(context: ChannelHandlerContext, error _: Error) {
         context.close(promise: nil)
     }
 }

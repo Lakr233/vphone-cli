@@ -344,14 +344,14 @@ struct VPhoneMachOImage {
               firstContent <= UInt64(codeEnd)
         else {
             throw VPhoneSignError.noRoom(
-                "content starts at \(firstContent), \(Self.headerSize + rebuilt) bytes of commands"
+                "content starts at \(firstContent), \(Self.headerSize + rebuilt) bytes of commands",
             )
         }
 
         var area = Data()
         for command in carried {
             var bytes = image.subdata(
-                in: Self.headerSize + command.offset ..< Self.headerSize + command.offset + command.size
+                in: Self.headerSize + command.offset ..< Self.headerSize + command.offset + command.size,
             )
             // ldid sets the size of every __LINKEDIT there is
             if command.command == UInt32(LC_SEGMENT_64), Self.name(in: bytes, at: 8) == Self.linkedit {

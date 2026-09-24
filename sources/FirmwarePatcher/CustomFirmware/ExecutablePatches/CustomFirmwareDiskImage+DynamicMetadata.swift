@@ -23,14 +23,14 @@ extension CustomFirmwareDiskImage {
             sections,
             "__DATA_CONST,__objc_selrefs",
             "__DATA,__objc_selrefs",
-            "__AUTH_CONST,__objc_selrefs"
+            "__AUTH_CONST,__objc_selrefs",
         ),
-           let selrefVA = selectorReferenceVA(
-               in: data,
-               selrefs: selrefsSection,
-               selectorVA: selectorVA,
-               imageBase: imageBase(sections),
-           )
+            let selrefVA = selectorReferenceVA(
+                in: data,
+                selrefs: selrefsSection,
+                selectorVA: selectorVA,
+                imageBase: imageBase(sections),
+            )
         {
             targets.insert(selrefVA)
         }
@@ -257,5 +257,4 @@ extension CustomFirmwareDiskImage {
         let impRelative = Int32(bitPattern: data.loadLE(UInt32.self, at: impFieldOffset))
         return UInt64(bitPattern: Int64(bitPattern: impFieldVA) &+ Int64(impRelative))
     }
-
 }

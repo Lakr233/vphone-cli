@@ -65,37 +65,37 @@ private enum FrozenReference {
             symbol: "+[_NUStyleTransferApplyProcessor processWithInputs:arguments:output:error:]",
             vma: 0x1_BF43_0C04,
             before: "7f2303d5ef3bb66d",
-            after: "00008052c0035fd6"
+            after: "00008052c0035fd6",
         ),
         Site(
             symbol: "+[_NUStyleTransferInterpolateProcessor processWithInputs:arguments:output:error:]",
             vma: 0x1_BF43_A3A8,
             before: "7f2303d5ff0303d1",
-            after: "00008052c0035fd6"
+            after: "00008052c0035fd6",
         ),
         Site(
             symbol: "+[_NUStyleTransferLearnProcessor processWithInputs:arguments:output:error:]",
             vma: 0x1_BF42_EC54,
             before: "7f2303d5ff0304d1",
-            after: "00008052c0035fd6"
+            after: "00008052c0035fd6",
         ),
         Site(
             symbol: "+[_NUStyleTransferProcessor processWithInputs:arguments:output:error:]",
             vma: 0x1_BF43_3BD0,
             before: "7f2303d5ffc306d1",
-            after: "00008052c0035fd6"
+            after: "00008052c0035fd6",
         ),
         Site(
             symbol: "+[_NUStyleTransferThumbnailProcessor processWithInputs:arguments:output:error:]",
             vma: 0x1_BF43_5DB4,
             before: "7f2303d5ff8303d1",
-            after: "00008052c0035fd6"
+            after: "00008052c0035fd6",
         ),
         Site(
             symbol: "+[AVCaptureDevice authorizationStatusForMediaType:]",
             vma: 0x1_AD8A_12D8,
             before: "7f2303d5ffc301d1",
-            after: "60008052c0035fd6"
+            after: "60008052c0035fd6",
         ),
     ]
 
@@ -476,7 +476,7 @@ struct DyldSharedCacheCameraPatcherBehaviourTests {
 
         let second = try DyldSharedCacheCameraPatcher.applyAll(chunksDirectory: clone, log: nil)
         #expect(second.siteCount == 6)
-        let allAlreadyPatched = second.sites.allSatisfy { $0.wasAlreadyPatched }
+        let allAlreadyPatched = second.sites.allSatisfy(\.wasAlreadyPatched)
         #expect(allAlreadyPatched, "a re-run did not recognise its own output")
         #expect(second.reattestation?.updated.isEmpty == true, "a re-run rewrote slot hashes")
         #expect(second.isComplete)

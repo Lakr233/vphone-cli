@@ -219,7 +219,8 @@ struct VPhoneSignEntitlements: Equatable {
             out += "<dict>\n".utf8
             for entry in sorted
                 ? entries.sorted(by: { $0.key.utf16.lexicographicallyPrecedes($1.key.utf16) })
-                : entries {
+                : entries
+            {
                 out += indent + [0x09]
                 text("key", entry.key)
                 write(entry.value, depth: depth + 1, sorted: sorted, into: &out)

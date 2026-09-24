@@ -29,7 +29,7 @@ enum APIWire {
             throw GuestAPIError.invalidRequest("Expected {method, params?, id?}")
         }
         let id = object["id"]
-        if let id, !(id is String) && !(id is NSNumber) {
+        if let id, !(id is String), !(id is NSNumber) {
             throw GuestAPIError.invalidRequest("id must be a string or number")
         }
         return APIRequest(method: method, params: object["params"] as? [String: Any] ?? [:], id: id)

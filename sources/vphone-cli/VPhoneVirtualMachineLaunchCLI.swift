@@ -5,7 +5,7 @@ import VPhoneCore
 struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "launch",
-        abstract: "Boot a VM bundle (runs host preflight first)"
+        abstract: "Boot a VM bundle (runs host preflight first)",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -65,7 +65,7 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
         // `vm launch` always streams the guest serial console (inherits our
         // stdio); it is intentionally not gated on verbosity. run() also hands
         // the terminal to the child, which is what lets Ctrl-C reach the guest.
-        throw ExitCode(try launcher.run(args, cwd: bundle.url))
+        throw try ExitCode(launcher.run(args, cwd: bundle.url))
     }
 }
 
@@ -74,7 +74,7 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
 struct VPhoneVirtualMachineStopCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "stop",
-        abstract: "Stop a running VM bundle"
+        abstract: "Stop a running VM bundle",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -89,7 +89,7 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
         func runningPIDs() -> [Int32] {
             guard let r = try? VPhoneProcessRunner.runCapturing(
                 URL(fileURLWithPath: "/usr/sbin/lsof"),
-                ["-t", "--", disk.path]
+                ["-t", "--", disk.path],
             ) else { return [] }
             return VPhoneLsof.parsePIDs(r.stdout)
         }
@@ -98,7 +98,9 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
         guard !pids.isEmpty else { print("\(name): not running"); return }
 
         print("\(name): sending SIGINT to \(pids.map(String.init).joined(separator: ", "))")
-        for pid in pids { kill(pid, SIGINT) }
+        for pid in pids {
+            kill(pid, SIGINT)
+        }
 
         var waited = 0
         while waited < timeout, !runningPIDs().isEmpty {
@@ -108,7 +110,9 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
         let survivors = runningPIDs()
         if !survivors.isEmpty {
             print("\(name): force-killing \(survivors.map(String.init).joined(separator: ", "))")
-            for pid in survivors { kill(pid, SIGKILL) }
+            for pid in survivors {
+                kill(pid, SIGKILL)
+            }
         }
         print("\(name): stopped")
     }

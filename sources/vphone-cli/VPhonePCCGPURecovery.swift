@@ -58,7 +58,8 @@ enum VPhonePCCGPURecovery {
         var ecid: UInt64?
         while Date() < deadline {
             if let value = VPhoneRestoreOperations.resolveECID(explicit: nil, bundle: vm),
-               let parsed = try VPhoneRestoreIdentity.parseECID(value) {
+               let parsed = try VPhoneRestoreIdentity.parseECID(value)
+            {
                 ecid = parsed
                 break
             }

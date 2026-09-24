@@ -1,4 +1,4 @@
-// CustomFirmwareMobileactivationd.swift — force `-[DeviceType should_hactivate]` to YES.
+// CustomFirmwareMobileActivation.swift — force `-[DeviceType should_hactivate]` to YES.
 //
 // Swift port of `scripts/patchers/cfw_patch_mobileactivationd.py`, driven by
 // `cfw.py patch-mobileactivationd <binary>` from `cfw_install{,_dev}.sh` and
