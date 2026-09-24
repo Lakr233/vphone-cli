@@ -75,6 +75,7 @@ public struct VPhoneAPIClient: Sendable {
         let request = Request(id: id, method: method, params: params)
         var http = URLRequest(url: baseURL.appending(path: "v1/rpc"))
         http.httpMethod = "POST"
+        http.timeoutInterval = 130
         http.setValue("application/json", forHTTPHeaderField: "Content-Type")
         http.httpBody = try JSONEncoder().encode(request)
         let (data, response) = try await session.data(for: http)
@@ -110,9 +111,14 @@ public struct VPhoneAPIClient: Sendable {
     /// Runs any icli subcommand inside the guest. Arguments are passed as an
     /// array to the pinned icli executable, without a shell. The result holds
     /// its exit code, decoded JSON output (or text), and stderr.
-    public func runIcli(_ arguments: [String], stdin: String? = nil) async throws -> VPhoneJSONValue {
+    public func runIcli(_ arguments: [String], stdin: String? = nil,
+                        stdinData: Data? = nil) async throws -> VPhoneJSONValue {
+        guard stdin == nil || stdinData == nil else {
+            throw VPhoneAPIError(code: "input", message: "Pass either stdin or stdinData")
+        }
         var params: [String: VPhoneJSONValue] = ["argv": .array(arguments.map(VPhoneJSONValue.string))]
         if let stdin { params["stdin"] = .string(stdin) }
+        if let stdinData { params["stdin_base64"] = .string(stdinData.base64EncodedString()) }
         return try await call("icli.execute", params: params)
     }
 
@@ -132,8 +138,9 @@ public struct VPhoneAPIClient: Sendable {
 
     /// Sends a host file to an absolute guest path without loading it into
     /// memory. The guest stages it beside the destination and renames it.
-    public func uploadFile(from localURL: URL, toGuestPath guestPath: String) async throws -> VPhoneJSONValue {
-        var request = URLRequest(url: try fileURL(guestPath))
+    public func uploadFile(from localURL: URL, toGuestPath guestPath: String,
+                           permissions: String = "644") async throws -> VPhoneJSONValue {
+        var request = URLRequest(url: try fileURL(guestPath, mode: permissions))
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.upload(for: request, fromFile: localURL)
@@ -148,12 +155,13 @@ public struct VPhoneAPIClient: Sendable {
         return result
     }
 
-    private func fileURL(_ guestPath: String) throws -> URL {
+    private func fileURL(_ guestPath: String, mode: String? = nil) throws -> URL {
         guard guestPath.hasPrefix("/"), !guestPath.contains("\0"),
               var components = URLComponents(url: baseURL.appending(path: "v1/files/content"),
                                              resolvingAgainstBaseURL: false)
         else { throw VPhoneAPIError(code: "path", message: "Guest path must be absolute") }
         components.queryItems = [URLQueryItem(name: "path", value: guestPath)]
+        if let mode { components.queryItems?.append(URLQueryItem(name: "mode", value: mode)) }
         guard let url = components.url else { throw VPhoneAPIError(code: "url", message: "Invalid file URL") }
         return url
     }

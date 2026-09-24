@@ -40,6 +40,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                             ? "/var/root/Library/Caches/vphoned-clipboard-image" : GuestFileTransfer.path(from: request.uri),
                         fileIO: fileIO,
                         channel: context.channel,
+                        mode: try Self.uploadMode(from: request.uri),
                         onCommit: requestPath == "/v1/clipboard/image" ? { path in
                             _ = try setClipboardImage(Data(contentsOf: URL(fileURLWithPath: path)))
                             unlink(path)
@@ -143,6 +144,18 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
         return object
     }
 
+    private static func uploadMode(from uri: String) throws -> mode_t {
+        let components = URLComponents(string: "http://vphoned\(uri)")
+        guard let value = components?.queryItems?.first(where: { $0.name == "mode" })?.value else {
+            return 0o644
+        }
+        guard !value.isEmpty, value.count <= 4,
+              value.utf8.allSatisfy({ (48...55).contains($0) }),
+              let mode = UInt16(value, radix: 8), mode <= 0o777
+        else { throw GuestAPIError.invalidRequest("mode must be an octal permission, up to 0777") }
+        return mode_t(mode)
+    }
+
     private static func route(_ verb: HTTPMethod, path: String) throws -> String {
         switch (verb, path) {
         case (.GET, "/v1/device"): "device.snapshot"
@@ -177,6 +190,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
 
     static func send(_ reply: APIReply, on channel: Channel, contentType: String = "application/json; charset=utf-8") {
         let write: @Sendable () -> Void = {
+            guard channel.isActive else { return }
             var headers = HTTPHeaders()
             headers.add(name: "Content-Type", value: contentType)
             headers.add(name: "Content-Length", value: String(reply.data.count))
@@ -191,6 +205,11 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
             }
         }
         if channel.eventLoop.inEventLoop { write() } else { channel.eventLoop.execute(write) }
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        upload = nil
+        context.fireChannelInactive()
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {

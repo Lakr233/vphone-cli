@@ -36,6 +36,10 @@ directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
 
+Upload accepts an optional octal `mode` query parameter (default `644`) and
+creates missing parent directories. Download follows file symlinks, matching
+the previous file browser behavior.
+
 `POST /v1/rpc` accepts `{ "id": "...", "method": "device.snapshot",
 "params": {} }`. JSON operations return
 `{ "type": "response", "id": "...", "result": { ... } }` or
@@ -62,10 +66,21 @@ This intentionally breaks compatibility with guests that still have the old
 daemon: install a guest image carrying this vphoned build before using the new
 host control client.
 
+## Connection failure behavior
+
+A dropped HTTP or WebSocket connection closes only that request channel. The
+guest launchd plist keeps vphoned alive and restarts it if the daemon itself
+exits. Host socket writes use `F_SETNOSIGPIPE`, so a guest disconnect becomes
+an ordinary error instead of terminating `vphone-vm`. The host HTTP client
+also times out stalled reads and writes. Camera frames use a duplicated
+descriptor for each in-flight send; the original descriptor remains owned by
+`VZVirtioSocketConnection` and is never manually closed. The optional TCP
+proxy uses NIO channels and closes the paired channel when either side ends.
+
 ## Usage
 
 ```sh
-vphone-cli boot --config /path/to/config.plist --api-listen 127.0.0.1:8765
+vphone-cli vm launch <name> --api-listen 127.0.0.1:8765
 curl http://127.0.0.1:8765/v1/health
 curl http://127.0.0.1:8765/openapi.json
 ```

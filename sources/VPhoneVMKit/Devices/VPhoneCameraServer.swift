@@ -41,6 +41,7 @@ final class VPhoneCameraServer {
     private var producer: VPhoneFrameProducer?
     private var timer: DispatchSourceTimer?
     private var connectionAttemptToken: UInt64 = 0
+    private var framePending = false
 
     private let sendQueue = DispatchQueue(
         label: "com.vphone.camera.send",
@@ -61,11 +62,11 @@ final class VPhoneCameraServer {
     }
 
     func disconnect() {
+        connectionAttemptToken &+= 1
         stopStreaming()
-        if connectionFD >= 0 {
-            close(connectionFD)
-            connectionFD = -1
-        }
+        connectionFD = -1
+        // Virtualization.framework owns this descriptor and closes it with
+        // the connection. Pending frame sends use their own dup.
         connection = nil
         if isConnected {
             isConnected = false
@@ -129,20 +130,27 @@ final class VPhoneCameraServer {
         t.setEventHandler { [weak self] in
             guard let self else { return }
             guard let producer = self.producer else { return }
-            let fd = self.connectionFD
-            guard fd >= 0 else { return }
+            guard !self.framePending, self.connectionFD >= 0 else { return }
+            let sourceFD = self.connectionFD
+            let fd = dup(sourceFD)
+            guard fd >= 0 else { self.handleDisconnect(); return }
+            guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1 else {
+                close(fd)
+                self.handleDisconnect()
+                return
+            }
+            self.framePending = true
+            let connectionToken = self.connectionAttemptToken
             let q = self.producerQueue
-            q.async {
-                guard let frame = producer.nextFrame() else { return }
-                let ok = Self.send(fd: fd, frame: frame)
-                if !ok {
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        // Avoid double-handling if a parallel write already
-                        // dropped the connection.
-                        if self.connectionFD == fd {
-                            self.handleDisconnect()
-                        }
+            q.async { [weak self] in
+                let frame = producer.nextFrame()
+                let ok = frame.map { Self.send(fd: fd, frame: $0) } ?? true
+                close(fd)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.framePending = false
+                    if !ok && self.connectionAttemptToken == connectionToken && self.connectionFD == sourceFD {
+                        self.handleDisconnect()
                     }
                 }
             }
@@ -164,14 +172,12 @@ final class VPhoneCameraServer {
     /// killing its server-side socket while the host is streaming.
     private func handleDisconnect() {
         print("[camera] disconnect detected, will reconnect")
-        let oldFD = connectionFD
         connectionFD = -1
         connection = nil
         if isConnected {
             isConnected = false
             onConnectionStateChange?(false)
         }
-        if oldFD >= 0 { close(oldFD) }
         // Note: streaming timer continues running but ticks no-op until
         // connectionFD becomes valid again.
         attemptConnect()

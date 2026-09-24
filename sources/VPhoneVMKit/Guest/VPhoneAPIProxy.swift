@@ -123,7 +123,21 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
     // Keeping this object alive also keeps Virtualization.framework's original
     // socket descriptor alive while NIO owns its duplicated descriptor.
     private let connection: VZVirtioSocketConnection
-    var peer: Channel?
+    private let lock = NSLock()
+    private var _peer: Channel?
+
+    var peer: Channel? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _peer
+        }
+        set {
+            lock.lock()
+            _peer = newValue
+            lock.unlock()
+        }
+    }
 
     init(connection: VZVirtioSocketConnection) { self.connection = connection }
 
@@ -138,8 +152,10 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        let other = peer
-        peer = nil
+        lock.lock()
+        let other = _peer
+        _peer = nil
+        lock.unlock()
         other?.close(promise: nil)
         context.fireChannelInactive()
     }

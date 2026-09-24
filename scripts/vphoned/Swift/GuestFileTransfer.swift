@@ -14,7 +14,7 @@ enum GuestFileTransfer {
     }
 
     static func download(path: String, fileIO: NonBlockingFileIO, channel: Channel) {
-        let fd = open(path, O_RDONLY | O_NOFOLLOW)
+        let fd = open(path, O_RDONLY)
         guard fd >= 0 else {
             GuestHTTPHandler.send(APIWire.error("File could not be opened", status: 404), on: channel)
             return
@@ -60,9 +60,13 @@ final class GuestFileUpload: @unchecked Sendable {
     private var offset: Int64 = 0
     private var writes: EventLoopFuture<Void>
     private let onCommit: ((String) throws -> Void)?
+    private let mode: mode_t
 
     init(destination: String, fileIO: NonBlockingFileIO, channel: Channel,
+         mode: mode_t = 0o644,
          onCommit: ((String) throws -> Void)? = nil) throws {
+        let parent = (destination as NSString).deletingLastPathComponent
+        try FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
         let temporary = destination + ".vphoned-" + UUID().uuidString + ".tmp"
         let fd = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
         guard fd >= 0 else { throw GuestAPIError.operationFailed("Could not create upload file") }
@@ -72,6 +76,7 @@ final class GuestFileUpload: @unchecked Sendable {
         self.fileIO = fileIO
         self.writes = channel.eventLoop.makeSucceededFuture(())
         self.onCommit = onCommit
+        self.mode = mode
     }
 
     func append(_ buffer: ByteBuffer, channel: Channel) {
@@ -95,10 +100,12 @@ final class GuestFileUpload: @unchecked Sendable {
                 case .failure(let error): throw error
                 case .success: break
                 }
+                guard chmod(temporary, mode) == 0 else {
+                    throw GuestAPIError.operationFailed("Could not set upload permissions")
+                }
                 guard rename(temporary, destination) == 0 else {
                     throw GuestAPIError.operationFailed("Could not replace destination file")
                 }
-                chmod(destination, 0o644)
                 try onCommit?(destination)
                 GuestHTTPHandler.send(.json(["result": ["path": destination, "size": offset]]), on: channel)
             } catch {

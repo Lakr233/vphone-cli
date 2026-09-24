@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Darwin
 import IcliKit
 import VphonedNative
 
@@ -36,7 +37,7 @@ enum GuestAPI {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         return ["name": "vphoned", "api_version": 1, "status": "ok", "binary_hash": binaryHash,
                 "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)", "ip": ip ?? "",
-                "capabilities": ["touch", "hid", "apps", "url", "files", "clipboard", "location", "keychain", "ipa_install", "camera"]]
+                "capabilities": ["touch", "hid", "apps", "url", "files", "clipboard", "location", "keychain", "ipa_install", "camera", "icli"]]
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
@@ -138,7 +139,7 @@ enum GuestAPI {
         case "clipboard.set":
             return try setClipboard(try string(params, "text"))
         case "files.list":
-            return try listDirectory(try string(params, "path"))
+            return try fileList(try string(params, "path"))
         case "files.mkdir":
             return try makeDirectory(try string(params, "path"), mode: nil)
         case "files.remove":
@@ -190,6 +191,29 @@ enum GuestAPI {
         payload.removeValue(forKey: "t")
         payload.removeValue(forKey: "id")
         return payload
+    }
+
+    private static func fileList(_ path: String) throws -> [String: Any] {
+        var result = try listDirectory(path)
+        let entries = result["entries"] as? [[String: Any]] ?? []
+        result["entries"] = entries.compactMap { entry -> [String: Any]? in
+            guard let fullPath = entry["path"] as? String else { return nil }
+            var metadata = stat()
+            guard lstat(fullPath, &metadata) == 0 else { return nil }
+            let kind = metadata.st_mode & mode_t(S_IFMT)
+            let isLink = kind == mode_t(S_IFLNK)
+            var target = stat()
+            let targetsDirectory = isLink && stat(fullPath, &target) == 0
+                && target.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
+            var enriched = entry
+            enriched["type"] = isLink ? "link" : kind == mode_t(S_IFDIR) ? "dir" : "file"
+            enriched["link_target_dir"] = targetsDirectory
+            enriched["size"] = metadata.st_size
+            enriched["perm"] = String(metadata.st_mode & 0o777, radix: 8)
+            enriched["mtime"] = Double(metadata.st_mtimespec.tv_sec)
+            return enriched
+        }
+        return result
     }
 
     private static func string(_ params: [String: Any], _ key: String) throws -> String {

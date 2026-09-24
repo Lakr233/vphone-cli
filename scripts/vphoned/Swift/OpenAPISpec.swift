@@ -14,7 +14,7 @@ enum OpenAPISpec {
       "servers": [{"url": "/"}],
       "paths": {
         "/v1/health": {"get": {"operationId": "health", "responses": {"200": {"description": "Daemon is running"}}}},
-        "/v1/icli/execute": {"post": {"operationId": "icli.execute", "description": "Run any icli command inside the guest with an argv array. The result includes exit_code, output and stderr.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["argv"], "properties": {"argv": {"type": "array", "items": {"type": "string"}}, "stdin": {"type": "string"}, "stdin_base64": {"type": "string", "contentEncoding": "base64"}}}}}, "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
+        "/v1/icli/execute": {"post": {"operationId": "icli.execute", "description": "Run icli inside the guest with argv, optional stdin or stdin_base64. Returns exit_code, output and stderr.", "requestBody": {"$ref": "#/components/requestBodies/IcliCommand"}, "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
         "/v1/device": {"get": {"operationId": "device.snapshot", "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
         "/v1/device/screen": {"get": {"operationId": "device.screen", "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
         "/v1/apps": {"get": {"operationId": "apps.list", "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
@@ -47,7 +47,7 @@ enum OpenAPISpec {
         "/v1/files": {"get": {"operationId": "files.list", "parameters": [{"name": "path", "in": "query", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
         "/v1/files/content": {
           "get": {"operationId": "files.download", "parameters": [{"$ref": "#/components/parameters/FilePath"}], "responses": {"200": {"description": "File bytes", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}},
-          "put": {"operationId": "files.upload", "parameters": [{"$ref": "#/components/parameters/FilePath"}], "requestBody": {"required": true, "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}, "responses": {"200": {"description": "File stored"}}}
+          "put": {"operationId": "files.upload", "parameters": [{"$ref": "#/components/parameters/FilePath"}, {"name": "mode", "in": "query", "schema": {"type": "string", "default": "644", "pattern": "^0?[0-7]{1,3}$"}}], "requestBody": {"required": true, "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}, "responses": {"200": {"description": "File stored"}}}
         },
         "/v1/files/mkdir": {"post": {"operationId": "files.mkdir", "requestBody": {"$ref": "#/components/requestBodies/Parameters"}, "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
         "/v1/files/remove": {"post": {"operationId": "files.remove", "requestBody": {"$ref": "#/components/requestBodies/Parameters"}, "responses": {"200": {"$ref": "#/components/responses/Result"}}}},
@@ -69,7 +69,10 @@ enum OpenAPISpec {
           "Event": {"type": "object", "required": ["type", "event", "data"], "properties": {"type": {"const": "event"}, "event": {"type": "string"}, "data": {"type": "object", "additionalProperties": true}}},
           "Error": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}
         },
-        "requestBodies": {"Parameters": {"content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}}},
+        "requestBodies": {
+          "Parameters": {"content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "IcliCommand": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["argv"], "properties": {"argv": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string"}}, "stdin": {"type": "string"}, "stdin_base64": {"type": "string", "contentEncoding": "base64"}}}}}}
+        },
         "responses": {"Result": {"description": "A Response envelope with result or error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}}
       },
       "x-websocket": {"path": "/v1/events", "request": {"$ref": "#/components/schemas/Request"}, "messages": [{"$ref": "#/components/schemas/Response"}, {"$ref": "#/components/schemas/Event"}]}

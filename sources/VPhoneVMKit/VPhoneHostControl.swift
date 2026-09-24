@@ -177,6 +177,10 @@ class VPhoneHostControl {
         while true {
             let clientFD = accept(listenFD, nil, nil)
             guard clientFD >= 0 else { break }
+            guard fcntl(clientFD, F_SETNOSIGPIPE, 1) != -1 else {
+                close(clientFD)
+                continue
+            }
             handleClient(clientFD, controller: controller)
         }
     }
@@ -433,6 +437,7 @@ class VPhoneHostControl {
             var offset = 0
             while remaining > 0 {
                 let written = write(fd, ptr.advanced(by: offset), remaining)
+                if written < 0 && errno == EINTR { continue }
                 if written <= 0 { break }
                 offset += written
                 remaining -= written

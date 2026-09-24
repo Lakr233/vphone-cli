@@ -46,7 +46,7 @@ enum IcliCommand {
         }
         defer { close(stdinFD); close(stdoutFD); close(stderrFD) }
 
-        var actions = posix_spawn_file_actions_t()
+        var actions: posix_spawn_file_actions_t? = nil
         posix_spawn_file_actions_init(&actions)
         defer { posix_spawn_file_actions_destroy(&actions) }
         posix_spawn_file_actions_adddup2(&actions, stdinFD, STDIN_FILENO)
@@ -68,7 +68,12 @@ enum IcliCommand {
         while true {
             let waited = waitpid(pid, &status, WNOHANG)
             if waited == pid { break }
-            if waited < 0 { throw GuestAPIError.operationFailed("Could not wait for icli") }
+            if waited < 0 {
+                if errno == EINTR { continue }
+                kill(pid, SIGKILL)
+                _ = waitpid(pid, &status, 0)
+                throw GuestAPIError.operationFailed("Could not wait for icli")
+            }
             if ProcessInfo.processInfo.systemUptime >= deadline {
                 kill(pid, SIGKILL)
                 _ = waitpid(pid, &status, 0)
@@ -76,11 +81,14 @@ enum IcliCommand {
             }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        let stdout = try Data(contentsOf: outputURL, options: .mappedIfSafe)
-        let stderr = try Data(contentsOf: errorURL, options: .mappedIfSafe)
-        guard stdout.count <= 64 << 20, stderr.count <= 1 << 20 else {
+        let stdoutSize = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber
+        let stderrSize = try FileManager.default.attributesOfItem(atPath: errorURL.path)[.size] as? NSNumber
+        guard (stdoutSize?.int64Value ?? 0) <= 64 << 20,
+              (stderrSize?.int64Value ?? 0) <= 1 << 20 else {
             throw GuestAPIError.operationFailed("icli output exceeded the API limit")
         }
+        let stdout = try Data(contentsOf: outputURL, options: .mappedIfSafe)
+        let stderr = try Data(contentsOf: errorURL, options: .mappedIfSafe)
         let parsed = try? JSONSerialization.jsonObject(with: stdout, options: [.fragmentsAllowed])
         let code = (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : -Int(status & 0x7f)
         return [

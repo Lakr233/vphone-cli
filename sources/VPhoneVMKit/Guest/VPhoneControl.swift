@@ -222,7 +222,7 @@ final class VPhoneControl {
     }
 
     func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
-        let response = try await http(method: "PUT", path: try filePath(path), body: data,
+        let response = try await http(method: "PUT", path: try filePath(path, mode: permissions), body: data,
                                       contentType: "application/octet-stream")
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -283,13 +283,14 @@ final class VPhoneControl {
                catch { print("[control] location clear: \(error)") } }
     }
 
-    private func filePath(_ guestPath: String) throws -> String {
+    private func filePath(_ guestPath: String, mode: String? = nil) throws -> String {
         guard guestPath.hasPrefix("/"), !guestPath.contains("\0") else {
             throw ControlError.protocolError("guest path must be absolute")
         }
         var components = URLComponents()
         components.path = "/v1/files/content"
         components.queryItems = [URLQueryItem(name: "path", value: guestPath)]
+        if let mode { components.queryItems?.append(URLQueryItem(name: "mode", value: mode)) }
         return components.string ?? ""
     }
 
@@ -346,9 +347,15 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
 
     func run() throws -> VPhoneHTTPResponse {
         let fd = connection.fileDescriptor
-        var noSigPipe: Int32 = 1
-        _ = withUnsafePointer(to: &noSigPipe) {
-            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, $0, socklen_t(MemoryLayout<Int32>.size))
+        guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1 else {
+            throw VPhoneControl.ControlError.notConnected
+        }
+        var timeout = timeval(tv_sec: 120, tv_usec: 0)
+        guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+                         socklen_t(MemoryLayout<timeval>.size)) == 0,
+              setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                         socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+            throw VPhoneControl.ControlError.notConnected
         }
         let headers = "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
         try write(fd, data: Data(headers.utf8))
@@ -385,6 +392,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             var offset = 0
             while offset < bytes.count {
                 let sent = Darwin.write(fd, base + offset, bytes.count - offset)
+                if sent < 0 && errno == EINTR { continue }
                 if sent <= 0 { throw VPhoneControl.ControlError.notConnected }
                 offset += sent
             }
@@ -393,7 +401,8 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
 
     private func readMore(_ fd: Int32, into data: inout Data) throws {
         var bytes = [UInt8](repeating: 0, count: 32 * 1024)
-        let count = Darwin.read(fd, &bytes, bytes.count)
+        var count = 0
+        repeat { count = Darwin.read(fd, &bytes, bytes.count) } while count < 0 && errno == EINTR
         guard count > 0 else { throw VPhoneControl.ControlError.notConnected }
         data.append(contentsOf: bytes[..<count])
     }
