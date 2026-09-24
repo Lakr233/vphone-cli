@@ -31,8 +31,8 @@ vphone-cli vm launch myphone
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-make build
+zsh scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-Если хост использует список разрешений AMFI, повторяйте `make amfi_allow` после каждой сборки. Актуальные руководства и исследовательские заметки собраны в [оглавлении](README.md). Подробные руководства пока доступны на английском.
+Если хост использует список разрешений AMFI, после каждой сборки заново разрешайте подписанные бинарные файлы VM по [инструкции по настройке хоста](guides/host-setup.md). Актуальные руководства и исследовательские заметки собраны в [оглавлении](README.md). Подробные руководства пока доступны на английском.

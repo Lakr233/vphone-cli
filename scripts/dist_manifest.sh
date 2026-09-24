@@ -17,8 +17,8 @@
 # This prints the dist payload — paths relative to scripts/, one per line, for
 # `rsync -a --files-from=-`. It is an ALLOWLIST derived from those declarations,
 # which is the point: the bundler used to work from a list of exclusions, so
-# anything new shipped by default and `setup_tools.sh` (which runs `brew
-# install`), `build.sh` and `check_aux.sh` all ended up inside the .app. An
+# anything new shipped by default and the build-only `setup_tools.sh`,
+# `build.sh` and `check_aux.sh` all ended up inside the .app. An
 # undeclared script now ships nowhere, and says so.
 #
 # Usage: dist_manifest.sh            # the payload, for rsync --files-from
@@ -61,6 +61,6 @@ done
 #   repos/            toolchain submodules — build tier, sources only
 #   ../siblings/       guest sources and GPU provenance; not copied into the
 #                      shipped app (GPU extraction runs in native fw prepare)
-#   vphoned/*.m *.h vendor/ Makefile   same, and it is the bulk of scripts/
+#   vphoned/*.m *.h vendor/  same, and it is the bulk of scripts/
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
 print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

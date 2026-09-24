@@ -83,7 +83,7 @@ final class VPhoneControl {
                 if hash != info["binary_hash"] as? String {
                     print("[control] updating vphoned over HTTP...")
                     try await createDirectory(path: "/var/root/Library/Caches")
-                    try await uploadFile(path: "/var/root/Library/Caches/vphoned", data: data)
+                    try await uploadFile(path: "/var/root/Library/Caches/vphoned.next", data: data)
                     _ = try await call("agent.apply_update", params: ["sha256": hash])
                     setDisconnected()
                     return
@@ -98,6 +98,7 @@ final class VPhoneControl {
                 onConnect?(guestCaps)
             }
         } catch {
+            if !isConnected { print("[control] probe failed: \(error)") }
             setDisconnected()
         }
     }

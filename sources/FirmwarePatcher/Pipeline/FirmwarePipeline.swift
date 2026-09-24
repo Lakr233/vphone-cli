@@ -4,7 +4,7 @@
 //
 // Pipeline order: AVPBooter → iBSS → iBEC → LLB → TXM → Kernel → DeviceTree
 //
-// Variant selection (mirrors Makefile targets):
+// Internal variant selection:
 //   .regular — base patchers only
 //   .dev     — TXMDevPatcher instead of TXMPatcher
 //   .jb      — TXMDevPatcher + IBootJBPatcher (iBSS) + KernelJBPatcher

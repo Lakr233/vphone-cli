@@ -53,7 +53,7 @@ let package = Package(
                 .product(name: "MachOKit", package: "MachOKit"),
                 // The cryptex patcher re-signs what it rewrites. That used to be
                 // three `runProcess("/opt/homebrew/bin/ldid", …)` calls, which is
-                // the one thing in this package that made `make check-aux` fail.
+                // the one thing in this package that made `scripts/check_aux.sh` fail.
                 "VPhoneSign",
                 // And it unpacks three archives onto the volume it is building,
                 // which were the last three `runProcess("/usr/bin/tar", …)` calls
@@ -89,7 +89,7 @@ let package = Package(
         // Ad-hoc and PKCS#12 Mach-O code signing, byte for byte what ldid
         // writes. It replaces ldid, which is the only program this project
         // shipped that links Homebrew (libcrypto.3, libplist-2.0.4) and so
-        // the only one that failed `make check-aux`. Nothing here is outside
+        // the only one that failed `scripts/check_aux.sh`. Nothing here is outside
         // the system frameworks: CryptoKit for the hashes, Security for the
         // PKCS#12 and the CMS.
         .target(
@@ -109,7 +109,7 @@ let package = Package(
         // The backend is IOKit, not libusb: on a host whose SDK has
         // IOKit/usb/IOUSBLib.h, upstream's configure.ac picks IOKit and never
         // looks for libusb. That is deliberate here too, because a libusb
-        // backend would mean a Homebrew dylib in the link, and `make check-aux`
+        // backend would mean a Homebrew dylib in the link, and `scripts/check_aux.sh`
         // exists to keep those out.
         .target(
             name: "MobileRecoveryCore",
@@ -150,7 +150,7 @@ let package = Package(
         // top: config.h, which is what ./configure would have written, and the
         // libzip stub. libzip is the one PKG_CHECK_MODULES dependency with no
         // counterpart here, and linking Homebrew's copy would put an absolute
-        // path in the closure that `make check-aux` gate 1 rejects. It is only
+        // path in the closure that `scripts/check_aux.sh` gate 1 rejects. It is only
         // reachable when reading a .ipsw archive or re-signing a .bbfw, and
         // this project restores from an extracted directory onto a device with
         // no baseband — zip.h has the full argument.
@@ -253,10 +253,10 @@ let package = Package(
         // still works here: it sits above VPhoneCore and pulls in neither
         // Virtualization nor AppKit.
         //
-        // VPhoneRestore is the line that ends the venv: `restore`, `vm create`
-        // and `make restore*` reach it directly instead of spawning a Python.
+        // VPhoneRestore is the line that ends the venv: `restore` and
+        // `vm create` reach it directly instead of spawning a Python.
         // It is also what finally puts libirecovery, idevicerestore, libcurl
-        // and libz inside .build/vphone-cli.app, where `make check-aux` gate 1
+        // and libz inside .build/vphone-cli.app, where `scripts/check_aux.sh` gate 1
         // can see them.
         .executableTarget(
             name: "vphone-cli",

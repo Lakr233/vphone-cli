@@ -9,11 +9,11 @@ The VM needs an Apple Silicon Mac running macOS 15 or newer. PV=3 research guest
 A distributed `.app` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
 
 ```sh
-make build
+zsh scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-Use `make build` rather than bare `swift build`: the latter does not perform the required signing and bundling. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the exact command for the bundled allowlist helper.
+Use `scripts/build.sh` rather than bare `swift build`: the latter does not perform the required signing and bundling. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the bundled allowlist helper command.
 
 ## Permit the entitled VM binary
 
@@ -48,12 +48,14 @@ csrutil allow-research-guests enable
 After rebooting, allowlist the **current signed build**. In a source checkout:
 
 ```sh
-make amfi_allow
-make amfi_status
+sudo .build/release/vphone-amfi-allow allow \
+  .build/release/vphone-vm \
+  .build/vphone-cli.app/Contents/MacOS/vphone-vm
+.build/release/vphone-amfi-allow status
 .build/release/vphone-cli host preflight
 ```
 
-`make amfi_allow` asks for administrator authentication and includes both the standalone and bundled copies of `vphone-vm`. The helper records their cdhashes in the AMFI code-requirements preference and enables amfid to consult it by changing one byte in its heap. It is scoped to these signed binaries. **Run `make amfi_allow` again after every build**, including a rebuild that only changes the signature. `make amfi_off` removes the allowlist and restarts amfid.
+The helper records both `vphone-vm` cdhashes in the AMFI code-requirements preference and enables amfid to consult it by changing one byte in its heap. It is scoped to these signed binaries. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. Run `sudo .build/release/vphone-amfi-allow off` to remove the allowlist and restart amfid.
 
 For a distributed app without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../vphone-amfi-allow allow .../vphone-vm` command for that installed app.
 

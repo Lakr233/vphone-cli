@@ -169,11 +169,13 @@ enum GuestAPI {
         case "agent.apply_update":
             let expected = try string(params, "sha256")
             let cache = "/var/root/Library/Caches/vphoned"
-            let data = try Data(contentsOf: URL(fileURLWithPath: cache), options: .mappedIfSafe)
+            let next = cache + ".next"
+            let data = try Data(contentsOf: URL(fileURLWithPath: next), options: .mappedIfSafe)
             let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             guard actual == expected else { throw GuestAPIError.invalidRequest("Update hash mismatch") }
-            guard chmod(cache, 0o755) == 0 else { throw GuestAPIError.operationFailed("Could not make update executable") }
-            try Data(expected.utf8).write(to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v1"), options: .atomic)
+            guard chmod(next, 0o755) == 0 else { throw GuestAPIError.operationFailed("Could not make update executable") }
+            guard rename(next, cache) == 0 else { throw GuestAPIError.operationFailed("Could not install update") }
+            try Data(expected.utf8).write(to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v2"), options: .atomic)
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]
         default:

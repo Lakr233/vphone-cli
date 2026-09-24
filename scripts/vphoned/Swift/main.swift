@@ -44,6 +44,7 @@ do {
         }
         .bind(to: VsockAddress(cid: .any, port: 1339))
         .wait()
+    vp_native_confirm_cached_binary()
     NSLog("vphoned: HTTP/WebSocket API listening on vsock 1339")
     try server.closeFuture.wait()
 } catch {

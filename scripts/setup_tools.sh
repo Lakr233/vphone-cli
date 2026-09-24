@@ -17,9 +17,9 @@
 #                    /System/Library/SecurityResearch. It was also the last file
 #                    in the bundle linking /opt/homebrew's libcrypto.3.
 #
-# So: no Homebrew, no interpreter, no environment. `make build` is the toolchain.
+# So: no Homebrew, no interpreter, no environment. `scripts/build.sh` builds the app.
 #
-# Run: make setup_tools
+# Run: zsh scripts/setup_tools.sh before the optional byte-parity test.
 
 set -euo pipefail
 

@@ -31,8 +31,8 @@ O `.app` distribuído roda sem Homebrew, Python, Xcode ou outro ambiente de exec
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-make build
+zsh scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-Se o host usar a lista de permissões AMFI, execute `make amfi_allow` novamente após cada compilação. O [índice da documentação](README.md) reúne os guias atuais e as notas de pesquisa. Os guias detalhados estão em inglês no momento.
+Se o host usar a lista de permissões AMFI, autorize novamente os binários de VM assinados após cada compilação conforme o [guia de configuração do host](guides/host-setup.md). O [índice da documentação](README.md) reúne os guias atuais e as notas de pesquisa. Os guias detalhados estão em inglês no momento.

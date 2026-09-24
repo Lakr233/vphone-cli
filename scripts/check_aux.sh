@@ -79,7 +79,7 @@ typeset -a DIST_REMAINING=(
 # build-tier script is inside the .app, and gate 2 checks that no dist-tier
 # script execs one.
 typeset -a BUILD_ALLOWED=(
-  brew xcrun xcodebuild clang swift git make rsync
+  brew xcrun xcodebuild clang swift git rsync
   ldid gtar zstd ipsw aria2c wget sshpass trustcache insert_dylib
 )
 
@@ -94,8 +94,8 @@ typeset -a BUILD_ALLOWED=(
 # that used to be written here: it is not an external program any more.
 # `vphone-amfi-allow` is built from this repository's own C, ships in the
 # bundle, and links CoreFoundation, Security and libSystem — so gate 1 weighs it
-# like everything else. What must not appear is a LOOKUP: `make amfi_allow` runs
-# it by absolute path.
+# like everything else. What must not appear is a PATH lookup: the bundled
+# helper is invoked by its explicit path.
 
 # Programs macOS ships that the dist tier may use. This is the honest boundary
 # of "zero dependencies" — widening it means editing this file, which is the
@@ -231,7 +231,7 @@ check_closure() {
 # ---------------------------------------------------------------------------
 # The bundler used to work from a list of EXCLUSIONS, so anything new shipped by
 # default. That is how the .app came to carry build.sh, check_aux.sh and
-# setup_tools.sh — which runs `brew install` — alongside the scripts it actually
+# setup_tools.sh alongside the scripts it actually
 # needs. It is an allowlist now, and this gate is what keeps it honest: a
 # build-tier script inside the bundle is a hard failure, because everything in
 # that tier is allowed to assume a toolchain the dist tier does not have.
@@ -254,7 +254,7 @@ check_bundle_contents() {
 
   # Nothing may appear under Resources/scripts that the manifest did not put
   # there — a stale file from an older bundle is exactly as dangerous as a
-  # wrongly-declared one, and `make bundle` builds over whatever is already on
+  # wrongly-declared one, and `scripts/build.sh` builds over whatever is already on
   # disk.
   local -a manifest=()
   while IFS= read -r name; do manifest+=("$name"); done \
@@ -281,8 +281,8 @@ check_bundle_contents() {
 # `command -v python3` fallback, and a `tar --zstd` that quietly spawns a
 # zstd(1) from PATH. Neither shows up in gate 1.
 #
-# The tier decides the verdict, not the program. `xcrun` in guest_binaries.mk is
-# correct — that file exists to use the iPhoneOS SDK. The same `xcrun` in
+# The tier decides the verdict, not the program. `xcrun` in build.sh is
+# correct — that file uses the iPhoneOS SDK. The same `xcrun` in
 # cfw_install_jb.sh was a bug, because that script ships, and it made a full
 # Xcode install a prerequisite for putting firmware on a VM.
 check_sources() {
@@ -412,19 +412,18 @@ check_sources() {
   #
   # check_aux.sh excludes itself, because a scanner that looks for a word
   # necessarily contains it.
-  hits=$( { grep -rnE 'python[0-9.]*' --include='*.sh' --include='*.mk' \
-              scripts/ tests/ 2>/dev/null
-            grep -HnE 'python[0-9.]*' Makefile 2>/dev/null } \
+  hits=$(grep -rnE 'python[0-9.]*' --include='*.sh' \
+              scripts/ tests/ 2>/dev/null \
           | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
           | grep -vE '^scripts/check_aux\.sh:' \
-          | grep -vE '(echo|print)[[:space:]]' )
+          | grep -vE '(echo|print)[[:space:]]')
   if [[ -n "$hits" ]]; then
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       fail "gate 2: interpreter reference — $line"
     done <<< "$hits"
   else
-    green "  ok    gate 2: no python reachable from any script, Makefile or test"
+    green "  ok    gate 2: no python reachable from any script or test"
   fi
 }
 
@@ -533,7 +532,7 @@ check_smoke() {
 print -P "%Bvphone-cli admission gates%b"
 
 if [[ ! -d "$BUNDLE" ]]; then
-  red "no bundle at $BUNDLE — run 'make bundle' first"
+  red "no bundle at $BUNDLE — run 'zsh scripts/build.sh' first"
   exit 2
 fi
 

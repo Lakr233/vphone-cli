@@ -83,6 +83,7 @@ private final class GuestSocketProvider: @unchecked Sendable {
                 Task { @MainActor in
                     switch result {
                     case .failure(let error):
+                        print("[api] guest connection failed: \(error)")
                         promise.fail(error)
                     case .success(let connection):
                         let fd = dup(connection.fileDescriptor)
@@ -105,6 +106,7 @@ private final class GuestSocketProvider: @unchecked Sendable {
                                 case .success:
                                     host.setOption(ChannelOptions.autoRead, value: true).cascade(to: promise)
                                 case .failure(let error):
+                                    print("[api] guest relay failed: \(error)")
                                     promise.fail(error)
                                 }
                             }

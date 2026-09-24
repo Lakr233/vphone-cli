@@ -19,7 +19,7 @@
 // So a buffer that will be mutated and written back over its own file is READ.
 // Nothing that comes through here is large: these are single Mach-Os out of a
 // guest filesystem — launchd is 639 KB, the biggest is mobileactivationd at
-// 4.6 MB — so the copy costs nothing worth having, and `make check-aux` knows
+// 4.6 MB — so the copy costs nothing worth having, and `scripts/check_aux.sh` knows
 // this spelling is the deliberate one.
 
 import Foundation

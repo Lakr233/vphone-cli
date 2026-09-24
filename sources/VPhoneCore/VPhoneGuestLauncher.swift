@@ -17,7 +17,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
             return """
             \(name) is missing — expected it next to this binary at:
               \(url.path)
-            The install looks incomplete. Rebuild with `make build`.
+            The install looks incomplete. Rebuild with `zsh scripts/build.sh`.
             """
 
         case let .blockedByAMFI(guest, cdHash):
@@ -40,7 +40,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
         case let .missingEntitlements(guest):
             return """
             vphone-vm is missing the private PV=3 entitlements: \(guest.path)
-            Run `make build` to sign this binary, then allow the new signature
+            Run `zsh scripts/build.sh` to sign this binary, then allow the new signature
             through the host's AMFI policy before launching a VM.
             """
 

@@ -4,7 +4,7 @@
 
 ## `vphone-vm` is killed before the VM opens
 
-Run `vphone-cli host preflight`. The CLI is unentitled and can explain an AMFI refusal of its signed `vphone-vm` companion. If you rebuilt, the cdhash changed: run `make amfi_allow` again in the source checkout, or use the bundled helper command printed by preflight. [Host setup](host-setup.md) covers the required Recovery settings.
+Run `vphone-cli host preflight`. The CLI is unentitled and can explain an AMFI refusal of its signed `vphone-vm` companion. If you rebuilt, the cdhash changed: allow the new binaries with the bundled helper as described in [host setup](host-setup.md).
 
 ## `Virtualization is not available on this hardware`
 

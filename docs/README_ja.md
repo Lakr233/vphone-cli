@@ -31,8 +31,8 @@ cloudOS 26.4（`23E5207q`）との組み合わせで、iPhone17,3 の iOS 26.6.2
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-make build
+zsh scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-AMFI の許可リストを使う場合、ビルドのたびに `make amfi_allow` を再実行してください。[ドキュメント一覧](README.md)から現在の手順と研究資料に進めます。詳しいガイドは現在英語です。
+AMFI の許可リストを使う場合、ビルドのたびに[ホストの設定手順](guides/host-setup.md)に従って署名済み VM バイナリを再登録してください。[ドキュメント一覧](README.md)から現在の手順と研究資料に進めます。詳しいガイドは現在英語です。

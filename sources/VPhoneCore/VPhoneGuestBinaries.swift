@@ -13,7 +13,7 @@ public enum VPhoneGuestBinaries {
             switch self {
             case let .missing(name, searched):
                 """
-                no prebuilt guest binary '\(name)'. Run 'make build'.
+                no prebuilt guest binary '\(name)'. Run 'zsh scripts/build.sh'.
                 Looked in: \(searched.map(\.path).joined(separator: ", "))
                 """
             }

@@ -40,7 +40,7 @@ See `research/` for detailed firmware pipeline, component origins, patch breakdo
 ## Architecture
 
 ```
-Makefile                          # Single entry point — run `make help`
+Package.swift                     # SwiftPM targets and tests
 
 sources/
 ├── vphone.entitlements               # Private API entitlements (7 keys) — signed ONTO vphone-vm ONLY
@@ -181,7 +181,6 @@ sources/
 scripts/                          # Build scripts and payloads only; no runtime shell
 ├── build.sh                  [b] # Compile, sign and bundle
 ├── dist_manifest.sh          [b] # Payload allowlist staged by build.sh
-├── guest_binaries.mk         [b] # Cross-compiles vphoned (needs the iPhoneOS SDK)
 ├── check_aux.sh              [b] # The self-containment admission gates
 ├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
 ├── vphoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code

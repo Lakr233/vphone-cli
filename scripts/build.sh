@@ -1,15 +1,15 @@
 #!/bin/zsh
 # vphone-tier: build
-# build.sh — Build, sign, and bundle vphone-cli (+ cross-compile vphoned).
+# build.sh — Build, sign, and bundle vphone-cli and its guest binaries.
 #
 # This is the bootstrap step that a running binary cannot do for itself:
 # it compiles the vphone-cli binary, signs it with the PV=3 entitlements,
 # wraps it in the .app bundle used for GUI boot, and cross-compiles + signs
-# the vphoned guest daemon. Everything else in the project is driven by the
+# vphoned and icli. Everything else in the project is driven by the
 # resulting `vphone-cli` binary — this script is the only build entrypoint.
 #
 # Usage:
-#   ./scripts/build.sh              # build + sign + bundle + vphoned
+#   ./scripts/build.sh              # build + sign + bundle + guest binaries
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
@@ -23,9 +23,8 @@ cd "$PROJECT_ROOT"
 # vphone-ask-for-permission is the SUDO_ASKPASS helper; vphone-amfi-allow is
 # what gets vphone-vm past amfid.
 #
-# `make amfi_allow` runs that last one for the binaries built below. It is a
-# per-build step, not a once-per-machine one, because it allowlists cdhashes and
-# those change every time anything is signed.
+# The host setup guide shows how to run the helper for both signed vphone-vm
+# copies. It is a per-build step because their cdhashes change when signed.
 BINARY=".build/release/vphone-cli"
 VM_BINARY=".build/release/vphone-vm"
 ARCHIVE_BINARY=".build/release/vphone-archive"
@@ -133,16 +132,39 @@ codesign --force --sign - "$BUNDLE_AMFI"
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
 
-# --- Guest binaries (cross-compiled for iOS; see scripts/guest_binaries.mk) ---
-# The guest daemon, because compiling it at CFW-install time would make
-# Xcode a requirement for running a VM. This is the build machine; it has Xcode.
-make -f scripts/guest_binaries.mk guest_binaries GIT_HASH="$GIT_HASH"
+# --- Guest binaries (cross-compiled for iOS) ---
+# Build vphoned and its icli dependency here so a distributed app can install
+# CFW without Xcode or an iPhoneOS SDK on the destination host.
+IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)" \
+  || { echo "Error: iPhoneOS SDK is required on the build machine" >&2; exit 1; }
+mkdir -p .build/guest
+echo "=== Building vphoned (arm64, iphoneos) ==="
+GIT_HASH="$GIT_HASH" swift build --package-path scripts/vphoned \
+  --scratch-path .build/vphoned-swiftpm --triple arm64-apple-ios15.0 \
+  --sdk "$IOS_SDK" -c release --product vphoned \
+  --jobs "${SWIFT_JOBS:-4}"
+GUEST_BIN_DIR="$(swift build --package-path scripts/vphoned \
+  --scratch-path .build/vphoned-swiftpm --triple arm64-apple-ios15.0 \
+  --sdk "$IOS_SDK" -c release --show-bin-path)"
+cp -f "$GUEST_BIN_DIR/vphoned" .build/guest/vphoned
+
+echo "=== Building icli (arm64, iphoneos) ==="
+ICLI_PACKAGE=".build/vphoned-swiftpm/checkouts/icli"
+swift build --package-path "$ICLI_PACKAGE" \
+  --scratch-path .build/icli-guest-swiftpm --triple arm64-apple-ios15.0 \
+  --sdk "$IOS_SDK" -c release --product icli \
+  --jobs "${SWIFT_JOBS:-4}"
+ICLI_BIN_DIR="$(swift build --package-path "$ICLI_PACKAGE" \
+  --scratch-path .build/icli-guest-swiftpm --triple arm64-apple-ios15.0 \
+  --sdk "$IOS_SDK" -c release --show-bin-path)"
+cp -f "$ICLI_BIN_DIR/icli" .build/guest/icli
 # vphoned.signed is the copy the host pushes into a running guest over vsock.
 echo "=== Signing vphoned ==="
-cp .build/guest/vphoned .build/vphoned.signed
+cp .build/guest/vphoned .build/vphoned
 "$BINARY" sign \
   --entitlements scripts/vphoned/entitlements.plist --merge \
-  .build/vphoned.signed
+  .build/vphoned
+cp .build/vphoned .build/vphoned.signed
 echo "  signed → .build/vphoned.signed"
 
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
@@ -208,5 +230,4 @@ echo "  vphoned            : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
 echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements."
-echo "'make amfi_allow' allows this build past it; re-run it after every build,"
-echo "because it allowlists cdhashes and those change with every signature."
+echo "Allow the new vphone-vm signatures after each build; see docs/guides/host-setup.md."

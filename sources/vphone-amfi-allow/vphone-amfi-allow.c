@@ -8,8 +8,8 @@
 // only local changes are this header and the usage text.
 //
 // It exists because vphone-vm is the one binary here that holds
-// com.apple.private.* entitlements, and amfid refuses it. `make amfi_allow`
-// runs the allow step for the binaries the current build just produced. Their
+// com.apple.private.* entitlements, and amfid refuses it. The bundled helper
+// allows the binaries the current build just produced. Their
 // cdhashes change every time they are signed, so that is a per-build step, not
 // a once-per-machine one.
 //
@@ -617,6 +617,6 @@ int main(int argc, char **argv) {
             "  sudo vphone-amfi-allow allow [--hold N] <binary> [<binary>...]\n"
             "  sudo vphone-amfi-allow off\n"
             "\n"
-            "'make amfi_allow' runs the allow step for the current build.\n");
+            "Allow both signed vphone-vm copies after each build.\n");
     return 2;
 }

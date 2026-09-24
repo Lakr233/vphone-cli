@@ -78,7 +78,7 @@
 //
 // Adding a live `ldid` call back — a `which`, a hardcoded Homebrew path, an
 // environment variable — is the same regression the "Python" section of
-// AGENTS.md forbids for an interpreter: a dependency `make check-aux` cannot
+// AGENTS.md forbids for an interpreter: a dependency `scripts/check_aux.sh` cannot
 // see, and a silent skip when it is missing.
 
 import CryptoKit

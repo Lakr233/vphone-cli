@@ -5,7 +5,7 @@ import Foundation
 /// Where a restore's files sit inside a VM bundle.
 ///
 /// Both rules here come from `scripts/pymobiledevice3_bridge.py` and both are
-/// load-bearing: `make restore_offline`, `vphone-cli restore --offline` and the
+/// load-bearing: `vphone-cli restore --offline` and the
 /// `vm create` orchestrator all find the `.shsh` by the name this produces.
 public enum VPhoneRestoreLayout {
     // MARK: Restore directory

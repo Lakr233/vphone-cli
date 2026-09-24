@@ -98,7 +98,7 @@ public struct VPhoneCreateOrchestrator {
         let v = options.verbosity
         // Fail fast on a nested-VM host — PV=3 guest boot can't nest, and the whole
         // create pipeline (download + patch + restore) is wasted otherwise. Mirrors
-        // the boot_host_preflight gate that `make boot` applied.
+        // the host preflight that precedes VM launch.
         if Self.isNestedVMHost() {
             throw VPhoneCreateError.nestedVirtualization
         }

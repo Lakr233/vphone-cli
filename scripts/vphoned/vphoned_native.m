@@ -15,9 +15,10 @@ NSDictionary *vp_native_api_command(NSDictionary *message) {
 
 void vp_native_bootstrap_cached_binary(void) {
     static const char *cache = "/var/root/Library/Caches/vphoned";
-    // Pre-HTTP daemon builds also used this cache path. Their binaries lack
-    // the marker, so a new firmware daemon must not exec an old protocol.
-    static const char *marker = "/var/root/Library/Caches/vphoned.api-v1";
+    // v1 cached binaries could fail before binding and put launchd in a crash
+    // loop. A v2 update gets one attempt; the bundled daemon is the fallback.
+    static const char *marker = "/var/root/Library/Caches/vphoned.api-v2";
+    static const char *pending = "/var/root/Library/Caches/vphoned.api-v2.pending";
     if (access(cache, X_OK) != 0 || access(marker, R_OK) != 0) return;
     NSData *binary = [NSData dataWithContentsOfFile:@(cache) options:NSDataReadingMappedIfSafe error:nil];
     NSString *expected = [NSString stringWithContentsOfFile:@(marker) encoding:NSUTF8StringEncoding error:nil];
@@ -30,7 +31,19 @@ void vp_native_bootstrap_cached_binary(void) {
     char current[4096];
     uint32_t size = sizeof(current);
     if (_NSGetExecutablePath(current, &size) != 0 || strcmp(current, cache) == 0) return;
+    if (rename(marker, pending) != 0) return;
     char *const arguments[] = {(char *)cache, NULL};
     execv(cache, arguments);
     NSLog(@"vphoned: cached binary launch failed: %s", strerror(errno));
+}
+
+void vp_native_confirm_cached_binary(void) {
+    static const char *cache = "/var/root/Library/Caches/vphoned";
+    static const char *marker = "/var/root/Library/Caches/vphoned.api-v2";
+    static const char *pending = "/var/root/Library/Caches/vphoned.api-v2.pending";
+    char current[4096];
+    uint32_t size = sizeof(current);
+    if (_NSGetExecutablePath(current, &size) != 0 || strcmp(current, cache) != 0) return;
+    if (rename(pending, marker) != 0)
+        NSLog(@"vphoned: could not confirm cached binary: %s", strerror(errno));
 }

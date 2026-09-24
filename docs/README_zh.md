@@ -31,11 +31,11 @@ vphone-cli vm launch myphone
 ```sh
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-make build
+zsh scripts/build.sh
 .build/release/vphone-cli host preflight
 ```
 
-采用 AMFI 白名单的宿主机，每次重编译后都要重新运行 `make amfi_allow`。详细设置见[宿主机准备](guides/host-setup.md)。
+采用 AMFI 白名单的宿主机，每次重编译后都要按[宿主机准备](guides/host-setup.md)中的步骤重新允许签名后的 VM 程序。
 
 ## 常用命令
 

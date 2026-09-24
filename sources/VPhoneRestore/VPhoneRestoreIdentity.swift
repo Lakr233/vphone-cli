@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Both functions reproduce `scripts/pymobiledevice3_bridge.py` exactly —
 /// `parse_ecid` and `normalize_udid` — because the same strings come out of a
-/// bundle's `udid-prediction.txt`, out of `make restore*`, and off users'
+/// bundle's `udid-prediction.txt`, out of restore commands, and off users'
 /// shell histories.
 public enum VPhoneRestoreIdentity {
     // MARK: ECID
