@@ -219,14 +219,12 @@ struct VPhoneCustomFirmwareInstaller {
             verb: "patch-mobileactivationd",
         )
         try installVphoned(system: system, work: work)
-        try installLaunchHook(system: system)
         try patchMachO(
             system: system,
             work: work,
             path: "sbin/launchd",
             verb: "patch-launchd-jetsam",
             preserveEntitlements: true,
-            injectedDylibPath: "/vh",
         )
         try patchDebugserver(system: system, work: work)
         if version.hasPrefix("27.") {
@@ -327,26 +325,6 @@ struct VPhoneCustomFirmwareInstaller {
         try replace(temp, at: launchd, mode: 0o644)
     }
 
-    private func installLaunchHook(system: URL) throws {
-        for name in ["launchdhook-vphone.dylib", "SystemHook-vphone.dylib"] {
-            let source = try VPhoneGuestBinaries.resolve(name)
-            try replace(source, at: system.appendingPathComponent("usr/lib/\(name)"), mode: 0o755)
-        }
-        // launchd has little free header space for another load command.
-        // /vh fits the same 32-byte command as the old /b without reusing it.
-        let alias = system.appendingPathComponent("vh")
-        let target = "/usr/lib/launchdhook-vphone.dylib"
-        if fm.fileExists(atPath: alias.path)
-            || (try? alias.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
-        {
-            guard (try? fm.destinationOfSymbolicLink(atPath: alias.path)) == target else {
-                throw ValidationError("Root path /vh is already occupied")
-            }
-        } else {
-            try fm.createSymbolicLink(atPath: alias.path, withDestinationPath: target)
-        }
-    }
-
     private func patchMachO(
         system: URL,
         work: URL,
@@ -354,7 +332,6 @@ struct VPhoneCustomFirmwareInstaller {
         verb: String,
         identifier: String? = nil,
         preserveEntitlements: Bool = false,
-        injectedDylibPath: String? = nil,
     ) throws {
         let target = system.appendingPathComponent(path)
         let backup = target.appendingPathExtension("bak")
@@ -370,9 +347,6 @@ struct VPhoneCustomFirmwareInstaller {
             ? try VPhoneSigner.entitlements(ofFileAt: backup).first(where: { !$0.isEmpty })
             : nil
         try patch(verb, [staged.path])
-        if let injectedDylibPath {
-            try patch("inject-dylib", [staged.path, injectedDylibPath])
-        }
         try VPhoneSigner.sign(fileAt: staged,
                               options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true))
         try replace(staged, at: target, mode: 0o755)

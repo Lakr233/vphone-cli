@@ -5,8 +5,7 @@ OUT := $(abspath ../.build/siblings)
 STAGE := $(OUT)/stage
 ARCHIVE := $(OUT)/siblings.tar
 CLANG := xcrun --sdk iphoneos clang
-GUEST_C_FLAGS := -arch arm64e -miphoneos-version-min=26.0 -Os
-COMMON_FLAGS := $(GUEST_C_FLAGS) -fobjc-arc
+COMMON_FLAGS := -arch arm64e -miphoneos-version-min=26.0 -Os -fobjc-arc
 
 CAMFIX := $(STAGE)/camfix/libcamfix.dylib
 VCAMCAPTURED := $(STAGE)/vcamcaptured/libvcamcaptured.dylib
@@ -21,10 +20,9 @@ VCAMCAPTURED_SOURCES := VCamCaptured/libvcamcaptured.m \
 	VCamCaptured/VCamStillSink.inc \
 	VCamCaptured/VCamFrameReceiver.inc \
 	VCamCaptured/VCamFrameProtocol.h
-LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
-SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
+TWEAKLOADER := $(STAGE)/tweakloader/TweakLoader.dylib
 GPU_PLUGIN := $(STAGE)/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib
-ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(GPU_PLUGIN)
+ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(TWEAKLOADER) $(GPU_PLUGIN)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
@@ -36,10 +34,10 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured launchhook systemhook gpu
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured tweakloader gpu
 	@echo "Packaged $(ARCHIVE)"
 
-$(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/launchhook $(STAGE)/systemhook $(STAGE)/gpu:
+$(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/tweakloader $(STAGE)/gpu:
 	@mkdir -p $@
 
 $(CAMFIX): CamFix/libcamfix.m VCamCaptured/VCamFrameProtocol.h | $(STAGE)/camfix
@@ -58,16 +56,10 @@ $(VCAMCAPTURED): $(VCAMCAPTURED_SOURCES) | $(STAGE)/vcamcaptured
 		-framework Foundation -framework CoreMedia -framework CoreVideo
 	@codesign --force --sign - $@
 
-$(LAUNCHHOOK): LaunchHook/launchdhook-vphone.c | $(STAGE)/launchhook
-	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \
-		-install_name /usr/lib/launchdhook-vphone.dylib \
-		-o $@ $< -Wl,-not_for_dyld_shared_cache
-	@codesign --force --sign - $@
-
-$(SYSTEMHOOK): SystemHook/SystemHook-vphone.c | $(STAGE)/systemhook
-	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \
-		-install_name /usr/lib/SystemHook-vphone.dylib \
-		-o $@ $<
+$(TWEAKLOADER): TweakLoader/TweakLoader.m | $(STAGE)/tweakloader
+	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
+		-install_name /var/jb/usr/lib/TweakLoader.dylib \
+		-o $@ $< -framework Foundation
 	@codesign --force --sign - $@
 
 $(GPU_PLUGIN): GraphicLoader/main.mm | $(STAGE)/gpu

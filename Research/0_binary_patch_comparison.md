@@ -2,32 +2,11 @@
 
 > **Current product scope (September 2026):** the tables below preserve the
 > historical patch comparison. The public runtime now exposes only JB. Guest
-> package managers, Procursus, and first-boot package setup are outside this
-> repository. The native Swift JB install retains the base system patches,
+> package managers, Procursus, BaseBin hooks, and first-boot package setup are
+> outside this repository. The native Swift JB install retains the base system patches,
 > launchd jetsam guard, debugserver entitlement edit, iOS 27 Campo entitlement
-> edit, GPU driver, mandatory vphoned, and the small vphone launchd hook described
-> below. Old variant rows are research history,
+> edit, GPU driver, and mandatory vphoned. Old variant rows are research history,
 > not available install modes.
-
-> **Current launchd hook (2026-09-24; source/build verification only):**
-> `cfw install` now places `launchdhook-vphone.dylib` and an inert
-> `SystemHook-vphone.dylib` in `/usr/lib`, links `/vh` to the launchd hook,
-> inserts a weak `/vh` load command for the
-> launchd hook after `patch-launchd-jetsam`, and re-signs launchd. The hook
-> extends launchd's `Paths` and `LaunchDaemons` values with the selected
-> bootstrap's `Library/LaunchDaemons` (plus `basebin/LaunchDaemons` when present).
-> A single `.jbroot-<16 hex>` under the RootHide application container is
-> accepted; ambiguous roots are ignored. RootHide bootstrap-relative `Program`
-> and `ProgramArguments[0]` paths are translated to physical kernel paths in
-> the in-memory XPC plist. The hook also tries to remove PID 1's existing
-> jetsam limit and suppresses future fatal task-limit assignments for PID 1.
-> `SystemHook-vphone.dylib` is not injected into processes in this phase; ElleKit
-> chain loading, `DISABLE_TWEAKS`, and tweak filters remain a later step.
-> **Validation needed on a disposable VM before relying on this at boot:**
-> confirm launchd loads the weak dylib and dyld interposition fires; install
-> one RootHide and one rootless daemon on separate VM copies, reboot each, and
-> inspect their `launchctl print` executable paths; verify PID 1's effective
-> jetsam limit separately from the existing panic-guard patch.
 
 > **`scripts/patchers/*.py` no longer exists.** The tables below cite those
 > filenames throughout, because that is where each patch was first written and
