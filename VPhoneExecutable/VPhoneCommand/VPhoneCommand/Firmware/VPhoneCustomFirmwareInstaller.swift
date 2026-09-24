@@ -331,15 +331,12 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     private func installVphoned(system: URL, work: URL) throws {
+        // Install the same signed bytes that vm launch uses for auto-update.
+        // Re-signing here changes the binary hash and forces an upload and
+        // daemon restart on the VM's first boot.
         let vphoned = try VPhoneGuestBinaries.resolve("vphoned")
         let staged = work.appendingPathComponent("vphoned")
         try fm.copyItem(at: vphoned, to: staged)
-        let entitlementsURL = resources.scriptsDir.appendingPathComponent("vphoned/VPhoneDaemon.entitlements")
-        let entitlements = try Data(contentsOf: entitlementsURL, options: .mappedIfSafe)
-        try VPhoneSigner.sign(
-            fileAt: staged,
-            options: .init(entitlements: entitlements, mergesExisting: true),
-        )
         try replace(staged, at: system.appendingPathComponent("usr/bin/vphoned"), mode: 0o755)
         let signed = bundle.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: signed.path) {

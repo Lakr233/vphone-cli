@@ -54,7 +54,6 @@ fi
 /bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$daemon_products/vphoned" "$macos/vphoned"
-/bin/cp "$daemon_products/vphoned" "$macos/vphoned.signed"
 /bin/cp "$amfi_products/VPhoneEscalator" "$macos/VPhoneEscalator"
 /bin/cp "$guest_products/camfix/libcamfix.dylib" "$macos/libcamfix.dylib"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$macos/libvcamcaptured.dylib"
@@ -85,7 +84,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$macos/vphoned"
-/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$macos/vphoned.signed"
+/bin/cp "$macos/vphoned" "$macos/vphoned.signed"
 /usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"

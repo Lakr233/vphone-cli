@@ -1,7 +1,7 @@
 // VPhoneGuestBinaries.swift — where the prebuilt iOS binaries live.
 //
 // vphoned is cross-compiled on the build machine and shipped in the bundle.
-// The runtime installs it with an ad-hoc signature and never needs Xcode.
+// The bundle carries the signed binary for installation and host auto-update.
 
 import Foundation
 

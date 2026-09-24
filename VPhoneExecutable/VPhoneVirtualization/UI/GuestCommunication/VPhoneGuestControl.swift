@@ -59,7 +59,7 @@ final class VPhoneGuestControl {
         monitor = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.probe()
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(self?.isConnected == true ? 3 : 1))
             }
         }
     }
