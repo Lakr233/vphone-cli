@@ -20,7 +20,7 @@
 >
 > **Updated at `a908f81`**, after D2 and D3 landed. The D2/D3 rows below are
 > rewritten; the D4 row is not, and the detail is in
-> [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md), which is the
+> [`runtime_dependency_tiers.md`](../Host/runtime_dependency_tiers.md), which is the
 > handover for that work — what the tiers are, what each removed program was
 > replaced by, what was verified against the real tool, and what is left open.
 
@@ -52,15 +52,15 @@ is 2,396 lines against 2,410 at the branch base.
 | P0.5 | `VPhoneArchive` + `vphone-archive` | ✅ library, binary, tests, fingerprint tool |
 | P0.5 | switch the archive call sites | ✅ **done at `356bec6`.** `$TAR` is gone from `cfw_install*.sh`; only `cfw-kit` still finds `gtar`, and it is build tier and does not ship |
 | P0.5 | `VPhoneSign`, drop `ldid` | ✅ **done at `356bec6`.** The installers and the Makefile call `vphone-cli sign`; nothing looks `ldid` up any more except `cfw-kit` |
-| P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md) |
+| P0.5 | admission gates | ✅ **`make check-aux`, six gates, all green, dist list empty** — see [`runtime_dependency_tiers.md`](../Host/runtime_dependency_tiers.md) |
 | **P1.0–1.5** | CFW patchers | ✅ **complete** — `scripts/patchers/` deleted at `d90371a`, 26 files / 6,539 lines into 24 `vphone-cli cfw` verbs |
-| **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `research/restore/p2_dfu_spike.md` |
+| **P2.0** | can libirecovery see the virtual DFU endpoint? | ✅ **yes** — `Research/Restore/virtual_dfu_probe.md` |
 | **P2.1–2.2** | vendor libirecovery + idevicerestore | ✅ `Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore` |
 | **P2.3** | Swift wrapper + call-site replacement | ◐ **built and unit-tested; 4 of the 7 behaviour rows still need a device** |
 | **P2.4** | Python → zero | ✅ **complete** — see D1 above |
 | P3, P4 | shell | ❌ not started |
 
-`research/restore/p2_restore_off_python.md` records what P2 decided and why, including
+`Research/Restore/native_restore_architecture.md` records what P2 decided and why, including
 the behaviour table row by row.
 
 That AMFI row went round in a circle in one day, so it is worth restating where
@@ -112,7 +112,7 @@ Two corrections to the earlier ledger's arithmetic:
 >
 > **Now**: `zsh Scripts/check_aux.sh` reports gates 0, 1, 1b, 1c, 2 and 3 all
 > green, with the **dist tier's registered list empty**. See
-> [`d2_d3_self_containment.md`](../Host/d2_d3_self_containment.md).
+> [`runtime_dependency_tiers.md`](../Host/runtime_dependency_tiers.md).
 
 `zsh Scripts/check_aux.sh --fast`, as of the previous revision:
 
@@ -185,7 +185,7 @@ Nothing below can be done without root or a real guest.
 
 1. ~~**Can `vphone-vm` start a VM holding the entitlements alone?**~~
    **Answered: yes.** A guest booted and libirecovery enumerated its virtual
-   DFU endpoint — `research/restore/p2_dfu_spike.md`.
+   DFU endpoint — `Research/Restore/virtual_dfu_probe.md`.
 2. ~~**`vphone-letmein` end to end.**~~ **Answered, and the answer removed the
    tool.** With `vm.cs_system_enforcement` = 1 the patched `__TEXT` page gets
    amfid killed (`CODESIGNING`, "Invalid Page") and the guest dies with it.
@@ -196,11 +196,11 @@ Nothing below can be done without root or a real guest.
 3. **The four unverified rows of the P2 behaviour table** — a real restore
    (online and `--offline`), `--no-erase` update-in-place, and the exit-code
    contract on failure. Table and criteria in
-   `research/restore/p2_restore_off_python.md`. **Run these on a disposable VM**: a
+   `Research/Restore/native_restore_architecture.md`. **Run these on a disposable VM**: a
    failed restore leaves the guest in recovery.
 4. **FDR equivalence.** The old bridge ran `Restore(..., ignore_fdr=False)`;
    idevicerestore's FDR handling is internal. Device enumeration cannot settle
-   it, so `research/restore/p2_dfu_spike.md` explicitly did not. It shows up only during
+   it, so `Research/Restore/virtual_dfu_probe.md` explicitly did not. It shows up only during
    an actual restore, and it must not be assumed away.
 5. **Ownership restoration in `VPhoneArchive`**, which only happens as root, so
    `ARCHIVE_EXTRACT_OWNER` has never come into play. This is the blocker on
@@ -265,7 +265,7 @@ Recorded because they were measured, not reasoned about.
   `AppleMobileDeviceLibrary` ships all five of those libraries plus OpenSSL as
   prebuilt xcframeworks, so only libirecovery (4,629 lines) and idevicerestore
   (20,918, of which 1,399 are ours) are vendored. The argument is in
-  `research/restore/p2_restore_off_python.md`.
+  `Research/Restore/native_restore_architecture.md`.
 - **The admission rule caught a bug the plan did not predict**: signing
   `vphone-vm` first sealed the bundle over its siblings in an earlier state,
   and `codesign -v` reported "nested code is modified or invalid". The main

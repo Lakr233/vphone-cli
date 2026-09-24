@@ -84,8 +84,8 @@ struct PatchComponentCLI: ParsableCommand {
         case kernelBase = "kernel-base"
         /// TESTING/DIAGNOSTICS ONLY — not part of any production flow.
         /// Production JB patching runs through `patch-firmware`; this
-        /// standalone option exists so `tests/test_jb_kernel_patches.sh` can run the
-        /// JB kernel layer over a single kernelcache and dump records via --records-out.
+        /// standalone option runs the JB kernel layer over a single kernelcache
+        /// and dumps records via --records-out.
         /// (txm / kernel-base, by contrast, are standalone single-component patchers.)
         case kernelJB = "kernel-jb"
     }

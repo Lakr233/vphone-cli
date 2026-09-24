@@ -59,7 +59,7 @@ autotools project, so the only file here that is not upstream's own bytes is
 `IOKit/usb/IOUSBLib.h`, upstream's `configure.ac` picks IOKit and never looks
 for libusb; that is deliberate here too, because a libusb backend would put a
 Homebrew dylib in the link and gate 1 rejects it. It is also what
-`research/restore/p2_dfu_spike.md` proved works — see below.
+`Research/Restore/virtual_dfu_probe.md` proved works — see below.
 
 ### `Sources/MobileRestoreCore` — idevicerestore
 
@@ -229,7 +229,7 @@ The rows still open are **1** (only as a single invocation — see its cell),
 **4** (the flag is new), **6** and the tail of **7**. **Run them on a disposable
 VM** — a failed restore leaves the guest sitting in recovery.
 
-### `research/restore/p2_dfu_spike.md` already settled the riskiest question
+### `Research/Restore/virtual_dfu_probe.md` already settled the riskiest question
 
 P2.0 asked whether libirecovery's IOKit path can see a Virtualization.framework
 virtual DFU endpoint at all — pymobiledevice3 reached it through pyusb, so one
@@ -267,7 +267,7 @@ comparison.
 ## Still open
 
 **FDR equivalence.** The Python ran `Restore(..., ignore_fdr=False)`;
-idevicerestore's FDR handling is internal. `research/restore/p2_dfu_spike.md` says
+idevicerestore's FDR handling is internal. `Research/Restore/virtual_dfu_probe.md` says
 explicitly that this could not be settled from device enumeration and was not,
 and it stays an open risk on P2.2. It shows up only during an actual restore.
 Do not read "P2.0 passed" as covering it.

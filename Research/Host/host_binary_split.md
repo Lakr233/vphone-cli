@@ -227,7 +227,7 @@ nothing in the tree now.
 **Not verified — needs root and a real guest:**
 
 1. **Whether `vphone-vm` can actually start a VM holding the entitlements
-   alone.** — **settled**, see `research/restore/p2_dfu_spike.md`: it booted a guest
+   alone.** — **settled**, see `Research/Restore/virtual_dfu_probe.md`: it booted a guest
    and libirecovery saw its DFU endpoint. Everything here rested on this, and
    it is the one item the DFU spike closed on the way past.
 2. **That the instructions printed on a refusal are the ones that work**, on a

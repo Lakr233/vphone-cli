@@ -430,7 +430,7 @@ list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,
 `scripts/pymobiledevice3_bridge.py` are all gone — the restore backend was the
 last program holding any of them up, and it is `Sources/VPhoneRestore` over
 vendored libirecovery and idevicerestore now
-(`research/restore/p2_restore_off_python.md`). No Python is tracked in this repository
+(`Research/Restore/native_restore_architecture.md`). No Python is tracked in this repository
 and nothing resolves a `python3` at runtime.
 
 ### Installed Components
