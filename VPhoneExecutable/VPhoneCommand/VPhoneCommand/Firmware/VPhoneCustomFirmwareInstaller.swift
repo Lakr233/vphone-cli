@@ -41,11 +41,13 @@ struct VPhoneCustomFirmwareInstaller {
         let invokingUser = VPhoneInvokingUser.current
         defer {
             if let invokingUser {
-                do { try invokingUser.restoreOwnership(at: bundle) }
-                catch { fputs("warning: could not restore VM ownership: \(error)\n", stderr) }
+                do { try invokingUser.restoreOwnership(at: bundle) } catch {
+                    fputs("warning: could not restore VM ownership: \(error)\n", stderr)
+                }
             }
-            do { try VPhoneHostFilePermissions.makeAccessible(at: bundle) }
-            catch { fputs("warning: could not set VM file permissions: \(error)\n", stderr) }
+            do { try VPhoneHostFilePermissions.makeAccessible(at: bundle) } catch {
+                fputs("warning: could not set VM file permissions: \(error)\n", stderr)
+            }
         }
         let diskImage = bundle.appendingPathComponent("Disk.img")
         guard fm.fileExists(atPath: diskImage.path) else {
@@ -57,17 +59,21 @@ struct VPhoneCustomFirmwareInstaller {
         guard busy.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ValidationError("VM disk is in use; stop the VM before installing CFW")
         }
-        let capacity = try bundle.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        let capacity =
+            try bundle.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage ?? 0
         guard capacity > 50 * 1024 * 1024 * 1024 else {
             throw ValidationError("Less than 50 GiB available; CFW install stopped before mounting")
         }
 
-        let attached = try tool("/usr/bin/hdiutil", [
-            "attach", "-nomount", "-imagekey", "diskimage-class=CRawDiskImage", diskImage.path,
-        ])
-        guard let baseDisk = attached.split(whereSeparator: \.isNewline).first?
-            .split(whereSeparator: \.isWhitespace).first.map(String.init),
+        let attached = try tool(
+            "/usr/bin/hdiutil",
+            [
+                "attach", "-nomount", "-imagekey", "diskimage-class=CRawDiskImage", diskImage.path,
+            ])
+        guard
+            let baseDisk = attached.split(whereSeparator: \.isNewline).first?
+                .split(whereSeparator: \.isWhitespace).first.map(String.init),
             baseDisk.hasPrefix("/dev/disk")
         else {
             if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
@@ -79,7 +85,7 @@ struct VPhoneCustomFirmwareInstaller {
         var workToClean: URL?
         defer {
             if diskAttached,
-               (try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)) == nil
+                (try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)) == nil
             {
                 _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", baseDisk], quiet: true)
             }
@@ -93,10 +99,11 @@ struct VPhoneCustomFirmwareInstaller {
         }
 
         let info = try tool("/usr/sbin/diskutil", ["info", "-plist", "\(baseDisk)s1"], quiet: true)
-        guard let plist = try PropertyListSerialization.propertyList(
-            from: Data(info.utf8),
-            format: nil,
-        ) as? [String: Any],
+        guard
+            let plist = try PropertyListSerialization.propertyList(
+                from: Data(info.utf8),
+                format: nil,
+            ) as? [String: Any],
             let container = plist["APFSContainerReference"] as? String,
             container.hasPrefix("disk")
         else {
@@ -111,12 +118,12 @@ struct VPhoneCustomFirmwareInstaller {
         var dataMounted = false
         defer {
             if dataMounted,
-               (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
+                (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
             {
                 _ = try? tool("/sbin/umount", ["-f", data.path], quiet: true)
             }
             if systemMounted,
-               (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
+                (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
             {
                 _ = try? tool("/sbin/umount", ["-f", system.path], quiet: true)
             }
@@ -140,10 +147,12 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     private func installMounted(system: URL, data: URL, work: URL) throws {
-        guard let restore = try fm.contentsOfDirectory(at: bundle, includingPropertiesForKeys: [.isDirectoryKey])
-            .first(where: { $0.lastPathComponent.contains("Restore") &&
-                    fm.fileExists(atPath: $0.appendingPathComponent("iPhone-BuildManifest.plist").path)
-            })
+        guard
+            let restore = try fm.contentsOfDirectory(at: bundle, includingPropertiesForKeys: [.isDirectoryKey])
+                .first(where: {
+                    $0.lastPathComponent.contains("Restore")
+                        && fm.fileExists(atPath: $0.appendingPathComponent("iPhone-BuildManifest.plist").path)
+                })
         else {
             throw ValidationError("No prepared iPhone restore tree exists in \(bundle.path)")
         }
@@ -190,19 +199,23 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try fm.copyItem(at: gpuSource, to: gpu)
         try tool("/usr/sbin/chown", ["-R", "0:0", gpu.path])
-        for file in [gpu, gpu.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"),
-                     gpu.appendingPathComponent("_CodeSignature")]
-        {
+        for file in [
+            gpu, gpu.appendingPathComponent("AppleParavirtGPUMetalIOGPUFamily"),
+            gpu.appendingPathComponent("_CodeSignature"),
+        ] {
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: file.path)
         }
         let compilerPlugin = gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
         guard fm.fileExists(atPath: compilerPlugin.path) else {
-            throw ValidationError("PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app.")
+            throw ValidationError(
+                "PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app."
+            )
         }
         try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: compilerPlugin.path)
-        for file in [gpu.appendingPathComponent("Info.plist"),
-                     gpu.appendingPathComponent("_CodeSignature/CodeResources")]
-        {
+        for file in [
+            gpu.appendingPathComponent("Info.plist"),
+            gpu.appendingPathComponent("_CodeSignature/CodeResources"),
+        ] {
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o644)], ofItemAtPath: file.path)
         }
         try patchMachO(
@@ -237,8 +250,8 @@ struct VPhoneCustomFirmwareInstaller {
     private func installCryptexes(restore: URL, system: URL, work: URL) throws {
         let os = system.appendingPathComponent("System/Cryptexes/OS")
         let app = system.appendingPathComponent("System/Cryptexes/App")
-        if !((try? fm.contentsOfDirectory(atPath: os.path))?.isEmpty == false &&
-            (try? fm.contentsOfDirectory(atPath: app.path))?.isEmpty == false)
+        if !((try? fm.contentsOfDirectory(atPath: os.path))?.isEmpty == false
+            && (try? fm.contentsOfDirectory(atPath: app.path))?.isEmpty == false)
         {
             let paths = try CustomFirmwareDaemons.cryptexPaths(
                 buildManifest: restore.appendingPathComponent("iPhone-BuildManifest.plist"),
@@ -249,8 +262,10 @@ struct VPhoneCustomFirmwareInstaller {
             let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: encrypted) }
             try tool(
                 "/usr/bin/aea",
-                ["decrypt", "-i", encrypted.path,
-                 "-o", plain.path, "-key-value", key],
+                [
+                    "decrypt", "-i", encrypted.path,
+                    "-o", plain.path, "-key-value", key,
+                ],
                 quiet: true,
             )
             let osMount = work.appendingPathComponent("mnt-os")
@@ -258,27 +273,39 @@ struct VPhoneCustomFirmwareInstaller {
             try fm.createDirectory(at: osMount, withIntermediateDirectories: true)
             try fm.createDirectory(at: appMount, withIntermediateDirectories: true)
             var osNeedsDetach = true
-            defer { if osNeedsDetach { try? detachImage(at: osMount) } }
+            defer {
+                if osNeedsDetach {
+                    try? detachImage(at: osMount)
+                }
+            }
             try tool(
                 "/usr/bin/hdiutil",
-                ["attach", "-mountpoint", osMount.path,
-                 plain.path, "-nobrowse", "-owners", "off"],
+                [
+                    "attach", "-mountpoint", osMount.path,
+                    plain.path, "-nobrowse", "-owners", "off",
+                ],
                 quiet: true,
             )
             var appNeedsDetach = true
-            defer { if appNeedsDetach { try? detachImage(at: appMount) } }
+            defer {
+                if appNeedsDetach {
+                    try? detachImage(at: appMount)
+                }
+            }
             try tool(
                 "/usr/bin/hdiutil",
-                ["attach", "-mountpoint", appMount.path,
-                 appImage.path,
-                 "-nobrowse", "-owners", "off"],
+                [
+                    "attach", "-mountpoint", appMount.path,
+                    appImage.path,
+                    "-nobrowse", "-owners", "off",
+                ],
                 quiet: true,
             )
             for (source, destination) in [(osMount, os), (appMount, app)] {
                 // The restored rootfs has dangling Cryptex symlinks. fileExists
                 // follows those links and reports false until Preboot is populated.
-                if fm.fileExists(atPath: destination.path) ||
-                    (try? fm.destinationOfSymbolicLink(atPath: destination.path)) != nil
+                if fm.fileExists(atPath: destination.path)
+                    || (try? fm.destinationOfSymbolicLink(atPath: destination.path)) != nil
                 {
                     try fm.removeItem(at: destination)
                 }
@@ -292,10 +319,12 @@ struct VPhoneCustomFirmwareInstaller {
             try detachImage(at: osMount)
             osNeedsDetach = false
         }
-        try symlink("../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
-                    at: system.appendingPathComponent("System/Library/Caches/com.apple.dyld"))
-        try symlink("../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
-                    at: system.appendingPathComponent("System/DriverKit/System/Library/dyld"))
+        try symlink(
+            "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
+            at: system.appendingPathComponent("System/Library/Caches/com.apple.dyld"))
+        try symlink(
+            "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
+            at: system.appendingPathComponent("System/DriverKit/System/Library/dyld"))
     }
 
     private func installVphoned(system: URL, work: URL) throws {
@@ -304,8 +333,9 @@ struct VPhoneCustomFirmwareInstaller {
         try fm.copyItem(at: vphoned, to: staged)
         let entitlementsURL = resources.scriptsDir.appendingPathComponent("vphoned/VPhoneDaemon.entitlements")
         let entitlements = try Data(contentsOf: entitlementsURL, options: .mappedIfSafe)
-        try VPhoneSigner.sign(fileAt: staged,
-                              options: .init(entitlements: entitlements, mergesExisting: true))
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(entitlements: entitlements, mergesExisting: true))
         try replace(staged, at: system.appendingPathComponent("usr/bin/vphoned"), mode: 0o755)
         let signed = bundle.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: signed.path) {
@@ -313,9 +343,11 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try fm.copyItem(at: staged, to: signed)
         let daemon = resources.scriptsDir.appendingPathComponent("vphoned/vphoned.plist")
-        try replace(daemon, at: system.appendingPathComponent(
-            "System/Library/LaunchDaemons/vphoned.plist",
-        ), mode: 0o644)
+        try replace(
+            daemon,
+            at: system.appendingPathComponent(
+                "System/Library/LaunchDaemons/vphoned.plist",
+            ), mode: 0o644)
         let launchd = system.appendingPathComponent("System/Library/xpc/launchd.plist")
         let backup = launchd.appendingPathExtension("bak")
         if !fm.fileExists(atPath: backup.path) {
@@ -366,15 +398,17 @@ struct VPhoneCustomFirmwareInstaller {
             try fm.removeItem(at: staged)
         }
         try fm.copyItem(at: backup, to: staged)
-        let entitlements = preserveEntitlements
+        let entitlements =
+            preserveEntitlements
             ? try VPhoneSigner.entitlements(ofFileAt: backup).first(where: { !$0.isEmpty })
             : nil
         try patch(verb, [staged.path])
         if let injectedDylibPath {
             try patch("inject-dylib", [staged.path, injectedDylibPath])
         }
-        try VPhoneSigner.sign(fileAt: staged,
-                              options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true))
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true))
         try replace(staged, at: target, mode: 0o755)
     }
 
@@ -384,8 +418,9 @@ struct VPhoneCustomFirmwareInstaller {
             print("[!] debugserver absent; entitlement patch skipped")
             return
         }
-        guard let source = try VPhoneSigner.entitlements(ofFileAt: target)
-            .first(where: { !$0.isEmpty }),
+        guard
+            let source = try VPhoneSigner.entitlements(ofFileAt: target)
+                .first(where: { !$0.isEmpty }),
             var plist = try PropertyListSerialization.propertyList(
                 from: source, format: nil,
             ) as? [String: Any]
@@ -395,12 +430,14 @@ struct VPhoneCustomFirmwareInstaller {
         }
         plist.removeValue(forKey: "seatbelt-profiles")
         plist["task_for_pid-allow"] = true
-        let data = try PropertyListSerialization.data(fromPropertyList: plist,
-                                                      format: .xml, options: 0)
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .xml, options: 0)
         let staged = work.appendingPathComponent("debugserver")
         try fm.copyItem(at: target, to: staged)
-        try VPhoneSigner.sign(fileAt: staged,
-                              options: .init(entitlements: data, mergesExisting: true))
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(entitlements: data, mergesExisting: true))
         try replace(staged, at: target, mode: 0o755)
     }
 
@@ -410,8 +447,9 @@ struct VPhoneCustomFirmwareInstaller {
             print("[!] Campo absent; entitlement patch skipped")
             return
         }
-        guard let source = try VPhoneSigner.entitlements(ofFileAt: target)
-            .first(where: { !$0.isEmpty })
+        guard
+            let source = try VPhoneSigner.entitlements(ofFileAt: target)
+                .first(where: { !$0.isEmpty })
         else {
             print("[!] Campo has no readable entitlements; patch skipped")
             return
@@ -449,10 +487,11 @@ struct VPhoneCustomFirmwareInstaller {
         let plist = system.appendingPathComponent(
             "System/Library/CoreServices/SystemVersion.plist",
         )
-        guard let value = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: plist, options: .mappedIfSafe),
-            format: nil,
-        ) as? [String: Any],
+        guard
+            let value = try PropertyListSerialization.propertyList(
+                from: Data(contentsOf: plist, options: .mappedIfSafe),
+                format: nil,
+            ) as? [String: Any],
             let version = value["ProductVersion"] as? String
         else {
             throw ValidationError("SystemVersion.plist has no ProductVersion")
@@ -482,10 +521,12 @@ struct VPhoneCustomFirmwareInstaller {
             throw ValidationError("Could not verify that CFW volumes are detached")
         }
         let root = work.resolvingSymlinksInPath().path
-        guard !mounts.contains(where: {
-            let path = $0.resolvingSymlinksInPath().path
-            return path == root || path.hasPrefix(root + "/")
-        }) else {
+        guard
+            !mounts.contains(where: {
+                let path = $0.resolvingSymlinksInPath().path
+                return path == root || path.hasPrefix(root + "/")
+            })
+        else {
             throw ValidationError("CFW volume is still mounted under \(work.path)")
         }
         try fm.removeItem(at: work)
@@ -516,7 +557,8 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
         guard result.succeeded else {
-            throw ValidationError("\(URL(fileURLWithPath: path).lastPathComponent) failed (\(result.exitCode)): \(result.stderr)")
+            throw ValidationError(
+                "\(URL(fileURLWithPath: path).lastPathComponent) failed (\(result.exitCode)): \(result.stderr)")
         }
         return result.stdout
     }

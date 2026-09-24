@@ -18,11 +18,11 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
 
     var displayClass: String {
         switch itemClass {
-        case "genp": "Password"
-        case "inet": "Internet"
-        case "cert": "Certificate"
-        case "keys": "Key"
-        case "idnt": "Identity"
+        case "genp": VPhoneLocalization.text("Password")
+        case "inet": VPhoneLocalization.text("Internet")
+        case "cert": VPhoneLocalization.text("Certificate")
+        case "keys": VPhoneLocalization.text("Key")
+        case "idnt": VPhoneLocalization.text("Identity")
         default: itemClass
         }
     }
@@ -40,13 +40,16 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
 
     var displayValue: String {
         if valueEncoding == "protected" {
-            return "Protected"
+            return VPhoneLocalization.text("Protected")
         }
         if value.isEmpty {
             return "-"
         }
         if valueEncoding == "base64" {
-            return "[\(ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file)) binary]"
+            return VPhoneLocalization.format(
+                "[%@ binary]",
+                ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file)
+            )
         }
         return value
     }
@@ -65,20 +68,20 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
             return server
         }
         if protectedMetadata {
-            return "(protected)"
+            return VPhoneLocalization.text("(protected)")
         }
-        return "(unnamed)"
+        return VPhoneLocalization.text("(unnamed)")
     }
 
     var protectionDescription: String {
         switch protection {
-        case "ak": "WhenUnlocked"
-        case "ck": "AfterFirstUnlock"
-        case "dk": "Always"
-        case "aku": "WhenUnlocked (ThisDevice)"
-        case "cku": "AfterFirstUnlock (ThisDevice)"
-        case "dku": "Always (ThisDevice)"
-        case "akpu": "WhenPasscodeSet (ThisDevice)"
+        case "ak": VPhoneLocalization.text("WhenUnlocked")
+        case "ck": VPhoneLocalization.text("AfterFirstUnlock")
+        case "dk": VPhoneLocalization.text("Always")
+        case "aku": VPhoneLocalization.text("WhenUnlocked (ThisDevice)")
+        case "cku": VPhoneLocalization.text("AfterFirstUnlock (ThisDevice)")
+        case "dku": VPhoneLocalization.text("Always (ThisDevice)")
+        case "akpu": VPhoneLocalization.text("WhenPasscodeSet (ThisDevice)")
         default: protection
         }
     }

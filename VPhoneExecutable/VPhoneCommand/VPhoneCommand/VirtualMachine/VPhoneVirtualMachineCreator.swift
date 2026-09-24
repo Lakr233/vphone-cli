@@ -24,26 +24,26 @@ private enum VPhoneVirtualMachineCreationError: Error, CustomStringConvertible {
         switch self {
         case .nestedVirtualization:
             "Guest boot is unavailable inside a VM. Run vm create on a macOS 15 or later host that is not itself a VM."
-        case let .identityTimedOut(path):
+        case .identityTimedOut(let path):
             "Device identity file not found: \(path.path). Run vm create again to regenerate it."
-        case let .invalidUDID(v):
+        case .invalidUDID(let v):
             "Invalid UDID in the device identity file: '\(v)'. Run vm create again to regenerate it."
-        case let .invalidECID(v):
+        case .invalidECID(let v):
             "Invalid ECID in the device identity file: '\(v)'. Run vm create again to regenerate it."
-        case let .udidECIDMismatch(udid, ecid):
+        case .udidECIDMismatch(let udid, let ecid):
             "The UDID and ECID in the device identity file do not match: \(udid) vs 0x\(ecid). "
                 + "Run vm create again to regenerate it."
         case .recoveryTimeout:
             "Timed out waiting for the device to enter recovery mode."
         // No exit code any more: the restore backend is in this process, so
         // what a failure carries is the reason it gave.
-        case let .restoreUpdateFailed(reason):
+        case .restoreUpdateFailed(let reason):
             "Device restore failed: \(reason)"
-        case let .cfwInstallFailed(code):
+        case .cfwInstallFailed(let code):
             "Custom firmware installation failed (exit code \(code))."
         case .bootAnalysisPanic:
             "Boot analysis failed: the guest panicked."
-        case let .bootAnalysisExited(code):
+        case .bootAnalysisExited(let code):
             "Boot check ended before vphoned connected (exit code \(code))."
         case .bootAnalysisTimeout:
             "Boot check timed out waiting for vphoned."
@@ -105,16 +105,18 @@ public struct VPhoneVirtualMachineCreator {
         defer {
             if let invokingUser, !ownershipRestored {
                 for output in ownedOutputs {
-                    do { try invokingUser.restoreOwnership(at: output) }
-                    catch { fputs("warning: could not restore ownership of \(output.path): \(error)\n", stderr) }
+                    do { try invokingUser.restoreOwnership(at: output) } catch {
+                        fputs("warning: could not restore ownership of \(output.path): \(error)\n", stderr)
+                    }
                 }
                 try? invokingUser.restoreOwnerOfDirectory(at: library.root)
                 try? invokingUser.restoreOwnerOfDirectory(at: VPhoneResources.userDataRoot())
             }
             if !permissionsRestored {
                 for output in ownedOutputs {
-                    do { try VPhoneHostFilePermissions.makeAccessible(at: output) }
-                    catch { fputs("warning: could not set permissions on \(output.path): \(error)\n", stderr) }
+                    do { try VPhoneHostFilePermissions.makeAccessible(at: output) } catch {
+                        fputs("warning: could not set permissions on \(output.path): \(error)\n", stderr)
+                    }
                 }
                 try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
                 try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
@@ -123,7 +125,6 @@ public struct VPhoneVirtualMachineCreator {
         if FileManager.default.fileExists(atPath: bundleURL.path) {
             throw VPhoneLibraryError.alreadyExists(name: options.name)
         }
-
 
         print("\n=== vm new ===")
         let spec = VPhoneBundleOperations.NewBundleConfiguration(
@@ -157,7 +158,7 @@ public struct VPhoneVirtualMachineCreator {
         // CFW install is the last consumer of the built restore tree (it copies
         // the SystemOS/AppOS cryptexes from it onto Disk.img); reclaim it now.
         if !options.keepArtifacts, let bundle = try? VPhoneBundle.load(at: bundleURL),
-           let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle)
+            let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle)
         {
             print("[+] Removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
         }
@@ -165,12 +166,16 @@ public struct VPhoneVirtualMachineCreator {
         print("\n=== First boot check ===")
         try runBootAnalysis(bundleURL: bundleURL, verbosity: v)
         if let invokingUser {
-            for output in ownedOutputs { try invokingUser.restoreOwnership(at: output) }
+            for output in ownedOutputs {
+                try invokingUser.restoreOwnership(at: output)
+            }
             try invokingUser.restoreOwnerOfDirectory(at: library.root)
             try invokingUser.restoreOwnerOfDirectory(at: VPhoneResources.userDataRoot())
         }
         ownershipRestored = true
-        for output in ownedOutputs { try VPhoneHostFilePermissions.makeAccessible(at: output) }
+        for output in ownedOutputs {
+            try VPhoneHostFilePermissions.makeAccessible(at: output)
+        }
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
         permissionsRestored = true
@@ -304,15 +309,16 @@ public struct VPhoneVirtualMachineCreator {
     /// restore already succeeded, so a metadata miss is a warning, not a failure.
     private func recordRestoreVersions(bundleURL: URL) {
         guard let bundle = try? VPhoneBundle.load(at: bundleURL),
-              let info = VPhoneRestoreInfo.derive(fromBundle: bundle)
+            let info = VPhoneRestoreInfo.derive(fromBundle: bundle)
         else {
             print("[!] Could not record restore versions (metadata not found)")
             return
         }
         do {
             try info.write(toBundle: bundle)
-            print("[+] Recorded versions: iOS \(info.ios.version) (\(info.ios.build)), "
-                + "cloudOS \(info.cloudOS.version) (\(info.cloudOS.build))")
+            print(
+                "[+] Recorded versions: iOS \(info.ios.version) (\(info.ios.build)), "
+                    + "cloudOS \(info.cloudOS.version) (\(info.cloudOS.build))")
         } catch {
             print("[!] Could not write restore-info.json: \(error)")
         }
@@ -333,7 +339,7 @@ public struct VPhoneVirtualMachineCreator {
         var ecid = ""
         for line in text.split(whereSeparator: \.isNewline) {
             guard let eq = line.firstIndex(of: "=") else { continue }
-            let key = line[line.startIndex ..< eq]
+            let key = line[line.startIndex..<eq]
             let value = String(line[line.index(after: eq)...])
             if key == "UDID" {
                 udid = value.uppercased()
@@ -365,7 +371,7 @@ public struct VPhoneVirtualMachineCreator {
     /// wait is now one `irecv_open_with_ecid_and_attempts` poll per round.
     private func waitForRecovery(ecid: UInt64?, verbosity v: VPhoneVerbosity) throws {
         print("[*] Waiting for recovery/DFU endpoint...")
-        for _ in 1 ... 90 {
+        for _ in 1...90 {
             if let device = try? VPhoneRestoreService.recoveryProbe(ecid: ecid, timeout: 2) {
                 print("[+] Device endpoint is reachable")
                 trace("recovery-probe: \(device.productType ?? "device") in \(device.mode)", v)
@@ -392,7 +398,7 @@ public struct VPhoneVirtualMachineCreator {
         guard code == 0 else { throw VPhoneVirtualMachineCreationError.cfwInstallFailed(code) }
         print("[+] JB CFW installed.")
         if let bundle = try? VPhoneBundle.load(at: bundleURL),
-           let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil
+            let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil
         {
             print("[+] Recorded variant jb, device \(info.device ?? "?")")
         }
@@ -419,7 +425,7 @@ public struct VPhoneVirtualMachineCreator {
             case .matched:
                 print("[-] Boot analysis: panic detected, stopping VM.")
                 throw VPhoneVirtualMachineCreationError.bootAnalysisPanic
-            case let .exited(code):
+            case .exited(let code):
                 print("[-] Boot analysis: VM process exited before success marker.")
                 throw VPhoneVirtualMachineCreationError.bootAnalysisExited(code)
             case .timedOut:

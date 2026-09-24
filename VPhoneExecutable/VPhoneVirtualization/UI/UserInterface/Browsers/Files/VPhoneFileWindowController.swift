@@ -26,7 +26,7 @@ class VPhoneFileWindowController {
             backing: .buffered,
             defer: false,
         )
-        window.title = "Files"
+        window.title = VPhoneLocalization.text("Files")
         window.subtitle = "vphone"
         window.contentViewController = hostingController
         window.contentMinSize = NSSize(width: 500, height: 300)

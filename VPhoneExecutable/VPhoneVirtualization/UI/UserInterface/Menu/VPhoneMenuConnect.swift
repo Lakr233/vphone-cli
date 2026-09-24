@@ -190,5 +190,4 @@ extension VPhoneMenuController {
     @objc func writeSetting() {
         guestToolsWindowController.show(.writeSetting)
     }
-
 }

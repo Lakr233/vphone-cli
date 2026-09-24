@@ -52,7 +52,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         window.isReleasedWhenClosed = false
         window.level = .normal
         window.contentAspectRatio = windowSize
-        window.title = "vphone — Starting…"
+        window.title = VPhoneLocalization.text("vphone — Starting…")
         window.subtitle = makeSubtitle(ip: nil)
         window.contentView = vmView
         if let ecid {
@@ -88,7 +88,9 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
             [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }
-                window.title = control.isConnected ? "vphone — Connected" : "vphone — Disconnected"
+                window.title = VPhoneLocalization.text(
+                    control.isConnected ? "vphone — Connected" : "vphone — Disconnected"
+                )
                 window.subtitle = self.makeSubtitle(ip: control.isConnected ? control.guestIPAddress : nil)
             }
         }
@@ -96,9 +98,9 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
 
     private func makeSubtitle(ip: String?) -> String {
         switch (ecid, ip) {
-        case let (ecid?, ip?): "\(ecid) — \(ip)"
-        case let (ecid?, nil): ecid
-        case let (nil, ip?): ip
+        case (let ecid?, let ip?): "\(ecid) — \(ip)"
+        case (let ecid?, nil): ecid
+        case (nil, let ip?): ip
         case (nil, nil): ""
         }
     }
@@ -113,11 +115,11 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         MainActor.assumeIsolated {
             if itemIdentifier == Self.homeItemID {
                 let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-                item.label = "Home"
-                item.toolTip = "Home Button"
+                item.label = VPhoneLocalization.text("Home")
+                item.toolTip = VPhoneLocalization.text("Home Button")
                 item.image = NSImage(
                     systemSymbolName: "circle.circle",
-                    accessibilityDescription: "Home",
+                    accessibilityDescription: VPhoneLocalization.text("Home"),
                 )
                 item.target = self
                 item.action = #selector(homePressed)

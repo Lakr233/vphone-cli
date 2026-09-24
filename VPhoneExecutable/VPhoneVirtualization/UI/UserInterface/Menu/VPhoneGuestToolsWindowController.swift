@@ -7,14 +7,16 @@ enum VPhoneGuestToolPage: String, CaseIterable, Identifiable {
     case readSetting
     case writeSetting
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var title: String {
         switch self {
-        case .getClipboard: "Get Clipboard"
-        case .setClipboard: "Set Clipboard Text"
-        case .readSetting: "Read Setting"
-        case .writeSetting: "Write Setting"
+        case .getClipboard: VPhoneLocalization.text("Get Clipboard")
+        case .setClipboard: VPhoneLocalization.text("Set Clipboard Text")
+        case .readSetting: VPhoneLocalization.text("Read Setting")
+        case .writeSetting: VPhoneLocalization.text("Write Setting")
         }
     }
 
@@ -48,8 +50,8 @@ final class VPhoneGuestToolsWindowController: NSObject, NSWindowDelegate {
                 backing: .buffered,
                 defer: false,
             )
-            window.title = "Guest Tools"
-            window.subtitle = "Clipboard & Settings"
+            window.title = VPhoneLocalization.text("Guest Tools")
+            window.subtitle = VPhoneLocalization.text("Clipboard & Settings")
             window.contentViewController = NSHostingController(rootView: VPhoneGuestToolsView(model: model))
             window.contentMinSize = NSSize(width: 680, height: 440)
             window.setContentSize(NSSize(width: 840, height: 560))
@@ -82,14 +84,16 @@ final class VPhoneGuestToolsModel {
         case int
         case float
 
-        var id: Self { self }
+        var id: Self {
+            self
+        }
 
         var title: String {
             switch self {
-            case .string: "String"
-            case .bool: "Boolean"
-            case .int: "Integer"
-            case .float: "Float"
+            case .string: VPhoneLocalization.text("String")
+            case .bool: VPhoneLocalization.text("Boolean")
+            case .int: VPhoneLocalization.text("Integer")
+            case .float: VPhoneLocalization.text("Float")
             }
         }
     }
@@ -132,7 +136,8 @@ final class VPhoneGuestToolsModel {
             clipboardChangeCount = content.changeCount
             hasClipboardResult = true
         } catch {
-            showError("Unable to read the guest clipboard. Check the connection and try again.")
+            showError(
+                VPhoneLocalization.text("Unable to read the guest clipboard. Check the connection and try again."))
         }
     }
 
@@ -142,9 +147,9 @@ final class VPhoneGuestToolsModel {
         defer { isBusy = false }
         do {
             try await control.clipboardSet(text: clipboardInput)
-            showSuccess("Text set on the guest clipboard.")
+            showSuccess(VPhoneLocalization.text("Text set on the guest clipboard."))
         } catch {
-            showError("Unable to set the guest clipboard. Check the connection and try again.")
+            showError(VPhoneLocalization.text("Unable to set the guest clipboard. Check the connection and try again."))
         }
     }
 
@@ -162,11 +167,11 @@ final class VPhoneGuestToolsModel {
                 let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys])
                 settingResult = String(data: data, encoding: .utf8) ?? String(describing: value)
             } else {
-                settingResult = value.map { String(describing: $0) } ?? "Not set"
+                settingResult = value.map { String(describing: $0) } ?? VPhoneLocalization.text("Not set")
             }
-            showSuccess("Read \(domain)\(key.isEmpty ? "" : ".\(key)").")
+            showSuccess(VPhoneLocalization.format("Read %@.", domain + (key.isEmpty ? "" : ".\(key)")))
         } catch {
-            showError("Unable to read that setting. Check the domain and key, then try again.")
+            showError(VPhoneLocalization.text("Unable to read that setting. Check the domain and key, then try again."))
         }
     }
 
@@ -175,7 +180,7 @@ final class VPhoneGuestToolsModel {
         let key = writeKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isBusy else { return }
         guard !domain.isEmpty, !key.isEmpty else {
-            showError("Enter a domain and key.")
+            showError(VPhoneLocalization.text("Enter a domain and key."))
             return
         }
 
@@ -189,18 +194,18 @@ final class VPhoneGuestToolsModel {
             case "true", "yes", "1": value = true
             case "false", "no", "0": value = false
             default:
-                showError("Enter true or false for a Boolean value.")
+                showError(VPhoneLocalization.text("Enter true or false for a Boolean value."))
                 return
             }
         case .int:
             guard let number = Int64(rawValue) else {
-                showError("Enter a valid integer.")
+                showError(VPhoneLocalization.text("Enter a valid integer."))
                 return
             }
             value = number
         case .float:
             guard let number = Double(rawValue), number.isFinite else {
-                showError("Enter a finite number.")
+                showError(VPhoneLocalization.text("Enter a finite number."))
                 return
             }
             value = number
@@ -210,23 +215,23 @@ final class VPhoneGuestToolsModel {
         defer { isBusy = false }
         do {
             try await control.settingsSet(domain: domain, key: key, value: value, type: writeType.rawValue)
-            showSuccess("Wrote \(domain).\(key).")
+            showSuccess(VPhoneLocalization.format("Wrote %@.", "\(domain).\(key)"))
         } catch {
-            showError("Unable to write that setting. Check the connection and try again.")
+            showError(VPhoneLocalization.text("Unable to write that setting. Check the connection and try again."))
         }
     }
 
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        showSuccess("Copied to the Mac clipboard.")
+        showSuccess(VPhoneLocalization.text("Copied to the Mac clipboard."))
     }
 
     func copyImage() {
         guard let clipboardImageData, let image = NSImage(data: clipboardImageData) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
-        showSuccess("Image copied to the Mac clipboard.")
+        showSuccess(VPhoneLocalization.text("Image copied to the Mac clipboard."))
     }
 
     private func showSuccess(_ message: String) {
@@ -319,10 +324,11 @@ struct VPhoneGuestToolsView: View {
 
     private var pageDescription: String {
         switch model.page {
-        case .getClipboard: "Inspect the guest clipboard and copy its text to your Mac."
-        case .setClipboard: "Send text from your Mac to the guest clipboard."
-        case .readSetting: "Read one preference key, or leave the key empty to read all keys in the domain."
-        case .writeSetting: "Write a typed value to a guest preference key."
+        case .getClipboard: VPhoneLocalization.text("Inspect the guest clipboard and copy its text to your Mac.")
+        case .setClipboard: VPhoneLocalization.text("Send text from your Mac to the guest clipboard.")
+        case .readSetting:
+            VPhoneLocalization.text("Read one preference key, or leave the key empty to read all keys in the domain.")
+        case .writeSetting: VPhoneLocalization.text("Write a typed value to a guest preference key.")
         }
     }
 
@@ -349,11 +355,19 @@ struct VPhoneGuestToolsView: View {
             }
             if model.hasClipboardResult {
                 HStack(spacing: 24) {
-                    metadata("Types", model.clipboardTypes.isEmpty ? "None" : model.clipboardTypes.joined(separator: ", "))
-                    metadata("Image", model.clipboardHasImage ? "Present" : "None")
+                    metadata(
+                        "Types",
+                        model.clipboardTypes.isEmpty
+                            ? VPhoneLocalization.text("None") : model.clipboardTypes.joined(separator: ", "))
+                    metadata(
+                        "Image",
+                        model.clipboardHasImage ? VPhoneLocalization.text("Present") : VPhoneLocalization.text("None"))
                     metadata("Change Count", String(model.clipboardChangeCount))
                 }
-                resultBox(model.clipboardText ?? "No text in the guest clipboard. Copy text in the guest, then refresh.")
+                resultBox(
+                    model.clipboardText
+                        ?? VPhoneLocalization.text(
+                            "No text in the guest clipboard. Copy text in the guest, then refresh."))
                 if let data = model.clipboardImageData, let image = NSImage(data: data) {
                     Image(nsImage: image)
                         .resizable()
@@ -381,7 +395,7 @@ struct VPhoneGuestToolsView: View {
                 .accessibilityLabel("Text for guest clipboard")
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
             HStack {
-                Text("Characters: \(model.clipboardInput.count)")
+                Text(VPhoneLocalization.format("Characters: %@", String(model.clipboardInput.count)))
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -451,8 +465,8 @@ struct VPhoneGuestToolsView: View {
 
     private var valuePrompt: String {
         switch model.writeType {
-        case .string: "Text"
-        case .bool: "true or false"
+        case .string: VPhoneLocalization.text("Text")
+        case .bool: VPhoneLocalization.text("true or false")
         case .int: "42"
         case .float: "3.14"
         }
@@ -460,8 +474,8 @@ struct VPhoneGuestToolsView: View {
 
     private func field(_ title: String, text: Binding<String>, prompt: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
-            TextField(title, text: text, prompt: Text(prompt))
+            Text(VPhoneLocalization.text(title)).font(.headline)
+            TextField(VPhoneLocalization.text(title), text: text, prompt: Text(VPhoneLocalization.text(prompt)))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.body, design: .monospaced))
         }
@@ -470,7 +484,7 @@ struct VPhoneGuestToolsView: View {
 
     private func metadata(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
+            Text(VPhoneLocalization.text(title).uppercased())
                 .font(.system(.caption, design: .monospaced, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text(value)

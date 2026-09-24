@@ -9,7 +9,7 @@ import VPhoneSign
 func vpGuestSignBinary(
     _ path: UnsafePointer<CChar>?,
     _ entitlementsPath: UnsafePointer<CChar>?,
-    _ certificatePath: UnsafePointer<CChar>?
+    _ certificatePath: UnsafePointer<CChar>?,
 ) -> UnsafeMutablePointer<CChar>? {
     guard let path else { return strdup("Missing executable path") }
 
@@ -18,7 +18,7 @@ func vpGuestSignBinary(
         if let entitlementsPath {
             options.entitlements = try Data(
                 contentsOf: URL(fileURLWithPath: String(cString: entitlementsPath)),
-                options: .mappedIfSafe
+                options: .mappedIfSafe,
             )
         } else {
             options.mergesExisting = true
@@ -28,9 +28,9 @@ func vpGuestSignBinary(
             options.identity = try VPhoneSignIdentity(
                 pkcs12: Data(
                     contentsOf: URL(fileURLWithPath: String(cString: certificatePath)),
-                    options: .mappedIfSafe
+                    options: .mappedIfSafe,
                 ),
-                password: ""
+                password: "",
             )
         }
         try VPhoneSigner.sign(fileAt: URL(fileURLWithPath: String(cString: path)), options: options)

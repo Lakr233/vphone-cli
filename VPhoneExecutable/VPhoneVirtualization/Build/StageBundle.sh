@@ -66,6 +66,13 @@ fi
 /bin/cp "$guest_products/camfix/libcamfix.plist" "$resources/guest/libcamfix.plist"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$resources/guest/libvcamcaptured.plist"
 
+"${0:a:h}/SyncStrings.sh"
+for catalog in Localizable InfoPlist; do
+    /usr/bin/xcrun xcstringstool compile \
+        "$root/VPhoneExecutable/VPhoneVirtualization/Resources/$catalog.xcstrings" \
+        --output-directory "$resources"
+done
+
 # vphone-vm needs Swift's span back-deployment library on macOS 15. Xcode's
 # generic bundle has no main executable. Use a private load name for the VM child.
 compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \

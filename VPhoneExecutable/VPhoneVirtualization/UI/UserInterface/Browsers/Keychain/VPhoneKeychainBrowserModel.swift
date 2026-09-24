@@ -46,14 +46,15 @@ class VPhoneKeychainBrowserModel {
     var statusText: String {
         let count = filteredItems.count
         let total = items.count
-        let suffix = count == 1 ? "item" : "items"
         if count != total {
-            return "\(count)/\(total) \(suffix)"
+            return VPhoneLocalization.format("%@/%@ items", String(count), String(total))
         }
         if count == 0, !diagnostics.isEmpty {
-            return "No items"
+            return VPhoneLocalization.text("No items")
         }
-        return "\(count) \(suffix)"
+        return count == 1
+            ? VPhoneLocalization.text("1 item")
+            : VPhoneLocalization.format("%@ items", String(count))
     }
 
     static let classFilters: [(label: String, value: String?)] = [
@@ -83,7 +84,7 @@ class VPhoneKeychainBrowserModel {
             print("[keychain] test item added, refreshing...")
             await refresh()
         } catch {
-            self.error = "Unable to add the keychain item. Try again."
+            self.error = VPhoneLocalization.text("Unable to add the keychain item. Try again.")
             print("[keychain] add failed: \(error)")
         }
     }
@@ -93,7 +94,7 @@ class VPhoneKeychainBrowserModel {
             _ = try await control.deleteKeychainItem(account: "vphone-test", service: "vphone")
             await refresh()
         } catch {
-            self.error = "Unable to remove the test keychain item. Try again."
+            self.error = VPhoneLocalization.text("Unable to remove the test keychain item. Try again.")
             print("[keychain] remove failed: \(error)")
         }
     }
@@ -102,7 +103,7 @@ class VPhoneKeychainBrowserModel {
 
     func refresh() async {
         guard control.isConnected else {
-            error = "The guest agent is not connected. Wait for it to connect, then try again."
+            error = VPhoneLocalization.text("The guest agent is not connected. Wait for it to connect, then try again.")
             return
         }
         isLoading = true
@@ -115,7 +116,8 @@ class VPhoneKeychainBrowserModel {
                 print("[keychain] 0 items, diag: \(diagnostics)")
             }
         } catch {
-            self.error = "Unable to load keychain items. Check that the guest agent is connected, then try again."
+            self.error = VPhoneLocalization.text(
+                "Unable to load keychain items. Check that the guest agent is connected, then try again.")
             items = []
         }
         isLoading = false

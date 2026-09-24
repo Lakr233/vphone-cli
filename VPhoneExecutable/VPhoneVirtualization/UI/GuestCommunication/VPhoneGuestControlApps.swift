@@ -12,7 +12,9 @@ extension VPhoneGuestControl {
         let pid: Int
         let path: String
 
-        var id: String { bundleId }
+        var id: String {
+            bundleId
+        }
     }
 
     func appList(filter: String = "all") async throws -> [AppInfo] {
@@ -34,7 +36,7 @@ extension VPhoneGuestControl {
     }
 
     func appLaunch(bundleId: String, url: String? = nil) async throws -> (
-        pid: Int, frontmostVerified: Bool, warning: String?
+        pid: Int, frontmostVerified: Bool, warning: String?,
     ) {
         var req: [String: Any] = ["t": "app_launch", "bundle_id": bundleId]
         if let url {
@@ -53,7 +55,7 @@ extension VPhoneGuestControl {
     }
 
     func appForeground() async throws -> (
-        bundleId: String, name: String, pid: Int, verified: Bool, source: String
+        bundleId: String, name: String, pid: Int, verified: Bool, source: String,
     ) {
         let (resp, _) = try await sendRequest(["t": "app_foreground"])
         return (

@@ -11,7 +11,9 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
     private var model: VPhoneKeychainBrowserModel?
     private var searchItem: NSSearchToolbarItem?
 
-    var isKeyWindow: Bool { window?.isKeyWindow == true }
+    var isKeyWindow: Bool {
+        window?.isKeyWindow == true
+    }
 
     func showWindow(control: VPhoneGuestControl) {
         if let window {
@@ -30,7 +32,7 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
             backing: .buffered,
             defer: false,
         )
-        window.title = "Keychain"
+        window.title = VPhoneLocalization.text("Keychain")
         window.contentView = NSHostingView(rootView: view)
         window.contentMinSize = NSSize(width: 700, height: 300)
         window.center()
@@ -92,11 +94,11 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
 
     private func makeClassItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: Self.classItemID)
-        item.label = "Item Type"
-        item.toolTip = "Filter keychain items by type"
+        item.label = VPhoneLocalization.text("Item Type")
+        item.toolTip = VPhoneLocalization.text("Filter keychain items by type")
         item.visibilityPriority = .high
 
-        let labels = VPhoneKeychainBrowserModel.classFilters.map(\.label)
+        let labels = VPhoneKeychainBrowserModel.classFilters.map { VPhoneLocalization.text($0.label) }
         let control = NSSegmentedControl(
             labels: labels,
             trackingMode: .selectOne,
@@ -111,12 +113,12 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
 
     private func makeSearchItem() -> NSToolbarItem {
         let item = NSSearchToolbarItem(itemIdentifier: Self.searchItemID)
-        item.label = "Search Keychain"
+        item.label = VPhoneLocalization.text("Search Keychain")
         item.visibilityPriority = .high
         item.preferredWidthForSearchField = 190
 
         let field = NSSearchField()
-        field.placeholderString = "Search Keychain"
+        field.placeholderString = VPhoneLocalization.text("Search Keychain")
         field.sendsSearchStringImmediately = true
         field.target = self
         field.action = #selector(searchChanged(_:))
@@ -127,10 +129,11 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
 
     private func makeActionsItem() -> NSToolbarItem {
         let item = NSMenuToolbarItem(itemIdentifier: Self.actionsItemID)
-        item.label = "Actions"
-        item.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "Actions")
+        item.label = VPhoneLocalization.text("Actions")
+        item.image = NSImage(
+            systemSymbolName: "ellipsis.circle", accessibilityDescription: VPhoneLocalization.text("Actions"))
 
-        let menu = NSMenu(title: "Keychain Actions")
+        let menu = NSMenu(title: VPhoneLocalization.text("Keychain Actions"))
         menu.addItem(actionItem("Refresh", action: #selector(refresh)))
         menu.addItem(actionItem("Copy Selected Rows", action: #selector(copySelectedRows)))
         menu.addItem(actionItem("Show Diagnostics", action: #selector(toggleDiagnostics)))
@@ -142,7 +145,7 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
     }
 
     private func actionItem(_ title: String, action: Selector) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        let item = NSMenuItem(title: VPhoneLocalization.text(title), action: action, keyEquivalent: "")
         item.target = self
         return item
     }

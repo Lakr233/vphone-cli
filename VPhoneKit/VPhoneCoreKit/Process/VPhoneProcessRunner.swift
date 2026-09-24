@@ -28,11 +28,15 @@ public enum VPhoneProcessRunner {
         private let lock = NSLock()
         private var data = Data()
         func append(_ chunk: Data) {
-            lock.lock(); data.append(chunk); lock.unlock()
+            lock.lock()
+            data.append(chunk)
+            lock.unlock()
         }
 
         func take() -> Data {
-            lock.lock(); defer { lock.unlock() }; return data
+            lock.lock()
+            defer { lock.unlock() }
+            return data
         }
     }
 
@@ -72,7 +76,8 @@ public enum VPhoneProcessRunner {
         outPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
             if chunk.isEmpty {
-                handle.readabilityHandler = nil; group.leave()
+                handle.readabilityHandler = nil
+                group.leave()
             } else {
                 outBox.append(chunk)
             }
@@ -80,7 +85,8 @@ public enum VPhoneProcessRunner {
         errPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
             if chunk.isEmpty {
-                handle.readabilityHandler = nil; group.leave()
+                handle.readabilityHandler = nil
+                group.leave()
             } else {
                 errBox.append(chunk)
             }
@@ -181,7 +187,9 @@ public enum VPhoneProcessRunner {
         if isatty(ttyFD) == 0 {
             let fd = open("/dev/tty", O_RDWR)
             guard fd >= 0 else {
-                try process.run(); process.waitUntilExit(); return process.terminationStatus
+                try process.run()
+                process.waitUntilExit()
+                return process.terminationStatus
             }
             ttyFD = fd
             openedTTY = true
@@ -201,12 +209,11 @@ public enum VPhoneProcessRunner {
         }
 
         try process.run()
-        _ = tcsetpgrp(ttyFD, process.processIdentifier) // hand the tty to the child
+        _ = tcsetpgrp(ttyFD, process.processIdentifier)  // hand the tty to the child
         process.waitUntilExit()
         if savedFg > 0 {
             _ = tcsetpgrp(ttyFD, savedFg)
-        } // take it back
+        }  // take it back
         return process.terminationStatus
     }
-
 }

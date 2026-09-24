@@ -9,7 +9,9 @@ public enum VPhoneHostFilePermissions {
     public static func makeAccessible(at url: URL) throws {
         let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
         guard descriptor >= 0 else {
-            if errno == ENOENT { return }
+            if errno == ENOENT {
+                return
+            }
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
         defer { close(descriptor) }
@@ -19,7 +21,9 @@ public enum VPhoneHostFilePermissions {
     public static func makeDirectoryAccessible(at url: URL) throws {
         let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
-            if errno == ENOENT { return }
+            if errno == ENOENT {
+                return
+            }
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
         defer { close(descriptor) }
@@ -42,7 +46,9 @@ public enum VPhoneHostFilePermissions {
             for name in try FileManager.default.contentsOfDirectory(atPath: path) {
                 let child = openat(descriptor, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
                 if child < 0 {
-                    if errno == ELOOP || errno == ENOENT { continue }
+                    if errno == ELOOP || errno == ENOENT {
+                        continue
+                    }
                     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
                 }
                 do {

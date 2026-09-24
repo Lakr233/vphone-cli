@@ -1,8 +1,8 @@
 import AppKit
 import Dynamic
 import Foundation
-import Virtualization
 import VPhoneCoreKit
+import Virtualization
 
 class VPhoneVirtualMachineView: VZVirtualMachineView {
     var keySender: VPhoneVirtualMachineKeySender?
@@ -17,7 +17,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     private var multiTouchDevice: AnyObject? {
         guard let vm = virtualMachine else { return nil }
         guard let devices = Dynamic(vm)._multiTouchDevices.asObject as? NSArray,
-              devices.count > 0
+            devices.count > 0
         else {
             return nil
         }
@@ -118,7 +118,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                 print("[install] \(result)")
                 VPhoneAlert.run(
                     title: "Install App Package",
-                    message: VPhoneInstallPackage.successMessage(
+                    message: VPhoneLocalization.installedMessage(
                         for: url.lastPathComponent,
                         detail: result,
                     ),
@@ -133,12 +133,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
     private func droppedInstallPackageURL(from sender: any NSDraggingInfo) -> URL? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [
-            .urlReadingFileURLsOnly: true,
+            .urlReadingFileURLsOnly: true
         ]
-        guard let urls = sender.draggingPasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: options,
-        ) as? [URL] else {
+        guard
+            let urls = sender.draggingPasteboard.readObjects(
+                forClasses: [NSURL.self],
+                options: options,
+            ) as? [URL]
+        else {
             return nil
         }
         return urls.first(where: VPhoneInstallPackage.isSupportedFile)
@@ -227,7 +229,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             mouseDown(with: downEvent)
         }
 
-        for i in 1 ... steps {
+        for i in 1...steps {
             let t = Double(i) / Double(steps)
             let x = startWindow.x + (endWindow.x - startWindow.x) * t
             let y = startWindow.y + (endWindow.y - startWindow.y) * t
@@ -267,7 +269,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
 
         guard let device = multiTouchDevice,
-              virtualMachine != nil
+            virtualMachine != nil
         else { return false }
 
         let touch = Dynamic._VZTouch(
@@ -325,21 +327,21 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         let distBottom = isFlipped ? (h - point.y) : point.y
 
         var minDist = distLeft
-        var edgeCode = 8 // Left
+        var edgeCode = 8  // Left
 
         if distRight < minDist {
             minDist = distRight
-            edgeCode = 4 // Right
+            edgeCode = 4  // Right
         }
 
         if distBottom < minDist {
             minDist = distBottom
-            edgeCode = 2 // Bottom (Home bar swipe up)
+            edgeCode = 2  // Bottom (Home bar swipe up)
         }
 
         if distTop < minDist {
             minDist = distTop
-            edgeCode = 1 // Top (Notification Center)
+            edgeCode = 1  // Top (Notification Center)
         }
 
         return minDist < edgeThreshold ? edgeCode : 0

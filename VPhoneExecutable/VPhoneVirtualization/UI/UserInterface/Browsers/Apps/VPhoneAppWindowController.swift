@@ -11,7 +11,9 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
     private var model: VPhoneAppBrowserModel?
     private var searchItem: NSSearchToolbarItem?
 
-    var isKeyWindow: Bool { window?.isKeyWindow == true }
+    var isKeyWindow: Bool {
+        window?.isKeyWindow == true
+    }
 
     func showWindow(control: VPhoneGuestControl) {
         if let window {
@@ -30,7 +32,7 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
             backing: .buffered,
             defer: false,
         )
-        window.title = "Apps"
+        window.title = VPhoneLocalization.text("Apps")
         window.contentView = NSHostingView(rootView: view)
         window.contentMinSize = NSSize(width: 700, height: 300)
         window.center()
@@ -92,11 +94,11 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
 
     private func makeFilterItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: Self.filterItemID)
-        item.label = "App Type"
-        item.toolTip = "Filter apps by type"
+        item.label = VPhoneLocalization.text("App Type")
+        item.toolTip = VPhoneLocalization.text("Filter apps by type")
         item.visibilityPriority = .high
 
-        let labels = VPhoneAppBrowserModel.AppFilter.allCases.map { $0.rawValue.capitalized }
+        let labels = ["All", "Running", "User", "System"].map(VPhoneLocalization.text)
         let control = NSSegmentedControl(
             labels: labels,
             trackingMode: .selectOne,
@@ -111,12 +113,12 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
 
     private func makeSearchItem() -> NSToolbarItem {
         let item = NSSearchToolbarItem(itemIdentifier: Self.searchItemID)
-        item.label = "Search Apps"
+        item.label = VPhoneLocalization.text("Search Apps")
         item.visibilityPriority = .high
         item.preferredWidthForSearchField = 220
 
         let field = NSSearchField()
-        field.placeholderString = "Search Apps"
+        field.placeholderString = VPhoneLocalization.text("Search Apps")
         field.sendsSearchStringImmediately = true
         field.target = self
         field.action = #selector(searchChanged(_:))
@@ -127,9 +129,10 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
 
     private func makeRefreshItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: Self.refreshItemID)
-        item.label = "Refresh"
-        item.toolTip = "Refresh app list"
-        item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
+        item.label = VPhoneLocalization.text("Refresh")
+        item.toolTip = VPhoneLocalization.text("Refresh app list")
+        item.image = NSImage(
+            systemSymbolName: "arrow.clockwise", accessibilityDescription: VPhoneLocalization.text("Refresh"))
         item.target = self
         item.action = #selector(refresh)
         return item

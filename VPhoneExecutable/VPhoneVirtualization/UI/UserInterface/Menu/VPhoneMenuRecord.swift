@@ -25,7 +25,7 @@ extension VPhoneMenuController {
         if screenRecorder?.isRecording == true {
             Task { @MainActor in
                 let url = await screenRecorder?.stopRecording()
-                recordingItem?.title = "Start Recording"
+                recordingItem?.title = VPhoneLocalization.text("Start Recording")
                 if let url {
                     showRecordingSavedAlert(url: url)
                 }
@@ -41,7 +41,7 @@ extension VPhoneMenuController {
             }
             do {
                 try screenRecorder?.startRecording(view: view)
-                recordingItem?.title = "Stop Recording"
+                recordingItem?.title = VPhoneLocalization.text("Stop Recording")
             } catch {
                 showCaptureAlert(title: "Recording", message: "Unable to start recording. Try again.", style: .warning)
             }
@@ -63,9 +63,11 @@ extension VPhoneMenuController {
             do {
                 let image = try await control.screenshotJPEG()
                 try recorder.copyScreenshotToPasteboard(jpegData: image)
-                showCaptureAlert(title: "Screenshot", message: "Screenshot copied to the Mac clipboard.", style: .informational)
+                showCaptureAlert(
+                    title: "Screenshot", message: "Screenshot copied to the Mac clipboard.", style: .informational)
             } catch {
-                showCaptureAlert(title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
+                showCaptureAlert(
+                    title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
             }
         }
     }
@@ -85,9 +87,12 @@ extension VPhoneMenuController {
             do {
                 let image = try await control.screenshotJPEG()
                 let url = try recorder.saveScreenshot(jpegData: image)
-                showCaptureAlert(title: "Screenshot", message: "Saved to \(url.path)", style: .informational)
+                showCaptureAlert(
+                    title: "Screenshot", message: VPhoneLocalization.format("Saved to %@", url.path),
+                    style: .informational)
             } catch {
-                showCaptureAlert(title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)
+                showCaptureAlert(
+                    title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)
             }
         }
     }
@@ -109,7 +114,7 @@ extension VPhoneMenuController {
     private func showRecordingSavedAlert(url: URL) {
         VPhoneAlert.present(
             title: "Recording",
-            message: "Saved to \(url.path)",
+            message: VPhoneLocalization.format("Saved to %@", url.path),
             style: .informational,
             attachedTo: NSApp.keyWindow ?? activeCaptureView()?.window,
             buttons: ["OK", "Reveal in Finder"],

@@ -69,8 +69,12 @@ class VPhoneMenuController {
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "vphone")
         let buildHash = Bundle.main.object(forInfoDictionaryKey: "VPhoneBuildHash") as? String
-        let buildTitle = buildHash.flatMap { $0.isEmpty ? nil : $0 } ?? "unknown"
-        let buildItem = NSMenuItem(title: "Build: \(buildTitle)", action: nil, keyEquivalent: "")
+        let buildTitle = buildHash.flatMap { $0.isEmpty ? nil : $0 } ?? VPhoneLocalization.text("unknown")
+        let buildItem = NSMenuItem(
+            title: VPhoneLocalization.format("Build: %@", buildTitle),
+            action: nil,
+            keyEquivalent: "",
+        )
         buildItem.isEnabled = false
         appMenu.addItem(buildItem)
         appMenu.addItem(NSMenuItem.separator())
@@ -121,6 +125,7 @@ class VPhoneMenuController {
         mainMenu.addItem(windowMenuItem)
         NSApp.windowsMenu = windowMenu
 
+        VPhoneLocalization.menu(mainMenu)
         NSApp.mainMenu = mainMenu
     }
 

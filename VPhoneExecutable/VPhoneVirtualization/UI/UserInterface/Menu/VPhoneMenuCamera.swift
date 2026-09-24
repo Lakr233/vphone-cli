@@ -53,11 +53,10 @@ extension VPhoneMenuController {
     }
 
     func updateCameraConnectionState(connected: Bool) {
-        cameraStatusItem?.title = connected
-            ? "Camera server: connected"
-            : "Camera server: disconnected"
-        cameraStartStopItem?.isEnabled = connected &&
-            (cameraServer?.sourceKind ?? .off) != .off
+        cameraStatusItem?.title = VPhoneLocalization.text(
+            connected ? "Camera server: connected" : "Camera server: disconnected"
+        )
+        cameraStartStopItem?.isEnabled = connected && (cameraServer?.sourceKind ?? .off) != .off
     }
 
     private func refreshCameraSourceCheckmarks() {
@@ -74,7 +73,7 @@ extension VPhoneMenuController {
         cameraServer?.setSource(.off)
         refreshCameraSourceCheckmarks()
         cameraStartStopItem?.isEnabled = false
-        cameraStartStopItem?.title = "Start Streaming"
+        cameraStartStopItem?.title = VPhoneLocalization.text("Start Streaming")
     }
 
     @objc func setCameraSourceTestPattern() {
@@ -96,25 +95,24 @@ extension VPhoneMenuController {
             UTType(filenameExtension: "mp4") ?? .movie,
             UTType(filenameExtension: "m4v") ?? .movie,
         ]
-        panel.prompt = "Use as Camera Source"
-        panel.title = "Choose Video File"
+        panel.prompt = VPhoneLocalization.text("Use as Camera Source")
+        panel.title = VPhoneLocalization.text("Choose Video File")
         panel.runModal()
         guard let url = panel.url else { return }
         cameraServer?.setSource(.videoFile, videoURL: url)
         refreshCameraSourceCheckmarks()
         cameraStartStopItem?.isEnabled =
-            (cameraServer?.isConnected ?? false) &&
-            (cameraServer?.sourceKind ?? .off) == .videoFile
+            (cameraServer?.isConnected ?? false) && (cameraServer?.sourceKind ?? .off) == .videoFile
     }
 
     @objc func toggleCameraStreaming() {
         guard let server = cameraServer else { return }
-        if cameraStartStopItem?.title == "Start Streaming" {
+        if cameraStartStopItem?.title == VPhoneLocalization.text("Start Streaming") {
             server.startStreaming()
-            cameraStartStopItem?.title = "Stop Streaming"
+            cameraStartStopItem?.title = VPhoneLocalization.text("Stop Streaming")
         } else {
             server.stopStreaming()
-            cameraStartStopItem?.title = "Start Streaming"
+            cameraStartStopItem?.title = VPhoneLocalization.text("Start Streaming")
         }
     }
 }

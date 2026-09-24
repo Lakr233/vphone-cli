@@ -56,7 +56,9 @@ extension VPhoneMenuController {
 
     @objc func installIPAFromDisk() {
         guard control.isConnected else {
-            VPhoneAlert.run(title: "Install App Package", message: "The guest is not connected. Start a VM, then try again.", style: .warning)
+            VPhoneAlert.run(
+                title: "Install App Package", message: "The guest is not connected. Start a VM, then try again.",
+                style: .warning)
             return
         }
 
@@ -65,8 +67,8 @@ extension VPhoneMenuController {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = VPhoneInstallPackage.allowedContentTypes
-        panel.prompt = "Install"
-        panel.message = "Choose an IPA or TIPA package to install in the guest."
+        panel.prompt = VPhoneLocalization.text("Install")
+        panel.message = VPhoneLocalization.text("Choose an IPA or TIPA package to install in the guest.")
 
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
@@ -77,14 +79,17 @@ extension VPhoneMenuController {
                 print("[install] \(result)")
                 VPhoneAlert.run(
                     title: "Install App Package",
-                    message: VPhoneInstallPackage.successMessage(
+                    message: VPhoneLocalization.installedMessage(
                         for: url.lastPathComponent,
                         detail: result,
                     ),
                     style: .informational,
                 )
             } catch {
-                VPhoneAlert.run(title: "Install App Package", message: "Unable to install the app package. Check the file and guest connection, then try again.", style: .warning)
+                VPhoneAlert.run(
+                    title: "Install App Package",
+                    message: "Unable to install the app package. Check the file and guest connection, then try again.",
+                    style: .warning)
             }
         }
     }
@@ -92,14 +97,14 @@ extension VPhoneMenuController {
     @objc func openURL() {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
         field.placeholderString = "https://example.com"
-        field.setAccessibilityLabel("URL to open on the guest")
+        field.setAccessibilityLabel(VPhoneLocalization.text("URL to open on the guest"))
 
         let alert = NSAlert()
-        alert.messageText = "Open URL"
-        alert.informativeText = "Enter a URL to open on the guest."
+        alert.messageText = VPhoneLocalization.text("Open URL")
+        alert.informativeText = VPhoneLocalization.text("Enter a URL to open on the guest.")
         alert.accessoryView = field
-        alert.addButton(withTitle: "Open")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: VPhoneLocalization.text("Open"))
+        alert.addButton(withTitle: VPhoneLocalization.text("Cancel"))
         alert.window.initialFirstResponder = field
 
         guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return }
@@ -107,11 +112,14 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.openURL(url)
-                VPhoneAlert.run(title: "Open URL", message: "Opened \(url)", style: .informational)
+                VPhoneAlert.run(
+                    title: "Open URL", message: VPhoneLocalization.format("Opened %@", url), style: .informational)
             } catch {
-                VPhoneAlert.run(title: "Open URL", message: "Unable to open the URL on the guest. Check the URL and guest connection, then try again.", style: .warning)
+                VPhoneAlert.run(
+                    title: "Open URL",
+                    message: "Unable to open the URL on the guest. Check the URL and guest connection, then try again.",
+                    style: .warning)
             }
         }
     }
-
 }

@@ -10,10 +10,10 @@ public struct VPhoneInvokingUser: Sendable {
 
     public static var current: VPhoneInvokingUser? {
         guard geteuid() == 0,
-              let uidText = ProcessInfo.processInfo.environment["SUDO_UID"],
-              let gidText = ProcessInfo.processInfo.environment["SUDO_GID"],
-              let uid = uid_t(uidText), let gid = gid_t(gidText),
-              uid != 0, let account = getpwuid(uid), let directory = account.pointee.pw_dir
+            let uidText = ProcessInfo.processInfo.environment["SUDO_UID"],
+            let gidText = ProcessInfo.processInfo.environment["SUDO_GID"],
+            let uid = uid_t(uidText), let gid = gid_t(gidText),
+            uid != 0, let account = getpwuid(uid), let directory = account.pointee.pw_dir
         else { return nil }
         return VPhoneInvokingUser(uid: uid, gid: gid, home: URL(fileURLWithPath: String(cString: directory)))
     }
@@ -25,7 +25,9 @@ public struct VPhoneInvokingUser: Sendable {
     public func restoreOwnership(at url: URL) throws {
         var metadata = stat()
         guard lstat(url.path, &metadata) == 0 else {
-            if errno == ENOENT { return }
+            if errno == ENOENT {
+                return
+            }
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
         if (metadata.st_mode & S_IFMT) == S_IFDIR {
@@ -41,7 +43,9 @@ public struct VPhoneInvokingUser: Sendable {
     public func restoreOwnerOfDirectory(at url: URL) throws {
         var metadata = stat()
         guard lstat(url.path, &metadata) == 0 else {
-            if errno == ENOENT { return }
+            if errno == ENOENT {
+                return
+            }
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
         guard (metadata.st_mode & S_IFMT) == S_IFDIR else { return }

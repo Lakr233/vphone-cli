@@ -16,9 +16,9 @@ final class VPhoneGuestControl {
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
-            case let .unsupportedCapability(value): "guest does not support capability: \(value)"
-            case let .protocolError(value): "API protocol error: \(value)"
-            case let .guestError(value): value
+            case .unsupportedCapability(let value): "guest does not support capability: \(value)"
+            case .protocolError(let value): "API protocol error: \(value)"
+            case .guestError(let value): value
             }
         }
     }
@@ -46,7 +46,7 @@ final class VPhoneGuestControl {
 
     var useGuestTouchInjection: Bool {
         guard isConnected, guestCapabilities.contains("touch"),
-              let major = guestIOSVersion.flatMap({ Int($0.split(separator: ".").first ?? "") })
+            let major = guestIOSVersion.flatMap({ Int($0.split(separator: ".").first ?? "") })
         else { return false }
         return major < 26
     }
@@ -77,13 +77,13 @@ final class VPhoneGuestControl {
         do {
             let response = try await http(method: "GET", path: "/v1/health")
             guard response.status == 200,
-                  let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
-                  info["api_version"] as? Int == 1
+                let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
+                info["api_version"] as? Int == 1
             else {
                 throw ControlError.protocolError("incompatible guest API")
             }
             if let binary = guestBinaryURL,
-               let data = try? Data(contentsOf: binary, options: .mappedIfSafe)
+                let data = try? Data(contentsOf: binary, options: .mappedIfSafe)
             {
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
                 if hash != info["binary_hash"] as? String {
@@ -143,7 +143,12 @@ final class VPhoneGuestControl {
     }
 
     func sendTouch(phase: Int, x: Double, y: Double) {
-        let name = switch phase { case 0: "down"; case 1: "move"; default: "up" }
+        let name =
+            switch phase {
+            case 0: "down"
+            case 1: "move"
+            default: "up"
+            }
         enqueueInput("input.touch", params: ["phase": name, "x": x, "y": y, "normalized": true])
     }
 
@@ -152,8 +157,7 @@ final class VPhoneGuestControl {
         orderedInput = Task {
             await previous?.value
             guard !Task.isCancelled else { return }
-            do { _ = try await call(method, params: params) }
-            catch { print("[control] \(method): \(error)") }
+            do { _ = try await call(method, params: params) } catch { print("[control] \(method): \(error)") }
         }
     }
 
@@ -174,9 +178,9 @@ final class VPhoneGuestControl {
     func screenshotJPEG() async throws -> Data {
         let result = try await call("screen.screenshot")
         guard result["mime_type"] as? String == "image/jpeg",
-              let encoded = result["data"] as? String,
-              let data = Data(base64Encoded: encoded),
-              data.starts(with: [0xFF, 0xD8])
+            let encoded = result["data"] as? String,
+            let data = Data(base64Encoded: encoded),
+            data.starts(with: [0xFF, 0xD8])
         else {
             throw ControlError.protocolError("invalid guest screenshot")
         }
@@ -194,7 +198,8 @@ final class VPhoneGuestControl {
         }
         if type == "clipboard_get" {
             var info = try await call("clipboard.get")
-            let image = (info["has_image"] as? Bool == true)
+            let image =
+                (info["has_image"] as? Bool == true)
                 ? try await http(method: "GET", path: "/v1/clipboard/image").body : nil
             info["ok"] = true
             return (info, image)
@@ -331,8 +336,12 @@ final class VPhoneGuestControl {
         ]
         // CoreLocation uses negative values for unavailable speed and course.
         // IcliKit expects those fields to be absent in that case.
-        if speed >= 0 { params["speed"] = speed }
-        if course >= 0 { params["course"] = course }
+        if speed >= 0 {
+            params["speed"] = speed
+        }
+        if course >= 0 {
+            params["course"] = course
+        }
         enqueueLocation("location.set", params: params)
     }
 
@@ -347,8 +356,7 @@ final class VPhoneGuestControl {
         orderedLocation = Task {
             await previous?.value
             guard !Task.isCancelled, generation == locationGeneration else { return }
-            do { _ = try await call(method, params: params) }
-            catch { print("[control] \(method): \(error)") }
+            do { _ = try await call(method, params: params) } catch { print("[control] \(method): \(error)") }
         }
     }
 
@@ -392,8 +400,9 @@ final class VPhoneGuestControl {
         )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                do { try continuation.resume(returning: transaction.run()) }
-                catch { continuation.resume(throwing: error) }
+                do { try continuation.resume(returning: transaction.run()) } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
     }
@@ -438,14 +447,18 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             throw VPhoneGuestControl.ControlError.notConnected
         }
         var timeout = timeval(tv_sec: 120, tv_usec: 0)
-        guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-                         socklen_t(MemoryLayout<timeval>.size)) == 0,
-            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-                       socklen_t(MemoryLayout<timeval>.size)) == 0
+        guard
+            setsockopt(
+                fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+                socklen_t(MemoryLayout<timeval>.size)) == 0,
+            setsockopt(
+                fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                socklen_t(MemoryLayout<timeval>.size)) == 0
         else {
             throw VPhoneGuestControl.ControlError.notConnected
         }
-        let headers = "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
+        let headers =
+            "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
         try write(fd, data: Data(headers.utf8))
         if !body.isEmpty {
             try write(fd, data: body)
@@ -466,8 +479,8 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             throw VPhoneGuestControl.ControlError.protocolError("invalid HTTP status")
         }
         guard let lengthLine = lines.first(where: { $0.lowercased().hasPrefix("content-length:") }),
-              let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
-              length >= 0, length <= 2_147_483_647
+            let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
+            length >= 0, length <= 2_147_483_647
         else {
             throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
         }

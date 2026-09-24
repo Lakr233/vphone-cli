@@ -70,12 +70,16 @@ private func requireUntruncatedMachO(at url: URL) throws {
     let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? nil
     guard let fileSize = size else { return }
 
-    let numberOfCommands = Int(UInt32(littleEndian: header.withUnsafeBytes {
-        $0.loadUnaligned(fromByteOffset: 16, as: UInt32.self)
-    }))
-    let sizeOfCommands = Int(UInt32(littleEndian: header.withUnsafeBytes {
-        $0.loadUnaligned(fromByteOffset: 20, as: UInt32.self)
-    }))
+    let numberOfCommands = Int(
+        UInt32(
+            littleEndian: header.withUnsafeBytes {
+                $0.loadUnaligned(fromByteOffset: 16, as: UInt32.self)
+            }))
+    let sizeOfCommands = Int(
+        UInt32(
+            littleEndian: header.withUnsafeBytes {
+                $0.loadUnaligned(fromByteOffset: 20, as: UInt32.self)
+            }))
 
     // A load command is 8 bytes at its smallest (cmd + cmdsize), so a header
     // claiming more commands than that much room is lying about one of the two.
@@ -95,20 +99,20 @@ struct VPhoneCustomFirmwarePatchSeputilCommand: ParsableCommand {
         commandName: "patch-seputil",
         abstract: "Pin seputil's gigalocker path to /AA.gl instead of the device UUID",
         discussion: """
-        seputil builds the gigalocker filename from the format string
-        "/%s.gl", filling %s with the device's UUID. Rewriting those two bytes
-        to "AA" makes the path /mnt7/AA.gl on every guest, which is what lets
-        the install ship one pre-made .gl file instead of one per device.
+            seputil builds the gigalocker filename from the format string
+            "/%s.gl", filling %s with the device's UUID. Rewriting those two bytes
+            to "AA" makes the path /mnt7/AA.gl on every guest, which is what lets
+            the install ship one pre-made .gl file instead of one per device.
 
-        The literal is found in __TEXT,__cstring and confirmed by an adrp+add
-        pair in __TEXT,__text that computes its address — the Python takes the
-        first substring hit anywhere in the file. Both land on the same byte in
-        this firmware; this one cannot land on a coincidence in the next.
+            The literal is found in __TEXT,__cstring and confirmed by an adrp+add
+            pair in __TEXT,__text that computes its address — the Python takes the
+            first substring hit anywhere in the file. Both land on the same byte in
+            this firmware; this one cannot land on a coincidence in the next.
 
-        Idempotent: a binary already reading "/AA.gl" is reported and left
-        alone. The Python exits 1 there, because the string it searches for is
-        no longer in the file.
-        """,
+            Idempotent: a binary already reading "/AA.gl" is reported and left
+            alone. The Python exits 1 there, because the string it searches for is
+            no longer in the file.
+            """,
     )
 
     @Argument(help: "Path to the seputil Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -129,21 +133,21 @@ struct VPhoneCustomFirmwarePatchLaunchdCacheLoaderCommand: ParsableCommand {
         commandName: "patch-launchd-cache-loader",
         abstract: "Open the launchd_unsecure_cache gate so a modified launchd.plist loads",
         discussion: """
-        /usr/libexec/launchd_cache_loader refuses a launch-daemon cache it did
-        not validate unless the boot arg `launchd_unsecure_cache=` is set.
-        NOPping the branch that reads that boot arg takes the guest down the
-        unsecure path unconditionally, which is how the injected daemons get
-        loaded without a boot-args change.
+            /usr/libexec/launchd_cache_loader refuses a launch-daemon cache it did
+            not validate unless the boot arg `launchd_unsecure_cache=` is set.
+            NOPping the branch that reads that boot arg takes the guest down the
+            unsecure path unconditionally, which is how the injected daemons get
+            loaded without a boot-args change.
 
-        The branch is reached from the boot-arg string's adrp+add xref, and it
-        is checked to actually consume the call's result and jump forward out
-        of the unsecure path before anything is written. The Python NOPs the
-        first conditional branch after the call, whatever it tests.
+            The branch is reached from the boot-arg string's adrp+add xref, and it
+            is checked to actually consume the call's result and jump forward out
+            of the unsecure path before anything is written. The Python NOPs the
+            first conditional branch after the call, whatever it tests.
 
-        Idempotent: a gate already holding a NOP is reported and left alone.
-        The Python exits 1 there — a NOP is not one of the branches it looks
-        for.
-        """,
+            Idempotent: a gate already holding a NOP is reported and left alone.
+            The Python exits 1 there — a NOP is not one of the branches it looks
+            for.
+            """,
     )
 
     @Argument(help: "Path to the launchd_cache_loader Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -168,19 +172,19 @@ struct VPhoneCustomFirmwarePatchMobileactivationdCommand: ParsableCommand {
         commandName: "patch-mobileactivationd",
         abstract: "Force -[DeviceType should_hactivate] to return YES",
         discussion: """
-        The guest has no path to Apple's activation service, so activation has
-        to be answered locally. Overwriting the getter's prologue with
-        `mov x0, #1 ; ret` is safe: it returns to the caller's unsigned LR
-        without ever pushing a frame.
+            The guest has no path to Apple's activation service, so activation has
+            to be answered locally. Overwriting the getter's prologue with
+            `mov x0, #1 ; ret` is safe: it returns to the caller's unsigned LR
+            without ever pushing a frame.
 
-        The implementation is resolved twice — through LC_SYMTAB and through
-        the ObjC metadata chain (selector -> selref -> method list -> IMP) —
-        and when both resolve they must agree. The Python takes whichever
-        answers first.
+            The implementation is resolved twice — through LC_SYMTAB and through
+            the ObjC metadata chain (selector -> selref -> method list -> IMP) —
+            and when both resolve they must agree. The Python takes whichever
+            answers first.
 
-        Idempotent: a getter already reading `mov x0, #1 ; ret` is reported and
-        the file is not rewritten, so even its mtime survives.
-        """,
+            Idempotent: a getter already reading `mov x0, #1 ; ret` is reported and
+            the file is not rewritten, so even its mtime survives.
+            """,
     )
 
     @Argument(help: "Path to the mobileactivationd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -200,20 +204,20 @@ struct VPhoneCustomFirmwarePatchLaunchdJetsamCommand: ParsableCommand {
         commandName: "patch-launchd-jetsam",
         abstract: "Bypass the jetsam panic guard in /sbin/launchd",
         discussion: """
-        launchd panics when its jetsam configuration does not add up, which a
-        JB guest's rearranged daemon set reliably triggers. The conditional
-        branch that guards the panic is rewritten to an unconditional `b` to
-        the same target, so the function always takes its return path.
+            launchd panics when its jetsam configuration does not add up, which a
+            JB guest's rearranged daemon set reliably triggers. The conditional
+            branch that guards the panic is rewritten to an unconditional `b` to
+            the same target, so the function always takes its return path.
 
-        The site is reached from the panic string's adrp+add xref, walking back
-        to the conditional branch whose target is the enclosing function's
-        return block.
+            The site is reached from the panic string's adrp+add xref, walking back
+            to the conditional branch whose target is the enclosing function's
+            return block.
 
-        Idempotent: an unconditional branch into the return block already
-        sitting ahead of every conditional one means a previous run did the
-        work, and nothing is written. Neither implementation would otherwise
-        pick the same site twice.
-        """,
+            Idempotent: an unconditional branch into the return block already
+            sitting ahead of every conditional one means a previous run did the
+            work, and nothing is written. Neither implementation would otherwise
+            pick the same site twice.
+            """,
     )
 
     @Argument(help: "Path to the /sbin/launchd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -234,22 +238,22 @@ struct VPhoneCustomFirmwarePatchWatchdogdCommand: ParsableCommand {
         commandName: "patch-watchdogd",
         abstract: "Stop watchdogd caching kern.hv_vmm_present as true",
         discussion: """
-        watchdogd reads `kern.hv_vmm_present` through sysctlbyname and caches
-        the answer in a __DATA global. On the EXP variant the kernel already
-        lies about that sysctl, but watchdogd's cached copy is written from the
-        call's success path, so the NOP here plus a forced `mov wN, #1` leaves
-        the cache reading "not a VM" whatever the call returns.
+            watchdogd reads `kern.hv_vmm_present` through sysctlbyname and caches
+            the answer in a __DATA global. On the EXP variant the kernel already
+            lies about that sysctl, but watchdogd's cached copy is written from the
+            call's success path, so the NOP here plus a forced `mov wN, #1` leaves
+            the cache reading "not a VM" whatever the call returns.
 
-        Each site is confirmed five ways — the literal, its adrp+add, the
-        `bl _sysctlbyname`, Capstone's decoded condition code on the gate, and
-        a `strb` into a __DATA-segment global — before a byte moves.
+            Each site is confirmed five ways — the literal, its adrp+add, the
+            `bl _sysctlbyname`, Capstone's decoded condition code on the gate, and
+            a `strb` into a __DATA-segment global — before a byte moves.
 
-        Exits 0 whether it patched or found every site already patched, which
-        is what `scripts/patch_hv_vmm_userland.sh` expects; only an
-        unparseable binary or a missing anchor is fatal. Unlike the other five
-        verbs this one re-attests the pages it dirties, because its Python does
-        too.
-        """,
+            Exits 0 whether it patched or found every site already patched, which
+            is what `scripts/patch_hv_vmm_userland.sh` expects; only an
+            unparseable binary or a missing anchor is fatal. Unlike the other five
+            verbs this one re-attests the pages it dirties, because its Python does
+            too.
+            """,
     )
 
     @Argument(help: "Path to the watchdogd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -271,17 +275,17 @@ struct VPhoneCustomFirmwarePatchDiskimagesiodCommand: ParsableCommand {
         commandName: "patch-diskimagesiod",
         abstract: "Force -[DIDiskArb isMountCompleteWithExpectedCount:diskTracker:] to return YES",
         discussion: """
-        MobileStorageMounter waits for a disk-arbitration mount count the guest
-        never reaches, and blocks boot until it times out. Returning YES from
-        the completion check lets the mount finish.
+            MobileStorageMounter waits for a disk-arbitration mount count the guest
+            never reaches, and blocks boot until it times out. Returning YES from
+            the completion check lets the mount finish.
 
-        The same two-anchor resolution as patch-mobileactivationd: LC_SYMTAB
-        first, then the ObjC metadata chain, with the prologue overwritten by
-        `mov x0, #1 ; ret`.
+            The same two-anchor resolution as patch-mobileactivationd: LC_SYMTAB
+            first, then the ObjC metadata chain, with the prologue overwritten by
+            `mov x0, #1 ; ret`.
 
-        Idempotent: a prologue already reading `mov x0, #1 ; ret` is reported
-        and the file is left byte-for-byte alone.
-        """,
+            Idempotent: a prologue already reading `mov x0, #1 ; ret` is reported
+            and the file is left byte-for-byte alone.
+            """,
     )
 
     @Argument(help: "Path to the diskimagesiod Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -302,12 +306,14 @@ enum VPhoneCustomFirmwareMachOVerbs {
     ///
     /// Ordered as `cfw.py`'s dispatch table lists them, so `--help` and the
     /// Python's usage block read in the same order.
-    static var all: [ParsableCommand.Type] { [
-        VPhoneCustomFirmwarePatchSeputilCommand.self,
-        VPhoneCustomFirmwarePatchLaunchdCacheLoaderCommand.self,
-        VPhoneCustomFirmwarePatchMobileactivationdCommand.self,
-        VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
-        VPhoneCustomFirmwarePatchWatchdogdCommand.self,
-        VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
-    ] }
+    static var all: [ParsableCommand.Type] {
+        [
+            VPhoneCustomFirmwarePatchSeputilCommand.self,
+            VPhoneCustomFirmwarePatchLaunchdCacheLoaderCommand.self,
+            VPhoneCustomFirmwarePatchMobileactivationdCommand.self,
+            VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
+            VPhoneCustomFirmwarePatchWatchdogdCommand.self,
+            VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
+        ]
+    }
 }

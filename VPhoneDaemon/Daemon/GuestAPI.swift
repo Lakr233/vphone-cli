@@ -13,8 +13,8 @@ enum GuestAPIError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case let .invalidRequest(message), let .operationFailed(message): message
-        case let .unsupportedMethod(method): "Unknown method: \(method)"
+        case .invalidRequest(let message), .operationFailed(let message): message
+        case .unsupportedMethod(let method): "Unknown method: \(method)"
         }
     }
 }
@@ -23,13 +23,15 @@ enum GuestAPIError: Error, CustomStringConvertible {
 /// IcliKit owns general device work, including app installation and Keychain
 /// metadata. vphone signs app code before IcliKit installs it.
 enum GuestAPI {
-    // Each request executes independently. A synchronous system service such
-    // as powerd may wait during boot; it must not hold up HID or file requests.
-    static let queue = DispatchQueue(label: "vphoned.api.operations", qos: .userInitiated,
-                                     attributes: .concurrent)
+    /// Each request executes independently. A synchronous system service such
+    /// as powerd may wait during boot; it must not hold up HID or file requests.
+    static let queue = DispatchQueue(
+        label: "vphoned.api.operations", qos: .userInitiated,
+        attributes: .concurrent)
     static let binaryHash: String = {
         guard let url = Bundle.main.executableURL,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return "unknown" }
+            let data = try? Data(contentsOf: url, options: .mappedIfSafe)
+        else { return "unknown" }
         return sha256Hex(data)
     }()
 
@@ -80,38 +82,42 @@ enum GuestAPI {
             let filter = params["filter"] as? String ?? "all"
             let apps = try listApps()["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
-            let pids = Dictionary(uniqueKeysWithValues: running.compactMap { app -> (String, Int)? in
-                guard let id = app["bundle_id"] as? String, let pid = app["pid"] as? Int else { return nil }
-                return (id, pid)
-            })
-            return ["apps": apps.compactMap { app -> [String: Any]? in
-                var info = app
-                guard let id = app["bundle_id"] as? String, !id.isEmpty else { return nil }
-                let pid = pids[id] ?? 0
-                let path = app["bundle_path"] as? String ?? ""
-                let type: String
-                if let registeredType = (app["type"] as? String)?.lowercased(),
-                   registeredType == "system" || registeredType == "user" {
-                    type = registeredType
-                } else {
-                    type = path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user"
+            let pids = Dictionary(
+                uniqueKeysWithValues: running.compactMap { app -> (String, Int)? in
+                    guard let id = app["bundle_id"] as? String, let pid = app["pid"] as? Int else { return nil }
+                    return (id, pid)
+                })
+            return [
+                "apps": apps.compactMap { app -> [String: Any]? in
+                    var info = app
+                    guard let id = app["bundle_id"] as? String, !id.isEmpty else { return nil }
+                    let pid = pids[id] ?? 0
+                    let path = app["bundle_path"] as? String ?? ""
+                    let type: String =
+                        if let registeredType = (app["type"] as? String)?.lowercased(),
+                            registeredType == "system" || registeredType == "user"
+                        {
+                            registeredType
+                        } else {
+                            path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user"
+                        }
+                    if filter == "running" && pid == 0 {
+                        return nil
+                    }
+                    if filter == "user" && type != "user" {
+                        return nil
+                    }
+                    if filter == "system" && type != "system" {
+                        return nil
+                    }
+                    info["pid"] = pid
+                    info["type"] = type
+                    info["state"] = pid > 0 ? "running" : "not_running"
+                    info["path"] = path
+                    info["version"] = app["version"] ?? ""
+                    return info
                 }
-                if filter == "running" && pid == 0 {
-                    return nil
-                }
-                if filter == "user" && type != "user" {
-                    return nil
-                }
-                if filter == "system" && type != "system" {
-                    return nil
-                }
-                info["pid"] = pid
-                info["type"] = type
-                info["state"] = pid > 0 ? "running" : "not_running"
-                info["path"] = path
-                info["version"] = app["version"] ?? ""
-                return info
-            }]
+            ]
         case "apps.search":
             return try searchApps(string(params, "query"))
         case "apps.refresh":
@@ -125,13 +131,14 @@ enum GuestAPI {
                 let wasRunning = before.contains { $0["bundle_id"] as? String == id }
                 do {
                     _ = try launchApp(id)
-                } catch IcliError.failed(let message) where message == "app did not become frontmost: \(id)" {
+                } catch let IcliError.failed(message) where message == "app did not become frontmost: \(id)" {
                     let after = try runningApps()["apps"] as? [[String: Any]] ?? []
                     guard let pid = after.first(where: { $0["bundle_id"] as? String == id })?["pid"] as? Int
                     else { throw IcliError.failed(message) }
                     let front = frontmostApp()
                     if front["verified"] as? Bool == true,
-                       front["bundle_id"] as? String == id {
+                        front["bundle_id"] as? String == id
+                    {
                         return ["pid": pid, "frontmost_verified": true]
                     }
                     guard !wasRunning else { throw IcliError.failed(message) }
@@ -159,7 +166,8 @@ enum GuestAPI {
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
-            let name = id == "com.apple.springboard"
+            let name =
+                id == "com.apple.springboard"
                 ? "Home Screen"
                 : (apps.first(where: { $0["bundle_id"] as? String == id })?["name"] as? String ?? "")
             return [
@@ -177,7 +185,9 @@ enum GuestAPI {
             let registration: AppRegistrationType = params["registration"] as? String == "System" ? .system : .user
             defer {
                 try? FileManager.default.removeItem(atPath: path)
-                if !certificate.isEmpty { try? FileManager.default.removeItem(atPath: certificate) }
+                if !certificate.isEmpty {
+                    try? FileManager.default.removeItem(atPath: certificate)
+                }
             }
             var result = try installIPAInContainer(path, registration: registration) { app in
                 try signAppForInstall(app, certificate: certificate)
@@ -189,8 +199,9 @@ enum GuestAPI {
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")
             }
-            return try touch(phase, x: number(params, "x"), y: number(params, "y"),
-                             normalized: params["normalized"] as? Bool ?? true)
+            return try touch(
+                phase, x: number(params, "x"), y: number(params, "y"),
+                normalized: params["normalized"] as? Bool ?? true)
         case "input.hid":
             let page = try integer(params, "page")
             let usage = try integer(params, "usage")
@@ -236,23 +247,28 @@ enum GuestAPI {
         case "files.mkdir":
             return try makeDirectory(string(params, "path"), mode: nil)
         case "files.remove":
-            return try removePath(string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
-                                  force: true)
+            return try removePath(
+                string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
+                force: true)
         case "files.rename":
             return try movePath(string(params, "from"), to: string(params, "to"))
         case "settings.get":
             return try readPreference(domain: string(params, "domain"), key: params["key"] as? String)
         case "settings.set":
             let rawValue = params["value"] ?? NSNull()
-            let type = params["type"] as? String
-                ?? (rawValue is Bool ? "bool"
-                    : rawValue is NSNumber ? "float"
-                    : rawValue is String ? "string" : "json")
-            let text: String = if type == "json" {
-                try String(data: JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
-            } else {
-                String(describing: rawValue)
-            }
+            let type =
+                params["type"] as? String
+                ?? (rawValue is Bool
+                    ? "bool"
+                    : rawValue is NSNumber
+                        ? "float"
+                        : rawValue is String ? "string" : "json")
+            let text: String =
+                if type == "json" {
+                    try String(data: JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
+                } else {
+                    String(describing: rawValue)
+                }
             return try writePreference(
                 domain: string(params, "domain"),
                 key: string(params, "key"),
@@ -268,12 +284,12 @@ enum GuestAPI {
             return try GuestKeychain.add(
                 account: string(params, "account"),
                 service: string(params, "service"),
-                password: string(params, "password")
+                password: string(params, "password"),
             )
         case "keychain.delete":
             return try GuestKeychain.delete(
                 account: string(params, "account"),
-                service: string(params, "service")
+                service: string(params, "service"),
             )
         case "agent.apply_update":
             let expected = try string(params, "sha256")
@@ -300,7 +316,9 @@ enum GuestAPI {
     private static func signAppForInstall(_ app: String, certificate: String) throws {
         let usableCertificate = FileManager.default.fileExists(atPath: certificate) ? certificate : ""
         let error = app.withCString { appPath in
-            if usableCertificate.isEmpty { return vp_sign_app_for_install(appPath, nil) }
+            if usableCertificate.isEmpty {
+                return vp_sign_app_for_install(appPath, nil)
+            }
             return usableCertificate.withCString { vp_sign_app_for_install(appPath, $0) }
         }
         if let error {
@@ -319,13 +337,15 @@ enum GuestAPI {
             let kind = metadata.st_mode & mode_t(S_IFMT)
             let isLink = kind == mode_t(S_IFLNK)
             var target = stat()
-            let targetsDirectory = isLink && stat(fullPath, &target) == 0
+            let targetsDirectory =
+                isLink && stat(fullPath, &target) == 0
                 && target.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
             var enriched = entry
             enriched["type"] = isLink ? "link" : kind == mode_t(S_IFDIR) ? "dir" : "file"
             enriched["link_target_dir"] = targetsDirectory
             if kind == mode_t(S_IFDIR) || targetsDirectory,
-               let canonicalPath = fullPath.withCString({ realpath($0, nil) }) {
+                let canonicalPath = fullPath.withCString({ realpath($0, nil) })
+            {
                 enriched["resolved_path"] = String(cString: canonicalPath)
                 free(canonicalPath)
             }
@@ -387,8 +407,12 @@ enum GuestAPI {
     }
 
     private static func number(_ params: [String: Any], _ key: String, default fallback: Double = .nan) -> Double {
-        if let value = params[key] as? NSNumber { return value.doubleValue }
-        if let value = params[key] as? String, let number = Double(value) { return number }
+        if let value = params[key] as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = params[key] as? String, let number = Double(value) {
+            return number
+        }
         return fallback
     }
 }

@@ -24,8 +24,8 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         let prefix = "/v1/ports/"
         guard uri.hasPrefix(prefix) else { return nil }
         let digits = uri.dropFirst(prefix.count)
-        guard !digits.isEmpty, digits.utf8.allSatisfy({ (48 ... 57).contains($0) }),
-              let port = Int(digits), (1 ... 65535).contains(port)
+        guard !digits.isEmpty, digits.utf8.allSatisfy({ (48...57).contains($0) }),
+            let port = Int(digits), (1...65535).contains(port)
         else { return nil }
         return port
     }
@@ -36,20 +36,25 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         ClientBootstrap(group: context.eventLoop)
             .connectTimeout(.seconds(5))
             .channelInitializer { [weak self] backend in
-                backend.pipeline.addHandler(GuestPortBackendHandler(webSocket: webSocket) { [weak self] in
-                    self?.closing == false
-                })
+                backend.pipeline.addHandler(
+                    GuestPortBackendHandler(webSocket: webSocket) { [weak self] in
+                        self?.closing == false
+                    })
             }
             .connect(host: "127.0.0.1", port: port)
             .whenComplete { result in
                 guard webSocket.isActive, !self.closing else {
-                    if case let .success(backend) = result { backend.close(promise: nil) }
+                    if case .success(let backend) = result {
+                        backend.close(promise: nil)
+                    }
                     return
                 }
                 switch result {
-                case let .success(backend):
+                case .success(let backend):
                     self.backend = backend
-                    for chunk in self.pending.dropLast() { backend.write(chunk, promise: nil) }
+                    for chunk in self.pending.dropLast() {
+                        backend.write(chunk, promise: nil)
+                    }
                     if let chunk = self.pending.last {
                         self.lastBackendWrite = backend.writeAndFlush(chunk)
                         self.lastBackendWrite?.whenFailure { _ in self.closeWithError(on: webSocket) }
@@ -82,13 +87,20 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
                 pending.append(chunk)
             }
         case .ping:
-            context.writeAndFlush(wrapOutboundOut(WebSocketFrame(fin: true, opcode: .pong,
-                                                                  data: frame.unmaskedData)), promise: nil)
+            context.writeAndFlush(
+                wrapOutboundOut(
+                    WebSocketFrame(
+                        fin: true, opcode: .pong,
+                        data: frame.unmaskedData)), promise: nil)
         case .connectionClose:
             closing = true
             let webSocket = context.channel
-            context.writeAndFlush(wrapOutboundOut(WebSocketFrame(fin: true, opcode: .connectionClose,
-                                                                  data: frame.unmaskedData))).whenComplete { _ in
+            context.writeAndFlush(
+                wrapOutboundOut(
+                    WebSocketFrame(
+                        fin: true, opcode: .connectionClose,
+                        data: frame.unmaskedData))
+            ).whenComplete { _ in
                 webSocket.close(promise: nil)
             }
         default:
@@ -133,8 +145,11 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         closing = true
         var data = channel.allocator.buffer(capacity: 2)
         data.writeInteger(UInt16(1011), endianness: .big)
-        channel.writeAndFlush(WebSocketFrame(fin: true, opcode: .connectionClose,
-                                             data: data)).whenComplete { _ in
+        channel.writeAndFlush(
+            WebSocketFrame(
+                fin: true, opcode: .connectionClose,
+                data: data)
+        ).whenComplete { _ in
             channel.close(promise: nil)
         }
     }
@@ -180,8 +195,11 @@ private final class GuestPortBackendHandler: ChannelInboundHandler, @unchecked S
         guard webSocket.isActive, shouldForward() else { return }
         var data = webSocket.allocator.buffer(capacity: 2)
         data.writeInteger(UInt16(1000), endianness: .big)
-        webSocket.writeAndFlush(WebSocketFrame(fin: true, opcode: .connectionClose,
-                                               data: data)).whenComplete { _ in
+        webSocket.writeAndFlush(
+            WebSocketFrame(
+                fin: true, opcode: .connectionClose,
+                data: data)
+        ).whenComplete { _ in
             self.webSocket.close(promise: nil)
         }
     }

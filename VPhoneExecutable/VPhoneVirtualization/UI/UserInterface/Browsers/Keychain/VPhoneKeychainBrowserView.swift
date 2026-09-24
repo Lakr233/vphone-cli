@@ -61,16 +61,24 @@ struct VPhoneKeychainBrowserView: View {
             .width(min: 60, ideal: 80, max: 100)
 
             TableColumn("Account", value: \.account) { item in
-                Text(item.account.isEmpty ? (item.protectedMetadata ? "Protected" : "-") : item.account)
-                    .lineLimit(1)
-                    .help(item.account)
+                Text(
+                    item.account.isEmpty
+                        ? (item.protectedMetadata ? VPhoneLocalization.text("Protected") : "-")
+                        : item.account
+                )
+                .lineLimit(1)
+                .help(item.account)
             }
             .width(min: 80, ideal: 150, max: .infinity)
 
             TableColumn("Service", value: \.service) { item in
-                Text(item.service.isEmpty ? (item.protectedMetadata ? "Protected" : "-") : item.service)
-                    .lineLimit(1)
-                    .help(item.service)
+                Text(
+                    item.service.isEmpty
+                        ? (item.protectedMetadata ? VPhoneLocalization.text("Protected") : "-")
+                        : item.service
+                )
+                .lineLimit(1)
+                .help(item.service)
             }
             .width(min: 80, ideal: 150, max: .infinity)
 
@@ -151,7 +159,7 @@ struct VPhoneKeychainBrowserView: View {
 
                 Spacer()
 
-                Text("\(model.diagnostics.count) entries")
+                Text(VPhoneLocalization.format("%@ entries", String(model.diagnostics.count)))
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
 

@@ -103,7 +103,7 @@ extension VPhoneMenuController {
     func syncBatteryFromHost() {
         guard batterySyncEnabled else { return }
         guard let (charge, connectivity) = hostBatteryState() else {
-            batterySyncStatusItem?.title = "Status: no host battery"
+            batterySyncStatusItem?.title = VPhoneLocalization.text("Status: no host battery")
             return
         }
         vm?.setBattery(charge: charge, connectivity: connectivity)
@@ -115,10 +115,13 @@ extension VPhoneMenuController {
         let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let sources = IOPSCopyPowerSourcesList(snapshot).takeRetainedValue() as [CFTypeRef]
         for source in sources {
-            guard let info = IOPSGetPowerSourceDescription(snapshot, source)?
-                .takeUnretainedValue() as? [String: Any] else { continue }
+            guard
+                let info = IOPSGetPowerSourceDescription(snapshot, source)?
+                    .takeUnretainedValue() as? [String: Any]
+            else { continue }
             guard let type = info[kIOPSTypeKey as String] as? String,
-                  type == kIOPSInternalBatteryType else { continue }
+                type == kIOPSInternalBatteryType
+            else { continue }
             let capacity = info[kIOPSCurrentCapacityKey as String] as? Int ?? 100
             let state = info[kIOPSPowerSourceStateKey as String] as? String ?? kIOPSACPowerValue
             let connectivity = (state == kIOPSACPowerValue) ? 1 : 2
@@ -135,7 +138,7 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.lowPowerMode(enabled: enabled)
-                syncBatteryFromHost() // refresh status label with updated LPM state
+                syncBatteryFromHost()  // refresh status label with updated LPM state
                 print("[battery] sync LPM: \(enabled)")
             } catch {
                 print("[battery] sync LPM failed: \(error)")
@@ -149,14 +152,15 @@ extension VPhoneMenuController {
         stopPowerSourceMonitoring()
         let rawPtr = Unmanaged.passRetained(self).toOpaque()
         powerSourceRetainedPtr = rawPtr
-        let source = IOPSNotificationCreateRunLoopSource({ rawContext in
-            guard let ctx = rawContext else { return }
-            Task { @MainActor in
-                Unmanaged<VPhoneMenuController>.fromOpaque(ctx)
-                    .takeUnretainedValue()
-                    .syncBatteryFromHost()
-            }
-        }, rawPtr)
+        let source = IOPSNotificationCreateRunLoopSource(
+            { rawContext in
+                guard let ctx = rawContext else { return }
+                Task { @MainActor in
+                    Unmanaged<VPhoneMenuController>.fromOpaque(ctx)
+                        .takeUnretainedValue()
+                        .syncBatteryFromHost()
+                }
+            }, rawPtr)
         guard let runLoopSource = source?.takeRetainedValue() else { return }
         powerSourceRunLoopSource = runLoopSource
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
@@ -196,9 +200,13 @@ extension VPhoneMenuController {
     // MARK: - Status Label
 
     private func updateStatusLabel(charge: Double, connectivity: Int) {
-        let connLabel = connectivity == 1 ? "charging" : "not charging"
-        let lpmLabel = ProcessInfo.processInfo.isLowPowerModeEnabled ? ", low power" : ""
-        batterySyncStatusItem?.title = "Status: \(Int(charge))% (\(connLabel)\(lpmLabel))"
+        let connLabel = VPhoneLocalization.text(connectivity == 1 ? "charging" : "not charging")
+        let lpmLabel =
+            ProcessInfo.processInfo.isLowPowerModeEnabled
+            ? VPhoneLocalization.text(", low power") : ""
+        batterySyncStatusItem?.title = VPhoneLocalization.format(
+            "Status: %@%% (%@)", String(Int(charge)), connLabel + lpmLabel
+        )
     }
 
     // MARK: - Helpers

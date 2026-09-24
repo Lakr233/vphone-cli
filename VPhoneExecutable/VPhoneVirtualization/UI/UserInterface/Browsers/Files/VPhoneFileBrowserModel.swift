@@ -61,11 +61,12 @@ class VPhoneFileBrowserModel {
 
     var statusText: String {
         let count = filteredFiles.count
-        let suffix = count == 1 ? "item" : "items"
         if !searchText.isEmpty {
-            return "\(count) \(suffix) (filtered)"
+            return VPhoneLocalization.format("%@ items (filtered)", String(count))
         }
-        return "\(count) \(suffix)"
+        return count == 1
+            ? VPhoneLocalization.text("1 item")
+            : VPhoneLocalization.format("%@ items", String(count))
     }
 
     // MARK: - Navigation
@@ -120,8 +121,8 @@ class VPhoneFileBrowserModel {
 
     func quickLookSelected() {
         guard let id = selection.first,
-              let file = filteredFiles.first(where: { $0.id == id }),
-              !file.isDirectoryLike
+            let file = filteredFiles.first(where: { $0.id == id }),
+            !file.isDirectoryLike
         else { return }
 
         quickLookTask?.cancel()
@@ -133,7 +134,7 @@ class VPhoneFileBrowserModel {
                 quickLookController.open(data: data, filename: file.name)
             } catch {
                 guard !Task.isCancelled else { return }
-                self.error = "Quick Look download failed: \(error)"
+                self.error = VPhoneLocalization.format("Quick Look download failed: %@", String(describing: error))
             }
             quickLookTask = nil
         }
@@ -194,7 +195,7 @@ class VPhoneFileBrowserModel {
             try data.write(to: dest)
             print("[files] downloaded \(remotePath) (\(data.count) bytes)")
         } catch {
-            self.error = "Download failed: \(error)"
+            self.error = VPhoneLocalization.format("Download failed: %@", String(describing: error))
         }
     }
 
@@ -204,12 +205,12 @@ class VPhoneFileBrowserModel {
         ancestors: Set<String>,
     ) async {
         guard !file.isSymbolicLink || file.resolvedPath != nil else {
-            error = "Download requires an updated guest agent to follow \(file.path)."
+            error = VPhoneLocalization.format("Download requires an updated guest agent to follow %@.", file.path)
             return
         }
         let resolvedPath = file.resolvedPath ?? file.path
         guard !ancestors.contains(resolvedPath) else {
-            error = "Directory link creates a cycle at \(file.path)."
+            error = VPhoneLocalization.format("Directory link creates a cycle at %@.", file.path)
             return
         }
         let ancestors = ancestors.union([resolvedPath])
@@ -217,7 +218,7 @@ class VPhoneFileBrowserModel {
         do {
             try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
         } catch {
-            self.error = "Create directory failed: \(error)"
+            self.error = VPhoneLocalization.format("Create directory failed: %@", String(describing: error))
             return
         }
 
@@ -225,7 +226,7 @@ class VPhoneFileBrowserModel {
         do {
             entries = try await control.listFiles(path: file.path)
         } catch {
-            self.error = "List directory failed: \(error)"
+            self.error = VPhoneLocalization.format("List directory failed: %@", String(describing: error))
             return
         }
 
@@ -254,7 +255,7 @@ class VPhoneFileBrowserModel {
             // Mapped: this is a drag-and-drop target, so the size is the
             // user's choice and the transfer chunks it anyway.
             guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
-                uploadError = "Could not read \"\(name)\" from disk."
+                uploadError = VPhoneLocalization.format("Could not read \"%@\" from disk.", name)
                 break
             }
             let dest = (currentPath as NSString).appendingPathComponent(name)
@@ -266,7 +267,7 @@ class VPhoneFileBrowserModel {
                 transferCurrent = Int64(data.count)
                 print("[files] uploaded \(name) (\(data.count) bytes)")
             } catch {
-                uploadError = "Upload failed for \"\(name)\": \(error)"
+                uploadError = VPhoneLocalization.format("Upload failed for \"%@\": %@", name, String(describing: error))
                 break
             }
         }
@@ -280,7 +281,7 @@ class VPhoneFileBrowserModel {
 
     func createNewFolder(name: String) async {
         guard !files.contains(where: { $0.name == name }) else {
-            error = "An item named \(name) already exists."
+            error = VPhoneLocalization.format("An item named %@ already exists.", name)
             return
         }
         let path = (currentPath as NSString).appendingPathComponent(name)
@@ -288,7 +289,7 @@ class VPhoneFileBrowserModel {
             try await control.createDirectory(path: path)
             await refresh()
         } catch {
-            self.error = "Create folder failed: \(error)"
+            self.error = VPhoneLocalization.format("Create folder failed: %@", String(describing: error))
         }
     }
 
@@ -298,7 +299,7 @@ class VPhoneFileBrowserModel {
             do {
                 try await control.deleteFile(path: file.path)
             } catch {
-                self.error = "Delete failed: \(error)"
+                self.error = VPhoneLocalization.format("Delete failed: %@", String(describing: error))
                 return
             }
         }
@@ -309,7 +310,7 @@ class VPhoneFileBrowserModel {
     func renameFile(_ file: VPhoneRemoteFile, to newName: String) async {
         guard newName != file.name else { return }
         guard !files.contains(where: { $0.dir == file.dir && $0.name == newName }) else {
-            error = "An item named \(newName) already exists."
+            error = VPhoneLocalization.format("An item named %@ already exists.", newName)
             return
         }
         let newPath = (file.dir as NSString).appendingPathComponent(newName)
@@ -317,7 +318,7 @@ class VPhoneFileBrowserModel {
             try await control.renameFile(from: file.path, to: newPath)
             await refresh()
         } catch {
-            self.error = "Rename failed: \(error)"
+            self.error = VPhoneLocalization.format("Rename failed: %@", String(describing: error))
         }
     }
 }

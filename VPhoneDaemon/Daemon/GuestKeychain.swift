@@ -17,7 +17,7 @@ enum GuestKeychain {
                 account: nil,
                 server: nil,
                 group: nil,
-                includeData: false
+                includeData: false,
             )
             let rows = result["items"] as? [[String: Any]] ?? []
             items += rows.map(adaptItem)
@@ -57,7 +57,7 @@ enum GuestKeychain {
             server: nil,
             label: "\(service) (\(account))",
             group: nil,
-            data: password
+            data: password,
         )
         return ["ok": true, "status": 0]
     }
@@ -68,7 +68,7 @@ enum GuestKeychain {
             service: service,
             account: account,
             server: nil,
-            group: nil
+            group: nil,
         )
         return ["ok": true, "removed": result["deleted"] as? Bool ?? false]
     }
@@ -95,8 +95,12 @@ enum GuestKeychain {
         case "identity": adapted["class"] = "idnt"
         default: break
         }
-        if let group = item["group"] { adapted["accessGroup"] = group }
-        if let rowID = item["rowid"] { adapted["_rowid"] = rowID }
+        if let group = item["group"] {
+            adapted["accessGroup"] = group
+        }
+        if let rowID = item["rowid"] {
+            adapted["_rowid"] = rowID
+        }
         adapted["valueEncoding"] = "protected"
         adapted.removeValue(forKey: "data")
         return adapted

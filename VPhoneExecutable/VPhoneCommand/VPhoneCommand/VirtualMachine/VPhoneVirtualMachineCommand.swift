@@ -55,9 +55,11 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
 
     func run() throws {
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: vmDirectory.path, isDirectory: &isDirectory,
-        ), isDirectory.boolValue else {
+        guard
+            FileManager.default.fileExists(
+                atPath: vmDirectory.path, isDirectory: &isDirectory,
+            ), isDirectory.boolValue
+        else {
             throw ValidationError("VM directory does not exist: \(vmDirectory.path)")
         }
 
@@ -71,7 +73,7 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
             // An existing VM must already be v2; do not turn a legacy VM into
             // a v2 VM by replacing only its manifest.
             _ = try VPhoneVirtualMachineManifest.load(from: configURL)
-        } else if !((try FileManager.default.contentsOfDirectory(atPath: vmDirectory.path)).isEmpty) {
+        } else if try !((FileManager.default.contentsOfDirectory(atPath: vmDirectory.path)).isEmpty) {
             throw ValidationError(
                 "The VM directory contains data but has no config.plist. Recreate the VM in a new directory; "
                     + "write-manifest cannot upgrade an existing VM.",
@@ -86,11 +88,13 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
 // MARK: - Shared options
 
 struct VPhoneLibraryOption: ParsableArguments {
-    @Option(name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/machines or $VPHONE_LIBRARY_ROOT)")
+    @Option(
+        name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/machines or $VPHONE_LIBRARY_ROOT)")
     var libraryRoot: String?
 
     var library: VPhoneLibrary {
-        let root = libraryRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let root =
+            libraryRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? VPhoneLibrary.defaultRoot()
         return VPhoneLibrary(root: root)
     }
@@ -118,7 +122,8 @@ struct VPhoneVirtualMachineListCommand: ParsableCommand {
             print("(no VMs in \(library.root.path))")
         } else {
             for r in reports {
-                var line = "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024 * 1024 * 1024)) GB disk"
+                var line =
+                    "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024 * 1024 * 1024)) GB disk"
                 if let info = r.restoreInfo {
                     line += "  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
                 }
@@ -221,8 +226,9 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
             bridgeInterface: bridgeInterface,
         )
         let m = updated.manifest
-        print("updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
-            + "net=\(describeNetwork(m.networkConfig))")
+        print(
+            "updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
+                + "net=\(describeNetwork(m.networkConfig))")
     }
 
     private static func parseMode(_ s: String)
@@ -278,7 +284,10 @@ struct VPhoneVirtualMachineDeleteCommand: ParsableCommand {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         if !force {
             print("Delete '\(name)' and all its files? [y/N] ", terminator: "")
-            guard (readLine() ?? "").lowercased() == "y" else { print("aborted"); return }
+            guard (readLine() ?? "").lowercased() == "y" else {
+                print("aborted")
+                return
+            }
         }
         try VPhoneBundleOperations.delete(bundleNamed: name, in: lib.library)
         print("deleted \(name)")

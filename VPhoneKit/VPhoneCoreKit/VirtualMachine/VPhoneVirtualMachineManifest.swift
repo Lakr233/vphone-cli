@@ -13,17 +13,17 @@ public enum VPhoneManifestError: Error {
 extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
     public var description: String {
         switch self {
-        case let .loadFailed(path):
+        case .loadFailed(let path):
             "Unable to read the VM configuration at \(path). Check that the file exists and try again."
-        case let .parseFailed(path):
+        case .parseFailed(let path):
             "The VM configuration at \(path) is not valid. Recreate the VM, or restore a backup of config.plist."
-        case let .unsupportedSchema(path, found):
+        case .unsupportedSchema(let path, let found):
             "The VM configuration at \(path) has \(found.map { "schema version \($0)" } ?? "no valid schema version"). "
                 + "vphone 2.x requires schema version 2. Recreate this VM with `vphone-cli vm create`."
-        case let .unsupportedRuntimeVersion(version):
+        case .unsupportedRuntimeVersion(let version):
             "This vphone build reports version \(version). VMs with schema version 2 require vphone 2.x. "
                 + "Install a vphone 2.x build before launching this VM."
-        case let .writeFailed(path):
+        case .writeFailed(let path):
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
         }
     }
@@ -40,13 +40,13 @@ enum VPhoneRuntimeVersion {
     static var current: String {
         let contents = VPhoneResources.runningExecutable().deletingLastPathComponent().deletingLastPathComponent()
         guard contents.lastPathComponent == "Contents",
-              contents.deletingLastPathComponent().pathExtension == "app"
+            contents.deletingLastPathComponent().pathExtension == "app"
         else { return unbundledVersion }
 
         let infoURL = contents.appendingPathComponent("Info.plist")
         guard let data = try? Data(contentsOf: infoURL),
-              let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-              let version = plist["CFBundleShortVersionString"] as? String
+            let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
+            let version = plist["CFBundleShortVersionString"] as? String
         else { return "unknown" }
         return version
     }
@@ -201,7 +201,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         romImages: ROMImages?,
         sepStorage: String = "SEPStorage",
     ) {
-        self.schemaVersion = Self.currentSchemaVersion
+        schemaVersion = Self.currentSchemaVersion
         self.platformType = platformType
         self.platformFusing = platformFusing
         self.machineIdentifier = machineIdentifier

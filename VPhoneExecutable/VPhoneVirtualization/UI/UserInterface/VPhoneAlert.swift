@@ -35,11 +35,11 @@ enum VPhoneAlert {
         buttons: [String],
     ) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
+        alert.messageText = VPhoneLocalization.text(title)
+        alert.informativeText = VPhoneLocalization.text(message)
         alert.alertStyle = style
         for button in buttons {
-            alert.addButton(withTitle: button)
+            alert.addButton(withTitle: VPhoneLocalization.text(button))
         }
         return alert
     }

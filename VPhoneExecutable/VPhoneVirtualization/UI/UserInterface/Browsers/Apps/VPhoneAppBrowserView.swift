@@ -26,7 +26,11 @@ struct VPhoneAppBrowserView: View {
             "Error",
             isPresented: .init(
                 get: { model.error != nil },
-                set: { if !$0 { model.error = nil } },
+                set: {
+                    if !$0 {
+                        model.error = nil
+                    }
+                },
             ),
         ) {
             Button("OK") { model.error = nil }
@@ -61,13 +65,17 @@ struct VPhoneAppBrowserView: View {
             .width(min: 70, ideal: 90, max: 120)
 
             TableColumn("Type", value: \.type) { app in
-                Text(app.type.capitalized)
+                Text(VPhoneLocalization.text(app.type.capitalized))
             }
             .width(min: 60, ideal: 80, max: 100)
 
             TableColumn("Status", value: \.pid) { app in
-                Text(app.pid > 0 ? "Running · PID \(app.pid)" : "Not running")
-                    .foregroundStyle(app.pid > 0 ? .primary : .secondary)
+                Text(
+                    app.pid > 0
+                        ? VPhoneLocalization.format("Running · PID %@", String(app.pid))
+                        : VPhoneLocalization.text("Not running")
+                )
+                .foregroundStyle(app.pid > 0 ? .primary : .secondary)
             }
             .width(min: 120, ideal: 150, max: 180)
         } rows: {
@@ -92,9 +100,10 @@ struct VPhoneAppBrowserView: View {
                     "No Apps",
                     systemImage: "app.dashed",
                     description: Text(
-                        model.searchText.isEmpty
-                            ? "No apps are available for this filter."
-                            : "No apps match your search.",
+                        VPhoneLocalization.text(
+                            model.searchText.isEmpty
+                                ? "No apps are available for this filter."
+                                : "No apps match your search."),
                     ),
                 )
             }
@@ -107,9 +116,13 @@ struct VPhoneAppBrowserView: View {
                 .fill(model.control.isConnected ? Color.green : Color.orange)
                 .frame(width: 8, height: 8)
 
-            Text(model.filteredApps.count == 1 ? "1 app" : "\(model.filteredApps.count) apps")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+            Text(
+                model.filteredApps.count == 1
+                    ? VPhoneLocalization.text("1 app")
+                    : VPhoneLocalization.format("%@ apps", String(model.filteredApps.count))
+            )
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
 
             Spacer()
 
