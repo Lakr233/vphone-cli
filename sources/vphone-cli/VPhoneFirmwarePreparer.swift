@@ -73,12 +73,19 @@ enum VPhoneFirmwarePreparer {
         let originalManifest = phoneTree.appendingPathComponent("BuildManifest.plist")
         try clone(originalManifest, to: phoneTree.appendingPathComponent("iPhone-BuildManifest.plist"))
         try FirmwareManifest.generate(iPhoneDir: phoneTree, cloudOSDir: cloudTree, verbose: true)
-        print(gpuDriverBundle == nil
-            ? "[*] Extracting GPU driver from cloudOS PCC image..."
-            : "[*] Staging GPU driver from local bundle...")
-        try VPhonePCCGPUDriver.stage(
-            from: cloudTree, into: phoneTree, cachedBundle: gpuDriverBundle,
-        )
+        if let gpuDriverBundle {
+            print("[*] Staging GPU driver from local bundle...")
+            try VPhonePCCGPUDriver.stage(
+                from: gpuDriverBundle, into: phoneTree,
+                expectedPlatformVersion: cloud.version,
+            )
+        } else {
+            print("[*] Restoring cloudOS in a temporary vphone VM to extract its GPU driver...")
+            try VPhonePCCGPURecovery.stage(
+                cloudOSDirectory: cloudTree, into: phoneTree,
+                expectedPlatformVersion: cloud.version,
+            )
+        }
 
         // The destination did not exist at entry and the staging directory is
         // on the same volume. One rename exposes the complete restore tree.

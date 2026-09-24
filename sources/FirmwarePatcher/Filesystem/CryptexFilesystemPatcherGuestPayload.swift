@@ -121,11 +121,14 @@ extension CryptexFilesystemPatcher {
         try chownRecursively(uid: 0, gid: 0, at: bundle)
         for path in [
             bundle,
-            bundle.appending(path: "/libAppleParavirtCompilerPluginIOGPUFamily.dylib"),
             bundle.appending(path: "/AppleParavirtGPUMetalIOGPUFamily"),
             bundle.appending(path: "/_CodeSignature"),
         ] {
             try setMode(0o755, at: path)
+        }
+        let compilerPlugin = bundle.appending(path: "libAppleParavirtCompilerPluginIOGPUFamily.dylib")
+        if FileManager.default.fileExists(atPath: compilerPlugin.path) {
+            try setMode(0o755, at: compilerPlugin)
         }
         for path in [
             bundle.appending(path: "/_CodeSignature/CodeResources"),
