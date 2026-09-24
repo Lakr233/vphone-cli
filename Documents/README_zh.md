@@ -12,6 +12,8 @@
 
 需要 Apple Silicon Mac、macOS 15 或更新版本，以及允许 PV=3 研究虚拟机和 `vphone-vm` 私有授权的宿主机设置。先看[宿主机准备](Guides/host-setup.md)。
 
+**v2.0.0 虚拟机兼容性：**此版本只能启动新建的、`schemaVersion=2` 的虚拟机。旧版本创建的虚拟机必须重新执行 `vm create` 创建；不支持原地升级。
+
 ```sh
 vphone-cli vm create myphone \
   --iphone-source /path/to/iPhone17,3_Restore.ipsw \
@@ -26,7 +28,14 @@ vphone-cli vm launch myphone
 
 ## 安装与构建
 
-成品 `.app` 运行时不需要 Homebrew、Python 或 Xcode，也不需要额外安装运行环境。从源码构建则需要 Xcode 的 iPhoneOS SDK，以编译 vphoned：
+成品 `.app` 运行时不需要 Homebrew、Python 或 Xcode，也不需要额外安装运行环境。从 [GitHub Releases](https://github.com/Lakr233/vphone-cli/releases) 下载 `vphone-cli-2.0.0.zip`，解压后直接调用应用内的 CLI：
+
+```sh
+ditto -x -k vphone-cli-2.0.0.zip .
+./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
+```
+
+上文示例中的 `vphone-cli` 可替换为上述应用内路径。从源码构建则需要 Xcode 的 iPhoneOS SDK，以编译 vphoned：
 
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git

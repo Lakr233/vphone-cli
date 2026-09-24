@@ -12,6 +12,8 @@ Apple の Virtualization.framework と PCC 研究用 VM 基盤を使って、仮
 
 Apple Silicon、macOS 15 以降、および PV=3 研究用 VM と `vphone-vm` の権限を許可する[ホスト設定](Guides/host-setup.md)が必要です。
 
+**v2.0.0 の VM 互換性：**このリリースで起動できるのは、新しく作成された `schemaVersion=2` の VM だけです。旧バージョンで作成した VM は `vm create` で作り直してください。既存 VM の直接アップグレードには対応しません。
+
 ```sh
 vphone-cli vm create myphone \
   --iphone-source /path/to/iPhone17,3_Restore.ipsw \
@@ -26,7 +28,14 @@ cloudOS 26.4（`23E5207q`）との組み合わせで、iPhone17,3 の iOS 26.6.2
 
 ## インストールとビルド
 
-配布 `.app` の実行に Homebrew、Python、Xcode や別の実行環境は不要です。ソースからのビルドには、vphoned をコンパイルするための iPhoneOS SDK を含む Xcode が必要です。
+配布 `.app` の実行に Homebrew、Python、Xcode や別の実行環境は不要です。[GitHub Releases](https://github.com/Lakr233/vphone-cli/releases) から `vphone-cli-2.0.0.zip` をダウンロードして展開し、アプリ内の CLI を直接実行します。
+
+```sh
+ditto -x -k vphone-cli-2.0.0.zip .
+./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
+```
+
+上の例では、`vphone-cli` をこのアプリ内のパスに置き換えられます。ソースからのビルドには、vphoned をコンパイルするための iPhoneOS SDK を含む Xcode が必要です。
 
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git

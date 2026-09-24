@@ -2,6 +2,11 @@
 
 [Documentation](../README.md) · [Create a VM](create-and-run.md) · [Patch inventory](../../Research/0_binary_patch_comparison.md)
 
+**v2.0.0 VM format:** This release starts only newly created VMs whose
+`config.plist` has `schemaVersion=2`. Recreate VMs made by earlier releases
+with `vm create`; there is no in-place upgrade. The firmware results below
+describe tested pairings, not compatibility with older VM bundles.
+
 ## Tested Environments
 
 These are the two iPhone17,3 combinations exercised with the native JB pipeline in [PR #486](https://github.com/Lakr233/vphone-cli/pull/486). Both reached the lock screen and answered a vphoned ping. A fresh 26.6.2 `vm create` also completed all stages and exited successfully after its first-boot ping.

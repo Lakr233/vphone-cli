@@ -12,6 +12,10 @@ The supported firmware flow is **JB only**. It applies the required system patch
 
 Use an Apple Silicon Mac running macOS 15 or newer. The host must permit PV=3 research guests and the private entitlements on `vphone-vm`; see [host setup](Documents/Guides/host-setup.md) before the first boot. A Mac running inside another VM cannot boot this guest.
 
+**v2.0.0 VM compatibility:** This release starts only newly created VMs with
+`schemaVersion=2`. VMs created by earlier releases must be recreated with
+`vm create`; there is no in-place upgrade.
+
 ```sh
 vphone-cli vm create myphone \
   --iphone-source /path/to/iPhone17,3_Restore.ipsw \
@@ -37,6 +41,15 @@ For local validation, iPhone17,3 **26.6.2 (23G90)** and **27.0 (24A435)** both r
 ## Install or build
 
 A distributed `.app` uses macOS system tools and its own bundled binaries; it does not need Homebrew, Python, or Xcode to run. Building from source does not install a separate runtime environment.
+
+Download `vphone-cli-2.0.0.zip` from [GitHub Releases](https://github.com/Lakr233/vphone-cli/releases), extract it, and run the CLI inside the app:
+
+```sh
+ditto -x -k vphone-cli-2.0.0.zip .
+./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
+```
+
+Use that app path in place of `vphone-cli` in the examples above if the CLI is not on your `PATH`.
 
 Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
 
