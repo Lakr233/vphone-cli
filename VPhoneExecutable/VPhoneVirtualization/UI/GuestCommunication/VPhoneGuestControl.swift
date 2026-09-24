@@ -6,6 +6,7 @@ import Virtualization
 /// The VM UI's direct HTTP client over VSOCK. It does not open a host TCP
 /// listener; only --api-listen creates one through VPhoneAPIProxy.
 @MainActor
+@Observable
 final class VPhoneGuestControl {
     enum ControlError: Error, CustomStringConvertible {
         case notConnected
@@ -31,18 +32,19 @@ final class VPhoneGuestControl {
         let imageData: Data?
     }
 
-    private weak var device: VZVirtioSocketDevice?
-    private var monitor: Task<Void, Never>?
-    private var orderedInput: Task<Void, Never>?
-    private var orderedLocation: Task<Void, Never>?
-    private var locationGeneration: UInt64 = 0
+    // Windows observe the connection state below; transport state is not UI.
+    @ObservationIgnored private weak var device: VZVirtioSocketDevice?
+    @ObservationIgnored private var monitor: Task<Void, Never>?
+    @ObservationIgnored private var orderedInput: Task<Void, Never>?
+    @ObservationIgnored private var orderedLocation: Task<Void, Never>?
+    @ObservationIgnored private var locationGeneration: UInt64 = 0
     private(set) var isConnected = false
     private(set) var guestCapabilities: [String] = []
     private(set) var guestIPAddress: String?
     private(set) var guestIOSVersion: String?
-    var guestBinaryURL: URL?
-    var onConnect: (([String]) -> Void)?
-    var onDisconnect: (() -> Void)?
+    @ObservationIgnored var guestBinaryURL: URL?
+    @ObservationIgnored var onConnect: (([String]) -> Void)?
+    @ObservationIgnored var onDisconnect: (() -> Void)?
 
     var useGuestTouchInjection: Bool {
         guard isConnected, guestCapabilities.contains("touch"),
@@ -95,9 +97,20 @@ final class VPhoneGuestControl {
                     return
                 }
             }
-            guestCapabilities = info["capabilities"] as? [String] ?? []
-            guestIPAddress = info["ip"] as? String
-            guestIOSVersion = info["ios"] as? String
+            // The probe repeats every few seconds; assign only changes so
+            // observing windows do not redraw on every probe.
+            let capabilities = info["capabilities"] as? [String] ?? []
+            if capabilities != guestCapabilities {
+                guestCapabilities = capabilities
+            }
+            let ip = info["ip"] as? String
+            if ip != guestIPAddress {
+                guestIPAddress = ip
+            }
+            let ios = info["ios"] as? String
+            if ios != guestIOSVersion {
+                guestIOSVersion = ios
+            }
             if !isConnected {
                 isConnected = true
                 print("[control] connected to vphoned HTTP API (iOS \(guestIOSVersion ?? "?"))")
@@ -112,6 +125,8 @@ final class VPhoneGuestControl {
     }
 
     private func setDisconnected() {
+        guard isConnected || !guestCapabilities.isEmpty || guestIPAddress != nil || guestIOSVersion != nil
+        else { return }
         let wasConnected = isConnected
         isConnected = false
         guestCapabilities = []

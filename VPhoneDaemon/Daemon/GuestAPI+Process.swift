@@ -27,9 +27,30 @@ extension GuestAPI {
             return ["pid": pid, "signal": name]
         case "memory.jetsam":
             return try jetsamSnapshot()
+        case "memory.pressure":
+            return ["memory": memoryPressure()]
         default:
             return nil
         }
+    }
+
+    /// The three kernel memory sysctls of `memory.jetsam`, without its priority
+    /// list and property plists, for panels that poll.
+    private static func memoryPressure() -> [String: Any] {
+        var memory: [String: Any] = [:]
+        for (key, name) in [
+            ("hw_memsize", "hw.memsize"),
+            ("memorystatus_level", "kern.memorystatus_level"),
+            ("memorystatus_vm_pressure_level", "kern.memorystatus_vm_pressure_level"),
+        ] {
+            var value: Int64 = 0
+            var size = MemoryLayout<Int64>.size
+            if sysctlbyname(name, &value, &size, nil, 0) == 0 {
+                // The kern values are 32-bit; read them as such.
+                memory[key] = size == MemoryLayout<Int32>.size ? Int(Int32(truncatingIfNeeded: value)) : Int(value)
+            }
+        }
+        return memory
     }
 
     private static let signals: [String: Int32] = [

@@ -1,12 +1,14 @@
 import AppKit
 import LocalAuthentication
 
-// MARK: - Keys Menu
+// MARK: - Device Menu
 
+/// Hardware the guest thinks it has: buttons, keyboard, sensors and the
+/// host-side overrides that feed them.
 extension VPhoneMenuController {
-    func buildKeysMenu() -> NSMenuItem {
-        let item = NSMenuItem(title: "Keys", action: nil, keyEquivalent: "")
-        let menu = NSMenu(title: "Keys")
+    func buildDeviceMenu() -> NSMenuItem {
+        let item = NSMenuItem(title: "Device", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "Device")
         menu.addItem(makeItem(
             "Home Screen",
             action: #selector(sendHome),
@@ -18,8 +20,13 @@ extension VPhoneMenuController {
         menu.addItem(makeItem("Volume Down", action: #selector(sendVolumeDown)))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Open Guest Spotlight", action: #selector(sendSpotlight)))
-        menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Type ASCII from Mac Clipboard", action: #selector(typeFromClipboard)))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(makePanelItem(.controls, "Controls", keyEquivalent: "k"))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(buildLocationSubmenu())
+        menu.addItem(buildBatterySubmenu())
+        menu.addItem(buildCameraSubmenu())
         menu.addItem(NSMenuItem.separator())
         let tidItem = makeItem("Touch ID Home Forwarding", action: #selector(toggleTouchIDForwarding))
         if hasTouchID {

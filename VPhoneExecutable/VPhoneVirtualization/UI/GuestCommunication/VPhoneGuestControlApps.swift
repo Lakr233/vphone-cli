@@ -3,67 +3,48 @@ import Foundation
 extension VPhoneGuestControl {
     // MARK: - App Management
 
-    struct AppInfo: Identifiable {
-        let bundleId: String
-        let name: String
-        let version: String
-        let type: String
-        let state: String
-        let pid: Int
-        let path: String
-
-        var id: String {
-            bundleId
-        }
+    /// Every registered app with its running PID; the browser filters locally.
+    func appList() async throws -> [String: Any] {
+        try await call("apps.list", params: ["filter": "all"])
     }
 
-    func appList(filter: String = "all") async throws -> [AppInfo] {
-        let (resp, _) = try await sendRequest(["t": "app_list", "filter": filter])
-        guard let apps = resp["apps"] as? [[String: Any]] else {
-            throw ControlError.protocolError("missing apps in response")
-        }
-        return apps.map { app in
-            AppInfo(
-                bundleId: app["bundle_id"] as? String ?? "",
-                name: app["name"] as? String ?? "",
-                version: app["version"] as? String ?? "",
-                type: app["type"] as? String ?? "",
-                state: app["state"] as? String ?? "",
-                pid: app["pid"] as? Int ?? 0,
-                path: app["path"] as? String ?? "",
-            )
-        }
+    func appLaunch(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.launch", params: ["bundle_id": bundleID])
     }
 
-    func appLaunch(bundleId: String, url: String? = nil) async throws -> (
-        pid: Int, frontmostVerified: Bool, warning: String?,
-    ) {
-        var req: [String: Any] = ["t": "app_launch", "bundle_id": bundleId]
-        if let url {
-            req["url"] = url
-        }
-        let (resp, _) = try await sendRequest(req)
-        return (
-            pid: resp["pid"] as? Int ?? 0,
-            frontmostVerified: resp["frontmost_verified"] as? Bool ?? false,
-            warning: resp["warning"] as? String,
-        )
+    func appTerminate(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.terminate", params: ["bundle_id": bundleID])
     }
 
-    func appTerminate(bundleId: String) async throws {
-        _ = try await sendRequest(["t": "app_terminate", "bundle_id": bundleId])
+    /// Removes the app and its data container. Confirm with the user first.
+    func appUninstall(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.uninstall", params: ["bundle_id": bundleID, "force": true])
     }
 
-    func appForeground() async throws -> (
-        bundleId: String, name: String, pid: Int, verified: Bool, source: String,
-    ) {
-        let (resp, _) = try await sendRequest(["t": "app_foreground"])
-        return (
-            bundleId: resp["bundle_id"] as? String ?? "",
-            name: resp["name"] as? String ?? "",
-            pid: resp["pid"] as? Int ?? 0,
-            verified: resp["verified"] as? Bool ?? false,
-            source: resp["source"] as? String ?? "",
-        )
+    func appOpenURL(_ url: String, bundleID: String) async throws -> [String: Any] {
+        try await call("apps.open_url", params: ["url": url, "bundle_id": bundleID])
+    }
+
+    // MARK: - App Detail
+
+    func appInfo(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.info", params: ["bundle_id": bundleID])
+    }
+
+    func appBinary(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.binary", params: ["bundle_id": bundleID])
+    }
+
+    func appDataDirectory(bundleID: String) async throws -> [String: Any] {
+        try await call("apps.data_dir", params: ["bundle_id": bundleID])
+    }
+
+    /// `schemes`: bundle identifier → URL schemes, for every app.
+    func appURLSchemes() async throws -> [String: Any] {
+        try await call("apps.url_schemes")
+    }
+
+    func appNetworkPolicy(bundleID: String, repair: Bool = false) async throws -> [String: Any] {
+        try await call("apps.network_policy", params: ["bundle_id": bundleID, "repair": repair])
     }
 }

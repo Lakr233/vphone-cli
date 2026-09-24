@@ -127,7 +127,7 @@ request carries `"force": true`.
 | Display, audio | `display.brightness {value?}`, `display.rotation {orientation?}`, `display.rotation_lock {locked}`, `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points |
 | UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot` |
-| Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `memory.jetsam` |
+| Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
 | launchd | `services.list`, `status`, `print`, `dump`, `disabled`, `start`, `enable`, `load`; `services.stop`, `disable`, `remove`, `signal`, `unload` **force**; `launchd.getenv`, `setenv`, `unsetenv` |
 | Logs | `logs.syslog {seconds, process?, level?, max_lines?}` (a bounded capture of at most 60 s), `logs.crashes {bundle_id?}`, `logs.crash {path}` |
 | Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory and returns its path), `security.ssl_killswitch` |

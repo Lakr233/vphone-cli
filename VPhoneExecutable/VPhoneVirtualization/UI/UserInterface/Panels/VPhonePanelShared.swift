@@ -5,7 +5,7 @@ import SwiftUI
 
 /// vphoned answers with JSONSerialization objects. These readers accept the
 /// NSNumber and string spellings the guest uses for the same field.
-extension Dictionary where Key == String, Value == Any {
+extension [String: Any] {
     func string(_ key: String) -> String? {
         switch self[key] {
         case let value as String: value

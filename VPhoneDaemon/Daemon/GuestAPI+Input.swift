@@ -69,31 +69,31 @@ extension GuestAPI {
     static func executeInterface(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
         switch method {
         case "ui.tree", "accessibility.tree":
-            return try uiElements(
+            try uiElements(
                 maxElements: (params["max_elements"] as? NSNumber)?.intValue ?? 500,
                 visibleOnly: bool(params, "visible_only", default: true),
                 clickableOnly: bool(params, "clickable_only"),
                 limit: (params["limit"] as? NSNumber)?.intValue,
             )
         case "ui.element_at":
-            return try elementAt(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
+            try elementAt(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
         case "ui.tap_element":
-            return try tapElement(selector(params))
+            try tapElement(selector(params))
         case "ui.wait", "ui.wait_gone":
-            return try waitForElement(
+            try waitForElement(
                 selector(params),
                 appear: method == "ui.wait",
                 timeout: number(params, "timeout", default: 10),
             )
         case "ui.ocr":
-            return try recognizeScreen(
+            try recognizeScreen(
                 languages: params["languages"] as? [String] ?? ["en-US"],
                 minConfidence: Float(number(params, "min_confidence", default: 0.3)),
             )
         case "ui.describe":
-            return try describeScreen()
+            try describeScreen()
         default:
-            return nil
+            nil
         }
     }
 

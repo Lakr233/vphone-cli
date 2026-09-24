@@ -1,5 +1,5 @@
-import Foundation
 import ArchiveKit
+import Foundation
 
 /// Reading an archive without unpacking it.
 ///

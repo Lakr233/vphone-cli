@@ -1,5 +1,5 @@
-import Foundation
 import ArchiveKit
+import Foundation
 
 /// Unpacks an archive onto disk.
 ///

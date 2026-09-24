@@ -134,6 +134,10 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
 
             let appWC = VPhoneAppWindowController()
             appWindowController = appWC
+            appWC.onRevealPath = { [weak fileWC, weak control] path in
+                guard let fileWC, let control else { return }
+                fileWC.showWindow(control: control, path: path)
+            }
 
             let mc = VPhoneMenuController(keySender: keySender, control: control)
             mc.vm = vm
@@ -198,6 +202,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 mc?.updateURLAvailability(available: caps.contains("url"))
                 mc?.updateClipboardAvailability(available: caps.contains("clipboard"))
                 mc?.updateSettingsAvailability(available: true)
+                mc?.updatePanelAvailability(capabilities: caps)
                 if caps.contains("location") {
                     mc?.updateLocationCapability(available: true)
                     // Auto-resume if user had toggle on
@@ -220,6 +225,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 mc?.updateURLAvailability(available: false)
                 mc?.updateClipboardAvailability(available: false)
                 mc?.updateSettingsAvailability(available: false)
+                mc?.updatePanelAvailability(capabilities: [])
                 provider?.stopReplay()
                 provider?.stopForwarding()
                 mc?.updateLocationCapability(available: false)

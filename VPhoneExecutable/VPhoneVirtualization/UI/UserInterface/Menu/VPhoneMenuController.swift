@@ -8,6 +8,7 @@ class VPhoneMenuController {
     let keySender: VPhoneVirtualMachineKeySender
     let control: VPhoneGuestControl
     let guestToolsWindowController: VPhoneGuestToolsWindowController
+    let guestPanelsWindowController: VPhoneGuestPanelsWindowController
     weak var vm: VPhoneVirtualMachine?
 
     var onFilesPressed: (() -> Void)?
@@ -26,6 +27,7 @@ class VPhoneMenuController {
     var appsOpenURLItem: NSMenuItem?
     var settingsGetItem: NSMenuItem?
     var settingsSetItem: NSMenuItem?
+    var panelMenuItems: [VPhoneGuestPanel: NSMenuItem] = [:]
     var touchIDMonitor: VPhoneTouchIDMonitor? {
         didSet { touchIDMonitor?.isEnabled = touchIDMenuItem?.state == .on }
     }
@@ -57,6 +59,7 @@ class VPhoneMenuController {
         self.keySender = keySender
         self.control = control
         guestToolsWindowController = VPhoneGuestToolsWindowController(control: control)
+        guestPanelsWindowController = VPhoneGuestPanelsWindowController(control: control)
         setupMenuBar()
     }
 
@@ -103,9 +106,11 @@ class VPhoneMenuController {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
-        mainMenu.addItem(buildConnectMenu())
-        mainMenu.addItem(buildKeysMenu())
+        // Device hardware, then the guest data windows, then inspection.
+        mainMenu.addItem(buildDeviceMenu())
         mainMenu.addItem(buildAppsMenu())
+        mainMenu.addItem(buildGuestMenu())
+        mainMenu.addItem(buildDiagnosticsMenu())
         mainMenu.addItem(buildRecordMenu())
 
         // Window menu — provides Cmd+W (close) and Cmd+M (minimize) for any key window
@@ -120,6 +125,12 @@ class VPhoneMenuController {
             withTitle: "Minimize",
             action: #selector(NSWindow.performMiniaturize(_:)),
             keyEquivalent: "m",
+        )
+        windowMenu.addItem(NSMenuItem.separator())
+        windowMenu.addItem(
+            withTitle: "Bring All to Front",
+            action: #selector(NSApplication.arrangeInFront(_:)),
+            keyEquivalent: "",
         )
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)

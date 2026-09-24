@@ -7,6 +7,19 @@ class VPhoneFileWindowController {
     private var model: VPhoneFileBrowserModel?
     private let quickLookController = VPhoneQuickLookController()
 
+    /// Shows the browser at a guest directory, such as an app's data container.
+    func showWindow(control: VPhoneGuestControl, path: String) {
+        let isOpen = window != nil
+        showWindow(control: control)
+        guard let model, model.currentPath != path else { return }
+        if isOpen {
+            model.navigate(to: path)
+        } else {
+            // The new window's view loads `currentPath` when it appears.
+            model.currentPath = path
+        }
+    }
+
     func showWindow(control: VPhoneGuestControl) {
         if let window {
             NSApp.activate(ignoringOtherApps: true)

@@ -52,12 +52,11 @@ extension GuestAPI {
             return try audioState()
         case "network.capture":
             let seconds = number(params, "seconds", default: 5)
-            let result = try capturePackets(
+            return try capturePackets(
                 seconds: seconds,
                 interface: optionalString(params, "interface") ?? "en0",
                 filter: optionalString(params, "filter"),
             )
-            return result
         case "security.ssl_killswitch":
             return sslKillswitchStatus()
         case "diagnostics.self_test":
