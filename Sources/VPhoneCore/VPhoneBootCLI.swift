@@ -84,8 +84,9 @@ public struct VPhoneBootCLI: ParsableCommand {
     }
 
     public mutating func validate() throws {
+        let manifest = try VPhoneVirtualMachineManifest.load(from: config)
+        let bundle = VPhoneBundle(url: config.deletingLastPathComponent(), manifest: manifest)
         if !dfu,
-           let bundle = try? VPhoneBundle.load(at: config.deletingLastPathComponent()),
            let existingVariant = VPhoneRestoreInfo.load(fromBundle: bundle)?.variant,
            existingVariant != "jb"
         {

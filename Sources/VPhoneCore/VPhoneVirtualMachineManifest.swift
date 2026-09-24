@@ -5,6 +5,8 @@ import Foundation
 public enum VPhoneManifestError: Error {
     case loadFailed(path: String)
     case parseFailed(path: String)
+    case unsupportedSchema(path: String, found: Int?)
+    case unsupportedRuntimeVersion(String)
     case writeFailed(path: String)
 }
 
@@ -15,6 +17,12 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
             "Unable to read the VM configuration at \(path). Check that the file exists and try again."
         case let .parseFailed(path):
             "The VM configuration at \(path) is not valid. Recreate the VM, or restore a backup of config.plist."
+        case let .unsupportedSchema(path, found):
+            "The VM configuration at \(path) has \(found.map { "schema version \($0)" } ?? "no valid schema version"). "
+                + "vphone 2.x requires schema version 2. Recreate this VM with `vphone-cli vm create`."
+        case let .unsupportedRuntimeVersion(version):
+            "This vphone build reports version \(version). VMs with schema version 2 require vphone 2.x. "
+                + "Install a vphone 2.x build before launching this VM."
         case let .writeFailed(path):
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
         }
@@ -25,9 +33,40 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
     }
 }
 
+enum VPhoneRuntimeVersion {
+    /// A plain `swift build` executable has no app bundle Info.plist.
+    private static let unbundledVersion = "2.0.0"
+
+    static var current: String {
+        let contents = VPhoneResources.runningExecutable().deletingLastPathComponent().deletingLastPathComponent()
+        guard contents.lastPathComponent == "Contents",
+              contents.deletingLastPathComponent().pathExtension == "app"
+        else { return unbundledVersion }
+
+        let infoURL = contents.appendingPathComponent("Info.plist")
+        guard let data = try? Data(contentsOf: infoURL),
+              let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
+              let version = plist["CFBundleShortVersionString"] as? String
+        else { return "unknown" }
+        return version
+    }
+
+    static func requireVersion2() throws {
+        let parts = current.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2, parts[0] == "2", parts.dropFirst().allSatisfy({ Int($0) != nil }) else {
+            throw VPhoneManifestError.unsupportedRuntimeVersion(current)
+        }
+    }
+}
+
 /// VPhoneVirtualMachineManifest represents the on-disk VM configuration manifest.
-/// Structure is compatible with security-pcc's VMBundle.Config format.
+/// Structure extends security-pcc's VMBundle.Config format with a vphone schema marker.
 public struct VPhoneVirtualMachineManifest: Codable, Sendable {
+    public static let currentSchemaVersion = 2
+
+    /// The VM layout version. Old bundles without this marker cannot be booted.
+    public let schemaVersion: Int
+
     // MARK: - Platform
 
     /// Platform type (fixed to vresearch101 for vphone)
@@ -162,6 +201,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         romImages: ROMImages?,
         sepStorage: String = "SEPStorage",
     ) {
+        self.schemaVersion = Self.currentSchemaVersion
         self.platformType = platformType
         self.platformFusing = platformFusing
         self.machineIdentifier = machineIdentifier
@@ -212,6 +252,12 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         }
 
         let decoder = PropertyListDecoder()
+        struct SchemaMarker: Decodable { let schemaVersion: Int? }
+        let marker = try? decoder.decode(SchemaMarker.self, from: data)
+        guard marker?.schemaVersion == Self.currentSchemaVersion else {
+            throw VPhoneManifestError.unsupportedSchema(path: url.path, found: marker?.schemaVersion)
+        }
+        try VPhoneRuntimeVersion.requireVersion2()
         do {
             return try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
         } catch {

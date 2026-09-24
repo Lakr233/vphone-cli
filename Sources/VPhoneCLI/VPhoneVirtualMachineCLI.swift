@@ -67,6 +67,16 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
             platformFusing: platformFusing,
         )
         let configURL = vmDirectory.appendingPathComponent("config.plist")
+        if FileManager.default.fileExists(atPath: configURL.path) {
+            // An existing VM must already be v2; do not turn a legacy VM into
+            // a v2 VM by replacing only its manifest.
+            _ = try VPhoneVirtualMachineManifest.load(from: configURL)
+        } else if !((try FileManager.default.contentsOfDirectory(atPath: vmDirectory.path)).isEmpty) {
+            throw ValidationError(
+                "The VM directory contains data but has no config.plist. Recreate the VM in a new directory; "
+                    + "write-manifest cannot upgrade an existing VM.",
+            )
+        }
         try manifest.write(to: configURL)
         print("Created VM manifest: \(configURL.path)")
     }

@@ -4,14 +4,14 @@ import Testing
 
 /// `VPhoneVirtualMachineManifest.newVM` replaces `scripts/vm_manifest.py`.
 ///
-/// These assert the values the Python produced, because the file they write is
-/// what every later boot reads: a wrong type or a missing key here surfaces as
-/// a VM that will not start, some distance from the cause.
+/// These assert the legacy values and the v2 schema marker, because the file
+/// they write is what every later boot reads: a wrong type or a missing key
+/// here surfaces as a VM that will not start, some distance from the cause.
 ///
 /// The equivalence itself was checked by running both versions and comparing
 /// the parsed plists key by key — identical for the default arguments and for
-/// `--cpu 4 --memory 4096 --platform-fusing dev`. What is pinned below is the
-/// result of that comparison, so it cannot drift once the Python is gone.
+/// `--cpu 4 --memory 4096 --platform-fusing dev`. The v2 marker is deliberately
+/// additional; the other values remain pinned to that comparison.
 @Suite("Fresh VM manifest")
 struct NewVirtualMachineManifestTests {
     @Test
@@ -82,7 +82,7 @@ struct NewVirtualMachineManifestTests {
     }
 
     @Test
-    func `the exact key set the Python wrote`() throws {
+    func `the exact v2 key set is written`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -96,8 +96,39 @@ struct NewVirtualMachineManifestTests {
         #expect(parsed.keys.sorted() == [
             "cpuCount", "diskImage", "machineIdentifier", "memorySize",
             "networkConfig", "nvramStorage", "platformType", "romImages",
-            "screenConfig", "sepStorage",
+            "schemaVersion", "screenConfig", "sepStorage",
         ])
+        #expect(parsed["schemaVersion"] as? Int == 2)
+    }
+
+    @Test
+    func `manifest without v2 marker requires VM recreation`() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try VPhoneVirtualMachineManifest.newVM().write(to: url)
+        var parsed = try #require(PropertyListSerialization.propertyList(
+            from: Data(contentsOf: url),
+            format: nil,
+        ) as? [String: Any])
+        parsed.removeValue(forKey: "schemaVersion")
+        let legacy = try PropertyListSerialization.data(fromPropertyList: parsed, format: .xml, options: 0)
+        try legacy.write(to: url)
+
+        do {
+            _ = try VPhoneVirtualMachineManifest.load(from: url)
+            Issue.record("A manifest without schemaVersion was accepted")
+        } catch let error as VPhoneManifestError {
+            if case let .unsupportedSchema(_, found) = error {
+                #expect(found == nil)
+                #expect(error.description.contains("Recreate this VM"))
+            } else {
+                Issue.record("Expected an unsupported schema error, got \(error)")
+            }
+        } catch {
+            Issue.record("Expected a manifest error, got \(error)")
+        }
     }
 
     @Test

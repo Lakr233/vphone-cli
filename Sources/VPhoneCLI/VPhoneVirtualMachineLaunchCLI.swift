@@ -29,6 +29,12 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
 
     func run() throws {
         let v = VPhoneVerbosity(count: verboseCount)
+        if name == nil {
+            let scan = try lib.library.scan()
+            if scan.bundles.isEmpty, let incompatible = scan.skipped.first {
+                throw ValidationError("VM '\(incompatible.name)' cannot launch: \(incompatible.reason)")
+            }
+        }
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
