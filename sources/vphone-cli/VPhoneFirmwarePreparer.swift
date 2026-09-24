@@ -31,7 +31,7 @@ enum VPhoneFirmwarePreparer {
         cloudOSSource: String,
         gpuDriverBundle: URL? = nil,
         bundle: VPhoneBundle,
-        cacheDirectory: URL,
+        resources: VPhoneResources,
     ) throws {
         let fm = FileManager.default
         let existing = try fm.contentsOfDirectory(
@@ -45,11 +45,11 @@ enum VPhoneFirmwarePreparer {
 
         print("[*] Resolving iPhone IPSW...")
         let phone = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(iPhoneSource, in: cacheDirectory)
+            try await VPhoneIPSWCache.resolve(iPhoneSource, in: resources.ipswCacheDir)
         }
         print("[*] Resolving cloudOS IPSW...")
         let cloud = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(cloudOSSource, in: cacheDirectory)
+            try await VPhoneIPSWCache.resolve(cloudOSSource, in: resources.ipswCacheDir)
         }
         try checkIPhoneName(iPhoneSource, archive: phone)
         print("[+] iPhone \(phone.version) (\(phone.build)); cloudOS \(cloud.version) (\(cloud.build))")
@@ -86,6 +86,22 @@ enum VPhoneFirmwarePreparer {
                 expectedPlatformVersion: cloud.version,
             )
         }
+
+        let archive = resources.gpuCompilerPluginArchive
+        guard fm.fileExists(atPath: archive.path) else { throw Error.missingComponent(archive) }
+        let unpacked = staging.appendingPathComponent("compiler-plugin")
+        try fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
+        print("[*] Merging bundled GPU compiler plugin...")
+        try VPhoneArchiveExtractor.extract(archive, into: unpacked, options: .intoHostDirectory)
+        let pluginName = "libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let source = unpacked.appendingPathComponent(pluginName)
+        guard fm.fileExists(atPath: source.path) else { throw Error.missingComponent(source) }
+        let destinationPlugin = VPhonePCCGPUDriver.stagedBundle(in: phoneTree).appendingPathComponent(pluginName)
+        if fm.fileExists(atPath: destinationPlugin.path) {
+            try fm.removeItem(at: destinationPlugin)
+        }
+        try fm.copyItem(at: source, to: destinationPlugin)
+        try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: destinationPlugin.path)
 
         // The destination did not exist at entry and the staging directory is
         // on the same volume. One rename exposes the complete restore tree.

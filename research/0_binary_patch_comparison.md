@@ -1237,9 +1237,16 @@ Both the JB host-mount installer and the filesystem merge copy this staged
 bundle into the iPhone guest. The 26.4 `23E5207q` restored bundle has
 `DTPlatformVersion=26.4`, `CFBundleVersion=64.4.4`, and binary SHA-256
 `29ba36c7bc87d82c40fa1cecdf357e7a383fa70eb46df0d75869f5ac562aedbc`.
-It lacks the compiler-plugin dylib present in the 26.1 bundle, so the installer
-only sets that file's permissions if it exists. This is a payload-source and
-installation change, not a new binary patch.
+It lacks the compiler-plugin dylib present in the 26.1 bundle. A first boot
+without it connected vphoned but left the VM window black: `MTLCompilerService`
+repeatedly aborted in `messageHandler`, and `backboardd` reported
+`XPC_ERROR_CONNECTION_INTERRUPTED` after repeated Metal compilation attempts.
+The repository now builds `siblings/gpu/main.mm` (the 0xjohnnydev compiler
+plugin reimplementation) into an arm64e iPhoneOS dylib. `build.sh` signs and
+compresses it into `vphone-cli.app/Contents/Resources/gpu/compiler-plugin.tar.zst`.
+`fw prepare` decompresses and merges that dylib into the firmware-sourced GPU
+bundle, and both JB installation paths require it. This adds a guest payload;
+it does not patch the Apple GPU driver binary.
 
 **`find -name '._*' -delete` → `deleteAppleDoubleFiles`,** and this one was nearly a
 silent regression worth writing down. On a volume with native extended attributes,

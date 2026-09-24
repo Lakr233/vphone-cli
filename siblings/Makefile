@@ -1,5 +1,5 @@
-# Sibling guest components. The four source components compile with the iPhoneOS SDK.
-# The GPU item is provenance only: fw prepare extracts the actual Apple bundle.
+# Sibling guest components compile with the iPhoneOS SDK.
+# The GPU driver comes from firmware; its compiler plugin is built here.
 
 OUT := $(abspath ../.build/siblings)
 STAGE := $(OUT)/stage
@@ -11,13 +11,16 @@ CAMFIX := $(STAGE)/camfix/libcamfix.dylib
 VCAMCAPTURED := $(STAGE)/vcamcaptured/libvcamcaptured.dylib
 TWEAKLOADER := $(STAGE)/tweakloader/TweakLoader.dylib
 VPREGISTER := $(STAGE)/vpregister/vpregister
-ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(TWEAKLOADER) $(VPREGISTER)
+GPU_PLUGIN := $(STAGE)/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib
+ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(TWEAKLOADER) $(VPREGISTER) $(GPU_PLUGIN)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
-.PHONY: all package clean
+.PHONY: all gpu package clean
 
 all: $(ARTIFACTS) $(PLISTS) $(GPU_PROVENANCE)
+
+gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
@@ -51,6 +54,14 @@ $(TWEAKLOADER): tweakloader/TweakLoader.m | $(STAGE)/tweakloader
 
 $(VPREGISTER): vpregister/vpregister.m | $(STAGE)/vpregister
 	$(CLANG) $(COMMON_FLAGS) -o $@ $< -framework Foundation
+	@codesign --force --sign - $@
+
+$(GPU_PLUGIN): gpu/main.mm | $(STAGE)/gpu
+	xcrun --sdk iphoneos clang++ -arch arm64e -miphoneos-version-min=26.1 \
+		-std=c++17 -O2 -dynamiclib -Wl,-undefined,dynamic_lookup \
+		-Wl,-not_for_dyld_shared_cache \
+		-install_name /System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle/libAppleParavirtCompilerPluginIOGPUFamily.dylib \
+		-o $@ $<
 	@codesign --force --sign - $@
 
 $(STAGE)/camfix/libcamfix.plist: camfix/libcamfix.plist | $(STAGE)/camfix
