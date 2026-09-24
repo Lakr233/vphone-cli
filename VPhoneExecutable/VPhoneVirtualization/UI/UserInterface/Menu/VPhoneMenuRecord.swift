@@ -4,13 +4,18 @@ import AppKit
 
 extension VPhoneMenuController {
     func buildRecordMenu() -> NSMenuItem {
-        let item = NSMenuItem()
-        let menu = NSMenu(title: "Record")
-        let toggle = makeItem("Start Recording", action: #selector(toggleRecording))
+        let item = NSMenuItem(title: "Capture", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "Capture")
+        let toggle = makeItem(
+            "Start Recording",
+            action: #selector(toggleRecording),
+            keyEquivalent: "r",
+            modifiers: [.command, .shift],
+        )
         recordingItem = toggle
         menu.addItem(toggle)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makeItem("Copy Screenshot to Clipboard", action: #selector(copyScreenshotToClipboard)))
+        menu.addItem(makeItem("Copy Screenshot to Mac Clipboard", action: #selector(copyScreenshotToClipboard)))
         menu.addItem(makeItem("Save Screenshot to File", action: #selector(saveScreenshotToFile)))
         item.submenu = menu
         return item
@@ -27,7 +32,7 @@ extension VPhoneMenuController {
             }
         } else {
             guard let view = activeCaptureView() else {
-                showAlert(
+                showCaptureAlert(
                     title: "Recording",
                     message: "No VM window is open. Start a VM, then try again.",
                     style: .warning,
@@ -38,7 +43,7 @@ extension VPhoneMenuController {
                 try screenRecorder?.startRecording(view: view)
                 recordingItem?.title = "Stop Recording"
             } catch {
-                showAlert(title: "Recording", message: "Unable to start recording. Try again.", style: .warning)
+                showCaptureAlert(title: "Recording", message: "Unable to start recording. Try again.", style: .warning)
             }
         }
     }
@@ -46,7 +51,7 @@ extension VPhoneMenuController {
     @objc func copyScreenshotToClipboard() {
         guard let recorder = screenRecorder else { return }
         guard control.isConnected else {
-            showAlert(
+            showCaptureAlert(
                 title: "Screenshot",
                 message: "The guest is not connected. Start a VM, then try again.",
                 style: .warning,
@@ -58,9 +63,9 @@ extension VPhoneMenuController {
             do {
                 let image = try await control.screenshotJPEG()
                 try recorder.copyScreenshotToPasteboard(jpegData: image)
-                showAlert(title: "Screenshot", message: "Copied to clipboard.", style: .informational)
+                showCaptureAlert(title: "Screenshot", message: "Screenshot copied to the Mac clipboard.", style: .informational)
             } catch {
-                showAlert(title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
+                showCaptureAlert(title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
             }
         }
     }
@@ -68,7 +73,7 @@ extension VPhoneMenuController {
     @objc func saveScreenshotToFile() {
         guard let recorder = screenRecorder else { return }
         guard control.isConnected else {
-            showAlert(
+            showCaptureAlert(
                 title: "Screenshot",
                 message: "The guest is not connected. Start a VM, then try again.",
                 style: .warning,
@@ -80,9 +85,9 @@ extension VPhoneMenuController {
             do {
                 let image = try await control.screenshotJPEG()
                 let url = try recorder.saveScreenshot(jpegData: image)
-                showAlert(title: "Screenshot", message: "Saved to \(url.path)", style: .informational)
+                showCaptureAlert(title: "Screenshot", message: "Saved to \(url.path)", style: .informational)
             } catch {
-                showAlert(title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)
+                showCaptureAlert(title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)
             }
         }
     }
@@ -92,57 +97,26 @@ extension VPhoneMenuController {
         return captureView.window == nil ? nil : captureView
     }
 
-    private func showRecordingSavedAlert(url: URL) {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 110),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
+    private func showCaptureAlert(title: String, message: String, style: NSAlert.Style) {
+        VPhoneAlert.present(
+            title: title,
+            message: message,
+            style: style,
+            attachedTo: NSApp.keyWindow ?? activeCaptureView()?.window,
         )
-        panel.title = "Recording"
-        panel.center()
+    }
 
-        let msg = NSTextField(labelWithString: "Saved to \(url.path)")
-        msg.frame = NSRect(x: 20, y: 60, width: 380, height: 30)
-        msg.lineBreakMode = .byTruncatingMiddle
-
-        let reveal = NSButton(frame: NSRect(x: 20, y: 12, width: 150, height: 28))
-        reveal.title = "Reveal in Finder"
-        reveal.bezelStyle = .rounded
-
-        let ok = NSButton(frame: NSRect(x: 310, y: 12, width: 90, height: 28))
-        ok.title = "OK"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = self
-        ok.action = #selector(VPhoneMenuController.confirmModal)
-
-        panel.contentView?.addSubview(msg)
-        panel.contentView?.addSubview(reveal)
-        panel.contentView?.addSubview(ok)
-
-        // Use a custom approach: reveal button stops modal with code 100
-        class RecordingRevealAction: NSObject {
-            var action: () -> Void
-            init(_ action: @escaping () -> Void) {
-                self.action = action
+    private func showRecordingSavedAlert(url: URL) {
+        VPhoneAlert.present(
+            title: "Recording",
+            message: "Saved to \(url.path)",
+            style: .informational,
+            attachedTo: NSApp.keyWindow ?? activeCaptureView()?.window,
+            buttons: ["OK", "Reveal in Finder"],
+        ) { response in
+            if response == .alertSecondButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             }
-
-            @objc func clicked() {
-                action()
-            }
-        }
-        let helper = RecordingRevealAction {
-            NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 100))
-        }
-        reveal.target = helper
-        reveal.action = #selector(RecordingRevealAction.clicked)
-
-        let response = NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
-        if response.rawValue == 100 {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
         }
     }
 }

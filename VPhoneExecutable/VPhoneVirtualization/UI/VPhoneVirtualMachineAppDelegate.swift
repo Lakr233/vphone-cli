@@ -142,6 +142,16 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 guard let keychainWC, let control else { return }
                 keychainWC.showWindow(control: control)
             }
+            mc.onFindPressed = { [weak keychainWC, weak appWC, weak control] in
+                if appWC?.isKeyWindow == true {
+                    appWC?.focusSearch()
+                } else if keychainWC?.isKeyWindow == true {
+                    keychainWC?.focusSearch()
+                } else if let appWC, let control {
+                    appWC.showWindow(control: control)
+                    appWC.focusSearch()
+                }
+            }
             mc.onAppsPressed = { [weak appWC, weak control] in
                 guard let appWC, let control else { return }
                 appWC.showWindow(control: control)

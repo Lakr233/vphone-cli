@@ -5,16 +5,21 @@ import LocalAuthentication
 
 extension VPhoneMenuController {
     func buildKeysMenu() -> NSMenuItem {
-        let item = NSMenuItem()
+        let item = NSMenuItem(title: "Keys", action: nil, keyEquivalent: "")
         let menu = NSMenu(title: "Keys")
-        menu.addItem(makeItem("Home Screen", action: #selector(sendHome)))
+        menu.addItem(makeItem(
+            "Home Screen",
+            action: #selector(sendHome),
+            keyEquivalent: "h",
+            modifiers: [.command, .shift],
+        ))
         menu.addItem(makeItem("Power", action: #selector(sendPower)))
         menu.addItem(makeItem("Volume Up", action: #selector(sendVolumeUp)))
         menu.addItem(makeItem("Volume Down", action: #selector(sendVolumeDown)))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makeItem("Spotlight (Cmd+Space)", action: #selector(sendSpotlight)))
+        menu.addItem(makeItem("Open Guest Spotlight", action: #selector(sendSpotlight)))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makeItem("Type ASCII from Clipboard", action: #selector(typeFromClipboard)))
+        menu.addItem(makeItem("Type ASCII from Mac Clipboard", action: #selector(typeFromClipboard)))
         menu.addItem(NSMenuItem.separator())
         let tidItem = makeItem("Touch ID Home Forwarding", action: #selector(toggleTouchIDForwarding))
         if hasTouchID {

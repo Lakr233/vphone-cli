@@ -81,10 +81,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command),
-           event.charactersIgnoringModifiers == "h"
-        {
-            keySender?.sendHome()
+        if NSApp.mainMenu?.performKeyEquivalent(with: event) == true {
             return true
         }
         return super.performKeyEquivalent(with: event)
@@ -112,14 +109,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
         Task { @MainActor in
             guard let control, control.isConnected else {
-                showAlert(title: "Install App Package", message: "Guest is not connected.", style: .warning)
+                VPhoneAlert.run(title: "Install App Package", message: "Guest is not connected.", style: .warning)
                 return
             }
 
             do {
                 let result = try await control.installIPA(localURL: url)
                 print("[install] \(result)")
-                showAlert(
+                VPhoneAlert.run(
                     title: "Install App Package",
                     message: VPhoneInstallPackage.successMessage(
                         for: url.lastPathComponent,
@@ -128,7 +125,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                     style: .informational,
                 )
             } catch {
-                showAlert(title: "Install App Package", message: "\(error)", style: .warning)
+                VPhoneAlert.run(title: "Install App Package", message: "\(error)", style: .warning)
             }
         }
         return true
@@ -153,18 +150,6 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         wantsLayer = true
         layer?.borderWidth = visible ? 4 : 0
         layer?.borderColor = visible ? NSColor.systemGreen.cgColor : NSColor.clear.cgColor
-    }
-
-    private func showAlert(title: String, message: String, style: NSAlert.Style) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = style
-        if let window {
-            alert.beginSheetModal(for: window)
-        } else {
-            alert.runModal()
-        }
     }
 
     // MARK: - Programmatic Touch (for automation)

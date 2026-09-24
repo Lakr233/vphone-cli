@@ -4,11 +4,16 @@ import AppKit
 
 extension VPhoneMenuController {
     func buildConnectMenu() -> NSMenuItem {
-        let item = NSMenuItem()
-        let menu = NSMenu(title: "Connect")
+        let item = NSMenuItem(title: "Guest", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "Guest")
         menu.autoenablesItems = false
 
-        let fileBrowser = makeItem("File Browser", action: #selector(openFiles))
+        let fileBrowser = makeItem(
+            "File Browser",
+            action: #selector(openFiles),
+            keyEquivalent: "f",
+            modifiers: [.command, .shift],
+        )
         fileBrowser.isEnabled = false
         connectFileBrowserItem = fileBrowser
         menu.addItem(fileBrowser)
@@ -20,52 +25,72 @@ extension VPhoneMenuController {
 
         menu.addItem(NSMenuItem.separator())
 
-        let devModeStatus = makeItem("Developer Mode Status", action: #selector(devModeStatus))
-        devModeStatus.isEnabled = false
-        connectDevModeStatusItem = devModeStatus
-        menu.addItem(devModeStatus)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let ping = makeItem("Ping", action: #selector(sendPing))
-        ping.isEnabled = false
-        connectPingItem = ping
-        menu.addItem(ping)
-
-        let guestHash = makeItem("Guest Agent Hash", action: #selector(queryGuestHash))
-        guestHash.isEnabled = false
-        connectGuestHashItem = guestHash
-        menu.addItem(guestHash)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let clipGet = makeItem("Get Clipboard", action: #selector(getClipboard))
+        let clipboardMenu = NSMenu(title: "Clipboard")
+        clipboardMenu.autoenablesItems = false
+        let clipGet = makeItem(
+            "Get Clipboard",
+            action: #selector(getClipboard),
+            keyEquivalent: "c",
+            modifiers: [.command, .shift],
+        )
         clipGet.isEnabled = false
         clipboardGetItem = clipGet
-        menu.addItem(clipGet)
+        clipboardMenu.addItem(clipGet)
 
         let clipSet = makeItem("Set Clipboard Text…", action: #selector(setClipboardText))
         clipSet.isEnabled = false
         clipboardSetItem = clipSet
-        menu.addItem(clipSet)
+        clipboardMenu.addItem(clipSet)
+        let clipboardItem = NSMenuItem(title: "Clipboard", action: nil, keyEquivalent: "")
+        clipboardItem.submenu = clipboardMenu
+        menu.addItem(clipboardItem)
 
-        menu.addItem(NSMenuItem.separator())
-
+        let settingsMenu = NSMenu(title: "Settings")
+        settingsMenu.autoenablesItems = false
         let settingsGet = makeItem("Read Setting…", action: #selector(readSetting))
         settingsGet.isEnabled = false
         settingsGetItem = settingsGet
-        menu.addItem(settingsGet)
+        settingsMenu.addItem(settingsGet)
 
         let settingsSet = makeItem("Write Setting…", action: #selector(writeSetting))
         settingsSet.isEnabled = false
         settingsSetItem = settingsSet
-        menu.addItem(settingsSet)
+        settingsMenu.addItem(settingsSet)
+        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        settingsItem.submenu = settingsMenu
+        menu.addItem(settingsItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        menu.addItem(buildLocationSubmenu())
-        menu.addItem(buildBatterySubmenu())
-        menu.addItem(buildCameraSubmenu())
+        let diagnosticsMenu = NSMenu(title: "Diagnostics")
+        diagnosticsMenu.autoenablesItems = false
+        let devModeStatus = makeItem("Developer Mode Status", action: #selector(devModeStatus))
+        devModeStatus.isEnabled = false
+        connectDevModeStatusItem = devModeStatus
+        diagnosticsMenu.addItem(devModeStatus)
+
+        let ping = makeItem("Ping", action: #selector(sendPing))
+        ping.isEnabled = false
+        connectPingItem = ping
+        diagnosticsMenu.addItem(ping)
+
+        let guestHash = makeItem("Guest Agent Hash", action: #selector(queryGuestHash))
+        guestHash.isEnabled = false
+        connectGuestHashItem = guestHash
+        diagnosticsMenu.addItem(guestHash)
+        let diagnosticsItem = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
+        diagnosticsItem.submenu = diagnosticsMenu
+        menu.addItem(diagnosticsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let deviceMenu = NSMenu(title: "Device Overrides")
+        deviceMenu.addItem(buildLocationSubmenu())
+        deviceMenu.addItem(buildBatterySubmenu())
+        deviceMenu.addItem(buildCameraSubmenu())
+        let deviceItem = NSMenuItem(title: "Device Overrides", action: nil, keyEquivalent: "")
+        deviceItem.submenu = deviceMenu
+        menu.addItem(deviceItem)
 
         item.submenu = menu
         return item
@@ -96,13 +121,13 @@ extension VPhoneMenuController {
         Task {
             do {
                 let enabled = try await control.isDeveloperModeEnabled()
-                showAlert(
+                VPhoneAlert.run(
                     title: "Developer Mode",
                     message: enabled ? "Developer Mode is enabled." : "Developer Mode is disabled.",
                     style: .informational,
                 )
             } catch {
-                showAlert(
+                VPhoneAlert.run(
                     title: "Developer Mode",
                     message: "Unable to read Developer Mode status. Check that the guest agent is connected, "
                         + "then try again.",
@@ -116,9 +141,9 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.sendPing()
-                showAlert(title: "Ping", message: "The guest responded.", style: .informational)
+                VPhoneAlert.run(title: "Ping", message: "The guest responded.", style: .informational)
             } catch {
-                showAlert(
+                VPhoneAlert.run(
                     title: "Ping",
                     message: "The guest did not respond. Check that the guest agent is connected, then try again.",
                     style: .warning,
@@ -131,9 +156,9 @@ extension VPhoneMenuController {
         Task {
             do {
                 let hash = try await control.guestBinaryHash()
-                showAlert(title: "Guest Agent Hash", message: "SHA-256: \(hash)", style: .informational)
+                VPhoneAlert.run(title: "Guest Agent Hash", message: "SHA-256: \(hash)", style: .informational)
             } catch {
-                showAlert(
+                VPhoneAlert.run(
                     title: "Guest Agent Hash",
                     message: "Unable to read the guest agent hash. Check that the guest agent is connected, "
                         + "then try again.",
@@ -148,316 +173,22 @@ extension VPhoneMenuController {
         clipboardSetItem?.isEnabled = available
     }
 
-    // MARK: - Clipboard
+    // MARK: - Clipboard & Settings
 
     @objc func getClipboard() {
-        Task {
-            do {
-                let content = try await control.clipboardGet()
-                var message = ""
-                if let text = content.text {
-                    let truncated = text.count > 500 ? String(text.prefix(500)) + "…" : text
-                    message += "Text: \(truncated)\n"
-                }
-                message += "Types: \(content.types.joined(separator: ", "))\n"
-                message += "Image: \(content.hasImage ? "Yes" : "No")\n"
-                message += "Change Count: \(content.changeCount)"
-                showAlert(title: "Clipboard Content", message: message, style: .informational)
-            } catch {
-                showAlert(
-                    title: "Clipboard",
-                    message: "Unable to read the guest clipboard. Try again.",
-                    style: .warning,
-                )
-            }
-        }
+        guestToolsWindowController.show(.getClipboard)
     }
 
     @objc func setClipboardText() {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 150),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
-        )
-        panel.title = "Set Clipboard Text"
-        panel.center()
-
-        let lbl = NSTextField(labelWithString: "Enter text to set on the guest clipboard:")
-        lbl.frame = NSRect(x: 20, y: 110, width: 380, height: 20)
-
-        let field = NSTextField(frame: NSRect(x: 20, y: 50, width: 380, height: 50))
-        field.placeholderString = "Text to copy to clipboard"
-
-        let ok = NSButton(frame: NSRect(x: 310, y: 12, width: 90, height: 28))
-        ok.title = "Set"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = self
-        ok.action = #selector(VPhoneMenuController.confirmModal)
-
-        let cancel = NSButton(frame: NSRect(x: 210, y: 12, width: 90, height: 28))
-        cancel.title = "Cancel"
-        cancel.bezelStyle = .rounded
-        cancel.keyEquivalent = "\u{1b}"
-        cancel.target = NSApp
-        cancel.action = #selector(NSApplication.abortModal)
-
-        panel.contentView?.addSubview(lbl)
-        panel.contentView?.addSubview(field)
-        panel.contentView?.addSubview(ok)
-        panel.contentView?.addSubview(cancel)
-
-        let response = NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
-        guard response == .OK, !field.stringValue.isEmpty else { return }
-        let text = field.stringValue
-
-        Task {
-            do {
-                try await control.clipboardSet(text: text)
-                showAlert(title: "Clipboard", message: "Text set successfully.", style: .informational)
-            } catch {
-                showAlert(
-                    title: "Clipboard",
-                    message: "Unable to set the guest clipboard. Try again.",
-                    style: .warning,
-                )
-            }
-        }
+        guestToolsWindowController.show(.setClipboard)
     }
 
-    // MARK: - Settings
-
     @objc func readSetting() {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 160),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
-        )
-        panel.title = "Read Setting"
-        panel.center()
-
-        let lbl1 = NSTextField(labelWithString: "Domain:")
-        lbl1.frame = NSRect(x: 20, y: 118, width: 380, height: 18)
-        let domainField = NSTextField(frame: NSRect(x: 20, y: 92, width: 380, height: 22))
-        domainField.placeholderString = "com.apple.springboard"
-
-        let lbl2 = NSTextField(labelWithString: "Key (leave empty for all keys):")
-        lbl2.frame = NSRect(x: 20, y: 68, width: 380, height: 18)
-        let keyField = NSTextField(frame: NSRect(x: 20, y: 42, width: 380, height: 22))
-        keyField.placeholderString = "Key (leave empty for all keys)"
-
-        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
-        ok.title = "Read"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = self
-        ok.action = #selector(VPhoneMenuController.confirmModal)
-
-        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
-        cancel.title = "Cancel"
-        cancel.bezelStyle = .rounded
-        cancel.keyEquivalent = "\u{1b}"
-        cancel.target = NSApp
-        cancel.action = #selector(NSApplication.abortModal)
-
-        panel.contentView?.addSubview(lbl1)
-        panel.contentView?.addSubview(domainField)
-        panel.contentView?.addSubview(lbl2)
-        panel.contentView?.addSubview(keyField)
-        panel.contentView?.addSubview(ok)
-        panel.contentView?.addSubview(cancel)
-
-        let response = NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
-        guard response == .OK else { return }
-        let domain = domainField.stringValue
-        guard !domain.isEmpty else { return }
-        let key: String? = keyField.stringValue.isEmpty ? nil : keyField.stringValue
-
-        Task {
-            do {
-                let value = try await control.settingsGet(domain: domain, key: key)
-                let display: String
-                if let dict = value as? [String: Any] {
-                    let data = try JSONSerialization.data(
-                        withJSONObject: dict,
-                        options: [.prettyPrinted, .sortedKeys],
-                    )
-                    display = String(data: data, encoding: .utf8) ?? "\(dict)"
-                } else {
-                    display = "\(value ?? "Not set")"
-                }
-                let truncated = display.count > 2000 ? String(display.prefix(2000)) + "\n…" : display
-                showAlert(
-                    title: "Setting: \(domain)\(key.map { ".\($0)" } ?? "")",
-                    message: truncated,
-                    style: .informational,
-                )
-            } catch {
-                showAlert(
-                    title: "Read Setting",
-                    message: "Unable to read that setting. Check the domain and key, then try again.",
-                    style: .warning,
-                )
-            }
-        }
+        guestToolsWindowController.show(.readSetting)
     }
 
     @objc func writeSetting() {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
-        )
-        panel.title = "Write Setting"
-        panel.center()
-
-        let lbl1 = NSTextField(labelWithString: "Domain:")
-        lbl1.frame = NSRect(x: 20, y: 198, width: 380, height: 18)
-        let domainField = NSTextField(frame: NSRect(x: 20, y: 172, width: 380, height: 22))
-        domainField.placeholderString = "com.apple.springboard"
-
-        let lbl2 = NSTextField(labelWithString: "Key:")
-        lbl2.frame = NSRect(x: 20, y: 148, width: 380, height: 18)
-        let keyField = NSTextField(frame: NSRect(x: 20, y: 122, width: 380, height: 22))
-        keyField.placeholderString = "Key"
-
-        let lbl3 = NSTextField(labelWithString: "Type:")
-        lbl3.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
-        let typeField = NSTextField(frame: NSRect(x: 20, y: 72, width: 380, height: 22))
-        typeField.placeholderString = "bool | string | int | float"
-
-        let lbl4 = NSTextField(labelWithString: "Value:")
-        lbl4.frame = NSRect(x: 20, y: 48, width: 380, height: 18)
-        let valueField = NSTextField(frame: NSRect(x: 20, y: 42, width: 220, height: 22))
-        valueField.placeholderString = "Value"
-
-        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
-        ok.title = "Write"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = self
-        ok.action = #selector(VPhoneMenuController.confirmModal)
-
-        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
-        cancel.title = "Cancel"
-        cancel.bezelStyle = .rounded
-        cancel.keyEquivalent = "\u{1b}"
-        cancel.target = NSApp
-        cancel.action = #selector(NSApplication.abortModal)
-
-        panel.contentView?.addSubview(lbl1)
-        panel.contentView?.addSubview(domainField)
-        panel.contentView?.addSubview(lbl2)
-        panel.contentView?.addSubview(keyField)
-        panel.contentView?.addSubview(lbl3)
-        panel.contentView?.addSubview(typeField)
-        panel.contentView?.addSubview(lbl4)
-        panel.contentView?.addSubview(valueField)
-        panel.contentView?.addSubview(ok)
-        panel.contentView?.addSubview(cancel)
-
-        let response = NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
-        guard response == .OK else { return }
-        let domain = domainField.stringValue
-        let key = keyField.stringValue
-        let type = typeField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let rawValue = valueField.stringValue
-        guard !domain.isEmpty, !key.isEmpty else { return }
-
-        let value: Any
-        let valueType: String
-        switch type {
-        case "", "string":
-            value = rawValue
-            valueType = "string"
-        case "boolean", "bool":
-            switch rawValue.lowercased() {
-            case "true", "yes", "1": value = true
-            case "false", "no", "0": value = false
-            default:
-                showAlert(title: "Write Setting", message: "Enter true or false for a boolean value.", style: .warning)
-                return
-            }
-            valueType = "bool"
-        case "integer", "int":
-            guard let number = Int64(rawValue) else {
-                showAlert(title: "Write Setting", message: "Enter a valid integer.", style: .warning)
-                return
-            }
-            value = number
-            valueType = "int"
-        case "float", "double":
-            guard let number = Double(rawValue), number.isFinite else {
-                showAlert(title: "Write Setting", message: "Enter a finite number.", style: .warning)
-                return
-            }
-            value = number
-            valueType = "float"
-        default:
-            showAlert(title: "Write Setting", message: "Type must be string, bool, int, or float.", style: .warning)
-            return
-        }
-
-        Task {
-            do {
-                try await control.settingsSet(
-                    domain: domain,
-                    key: key,
-                    value: value,
-                    type: valueType,
-                )
-                showAlert(
-                    title: "Write Setting",
-                    message: "Set \(domain).\(key) = \(rawValue)",
-                    style: .informational,
-                )
-            } catch {
-                showAlert(
-                    title: "Write Setting",
-                    message: "Unable to write that setting. Check the domain, key and type, then try again.",
-                    style: .warning,
-                )
-            }
-        }
+        guestToolsWindowController.show(.writeSetting)
     }
 
-    // MARK: - Alert
-
-    func showAlert(title: String, message: String, style _: NSAlert.Style) {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 120),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
-        )
-        panel.title = title
-        panel.center()
-
-        let msg = NSTextField(labelWithString: message)
-        msg.frame = NSRect(x: 20, y: 50, width: 340, height: 50)
-        msg.lineBreakMode = .byWordWrapping
-        msg.maximumNumberOfLines = 3
-
-        let ok = NSButton(frame: NSRect(x: 280, y: 12, width: 80, height: 28))
-        ok.title = "OK"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = NSApp
-        ok.action = #selector(NSApplication.stopModal(withCode:))
-
-        panel.contentView?.addSubview(msg)
-        panel.contentView?.addSubview(ok)
-
-        NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-    }
 }

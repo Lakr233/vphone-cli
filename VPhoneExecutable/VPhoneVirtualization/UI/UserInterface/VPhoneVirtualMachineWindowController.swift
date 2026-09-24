@@ -50,6 +50,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         )
 
         window.isReleasedWhenClosed = false
+        window.level = .normal
         window.contentAspectRatio = windowSize
         window.title = "vphone — Starting…"
         window.subtitle = makeSubtitle(ip: nil)
@@ -74,9 +75,9 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         windowController = controller
 
         keySender.window = window
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-        NSApp.activate(ignoringOtherApps: true)
 
         let monitor = VPhoneTouchIDMonitor()
         monitor.start(control: control, window: window)

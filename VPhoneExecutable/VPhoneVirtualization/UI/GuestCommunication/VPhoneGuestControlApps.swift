@@ -3,7 +3,7 @@ import Foundation
 extension VPhoneGuestControl {
     // MARK: - App Management
 
-    struct AppInfo {
+    struct AppInfo: Identifiable {
         let bundleId: String
         let name: String
         let version: String
@@ -11,6 +11,8 @@ extension VPhoneGuestControl {
         let state: String
         let pid: Int
         let path: String
+
+        var id: String { bundleId }
     }
 
     func appList(filter: String = "all") async throws -> [AppInfo] {

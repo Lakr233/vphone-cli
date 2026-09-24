@@ -29,35 +29,11 @@ class VPhoneVirtualMachineKeySender {
             return true
         }
 
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 110),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
+        VPhoneAlert.run(
+            title: "Guest Agent Not Connected",
+            message: "The guest agent is not connected. Wait for it to connect, then try again.",
+            style: .warning,
         )
-        panel.title = "Guest Agent Not Connected"
-        panel.center()
-
-        let msg = NSTextField(
-            labelWithString: "The guest agent is not connected. Wait for it to connect, then try again.",
-        )
-        msg.frame = NSRect(x: 20, y: 50, width: 340, height: 44)
-        msg.lineBreakMode = .byWordWrapping
-        msg.maximumNumberOfLines = 3
-
-        let ok = NSButton(frame: NSRect(x: 280, y: 12, width: 80, height: 28))
-        ok.title = "OK"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = NSApp
-        ok.action = #selector(NSApplication.stopModal(withCode:))
-
-        panel.contentView?.addSubview(msg)
-        panel.contentView?.addSubview(ok)
-
-        NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
         return false
     }
 

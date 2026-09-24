@@ -7,10 +7,12 @@ import Foundation
 class VPhoneMenuController {
     let keySender: VPhoneVirtualMachineKeySender
     let control: VPhoneGuestControl
+    let guestToolsWindowController: VPhoneGuestToolsWindowController
     weak var vm: VPhoneVirtualMachine?
 
     var onFilesPressed: (() -> Void)?
     var onKeychainPressed: (() -> Void)?
+    var onFindPressed: (() -> Void)?
     var onAppsPressed: (() -> Void)?
     var connectFileBrowserItem: NSMenuItem?
     var connectKeychainBrowserItem: NSMenuItem?
@@ -54,6 +56,7 @@ class VPhoneMenuController {
     init(keySender: VPhoneVirtualMachineKeySender, control: VPhoneGuestControl) {
         self.keySender = keySender
         self.control = control
+        guestToolsWindowController = VPhoneGuestToolsWindowController(control: control)
         setupMenuBar()
     }
 
@@ -78,6 +81,23 @@ class VPhoneMenuController {
         )
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(NSMenuItem.separator())
+        let findItem = editMenu.addItem(
+            withTitle: "Find…",
+            action: #selector(findKeychain),
+            keyEquivalent: "f",
+        )
+        findItem.target = self
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
 
         mainMenu.addItem(buildConnectMenu())
         mainMenu.addItem(buildKeysMenu())
@@ -104,9 +124,19 @@ class VPhoneMenuController {
         NSApp.mainMenu = mainMenu
     }
 
-    func makeItem(_ title: String, action: Selector) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    func makeItem(
+        _ title: String,
+        action: Selector,
+        keyEquivalent: String = "",
+        modifiers: NSEvent.ModifierFlags = .command,
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.keyEquivalentModifierMask = modifiers
         item.target = self
         return item
+    }
+
+    @objc private func findKeychain() {
+        onFindPressed?()
     }
 }

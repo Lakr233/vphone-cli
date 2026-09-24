@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -62,6 +63,17 @@ class VPhoneKeychainBrowserModel {
         ("Certificates", "cert"),
         ("Keys", "keys"),
     ]
+
+    func copyRows(ids: Set<VPhoneKeychainItem.ID>) {
+        let selected = filteredItems.filter { ids.contains($0.id) }
+        guard !selected.isEmpty else { return }
+        let header = "Class\tAccount\tService\tAccess Group\tProtection\tValue"
+        let rows = selected.map { item in
+            "\(item.displayClass)\t\(item.account)\t\(item.service)\t\(item.accessGroup)\t\(item.protection)\t\(item.displayValue)"
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(([header] + rows).joined(separator: "\n"), forType: .string)
+    }
 
     // MARK: - Actions
 

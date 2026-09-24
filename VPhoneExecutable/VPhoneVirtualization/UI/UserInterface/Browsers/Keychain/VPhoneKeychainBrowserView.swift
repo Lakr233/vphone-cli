@@ -10,8 +10,6 @@ struct VPhoneKeychainBrowserView: View {
             tableView
                 .padding(.bottom, controlBarHeight)
                 .overlay(controlBar.frame(maxHeight: .infinity, alignment: .bottom))
-                .searchable(text: $model.searchText, prompt: "Filter keychain items")
-                .toolbar { toolbarContent }
 
             if model.showDiagnostics {
                 Divider()
@@ -25,6 +23,8 @@ struct VPhoneKeychainBrowserView: View {
                 Task { await model.refresh() }
             }
         }
+        .onChange(of: model.filterClass) { _, _ in model.selection.removeAll() }
+        .onChange(of: model.searchText) { _, _ in model.selection.removeAll() }
         .alert(
             "Error",
             isPresented: .init(
@@ -122,17 +122,6 @@ struct VPhoneKeychainBrowserView: View {
 
             Divider()
 
-            Picker("Class", selection: $model.filterClass) {
-                ForEach(VPhoneKeychainBrowserModel.classFilters, id: \.value) { filter in
-                    Text(filter.label).tag(filter.value)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(maxWidth: 120)
-
-            Divider()
-
             Text(model.statusText)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.secondary)
@@ -209,52 +198,6 @@ struct VPhoneKeychainBrowserView: View {
         }
     }
 
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    var toolbarContent: some ToolbarContent {
-        ToolbarItem {
-            Button {
-                Task { await model.refresh() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .keyboardShortcut("r", modifiers: .command)
-        }
-        ToolbarItem {
-            Button {
-                Task { await model.addTestItem() }
-            } label: {
-                Label("Add Test", systemImage: "plus.circle")
-            }
-            .help("Add a test keychain item (debug)")
-        }
-        ToolbarItem {
-            Button {
-                Task { await model.removeTestItem() }
-            } label: {
-                Label("Remove Test", systemImage: "minus.circle")
-            }
-            .help("Remove the test keychain item")
-        }
-        ToolbarItem {
-            Button {
-                copySelected()
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            .disabled(model.selection.isEmpty)
-        }
-        ToolbarItem {
-            Button {
-                model.showDiagnostics.toggle()
-            } label: {
-                Label("Diagnostics", systemImage: model.showDiagnostics ? "ladybug.fill" : "ladybug")
-            }
-            .help("Toggle diagnostics log panel")
-        }
-    }
-
     // MARK: - Context Menu
 
     @ViewBuilder
@@ -265,36 +208,12 @@ struct VPhoneKeychainBrowserView: View {
         Button("Copy Access Group") { copyField(ids: ids, keyPath: \.accessGroup) }
         Button("Copy Protection") { copyField(ids: ids, keyPath: \.protection) }
         Divider()
-        Button("Copy Row (TSV)") { copyRows(ids: ids) }
+        Button("Copy Row (TSV)") { model.copyRows(ids: ids) }
         Divider()
         Button("Refresh") { Task { await model.refresh() } }
     }
 
     // MARK: - Copy Actions
-
-    func copySelected() {
-        let selected = model.filteredItems.filter { model.selection.contains($0.id) }
-        guard !selected.isEmpty else { return }
-        let header = "Class\tAccount\tService\tAccess Group\tProtection\tValue"
-        let rows = selected.map { item in
-            "\(item.displayClass)\t\(item.account)\t\(item.service)\t\(item.accessGroup)\t\(item.protection)\t\(item.displayValue)"
-        }
-        let text = ([header] + rows).joined(separator: "\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-
-    func copyRows(ids: Set<VPhoneKeychainItem.ID>) {
-        let selected = model.filteredItems.filter { ids.contains($0.id) }
-        guard !selected.isEmpty else { return }
-        let header = "Class\tAccount\tService\tAccess Group\tProtection\tValue"
-        let rows = selected.map { item in
-            "\(item.displayClass)\t\(item.account)\t\(item.service)\t\(item.accessGroup)\t\(item.protection)\t\(item.displayValue)"
-        }
-        let text = ([header] + rows).joined(separator: "\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
 
     func copyField(ids: Set<VPhoneKeychainItem.ID>, keyPath: KeyPath<VPhoneKeychainItem, String>) {
         let values = model.filteredItems

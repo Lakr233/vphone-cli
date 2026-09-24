@@ -6,25 +6,30 @@ import VPhoneCoreKit
 
 extension VPhoneMenuController {
     func buildAppsMenu() -> NSMenuItem {
-        let item = NSMenuItem()
+        let item = NSMenuItem(title: "Apps", action: nil, keyEquivalent: "")
         let menu = NSMenu(title: "Apps")
         menu.autoenablesItems = false
 
-        let browse = makeItem("App Browser", action: #selector(openAppBrowser))
+        let browse = makeItem(
+            "App Browser",
+            action: #selector(openAppBrowser),
+            keyEquivalent: "a",
+            modifiers: [.command, .shift],
+        )
         browse.isEnabled = false
         appsListItem = browse
         menu.addItem(browse)
 
         menu.addItem(NSMenuItem.separator())
 
-        let openURL = makeItem("Open URL...", action: #selector(openURL))
+        let openURL = makeItem("Open URL…", action: #selector(openURL))
         openURL.isEnabled = false
         appsOpenURLItem = openURL
         menu.addItem(openURL)
 
         menu.addItem(NSMenuItem.separator())
 
-        let install = makeItem("Install IPA/TIPA...", action: #selector(installIPAFromDisk))
+        let install = makeItem("Install App Package…", action: #selector(installIPAFromDisk))
         install.isEnabled = false
         installPackageItem = install
         menu.addItem(install)
@@ -51,7 +56,7 @@ extension VPhoneMenuController {
 
     @objc func installIPAFromDisk() {
         guard control.isConnected else {
-            showAlert(title: "Install App Package", message: "Guest is not connected.", style: .warning)
+            VPhoneAlert.run(title: "Install App Package", message: "The guest is not connected. Start a VM, then try again.", style: .warning)
             return
         }
 
@@ -70,7 +75,7 @@ extension VPhoneMenuController {
             do {
                 let result = try await control.installIPA(localURL: url)
                 print("[install] \(result)")
-                showAlert(
+                VPhoneAlert.run(
                     title: "Install App Package",
                     message: VPhoneInstallPackage.successMessage(
                         for: url.lastPathComponent,
@@ -79,63 +84,34 @@ extension VPhoneMenuController {
                     style: .informational,
                 )
             } catch {
-                showAlert(title: "Install App Package", message: "\(error)", style: .warning)
+                VPhoneAlert.run(title: "Install App Package", message: "Unable to install the app package. Check the file and guest connection, then try again.", style: .warning)
             }
         }
     }
 
     @objc func openURL() {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 110),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false,
-        )
-        panel.title = "Open URL"
-        panel.center()
-
-        let lbl = NSTextField(labelWithString: "Enter URL to open on the guest:")
-        lbl.frame = NSRect(x: 20, y: 70, width: 380, height: 20)
-
-        let field = NSTextField(frame: NSRect(x: 20, y: 42, width: 380, height: 24))
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
         field.placeholderString = "https://example.com"
+        field.setAccessibilityLabel("URL to open on the guest")
 
-        let ok = NSButton(frame: NSRect(x: 310, y: 10, width: 90, height: 28))
-        ok.title = "Open"
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\r"
-        ok.target = self
-        ok.action = #selector(VPhoneMenuController.confirmModal)
+        let alert = NSAlert()
+        alert.messageText = "Open URL"
+        alert.informativeText = "Enter a URL to open on the guest."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Open")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
 
-        let cancel = NSButton(frame: NSRect(x: 210, y: 10, width: 90, height: 28))
-        cancel.title = "Cancel"
-        cancel.bezelStyle = .rounded
-        cancel.keyEquivalent = "\u{1b}"
-        cancel.target = NSApp
-        cancel.action = #selector(NSApplication.abortModal)
-
-        panel.contentView?.addSubview(lbl)
-        panel.contentView?.addSubview(field)
-        panel.contentView?.addSubview(ok)
-        panel.contentView?.addSubview(cancel)
-
-        let response = NSApp.runModal(for: panel)
-        panel.orderOut(nil)
-
-        guard response == .OK, !field.stringValue.isEmpty else { return }
+        guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return }
         let url = field.stringValue
-
         Task {
             do {
                 try await control.openURL(url)
-                showAlert(title: "Open URL", message: "Opened \(url)", style: .informational)
+                VPhoneAlert.run(title: "Open URL", message: "Opened \(url)", style: .informational)
             } catch {
-                showAlert(title: "Open URL", message: "\(error)", style: .warning)
+                VPhoneAlert.run(title: "Open URL", message: "Unable to open the URL on the guest. Check the URL and guest connection, then try again.", style: .warning)
             }
         }
     }
 
-    @objc func confirmModal() {
-        NSApp.stopModal(withCode: .OK)
-    }
 }

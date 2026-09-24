@@ -8,6 +8,8 @@ class VPhoneAppBrowserModel {
     var apps: [VPhoneGuestControl.AppInfo] = []
     var filter: AppFilter = .installed
     var searchText = ""
+    var selection = Set<VPhoneGuestControl.AppInfo.ID>()
+    var sortOrder = [KeyPathComparator(\VPhoneGuestControl.AppInfo.name)]
     var isLoading = false
     var error: String?
 
@@ -19,12 +21,12 @@ class VPhoneAppBrowserModel {
     }
 
     var filteredApps: [VPhoneGuestControl.AppInfo] {
-        guard !searchText.isEmpty else { return apps }
         let query = searchText.lowercased()
-        return apps.filter {
+        let visible = query.isEmpty ? apps : apps.filter {
             $0.name.lowercased().contains(query)
                 || $0.bundleId.lowercased().contains(query)
         }
+        return visible.sorted(using: sortOrder)
     }
 
     init(control: VPhoneGuestControl) {

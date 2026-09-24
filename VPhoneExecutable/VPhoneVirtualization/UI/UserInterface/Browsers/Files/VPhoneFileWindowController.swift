@@ -9,6 +9,7 @@ class VPhoneFileWindowController {
 
     func showWindow(control: VPhoneGuestControl) {
         if let window {
+            NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return
         }
@@ -33,12 +34,14 @@ class VPhoneFileWindowController {
         window.center()
         window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
+        window.level = .normal
 
         // Insert quickLookController at the window level so AppKit finds it
         // when walking the responder chain for QLPreviewPanel panel control.
         quickLookController.nextResponder = window.nextResponder
         window.nextResponder = quickLookController
 
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         self.window = window
 
