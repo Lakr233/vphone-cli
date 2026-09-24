@@ -123,10 +123,10 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try fm.createDirectory(at: system, withIntermediateDirectories: false)
         try fm.createDirectory(at: data, withIntermediateDirectories: false)
-        try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s1", system.path])
         systemMounted = true
-        try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s3", data.path])
+        try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s1", system.path])
         dataMounted = true
+        try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s3", data.path])
         print("[*] JB system install: \(bundle.lastPathComponent)")
         try installMounted(system: system, data: data, work: work)
         _ = try tool("/sbin/umount", [data.path])
@@ -255,13 +255,16 @@ struct VPhoneCustomFirmwareInstaller {
             let appMount = work.appendingPathComponent("mnt-app")
             try fm.createDirectory(at: osMount, withIntermediateDirectories: true)
             try fm.createDirectory(at: appMount, withIntermediateDirectories: true)
+            var osNeedsDetach = true
+            defer { if osNeedsDetach { try? detachImage(at: osMount) } }
             try tool(
                 "/usr/bin/hdiutil",
                 ["attach", "-mountpoint", osMount.path,
                  plain.path, "-nobrowse", "-owners", "off"],
                 quiet: true,
             )
-            defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", osMount.path], quiet: true) }
+            var appNeedsDetach = true
+            defer { if appNeedsDetach { try? detachImage(at: appMount) } }
             try tool(
                 "/usr/bin/hdiutil",
                 ["attach", "-mountpoint", appMount.path,
@@ -269,7 +272,6 @@ struct VPhoneCustomFirmwareInstaller {
                  "-nobrowse", "-owners", "off"],
                 quiet: true,
             )
-            defer { _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", appMount.path], quiet: true) }
             for (source, destination) in [(osMount, os), (appMount, app)] {
                 // The restored rootfs has dangling Cryptex symlinks. fileExists
                 // follows those links and reports false until Preboot is populated.
@@ -283,6 +285,10 @@ struct VPhoneCustomFirmwareInstaller {
                     try fm.copyItem(at: entry, to: destination.appendingPathComponent(entry.lastPathComponent))
                 }
             }
+            try detachImage(at: appMount)
+            appNeedsDetach = false
+            try detachImage(at: osMount)
+            osNeedsDetach = false
         }
         try symlink("../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
                     at: system.appendingPathComponent("System/Library/Caches/com.apple.dyld"))
@@ -457,6 +463,14 @@ struct VPhoneCustomFirmwareInstaller {
             throw ValidationError("CFW volume is still mounted under \(work.path)")
         }
         try fm.removeItem(at: work)
+    }
+
+    private func detachImage(at mount: URL) throws {
+        do {
+            _ = try tool("/usr/bin/hdiutil", ["detach", mount.path], quiet: true)
+        } catch {
+            _ = try tool("/usr/bin/hdiutil", ["detach", "-force", mount.path], quiet: true)
+        }
     }
 
     @discardableResult

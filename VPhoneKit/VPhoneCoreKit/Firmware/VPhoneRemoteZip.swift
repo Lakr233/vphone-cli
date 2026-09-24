@@ -20,6 +20,8 @@ import Compression
 import Foundation
 
 public struct VPhoneRemoteZip: Sendable {
+    private static let session = URLSession(configuration: .ephemeral)
+
     public struct Entry: Sendable {
         public let name: String
         public let compressedSize: UInt64
@@ -169,7 +171,7 @@ public struct VPhoneRemoteZip: Sendable {
     private static func contentLength(of url: URL) async throws -> UInt64 {
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw Error.notSeekable(url) }
         guard http.statusCode == 200 else { throw Error.http(http.statusCode, url) }
         guard http.expectedContentLength > 0,
@@ -182,7 +184,7 @@ public struct VPhoneRemoteZip: Sendable {
         guard count > 0 else { return Data() }
         var request = URLRequest(url: url)
         request.setValue("bytes=\(offset)-\(offset + count - 1)", forHTTPHeaderField: "Range")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw Error.notSeekable(url) }
         // 206 is the only acceptable answer. A 200 means the server ignored the
         // header and is sending the whole 18 GB, which is exactly the thing this

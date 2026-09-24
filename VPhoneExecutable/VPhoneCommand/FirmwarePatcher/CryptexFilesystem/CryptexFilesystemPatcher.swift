@@ -77,7 +77,11 @@ public final class CryptexFilesystemPatcher: Patcher {
     public func apply() throws -> Int {
         print("Merging filesystems…")
         let (unencryptedImage, aeaImage) = try mergeFilesystems()
-        defer { try? FileManager.default.removeItem(at: unencryptedImage) }
+        defer {
+            if attachedDevices.isEmpty {
+                try? FileManager.default.removeItem(at: unencryptedImage)
+            }
+        }
 
         print("Creating trustcache…")
         let trustcachePath = try createTrustcache(filesystem: unencryptedImage)
@@ -103,6 +107,10 @@ public final class CryptexFilesystemPatcher: Patcher {
             rootHash: rootHashContainer,
         )
         rebuiltData = try serializePayload(updatedManifest)
+
+        guard attachedDevices.isEmpty else {
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Filesystem image is still attached")
+        }
 
         return 1
     }
@@ -146,6 +154,10 @@ public final class CryptexFilesystemPatcher: Patcher {
             try addVphoned(targetMount: targetMount)
             try injectLaunchDaemons(targetMount: targetMount)
             try patchLaunchdCacheLoader(targetMount: targetMount)
+        }
+
+        guard attachedDevices.isEmpty else {
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Filesystem image is still attached")
         }
 
         print("- Finalizing merged image…")

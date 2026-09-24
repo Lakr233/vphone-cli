@@ -81,9 +81,16 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         let ramdisk = try vphoneRunBlocking { try await Self.fetchRamdisk(version: version, in: output) }
-        defer { try? FileManager.default.removeItem(at: ramdisk.deletingLastPathComponent()) }
+        var attached = false
+        defer {
+            if attached {
+                fputs("warning: restore ramdisk is still mounted; left it at \(ramdisk.path)\n", stderr)
+            } else {
+                try? FileManager.default.removeItem(at: ramdisk.deletingLastPathComponent())
+            }
+        }
 
-        try Self.copyOut(of: ramdisk, to: destination)
+        try Self.copyOut(of: ramdisk, to: destination, attached: &attached)
         // Lifted out of someone else's signed image; re-seal it so the kernel
         // will exec it here.
         try Self.run("/usr/bin/codesign", ["--force", "--sign", "-", destination.path])
@@ -150,23 +157,39 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
     }
 
     /// Mount the ramdisk read-only and take the one file out of it.
-    private static func copyOut(of dmg: URL, to destination: URL) throws {
-        let attached = try run("/usr/bin/hdiutil",
-                               ["attach", "-readonly", "-nobrowse", "-plist", dmg.path])
+    private static func copyOut(of dmg: URL, to destination: URL, attached: inout Bool) throws {
+        let output = try run("/usr/bin/hdiutil",
+                             ["attach", "-readonly", "-nobrowse", "-plist", dmg.path])
+        attached = true
         guard let plist = try PropertyListSerialization.propertyList(
-            from: Data(attached.utf8),
+            from: Data(output.utf8),
             format: nil,
         ) as? [String: Any],
-            let entities = plist["system-entities"] as? [[String: Any]],
-            let mount = entities.compactMap({ $0["mount-point"] as? String }).first
-        else { throw VPhoneRemoteZip.Error.malformed("hdiutil attached nothing with a mount point") }
-        defer { _ = try? run("/usr/bin/hdiutil", ["detach", mount]) }
+            let entities = plist["system-entities"] as? [[String: Any]]
+        else { throw VPhoneRemoteZip.Error.malformed("hdiutil returned no disk information") }
+        let mount = entities.compactMap { $0["mount-point"] as? String }.first
+        let device = entities.compactMap { $0["dev-entry"] as? String }.first
+        guard let target = device ?? mount else {
+            throw VPhoneRemoteZip.Error.malformed("hdiutil attached nothing that can be detached")
+        }
 
-        let source = URL(fileURLWithPath: mount).appending(
-            path: "System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume",
-        )
-        try FileManager.default.copyItem(at: source, to: destination)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755],
-                                              ofItemAtPath: destination.path)
+        let copied: Result<Void, Swift.Error> = Result {
+            guard let mount else {
+                throw VPhoneRemoteZip.Error.malformed("hdiutil attached nothing with a mount point")
+            }
+            let source = URL(fileURLWithPath: mount).appending(
+                path: "System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume",
+            )
+            try FileManager.default.copyItem(at: source, to: destination)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755],
+                                                  ofItemAtPath: destination.path)
+        }
+        do {
+            try run("/usr/bin/hdiutil", ["detach", target])
+        } catch {
+            try run("/usr/bin/hdiutil", ["detach", "-force", target])
+        }
+        attached = false
+        try copied.get()
     }
 }

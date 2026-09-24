@@ -164,6 +164,7 @@ extension CryptexFilesystemPatcher {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard process.terminationStatus == 0 else {
             let output = String(data: data, encoding: .utf8) ?? ""
+            detachReportedImage(in: output)
             throw ProcessError.failed(process.terminationStatus, output)
         }
 
@@ -171,19 +172,11 @@ extension CryptexFilesystemPatcher {
         do {
             root = try parsePlist(data: data)
         } catch {
-            if let output = String(data: data, encoding: .utf8),
-               let range = output.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression)
-            {
-                _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", String(output[range])])
-            }
+            detachReportedImage(in: String(data: data, encoding: .utf8) ?? "")
             throw error
         }
         guard let entries = root["system-entities"] as? [Any] else {
-            if let output = String(data: data, encoding: .utf8),
-               let range = output.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression)
-            {
-                _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", String(output[range])])
-            }
+            detachReportedImage(in: String(data: data, encoding: .utf8) ?? "")
             throw FirmwareManifest.ManifestError.missingKey("system-entities")
         }
         for entry in entries {
@@ -208,12 +201,17 @@ extension CryptexFilesystemPatcher {
             }
             return (device, mountPoint)
         }
-        if let device = (entries.compactMap { ($0 as? PlistDict)?["dev-entry"] as? String })
-            .first(where: { $0.hasPrefix("/dev/disk") })
-        {
-            _ = try? runProcess("/usr/bin/hdiutil", ["detach", "-force", device])
-        }
+        detachReportedImage(in: String(data: data, encoding: .utf8) ?? "")
         throw FirmwareManifest.ManifestError.missingKey("dev-entry or mount-point")
+    }
+
+    private func detachReportedImage(in output: String) {
+        guard let range = output.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) else {
+            return
+        }
+        let device = String(output[range])
+        attachedDevices.insert(device)
+        try? detachImage(deviceNode: device)
     }
 
     func detachImage(deviceNode: String) throws {

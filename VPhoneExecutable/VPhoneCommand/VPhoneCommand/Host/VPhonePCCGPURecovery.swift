@@ -123,8 +123,9 @@ enum VPhonePCCGPURecovery {
             throw Error.toolFailed("hdiutil", "attached no disk device")
         }
         var mountToClean: URL?
+        var diskAttached = true
         defer {
-            if (try? run("/usr/bin/hdiutil", ["detach", baseDisk])) == nil {
+            if diskAttached, (try? run("/usr/bin/hdiutil", ["detach", baseDisk])) == nil {
                 _ = try? run("/usr/bin/hdiutil", ["detach", "-force", baseDisk])
             }
             if let mountToClean {
@@ -164,8 +165,8 @@ enum VPhonePCCGPURecovery {
                 _ = try? run("/sbin/umount", ["-f", mount.path])
             }
         }
-        try run("/sbin/mount_apfs", ["-o", "rdonly", "/dev/\(container)s1", mount.path])
         mounted = true
+        try run("/sbin/mount_apfs", ["-o", "rdonly", "/dev/\(container)s1", mount.path])
 
         let source = mount.appending(
             path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",
@@ -175,6 +176,18 @@ enum VPhonePCCGPURecovery {
             into: restoreDirectory,
             expectedPlatformVersion: expectedPlatformVersion,
         )
+        do {
+            try run("/sbin/umount", [mount.path])
+        } catch {
+            try run("/sbin/umount", ["-f", mount.path])
+        }
+        mounted = false
+        do {
+            try run("/usr/bin/hdiutil", ["detach", baseDisk])
+        } catch {
+            try run("/usr/bin/hdiutil", ["detach", "-force", baseDisk])
+        }
+        diskAttached = false
         print("[+] GPU driver staged from cloudOS restored by vphone-cli")
     }
 

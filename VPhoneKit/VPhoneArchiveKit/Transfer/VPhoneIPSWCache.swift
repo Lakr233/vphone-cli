@@ -34,7 +34,7 @@ public enum VPhoneIPSWCache {
     public static func resolve(
         _ source: String,
         in cacheDirectory: URL,
-        session: URLSession = .shared,
+        session: URLSession = URLSession(configuration: .ephemeral),
     ) async throws -> Archive {
         guard let url = URL(string: source), let scheme = url.scheme?.lowercased() else {
             return try inspect(URL(fileURLWithPath: source))

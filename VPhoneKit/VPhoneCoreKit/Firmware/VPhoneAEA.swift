@@ -118,7 +118,9 @@ public enum VPhoneAEA {
               let wrapped = response["wrapped-key"].flatMap({ Data(base64Encoded: $0) })
         else { throw Error.malformedFCSResponse }
 
-        let (pem, urlResponse) = try await URLSession.shared.data(from: keyURL)
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let (pem, urlResponse) = try await session.data(from: keyURL)
         if let http = urlResponse as? HTTPURLResponse, http.statusCode != 200 {
             throw Error.keyFetchFailed(keyURL, http.statusCode)
         }

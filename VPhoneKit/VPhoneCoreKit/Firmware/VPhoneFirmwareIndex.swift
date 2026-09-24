@@ -56,19 +56,6 @@ public enum VPhoneFirmwareIndex {
 
     static let catalogueURL = URL(string: "https://api.appledb.dev/main.json.xz")!
 
-    /// How long a downloaded catalogue is reused before it is fetched again.
-    ///
-    /// Apple ships a firmware every few weeks; a day-old catalogue is wrong
-    /// only in the window between a release and the next refresh, and a user
-    /// who hits that can delete the file. Re-downloading 8 MB for every
-    /// `fw prepare` would be the worse trade.
-    static let maxAge: TimeInterval = 24 * 60 * 60
-
-    static var cacheFile: URL {
-        VPhoneResources.userDataRoot()
-            .appendingPathComponent("cache/appledb-main.json")
-    }
-
     // MARK: - Queries
 
     /// Every released iOS restore URL for one device identifier, newest first.
@@ -154,34 +141,13 @@ public enum VPhoneFirmwareIndex {
     }
 
     private static func catalogueData() async throws -> Data {
-        let cache = cacheFile
-        if let attributes = try? FileManager.default.attributesOfItem(atPath: cache.path),
-           let modified = attributes[.modificationDate] as? Date,
-           Date().timeIntervalSince(modified) < maxAge,
-           let cached = try? Data(contentsOf: cache, options: .mappedIfSafe)
-        {
-            return cached
-        }
-
-        let (compressed, response) = try await URLSession.shared.data(from: catalogueURL)
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let (compressed, response) = try await session.data(from: catalogueURL)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            // A stale catalogue beats no catalogue: the network is the thing
-            // most likely to be missing, and last week's list still has every
-            // firmware from last week.
-            if let cached = try? Data(contentsOf: cache, options: .mappedIfSafe) {
-                return cached
-            }
             throw Error.fetchFailed(catalogueURL, http.statusCode)
         }
-
-        let json = try decompressXZ(compressed)
-        try? FileManager.default.createDirectory(
-            at: cache.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-        )
-        try? json.write(to: cache)
-        try? VPhoneHostFilePermissions.makeAccessible(at: cache)
-        return json
+        return try decompressXZ(compressed)
     }
 
     /// `.xz`, through libcompression.
