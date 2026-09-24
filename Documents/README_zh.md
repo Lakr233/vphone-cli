@@ -28,20 +28,21 @@ vphone-cli vm launch myphone
 
 ## 安装与构建
 
-成品 `.app` 运行时不需要 Homebrew、Python 或 Xcode，也不需要额外安装运行环境。从 [GitHub Releases](https://github.com/Lakr233/vphone-cli/releases) 下载 `vphone-cli-2.0.0.zip`，解压后直接调用应用内的 CLI：
+Xcode 现在直接生成供后续 `vphone-workstation` 集成的 `VPhone.bundle`。运行时不需要 Homebrew、Python 或 Xcode；bundle 内没有 app 启动器或自动提权服务。可以直接调用其中的 CLI：
 
 ```sh
-ditto -x -k vphone-cli-2.0.0.zip .
-./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
+.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS/vphone-cli host preflight
 ```
 
-上文示例中的 `vphone-cli` 可替换为上述应用内路径。从源码构建则需要 Xcode 的 iPhoneOS SDK，以编译 vphoned：
+上文示例中的 `vphone-cli` 可替换为上述 bundle 内路径。从源码构建需要 Xcode 的 iPhoneOS SDK，以编译 vphoned：
 
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh Scripts/build.sh
-.build/release/vphone-cli host preflight
+xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
+  -configuration Debug -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath .build/XcodeBundle build
+zsh Scripts/check_aux.sh
 ```
 
 采用 AMFI 白名单的宿主机，每次重编译后都要按[宿主机准备](Guides/host-setup.md)中的步骤重新允许签名后的 VM 程序。

@@ -262,6 +262,10 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
         }
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
+        defer {
+            try? VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
+            try? VPhoneHostFilePermissions.makeAccessible(at: resources.ipswCacheDir)
+        }
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone,
             cloudOSSource: cloud,
@@ -269,6 +273,8 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
             bundle: bundle,
             resources: resources,
         )
+        try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
+        try VPhoneHostFilePermissions.makeAccessible(at: resources.ipswCacheDir)
     }
 }
 
@@ -290,6 +296,10 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
     func run() throws {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
+        defer {
+            try? VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
+            try? VPhoneHostFilePermissions.makeAccessible(at: VPhoneResources.resolve().sealVolumeCacheDir)
+        }
 
         // In-process pipeline (no subprocess) — CryptexFilesystemPatcher's
         // apfs_sealvolume read honors VPHONE_SEAL_DIR from *this* process's
@@ -307,6 +317,8 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
             enableFrida: frida,
         )
         let records = try pipeline.patchAll()
+        try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
+        try VPhoneHostFilePermissions.makeAccessible(at: resources.sealVolumeCacheDir)
         print("[fw patch] applied \(records.count) JB patches")
     }
 }

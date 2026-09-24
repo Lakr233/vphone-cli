@@ -27,8 +27,7 @@ commands that read standard input. The process has a 120 second deadline.
 
 ## HTTP and WebSocket contract
 
-`GET /openapi.json` is the machine-readable HTTP description. JSON resource
-routes cover device state, apps, input, location, Developer Mode, low power
+JSON resource routes cover device state, apps, input, location, Developer Mode, low power
 mode, clipboard, file listing, and keychain. `GET/PUT
 /v1/files/content?path=<absolute-guest-path>` transfer bytes with
 `application/octet-stream`; upload writes to a temporary file in the same
@@ -83,7 +82,6 @@ proxy uses NIO channels and closes the paired channel when either side ends.
 ```sh
 vphone-cli vm launch <name> --api-listen 127.0.0.1:8765
 curl http://127.0.0.1:8765/v1/health
-curl http://127.0.0.1:8765/openapi.json
 ```
 
 ```swift

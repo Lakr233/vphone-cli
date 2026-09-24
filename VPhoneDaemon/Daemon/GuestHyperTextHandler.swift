@@ -105,10 +105,6 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
 
     private func handle(_ head: HTTPRequestHead, body: Data, channel: Channel) {
         let path = head.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? head.uri
-        if head.method == .GET, path == "/openapi.json" {
-            Self.send(APIReply(status: 200, data: OpenAPIDocument.data), on: channel)
-            return
-        }
         if head.method == .GET, path == "/v1/health" {
             Self.send(.json(GuestAPI.health()), on: channel)
             return

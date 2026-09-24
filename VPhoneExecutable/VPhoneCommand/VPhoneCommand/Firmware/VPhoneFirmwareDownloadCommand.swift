@@ -87,6 +87,8 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         // Lifted out of someone else's signed image; re-seal it so the kernel
         // will exec it here.
         try Self.run("/usr/bin/codesign", ["--force", "--sign", "-", destination.path])
+        try VPhoneHostFilePermissions.makeAccessible(at: destination)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: output)
         print("  Downloaded: \(destination.path)")
     }
 
@@ -154,7 +156,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
             let entities = plist["system-entities"] as? [[String: Any]],
             let mount = entities.compactMap({ $0["mount-point"] as? String }).first
         else { throw VPhoneRemoteZip.Error.malformed("hdiutil attached nothing with a mount point") }
-        defer { try? run("/usr/bin/hdiutil", ["detach", mount]) }
+        defer { _ = try? run("/usr/bin/hdiutil", ["detach", mount]) }
 
         let source = URL(fileURLWithPath: mount).appending(
             path: "System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume",

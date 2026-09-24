@@ -71,6 +71,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 sepStorage: manifest.sepStorage,
             )
             try manifest.write(to: options.configURL)
+            try VPhoneHostFilePermissions.makeAccessible(at: options.configURL)
 
             print("[vphone] \(reason)")
         }
@@ -88,6 +89,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             )
             do {
                 try Self.writeUDIDPrediction(identity: identity, to: outputURL)
+                try VPhoneHostFilePermissions.makeAccessible(at: outputURL)
                 print("[vphone] Wrote UDID prediction: \(outputURL.path)")
             } catch {
                 print("[vphone] Warning: failed to write udid-prediction.txt: \(error)")
@@ -102,6 +104,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             hardwareModel: hwModel,
             options: .allowOverwrite,
         )
+        try VPhoneHostFilePermissions.makeAccessible(at: options.nvramURL)
         platform.auxiliaryStorage = auxStorage
         platform.hardwareModel = hwModel
 

@@ -73,9 +73,7 @@ public struct VPhoneVirtualMachineCreator {
     private let library: VPhoneLibrary
     private let resources: VPhoneResources
     /// How to start the guest. A create boots in DFU and once for verification,
-    /// so the decision about whether an AMFI window
-    /// is needed is taken once, here, rather than probing amfid (and possibly
-    /// prompting for sudo) before each one.
+    /// so the AMFI probe runs once before the multi-stage create pipeline.
     private let launcher: VPhoneGuestLaunchPlanner
 
     public init(
@@ -103,6 +101,7 @@ public struct VPhoneVirtualMachineCreator {
         let bundleURL = library.url(forName: options.name)
         let ownedOutputs = [bundleURL, resources.ipswCacheDir, resources.sealVolumeCacheDir]
         var ownershipRestored = false
+        var permissionsRestored = false
         defer {
             if let invokingUser, !ownershipRestored {
                 for output in ownedOutputs {
@@ -111,6 +110,14 @@ public struct VPhoneVirtualMachineCreator {
                 }
                 try? invokingUser.restoreOwnerOfDirectory(at: library.root)
                 try? invokingUser.restoreOwnerOfDirectory(at: VPhoneResources.userDataRoot())
+            }
+            if !permissionsRestored {
+                for output in ownedOutputs {
+                    do { try VPhoneHostFilePermissions.makeAccessible(at: output) }
+                    catch { fputs("warning: could not set permissions on \(output.path): \(error)\n", stderr) }
+                }
+                try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
+                try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
             }
         }
         if FileManager.default.fileExists(atPath: bundleURL.path) {
@@ -163,6 +170,10 @@ public struct VPhoneVirtualMachineCreator {
             try invokingUser.restoreOwnerOfDirectory(at: VPhoneResources.userDataRoot())
         }
         ownershipRestored = true
+        for output in ownedOutputs { try VPhoneHostFilePermissions.makeAccessible(at: output) }
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
+        permissionsRestored = true
         print("\n=== Done ===")
         print("JB VM created; vphoned connected. Guest user environment is untouched.")
     }
@@ -170,7 +181,7 @@ public struct VPhoneVirtualMachineCreator {
     // MARK: - trace
 
     /// Internal spawn/outcome trace, gated on `.trace` (`-vvv`). Never prints
-    /// secret env VALUES (e.g. SUDO_PASSWORD) — callers pass only key names.
+    /// secret environment values — callers pass only key names.
     private func trace(_ msg: String, _ v: VPhoneVerbosity) {
         guard v.tracesInternals else { return }
         print("[trace] \(msg)")

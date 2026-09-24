@@ -17,7 +17,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
             return """
             \(name) is missing — expected it next to this binary at:
               \(url.path)
-            The install looks incomplete. Rebuild the vphone-app scheme in Xcode.
+            The bundle is incomplete. Rebuild the VPhone scheme in Xcode.
             """
 
         case let .blockedByAMFI(guest, cdHash):
@@ -40,7 +40,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
         case let .missingEntitlements(guest):
             return """
             vphone-vm is missing the private PV=3 entitlements: \(guest.path)
-            Rebuild the vphone-app scheme in Xcode to sign this binary, then allow the new signature
+            Rebuild the VPhone scheme in Xcode to sign this binary, then allow the new signature
             through the host's AMFI policy before launching a VM.
             """
 

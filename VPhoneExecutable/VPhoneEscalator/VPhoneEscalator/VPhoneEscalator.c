@@ -1,11 +1,8 @@
-// vphone-amfi-allow — let an ad-hoc signed binary carry Apple-private
+// VPhoneEscalator — let an ad-hoc signed binary carry Apple-private
 // entitlements, without writing a single byte into anyone's __TEXT.
 //
-// This is the project's copy of github.com/Lakr233/amfi-allow (MIT), which is
-// one C file and no dependencies, so it is carried here rather than pulled in:
-// it cannot be a SwiftPM dependency, because `Scripts/build.sh` has to build it
-// for arm64e and SwiftPM only emits arm64. Keep it in step with upstream; the
-// only local changes are this header and the usage text.
+// This is the project's copy of github.com/Lakr233/amfi-allow (MIT), built
+// by its own Xcode target for arm64e. Keep it in step with upstream.
 //
 // It exists because vphone-vm is the one binary here that holds
 // com.apple.private.* entitlements, and amfid refuses it. The bundled helper
@@ -13,11 +10,8 @@
 // cdhashes change every time they are signed, so that is a per-build step, not
 // a once-per-machine one.
 //
-// Build (no Xcode.app, no Python, no LLDB):
-//
-//     clang -arch arm64e -O2 -framework CoreFoundation -framework Security \
-//         -o vphone-amfi-allow vphone-amfi-allow.c
-//     codesign --force --sign - vphone-amfi-allow
+// Build with the VPhoneEscalator Xcode target (arm64e, then ad-hoc signed
+// during bundle staging). No Python or LLDB is needed.
 //
 // ---------------------------------------------------------------------------
 // Why this exists

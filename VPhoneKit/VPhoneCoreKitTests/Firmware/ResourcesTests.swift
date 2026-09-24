@@ -15,9 +15,9 @@ import Testing
 @Suite(.serialized)
 struct ResourcesTests {
     @Test func `bundled layout resolves to contents resources`() {
-        let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
+        let exe = "/Applications/VPhone.bundle/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
-        #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
+        #expect(r.base.path == "/Applications/VPhone.bundle/Contents/Resources")
     }
 
     @Test func `dev layout walks up to project root`() throws {

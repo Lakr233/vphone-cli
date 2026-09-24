@@ -17,13 +17,12 @@ public struct VPhoneResources: Sendable {
     /// Neither obvious alternative works here. `CommandLine.arguments[0]` is a
     /// bare name under a PATH or symlink launch, which `URL(fileURLWithPath:)`
     /// then resolves against the CWD and lands under `$HOME`.
-    /// `Bundle.main.executableURL` reads `CFBundleExecutable` out of Info.plist
-    /// and answers "vphone-app" even when the running binary is `vphone-cli`
-    /// or `vphone-vm` beside it in `Contents/MacOS`. It cannot find ourselves.
+    /// `Bundle.main.executableURL` can describe a bundle's main executable
+    /// instead of the tool actually running beside it in `Contents/MacOS`.
     ///
     /// `_NSGetExecutablePath` has neither problem: it is the path the kernel
     /// exec'd, independent of argv and of any plist. Symlinks are resolved so a
-    /// Homebrew symlink lands on the real binary inside the .app.
+    /// a command symlink lands on the real binary inside the .bundle.
     public static func runningExecutable() -> URL {
         var size = UInt32(PATH_MAX)
         var buffer = [CChar](repeating: 0, count: Int(size))
@@ -105,8 +104,7 @@ public struct VPhoneResources: Sendable {
         if FileManager.default.fileExists(atPath: bundled.path) {
             return bundled
         }
-        // Dev fallback: build.sh stages the signed daemon under .build (a
-        // gitignored build-output dir) rather than cluttering the repo root.
+        // Dev fallback for a source build outside the bundle.
         return base.appendingPathComponent(".build/vphoned.signed")
     }
 

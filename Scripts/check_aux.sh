@@ -3,13 +3,13 @@
 set -euo pipefail
 
 root="${0:a:h:h}"
-bundle="${1:-$root/.build/XcodeApp/Build/Products/Debug/vphone-app.app}"
+bundle="${1:-$root/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle}"
 macos="$bundle/Contents/MacOS"
 resources="$bundle/Contents/Resources"
 
-[[ -d "$bundle" ]] || { print -u2 "Missing Xcode app: $bundle"; exit 1; }
+[[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
-for name in vphone-app vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
+for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
     vpregister libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib TweakLoader.dylib \
     libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ -f "$macos/$name" ]] || { print -u2 "Missing binary: Contents/MacOS/$name"; exit 1; }
@@ -17,13 +17,17 @@ for name in vphone-app vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.sign
         print -u2 "Not a Mach-O: $name"
         exit 1
     }
+    /usr/bin/codesign --verify "$macos/$name" || {
+        print -u2 "Invalid signature: $name"
+        exit 1
+    }
 done
 
-for name in vphone-archive icli vphone-ask-for-permission vphone-amfi-allow; do
+for name in vphone-app VPhoneAMFIAllow vphone-archive icli vphone-ask-for-permission; do
     [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: $name"; exit 1; }
 done
 
-for name in vphoned.plist entitlements.plist; do
+for name in vphoned.plist VPhoneDaemon.entitlements; do
     [[ -f "$resources/scripts/vphoned/$name" ]] || {
         print -u2 "Missing guest configuration: $name"
         exit 1
@@ -36,13 +40,23 @@ done
 /usr/bin/codesign --verify "$macos/VPhoneEscalator"
 /usr/bin/codesign --verify "$macos/vphoned.signed"
 
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")" == "vphone-app" ]] || {
-    print -u2 "The unentitled app launcher is not the bundle executable"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$bundle/Contents/Info.plist")" == "BNDL" ]] || {
+    print -u2 "The product is not a generic bundle"
     exit 1
 }
-app_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$bundle" 2>/dev/null || true)"
-[[ "$app_entitlements" != *'com.apple.private.virtualization'* ]] || {
-    print -u2 "The app must not carry private virtualization entitlements"
+if /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist" >/dev/null 2>&1; then
+    print -u2 "The container must not declare an executable"
+    exit 1
+fi
+while IFS= read -r file; do
+    if /usr/bin/file "$file" | /usr/bin/grep -q 'Mach-O' && [[ "$file" != "$macos/"* ]]; then
+        print -u2 "Mach-O outside Contents/MacOS: $file"
+        exit 1
+    fi
+done < <(/usr/bin/find "$bundle/Contents" -type f)
+bundle_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$bundle" 2>/dev/null || true)"
+[[ "$bundle_entitlements" != *'com.apple.private.virtualization'* ]] || {
+    print -u2 "The bundle must not carry private virtualization entitlements"
     exit 1
 }
 vm_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphone-vm" 2>/dev/null)"

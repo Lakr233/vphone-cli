@@ -35,6 +35,7 @@ public struct VPhoneLaunchLayout: Sendable {
             try fm.removeItem(at: dst)
         }
         try fm.copyItem(at: vphoned, to: dst)
+        try VPhoneHostFilePermissions.makeAccessible(at: dst)
         return true
     }
 }

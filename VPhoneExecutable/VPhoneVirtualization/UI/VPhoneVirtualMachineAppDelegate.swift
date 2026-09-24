@@ -101,7 +101,6 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                     let url = try await proxy.start()
                     apiProxy = proxy
                     print("[api] HTTP/WebSocket API: \(url.absoluteString)")
-                    print("[api] OpenAPI: \(url.appending(path: "openapi.json").absoluteString)")
                 }
             } else if command.apiListen != nil {
                 throw VPhoneVirtualMachineError.apiSocketUnavailable

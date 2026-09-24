@@ -37,6 +37,10 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
         }
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
+        defer {
+            do { try VPhoneHostFilePermissions.makeAccessible(at: bundle.url) }
+            catch { fputs("warning: could not set VM file permissions: \(error)\n", stderr) }
+        }
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
         let layout = VPhoneLaunchLayout(resources: resources)
 

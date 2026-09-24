@@ -21,5 +21,5 @@ These pages give a translated overview and quick start. The English guides above
 
 - [Research index](../Research/README.md) groups the patch and implementation records by subject.
 - [Patch inventory](../Research/0_binary_patch_comparison.md) is the canonical per-component comparison.
-- `zsh Scripts/build.sh` builds and bundles the application; `swift test` and `zsh Scripts/check_aux.sh` run the tests and bundle checks.
+- `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone build` produces `VPhone.bundle`; run each project's test scheme and `zsh Scripts/check_aux.sh` for bundle checks.
 - `vphone-cli <group> --help` shows the CLI command surface.

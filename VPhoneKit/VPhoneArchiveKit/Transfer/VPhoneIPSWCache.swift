@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import VPhoneCoreKit
 
 /// Resolves a local IPSW or downloads one into a reusable, validated cache.
 /// Source archives are never rewritten. Remote downloads become visible only
@@ -50,6 +51,8 @@ public enum VPhoneIPSWCache {
         let cache = cacheDirectory.appendingPathComponent(cacheName(for: url))
         if fm.fileExists(atPath: cache.path) {
             if let valid = try? inspect(cache) {
+                try VPhoneHostFilePermissions.makeAccessible(at: cache)
+                try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
                 return valid
             }
             try fm.removeItem(at: cache)
@@ -76,6 +79,8 @@ public enum VPhoneIPSWCache {
         try fm.moveItem(at: downloaded, to: pending)
         let metadata = try inspect(pending)
         try fm.moveItem(at: pending, to: cache)
+        try VPhoneHostFilePermissions.makeAccessible(at: cache)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
         return Archive(file: cache, version: metadata.version, build: metadata.build)
     }
 

@@ -6,16 +6,16 @@ The VM needs an Apple Silicon Mac running macOS 15 or newer. PV=3 research guest
 
 ## Build and preflight
 
-A distributed `.app` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
+A distributed `.bundle` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
 
 ```sh
-xcodebuild -workspace VPhone.xcworkspace -scheme vphone-app \
+xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeApp build
-.build/XcodeApp/Build/Products/Debug/vphone-app.app/Contents/MacOS/vphone-cli host preflight
+  -derivedDataPath .build/XcodeBundle build
+.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS/vphone-cli host preflight
 ```
 
-Build the `vphone-app` scheme in Xcode to produce the signed app with all companion binaries. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the bundled allowlist helper command.
+Build the `VPhone` scheme in Xcode to produce the ad hoc signed bundle with all companion binaries. `host preflight` checks the entitled companion before any VM is started. If AMFI refuses it, the error prints the bundled allowlist helper command.
 
 ## Permit the entitled VM binary
 
@@ -50,16 +50,16 @@ csrutil allow-research-guests enable
 After rebooting, allowlist the **current signed build**. In a source checkout:
 
 ```sh
-app=.build/XcodeApp/Build/Products/Debug/vphone-app.app
-sudo "$app/Contents/MacOS/VPhoneEscalator" allow "$app/Contents/MacOS/vphone-vm"
-"$app/Contents/MacOS/VPhoneEscalator" status
-"$app/Contents/MacOS/vphone-cli" host preflight
+bundle=.build/XcodeBundle/Build/Products/Debug/VPhone.bundle
+sudo "$bundle/Contents/MacOS/VPhoneEscalator" allow "$bundle/Contents/MacOS/vphone-vm"
+"$bundle/Contents/MacOS/VPhoneEscalator" status
+"$bundle/Contents/MacOS/vphone-cli" host preflight
 ```
 
-The helper records the current `vphone-vm` cdhash in the AMFI code-requirements preference and enables amfid to consult it by changing one byte in its heap. It is scoped to that signed binary. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. Run `sudo "$app/Contents/MacOS/VPhoneEscalator" off` to remove the allowlist and restart amfid.
+The helper records the current `vphone-vm` cdhash in the AMFI code-requirements preference and enables amfid to consult it by changing one byte in its heap. It is scoped to that signed binary. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. Run `sudo "$bundle/Contents/MacOS/VPhoneEscalator" off` to remove the allowlist and restart amfid.
 
-For a distributed app without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../VPhoneEscalator allow .../vphone-vm` command for that installed app.
+For a distributed bundle without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../VPhoneEscalator allow .../vphone-vm` command for that bundle.
 
 ## What the build contains
 
-`vphone-cli` orchestrates the work without private entitlements and handles archives through `vphone-cli archive`. `vphone-vm` is the signed, entitled GUI/VM process. The app also bundles `vphoned`, compiled for iOS at build time; it is installed into each created guest. The [research notes on the binary split](../../Research/Host/host_binary_split.md) record the implementation history, including superseded approaches.
+`vphone-cli` orchestrates the work without private entitlements and handles archives through `vphone-cli archive`. `vphone-vm` is the signed, entitled GUI/VM process. The bundle also contains `vphoned`, compiled for iOS at build time; it is installed into each created guest. The [research notes on the binary split](../../Research/Host/host_binary_split.md) record the implementation history, including superseded approaches.

@@ -1,6 +1,6 @@
 // VPhoneGuestBinaries.swift — where the prebuilt iOS binaries live.
 //
-// vphoned is cross-compiled on the build machine and shipped in the app.
+// vphoned is cross-compiled on the build machine and shipped in the bundle.
 // The runtime installs it with an ad-hoc signature and never needs Xcode.
 
 import Foundation
@@ -13,7 +13,7 @@ public enum VPhoneGuestBinaries {
             switch self {
             case let .missing(name, searched):
                 """
-                no prebuilt guest binary '\(name)'. Build the vphone-app scheme in VPhone.xcworkspace.
+                no prebuilt guest binary '\(name)'. Build the VPhone scheme in VPhone.xcworkspace.
                 Looked in: \(searched.map(\.path).joined(separator: ", "))
                 """
             }

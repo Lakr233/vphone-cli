@@ -8,13 +8,13 @@
 		EE0000000000000000000031 /* VPhoneEscalator */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VPhoneEscalator; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EE0000000000000000000021 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		EE0000000000000000000021 /* VPhoneEscalator */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneEscalator; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 /* Begin PBXFrameworksBuildPhase section */
 		EE0000000000000000000041 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 /* Begin PBXGroup section */
-		EE0000000000000000000002 = {isa = PBXGroup; children = (EE0000000000000000000021 /* Sources */, EE0000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
+		EE0000000000000000000002 = {isa = PBXGroup; children = (EE0000000000000000000021 /* VPhoneEscalator */, EE0000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
 		EE0000000000000000000003 /* Products */ = {isa = PBXGroup; children = (EE0000000000000000000031 /* VPhoneEscalator */, ); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 /* Begin PBXNativeTarget section */
@@ -24,7 +24,7 @@
 			buildPhases = (EE0000000000000000000051 /* Sources */, EE0000000000000000000041 /* Frameworks */, );
 			buildRules = ();
 			dependencies = ();
-			fileSystemSynchronizedGroups = (EE0000000000000000000021 /* Sources */, );
+			fileSystemSynchronizedGroups = (EE0000000000000000000021 /* VPhoneEscalator */, );
 			name = VPhoneEscalator;
 			productName = VPhoneEscalator;
 			productReference = EE0000000000000000000031 /* VPhoneEscalator */;

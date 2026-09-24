@@ -81,7 +81,7 @@ extension CryptexFilesystemPatcher {
         try VPhoneSigner.sign(
             fileAt: targetBin,
             options: guestSigningOptions(
-                entitlements: vphonedSrc.appendingPathComponent("entitlements.plist"),
+                entitlements: vphonedSrc.appendingPathComponent("VPhoneDaemon.entitlements"),
             ),
         )
         try setMode(0o755, at: targetBin)

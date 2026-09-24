@@ -89,6 +89,9 @@ struct Extract: ParsableCommand {
             options: options,
             progress: verbose ? { print($0.currentPath) } : nil,
         )
+        if !preservePermissions {
+            try VPhoneHostFilePermissions.makeAccessible(at: destination)
+        }
         if !verbose {
             print("extracted \(written) entries to \(destination.path)")
         }
@@ -167,6 +170,7 @@ struct Create: ParsableCommand {
             excluding: exclude,
             progress: verbose ? { print($0.currentPath) } : nil,
         )
+        try VPhoneHostFilePermissions.makeAccessible(at: file)
         if !verbose {
             print("packed \(written) entries into \(file.path)")
         }
@@ -201,6 +205,7 @@ struct Decompress: ParsableCommand {
 
     func run() throws {
         try VPhoneArchiveWriter.decompress(file, to: output)
+        try VPhoneHostFilePermissions.makeAccessible(at: output)
         print("decompressed \(file.lastPathComponent) → \(output.path)")
     }
 }

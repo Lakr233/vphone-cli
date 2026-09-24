@@ -24,7 +24,7 @@
 		BB0000000000000000000106 /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000206 /* AppleMobileDeviceLibrary */; };
 		BB0000000000000000000107 /* libFirmwarePatcher.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000033 /* libFirmwarePatcher.a */; };
 		BB0000000000000000000108 /* libVPhoneSign.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000032 /* libVPhoneSign.a */; };
-		BB0000000000000000000109 /* ArgumentParser in FirmwarePatcher */ = {isa = PBXBuildFile; productRef = BB0000000000000000000204 /* ArgumentParser */; };
+		BB0000000000000000000109 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000204 /* ArgumentParser */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,7 +67,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BB0000000000000000000021 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		BB0000000000000000000021 /* VPhoneCommand */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneCommand; sourceTree = "<group>"; };
 		BB0000000000000000000022 /* VPhoneSign */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneSign; sourceTree = "<group>"; };
 		BB0000000000000000000023 /* FirmwarePatcher */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FirmwarePatcher; sourceTree = "<group>"; };
 		BB0000000000000000000024 /* FirmwarePatcherTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FirmwarePatcherTests; sourceTree = "<group>"; };
@@ -101,7 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BB0000000000000000000109 /* ArgumentParser in FirmwarePatcher */,
+				BB0000000000000000000109 /* ArgumentParser in Frameworks */,
 				BB0000000000000000000101 /* Capstone in Frameworks */,
 				BB0000000000000000000102 /* Img4tool in Frameworks */,
 				BB0000000000000000000103 /* MachOKit in Frameworks */,
@@ -136,7 +136,7 @@
 		BB0000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				BB0000000000000000000021 /* Sources */,
+				BB0000000000000000000021 /* VPhoneCommand */,
 				BB0000000000000000000022 /* VPhoneSign */,
 				BB0000000000000000000023 /* FirmwarePatcher */,
 				BB0000000000000000000024 /* FirmwarePatcherTests */,
@@ -176,7 +176,7 @@
 				BB0000000000000000000123 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				BB0000000000000000000021 /* Sources */,
+				BB0000000000000000000021 /* VPhoneCommand */,
 			);
 			name = VPhoneCommand;
 			packageProductDependencies = (

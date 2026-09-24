@@ -172,12 +172,15 @@ struct PatchComponentCommand: ParsableCommand {
         let outputDir = output.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
         try patchedData.write(to: output)
+        try VPhoneHostFilePermissions.makeAccessible(at: output)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: outputDir)
 
         if let recordsOut {
             let url = URL(fileURLWithPath: recordsOut)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(records).write(to: url)
+            try VPhoneHostFilePermissions.makeAccessible(at: url)
             if !quiet {
                 print("[patch-component] wrote \(records.count) patch records to \(url.path)")
             }

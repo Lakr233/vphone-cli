@@ -78,6 +78,7 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
             )
         }
         try manifest.write(to: configURL)
+        try VPhoneHostFilePermissions.makeAccessible(at: configURL)
         print("Created VM manifest: \(configURL.path)")
     }
 }

@@ -32,11 +32,31 @@
 		C10000000000000000000003 /* vpregister */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = vpregister; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C10000000000000000000035 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				vpregister.m,
+			);
+			target = C10000000000000000000081 /* VphonedNative */;
+		};
+		C10000000000000000000036 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				unarchive.m,
+				vphoned_install.m,
+				vphoned_keychain.m,
+				vphoned_native.m,
+				vphoned_vcam.m,
+			);
+			target = C10000000000000000000083 /* vpregister */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C10000000000000000000031 /* Native */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Native; sourceTree = "<group>"; };
+		C10000000000000000000031 /* Native */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C10000000000000000000035 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, C10000000000000000000036 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Native; sourceTree = "<group>"; };
 		C10000000000000000000032 /* Daemon */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Daemon; sourceTree = "<group>"; };
 		C10000000000000000000033 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
-		C10000000000000000000034 /* VPRegister */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPRegister; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,7 +97,6 @@
 				C10000000000000000000031 /* Native */,
 				C10000000000000000000032 /* Daemon */,
 				C10000000000000000000033 /* Configuration */,
-				C10000000000000000000034 /* VPRegister */,
 				C10000000000000000000052 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -154,7 +173,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				C10000000000000000000034 /* VPRegister */,
+				C10000000000000000000031 /* Native */,
 			);
 			name = vpregister;
 			productName = vpregister;

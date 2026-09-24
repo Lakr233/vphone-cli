@@ -28,11 +28,10 @@ cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`
 
 ## 설치와 빌드
 
-배포된 `.app` 실행에는 Homebrew, Python, Xcode나 별도의 런타임 환경이 필요하지 않습니다. [GitHub Releases](https://github.com/Lakr233/vphone-cli/releases)에서 `vphone-cli-2.0.0.zip`을 다운로드하고 압축을 푼 뒤 앱 안의 CLI를 직접 실행하세요.
+Xcode는 나중에 `vphone-workstation`이 통합할 `VPhone.bundle`을 만듭니다. 실행 시 Homebrew, Python, Xcode가 필요하지 않습니다. 번들 안의 CLI를 직접 실행할 수 있습니다.
 
 ```sh
-ditto -x -k vphone-cli-2.0.0.zip .
-./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
+.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS/vphone-cli host preflight
 ```
 
 위 예시의 `vphone-cli` 대신 이 앱 내부 경로를 사용할 수 있습니다. 소스 빌드에는 vphoned용 iPhoneOS SDK가 포함된 Xcode가 필요합니다.
@@ -40,8 +39,10 @@ ditto -x -k vphone-cli-2.0.0.zip .
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh Scripts/build.sh
-.build/release/vphone-cli host preflight
+xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
+  -configuration Debug -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath .build/XcodeBundle build
+zsh Scripts/check_aux.sh
 ```
 
 AMFI 허용 목록을 사용하는 호스트에서는 빌드할 때마다 [호스트 설정 가이드](Guides/host-setup.md)에 따라 서명된 VM 바이너리를 다시 허용하세요. 현재 가이드와 연구 자료는 [문서 목차](README.md)에 모았습니다. 상세 가이드는 현재 영어로 제공됩니다.

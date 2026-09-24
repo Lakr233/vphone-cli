@@ -44,6 +44,8 @@ struct VPhoneCustomFirmwareInstaller {
                 do { try invokingUser.restoreOwnership(at: bundle) }
                 catch { fputs("warning: could not restore VM ownership: \(error)\n", stderr) }
             }
+            do { try VPhoneHostFilePermissions.makeAccessible(at: bundle) }
+            catch { fputs("warning: could not set VM file permissions: \(error)\n", stderr) }
         }
         let diskImage = bundle.appendingPathComponent("Disk.img")
         guard fm.fileExists(atPath: diskImage.path) else {
@@ -256,7 +258,7 @@ struct VPhoneCustomFirmwareInstaller {
         let vphoned = try VPhoneGuestBinaries.resolve("vphoned")
         let staged = work.appendingPathComponent("vphoned")
         try fm.copyItem(at: vphoned, to: staged)
-        let entitlementsURL = resources.scriptsDir.appendingPathComponent("vphoned/entitlements.plist")
+        let entitlementsURL = resources.scriptsDir.appendingPathComponent("vphoned/VPhoneDaemon.entitlements")
         let entitlements = try Data(contentsOf: entitlementsURL, options: .mappedIfSafe)
         try VPhoneSigner.sign(fileAt: staged,
                               options: .init(entitlements: entitlements, mergesExisting: true))

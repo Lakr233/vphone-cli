@@ -25,7 +25,7 @@ vphone-cli vm launch myphone
 ```
 
 To expose the guest HTTP and WebSocket API on the host for local tools or an
-app using `VPhoneAPIKit`, opt in when launching:
+app using `VPhoneExternalAccessKit`, opt in when launching:
 
 ```sh
 vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
@@ -34,35 +34,33 @@ vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
 The guest runs `icli` commands through the API. See the [API design and usage](Research/vphoned_http_api.md)
 for routes, WebSocket messages, and the Swift Kit client.
 
-`vm create` prepares and patches firmware, restores the VM, installs the JB system changes and vphoned, then boots once to check a real vphoned ping. **It stops that verification boot before returning.** Run `vm launch` to keep using the VM. The create flow needs network access for Apple's restore ticket and asks for administrator authentication during CFW installation.
+`vm create` prepares and patches firmware, restores the VM, installs the JB system changes and vphoned, then boots once to check a real vphoned ping. **It stops that verification boot before returning.** Run `vm launch` to keep using the VM. The create flow needs network access for Apple's restore ticket and requires the caller to provide root privileges for CFW installation.
 
 For local validation, iPhone17,3 **26.6.2 (23G90)** and **27.0 (24A435)** both reached the lock screen and answered vphoned ping with cloudOS **26.4 (23E5207q)**. See [compatibility and evidence](Documents/Guides/compatibility.md); other firmware combinations are not implied by these results.
 
-## Install or build
+## Build the bundle
 
-A distributed `.app` uses macOS system tools and its own bundled binaries; it does not need Homebrew, Python, or Xcode to run. Building from source does not install a separate runtime environment.
-
-Download `vphone-cli-2.0.0.zip` from [GitHub Releases](https://github.com/Lakr233/vphone-cli/releases), extract it, and run the CLI inside the app:
-
-```sh
-ditto -x -k vphone-cli-2.0.0.zip .
-./vphone-cli.app/Contents/MacOS/vphone-cli host preflight
-```
-
-Use that app path in place of `vphone-cli` in the examples above if the CLI is not on your `PATH`.
-
-Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
+Xcode builds a self-contained `VPhone.bundle` for a future `vphone-workstation`
+to download and load. The bundle contains no app launcher, installer, privileged
+service or password prompt. Root access and installation belong to the
+workstation. Building from source needs Xcode and its iPhoneOS SDK for vphoned:
 
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-xcodebuild -workspace VPhone.xcworkspace -scheme vphone-app \
+xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeApp build
-.build/XcodeApp/Build/Products/Debug/vphone-app.app/Contents/MacOS/vphone-cli --help
+  -derivedDataPath .build/XcodeBundle build
+.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS/vphone-cli --help
 ```
 
-The Xcode app scheme builds the host tools, guest daemon, and guest components and bundles every binary under `Contents/MacOS`. Run the test schemes in their respective projects and `zsh Scripts/check_aux.sh` to inspect the app. After every rebuild, a host using the AMFI allowlist must allow the new signed VM binary because its cdhash changes. See [host setup](Documents/Guides/host-setup.md).
+The `VPhone` scheme builds the host tools, guest daemon, and guest components;
+every shipped binary is under `Contents/MacOS`. They use ad hoc code signatures,
+with private virtualization entitlements only on `vphone-vm`. Run the test
+schemes in their respective projects and `zsh Scripts/check_aux.sh` to inspect
+the bundle. An AMFI allowlist must be updated whenever the VM binary's cdhash
+changes. See [host setup](Documents/Guides/host-setup.md) and the
+[bundle integration contract](Documents/Guides/bundle-integration.md).
 
 ## Everyday commands
 

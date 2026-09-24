@@ -180,6 +180,7 @@ public enum VPhoneFirmwareIndex {
             withIntermediateDirectories: true,
         )
         try? json.write(to: cache)
+        try? VPhoneHostFilePermissions.makeAccessible(at: cache)
         return json
     }
 

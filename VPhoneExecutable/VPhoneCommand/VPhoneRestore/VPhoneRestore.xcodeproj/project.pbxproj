@@ -47,7 +47,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CC0000000000000000000021 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		CC0000000000000000000021 /* VPhoneRestore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneRestore; sourceTree = "<group>"; };
 		CC0000000000000000000022 /* MobileRecoveryCore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MobileRecoveryCore; sourceTree = "<group>"; };
 		CC0000000000000000000023 /* MobileRestoreCore */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MobileRestoreCore; sourceTree = "<group>"; };
 		CC0000000000000000000024 /* VPhoneRestoreTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneRestoreTests; sourceTree = "<group>"; };
@@ -94,7 +94,7 @@
 		CC0000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				CC0000000000000000000021 /* Sources */,
+				CC0000000000000000000021 /* VPhoneRestore */,
 				CC0000000000000000000022 /* MobileRecoveryCore */,
 				CC0000000000000000000023 /* MobileRestoreCore */,
 				CC0000000000000000000024 /* VPhoneRestoreTests */,
@@ -130,7 +130,7 @@
 				CC0000000000000000000123 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				CC0000000000000000000021 /* Sources */,
+				CC0000000000000000000021 /* VPhoneRestore */,
 			);
 			name = VPhoneRestore;
 			productName = VPhoneRestore;

@@ -56,6 +56,10 @@ struct VPhoneRestoreCommand: ParsableCommand {
         let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
+        defer {
+            do { try VPhoneHostFilePermissions.makeAccessible(at: bundle.url) }
+            catch { fputs("warning: could not set VM file permissions: \(error)\n", stderr) }
+        }
         guard let ecidText = VPhoneRestoreOperations.resolveECID(explicit: ecid, bundle: bundle) else {
             throw VPhoneRestoreError.ecidUnresolved
         }

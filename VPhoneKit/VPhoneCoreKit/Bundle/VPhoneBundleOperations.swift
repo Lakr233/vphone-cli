@@ -82,6 +82,9 @@ public enum VPhoneBundleOperations {
             )
             try manifest.write(to: dir.appendingPathComponent("config.plist"))
 
+            try VPhoneHostFilePermissions.makeAccessible(at: dir)
+            try VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
+            try VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
             return VPhoneBundle(url: dir, manifest: manifest)
         } catch {
             try? fm.removeItem(at: dir)
@@ -114,6 +117,7 @@ public enum VPhoneBundleOperations {
             networkConfig: network,
         )
         try updated.write(to: bundle.configURL)
+        try VPhoneHostFilePermissions.makeAccessible(at: bundle.configURL)
         return VPhoneBundle(url: bundle.url, manifest: updated)
     }
 
@@ -164,6 +168,7 @@ public enum VPhoneBundleOperations {
             try fm.copyItem(at: src, to: dst)
         }
         try resetIdentity(inBundleAt: dst)
+        try VPhoneHostFilePermissions.makeAccessible(at: dst)
         return try VPhoneBundle.load(at: dst)
     }
 

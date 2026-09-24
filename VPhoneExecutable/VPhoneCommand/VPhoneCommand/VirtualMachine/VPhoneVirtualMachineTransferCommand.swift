@@ -47,6 +47,7 @@ struct VPhoneVirtualMachineExportCommand: ParsableCommand {
             in: lib.library,
             progress: { done, total in bar.update(done: done, total: total) },
         )
+        try VPhoneHostFilePermissions.makeAccessible(at: outURL)
         bar.finish()
         print("exported \(name) → \(outURL.path)")
     }
@@ -70,6 +71,9 @@ struct VPhoneVirtualMachineImportCommand: ParsableCommand {
             in: lib.library,
             progress: { done, total in bar.update(done: done, total: total) },
         )
+        try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: lib.library.root)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
         bar.finish()
         print("imported → \(bundle.name)")
     }
