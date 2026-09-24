@@ -1226,13 +1226,13 @@ passed (the filter is detected, and libzstd is static in the xcframework).
 ## GPU bundle now comes from the selected PCC image (2026-09-24)
 
 The application no longer ships `AppleParavirtGPUMetalIOGPUFamily.tar`. During
-`fw prepare`, the PCC `BuildManifest.plist` selects the vphone600 OS image. The
-preparer decrypts and read-only mounts that image when Apple serves its AEA
-key, copies its complete `AppleParavirtGPUMetalIOGPUFamily.bundle` into the VM
-restore tree, then removes the temporary image. When WKMS returns 403,
-`vphone-cli` creates a temporary PV=3 VM, boots it in DFU, and restores the
-selected cloudOS IPSW through its own `VPhoneRestoreBridge`. The preparer
-copies the bundle from its sealed System volume and removes the temporary VM.
+`fw prepare`, `vphone-cli` creates a temporary PV=3 VM, boots it in DFU, and
+restores the selected cloudOS IPSW through its own `VPhoneRestoreBridge`. The
+preparer copies `AppleParavirtGPUMetalIOGPUFamily.bundle` from the sealed System
+volume into the VM restore tree and removes the temporary VM. This is the
+default path; `--gpu-driver-bundle` reuses a validated bundle instead. Both
+cloudOS 26.1 and 26.4 PCC AEA key URLs returned HTTP 403 on 2026-09-24, so
+the preparer no longer requests those keys before the temporary restore.
 Both the JB host-mount installer and the filesystem merge copy this staged
 bundle into the iPhone guest. The 26.4 `23E5207q` restored bundle has
 `DTPlatformVersion=26.4`, `CFBundleVersion=64.4.4`, and binary SHA-256

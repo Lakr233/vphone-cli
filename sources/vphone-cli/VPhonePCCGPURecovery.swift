@@ -82,14 +82,13 @@ enum VPhonePCCGPURecovery {
         _ = dfu.waitUntilExit()
 
         try stageFromSystemDisk(
-            vm.url.appending(path: "Disk.img"), cloudOSDirectory: cloudOSDirectory,
+            vm.url.appending(path: "Disk.img"),
             into: restoreDirectory, expectedPlatformVersion: expectedPlatformVersion,
         )
     }
 
     private static func stageFromSystemDisk(
         _ diskImage: URL,
-        cloudOSDirectory: URL,
         into restoreDirectory: URL,
         expectedPlatformVersion: String,
     ) throws {
@@ -123,7 +122,7 @@ enum VPhonePCCGPURecovery {
             path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",
         )
         try VPhonePCCGPUDriver.stage(
-            from: cloudOSDirectory, into: restoreDirectory, cachedBundle: source,
+            from: source, into: restoreDirectory,
             expectedPlatformVersion: expectedPlatformVersion,
         )
         print("[+] GPU driver staged from cloudOS restored by vphone-cli")
