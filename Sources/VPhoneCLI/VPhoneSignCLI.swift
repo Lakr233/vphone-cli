@@ -13,7 +13,7 @@
 // environment variable behind it are gone: an escape hatch that shells out to a
 // Homebrew binary is a dependency whether or not the default path takes it, and
 // this project is meant to be self-contained. What guarded the replacement stays
-// where it belongs — tests/VPhoneSignTests holds these bytes against digests
+// where it belongs — Tests/VPhoneSignTests holds these bytes against digests
 // taken from the real ldid and frozen into the suite, over committed fixtures.
 // It needs no ldid installed and no system binary to sign, so it cannot skip
 // itself into passing on a machine that has neither.

@@ -1,7 +1,7 @@
 // CustomFirmwareDaemonsDropbear.swift — dropbear's ProgramArguments rewrite.
 //
 // Translated from: scripts/patchers/cfw_daemons.py (patch_dropbear_daemon,
-// patch_dropbear_plist). Covered by tests/FirmwarePatcherTests/CustomFirmwareDaemonsTests.swift,
+// patch_dropbear_plist). Covered by Tests/FirmwarePatcherTests/CustomFirmwareDaemonsTests.swift,
 // which carries both cases of the retired tests/test_dropbear_plist.py.
 
 import Foundation

@@ -87,7 +87,7 @@ enum CustomFirmwarePlistPatchGolden {
 // MARK: - Fixtures
 
 enum CustomFirmwarePatchFixtures {
-    /// tests/FirmwarePatcherTests/<this file> → repo root.
+    /// Tests/FirmwarePatcherTests/<this file> → repo root.
     static let repoRoot = URL(filePath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()

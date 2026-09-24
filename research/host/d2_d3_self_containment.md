@@ -123,7 +123,7 @@ Two details that are easy to get wrong:
    `VPhoneSigner` keeps its mapping and is safe *because* it renames over the
    file rather than truncating it; rename does not invalidate a mapping.
 
-`make check-aux` enforces the rule for `Sources/`. **`tests/` is deliberately
+`make check-aux` enforces the rule for `Sources/`. **`Tests/` is deliberately
 outside it**: a test opens a committed fixture of a few megabytes, so mapping
 buys nothing, and those fixtures are exactly what the patch tests mutate and
 write back over. Holding the tests to the production rule would trade a memory

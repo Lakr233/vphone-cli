@@ -381,7 +381,7 @@ check_sources() {
   # So the rule for Sources/ is: no bare `Data(contentsOf:)`. Either it is
   # mapped, or it names itself as the rewrite case.
   #
-  # tests/ is deliberately NOT covered, and that is not laziness. What a test
+  # Tests/ is deliberately NOT covered, and that is not laziness. What a test
   # opens is a committed fixture of a few megabytes, so mapping buys nothing —
   # and the fixtures are exactly what the patch tests mutate and write back
   # over, which is the one shape where mapping is wrong. Holding the tests to
@@ -413,7 +413,7 @@ check_sources() {
   # check_aux.sh excludes itself, because a scanner that looks for a word
   # necessarily contains it.
   hits=$(grep -rnE 'python[0-9.]*' --include='*.sh' \
-              scripts/ tests/ 2>/dev/null \
+              scripts/ Tests/ 2>/dev/null \
           | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
           | grep -vE '^scripts/check_aux\.sh:' \
           | grep -vE '(echo|print)[[:space:]]')

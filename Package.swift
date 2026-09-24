@@ -297,22 +297,22 @@ let package = Package(
         .testTarget(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],
-            path: "tests/FirmwarePatcherTests",
+            path: "Tests/FirmwarePatcherTests",
         ),
         .testTarget(
             name: "VPhoneCoreTests",
             dependencies: ["VPhoneCore"],
-            path: "tests/VPhoneCoreTests",
+            path: "Tests/VPhoneCoreTests",
         ),
         .testTarget(
             name: "VPhoneArchiveTests",
             dependencies: ["VPhoneArchive"],
-            path: "tests/VPhoneArchiveTests",
+            path: "Tests/VPhoneArchiveTests",
         ),
         .testTarget(
             name: "VPhoneSignTests",
             dependencies: ["VPhoneSign"],
-            path: "tests/VPhoneSignTests",
+            path: "Tests/VPhoneSignTests",
             // Mach-O files to sign and the C they were built from. Excluded
             // rather than declared as resources: the tests reach them through
             // `#filePath`, so they need to be on disk and not in a bundle,
@@ -327,7 +327,7 @@ let package = Package(
         .testTarget(
             name: "VPhoneRestoreTests",
             dependencies: ["VPhoneRestore"],
-            path: "tests/VPhoneRestoreTests",
+            path: "Tests/VPhoneRestoreTests",
         ),
     ],
 )

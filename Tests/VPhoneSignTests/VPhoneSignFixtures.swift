@@ -51,7 +51,7 @@
 // ldid is deliberately not a dependency of this repository: there is no
 // Homebrew formula in the admission gates, nothing resolves an `ldid` on PATH,
 // and `--use-ldid` is gone. So the table is re-derived the way the keystone
-// constants in tests/FirmwarePatcherTests/ARM64EncoderTests.swift are — from a
+// constants in Tests/FirmwarePatcherTests/ARM64EncoderTests.swift are — from a
 // throwaway environment OUTSIDE this repository.
 //
 //   1. `brew install ldid-procursus` on a machine, not into this tree.

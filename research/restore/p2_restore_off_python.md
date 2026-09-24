@@ -143,7 +143,7 @@ did not agree on either:
 ## The P2.3 behaviour table
 
 The plan's seven rows, each with what it is checked by today. **`unit`** means
-`tests/VPhoneRestoreTests` covers it with no device attached; **`device`** means
+`Tests/VPhoneRestoreTests` covers it with no device attached; **`device`** means
 it is not checked and needs a phone or VM in DFU.
 
 | # | scenario | before | after | criterion | state |

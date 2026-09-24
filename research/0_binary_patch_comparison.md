@@ -1264,7 +1264,7 @@ So the first port of this sweep — a `FileManager.enumerator` walk — found no
 deleted nothing and reported success, on exactly the files it exists to remove. The
 shipped version walks with `opendir`/`readdir` and removes with `unlink(2)`, which is
 what `find` did. `chownRecursively` shares that walk for the same reason. Both are
-covered by `tests/FirmwarePatcherTests/CryptexFileOpsTests.swift`, whose fixtures are
+covered by `Tests/FirmwarePatcherTests/CryptexFileOpsTests.swift`, whose fixtures are
 made with `open(2)` and asserted with `readdir` — a Foundation-built fixture would make
 the test pass by having nothing to find.
 

@@ -10,7 +10,7 @@
 > Python here any more and nothing left to activate, so the `.venv/bin/python3`
 > invocations below are transcripts, not instructions.
 > The parity evidence itself is no longer re-derived at test time: it is frozen
-> into the `FrozenReference` / `*Golden` enums in `tests/FirmwarePatcherTests/`.
+> into the `FrozenReference` / `*Golden` enums in `Tests/FirmwarePatcherTests/`.
 
 Migration plan **P1.0**, the step marked 不可跳过. These patches rewrite pages
 TXM hashes, so a wrong byte in the Swift port is a boot panic, not a failing
@@ -185,7 +185,7 @@ argv with no flag in it, while `cfw_patch_build_version.py`,
 *local* argv and do log the flag. `VPHONE_PATCH_RECORDS` shows in neither.
 
 The directory names are the convention
-`tests/FirmwarePatcherTests/PatchComparisonTests.swift` already reads from.
+`Tests/FirmwarePatcherTests/PatchComparisonTests.swift` already reads from.
 `ipsws/` is gitignored, so none of this is committed.
 
 The DSC is ~7 GiB and is **not** copied. What `raw_payloads/dsc_pages/` holds is
