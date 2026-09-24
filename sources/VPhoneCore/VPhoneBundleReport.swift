@@ -16,6 +16,6 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
         diskSizeBytes = bundle.diskSizeBytes
         network = bundle.manifest.networkConfig
         restoreInfo = VPhoneRestoreInfo.load(fromBundle: bundle)
-        udid = VPhoneRestoreOps.resolveUDID(bundle: bundle)
+        udid = VPhoneRestoreOperations.resolveUDID(bundle: bundle)
     }
 }

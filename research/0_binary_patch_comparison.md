@@ -281,7 +281,7 @@ addresses (49 gates each, zero verdict differences).
 ### Swift port status — the six independent Mach-O patchers (2026-09-23)
 
 Rows 1, 2, 3, 5 and 13 above, plus the EXP `watchdogd` patch, now have Swift
-implementations under `sources/FirmwarePatcher/CFW/Patches/`. The patches did not
+implementations under `sources/FirmwarePatcher/CustomFirmware/ExecutablePatches/`. The patches did not
 change. Each was run against its Python on two `cp -c` clones of the real 24A435
 binary in `ipsws/ref_extract/macho_pristine/`, both with re-attestation off (what
 the Python emits) and on (against `cfw_macho_codesign.reattest_modified_offsets`).

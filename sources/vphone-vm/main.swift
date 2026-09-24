@@ -3,7 +3,7 @@
 // This is the only binary in the project signed with the private
 // virtualization entitlements (sources/vphone.entitlements), and it is
 // deliberately the smallest thing that can hold them: it parses the boot
-// options, becomes an NSApplication, and hands off to VPhoneAppDelegate.
+// options, becomes an NSApplication, and hands off to VPhoneVirtualMachineAppDelegate.
 // Everything a user types goes through vphone-cli, which carries no
 // entitlements at all and starts this binary for the boot.
 //
@@ -12,6 +12,6 @@
 
 import ArgumentParser
 import VPhoneCore
-import VPhoneVMKit
+import VPhoneVirtualMachineKit
 
 VPhoneGuestApp.run(VPhoneBootCLI.parseOrExit())

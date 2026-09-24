@@ -5,20 +5,20 @@ description: Analyze vphone600 kernel artifacts using the local symbol database 
 
 # Kernel Analysis Vphone600
 
-Use the local `research/kernel_info` dataset as the first source of truth for symbol lookup.
+Use the local `research/kernel_symbols` dataset as the first source of truth for symbol lookup.
 Use `research/reference/xnu` as the source-level reference for semantics and structure.
 
 ## Required Paths
 
-- `research/kernel_info/kernel_symbols.db`
-- `research/kernel_info/kernel_index.tsv` (plain-text `kernel_name → json_path` index with `json_sha256`)
-- `research/kernel_info/json/` — the recovered symbol datasets:
+- `research/kernel_symbols/kernel_symbols.db`
+- `research/kernel_symbols/kernel_index.tsv` (plain-text `kernel_name → json_path` index with `json_sha256`)
+- `research/kernel_symbols/json/` — the recovered symbol datasets:
   - `kernelcache.release.vphone600.bin.symbols.json`
   - `kernelcache.research.vphone600.bin.symbols.json`
 - `research/reference/xnu`
 
 The `json_path` column in both the database and `kernel_index.tsv` records the absolute path from symbolication
-time and may not match this checkout; resolve the JSON files under `research/kernel_info/json/` instead.
+time and may not match this checkout; resolve the JSON files under `research/kernel_symbols/json/` instead.
 
 If `research/reference/xnu` is missing, create it with a shallow clone:
 

@@ -13,7 +13,7 @@
 // So the suites below run when someone still has the JSON and skip when they
 // do not, rather than erroring on a missing file and reading as a regression.
 // What still guards the patchers without them is the frozen-digest work
-// elsewhere in this directory — `FrozenReference` in DSCHVVMMPatcherTests and
+// elsewhere in this directory — `FrozenReference` in DyldSharedCacheHVVMMPatcherTests and
 // the `matchesTheFrozenReference*` tests — which carry the reference values in
 // the source instead of in a file nobody has.
 
@@ -211,11 +211,11 @@ struct KernelcacheComparisonTests {
 // MARK: - JB Tests
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
-struct IBSSJBComparisonTests {
-    @Test func `compare IBSSJB`() throws {
+struct IBSSJailbreakComparisonTests {
+    @Test func `compare IBSSJailbreak`() throws {
         let data = try loadRawPayload("ibss.bin")
-        let patcher = IBootJBPatcher(data: data, mode: .ibss, verbose: false)
-        // IBootJBPatcher only adds JB-specific patches on top of base
+        let patcher = IBootJailbreakPatcher(data: data, mode: .ibss, verbose: false)
+        // IBootJailbreakPatcher only adds JB-specific patches on top of base
         // We need to run findAll() first (base patches), then add JB patch
         patcher.patches = []
         patcher.patchSkipGenerateNonce()
@@ -225,10 +225,10 @@ struct IBSSJBComparisonTests {
 }
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
-struct KernelcacheJBComparisonTests {
+struct KernelcacheJailbreakComparisonTests {
     @Test func `compare kernelcache JB`() throws {
         let data = try loadRawPayload("kernelcache.bin")
-        let patcher = KernelJBPatcher(data: data, verbose: false)
+        let patcher = KernelJailbreakPatcher(data: data, verbose: false)
         let swiftPatches = try patcher.findAll()
         let refPatches = try loadReference("kernelcache_jb")
         comparePatchRecords(swift: swiftPatches, reference: refPatches, component: "kernelcache_jb")

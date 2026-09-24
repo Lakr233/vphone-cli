@@ -39,7 +39,7 @@ struct BundleTransferTests {
             try? FileManager.default.removeItem(at: rom)
             try? FileManager.default.removeItem(at: seprom)
         }
-        return try VPhoneBundleOps.create(
+        return try VPhoneBundleOperations.create(
             .init(
                 name: name,
                 cpuCount: cpuCount,

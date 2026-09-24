@@ -111,7 +111,11 @@ Added to `scripts/vphoned/entitlements.plist`:
 <true/>
 ```
 
-### Host-Side API (VPhoneControl.swift)
+### Host-Side API (historical design)
+
+The calls below record the earlier XPC design. The current guest API exposes
+the status query as `VPhoneGuestControl.isDeveloperModeEnabled()`; there is no
+host-side enable action in the current menu.
 
 ```swift
 let status = try await control.sendDevModeStatus()    // -> DevModeStatus (enabled: Bool)

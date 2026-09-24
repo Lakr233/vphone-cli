@@ -8,9 +8,9 @@ struct VPhoneCLI: ParsableCommand {
         commandName: "vphone-cli",
         abstract: "Boot a virtual iPhone or patch firmware with the Swift pipeline",
         subcommands: [
-            VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self, VPhoneVMCommand.self,
-            VPhoneFWCommand.self, VPhoneRestoreCommand.self, VPhoneRecoveryProbeCommand.self,
-            VPhoneCFWCommand.self,
+            VPhoneBootCLI.self, PatchFirmwareCLI.self, PatchComponentCLI.self, VPhoneVirtualMachineCommand.self,
+            VPhoneFirmwareCommand.self, VPhoneRestoreCommand.self, VPhoneRecoveryProbeCommand.self,
+            VPhoneCustomFirmwareCommand.self,
             VPhoneHostCommand.self,
             VPhoneSignCommand.self, VPhoneDumpEntitlementsCommand.self,
         ],
@@ -154,9 +154,9 @@ struct PatchComponentCLI: ParsableCommand {
         case .kernelJB:
             // Mirrors the pipeline's jb kernel layer. In FirmwarePipeline each kernel
             // patcher runs on the *original* payload independently, so running
-            // KernelJBPatcher standalone faithfully reproduces JB hook behavior
+            // KernelJailbreakPatcher standalone faithfully reproduces JB hook behavior
             // without the base patcher or the rest of the boot chain.
-            let patcher = KernelJBPatcher(data: payload, verbose: !quiet)
+            let patcher = KernelJailbreakPatcher(data: payload, verbose: !quiet)
             // Mirror the pipeline's per-base gating: apply the iOS-27-only patches when
             // --target-os is 27.x, skip them for an explicit non-27 target. With no
             // --target-os, default to applying them so the dev/test tool exercises the

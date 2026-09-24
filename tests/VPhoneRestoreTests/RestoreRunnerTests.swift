@@ -137,11 +137,11 @@ struct RestoreRunnerTests {
     // MARK: - The facade
 
     @Test func `fetching ASHSH stops at the missing restore tree`() throws {
-        // `VPhoneRestoreBridge` finds the restore tree BEFORE it starts a run,
+        // `VPhoneRestoreService` finds the restore tree BEFORE it starts a run,
         // so an empty bundle never reaches idevicerestore at all.
         try withTemporaryDirectory { root in
             #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
-                try VPhoneRestoreBridge.fetchSHSH(vmDir: root, ecid: nil, udid: nil, out: nil)
+                try VPhoneRestoreService.fetchSHSH(vmDir: root, ecid: nil, udid: nil, out: nil)
             }
         }
     }
@@ -149,7 +149,7 @@ struct RestoreRunnerTests {
     @Test func `restoring stops at the missing restore tree`() throws {
         try withTemporaryDirectory { root in
             #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
-                try VPhoneRestoreBridge.restore(
+                try VPhoneRestoreService.restore(
                     vmDir: root,
                     ecid: nil,
                     udid: nil,
@@ -172,7 +172,7 @@ struct RestoreRunnerTests {
             let collector = Collector()
 
             #expect(throws: VPhoneRestoreBackendError.ticketUnreadable(ticket)) {
-                try VPhoneRestoreBridge.restore(
+                try VPhoneRestoreService.restore(
                     vmDir: root,
                     ecid: 0x0000_0001_1A2B_3C4D,
                     udid: nil,

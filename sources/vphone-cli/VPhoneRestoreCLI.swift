@@ -54,9 +54,9 @@ struct VPhoneRestoreCommand: ParsableCommand {
     /// `restore-info.json` staying unwritten.
     func run() throws {
         let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
-        let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
+        let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
-        guard let ecidText = VPhoneRestoreOps.resolveECID(explicit: ecid, bundle: bundle) else {
+        guard let ecidText = VPhoneRestoreOperations.resolveECID(explicit: ecid, bundle: bundle) else {
             throw VPhoneRestoreError.ecidUnresolved
         }
         let ecidValue = try VPhoneRestoreIdentity.parseECID(ecidText)
@@ -67,7 +67,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
         }
 
         if getShsh {
-            try VPhoneRestoreBridge.fetchSHSH(
+            try VPhoneRestoreService.fetchSHSH(
                 vmDir: bundle.url,
                 ecid: ecidValue,
                 udid: udid,
@@ -93,11 +93,11 @@ struct VPhoneRestoreCommand: ParsableCommand {
             // refusal has to come before anything is written.
             let restoreDir = try VPhoneRestoreLayout.findRestoreDirectory(in: bundle.url)
             print("[restore] decrypting AEA images in \(restoreDir.lastPathComponent)...")
-            try VPhoneRestoreOps.decryptAEAImages(inRestoreDir: restoreDir)
+            try VPhoneRestoreOperations.decryptAEAImages(inRestoreDir: restoreDir)
             ticket = shsh
         }
 
-        try VPhoneRestoreBridge.restore(
+        try VPhoneRestoreService.restore(
             vmDir: bundle.url,
             ecid: ecidValue,
             udid: udid,
@@ -134,7 +134,7 @@ struct VPhoneRestoreCommand: ParsableCommand {
 /// The Python bridge's `recovery-probe`, under the same name.
 ///
 /// A standalone DFU probe. `vm create` does the same waiting in process
-/// (`VPhoneCreateOrchestrator.waitForRecovery`).
+/// (`VPhoneVirtualMachineCreator.waitForRecovery`).
 struct VPhoneRecoveryProbeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "recovery-probe",
@@ -146,7 +146,7 @@ struct VPhoneRecoveryProbeCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Seconds to keep probing before giving up") var timeout: Int = 2
 
     func run() throws {
-        let device = try VPhoneRestoreBridge.recoveryProbe(
+        let device = try VPhoneRestoreService.recoveryProbe(
             ecid: VPhoneRestoreIdentity.parseECID(ecid),
             timeout: timeout,
         )
@@ -160,31 +160,31 @@ struct VPhoneRecoveryProbeCommand: ParsableCommand {
 
 // MARK: - cfw
 
-struct VPhoneCFWCommand: ParsableCommand {
+struct VPhoneCustomFirmwareCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cfw",
         abstract: "Custom-firmware install (host-mount; VM must be off; re-execs sudo)",
         subcommands: [
-            VPhoneCFWInstallCommand.self,
-            VPhoneCFWInstallRootCommand.self,
-            VPhoneCFWFlipSnapshotCommand.self,
+            VPhoneCustomFirmwareInstallCommand.self,
+            VPhoneCustomFirmwareInstallRootCommand.self,
+            VPhoneCustomFirmwareFlipSnapshotCommand.self,
             // The per-step patchers the installers used to reach through
-            // scripts/patchers/cfw.py for — see VPhoneCFWPatchCLI.swift.
-            VPhoneCFWCryptexPathsCommand.self,
-            VPhoneCFWInjectDaemonsCommand.self,
-            VPhoneCFWInjectDaemonCommand.self,
-            VPhoneCFWPatchDropbearPlistCommand.self,
-            VPhoneCFWInjectDylibCommand.self,
-            VPhoneCFWPatchBuildVersionCommand.self,
-            VPhoneCFWPatchCampoEntitlementsCommand.self,
-            VPhoneCFWPatchPostRestoreDTCommand.self,
-        ] + VPhoneCFWMachOVerbs.all + VPhoneCFWDSCVerbs.all,
+            // scripts/patchers/cfw.py for — see VPhoneCustomFirmwarePatchCLI.swift.
+            VPhoneCustomFirmwareCryptexPathsCommand.self,
+            VPhoneCustomFirmwareInjectDaemonsCommand.self,
+            VPhoneCustomFirmwareInjectDaemonCommand.self,
+            VPhoneCustomFirmwarePatchDropbearPlistCommand.self,
+            VPhoneCustomFirmwareInjectDylibCommand.self,
+            VPhoneCustomFirmwarePatchBuildVersionCommand.self,
+            VPhoneCustomFirmwarePatchCampoEntitlementsCommand.self,
+            VPhoneCustomFirmwarePatchPostRestoreDeviceTreeCommand.self,
+        ] + VPhoneCustomFirmwareMachOVerbs.all + VPhoneCustomFirmwareDyldSharedCacheVerbs.all,
     )
 }
 
 /// Replaces `tools/apfs_snap_rename.py`, called from `cfw_install_host.sh`
 /// once the install is done.
-struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
+struct VPhoneCustomFirmwareFlipSnapshotCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "flip-snapshot",
         abstract: "Rename the APFS root snapshot in a Disk.img so the guest boots the live volume",
@@ -218,7 +218,7 @@ struct VPhoneCFWFlipSnapshotCommand: ParsableCommand {
     }
 }
 
-struct VPhoneCFWInstallCommand: ParsableCommand {
+struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "install",
         abstract: "Install CFW into a VM bundle via host mount",
@@ -230,7 +230,7 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
         name: .customLong("force-dsc-maxslide"),
         help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)",
     )
-    var forceDSCMaxSlide = false
+    var forceDyldSharedCacheMaxSlide = false
     @Flag(
         name: .customLong("root-popup"),
         help: "Elevate via macOS's native authentication dialog (osascript) instead of the sudo re-exec",
@@ -248,13 +248,13 @@ struct VPhoneCFWInstallCommand: ParsableCommand {
 
     func run() throws {
         let v = max(VPhoneVerbosity.info, VPhoneVerbosity(count: verboseCount))
-        let name = try VPhoneVMSelection.resolveExisting(name, in: lib.library)
+        let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
 
-        let code = try VPhoneCFWInstaller.elevate(
+        let code = try VPhoneCustomFirmwareInstaller.elevate(
             bundle: bundle.url, resources: resources,
-            forceDSCMaxSlide: forceDSCMaxSlide, rootPopup: rootPopup,
+            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide, rootPopup: rootPopup,
             verbose: v.showsToolDetail,
         )
         if code == 0 {

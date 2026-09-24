@@ -46,7 +46,7 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
 // MARK: - Networking helpers
 
 /// Host-side helpers for validating and realizing a VM's `NetworkConfig`.
-/// Shared between config-time editing (`VPhoneBundleOps.updateConfig`) and boot-time
+/// Shared between config-time editing (`VPhoneBundleOperations.updateConfig`) and boot-time
 /// device construction so both agree on validation and interface resolution.
 public enum VPhoneNetworking {
     public typealias NetworkConfig = VPhoneVirtualMachineManifest.NetworkConfig

@@ -6,7 +6,7 @@ import MobileRestoreCore
 /// The thin layer over `vphone_restore_run`: closures in, C function pointers
 /// out, a result code turned into a typed error.
 ///
-/// Everything above this — `VPhoneRestoreBridge` — is about which directory and
+/// Everything above this — `VPhoneRestoreService` — is about which directory and
 /// which ticket; everything below it is idevicerestore.
 public enum VPhoneRestoreRunner {
     /// Runs one restore to completion.

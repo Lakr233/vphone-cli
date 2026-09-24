@@ -31,7 +31,7 @@ the binary being refused.
 | binary | entitlements | what it is |
 | --- | :---: | --- |
 | `vphone-cli` | **none** | argument parsing and orchestration. Launches anywhere. |
-| `vphone-vm` | **all 7** | a parse and an `NSApplication` run loop over `VPhoneVMKit`. |
+| `vphone-vm` | **all 7** | a parse and an `NSApplication` run loop over `VPhoneVirtualMachineKit`. |
 | `vphone-archive` | none | libarchive front end. Unrelated to amfid; listed for completeness. |
 
 `vphone-cli` is now always able to start, which is what lets it say something

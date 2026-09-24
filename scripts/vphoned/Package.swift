@@ -12,7 +12,6 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/owngoal-dev/icli.git", exact: "0.6.1"),
         .package(url: "https://github.com/apple/swift-nio.git", exact: "2.83.0"),
-        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
     ],
     targets: [
         .target(
@@ -44,7 +43,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOWebSocket", package: "swift-nio"),
             ],
-            path: "Swift",
+            path: "Daemon",
             linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])]
         ),
     ]

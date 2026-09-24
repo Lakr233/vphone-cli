@@ -84,7 +84,7 @@ public enum VPhoneBundleTransfer {
             : outFile
 
         let bundleDir = library.url(forName: name)
-        var excludes = VPhoneBundleOps.exportExcludePatterns
+        var excludes = VPhoneBundleOperations.exportExcludePatterns
         if !includeIPSW {
             excludes.append("*_Restore*")
         }
@@ -135,7 +135,7 @@ public enum VPhoneBundleTransfer {
             if !includeIPSW, rel.contains("_Restore") {
                 en.skipDescendants(); continue
             }
-            if VPhoneBundleOps.exportExcludePatterns.contains(where: { fnmatch($0, rel, 0) == 0 }) {
+            if VPhoneBundleOperations.exportExcludePatterns.contains(where: { fnmatch($0, rel, 0) == 0 }) {
                 continue
             }
             guard let vals = try? url.resourceValues(forKeys: Set(keys)),
@@ -183,7 +183,7 @@ public enum VPhoneBundleTransfer {
         let fm = FileManager.default
         // Fail fast when the destination name is already known (explicit rename).
         if let name {
-            try VPhoneBundleOps.requireValidName(name)
+            try VPhoneBundleOperations.requireValidName(name)
             if fm.fileExists(atPath: library.url(forName: name).path) {
                 throw VPhoneLibraryError.alreadyExists(name: name)
             }
@@ -222,7 +222,7 @@ public enum VPhoneBundleTransfer {
             )
         }
         let finalName = name ?? archived
-        try VPhoneBundleOps.requireValidName(finalName)
+        try VPhoneBundleOperations.requireValidName(finalName)
         let dst = library.url(forName: finalName)
         if fm.fileExists(atPath: dst.path) {
             throw VPhoneLibraryError.alreadyExists(name: finalName)

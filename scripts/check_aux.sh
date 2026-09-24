@@ -362,7 +362,7 @@ check_sources() {
   # `Data(contentsOf:)` with no options reads the whole file into resident
   # memory. That is fine for a plist and ruinous for what this project actually
   # opens: `ManifestHashPatcher` hashes the `OS` component, which is a ten
-  # gigabyte filesystem image, and `DSCLocalSymbolTable` parses
+  # gigabyte filesystem image, and `DyldSharedCacheLocalSymbolTable` parses
   # dyld_shared_cache_arm64e.symbols, which is 1.17 GB on iOS 27 — it read both
   # tables whole, so every symbol resolver cost over a gigabyte and a test run
   # that built several took the machine down.

@@ -39,17 +39,17 @@ ensure_repo_submodule() {
 
 # ── insert_dylib (test reference only) ─────────────────────────
 #
-# Nothing in the product runs this: `CFWInjectDylib` injects the weak load
+# Nothing in the product runs this: `CustomFirmwareInjectDylib` injects the weak load
 # command in-process, and the last caller that shelled out was
 # scripts/patchers/cfw.py. It is still built because it is the independent
-# reference CFWMachOTests.matchesInsertDylib compares the Swift injector
+# reference the `CustomFirmwareInjectDylibTests` "matches insert dylib" test compares the Swift injector
 # against, byte for byte — that test skips silently when it is missing, which
 # is the worst possible way to lose the check.
 #
 # It is one .c file and one system framework, so this needs clang and nothing
 # else. There is no `brew install` left in this script.
 
-echo "insert_dylib (byte-parity reference for CFWMachOTests)"
+echo "insert_dylib (byte-parity reference for CustomFirmwareInjectDylibTests)"
 
 INSERT_DYLIB_BIN="$TOOLS_PREFIX/bin/insert_dylib"
 if [[ -x "$INSERT_DYLIB_BIN" ]]; then

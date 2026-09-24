@@ -20,7 +20,7 @@ extension FirmwarePipeline {
     ///     `iPhone-BuildManifest.plist`). Gates the skywalk-netagent boot-arg workaround
     ///     (18.x-specific mDNSResponder crash-loop).
     ///   - iosBaseIs27: True when the iPhone base is iOS 27.x. Gates the iOS-27-only JB
-    ///     kernel patches (`KernelJBPatcher.applyIOS27`); false for 18.x/26.x so those
+    ///     kernel patches (`KernelJailbreakPatcher.applyIOS27`); false for 18.x/26.x so those
     ///     bases are byte-identical to pre-branch.
     ///   - cloudOSIsFridaCapable: True when the cloudOS kernel is 26.4+; gates the opt-in
     ///     Frida kernel patches.
@@ -95,7 +95,7 @@ extension FirmwarePipeline {
                             IBootPatcher(data: data, mode: .ibss, verbose: verbose)
                         },
                         { data, verbose in
-                            IBootJBPatcher(data: data, mode: .ibss, verbose: verbose)
+                            IBootJailbreakPatcher(data: data, mode: .ibss, verbose: verbose)
                         },
                     ]
                 }
@@ -171,7 +171,7 @@ extension FirmwarePipeline {
                             KernelPatcher(data: data, verbose: verbose, isDev: false, applyExcGuard: applyExcGuard)
                         },
                         { data, verbose in
-                            let p = KernelJBPatcher(data: data, verbose: verbose)
+                            let p = KernelJailbreakPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
                             p.applyFrida = applyFrida
                             return p
@@ -183,13 +183,13 @@ extension FirmwarePipeline {
                             KernelPatcher(data: data, verbose: verbose, isDev: false, applyExcGuard: applyExcGuard)
                         },
                         { data, verbose in
-                            let p = KernelJBPatcher(data: data, verbose: verbose)
+                            let p = KernelJailbreakPatcher(data: data, verbose: verbose)
                             p.applyIOS27 = applyIOS27
                             p.applyFrida = applyFrida
                             return p
                         },
                         { data, verbose in
-                            KernelEXPPatcher(data: data, verbose: verbose)
+                            KernelExperimentalPatcher(data: data, verbose: verbose)
                         },
                     ]
                 }

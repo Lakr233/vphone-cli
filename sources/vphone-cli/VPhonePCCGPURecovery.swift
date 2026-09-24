@@ -32,10 +32,10 @@ enum VPhonePCCGPURecovery {
             .appending(path: ".pcc-restoration")
         let library = VPhoneLibrary(root: temporaryLibrary)
         let name = "pcc-\(UUID().uuidString.lowercased())"
-        let vm = try VPhoneBundleOps.create(.init(
+        let vm = try VPhoneBundleOperations.create(.init(
             name: name, cpuCount: 8, memoryMB: 8192, diskSizeGB: 64,
-            romSource: VPhoneBundleOps.defaultROMSource(),
-            sepromSource: VPhoneBundleOps.defaultSEPROMSource(),
+            romSource: VPhoneBundleOperations.defaultROMSource(),
+            sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
         ), in: library)
         defer { try? fm.removeItem(at: temporaryLibrary) }
 
@@ -54,7 +54,7 @@ enum VPhonePCCGPURecovery {
         let deadline = Date().addingTimeInterval(30)
         var ecid: UInt64?
         while Date() < deadline {
-            if let value = VPhoneRestoreOps.resolveECID(explicit: nil, bundle: vm),
+            if let value = VPhoneRestoreOperations.resolveECID(explicit: nil, bundle: vm),
                let parsed = try VPhoneRestoreIdentity.parseECID(value) {
                 ecid = parsed
                 break
@@ -64,7 +64,7 @@ enum VPhonePCCGPURecovery {
         guard let ecid else { throw Error.identityTimedOut }
         var reachable = false
         for _ in 1 ... 90 {
-            if (try? VPhoneRestoreBridge.recoveryProbe(ecid: ecid, timeout: 2)) != nil {
+            if (try? VPhoneRestoreService.recoveryProbe(ecid: ecid, timeout: 2)) != nil {
                 reachable = true
                 break
             }
@@ -73,8 +73,8 @@ enum VPhonePCCGPURecovery {
         guard reachable else { throw Error.recoveryTimedOut }
 
         print("[*] Restoring cloudOS to temporary vphone VM (ECID 0x\(VPhoneRestoreIdentity.formatECID(ecid)))...")
-        try VPhoneRestoreBridge.restore(
-            vmDir: vm.url, ecid: ecid, udid: VPhoneRestoreOps.resolveUDID(bundle: vm),
+        try VPhoneRestoreService.restore(
+            vmDir: vm.url, ecid: ecid, udid: VPhoneRestoreOperations.resolveUDID(bundle: vm),
             erase: true, ticketPath: nil,
             onEvent: VPhoneRestoreConsole.handler(level: .info),
         )

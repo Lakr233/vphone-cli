@@ -180,7 +180,7 @@ struct RestoreInfoTests {
     @Test func `not excluded from export`() {
         let name = VPhoneRestoreInfo.fileName
         #expect(fnmatch("*_Restore*", name, 0) != 0)
-        for pattern in VPhoneBundleOps.exportExcludePatterns {
+        for pattern in VPhoneBundleOperations.exportExcludePatterns {
             #expect(fnmatch(pattern, name, 0) != 0)
         }
     }

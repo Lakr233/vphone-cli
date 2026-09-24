@@ -121,8 +121,8 @@ the same two lines of output that scripts and people have been grepping for
 | Python command | now | note |
 | --- | --- | --- |
 | `recovery-probe` | `VPhoneRecoveryProbe.probe` | `irecv_open_with_ecid_and_attempts` + timeout polling |
-| `restore-get-shsh` | `VPhoneRestoreBridge.fetchSHSH` | erase ticket, as Python's did |
-| `restore-update` | `VPhoneRestoreBridge.restore` | `erase` defaults true; `ticketPath` for `--offline` |
+| `restore-get-shsh` | `VPhoneRestoreService.fetchSHSH` | erase ticket, as Python's did |
+| `restore-update` | `VPhoneRestoreService.restore` | `erase` defaults true; `ticketPath` for `--offline` |
 | `usbmux-list` | **not ported** | no call site anywhere in this repository |
 
 Two things the Swift has to undo, because idevicerestore and the Python bridge
@@ -175,7 +175,7 @@ gap between `VPhoneRestore` and `vphone-cli`, not inside either:
 - **Row 3's `--offline` path bypassed its own guard, destructively.** The CLI
   globbed `iPhone*_Restore` itself, sorted, and took the first — Python's rule,
   the one "Deliberate divergences" below says was replaced — then decrypted that
-  tree's AEA images **in place** before `VPhoneRestoreBridge` got a chance to
+  tree's AEA images **in place** before `VPhoneRestoreService` got a chance to
   refuse two trees. With two firmware trees in a bundle it irreversibly
   decrypted one nobody chose and *then* aborted. It now calls
   `VPhoneRestoreLayout.findRestoreDirectory` like every other caller, so the

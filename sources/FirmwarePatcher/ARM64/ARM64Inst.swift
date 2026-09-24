@@ -3,8 +3,8 @@
 // These operate directly on a 4-byte little-endian instruction word so the kernel
 // patchers can scan megabytes of __TEXT_EXEC without paying Capstone's per-instruction
 // cost. They are the SINGLE SOURCE OF TRUTH for the opcode masks that were previously
-// re-spelled inline in each JB patch file (KernelJBPatchTaskConversion, VmProtect,
-// ProcPidinfo, HookCredLabel) and in KernelJBPatcherBase.findProcSecurityPolicy.
+// re-spelled inline in each JB patch file (KernelJailbreakPatchTaskConversion, VmProtect,
+// ProcPidinfo, HookCredLabel) and in KernelJailbreakPatcherBase.findProcSecurityPolicy.
 //
 // Every mask/value is documented against the ARM64 ISA encoding and round-trip
 // verified against Capstone in ARM64InstTests. When a Capstone `Instruction` is

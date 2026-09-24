@@ -7,8 +7,8 @@
 // Internal variant selection:
 //   .regular — base patchers only
 //   .dev     — TXMDevPatcher instead of TXMPatcher
-//   .jb      — TXMDevPatcher + IBootJBPatcher (iBSS) + KernelJBPatcher
-//   .exp     — JB + experimental: KernelEXPPatcher (hv_vmm rename) +
+//   .jb      — TXMDevPatcher + IBootJailbreakPatcher (iBSS) + KernelJailbreakPatcher
+//   .exp     — JB + experimental: KernelExperimentalPatcher (hv_vmm rename) +
 //              DeviceTreePatcher identity properties (D47AP/iPhone17,3).
 //              Other variants are NOT affected by experimental patches.
 //
@@ -227,10 +227,10 @@ public final class FirmwarePipeline {
         if let kp = patcher as? KernelPatcher {
             return kp.buffer.data
         }
-        if let kjb = patcher as? KernelJBPatcher {
+        if let kjb = patcher as? KernelJailbreakPatcher {
             return kjb.buffer.data
         }
-        if let kexp = patcher as? KernelEXPPatcher {
+        if let kexp = patcher as? KernelExperimentalPatcher {
             return kexp.buffer.data
         }
         if let dt = patcher as? DeviceTreePatcher {

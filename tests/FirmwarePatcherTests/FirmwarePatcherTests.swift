@@ -445,7 +445,7 @@ struct IM4PPayloadParityTests {
 
         #expect(im4pPayload == rawIBSS)
 
-        let patcher = IBootJBPatcher(data: im4pPayload, mode: .ibss, verbose: false)
+        let patcher = IBootJailbreakPatcher(data: im4pPayload, mode: .ibss, verbose: false)
         let records = try patcher.findAll()
         #expect(records.count == 1)
     }

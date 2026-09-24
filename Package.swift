@@ -8,8 +8,8 @@ let package = Package(
         .macOS(.v15),
     ],
     products: [
-        .library(name: "VPhoneKit", targets: ["VPhoneKit"]),
-        .library(name: "VPhoneVMKit", targets: ["VPhoneVMKit"]),
+        .library(name: "VPhoneAPIKit", targets: ["VPhoneAPIKit"]),
+        .library(name: "VPhoneVirtualMachineKit", targets: ["VPhoneVirtualMachineKit"]),
     ],
     // Resolved by SwiftPM, not carried as submodules. Every one of these was a
     // `.package(path: "vendor/…")` over a checkout this repository pinned by
@@ -41,10 +41,9 @@ let package = Package(
         // 2.84+ links libswiftCompatibilitySpan when built with Swift 6.4.
         // 2.83 keeps the guest binary self-contained on older iOS bases.
         .package(url: "https://github.com/apple/swift-nio.git", exact: "2.83.0"),
-        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
     ],
     targets: [
-        .target(name: "VPhoneKit", path: "sources/VPhoneKit"),
+        .target(name: "VPhoneAPIKit", path: "sources/VPhoneAPIKit"),
         .target(
             name: "FirmwarePatcher",
             dependencies: [
@@ -213,16 +212,14 @@ let package = Package(
         // entitlements can stay as small as an argument parse and an
         // NSApplication run loop.
         .target(
-            name: "VPhoneVMKit",
+            name: "VPhoneVirtualMachineKit",
             dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Dynamic", package: "Dynamic"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 "VPhoneCore",
-                "VPhoneKit",
             ],
-            path: "sources/VPhoneVMKit",
+            path: "sources/VPhoneVirtualMachineKit",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
                 .linkedFramework("AppKit"),
@@ -237,7 +234,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "VPhoneCore",
-                "VPhoneVMKit",
+                "VPhoneVirtualMachineKit",
             ],
             path: "sources/vphone-vm",
             // Swift 6.4 may autolink compatibility dylibs for generic code in
@@ -246,7 +243,7 @@ let package = Package(
             // independent of the build machine's Swift toolchain.
             linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])]
         ),
-        // The user-facing entry point. Note it depends on neither VPhoneVMKit
+        // The user-facing entry point. Note it depends on neither VPhoneVirtualMachineKit
         // nor any of the five frameworks above: it never builds a machine, it
         // starts vphone-vm. Adding a dependency on the kit here would quietly
         // undo the split, so don't. VPhoneArchive is fine and is why `vm export`

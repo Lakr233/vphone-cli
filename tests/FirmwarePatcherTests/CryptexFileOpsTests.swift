@@ -152,7 +152,7 @@ struct CryptexFileOpsTests {
         // This is the one place the port deliberately differs from ln(1), which
         // would have created the link *inside* the directory and left the guest
         // with a dyld path resolving to nothing.
-        #expect(throws: FileOpError.self) {
+        #expect(throws: CryptexFileOperationError.self) {
             try patcher.createSymlink(at: link, to: "../elsewhere")
         }
         var isDirectory: ObjCBool = false

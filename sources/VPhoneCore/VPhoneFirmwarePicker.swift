@@ -123,7 +123,7 @@ public enum VPhoneFirmwarePicker {
         return c
     }
 
-    /// Show a numbered menu and read a 1-based index (mirrors VPhoneVMPicker).
+    /// Show a numbered menu and read a 1-based index (mirrors VPhoneVirtualMachinePicker).
     static func choose(
         _ prompt: String,
         _ labels: [String],

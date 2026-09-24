@@ -21,7 +21,7 @@ vphone-cli vm launch myphone
 ```
 
 To expose the guest HTTP and WebSocket API on the host for local tools or an
-app using `VPhoneKit`, opt in when launching:
+app using `VPhoneAPIKit`, opt in when launching:
 
 ```sh
 vphone-cli vm launch myphone --api-listen 127.0.0.1:8765

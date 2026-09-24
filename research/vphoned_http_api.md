@@ -11,8 +11,8 @@ host:port`. Port `0` asks the OS for an available host port and the actual
 address is printed after the VM starts. The API is also usable from guest and
 host code that connects to VSOCK 1339 directly.
 
-The SwiftPM `VPhoneKit` product is an unentitled HTTP/WebSocket client for
-`vphone-ui` and other macOS apps. The separate public `VPhoneVMKit` product
+The SwiftPM `VPhoneAPIKit` product is an unentitled HTTP/WebSocket client for
+`vphone-ui` and other macOS apps. The separate public `VPhoneVirtualMachineKit` product
 exposes `VPhoneAPIProxy` to an app that owns a `VZVirtioSocketDevice`. The
 command-line executable remains unentitled and still launches `vphone-vm`.
 
@@ -87,7 +87,7 @@ curl http://127.0.0.1:8765/openapi.json
 ```
 
 ```swift
-import VPhoneKit
+import VPhoneAPIKit
 
 let client = VPhoneAPIClient(baseURL: URL(string: "http://127.0.0.1:8765")!)
 let device = try await client.call("device.snapshot")

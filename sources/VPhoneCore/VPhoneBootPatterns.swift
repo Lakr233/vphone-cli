@@ -32,6 +32,6 @@ public enum VPhoneBootPatterns {
 
     // `parseHVVmmPresent` lived here: the string form of `sysctl -n
     // kern.hv_vmm_present`, trimmed and compared to "1". It went when its one
-    // caller stopped spawning sysctl — `VPhoneCreateOrchestrator.isNestedVMHost`
+    // caller stopped spawning sysctl — `VPhoneVirtualMachineCreator.isNestedVMHost`
     // reads the int with `sysctlbyname` now, so there is no text to parse.
 }

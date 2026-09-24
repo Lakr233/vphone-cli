@@ -49,23 +49,23 @@ sources/
 │   │                                 # Argument parsing + orchestration; spawns the others.
 │   ├── main.swift                    # Parses, and forwards `boot` to vphone-vm
 │   ├── VPhoneCLI.swift               # Root command, patch-firmware/patch-component
-│   ├── VPhoneFWCLI.swift             # Firmware subcommands
+│   ├── VPhoneFirmwareCLI.swift       # Firmware subcommands
 │   ├── VPhoneSetupCLI.swift          # Setup subcommands
-│   ├── VPhoneRestoreCLI.swift        # `restore` + the `cfw` subcommand group
-│   ├── VPhoneCFWPatchCLI.swift       # `cfw` verbs: cryptex-paths, inject-*, patch-*
-│   ├── VPhoneCFWMachOVerbsCLI.swift  # The six Mach-O `cfw patch-*` verbs
-│   ├── VPhoneCFWDSCVerbsCLI.swift    # The eight dyld-shared-cache `cfw patch-*` verbs
+│   ├── VPhoneRestoreCLI.swift        # Restore and recovery commands
+│   ├── VPhoneCustomFirmwarePatchCLI.swift # `cfw` verbs: cryptex-paths, inject-*, patch-*
+│   ├── VPhoneCustomFirmwareMachOVerbsCLI.swift # The six Mach-O `cfw patch-*` verbs
+│   ├── VPhoneCustomFirmwareDyldSharedCacheVerbsCLI.swift # Dyld shared cache verbs
 │   ├── VPhoneSignCLI.swift           # `sign` — VPhoneSign from the command line
-│   ├── VPhoneVMCLI.swift             # VM subcommand group
-│   ├── VPhoneVMCreateCLI.swift       # VM create
-│   ├── VPhoneVMLaunchCLI.swift       # VM launch
-│   ├── VPhoneVMTransferCLI.swift     # VM transfer
-│   ├── VPhoneCreateOptions.swift     # Create-flow option set
-│   ├── VPhoneCreateOrchestrator.swift # Native `vm create` pipeline driver
-│   ├── VPhoneCFWInstaller.swift       # Native host-mount JB install
+│   ├── VPhoneVirtualMachineCLI.swift # VM subcommand group
+│   ├── VPhoneVirtualMachineCreateCLI.swift # VM create
+│   ├── VPhoneVirtualMachineLaunchCLI.swift # VM launch
+│   ├── VPhoneVirtualMachineTransferCLI.swift # VM transfer
+│   ├── VPhoneVirtualMachineCreateOptions.swift # Create-flow option set
+│   ├── VPhoneVirtualMachineCreator.swift # Native `vm create` pipeline driver
+│   ├── VPhoneCustomFirmwareInstaller.swift # Native host-mount JB install
 │   ├── VPhoneHostPreflight.swift      # Native host launch check
-│   ├── VPhoneFirmwareSelection.swift # Interactive firmware picker
-│   ├── VPhoneVMSelection.swift       # Interactive VM picker
+│   ├── VPhoneFirmwareSourceSelection.swift # Firmware source resolver
+│   ├── VPhoneVirtualMachineSelection.swift # Interactive VM picker
 │   └── VPhoneProgressBar.swift       # Terminal progress rendering
 │
 ├── vphone-vm/                        # The ONLY entitled binary — a parse and a run loop
@@ -88,7 +88,7 @@ sources/
 │   ├── VPhoneArchivePaths.swift      # realpath(3) — NOT the Foundation equivalents
 │   └── VPhoneTreeFingerprint.swift   # Compare two extracted trees, field by field
 │
-├── VPhoneKit/                        # Public unentitled HTTP/WebSocket API client for vphone-ui
+├── VPhoneAPIKit/                    # Public unentitled HTTP/WebSocket API client for vphone-ui
 │   └── VPhoneAPIClient.swift          # Typed JSON values, RPC, events, streaming file transfer
 │
 ├── VPhoneSign/                       # Mach-O code signing — replaces ldid, byte for byte
@@ -114,45 +114,45 @@ sources/
 │
 ├── VPhoneRestore/                    # Swift over those two C targets — replaced the Python bridge
 │   ├── VPhoneRecoveryProbe.swift     # irecv_open_with_ecid_and_attempts + timeout polling
-│   ├── VPhoneRestoreBridge.swift     # The three ported commands: probe, get-shsh, restore
+│   ├── VPhoneRestoreService.swift     # The three ported commands: probe, get-shsh, restore
 │   ├── VPhoneRestoreTicket.swift     # Undoes idevicerestore's -t: gzipped binary plist → plain
 │   ├── VPhoneRestoreRunner.swift     # Drives vphone_restore_run
 │   └── …                             # options, identity, restore-tree layout, events, errors
 │
 ├── FirmwarePatcher/                  # The Swift firmware pipeline (largest module)
-│   ├── IBoot/ Kernel/ TXM/           # Boot-chain patches; Kernel/JBPatches/ is the JB set
-│   ├── DeviceTree/ Filesystem/       # DT edits, cryptex/rootfs work
-│   └── ARM64/ Binary/ Core/ Pipeline/ # Disassembly, Mach-O, driver
+│   ├── IBoot/ Kernel/ TXM/           # Boot-chain patches; Kernel/JailbreakPatches/ is the JB set
+│   ├── DeviceTree/ CryptexFilesystem/ # DT edits, cryptex/rootfs work
+│   └── ARM64/ Binary/ PatchInfrastructure/ Pipeline/ # Disassembly, Mach-O, driver
 │
-└── VPhoneVMKit/                      # Everything that touches a running guest
+└── VPhoneVirtualMachineKit/          # Everything that touches a running guest
     ├── VPhoneGuestApp.swift          # NSApplication wiring (keeps the entry point logic-free)
-    ├── VPhoneAppDelegate.swift       # App lifecycle, SIGINT, VM start/stop
-    ├── VPhoneHostControl.swift       # Unix-socket automation server (one JSON line in/out)
+    ├── VPhoneVirtualMachineAppDelegate.swift # App lifecycle, SIGINT, VM start/stop
+    ├── VPhoneHostAutomationServer.swift # Unix-socket automation server (one JSON line in/out)
     ├── VPhoneBootCLI+VirtualMachine.swift # resolveOptions() — the half that needs Virtualization
     │
-    ├── VM/                           # VM core
+    ├── VirtualMachine/               # VM core
     │   ├── VPhoneVirtualMachine.swift # @MainActor VM configuration and lifecycle
     │   ├── VPhoneVirtualMachineView.swift # Touch-enabled VZVirtualMachineView + helpers
-    │   ├── VPhoneHardwareModel.swift # PV=3 hardware model via Dynamic
-    │   └── VPhoneError.swift         # Error types
+    │   ├── VPhoneVirtualMachineHardwareModel.swift # PV=3 hardware model via Dynamic
+    │   └── VPhoneVirtualMachineError.swift # Error types
     │
-    ├── Guest/                        # Guest daemon client (vsock)
-    │   ├── VPhoneControl.swift       # Host-side HTTP client over direct VSOCK 1339
+    ├── GuestCommunication/           # Guest daemon client (vsock)
+    │   ├── VPhoneGuestControl.swift       # Host-side HTTP client over direct VSOCK 1339
     │   ├── VPhoneAPIProxy.swift      # Opt-in TCP to guest VSOCK 1339 transparent proxy
-    │   ├── VPhoneControlApps.swift   # Installed apps — list and launch
-    │   ├── VPhoneControlKeychain.swift # Keychain dump
-    │   └── VPhoneControlSystem.swift # Device, battery, location, devmode
+    │   ├── VPhoneGuestControlApps.swift # Installed apps — list and launch
+    │   ├── VPhoneGuestControlKeychain.swift # Keychain dump
+    │   └── VPhoneGuestControlSystem.swift # Device, battery, location, devmode
     │
-    ├── Interface/                    # Window & UI
-    │   ├── VPhoneWindowController.swift # @MainActor VM window management + toolbar
-    │   ├── VPhoneKeyHelper.swift     # Keyboard/hardware key event dispatch to VM
+    ├── UserInterface/                # Window & UI
+    │   ├── VPhoneVirtualMachineWindowController.swift # VM window + toolbar
+    │   ├── VPhoneVirtualMachineKeySender.swift # Keyboard/hardware keys to VM
     │   │
     │   ├── Menu/                     # Menu bar (extensions on VPhoneMenuController)
     │   │   ├── VPhoneMenuController.swift # Menu bar controller
     │   │   ├── VPhoneMenuApps.swift  # Apps menu — installed app browser
     │   │   ├── VPhoneMenuBattery.swift # Battery menu — battery status display
     │   │   ├── VPhoneMenuCamera.swift # Camera menu — virtual camera source
-    │   │   ├── VPhoneMenuConnect.swift # Connect menu — devmode, ping, version, file browser
+    │   │   ├── VPhoneMenuConnect.swift # Connect menu — devmode, ping, guest hash, file browser
     │   │   ├── VPhoneMenuKeys.swift  # Keys menu — home, power, volume, spotlight
     │   │   ├── VPhoneMenuLocation.swift # Location menu — host location sync toggle
     │   │   └── VPhoneMenuRecord.swift # Record menu — screen recording controls
@@ -171,7 +171,7 @@ sources/
     │       ├── VPhoneKeychainItem.swift # Keychain item data model
     │       └── VPhoneQuickLookController.swift # Quick Look preview panel
     │
-    └── Devices/                      # Host capability bridges into the running VM
+    └── HostDevices/                  # Host capability bridges into the running VM
         ├── VPhoneCameraServer.swift  # Virtual-camera server (vsock port 1338)
         ├── VPhoneFrameProducer.swift # BGRA frame sources for the camera server
         ├── VPhoneLocationProvider.swift # CoreLocation → guest forwarding over vsock
@@ -201,11 +201,11 @@ research/                         # Detailed firmware/patch documentation
 - **Guest launches go through `VPhoneGuestLaunchPlanner`** (`VPhoneCore`). It resolves `vphone-vm` as a sibling of the running image — never through `PATH` — checks its two PV=3 entitlements, then probes with `vphone-vm --help` for SIGKILL. A refusal is reported with the exact command the user has to run; the planner never arranges a bypass itself. Never spawn the guest directly.
 - **Restore runs in `vphone-cli`'s own process.** `VPhoneRestore` calls `vphone_restore_run()` in `MobileRestoreCore`; there is no subprocess, no bridge script and no environment to resolve first. The three commands the old Python bridge exposed became `restore --get-shsh`, `restore` and `restore --offline`; its fourth, `usbmux-list`, had no call site and was not ported. `research/restore/p2_restore_off_python.md` has the decision and the behaviour table.
 - **Private API access:** Via [Dynamic](https://github.com/mhdhejazi/Dynamic) library (runtime method dispatch from pure Swift). No ObjC bridge.
-- **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneAppDelegate`. Entry points hold no logic.
+- **App lifecycle:** `vphone-vm/main.swift` → `VPhoneGuestApp.run()` → `NSApplication` + `VPhoneVirtualMachineAppDelegate`. Entry points hold no logic.
 - **Configuration:** `ArgumentParser` → `VPhoneBootCLI` (in `VPhoneCore`, parsed by both binaries) → `VPhoneVirtualMachine.Options` → `VZVirtualMachineConfiguration`.
-- **Guest daemon (vphoned):** SwiftNIO HTTP/WebSocket API on VSOCK 1339, using IcliKit for common device operations. The complete pinned icli CLI is installed inside the guest and available through `icli.execute` with an argv array. `VPhoneControl` reaches HTTP directly over VSOCK; the former length-prefixed service on 1337 is removed. Camera data remains on 1338. The host exposes 1339 only when boot is given `--api-listen`.
+- **Guest daemon (vphoned):** SwiftNIO HTTP/WebSocket API on VSOCK 1339, using IcliKit for common device operations. The complete pinned icli CLI is installed inside the guest and available through `icli.execute` with an argv array. `VPhoneGuestControl` reaches HTTP directly over VSOCK; the former length-prefixed service on 1337 is removed. Camera data remains on 1338. The host exposes 1339 only when boot is given `--api-listen`.
 - **Menu system:** `VPhoneMenuController` + per-menu extensions (Keys, Type, Location, Connect, Install, Record).
-- **File browser:** SwiftUI (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) in `NSHostingController`. Search, sort, upload/download, drag-drop via `VPhoneControl`.
+- **File browser:** SwiftUI (`VPhoneFileBrowserView` + `VPhoneFileBrowserModel`) in `NSHostingController`. Search, sort, upload/download, drag-drop via `VPhoneGuestControl`.
 - **IPA installation:** `VPhoneIPAInstaller` extracts + re-signs via `VPhoneSigner` + installs over vsock.
 - **Screen recording:** `VPhoneScreenRecorder` captures VM display. Controls via Record menu.
 
@@ -267,7 +267,7 @@ There is none, and adding any is a regression.
 - All replacement instruction bytes must come from Keystone-backed helpers already used by the project: `ARM64Encoder.encode*` and the `ARM64` constants, which were generated by keystone-engine, verified by Capstone round-trip, and are asserted word for word against keystone in `tests/FirmwarePatcherTests/ARM64EncoderTests.swift`. Never write a literal instruction word at a patch site. A new instruction means a new encoder plus its keystone-checked test case, not a raw `Data`. Keystone is deliberately **not** a project dependency any more — nothing at runtime or in the test suite calls it, and the expected words are frozen constants. To derive a new one, stand keystone up in a throwaway environment **outside this repository** (`brew install keystone`, plus `keystone-engine` in a scratch interpreter somewhere under `/tmp`) and run the one-liner in that test file's header against it. There is no dependency list here to add it to and no environment here to install it into; creating either is the regression the "Python" section above forbids. Do not invent an expected word without checking it.
 - Prefer source-backed semantic anchors: in-image symbol lookup, string xrefs, local call-flow, and XNU correlation. Do not depend on repo-exported per-kernel symbol dumps at runtime.
 - When retargeting a patch, write the reveal procedure and validation steps into the relevant research doc or commit notes before handing off for testing. Do not create `TODO.md`.
-- For `patchBsdInitAuth` (`Kernel/JBPatches/Storage/KernelJBPatchBsdInitAuth.swift`, named `patch_bsd_init_auth` in the research docs) specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
+- For `patchBsdInitAuth` (`Kernel/JailbreakPatches/Storage/KernelJailbreakPatchBsdInitAuth.swift`, named `patch_bsd_init_auth` in the research docs) specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
 
 ## Build & Sign
 
