@@ -7,9 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5036460E30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		5036460F30653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
-		5036461030653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		5036461130653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
 		CC0000000000000000000101 /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000201 /* AppleMobileDeviceLibrary */; };
 		CC0000000000000000000102 /* libVPhoneRestore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000031 /* libVPhoneRestore.a */; };
@@ -75,7 +73,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5036460E30653D1000CAADDF /* (null) in Frameworks */,
 				5036460F30653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -88,7 +85,6 @@
 				CC0000000000000000000103 /* libMobileRecoveryCore.a in Frameworks */,
 				CC0000000000000000000104 /* libMobileRestoreCore.a in Frameworks */,
 				5036461130653D1000CAADDF /* AppleMobileDeviceLibrary in Frameworks */,
-				5036461030653D1000CAADDF /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

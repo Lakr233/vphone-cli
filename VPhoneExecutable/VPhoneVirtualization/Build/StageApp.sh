@@ -48,6 +48,7 @@ escalator_products="$root/.build/XcodeEscalator/Build/Products/$configuration"
 guest_products="$root/.build/guest-components/stage"
 
 /bin/mkdir -p "$macos" "$resources/scripts/vphoned" "$resources/guest"
+/bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$daemon_products/vphoned" "$macos/vphoned"
 /bin/cp "$daemon_products/vphoned" "$macos/vphoned.signed"
@@ -63,9 +64,24 @@ guest_products="$root/.build/guest-components/stage"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$resources/guest/libvcamcaptured.plist"
 /bin/cp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/AppIcon.icns" "$resources/AppIcon.icns"
 
+# vphone-vm needs Swift's span back-deployment library on macOS 15. Xcode's
+# app-only Swift library pass prunes the standard library name because it scans
+# only the unentitled app executable. Use a private load name for the VM child.
+compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
+    --scan-executable "$macos/vphone-vm" --platform macosx | \
+    /usr/bin/grep '/libswiftCompatibilitySpan.dylib$')"
+/bin/cp "$compatibility_library" "$macos/libswiftCompatibilitySpan.vphone.dylib"
+/usr/bin/install_name_tool -change @rpath/libswiftCompatibilitySpan.dylib \
+    @loader_path/libswiftCompatibilitySpan.vphone.dylib "$macos/vphone-vm"
+/bin/rm -f "$macos/libswiftCompatibilitySpan.dylib" \
+    "$macos/libswiftCompatibilitySpan.dylib.original"
+/bin/rm -f "$app/Contents/Frameworks/libswiftCompatibilitySpan.dylib"
+
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/entitlements.plist" "$macos/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/entitlements.plist" "$macos/vphoned.signed"
 /usr/bin/codesign --force --sign - "$macos/vpregister"
 /usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"
-/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/vphone.entitlements" "$app"
+/usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/vphone.entitlements" "$macos/vphone-vm"
+/usr/bin/codesign --force --sign - "$app"

@@ -176,7 +176,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             hostAutomationServer = server
 
             // Wire location toggle through onConnect/onDisconnect
-            control.onConnect = { [weak mc, weak provider = locationProvider] caps in
+            control.onConnect = { [weak self, weak mc, weak provider = locationProvider] caps in
                 mc?.updateConnectAvailability(available: true)
                 mc?.updateInstallAvailability(available: caps.contains("ipa_install"))
                 mc?.updateAppsAvailability(available: caps.contains("apps"))
@@ -211,7 +211,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             }
         } else if !command.dfu {
             // Headless mode: auto-start location as before (no menu exists)
-            control.onConnect = { [weak provider = locationProvider] caps in
+            control.onConnect = { [weak self, weak provider = locationProvider] caps in
                 if caps.contains("location") {
                     provider?.startForwarding()
                 } else {

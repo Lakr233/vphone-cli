@@ -4,10 +4,9 @@
 <dict>
 	<key>CFBundleIdentifier</key>
 	<string>com.vphone.app</string>
-	<!-- The app launches vphone-vm; vphone-cli is a companion executable in
-	     Contents/MacOS. -->
+	<!-- The unentitled app launches the separately signed vphone-vm process. -->
 	<key>CFBundleExecutable</key>
-	<string>vphone-vm</string>
+	<string>vphone-app</string>
 	<key>CFBundleName</key>
 	<string>VPhone</string>
 	<key>CFBundlePackageType</key>

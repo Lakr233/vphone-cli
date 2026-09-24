@@ -9,8 +9,8 @@ resources="$bundle/Contents/Resources"
 
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode app: $bundle"; exit 1; }
 
-for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
-    vpregister libcamfix.dylib libvcamcaptured.dylib TweakLoader.dylib \
+for name in vphone-app vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
+    vpregister libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib TweakLoader.dylib \
     libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ -f "$macos/$name" ]] || { print -u2 "Missing binary: Contents/MacOS/$name"; exit 1; }
     /usr/bin/file "$macos/$name" | /usr/bin/grep -q 'Mach-O' || {
@@ -31,15 +31,43 @@ for name in vphoned.plist entitlements.plist; do
 done
 
 /usr/bin/codesign --verify --strict "$bundle"
+/usr/bin/codesign --verify "$macos/vphone-vm"
 /usr/bin/codesign --verify "$macos/vphone-cli"
 /usr/bin/codesign --verify "$macos/VPhoneEscalator"
 /usr/bin/codesign --verify "$macos/vphoned.signed"
 
-entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$bundle" 2>/dev/null)"
-[[ "$entitlements" == *'com.apple.private.virtualization'* ]] || {
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")" == "vphone-app" ]] || {
+    print -u2 "The unentitled app launcher is not the bundle executable"
+    exit 1
+}
+app_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$bundle" 2>/dev/null || true)"
+[[ "$app_entitlements" != *'com.apple.private.virtualization'* ]] || {
+    print -u2 "The app must not carry private virtualization entitlements"
+    exit 1
+}
+vm_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphone-vm" 2>/dev/null)"
+[[ "$vm_entitlements" == *'com.apple.private.virtualization'* ]] || {
     print -u2 "VM private entitlements are missing"
     exit 1
 }
+[[ "$vm_entitlements" != *'com.apple.CommCenter.fine-grained'* ]] || {
+    print -u2 "Guest daemon entitlements leaked into vphone-vm"
+    exit 1
+}
+daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphoned.signed" 2>/dev/null)"
+[[ "$daemon_entitlements" == *'com.apple.CommCenter.fine-grained'* &&
+    "$daemon_entitlements" != *'com.apple.private.virtualization'* ]] || {
+    print -u2 "vphoned has the wrong entitlements"
+    exit 1
+}
+for name in vphone-cli vpregister VPhoneEscalator; do
+    process_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/$name" 2>/dev/null || true)"
+    [[ "$process_entitlements" != *'com.apple.private.virtualization'* &&
+        "$process_entitlements" != *'com.apple.CommCenter.fine-grained'* ]] || {
+        print -u2 "Unexpected private entitlements on $name"
+        exit 1
+    }
+done
 
 for name in vphone-vm vphone-cli VPhoneEscalator; do
     /usr/bin/otool -L "$macos/$name" | /usr/bin/awk 'NR > 1 {print $1}' |

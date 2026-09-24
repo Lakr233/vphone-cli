@@ -1,17 +1,46 @@
-// vphone-vm — the process that actually runs a guest.
-//
-// This is the only binary in the project signed with the private
-// virtualization entitlements (Sources/vphone.entitlements), and it is
-// deliberately the smallest thing that can hold them: it parses the boot
-// options, becomes an NSApplication, and hands off to VPhoneVirtualMachineAppDelegate.
-// Everything a user types goes through vphone-cli, which carries no
-// entitlements at all and starts this binary for the boot.
-//
-// It takes the boot options directly rather than a `boot` subcommand — this
-// binary has exactly one job, so there is nothing to select between.
+import AppKit
+import Foundation
 
-import ArgumentParser
-import VPhoneCoreKit
-import VPhoneVirtualMachineKit
+let app = NSApplication.shared
+app.setActivationPolicy(.regular)
+app.activate(ignoringOtherApps: true)
 
-VPhoneGuestApp.run(VPhoneBootCommand.parseOrExit())
+let arguments: [String]
+if CommandLine.arguments.count > 1 {
+    arguments = Array(CommandLine.arguments.dropFirst())
+} else {
+    let picker = NSOpenPanel()
+    picker.title = "Choose a virtual iPhone configuration"
+    picker.prompt = "Launch"
+    picker.allowedContentTypes = [.propertyList]
+    picker.allowsOtherFileTypes = false
+    picker.canChooseDirectories = false
+    guard picker.runModal() == .OK, let config = picker.url else {
+        exit(EXIT_SUCCESS)
+    }
+    arguments = ["--config", config.path]
+}
+
+guard let executableDirectory = Bundle.main.executableURL?.deletingLastPathComponent() else {
+    fatalError("The application executable has no bundle path")
+}
+let virtualMachineExecutable = executableDirectory.appendingPathComponent("vphone-vm")
+let process = Process()
+process.executableURL = virtualMachineExecutable
+process.arguments = arguments
+
+do {
+    try process.run()
+    process.waitUntilExit()
+    if process.terminationStatus != 0 {
+        let alert = NSAlert()
+        alert.messageText = "The virtual iPhone could not start"
+        alert.informativeText = "The vphone-vm process exited with status \(process.terminationStatus). Run vphone-cli vm launch in Terminal for the full error."
+        alert.runModal()
+    }
+} catch {
+    let alert = NSAlert()
+    alert.messageText = "The virtual iPhone could not start"
+    alert.informativeText = error.localizedDescription
+    alert.runModal()
+}

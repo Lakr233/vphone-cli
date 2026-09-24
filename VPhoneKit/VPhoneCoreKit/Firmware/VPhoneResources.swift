@@ -18,9 +18,8 @@ public struct VPhoneResources: Sendable {
     /// bare name under a PATH or symlink launch, which `URL(fileURLWithPath:)`
     /// then resolves against the CWD and lands under `$HOME`.
     /// `Bundle.main.executableURL` reads `CFBundleExecutable` out of Info.plist
-    /// — and now that the bundle declares `vphone-vm`, it answers "vphone-vm"
-    /// even when the running binary is `vphone-cli` sitting right beside it in
-    /// the same `Contents/MacOS`. It cannot be used to find ourselves.
+    /// and answers "vphone-app" even when the running binary is `vphone-cli`
+    /// or `vphone-vm` beside it in `Contents/MacOS`. It cannot find ourselves.
     ///
     /// `_NSGetExecutablePath` has neither problem: it is the path the kernel
     /// exec'd, independent of argv and of any plist. Symlinks are resolved so a

@@ -7,10 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5036467F30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		5036468030653D1000CAADDF /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000181 /* ArgumentParser */; };
 		5036468130653D1000CAADDF /* libVPhoneCoreKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000031 /* libVPhoneCoreKit.a */; };
-		5036468230653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		5036468330653D1000CAADDF /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000182 /* LibArchive */; };
 		AA0000000000000000000101 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000181 /* ArgumentParser */; };
 		AA0000000000000000000102 /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000182 /* LibArchive */; };
@@ -90,7 +88,6 @@
 			files = (
 				5036468030653D1000CAADDF /* ArgumentParser in Frameworks */,
 				AA0000000000000000000104 /* libVPhoneCoreKit.a in Frameworks */,
-				5036467F30653D1000CAADDF /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,7 +97,6 @@
 			files = (
 				5036468130653D1000CAADDF /* libVPhoneCoreKit.a in Frameworks */,
 				AA0000000000000000000105 /* libVPhoneArchiveKit.a in Frameworks */,
-				5036468230653D1000CAADDF /* (null) in Frameworks */,
 				5036468330653D1000CAADDF /* LibArchive in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -497,6 +493,7 @@
 		AA0000000000000000000071 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
 				CODE_SIGNING_ALLOWED = NO;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
@@ -508,6 +505,7 @@
 		AA0000000000000000000072 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
 				CODE_SIGNING_ALLOWED = NO;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;

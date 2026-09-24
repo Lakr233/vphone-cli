@@ -23,7 +23,7 @@ import Foundation
 
 enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
-    static let all: [ParsableCommand.Type] = [
+    static var all: [ParsableCommand.Type] { [
         VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand.self,
         VPhoneCustomFirmwarePatchIOMFBSwapEndCommand.self,
         VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
@@ -32,7 +32,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
         VPhoneCustomFirmwarePatchXPCLWCRCommand.self,
         VPhoneCustomFirmwarePatchLockdownModeCommand.self,
         VPhoneCustomFirmwarePatchCameraDyldSharedCacheCommand.self,
-    ]
+    ] }
 
     /// Where the patchers' progress lines go.
     ///

@@ -302,12 +302,12 @@ enum VPhoneCustomFirmwareMachOVerbs {
     ///
     /// Ordered as `cfw.py`'s dispatch table lists them, so `--help` and the
     /// Python's usage block read in the same order.
-    static let all: [ParsableCommand.Type] = [
+    static var all: [ParsableCommand.Type] { [
         VPhoneCustomFirmwarePatchSeputilCommand.self,
         VPhoneCustomFirmwarePatchLaunchdCacheLoaderCommand.self,
         VPhoneCustomFirmwarePatchMobileactivationdCommand.self,
         VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
         VPhoneCustomFirmwarePatchWatchdogdCommand.self,
         VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
-    ]
+    ] }
 }

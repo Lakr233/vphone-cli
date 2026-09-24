@@ -7,18 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5036444C30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		5036444D30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		5036444E30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		5036444F30653D1000CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		5036445030653D1000CAADDF /* Capstone in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000201 /* Capstone */; };
 		5036445130653D1000CAADDF /* Img4tool in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000202 /* Img4tool */; };
 		5036445230653D1000CAADDF /* MachOKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000203 /* MachOKit */; };
 		5036445330653D1000CAADDF /* LibArchive in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000205 /* LibArchive */; };
-		50364C1630653DE900CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		50364C1730653DE900CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		50364C1830653DE900CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
-		50364C1930653DE900CAADDF /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		50364C1A30653DE900CAADDF /* Capstone in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000201 /* Capstone */; };
 		50364C1B30653DE900CAADDF /* Img4tool in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000202 /* Img4tool */; };
 		50364C1C30653DE900CAADDF /* MachOKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000203 /* MachOKit */; };
@@ -32,6 +24,7 @@
 		BB0000000000000000000106 /* AppleMobileDeviceLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000000000000000000206 /* AppleMobileDeviceLibrary */; };
 		BB0000000000000000000107 /* libFirmwarePatcher.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000033 /* libFirmwarePatcher.a */; };
 		BB0000000000000000000108 /* libVPhoneSign.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000032 /* libVPhoneSign.a */; };
+		BB0000000000000000000109 /* ArgumentParser in FirmwarePatcher */ = {isa = PBXBuildFile; productRef = BB0000000000000000000204 /* ArgumentParser */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,10 +86,6 @@
 				5036445130653D1000CAADDF /* Img4tool in Frameworks */,
 				5036445030653D1000CAADDF /* Capstone in Frameworks */,
 				BB0000000000000000000104 /* ArgumentParser in Frameworks */,
-				5036444C30653D1000CAADDF /* (null) in Frameworks */,
-				5036444D30653D1000CAADDF /* (null) in Frameworks */,
-				5036444E30653D1000CAADDF /* (null) in Frameworks */,
-				5036444F30653D1000CAADDF /* (null) in Frameworks */,
 				BB0000000000000000000106 /* AppleMobileDeviceLibrary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -112,6 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB0000000000000000000109 /* ArgumentParser in FirmwarePatcher */,
 				BB0000000000000000000101 /* Capstone in Frameworks */,
 				BB0000000000000000000102 /* Img4tool in Frameworks */,
 				BB0000000000000000000103 /* MachOKit in Frameworks */,
@@ -127,10 +117,6 @@
 				50364C1C30653DE900CAADDF /* MachOKit in Frameworks */,
 				BB0000000000000000000107 /* libFirmwarePatcher.a in Frameworks */,
 				BB0000000000000000000108 /* libVPhoneSign.a in Frameworks */,
-				50364C1630653DE900CAADDF /* (null) in Frameworks */,
-				50364C1730653DE900CAADDF /* (null) in Frameworks */,
-				50364C1830653DE900CAADDF /* (null) in Frameworks */,
-				50364C1930653DE900CAADDF /* (null) in Frameworks */,
 				50364C1B30653DE900CAADDF /* Img4tool in Frameworks */,
 				50364C1D30653DE900CAADDF /* LibArchive in Frameworks */,
 			);
@@ -241,6 +227,7 @@
 			);
 			name = FirmwarePatcher;
 			packageProductDependencies = (
+				BB0000000000000000000204 /* ArgumentParser */,
 				BB0000000000000000000201 /* Capstone */,
 				BB0000000000000000000202 /* Img4tool */,
 				BB0000000000000000000203 /* MachOKit */,
