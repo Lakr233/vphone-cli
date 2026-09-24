@@ -1,4 +1,5 @@
 import Foundation
+import IcliSystem
 import NIOCore
 import NIOWebSocket
 
@@ -40,10 +41,15 @@ enum APIWire {
             let result = try GuestAPI.execute(method: request.method, params: request.params)
             return .json(["type": "response", "id": request.id ?? NSNull(), "result": result])
         } catch {
-            let code = error is GuestAPIError ? "invalid_operation" : "operation_failed"
+            let (code, message): (String, String) =
+                if let error = error as? IcliError {
+                    (error.code, error.message)
+                } else {
+                    (error is GuestAPIError ? "invalid_operation" : "operation_failed", String(describing: error))
+                }
             return .json(status: 400, [
                 "type": "response", "id": request.id ?? NSNull(),
-                "error": ["code": code, "message": String(describing: error)],
+                "error": ["code": code, "message": message],
             ])
         }
     }

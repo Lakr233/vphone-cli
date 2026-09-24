@@ -236,7 +236,8 @@ final class VPhoneGuestControl {
         return (result, nil)
     }
 
-    private func call(_ method: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+    /// Calls one named vphoned operation over `/v1/rpc` and returns its result object.
+    func call(_ method: String, params: [String: Any] = [:]) async throws -> [String: Any] {
         let object: [String: Any] = ["id": UUID().uuidString, "method": method, "params": params]
         let body = try JSONSerialization.data(withJSONObject: object)
         let response = try await http(method: "POST", path: "/v1/rpc", body: body)

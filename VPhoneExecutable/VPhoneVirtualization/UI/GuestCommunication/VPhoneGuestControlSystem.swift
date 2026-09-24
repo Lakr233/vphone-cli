@@ -42,8 +42,8 @@ extension VPhoneGuestControl {
     // MARK: - Accessibility
 
     func accessibilityTree(depth: Int = -1) async throws -> [String: Any] {
-        guard guestCapabilities.contains("accessibility_tree") else {
-            throw ControlError.unsupportedCapability("accessibility_tree")
+        guard guestCapabilities.contains("ui_inspection") else {
+            throw ControlError.unsupportedCapability("ui_inspection")
         }
         let (resp, _) = try await sendRequest(["t": "accessibility_tree", "depth": depth])
         return resp

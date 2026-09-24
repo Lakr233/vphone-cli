@@ -65,6 +65,19 @@ enum GuestAPI {
                 "port_forward",
                 "camera",
                 "screenshot",
+                "device_info",
+                "display",
+                "audio",
+                "input_gestures",
+                "ui_inspection",
+                "processes",
+                "services",
+                "logs",
+                "network_capture",
+                "app_details",
+                "system_control",
+                "file_tools",
+                "packages",
             ],
         ]
     }
@@ -161,7 +174,9 @@ enum GuestAPI {
         case "apps.terminate":
             return try killApp(string(params, "bundle_id"), force: true)
         case "apps.uninstall":
-            return try uninstallApp(string(params, "bundle_id"), force: params["force"] as? Bool == true)
+            let id = try string(params, "bundle_id")
+            try requireForce(params, "uninstall \(id)")
+            return try uninstallApp(id, force: true)
         case "apps.foreground":
             let front = frontmostApp()
             let id = front["bundle_id"] as? String ?? ""
@@ -279,8 +294,6 @@ enum GuestAPI {
             )
         case "settings.delete":
             return try deletePreference(domain: string(params, "domain"), key: string(params, "key"))
-        case "accessibility.tree":
-            throw GuestAPIError.operationFailed("The accessibility tree is not available on this guest yet.")
         case "keychain.list":
             return try GuestKeychain.list(className: params["class"] as? String)
         case "keychain.add":
@@ -312,6 +325,9 @@ enum GuestAPI {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]
         default:
+            if let result = try executeExtended(method: method, params: params) {
+                return result
+            }
             throw GuestAPIError.unsupportedMethod(method)
         }
     }
@@ -360,7 +376,7 @@ enum GuestAPI {
         return result
     }
 
-    private static func jailbreakInfo() -> [String: Any] {
+    static func jailbreakInfo() -> [String: Any] {
         func isDirectory(_ path: String) -> Bool {
             var directory: ObjCBool = false
             return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue
@@ -395,21 +411,21 @@ enum GuestAPI {
         return ["layout": NSNull(), "jbroot": NSNull(), "source": "not detected"]
     }
 
-    private static func string(_ params: [String: Any], _ key: String) throws -> String {
+    static func string(_ params: [String: Any], _ key: String) throws -> String {
         guard let value = params[key] as? String, !value.isEmpty else {
             throw GuestAPIError.invalidRequest("\(key) is required")
         }
         return value
     }
 
-    private static func integer(_ params: [String: Any], _ key: String) throws -> Int {
+    static func integer(_ params: [String: Any], _ key: String) throws -> Int {
         guard let value = params[key] as? NSNumber else {
             throw GuestAPIError.invalidRequest("\(key) must be an integer")
         }
         return value.intValue
     }
 
-    private static func number(_ params: [String: Any], _ key: String, default fallback: Double = .nan) -> Double {
+    static func number(_ params: [String: Any], _ key: String, default fallback: Double = .nan) -> Double {
         if let value = params[key] as? NSNumber {
             return value.doubleValue
         }
@@ -417,5 +433,28 @@ enum GuestAPI {
             return number
         }
         return fallback
+    }
+
+    static func optionalString(_ params: [String: Any], _ key: String) -> String? {
+        guard let value = params[key] as? String, !value.isEmpty else { return nil }
+        return value
+    }
+
+    static func bool(_ params: [String: Any], _ key: String, default fallback: Bool = false) -> Bool {
+        (params[key] as? NSNumber)?.boolValue ?? fallback
+    }
+
+    static func requiredNumber(_ params: [String: Any], _ key: String) throws -> Double {
+        let value = number(params, key)
+        guard value.isFinite else { throw GuestAPIError.invalidRequest("\(key) must be a number") }
+        return value
+    }
+
+    /// Operations that end a process, stop a service, remove an app or restart
+    /// the guest run only when the caller says so, so a stray request cannot.
+    static func requireForce(_ params: [String: Any], _ action: String) throws {
+        guard bool(params, "force") else {
+            throw GuestAPIError.invalidRequest("Pass force: true to \(action)")
+        }
     }
 }
