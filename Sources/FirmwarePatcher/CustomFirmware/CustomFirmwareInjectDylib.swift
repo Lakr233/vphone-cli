@@ -1,15 +1,13 @@
 // CustomFirmwareInjectDylib.swift — LC_LOAD_DYLIB / LC_LOAD_WEAK_DYLIB insertion.
 //
-// Replaces the `insert_dylib` binary built from `Scripts/Repos/InsertDylib`,
-// whose only caller is the launchdhook injection in `cfw_install_jb.sh` and
-// `cfw_install_exp.sh`:
+// Replaces the former `insert_dylib` subprocess used for launchdhook injection:
 //
 //     cfw.py inject-dylib "$TEMP_DIR/launchd" "/b"
 //       -> insert_dylib --weak --inplace --all-yes /b <launchd>
 //
-// This is a deliberate behaviour-for-behaviour port, because byte equality with
-// the C tool is the only independent check available for it. Two things differ
-// on purpose, both in the safe direction, both marked below:
+// A host-side test injects a real Objective-C swizzle dylib into a small
+// executable and verifies the changed output. Two things differ from the
+// former C tool on purpose, both marked below:
 //
 //   1. `insert_dylib --all-yes` answers "y" to "It doesn't seem like there is
 //      enough empty space. Continue anyway?" and then writes the load command

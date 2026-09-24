@@ -203,8 +203,8 @@ rm -rf "${RES}/scripts" "${RES}/guest" "${RES}/tools" "${RES}/.tools" \
 mkdir -p "${RES}/scripts"
 # An ALLOWLIST, from each script's own `# vphone-tier:` line. This used to be a
 # list of exclusions, which meant anything new shipped by default — and so the
-# .app carried build.sh, check_aux.sh and setup_tools.sh, the last of which runs
-# `brew install`. See Scripts/dist_manifest.sh for the three tiers.
+# .app carried build.sh, check_aux.sh and the old setup_tools.sh, which once
+# ran `brew install`. See Scripts/dist_manifest.sh for the three tiers.
 zsh Scripts/dist_manifest.sh | sed '/^vphoned\//d' | rsync -a --files-from=- Scripts/ "${RES}/scripts/"
 mkdir -p "${RES}/scripts/vphoned"
 cp -f Scripts/VPhoned/vphoned.plist Scripts/VPhoned/entitlements.plist "${RES}/scripts/vphoned/"

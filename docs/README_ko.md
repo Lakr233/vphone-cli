@@ -29,7 +29,7 @@ cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`
 배포된 `.app` 실행에는 Homebrew, Python, Xcode나 별도의 런타임 환경이 필요하지 않습니다. 소스 빌드에는 vphoned용 iPhoneOS SDK가 포함된 Xcode가 필요합니다.
 
 ```sh
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
 zsh Scripts/build.sh
 .build/release/vphone-cli host preflight

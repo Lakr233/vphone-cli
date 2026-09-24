@@ -416,12 +416,13 @@ and neither changing a byte:
 * The three idempotence divergences in the section above stand: the Swift
   recognises its own output where the Python double-applies or exits 1.
 
-**Not removed:** `Scripts/Repos/InsertDylib`. Nothing in the product runs it —
-`CFWInjectDylib` does the injection in process — but
-`CFWMachOTests.matchesInsertDylib` still runs the real binary as an independent
-byte-parity reference, gated on its presence. Deleting the submodule would turn
-that check into a silent skip rather than a failure. CI no longer initialises it;
-`setup_tools.sh` still builds it, relabelled as a test reference.
+**Final submodule removed:** `Scripts/Repos/InsertDylib` was retained only for
+a byte-parity test after `CustomFirmwareInjectDylib` took over the injection.
+That test is replaced with two checked-in Objective-C source fixtures: a
+`hello world` executable and a swizzle dylib. The test compiles them, checks the
+plain output, injects the dylib with the Swift patcher, re-signs the executable,
+and checks that it prints `world hello`. This exercises the actual dyld load
+and swizzle without an external test reference or an optional skip.
 
 **P1 dropped `capstone`, `keystone-engine` and `pyimg4` from the dependency
 list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,

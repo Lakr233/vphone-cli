@@ -12,7 +12,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Restore:** `vphone-cli restore`, in process. Vendored libirecovery + idevicerestore (`Sources/MobileRecoveryCore`, `Sources/MobileRestoreCore`) over the `AppleMobileDeviceLibrary` xcframeworks. No interpreter, no environment to provision, no setup step. See `research/restore/p2_restore_off_python.md`.
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `docs/guides/host-setup.md`; neither is installed by this project.
 - **Language:** Swift 6.0 (SwiftPM), private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic). This package's own manifest is `swift-tools-version:6.0`, but the **toolchain floor is Swift 6.2**: `libcapstone-spm` declares 6.2 so that it can reach `CSetting.disableWarning` instead of `.unsafeFlags`, which is what lets it be depended on by version at all.
-- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. The only git submodule is `Scripts/Repos/InsertDylib`, a build-time test reference. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
+- **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. There are no git submodules. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
 - **Tiers.** Three environments run code here and the rules differ. **build** (the machine that builds the `.app`) may use Xcode, `xcrun`, clang, swift, git and Homebrew. **dist** (the shipped `.app`, on a clean macOS) may use `/usr/lib`, `/System` and the bundle — nothing else, no `PATH` lookup. **guest** (inside the VM) is out of host self-containment scope. Every script declares its tier on **line 2** (`# vphone-tier: dist`); `Scripts/dist_manifest.sh` reads those and is what `Scripts/build.sh` stages from, so a script that declares nothing ships nowhere. `Scripts/check_aux.sh` runs the admission gates. The dist tier's registered-exception list is **empty** and a release requires it to stay that way.
 
 ## Workflow Rules
@@ -182,9 +182,7 @@ Scripts/                          # Build scripts and payloads only; no runtime 
 ├── build.sh                  [b] # Compile, sign and bundle
 ├── dist_manifest.sh          [b] # Payload allowlist staged by build.sh
 ├── check_aux.sh              [b] # The self-containment admission gates
-├── setup_tools.sh            [b] # Builds insert_dylib, the Mach-O byte-parity test reference
-├── VPhoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
-└── Repos/                        # Toolchain source (git submodule: InsertDylib)
+└── VPhoned/                      # Guest SwiftNIO/IcliKit package plus native installer/keychain/camera code
 
 Siblings/                         # Guest component sources/provenance; separate package
 ├── CamFix/ VCamCaptured/          # Camera hooks and filter plists

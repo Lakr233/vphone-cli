@@ -41,7 +41,7 @@ A distributed `.app` uses macOS system tools and its own bundled binaries; it do
 Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
 
 ```sh
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
 zsh Scripts/build.sh
 .build/release/vphone-cli --help

@@ -29,7 +29,7 @@ cloudOS 26.4（`23E5207q`）との組み合わせで、iPhone17,3 の iOS 26.6.2
 配布 `.app` の実行に Homebrew、Python、Xcode や別の実行環境は不要です。ソースからのビルドには、vphoned をコンパイルするための iPhoneOS SDK を含む Xcode が必要です。
 
 ```sh
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
 zsh Scripts/build.sh
 .build/release/vphone-cli host preflight

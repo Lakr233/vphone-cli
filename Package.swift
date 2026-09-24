@@ -298,6 +298,7 @@ let package = Package(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],
             path: "Tests/FirmwarePatcherTests",
+            exclude: ["Fixtures"],
         ),
         .testTarget(
             name: "VPhoneCoreTests",

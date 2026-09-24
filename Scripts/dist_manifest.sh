@@ -18,8 +18,8 @@
 # build.sh maps the VPhoned plist source files back to the shipped vphoned/ path.
 # It is an ALLOWLIST derived from those declarations,
 # which is the point: the bundler used to work from a list of exclusions, so
-# anything new shipped by default and the build-only `setup_tools.sh`,
-# `build.sh` and `check_aux.sh` all ended up inside the .app. An
+# anything new shipped by default and the build-only `build.sh` and
+# `check_aux.sh` ended up inside the .app. An
 # undeclared script now ships nowhere, and says so.
 #
 # Usage: dist_manifest.sh            # the payload, for rsync --files-from
@@ -59,7 +59,6 @@ done
 # vphone-cli itself opens it by name; the greppable proof is in the comment.
 #
 # What is deliberately ABSENT is as important:
-#   Repos/            toolchain submodules — build tier, sources only
 #   ../Siblings/       guest sources and GPU provenance; not copied into the
 #                      shipped app (GPU extraction runs in native fw prepare)
 #   VPhoned/*.m *.h Vendor/  same, and it is the bulk of Scripts/

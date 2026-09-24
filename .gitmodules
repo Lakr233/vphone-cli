@@ -1,3 +1,0 @@
-[submodule "scripts/repos/insert_dylib"]
-	path = Scripts/Repos/InsertDylib
-	url = https://github.com/tyilo/insert_dylib.git

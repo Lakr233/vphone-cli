@@ -1,18 +1,16 @@
 // CustomFirmwareMachOTests.swift — Mach-O load-command insertion and code-signature re-attestation.
 //
-// Both modules replace something outside this code, so both are tested against
-// it rather than against expectations written down by hand:
+// The modules are checked against independent effects:
 //
-//   * `CustomFirmwareInjectDylib` against `.tools/bin/insert_dylib`, byte for byte, while
-//     that submodule build is still in the tree.
+//   * `CustomFirmwareInjectDylib` loads a real Objective-C swizzle dylib into
+//     a small executable, changing its observed output.
 //   * `CustomFirmwareMachOCodeSignature` against `scripts/patchers/cfw_macho_codesign.py`,
 //     byte for byte. That Python is gone, so what it wrote is frozen in
 //     ``MachOCodeSignGolden`` below — over the real 24A435 `seputil` rather
 //     than a local build product, because a golden is only worth what its
 //     input is reproducible.
 //
-// Those two comparisons are the migration plan's stated gate (P1.1). Everything
-// that can be asserted without a reference is asserted unconditionally, first
+// Everything that can be asserted without a reference is asserted, first
 // among them the short tail slot, which is the known regression in independent
 // re-signing.
 //
@@ -90,14 +88,8 @@ enum MachOFixture {
     instead of failing
     """
 
-    static let insertDylib = repositoryRoot.appending(path: ".tools/bin/insert_dylib")
-
     static func exists(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
-    }
-
-    static var hasInsertDylib: Bool {
-        exists(insertDylib)
     }
 
     static var hasCodesign: Bool {
@@ -550,24 +542,54 @@ struct CustomFirmwareInjectDylibTests {
         }
     }
 
-    /// The migration gate for this half: identical output to the C tool it
-    /// replaces, on the exact command line the CFW scripts use.
-    @Test(.enabled(if: MachOFixture.runs && MachOFixture.hasInsertDylib, MachOFixture.missing))
-    func `matches insert dylib`() throws {
-        let swiftFile = try MachOFixture.scratchCopy("swift")
-        let referenceFile = swiftFile.deletingLastPathComponent().appending(path: "reference")
-        try FileManager.default.copyItem(at: MachOFixture.signedBinary(), to: referenceFile)
+    /// Compile both checked-in sources, then prove that the inserted load
+    /// command actually makes dyld run the swizzle before main().
+    @Test func `injected Objective-C swizzle changes hello world output`() throws {
+        let fixtures = MachOFixture.repositoryRoot
+            .appending(path: "Tests/FirmwarePatcherTests/Fixtures/DylibInjection")
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "DylibInjection-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
 
-        try CustomFirmwareInjectDylib.inject(dylibPath: "/b", into: swiftFile)
-        let reference = try MachOFixture.run(
-            MachOFixture.insertDylib,
-            ["--weak", "--inplace", "--all-yes", "/b", referenceFile.path],
-        )
-        try #require(reference.status == 0, "insert_dylib failed: \(reference.output)")
+        let executable = directory.appending(path: "hello")
+        let dylib = directory.appending(path: "swizzle.dylib")
+        let clang = URL(filePath: "/usr/bin/clang")
 
-        #expect(
-            try Data(contentsOf: swiftFile) == Data(contentsOf: referenceFile),
-            "Swift injection must match insert_dylib byte for byte",
+        let buildExecutable = try MachOFixture.run(clang, [
+            "-fobjc-arc", "-framework", "Foundation", "-Wl,-headerpad,0x4000",
+            fixtures.appending(path: "hello.m").path, "-o", executable.path,
+        ])
+        try #require(buildExecutable.status == 0, "hello fixture: \(buildExecutable.output)")
+        let buildDylib = try MachOFixture.run(clang, [
+            "-dynamiclib", "-fobjc-arc", "-framework", "Foundation",
+            fixtures.appending(path: "swizzle.m").path, "-o", dylib.path,
+        ])
+        try #require(buildDylib.status == 0, "swizzle fixture: \(buildDylib.output)")
+
+        let before = try MachOFixture.run(executable, [])
+        try #require(before.status == 0, "plain hello failed: \(before.output)")
+        #expect(before.output == "hello world\n")
+
+        let injections = try CustomFirmwareInjectDylib.inject(
+            dylibPath: dylib.path,
+            into: executable,
+            weak: true,
+            policy: .strip,
         )
+        let injection = try #require(injections.first)
+        #expect(injections.count == 1)
+        #expect(injection.isWeak)
+        #expect(MachOFixture.dylibLoadCommands(in: try Data(contentsOf: executable)).contains {
+            $0.command == 0x8000_0018 && $0.path == dylib.path
+        })
+
+        let sign = try MachOFixture.run(URL(filePath: "/usr/bin/codesign"), [
+            "--force", "--sign", "-", "--timestamp=none", executable.path,
+        ])
+        try #require(sign.status == 0, "signing injected hello: \(sign.output)")
+        let after = try MachOFixture.run(executable, [])
+        try #require(after.status == 0, "injected hello failed: \(after.output)")
+        #expect(after.output == "world hello\n")
     }
 }

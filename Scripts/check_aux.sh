@@ -80,7 +80,7 @@ typeset -a DIST_REMAINING=(
 # script execs one.
 typeset -a BUILD_ALLOWED=(
   brew xcrun xcodebuild clang swift git rsync
-  ldid gtar zstd ipsw aria2c wget sshpass trustcache insert_dylib
+  ldid gtar zstd ipsw aria2c wget sshpass trustcache
 )
 
 # python3 must never appear on any of these lists. The restore backend was its
@@ -231,7 +231,7 @@ check_closure() {
 # ---------------------------------------------------------------------------
 # The bundler used to work from a list of EXCLUSIONS, so anything new shipped by
 # default. That is how the .app came to carry build.sh, check_aux.sh and
-# setup_tools.sh alongside the scripts it actually
+# build-tier scripts alongside the scripts they actually
 # needs. It is an allowlist now, and this gate is what keeps it honest: a
 # build-tier script inside the bundle is a hard failure, because everything in
 # that tier is allowed to assume a toolchain the dist tier does not have.

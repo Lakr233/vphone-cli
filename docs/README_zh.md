@@ -29,7 +29,7 @@ vphone-cli vm launch myphone
 成品 `.app` 运行时不需要 Homebrew、Python 或 Xcode，也不需要额外安装运行环境。从源码构建则需要 Xcode 的 iPhoneOS SDK，以编译 vphoned：
 
 ```sh
-git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
+git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
 zsh Scripts/build.sh
 .build/release/vphone-cli host preflight
