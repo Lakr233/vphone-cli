@@ -1,45 +1,12 @@
 #import "Include/VphonedNative.h"
 #import "vphoned_install.h"
 #import <CommonCrypto/CommonDigest.h>
-#import <dlfcn.h>
-#import <objc/message.h>
 #include <mach-o/dyld.h>
 #include <unistd.h>
 
 static const char *cache = "/var/root/Library/Caches/vphoned";
 static const char *marker = "/var/root/Library/Caches/vphoned.api-v2";
 static const char *pending = "/var/root/Library/Caches/vphoned.api-v2.pending";
-
-int vp_low_power_mode_set_async(bool enabled) {
-    dlopen("/System/Library/PrivateFrameworks/LowPowerMode.framework/LowPowerMode", RTLD_NOW);
-    Class cls = NSClassFromString(@"_PMLowPowerMode");
-    SEL shared = NSSelectorFromString(@"sharedInstance");
-    SEL set = NSSelectorFromString(@"setPowerMode:fromSource:withCompletion:");
-    if (![cls respondsToSelector:shared]) return -1;
-    id service = ((id (*)(Class, SEL))objc_msgSend)(cls, shared);
-    if (![service respondsToSelector:set]) return -1;
-
-    dispatch_semaphore_t done = dispatch_semaphore_create(0);
-    __block BOOL accepted = NO;
-    __block NSError *failure = nil;
-    NSLog(@"vphoned: low power mode async request enabled=%d", enabled);
-    // The iOS 26 synchronous selector waits for a powerd XPC reply without a
-    // deadline. Its completion variant uses an asynchronous remote proxy.
-    void (^completion)(BOOL, NSError *) = ^(BOOL applied, NSError *error) {
-        accepted = applied;
-        failure = error;
-        NSLog(@"vphoned: low power mode async reply applied=%d error_domain=%@ error_code=%ld error_info=%@",
-              applied, error.domain, (long)error.code, error.userInfo);
-        dispatch_semaphore_signal(done);
-    };
-    ((void (*)(id, SEL, long, NSString *, id))objc_msgSend)(service, set,
-        enabled ? 1 : 0, @"ControlCenter", completion);
-    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0) {
-        NSLog(@"vphoned: low power mode async request timed out after 3 seconds");
-        return -2;
-    }
-    return accepted && !failure ? 0 : -3;
-}
 
 NSDictionary *vp_native_api_command(NSDictionary *message) {
     NSString *type = message[@"t"];

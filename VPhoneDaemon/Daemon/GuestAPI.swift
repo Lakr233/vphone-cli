@@ -154,9 +154,12 @@ enum GuestAPI {
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
+            let name = id == "com.apple.springboard"
+                ? "Home Screen"
+                : (apps.first(where: { $0["bundle_id"] as? String == id })?["name"] as? String ?? "")
             return [
                 "bundle_id": id,
-                "name": apps.first?["name"] ?? "",
+                "name": name,
                 "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0,
                 "verified": front["verified"] ?? false,
                 "source": front["source"] ?? "",
@@ -203,25 +206,7 @@ enum GuestAPI {
             return try enableDeveloperMode()
         case "power.low_power_mode":
             if let enabled = params["enabled"] as? Bool {
-                let before = try lowPowerMode()["enabled"] as? Bool ?? false
-                switch vp_low_power_mode_set_async(enabled) {
-                case -1:
-                    throw GuestAPIError.operationFailed("powerd's asynchronous Low Power Mode API is unavailable")
-                case -2:
-                    throw GuestAPIError.operationFailed("powerd did not answer the Low Power Mode request within 3 seconds")
-                case -3:
-                    throw GuestAPIError.operationFailed("powerd rejected the Low Power Mode request")
-                default:
-                    break
-                }
-                let deadline = Date().addingTimeInterval(2)
-                while Date() < deadline {
-                    if try lowPowerMode()["enabled"] as? Bool == enabled {
-                        return ["enabled": enabled, "changed": before != enabled, "method": "powerd"]
-                    }
-                    Thread.sleep(forTimeInterval: 0.05)
-                }
-                throw GuestAPIError.operationFailed("powerd replied but did not apply Low Power Mode")
+                return try setLowPowerMode(enabled)
             }
             return try lowPowerMode()
         case "clipboard.get":

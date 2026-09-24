@@ -35,7 +35,7 @@ directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
 
-`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.4 checks
+`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.5 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
 it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
 `Workspace-ForegroundFocal`. The Home screen's widget renderer can also hold
@@ -62,12 +62,14 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.4
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.5
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
 sends so touch and key sequences retain their order. State polling uses its own
-worker queue. The vphone-specific IPA signing remains in native Objective-C.
+worker queue. `power.low_power_mode` uses IcliKit's completion-based powerd
+setter and verifies the resulting state. The vphone-specific IPA signing remains
+in native Objective-C.
 Keychain listings combine IcliKit's accessible Security.framework attributes
 with its protected database metadata. They return no value data, and possible
 duplicates remain visible because the two sources have no stable join key.
