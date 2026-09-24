@@ -32,6 +32,13 @@ extension VPhoneMenuController {
 
         menu.addItem(NSMenuItem.separator())
 
+        let installBootstrap = makeItem("Install Bootstrap…", action: #selector(installBootstrap))
+        installBootstrap.isEnabled = false
+        installBootstrapItem = installBootstrap
+        menu.addItem(installBootstrap)
+
+        menu.addItem(NSMenuItem.separator())
+
         let clipGet = makeItem(
             "Clipboard",
             action: #selector(getClipboard),

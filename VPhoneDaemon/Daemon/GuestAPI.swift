@@ -62,6 +62,7 @@ enum GuestAPI {
                 "location",
                 "keychain",
                 "ipa_install",
+                "bootstrap_install",
                 "port_forward",
                 "camera",
                 "screenshot",
@@ -211,6 +212,16 @@ enum GuestAPI {
             let id = result["bundle_id"] as? String ?? "app"
             result["msg"] = "Installed \(id) as a \(registration.rawValue) app."
             return result
+        case "bootstrap.install":
+            let layout = try string(params, "layout")
+            return try GuestIrisinInstaller.install(
+                jailbreak: jailbreakInfo(),
+                layout: layout,
+            )
+        case "bootstrap.status":
+            return GuestIrisinInstaller.status()
+        case "bootstrap.firmware":
+            return try GuestIrisinInstaller.repairFirmwareRecord()
         case "input.touch":
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")

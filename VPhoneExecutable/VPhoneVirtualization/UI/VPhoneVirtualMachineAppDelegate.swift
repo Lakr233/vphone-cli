@@ -198,6 +198,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             control.onConnect = { [weak self, weak mc, weak provider = locationProvider] caps in
                 mc?.updateConnectAvailability(available: true)
                 mc?.updateInstallAvailability(available: caps.contains("ipa_install"))
+                mc?.updateBootstrapAvailability(available: caps.contains("bootstrap_install"))
                 mc?.updateAppsAvailability(available: caps.contains("apps"))
                 mc?.updateURLAvailability(available: caps.contains("url"))
                 mc?.updateClipboardAvailability(available: caps.contains("clipboard"))
@@ -221,6 +222,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             control.onDisconnect = { [weak mc, weak provider = locationProvider] in
                 mc?.updateConnectAvailability(available: false)
                 mc?.updateInstallAvailability(available: false)
+                mc?.updateBootstrapAvailability(available: false)
                 mc?.updateAppsAvailability(available: false)
                 mc?.updateURLAvailability(available: false)
                 mc?.updateClipboardAvailability(available: false)

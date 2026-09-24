@@ -20,6 +20,8 @@ class VPhoneMenuController {
     var connectDevModeStatusItem: NSMenuItem?
     var connectPingItem: NSMenuItem?
     var connectGuestHashItem: NSMenuItem?
+    var installBootstrapItem: NSMenuItem?
+    var isInstallingBootstrap = false
     var installPackageItem: NSMenuItem?
     var clipboardGetItem: NSMenuItem?
     var clipboardSetItem: NSMenuItem?

@@ -312,6 +312,17 @@ final class VPhoneGuestControl {
         return result["msg"] as? String ?? "Installed \(localURL.lastPathComponent)."
     }
 
+    func installBootstrap(layout: String) async throws -> [String: Any] {
+        guard guestCapabilities.contains("bootstrap_install") else {
+            throw ControlError.unsupportedCapability("bootstrap_install")
+        }
+        return try await call("bootstrap.install", params: ["layout": layout])
+    }
+
+    func bootstrapStatus() async throws -> [String: Any] {
+        return try await call("bootstrap.status")
+    }
+
     func clipboardGet() async throws -> ClipboardContent {
         let (info, image) = try await sendRequest(["t": "clipboard_get"])
         return ClipboardContent(

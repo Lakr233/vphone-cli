@@ -28,6 +28,40 @@ notch and cutout drawn by the host VM window.
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.
 `apps.uninstall` delegates removal to IcliKit and requires `force=true`.
+`POST /v1/bootstrap/install` (or RPC method `bootstrap.install`) accepts
+`{"layout":"rootless"}` or `{"layout":"roothide"}` and installs the latest
+published `Lakr233/Irisin` release as the selected bootstrap's initial app.
+Rootless uses `/var/jb`. RootHide reuses the sole valid `.jbroot-<16 hex>` under
+`/var/containers/Bundle/Application`, or creates
+`.jbroot-000114514191980C` when none exists. The selected stem is zero padded
+and its final byte carries RootHide's XOR checksum. Missing bootstrap directories are created.
+It selects the matching architecture, verifies the release
+asset's GitHub SHA-256 digest and Debian control fields, then uses IcliKit to
+extract the `.deb` into a temporary directory. It copies the full payload
+into the bootstrap, creates Irisin's mobile-owned data directory, registers
+the app with IcliKit, and loads the daemon through IcliKit. It also attempts
+to start the daemon; a launchd start error is returned as
+`service_start_warning` while the installed bootstrap remains available.
+RootHide's plist gets a physical daemon path and `__Patched`
+marker before launchd reads it. This is a manual payload install: no maintainer
+script runs. For this minimal vphone bootstrap, vphoned writes a real installed
+`firmware` record with the guest iOS version to the selected root's
+`Library/dpkg/status`; Irisin's installed list, resolver, and helper then read
+the same record. If the status already contains firmware from another
+bootstrap, vphoned preserves it. A vphoned-owned record is updated after an
+iOS version change when vphoned starts. `POST /v1/bootstrap/firmware` (RPC `bootstrap.firmware`)
+repairs the record for a bootstrap already identified by the completion marker
+without running another install. The reply includes the tag,
+bootstrap path, registration record, and launchd status. A successful bootstrap
+writes `.vphoned-boostrap-completed` beside the running vphoned binary; later
+requests refuse to bootstrap again when that marker exists.
+The VM window exposes the same operation at Guest > Install Bootstrap…;
+choose Rootless or RootHide in the confirmation sheet. The item is enabled
+when vphoned advertises `bootstrap_install`. Its sheet polls
+`GET /v1/bootstrap/status` (RPC `bootstrap.status`) while installation runs.
+The status reports `phase` and, during download, `downloaded_bytes` and
+`total_bytes` when the server provides a length. The sheet shows the download
+progress, then the installation result without closing.
 
 ## HTTP and WebSocket contract
 
@@ -137,6 +171,7 @@ request carries `"force": true`.
 | Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current` |
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
 | Packages (read-only) | `packages.list`, `status`, `info {path}`, `compare`, `tweaks`, `repos` |
+| Bootstrap | `bootstrap.install {layout}`, `bootstrap.status`, `bootstrap.firmware` (see above) |
 
 `processes.list` joins icli's kernel process list with `proc_pid_rusage`
 footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),

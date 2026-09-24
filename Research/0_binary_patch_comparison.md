@@ -31,15 +31,24 @@
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
 > When a bootstrap and its ElleKit library exist, the launchd hook uses
 > `MSHookFunction` on PID 1's `posix_spawn` to add
-> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy` and
-> directly spawned bootstrap programs. `SystemHook-vphone.dylib` interposes
+> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy`,
+> directly spawned bootstrap programs, and app executables under the system
+> or application bundle paths. `SystemHook-vphone.dylib` interposes
 > `posix_spawnp` inside `xpcproxy` to carry that environment into the final
 > executable. Both stages preserve an existing `DYLD_INSERT_LIBRARIES`, avoid
 > duplicate insertion, and honor `DISABLE_TWEAKS`, `_SafeMode`, and
-> `_MSSafeMode` in the target environment. The dylib logs PID, executable path,
-> xpcproxy label, and spawn decisions under `/var/mobile/Library/Caches`.
-> It still does not load ElleKit, TweakLoader, or individual tweaks in target
-> processes. Tweak selection and sandbox behavior require separate validation.
+> `_MSSafeMode` in the target environment. PID 1 logs child PID, executable
+> path, and spawn status under `/var/mobile/Library/Caches`. SystemHook logs
+> there when permitted and falls back to the app's own `Library/Caches` under
+> its sandboxed home directory.
+> SystemHook now carries the selected physical bootstrap path in
+> `VPHONE_JB_ROOT` and loads that root's `usr/lib/TweakLoader.dylib` for App
+> and bootstrap executables when it exists. ElleKit owns individual tweak
+> selection and loading. `xpcproxy` only propagates the hook; unrelated
+> system daemons do not load TweakLoader. Injected App and bootstrap processes
+> also propagate to targeted `posix_spawn`, `posix_spawnp`, and `execve` calls.
+> RootHide sandbox behavior and real ElleKit tweak loading still require
+> runtime validation.
 > On the rootless iOS 26.6.2 clone, `xpcproxy` called `posix_spawnp` for the
 > package probe, and the final daemon reported
 > `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` and
@@ -54,6 +63,27 @@
 > daemon reported `systemhook_loaded=1` both at load and after its timed
 > restart. This validates path handling and injection through the randomized
 > root, not a complete RootHide bootstrap or a real tweak package.
+> Apps use a separate direct launchd spawn path on this iOS 26.6.2 VM. On the
+> rootless clone, launchd logged the Calculator app spawn with PID 454 and
+> injection enabled; the app's own
+> `Library/Caches/vphone-systemhook.log` recorded the same PID and Calculator
+> executable path. The app reached the foreground and rendered normally.
+> In the subsequent chain-load test, a signed diagnostic `TweakLoader.dylib`
+> under the rootless bootstrap ran its constructor in the final daemon and in
+> Calculator PID 403. Calculator's sandboxed container recorded the physical
+> bootstrap path and a successful `dlopen`; the App stayed frontmost. Three
+> separate RunAtLoad daemon probes with `DISABLE_TWEAKS=1`, `_SafeMode=1`, and
+> `_MSSafeMode=1` each reported no `DYLD_INSERT_LIBRARIES` and
+> `systemhook_loaded=0` after reboot. This diagnostic library proves the
+> loading path, not real ElleKit or a tweak package.
+> A bootstrap CLI probe then spawned itself with explicit stripped
+> environments. Its `posix_spawn`, `posix_spawnp` (absolute program path), and
+> `execve` children all reported `systemhook_loaded=1`,
+> `VPHONE_JB_ROOT=/private/var/jb`, and the expected DYLD insertion. The first
+> attempt exposed an alias gap: a `/var/jb/...` path was not recognized as
+> the physical `/private/var/jb/...` root; both forms are now accepted.
+> The previous central-log-only probe could not observe sandboxed apps even
+> when SystemHook was loaded.
 > The cloned `vphone-launchdhook-lab-26.6.2` booted with the weak dylib and
 > retained a healthy vphoned API. Rootless and RootHide probes, each tested
 > after reboot, were imported and spawned by launchd. The RootHide probe's

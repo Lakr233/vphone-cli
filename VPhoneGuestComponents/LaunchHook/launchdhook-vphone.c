@@ -27,6 +27,26 @@ static void vpLogInjection(const char *event, const char *path, int status) {
     close(fd);
 }
 
+static void vpLogSpawn(const char *event, const char *path, pid_t child, int status) {
+    int fd = open("/var/mobile/Library/Caches/vphone-launchdhook-spawn.log",
+                  O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+    if (fd < 0)
+        return;
+    dprintf(fd, "event=%s child=%d path=%s status=%d\n", event, child,
+            path ? path : "<null>", status);
+    close(fd);
+}
+
+static int vpIsAppProgram(const char *path) {
+    if (!path || !strstr(path, ".app/"))
+        return 0;
+    return strncmp(path, "/Applications/", sizeof("/Applications/") - 1) == 0 ||
+           strncmp(path, "/var/containers/Bundle/Application/",
+                   sizeof("/var/containers/Bundle/Application/") - 1) == 0 ||
+           strncmp(path, "/private/var/containers/Bundle/Application/",
+                   sizeof("/private/var/containers/Bundle/Application/") - 1) == 0;
+}
+
 static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *restrict actions,
                    const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                    char *const envp[restrict]) {
@@ -34,12 +54,19 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
     int bootstrapProgram =
         path && ((rootLength && strncmp(path, vpBootRoot, rootLength) == 0 && path[rootLength] == '/') ||
                  strncmp(path, "/var/jb/", 8) == 0);
-    if (!path || (strcmp(path, "/usr/libexec/xpcproxy") != 0 && !bootstrapProgram) || vpInjectionDisabled(envp)) {
-        return vpOriginalSpawn(pid, path, actions, attributes, argv, envp);
+    int appProgram = vpIsAppProgram(path);
+    if (!path || (strcmp(path, "/usr/libexec/xpcproxy") != 0 && !bootstrapProgram && !appProgram) ||
+        vpInjectionDisabled(envp)) {
+        int status = vpOriginalSpawn(pid, path, actions, attributes, argv, envp);
+        if (appProgram)
+            vpLogSpawn("app-disabled", path, status == 0 && pid ? *pid : -1, status);
+        return status;
     }
-    VPInjectionEnvironment injected = vpInsertHook(envp);
+    VPInjectionEnvironment injected = vpInsertHook(envp, vpBootRoot);
     int status = vpOriginalSpawn(pid, path, actions, attributes, argv, injected.values ? injected.values : envp);
     vpLogInjection(injected.values ? "inserted" : "unchanged", path, status);
+    vpLogSpawn(injected.values ? "inserted" : "unchanged", path, status == 0 && pid ? *pid : -1,
+               status);
     vpFreeEnvironment(&injected);
     return status;
 }
@@ -65,6 +92,7 @@ static void vpInstallSpawnHook(const char *root) {
     snprintf(vpBootRoot, sizeof(vpBootRoot), "%s", root);
     hook((void *)posix_spawn, (void *)vpSpawn, (void **)&vpOriginalSpawn);
     installed = vpOriginalSpawn != NULL;
+    vpLogInjection("bootstrap-root", vpBootRoot, 0);
     vpLogInjection(installed ? "installed" : "install-failed", path, 0);
 }
 
@@ -249,7 +277,7 @@ __attribute__((constructor)) static void vpLaunchHookInit(void) {
 }
 
 // This image is loaded by launchd's LC_LOAD_WEAK_DYLIB. The spawn hook handles
-// xpcproxy and direct bootstrap executables; SystemHook owns xpcproxy's exec.
+// xpcproxy, direct bootstrap executables, and apps; SystemHook owns xpcproxy's exec.
 __attribute__((used, section("__DATA,__interpose"))) static const struct {
     const void *replacement;
     const void *replacee;

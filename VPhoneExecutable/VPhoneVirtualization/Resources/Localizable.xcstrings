@@ -939,7 +939,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "항목 %1$arg개"
+            "value" : "%1$arg개 항목"
           }
         },
         "vi" : {
@@ -2962,6 +2962,74 @@
         }
       }
     },
+    "Bootstrap installation failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bootstrap installation failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップのインストールに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치 실패"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap thất bại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引导环境安装失败"
+          }
+        }
+      }
+    },
+    "Bootstrap installed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bootstrap installed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップをインストールしました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã cài đặt bootstrap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引导环境已安装"
+          }
+        }
+      }
+    },
     "Bootstrap Tools" : {
       "localizations" : {
         "ja" : {
@@ -4270,6 +4338,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择“开始”以传输客户机统一日志。"
+          }
+        }
+      }
+    },
+    "Choose the bootstrap layout. This installs the latest Irisin release once in the guest." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the bootstrap layout. This installs the latest Irisin release once in the guest."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップのレイアウトを選択してください。最新の Irisin リリースをゲストに一度だけインストールします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 레이아웃을 선택하세요. 최신 Irisin 릴리스를 게스트에 한 번 설치합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn bố cục bootstrap. Thao tác này cài bản phát hành Irisin mới nhất vào máy khách một lần."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择引导环境布局。将在客体中安装一次最新版 Irisin。"
           }
         }
       }
@@ -6921,6 +7023,40 @@
         }
       }
     },
+    "Daemon start: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daemon start: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デーモンの起動: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데몬 시작: %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động daemon: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "守护进程启动：%@"
+          }
+        }
+      }
+    },
     "Data" : {
       "localizations" : {
         "en" : {
@@ -8049,6 +8185,74 @@
         }
       }
     },
+    "Downloading Irisin: %@ of %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading Irisin: %@ of %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin をダウンロード中: %1$@ / %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin 다운로드 중: %2$@ 중 %1$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải Irisin: %1$@ / %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载 Irisin：%@ / %@"
+          }
+        }
+      }
+    },
+    "Downloading Irisin…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading Irisin…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin をダウンロード中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin 다운로드 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải Irisin…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载 Irisin…"
+          }
+        }
+      }
+    },
     "Drop to Upload to %@" : {
       "localizations" : {
         "en" : {
@@ -9117,6 +9321,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在导出报告…"
+          }
+        }
+      }
+    },
+    "Extracting Irisin…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extracting Irisin…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin を展開中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin 압축 해제 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang giải nén Irisin…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在解压 Irisin…"
           }
         }
       }
@@ -11046,6 +11284,74 @@
         }
       }
     },
+    "Install Bootstrap" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Bootstrap"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境"
+          }
+        }
+      }
+    },
+    "Install Bootstrap…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Bootstrap…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップをインストール…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境…"
+          }
+        }
+      }
+    },
     "Installed %@." : {
       "localizations" : {
         "en" : {
@@ -11114,6 +11420,40 @@
         }
       }
     },
+    "Installed Irisin %@ in %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed Irisin %@ in %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin %1$@ を %2$@ にインストールしました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin %1$@을(를) %2$@에 설치했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã cài Irisin %1$@ vào %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安装 Irisin %@，位置：%@。"
+          }
+        }
+      }
+    },
     "Installing %arg…" : {
       "localizations" : {
         "en" : {
@@ -11144,6 +11484,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安装 %1$arg…"
+          }
+        }
+      }
+    },
+    "Installing the latest Irisin release in the guest." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing the latest Irisin release in the guest."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新の Irisin リリースをゲストにインストールしています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최신 Irisin 릴리스를 게스트에 설치하는 중입니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang cài bản phát hành Irisin mới nhất vào máy khách."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在客体中安装最新版 Irisin。"
           }
         }
       }
@@ -16392,6 +16766,40 @@
         }
       }
     },
+    "Preparing bootstrap…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing bootstrap…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップを準備中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 준비 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang chuẩn bị bootstrap…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在准备引导环境…"
+          }
+        }
+      }
+    },
     "Present" : {
       "localizations" : {
         "en" : {
@@ -17520,6 +17928,40 @@
         }
       }
     },
+    "Recording firmware version…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording firmware version…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファームウェアのバージョンを記録中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "펌웨어 버전 기록 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang ghi phiên bản firmware…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在登记固件版本…"
+          }
+        }
+      }
+    },
     "Refresh" : {
       "localizations" : {
         "en" : {
@@ -17640,6 +18082,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此窗口打开时每 5 秒刷新一次"
+          }
+        }
+      }
+    },
+    "Registering Irisin…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registering Irisin…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin を登録中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin 등록 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang đăng ký Irisin…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在注册 Irisin…"
           }
         }
       }
@@ -18686,6 +19162,40 @@
         }
       }
     },
+    "roothide" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "roothide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "roothide"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "roothide"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "roothide"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐根"
+          }
+        }
+      }
+    },
     "RootHide Runtime" : {
       "localizations" : {
         "ja" : {
@@ -18710,6 +19220,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RootHide 运行时"
+          }
+        }
+      }
+    },
+    "rootless (deprecated)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootless (deprecated)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootless(非推奨)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootless (더 이상 사용되지 않음)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootless (không còn dùng)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无根（弃用）"
           }
         }
       }

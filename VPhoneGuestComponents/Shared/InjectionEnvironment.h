@@ -9,19 +9,24 @@
 
 typedef struct {
     char **values;
-    char *inserted;
+    char *hook;
+    char *root;
 } VPInjectionEnvironment;
 
-static int vpEnvIsOne(char *const env[], const char *name) {
+static const char *vpEnvValue(char *const env[], const char *name) {
     if (!env)
-        return 0;
+        return NULL;
     size_t length = strlen(name);
     for (size_t i = 0; env[i]; i++) {
-        if (strncmp(env[i], name, length) == 0 && env[i][length] == '=') {
-            return strcmp(env[i] + length + 1, "1") == 0;
-        }
+        if (strncmp(env[i], name, length) == 0 && env[i][length] == '=')
+            return env[i] + length + 1;
     }
-    return 0;
+    return NULL;
+}
+
+static int vpEnvIsOne(char *const env[], const char *name) {
+    const char *value = vpEnvValue(env, name);
+    return value && strcmp(value, "1") == 0;
 }
 
 static int vpInjectionDisabled(char *const env[]) {
@@ -44,48 +49,71 @@ static int vpHasHook(const char *paths) {
     return 0;
 }
 
-// Returns an owned environment only when the hook needs to be added.
-static VPInjectionEnvironment vpInsertHook(char *const env[]) {
+// Keep the bootstrap path with the injected hook across xpcproxy's new envp.
+static VPInjectionEnvironment vpInsertHook(char *const env[], const char *root) {
     VPInjectionEnvironment result = {0};
     size_t count = 0;
     size_t dyld = (size_t)-1;
+    size_t jbRoot = (size_t)-1;
     if (env) {
         while (count < 4096 && env[count]) {
             if (strncmp(env[count], "DYLD_INSERT_LIBRARIES=", 22) == 0)
                 dyld = count;
+            if (strncmp(env[count], "VPHONE_JB_ROOT=", 15) == 0)
+                jbRoot = count;
             count++;
         }
         if (count == 4096)
             return result;
     }
     const char *existing = dyld == (size_t)-1 ? NULL : env[dyld] + 22;
-    if (vpHasHook(existing))
+    int addHook = !vpHasHook(existing);
+    int addRoot = root && *root &&
+                  (jbRoot == (size_t)-1 || strcmp(env[jbRoot] + 15, root) != 0);
+    if (!addHook && !addRoot)
         return result;
-    size_t size = strlen("DYLD_INSERT_LIBRARIES=") + strlen(VP_SYSTEM_HOOK) + 1;
-    if (existing && *existing)
-        size += strlen(existing) + 1;
-    result.inserted = malloc(size);
-    result.values = calloc(count + (dyld == (size_t)-1 ? 2 : 1), sizeof(char *));
-    if (!result.inserted || !result.values) {
-        free(result.inserted);
-        free(result.values);
+    if (addHook) {
+        size_t size = strlen("DYLD_INSERT_LIBRARIES=") + strlen(VP_SYSTEM_HOOK) + 1;
+        if (existing && *existing)
+            size += strlen(existing) + 1;
+        result.hook = malloc(size);
+        if (!result.hook)
+            return result;
+        if (existing && *existing)
+            snprintf(result.hook, size, "DYLD_INSERT_LIBRARIES=%s:%s", VP_SYSTEM_HOOK, existing);
+        else
+            snprintf(result.hook, size, "DYLD_INSERT_LIBRARIES=%s", VP_SYSTEM_HOOK);
+    }
+    if (addRoot) {
+        size_t size = strlen("VPHONE_JB_ROOT=") + strlen(root) + 1;
+        result.root = malloc(size);
+        if (!result.root) {
+            free(result.hook);
+            return (VPInjectionEnvironment){0};
+        }
+        snprintf(result.root, size, "VPHONE_JB_ROOT=%s", root);
+    }
+    result.values = calloc(count + (addHook && dyld == (size_t)-1) +
+                               (addRoot && jbRoot == (size_t)-1) + 1, sizeof(char *));
+    if (!result.values) {
+        free(result.hook);
+        free(result.root);
         return (VPInjectionEnvironment){0};
     }
-    if (existing && *existing) {
-        snprintf(result.inserted, size, "DYLD_INSERT_LIBRARIES=%s:%s", VP_SYSTEM_HOOK, existing);
-    } else {
-        snprintf(result.inserted, size, "DYLD_INSERT_LIBRARIES=%s", VP_SYSTEM_HOOK);
-    }
     for (size_t i = 0; i < count; i++)
-        result.values[i] = i == dyld ? result.inserted : env[i];
-    if (dyld == (size_t)-1)
-        result.values[count] = result.inserted;
+        result.values[i] = addHook && i == dyld ? result.hook :
+                           addRoot && i == jbRoot ? result.root : env[i];
+    if (addHook && dyld == (size_t)-1)
+        result.values[count++] = result.hook;
+    if (addRoot && jbRoot == (size_t)-1)
+        result.values[count] = result.root;
     return result;
 }
 
 static void vpFreeEnvironment(VPInjectionEnvironment *environment) {
     free(environment->values);
-    free(environment->inserted);
+    free(environment->hook);
+    free(environment->root);
 }
 
 #endif
