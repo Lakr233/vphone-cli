@@ -170,9 +170,10 @@ struct VPhoneCFWInstaller {
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: file.path)
         }
         let compilerPlugin = gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
-        if fm.fileExists(atPath: compilerPlugin.path) {
-            try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: compilerPlugin.path)
+        guard fm.fileExists(atPath: compilerPlugin.path) else {
+            throw ValidationError("PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app.")
         }
+        try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: compilerPlugin.path)
         for file in [gpu.appendingPathComponent("Info.plist"),
                      gpu.appendingPathComponent("_CodeSignature/CodeResources")]
         {

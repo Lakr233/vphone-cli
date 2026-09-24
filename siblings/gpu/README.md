@@ -1,7 +1,7 @@
 # PCC GPU component
 
-`AppleParavirtGPUMetalIOGPUFamily.bundle` is Apple firmware content. There is
-no source here to compile and no binary to package in `vphone-cli.app`.
+`AppleParavirtGPUMetalIOGPUFamily.bundle` is Apple firmware content. Its
+compiler plugin is built from source in this directory.
 
 `vphone-cli fw prepare` creates a temporary PV=3 VM, boots it into DFU, and
 restores the selected cloudOS IPSW with the project's in-process idevicerestore
@@ -13,6 +13,13 @@ same PCC release used for the VM's kernel.
 
 The cloudOS 26.4 `23E5207q` bundle recovered from its restored System volume
 has `DTPlatformVersion=26.4`, `CFBundleVersion=64.4.4`, and no
-`libAppleParavirtCompilerPluginIOGPUFamily.dylib`. The older 26.1 bundle has
-that dylib. Neither is compiled by this project; the installer preserves the
-files Apple actually provides for the selected release.
+`libAppleParavirtCompilerPluginIOGPUFamily.dylib`. Without it,
+`MTLCompilerService` repeatedly aborts and `backboardd` reports interrupted
+Metal compilation, leaving the host VM window black even while vphoned connects.
+
+`main.mm` is the compiler-plugin reimplementation from
+[0xjohnnydev's metal-patch](https://github.com/0xjohnnydev/0xjohnnydev.github.io/blob/main/blog/assets/metal-patch/main.mm).
+`make -C siblings gpu` builds and ad-hoc signs it for iPhoneOS arm64e.
+`scripts/build.sh` stores it as `Resources/gpu/compiler-plugin.tar.zst` in the
+app. `fw prepare` extracts that archive and puts the dylib alongside the
+firmware-sourced GPU driver before exposing the complete restore tree.

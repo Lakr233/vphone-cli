@@ -259,7 +259,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
             gpuDriverBundle: gpuDriverBundle.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
-            bundle: bundle, cacheDirectory: resources.ipswCacheDir,
+            bundle: bundle, resources: resources,
         )
     }
 }

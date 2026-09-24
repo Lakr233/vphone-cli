@@ -110,6 +110,14 @@ public struct VPhoneResources: Sendable {
         return base.appendingPathComponent(".build/vphoned.signed")
     }
 
+    public var gpuCompilerPluginArchive: URL {
+        let bundled = base.appendingPathComponent("gpu/compiler-plugin.tar.zst")
+        if FileManager.default.fileExists(atPath: bundled.path) {
+            return bundled
+        }
+        return base.appendingPathComponent(".build/guest/gpu-compiler-plugin.tar.zst")
+    }
+
     // MARK: - Cache dirs
 
     /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both

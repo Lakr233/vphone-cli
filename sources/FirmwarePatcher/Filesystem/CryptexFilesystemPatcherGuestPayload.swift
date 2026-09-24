@@ -127,9 +127,12 @@ extension CryptexFilesystemPatcher {
             try setMode(0o755, at: path)
         }
         let compilerPlugin = bundle.appending(path: "libAppleParavirtCompilerPluginIOGPUFamily.dylib")
-        if FileManager.default.fileExists(atPath: compilerPlugin.path) {
-            try setMode(0o755, at: compilerPlugin)
+        guard FileManager.default.fileExists(atPath: compilerPlugin.path) else {
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed(
+                "PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app.",
+            )
         }
+        try setMode(0o755, at: compilerPlugin)
         for path in [
             bundle.appending(path: "/_CodeSignature/CodeResources"),
             bundle.appending(path: "/Info.plist"),

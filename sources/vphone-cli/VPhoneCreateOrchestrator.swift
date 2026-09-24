@@ -247,7 +247,7 @@ public struct VPhoneCreateOrchestrator {
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
             gpuDriverBundle: options.gpuDriverBundle,
-            bundle: bundle, cacheDirectory: resources.ipswCacheDir,
+            bundle: bundle, resources: resources,
         )
         print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")
     }
