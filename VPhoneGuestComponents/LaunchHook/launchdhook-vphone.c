@@ -78,7 +78,7 @@ static int vpPhysicalProgram(const char *program, const char *root, char physica
 static void vpPatchProgram(xpc_object_t plist, const char *root) {
     // RootHide's bootstrap paths are relative to jbroot. launchd is outside
     // vroot, so its executable must be passed as a physical kernel path.
-    if (access("/var/jb", F_OK) == 0 || xpc_dictionary_get_bool(plist, "__Patched")) return;
+    if (!strstr(root, "/.jbroot-") || xpc_dictionary_get_bool(plist, "__Patched")) return;
     xpc_object_t args = xpc_dictionary_get_value(plist, "ProgramArguments");
     if (args && xpc_get_type(args) == XPC_TYPE_ARRAY && xpc_array_get_count(args) > 0) {
         const char *program = xpc_array_get_string(args, 0);
@@ -91,26 +91,27 @@ static void vpPatchProgram(xpc_object_t plist, const char *root) {
 }
 
 static void vpAddPlist(xpc_object_t dictionary, const char *path, const char *root) {
+    VPPlistDecoder decode = (VPPlistDecoder)dlsym(RTLD_DEFAULT, "xpc_create_from_plist");
+    if (!decode) return;
     int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) return;
     struct stat info;
-    if (fstat(fd, &info) == 0 && S_ISREG(info.st_mode) && info.st_size > 0 &&
-        info.st_size < 1024 * 1024) {
-        void *bytes = mmap(NULL, (size_t)info.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-        if (bytes != MAP_FAILED) {
-            VPPlistDecoder decode = (VPPlistDecoder)dlsym(RTLD_DEFAULT, "xpc_create_from_plist");
-            if (decode) {
-                xpc_object_t plist = decode(bytes, (size_t)info.st_size);
-                if (plist && xpc_get_type(plist) == XPC_TYPE_DICTIONARY) {
-                    vpPatchProgram(plist, root);
-                    xpc_dictionary_set_value(dictionary, path, plist);
-                }
-                if (plist) xpc_release(plist);
-            }
-            munmap(bytes, (size_t)info.st_size);
-        }
+    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) ||
+        info.st_size <= 0 || info.st_size >= 1024 * 1024) {
+        close(fd);
+        return;
     }
+    void *bytes = mmap(NULL, (size_t)info.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
+    if (bytes == MAP_FAILED) return;
+    xpc_object_t plist = decode(bytes, (size_t)info.st_size);
+    munmap(bytes, (size_t)info.st_size);
+    if (!plist) return;
+    if (xpc_get_type(plist) == XPC_TYPE_DICTIONARY) {
+        vpPatchProgram(plist, root);
+        xpc_dictionary_set_value(dictionary, path, plist);
+    }
+    xpc_release(plist);
 }
 
 static void vpAddDaemons(xpc_object_t dictionary, const char *directory, const char *root) {
