@@ -40,7 +40,6 @@
 			developmentRegion = en;
 			knownRegions = (en, Base, );
 			mainGroup = EE0000000000000000000002;
-			productRefGroup = EE0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (EE0000000000000000000011 /* VPhoneEscalator */, );

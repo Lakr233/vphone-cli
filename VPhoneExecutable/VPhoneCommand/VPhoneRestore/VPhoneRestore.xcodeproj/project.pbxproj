@@ -225,7 +225,6 @@
 			packageReferences = (
 				CC0000000000000000000171 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */,
 			);
-			productRefGroup = CC0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

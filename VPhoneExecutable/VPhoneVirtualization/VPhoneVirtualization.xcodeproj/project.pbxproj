@@ -188,7 +188,6 @@
 				DD0000000000000000000172 /* XCRemoteSwiftPackageReference "Dynamic" */,
 				DD0000000000000000000173 /* XCRemoteSwiftPackageReference "swift-nio" */,
 			);
-			productRefGroup = DD0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

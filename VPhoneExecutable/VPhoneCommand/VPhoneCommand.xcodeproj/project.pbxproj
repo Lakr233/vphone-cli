@@ -309,7 +309,6 @@
 				BB0000000000000000000175 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
 				BB0000000000000000000176 /* XCRemoteSwiftPackageReference "AppleMobileDeviceLibrary" */,
 			);
-			productRefGroup = BB0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

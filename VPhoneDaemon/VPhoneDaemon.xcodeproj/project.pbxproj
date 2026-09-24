@@ -183,7 +183,6 @@
 				C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */,
 				C10000000000000000000073 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
 			);
-			productRefGroup = C10000000000000000000052 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

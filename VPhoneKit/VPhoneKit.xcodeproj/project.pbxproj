@@ -262,7 +262,6 @@
 				AA0000000000000000000171 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 				AA0000000000000000000172 /* XCRemoteSwiftPackageReference "libarchive.xcframework" */,
 			);
-			productRefGroup = AA0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
