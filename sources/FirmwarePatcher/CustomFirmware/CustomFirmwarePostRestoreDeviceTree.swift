@@ -269,7 +269,6 @@ public enum CustomFirmwarePostRestoreDeviceTree {
             }
             node.properties.append(DeviceTreePatcher.DTProperty(
                 name: name,
-                length: length,
                 flags: flags,
                 value: slice(blob, valueOffset, length),
                 valueOffset: valueOffset,

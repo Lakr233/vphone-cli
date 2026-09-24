@@ -43,10 +43,6 @@ final class VPhoneCameraServer {
     private var connectionAttemptToken: UInt64 = 0
     private var framePending = false
 
-    private let sendQueue = DispatchQueue(
-        label: "com.vphone.camera.send",
-        qos: .userInteractive
-    )
     private let producerQueue = DispatchQueue(
         label: "com.vphone.camera.producer",
         qos: .userInteractive

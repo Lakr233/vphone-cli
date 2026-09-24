@@ -15,7 +15,6 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
     private var exceededLimit = false
     private var upload: GuestFileUpload?
     private var uploadError: (any Error)?
-    private var isBinaryUpload = false
     private let maximumJSONBody = 1 << 20
 
     init(hub: APIEventHub, fileIO: NonBlockingFileIO) {
@@ -32,8 +31,7 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
             upload = nil
             uploadError = nil
             let requestPath = request.uri.split(separator: "?", maxSplits: 1).first
-            isBinaryUpload = request.method == .PUT && (requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image")
-            if isBinaryUpload {
+            if request.method == .PUT && (requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image") {
                 do {
                     upload = try GuestFileUpload(
                         destination: requestPath == "/v1/clipboard/image"
@@ -49,7 +47,8 @@ final class GuestHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @u
                 } catch { uploadError = error }
             }
         case .body(var buffer):
-            if isBinaryUpload {
+            let requestPath = head?.uri.split(separator: "?", maxSplits: 1).first
+            if head?.method == .PUT && (requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image") {
                 upload?.append(buffer, channel: context.channel)
                 return
             }

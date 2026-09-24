@@ -4,7 +4,6 @@ import SwiftUI
 @MainActor
 class VPhoneAppWindowController {
     private var window: NSWindow?
-    private var model: VPhoneAppBrowserModel?
 
     func showWindow(control: VPhoneGuestControl) {
         if let window {
@@ -13,8 +12,6 @@ class VPhoneAppWindowController {
         }
 
         let model = VPhoneAppBrowserModel(control: control)
-        self.model = model
-
         let view = VPhoneAppBrowserView(model: model)
         let hostingView = NSHostingView(rootView: view)
 
@@ -46,7 +43,6 @@ class VPhoneAppWindowController {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.window = nil
-                self?.model = nil
             }
         }
     }

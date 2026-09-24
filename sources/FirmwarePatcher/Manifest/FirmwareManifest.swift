@@ -43,22 +43,6 @@ public enum FirmwareManifest {
         }
     }
 
-    // MARK: - Identity indices
-
-    /// Discovered identity indices from cloudOS and iPhone manifests.
-    struct IdentityIndices {
-        /// vresearch101ap release identity (boot chain — matches DFU hardware).
-        let prod: Int
-        /// vresearch101ap research identity (research iBoot, TXM).
-        let res: Int
-        /// vphone600ap release identity (device tree, SEP, restore kernel).
-        let vp: Int
-        /// vphone600ap research identity (kernel cache).
-        let vpr: Int
-        /// iPhone erase identity (OS images).
-        let iPhoneErase: Int
-    }
-
     // MARK: - Public API
 
     /// Generate hybrid BuildManifest.plist and Restore.plist.

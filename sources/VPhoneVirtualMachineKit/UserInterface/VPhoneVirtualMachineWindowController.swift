@@ -5,7 +5,6 @@ import Virtualization
 @MainActor
 class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
     private var windowController: NSWindowController?
-    private var statusTimer: Timer?
     private weak var control: VPhoneGuestControl?
     private weak var virtualMachineView: VPhoneVirtualMachineView?
     private(set) var touchIDMonitor: VPhoneTouchIDMonitor?
@@ -84,7 +83,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         touchIDMonitor = monitor
 
         // Poll vphoned status for title indicator
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) {
+        _ = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) {
             [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }

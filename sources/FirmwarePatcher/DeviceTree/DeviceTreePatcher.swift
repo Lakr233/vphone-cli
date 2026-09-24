@@ -30,15 +30,14 @@ public final class DeviceTreePatcher: Patcher {
     /// A single property in a device tree node.
     final class DTProperty {
         var name: String
-        var length: Int
+        var length: Int { value.count }
         var flags: UInt16
         var value: Data
         /// File offset of the property value within the flat binary.
         let valueOffset: Int
 
-        init(name: String, length: Int, flags: UInt16, value: Data, valueOffset: Int) {
+        init(name: String, flags: UInt16, value: Data, valueOffset: Int) {
             self.name = name
-            self.length = length
             self.flags = flags
             self.value = value
             self.valueOffset = valueOffset
@@ -66,7 +65,7 @@ public final class DeviceTreePatcher: Patcher {
         rebuiltData = nil
         let root = try parsePayload(buffer.data)
         try applyPatches(root: root)
-        rebuiltData = serializePayload(root)
+        rebuiltData = serializeNode(root)
         return patches
     }
 
@@ -141,7 +140,6 @@ public final class DeviceTreePatcher: Patcher {
 
             node.properties.append(DTProperty(
                 name: name,
-                length: length,
                 flags: flags,
                 value: value,
                 valueOffset: valueOffset,
@@ -195,10 +193,6 @@ public final class DeviceTreePatcher: Patcher {
             out.append(serializeNode(child))
         }
         return out
-    }
-
-    private func serializePayload(_ root: DTNode) -> Data {
-        serializeNode(root)
     }
 
     // MARK: - Node Navigation
@@ -318,7 +312,6 @@ public final class DeviceTreePatcher: Patcher {
                 Self.encodeFixedBytes(d, length: patch.length)
             }
 
-            prop.length = patch.length
             prop.flags = patch.flags
             prop.value = newValue
 
@@ -377,7 +370,6 @@ public final class DeviceTreePatcher: Patcher {
         let nameValue = Self.encodeFixedString(patch.nodeName, length: patch.nodeName.utf8.count + 1)
         newNode.properties.append(DTProperty(
             name: "name",
-            length: nameValue.count,
             flags: 0,
             value: nameValue,
             valueOffset: 0,
@@ -394,7 +386,6 @@ public final class DeviceTreePatcher: Patcher {
             }
             newNode.properties.append(DTProperty(
                 name: spec.name,
-                length: spec.length,
                 flags: spec.flags,
                 value: value,
                 valueOffset: 0,
