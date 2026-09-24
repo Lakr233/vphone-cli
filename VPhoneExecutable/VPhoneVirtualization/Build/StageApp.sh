@@ -8,27 +8,34 @@ app="${TARGET_BUILD_DIR:?}/${FULL_PRODUCT_NAME:?}"
 macos="$app/Contents/MacOS"
 resources="$app/Contents/Resources"
 
-/usr/bin/xcodebuild -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj" \
+# Xcode exports the app target's SDK and package paths to build phases. Nested
+# xcodebuild must resolve each project's own graph, especially the iOS daemon.
+build_project() {
+    /usr/bin/env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        PATH="/usr/bin:/bin:/usr/sbin:/sbin" /usr/bin/xcodebuild "$@"
+}
+
+build_project -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj" \
     -scheme VPhoneRestore -configuration "$configuration" \
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$root/.build/XcodeRestore" CODE_SIGNING_ALLOWED=NO build
 
-/usr/bin/xcodebuild -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj" \
+build_project -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj" \
     -scheme VPhoneCommand -configuration "$configuration" \
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$root/.build/XcodeCommand" CODE_SIGNING_ALLOWED=NO build
 
-/usr/bin/xcodebuild -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
+build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
     -scheme vphoned -configuration "$configuration" \
     -destination 'generic/platform=iOS' \
     -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO build
 
-/usr/bin/xcodebuild -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
+build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
     -scheme vpregister -configuration "$configuration" \
     -destination 'generic/platform=iOS' \
     -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO build
 
-/usr/bin/xcodebuild -project "$root/VPhoneExecutable/VPhoneEscalator/VPhoneEscalator.xcodeproj" \
+build_project -project "$root/VPhoneExecutable/VPhoneEscalator/VPhoneEscalator.xcodeproj" \
     -scheme VPhoneEscalator -configuration "$configuration" \
     -destination 'platform=macOS,arch=arm64e' \
     -derivedDataPath "$root/.build/XcodeEscalator" CODE_SIGNING_ALLOWED=NO build
@@ -57,6 +64,7 @@ guest_products="$root/.build/guest-components/stage"
 /bin/cp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/AppIcon.icns" "$resources/AppIcon.icns"
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/entitlements.plist" "$macos/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/entitlements.plist" "$macos/vphoned.signed"
 /usr/bin/codesign --force --sign - "$macos/vpregister"
 /usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"

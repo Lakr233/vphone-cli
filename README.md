@@ -56,11 +56,13 @@ Building from source needs Xcode, including its iPhoneOS SDK for vphoned:
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git
 cd vphone-cli
-zsh Scripts/build.sh
-.build/release/vphone-cli --help
+xcodebuild -workspace VPhone.xcworkspace -scheme vphone-app \
+  -configuration Debug -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath .build/XcodeApp build
+.build/XcodeApp/Build/Products/Debug/vphone-app.app/Contents/MacOS/vphone-cli --help
 ```
 
-`Scripts/build.sh` builds, signs, and bundles the binaries. Run `swift test` for the Swift tests and `zsh Scripts/check_aux.sh` for the bundle checks. After every rebuild, a host using the AMFI allowlist must allow the new signed binaries because their cdhashes change. See [host setup](Documents/Guides/host-setup.md).
+The Xcode app scheme builds the host tools, guest daemon, and guest components and bundles every binary under `Contents/MacOS`. Run the test schemes in their respective projects and `zsh Scripts/check_aux.sh` to inspect the app. After every rebuild, a host using the AMFI allowlist must allow the new signed VM binary because its cdhash changes. See [host setup](Documents/Guides/host-setup.md).
 
 ## Everyday commands
 
