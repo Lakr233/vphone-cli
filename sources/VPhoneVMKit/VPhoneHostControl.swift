@@ -181,6 +181,14 @@ class VPhoneHostControl {
                 close(clientFD)
                 continue
             }
+            var timeout = timeval(tv_sec: 15, tv_usec: 0)
+            guard setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+                             socklen_t(MemoryLayout<timeval>.size)) == 0,
+                  setsockopt(clientFD, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                             socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+                close(clientFD)
+                continue
+            }
             handleClient(clientFD, controller: controller)
         }
     }

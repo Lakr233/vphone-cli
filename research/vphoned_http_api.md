@@ -74,7 +74,8 @@ exits. Host socket writes use `F_SETNOSIGPIPE`, so a guest disconnect becomes
 an ordinary error instead of terminating `vphone-vm`. The host HTTP client
 also times out stalled reads and writes. Camera frames use a duplicated
 descriptor for each in-flight send; the original descriptor remains owned by
-`VZVirtioSocketConnection` and is never manually closed. The optional TCP
+`VZVirtioSocketConnection` and is never manually closed. Camera sends and
+local control socket operations have bounded timeouts. The optional TCP
 proxy uses NIO channels and closes the paired channel when either side ends.
 
 ## Usage

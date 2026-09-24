@@ -121,7 +121,7 @@ extension CryptexFilesystemPatcher {
     }
 
     func getBuildIdentityManifest(path: URL) throws -> PlistDict {
-        let data = try Data(contentsOf: path)
+        let data = try Data(contentsOf: path, options: .mappedIfSafe)
         return try getBuildIdentityManifest(data: data)
     }
 

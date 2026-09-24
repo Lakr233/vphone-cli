@@ -134,7 +134,10 @@ final class VPhoneCameraServer {
             let sourceFD = self.connectionFD
             let fd = dup(sourceFD)
             guard fd >= 0 else { self.handleDisconnect(); return }
-            guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1 else {
+            var timeout = timeval(tv_sec: 5, tv_usec: 0)
+            guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1,
+                  setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                             socklen_t(MemoryLayout<timeval>.size)) == 0 else {
                 close(fd)
                 self.handleDisconnect()
                 return
