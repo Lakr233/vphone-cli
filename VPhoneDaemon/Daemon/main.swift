@@ -23,11 +23,22 @@ do {
             let upgrader = NIOWebSocketServerUpgrader(
                 maxFrameSize: 1 << 20,
                 shouldUpgrade: { channel, request in
-                    channel.eventLoop.makeSucceededFuture(request.uri == "/v1/events" ? HTTPHeaders() : nil)
+                    let allowed = request.uri == "/v1/events" || GuestPortForwardHandler.port(from: request.uri) != nil
+                    return channel.eventLoop.makeSucceededFuture(allowed ? HTTPHeaders() : nil)
                 },
-                upgradePipelineHandler: { channel, _ in
+                upgradePipelineHandler: { channel, request in
                     channel.pipeline.removeHandler(http).flatMap {
-                        channel.pipeline.addHandlers([
+                        if let port = GuestPortForwardHandler.port(from: request.uri) {
+                            return channel.pipeline.addHandlers([
+                                NIOWebSocketFrameAggregator(
+                                    minNonFinalFragmentSize: 1,
+                                    maxAccumulatedFrameCount: 32,
+                                    maxAccumulatedFrameSize: 1 << 20,
+                                ),
+                                GuestPortForwardHandler(port: port),
+                            ])
+                        }
+                        return channel.pipeline.addHandlers([
                             NIOWebSocketFrameAggregator(
                                 minNonFinalFragmentSize: 1,
                                 maxAccumulatedFrameCount: 32,

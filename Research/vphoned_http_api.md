@@ -24,7 +24,7 @@ The guest links IcliKit directly. App registration refresh is available through
 JPEG with `mime_type`, `width`, and `height`; the current VM produces 1290×2796.
 The host's Save/Copy Screenshot menu decodes this guest image. It omits the
 notch and cutout drawn by the host VM window.
-`apps.install` accepts IPA and TIPA archives. IcliKit 0.6.6 validates and
+`apps.install` accepts IPA and TIPA archives. IcliKit 0.6.7 validates and
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.
 `apps.uninstall` delegates removal to IcliKit and requires `force=true`.
@@ -39,7 +39,25 @@ directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
 
-`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.6 checks
+`GET /v1/device` includes `jailbreak.layout`, `jailbreak.jbroot`, and
+`jailbreak.source`. The layout is `roothide`, `rootless`, or `rootful` when
+detected. If there is no bootstrap and `/` is read-only, both `layout` and
+`jbroot` are JSON `null`; `/` alone is not evidence of a rootful bootstrap.
+The daemon checks a loaded RootHide `systemhook.dylib` export and `/var/jb`
+at request time so a bootstrap created after daemon startup can be reported.
+
+For raw guest TCP ports, upgrade `GET /v1/ports/<port>` to WebSocket. Each
+binary WebSocket message carries an unmodified chunk of the TCP byte stream
+in one direction; the server connects only to `127.0.0.1:<port>` inside the
+guest. Ports 1 through 65535 are accepted. Ping/pong and close frames retain
+normal WebSocket behavior; text frames close the tunnel. A failed guest
+connection closes the WebSocket with code 1011. Each tunnel has its own guest
+TCP connection and closes it when the WebSocket closes. For example, with
+`--api-listen 127.0.0.1:8765`, `ws://127.0.0.1:8765/v1/ports/22` carries
+the guest SSH byte stream. An SSH client still needs a local TCP-to-WebSocket
+bridge; SSH cannot use a WebSocket URL directly.
+
+`apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.7 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
 it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
 `Workspace-ForegroundFocal`. The Home screen's widget renderer can also hold
@@ -66,7 +84,7 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.6
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.7
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it

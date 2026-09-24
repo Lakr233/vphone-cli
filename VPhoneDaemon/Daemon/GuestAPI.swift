@@ -59,6 +59,7 @@ enum GuestAPI {
                 "location",
                 "keychain",
                 "ipa_install",
+                "port_forward",
                 "camera",
                 "screenshot",
             ],
@@ -68,7 +69,9 @@ enum GuestAPI {
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
         switch method {
         case "device.snapshot":
-            return try collectDeviceSnapshot()
+            var snapshot = try collectDeviceSnapshot()
+            snapshot["jailbreak"] = jailbreakInfo()
+            return snapshot
         case "device.screen":
             return screenInfo()
         case "screen.screenshot":
@@ -332,6 +335,41 @@ enum GuestAPI {
             return enriched
         }
         return result
+    }
+
+    private static func jailbreakInfo() -> [String: Any] {
+        func isDirectory(_ path: String) -> Bool {
+            var directory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue
+        }
+
+        // RootHide can expose its root through the injected hook even when a
+        // system-installed vphoned has no adjacent .jbroot or libroot library.
+        if let hook = dlopen("systemhook.dylib", RTLD_NOLOAD) {
+            defer { dlclose(hook) }
+            if let symbol = dlsym(hook, "get_jbroot") {
+                typealias GetRoot = @convention(c) () -> UnsafePointer<CChar>?
+                if let prefix = unsafeBitCast(symbol, to: GetRoot.self)() {
+                    let path = String(cString: prefix)
+                    if path.hasPrefix("/"), path != "/", isDirectory(path) {
+                        return ["layout": "roothide", "jbroot": path, "source": "systemhook"]
+                    }
+                }
+            }
+        }
+
+        let root = JailbreakRoot.current
+        if let layout = root.layout, layout != .rootful, isDirectory(root.jbroot) {
+            return ["layout": layout.rawValue, "jbroot": root.jbroot, "source": root.source]
+        }
+        if isDirectory("/var/jb") {
+            return ["layout": "rootless", "jbroot": "/var/jb", "source": "filesystem /var/jb"]
+        }
+        var rootMount = statfs()
+        if statfs("/", &rootMount) == 0, rootMount.f_flags & UInt32(MNT_RDONLY) == 0 {
+            return ["layout": "rootful", "jbroot": "/", "source": "root mount"]
+        }
+        return ["layout": NSNull(), "jbroot": NSNull(), "source": "not detected"]
     }
 
     private static func string(_ params: [String: Any], _ key: String) throws -> String {
