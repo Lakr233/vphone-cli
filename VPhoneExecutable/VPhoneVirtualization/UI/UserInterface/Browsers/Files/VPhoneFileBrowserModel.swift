@@ -28,6 +28,7 @@ class VPhoneFileBrowserModel {
     /// Navigation stacks
     private var pathHistory: [String] = []
     private var forwardHistory: [String] = []
+    private var refreshGeneration = 0
 
     init(control: VPhoneGuestControl, quickLookController: VPhoneQuickLookController) {
         self.control = control
@@ -73,6 +74,7 @@ class VPhoneFileBrowserModel {
         pathHistory.append(currentPath)
         forwardHistory.removeAll()
         currentPath = path
+        refreshGeneration += 1
         selection.removeAll()
         Task { await refresh() }
     }
@@ -81,6 +83,7 @@ class VPhoneFileBrowserModel {
         guard let prev = pathHistory.popLast() else { return }
         forwardHistory.append(currentPath)
         currentPath = prev
+        refreshGeneration += 1
         selection.removeAll()
         Task { await refresh() }
     }
@@ -89,6 +92,7 @@ class VPhoneFileBrowserModel {
         guard let next = forwardHistory.popLast() else { return }
         pathHistory.append(currentPath)
         currentPath = next
+        refreshGeneration += 1
         selection.removeAll()
         Task { await refresh() }
     }
@@ -144,12 +148,18 @@ class VPhoneFileBrowserModel {
     // MARK: - Refresh
 
     func refresh() async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let path = currentPath
         isLoading = true
         error = nil
         do {
-            let entries = try await control.listFiles(path: currentPath)
-            files = entries.compactMap { VPhoneRemoteFile(dir: currentPath, entry: $0) }
+            let entries = try await control.listFiles(path: path)
+            guard generation == refreshGeneration, path == currentPath else { return }
+            files = entries.compactMap { VPhoneRemoteFile(dir: path, entry: $0) }
+            selection.formIntersection(Set(files.map(\.id)))
         } catch {
+            guard generation == refreshGeneration, path == currentPath else { return }
             self.error = "\(error)"
             files = []
         }
@@ -161,8 +171,8 @@ class VPhoneFileBrowserModel {
     func downloadSelected(to directory: URL) async {
         let selected = files.filter { selection.contains($0.id) }
         for file in selected {
-            if file.isDirectory {
-                await downloadDirectory(remotePath: file.path, name: file.name, to: directory)
+            if file.isDirectoryLike {
+                await downloadDirectory(file, to: directory, ancestors: [])
             } else {
                 await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
             }
@@ -188,8 +198,22 @@ class VPhoneFileBrowserModel {
         }
     }
 
-    private func downloadDirectory(remotePath: String, name: String, to localParent: URL) async {
-        let localDir = localParent.appendingPathComponent(name)
+    private func downloadDirectory(
+        _ file: VPhoneRemoteFile,
+        to localParent: URL,
+        ancestors: Set<String>,
+    ) async {
+        guard !file.isSymbolicLink || file.resolvedPath != nil else {
+            error = "Download requires an updated guest agent to follow \(file.path)."
+            return
+        }
+        let resolvedPath = file.resolvedPath ?? file.path
+        guard !ancestors.contains(resolvedPath) else {
+            error = "Directory link creates a cycle at \(file.path)."
+            return
+        }
+        let ancestors = ancestors.union([resolvedPath])
+        let localDir = localParent.appendingPathComponent(file.name)
         do {
             try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
         } catch {
@@ -199,16 +223,16 @@ class VPhoneFileBrowserModel {
 
         let entries: [[String: Any]]
         do {
-            entries = try await control.listFiles(path: remotePath)
+            entries = try await control.listFiles(path: file.path)
         } catch {
             self.error = "List directory failed: \(error)"
             return
         }
 
-        let children = entries.compactMap { VPhoneRemoteFile(dir: remotePath, entry: $0) }
+        let children = entries.compactMap { VPhoneRemoteFile(dir: file.path, entry: $0) }
         for child in children {
-            if child.isDirectory {
-                await downloadDirectory(remotePath: child.path, name: child.name, to: localDir)
+            if child.isDirectoryLike {
+                await downloadDirectory(child, to: localDir, ancestors: ancestors)
             } else {
                 await downloadFile(
                     remotePath: child.path,
@@ -255,6 +279,10 @@ class VPhoneFileBrowserModel {
     }
 
     func createNewFolder(name: String) async {
+        guard !files.contains(where: { $0.name == name }) else {
+            error = "An item named \(name) already exists."
+            return
+        }
         let path = (currentPath as NSString).appendingPathComponent(name)
         do {
             try await control.createDirectory(path: path)
@@ -279,6 +307,11 @@ class VPhoneFileBrowserModel {
     }
 
     func renameFile(_ file: VPhoneRemoteFile, to newName: String) async {
+        guard newName != file.name else { return }
+        guard !files.contains(where: { $0.dir == file.dir && $0.name == newName }) else {
+            error = "An item named \(newName) already exists."
+            return
+        }
         let newPath = (file.dir as NSString).appendingPathComponent(newName)
         do {
             try await control.renameFile(from: file.path, to: newPath)

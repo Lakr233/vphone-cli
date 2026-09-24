@@ -34,6 +34,8 @@ final class VPhoneGuestControl {
     private weak var device: VZVirtioSocketDevice?
     private var monitor: Task<Void, Never>?
     private var orderedInput: Task<Void, Never>?
+    private var orderedLocation: Task<Void, Never>?
+    private var locationGeneration: UInt64 = 0
     private(set) var isConnected = false
     private(set) var guestCapabilities: [String] = []
     private(set) var guestIPAddress: String?
@@ -65,6 +67,8 @@ final class VPhoneGuestControl {
         monitor = nil
         orderedInput?.cancel()
         orderedInput = nil
+        orderedLocation?.cancel()
+        orderedLocation = nil
         device = nil
         setDisconnected()
     }
@@ -167,6 +171,18 @@ final class VPhoneGuestControl {
         return value?["binary_hash"] as? String ?? "unknown"
     }
 
+    func screenshotJPEG() async throws -> Data {
+        let result = try await call("screen.screenshot")
+        guard result["mime_type"] as? String == "image/jpeg",
+              let encoded = result["data"] as? String,
+              let data = Data(base64Encoded: encoded),
+              data.starts(with: [0xFF, 0xD8])
+        else {
+            throw ControlError.protocolError("invalid guest screenshot")
+        }
+        return data
+    }
+
     /// Retains the UI-facing request shape while all transport and guest
     /// operations use the versioned HTTP API.
     func sendRequest(_ request: [String: Any]) async throws -> ([String: Any], Data?) {
@@ -198,6 +214,7 @@ final class VPhoneGuestControl {
         case "app_foreground": method = "apps.foreground"
         case "keychain_list": method = "keychain.list"
         case "keychain_add": method = "keychain.add"
+        case "keychain_delete": method = "keychain.delete"
         case "open_url": method = "apps.open_url"
         case "settings_get": method = "settings.get"
         case "settings_set": method = "settings.set"
@@ -308,18 +325,30 @@ final class VPhoneGuestControl {
         speed: Double,
         course: Double,
     ) {
-        Task {
-            do { _ = try await call("location.set", params: [
-                "latitude": latitude, "longitude": longitude, "altitude": altitude,
-                "horizontal_accuracy": horizontalAccuracy, "vertical_accuracy": verticalAccuracy,
-                "speed": speed, "course": course,
-            ]) } catch { print("[control] location: \(error)") }
-        }
+        var params: [String: Any] = [
+            "latitude": latitude, "longitude": longitude, "altitude": altitude,
+            "horizontal_accuracy": horizontalAccuracy, "vertical_accuracy": verticalAccuracy,
+        ]
+        // CoreLocation uses negative values for unavailable speed and course.
+        // IcliKit expects those fields to be absent in that case.
+        if speed >= 0 { params["speed"] = speed }
+        if course >= 0 { params["course"] = course }
+        enqueueLocation("location.set", params: params)
     }
 
     func sendLocationStop() {
-        Task { do { _ = try await call("location.clear") }
-            catch { print("[control] location clear: \(error)") }
+        enqueueLocation("location.clear")
+    }
+
+    private func enqueueLocation(_ method: String, params: [String: Any] = [:]) {
+        locationGeneration &+= 1
+        let generation = locationGeneration
+        let previous = orderedLocation
+        orderedLocation = Task {
+            await previous?.value
+            guard !Task.isCancelled, generation == locationGeneration else { return }
+            do { _ = try await call(method, params: params) }
+            catch { print("[control] \(method): \(error)") }
         }
     }
 

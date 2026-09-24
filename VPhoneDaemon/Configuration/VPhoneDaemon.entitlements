@@ -13,7 +13,13 @@
 	</array>
 	<key>com.apple.locationd.preauthorized</key>
 	<true/>
+	<key>com.apple.locationd.effective_bundle</key>
+	<true/>
 	<key>com.apple.locationd.simulation</key>
+	<true/>
+	<key>com.apple.lsapplicationworkspace.rebuildappdatabases</key>
+	<true/>
+	<key>com.apple.powerd.lowpowermode.allow</key>
 	<true/>
 	<key>com.apple.Pasteboard.background-access</key>
 	<true/>
@@ -69,6 +75,12 @@
 	<true/>
 	<key>com.apple.private.amfi.developer-mode-control</key>
 	<true/>
+	<key>com.apple.private.coreservices.can-register-install-results</key>
+	<true/>
+	<key>com.apple.private.coreservices.canmaplsdatabase</key>
+	<true/>
+	<key>com.apple.private.coreservices.lsaw</key>
+	<true/>
 	<key>com.apple.private.hid.client.event-dispatch</key>
 	<true/>
 	<key>com.apple.private.hid.client.event-filter</key>
@@ -80,6 +92,8 @@
 	<key>com.apple.private.hid.manager.client</key>
 	<true/>
 	<key>com.apple.private.kernel.jetsam</key>
+	<true/>
+	<key>com.apple.private.installcoordinationd.daemon</key>
 	<true/>
 	<key>com.apple.private.memorystatus</key>
 	<true/>

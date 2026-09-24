@@ -4,12 +4,9 @@
 #import <Security/Security.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <mach-o/fat.h>
 #include <mach-o/loader.h>
-#include <spawn.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #import "vphoned_response.h"
@@ -58,6 +55,10 @@ extern CFStringRef kSecCodeInfoEntitlementsDict;
 @end
 
 static NSString *const VPManagedMarker = @"_VPhone";
+
+// Implemented in GuestSigner.swift using the shared VPhoneSign target.
+// A non-null result is a malloc-owned error message.
+extern char *vp_guest_sign_binary(const char *path, const char *entitlementsPath, const char *certificatePath);
 
 static void vp_load_private_frameworks(void) {
     static dispatch_once_t onceToken;
@@ -152,82 +153,6 @@ static void vp_fix_permissions_of_app_bundle(NSString *appBundlePath) {
     }
 }
 
-static NSString *vp_read_all_from_fd(int fd) {
-    NSMutableData *data = [NSMutableData data];
-    uint8_t buf[4096];
-    ssize_t n = 0;
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        [data appendBytes:buf length:(NSUInteger)n];
-    }
-    if (data.length == 0) return @"";
-    NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    return string ?: @"";
-}
-
-static int vp_run_process_with_output(NSString *path, NSArray<NSString *> *args, NSString **output) {
-    NSUInteger argc = args.count + 2;
-    char **argv = calloc(argc, sizeof(char *));
-    if (!argv) return ENOMEM;
-
-    argv[0] = strdup(path.fileSystemRepresentation);
-    for (NSUInteger i = 0; i < args.count; i++) {
-        argv[i + 1] = strdup(args[i].fileSystemRepresentation);
-    }
-    argv[argc - 1] = NULL;
-
-    int pipeFds[2] = {-1, -1};
-    if (pipe(pipeFds) != 0) {
-        for (NSUInteger i = 0; i < argc - 1; i++) free(argv[i]);
-        free(argv);
-        return errno;
-    }
-
-    posix_spawn_file_actions_t actions;
-    posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDERR_FILENO);
-    posix_spawn_file_actions_addclose(&actions, pipeFds[0]);
-
-    pid_t pid = 0;
-    int spawnError = posix_spawn(&pid, path.fileSystemRepresentation, &actions, NULL, argv, NULL);
-
-    posix_spawn_file_actions_destroy(&actions);
-    close(pipeFds[1]);
-
-    NSString *captured = vp_read_all_from_fd(pipeFds[0]);
-    close(pipeFds[0]);
-
-    int status = 0;
-    if (spawnError == 0 && waitpid(pid, &status, 0) < 0) {
-        spawnError = errno;
-    }
-
-    for (NSUInteger i = 0; i < argc - 1; i++) free(argv[i]);
-    free(argv);
-
-    if (output) *output = captured;
-
-    if (spawnError != 0) return spawnError;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
-    return -1;
-}
-
-static NSString *vp_find_ldid_path(void) {
-    NSFileManager *fm = [NSFileManager defaultManager];
-    for (NSString *path in @[
-        @"/var/jb/usr/bin/ldid",
-        @"/iosbinpack64/usr/bin/ldid",
-        @"/usr/bin/ldid",
-    ]) {
-        if ([fm isExecutableFileAtPath:path]) {
-            return path;
-        }
-    }
-    return nil;
-}
-
-
 static SecStaticCodeRef vp_get_static_code_ref(NSString *binaryPath) {
     if (binaryPath.length == 0) return NULL;
 
@@ -274,16 +199,9 @@ static int vp_sign_binary(
     NSString *filePath,
     NSDictionary *entitlements,
     NSString *certPath,
-    NSString *ldidPath,
     NSString **errorOutput
 ) {
-    if (ldidPath.length == 0) {
-        if (errorOutput) *errorOutput = @"The code-signing tool (ldid) is missing on the guest.";
-        return ENOENT;
-    }
-
     NSString *entitlementsPath = nil;
-    NSMutableArray<NSString *> *args = [NSMutableArray array];
     NSData *entitlementsXML = entitlements ? [NSPropertyListSerialization
         dataWithPropertyList:entitlements
         format:NSPropertyListXMLFormat_v1_0
@@ -292,29 +210,27 @@ static int vp_sign_binary(
     if (entitlementsXML) {
         entitlementsPath = [[NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID UUID].UUIDString]
             stringByAppendingPathExtension:@"plist"];
-        [entitlementsXML writeToFile:entitlementsPath atomically:NO];
-        [args addObject:[@"-S" stringByAppendingString:entitlementsPath]];
-    } else {
-        [args addObject:@"-S"];
+        if (![entitlementsXML writeToFile:entitlementsPath atomically:YES]) {
+            if (errorOutput) *errorOutput = @"Could not prepare app entitlements.";
+            return EIO;
+        }
     }
 
-    if (certPath.length > 0) {
-        [args addObject:@"-M"];
-        [args addObject:[@"-K" stringByAppendingString:certPath]];
-    }
-
-    [args addObject:filePath];
-
-    NSString *output = @"";
-    int ret = vp_run_process_with_output(ldidPath, args, &output);
+    char *error = vp_guest_sign_binary(
+        filePath.fileSystemRepresentation,
+        entitlementsPath.fileSystemRepresentation,
+        certPath.length > 0 ? certPath.fileSystemRepresentation : NULL
+    );
     if (entitlementsPath) {
         [[NSFileManager defaultManager] removeItemAtPath:entitlementsPath error:nil];
     }
-    if (errorOutput) *errorOutput = output;
-    return ret;
+    if (!error) return 0;
+    if (errorOutput) *errorOutput = [NSString stringWithUTF8String:error] ?: @"Could not sign app executable.";
+    free(error);
+    return EINVAL;
 }
 
-static int vp_sign_app(NSString *appPath, NSString *certPath, NSString *ldidPath, NSString **errorOutput) {
+static int vp_sign_app(NSString *appPath, NSString *certPath, NSString **errorOutput) {
     if (!vp_info_dictionary_for_app_path(appPath)) {
         if (errorOutput) *errorOutput = @"The app package is incomplete and cannot be signed.";
         return 172;
@@ -326,6 +242,7 @@ static int vp_sign_app(NSString *appPath, NSString *certPath, NSString *ldidPath
         return 174;
     }
 
+    NSMutableSet<NSString *> *signedExecutables = [NSMutableSet set];
     NSURL *fileURL = nil;
     NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager]
         enumeratorAtURL:[NSURL fileURLWithPath:appPath]
@@ -391,18 +308,29 @@ static int vp_sign_app(NSString *appPath, NSString *certPath, NSString *ldidPath
         entitlementsToUse[@"jb.pmap_cs_custom_trust"] = @"PMAP_CS_APP_STORE";
 
         NSString *signOutput = @"";
-        int ret = vp_sign_binary(bundleMainExecutablePath, entitlementsToUse, certPath, ldidPath, &signOutput);
+        int ret = vp_sign_binary(bundleMainExecutablePath, entitlementsToUse, certPath, &signOutput);
         if (ret != 0) {
             if (errorOutput) *errorOutput = signOutput;
             return 173;
         }
+        [signedExecutables addObject:bundleMainExecutablePath];
     }
 
-    NSString *recursiveOutput = @"";
-    int recursiveRet = vp_sign_binary(appPath, nil, certPath, ldidPath, &recursiveOutput);
-    if (recursiveRet != 0) {
-        if (errorOutput) *errorOutput = recursiveOutput;
-        return 173;
+    // Sign code without an Info.plist executable declaration, such as dylibs.
+    // The declared executables above already carry their guest entitlements.
+    enumerator = [[NSFileManager defaultManager]
+        enumeratorAtURL:[NSURL fileURLWithPath:appPath]
+        includingPropertiesForKeys:nil
+        options:0
+        errorHandler:nil];
+    while ((fileURL = [enumerator nextObject])) {
+        NSString *filePath = fileURL.path;
+        if ([signedExecutables containsObject:filePath] || !vp_is_macho_file(filePath)) continue;
+        NSString *signOutput = @"";
+        if (vp_sign_binary(filePath, nil, certPath, &signOutput) != 0) {
+            if (errorOutput) *errorOutput = signOutput;
+            return 173;
+        }
     }
     return 0;
 }
@@ -648,11 +576,29 @@ static BOOL vp_mark_container_as_managed(NSString *containerPath) {
     return [@"" writeToFile:markerPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
+static void vp_rollback_app_install(
+    NSString *newPath,
+    NSString *oldPath,
+    NSString *backupPath,
+    NSString *markerPath,
+    BOOL markerExisted,
+    BOOL newMoved,
+    BOOL oldMoved,
+    BOOL restoreRegistration,
+    BOOL forceSystem
+) {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (newMoved) [fm removeItemAtPath:newPath error:nil];
+    if (oldMoved && [fm moveItemAtPath:backupPath toPath:oldPath error:nil] && restoreRegistration) {
+        vp_register_path(oldPath, NO, forceSystem);
+    }
+    if (!markerExisted) [fm removeItemAtPath:markerPath error:nil];
+}
+
 static int vp_install_app_from_package(
     NSString *appPackagePath,
     BOOL forceSystem,
     NSString *certPath,
-    NSString *ldidPath,
     NSString **detailOutput
 ) {
     NSString *appPayloadPath = [appPackagePath stringByAppendingPathComponent:@"Payload"];
@@ -674,7 +620,7 @@ static int vp_install_app_from_package(
     }
 
     NSString *signOutput = @"";
-    int signRet = vp_sign_app(appBundleToInstallPath, certPath, ldidPath, &signOutput);
+    int signRet = vp_sign_app(appBundleToInstallPath, certPath, &signOutput);
     if (signRet != 0) {
         if (detailOutput) *detailOutput = signOutput;
         return signRet;
@@ -691,6 +637,7 @@ static int vp_install_app_from_package(
         createIfNecessary:NO
         existed:nil
         error:nil];
+    NSString *oldAppPath = nil;
     if (appContainer) {
         NSURL *bundleContainerURL = appContainer.url;
         NSURL *appBundleURL = vp_find_app_url_in_bundle_url(bundleContainerURL);
@@ -698,9 +645,7 @@ static int vp_install_app_from_package(
             if (detailOutput) *detailOutput = @"An app with the same bundle identifier is already installed. Remove it and try again.";
             return 171;
         }
-        if (appBundleURL.path.length > 0) {
-            [[NSFileManager defaultManager] removeItemAtURL:appBundleURL error:nil];
-        }
+        oldAppPath = appBundleURL.path;
     } else {
         NSError *mcmError = nil;
         appContainer = [appContainerClass
@@ -714,35 +659,54 @@ static int vp_install_app_from_package(
         }
     }
 
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *containerPath = appContainer.url.path;
     NSString *newAppBundlePath =
-        [appContainer.url.path stringByAppendingPathComponent:appBundleToInstallPath.lastPathComponent];
+        [containerPath stringByAppendingPathComponent:appBundleToInstallPath.lastPathComponent];
+    NSString *stagedPath = [containerPath stringByAppendingPathComponent:
+        [@".vphone-install-" stringByAppendingString:[NSUUID UUID].UUIDString]];
+    NSString *backupPath = oldAppPath.length > 0 ? [containerPath stringByAppendingPathComponent:
+        [@".vphone-backup-" stringByAppendingString:[NSUUID UUID].UUIDString]] : nil;
+    NSString *markerPath = [containerPath stringByAppendingPathComponent:VPManagedMarker];
+    BOOL markerExisted = [fm fileExistsAtPath:markerPath];
     NSError *copyError = nil;
-    if (![[NSFileManager defaultManager] copyItemAtPath:appBundleToInstallPath
-                                                 toPath:newAppBundlePath
-                                                  error:&copyError]) {
+    if (![fm copyItemAtPath:appBundleToInstallPath toPath:stagedPath error:&copyError]) {
+        [fm removeItemAtPath:stagedPath error:nil];
         if (detailOutput) *detailOutput = copyError.localizedDescription ?: @"Unable to copy the app onto the guest.";
         return 178;
     }
 
-    if (!vp_mark_container_as_managed(appContainer.url.path)) {
-        if (detailOutput) *detailOutput = @"The app was installed but could not be marked as managed.";
-        return 177;
+    if (oldAppPath.length > 0 && ![fm moveItemAtPath:oldAppPath toPath:backupPath error:&copyError]) {
+        [fm removeItemAtPath:stagedPath error:nil];
+        if (detailOutput) *detailOutput = copyError.localizedDescription ?: @"Unable to back up the existing app.";
+        return 178;
     }
-
-    NSURL *updatedAppURL = vp_find_app_url_in_bundle_url(appContainer.url);
-    if (updatedAppURL.path.length == 0) {
-        if (detailOutput) *detailOutput = @"The app was installed but could not be located afterwards.";
+    BOOL oldMoved = oldAppPath.length > 0;
+    if (![fm moveItemAtPath:stagedPath toPath:newAppBundlePath error:&copyError]) {
+        [fm removeItemAtPath:stagedPath error:nil];
+        vp_rollback_app_install(newAppBundlePath, oldAppPath, backupPath, markerPath,
+                                markerExisted, NO, oldMoved, NO, forceSystem);
+        if (detailOutput) *detailOutput = copyError.localizedDescription ?: @"Unable to place the app onto the guest.";
         return 178;
     }
 
-    vp_fix_permissions_of_app_bundle(updatedAppURL.path);
-    if (!vp_register_path(updatedAppURL.path, NO, forceSystem)) {
+    vp_fix_permissions_of_app_bundle(newAppBundlePath);
+    if (!vp_mark_container_as_managed(containerPath)) {
+        vp_rollback_app_install(newAppBundlePath, oldAppPath, backupPath, markerPath,
+                                markerExisted, YES, oldMoved, NO, forceSystem);
+        if (detailOutput) *detailOutput = @"The app was copied but could not be marked as managed.";
+        return 177;
+    }
+    if (!vp_register_path(newAppBundlePath, NO, forceSystem)) {
+        vp_rollback_app_install(newAppBundlePath, oldAppPath, backupPath, markerPath,
+                                markerExisted, YES, oldMoved, YES, forceSystem);
         if (detailOutput) *detailOutput = @"The app was copied but could not be registered with the system.";
         return 181;
     }
 
+    if (oldMoved) [fm removeItemAtPath:backupPath error:nil];
     if (detailOutput) {
-        *detailOutput = [NSString stringWithFormat:@"%@ (%@)", updatedAppURL.lastPathComponent, appId];
+        *detailOutput = [NSString stringWithFormat:@"%@ (%@)", newAppBundlePath.lastPathComponent, appId];
     }
     return 0;
 }
@@ -773,7 +737,6 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
     NSString *ipaPath = msg[@"path"];
     NSString *registration = msg[@"registration"];
     NSString *certPath = msg[@"cert_path"];
-    NSString *ldidPath = vp_find_ldid_path();
     BOOL forceSystem = [registration isEqualToString:@"System"];
 
     if (ipaPath.length == 0) {
@@ -796,11 +759,6 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
         response[@"msg"] = @"This guest cannot install apps. The built-in installer is not supported here.";
         return response;
     }
-    if (ldidPath.length == 0) {
-        NSMutableDictionary *response = vp_make_response(@"err", reqId);
-        response[@"msg"] = @"The code-signing tool (ldid) is missing on the guest. Install it and try again.";
-        return response;
-    }
     if (certPath.length > 0 && ![[NSFileManager defaultManager] fileExistsAtPath:certPath]) {
         certPath = nil;
     }
@@ -820,7 +778,7 @@ NSDictionary *vp_handle_custom_install(NSDictionary *msg) {
     int extractRet = vp_extract_package_to_directory(ipaPath, tmpPackagePath, &detail);
     int installRet = 0;
     if (extractRet == 0) {
-        installRet = vp_install_app_from_package(tmpPackagePath, forceSystem, certPath, ldidPath, &detail);
+        installRet = vp_install_app_from_package(tmpPackagePath, forceSystem, certPath, &detail);
     }
 
     [[NSFileManager defaultManager] removeItemAtPath:tmpPackagePath error:nil];

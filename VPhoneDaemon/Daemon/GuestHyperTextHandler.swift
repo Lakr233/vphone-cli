@@ -163,6 +163,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         case (.GET, "/v1/device"): "device.snapshot"
         case (.GET, "/v1/device/screen"): "device.screen"
         case (.GET, "/v1/apps"): "apps.list"
+        case (.POST, "/v1/apps/refresh"): "apps.refresh"
         case (.POST, "/v1/apps/launch"): "apps.launch"
         case (.POST, "/v1/apps/terminate"): "apps.terminate"
         case (.GET, "/v1/apps/foreground"): "apps.foreground"
@@ -177,14 +178,17 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         case (.POST, "/v1/developer-mode/enable"): "developer_mode.enable"
         case (.GET, "/v1/low-power-mode"), (.PUT, "/v1/low-power-mode"): "power.low_power_mode"
         case (.GET, "/v1/clipboard"), (.PUT, "/v1/clipboard"): verb == .GET ? "clipboard.get" : "clipboard.set"
+        case (.DELETE, "/v1/clipboard"): "clipboard.clear"
         case (.GET, "/v1/files"): "files.list"
         case (.POST, "/v1/files/mkdir"): "files.mkdir"
         case (.POST, "/v1/files/remove"): "files.remove"
         case (.POST, "/v1/files/rename"): "files.rename"
         case (.POST, "/v1/settings/get"): "settings.get"
         case (.POST, "/v1/settings/set"): "settings.set"
+        case (.POST, "/v1/settings/delete"): "settings.delete"
         case (.GET, "/v1/keychain"): "keychain.list"
         case (.POST, "/v1/keychain"): "keychain.add"
+        case (.DELETE, "/v1/keychain"): "keychain.delete"
         default: throw GuestAPIError.invalidRequest("No route for \(verb) \(path)")
         }
     }

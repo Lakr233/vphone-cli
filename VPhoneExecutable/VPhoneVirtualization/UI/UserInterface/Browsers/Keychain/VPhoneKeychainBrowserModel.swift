@@ -61,7 +61,6 @@ class VPhoneKeychainBrowserModel {
         ("Internet", "inet"),
         ("Certificates", "cert"),
         ("Keys", "keys"),
-        ("Identities", "idnt"),
     ]
 
     // MARK: - Actions
@@ -74,6 +73,16 @@ class VPhoneKeychainBrowserModel {
         } catch {
             self.error = "Unable to add the keychain item. Try again."
             print("[keychain] add failed: \(error)")
+        }
+    }
+
+    func removeTestItem() async {
+        do {
+            _ = try await control.deleteKeychainItem(account: "vphone-test", service: "vphone")
+            await refresh()
+        } catch {
+            self.error = "Unable to remove the test keychain item. Try again."
+            print("[keychain] remove failed: \(error)")
         }
     }
 

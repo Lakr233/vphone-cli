@@ -8,6 +8,7 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
     let permissions: String
     let modified: Date
     let symlinkTargetsDirectory: Bool
+    let resolvedPath: String?
 
     var id: String {
         path
@@ -94,6 +95,7 @@ extension VPhoneRemoteFile {
         self.name = name
         self.type = type
         symlinkTargetsDirectory = entry["link_target_dir"] as? Bool ?? false
+        resolvedPath = entry["resolved_path"] as? String
         size = (entry["size"] as? NSNumber)?.uint64Value ?? 0
         permissions = entry["perm"] as? String ?? "---"
         modified = Date(timeIntervalSince1970: (entry["mtime"] as? Double) ?? 0)

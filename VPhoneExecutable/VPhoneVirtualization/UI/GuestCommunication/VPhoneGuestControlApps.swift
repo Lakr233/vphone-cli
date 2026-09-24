@@ -31,25 +31,35 @@ extension VPhoneGuestControl {
         }
     }
 
-    func appLaunch(bundleId: String, url: String? = nil) async throws -> Int {
+    func appLaunch(bundleId: String, url: String? = nil) async throws -> (
+        pid: Int, frontmostVerified: Bool, warning: String?
+    ) {
         var req: [String: Any] = ["t": "app_launch", "bundle_id": bundleId]
         if let url {
             req["url"] = url
         }
         let (resp, _) = try await sendRequest(req)
-        return resp["pid"] as? Int ?? 0
+        return (
+            pid: resp["pid"] as? Int ?? 0,
+            frontmostVerified: resp["frontmost_verified"] as? Bool ?? false,
+            warning: resp["warning"] as? String,
+        )
     }
 
     func appTerminate(bundleId: String) async throws {
         _ = try await sendRequest(["t": "app_terminate", "bundle_id": bundleId])
     }
 
-    func appForeground() async throws -> (bundleId: String, name: String, pid: Int) {
+    func appForeground() async throws -> (
+        bundleId: String, name: String, pid: Int, verified: Bool, source: String
+    ) {
         let (resp, _) = try await sendRequest(["t": "app_foreground"])
         return (
             bundleId: resp["bundle_id"] as? String ?? "",
             name: resp["name"] as? String ?? "",
             pid: resp["pid"] as? Int ?? 0,
+            verified: resp["verified"] as? Bool ?? false,
+            source: resp["source"] as? String ?? "",
         )
     }
 }

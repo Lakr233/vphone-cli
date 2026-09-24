@@ -331,7 +331,7 @@ extension VPhoneMenuController {
         let lbl3 = NSTextField(labelWithString: "Type:")
         lbl3.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
         let typeField = NSTextField(frame: NSRect(x: 20, y: 72, width: 380, height: 22))
-        typeField.placeholderString = "boolean | string | integer | float"
+        typeField.placeholderString = "bool | string | int | float"
 
         let lbl4 = NSTextField(labelWithString: "Value:")
         lbl4.frame = NSRect(x: 20, y: 48, width: 380, height: 18)
@@ -369,21 +369,43 @@ extension VPhoneMenuController {
         guard response == .OK else { return }
         let domain = domainField.stringValue
         let key = keyField.stringValue
-        let type = typeField.stringValue
+        let type = typeField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let rawValue = valueField.stringValue
         guard !domain.isEmpty, !key.isEmpty else { return }
 
-        let value: Any =
-            switch type.lowercased() {
-            case "boolean", "bool":
-                rawValue.lowercased() == "true" || rawValue == "1"
-            case "integer", "int":
-                Int(rawValue) ?? 0
-            case "float", "double":
-                Double(rawValue) ?? 0.0
+        let value: Any
+        let valueType: String
+        switch type {
+        case "", "string":
+            value = rawValue
+            valueType = "string"
+        case "boolean", "bool":
+            switch rawValue.lowercased() {
+            case "true", "yes", "1": value = true
+            case "false", "no", "0": value = false
             default:
-                rawValue
+                showAlert(title: "Write Setting", message: "Enter true or false for a boolean value.", style: .warning)
+                return
             }
+            valueType = "bool"
+        case "integer", "int":
+            guard let number = Int64(rawValue) else {
+                showAlert(title: "Write Setting", message: "Enter a valid integer.", style: .warning)
+                return
+            }
+            value = number
+            valueType = "int"
+        case "float", "double":
+            guard let number = Double(rawValue), number.isFinite else {
+                showAlert(title: "Write Setting", message: "Enter a finite number.", style: .warning)
+                return
+            }
+            value = number
+            valueType = "float"
+        default:
+            showAlert(title: "Write Setting", message: "Type must be string, bool, int, or float.", style: .warning)
+            return
+        }
 
         Task {
             do {
@@ -391,7 +413,7 @@ extension VPhoneMenuController {
                     domain: domain,
                     key: key,
                     value: value,
-                    type: type.isEmpty ? nil : type,
+                    type: valueType,
                 )
                 showAlert(
                     title: "Write Setting",

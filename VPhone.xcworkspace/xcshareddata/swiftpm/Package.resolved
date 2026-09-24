@@ -1,5 +1,5 @@
 {
-  "originHash" : "1de27e729fcb6338110f5bcd0bee0f3630087d45462f3e4d5e75e9be0ff1add0",
+  "originHash" : "f64f0141522e4fc1ff1b3bb6ad935f5a786d14cb195f34f75733bb0b4c35ac72",
   "pins" : [
     {
       "identity" : "applemobiledevicelibrary",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/owngoal-dev/icli.git",
       "state" : {
-        "revision" : "c3407df5f160919b5eb7d2fefb5a5c21351314fb",
-        "version" : "0.6.1"
+        "revision" : "ee01bde8ceeb4c90779427674185e353bf8e022d",
+        "version" : "0.6.3"
       }
     },
     {
@@ -123,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
-        "revision" : "a66de878e87ef5a3d5d390e0f6d9002aa5541a43",
-        "version" : "1.7.0"
+        "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
+        "version" : "1.6.0"
       }
     },
     {

@@ -33,4 +33,14 @@ extension VPhoneGuestControl {
             throw ControlError.protocolError("keychain_add: \(msg)")
         }
     }
+
+    func deleteKeychainItem(account: String, service: String) async throws -> Bool {
+        let (resp, _) = try await sendRequest([
+            "t": "keychain_delete", "account": account, "service": service,
+        ])
+        guard resp["ok"] as? Bool == true else {
+            throw ControlError.guestError(resp["msg"] as? String ?? "Unable to delete the keychain item")
+        }
+        return resp["removed"] as? Bool ?? false
+    }
 }

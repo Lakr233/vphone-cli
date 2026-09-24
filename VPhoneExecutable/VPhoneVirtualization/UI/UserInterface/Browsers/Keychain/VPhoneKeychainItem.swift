@@ -12,6 +12,7 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
     let value: String
     let valueEncoding: String
     let valueSize: Int
+    let protectedMetadata: Bool
     let created: Date?
     let modified: Date?
 
@@ -38,6 +39,9 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
     }
 
     var displayValue: String {
+        if valueEncoding == "protected" {
+            return "Protected"
+        }
         if value.isEmpty {
             return "-"
         }
@@ -59,6 +63,9 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
         }
         if !server.isEmpty {
             return server
+        }
+        if protectedMetadata {
+            return "(protected)"
         }
         return "(unnamed)"
     }
@@ -116,6 +123,7 @@ extension VPhoneKeychainItem {
         value = entry["value"] as? String ?? ""
         valueEncoding = entry["valueEncoding"] as? String ?? ""
         valueSize = (entry["valueSize"] as? NSNumber)?.intValue ?? 0
+        protectedMetadata = (entry["protectedMetadata"] as? NSNumber)?.boolValue ?? false
 
         if let ts = entry["created"] as? Double {
             created = Date(timeIntervalSince1970: ts)
@@ -137,7 +145,11 @@ extension VPhoneKeychainItem {
             modified = nil
         }
 
-        let rowid = (entry["_rowid"] as? NSNumber)?.intValue ?? index
-        id = "\(cls)-\(rowid)"
+        if entry["source"] as? String == "security" {
+            id = "\(cls)-security-\(index)"
+        } else {
+            let rowid = (entry["_rowid"] as? NSNumber)?.intValue ?? index
+            id = "\(cls)-database-\(rowid)"
+        }
     }
 }

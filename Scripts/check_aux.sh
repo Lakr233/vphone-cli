@@ -20,7 +20,7 @@ file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
 for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
-    vpregister libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib \
+    libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib \
     launchdhook-vphone.dylib SystemHook-vphone.dylib \
     libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ -f "$macos/$name" ]] || { print -u2 "Missing binary: Contents/MacOS/$name"; exit 1; }
@@ -34,7 +34,7 @@ for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
     }
 done
 
-for name in vphone-app VPhoneAMFIAllow vphone-archive icli vphone-ask-for-permission; do
+for name in vphone-app VPhoneAMFIAllow vphone-archive icli vpregister vphone-ask-for-permission; do
     [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: $name"; exit 1; }
 done
 
@@ -85,7 +85,7 @@ daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphon
     print -u2 "vphoned has the wrong entitlements"
     exit 1
 }
-for name in vphone-cli vpregister VPhoneEscalator; do
+for name in vphone-cli VPhoneEscalator; do
     process_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/$name" 2>/dev/null || true)"
     [[ "$process_entitlements" != *'com.apple.private.virtualization'* &&
         "$process_entitlements" != *'com.apple.CommCenter.fine-grained'* ]] || {

@@ -1,5 +1,5 @@
 /*
- * libcamfix — substrate-injected into Camera.app (com.apple.camera).
+ * libcamfix — optional injection hook for Camera.app (com.apple.camera).
  *
  * Our virtual camera has no daemon-side still or preview pipeline behind it,
  * so AVFoundation's own paths crash, throw, or render black. The hooks
@@ -13,7 +13,7 @@
  *
  * 2. -[AVCapturePhotoOutput capturePhotoWithSettings:delegate:]: when the
  *    photo output is bound to our virtual camera, read
- *    /var/jb/var/mobile/Library/vphone-vcam-frame.shm and fire the modern
+ *    the vphoned shared frame file and fire the modern
  *    didFinishProcessingPhoto:error: delegate with an AVCapturePhoto built
  *    from that frame; JPEG encoding happens client-side via ImageIO. The
  *    deprecated CMSampleBuffer delegate is the fallback, taken only for a
@@ -39,7 +39,7 @@
  * 7. CAMStillImageCaptureRequest stubs for the accessors Camera.app's
  *    capture engine reads off a request.
  *
- * All logging goes to /tmp/camfix.log, written by cfxlog.
+ * Diagnostics go to the shared camera media directory, written by cfxlog.
  */
 
 #import <AVFoundation/AVFoundation.h>
@@ -56,33 +56,20 @@
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <string.h>
+#include "../VCamCaptured/VCamFrameProtocol.h"
 
-#define LOG_PATH "/tmp/camfix.log"
-#define SHM_PATH "/var/jb/var/mobile/Library/vphone-vcam-frame.shm"
 #define VCAM_UID @"vphone:vcam:0"
-
-#define CFX_SHM_HEADER_SIZE 64
-typedef struct __attribute__((packed)) {
-  uint64_t seq;
-  uint32_t width;
-  uint32_t height;
-  uint32_t bytes_per_row;
-  uint32_t pixel_format;
-  uint32_t _reserved;
-  uint64_t timestamp_ns;
-  uint64_t frame_index;
-  uint32_t pixels_length;
-  uint32_t _pad;
-} cfx_shm_header_t;
 
 static void cfxlog(NSString *fmt, ...) {
   va_list ap; va_start(ap, fmt);
   NSString *line = [[NSString alloc] initWithFormat:fmt arguments:ap];
   va_end(ap);
-  FILE *fp = fopen(LOG_PATH, "a");
+  FILE *fp = fopen(VPHONE_VCAM_APP_LOG_PATH, "a");
   if (fp) {
     fprintf(fp, "[camfix:%d] %s\n", getpid(), line.UTF8String ?: "?");
     fclose(fp);
+  } else {
+    NSLog(@"camfix: %@", line);
   }
 }
 
@@ -94,9 +81,9 @@ static size_t cfx_shm_size = 0;
 
 static BOOL cfx_shm_open(void) {
   if (cfx_shm_base) return YES;
-  cfx_shm_fd = open(SHM_PATH, O_RDONLY);
+  cfx_shm_fd = open(VPHONE_VCAM_SHM_PATH, O_RDONLY);
   if (cfx_shm_fd < 0) {
-    cfxlog(@"shm open failed: %s (errno=%d)", SHM_PATH, errno);
+    cfxlog(@"shm open failed: %s (errno=%d)", VPHONE_VCAM_SHM_PATH, errno);
     return NO;
   }
   struct stat st;
@@ -109,24 +96,24 @@ static BOOL cfx_shm_open(void) {
     close(cfx_shm_fd); cfx_shm_fd = -1; return NO;
   }
   cfx_shm_base = (const uint8_t *)p;
-  cfxlog(@"shm mapped %s size=%zu", SHM_PATH, cfx_shm_size);
+  cfxlog(@"shm mapped %s size=%zu", VPHONE_VCAM_SHM_PATH, cfx_shm_size);
   return YES;
 }
 
 // One owner for "map the frame and check it is usable": opens the shm,
 // rejects a zeroed header, and rejects a pixel plane that runs past the
 // mapping. On success returns the header — the pixels start
-// CFX_SHM_HEADER_SIZE bytes after cfx_shm_base — and writes the pixel-plane
+// VPHONE_VCAM_SHM_HEADER_SIZE bytes after cfx_shm_base — and writes the pixel-plane
 // length to *outLen. Returns NULL when the frame cannot be read.
-static const cfx_shm_header_t *cfx_shm_frame(size_t *outLen) {
+static const vphone_vcam_shm_header_t *cfx_shm_frame(size_t *outLen) {
   if (!cfx_shm_open()) return NULL;
-  const cfx_shm_header_t *hdr = (const cfx_shm_header_t *)cfx_shm_base;
+  const vphone_vcam_shm_header_t *hdr = (const vphone_vcam_shm_header_t *)cfx_shm_base;
   if (!hdr->width || !hdr->height || !hdr->bytes_per_row) {
     cfxlog(@"shm header zeros");
     return NULL;
   }
   size_t len = (size_t)hdr->bytes_per_row * hdr->height;
-  if ((size_t)CFX_SHM_HEADER_SIZE + len > cfx_shm_size) {
+  if ((size_t)VPHONE_VCAM_SHM_HEADER_SIZE + len > cfx_shm_size) {
     cfxlog(@"shm: pixel range exceeds mapping");
     return NULL;
   }
@@ -146,12 +133,12 @@ static void cfx_cg_release_data(void *info, const void *data, size_t size) {
 
 static CMSampleBufferRef cfx_build_cmsb(void) {
   size_t len = 0;
-  const cfx_shm_header_t *hdr = cfx_shm_frame(&len);
+  const vphone_vcam_shm_header_t *hdr = cfx_shm_frame(&len);
   if (!hdr) return NULL;
   uint32_t w = hdr->width, h = hdr->height, bpr = hdr->bytes_per_row;
   void *pixels = malloc(len);
   if (!pixels) return NULL;
-  memcpy(pixels, cfx_shm_base + CFX_SHM_HEADER_SIZE, len);
+  memcpy(pixels, cfx_shm_base + VPHONE_VCAM_SHM_HEADER_SIZE, len);
 
   CVPixelBufferRef pb = NULL;
   CVReturn cvr = CVPixelBufferCreateWithBytes(
@@ -727,13 +714,13 @@ static BOOL cfx_output_is_for_vcam(id self) {
 
 static NSData *cfx_build_jpeg_from_shm(void) {
   size_t len = 0;
-  const cfx_shm_header_t *hdr = cfx_shm_frame(&len);
+  const vphone_vcam_shm_header_t *hdr = cfx_shm_frame(&len);
   if (!hdr) return nil;
   uint32_t w = hdr->width, h = hdr->height, bpr = hdr->bytes_per_row;
 
   void *copy = malloc(len);
   if (!copy) return nil;
-  memcpy(copy, cfx_shm_base + CFX_SHM_HEADER_SIZE, len);
+  memcpy(copy, cfx_shm_base + VPHONE_VCAM_SHM_HEADER_SIZE, len);
 
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
   CGDataProviderRef dp = CGDataProviderCreateWithData(
@@ -774,12 +761,12 @@ static NSData *cfx_build_jpeg_from_shm(void) {
 
 static CGImageRef cfx_build_cgimage_from_shm(void) CF_RETURNS_RETAINED {
   size_t len = 0;
-  const cfx_shm_header_t *hdr = cfx_shm_frame(&len);
+  const vphone_vcam_shm_header_t *hdr = cfx_shm_frame(&len);
   if (!hdr) return NULL;
   uint32_t w = hdr->width, h = hdr->height, bpr = hdr->bytes_per_row;
   void *copy = malloc(len);
   if (!copy) return NULL;
-  memcpy(copy, cfx_shm_base + CFX_SHM_HEADER_SIZE, len);
+  memcpy(copy, cfx_shm_base + VPHONE_VCAM_SHM_HEADER_SIZE, len);
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
   CGDataProviderRef dp = CGDataProviderCreateWithData(
       NULL,
@@ -805,7 +792,7 @@ static CGImageRef cfx_build_cgimage_from_shm(void) CF_RETURNS_RETAINED {
 
 static IOSurfaceRef cfx_build_iosurface_from_shm(uint32_t *outW, uint32_t *outH) CF_RETURNS_RETAINED {
   size_t len = 0;
-  const cfx_shm_header_t *hdr = cfx_shm_frame(&len);
+  const vphone_vcam_shm_header_t *hdr = cfx_shm_frame(&len);
   if (!hdr) return NULL;
   uint32_t w = hdr->width, h = hdr->height, bpr = hdr->bytes_per_row;
   NSDictionary *props = @{
@@ -820,7 +807,7 @@ static IOSurfaceRef cfx_build_iosurface_from_shm(uint32_t *outW, uint32_t *outH)
   if (!surf) return NULL;
   IOSurfaceLock(surf, 0, NULL);
   void *base = IOSurfaceGetBaseAddress(surf);
-  if (base) memcpy(base, cfx_shm_base + CFX_SHM_HEADER_SIZE, len);
+  if (base) memcpy(base, cfx_shm_base + VPHONE_VCAM_SHM_HEADER_SIZE, len);
   IOSurfaceUnlock(surf, 0, NULL);
   if (outW) *outW = w;
   if (outH) *outH = h;

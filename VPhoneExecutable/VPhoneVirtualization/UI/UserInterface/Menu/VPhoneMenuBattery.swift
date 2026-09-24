@@ -62,31 +62,16 @@ extension VPhoneMenuController {
     }
 
     @objc func setBatteryLevel(_ sender: NSMenuItem) {
-        guard let menu = sender.menu else { return }
-        for mi in menu.items {
-            if mi.isSeparatorItem {
-                break
-            }
-            mi.state = mi === sender ? .on : .off
-        }
+        batteryLevelMenuItems.forEach { $0.state = $0 === sender ? .on : .off }
         let charge = Double(sender.tag)
-        let connectivity = currentBatteryConnectivity(in: menu)
+        let connectivity = currentBatteryConnectivity()
         vm?.setBattery(charge: charge, connectivity: connectivity)
         print("[battery] set \(sender.tag)%, connectivity=\(connectivity)")
     }
 
     @objc func setBatteryConnectivity(_ sender: NSMenuItem) {
-        guard let menu = sender.menu else { return }
-        var pastSeparator = false
-        for mi in menu.items {
-            if mi.isSeparatorItem {
-                pastSeparator = true; continue
-            }
-            if pastSeparator {
-                mi.state = mi === sender ? .on : .off
-            }
-        }
-        let charge = currentBatteryCharge(in: menu)
+        batteryConnectivityMenuItems.forEach { $0.state = $0 === sender ? .on : .off }
+        let charge = currentBatteryCharge()
         vm?.setBattery(charge: charge, connectivity: sender.tag)
         print("[battery] set \(Int(charge))%, connectivity=\(sender.tag)")
     }
@@ -218,28 +203,11 @@ extension VPhoneMenuController {
 
     // MARK: - Helpers
 
-    private func currentBatteryCharge(in menu: NSMenu) -> Double {
-        for mi in menu.items {
-            if mi.isSeparatorItem {
-                break
-            }
-            if mi.state == .on {
-                return Double(mi.tag)
-            }
-        }
-        return 100.0
+    private func currentBatteryCharge() -> Double {
+        Double(batteryLevelMenuItems.first(where: { $0.state == .on })?.tag ?? 100)
     }
 
-    private func currentBatteryConnectivity(in menu: NSMenu) -> Int {
-        var pastSeparator = false
-        for mi in menu.items {
-            if mi.isSeparatorItem {
-                pastSeparator = true; continue
-            }
-            if pastSeparator, mi.state == .on {
-                return mi.tag
-            }
-        }
-        return 1
+    private func currentBatteryConnectivity() -> Int {
+        batteryConnectivityMenuItems.first(where: { $0.state == .on })?.tag ?? 1
     }
 }

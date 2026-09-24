@@ -16,14 +16,14 @@ The SwiftPM `VPhoneAPIKit` product is an unentitled HTTP/WebSocket client for
 exposes `VPhoneAPIProxy` to an app that owns a `VZVirtioSocketDevice`. The
 command-line executable remains unentitled and still launches `vphone-vm`.
 
-The guest build also includes the pinned `icli` executable, signed with
-icli's entitlements and installed at `/usr/bin/icli` alongside vphoned.
-`POST /v1/icli/execute` and the WebSocket method `icli.execute` accept
-`{"argv":["device","info"]}`. The guest passes that array to icli directly,
-captures its JSON output, and returns `exit_code`, `output`, and `stderr`.
-This exposes icli's complete command tree, including newly added subcommands,
-without duplicating each command in vphoned. `stdin` or `stdin_base64` supports
-commands that read standard input. The process has a 120 second deadline.
+The guest links IcliKit directly. App registration refresh is available through
+`POST /v1/apps/refresh` or the WebSocket method `apps.refresh`. An optional
+`directory` selects a bundle directory; omitted, it uses the bootstrap's
+`/Applications`. IcliKit verifies registrations by reading them back.
+`screen.screenshot` uses IcliKit's native screen capture and returns a base64
+JPEG with `mime_type`, `width`, and `height`; the current VM produces 1290×2796.
+The host's Save/Copy Screenshot menu decodes this guest image. It omits the
+notch and cutout drawn by the host VM window.
 
 ## HTTP and WebSocket contract
 
@@ -34,6 +34,17 @@ mode, clipboard, file listing, and keychain. `GET/PUT
 directory then renames it after all chunks have been written. JSON bodies
 have a 1 MiB limit. Binary transfers stream without loading the entire file
 into memory.
+
+`apps.launch` returns a PID and `frontmost_verified`. On the iOS 26 research VM,
+IcliKit can keep reporting SpringBoardEducation after an app reaches the screen.
+The guest checks RunningBoard's live focal assertion in that case and accepts
+it only when one app owns it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older
+systems may use `Workspace-ForegroundFocal`. The Home screen's widget renderer
+can hold `UIFocal`, so it is excluded as an app candidate. `apps.foreground`
+also reports `verified` and `source`. If no unique focal app can be confirmed,
+a newly started process is reported with `frontmost_verified=false` and a
+warning. A failed start or an already running app without foreground
+confirmation remains an error.
 
 Upload accepts an optional octal `mode` query parameter (default `644`) and
 creates missing parent directories. Download follows file symlinks, matching
@@ -52,13 +63,16 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.1
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.3
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
 sends so touch and key sequences retain their order. State polling uses its own
-worker queue. The vphone-specific IPA signing and all-app
-keychain view remain in native Objective-C modules. The VM GUI uses HTTP over
+worker queue. The vphone-specific IPA signing remains in native Objective-C.
+Keychain listings combine IcliKit's accessible Security.framework attributes
+with its protected database metadata. They return no value data, and possible
+duplicates remain visible because the two sources have no stable join key.
+The VM GUI uses HTTP over
 VSOCK 1339 directly; host TCP forwarding is opt-in. The former length-prefixed
 VSOCK 1337 protocol and duplicate ObjC command handlers have been removed.
 The 1338 virtual camera stream remains. At startup, the host compares the
@@ -92,7 +106,7 @@ import VPhoneAPIKit
 
 let client = VPhoneAPIClient(baseURL: URL(string: "http://127.0.0.1:8765")!)
 let device = try await client.call("device.snapshot")
-let icli = try await client.runIcli(["device", "info"])
+let apps = try await client.call("apps.refresh")
 let socket = try client.openWebSocket()
 try await socket.send("input.touch", params: [
     "phase": .string("down"), "x": .number(0.5), "y": .number(0.5),

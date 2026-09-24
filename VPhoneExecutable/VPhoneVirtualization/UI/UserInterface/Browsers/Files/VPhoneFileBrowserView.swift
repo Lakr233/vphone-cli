@@ -7,6 +7,8 @@ struct VPhoneFileBrowserView: View {
 
     @State private var showNewFolder = false
     @State private var newFolderName = ""
+    @State private var fileToRename: VPhoneRemoteFile?
+    @State private var renameName = ""
 
     private let controlBarHeight: CGFloat = 24
 
@@ -47,6 +49,9 @@ struct VPhoneFileBrowserView: View {
         .sheet(isPresented: $showNewFolder) {
             newFolderSheet
         }
+        .sheet(item: $fileToRename) { file in
+            renameSheet(for: file)
+        }
     }
 
     // MARK: - Table
@@ -86,8 +91,12 @@ struct VPhoneFileBrowserView: View {
             .width(min: 80, ideal: 140, max: .infinity)
         } rows: {
             ForEach(model.filteredFiles) { file in
-                TableRow(file)
-                    .draggable(FileDragItem(file: file, control: model.control))
+                if file.isDirectoryLike {
+                    TableRow(file)
+                } else {
+                    TableRow(file)
+                        .draggable(FileDragItem(file: file, control: model.control))
+                }
             }
         }
         .contextMenu(forSelectionType: VPhoneRemoteFile.ID.self) { ids in
@@ -244,6 +253,12 @@ struct VPhoneFileBrowserView: View {
             model.selection = ids
             downloadAction()
         }
+        if ids.count == 1, let file = model.files.first(where: { ids.contains($0.id) }) {
+            Button("Rename…") {
+                renameName = file.name
+                fileToRename = file
+            }
+        }
         Button("Delete") {
             model.selection = ids
             Task { await model.deleteSelected() }
@@ -275,7 +290,28 @@ struct VPhoneFileBrowserView: View {
                 Spacer()
                 Button("Create") { createFolder() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(newFolderName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(!validName(newFolderName))
+            }
+        }
+        .padding(20)
+        .frame(width: 300)
+    }
+
+    // MARK: - Rename Sheet
+
+    func renameSheet(for file: VPhoneRemoteFile) -> some View {
+        VStack(spacing: 16) {
+            Text("Rename").font(.headline)
+            TextField("Name", text: $renameName)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { rename(file) }
+            HStack {
+                Button("Cancel") { fileToRename = nil }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Rename") { rename(file) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!validName(renameName) || renameName.trimmingCharacters(in: .whitespaces) == file.name)
             }
         }
         .padding(20)
@@ -312,9 +348,22 @@ struct VPhoneFileBrowserView: View {
 
     func createFolder() {
         let name = newFolderName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
+        guard validName(name) else { return }
         showNewFolder = false
         Task { await model.createNewFolder(name: name) }
+    }
+
+    func rename(_ file: VPhoneRemoteFile) {
+        let name = renameName.trimmingCharacters(in: .whitespaces)
+        guard validName(name), name != file.name else { return }
+        fileToRename = nil
+        Task { await model.renameFile(file, to: name) }
+    }
+
+    func validName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        return !trimmed.isEmpty && trimmed != "." && trimmed != ".."
+            && !trimmed.contains("/") && !trimmed.contains("\0")
     }
 
     func dropFiles(_ providers: [NSItemProvider]) -> Bool {

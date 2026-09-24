@@ -6,8 +6,8 @@ import Virtualization
 ///
 /// Opens a vsock connection to the guest on port 1338 (separate from the
 /// vphoned control channel on 1337) and pushes raw BGRA frames at a fixed
-/// rate. The guest counterpart (a libvcamcaptured-attached receiver inside
-/// cameracaptured) ferries those frames into the AVF capture pipeline.
+/// rate. vphoned receives frames on that port and publishes shared memory;
+/// the optional libvcamcaptured hook consumes it inside cameracaptured.
 ///
 /// Wire format (one frame, length-prefixed):
 ///   uint32 LE  total_payload_length

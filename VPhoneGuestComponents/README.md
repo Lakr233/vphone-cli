@@ -10,7 +10,6 @@ tweak filter plists, and the GPU provenance note:
 | Camera daemon hook | `vcamcaptured/libvcamcaptured.dylib`, `vcamcaptured/libvcamcaptured.plist` |
 | Launchd hook | `launchhook/launchdhook-vphone.dylib` |
 | Reserved process hook | `systemhook/SystemHook-vphone.dylib` |
-| iOS 27 app registrar | `vpregister/vpregister` |
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
 
 The archive is a local build artifact, not a VM bootstrap. The launchd hook is
@@ -20,3 +19,6 @@ ElleKit's own `TweakLoader.dylib` in the selected bootstrap. The required GPU bu
 instead extracted from the selected PCC firmware by `vphone-cli fw prepare`
 and copied into the VM during JB installation. No Apple GPU binary is stored
 in this directory, the archive, or the shipped app.
+
+See `Research/Guest/virtual_camera_transport.md` for the camera transport
+validation and the hook installation prerequisites.

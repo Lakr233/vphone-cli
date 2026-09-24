@@ -156,6 +156,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                         mc?.updateCameraConnectionState(connected: connected)
                     }
                 }
+                mc.updateCameraConnectionState(connected: camServer.isConnected)
             }
             let recorder = VPhoneScreenRecorder()
             mc.screenRecorder = recorder

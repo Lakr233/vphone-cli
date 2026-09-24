@@ -46,7 +46,7 @@ See `Research/` for detailed firmware pipeline, component origins, patch breakdo
 - `VPhoneExecutable/VPhoneCommand/VPhoneRestore`: native restore code and tests.
 - `VPhoneExecutable/VPhoneEscalator`: the AMFI allowlist program, built for arm64e. It is not a general privilege service.
 - `VPhoneKit`: shared core, archive, and external access kits with their tests.
-- `VPhoneDaemon`: guest `vphoned`, native code including `vpregister`, and daemon configuration.
+- `VPhoneDaemon`: guest `vphoned`, native operations, and daemon configuration.
 - `VPhoneGuestComponents`: guest dylibs built by Makefile from the bundle build phase.
 
 The `VPhone` scheme puts all shipped Mach-O files in `VPhone.bundle/Contents/MacOS`. Guest configuration is in `Contents/Resources`. Xcode targets have `CODE_SIGNING_ALLOWED=NO`; the bundle build phase signs each binary ad hoc with only its own entitlements, then seals the outer bundle. `VPhoneVirtualization.entitlements` belongs to `vphone-vm`; `VPhoneDaemon.entitlements` belongs to `vphoned`. The bundle and CLI have no private entitlements.

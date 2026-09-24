@@ -2,6 +2,8 @@ import CryptoKit
 import Darwin
 import Foundation
 import IcliKit
+import IcliSystem
+import UIKit
 import VphonedNative
 
 enum GuestAPIError: Error, CustomStringConvertible {
@@ -18,8 +20,8 @@ enum GuestAPIError: Error, CustomStringConvertible {
 }
 
 /// The API boundary is deliberately small: named operations and JSON values.
-/// IcliKit owns general device work; only vphone-specific installation and
-/// keychain enumeration cross into the older daemon code.
+/// IcliKit owns general device work, including Keychain metadata. Only
+/// vphone-specific installation crosses into the native daemon code.
 enum GuestAPI {
     // Each request executes independently. A synchronous system service such
     // as powerd may wait during boot; it must not hold up HID or file requests.
@@ -58,6 +60,7 @@ enum GuestAPI {
                 "keychain",
                 "ipa_install",
                 "camera",
+                "screenshot",
             ],
         ]
     }
@@ -68,9 +71,11 @@ enum GuestAPI {
             return try collectDeviceSnapshot()
         case "device.screen":
             return screenInfo()
+        case "screen.screenshot":
+            return try takeScreenshot(base64: true, nativeResolution: true)
         case "apps.list":
             let filter = params["filter"] as? String ?? "all"
-            let apps = try searchApps("")["apps"] as? [[String: Any]] ?? []
+            let apps = try listApps()["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
             let pids = Dictionary(uniqueKeysWithValues: running.compactMap { app -> (String, Int)? in
                 guard let id = app["bundle_id"] as? String, let pid = app["pid"] as? Int else { return nil }
@@ -78,11 +83,16 @@ enum GuestAPI {
             })
             return ["apps": apps.compactMap { app -> [String: Any]? in
                 var info = app
-                let id = app["bundle_id"] as? String ?? ""
+                guard let id = app["bundle_id"] as? String, !id.isEmpty else { return nil }
                 let pid = pids[id] ?? 0
                 let path = app["bundle_path"] as? String ?? ""
-                let type = app["type"] as? String
-                    ?? (path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user")
+                let type: String
+                if let registeredType = (app["type"] as? String)?.lowercased(),
+                   registeredType == "system" || registeredType == "user" {
+                    type = registeredType
+                } else {
+                    type = path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user"
+                }
                 if filter == "running" && pid == 0 {
                     return nil
                 }
@@ -101,19 +111,41 @@ enum GuestAPI {
             }]
         case "apps.search":
             return try searchApps(string(params, "query"))
+        case "apps.refresh":
+            return try refreshApps(directory: params["directory"] as? String)
         case "apps.launch":
             let id = try string(params, "bundle_id")
             if let url = params["url"] as? String {
                 _ = try openAppURL(url, bundleID: id)
             } else {
-                _ = try launchApp(id)
+                let before = try runningApps()["apps"] as? [[String: Any]] ?? []
+                let wasRunning = before.contains { $0["bundle_id"] as? String == id }
+                do {
+                    _ = try launchApp(id)
+                } catch IcliError.failed(let message) where message == "app did not become frontmost: \(id)" {
+                    let after = try runningApps()["apps"] as? [[String: Any]] ?? []
+                    guard let pid = after.first(where: { $0["bundle_id"] as? String == id })?["pid"] as? Int
+                    else { throw IcliError.failed(message) }
+                    if GuestForeground.current()["bundle_id"] as? String == id {
+                        return ["pid": pid, "frontmost_verified": true]
+                    }
+                    guard !wasRunning else { throw IcliError.failed(message) }
+                    return [
+                        "pid": pid,
+                        "frontmost_verified": false,
+                        "warning": "App process started, but foreground state could not be confirmed",
+                    ]
+                }
             }
             let running = try? runningApps()["apps"] as? [[String: Any]]
-            return ["pid": running?.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0]
+            return [
+                "pid": running?.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0,
+                "frontmost_verified": params["url"] == nil,
+            ]
         case "apps.terminate":
             return try killApp(string(params, "bundle_id"), force: true)
         case "apps.foreground":
-            let front = frontmostApp()
+            let front = GuestForeground.current()
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
@@ -121,6 +153,8 @@ enum GuestAPI {
                 "bundle_id": id,
                 "name": apps.first?["name"] ?? "",
                 "pid": running.first(where: { $0["bundle_id"] as? String == id })?["pid"] ?? 0,
+                "verified": front["verified"] ?? false,
+                "source": front["source"] ?? "",
             ]
         case "apps.open_url":
             return try openAppURL(string(params, "url"), bundleID: params["bundle_id"] as? String)
@@ -164,13 +198,37 @@ enum GuestAPI {
             return try enableDeveloperMode()
         case "power.low_power_mode":
             if let enabled = params["enabled"] as? Bool {
-                return try setLowPowerMode(enabled)
+                let before = try lowPowerMode()["enabled"] as? Bool ?? false
+                switch vp_low_power_mode_set_async(enabled) {
+                case -1:
+                    throw GuestAPIError.operationFailed("powerd's asynchronous Low Power Mode API is unavailable")
+                case -2:
+                    throw GuestAPIError.operationFailed("powerd did not answer the Low Power Mode request within 3 seconds")
+                case -3:
+                    throw GuestAPIError.operationFailed("powerd rejected the Low Power Mode request")
+                default:
+                    break
+                }
+                let deadline = Date().addingTimeInterval(2)
+                while Date() < deadline {
+                    if try lowPowerMode()["enabled"] as? Bool == enabled {
+                        return ["enabled": enabled, "changed": before != enabled, "method": "powerd"]
+                    }
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                throw GuestAPIError.operationFailed("powerd replied but did not apply Low Power Mode")
             }
             return try lowPowerMode()
         case "clipboard.get":
             return try clipboardInfo()
         case "clipboard.set":
             return try setClipboard(string(params, "text"))
+        case "clipboard.clear":
+            guard let pasteboard = UIPasteboard(name: .general, create: false) else {
+                throw GuestAPIError.operationFailed("The system clipboard is unavailable")
+            }
+            pasteboard.items = []
+            return try clipboardInfo()
         case "files.list":
             return try fileList(string(params, "path"))
         case "files.mkdir":
@@ -198,17 +256,23 @@ enum GuestAPI {
                 key: string(params, "key"),
                 value: PreferenceValue(text: text, type: type),
             )
+        case "settings.delete":
+            return try deletePreference(domain: string(params, "domain"), key: string(params, "key"))
         case "accessibility.tree":
             throw GuestAPIError.operationFailed("The accessibility tree is not available on this guest yet.")
         case "keychain.list":
-            return try native(["t": "keychain_list", "class": params["class"] as? String ?? ""])
+            return try GuestKeychain.list(className: params["class"] as? String)
         case "keychain.add":
-            return try native([
-                "t": "keychain_add",
-                "account": string(params, "account"),
-                "service": string(params, "service"),
-                "password": string(params, "password"),
-            ])
+            return try GuestKeychain.add(
+                account: string(params, "account"),
+                service: string(params, "service"),
+                password: string(params, "password")
+            )
+        case "keychain.delete":
+            return try GuestKeychain.delete(
+                account: string(params, "account"),
+                service: string(params, "service")
+            )
         case "agent.apply_update":
             let expected = try string(params, "sha256")
             let cache = "/var/root/Library/Caches/vphoned"
@@ -258,6 +322,11 @@ enum GuestAPI {
             var enriched = entry
             enriched["type"] = isLink ? "link" : kind == mode_t(S_IFDIR) ? "dir" : "file"
             enriched["link_target_dir"] = targetsDirectory
+            if kind == mode_t(S_IFDIR) || targetsDirectory,
+               let canonicalPath = fullPath.withCString({ realpath($0, nil) }) {
+                enriched["resolved_path"] = String(cString: canonicalPath)
+                free(canonicalPath)
+            }
             enriched["size"] = metadata.st_size
             enriched["perm"] = String(metadata.st_mode & 0o777, radix: 8)
             enriched["mtime"] = Double(metadata.st_mtimespec.tv_sec)
@@ -281,6 +350,8 @@ enum GuestAPI {
     }
 
     private static func number(_ params: [String: Any], _ key: String, default fallback: Double = .nan) -> Double {
-        (params[key] as? NSNumber)?.doubleValue ?? fallback
+        if let value = params[key] as? NSNumber { return value.doubleValue }
+        if let value = params[key] as? String, let number = Double(value) { return number }
+        return fallback
     }
 }

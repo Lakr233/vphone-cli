@@ -45,10 +45,10 @@ extension VPhoneMenuController {
 
     @objc func copyScreenshotToClipboard() {
         guard let recorder = screenRecorder else { return }
-        guard let view = activeCaptureView() else {
+        guard control.isConnected else {
             showAlert(
                 title: "Screenshot",
-                message: "No VM window is open. Start a VM, then try again.",
+                message: "The guest is not connected. Start a VM, then try again.",
                 style: .warning,
             )
             return
@@ -56,7 +56,8 @@ extension VPhoneMenuController {
 
         Task { @MainActor in
             do {
-                try await recorder.copyScreenshotToPasteboard(view: view)
+                let image = try await control.screenshotJPEG()
+                try recorder.copyScreenshotToPasteboard(jpegData: image)
                 showAlert(title: "Screenshot", message: "Copied to clipboard.", style: .informational)
             } catch {
                 showAlert(title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
@@ -66,10 +67,10 @@ extension VPhoneMenuController {
 
     @objc func saveScreenshotToFile() {
         guard let recorder = screenRecorder else { return }
-        guard let view = activeCaptureView() else {
+        guard control.isConnected else {
             showAlert(
                 title: "Screenshot",
-                message: "No VM window is open. Start a VM, then try again.",
+                message: "The guest is not connected. Start a VM, then try again.",
                 style: .warning,
             )
             return
@@ -77,7 +78,8 @@ extension VPhoneMenuController {
 
         Task { @MainActor in
             do {
-                let url = try await recorder.saveScreenshot(view: view)
+                let image = try await control.screenshotJPEG()
+                let url = try recorder.saveScreenshot(jpegData: image)
                 showAlert(title: "Screenshot", message: "Saved to \(url.path)", style: .informational)
             } catch {
                 showAlert(title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)

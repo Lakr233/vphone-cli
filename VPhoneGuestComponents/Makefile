@@ -10,6 +10,17 @@ COMMON_FLAGS := $(GUEST_C_FLAGS) -fobjc-arc
 
 CAMFIX := $(STAGE)/camfix/libcamfix.dylib
 VCAMCAPTURED := $(STAGE)/vcamcaptured/libvcamcaptured.dylib
+VCAMCAPTURED_SOURCES := VCamCaptured/libvcamcaptured.m \
+	VCamCaptured/VCamImageResolution.inc \
+	VCamCaptured/VCamSourceInstallation.inc \
+	VCamCaptured/VCamCaptureObservation.inc \
+	VCamCaptured/VCamSyntheticDevice.inc \
+	VCamCaptured/VCamSyntheticStreams.inc \
+	VCamCaptured/VCamViewfinderHooks.inc \
+	VCamCaptured/VCamSessionHooks.inc \
+	VCamCaptured/VCamStillSink.inc \
+	VCamCaptured/VCamFrameReceiver.inc \
+	VCamCaptured/VCamFrameProtocol.h
 LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
 SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
 GPU_PLUGIN := $(STAGE)/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib
@@ -31,18 +42,18 @@ package: all
 $(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/launchhook $(STAGE)/systemhook $(STAGE)/gpu:
 	@mkdir -p $@
 
-$(CAMFIX): CamFix/libcamfix.m | $(STAGE)/camfix
+$(CAMFIX): CamFix/libcamfix.m VCamCaptured/VCamFrameProtocol.h | $(STAGE)/camfix
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
-		-install_name /var/jb/usr/lib/libcamfix.dylib \
+		-install_name @rpath/libcamfix.dylib \
 		-o $@ $< \
 		-framework Foundation -framework AVFoundation -framework ImageIO \
 		-framework IOSurface -framework CoreMedia -framework CoreVideo \
 		-framework CoreGraphics -framework QuartzCore
 	@codesign --force --sign - $@
 
-$(VCAMCAPTURED): VCamCaptured/libvcamcaptured.m | $(STAGE)/vcamcaptured
+$(VCAMCAPTURED): $(VCAMCAPTURED_SOURCES) | $(STAGE)/vcamcaptured
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib \
-		-install_name /var/jb/usr/lib/libvcamcaptured.dylib \
+		-install_name @rpath/libvcamcaptured.dylib \
 		-o $@ $< \
 		-framework Foundation -framework CoreMedia -framework CoreVideo
 	@codesign --force --sign - $@

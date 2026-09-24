@@ -18,6 +18,8 @@
 #include <fcntl.h>
 #include <notify.h>
 #include <pthread.h>
+#include <pwd.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -27,52 +29,75 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vsock.h>
 #include <unistd.h>
-
-#ifndef AF_VSOCK
-#define AF_VSOCK 40
-#endif
-#ifndef VMADDR_CID_ANY
-#define VMADDR_CID_ANY 0xFFFFFFFFu
-#endif
-
-struct vp_sockaddr_vm {
-  __uint8_t  svm_len;
-  sa_family_t svm_family;
-  __uint16_t svm_reserved1;
-  __uint32_t svm_port;
-  __uint32_t svm_cid;
-};
 
 static pthread_once_t s_start_once = PTHREAD_ONCE_INIT;
 static uint8_t       *s_shm_base   = NULL;
 static int            s_notify_token = -1;
 
-#define VVC_LOG_PATH "/var/jb/var/mobile/Library/vphone-vcam.log"
-
 __attribute__((format(printf, 1, 2)))
 static void vvc_logf(const char *fmt, ...) {
-  FILE *fp = fopen(VVC_LOG_PATH, "a");
-  if (!fp) return;
+  FILE *fp = fopen(VPHONE_VCAM_DAEMON_LOG_PATH, "a");
   va_list ap;
   va_start(ap, fmt);
-  vfprintf(fp, fmt, ap);
+  if (!fp) {
+    char message[1024];
+    vsnprintf(message, sizeof(message), fmt, ap);
+    NSLog(@"%s", message);
+  } else {
+    vfprintf(fp, fmt, ap);
+    fputc('\n', fp);
+    fclose(fp);
+  }
   va_end(ap);
-  fputc('\n', fp);
-  fclose(fp);
 }
 
 static int open_shm(void) {
+  /* Wait for mobile's home before creating its media directory. */
+  struct passwd *mobile_user = getpwnam("mobile");
+  struct stat mobile_home;
+  if (!mobile_user || stat("/var/mobile", &mobile_home) < 0 ||
+      !S_ISDIR(mobile_home.st_mode) || mobile_home.st_uid != mobile_user->pw_uid) {
+    vvc_logf("vphoned_vcam: mobile home is not ready");
+    return -1;
+  }
+  NSString *directory = [NSString stringWithUTF8String:VPHONE_VCAM_DIRECTORY];
+  NSError *error = nil;
+  if (![[NSFileManager defaultManager] createDirectoryAtPath:directory
+                                withIntermediateDirectories:YES
+                                                 attributes:@{NSFilePosixPermissions: @0755}
+                                                      error:&error]) {
+    vvc_logf("vphoned_vcam: create(%s) failed: %s", directory.UTF8String,
+             error.localizedDescription.UTF8String);
+    return -1;
+  }
+  int directory_fd = open(VPHONE_VCAM_DIRECTORY, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+  if (directory_fd < 0) {
+    vvc_logf("vphoned_vcam: open directory failed: %s", strerror(errno));
+    return -1;
+  }
+  if (fchown(directory_fd, mobile_user->pw_uid, mobile_user->pw_gid) < 0) {
+    vvc_logf("vphoned_vcam: chown directory failed: %s", strerror(errno));
+    close(directory_fd);
+    return -1;
+  }
+  if (fchmod(directory_fd, 0755) < 0) {
+    vvc_logf("vphoned_vcam: chmod directory failed: %s", strerror(errno));
+    close(directory_fd);
+    return -1;
+  }
+  close(directory_fd);
   /* Truncate to total size each fresh open so a stale half-written file
    * from a previous boot doesn't confuse readers. */
-  int fd = open(VPHONED_VCAM_SHM_PATH, O_RDWR | O_CREAT, 0644);
+  int fd = open(VPHONE_VCAM_SHM_PATH, O_RDWR | O_CREAT, 0644);
   if (fd < 0) {
     vvc_logf("vphoned_vcam: open(%s) failed: %s",
-          VPHONED_VCAM_SHM_PATH,
+          VPHONE_VCAM_SHM_PATH,
           strerror(errno));
     return -1;
   }
-  if (ftruncate(fd, VPHONED_VCAM_SHM_TOTAL_SIZE) < 0) {
+  if (ftruncate(fd, VPHONE_VCAM_SHM_TOTAL_SIZE) < 0) {
     vvc_logf("vphoned_vcam: ftruncate failed: %s", strerror(errno));
     close(fd);
     return -1;
@@ -81,7 +106,7 @@ static int open_shm(void) {
   fchmod(fd, 0644);
   void *base = mmap(
       NULL,
-      VPHONED_VCAM_SHM_TOTAL_SIZE,
+      VPHONE_VCAM_SHM_TOTAL_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED,
       fd,
@@ -92,7 +117,7 @@ static int open_shm(void) {
     return -1;
   }
   /* Zero the header on first init so seq starts at 0. */
-  memset(base, 0, VPHONED_VCAM_SHM_HEADER_SIZE);
+  memset(base, 0, VPHONE_VCAM_SHM_HEADER_SIZE);
   s_shm_base = (uint8_t *)base;
   return 0;
 }
@@ -118,12 +143,12 @@ static void publish_frame(uint32_t w,
                           const uint8_t *pixels,
                           size_t pixel_len) {
   if (!s_shm_base) return;
-  if (pixel_len > VPHONED_VCAM_SHM_MAX_PIXELS) {
+  if (pixel_len > VPHONE_VCAM_SHM_MAX_PIXELS) {
     vvc_logf("vphoned_vcam: frame too large: %zu", pixel_len);
     return;
   }
-  vphoned_vcam_shm_header_t *hdr = (vphoned_vcam_shm_header_t *)s_shm_base;
-  uint8_t *dst = s_shm_base + VPHONED_VCAM_SHM_HEADER_SIZE;
+  vphone_vcam_shm_header_t *hdr = (vphone_vcam_shm_header_t *)s_shm_base;
+  uint8_t *dst = s_shm_base + VPHONE_VCAM_SHM_HEADER_SIZE;
 
   uint64_t prev_seq = atomic_load_explicit(
       (_Atomic uint64_t *)&hdr->seq, memory_order_acquire);
@@ -150,7 +175,7 @@ static void publish_frame(uint32_t w,
       memory_order_release);
 
   if (s_notify_token >= 0) {
-    notify_post(VPHONED_VCAM_NOTIFY_NAME);
+    notify_post(VPHONE_VCAM_NOTIFY_NAME);
   }
 }
 
@@ -161,8 +186,8 @@ static void handle_client(int fd) {
     uint32_t total_len = 0, header_len = 0;
     if (read_full(fd, &total_len, 4) <= 0) break;
     if (read_full(fd, &header_len, 4) <= 0) break;
-    if (total_len < 4 || header_len + 4 > total_len ||
-        total_len > VPHONED_VCAM_SHM_MAX_PIXELS + 4096) {
+    if (total_len < 4 || header_len > total_len - 4 ||
+        total_len > VPHONE_VCAM_SHM_MAX_PIXELS + 4096) {
       vvc_logf("vphoned_vcam: framing error total=%u header=%u",
             total_len,
             header_len);
@@ -225,10 +250,10 @@ static void handle_client(int fd) {
 }
 
 static void *listener_thread(__unused void *unused) {
-  if (open_shm() < 0) return NULL;
+  while (open_shm() < 0) sleep(3);
 
   /* Register the notify name so notify_post() actually delivers. */
-  if (notify_register_check(VPHONED_VCAM_NOTIFY_NAME,
+  if (notify_register_check(VPHONE_VCAM_NOTIFY_NAME,
                             &s_notify_token) != NOTIFY_STATUS_OK) {
     s_notify_token = -1;
   }
@@ -241,7 +266,7 @@ static void *listener_thread(__unused void *unused) {
   int one = 1;
   setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
-  struct vp_sockaddr_vm addr = {
+  struct sockaddr_vm addr = {
       .svm_len    = sizeof(addr),
       .svm_family = AF_VSOCK,
       .svm_port   = VPHONED_VCAM_VSOCK_PORT,
@@ -261,7 +286,7 @@ static void *listener_thread(__unused void *unused) {
   }
   vvc_logf("vphoned_vcam: listening on vsock %d, shm=%s",
         VPHONED_VCAM_VSOCK_PORT,
-        VPHONED_VCAM_SHM_PATH);
+        VPHONE_VCAM_SHM_PATH);
 
   for (;;) {
     int fd = accept(srv, NULL, NULL);

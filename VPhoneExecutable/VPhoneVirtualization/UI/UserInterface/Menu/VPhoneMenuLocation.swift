@@ -141,6 +141,7 @@ extension VPhoneMenuController {
 
     @objc func stopLocationReplay(_: NSMenuItem) {
         locationProvider?.stopReplay()
+        control.sendLocationStop()
         refreshLocationReplayState(available: locationMenuItem?.isEnabled ?? false)
     }
 

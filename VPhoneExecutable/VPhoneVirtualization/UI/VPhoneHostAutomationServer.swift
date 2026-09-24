@@ -241,6 +241,7 @@ class VPhoneHostAutomationServer {
                 defer { semaphore.signal() }
                 guard let controller,
                       let recorder = controller.screenRecorder,
+                      let control = controller.control,
                       let view = controller.captureView,
                       view.window != nil
                 else {
@@ -248,10 +249,13 @@ class VPhoneHostAutomationServer {
                     return
                 }
                 do {
-                    if let outputPath {
-                        let url = try await recorder.saveScreenshot(view: view, to: URL(fileURLWithPath: outputPath))
-                        result.path = url.path
+                    let image = try await control.screenshotJPEG()
+                    let url = if let outputPath {
+                        try recorder.saveScreenshot(jpegData: image, to: URL(fileURLWithPath: outputPath))
+                    } else {
+                        try recorder.saveScreenshot(jpegData: image)
                     }
+                    result.path = url.path
                     // Always include compact image for screenshot command
                     result.imageBase64 = await controller.captureCompactScreenshot()
                     result.ok = true

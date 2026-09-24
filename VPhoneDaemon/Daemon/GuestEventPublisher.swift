@@ -24,7 +24,7 @@ final class GuestEventPublisher: @unchecked Sendable {
         }
         let state: [String: Any] = [
             "screen": screenInfo(),
-            "frontmost_app": frontmostApp(),
+            "frontmost_app": GuestForeground.current(),
             "low_power_mode": (try? lowPowerMode()) ?? [:],
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]),

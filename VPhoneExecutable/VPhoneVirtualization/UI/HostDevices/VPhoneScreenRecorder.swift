@@ -122,47 +122,36 @@ class VPhoneScreenRecorder {
         return url
     }
 
-    func copyScreenshotToPasteboard(view: NSView) async throws {
-        let cgImage = try await captureStillImage(from: view)
-
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil) else {
-            throw CaptureError.clipboardWriteFailed
-        }
-        CGImageDestinationAddImage(dest, cgImage, nil)
-        guard CGImageDestinationFinalize(dest) else {
-            throw CaptureError.clipboardWriteFailed
-        }
-
+    func copyScreenshotToPasteboard(jpegData: Data) throws {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(data as Data, forType: .init("public.jpeg"))
-
-        print("[record] screenshot copied to clipboard")
+        guard pasteboard.setData(jpegData, forType: .init("public.jpeg")) else {
+            throw CaptureError.clipboardWriteFailed
+        }
+        print("[record] guest screenshot copied to clipboard")
     }
 
-    func saveScreenshot(view: NSView) async throws -> URL {
-        try await saveScreenshot(view: view, to: screenshotOutputURL())
+    func saveScreenshot(jpegData: Data) throws -> URL {
+        let url = screenshotOutputURL()
+        return try saveScreenshot(jpegData: jpegData, to: url)
     }
 
-    func saveScreenshot(view: NSView, to url: URL) async throws -> URL {
-        let cgImage = try await captureStillImage(from: view)
-        let utType = url.pathExtension.lowercased() == "png" ? "public.png" : "public.jpeg"
-
-        guard let dest = CGImageDestinationCreateWithURL(
-            url as CFURL,
-            utType as CFString,
-            1,
-            nil,
-        ) else {
+    func saveScreenshot(jpegData: Data, to url: URL) throws -> URL {
+        do {
+            if url.pathExtension.lowercased() == "png" {
+                guard let source = CGImageSourceCreateWithData(jpegData as CFData, nil),
+                      let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                      let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)
+                else { throw CaptureError.encodingFailed }
+                CGImageDestinationAddImage(destination, image, nil)
+                guard CGImageDestinationFinalize(destination) else { throw CaptureError.encodingFailed }
+            } else {
+                try jpegData.write(to: url, options: .atomic)
+            }
+        } catch {
             throw CaptureError.encodingFailed
         }
-        CGImageDestinationAddImage(dest, cgImage, nil)
-        guard CGImageDestinationFinalize(dest) else {
-            throw CaptureError.encodingFailed
-        }
-
-        print("[record] screenshot saved - \(url.path)")
+        print("[record] guest screenshot saved - \(url.path)")
         return url
     }
 
