@@ -2,6 +2,15 @@
 
 Last updated: 2026-03-07
 
+> **Historical.** These notes describe `scripts/patchers/kernel_jb.py`, which was
+> deleted with the rest of `scripts/patchers/` at commit `d90371a`. The findings
+> — what each patch targets, why a matcher overfit, which sites are the
+> XNU-backed ones — carried into the Swift port and are why this file is kept;
+> the commands are not runnable as written. There is no Python in this
+> repository and no environment to install any into. The port lives in
+> `sources/FirmwarePatcher/Kernel/JBPatches/`; to run anything below, recover
+> the patchers from git history at `78cbeea`.
+
 ## Overview
 
 `scripts/patchers/kernel_jb.py` has 24 patch methods in `find_all()`. Current status:
@@ -411,7 +420,10 @@ Should have moderate caller count (hundreds).
 
 ## Environment Notes
 
-### Running on macOS (current)
+> Both recipes below are records of how this was run on 2026-03-07, not
+> instructions. The Python environment they assume does not exist any more.
+
+### Running on macOS (as it was then)
 
 ```bash
 cd /Users/qaq/Documents/GitHub/vphone-cli

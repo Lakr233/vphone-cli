@@ -1,8 +1,14 @@
 // CryptexFilesystemPatcherProcess.swift — Subprocess execution for the filesystem patcher.
 //
 // Split out of CryptexFilesystemPatcher.swift. Every external tool the merge drives — hdiutil,
-// diskutil, tar, ldid, ipsw, aa, cryptexctl, apfs_sealvolume — runs through runProcess, and
-// ProcessError is what it throws.
+// diskutil, ipsw, aa, cryptexctl, apfs_sealvolume — runs through runProcess, and ProcessError
+// is what it throws. What no longer runs through it: tar (VPhoneArchive), and chmod, chown, ln
+// and find (CryptexFilesystemPatcherFileOps.swift).
+//
+// There used to be a `sudo: Bool` parameter here that spawned `/usr/bin/whoami` and matched
+// "root" in its output. Nothing ever passed it — it was dead on every call site — and the
+// question it asked is `geteuid()`, which needs no process and no string match. The live root
+// check is VPhoneCreateOrchestrator's, before any of this runs.
 
 import Foundation
 
@@ -15,17 +21,9 @@ extension CryptexFilesystemPatcher {
     func runProcess(
         _ launchPath: String,
         _ arguments: [String],
-        sudo: Bool = false,
         output: URL? = nil
     ) throws -> String {
         let process = Process()
-        if sudo {
-            let whoami = try runProcess("/usr/bin/whoami", [])
-            if !whoami.contains("root") {
-                print("This step requires root. Run the command again with sudo.")
-                exit(42)
-            }
-        }
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
 

@@ -4,8 +4,13 @@
 <dict>
 	<key>CFBundleIdentifier</key>
 	<string>com.vphone.cli</string>
+	<!-- vphone-vm, not vphone-cli: this bundle exists to give the process that
+	     becomes an NSApplication its icon, LSUIElement and the location usage
+	     strings below, and that process is vphone-vm. vphone-cli ships in the
+	     same Contents/MacOS and is run directly; nothing opens this .app
+	     through Launch Services. -->
 	<key>CFBundleExecutable</key>
-	<string>vphone-cli</string>
+	<string>vphone-vm</string>
 	<key>CFBundleName</key>
 	<string>vphone-cli</string>
 	<key>CFBundlePackageType</key>

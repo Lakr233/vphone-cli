@@ -16,8 +16,8 @@ public enum VPhoneFirmwarePickerError: Error, CustomStringConvertible, Equatable
 
 // MARK: - VPhoneFirmwareSources
 
-/// The resolved `fw prepare` sources — a URL or local path per component, or
-/// nil to let `fw_prepare.sh` fall back to its built-in default.
+/// The resolved `fw prepare` sources — a URL or local path per component.
+/// A non-interactive caller rejects missing sources before preparation starts.
 public struct VPhoneFirmwareSources: Sendable, Equatable {
     public let iphoneSource: String?
     public let cloudosSource: String?
@@ -32,7 +32,7 @@ public struct VPhoneFirmwareSources: Sendable, Equatable {
 public enum VPhoneFirmwarePicker {
     /// Resolve the iPhone/cloudOS sources for `vm create`, prompting only for
     /// what's missing. Both given → passthrough. Non-interactive → passthrough
-    /// (fw_prepare defaults fill any gap). Neither given → pick a full pairing.
+    /// so the caller can report which source is missing. Neither given → pick a full pairing.
     /// One given → prompt for just the other. Prompts show friendly names; the
     /// result carries URLs. I/O is injected so the logic is unit-testable.
     public static func resolve(

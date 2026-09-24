@@ -12,7 +12,13 @@ public enum IM4PHandler {
     /// - Parameter url: Path to the firmware file.
     /// - Returns: Tuple of (extracted payload data, original IM4P if applicable).
     public static func load(contentsOf url: URL) throws -> (payload: Data, im4p: IM4P?) {
-        let fileData = try Data(contentsOf: url)
+        // READ, not mapped, and the asymmetry is deliberate. `save` writes the
+        // patched container back over the same path this loaded from — see
+        // `FirmwarePipeline.ContainerFirmwareLoader`, whose `save` re-loads the
+        // original to keep its metadata and then writes to that very url. A
+        // mapping of a file being replaced is a SIGBUS on the next fault; see
+        // InPlaceRewrite.swift.
+        let fileData = try Data(contentsOfFileToRewrite: url)
 
         // Try to parse as IM4P first
         if let im4p = try? IM4P(fileData) {

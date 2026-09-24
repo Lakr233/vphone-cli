@@ -226,8 +226,7 @@ extension FirmwarePipeline {
                             buildManiest: data,
                             restoreDir: restoreDir,
                             verbose: verbose,
-                            noBinpack: self.noBinpack,
-                            noVphoned: self.noVphoned
+                            noBinpack: self.noBinpack
                         )
                     }]
                 case .regular, .dev, .jb, .exp:

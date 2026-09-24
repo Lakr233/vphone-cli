@@ -56,7 +56,7 @@
 - Release kernel used: extracted raw Mach-O `/tmp/vphone-kcache-release-26.1.raw`.
 - Release outcome: `hit` at `0x00B8424C`.
 - Release emitted patch: `b #0x28 [_vm_map_protect]`.
-- Method: focused `KernelJBPatcher.patch_vm_map_protect()` dry-runs in the project `.venv`.
+- Method: focused `KernelJBPatcher.patch_vm_map_protect()` dry-runs, in the Python environment this repository had on that date. Both the Python patcher and that environment are gone; the port is `sources/FirmwarePatcher/Kernel/JBPatches/`.
 - Result: the reworked matcher hits the same semantic gate on both PCC 26.1 research and PCC 26.1 release, and the research hit **matches upstream exactly**.
 
 ## Why This Should Generalize Beyond The Current Research Image

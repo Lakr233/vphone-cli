@@ -1,10 +1,5 @@
+import Darwin  // _NSGetExecutablePath
 import Foundation
-
-// MARK: - VPhoneResourcesError
-
-public enum VPhoneResourcesError: Error, Equatable {
-    case venvBootstrapFailed(String)
-}
 
 // MARK: - VPhoneResources
 
@@ -15,20 +10,68 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Resolution
 
-    /// The running executable, resolved reliably. `CommandLine.arguments[0]` is
-    /// NOT reliable — under a PATH/symlink launch (e.g. a Homebrew symlink) it's
-    /// a bare name that `URL(fileURLWithPath:)` resolves against the CWD, so the
-    /// binary/base end up under `$HOME`. `Bundle.main.executableURL` is the
-    /// kernel-provided executable path, correct regardless of how the process
-    /// was invoked; resolve symlinks so a brew symlink lands on the real binary
-    /// inside the .app.
+    /// The image this process is actually running, as the kernel recorded it.
+    ///
+    /// Neither obvious alternative works here. `CommandLine.arguments[0]` is a
+    /// bare name under a PATH or symlink launch, which `URL(fileURLWithPath:)`
+    /// then resolves against the CWD and lands under `$HOME`.
+    /// `Bundle.main.executableURL` reads `CFBundleExecutable` out of Info.plist
+    /// — and now that the bundle declares `vphone-vm`, it answers "vphone-vm"
+    /// even when the running binary is `vphone-cli` sitting right beside it in
+    /// the same `Contents/MacOS`. It cannot be used to find ourselves.
+    ///
+    /// `_NSGetExecutablePath` has neither problem: it is the path the kernel
+    /// exec'd, independent of argv and of any plist. Symlinks are resolved so a
+    /// Homebrew symlink lands on the real binary inside the .app.
     public static func runningExecutable() -> URL {
-        if let exe = Bundle.main.executableURL { return exe.resolvingSymlinksInPath() }
-        return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        var size = UInt32(PATH_MAX)
+        var buffer = [CChar](repeating: 0, count: Int(size))
+        if _NSGetExecutablePath(&buffer, &size) == 0 {
+            let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            let path = String(decoding: bytes, as: UTF8.self)
+            return realPath(URL(fileURLWithPath: path))
+        }
+        // Only reachable if PATH_MAX was somehow too small for our own path.
+        if let exe = Bundle.main.executableURL { return realPath(exe) }
+        return realPath(URL(fileURLWithPath: CommandLine.arguments[0]))
+    }
+
+    /// `realpath(3)`, deliberately not `URL.resolvingSymlinksInPath()`.
+    ///
+    /// Foundation's version standardizes as well as resolves, and on macOS that
+    /// means dropping a leading `/private`: a binary that really lives at
+    /// `/private/tmp/x/vphone-vm` comes back as `/tmp/x/vphone-vm`. Both open
+    /// the same file, but only one is the path the kernel records — and an AMFI
+    /// allowlist is matched against the kernel's spelling, so the other one
+    /// silently allows nothing. `realpath` resolves every component and keeps
+    /// `/private`.
+    ///
+    /// A path that does not resolve (it does not exist yet) is returned as it
+    /// came in; the caller is better placed to say what is missing.
+    static func realPath(_ url: URL) -> URL {
+        guard let resolved = realpath(url.path, nil) else { return url }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved))
+    }
+
+    /// A companion binary shipped beside this one — today only `vphone-vm`.
+    ///
+    /// The layout is the same in both places we ever run from — `.build/release`
+    /// during development and `Contents/MacOS` in the bundle — so resolving a
+    /// sibling of the running image covers both without a special case, and
+    /// without ever consulting `PATH`. That last part is the point: a `PATH`
+    /// lookup is what let the old Python probing pick up whatever happened to
+    /// be installed on the machine.
+    ///
+    /// Existence is deliberately not checked here. The caller reports a missing
+    /// companion far better than this function could, because it knows which
+    /// operation is failing and why.
+    public static func siblingExecutable(_ name: String) -> URL {
+        runningExecutable().deletingLastPathComponent().appendingPathComponent(name)
     }
 
     public static func resolve(executablePath: String? = nil) -> VPhoneResources {
-        let exe = executablePath.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
+        let exe = executablePath.map { realPath(URL(fileURLWithPath: $0)) }
             ?? runningExecutable()
         let macos = exe.deletingLastPathComponent()             // …/Contents/MacOS
         if macos.lastPathComponent == "MacOS",
@@ -49,14 +92,9 @@ public struct VPhoneResources: Sendable {
     // MARK: - Assets
 
     public var scriptsDir: URL { base.appendingPathComponent("scripts") }
-    public var patchersDir: URL { scriptsDir.appendingPathComponent("patchers") }
-    public var resourceArchivesDir: URL { scriptsDir.appendingPathComponent("resources") }
-    public var fwPrepareScript: URL { scriptsDir.appendingPathComponent("fw_prepare.sh") }
-    public var cfwInstallHostScript: URL { scriptsDir.appendingPathComponent("cfw_install_host.sh") }
-    public var preflightScript: URL { scriptsDir.appendingPathComponent("boot_host_preflight.sh") }
-    public var pmd3Bridge: URL { scriptsDir.appendingPathComponent("pymobiledevice3_bridge.py") }
-    public var cfwPy: URL { patchersDir.appendingPathComponent("cfw.py") }
-    public var signcert: URL { scriptsDir.appendingPathComponent("vphoned/signcert.p12") }
+    public var gpuDriverArchive: URL {
+        scriptsDir.appendingPathComponent("payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
+    }
 
     public var vphoned: URL {
         let bundled = base.appendingPathComponent("vphoned.signed")
@@ -69,8 +107,8 @@ public struct VPhoneResources: Sendable {
     // MARK: - Cache dirs
 
     /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. Both
-    /// `VPhoneResources` (ipsws/tools/debs/venv) and `VPhoneLibrary` (VMs)
-    /// derive from this so one variable redirects everything vphone-cli creates.
+    /// `VPhoneResources` (ipsws/tools) and `VPhoneLibrary` (VMs) derive
+    /// from this so one variable redirects everything vphone-cli creates.
     public static func userDataRoot() -> URL {
         if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
             return URL(fileURLWithPath: root, isDirectory: true)
@@ -80,198 +118,26 @@ public struct VPhoneResources: Sendable {
 
     public var ipswCacheDir: URL { Self.userDataRoot().appendingPathComponent("ipsws") }
     public var sealVolumeCacheDir: URL { Self.userDataRoot().appendingPathComponent("tools") }
-    public var debsCacheDir: URL { Self.userDataRoot().appendingPathComponent("debs") }
 
-    // MARK: - Python
+    // MARK: - No interpreter
 
-    /// Runtime pip deps, mirrored from requirements.txt (fallback when the
-    /// bundled requirements.txt is somehow absent).
-    static let fallbackRequirements =
-        ["typer", "capstone", "keystone-engine", "pyimg4", "pymobiledevice3>=9.5.0", "ipsw-parser"]
+    // There is deliberately nothing here any more.
+    //
+    // This type used to resolve a python3 — an explicit `VPHONE_PYTHON`, the
+    // repo's `.venv`, a managed `~/.vphone/venv` it would provision on first
+    // run, and failing all of those a scan of `PATH` for python3.14 down to
+    // python3.10 and then `/usr/bin/python3`. The one program that needed it
+    // was the pymobiledevice3 restore bridge, and the restore backend is now
+    // libirecovery + idevicerestore linked into this binary (`VPhoneRestore`).
+    //
+    // The whole ladder is gone rather than left unused, because the last rung
+    // was the dangerous one: a `PATH` fallback makes a missing environment look
+    // like a working one, right up until a restore fails on a stranger's
+    // machine. Nothing in this package may resolve an interpreter again — see
+    // the "Python" section in AGENTS.md, and `scripts/check_aux.sh`, which now
+    // fails outright on a python3 lookup instead of registering it.
 
-    /// Bundled/dev requirements list the managed venv is provisioned from.
-    public var requirementsFile: URL { base.appendingPathComponent("requirements.txt") }
-
-    /// Per-user managed venv, created on demand. Deliberately OUTSIDE both the
-    /// repo and the .app so the app is portable — a venv is never moved between
-    /// machines (its links would break); it is built fresh on each host.
-    public var managedVenvDir: URL {
-        if let dir = ProcessInfo.processInfo.environment["VPHONE_VENV_DIR"], !dir.isEmpty {
-            return URL(fileURLWithPath: dir)
-        }
-        return Self.userDataRoot().appendingPathComponent("venv")
-    }
-    private var managedVenvPython: URL { managedVenvDir.appendingPathComponent("bin/python3") }
-
-    /// A python is usable only if it carries an `ipsw_parser` new enough for the
-    /// bridge — the exact gap behind `IPSW has no attribute 'create_from_path'`
-    /// when an old system-python build gets picked up.
-    func pythonIsUsable(_ python: URL) -> Bool {
-        guard FileManager.default.isExecutableFile(atPath: python.path) else { return false }
-        let probe = "from ipsw_parser.ipsw import IPSW; import sys; "
-            + "sys.exit(0 if hasattr(IPSW, 'create_from_path') else 1)"
-        return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
-    }
-
-    /// Must assemble, not just import — a bindings-only install imports fine
-    /// and then fails inside `fw patch`.
-    func keystoneIsUsable(_ python: URL) -> Bool {
-        let probe = "from keystone import Ks, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN; import sys; "
-            + "sys.exit(0 if bytes(Ks(KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN).asm('nop')[0]) else 1)"
-        return (try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]))?.succeeded == true
-    }
-
-    func venvIsUsable(_ python: URL) -> Bool {
-        pythonIsUsable(python) && keystoneIsUsable(python)
-    }
-
-    // MARK: - keystone native library
-
-    /// Older bottles ship only the static archive.
-    private func homebrewKeystoneLibs() -> (dylib: URL?, archive: URL?) {
-        for prefix in ["/opt/homebrew/opt/keystone/lib", "/usr/local/opt/keystone/lib"] {
-            let dir = URL(fileURLWithPath: prefix)
-            guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { continue }
-            let dylib = names.first { $0.hasPrefix("libkeystone") && $0.hasSuffix(".dylib") }
-            let archive = names.first { $0 == "libkeystone.a" }
-            if dylib != nil || archive != nil {
-                return (dylib.map(dir.appendingPathComponent), archive.map(dir.appendingPathComponent))
-            }
-        }
-        return (nil, nil)
-    }
-
-    /// Asked of the interpreter: `import keystone` is what's broken here.
-    private func keystonePackageDir(_ python: URL) -> URL? {
-        let probe = "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-        guard let r = try? VPhoneProcessRunner.runCapturing(python, ["-c", probe]), r.succeeded else { return nil }
-        let purelib = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !purelib.isEmpty else { return nil }
-        return URL(fileURLWithPath: purelib).appendingPathComponent("keystone")
-    }
-
-    /// PyPI has no arm64 macOS wheel and the sdist ignores its build's exit
-    /// status, so a failed native build still installs bindings alone and pip
-    /// reports success. Same recovery as scripts/setup_venv.sh.
-    func repairKeystone(_ python: URL) -> Bool {
-        guard let pkgDir = keystonePackageDir(python),
-              FileManager.default.fileExists(atPath: pkgDir.path) else { return false }
-        let dest = pkgDir.appendingPathComponent("libkeystone.dylib")
-        let libs = homebrewKeystoneLibs()
-
-        if let dylib = libs.dylib {
-            try? FileManager.default.removeItem(at: dest)
-            guard (try? FileManager.default.copyItem(at: dylib, to: dest)) != nil else { return false }
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dest.path)
-        } else if let archive = libs.archive {
-            let r = try? VPhoneProcessRunner.runCapturing(
-                URL(fileURLWithPath: "/usr/bin/clang"),
-                ["-shared", "-o", dest.path, "-Wl,-all_load", archive.path,
-                 "-lc++", "-install_name", "@rpath/libkeystone.dylib"])
-            guard r?.succeeded == true else { return false }
-        } else {
-            return false
-        }
-
-        guard keystoneIsUsable(python) else { return false }
-        FileHandle.standardError.write(Data("[+] Repaired keystone native library: \(dest.path)\n".utf8))
-        return true
-    }
-
-    /// Resolve a python with working deps: an explicit `VPHONE_PYTHON`, the dev
-    /// repo `.venv`, the managed per-user venv, else provision the managed venv
-    /// on this machine. Never silently falls back to a stale system python.
-    public func pythonExecutable() throws -> URL {
-        if let override = ProcessInfo.processInfo.environment["VPHONE_PYTHON"], !override.isEmpty {
-            let u = URL(fileURLWithPath: override)
-            if pythonIsUsable(u) { return u }
-        }
-        let devVenv = base.appendingPathComponent(".venv/bin/python3")
-        if venvIsUsable(devVenv) { return devVenv }
-        // Repair in place before rebuilding — a missing dylib is not worth a
-        // full re-install.
-        if pythonIsUsable(managedVenvPython),
-           keystoneIsUsable(managedVenvPython) || repairKeystone(managedVenvPython) {
-            return managedVenvPython
-        }
-        return try bootstrapManagedVenv()
-    }
-
-    /// Provision `~/.vphone/venv`: try each candidate host python for real
-    /// (build the venv, install deps, verify) and use the first that fully
-    /// succeeds — a candidate that imports `venv` can still fail `-m venv`
-    /// (e.g. a broken `ensurepip`), so we fall through instead of trusting it.
-    /// One-time per machine.
-    private func bootstrapManagedVenv() throws -> URL {
-        func log(_ s: String) { FileHandle.standardError.write(Data((s + "\n").utf8)) }
-        let candidates = candidateHostPythons()
-        guard !candidates.isEmpty else {
-            throw VPhoneResourcesError.venvBootstrapFailed(
-                "No python3 found on this system. Install it with 'brew install python@3.13', or set VPHONE_PYTHON.")
-        }
-        log("[*] First run: setting up the Python environment at \(managedVenvDir.path)…")
-        let py = managedVenvPython
-        let install: [String] = FileManager.default.fileExists(atPath: requirementsFile.path)
-            ? ["-m", "pip", "install", "-r", requirementsFile.path]
-            : ["-m", "pip", "install"] + Self.fallbackRequirements
-        var lastError = "No usable Python could be found on this system"
-
-        for host in candidates {
-            log("    → Trying \(host.path)…")
-            try? FileManager.default.removeItem(at: managedVenvDir)
-            try FileManager.default.createDirectory(
-                at: Self.userDataRoot(),
-                withIntermediateDirectories: true)
-            guard (try? VPhoneProcessRunner.runStreaming(host, ["-m", "venv", managedVenvDir.path])) == 0 else {
-                lastError = "Could not create a Python environment with \(host.path)"; continue
-            }
-            _ = try? VPhoneProcessRunner.runStreaming(py, ["-m", "pip", "install", "--upgrade", "-q", "pip"])
-            guard (try? VPhoneProcessRunner.runStreaming(py, install)) == 0 else {
-                lastError = "Could not install the required Python packages with \(host.path)"; continue
-            }
-            guard pythonIsUsable(py) else {
-                lastError = "The Python environment built with \(host.path) is missing a required package"; continue
-            }
-            guard keystoneIsUsable(py) || repairKeystone(py) else {
-                lastError = "Could not set up keystone in the Python environment built with \(host.path). "
-                    + "Install it with 'brew install keystone', or install cmake so it can be built"
-                continue
-            }
-            log("[+] Python environment ready: \(py.path)")
-            return py
-        }
-        try? FileManager.default.removeItem(at: managedVenvDir)
-        throw VPhoneResourcesError.venvBootstrapFailed(
-            lastError + ". If the problem persists, install a modern python3 with "
-                + "'brew install python@3.13', or set VPHONE_PYTHON.")
-    }
-
-    /// Ordered, existence-checked host python3 candidates to bootstrap from.
-    /// Canonical Homebrew locations first, then versioned names on PATH, then
-    /// generic `python3`, then system `/usr/bin/python3` (3.9) as a last resort
-    /// (it resolves an old, broken pymobiledevice3 stack).
-    private func candidateHostPythons() -> [URL] {
-        var paths: [String] = []
-        if let override = ProcessInfo.processInfo.environment["VPHONE_PYTHON"], !override.isEmpty {
-            paths.append(override)
-        }
-        paths += ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"]
-        for name in ["python3.14", "python3.13", "python3.12", "python3.11", "python3.10"] {
-            if let p = which(name) { paths.append(p) }
-        }
-        if let p = which("python3") { paths.append(p) }
-        paths.append("/usr/bin/python3")
-
-        var seen = Set<String>()
-        return paths.filter { !$0.isEmpty && seen.insert($0).inserted }
-            .filter { FileManager.default.isExecutableFile(atPath: $0) }
-            .map { URL(fileURLWithPath: $0) }
-    }
-
-    private func which(_ name: String) -> String? {
-        let r = try? VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: "/usr/bin/env"), ["which", name])
-        guard let r, r.succeeded else { return nil }
-        let p = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return p.isEmpty ? nil : p
-    }
+    // With the interpreter went the last `PATH` lookup in this package. Every
+    // program vphone-cli runs is either a sibling of the running image
+    // (`siblingExecutable`) or a bundled script under `scriptsDir`.
 }

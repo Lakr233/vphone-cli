@@ -17,6 +17,7 @@
 import Foundation
 import CryptoKit
 import Img4tool
+import VPhoneArchive
 import VPhoneCore
 
 /// Patcher for the Filesystem payload.
@@ -25,7 +26,6 @@ public final class CryptexFilesystemPatcher: Patcher {
     public let restoreDir: URL
     public let verbose: Bool
     public let noBinpack: Bool
-    public let noVphoned: Bool
     let vphoneCliDirectory = URL(filePath: "./")
     let resources = VPhoneResources.resolve()
 
@@ -39,14 +39,12 @@ public final class CryptexFilesystemPatcher: Patcher {
         buildManiest: Data,
         restoreDir: URL,
         verbose: Bool = true,
-        noBinpack: Bool = false,
-        noVphoned: Bool = false
+        noBinpack: Bool = false
     ) {
         self.buildManiest = buildManiest
         self.restoreDir = restoreDir
         self.verbose = verbose
         self.noBinpack = noBinpack
-        self.noVphoned = noVphoned
     }
 
     deinit {
@@ -131,35 +129,16 @@ public final class CryptexFilesystemPatcher: Patcher {
             print("- Fixing dyld cache…")
             try addDyldSymlinks(targetMount: targetMount)
 
-            let cfwInputOgPath = resources.resourceArchivesDir.appendingPathComponent("cfw_input.tar.zst")
-            let cfwInputPath = try createTmpDir()
-            _ = try runProcess("/usr/bin/tar", [
-                "--zstd", "-xf", cfwInputOgPath.path, "-C", cfwInputPath.path
-            ])
-
             print("- Fixing GPU driver…")
-            try addGpuDriver(targetMount: targetMount, cfwInput: cfwInputPath)
+            try addGpuDriver(targetMount: targetMount)
 
             print("- Patching mobile activation…")
-            try patchMobileActivation(targetMount: targetMount, cfwInput: cfwInputPath)
+            try patchMobileActivation(targetMount: targetMount)
 
-            if !noVphoned {
-                print("- Adding vphoned…")
-                try addVphoned(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
-            if !noBinpack {
-                print("- Adding binpack…")
-                try addExtraServices(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
-            if !noVphoned || !noBinpack {
-                try injectLaunchDaemons(
-                    targetMount: targetMount,
-                    cfwInput: cfwInputPath,
-                    vphoned: !noVphoned,
-                    cfw: !noBinpack
-                )
-                try patchLaunchdCacheLoader(targetMount: targetMount, cfwInput: cfwInputPath)
-            }
+            print("- Adding vphoned…")
+            try addVphoned(targetMount: targetMount)
+            try injectLaunchDaemons(targetMount: targetMount)
+            try patchLaunchdCacheLoader(targetMount: targetMount)
         }
 
         print("- Finalizing merged image…")

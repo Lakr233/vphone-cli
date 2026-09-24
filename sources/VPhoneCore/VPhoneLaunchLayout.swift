@@ -8,18 +8,19 @@ public struct VPhoneLaunchLayout: Sendable {
     public init(resources: VPhoneResources) { self.resources = resources }
     public init(projectRoot: URL) { self.init(resources: VPhoneResources(base: projectRoot)) }
 
-    public var preflightScript: URL { resources.preflightScript }
     public var vphoned: URL { resources.vphoned }
 
     /// Copy the built vphoned into the bundle if present and different.
     @discardableResult
     public func stageVphoned(into bundle: VPhoneBundle) throws -> Bool {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: vphoned.path) else { return false }
+        guard fm.fileExists(atPath: vphoned.path) else {
+            throw VPhoneGuestBinaries.Error.missing("vphoned.signed", [vphoned])
+        }
         let dst = bundle.url.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: dst.path),
-           let a = try? Data(contentsOf: vphoned),
-           let b = try? Data(contentsOf: dst), a == b {
+           let a = try? Data(contentsOf: vphoned, options: .mappedIfSafe),
+           let b = try? Data(contentsOf: dst, options: .mappedIfSafe), a == b {
             return false
         }
         if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }

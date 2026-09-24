@@ -510,7 +510,11 @@ struct FirmwarePipelineTests {
         let pipeline = FirmwarePipeline(vmDirectory: tempDir, variant: .regular, verbose: false)
         let found = try pipeline.findFile(in: tempDir, patterns: ["AVPBooter*.bin"], label: "AVPBooter")
 
-        #expect(found == target)
+        // Both sides resolved: `NSTemporaryDirectory()` hands back `/var/...`
+        // and `findFile` returns what the directory scan saw, which is the
+        // realpath `/private/var/...`. Comparing them raw made this test red on
+        // every macOS that symlinks /var, which is all of them.
+        #expect(found.resolvingSymlinksInPath() == target.resolvingSymlinksInPath())
     }
 }
 

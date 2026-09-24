@@ -132,6 +132,12 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         public let avpBooter: String
         public let avpSEPBooter: String
 
+        /// The names `vm create` copies the ROMs in as.
+        public static let `default` = ROMImages(
+            avpBooter: "AVPBooter.vresearch1.bin",
+            avpSEPBooter: "AVPSEPBooter.vresearch1.bin"
+        )
+
         public init(avpBooter: String, avpSEPBooter: String) {
             self.avpBooter = avpBooter
             self.avpSEPBooter = avpSEPBooter
@@ -166,13 +172,38 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         self.sepStorage = sepStorage
     }
 
+    // MARK: - Creation
+
+    /// The manifest a freshly created VM starts with.
+    ///
+    /// Replaces `scripts/vm_manifest.py`. Everything not named here is a
+    /// default that the guest or the framework fills in later:
+    /// `machineIdentifier` is empty until first boot persists one, and
+    /// `macAddress` is empty so Virtualization assigns it — forcing a MAC
+    /// breaks guest networking.
+    ///
+    /// `platformFusing` stays nil unless asked for, which leaves the key out
+    /// of the plist entirely and lets the host OS decide.
+    public static func newVM(
+        cpuCount: UInt = 8,
+        memoryMB: UInt64 = 8192,
+        platformFusing: PlatformFusing? = nil
+    ) -> VPhoneVirtualMachineManifest {
+        VPhoneVirtualMachineManifest(
+            platformFusing: platformFusing,
+            cpuCount: cpuCount,
+            memorySize: memoryMB * 1024 * 1024,
+            romImages: .default
+        )
+    }
+
     // MARK: - Load/Save
 
     /// Load manifest from a plist file
     public static func load(from url: URL) throws -> VPhoneVirtualMachineManifest {
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try Data(contentsOf: url, options: .mappedIfSafe)
         } catch {
             throw VPhoneManifestError.loadFailed(path: url.path)
         }

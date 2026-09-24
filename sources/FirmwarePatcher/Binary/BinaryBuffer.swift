@@ -35,7 +35,11 @@ public final class BinaryBuffer: @unchecked Sendable {
     }
 
     public convenience init(contentsOf url: URL) throws {
-        try self.init(Data(contentsOf: url))
+        // Read, not mapped. A `BinaryBuffer` exists to be mutated, and what it
+        // is built from — a kernelcache, an iBoot — is written back over the
+        // path it came from. See InPlaceRewrite.swift for why a mapping cannot
+        // survive that.
+        try self.init(Data(contentsOfFileToRewrite: url))
     }
 
     // MARK: - Read Helpers

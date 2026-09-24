@@ -5,30 +5,33 @@
 // produced by apfs_sealvolume, and the Ap,SystemVolumeCanonicalMetadata container.
 
 import Foundation
+import Img4tool
 
 extension CryptexFilesystemPatcher {
-    func wrapRootHash(_ rootHashPath: URL) throws -> URL {
-        let tmpDir = try createTmpDir()
-        let im4pPath = tmpDir.appending(path: "metadata.root_hash")
-        _ = try runProcess("/opt/homebrew/bin/ipsw", [
-            "img4", "im4p", "create",
-            "--type", "isys", "--version", "0",
-            "-o", im4pPath.path,
-            rootHashPath.path
-        ])
+    // `ipsw img4 im4p create --type T --version V` three times over. Img4tool is
+    // already a dependency of this module and builds the same DER: the IM4P
+    // SEQUENCE is the string "IM4P", the four-character type, the description
+    // — which is what ipsw's `--version` set — and the payload OCTET STRING.
+    // Dropping the subprocess takes the last Homebrew program out of the
+    // firmware pipeline.
+    private func wrap(_ payload: URL, fourcc: String, description: String, named: String) throws -> URL {
+        let im4pPath = try createTmpDir().appending(path: named)
+        // Mapped: the mtree .aar this wraps is the whole system volume's
+        // metadata and runs to hundreds of megabytes.
+        let im4p = try IM4P(
+            fourcc: fourcc, description: description,
+            payload: Data(contentsOf: payload, options: .mappedIfSafe)
+        )
+        try im4p.data.write(to: im4pPath)
         return im4pPath
     }
 
+    func wrapRootHash(_ rootHashPath: URL) throws -> URL {
+        try wrap(rootHashPath, fourcc: "isys", description: "0", named: "metadata.root_hash")
+    }
+
     func wrapTrustcache(_ trustcache: URL) throws -> URL {
-        let tmpDir = try createTmpDir()
-        let im4pPath = tmpDir.appending(path: "new.filesystem")
-        _ = try runProcess("/opt/homebrew/bin/ipsw", [
-            "img4", "im4p", "create",
-            "--type", "trst", "--version", "1",
-            "-o", im4pPath.path,
-            trustcache.path
-        ])
-        return im4pPath
+        try wrap(trustcache, fourcc: "trst", description: "1", named: "new.filesystem")
     }
 
     func compressCanonicalMetadata(mtree: URL, digestDb: URL) throws -> URL {
@@ -45,14 +48,7 @@ extension CryptexFilesystemPatcher {
             "-o", archivePath.path
         ])
 
-        let im4pPath = tmpDir.appending(path: "metadata.mtree")
-        _ = try runProcess("/opt/homebrew/bin/ipsw", [
-            "img4", "im4p", "create",
-            "--type", "msys", "--version", "0",
-            "-o", im4pPath.path,
-            archivePath.path
-        ])
-        return im4pPath
+        return try wrap(archivePath, fourcc: "msys", description: "0", named: "metadata.mtree")
     }
 
     private func identifyApfsSealvolume() throws -> URL {

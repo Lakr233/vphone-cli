@@ -8,18 +8,23 @@ PCC リサーチ VM インフラストラクチャを使用し、Apple の Virtu
 
 ## 前提条件
 
-**ホスト:**
+**実行に必要なもの:**
 
 - Apple Silicon
 - macOS 15+ (Sequoia)
-- Xcode + iOS SDK（ゲストデーモンをクロスコンパイルするため）
 - [未署名バイナリでプライベートな PV=3 エンタイトルメントを許可するための SIP/AMFI の緩和](#sipamfi-の緩和)
 
-**依存関係:**
+**それ以外は何も要りません。** Homebrew パッケージも、インタープリタも、パッケージ環境も、
+Xcode も不要です。vphone-cli が実行するものは、`/usr/bin`・`/bin`・`/usr/sbin`・`/sbin`
+にあるシステムバイナリか、`.app` の中にあるもののどちらかです。署名器（`ldid` の置き換え）、
+アーカイブ処理（`gtar`・`zstd`・`unzip`）、ファームウェアカタログと IM4P/AEA の処理
+（`ipsw`）、そして CFW インストーラがゲストに入れる 5 つの iOS バイナリ——これらは
+ビルド時にクロスコンパイルして同梱されるので、手元のマシンではコンパイルしません。
+その状態を保つゲートが `make check-aux` です。
 
-```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
-```
+**ソースからビルドする場合**は、Xcode（その 5 つのゲストバイナリのクロスコンパイルに
+iOS SDK を使います）と `git-lfs`（`git clone` が `scripts/resources` のアーカイブを
+取得するのに必要）が追加で要ります。
 
 ## インストール
 
@@ -30,14 +35,18 @@ brew install zqxwce/tap/vphone-cli
 ## ビルド
 
 ```bash
+brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # 依存関係のインストール、ツールチェーンのサブモジュールのビルド、Python venv の作成
-./scripts/build.sh            # vphone-cli のビルド + 署名、.app のバンドル、vphoned のクロスコンパイル
+./scripts/build.sh            # vphone-cli のビルド + 署名、ゲストバイナリのクロスコンパイル、.app のバンドル
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
+
+`./scripts/setup_tools.sh` は任意で、ビルドするのは `insert_dylib` ひとつだけです。
+Mach-O のテストが Swift の dylib インジェクタをバイト単位で照合するための独立した参照で、
+配布物がこれを実行することはありません。
 
 ## クイックスタート
 
@@ -85,6 +94,11 @@ vphone-cli vm launch myphone                            # 6. 初回起動
 
 新しい iOS に更新するには、`fw prepare` を IPSW に向けます: `--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
+ステップ 4 と 5 は `vphone-cli` 自身のプロセス内で実行されます。`restore` は同梱の
+libirecovery と idevicerestore を直接駆動します — 外部の復元ツールも、最初の 1 回の前に
+必要なセットアップ手順もありません。`--offline` を付けると、Apple に新しい ticket を
+要求する代わりに、VM の横に保存済みの `.shsh` で復元します。
+
 ## ファームウェアバリアント
 
 セキュリティバイパスの度合いが段階的に増す 5 つのパッチバリアント — いずれか 1 つを `--variant` に渡します:
@@ -116,9 +130,8 @@ vphone-cli が生成するものはすべて `~/.vphone/` 以下に置かれま�
 | `~/.vphone/ipsws/`| ダウンロードされた iPhone + cloudOS の IPSW。キャッシュされ、複数の VM で再利用されます。       |
 | `~/.vphone/tools/`| `fw prepare` 中に取得された APFS seal-volume アーティファクト（`apfs_sealvolume_<version>`）のキャッシュ。 |
 | `~/.vphone/debs/` | `jb`/`exp` の CFW インストールがゲストに配置する `.deb` パッケージのキャッシュ（Sileo、apt など）。 |
-| `~/.vphone/venv/` | 自動的にプロビジョニングされる Python 環境（[Python ランタイム](#python-ランタイム) を参照。`$VPHONE_VENV_DIR` で上書き可能）。 |
 
-優先順位: 項目ごとの上書き（`$VPHONE_LIBRARY_ROOT`、`$VPHONE_VENV_DIR`）が `$VPHONE_ROOT` より優先され、`$VPHONE_ROOT` は `~/.vphone` のデフォルトより優先されます。`ipsws/`、`tools/`、`debs/` キャッシュは、常に現在有効なルートの直下に置かれます。
+優先順位: 項目ごとの上書き `$VPHONE_LIBRARY_ROOT` が `$VPHONE_ROOT` より優先され、`$VPHONE_ROOT` は `~/.vphone` のデフォルトより優先されます。`ipsws/`、`tools/`、`debs/` キャッシュは、常に現在有効なルートの直下に置かれます。
 
 ## SIP/AMFI の緩和
 
@@ -137,7 +150,9 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 後で再起動
 ```
 
-**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、amfidont でバイナリを許可リストに追加する**（AMFI はシステム全体で有効なまま）。
+これが依然として最も手軽な方法であり、VM のそばで何かを走らせ続ける必要がない唯一の方法です: AMFI が緩和されていれば `vphone-vm` は単体で起動します。
+
+**オプション B — SIP を有効なまま（デバッグのみ緩和）にし、このビルドを許可リストに入れる**（それ以外の時間、および許可していないすべてのバイナリに対しては AMFI が有効なまま）。
 
 リカバリーモードで:
 
@@ -146,11 +161,32 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-その後 macOS で再起動し:
+その後 macOS で再起動し、次を実行します:
 
 ```bash
-vphone-amfidont         # ローカルビルドの場合は .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+make amfi_allow     # root が必要。ビルドのたびに再実行してください
+make amfi_status    # 許可リストと、このホストがそれを持てるかどうかを表示
+make amfi_off       # 許可リストを削除し、amfid をクリーンに再起動
 ```
+
+これが実行するのは `vphone-amfi-allow` — 本リポジトリ自身の C で書かれ、`.app` に同梱されています。書き込むのは 2 つだけです:
+
+* 2 つの `vphone-vm` の cdhash を
+  `/Library/Preferences/com.apple.security.coderequirements.plist` に。これは AMFI が
+  もともと読むファイルで、穴ではなく AMFI 自身の機能です;
+* amfid の**ヒープの 1 バイト**。`_isRunningInternalBuild` フラグを立てて、そのファイルを読ませます。
+
+2 つとも必要なのは、`make boot` が両方を起動するからです: `boot_binary_check` は
+`.build/release/vphone-vm` を、起動処理そのものは `.app` の中のものを実行します。
+署名の識別子が異なりハッシュも異なるため、片方だけを許可してもフローの半分しかカバーできません。
+
+**ビルドのたびに再実行してください。** 許可は cdhash をキーにしており、署名のたびに cdhash は変わります — 素の `swift build` でも変わります。
+
+許可すべきバイナリは `vphone-vm` です。`vphone-cli` は entitlement を持たず常に起動できるため、必要なのはその cdhash ではありません。
+
+> **何が許可されるのかを正しく理解してください。** これは cdhash をキーにした許可リストです: 指定していないバイナリに対して amfid は通常どおり検証を続けます。`make amfi_off` はそのファイルを削除し amfid を再起動します。
+>
+> 書き込む 1 バイトは amfid の `__TEXT` ではなく**ヒープ**にあり、それがこの方式が成り立つ理由のすべてです。以前の手法はコードを書き換えていました — `vphone-letmein` は `-[AMFIPathValidator_macos validateWithError:]` の `ldrb` を上書きし、LLDB ベースのツールはブレークポイントのために `BRK` を埋め込みます。どちらも dirty で未署名の実行ページを残し、`sysctl vm.cs_system_enforcement` が 1 のホスト — macOS 27.0 (26A428)、arm64e、上記の `csrutil` 設定そのままで実測 — ではカーネルが次のフォルトでそのページを検証し、amfid を kill し、ゲストも巻き添えにします。この sysctl は実行時には読み取り専用なので、「コードにパッチを当てる」方式はどれだけ気をつけても生き残れません。ヒープはコードではないので、強制検証は何も文句を言いません。
 
 ## 動作確認済み環境
 
@@ -179,7 +215,7 @@ vphone-amfidont         # ローカルビルドの場合は .build/vphone-cli.ap
 
 ## FAQ
 
-**`zsh: killed ./vphone-cli`** — AMFI/デバッグ制限がバイパスされていません。[前提条件](#前提条件) を参照してください（`amfi_get_out_of_my_way=1` または `amfidont`）。
+**`zsh: killed ./vphone-vm`** — AMFI/デバッグ制限がバイパスされていません。[SIP/AMFI の緩和](#sipamfi-の緩和) を参照してください（`amfi_get_out_of_my_way=1`（オプション A）、またはこのビルドに対する `make amfi_allow`（オプション B））。直近のビルドより前に実行したのであれば、もう一度実行してください: 許可は cdhash をキーにしており、署名がそれを変えます。なお `vphone-cli` 自体にこれは起こりません: entitlement を持たないため、*それ* が kill されている場合は別の原因があります。
 
 **`Virtualization is not available on this hardware`** — お使いの Mac 自体が VM です。PV=3 ゲスト起動はネストできません。ネストされていない macOS 15+ ホストを使用してください。
 

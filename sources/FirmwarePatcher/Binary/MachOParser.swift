@@ -26,6 +26,42 @@ public struct MachOSectionInfo: Sendable {
 
 /// Mach-O parsing utilities for kernel/firmware binary analysis.
 public enum MachOParser {
+    /// `sizeof(segment_command_64)` — the fixed part, before the section table.
+    static let segmentCommand64Size = 72
+    /// `sizeof(section_64)`.
+    static let section64Size = 80
+    /// `sizeof(symtab_command)`.
+    static let symtabCommandSize = 24
+
+    /// Walk the load-command table, handing `body` only those commands whose
+    /// whole body lies inside the buffer.
+    ///
+    /// The bound matters: `Data.loadLE` is a `precondition`, so a read past the
+    /// end kills the process with SIGTRAP rather than raising anything a caller
+    /// could catch. A header claiming more (or larger) commands than the file
+    /// holds — a truncated download, a half-written patch — used to walk right
+    /// off the end. Now the walk stops at the first command that does not fit,
+    /// and the caller sees an empty/partial result it can reject normally.
+    static func forEachLoadCommand(
+        in data: Data,
+        _ body: (_ cmd: UInt32, _ offset: Int, _ cmdsize: Int) -> Void
+    ) {
+        guard data.count > 32 else { return }
+        let ncmds = data.loadLE(UInt32.self, at: 16)
+        var offset = 32 // sizeof(mach_header_64)
+
+        for _ in 0 ..< ncmds {
+            guard offset + 8 <= data.count else { return }
+            let cmd = data.loadLE(UInt32.self, at: offset)
+            let cmdsize = Int(data.loadLE(UInt32.self, at: offset + 4))
+            // A command smaller than its own header, or one running past EOF,
+            // means the table cannot be trusted — stop rather than guess.
+            guard cmdsize >= 8, offset + cmdsize <= data.count else { return }
+            body(cmd, offset, cmdsize)
+            offset += cmdsize
+        }
+    }
+
     /// Parse all segments from a Mach-O binary in a Data buffer.
     public static func parseSegments(from data: Data) -> [MachOSegmentInfo] {
         var segments: [MachOSegmentInfo] = []
@@ -34,32 +70,23 @@ public enum MachOParser {
         let magic = data.loadLE(UInt32.self, at: 0)
         guard magic == 0xFEED_FACF else { return segments } // MH_MAGIC_64
 
-        let ncmds = data.loadLE(UInt32.self, at: 16)
-        var offset = 32 // sizeof(mach_header_64)
+        forEachLoadCommand(in: data) { cmd, offset, cmdsize in
+            guard cmd == 0x19, cmdsize >= segmentCommand64Size else { return } // LC_SEGMENT_64
+            let nameData = data[offset + 8 ..< offset + 24]
+            let name = String(data: nameData, encoding: .utf8)?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
+            let vmAddr = data.loadLE(UInt64.self, at: offset + 24)
+            let vmSize = data.loadLE(UInt64.self, at: offset + 32)
+            let fileOff = data.loadLE(UInt64.self, at: offset + 40)
+            let fileSize = data.loadLE(UInt64.self, at: offset + 48)
 
-        for _ in 0 ..< ncmds {
-            guard offset + 8 <= data.count else { break }
-            let cmd = data.loadLE(UInt32.self, at: offset)
-            let cmdsize = data.loadLE(UInt32.self, at: offset + 4)
-
-            if cmd == 0x19 { // LC_SEGMENT_64
-                let nameData = data[offset + 8 ..< offset + 24]
-                let name = String(data: nameData, encoding: .utf8)?
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
-                let vmAddr = data.loadLE(UInt64.self, at: offset + 24)
-                let vmSize = data.loadLE(UInt64.self, at: offset + 32)
-                let fileOff = data.loadLE(UInt64.self, at: offset + 40)
-                let fileSize = data.loadLE(UInt64.self, at: offset + 48)
-
-                segments.append(MachOSegmentInfo(
-                    name: name,
-                    vmAddr: vmAddr,
-                    vmSize: vmSize,
-                    fileOffset: fileOff,
-                    fileSize: fileSize
-                ))
-            }
-            offset += Int(cmdsize)
+            segments.append(MachOSegmentInfo(
+                name: name,
+                vmAddr: vmAddr,
+                vmSize: vmSize,
+                fileOffset: fileOff,
+                fileSize: fileSize
+            ))
         }
         return segments
     }
@@ -73,42 +100,35 @@ public enum MachOParser {
         let magic = data.loadLE(UInt32.self, at: 0)
         guard magic == 0xFEED_FACF else { return sections }
 
-        let ncmds = data.loadLE(UInt32.self, at: 16)
-        var offset = 32
+        forEachLoadCommand(in: data) { cmd, offset, cmdsize in
+            guard cmd == 0x19, cmdsize >= segmentCommand64Size else { return } // LC_SEGMENT_64
+            let segNameData = data[offset + 8 ..< offset + 24]
+            let segName = String(data: segNameData, encoding: .utf8)?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
+            let nsects = data.loadLE(UInt32.self, at: offset + 64)
 
-        for _ in 0 ..< ncmds {
-            guard offset + 8 <= data.count else { break }
-            let cmd = data.loadLE(UInt32.self, at: offset)
-            let cmdsize = data.loadLE(UInt32.self, at: offset + 4)
-
-            if cmd == 0x19 { // LC_SEGMENT_64
-                let segNameData = data[offset + 8 ..< offset + 24]
-                let segName = String(data: segNameData, encoding: .utf8)?
+            var sectOff = offset + segmentCommand64Size
+            for _ in 0 ..< nsects {
+                // The section table lives inside this command, so bound it by
+                // the command as well as by the file.
+                guard sectOff + section64Size <= offset + cmdsize else { break }
+                let sectNameData = data[sectOff ..< sectOff + 16]
+                let sectName = String(data: sectNameData, encoding: .utf8)?
                     .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
-                let nsects = data.loadLE(UInt32.self, at: offset + 64)
+                let addr = data.loadLE(UInt64.self, at: sectOff + 32)
+                let size = data.loadLE(UInt64.self, at: sectOff + 40)
+                let fileOff = data.loadLE(UInt32.self, at: sectOff + 48)
 
-                var sectOff = offset + 72 // sizeof(segment_command_64) header
-                for _ in 0 ..< nsects {
-                    guard sectOff + 80 <= data.count else { break }
-                    let sectNameData = data[sectOff ..< sectOff + 16]
-                    let sectName = String(data: sectNameData, encoding: .utf8)?
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
-                    let addr = data.loadLE(UInt64.self, at: sectOff + 32)
-                    let size = data.loadLE(UInt64.self, at: sectOff + 40)
-                    let fileOff = data.loadLE(UInt32.self, at: sectOff + 48)
-
-                    let key = "\(segName),\(sectName)"
-                    sections[key] = MachOSectionInfo(
-                        segmentName: segName,
-                        sectionName: sectName,
-                        address: addr,
-                        size: size,
-                        fileOffset: fileOff
-                    )
-                    sectOff += 80
-                }
+                let key = "\(segName),\(sectName)"
+                sections[key] = MachOSectionInfo(
+                    segmentName: segName,
+                    sectionName: sectName,
+                    address: addr,
+                    size: size,
+                    fileOffset: fileOff
+                )
+                sectOff += section64Size
             }
-            offset += Int(cmdsize)
         }
         return sections
     }
@@ -128,24 +148,17 @@ public enum MachOParser {
     public static func parseSymtab(from data: Data) -> (symoff: Int, nsyms: Int, stroff: Int, strsize: Int)? {
         guard data.count > 32 else { return nil }
 
-        let ncmds = data.loadLE(UInt32.self, at: 16)
-        var offset = 32
-
-        for _ in 0 ..< ncmds {
-            guard offset + 8 <= data.count else { break }
-            let cmd = data.loadLE(UInt32.self, at: offset)
-            let cmdsize = data.loadLE(UInt32.self, at: offset + 4)
-
-            if cmd == 0x02 { // LC_SYMTAB
-                let symoff = data.loadLE(UInt32.self, at: offset + 8)
-                let nsyms = data.loadLE(UInt32.self, at: offset + 12)
-                let stroff = data.loadLE(UInt32.self, at: offset + 16)
-                let strsize = data.loadLE(UInt32.self, at: offset + 20)
-                return (Int(symoff), Int(nsyms), Int(stroff), Int(strsize))
-            }
-            offset += Int(cmdsize)
+        var result: (symoff: Int, nsyms: Int, stroff: Int, strsize: Int)?
+        forEachLoadCommand(in: data) { cmd, offset, cmdsize in
+            guard result == nil else { return } // first LC_SYMTAB wins, as before
+            guard cmd == 0x02, cmdsize >= symtabCommandSize else { return } // LC_SYMTAB
+            let symoff = data.loadLE(UInt32.self, at: offset + 8)
+            let nsyms = data.loadLE(UInt32.self, at: offset + 12)
+            let stroff = data.loadLE(UInt32.self, at: offset + 16)
+            let strsize = data.loadLE(UInt32.self, at: offset + 20)
+            result = (Int(symoff), Int(nsyms), Int(stroff), Int(strsize))
         }
-        return nil
+        return result
     }
 
     /// Find a symbol containing the given name fragment. Returns its virtual address.

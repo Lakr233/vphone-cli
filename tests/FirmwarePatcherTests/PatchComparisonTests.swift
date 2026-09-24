@@ -2,10 +2,36 @@
 //
 // Loads firmware binaries (pre-extracted raw payloads), runs Swift patchers,
 // and verifies byte-exact match with the pre-generated Python reference JSON files.
+//
+// THESE ARE GATED ON A FIXTURE THAT CANNOT BE REGENERATED, and that is worth
+// being plain about. `ipsws/patch_refactor_input/raw_payloads/` can be rebuilt
+// from any IPSW — `vphone-cli fw im4p-extract` does it, and the payloads are
+// whatever the firmware holds. `reference_patches/*.json` cannot: it is the
+// output of the Python patchers this project replaced, they are deleted, and
+// nothing here can produce those records again.
+//
+// So the suites below run when someone still has the JSON and skip when they
+// do not, rather than erroring on a missing file and reading as a regression.
+// What still guards the patchers without them is the frozen-digest work
+// elsewhere in this directory — `FrozenReference` in DSCHVVMMPatcherTests and
+// the `matchesTheFrozenReference*` tests — which carry the reference values in
+// the source instead of in a file nobody has.
 
 @testable import FirmwarePatcher
 import Foundation
 import Testing
+
+/// True when the unreproducible Python reference records are present.
+private var hasReferencePatches: Bool {
+    FileManager.default.fileExists(
+        atPath: baseDir.appendingPathComponent("reference_patches").path
+    )
+}
+
+private let referenceMissing: Comment = """
+ipsws/patch_refactor_input/reference_patches/ is absent. It is the output of \
+the deleted Python patchers and cannot be regenerated; see this file's header.
+"""
 
 // MARK: - Reference patch JSON format
 
@@ -93,6 +119,7 @@ private func comparePatchRecords(
 
 // MARK: - AVPBooter Tests
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct AVPBooterComparisonTests {
     @Test func compareAVPBooter() throws {
         let data = try loadRawPayload("avpbooter.bin")
@@ -105,6 +132,7 @@ struct AVPBooterComparisonTests {
 
 // MARK: - iBoot Tests
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBSSComparisonTests {
     @Test func compareIBSS() throws {
         let data = try loadRawPayload("ibss.bin")
@@ -115,6 +143,7 @@ struct IBSSComparisonTests {
     }
 }
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBECComparisonTests {
     @Test func compareIBEC() throws {
         let data = try loadRawPayload("ibec.bin")
@@ -125,6 +154,7 @@ struct IBECComparisonTests {
     }
 }
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct LLBComparisonTests {
     @Test func compareLLB() throws {
         let data = try loadRawPayload("llb.bin")
@@ -137,6 +167,7 @@ struct LLBComparisonTests {
 
 // MARK: - TXM Tests
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct TXMComparisonTests {
     @Test func compareTXM() throws {
         let data = try loadRawPayload("txm.bin")
@@ -147,6 +178,7 @@ struct TXMComparisonTests {
     }
 }
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct TXMDevComparisonTests {
     @Test func compareTXMDev() throws {
         let url = baseDir.appendingPathComponent("reference_patches/txm_dev.json")
@@ -165,6 +197,7 @@ struct TXMDevComparisonTests {
 
 // MARK: - Kernel Tests
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct KernelcacheComparisonTests {
     @Test func compareKernelcache() throws {
         let data = try loadRawPayload("kernelcache.bin")
@@ -177,6 +210,7 @@ struct KernelcacheComparisonTests {
 
 // MARK: - JB Tests
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBSSJBComparisonTests {
     @Test func compareIBSSJB() throws {
         let data = try loadRawPayload("ibss.bin")
@@ -190,6 +224,7 @@ struct IBSSJBComparisonTests {
     }
 }
 
+@Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct KernelcacheJBComparisonTests {
     @Test func compareKernelcacheJB() throws {
         let data = try loadRawPayload("kernelcache.bin")

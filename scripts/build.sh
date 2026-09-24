@@ -1,4 +1,5 @@
 #!/bin/zsh
+# vphone-tier: build
 # build.sh — Build, sign, and bundle vphone-cli (+ cross-compile vphoned).
 #
 # This is the bootstrap step that a running binary cannot do for itself:
@@ -9,26 +10,44 @@
 #
 # Usage:
 #   ./scripts/build.sh              # build + sign + bundle + vphoned
-#   ./scripts/build.sh --no-vphoned # skip the vphoned cross-compile
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 cd "$PROJECT_ROOT"
 
+# Five host binaries, and only ONE of them is entitled. vphone-cli is the
+# user-facing entry point and carries nothing, so it always launches; vphone-vm
+# holds the private virtualization keys and is what amfid can refuse;
+# vphone-archive unpacks and packs without gtar, bsdtar, unzip or zstd;
+# vphone-ask-for-permission is the SUDO_ASKPASS helper; vphone-amfi-allow is
+# what gets vphone-vm past amfid.
+#
+# `make amfi_allow` runs that last one for the binaries built below. It is a
+# per-build step, not a once-per-machine one, because it allowlists cdhashes and
+# those change every time anything is signed.
 BINARY=".build/release/vphone-cli"
+VM_BINARY=".build/release/vphone-vm"
+ARCHIVE_BINARY=".build/release/vphone-archive"
+ASKPASS_BINARY=".build/release/vphone-ask-for-permission"
+# Not built by `swift build`: SwiftPM emits arm64 and this one has to be arm64e
+# to walk amfid's ObjC runtime. See the header of its C file.
+AMFI_BINARY=".build/release/vphone-amfi-allow"
+AMFI_SOURCE="sources/vphone-amfi-allow/vphone-amfi-allow.c"
 BUNDLE=".build/vphone-cli.app"
 BUNDLE_BIN="${BUNDLE}/Contents/MacOS/vphone-cli"
+BUNDLE_VM="${BUNDLE}/Contents/MacOS/vphone-vm"
+BUNDLE_ARCHIVE="${BUNDLE}/Contents/MacOS/vphone-archive"
+BUNDLE_ASKPASS="${BUNDLE}/Contents/MacOS/vphone-ask-for-permission"
+BUNDLE_AMFI="${BUNDLE}/Contents/MacOS/vphone-amfi-allow"
 INFO_PLIST="sources/Info.plist"
 ENTITLEMENTS="sources/vphone.entitlements"
-BUILD_INFO="sources/vphone-cli/VPhoneBuildInfo.swift"
+BUILD_INFO="sources/VPhoneCore/VPhoneBuildInfo.swift"
 GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
-BUILD_VPHONED=1
 for arg in "$@"; do
   case "$arg" in
-    --no-vphoned) BUILD_VPHONED=0 ;;
-    -h|--help) echo "Usage: $0 [--no-vphoned]"; exit 0 ;;
+    -h|--help) echo "Usage: $0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -37,86 +56,152 @@ done
 echo "=== Building vphone-cli (${GIT_HASH}) ==="
 echo '// Auto-generated — do not edit' > "$BUILD_INFO"
 echo "enum VPhoneBuildInfo { static let commitHash = \"${GIT_HASH}\" }" >> "$BUILD_INFO"
-swift build -c release
+swift build -c release --jobs "${SWIFT_JOBS:-4}"
 
-echo "=== Signing with entitlements ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BINARY"
-echo "  signed OK → ${BINARY}"
+# vphone-amfi-allow, which SwiftPM cannot produce: it reads amfid's ObjC runtime
+# and so must match amfid's own slice, which is arm64e. Plain clang, two system
+# frameworks, no Xcode.app and nothing on PATH beyond the toolchain that just
+# built everything else.
+echo "=== Building vphone-amfi-allow (arm64e) ==="
+clang -arch arm64e -O2 \
+  -framework CoreFoundation -framework Security \
+  -o "$AMFI_BINARY" "$AMFI_SOURCE"
+# An arm64 build would compile and link and then fail at run time with nothing
+# to say, because task_for_pid on an arm64e amfid from an arm64 tool cannot read
+# the pointer-authenticated slot it is looking for. Assert the slice.
+if ! file "$AMFI_BINARY" | grep -q arm64e; then
+  echo "Error: ${AMFI_BINARY} is not arm64e." >&2
+  exit 1
+fi
+
+# Only vphone-vm gets the entitlements. Signing vphone-cli with them too would
+# put us straight back where we started: the entry point itself unable to
+# launch without an AMFI bypass already in place.
+echo "=== Signing ==="
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$VM_BINARY"
+codesign --force --sign - "$BINARY"
+codesign --force --sign - "$ARCHIVE_BINARY"
+codesign --force --sign - "$ASKPASS_BINARY"
+codesign --force --sign - "$AMFI_BINARY"
+echo "  signed: vphone-vm (entitled), vphone-cli, vphone-archive,"
+echo "          vphone-ask-for-permission, vphone-amfi-allow"
+
+# An unentitled vphone-vm is worse than a broken one: it launches perfectly,
+# which convinces vphone-cli's AMFI probe that nothing is wrong, and only fails
+# later when it tries to create a PV=3 machine. A bare `swift build` leaves
+# exactly that state behind. Catch it at the source.
+if ! codesign -d --entitlements - --xml "$VM_BINARY" 2>/dev/null \
+     | grep -q 'com.apple.private.virtualization'; then
+  echo "Error: ${VM_BINARY} is not entitled after signing." >&2
+  echo "       It would still launch, and would still fail to create a VM." >&2
+  exit 1
+fi
 
 # --- Bundle (.app used for GUI boot) ---
+# The .app is never opened through Launch Services — every caller runs a binary
+# inside it directly. It exists so the process that becomes an NSApplication
+# has a bundle: icon, LSUIElement, and the location usage strings. That process
+# is vphone-vm, which is why it, and not vphone-cli, is CFBundleExecutable.
 echo "=== Bundling ${BUNDLE} ==="
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp -f "$BINARY" "$BUNDLE_BIN"
+cp -f "$VM_BINARY" "$BUNDLE_VM"
+cp -f "$ARCHIVE_BINARY" "$BUNDLE_ARCHIVE"
+cp -f "$ASKPASS_BINARY" "$BUNDLE_ASKPASS"
+cp -f "$AMFI_BINARY" "$BUNDLE_AMFI"
 cp -f "$INFO_PLIST" "${BUNDLE}/Contents/Info.plist"
 cp -f "sources/AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
-cp -f "scripts/vphoned/signcert.p12" "${BUNDLE}/Contents/Resources/signcert.p12"
-cp -f "$(command -v ldid)" "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - "${BUNDLE}/Contents/MacOS/ldid"
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+rm -f "${BUNDLE}/Contents/Resources/signcert.p12"
+# The bundle is built over whatever is already there, so these two are removed
+# although nothing copies either one any more: bundles built before VPhoneSign
+# replaced ldid carry the Homebrew ldid, the only thing in here linking
+# libcrypto.3 and libplist-2.0.4 and so the only thing failing gate 1; bundles
+# built before the AMFI bypass became the user's own business carry
+# vphone-letmein, which patched amfid's __TEXT — a write the kernel kills amfid
+# for wherever vm.cs_system_enforcement is 1. Both have to go before the seal
+# below, not after — removing nested code from a sealed bundle is what makes
+# `codesign -v` report it as modified.
+rm -f "${BUNDLE}/Contents/MacOS/ldid" "${BUNDLE}/Contents/MacOS/vphone-letmein"
+# Order matters: vphone-vm is CFBundleExecutable, so signing it seals the whole
+# bundle, and everything beside it in Contents/MacOS counts as nested code.
+# Sign the nested binaries FIRST or the seal captures them in an earlier state
+# and `codesign -v` on the bundle reports "nested code is modified or invalid".
+codesign --force --sign - "$BUNDLE_BIN"
+codesign --force --sign - "$BUNDLE_ARCHIVE"
+codesign --force --sign - "$BUNDLE_ASKPASS"
+codesign --force --sign - "$BUNDLE_AMFI"
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
 echo "  bundled → ${BUNDLE}"
 
-# --- vphoned guest daemon (cross-compiled + signed for iOS arm64) ---
-if [[ "$BUILD_VPHONED" -eq 1 ]]; then
-  command -v ldid >/dev/null 2>&1 \
-    || { echo "Error: ldid not found. Run: brew install ldid-procursus" >&2; exit 1; }
-  echo "=== Building vphoned ==="
-  make -C scripts/vphoned GIT_HASH="$GIT_HASH"
-  echo "=== Signing vphoned ==="
-  mkdir -p .build
-  cp scripts/vphoned/vphoned .build/vphoned.signed
-  ldid \
-    -Sscripts/vphoned/entitlements.plist \
-    -M "-Kscripts/vphoned/signcert.p12" \
-    .build/vphoned.signed
-  echo "  signed → .build/vphoned.signed"
-fi
+# --- Guest binaries (cross-compiled for iOS; see scripts/guest_binaries.mk) ---
+# The guest daemon, because compiling it at CFW-install time would make
+# Xcode a requirement for running a VM. This is the build machine; it has Xcode.
+make -f scripts/guest_binaries.mk guest_binaries GIT_HASH="$GIT_HASH"
+# vphoned.signed is the copy the host pushes into a running guest over vsock.
+echo "=== Signing vphoned ==="
+cp .build/guest/vphoned .build/vphoned.signed
+"$BINARY" sign \
+  --entitlements scripts/vphoned/entitlements.plist --merge \
+  .build/vphoned.signed
+echo "  signed → .build/vphoned.signed"
 
 # --- Bundle the standalone runtime mini-repo into Contents/Resources ---
 RES="${BUNDLE}/Contents/Resources"
 echo "=== Bundling runtime assets → ${RES} ==="
-rm -rf "${RES}/scripts" "${RES}/tools" "${RES}/.tools" "${RES}/vphoned.signed"
-mkdir -p "${RES}/scripts" "${RES}/tools" "${RES}/.tools/bin"
-# Mirror scripts/ EXCEPT the make-coupled orchestrator, toolchain source, caches.
-rsync -a \
-  --exclude 'setup_machine.sh' \
-  --exclude 'repos' \
-  --exclude '__pycache__' \
-  --exclude '.git' \
-  --exclude '.build' \
-  scripts/ "${RES}/scripts/"
-cp -f tools/apfs_snap_rename.py "${RES}/tools/apfs_snap_rename.py"
-# Custom-built tools (bundled; not brew/pip). apfs_sealvolume is NOT bundled
-# (it is extracted from the target IPSW at `fw prepare` time — Task 5).
-for t in trustcache insert_dylib; do
-  if [[ -x ".tools/bin/$t" ]]; then cp -f ".tools/bin/$t" "${RES}/.tools/bin/$t"
-  else echo "Error: .tools/bin/$t missing — run ./scripts/setup_tools.sh first" >&2; exit 1; fi
-done
+# The bundle is built over whatever is already there, so ${RES}/tools and
+# ${RES}/requirements.txt are still removed although nothing creates either any
+# more: bundles built before `cfw flip-snapshot` replaced the snapshot-rename
+# script carry an empty tools/, and bundles built before the restore backend
+# moved in-process carry a pip requirements list the app would never read.
+# The bundle is built over whatever is already there, so these are removed
+# although nothing creates any of them any more. ${RES}/tools and
+# requirements.txt date from the Python restore bridge. ${RES}/.tools held a
+# Homebrew-linked `trustcache` that nothing ever invoked — it was the only file
+# in the bundle pulling in /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib,
+# and the only reason the dependency gate had anything left to find. The trust
+# cache itself is generated by /System/Library/SecurityResearch's cryptexctl.
+rm -rf "${RES}/scripts" "${RES}/guest" "${RES}/tools" "${RES}/.tools" \
+  "${RES}/vphoned.signed" "${RES}/requirements.txt" "${RES}/debs.list"
+mkdir -p "${RES}/scripts"
+# An ALLOWLIST, from each script's own `# vphone-tier:` line. This used to be a
+# list of exclusions, which meant anything new shipped by default — and so the
+# .app carried build.sh, check_aux.sh and setup_tools.sh, the last of which runs
+# `brew install`. See scripts/dist_manifest.sh for the three tiers.
+zsh scripts/dist_manifest.sh | rsync -a --files-from=- scripts/ "${RES}/scripts/"
+# Only vphoned ships into the guest; old build outputs may still contain
+# binaries for the removed bootstrap and must not leak into the bundle.
+mkdir -p "${RES}/guest"
+cp -f .build/guest/vphoned "${RES}/guest/vphoned"
 [[ -f .build/vphoned.signed ]] && cp -f .build/vphoned.signed "${RES}/vphoned.signed" || true
-# requirements.txt lets the app provision its own ~/.vphone/venv on first run
-# (see VPhoneResources.pythonExecutable) — the app carries no venv itself.
-cp -f requirements.txt "${RES}/requirements.txt"
-# debs.list = extra-deb manifest (fetch_debs.sh reads $base/debs.list); README.md
-# = the Tested-Environments table fw_prepare.sh reads to label Supported firmwares.
-cp -f debs.list "${RES}/debs.list"
+# README.md holds the Tested-Environments table used by `fw prepare`.
 cp -f README.md "${RES}/README.md"
-# vphone-amfidont helper (allows this .app through amfid). Kept in Resources —
-# NOT MacOS — so bundle signing doesn't reject it as unsigned nested code; a
-# Homebrew `binary` symlink exposes it on PATH.
-cp -f scripts/vphone-amfidont "${RES}/vphone-amfidont"
-chmod +x "${RES}/vphone-amfidont"
-echo "  bundled: scripts/ (patchers+resources), tools/, .tools/bin/{trustcache,insert_dylib}, vphoned.signed, requirements.txt, debs.list, README.md, vphone-amfidont"
+echo "  bundled: scripts/ (dist tier), guest/vphoned, vphoned.signed, README.md"
 
 # Re-sign: codesign seals Contents/Resources at sign time, so the earlier
 # bundle-step signature (made before these assets existed) is now stale —
 # re-signing here reseals against the final Resources tree.
-echo "=== Re-signing ${BUNDLE_BIN} (resealing Resources) ==="
-codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_BIN"
+echo "=== Re-signing bundled binaries (resealing Resources) ==="
+# Nested first, main executable last — see the bundling step above.
+codesign --force --sign - "$BUNDLE_BIN"
+codesign --force --sign - "$BUNDLE_ARCHIVE"
+codesign --force --sign - "$BUNDLE_ASKPASS"
+codesign --force --sign - "$BUNDLE_AMFI"
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$BUNDLE_VM"
+codesign -v "$BUNDLE_VM" \
+  || { echo "Error: the bundle seal did not verify after signing." >&2; exit 1; }
 echo "  resealed OK"
 
 echo ""
 echo "=== Build complete ==="
-echo "  binary : ${BINARY}"
-echo "  bundle : ${BUNDLE}"
-[[ "$BUILD_VPHONED" -eq 1 ]] && echo "  vphoned: .build/vphoned.signed"
+echo "  vphone-cli         : ${BINARY} (no entitlements — always launches)"
+echo "  vphone-vm          : ${VM_BINARY} (entitled — amfid may refuse it)"
+echo "  vphone-archive     : ${ARCHIVE_BINARY}"
+echo "  vphone-ask-for-permission : ${ASKPASS_BINARY}"
+echo "  vphone-amfi-allow  : ${AMFI_BINARY} (arm64e)"
+echo "  bundle             : ${BUNDLE}"
+echo "  vphoned            : .build/vphoned.signed"
 echo ""
 echo "Run: ${BINARY} --help"
+echo "If vphone-vm is killed the moment it launches, amfid refused its entitlements."
+echo "'make amfi_allow' allows this build past it; re-run it after every build,"
+echo "because it allowlists cdhashes and those change with every signature."

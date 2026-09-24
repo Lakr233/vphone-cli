@@ -411,8 +411,12 @@ name-to-MIB translation.
   a modified byte; the CDHash side-effect (CD blob hash changes
   when slots change) is accepted by TXM at DSC mount time
   (empirically verified — device boots with re-attested DSC).
-* `scripts/patchers/cfw.py` — adds `patch-hv-vmm <binary>` and
-  `patch-hv-vmm-dsc <chunks_dir>` subcommands.
+* `scripts/patchers/cfw.py` — adds the `patch-hv-vmm-dsc <chunks_dir>`
+  subcommand. (A `patch-hv-vmm <binary>` subcommand existed when this
+  was written and no longer does: it and `cfw_patch_hv_vmm_rootfs.py`
+  were removed in the blacklist-flip redesign, which made the
+  standalone rootfs mangle unnecessary. See item 8 in
+  `research/0_binary_patch_comparison.md`.)
 * `scripts/patch_hv_vmm_userland.sh` — thin wrapper used by the
   install scripts.
 * `scripts/cfw_install_dev.sh` — DSC patch is applied while the

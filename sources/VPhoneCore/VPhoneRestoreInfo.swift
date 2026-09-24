@@ -44,7 +44,7 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     /// bundle's restore-directory plists — so bundles restored before this file
     /// existed still report their versions. `nil` when neither is available.
     public static func load(fromBundle bundle: VPhoneBundle) -> VPhoneRestoreInfo? {
-        if let data = try? Data(contentsOf: url(forBundle: bundle)),
+        if let data = try? Data(contentsOf: url(forBundle: bundle), options: .mappedIfSafe),
            let info = try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: data) {
             return info
         }
@@ -106,7 +106,7 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     }
 
     private static func readVersion(_ plist: URL) -> OSVersion? {
-        guard let data = try? Data(contentsOf: plist),
+        guard let data = try? Data(contentsOf: plist, options: .mappedIfSafe),
               let root = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
               let version = root["ProductVersion"] as? String,
               let build = root["ProductBuildVersion"] as? String

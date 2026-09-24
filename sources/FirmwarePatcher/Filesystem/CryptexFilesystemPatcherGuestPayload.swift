@@ -2,84 +2,69 @@
 //
 // Split out of CryptexFilesystemPatcher.swift. These are the steps that write files into the
 // mounted target volume: dyld symlinks, GPU driver bundle, the mobileactivationd and
-// launchd_cache_loader patches, vphoned, the binpack, and the LaunchDaemons that start them.
+// launchd_cache_loader patches, vphoned, and its LaunchDaemon.
 
 import Foundation
+import VPhoneArchive
 import VPhoneCore
+import VPhoneSign
 
 extension CryptexFilesystemPatcher {
-    func patchLaunchdCacheLoader(targetMount: String, cfwInput: URL) throws {
-        let target = URL.init(filePath: targetMount)
-        let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
-        let pythonPath = try resources.pythonExecutable()
-        let patcherPath = resources.cfwPy
-        _ = try runProcess(pythonPath.path, [
-            patcherPath.path, "patch-launchd-cache-loader",
-            launchdCacheLoaderPath.path
-        ])
-        _ = try runProcess("/bin/chmod", ["0755", launchdCacheLoaderPath.path])
+    // MARK: - Signing
 
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S", "-M", "-K\(signingCertificatePath.path)",
-            "-Icom.apple.launchd_cache_loader",
-            launchdCacheLoaderPath.path
-        ])
+    /// Preserve a binary's existing entitlements while re-signing without an
+    /// embedded certificate. The guest's JB firmware does not need a CMS
+    /// identity for these binaries.
+    func guestSigningOptions(
+        identifier: String? = nil,
+        entitlements: URL? = nil
+    ) throws -> VPhoneSignOptions {
+        return VPhoneSignOptions(
+            identifier: identifier,
+            entitlements: try entitlements.map { try Data(contentsOf: $0, options: .mappedIfSafe) },
+            mergesExisting: true
+        )
     }
 
-    func injectLaunchDaemons(targetMount: String, cfwInput: URL, vphoned: Bool = true, cfw: Bool = true) throws {
+    func patchLaunchdCacheLoader(targetMount: String) throws {
+        let target = URL.init(filePath: targetMount)
+        let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
+        // Patched in place with no `.bak` to restore from, so this is the call
+        // site that needs the port's idempotence. No re-attestation: the sign
+        // below replaces the whole signature anyway.
+        try CFWCacheLoaderPatcher.patch(fileAt: launchdCacheLoaderPath)
+        try setMode(0o755, at: launchdCacheLoaderPath)
+
+        try VPhoneSigner.sign(
+            fileAt: launchdCacheLoaderPath,
+            options: try guestSigningOptions(
+                identifier: "com.apple.launchd_cache_loader"
+            )
+        )
+    }
+
+    func injectLaunchDaemons(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
         let scriptDir = resources.scriptsDir
 
         let tmpDir = try createTmpDir()
         let launchdPath = tmpDir.appending(path: "launchd.plist")
-        let launchDaemonsPath = tmpDir.appending(path: "launchDaemons")
         let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
-        try FileManager.default.createDirectory(at: launchDaemonsPath, withIntermediateDirectories: false)
         try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
 
-        if vphoned {
-            let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
-            let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
-            try FileManager.default.copyItem(
-                at: vphonedLaunchdPlist,
-                to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist")
-            )
-            try FileManager.default.copyItem(
-                at: vphonedLaunchdPlist,
-                to: launchDaemonsPath.appending(path: vphonedLaunchdPlist.lastPathComponent)
-            )
-        }
-        if cfw {
-            let launchDaemonsDir = cfwInput.appending(path: "cfw_input/jb/LaunchDaemons")
-            let launchDaemons = try FileManager.default.contentsOfDirectory(atPath: launchDaemonsDir.path)
-            for filename in launchDaemons {
-                let launchDaemonUrl = launchDaemonsDir.appending(component: filename)
-                let filename = launchDaemonUrl.lastPathComponent
-                let fsTarget = target.appending(path: "System/Library/LaunchDaemons/\(filename)")
-                try FileManager.default.copyItem(at: launchDaemonUrl, to: fsTarget)
-                try FileManager.default.copyItem(at: launchDaemonUrl, to: launchDaemonsPath.appending(path: filename))
-            }
-        }
-
-        let pythonPath = try resources.pythonExecutable()
-        _ = try runProcess(pythonPath.path, [
-            resources.cfwPy.path, "inject-daemons",
-            launchdPath.path, launchDaemonsPath.path
-        ])
+        let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
+        let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
+        try FileManager.default.copyItem(
+            at: vphonedLaunchdPlist,
+            to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist")
+        )
+        try CFWDaemons.injectDaemon(into: launchdPath, name: "vphoned", from: vphonedLaunchdPlist)
+        print("  [+] Injected vphoned")
         try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
-        _ = try runProcess("/bin/chmod", ["0644", launchdOgPath.path])
+        try setMode(0o644, at: launchdOgPath)
     }
 
-    func addExtraServices(targetMount: String, cfwInput: URL) throws {
-        _ = try runProcess("/usr/bin/tar", [
-            "--preserve-permissions",
-            "-xf", cfwInput.appending(path: "cfw_input/jb/iosbinpack64.tar").path,
-            "-C", targetMount
-        ])
-    }
-
-    func addVphoned(targetMount: String, cfwInput: URL) throws {
+    func addVphoned(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
         let scriptDir = resources.scriptsDir
         let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
@@ -88,106 +73,83 @@ extension CryptexFilesystemPatcher {
         let buildDir = try createTmpDir()
         let vphonedBin = buildDir.appendingPathComponent("vphoned")
 
-        try buildVphoned(vphonedSrc: vphonedSrc, vphonedBin: vphonedBin)
+        try stageVphoned(to: vphonedBin)
         defer { try? FileManager.default.removeItem(at: vphonedBin) }
 
         // Sign
         let targetBin = target.appending(path: "/usr/bin/vphoned")
         try FileManager.default.copyItem(at: vphonedBin, to: targetBin)
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S\(vphonedSrc.appendingPathComponent("entitlements.plist").path)",
-            "-M", "-K\(signingCertificatePath.path)",
-            targetBin.path
-        ])
-        _ = try runProcess("/bin/chmod", ["0755", targetBin.path])
+        try VPhoneSigner.sign(
+            fileAt: targetBin,
+            options: try guestSigningOptions(
+                entitlements: vphonedSrc.appendingPathComponent("entitlements.plist")
+            )
+        )
+        try setMode(0o755, at: targetBin)
     }
 
-    func buildVphoned(vphonedSrc: URL, vphonedBin: URL) throws {
-        let srcURLs = try FileManager.default.contentsOfDirectory(
-            at: vphonedSrc,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension == "m" }
-
-        var args = [
-            "-sdk", "iphoneos", "clang",
-            "-arch", "arm64",
-            "-Os",
-            "-fobjc-arc",
-            "-I\(vphonedSrc.path)",
-            "-I\(vphonedSrc.appendingPathComponent("vendor/libarchive").path)",
-            "-DLESS=1",
-            "-o", vphonedBin.path
-        ]
-        args.append(contentsOf: srcURLs.map { $0.path })
-        args.append(contentsOf: [
-            "-larchive",
-            "-lsqlite3",
-            "-framework", "Foundation",
-            "-framework", "Security",
-            "-framework", "CoreServices"
-        ])
-
-        _ = try runProcess("/usr/bin/xcrun", args)
+    /// Copy in the prebuilt guest daemon.
+    ///
+    /// This used to be a `/usr/bin/xcrun -sdk iphoneos clang …` over the .m
+    /// sources shipped inside the .app — which meant installing CFW onto a VM
+    /// required Xcode and the iPhoneOS SDK on a machine whose only job is to run
+    /// that VM. vphoned is cross-compiled at build time now
+    /// (`scripts/guest_binaries.mk`) and staged into the bundle.
+    func stageVphoned(to vphonedBin: URL) throws {
+        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned")
+        try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)
     }
 
-    func addGpuDriver(targetMount: String, cfwInput: URL) throws {
+    func addGpuDriver(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
 
-        let gpuTarPath = cfwInput.appending(path: "cfw_input/custom/AppleParavirtGPUMetalIOGPUFamily.tar")
-        _ = try runProcess("/usr/bin/tar", [
-            "--preserve-permissions",
-            "-xf", gpuTarPath.path,
-            "-C", target.path
-        ])
+        try VPhoneArchiveExtractor.extract(
+            resources.gpuDriverArchive, into: target, options: .ontoGuestVolume
+        )
 
         let bundle = target.appending(path: "/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")
         // Clean macOS resource fork files (._* files from tar xattrs)
-        _ = try? runProcess("/usr/bin/find", [bundle.path, "-name", "._*", "-delete"])
-        _ = try runProcess("/usr/sbin/chown", ["-R", "0:0", bundle.path])
+        try deleteAppleDoubleFiles(under: bundle)
+        try chownRecursively(uid: 0, gid: 0, at: bundle)
         for path in [
-            bundle.path,
-            bundle.appending(path: "/libAppleParavirtCompilerPluginIOGPUFamily.dylib").path,
-            bundle.appending(path: "/AppleParavirtGPUMetalIOGPUFamily").path,
-            bundle.appending(path: "/_CodeSignature").path,
+            bundle,
+            bundle.appending(path: "/libAppleParavirtCompilerPluginIOGPUFamily.dylib"),
+            bundle.appending(path: "/AppleParavirtGPUMetalIOGPUFamily"),
+            bundle.appending(path: "/_CodeSignature"),
         ] {
-            _ = try runProcess("/bin/chmod", ["0755", path])
+            try setMode(0o755, at: path)
         }
         for path in [
-            bundle.appending(path: "/_CodeSignature/CodeResources").path,
-            bundle.appending(path: "/Info.plist").path
+            bundle.appending(path: "/_CodeSignature/CodeResources"),
+            bundle.appending(path: "/Info.plist")
         ] {
-            _ = try runProcess("/bin/chmod", ["0644", path])
+            try setMode(0o644, at: path)
         }
     }
 
-    func patchMobileActivation(targetMount: String, cfwInput: URL) throws {
+    func patchMobileActivation(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
         let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
-        let pythonPath = try resources.pythonExecutable()
-        _ = try runProcess(pythonPath.path, [
-            resources.cfwPy.path, "patch-mobileactivationd",
-            mobileActivationdPath.path
-        ])
-        _ = try runProcess("/bin/chmod", ["0755", mobileActivationdPath.path])
+        // `resign: false` because the sign below replaces the signature, and
+        // re-attesting would refuse an unsigned input the Python accepted.
+        try CFWMobileactivationd.patch(fileAt: mobileActivationdPath, resign: false)
+        try setMode(0o755, at: mobileActivationdPath)
 
-        let signingCertificatePath = cfwInput.appending(path: "cfw_input/signcert.p12")
-        _ = try runProcess("/opt/homebrew/bin/ldid", [
-            "-S", "-M", "-K\(signingCertificatePath.path)",
-            mobileActivationdPath.path
-        ])
+        try VPhoneSigner.sign(
+            fileAt: mobileActivationdPath,
+            options: try guestSigningOptions()
+        )
     }
 
     func addDyldSymlinks(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
-        _ = try runProcess("/bin/ln", [
-            "-sf", "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
-            target.appending(path: "/System/Library/Caches/com.apple.dyld").path
-        ])
-        _ = try runProcess("/bin/ln", [
-            "-sf", "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
-            target.appending(path: "/System/DriverKit/System/Library/dyld").path
-        ])
+        try createSymlink(
+            at: target.appending(path: "/System/Library/Caches/com.apple.dyld"),
+            to: "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+        )
+        try createSymlink(
+            at: target.appending(path: "/System/DriverKit/System/Library/dyld"),
+            to: "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld"
+        )
     }
 }

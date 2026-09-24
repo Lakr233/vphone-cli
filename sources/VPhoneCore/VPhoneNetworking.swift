@@ -10,6 +10,9 @@ public enum VPhoneNetworkingError: Error, Equatable {
     case bridgeInterfaceNotFound(requested: String, available: [String])
     /// bridged mode was selected but the host exposes no bridgeable interfaces.
     case noBridgeInterfaces
+    /// bridged mode was selected, no interface was named, and this process is
+    /// not the one that can enumerate them.
+    case bridgeInterfaceMustBeNamed
     /// `--bridge-interface` was given without selecting bridged mode.
     case bridgeInterfaceWithoutBridgedMode
 }
@@ -23,6 +26,13 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
             "Bridge interface '\(requested)' not found. Available: \(available.isEmpty ? "none" : available.joined(separator: ", "))."
         case .noBridgeInterfaces:
             "Bridged mode needs a host network interface, but none are available. Use nat instead."
+        case .bridgeInterfaceMustBeNamed:
+            """
+            Bridged mode needs an interface name here. vphone-cli carries no \
+            entitlements, so it cannot list the host's bridgeable interfaces \
+            and cannot pick one for you.
+            Name it explicitly, for example: --bridge-interface en0
+            """
         case .bridgeInterfaceWithoutBridgedMode:
             "--bridge-interface is only valid with --network bridged."
         }
@@ -51,6 +61,21 @@ public enum VPhoneNetworking {
     /// - otherwise the first available interface is auto-picked.
     public static func resolveBridgeInterface(requested: String?, current: String?) throws -> String {
         let available = availableBridgeInterfaces()
+
+        // An empty list is ambiguous: either the host really has nothing
+        // bridgeable, or this process is not entitled to ask. Since vphone-cli
+        // deliberately carries no entitlements, the second case is now the
+        // normal one, and rejecting a perfectly good interface name on the
+        // strength of a list we know is unreliable would break bridged mode
+        // outright. So when we cannot enumerate, we record what we were told
+        // and let vphone-vm — which is entitled — decide at boot, where the
+        // error can name the real problem.
+        guard !available.isEmpty else {
+            if let requested { return requested }
+            if let current { return current }
+            throw VPhoneNetworkingError.bridgeInterfaceMustBeNamed
+        }
+
         if let requested {
             guard available.contains(requested) else {
                 throw VPhoneNetworkingError.bridgeInterfaceNotFound(requested: requested, available: available)
@@ -60,10 +85,7 @@ public enum VPhoneNetworking {
         if let current, available.contains(current) {
             return current
         }
-        guard let first = available.first else {
-            throw VPhoneNetworkingError.noBridgeInterfaces
-        }
-        return first
+        return available[0]  // non-empty, guarded above
     }
 
     /// Merge partial edits onto an existing config, validating the result.

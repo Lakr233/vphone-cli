@@ -82,7 +82,6 @@ public final class FirmwarePipeline {
     let variant: Variant
     let verbose: Bool
     let noBinpack: Bool
-    let noVphoned: Bool
     let forceExcGuard: Bool
     let enableFrida: Bool
     let loader: any FirmwareLoader
@@ -94,7 +93,6 @@ public final class FirmwarePipeline {
         variant: Variant = .regular,
         verbose: Bool = true,
         noBinpack: Bool = false,
-        noVphoned: Bool = false,
         forceExcGuard: Bool = false,
         enableFrida: Bool = false,
         loader: (any FirmwareLoader)? = nil
@@ -103,7 +101,6 @@ public final class FirmwarePipeline {
         self.variant = variant
         self.verbose = verbose
         self.noBinpack = noBinpack
-        self.noVphoned = noVphoned
         self.forceExcGuard = forceExcGuard
         self.enableFrida = enableFrida
         self.loader = loader ?? ContainerFirmwareLoader()

@@ -70,13 +70,41 @@ extension CryptexFilesystemPatcher {
             output.path
         ])
 
-        // Resize to max
-        let maxsize = try runProcess("/bin/sh", [
-            "-c", "diskutil image resize --plist \"\(output.path)\" | plutil -extract max raw -o - -"
-        ]).trimmingCharacters(in: ["\n"])
+        // Resize to max. Asking diskutil how big it may get returns a plist, and
+        // reading one value out of it used to be `/bin/sh -c "… | plutil -extract
+        // max raw -o - -"`: a shell and a second tool to parse what this process
+        // can read directly — and a pipeline whose stdout is also where diskutil's
+        // own warnings land, so a noisy run produced a "size" that was a sentence.
+        let sizes = try runProcess("/usr/sbin/diskutil", [
+            "image", "resize", "--plist", output.path
+        ])
+        let maxsize = try Self.maxResizeSize(fromDiskutilPlist: sizes)
         _ = try runProcess("/usr/sbin/diskutil", [
             "image", "resize", "--size", maxsize, output.path
         ])
+    }
+
+    /// The `max` value out of `diskutil image resize --plist`, as the string
+    /// `--size` wants back.
+    ///
+    /// `runProcess` merges stderr into stdout, so the plist may arrive with a
+    /// line of diskutil's own in front of it; the parse starts at the XML
+    /// declaration rather than assuming the first byte is one.
+    static func maxResizeSize(fromDiskutilPlist output: String) throws -> String {
+        let body = output.range(of: "<?xml").map { String(output[$0.lowerBound...]) } ?? output
+        guard let data = body.data(using: .utf8),
+              let root = try? PropertyListSerialization.propertyList(
+                  from: data, options: [], format: nil
+              ) as? [String: Any]
+        else {
+            throw ProcessError.failed(0, "diskutil did not return a plist:\n\(output)")
+        }
+        switch root["max"] {
+        case let number as NSNumber: return number.stringValue
+        case let string as String: return string
+        default:
+            throw ProcessError.failed(0, "no 'max' size in diskutil's plist:\n\(output)")
+        }
     }
 
     func convertToUDRWImage(input: URL, output: URL) throws {

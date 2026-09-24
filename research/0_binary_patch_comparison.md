@@ -1,5 +1,21 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Current product scope (September 2026):** the tables below preserve the
+> historical patch comparison. The public runtime now exposes only JB. Guest
+> package managers, Procursus, BaseBin hooks, and first-boot package setup are
+> outside this repository. The native Swift JB install retains the base system patches,
+> launchd jetsam guard, debugserver entitlement edit, iOS 27 Campo entitlement
+> edit, GPU driver, and mandatory vphoned. Old variant rows are research history,
+> not available install modes.
+
+> **`scripts/patchers/*.py` no longer exists.** The tables below cite those
+> filenames throughout, because that is where each patch was first written and
+> where its on-device validation notes were recorded. Every one is now a Swift
+> patcher reached through `vphone-cli cfw <verb>` — read a citation as "the
+> patch this became", and recover the Python itself from git history at
+> `78cbeea` if you need to run it. The port is documented in the three
+> "Swift port status" sections further down.
+
 > **EXP is a JB superset.** Everything in the baseline tables below that is `Y`
 > for JB is also `Y` for EXP. The columns are kept at three variants to avoid
 > noise — the only place EXP and JB diverge is the **Experimental additions**
@@ -196,6 +212,226 @@ do NOT execute these).
 | 15  | Derive `matched` from `error_code` + drop the `brk #1` in libxpc `_xpc_token_satisfies_lwcr` (`cset w8,ne; eor w8,w0,w8; tbz w8,#0` → `cset w0,eq; nop; nop`) + per-page re-attest — **iOS 27.0** | DSC `libxpc.dylib` | **iOS-27 daemon crash-loop fix (Lightweight Code Requirement).** iOS 27 lets an XPC server pin a "lightweight code requirement" (LWCR) on its listener — `xpc_connection_set_peer_lightweight_code_requirement`, or the Swift `XPCPeerRequirement.hasEntitlement(_:)` wrapper (→ `xpc_peer_requirement_create_entitlement_exists` → `_xpc_peer_requirement_create_lwcr_entitlement_requirement` → `xpc_peer_requirement_create_lwcr`). Creating the requirement runs a self-check, `_xpc_token_satisfies_lwcr`, which calls an internal matcher returning a `matched` bool (w0) plus a `match_result.error_code` (`AICMR_MATCH == 0`), then hard-asserts they agree (`matched == (error_code == 0)`) via `_os_crash_msg` → `brk #1`. On stock iOS the two always agree; under our JB code-signing environment the matcher's query writes `error_code = MATCH(0)` yet returns a failure status, so the matcher yields the forbidden `(matched=0, error_code=0)` pair and libxpc aborts. Because EVERY daemon that pins an entitlement peer-requirement at startup hits it, `intelligencetasksd` / `searchpartyd` / `transparencyd` / `bluetoothd` (and others) crash-loop continuously from boot (launchd re-spawn + ReportCrash churn). Fix: recompute `matched` from `error_code` and make the abort unreachable — `cset w8,ne; eor w8,w0,w8; tbz w8,#0,<abort>` → `cset w0,eq; nop; nop`; the function now returns `(error_code == 0)`, which reproduces stock's verdict when the two agree and resolves the contradiction toward "satisfied" when error_code says MATCH (real allow/deny for genuinely (un)satisfied peers is unchanged, since those set `error_code` != 0). Fully dynamic: resolved via the DSC's own `.symbols` in-image local-symbol table as `__xpc_token_satisfies_lwcr` (the double-underscore mangled name; a single-underscore lookup silently skipped every iOS-27 build until fixed 2026-08-11), the check located by control-flow shape in Capstone (`cset wC,ne; eor wE,w0,wC; tbz wE,#0`), replacements from Keystone, modified 16 KiB page re-attested (`cfw_dsc_codesign.py`; TXM enforces per-page; CDHash change accepted by the JB always-true AMFI cdhash-trust patch). Install gate: **`27.*`** (in `cfw_install.sh`, same block as maxSlide/lsd). Patcher additionally self-gates (`patch-xpc-lwcr`): no-op on pre-iOS-27 userlands where the symbol is absent. **VALIDATED on-device (2026-07-22, `17,3_27.0_24A5390f` + cloudOS 26.4, JB, host-mount deploy): patched bytes live (`e0179f1a 1f2003d5 1f2003d5`); the four LWCR crash-loopers disappear from the crash census after boot; launchd itself (which links libxpc) boots clean past first unlock — patch does not brick boot. NOTE: does NOT stop the resprings — those are a separate `FileProviderResolver` ResolverService memory-balloon → jetsam → backboardd kill (see investigation notes).** See `scripts/patchers/cfw_patch_xpc_lwcr.py`. **FIX (2026-09-22):** same idempotence gap as row 12, and for the same structural reason: `_find_consistency_check` searches for `cset wC,ne; eor wE,w0,wC; tbz wE,#0`, which is precisely the idiom this patch replaces, so on a cache it had already patched the search returned `None` and raised `ValueError: LWCR consistency idiom ... not found`. The per-edit `already patched` byte comparison further down could never run, because it needs the addresses that search has to supply first. Hit live on `17,3_27.0_24A435` (RC) + cloudOS 26.4, JB, host-mount flow, when a first `cfw_install_host` pass completed phase 1/7 and then failed later at JB-1 (missing `insert_dylib`); the retry died here. Confirmed by read-only host-mount disassembly of `__xpc_token_satisfies_lwcr` @ `0x1805DD5BC`: `cmp w8,#0; cset w0,eq; nop; nop` — already patched. A new `_find_patched_shape` now recognizes that post-patch shape (`cset w0,eq` + two `nop`s, anchored on the `cmp wX,#0` that feeds it) and returns a no-op instead of raising. Checked against the live cache (dry run returns rather than raises) and with negative controls: fed the pre-patch stream the detector stays silent and the normal idiom search still matches, so the patching path is intact on a pristine cache. |    Y    |  Y  |  Y  |
 | 16  | NOP the sysctl-error `b.eq <os_crash>` in libSystem `___os_lockdown_mode_enabled_block_invoke` (`cmn w0,#1; b.eq <crash>` → `nop`) + per-page re-attest — **iOS 27.0** | DSC `libSystem` (`lockdown_mode.c`) | **iOS-27 launchd (pid 1) boot-panic fix.** iOS 27's `os_lockdown_mode_enabled()` resolves Lockdown Mode once via `sysctlbyname("security.mac.lockdown_mode_state_public", &out, &len, 0, 0)`; on a -1 return it `os_crash`es (`lockdown_mode.c:os_lockdown_mode_enabled_block_invoke:47`). The vphone base kernel (cloudOS 26.x) does not implement that MAC sysctl, so the call returns -1/ENOENT and the first process to query Lockdown Mode after "Continuing system boot" aborts — that process is launchd (pid 1), so the kernel panics `initproc exited -- exit reason namespace 2 subcode 0x6 description: none`. b4 (24A5390f) boots on the same kernel; the sysctl query is new in b5 (24A5408d). The block pre-zeroes its output buffer (`stp x8, xzr, [sp]`), so NOPping the error branch falls through to the normal path, reads 0, records "Lockdown Mode disabled", and returns cleanly; on a kernel that implements the sysctl the branch is never taken (w0==0), so the patch is behavior-neutral. Dynamic: `___os_lockdown_mode_enabled_block_invoke` resolved via the DSC's own `.symbols` local-symbol table; the `cmn wR,#1; b.eq` sysctl-error idiom located by control-flow shape in Capstone; NOP from Keystone; modified 16 KiB page re-attested (`cfw_dsc_codesign.py`). Install gate: **`27.*`** (same block as maxSlide/lsd/lwcr). Self-gates: no-op where the symbol is absent (pre-iOS-27 userlands). **Root-caused + verified on-device 2026-08-11** (`17,3_27.0_24A5408d` + cloudOS 26.4, JB): abort message read live via the kernel GDB stub (patched `_abort`→`b .` to freeze launchd's spinning vCPU, then read its registers + the libSystem crash-info global) = `lockdown_mode.c:os_lockdown_mode_enabled_block_invoke:47: No such file or directory`; with the NOP applied the panic is gone and boot continues past "Got first unlock" into normal daemon startup. See `scripts/patchers/cfw_patch_lockdown_mode.py`. **FIX (2026-09-22):** third instance of the row-12 idempotence gap, found immediately after the row-15 one on the same `17,3_27.0_24A435` (RC) + cloudOS 26.4 JB host-mount re-run. `_find_error_gate` required the slot after `cmn wR,#1` to be a `b.eq`; once patched it holds the `nop` this patch writes, so the search returned `None` and raised `ValueError: ... sysctl-error gate not found` — again before the `cur == nop` byte comparison below it could ever be reached. Confirmed by read-only host-mount disassembly of `___os_lockdown_mode_enabled_block_invoke` @ `0x237EF2260`: `bl <sysctlbyname>; cmn w0,#1; nop` at `0x237EF2298`. The gate slot now also matches `nop`, which lets the existing byte comparison report the already-patched state; the `bl` + `cmn wR,#1` anchor is unchanged, and re-writing a NOP over a NOP is inert. Negative controls checked: an unrelated instruction in the slot, a `cmn` with no preceding `bl`, and a `cmn` with the wrong immediate are all still rejected, and the pre-patch stream still resolves to the `b.eq`. |    Y    |  Y  |  Y  |
 
+### Swift port status — the eight DSC patchers (2026-09-23)
+
+The rows above describe the patches, which have not changed. What is new is that
+each now has an in-process Swift implementation on the validated DSC foundation
+(`DSCChunkSet`, `DSCCodeSignature`, `DSCLocalSymbolTable`, `DSCSymbolResolver`).
+Every one was proven on the real 24A435 arm64e cache — `ipsws/ref_extract/dsc_pristine`,
+79 chunks + `.symbols` = 80 files, 6.7 GB — by running the Python on one `cp -c`
+clone and the Swift on another and comparing all 80 files. Every `cfw.py` call
+site is now a `vphone-cli cfw` verb — see "the CFW verbs" below.
+
+| Python | Swift | Sites | Parity on the real cache |
+| --- | --- | --- | --- |
+| `cfw_patch_dsc_maxslide.py` | `DSCMaxSlidePatcher` | 1 (header `@0xF0`) | 80/80 identical. vs pristine exactly 1 byte differs (`0xF3`, `0x20`→`0x00`). Logs character-identical. No re-attestation on either side (header, not a code page) — confirmed by hashing the CD blob. |
+| `cfw_patch_lockdown_mode.py` | `DSCLockdownModePatcher` | 1 + 1 slot | Same gate `b.eq @0x237EF2298` (`20010054`→`1f2003d5`), same slot 7868 of `.40`, same hash. `diff -rq` clean over 80 files; second pass a no-op both sides. |
+| `cfw_patch_lsd_embedded_reg.py` | `DSCLSDEmbeddedRegPatcher` | 1 + 1 slot | Same gate `cbz w0 @0x186EEA024`, same slot 6842 of `.01`. 0 differing files. Cross-run both ways: each re-run over the other's output is a no-op. |
+| `cfw_patch_xpc_lwcr.py` | `DSCXPCLWCRPatcher` | 3 + 1 slot | Same three addresses `0x1805DD644/8/C`, same slot 119 of `.01`. `diff -rq` clean. |
+| `cfw_patch_camera_dsc.py` | `DSCCameraPatcher` | 6 + 5 slots | Both families. 0 differing files; exactly 2 chunks differ from pristine. |
+| `cfw_patch_iomfb_force_kern.py` | `DSCIOMFBForceKernPatcher` | 31 retargeted | Trampoline shape verified by Capstone, branch bytes from Keystone. |
+| `cfw_patch_iomfb_swapend.py` | `DSCIOMFBSwapEndPatcher` | 1 | Size **discovered, never matched**; anchored on the method-5 call set-up. |
+| `cfw_patch_hv_vmm_dsc.py` **+** `cfw_patch_hv_vmm.py` | `DSCHVVMMPatcher` | blacklist-flip mangle | Both halves in one type. The migration plan called `cfw_patch_hv_vmm.py` dead code; **it is not** — the DSC module live-imports `NEEDLE` / `MANGLED_NEEDLE` / `MANGLE_OFFSET` / `ORIGINAL_BYTE` / `MANGLED_BYTE` from it. |
+
+Each port was checked by a second agent that rebuilt the evidence rather than
+reading it: own drivers linked against the module, whole-cache byte comparison,
+and for `lsdreg` a differential sweep of both gate-finders over 33,000 function
+addresses (49 gates each, zero verdict differences).
+
+**Two defects that review found and this branch fixed:**
+
+* `DSCCameraPatcher` wrote each site as it classified it and re-attested once at
+  the end, so a throw in the second family left the first family's five writes on
+  disk with stale signature slots — half-patched *and* SIGKILL-on-page-in under
+  `codeSigningMonitor == 2`. `apply` now plans every family before writing any of
+  them, so a failure writes nothing. Pinned by
+  `DSCCameraPatcherTests.failureWritesNothing`, which fails and names
+  `dyld_shared_cache_arm64e.15` if the old shape is restored.
+* `DSCLockdownModePatcher.disassembleBlock` did not stop at an undecodable word.
+  `ARM64Disassembler` sets `cs.skipData = true` and the reference's `_cs`
+  (`cfw_asm.py:14`) does not, so where the Python's stream ends this one walked
+  past the data to its 60-instruction ceiling. On a userland with an inline
+  literal before the gate that inverts the failure mode: the Python stops the
+  install loudly, this would decode into unrelated code and could NOP a branch
+  there *and re-attest that page*. It now breaks on `insn.id == 0`, as
+  `DSCLSDEmbeddedRegPatcher.disassembleFunction` already did.
+
+**Known, not fixed** (all LOW, none changes a byte on this cache):
+
+* `DSCIOMFBSwapEndPatcher` — on the already-correct path it clears recorded
+  writes and re-attests nothing, so the returned `DSCReattestation` has empty
+  arrays and `isFullyAttested` is **vacuously true**. The Python re-hashes the
+  page and compares. Unreachable through today's shell graph; a footgun for the
+  Swift driver that is meant to replace it.
+* `DSCXPCLWCRPatcher` — a dry run returns `status == .patched, siteCount == 3`
+  although nothing was written; `DSCIOMFBSwapEndPatcher` takes the opposite
+  convention (`0`). A driver summing these for a preview gets a wrong total.
+* `DSCLSDEmbeddedRegPatcher` — record text says `cbz w0, 0x186eea048` where the
+  captured Python reference says `cbz w0, #0x186eea048`. libcapstone-spm
+  (Capstone 6) omits the `#` the Python patchers' Capstone 5.0.7 emitted. Bytes are
+  identical; a field-level diff against `reference_patches/` will flag it.
+* `DSCHVVMMPatcher.findStringSites(inMachO:)` skips a string section whose
+  declared extent overruns EOF, where the Python truncates and scans what is
+  there — a malformed binary reads as a clean no-op. No caller in the repo today.
+* `DSCMaxSlidePatcher` — the `sharedRegionSize >= mapped span` corroboration
+  couples the patch to `DSCChunkSet`'s file-exclusion policy, so a stray
+  cache-shaped file in the chunks directory turns a working patch into a hard
+  abort. Fail-closed, and left alone deliberately.
+
+### Swift port status — the six independent Mach-O patchers (2026-09-23)
+
+Rows 1, 2, 3, 5 and 13 above, plus the EXP `watchdogd` patch, now have Swift
+implementations under `sources/FirmwarePatcher/CFW/Patches/`. The patches did not
+change. Each was run against its Python on two `cp -c` clones of the real 24A435
+binary in `ipsws/ref_extract/macho_pristine/`, both with re-attestation off (what
+the Python emits) and on (against `cfw_macho_codesign.reattest_modified_offsets`).
+
+| Python | Swift | Sites | Parity on the real binary |
+| --- | --- | --- | --- |
+| `cfw_patch_seputil.py` | `CFWSeputil` | 1 (+1 slot) | `%s`→`AA` at `0x1BDD2`; sha256 `75dc86f8…` both sides. Re-attested: slot 27 identical. Anchored on the whole `__cstring` literal plus the `adrp`+`add` that builds it, not the Python's file-wide `find`. |
+| `cfw_patch_cache_loader.py` | `CFWCacheLoaderPatcher` | 1 (+1 slot, opt-in) | `cbz x0 @0xC7C` → `nop`; sha256 `17c5b00c…` both sides, 4 bytes differ from pristine. |
+| `cfw_patch_mobileactivationd.py` | `CFWMobileactivationd` | 1 (+1 slot) | `-[DeviceType should_hactivate]` at `0x2EC368`; sha256 `9f26bf92…` both sides. Re-attested: slot 748 identical. The Python's symbol match is a substring search that sees four candidates on this image; the Swift matches the exact selector and cross-checks ObjC metadata. |
+| `cfw_patch_jetsam.py` | `CFWJetsamPatcher` | 1 | `cbz w0 @0xFA98` → `b` (`launchd`); sha256 `cae806f5…` both sides. |
+| `cfw_patch_watchdogd.py` | `CFWWatchdogd` | 2 × 2 insns + 2 slots | Sites at `0x100004754` and `0x10000AB30`, slots 4 and 10; sha256 `963cd445…` both sides, `codesign -v` passes. |
+| `cfw_patch_diskimagesiod.py` | `CFWDiskimagesiod` | 1 (+1 slot) | `isMountComplete…` IMP at `0x320C0`, found through the relative method list; sha256 `41daf01d…` both sides. Re-attested: slot 50 identical. |
+
+**Every port is idempotent, and three of the Pythons are not.** A second Python
+run over its own output walks past the first patch and changes something else:
+`cache_loader` NOPs the `cbnz x0 @0xC84` log-file guard, `jetsam` rewrites the
+`b.ne @0xFAB0` in the same return block, and `seputil` exits 1. The shell never
+hit this because it always copies from the `.bak` first. The Swift reports
+`already patched` and writes nothing, which is what the in-place call site in
+`CryptexFilesystemPatcherGuestPayload` needs.
+
+**Wired in.** `CryptexFilesystemPatcherGuestPayload` calls
+`CFWCacheLoaderPatcher` and `CFWMobileactivationd` in process. Every shell call
+site (`cfw_install*.sh`, `cfw-kit`, `patch_{camera,hv_vmm}_userland.sh`) now runs
+`vphone-cli cfw <verb>` — see the next section.
+
+**A defect that review found and this branch fixed:** `CFWCacheLoaderPatcher`
+trapped on every patch with logging on, which is the default. The before/after
+window starts two instructions ahead of the gate, and it converted that negative
+delta with `UInt64(Int)`, which traps even under `-O`. Every test passed
+`log: nil`, so none reached it. Now covered by `loggingPathDoesNotTrap`.
+
+**A second defect, found when the CLI verbs landed and fixed here:** a Mach-O
+whose load-command table runs past EOF — a 64-byte truncation is enough — made
+*all six* patchers die with SIGTRAP (`BinaryBuffer.swift:9` precondition, exit
+133), not a catchable error. `MachOParser` walked the table checking only that
+each command's 8-byte header fit, then read fields up to `+0x38` inside it.
+`MachOParser.forEachLoadCommand` now bounds every command by `cmdsize` and by
+the file, and each branch checks its own minimum command size; a truncated file
+yields no segments and the patcher throws `invalidFormat` like any other bad
+input.
+
+**Known, not fixed** (all LOW, none changes a byte on these binaries):
+
+* `CFWCacheLoaderPatcher.flagSetterOnResult` accepts a flag-setting instruction
+  with `x0`/`w0` in any operand, including as the destination.
+* `CFWMobileactivationd`'s ObjC cross-check is scoped to the selector, not the
+  class: it takes the first relative-method-list entry with that name.
+* `CFWJetsamPatcher`'s `.alreadyPatched` is silent. If a later firmware emits an
+  unconditional `b` into the return block ahead of the real gate, it would read
+  as already patched.
+* `CFWWatchdogdTests.swift` converts a VA to a file offset by subtracting the
+  arm64 image base as a constant, in a test only.
+
+### The CFW verbs, and the end of `scripts/patchers` (2026-09-23)
+
+The fourteen ports above had no caller outside the two in-process call sites, so
+the installers still ran `cfw.py`. They no longer do. Every patch is a
+`vphone-cli cfw <verb>` with the Python's exact verb name, positional arguments
+and flags, so the shell diff is a prefix swap:
+
+```
+-  "$PYTHON3" "$SCRIPT_DIR/patchers/cfw.py" patch-seputil "$bin"
++  "$VPHONE_CLI" cfw patch-seputil "$bin"
+```
+
+26 call sites across `cfw_install{,_dev,_jb,_exp,_host}.sh`,
+`patch_{camera,hv_vmm}_userland.sh` and `cfw-kit`, whose `cfw_py` seam became
+`cfw_cli`. Each verb was proven through the built binary against its Python on
+`cp -c` clones of the real 24A435 references: the six Mach-O verbs byte-identical
+(`cmp` + matching sha256, both exit 0), the eight DSC verbs `diff -rq` clean over
+all 80 cache files on first run, second run and dry run.
+
+**Parity evidence is now frozen, not re-measured.** The CFW test suites used to
+spawn `.venv/bin/python3 scripts/patchers/…` and compare live. They now compare
+against constants recorded from that same Python at commit `78cbeea`, each with a
+provenance comment naming the command and the input digest, and each suite checks
+the fixture is the one the goldens were taken over — so a different firmware fails
+on that line instead of looking like a patcher bug. Two structural fixes were
+needed for the freeze to mean anything: the re-attester parity test was reading a
+**build product**, whose bytes change every build, and the device-tree golden is a
+digest map keyed by input digest, because that input exists in two cloudOS IPSWs.
+
+The build product in question was `.build/release/vphone-letmein`, picked as the
+nearest real ad-hoc-signed thin arm64 Mach-O with a non-page-aligned `codeLimit`.
+The tests asserting a frozen digest moved off it first, onto the real 24A435
+`seputil`; the rest of `CFWMachOTests` — structural cases that only needed *some*
+signed Mach-O — kept pointing at the build product, and that stopped being viable
+when `vphone-letmein` was deleted from the tree (see
+`research/host_binary_split.md`). All of `CFWMachOTests` now takes its fixture
+the way the sibling CFW parity suites do: `macho_pristine/seputil`, resolved
+through `VPHONE_MACHO_PRISTINE` with `ipsws/ref_extract/macho_pristine` as the
+default, **failing** rather than skipping when it is absent, since a skipped test
+reads like a passing one. `VPHONE_MACHO_FIXTURE_OPTIONAL=1` turns that back into
+a skip for a machine that cannot carry the extracted IPSW.
+
+**The lesson generalises past this one binary: a test fixture must never be
+something the build produces**, whether or not the assertion is a frozen digest.
+It was luck, not design, that the old fixture had the properties these tests
+exercise — a non-page-aligned `codeLimit` and zero padding behind the load
+commands — and a fixture that is rebuilt is also a fixture that can vanish.
+
+Re-deriving any of these constants means re-extracting the reference Python from
+git history — `scripts/patchers/` is gone from the working tree.
+
+**One Python bug the port deliberately does not reproduce.** A write that
+straddles a code-signature page boundary — eight bytes at `0x280FFFC..0x2810004`,
+which is what `cfw_patch_camera_dsc.py` emits when its six entry points land on
+both sides of the 2563/2564 line — re-attested only the page containing the
+address. Page 2564 kept its original slot hash (`7ccd65fa…`) while its bytes
+hashed to `dfe38096…`, and the guest dies on the first demand-page-in of it.
+`DSCCodeSignature.reattestRecordedWrites` covers every dirtied page;
+`DSCFoundationTests.pageStraddlingWriteAttestsEveryDirtiedPage` pins both the fix
+and the reference's value, so the divergence stays on the record.
+
+**One verb is semantically, not byte, identical.** `cfw inject-daemons` writes a
+plist, and the two XML writers disagree on one thing: Python's `plistlib`
+serialises an integral double as `<real>1.0</real>` where Foundation emits
+`<real>1</real>`. Both parse back to the same value, and matching the Python
+byte for byte would mean reimplementing `plistlib`'s writer — which is why the
+plan set the bar for plists at semantic equivalence (type, order, key set,
+`Data` bytes) rather than bytes. Recorded here so "byte-identical" is not read
+as covering the plist verbs.
+
+**Two behavioural differences kept on purpose**, both on the already-patched path
+and neither changing a byte:
+
+* `patch-camera-dsc` over an already-patched cache exits 0 where the Python
+  raised and exited 1. `cfw_install_exp.sh:126` tests that exit status and its
+  failure branch prints "likely build-version mismatch" — a *wrong* diagnosis for
+  a re-install. Exit 0 with "chunks patched" is the true one.
+* The three idempotence divergences in the section above stand: the Swift
+  recognises its own output where the Python double-applies or exits 1.
+
+**Not removed:** `scripts/repos/insert_dylib`. Nothing in the product runs it —
+`CFWInjectDylib` does the injection in process — but
+`CFWMachOTests.matchesInsertDylib` still runs the real binary as an independent
+byte-parity reference, gated on its presence. Deleting the submodule would turn
+that check into a silent skip rather than a failure. CI no longer initialises it;
+`setup_tools.sh` still builds it, relabelled as a test reference.
+
+**P1 dropped `capstone`, `keystone-engine` and `pyimg4` from the dependency
+list; P2 then deleted the list.** `requirements.txt`, `scripts/setup_venv.sh`,
+`scripts/setup_venv_linux.sh`, the `make setup_venv` target and
+`scripts/pymobiledevice3_bridge.py` are all gone — the restore backend was the
+last program holding any of them up, and it is `sources/VPhoneRestore` over
+vendored libirecovery and idevicerestore now
+(`research/p2_restore_off_python.md`). No Python is tracked in this repository
+and nothing resolves a `python3` at runtime.
+
 ### Installed Components
 
 | #   | Component                  | Description                                                                                                        | Regular | Dev | JB  |
@@ -230,32 +466,54 @@ Before (cstring section bytes, 20 bytes total):
     "kern.hv_vmm_present\0"
     6B 65 72 6E 2E 68 76 5F 76 6D 6D 5F 70 72 65 73 65 6E 74 00
 
-After (1 byte change at offset 0):
-    "Xern.hv_vmm_present\0"
-    58 65 72 6E 2E 68 76 5F 76 6D 6D 5F 70 72 65 73 65 6E 74 00
-    ^^
+After (1 byte change at offset 5):
+    "kern.Xv_vmm_present\0"
+    6B 65 72 6E 2E 58 76 5F 76 6D 6D 5F 70 72 65 73 65 6E 74 00
+                ^^
 ```
 
-The kernel's name-to-MIB translation fails with `ENOENT` when the
-caller asks for `"Xern.hv_vmm_present"`, so `sysctlbyname` returns
--1. The canonical post-call check (`cbnz w0, skip` or
-`cmp w0,#0 ; b.ne skip`) then takes the skip-cache path; the cached
-"is_vmm" byte stays at its initial value (BSS-zero = 0).
+**Byte 5, not byte 0.** The mangle has to keep the `kern.` top-level
+namespace intact or the kernel's name-to-MIB resolver routes the call to
+nothing at all. Byte 0 would give `Xern.hv_vmm_present`, and `Xern` is not
+a registered top-level sysctl namespace, so it could never resolve — see
+the comment at `scripts/patchers/cfw_patch_hv_vmm.py:40-47`.
+
+**Which way the lie runs.** This is the part that reads backwards if you
+have the pre-blacklist-flip design in mind. The companion kernel patch
+(`KernelEXPPatcher.patchHvVmmRename`) renames the OID itself, so after
+both halves are installed:
+
+* a **mangled** dylib asks for `kern.Xv_vmm_present`, which **resolves**
+  to the renamed OID and returns the truthful `1` — that is what keeps
+  graphics and accel passthrough working;
+* a **blacklisted** dylib keeps `kern.hv_vmm_present`, which now hits
+  `ENOENT`. Its post-call check (`cbnz w0, skip` or
+  `cmp w0,#0 ; b.ne skip`) takes the skip-cache path, the cached "is_vmm"
+  byte stays at BSS-zero, and that dylib believes it is not in a VM.
+
+So mangling is what tells a dylib the truth, and *not* mangling is what
+makes it lie. The blacklist is therefore the list of consumers that must
+be deceived (sign-in, device likeness), not the list of ones to fix.
 
 We don't modify executable code at all — only one byte of read-only
-string data. The kernel call still happens (with the wrong name), so
-any sysctl-tracing infrastructure can still see activity.
+string data. The kernel call still happens, so any sysctl-tracing
+infrastructure can still see activity.
 
-Idempotent: a re-scan for the literal `"kern.hv_vmm_present\0"` finds
-no occurrences in already-mangled dylibs, so the patcher does no work
-on a re-run.
+Idempotent: the patcher scans for `MANGLED_NEEDLE` first
+(`cfw_patch_hv_vmm_dsc.py:133`) and each site re-checks byte 5 before
+writing, so a re-run does no work.
 
-**DSC-side patches** — driven by an explicit whitelist
-(`PATCH_INSTALL_NAMES` in `scripts/patchers/cfw_patch_hv_vmm_dsc.py`)
-applied to chunks under
-`SystemOS/System/Library/Caches/com.apple.dyld/`. Comment a line in
-the whitelist to skip that dylib on the next install — useful for
-bisecting which consumer is responsible for an observable change.
+**DSC-side patches** — driven by an explicit **blacklist**
+(`DONT_PATCH_INSTALL_NAMES` in `scripts/patchers/cfw_patch_hv_vmm_dsc.py`,
+~15 entries) applied to chunks under
+`SystemOS/System/Library/Caches/com.apple.dyld/`. Every dylib that is not
+named there gets mangled. Add a line to the blacklist to stop patching
+that dylib on the next install — useful for bisecting which consumer is
+responsible for an observable change.
+
+> The table below lists dylibs that ARE mangled, i.e. ones absent from the
+> blacklist. It used to be introduced as a `PATCH_INSTALL_NAMES` whitelist;
+> that name no longer exists in the module.
 
 | Dylib                                                     | Component role (paraphrased)                                  |
 | --------------------------------------------------------- | ------------------------------------------------------------- |
@@ -322,13 +580,17 @@ System/Library/ExtensionKit/Extensions/HostInferenceProviderService.appex/HostIn
 * `scripts/patchers/cfw_patch_hv_vmm_dsc.py` — DSC-native orchestrator.
   No external `ipsw` dependency. For every `"kern.hv_vmm_present\0"`
   occurrence in any executable mapping, walks back to the containing
-  dylib's Mach-O header, reads `LC_ID_DYLIB`, and — if the install
-  name is in the explicit `PATCH_INSTALL_NAMES` whitelist — rewrites
-  the first byte of the cstring through `DSCChunks.write_at_vma`.
-  Pure Python. Whitelist-based by design so an operator can comment
-  out individual entries to bisect.
-* `scripts/patchers/cfw.py patch-hv-vmm <binary>` —
-  standalone-Mach-O subcommand (used for the 6 on-device files).
+  dylib's Mach-O header, reads `LC_ID_DYLIB`, and — unless the install
+  name is in the `DONT_PATCH_INSTALL_NAMES` blacklist — rewrites byte 5
+  of the cstring through `DSCChunks.write_at_vma`. Pure Python.
+  Blacklist-based by design so an operator can add an entry to take one
+  dylib out of the patch set and bisect.
+* ~~`scripts/patchers/cfw.py patch-hv-vmm <binary>`~~ — **gone.** The
+  standalone-Mach-O subcommand and its backing patcher
+  (`cfw_patch_hv_vmm_rootfs.py`) were removed with item 8 in the
+  blacklist-flip redesign; the 6 on-device files no longer need an
+  SSH-time patch. `scripts/patch_hv_vmm_userland.sh:65-73` documents
+  why the wrapper's standalone branch has no honest substitute.
 * `scripts/patchers/cfw.py patch-hv-vmm-dsc <chunks_dir>` —
   DSC subcommand (used while the SystemOS Cryptex DMG is still
   mounted on the host, before the device copy).
@@ -787,7 +1049,15 @@ cache rebuild.
     - it can attach to `/usr/libexec/amfid`
     - the initial path allow rule failed because `AMFIPathValidator` reports URL-encoded paths (`/Volumes/My%20Shared%20Files/...`)
     - rerunning `amfidont` with the encoded project path and the release-binary CDHash allows the signed release `vphone-cli` to launch
-    - this workflow is now packaged as `make amfidont_allow_vphone` / `scripts/start_amfidont_for_vphone.sh`
+    - this workflow was packaged as `make amfidont_allow_vphone` / `scripts/start_amfidont_for_vphone.sh`
+    - ~~**superseded 2026-09-23.** `amfidont` is gone, and so is the path/CDHash allowlist it provided — on macOS 26 amfid carries `com.apple.developer.hardened-process`, which gates the debugger operations a per-validation decision needs. `vphone-letmein` replaces it with a global switch held open only for the length of one launch, and `vphone-cli` (now unentitled, so it always starts) drives that itself. The URL-encoding detail above no longer applies: nothing matches on paths any more.~~
+    - **That correction was itself wrong, and is reversed (2026-09-23, later the same day).** `amfidont` is the supported route again and `vphone-letmein` is deleted. Two things were measured:
+      - `vphone-letmein` opened its window by writing amfid's `__TEXT`. Where the host enforces code signing system-wide the kernel validates that page on the next fault, finds no signature, and kills amfid — `EXC_BAD_ACCESS` / `SIGKILL` (Code Signature Invalid), termination namespace `CODESIGNING`, indicator "Invalid Page" — and the guest is `SIGKILL`ed too because amfid never answered. Measured twice on macOS 27.0 (26A428) arm64e: the patch lands, the read-back verifies, and the child still dies. The gate is `sysctl vm.cs_system_enforcement`, which reads **1** there and is read-only.
+      - The claim that a per-validation decision is impossible was reasoning from that tool's own position. `amfidont` drives amfid through LLDB, and `debugserver` holds the Apple-private debugger entitlements; arm64 breakpoints live in the CPU's debug registers, so no page is ever dirtied. That is why it works under enforcement *and* why it can scope to one binary. **`amfidont` is an allowlist, not a global switch** — the "global switch" wording belonged to `vphone-letmein` and must not be carried onto it.
+    - The URL-encoding detail above is therefore live again for `--path`, and is sidestepped entirely by allowing the **CDHash** instead, which is what the project documents. Allow `vphone-vm`, never `vphone-cli`: the entry point carries no entitlements and amfid never objects to it.
+      - install (measured on this machine, 2026-09-23): `xcrun python3 -m pip install --user amfidont` → `~/Library/Python/3.9/bin/amfidont`. Apple's `/usr/bin/python3` is 3.9 and the tool re-execs Xcode's python3, so Xcode is required; Homebrew's python refuses under PEP 668.
+      - run: `sudo amfidont daemon --cdhash "$(codesign -dv --verbose=4 <path>/vphone-vm 2>&1 | sed -n 's/^CDHash=//p' | head -1)" --spoof-apple --verbose`. With it running, `vphone-vm --help` exits 0 instead of being `SIGKILL`ed, and amfid stays alive.
+      - it is **not** a dependency of this repo. Nothing here installs, spawns or supervises it, no Makefile target wraps it, and no Python is added to the tree for it — `vphone-cli` only detects the refusal and prints the command.
   - With launch policy bypassed, `make boot_dfu` advances into VM setup, emits `vm/udid-prediction.txt`, and then fails with `VZErrorDomain Code=2 "Virtualization is not available on this hardware."`
   - `VPhoneAppDelegate` startup failure handling was tightened so these fatal boot/DFU startup errors now exit non-zero; `make boot_dfu` now reports `make: *** [boot_dfu] Error 1` for the nested-virtualization failure instead of incorrectly returning success.
   - The host itself is a nested Apple VM (`Model Name: Apple Virtual Machine 1`, `kern.hv_vmm_present=1`), so the remaining blocker is lack of nested Virtualization.framework availability rather than firmware patching or AMFI bypass.
@@ -929,3 +1199,54 @@ cache rebuild.
     rows (chained auth-rebase `sy_call` into __TEXT_EXEC + sane
     `sy_return_type/sy_narg/sy_arg_bytes`). Base @ foff `0x7693B0` (558 rows);
     `sysent[439]` (`SYS_kas_info`) @ foff `0x76BCD8`; cave + 3 entry writes emit.
+
+## The cryptex merge stops shelling out (2026-09-23)
+
+Eleven subprocess call sites in `CryptexFilesystemPatcher*` were doing work this
+process can do directly. Two of them changed what lands on the volume, so they are
+recorded here rather than only in the commit.
+
+**`tar` → `VPhoneArchive`.** The last three `runProcess("/usr/bin/tar", …)` calls in
+the package are gone: `cfw_input.tar.zst` into the scratch directory, `iosbinpack64.tar`
+and `AppleParavirtGPUMetalIOGPUFamily.tar` onto the mounted volume. All three now use
+`VPhoneArchiveExtractor` with the `.ontoGuestVolume` preset, so `--zstd` is no longer
+passed (the filter is detected, and libzstd is static in the xcframework).
+
+- **Behaviour change:** `.ontoGuestVolume` includes `--no-overwrite-dir`, which the two
+  guest-volume `tar` calls did *not* pass — they passed only `--preserve-permissions`.
+  Directories that iosbinpack64 and the GPU bundle share with the system volume now keep
+  their own mode, owner and mtime instead of taking the archive's. That is what
+  `cfw_install.sh` has always passed GNU tar (`--preserve-permissions --no-overwrite-dir`);
+  the Swift port dropped the second flag, and this restores shell parity.
+- Ownership and exact modes are unchanged: the step runs as root, where `/usr/bin/tar -xf`
+  already implied `-p` and restored numeric owners. That is why the scratch-directory
+  extraction also uses `.ontoGuestVolume` despite the name — the preset is what bsdtar
+  did as root, and several of those members are copied onto the volume verbatim.
+
+**`find -name '._*' -delete` → `deleteAppleDoubleFiles`,** and this one was nearly a
+silent regression worth writing down. On a volume with native extended attributes,
+**Foundation does not show `._*` entries at all**: `FileManager.contentsOfDirectory` and
+`enumerator(at:)` both omit them, because Foundation reads such a name as the partner
+file's metadata rather than as a file. `fileExists(atPath:)` compounds it by answering
+*true* for a `._x` that is not in the directory. Measured on APFS:
+
+| how the file was made | in `readdir` | in `contentsOfDirectory` |
+|---|---|---|
+| `open(2)` (what tar and libarchive do) | yes | **no** |
+| `Data.write(to:)` / `FileManager.createFile` | **no** — folded into the partner's xattrs | no |
+
+So the first port of this sweep — a `FileManager.enumerator` walk — found nothing,
+deleted nothing and reported success, on exactly the files it exists to remove. The
+shipped version walks with `opendir`/`readdir` and removes with `unlink(2)`, which is
+what `find` did. `chownRecursively` shares that walk for the same reason. Both are
+covered by `tests/FirmwarePatcherTests/CryptexFileOpsTests.swift`, whose fixtures are
+made with `open(2)` and asserted with `readdir` — a Foundation-built fixture would make
+the test pass by having nothing to find.
+
+**The rest are like-for-like:** `chmod` → `FileManager.setAttributes`, `chown -R 0:0` →
+`lchown` over that walk (BSD `chown -R` defaults to `-P`, so symlinks are not followed),
+`ln -sf` → `createSymbolicLink` after removing what was there, with the one deliberate
+difference that a real directory in the link's place is now an error instead of ln(1)'s
+silent nested link. `diskutil image resize --plist | plutil -extract max raw` loses the
+shell and `plutil`: the plist is parsed in-process, starting at `<?xml` so that a warning
+on diskutil's merged stderr can no longer be handed back as the `--size` argument.

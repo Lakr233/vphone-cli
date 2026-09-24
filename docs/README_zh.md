@@ -8,18 +8,21 @@
 
 ## 前置条件
 
-**宿主机：**
+**运行需要：**
 
 - Apple Silicon
 - macOS 15+（Sequoia）
-- Xcode + iOS SDK（用于交叉编译访客守护进程）
 - [放宽 SIP/AMFI，以允许未签名二进制使用私有 PV=3 授权](#放宽-sipamfi)
 
-**依赖：**
+**除此之外什么都不需要。** 没有 Homebrew 包，没有解释器，没有包管理环境，也不需要
+Xcode。vphone-cli 运行的每一个程序，要么是 `/usr/bin`、`/bin`、`/usr/sbin`、`/sbin`
+下的系统二进制，要么就在 `.app` 里面 —— 包括签名器（取代了 `ldid`）、归档读写
+（`gtar`、`zstd`、`unzip`）、固件目录与 IM4P/AEA 处理（`ipsw`），以及 CFW 安装器
+写进访客系统的那五个 iOS 二进制：它们在构建时交叉编译好随包分发，不在你的机器上编译。
+`make check-aux` 就是守住这条线的准入门。
 
-```bash
-brew install python@3.13 aria2 wget gnu-tar openssl@3 ldid-procursus sshpass keystone cmake libusb ipsw zstd
-```
+**从源码构建**则还需要 Xcode（那五个访客二进制要用它的 iOS SDK 交叉编译）和
+`git-lfs`（`git clone` 取 `scripts/resources` 里的归档要用）。
 
 ## 安装
 
@@ -30,14 +33,17 @@ brew install zqxwce/tap/vphone-cli
 ## 构建
 
 ```bash
+brew install git-lfs
 git clone --recurse-submodules https://github.com/Lakr233/vphone-cli.git
 
-./scripts/setup_tools.sh      # 安装依赖、构建工具链子模块、创建 Python venv
-./scripts/build.sh            # 构建并签名 vphone-cli、打包 .app、交叉编译 vphoned
+./scripts/build.sh            # 构建并签名 vphone-cli、交叉编译访客二进制、打包 .app
 
 cd .build/vphone-cli.app/Contents/MacOS/
 vphone-cli --help
 ```
+
+`./scripts/setup_tools.sh` 是可选的，只构建一样东西：`insert_dylib` —— 一个
+Mach-O 测试用来逐字节对照 Swift 注入器的独立参照物。分发出去的东西不会运行它。
 
 ## 快速开始
 
@@ -85,6 +91,10 @@ vphone-cli vm launch myphone                            # 6. 首次启动
 
 要升级到更新的 iOS，把 `fw prepare` 指向一个 IPSW：`--iphone-source /path/to.ipsw --cloudos-source /path/to.ipsw`。
 
+第 4、5 步都在 `vphone-cli` 自己的进程里完成。`restore` 直接驱动内置的 libirecovery
+和 idevicerestore——没有外部刷机工具，第一次运行之前也不需要任何准备步骤。加
+`--offline` 可以用虚拟机目录里已保存的 `.shsh` 刷机，而不再向 Apple 申请新的。
+
 ## 固件变体
 
 五种补丁变体，安全绕过程度递增——将其中之一传给 `--variant`：
@@ -116,9 +126,8 @@ vphone-cli 创建的所有内容都位于 `~/.vphone/` 下——保存在仓库�
 | `~/.vphone/ipsws/`| 已下载的 iPhone + cloudOS IPSW，缓存后在多个虚拟机间复用。                        |
 | `~/.vphone/tools/`| `fw prepare` 期间获取的 APFS seal-volume 制品（`apfs_sealvolume_<version>`）缓存。 |
 | `~/.vphone/debs/` | `jb`/`exp` CFW 安装写入客户机的 `.deb` 包缓存（Sileo、apt 等）。                   |
-| `~/.vphone/venv/` | 自动配置的 Python 环境（见 [Python 运行时](#python-运行时)；可用 `$VPHONE_VENV_DIR` 覆盖）。 |
 
-优先级：单项覆盖（`$VPHONE_LIBRARY_ROOT`、`$VPHONE_VENV_DIR`）优先于 `$VPHONE_ROOT`，`$VPHONE_ROOT` 优先于 `~/.vphone` 默认值。`ipsws/`、`tools/` 和 `debs/` 缓存始终位于当前生效的根目录之下。
+优先级：单项覆盖 `$VPHONE_LIBRARY_ROOT` 优先于 `$VPHONE_ROOT`，`$VPHONE_ROOT` 优先于 `~/.vphone` 默认值。`ipsws/`、`tools/` 和 `debs/` 缓存始终位于当前生效的根目录之下。
 
 ## 放宽 SIP/AMFI
 
@@ -137,7 +146,9 @@ csrutil allow-research-guests enable
 sudo nvram boot-args="amfi_get_out_of_my_way=1 -v"   # 之后重启
 ```
 
-**方案 B——保持 SIP 开启（仅放宽 debug），然后用 amfidont 将二进制加入白名单**（AMFI 在系统范围内保持启用）。
+这依然是最省事的方案，也是唯一不需要在虚拟机旁边额外跑东西的方案：AMFI 一旦放宽，`vphone-vm` 自己就能启动。
+
+**方案 B——保持 SIP 开启（仅放宽 debug），把这次构建加进白名单**（其余时间、以及所有未被你放行的二进制，AMFI 仍然生效）。
 
 在恢复模式下：
 
@@ -146,11 +157,30 @@ csrutil enable --without debug
 csrutil allow-research-guests enable
 ```
 
-然后重启进入 macOS 并执行：
+然后重启进入 macOS，运行：
 
 ```bash
-vphone-amfidont         # 本地构建见 .build/vphone-cli.app/Contents/Resources/vphone-amfidont
+make amfi_allow     # 需要 root；每次构建之后都要重跑
+make amfi_status    # 查看白名单，以及这台机器能不能承载它
+make amfi_off       # 移除白名单并干净地重启 amfid
 ```
+
+它运行的是 `vphone-amfi-allow`——本仓库自己的 C 代码，随 `.app` 一起分发。它写两样东西：
+
+* 把两份 `vphone-vm` 的 cdhash 写进 `/Library/Preferences/com.apple.security.coderequirements.plist`，
+  这是 AMFI 本来就会读的文件——是它自带的机制，不是什么漏洞；
+* 改 amfid 堆上的**一个字节**，把 `_isRunningInternalBuild` 标志翻过来，让它去读那个文件。
+
+两份都要，因为 `make boot` 两份都会跑：`boot_binary_check` 跑 `.build/release/vphone-vm`，
+开机本身跑 `.app` 里的那份。它们用不同的标识符签名，哈希也不同，只放行一份恰好只覆盖一半流程。
+
+**每次构建之后都要重跑。** 它按 cdhash 放行，而任何一次签名都会改变 cdhash——包括一次裸的 `swift build`。
+
+要放行的是 `vphone-vm`。`vphone-cli` 不带任何 entitlement、总能正常启动，所以要的不是它的 cdhash。
+
+> **请如实看待它放行了什么。** 这是一个按 cdhash 匹配的白名单：对于你没有列出的一切，amfid 照常校验。`make amfi_off` 会删掉那个文件并重启 amfid。
+>
+> 那一个字节写的是 amfid 的**堆**，不是它的 `__TEXT`，而这正是它能work的全部原因。早先的做法都在改代码——`vphone-letmein` 覆写 `-[AMFIPathValidator_macos validateWithError:]` 里的 `ldrb`，基于 LLDB 的工具则会为断点植入 `BRK`。两者都会留下一个被写脏的、未签名的可执行页面；在 `sysctl vm.cs_system_enforcement` 为 1 的主机上（在 macOS 27.0 (26A428)、arm64e，以及上面那套 `csrutil` 配置下实测就是 1），内核会在下一次缺页时校验该页面、杀掉 amfid，并连带杀掉客户机。该 sysctl 在运行时是只读的，所以「改代码」这条路再小心也活不下来。写堆不是代码，强制校验就无从反对。
 
 ## 测试环境
 
@@ -179,7 +209,7 @@ vphone-amfidont         # 本地构建见 .build/vphone-cli.app/Contents/Resourc
 
 ## 常见问题
 
-**`zsh: killed ./vphone-cli`** —— AMFI/debug 限制未被绕过；见[前置条件](#前置条件)（`amfi_get_out_of_my_way=1` 或 `amfidont`）。
+**`zsh: killed ./vphone-vm`** —— AMFI/debug 限制未被绕过；见[放宽 SIP/AMFI](#放宽-sipamfi)：要么用 `amfi_get_out_of_my_way=1`（方案 A），要么对这次构建跑 `make amfi_allow`（方案 B）。如果你是在上一次构建*之前*跑的，请再跑一次：白名单按 cdhash 匹配，而签名会改变它。注意这不会发生在 `vphone-cli` 自身上：它不带任何 entitlement，所以如果被杀的是*它*，那就是别处出了问题。
 
 **`Virtualization is not available on this hardware`** —— 你的 Mac 本身就是一台虚拟机；PV=3 客户机启动无法嵌套。请使用非嵌套的 macOS 15+ 宿主机。
 

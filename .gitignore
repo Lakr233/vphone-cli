@@ -107,8 +107,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the root. Unanchored, these match a directory named lib at ANY
+# depth, which silently swallowed cfw-kit/lib/ -- the shared library every
+# script in the kit sources. They come from the Python packaging template and
+# were only ever meant to be the setuptools build output here.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -244,11 +248,14 @@ activemq-data/
 *.sage.py
 
 # Environments
+#
+# `.venv` and `venv/` are deliberately NOT ignored any more. Nothing in this
+# repo creates a virtualenv — the restore backend is linked into vphone-cli —
+# so a `.venv` on disk is a leftover from before P2.4, and it should show up in
+# `git status` until `make clean` sweeps it rather than sit there invisibly.
 .env
 .envrc
-.venv
 env/
-venv/
 ENV/
 env.bak/
 venv.bak/
@@ -311,6 +318,12 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 *.resolved
+# …except the one that matters. `*.resolved` arrived with the boilerplate above
+# and swept up SwiftPM's lock file with it, which left every dependency version
+# resolved fresh on each clone — the opposite of what this repository claims
+# about reproducing a build. It is an application, not a library, so the lock
+# file belongs in the tree.
+!Package.resolved
 /VM
 /ipsws/
 .limd/
@@ -322,7 +335,13 @@ __marimo__/
 /references/
 scripts/vphoned/vphoned
 /cfw_input/
-sources/vphone-cli/VPhoneBuildInfo.swift
+sources/VPhoneCore/VPhoneBuildInfo.swift
+# libarchive drops zero-byte tar.XXXXXXXX files in the process's working
+# directory while restoring macOS metadata — a relative mkstemp template in
+# its own sources, so TMPDIR does not redirect them. Harmless, but they should
+# not be committed. Worth remembering that `vphone-archive` run as root during
+# an install will leave them in whatever directory the installer is in.
+tar.????????
 setup_logs/
 /testing_results
 /.ida-mcp
