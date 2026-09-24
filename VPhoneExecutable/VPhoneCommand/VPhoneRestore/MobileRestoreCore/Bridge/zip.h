@@ -14,7 +14,7 @@
  * libimobiledevice, its glue, libusbmuxd and libtatsu come from the
  * AppleMobileDeviceLibrary xcframeworks, and zlib and libcurl are in
  * /usr/lib. Linking Homebrew's libzip would put an absolute /opt/homebrew
- * path in the dependency closure, which is exactly what `Scripts/check_aux.sh`
+ * path in the dependency closure, which is exactly what `Build/ValidateBundle.sh`
  * gate 1 exists to reject.
  *
  * WHAT IS LOST

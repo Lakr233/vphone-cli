@@ -2,7 +2,7 @@
 # vphone-tier: build
 set -euo pipefail
 
-root="${0:a:h:h}"
+root="$(cd "${0:a:h}/../../.." && pwd)"
 bundle="${1:-$root/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle}"
 macos="$bundle/Contents/MacOS"
 resources="$bundle/Contents/Resources"

@@ -42,7 +42,8 @@ cd vphone-cli
 xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath .build/XcodeBundle build
-zsh Scripts/check_aux.sh
 ```
+
+빌드 과정에서 생성된 `VPhone.bundle`을 자동으로 검증합니다.
 
 AMFI 허용 목록을 사용하는 호스트에서는 빌드할 때마다 [호스트 설정 가이드](Guides/host-setup.md)에 따라 서명된 VM 바이너리를 다시 허용하세요. 현재 가이드와 연구 자료는 [문서 목차](README.md)에 모았습니다. 상세 가이드는 현재 영어로 제공됩니다.

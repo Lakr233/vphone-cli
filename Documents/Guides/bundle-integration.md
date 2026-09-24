@@ -30,11 +30,10 @@ launching it. The VM library and caches stay outside `VPhone.bundle`, under
 workstation process can access them, including after a root-run create.
 Guest filesystem permissions inside `Disk.img` retain their own semantics.
 
-Build and inspect:
+Build and validate:
 
 ```sh
 xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath .build/XcodeBundle build
-zsh Scripts/check_aux.sh .build/XcodeBundle/Build/Products/Debug/VPhone.bundle
 ```

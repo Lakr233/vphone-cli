@@ -59,10 +59,10 @@ xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
 
 The `VPhone` scheme builds the host tools, guest daemon, and guest components;
 every shipped binary is under `Contents/MacOS`. They use ad hoc code signatures,
-with private virtualization entitlements only on `vphone-vm`. Run the test
-schemes in their respective projects and `zsh Scripts/check_aux.sh` to inspect
-the bundle. An AMFI allowlist must be updated whenever the VM binary's cdhash
-changes. See [host setup](Documents/Guides/host-setup.md) and the
+with private virtualization entitlements only on `vphone-vm`. The build validates
+the finished bundle; run the test schemes in their respective projects. An AMFI
+allowlist must be updated whenever the VM binary's cdhash changes. See
+[host setup](Documents/Guides/host-setup.md) and the
 [bundle integration contract](Documents/Guides/bundle-integration.md).
 
 ## Everyday commands

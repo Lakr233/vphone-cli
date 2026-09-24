@@ -82,3 +82,5 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"
 /usr/bin/codesign --force --sign - "$bundle"
+
+"${0:a:h}/ValidateBundle.sh" "$bundle"

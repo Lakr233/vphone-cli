@@ -42,8 +42,9 @@ cd vphone-cli
 xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath .build/XcodeBundle build
-zsh Scripts/check_aux.sh
 ```
+
+构建会自动验收生成的 `VPhone.bundle`。
 
 采用 AMFI 白名单的宿主机，每次重编译后都要按[宿主机准备](Guides/host-setup.md)中的步骤重新允许签名后的 VM 程序。
 

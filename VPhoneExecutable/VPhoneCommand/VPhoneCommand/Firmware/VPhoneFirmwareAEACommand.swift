@@ -4,7 +4,7 @@
 // fw_prepare.sh, and they are the last of them. `ipsw` is a fine program —
 // statically linked Go, nothing but system libraries — but it is a program the
 // user has to install with Homebrew before a .app that is supposed to be
-// self-contained can finish a job, which is the thing `Scripts/check_aux.sh` exists
+// self-contained can finish a job, which is the thing `Build/ValidateBundle.sh` exists
 // to stop.
 //
 //     ipsw fw aea --key <f>                       ->  vphone-cli fw aea-key <f>

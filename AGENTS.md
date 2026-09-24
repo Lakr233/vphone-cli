@@ -5,7 +5,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 ## Quick Reference
 
 - **Build:** `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle build`
-- **Test:** Run the Xcode test schemes in their owning projects; then `zsh Scripts/check_aux.sh`
+- **Test:** Run the Xcode test schemes in their owning projects. The `VPhone` build validates the finished bundle.
 - **Boot (GUI):** `vphone-cli vm launch <name>`
 - **Boot (DFU):** `vphone-cli vm launch <name> --dfu`
 - **AMFI refuses `vphone-vm`?** Use the bundled `VPhoneEscalator` allowlist tool as shown in `Documents/Guides/host-setup.md`. Repeat after the VM cdhash changes.
@@ -13,7 +13,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Platform:** macOS 15+ (Sequoia). `vphone-vm` needs amfid to accept its private entitlements: either SIP off with `amfi_get_out_of_my_way=1`, or SIP on (`--without debug`) plus an allowlist bypass the user runs. Both are in `Documents/Guides/host-setup.md`; neither is installed by this project.
 - **Language:** Swift 6.0 in handwritten Xcode projects, private APIs via [Dynamic](https://github.com/mhdhejazi/Dynamic).
 - **Dependencies:** Host and guest SwiftPM packages resolve dependencies by URL and version; `Package.resolved` pins the full graphs. There are no git submodules. **No Python anywhere, and no Homebrew package at runtime** — see Tiers below.
-- **Tiers.** The build machine may use Xcode and build tools. The shipped `VPhone.bundle` must use only system libraries and its own contents at runtime. Guest components run inside the VM. `Scripts/check_aux.sh` checks bundle admission.
+- **Tiers.** The build machine may use Xcode and build tools. The shipped `VPhone.bundle` must use only system libraries and its own contents at runtime. Guest components run inside the VM. `Build/ValidateBundle.sh` checks bundle admission as part of the `VPhone` build.
 
 ## Workflow Rules
 
@@ -101,10 +101,10 @@ There is none, and adding any is a regression.
   restore backend was the last holdout and is now `VPhoneExecutable/VPhoneCommand/VPhoneRestore` over
   two vendored C targets — see `Research/Restore/native_restore_architecture.md`.
 - A patch, a probe, a format reader or a device protocol belongs in Swift,
-  where it is built, signed, gated by `Scripts/check_aux.sh` and tested with
+  where it is built, signed, gated by `Build/ValidateBundle.sh` and tested with
   everything else. Adding an interpreter back brings with it a provisioning
   step, a silent system-`python3` fallback, and a dependency closure
-  `Scripts/check_aux.sh` cannot see.
+  `Build/ValidateBundle.sh` cannot see.
 - There is no counter-example left. `amfidont` used to be cited as one — a
   third-party tool the user installed into their own Python — and it is gone
   too: the AMFI allowlist tool is `VPhoneExecutable/VPhoneEscalator`, one C
