@@ -62,6 +62,5 @@ done
 #   ../siblings/       optional guest sources and archives; not part of the
 #                      shipped app or automatic VM installation
 #   vphoned/*.m *.h vendor/ Makefile   same, and it is the bulk of scripts/
-print -r -- "payloads/AppleParavirtGPUMetalIOGPUFamily.tar" # guest GPU driver
 print -r -- "vphoned/vphoned.plist"         # LaunchDaemon plist, injectLaunchDaemons
 print -r -- "vphoned/entitlements.plist"    # guest_sign_ent for vphoned

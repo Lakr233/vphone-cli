@@ -5,7 +5,6 @@
 // launchd_cache_loader patches, vphoned, and its LaunchDaemon.
 
 import Foundation
-import VPhoneArchive
 import VPhoneCore
 import VPhoneSign
 
@@ -102,13 +101,18 @@ extension CryptexFilesystemPatcher {
 
     func addGpuDriver(targetMount: String) throws {
         let target = URL.init(filePath: targetMount)
-
-        try VPhoneArchiveExtractor.extract(
-            resources.gpuDriverArchive, into: target, options: .ontoGuestVolume
-        )
-
         let bundle = target.appending(path: "/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")
-        // Clean macOS resource fork files (._* files from tar xattrs)
+        let staged = VPhonePCCGPUDriver.stagedBundle(in: restoreDir)
+        guard FileManager.default.fileExists(atPath: staged.path) else {
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed(
+                "PCC GPU driver is missing: \(staged.path). Re-run fw prepare with the PCC IPSW."
+            )
+        }
+        if FileManager.default.fileExists(atPath: bundle.path) {
+            try FileManager.default.removeItem(at: bundle)
+        }
+        try FileManager.default.copyItem(at: staged, to: bundle)
+        // Clean AppleDouble files if the host copy created any.
         try deleteAppleDoubleFiles(under: bundle)
         try chownRecursively(uid: 0, gid: 0, at: bundle)
         for path in [

@@ -18,8 +18,6 @@ struct ResourcesTests {
         let exe = "/Applications/vphone-cli.app/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/vphone-cli.app/Contents/Resources")
-        #expect(r.gpuDriverArchive.path
-            == "/Applications/vphone-cli.app/Contents/Resources/scripts/payloads/AppleParavirtGPUMetalIOGPUFamily.tar")
     }
 
     @Test func devLayoutWalksUpToProjectRoot() throws {
@@ -37,8 +35,6 @@ struct ResourcesTests {
         let exe = root.appendingPathComponent(".build/release/vphone-cli").path
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == root.resolvingSymlinksInPath().path)
-        #expect(r.gpuDriverArchive.path == root.resolvingSymlinksInPath()
-            .appendingPathComponent("scripts/payloads/AppleParavirtGPUMetalIOGPUFamily.tar").path)
     }
 
     @Test func cacheDirsAreHomeRelative() {
@@ -70,7 +66,7 @@ struct ResourcesTests {
             let base = URL(fileURLWithPath: "/x")
             let r = VPhoneResources(base: base)
             let rooted = [
-                r.scriptsDir, r.gpuDriverArchive,
+                r.scriptsDir,
                 r.vphoned,
             ]
             for url in rooted {

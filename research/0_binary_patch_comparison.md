@@ -437,7 +437,7 @@ and nothing resolves a `python3` at runtime.
 | #   | Component                  | Description                                                                                                        | Regular | Dev | JB  |
 | --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ | :-----: | :-: | :-: |
 | 1   | Cryptex SystemOS + AppOS   | Decrypt AEA + mount + copy to device                                                                               |    Y    |  Y  |  Y  |
-| 2   | GPU driver                 | AppleParavirtGPUMetalIOGPUFamily bundle                                                                            |    Y    |  Y  |  Y  |
+| 2   | GPU driver                 | AppleParavirtGPUMetalIOGPUFamily bundle, extracted from the selected PCC OS image during `fw prepare`              |    Y    |  Y  |  Y  |
 | 3   | `iosbinpack64`             | Jailbreak tools (base set)                                                                                         |    Y    |  Y  |  Y  |
 | 4   | `iosbinpack64` dev overlay | Replace `rpcserver_ios` with dev build                                                                             |    -    |  Y  |  -  |
 | 5   | `vphoned`                  | vsock HID/control daemon (built + signed)                                                                          |    Y    |  Y  |  Y  |
@@ -1208,20 +1208,32 @@ recorded here rather than only in the commit.
 
 **`tar` → `VPhoneArchive`.** The last three `runProcess("/usr/bin/tar", …)` calls in
 the package are gone: `cfw_input.tar.zst` into the scratch directory, `iosbinpack64.tar`
-and `AppleParavirtGPUMetalIOGPUFamily.tar` onto the mounted volume. All three now use
-`VPhoneArchiveExtractor` with the `.ontoGuestVolume` preset, so `--zstd` is no longer
+and the former `AppleParavirtGPUMetalIOGPUFamily.tar` onto the mounted volume. Those three used
+`VPhoneArchiveExtractor` with the `.ontoGuestVolume` preset, so `--zstd` was no longer
 passed (the filter is detected, and libzstd is static in the xcframework).
 
 - **Behaviour change:** `.ontoGuestVolume` includes `--no-overwrite-dir`, which the two
   guest-volume `tar` calls did *not* pass — they passed only `--preserve-permissions`.
-  Directories that iosbinpack64 and the GPU bundle share with the system volume now keep
+  Directories that iosbinpack64 and the GPU bundle shared with the system volume kept
   their own mode, owner and mtime instead of taking the archive's. That is what
-  `cfw_install.sh` has always passed GNU tar (`--preserve-permissions --no-overwrite-dir`);
-  the Swift port dropped the second flag, and this restores shell parity.
+  `cfw_install.sh` had always passed GNU tar (`--preserve-permissions --no-overwrite-dir`);
+  the Swift port dropped the second flag, and that restored shell parity at the time.
 - Ownership and exact modes are unchanged: the step runs as root, where `/usr/bin/tar -xf`
   already implied `-p` and restored numeric owners. That is why the scratch-directory
-  extraction also uses `.ontoGuestVolume` despite the name — the preset is what bsdtar
-  did as root, and several of those members are copied onto the volume verbatim.
+  extraction also used `.ontoGuestVolume` despite the name — the preset is what bsdtar
+  did as root, and several of those members were copied onto the volume verbatim.
+
+## GPU bundle now comes from the selected PCC image (2026-09-24)
+
+The application no longer ships `AppleParavirtGPUMetalIOGPUFamily.tar`. During
+`fw prepare`, the PCC `BuildManifest.plist` selects the vphone600 OS image. The
+preparer decrypts and read-only mounts that image, copies its complete
+`AppleParavirtGPUMetalIOGPUFamily.bundle` into the VM restore tree, then removes
+the temporary decrypted image. Both the JB host-mount installer and the legacy
+filesystem merge copy this staged bundle into the guest. The executable,
+compiler-plugin dylib, plist, and signature resources therefore come from the
+same PCC release as the selected kernel; no separately downloaded GPU binary is
+required. This is a payload-source change, not a new binary patch.
 
 **`find -name '._*' -delete` → `deleteAppleDoubleFiles`,** and this one was nearly a
 silent regression worth writing down. On a volume with native extended attributes,
