@@ -64,7 +64,7 @@ struct VPhoneKeychainBrowserView: View {
                 Text(
                     item.account.isEmpty
                         ? (item.protectedMetadata ? VPhoneLocalization.text("Protected") : "-")
-                        : item.account
+                        : item.account,
                 )
                 .lineLimit(1)
                 .help(item.account)
@@ -75,7 +75,7 @@ struct VPhoneKeychainBrowserView: View {
                 Text(
                     item.service.isEmpty
                         ? (item.protectedMetadata ? VPhoneLocalization.text("Protected") : "-")
-                        : item.service
+                        : item.service,
                 )
                 .lineLimit(1)
                 .help(item.service)

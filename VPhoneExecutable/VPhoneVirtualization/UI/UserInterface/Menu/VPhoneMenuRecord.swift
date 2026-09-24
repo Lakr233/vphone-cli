@@ -64,10 +64,12 @@ extension VPhoneMenuController {
                 let image = try await control.screenshotJPEG()
                 try recorder.copyScreenshotToPasteboard(jpegData: image)
                 showCaptureAlert(
-                    title: "Screenshot", message: "Screenshot copied to the Mac clipboard.", style: .informational)
+                    title: "Screenshot", message: "Screenshot copied to the Mac clipboard.", style: .informational,
+                )
             } catch {
                 showCaptureAlert(
-                    title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning)
+                    title: "Screenshot", message: "Unable to copy the screenshot. Try again.", style: .warning,
+                )
             }
         }
     }
@@ -89,10 +91,12 @@ extension VPhoneMenuController {
                 let url = try recorder.saveScreenshot(jpegData: image)
                 showCaptureAlert(
                     title: "Screenshot", message: VPhoneLocalization.format("Saved to %@", url.path),
-                    style: .informational)
+                    style: .informational,
+                )
             } catch {
                 showCaptureAlert(
-                    title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning)
+                    title: "Screenshot", message: "Unable to save the screenshot. Try again.", style: .warning,
+                )
             }
         }
     }

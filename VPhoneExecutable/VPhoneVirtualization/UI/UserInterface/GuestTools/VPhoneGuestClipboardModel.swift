@@ -10,8 +10,8 @@ final class VPhoneGuestClipboardModel {
 
         var title: String {
             switch self {
-            case .reading: "Reading guest clipboard…"
-            case .sending: "Sending text to guest…"
+            case .reading: String(localized: "Reading guest clipboard…", bundle: VPhoneLocalization.bundle)
+            case .sending: String(localized: "Sending text to guest…", bundle: VPhoneLocalization.bundle)
             }
         }
     }
@@ -26,10 +26,21 @@ final class VPhoneGuestClipboardModel {
     private(set) var readDate: Date?
     var composeText = ""
 
-    var isBusy: Bool { activity != nil }
-    var canCopyText: Bool { clipboard?.text != nil }
-    var canCopyImage: Bool { clipboard?.imageData != nil }
-    var canSend: Bool { !composeText.isEmpty && !isBusy }
+    var isBusy: Bool {
+        activity != nil
+    }
+
+    var canCopyText: Bool {
+        clipboard?.text != nil
+    }
+
+    var canCopyImage: Bool {
+        clipboard?.imageData != nil
+    }
+
+    var canSend: Bool {
+        !composeText.isEmpty && !isBusy
+    }
 
     init(control: VPhoneGuestControl) {
         self.control = control
@@ -46,7 +57,7 @@ final class VPhoneGuestClipboardModel {
             readDate = .now
             status = nil
         } catch {
-            fail("Unable to read the guest clipboard. Check the connection, then try again.")
+            fail(String(localized: "Unable to read the guest clipboard. Check the connection, then try again.", bundle: VPhoneLocalization.bundle))
         }
     }
 
@@ -54,14 +65,14 @@ final class VPhoneGuestClipboardModel {
         guard let text = clipboard?.text else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        succeed("Copied guest text to the Mac clipboard.")
+        succeed(String(localized: "Copied guest text to the Mac clipboard.", bundle: VPhoneLocalization.bundle))
     }
 
     func copyImageToMac() {
         guard let data = clipboard?.imageData, let image = NSImage(data: data) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
-        succeed("Copied guest image to the Mac clipboard.")
+        succeed(String(localized: "Copied guest image to the Mac clipboard.", bundle: VPhoneLocalization.bundle))
     }
 
     // MARK: - Write
@@ -74,19 +85,23 @@ final class VPhoneGuestClipboardModel {
             try await control.clipboardSet(text: text)
         } catch {
             activity = nil
-            fail("Unable to set the guest clipboard. Check the connection, then try again.")
+            fail(String(localized: "Unable to set the guest clipboard. Check the connection, then try again.", bundle: VPhoneLocalization.bundle))
             return
         }
         activity = nil
 
         // Read it back so Read mode shows what the guest now holds.
         await refresh()
-        succeed("Sent \(text.count == 1 ? "1 character" : "\(text.count) characters") to the guest clipboard.")
+        succeed(
+            text.count == 1
+                ? String(localized: "Sent 1 character to the guest clipboard.", bundle: VPhoneLocalization.bundle)
+                : String(localized: "Sent \(text.count) characters to the guest clipboard.", bundle: VPhoneLocalization.bundle),
+        )
     }
 
     func pasteFromMac() {
         guard let text = NSPasteboard.general.string(forType: .string) else {
-            fail("The Mac clipboard has no text.")
+            fail(String(localized: "The Mac clipboard has no text.", bundle: VPhoneLocalization.bundle))
             return
         }
         composeText = text

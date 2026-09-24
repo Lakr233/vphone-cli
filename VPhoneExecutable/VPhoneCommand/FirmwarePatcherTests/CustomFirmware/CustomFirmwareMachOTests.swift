@@ -30,10 +30,9 @@
 // `VPHONE_MACHO_FIXTURE_OPTIONAL=1`, which turns the failure back into a skip.
 
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
-
-@testable import FirmwarePatcher
 
 // MARK: - Fixtures
 
@@ -41,11 +40,11 @@ enum MachOFixture {
     /// The package root, derived from this file rather than the working
     /// directory, which `swift test` does not promise.
     static let repositoryRoot = URL(filePath: #filePath)
-        .deletingLastPathComponent()  // CustomFirmware
-        .deletingLastPathComponent()  // FirmwarePatcherTests
-        .deletingLastPathComponent()  // VPhoneCommand
-        .deletingLastPathComponent()  // VPhoneExecutable
-        .deletingLastPathComponent()  // <root>
+        .deletingLastPathComponent() // CustomFirmware
+        .deletingLastPathComponent() // FirmwarePatcherTests
+        .deletingLastPathComponent() // VPhoneCommand
+        .deletingLastPathComponent() // VPhoneExecutable
+        .deletingLastPathComponent() // <root>
 
     /// The tree of untouched Mach-Os, overridable the way every other CFW
     /// parity suite in this directory overrides it. Not in the repo — `ipsws/`
@@ -85,11 +84,11 @@ enum MachOFixture {
     }
 
     static let missing: Comment = """
-        the real 24A435 seputil is required — put it at \
-        ipsws/ref_extract/macho_pristine/, point VPHONE_MACHO_PRISTINE at that \
-        directory, or set VPHONE_MACHO_FIXTURE_OPTIONAL=1 to skip these tests \
-        instead of failing
-        """
+    the real 24A435 seputil is required — put it at \
+    ipsws/ref_extract/macho_pristine/, point VPHONE_MACHO_PRISTINE at that \
+    directory, or set VPHONE_MACHO_FIXTURE_OPTIONAL=1 to skip these tests \
+    instead of failing
+    """
 
     static func exists(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
@@ -149,12 +148,12 @@ enum MachOFixture {
         var results: [(UInt32, String)] = []
         let ncmds = data.loadLE(UInt32.self, at: 16)
         var offset = 32
-        for _ in 0..<ncmds {
+        for _ in 0 ..< ncmds {
             let cmd = data.loadLE(UInt32.self, at: offset)
             let cmdsize = Int(data.loadLE(UInt32.self, at: offset + 4))
-            if cmd == 0x0C || cmd == 0x8000_0018 {  // LC_LOAD_DYLIB / LC_LOAD_WEAK_DYLIB
+            if cmd == 0x0C || cmd == 0x8000_0018 { // LC_LOAD_DYLIB / LC_LOAD_WEAK_DYLIB
                 let nameOffset = offset + Int(data.loadLE(UInt32.self, at: offset + 8))
-                let bytes = data[nameOffset..<offset + cmdsize].prefix { $0 != 0 }
+                let bytes = data[nameOffset ..< offset + cmdsize].prefix { $0 != 0 }
                 results.append((cmd, String(decoding: bytes, as: UTF8.self)))
             }
             offset += cmdsize
@@ -204,13 +203,13 @@ struct CustomFirmwareMachOCodeSignatureTests {
         let shortHash = Data(SHA256.hash(data: patched[range]))
         #expect(record.after == shortHash)
         #expect(
-            patched[record.hashFileOffset..<record.hashFileOffset + directory.hashSize] == shortHash,
+            patched[record.hashFileOffset ..< record.hashFileOffset + directory.hashSize] == shortHash,
             "the slot on disk must hold the hash of the short range",
         )
 
         // And state the failure mode directly: a full-page hash is a different
         // value, so this is not an assertion that happens to pass either way.
-        let fullPage = record.pageStart..<record.pageStart + directory.pageSize
+        let fullPage = record.pageStart ..< record.pageStart + directory.pageSize
         if patched.count >= fullPage.upperBound {
             #expect(Data(SHA256.hash(data: patched[fullPage])) != shortHash)
         }
@@ -233,8 +232,8 @@ struct CustomFirmwareMachOCodeSignatureTests {
             codeSlotCount: 2,
             codeLimit: 8192,
         )
-        #expect(aligned.slotRange(0) == 0..<4096)
-        #expect(aligned.slotRange(1) == 4096..<8192)
+        #expect(aligned.slotRange(0) == 0 ..< 4096)
+        #expect(aligned.slotRange(1) == 4096 ..< 8192)
         #expect(aligned.slotRange(2) == nil)
 
         let short = CustomFirmwareCodeDirectory(
@@ -249,15 +248,17 @@ struct CustomFirmwareMachOCodeSignatureTests {
             codeSlotCount: 2,
             codeLimit: 5000,
         )
-        #expect(short.slotRange(0) == 0..<4096)
-        #expect(short.slotRange(1) == 4096..<5000)
+        #expect(short.slotRange(0) == 0 ..< 4096)
+        #expect(short.slotRange(1) == 4096 ..< 5000)
     }
 
     @Test func `offsets past code limit belong to no slot`() {
         #expect(
-            CustomFirmwareMachOCodeSignature.pageBounds(fileOffset: 4095, pageSize: 4096, codeLimit: 5000)?.index == 0)
+            CustomFirmwareMachOCodeSignature.pageBounds(fileOffset: 4095, pageSize: 4096, codeLimit: 5000)?.index == 0,
+        )
         #expect(
-            CustomFirmwareMachOCodeSignature.pageBounds(fileOffset: 4999, pageSize: 4096, codeLimit: 5000)?.end == 5000)
+            CustomFirmwareMachOCodeSignature.pageBounds(fileOffset: 4999, pageSize: 4096, codeLimit: 5000)?.end == 5000,
+        )
         #expect(CustomFirmwareMachOCodeSignature.pageBounds(fileOffset: 5000, pageSize: 4096, codeLimit: 5000) == nil)
     }
 
@@ -352,14 +353,15 @@ struct CustomFirmwareMachOCodeSignatureTests {
         let legacy = try #require(directories.first { $0.hashType == CustomFirmwareMachOCodeSignature.hashTypeSHA1 })
         let modern = try #require(directories.first { $0.hashType == CustomFirmwareMachOCodeSignature.hashTypeSHA256 })
         #expect(
-            CustomFirmwareMachOCodeSignature.unsupportedCodeDirectories(in: before).map(\.offset) == [legacy.offset])
+            CustomFirmwareMachOCodeSignature.unsupportedCodeDirectories(in: before).map(\.offset) == [legacy.offset],
+        )
 
         try MachOFixture.flipByte(at: 16, in: file)
         let records = try CustomFirmwareMachOCodeSignature.reattest(fileAt: file, modifiedOffsets: [16])
         #expect(records.allSatisfy { $0.codeDirectoryOffset == modern.offset })
 
         let after = try Data(contentsOf: file)
-        let legacyRange = legacy.offset..<legacy.offset + legacy.length
+        let legacyRange = legacy.offset ..< legacy.offset + legacy.length
         #expect(after[legacyRange] == before[legacyRange], "the SHA-1 CD must be untouched")
     }
 
@@ -504,7 +506,8 @@ struct CustomFirmwareInjectDylibTests {
                 dylibPath: "/b",
                 into: file,
                 policy: .keepAndReattest,
-            ).first)
+            ).first,
+        )
         #expect(!injection.removedCodeSignature)
         #expect(injection.rehashedSlots.map(\.pageIndex) == [0])
 
@@ -515,7 +518,7 @@ struct CustomFirmwareInjectDylibTests {
         let directory = try #require(CustomFirmwareMachOCodeSignature.codeDirectories(in: after)?.first)
         let range = try #require(directory.slotRange(0))
         let slot = directory.slotHashOffset(0)
-        #expect(after[slot..<slot + directory.hashSize] == Data(SHA256.hash(data: after[range])))
+        #expect(after[slot ..< slot + directory.hashSize] == Data(SHA256.hash(data: after[range])))
     }
 
     /// `insert_dylib --all-yes` answers "yes" to "there is not enough empty
@@ -526,7 +529,7 @@ struct CustomFirmwareInjectDylibTests {
         let file = try MachOFixture.scratchCopy("occupied")
         var data = try Data(contentsOf: file)
         let sizeofcmds = Int(data.loadLE(UInt32.self, at: 20))
-        data[32 + sizeofcmds] = 0xFF  // first byte past the load commands
+        data[32 + sizeofcmds] = 0xFF // first byte past the load commands
         try data.write(to: file)
 
         #expect(throws: PatcherError.self) {
@@ -568,14 +571,16 @@ struct CustomFirmwareInjectDylibTests {
             [
                 "-fobjc-arc", "-framework", "Foundation", "-Wl,-headerpad,0x4000",
                 fixtures.appending(path: "hello.m").path, "-o", executable.path,
-            ])
+            ],
+        )
         try #require(buildExecutable.status == 0, "hello fixture: \(buildExecutable.output)")
         let buildDylib = try MachOFixture.run(
             clang,
             [
                 "-dynamiclib", "-fobjc-arc", "-framework", "Foundation",
                 fixtures.appending(path: "swizzle.m").path, "-o", dylib.path,
-            ])
+            ],
+        )
         try #require(buildDylib.status == 0, "swizzle fixture: \(buildDylib.output)")
 
         let before = try MachOFixture.run(executable, [])
@@ -594,13 +599,15 @@ struct CustomFirmwareInjectDylibTests {
         #expect(
             try MachOFixture.dylibLoadCommands(in: Data(contentsOf: executable)).contains {
                 $0.command == 0x8000_0018 && $0.path == dylib.path
-            })
+            },
+        )
 
         let sign = try MachOFixture.run(
             URL(filePath: "/usr/bin/codesign"),
             [
                 "--force", "--sign", "-", "--timestamp=none", executable.path,
-            ])
+            ],
+        )
         try #require(sign.status == 0, "signing injected hello: \(sign.output)")
         let after = try MachOFixture.run(executable, [])
         try #require(after.status == 0, "injected hello failed: \(after.output)")

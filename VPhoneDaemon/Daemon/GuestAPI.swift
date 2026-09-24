@@ -13,8 +13,8 @@ enum GuestAPIError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .invalidRequest(let message), .operationFailed(let message): message
-        case .unsupportedMethod(let method): "Unknown method: \(method)"
+        case let .invalidRequest(message), let .operationFailed(message): message
+        case let .unsupportedMethod(method): "Unknown method: \(method)"
         }
     }
 }
@@ -27,10 +27,11 @@ enum GuestAPI {
     /// as powerd may wait during boot; it must not hold up HID or file requests.
     static let queue = DispatchQueue(
         label: "vphoned.api.operations", qos: .userInitiated,
-        attributes: .concurrent)
+        attributes: .concurrent,
+    )
     static let binaryHash: String = {
         guard let url = Bundle.main.executableURL,
-            let data = try? Data(contentsOf: url, options: .mappedIfSafe)
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe)
         else { return "unknown" }
         return sha256Hex(data)
     }()
@@ -86,7 +87,8 @@ enum GuestAPI {
                 uniqueKeysWithValues: running.compactMap { app -> (String, Int)? in
                     guard let id = app["bundle_id"] as? String, let pid = app["pid"] as? Int else { return nil }
                     return (id, pid)
-                })
+                },
+            )
             return [
                 "apps": apps.compactMap { app -> [String: Any]? in
                     var info = app
@@ -95,8 +97,7 @@ enum GuestAPI {
                     let path = app["bundle_path"] as? String ?? ""
                     let type: String =
                         if let registeredType = (app["type"] as? String)?.lowercased(),
-                            registeredType == "system" || registeredType == "user"
-                        {
+                        registeredType == "system" || registeredType == "user" {
                             registeredType
                         } else {
                             path.hasPrefix("/System/") || id.hasPrefix("com.apple.") ? "system" : "user"
@@ -116,7 +117,7 @@ enum GuestAPI {
                     info["path"] = path
                     info["version"] = app["version"] ?? ""
                     return info
-                }
+                },
             ]
         case "apps.search":
             return try searchApps(string(params, "query"))
@@ -137,7 +138,7 @@ enum GuestAPI {
                     else { throw IcliError.failed(message) }
                     let front = frontmostApp()
                     if front["verified"] as? Bool == true,
-                        front["bundle_id"] as? String == id
+                       front["bundle_id"] as? String == id
                     {
                         return ["pid": pid, "frontmost_verified": true]
                     }
@@ -168,8 +169,8 @@ enum GuestAPI {
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
             let name =
                 id == "com.apple.springboard"
-                ? "Home Screen"
-                : (apps.first(where: { $0["bundle_id"] as? String == id })?["name"] as? String ?? "")
+                    ? "Home Screen"
+                    : (apps.first(where: { $0["bundle_id"] as? String == id })?["name"] as? String ?? "")
             return [
                 "bundle_id": id,
                 "name": name,
@@ -201,7 +202,8 @@ enum GuestAPI {
             }
             return try touch(
                 phase, x: number(params, "x"), y: number(params, "y"),
-                normalized: params["normalized"] as? Bool ?? true)
+                normalized: params["normalized"] as? Bool ?? true,
+            )
         case "input.hid":
             let page = try integer(params, "page")
             let usage = try integer(params, "usage")
@@ -249,7 +251,8 @@ enum GuestAPI {
         case "files.remove":
             return try removePath(
                 string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
-                force: true)
+                force: true,
+            )
         case "files.rename":
             return try movePath(string(params, "from"), to: string(params, "to"))
         case "settings.get":
@@ -258,9 +261,9 @@ enum GuestAPI {
             let rawValue = params["value"] ?? NSNull()
             let type =
                 params["type"] as? String
-                ?? (rawValue is Bool
-                    ? "bool"
-                    : rawValue is NSNumber
+                    ?? (rawValue is Bool
+                        ? "bool"
+                        : rawValue is NSNumber
                         ? "float"
                         : rawValue is String ? "string" : "json")
             let text: String =
@@ -339,12 +342,12 @@ enum GuestAPI {
             var target = stat()
             let targetsDirectory =
                 isLink && stat(fullPath, &target) == 0
-                && target.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
+                    && target.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
             var enriched = entry
             enriched["type"] = isLink ? "link" : kind == mode_t(S_IFDIR) ? "dir" : "file"
             enriched["link_target_dir"] = targetsDirectory
             if kind == mode_t(S_IFDIR) || targetsDirectory,
-                let canonicalPath = fullPath.withCString({ realpath($0, nil) })
+               let canonicalPath = fullPath.withCString({ realpath($0, nil) })
             {
                 enriched["resolved_path"] = String(cString: canonicalPath)
                 free(canonicalPath)

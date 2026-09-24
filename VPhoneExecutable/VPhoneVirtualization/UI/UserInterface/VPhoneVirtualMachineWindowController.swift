@@ -9,6 +9,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
     private weak var virtualMachineView: VPhoneVirtualMachineView?
     private(set) var touchIDMonitor: VPhoneTouchIDMonitor?
     private var ecid: String?
+    private var menuKeyMonitor: Any?
 
     private nonisolated static let homeItemID = NSToolbarItem.Identifier("home")
 
@@ -75,6 +76,17 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
         controller.showWindow(nil)
         windowController = controller
 
+        // capturesSystemKeys lets the VM view take every shortcut before the menu
+        // bar sees it. Offer each key press to the menu first; the guest gets
+        // only what no enabled menu item handles.
+        menuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak window] event in
+            let handledByMenu = MainActor.assumeIsolated {
+                guard let window, event.window === window else { return false }
+                return NSApp.mainMenu?.performKeyEquivalent(with: event) == true
+            }
+            return handledByMenu ? nil : event
+        }
+
         keySender.window = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -90,7 +102,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
             Task { @MainActor in
                 guard let self, let window, let control = self.control else { return }
                 window.title = VPhoneLocalization.text(
-                    control.isConnected ? "vphone — Connected" : "vphone — Disconnected"
+                    control.isConnected ? "vphone — Connected" : "vphone — Disconnected",
                 )
                 window.subtitle = self.makeSubtitle(ip: control.isConnected ? control.guestIPAddress : nil)
             }
@@ -99,7 +111,7 @@ class VPhoneVirtualMachineWindowController: NSObject, NSToolbarDelegate {
 
     private func makeSubtitle(ip: String?) -> String {
         switch (ecid, ip) {
-        case (let ecid?, let ip?): "\(ecid) — \(ip)"
+        case let (ecid?, ip?): "\(ecid) — \(ip)"
         case (let ecid?, nil): ecid
         case (nil, let ip?): ip
         case (nil, nil): ""

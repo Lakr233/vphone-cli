@@ -58,7 +58,8 @@ extension VPhoneMenuController {
         guard control.isConnected else {
             VPhoneAlert.present(
                 title: "Install App Package", message: "The guest is not connected. Start a VM, then try again.",
-                style: .warning)
+                style: .warning,
+            )
             return
         }
 
@@ -93,7 +94,8 @@ extension VPhoneMenuController {
                 VPhoneAlert.present(
                     title: "Install App Package",
                     message: "Unable to install the app package. Check the file and guest connection, then try again.",
-                    style: .warning)
+                    style: .warning,
+                )
             }
         }
     }
@@ -122,12 +124,14 @@ extension VPhoneMenuController {
             do {
                 try await control.openURL(url)
                 VPhoneAlert.present(
-                    title: "Open URL", message: VPhoneLocalization.format("Opened %@", url), style: .informational)
+                    title: "Open URL", message: VPhoneLocalization.format("Opened %@", url), style: .informational,
+                )
             } catch {
                 VPhoneAlert.present(
                     title: "Open URL",
                     message: "Unable to open the URL on the guest. Check the URL and guest connection, then try again.",
-                    style: .warning)
+                    style: .warning,
+                )
             }
         }
     }

@@ -73,7 +73,7 @@ struct VPhoneAppBrowserView: View {
                 Text(
                     app.pid > 0
                         ? VPhoneLocalization.format("Running · PID %@", String(app.pid))
-                        : VPhoneLocalization.text("Not running")
+                        : VPhoneLocalization.text("Not running"),
                 )
                 .foregroundStyle(app.pid > 0 ? .primary : .secondary)
             }
@@ -103,7 +103,8 @@ struct VPhoneAppBrowserView: View {
                         VPhoneLocalization.text(
                             model.searchText.isEmpty
                                 ? "No apps are available for this filter."
-                                : "No apps match your search."),
+                                : "No apps match your search.",
+                        ),
                     ),
                 )
             }
@@ -119,7 +120,7 @@ struct VPhoneAppBrowserView: View {
             Text(
                 model.filteredApps.count == 1
                     ? VPhoneLocalization.text("1 app")
-                    : VPhoneLocalization.format("%@ apps", String(model.filteredApps.count))
+                    : VPhoneLocalization.format("%@ apps", String(model.filteredApps.count)),
             )
             .font(.system(size: 11, design: .monospaced))
             .foregroundStyle(.secondary)

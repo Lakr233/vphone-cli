@@ -16,9 +16,9 @@ final class VPhoneGuestControl {
         var description: String {
             switch self {
             case .notConnected: "not connected to vphoned"
-            case .unsupportedCapability(let value): "guest does not support capability: \(value)"
-            case .protocolError(let value): "API protocol error: \(value)"
-            case .guestError(let value): value
+            case let .unsupportedCapability(value): "guest does not support capability: \(value)"
+            case let .protocolError(value): "API protocol error: \(value)"
+            case let .guestError(value): value
             }
         }
     }
@@ -46,7 +46,7 @@ final class VPhoneGuestControl {
 
     var useGuestTouchInjection: Bool {
         guard isConnected, guestCapabilities.contains("touch"),
-            let major = guestIOSVersion.flatMap({ Int($0.split(separator: ".").first ?? "") })
+              let major = guestIOSVersion.flatMap({ Int($0.split(separator: ".").first ?? "") })
         else { return false }
         return major < 26
     }
@@ -77,13 +77,13 @@ final class VPhoneGuestControl {
         do {
             let response = try await http(method: "GET", path: "/v1/health")
             guard response.status == 200,
-                let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
-                info["api_version"] as? Int == 1
+                  let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
+                  info["api_version"] as? Int == 1
             else {
                 throw ControlError.protocolError("incompatible guest API")
             }
             if let binary = guestBinaryURL,
-                let data = try? Data(contentsOf: binary, options: .mappedIfSafe)
+               let data = try? Data(contentsOf: binary, options: .mappedIfSafe)
             {
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
                 if hash != info["binary_hash"] as? String {
@@ -178,9 +178,9 @@ final class VPhoneGuestControl {
     func screenshotJPEG() async throws -> Data {
         let result = try await call("screen.screenshot")
         guard result["mime_type"] as? String == "image/jpeg",
-            let encoded = result["data"] as? String,
-            let data = Data(base64Encoded: encoded),
-            data.starts(with: [0xFF, 0xD8])
+              let encoded = result["data"] as? String,
+              let data = Data(base64Encoded: encoded),
+              data.starts(with: [0xFF, 0xD8])
         else {
             throw ControlError.protocolError("invalid guest screenshot")
         }
@@ -200,7 +200,7 @@ final class VPhoneGuestControl {
             var info = try await call("clipboard.get")
             let image =
                 (info["has_image"] as? Bool == true)
-                ? try await http(method: "GET", path: "/v1/clipboard/image").body : nil
+                    ? try await http(method: "GET", path: "/v1/clipboard/image").body : nil
             info["ok"] = true
             return (info, image)
         }
@@ -450,10 +450,12 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         guard
             setsockopt(
                 fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-                socklen_t(MemoryLayout<timeval>.size)) == 0,
+                socklen_t(MemoryLayout<timeval>.size),
+            ) == 0,
             setsockopt(
                 fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-                socklen_t(MemoryLayout<timeval>.size)) == 0
+                socklen_t(MemoryLayout<timeval>.size),
+            ) == 0
         else {
             throw VPhoneGuestControl.ControlError.notConnected
         }
@@ -479,8 +481,8 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             throw VPhoneGuestControl.ControlError.protocolError("invalid HTTP status")
         }
         guard let lengthLine = lines.first(where: { $0.lowercased().hasPrefix("content-length:") }),
-            let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
-            length >= 0, length <= 2_147_483_647
+              let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
+              length >= 0, length <= 2_147_483_647
         else {
             throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
         }

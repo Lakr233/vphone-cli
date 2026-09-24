@@ -89,13 +89,14 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
 
 struct VPhoneLibraryOption: ParsableArguments {
     @Option(
-        name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/machines or $VPHONE_LIBRARY_ROOT)")
+        name: [.customShort("l"), .long], help: "VM library root (default: ~/.vphone/machines or $VPHONE_LIBRARY_ROOT)",
+    )
     var libraryRoot: String?
 
     var library: VPhoneLibrary {
         let root =
             libraryRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? VPhoneLibrary.defaultRoot()
+                ?? VPhoneLibrary.defaultRoot()
         return VPhoneLibrary(root: root)
     }
 }
@@ -228,7 +229,8 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         let m = updated.manifest
         print(
             "updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
-                + "net=\(describeNetwork(m.networkConfig))")
+                + "net=\(describeNetwork(m.networkConfig))",
+        )
     }
 
     private static func parseMode(_ s: String)

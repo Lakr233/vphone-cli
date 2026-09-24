@@ -117,10 +117,10 @@ extension VPhoneMenuController {
         for source in sources {
             guard
                 let info = IOPSGetPowerSourceDescription(snapshot, source)?
-                    .takeUnretainedValue() as? [String: Any]
+                .takeUnretainedValue() as? [String: Any]
             else { continue }
             guard let type = info[kIOPSTypeKey as String] as? String,
-                type == kIOPSInternalBatteryType
+                  type == kIOPSInternalBatteryType
             else { continue }
             let capacity = info[kIOPSCurrentCapacityKey as String] as? Int ?? 100
             let state = info[kIOPSPowerSourceStateKey as String] as? String ?? kIOPSACPowerValue
@@ -138,7 +138,7 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.lowPowerMode(enabled: enabled)
-                syncBatteryFromHost()  // refresh status label with updated LPM state
+                syncBatteryFromHost() // refresh status label with updated LPM state
                 print("[battery] sync LPM: \(enabled)")
             } catch {
                 print("[battery] sync LPM failed: \(error)")
@@ -160,7 +160,8 @@ extension VPhoneMenuController {
                         .takeUnretainedValue()
                         .syncBatteryFromHost()
                 }
-            }, rawPtr)
+            }, rawPtr,
+        )
         guard let runLoopSource = source?.takeRetainedValue() else { return }
         powerSourceRunLoopSource = runLoopSource
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
@@ -203,9 +204,9 @@ extension VPhoneMenuController {
         let connLabel = VPhoneLocalization.text(connectivity == 1 ? "charging" : "not charging")
         let lpmLabel =
             ProcessInfo.processInfo.isLowPowerModeEnabled
-            ? VPhoneLocalization.text(", low power") : ""
+                ? VPhoneLocalization.text(", low power") : ""
         batterySyncStatusItem?.title = VPhoneLocalization.format(
-            "Status: %@%% (%@)", String(Int(charge)), connLabel + lpmLabel
+            "Status: %@%% (%@)", String(Int(charge)), connLabel + lpmLabel,
         )
     }
 

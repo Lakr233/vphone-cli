@@ -90,7 +90,7 @@ struct VPhoneGuestClipboardView: View {
                     )
                     VPhoneGuestToolsField(
                         title: "Types",
-                        value: clipboard.types.isEmpty ? "None" : clipboard.types.joined(separator: ", "),
+                        value: clipboard.types.isEmpty ? String(localized: "None", bundle: VPhoneLocalization.bundle) : clipboard.types.joined(separator: ", "),
                     )
                 }
                 content(clipboard)
@@ -161,9 +161,13 @@ struct VPhoneGuestClipboardView: View {
                 .focused($composeFocused)
                 .accessibilityLabel("Text to send to the guest clipboard")
 
-            Text(model.composeText.count == 1 ? "1 character" : "\(model.composeText.count) characters")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
+            Text(
+                model.composeText.count == 1
+                    ? String(localized: "1 character", bundle: VPhoneLocalization.bundle)
+                    : String(localized: "\(model.composeText.count) characters", bundle: VPhoneLocalization.bundle),
+            )
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
         }
     }
 

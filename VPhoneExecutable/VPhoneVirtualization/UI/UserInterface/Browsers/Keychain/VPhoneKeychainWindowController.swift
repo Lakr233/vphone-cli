@@ -131,7 +131,8 @@ class VPhoneKeychainWindowController: NSObject, NSToolbarDelegate {
         let item = NSMenuToolbarItem(itemIdentifier: Self.actionsItemID)
         item.label = VPhoneLocalization.text("Actions")
         item.image = NSImage(
-            systemSymbolName: "ellipsis.circle", accessibilityDescription: VPhoneLocalization.text("Actions"))
+            systemSymbolName: "ellipsis.circle", accessibilityDescription: VPhoneLocalization.text("Actions"),
+        )
 
         let menu = NSMenu(title: VPhoneLocalization.text("Keychain Actions"))
         menu.addItem(actionItem("Refresh", action: #selector(refresh)))

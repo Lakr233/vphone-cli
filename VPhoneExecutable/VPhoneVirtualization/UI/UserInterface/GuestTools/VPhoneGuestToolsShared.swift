@@ -7,12 +7,14 @@ enum VPhoneGuestToolMode: String, CaseIterable, Identifiable {
     case read
     case write
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var title: String {
         switch self {
-        case .read: "Read"
-        case .write: "Write"
+        case .read: String(localized: "Read", bundle: VPhoneLocalization.bundle)
+        case .write: String(localized: "Write", bundle: VPhoneLocalization.bundle)
         }
     }
 
@@ -58,7 +60,7 @@ struct VPhoneGuestToolStatusBar: View {
             Circle()
                 .fill(isConnected ? Color.green : Color.orange)
                 .frame(width: 8, height: 8)
-                .accessibilityLabel(isConnected ? "Guest connected" : "Guest disconnected")
+                .accessibilityLabel(isConnected ? String(localized: "Guest connected", bundle: VPhoneLocalization.bundle) : String(localized: "Guest disconnected", bundle: VPhoneLocalization.bundle))
 
             if let activity {
                 ProgressView()
@@ -72,7 +74,7 @@ struct VPhoneGuestToolStatusBar: View {
                     .foregroundStyle(status.isError ? .primary : .secondary)
                     .textSelection(.enabled)
             } else {
-                Text(isConnected ? "Connected" : "Guest not connected")
+                Text(isConnected ? String(localized: "Connected", bundle: VPhoneLocalization.bundle) : String(localized: "Guest not connected", bundle: VPhoneLocalization.bundle))
                     .foregroundStyle(.secondary)
             }
 
@@ -120,12 +122,12 @@ extension View {
 
 /// A small caption label above a value.
 struct VPhoneGuestToolsField: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(title, bundle: VPhoneLocalization.bundle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)

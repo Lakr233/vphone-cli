@@ -11,7 +11,7 @@ enum VPhoneHostPreflight {
             URL(fileURLWithPath: "/usr/sbin/sysctl"), ["-n", "kern.hv_vmm_present"],
         )
         if probe.succeeded,
-            probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
+           probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
         {
             throw ValidationError("Nested virtualization is unavailable for this VM")
         }

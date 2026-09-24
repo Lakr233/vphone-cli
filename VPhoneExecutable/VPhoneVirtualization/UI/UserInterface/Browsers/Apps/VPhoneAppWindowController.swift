@@ -132,7 +132,8 @@ class VPhoneAppWindowController: NSObject, NSToolbarDelegate {
         item.label = VPhoneLocalization.text("Refresh")
         item.toolTip = VPhoneLocalization.text("Refresh app list")
         item.image = NSImage(
-            systemSymbolName: "arrow.clockwise", accessibilityDescription: VPhoneLocalization.text("Refresh"))
+            systemSymbolName: "arrow.clockwise", accessibilityDescription: VPhoneLocalization.text("Refresh"),
+        )
         item.target = self
         item.action = #selector(refresh)
         return item

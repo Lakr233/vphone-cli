@@ -48,7 +48,7 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
         if valueEncoding == "base64" {
             return VPhoneLocalization.format(
                 "[%@ binary]",
-                ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file)
+                ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file),
             )
         }
         return value

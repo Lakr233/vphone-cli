@@ -10,8 +10,8 @@ final class VPhoneGuestPreferencesModel {
 
         var title: String {
             switch self {
-            case .reading: "Reading preference…"
-            case .writing: "Writing preference…"
+            case .reading: String(localized: "Reading preference…", bundle: VPhoneLocalization.bundle)
+            case .writing: String(localized: "Writing preference…", bundle: VPhoneLocalization.bundle)
             }
         }
     }
@@ -27,9 +27,17 @@ final class VPhoneGuestPreferencesModel {
         case outline
         case json
 
-        var id: Self { self }
-        var title: String { self == .outline ? "Outline" : "JSON" }
-        var symbol: String { self == .outline ? "list.bullet.indent" : "curlybraces" }
+        var id: Self {
+            self
+        }
+
+        var title: String {
+            self == .outline ? String(localized: "Outline", bundle: VPhoneLocalization.bundle) : String(localized: "JSON", bundle: VPhoneLocalization.bundle)
+        }
+
+        var symbol: String {
+            self == .outline ? "list.bullet.indent" : "curlybraces"
+        }
     }
 
     static let suggestedDomains = [
@@ -55,12 +63,29 @@ final class VPhoneGuestPreferencesModel {
     var writeType: VPhoneGuestPreferenceType = .string
     var writeValue = ""
 
-    var isBusy: Bool { activity != nil }
-    var trimmedDomain: String { domain.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var trimmedWriteKey: String { writeKey.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var canRead: Bool { !trimmedDomain.isEmpty && !isBusy }
-    var canWrite: Bool { !trimmedDomain.isEmpty && !trimmedWriteKey.isEmpty && !isBusy }
-    var canCopyResult: Bool { !(readResult?.text.isEmpty ?? true) }
+    var isBusy: Bool {
+        activity != nil
+    }
+
+    var trimmedDomain: String {
+        domain.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedWriteKey: String {
+        writeKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var canRead: Bool {
+        !trimmedDomain.isEmpty && !isBusy
+    }
+
+    var canWrite: Bool {
+        !trimmedDomain.isEmpty && !trimmedWriteKey.isEmpty && !isBusy
+    }
+
+    var canCopyResult: Bool {
+        !(readResult?.text.isEmpty ?? true)
+    }
 
     /// The last value read for the key in the write form, if any.
     var currentWriteValue: VPhoneGuestPreferenceEntry? {
@@ -85,12 +110,16 @@ final class VPhoneGuestPreferencesModel {
             let result = VPhoneGuestPreferenceReadResult(domain: domain, key: key.isEmpty ? nil : key, value: value)
             readResult = result
             if result.entries.isEmpty, result.text.isEmpty {
-                succeed(key.isEmpty ? "\(domain) has no values." : "\(key) is not set in \(domain).")
+                succeed(
+                    key.isEmpty
+                        ? String(localized: "\(domain) has no values.", bundle: VPhoneLocalization.bundle)
+                        : String(localized: "\(key) is not set in \(domain).", bundle: VPhoneLocalization.bundle),
+                )
             } else {
                 status = nil
             }
         } catch {
-            fail("Unable to read that preference. Check the domain and key, then try again.")
+            fail(String(localized: "Unable to read that preference. Check the domain and key, then try again.", bundle: VPhoneLocalization.bundle))
         }
     }
 
@@ -98,7 +127,7 @@ final class VPhoneGuestPreferencesModel {
         guard let text = readResult?.text, !text.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        succeed("Copied the result as JSON.")
+        succeed(String(localized: "Copied the result as JSON.", bundle: VPhoneLocalization.bundle))
     }
 
     /// Whether an entry is a top-level scalar the write form can round-trip.
@@ -125,7 +154,7 @@ final class VPhoneGuestPreferencesModel {
         let domain = trimmedDomain
         let key = trimmedWriteKey
         guard !domain.isEmpty, !key.isEmpty else {
-            fail("Enter a domain and key.")
+            fail(String(localized: "Enter a domain and key.", bundle: VPhoneLocalization.bundle))
             return
         }
         let value: Any
@@ -142,7 +171,7 @@ final class VPhoneGuestPreferencesModel {
             try await control.settingsSet(domain: domain, key: key, value: value, type: writeType.rawValue)
         } catch {
             activity = nil
-            fail("Unable to write that preference. Check the connection, then try again.")
+            fail(String(localized: "Unable to write that preference. Check the connection, then try again.", bundle: VPhoneLocalization.bundle))
             return
         }
         activity = nil
@@ -151,7 +180,7 @@ final class VPhoneGuestPreferencesModel {
         if readResult?.domain == domain {
             await read()
         }
-        succeed("Wrote \(key) to \(domain).")
+        succeed(String(localized: "Wrote \(key) to \(domain).", bundle: VPhoneLocalization.bundle))
     }
 
     // MARK: - Status

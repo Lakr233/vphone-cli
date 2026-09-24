@@ -121,8 +121,8 @@ class VPhoneFileBrowserModel {
 
     func quickLookSelected() {
         guard let id = selection.first,
-            let file = filteredFiles.first(where: { $0.id == id }),
-            !file.isDirectoryLike
+              let file = filteredFiles.first(where: { $0.id == id }),
+              !file.isDirectoryLike
         else { return }
 
         quickLookTask?.cancel()

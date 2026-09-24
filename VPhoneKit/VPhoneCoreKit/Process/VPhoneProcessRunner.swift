@@ -209,11 +209,11 @@ public enum VPhoneProcessRunner {
         }
 
         try process.run()
-        _ = tcsetpgrp(ttyFD, process.processIdentifier)  // hand the tty to the child
+        _ = tcsetpgrp(ttyFD, process.processIdentifier) // hand the tty to the child
         process.waitUntilExit()
         if savedFg > 0 {
             _ = tcsetpgrp(ttyFD, savedFg)
-        }  // take it back
+        } // take it back
         return process.terminationStatus
     }
 }

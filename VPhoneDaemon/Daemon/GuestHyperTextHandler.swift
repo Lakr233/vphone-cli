@@ -24,7 +24,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         switch unwrapInboundIn(data) {
-        case .head(let request):
+        case let .head(request):
             head = request
             body.removeAll(keepingCapacity: true)
             exceededLimit = false
@@ -48,7 +48,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
                     )
                 } catch { uploadError = error }
             }
-        case .body(var buffer):
+        case var .body(buffer):
             let requestPath = head?.uri.split(separator: "?", maxSplits: 1).first
             if head?.method == .PUT, requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image" {
                 upload?.append(buffer, channel: context.channel)
@@ -157,8 +157,8 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
             return 0o644
         }
         guard !value.isEmpty, value.count <= 4,
-            value.utf8.allSatisfy({ (48...55).contains($0) }),
-            let mode = UInt16(value, radix: 8), mode <= 0o777
+              value.utf8.allSatisfy({ (48 ... 55).contains($0) }),
+              let mode = UInt16(value, radix: 8), mode <= 0o777
         else { throw GuestAPIError.invalidRequest("mode must be an octal permission, up to 0777") }
         return mode_t(mode)
     }

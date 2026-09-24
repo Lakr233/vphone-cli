@@ -54,7 +54,7 @@ extension VPhoneMenuController {
 
     func updateCameraConnectionState(connected: Bool) {
         cameraStatusItem?.title = VPhoneLocalization.text(
-            connected ? "Camera server: connected" : "Camera server: disconnected"
+            connected ? "Camera server: connected" : "Camera server: disconnected",
         )
         cameraStartStopItem?.isEnabled = connected && (cameraServer?.sourceKind ?? .off) != .off
     }

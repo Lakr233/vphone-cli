@@ -61,7 +61,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
         let capacity =
             try bundle.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-            .volumeAvailableCapacityForImportantUsage ?? 0
+                .volumeAvailableCapacityForImportantUsage ?? 0
         guard capacity > 50 * 1024 * 1024 * 1024 else {
             throw ValidationError("Less than 50 GiB available; CFW install stopped before mounting")
         }
@@ -70,10 +70,11 @@ struct VPhoneCustomFirmwareInstaller {
             "/usr/bin/hdiutil",
             [
                 "attach", "-nomount", "-imagekey", "diskimage-class=CRawDiskImage", diskImage.path,
-            ])
+            ],
+        )
         guard
             let baseDisk = attached.split(whereSeparator: \.isNewline).first?
-                .split(whereSeparator: \.isWhitespace).first.map(String.init),
+            .split(whereSeparator: \.isWhitespace).first.map(String.init),
             baseDisk.hasPrefix("/dev/disk")
         else {
             if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
@@ -85,7 +86,7 @@ struct VPhoneCustomFirmwareInstaller {
         var workToClean: URL?
         defer {
             if diskAttached,
-                (try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)) == nil
+               (try? tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)) == nil
             {
                 _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", baseDisk], quiet: true)
             }
@@ -118,12 +119,12 @@ struct VPhoneCustomFirmwareInstaller {
         var dataMounted = false
         defer {
             if dataMounted,
-                (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
+               (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
             {
                 _ = try? tool("/sbin/umount", ["-f", data.path], quiet: true)
             }
             if systemMounted,
-                (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
+               (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
             {
                 _ = try? tool("/sbin/umount", ["-f", system.path], quiet: true)
             }
@@ -149,10 +150,10 @@ struct VPhoneCustomFirmwareInstaller {
     private func installMounted(system: URL, data: URL, work: URL) throws {
         guard
             let restore = try fm.contentsOfDirectory(at: bundle, includingPropertiesForKeys: [.isDirectoryKey])
-                .first(where: {
-                    $0.lastPathComponent.contains("Restore")
-                        && fm.fileExists(atPath: $0.appendingPathComponent("iPhone-BuildManifest.plist").path)
-                })
+            .first(where: {
+                $0.lastPathComponent.contains("Restore")
+                    && fm.fileExists(atPath: $0.appendingPathComponent("iPhone-BuildManifest.plist").path)
+            })
         else {
             throw ValidationError("No prepared iPhone restore tree exists in \(bundle.path)")
         }
@@ -208,7 +209,7 @@ struct VPhoneCustomFirmwareInstaller {
         let compilerPlugin = gpu.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
         guard fm.fileExists(atPath: compilerPlugin.path) else {
             throw ValidationError(
-                "PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app."
+                "PCC GPU compiler plugin is missing: \(compilerPlugin.path). Re-run fw prepare with a complete vphone-cli.app.",
             )
         }
         try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: compilerPlugin.path)
@@ -321,10 +322,12 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try symlink(
             "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
-            at: system.appendingPathComponent("System/Library/Caches/com.apple.dyld"))
+            at: system.appendingPathComponent("System/Library/Caches/com.apple.dyld"),
+        )
         try symlink(
             "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
-            at: system.appendingPathComponent("System/DriverKit/System/Library/dyld"))
+            at: system.appendingPathComponent("System/DriverKit/System/Library/dyld"),
+        )
     }
 
     private func installVphoned(system: URL, work: URL) throws {
@@ -335,7 +338,8 @@ struct VPhoneCustomFirmwareInstaller {
         let entitlements = try Data(contentsOf: entitlementsURL, options: .mappedIfSafe)
         try VPhoneSigner.sign(
             fileAt: staged,
-            options: .init(entitlements: entitlements, mergesExisting: true))
+            options: .init(entitlements: entitlements, mergesExisting: true),
+        )
         try replace(staged, at: system.appendingPathComponent("usr/bin/vphoned"), mode: 0o755)
         let signed = bundle.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: signed.path) {
@@ -347,7 +351,8 @@ struct VPhoneCustomFirmwareInstaller {
             daemon,
             at: system.appendingPathComponent(
                 "System/Library/LaunchDaemons/vphoned.plist",
-            ), mode: 0o644)
+            ), mode: 0o644,
+        )
         let launchd = system.appendingPathComponent("System/Library/xpc/launchd.plist")
         let backup = launchd.appendingPathExtension("bak")
         if !fm.fileExists(atPath: backup.path) {
@@ -400,15 +405,16 @@ struct VPhoneCustomFirmwareInstaller {
         try fm.copyItem(at: backup, to: staged)
         let entitlements =
             preserveEntitlements
-            ? try VPhoneSigner.entitlements(ofFileAt: backup).first(where: { !$0.isEmpty })
-            : nil
+                ? try VPhoneSigner.entitlements(ofFileAt: backup).first(where: { !$0.isEmpty })
+                : nil
         try patch(verb, [staged.path])
         if let injectedDylibPath {
             try patch("inject-dylib", [staged.path, injectedDylibPath])
         }
         try VPhoneSigner.sign(
             fileAt: staged,
-            options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true))
+            options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true),
+        )
         try replace(staged, at: target, mode: 0o755)
     }
 
@@ -420,7 +426,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
         guard
             let source = try VPhoneSigner.entitlements(ofFileAt: target)
-                .first(where: { !$0.isEmpty }),
+            .first(where: { !$0.isEmpty }),
             var plist = try PropertyListSerialization.propertyList(
                 from: source, format: nil,
             ) as? [String: Any]
@@ -432,12 +438,14 @@ struct VPhoneCustomFirmwareInstaller {
         plist["task_for_pid-allow"] = true
         let data = try PropertyListSerialization.data(
             fromPropertyList: plist,
-            format: .xml, options: 0)
+            format: .xml, options: 0,
+        )
         let staged = work.appendingPathComponent("debugserver")
         try fm.copyItem(at: target, to: staged)
         try VPhoneSigner.sign(
             fileAt: staged,
-            options: .init(entitlements: data, mergesExisting: true))
+            options: .init(entitlements: data, mergesExisting: true),
+        )
         try replace(staged, at: target, mode: 0o755)
     }
 
@@ -449,7 +457,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
         guard
             let source = try VPhoneSigner.entitlements(ofFileAt: target)
-                .first(where: { !$0.isEmpty })
+            .first(where: { !$0.isEmpty })
         else {
             print("[!] Campo has no readable entitlements; patch skipped")
             return
@@ -558,7 +566,8 @@ struct VPhoneCustomFirmwareInstaller {
         }
         guard result.succeeded else {
             throw ValidationError(
-                "\(URL(fileURLWithPath: path).lastPathComponent) failed (\(result.exitCode)): \(result.stderr)")
+                "\(URL(fileURLWithPath: path).lastPathComponent) failed (\(result.exitCode)): \(result.stderr)",
+            )
         }
         return result.stdout
     }

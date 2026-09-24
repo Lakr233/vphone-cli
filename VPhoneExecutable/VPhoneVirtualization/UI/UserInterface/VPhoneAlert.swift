@@ -6,7 +6,7 @@ import AppKit
 @MainActor
 enum VPhoneAlert {
     /// The VM display window. Set when it is created.
-    static weak var hostWindow: NSWindow?
+    weak static var hostWindow: NSWindow?
 
     static func present(
         title: String,

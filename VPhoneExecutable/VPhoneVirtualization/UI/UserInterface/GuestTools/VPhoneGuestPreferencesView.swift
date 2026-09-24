@@ -179,7 +179,7 @@ struct VPhoneGuestPreferencesView: View {
 
     private func jsonView(_ result: VPhoneGuestPreferenceReadResult) -> some View {
         ScrollView {
-            Text(result.text.isEmpty ? "No value." : result.text)
+            Text(result.text.isEmpty ? String(localized: "No value.", bundle: VPhoneLocalization.bundle) : result.text)
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(result.text.isEmpty ? .secondary : .primary)
                 .textSelection(.enabled)
@@ -208,7 +208,7 @@ struct VPhoneGuestPreferencesView: View {
 
             if let current = model.currentWriteValue {
                 LabeledContent("Current Value") {
-                    Text("\(current.summary)  (\(current.typeTitle))")
+                    Text(verbatim: "\(current.summary)  (\(current.typeTitle))")
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
@@ -251,8 +251,12 @@ struct VPhoneGuestPreferencesView: View {
     private func entry(for id: VPhoneGuestPreferenceEntry.ID) -> VPhoneGuestPreferenceEntry? {
         func find(_ entries: [VPhoneGuestPreferenceEntry]) -> VPhoneGuestPreferenceEntry? {
             for entry in entries {
-                if entry.id == id { return entry }
-                if let match = entry.children.flatMap(find) { return match }
+                if entry.id == id {
+                    return entry
+                }
+                if let match = entry.children.flatMap(find) {
+                    return match
+                }
             }
             return nil
         }

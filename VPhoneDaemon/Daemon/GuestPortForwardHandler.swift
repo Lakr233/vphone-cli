@@ -24,8 +24,8 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         let prefix = "/v1/ports/"
         guard uri.hasPrefix(prefix) else { return nil }
         let digits = uri.dropFirst(prefix.count)
-        guard !digits.isEmpty, digits.utf8.allSatisfy({ (48...57).contains($0) }),
-            let port = Int(digits), (1...65535).contains(port)
+        guard !digits.isEmpty, digits.utf8.allSatisfy({ (48 ... 57).contains($0) }),
+              let port = Int(digits), (1 ... 65535).contains(port)
         else { return nil }
         return port
     }
@@ -39,18 +39,19 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
                 backend.pipeline.addHandler(
                     GuestPortBackendHandler(webSocket: webSocket) { [weak self] in
                         self?.closing == false
-                    })
+                    },
+                )
             }
             .connect(host: "127.0.0.1", port: port)
             .whenComplete { result in
                 guard webSocket.isActive, !self.closing else {
-                    if case .success(let backend) = result {
+                    if case let .success(backend) = result {
                         backend.close(promise: nil)
                     }
                     return
                 }
                 switch result {
-                case .success(let backend):
+                case let .success(backend):
                     self.backend = backend
                     for chunk in self.pending.dropLast() {
                         backend.write(chunk, promise: nil)
@@ -91,7 +92,10 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
                 wrapOutboundOut(
                     WebSocketFrame(
                         fin: true, opcode: .pong,
-                        data: frame.unmaskedData)), promise: nil)
+                        data: frame.unmaskedData,
+                    ),
+                ), promise: nil,
+            )
         case .connectionClose:
             closing = true
             let webSocket = context.channel
@@ -99,7 +103,9 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
                 wrapOutboundOut(
                     WebSocketFrame(
                         fin: true, opcode: .connectionClose,
-                        data: frame.unmaskedData))
+                        data: frame.unmaskedData,
+                    ),
+                ),
             ).whenComplete { _ in
                 webSocket.close(promise: nil)
             }
@@ -148,7 +154,8 @@ final class GuestPortForwardHandler: ChannelInboundHandler, @unchecked Sendable 
         channel.writeAndFlush(
             WebSocketFrame(
                 fin: true, opcode: .connectionClose,
-                data: data)
+                data: data,
+            ),
         ).whenComplete { _ in
             channel.close(promise: nil)
         }
@@ -198,7 +205,8 @@ private final class GuestPortBackendHandler: ChannelInboundHandler, @unchecked S
         webSocket.writeAndFlush(
             WebSocketFrame(
                 fin: true, opcode: .connectionClose,
-                data: data)
+                data: data,
+            ),
         ).whenComplete { _ in
             self.webSocket.close(promise: nil)
         }

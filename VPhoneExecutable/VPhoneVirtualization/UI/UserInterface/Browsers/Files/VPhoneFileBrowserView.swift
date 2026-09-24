@@ -177,8 +177,9 @@ struct VPhoneFileBrowserView: View {
                 if model.transferTotal > 0 {
                     Text(
                         VPhoneLocalization.format(
-                            "%@ / %@", formatBytes(model.transferCurrent), formatBytes(model.transferTotal)
-                        ))
+                            "%@ / %@", formatBytes(model.transferCurrent), formatBytes(model.transferTotal),
+                        ),
+                    )
                 }
             }
             .font(.system(.footnote, design: .monospaced))
@@ -329,7 +330,7 @@ struct VPhoneFileBrowserView: View {
 
     func primaryAction(for ids: Set<VPhoneRemoteFile.ID>) {
         guard let id = ids.first,
-            let file = model.filteredFiles.first(where: { $0.id == id })
+              let file = model.filteredFiles.first(where: { $0.id == id })
         else { return }
         model.openItem(file)
     }
@@ -408,7 +409,8 @@ struct VPhoneFileBrowserView: View {
             }
             if urls.isEmpty {
                 model.error = VPhoneLocalization.text(
-                    "Unable to read the dropped items. Drag files from Finder, then try again.")
+                    "Unable to read the dropped items. Drag files from Finder, then try again.",
+                )
             } else {
                 await model.uploadFiles(urls: urls)
             }

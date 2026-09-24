@@ -28,13 +28,13 @@ final class VPhoneGuestToolsWindowController {
         self.clipboardModel = clipboardModel
         self.preferencesModel = preferencesModel
         clipboardWindow = VPhoneGuestToolWindow(
-            title: "Clipboard",
+            title: String(localized: "Clipboard", bundle: VPhoneLocalization.bundle),
             autosaveName: "vphone-guest-clipboard",
             size: NSSize(width: 640, height: 480),
             minSize: NSSize(width: 480, height: 320),
         ) { VPhoneGuestClipboardView(model: clipboardModel) }
         preferencesWindow = VPhoneGuestToolWindow(
-            title: "Preferences",
+            title: String(localized: "Preferences", bundle: VPhoneLocalization.bundle),
             autosaveName: "vphone-guest-preferences",
             size: NSSize(width: 760, height: 540),
             minSize: NSSize(width: 560, height: 360),
@@ -108,7 +108,7 @@ final class VPhoneGuestToolWindow: NSObject, NSWindowDelegate {
             defer: false,
         )
         window.title = title
-        window.subtitle = "Guest"
+        window.subtitle = String(localized: "Guest", bundle: VPhoneLocalization.bundle)
         window.contentViewController = hostingController
         window.contentMinSize = minSize
         window.setContentSize(size)

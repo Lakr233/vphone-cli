@@ -9,21 +9,23 @@ enum VPhoneGuestPreferenceType: String, CaseIterable, Identifiable {
     case int
     case float
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var title: String {
         switch self {
-        case .string: "String"
-        case .bool: "Boolean"
-        case .int: "Integer"
-        case .float: "Float"
+        case .string: String(localized: "String", bundle: VPhoneLocalization.bundle)
+        case .bool: String(localized: "Boolean", bundle: VPhoneLocalization.bundle)
+        case .int: String(localized: "Integer", bundle: VPhoneLocalization.bundle)
+        case .float: String(localized: "Float", bundle: VPhoneLocalization.bundle)
         }
     }
 
     var prompt: String {
         switch self {
-        case .string: "Text"
-        case .bool: "true or false"
+        case .string: String(localized: "Text", bundle: VPhoneLocalization.bundle)
+        case .bool: String(localized: "true or false", bundle: VPhoneLocalization.bundle)
         case .int: "42"
         case .float: "3.14"
         }
@@ -39,16 +41,16 @@ enum VPhoneGuestPreferenceType: String, CaseIterable, Identifiable {
             switch trimmed.lowercased() {
             case "true", "yes", "1": return .success(true)
             case "false", "no", "0": return .success(false)
-            default: return .failure(.init(message: "Enter true or false for a Boolean value."))
+            default: return .failure(.init(message: String(localized: "Enter true or false for a Boolean value.", bundle: VPhoneLocalization.bundle)))
             }
         case .int:
             guard let number = Int64(trimmed) else {
-                return .failure(.init(message: "Enter a whole number for an Integer value."))
+                return .failure(.init(message: String(localized: "Enter a whole number for an Integer value.", bundle: VPhoneLocalization.bundle)))
             }
             return .success(number)
         case .float:
             guard let number = Double(trimmed), number.isFinite else {
-                return .failure(.init(message: "Enter a finite number for a Float value."))
+                return .failure(.init(message: String(localized: "Enter a finite number for a Float value.", bundle: VPhoneLocalization.bundle)))
             }
             return .success(number)
         }
@@ -84,15 +86,15 @@ struct VPhoneGuestPreferenceEntry: Identifiable {
 
     var typeTitle: String {
         switch kind {
-        case .string: "String"
-        case .bool: "Boolean"
-        case .int: "Integer"
-        case .float: "Float"
-        case .date: "Date"
-        case .data: "Data"
-        case .array: "Array"
-        case .dictionary: "Dictionary"
-        case .null: "Null"
+        case .string: String(localized: "String", bundle: VPhoneLocalization.bundle)
+        case .bool: String(localized: "Boolean", bundle: VPhoneLocalization.bundle)
+        case .int: String(localized: "Integer", bundle: VPhoneLocalization.bundle)
+        case .float: String(localized: "Float", bundle: VPhoneLocalization.bundle)
+        case .date: String(localized: "Date", bundle: VPhoneLocalization.bundle)
+        case .data: String(localized: "Data", bundle: VPhoneLocalization.bundle)
+        case .array: String(localized: "Array", bundle: VPhoneLocalization.bundle)
+        case .dictionary: String(localized: "Dictionary", bundle: VPhoneLocalization.bundle)
+        case .null: String(localized: "Null", bundle: VPhoneLocalization.bundle)
         }
     }
 
@@ -140,13 +142,15 @@ struct VPhoneGuestPreferenceEntry: Identifiable {
             children = nil
         case let array as [Any]:
             kind = .array
-            summary = array.count == 1 ? "1 item" : "\(array.count) items"
+            summary = array.count == 1
+                ? String(localized: "1 item", bundle: VPhoneLocalization.bundle) : String(localized: "\(array.count) items", bundle: VPhoneLocalization.bundle)
             children = array.enumerated().map { index, element in
                 VPhoneGuestPreferenceEntry(key: "[\(index)]", value: element, path: "\(path)/\(index)")
             }
         case let dictionary as [String: Any]:
             kind = .dictionary
-            summary = dictionary.count == 1 ? "1 key" : "\(dictionary.count) keys"
+            summary = dictionary.count == 1
+                ? String(localized: "1 key", bundle: VPhoneLocalization.bundle) : String(localized: "\(dictionary.count) keys", bundle: VPhoneLocalization.bundle)
             children = Self.entries(from: dictionary, path: path)
         default:
             kind = .string

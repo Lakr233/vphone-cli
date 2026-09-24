@@ -117,7 +117,8 @@ class VPhoneKeychainBrowserModel {
             }
         } catch {
             self.error = VPhoneLocalization.text(
-                "Unable to load keychain items. Check that the guest agent is connected, then try again.")
+                "Unable to load keychain items. Check that the guest agent is connected, then try again.",
+            )
             items = []
         }
         isLoading = false
