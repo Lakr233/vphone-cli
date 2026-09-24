@@ -1,7 +1,10 @@
-# vphoned — iOS guest daemon (cross-compiled for arm64 iphoneos)
+# vphoned — iOS guest daemon (SwiftNIO + IcliKit + native vphone operations)
 
-SRCS := $(wildcard *.m)
+SRCS := $(wildcard *.m) $(wildcard *.h) $(wildcard Swift/*.swift) Package.swift Package.resolved
 OUT  := vphoned
+SDK  := $(shell xcrun --sdk iphoneos --show-sdk-path)
+SCRATCH := $(abspath ../../.build/vphoned-swiftpm)
+SWIFT_BUILD := swift build --scratch-path $(SCRATCH) --triple arm64-apple-ios15.0 --sdk $(SDK) -c release --product vphoned --jobs $(or $(SWIFT_JOBS),4)
 
 # Passed from parent Makefile
 GIT_HASH ?= unknown
@@ -10,18 +13,10 @@ GIT_HASH ?= unknown
 
 all: $(OUT)
 
-$(OUT): $(SRCS) $(wildcard *.h)
+$(OUT): $(SRCS)
 	@echo "=== Building vphoned (arm64, iphoneos) ==="
-	xcrun -sdk iphoneos clang -arch arm64 -Os -fobjc-arc \
-		-I. \
-		-Ivendor/libarchive \
-		-DVPHONED_BUILD_HASH='"$(GIT_HASH)"' \
-		-o $@ $(SRCS) \
-		-larchive \
-		-lsqlite3 \
-		-framework Foundation \
-		-framework Security \
-		-framework CoreServices
+	GIT_HASH=$(GIT_HASH) $(SWIFT_BUILD)
+	@cp "$$($(SWIFT_BUILD) --show-bin-path)/vphoned" $@
 	@echo "  built OK"
 
 clean:

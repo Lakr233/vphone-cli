@@ -7,7 +7,10 @@ let package = Package(
     platforms: [
         .macOS(.v15),
     ],
-    products: [],
+    products: [
+        .library(name: "VPhoneKit", targets: ["VPhoneKit"]),
+        .library(name: "VPhoneVMKit", targets: ["VPhoneVMKit"]),
+    ],
     // Resolved by SwiftPM, not carried as submodules. Every one of these was a
     // `.package(path: "vendor/…")` over a checkout this repository pinned by
     // commit, which meant a `git submodule update` before any build and a tree
@@ -35,8 +38,13 @@ let package = Package(
         // arrives through SwiftPM instead of a pip install into a venv, and
         // the C targets below include its headers directly.
         .package(url: "https://github.com/Lakr233/AppleMobileDeviceLibrary.git", from: "1.0.1790070576"),
+        // 2.84+ links libswiftCompatibilitySpan when built with Swift 6.4.
+        // 2.83 keeps the guest binary self-contained on older iOS bases.
+        .package(url: "https://github.com/apple/swift-nio.git", exact: "2.83.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
     ],
     targets: [
+        .target(name: "VPhoneKit", path: "sources/VPhoneKit"),
         .target(
             name: "FirmwarePatcher",
             dependencies: [
@@ -53,7 +61,7 @@ let package = Package(
                 "VPhoneArchive",
                 "VPhoneCore",
             ],
-            path: "sources/FirmwarePatcher",
+            path: "sources/FirmwarePatcher"
         ),
         .target(
             name: "VPhoneCore",
@@ -63,7 +71,7 @@ let package = Package(
             path: "sources/VPhoneCore",
             linkerSettings: [
                 .linkedFramework("Virtualization"),
-            ],
+            ]
         ),
         // Archive reading and writing: the one place that knows how ownership,
         // permissions and path safety differ between unpacking onto a mounted
@@ -76,7 +84,7 @@ let package = Package(
                 .product(name: "LibArchive", package: "libarchive.xcframework"),
                 "VPhoneCore",
             ],
-            path: "sources/VPhoneArchive",
+            path: "sources/VPhoneArchive"
         ),
         // Ad-hoc and PKCS#12 Mach-O code signing, byte for byte what ldid
         // writes. It replaces ldid, which is the only program this project
@@ -89,7 +97,7 @@ let package = Package(
             path: "sources/VPhoneSign",
             linkerSettings: [
                 .linkedFramework("Security"),
-            ],
+            ]
         ),
         // libirecovery 1.3.1, vendored. It talks to iBoot/iBSS over USB, which
         // is the half of a restore that `idevicerestore` does not get from
@@ -129,7 +137,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("IOKit"),
                 .linkedFramework("CoreFoundation"),
-            ],
+            ]
         ),
         // idevicerestore, vendored. This is the restore backend itself — the
         // thing scripts/pymobiledevice3_bridge.py has been standing in for,
@@ -176,7 +184,7 @@ let package = Package(
                 // check_aux.sh's system whitelist; nothing else is linked.
                 .linkedLibrary("curl"),
                 .linkedLibrary("z"),
-            ],
+            ]
         ),
         // The Swift face of the two C targets above, and what actually
         // replaces scripts/pymobiledevice3_bridge.py: probe for a DFU/recovery
@@ -197,7 +205,7 @@ let package = Package(
             path: "sources/VPhoneRestore",
             linkerSettings: [
                 .linkedLibrary("z"),
-            ],
+            ]
         ),
         // Everything that touches a running guest: the machine, its window and
         // menus, the vsock channel and the host device bridges. It is a library
@@ -209,7 +217,10 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Dynamic", package: "Dynamic"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 "VPhoneCore",
+                "VPhoneKit",
             ],
             path: "sources/VPhoneVMKit",
             linkerSettings: [
@@ -218,7 +229,7 @@ let package = Package(
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("AVFoundation"),
-            ],
+            ]
         ),
         // The only binary signed with sources/vphone.entitlements.
         .executableTarget(
@@ -229,6 +240,11 @@ let package = Package(
                 "VPhoneVMKit",
             ],
             path: "sources/vphone-vm",
+            // Swift 6.4 may autolink compatibility dylibs for generic code in
+            // dependencies even when this executable has no symbol references.
+            // Strip those unused load commands so the shipped app remains
+            // independent of the build machine's Swift toolchain.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-dead_strip_dylibs"])]
         ),
         // The user-facing entry point. Note it depends on neither VPhoneVMKit
         // nor any of the five frameworks above: it never builds a machine, it
@@ -251,7 +267,7 @@ let package = Package(
                 "VPhoneCore",
                 "VPhoneRestore",
             ],
-            path: "sources/vphone-cli",
+            path: "sources/vphone-cli"
         ),
         .executableTarget(
             name: "vphone-archive",
@@ -260,7 +276,7 @@ let package = Package(
                 "VPhoneArchive",
                 "VPhoneCore",
             ],
-            path: "sources/vphone-archive",
+            path: "sources/vphone-archive"
         ),
         // The SUDO_ASKPASS program, and the probe behind `VPhoneSudo.route()`.
         // No ArgumentParser and no VPhoneCore: it is two verbs, it runs while
@@ -269,7 +285,7 @@ let package = Package(
         // put AppKit under vphone-cli.
         .executableTarget(
             name: "vphone-ask-for-permission",
-            path: "sources/vphone-ask-for-permission",
+            path: "sources/vphone-ask-for-permission"
         ),
         // `vphone-amfi-allow` is NOT here, and cannot be: SwiftPM emits arm64
         // and it has to be arm64e to read amfid's ObjC runtime. `scripts/build.sh`
@@ -284,17 +300,17 @@ let package = Package(
         .testTarget(
             name: "FirmwarePatcherTests",
             dependencies: ["FirmwarePatcher"],
-            path: "tests/FirmwarePatcherTests",
+            path: "tests/FirmwarePatcherTests"
         ),
         .testTarget(
             name: "VPhoneCoreTests",
             dependencies: ["VPhoneCore"],
-            path: "tests/VPhoneCoreTests",
+            path: "tests/VPhoneCoreTests"
         ),
         .testTarget(
             name: "VPhoneArchiveTests",
             dependencies: ["VPhoneArchive"],
-            path: "tests/VPhoneArchiveTests",
+            path: "tests/VPhoneArchiveTests"
         ),
         .testTarget(
             name: "VPhoneSignTests",
@@ -305,7 +321,7 @@ let package = Package(
             // `#filePath`, so they need to be on disk and not in a bundle,
             // and left in place SwiftPM would try to compile the .c and refuse
             // the target for mixing languages.
-            exclude: ["Fixtures"],
+            exclude: ["Fixtures"]
         ),
         // Everything here runs without a device attached: argument parsing,
         // the restore-tree rules, the .shsh naming and the C struct the
@@ -314,7 +330,7 @@ let package = Package(
         .testTarget(
             name: "VPhoneRestoreTests",
             dependencies: ["VPhoneRestore"],
-            path: "tests/VPhoneRestoreTests",
+            path: "tests/VPhoneRestoreTests"
         ),
-    ],
+    ]
 )

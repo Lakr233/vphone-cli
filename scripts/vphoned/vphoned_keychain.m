@@ -7,7 +7,7 @@
  */
 
 #import "vphoned_keychain.h"
-#import "vphoned_protocol.h"
+#import "vphoned_response.h"
 #import <Security/Security.h>
 #import <sqlite3.h>
 

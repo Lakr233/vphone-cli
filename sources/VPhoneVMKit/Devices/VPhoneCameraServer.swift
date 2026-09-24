@@ -23,14 +23,14 @@ final class VPhoneCameraServer {
     enum SourceKind: String {
         case off
         case testPattern
-        case videoFile // .mov / .mp4 / .m4v via AVAssetReader
+        case videoFile  // .mov / .mp4 / .m4v via AVAssetReader
     }
 
     nonisolated static let vsockPort: UInt32 = 1338
     nonisolated static let defaultWidth: Int = 1280
     nonisolated static let defaultHeight: Int = 720
     nonisolated static let defaultFPS: Double = 30.0
-    nonisolated static let pixelFormat: UInt32 = 0x4247_5241 // 'BGRA' — kCMPixelFormat_32BGRA
+    nonisolated static let pixelFormat: UInt32 = 0x4247_5241  // 'BGRA' — kCMPixelFormat_32BGRA
 
     private(set) var sourceKind: SourceKind = .off
     private(set) var isConnected = false
@@ -41,14 +41,15 @@ final class VPhoneCameraServer {
     private var producer: VPhoneFrameProducer?
     private var timer: DispatchSourceTimer?
     private var connectionAttemptToken: UInt64 = 0
+    private var framePending = false
 
     private let sendQueue = DispatchQueue(
         label: "com.vphone.camera.send",
-        qos: .userInteractive,
+        qos: .userInteractive
     )
     private let producerQueue = DispatchQueue(
         label: "com.vphone.camera.producer",
-        qos: .userInteractive,
+        qos: .userInteractive
     )
 
     var onConnectionStateChange: ((Bool) -> Void)?
@@ -61,11 +62,11 @@ final class VPhoneCameraServer {
     }
 
     func disconnect() {
+        connectionAttemptToken &+= 1
         stopStreaming()
-        if connectionFD >= 0 {
-            close(connectionFD)
-            connectionFD = -1
-        }
+        connectionFD = -1
+        // Virtualization.framework owns this descriptor and closes it with
+        // the connection. Pending frame sends use their own dup.
         connection = nil
         if isConnected {
             isConnected = false
@@ -76,13 +77,9 @@ final class VPhoneCameraServer {
     // MARK: - Source selection
 
     func setSource(_ kind: SourceKind, videoURL: URL? = nil) {
-        if sourceKind == kind, kind != .videoFile {
-            return
-        }
+        if sourceKind == kind, kind != .videoFile { return }
         let wasStreaming = (timer != nil)
-        if wasStreaming {
-            stopStreaming()
-        }
+        if wasStreaming { stopStreaming() }
         sourceKind = kind
         switch kind {
         case .off:
@@ -90,7 +87,7 @@ final class VPhoneCameraServer {
         case .testPattern:
             producer = VPhoneTestPatternProducer(
                 width: Self.defaultWidth,
-                height: Self.defaultHeight,
+                height: Self.defaultHeight
             )
         case .videoFile:
             guard let url = videoURL else {
@@ -103,7 +100,7 @@ final class VPhoneCameraServer {
                 producer = try VPhoneVideoFileProducer(
                     url: url,
                     width: Self.defaultWidth,
-                    height: Self.defaultHeight,
+                    height: Self.defaultHeight
                 )
                 print("[camera] video file source = \(url.lastPathComponent)")
             } catch {
@@ -121,9 +118,7 @@ final class VPhoneCameraServer {
 
     func startStreaming() {
         guard producer != nil, isConnected else { return }
-        if timer != nil {
-            return
-        }
+        if timer != nil { return }
         let interval = 1.0 / Self.defaultFPS
         // Timer fires on the main queue so MainActor-isolated state
         // (producer, connectionFD) can be read directly without tripping
@@ -134,21 +129,31 @@ final class VPhoneCameraServer {
         t.schedule(deadline: .now(), repeating: interval, leeway: .milliseconds(2))
         t.setEventHandler { [weak self] in
             guard let self else { return }
-            guard let producer else { return }
-            let fd = connectionFD
-            guard fd >= 0 else { return }
-            let q = producerQueue
-            q.async {
-                guard let frame = producer.nextFrame() else { return }
-                let ok = Self.send(fd: fd, frame: frame)
-                if !ok {
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        // Avoid double-handling if a parallel write already
-                        // dropped the connection.
-                        if connectionFD == fd {
-                            handleDisconnect()
-                        }
+            guard let producer = self.producer else { return }
+            guard !self.framePending, self.connectionFD >= 0 else { return }
+            let sourceFD = self.connectionFD
+            let fd = dup(sourceFD)
+            guard fd >= 0 else { self.handleDisconnect(); return }
+            var timeout = timeval(tv_sec: 5, tv_usec: 0)
+            guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1,
+                  setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                             socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+                close(fd)
+                self.handleDisconnect()
+                return
+            }
+            self.framePending = true
+            let connectionToken = self.connectionAttemptToken
+            let q = self.producerQueue
+            q.async { [weak self] in
+                let frame = producer.nextFrame()
+                let ok = frame.map { Self.send(fd: fd, frame: $0) } ?? true
+                close(fd)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.framePending = false
+                    if !ok && self.connectionAttemptToken == connectionToken && self.connectionFD == sourceFD {
+                        self.handleDisconnect()
                     }
                 }
             }
@@ -170,15 +175,11 @@ final class VPhoneCameraServer {
     /// killing its server-side socket while the host is streaming.
     private func handleDisconnect() {
         print("[camera] disconnect detected, will reconnect")
-        let oldFD = connectionFD
         connectionFD = -1
         connection = nil
         if isConnected {
             isConnected = false
             onConnectionStateChange?(false)
-        }
-        if oldFD >= 0 {
-            close(oldFD)
         }
         // Note: streaming timer continues running but ticks no-op until
         // connectionFD becomes valid again.
@@ -203,9 +204,7 @@ final class VPhoneCameraServer {
                     self.isConnected = true
                     print("[camera] connected on vsock port \(Self.vsockPort)")
                     self.onConnectionStateChange?(true)
-                    if self.sourceKind != .off {
-                        self.startStreaming()
-                    }
+                    if self.sourceKind != .off { self.startStreaming() }
                 case let .failure(error):
                     print("[camera] connect failed: \(error). Retrying in 3s.")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
@@ -223,7 +222,7 @@ final class VPhoneCameraServer {
     // MARK: - Wire
 
     @discardableResult
-    private nonisolated static func send(fd: Int32, frame: VPhoneCameraFrame) -> Bool {
+    nonisolated private static func send(fd: Int32, frame: VPhoneCameraFrame) -> Bool {
         // header
         let headerDict: [String: Any] = [
             "w": frame.width,
@@ -249,23 +248,19 @@ final class VPhoneCameraServer {
         out.append(headerData)
         out.append(frame.pixels)
         var ok = true
-        out.withUnsafeBytes { bytes in
+        out.withUnsafeBytes { bytes -> Void in
             guard let base = bytes.baseAddress else { ok = false; return }
             var remaining = bytes.count
             var cursor = base
             while remaining > 0 {
                 let n = write(fd, cursor, remaining)
                 if n < 0 {
-                    if errno == EINTR {
-                        continue
-                    }
+                    if errno == EINTR { continue }
                     print("[camera] write errno=\(errno)")
                     ok = false
                     return
                 }
-                if n == 0 {
-                    ok = false; return
-                }
+                if n == 0 { ok = false; return }
                 remaining -= n
                 cursor = cursor.advanced(by: n)
             }

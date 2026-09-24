@@ -15,6 +15,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
     private var locationProvider: VPhoneLocationProvider?
     private var hostControl: VPhoneHostControl?
     private var cameraServer: VPhoneCameraServer?
+    private var apiProxy: VPhoneAPIProxy?
     private var sigintSource: DispatchSourceSignal?
     private var didAttemptAutoInstall = false
 
@@ -95,6 +96,15 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
             if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
                 control.connect(device: device)
                 camServer.connect(device: device)
+                if let listen = cli.apiListen {
+                    let proxy = try VPhoneAPIProxy(device: device, listen: listen)
+                    let url = try await proxy.start()
+                    apiProxy = proxy
+                    print("[api] HTTP/WebSocket API: \(url.absoluteString)")
+                    print("[api] OpenAPI: \(url.appending(path: "openapi.json").absoluteString)")
+                }
+            } else if cli.apiListen != nil {
+                throw VPhoneError.apiSocketUnavailable
             }
         }
 
@@ -256,6 +266,8 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_: Notification) {
         hostControl?.stop()
+        apiProxy?.stop()
+        control?.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {

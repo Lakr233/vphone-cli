@@ -20,6 +20,16 @@ vphone-cli vm create myphone \
 vphone-cli vm launch myphone
 ```
 
+To expose the guest HTTP and WebSocket API on the host for local tools or an
+app using `VPhoneKit`, opt in when launching:
+
+```sh
+vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
+```
+
+The guest runs `icli` commands through the API. See the [API design and usage](research/vphoned_http_api.md)
+for routes, WebSocket messages, and the Swift Kit client.
+
 `vm create` prepares and patches firmware, restores the VM, installs the JB system changes and vphoned, then boots once to check a real vphoned ping. **It stops that verification boot before returning.** Run `vm launch` to keep using the VM. The create flow needs network access for Apple's restore ticket and asks for administrator authentication during CFW installation.
 
 For local validation, iPhone17,3 **26.6.2 (23G90)** and **27.0 (24A435)** both reached the lock screen and answered vphoned ping with cloudOS **26.4 (23E5207q)**. See [compatibility and evidence](docs/guides/compatibility.md); other firmware combinations are not implied by these results.

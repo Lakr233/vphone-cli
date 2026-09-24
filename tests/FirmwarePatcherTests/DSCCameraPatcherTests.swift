@@ -452,10 +452,8 @@ struct DSCCameraPatcherBehaviourTests {
 
         let second = try DSCCameraPatcher.applyAll(chunksDirectory: clone, log: nil)
         #expect(second.siteCount == 6)
-        #expect(
-            second.sites.allSatisfy(\.wasAlreadyPatched),
-            "a re-run did not recognise its own output",
-        )
+        let allAlreadyPatched = second.sites.allSatisfy { $0.wasAlreadyPatched }
+        #expect(allAlreadyPatched, "a re-run did not recognise its own output")
         #expect(second.reattestation?.updated.isEmpty == true, "a re-run rewrote slot hashes")
         #expect(second.isComplete)
 

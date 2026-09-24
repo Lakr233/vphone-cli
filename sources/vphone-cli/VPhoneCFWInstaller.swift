@@ -240,6 +240,8 @@ struct VPhoneCFWInstaller {
         try VPhoneSigner.sign(fileAt: staged,
                               options: .init(entitlements: entitlements, mergesExisting: true))
         try replace(staged, at: system.appendingPathComponent("usr/bin/vphoned"), mode: 0o755)
+        let icli = try VPhoneGuestBinaries.resolve("icli")
+        try replace(icli, at: system.appendingPathComponent("usr/bin/icli"), mode: 0o755)
         let signed = bundle.appendingPathComponent(".vphoned.signed")
         if fm.fileExists(atPath: signed.path) {
             try fm.removeItem(at: signed)

@@ -3,9 +3,9 @@ import Foundation
 
 // MARK: - Manifest values the CLI can take as arguments
 
-/// Kept here, with the other ArgumentParser conformances, rather than beside
-/// the type: the manifest is a data model and has no other reason to know that
-/// a command line exists.
+// Kept here, with the other ArgumentParser conformances, rather than beside
+// the type: the manifest is a data model and has no other reason to know that
+// a command line exists.
 extension VPhoneVirtualMachineManifest.PlatformFusing: ExpressibleByArgument {}
 
 // MARK: - VPhoneBootCLI
@@ -41,13 +41,13 @@ public struct VPhoneBootCLI: ParsableCommand {
 
         Example:
           vphone-cli --config ./config.plist
-        """,
+        """
     )
 
     @Option(
         name: .shortAndLong,
         help: "Path to VM manifest plist (config.plist). Required.",
-        transform: URL.init(fileURLWithPath:),
+        transform: URL.init(fileURLWithPath:)
     )
     public var config: URL
 
@@ -57,6 +57,9 @@ public struct VPhoneBootCLI: ParsableCommand {
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar")
     public var headless: Bool = false
 
+    @Option(help: "Expose the guest HTTP/WebSocket API on the host, for example 127.0.0.1:8765")
+    public var apiListen: String?
+
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned port; valid: 6000...65535)")
     public var kernelDebugPort: Int?
 
@@ -65,7 +68,7 @@ public struct VPhoneBootCLI: ParsableCommand {
 
     @Option(
         help: "Automatically install the given IPA/TIPA after the guest control channel connects. Unavailable with --dfu.",
-        transform: URL.init(fileURLWithPath:),
+        transform: URL.init(fileURLWithPath:)
     )
     public var installIPA: URL?
 
@@ -84,17 +87,29 @@ public struct VPhoneBootCLI: ParsableCommand {
         if !dfu,
            let bundle = try? VPhoneBundle.load(at: config.deletingLastPathComponent()),
            let existingVariant = VPhoneRestoreInfo.load(fromBundle: bundle)?.variant,
-           existingVariant != "jb"
-        {
+           existingVariant != "jb" {
             throw ValidationError(
-                "This VM was created as '\(existingVariant)'. Only JB VMs are supported by this build.",
+                "This VM was created as '\(existingVariant)'. Only JB VMs are supported by this build."
             )
         }
 
         if dfu, let packageURL = installPackageURL {
             throw ValidationError(
-                "`--install-ipa` is unavailable with `--dfu` because DFU mode does not start the guest control channel: \(packageURL.path)",
+                "`--install-ipa` is unavailable with `--dfu` because DFU mode does not start the guest control channel: \(packageURL.path)"
             )
+        }
+
+        if dfu, apiListen != nil {
+            throw ValidationError("`--api-listen` is unavailable with `--dfu`.")
+        }
+        if let apiListen {
+            let address = URLComponents(string: "tcp://\(apiListen)")
+            guard let address, let host = address.host, !host.isEmpty,
+                  let port = address.port, (0...65535).contains(port),
+                  address.path.isEmpty, address.query == nil, address.fragment == nil
+            else {
+                throw ValidationError("`--api-listen` requires host:port, for example 127.0.0.1:8765.")
+            }
         }
 
         guard let packageURL = installPackageURL else { return }
@@ -105,7 +120,7 @@ public struct VPhoneBootCLI: ParsableCommand {
 
         guard VPhoneInstallPackage.isSupportedFile(packageURL) else {
             throw ValidationError(
-                "`--install-ipa` only supports .ipa or .tipa packages: \(packageURL.lastPathComponent)",
+                "`--install-ipa` only supports .ipa or .tipa packages: \(packageURL.lastPathComponent)"
             )
         }
     }
@@ -124,21 +139,12 @@ public struct VPhoneBootCLI: ParsableCommand {
     /// command, so its arguments start at the first option.
     public var bootArguments: [String] {
         var args = ["--config", config.path]
-        if dfu {
-            args.append("--dfu")
-        }
-        if headless {
-            args.append("--headless")
-        }
-        if vphonedBin != ".vphoned.signed" {
-            args += ["--vphoned-bin", vphonedBin]
-        }
-        if let port = kernelDebugPort {
-            args += ["--kernel-debug-port", String(port)]
-        }
-        if let ipa = installIPA {
-            args += ["--install-ipa", ipa.path]
-        }
+        if dfu { args.append("--dfu") }
+        if headless { args.append("--headless") }
+        if let apiListen { args += ["--api-listen", apiListen] }
+        if vphonedBin != ".vphoned.signed" { args += ["--vphoned-bin", vphonedBin] }
+        if let port = kernelDebugPort { args += ["--kernel-debug-port", String(port)] }
+        if let ipa = installIPA { args += ["--install-ipa", ipa.path] }
         return args
     }
 }

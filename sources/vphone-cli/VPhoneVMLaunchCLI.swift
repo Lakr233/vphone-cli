@@ -5,19 +5,27 @@ import VPhoneCore
 struct VPhoneVMLaunchCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "launch",
-        abstract: "Boot a VM bundle (runs host preflight first)",
+        abstract: "Boot a VM bundle (runs host preflight first)"
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Flag(name: .shortAndLong, help: "Boot into DFU mode (headless)") var dfu = false
     @Flag(name: .customLong("headless"), help: "Boot without a VM window or menu bar") var headless = false
+    @Option(help: "Expose the guest HTTP/WebSocket API on host:port (for example 127.0.0.1:8765)")
+    var apiListen: String?
     @Option(help: "Kernel GDB debug stub port on host (omit for system-assigned; valid: 6000...65535)")
     var kernelDebugPort: Int?
     @Option(name: .shortAndLong, help: "Resource base override (default: inferred from the running binary path)")
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
+
+    func validate() throws {
+        if dfu, apiListen != nil {
+            throw ValidationError("`--api-listen` is unavailable with `--dfu`.")
+        }
+    }
 
     func run() throws {
         let v = VPhoneVerbosity(count: verboseCount)
@@ -42,15 +50,10 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         }
 
         var args = ["--config", bundle.configURL.path]
-        if dfu {
-            args.append("--dfu")
-        }
-        if headless {
-            args.append("--headless")
-        }
-        if let kernelDebugPort {
-            args += ["--kernel-debug-port", String(kernelDebugPort)]
-        }
+        if dfu { args.append("--dfu") }
+        if headless { args.append("--headless") }
+        if let apiListen { args += ["--api-listen", apiListen] }
+        if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }
 
         if v.tracesInternals {
             let (exe, spawned) = launcher.plan(args)
@@ -60,7 +63,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
         // `vm launch` always streams the guest serial console (inherits our
         // stdio); it is intentionally not gated on verbosity. run() also hands
         // the terminal to the child, which is what lets Ctrl-C reach the guest.
-        throw try ExitCode(launcher.run(args, cwd: bundle.url))
+        throw ExitCode(try launcher.run(args, cwd: bundle.url))
     }
 }
 
@@ -69,7 +72,7 @@ struct VPhoneVMLaunchCommand: ParsableCommand {
 struct VPhoneVMStopCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "stop",
-        abstract: "Stop a running VM bundle",
+        abstract: "Stop a running VM bundle"
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -84,7 +87,7 @@ struct VPhoneVMStopCommand: ParsableCommand {
         func runningPIDs() -> [Int32] {
             guard let r = try? VPhoneProcessRunner.runCapturing(
                 URL(fileURLWithPath: "/usr/sbin/lsof"),
-                ["-t", "--", disk.path],
+                ["-t", "--", disk.path]
             ) else { return [] }
             return VPhoneLsof.parsePIDs(r.stdout)
         }
@@ -93,9 +96,7 @@ struct VPhoneVMStopCommand: ParsableCommand {
         guard !pids.isEmpty else { print("\(name): not running"); return }
 
         print("\(name): sending SIGINT to \(pids.map(String.init).joined(separator: ", "))")
-        for pid in pids {
-            kill(pid, SIGINT)
-        }
+        for pid in pids { kill(pid, SIGINT) }
 
         var waited = 0
         while waited < timeout, !runningPIDs().isEmpty {
@@ -105,9 +106,7 @@ struct VPhoneVMStopCommand: ParsableCommand {
         let survivors = runningPIDs()
         if !survivors.isEmpty {
             print("\(name): force-killing \(survivors.map(String.init).joined(separator: ", "))")
-            for pid in survivors {
-                kill(pid, SIGKILL)
-            }
+            for pid in survivors { kill(pid, SIGKILL) }
         }
         print("\(name): stopped")
     }
