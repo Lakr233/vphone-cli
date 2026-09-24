@@ -5,15 +5,35 @@
 #include <mach-o/dyld.h>
 #include <spawn.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 static int vpInXPCProxy;
 
+static int vpOpenLog(const char *name) {
+    char path[PATH_MAX];
+    int used = snprintf(path, sizeof(path), "/var/mobile/Library/Caches/%s", name);
+    int fd = used > 0 && (size_t)used < sizeof(path)
+                 ? open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644)
+                 : -1;
+    if (fd >= 0)
+        return fd;
+    const char *home = getenv("CFFIXED_USER_HOME");
+    if (!home)
+        home = getenv("HOME");
+    if (!home)
+        return -1;
+    used = snprintf(path, sizeof(path), "%s/Library/Caches/%s", home, name);
+    return used > 0 && (size_t)used < sizeof(path)
+               ? open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644)
+               : -1;
+}
+
 static void vpLogSpawn(const char *path, const char *decision) {
-    int fd = open("/var/mobile/Library/Caches/vphone-systemhook-spawn.log",
-                  O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
-    if (fd < 0) return;
+    int fd = vpOpenLog("vphone-systemhook-spawn.log");
+    if (fd < 0)
+        return;
     dprintf(fd, "pid=%d path=%s decision=%s\n", getpid(), path ? path : "<null>", decision);
     close(fd);
 }
@@ -42,7 +62,7 @@ __attribute__((constructor)) static void vpLogProcess(void) {
         return;
     vpInXPCProxy = strcmp(path, "/usr/libexec/xpcproxy") == 0;
 
-    int fd = open("/var/mobile/Library/Caches/vphone-systemhook.log", O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+    int fd = vpOpenLog("vphone-systemhook.log");
     if (fd < 0)
         return;
     char **arguments = *_NSGetArgv();

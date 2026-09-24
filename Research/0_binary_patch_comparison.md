@@ -31,13 +31,16 @@
 > jetsam limit and suppresses future fatal task-limit assignments for PID 1.
 > When a bootstrap and its ElleKit library exist, the launchd hook uses
 > `MSHookFunction` on PID 1's `posix_spawn` to add
-> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy` and
-> directly spawned bootstrap programs. `SystemHook-vphone.dylib` interposes
+> `DYLD_INSERT_LIBRARIES=/usr/lib/SystemHook-vphone.dylib` to `xpcproxy`,
+> directly spawned bootstrap programs, and app executables under the system
+> or application bundle paths. `SystemHook-vphone.dylib` interposes
 > `posix_spawnp` inside `xpcproxy` to carry that environment into the final
 > executable. Both stages preserve an existing `DYLD_INSERT_LIBRARIES`, avoid
 > duplicate insertion, and honor `DISABLE_TWEAKS`, `_SafeMode`, and
-> `_MSSafeMode` in the target environment. The dylib logs PID, executable path,
-> xpcproxy label, and spawn decisions under `/var/mobile/Library/Caches`.
+> `_MSSafeMode` in the target environment. PID 1 logs child PID, executable
+> path, and spawn status under `/var/mobile/Library/Caches`. SystemHook logs
+> there when permitted and falls back to the app's own `Library/Caches` under
+> its sandboxed home directory.
 > It still does not load ElleKit, TweakLoader, or individual tweaks in target
 > processes. Tweak selection and sandbox behavior require separate validation.
 > On the rootless iOS 26.6.2 clone, `xpcproxy` called `posix_spawnp` for the
@@ -54,6 +57,13 @@
 > daemon reported `systemhook_loaded=1` both at load and after its timed
 > restart. This validates path handling and injection through the randomized
 > root, not a complete RootHide bootstrap or a real tweak package.
+> Apps use a separate direct launchd spawn path on this iOS 26.6.2 VM. On the
+> rootless clone, launchd logged the Calculator app spawn with PID 454 and
+> injection enabled; the app's own
+> `Library/Caches/vphone-systemhook.log` recorded the same PID and Calculator
+> executable path. The app reached the foreground and rendered normally.
+> The previous central-log-only probe could not observe sandboxed apps even
+> when SystemHook was loaded.
 > The cloned `vphone-launchdhook-lab-26.6.2` booted with the weak dylib and
 > retained a healthy vphoned API. Rootless and RootHide probes, each tested
 > after reboot, were imported and spawned by launchd. The RootHide probe's
