@@ -1,40 +1,21 @@
-<div align="right"><a href="README_zh.md">中文</a> · <a href="README_ja.md">日本語</a> · <strong>한국어</strong></div>
+<div align="right"><a href="../README.md">English</a> · <a href="README_zh.md">中文</a> · <a href="README_ja.md">日本語</a> · <strong>한국어</strong></div>
 
 # vphone-cli
 
-Apple Virtualization.framework와 PCC 연구용 VM 기반으로 가상 iPhone을 부팅합니다.
+> [!WARNING]
+> 버전 2.0은 개발 중입니다. 안정 버전이 필요하면 [1.0.14](https://github.com/Lakr233/vphone-cli/tree/1.0.14)를 사용하세요.
+
+Apple Silicon Mac에서 가상 iPhone을 만들고 실행합니다. vphone-cli는 Apple의 Virtualization.framework와 PCC 연구용 VM 기반을 사용합니다.
 
 ![macOS에서 실행 중인 가상 iPhone](demo.jpeg)
 
-공개 펌웨어 흐름은 **JB 한 가지**입니다. 필요한 시스템 패치와 호스트 제어용 vphoned를 설치합니다. 게스트 사용자 환경은 그대로 두며 패키지 관리자, SSH, VNC 또는 첫 부팅 bootstrap은 설치하지 않습니다.
+버전 2.0에서는 1.0의 무겁고 복잡한 호스트 설정을 상당 부분 없애고 커스텀 펌웨어에 필요한 시스템 수정 사항을 간소화했습니다. 핵심 흐름이 어느 정도 안정되어 구성은 **JB 한 가지**로 정리했습니다. 독립적으로 실행 가능한 `VPhone.bundle`의 CLI에서 펌웨어 다운로드부터 설치와 시작까지 처리합니다.
 
-## 빠른 시작
+현재 권장하는 호스트 설정은 macOS 복구 환경에서 `csrutil enable --without debug`와 `csrutil allow-research-guests enable`을 실행하는 것입니다. SIP는 켜진 상태로 유지되고 디버깅 제한만 완화됩니다. AMFI가 VM 바이너리를 허용하도록 하려면 root 권한이 필요합니다. 절차는 [호스트 설정](Guides/host-setup.md), 원리는 [amfi-allow 연구 자료](https://github.com/Lakr233/amfi-allow)를 참고하세요. 향후 `vphone-ui.app`에서는 설정을 더 쉽게 하고 설치 단계의 수정 사항을 선택할 수 있게 할 예정입니다.
 
-Apple Silicon Mac, macOS 15 이상, 그리고 PV=3 연구용 VM과 `vphone-vm` 권한을 허용하는 [호스트 설정](Guides/host-setup.md)이 필요합니다.
+## 시작하기
 
-**v2.0.0 VM 호환성:** 이 릴리스는 새로 만든 `schemaVersion=2` VM만 시작합니다. 이전 버전에서 만든 VM은 `vm create`로 다시 만들어야 하며, 기존 VM의 제자리 업그레이드는 지원하지 않습니다.
-
-```sh
-vphone-cli vm create myphone \
-  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
-  --cloudos-source /path/to/cloudOS.ipsw
-
-vphone-cli vm launch myphone
-```
-
-`vm create`는 준비, JB 패치, DFU 복원, CFW 설치를 수행하고 첫 부팅에서 vphoned에 실제로 ping합니다. **검증용 부팅은 성공 후 종료됩니다.** 계속 사용하려면 `vm launch`를 실행하세요. 복원에는 네트워크가, CFW 설치에는 관리자 인증이 필요합니다.
-
-cloudOS 26.4(`23E5207q`)와 함께 iPhone17,3 iOS 26.6.2(`23G90`), 27.0(`24A435`)이 잠금 화면에 도달하고 vphoned ping에 응답했습니다. 범위는 [호환성 기록](Guides/compatibility.md)을 참고하세요.
-
-## 설치와 빌드
-
-Xcode는 나중에 `vphone-workstation`이 통합할 `VPhone.bundle`을 만듭니다. 실행 시 Homebrew, Python, Xcode가 필요하지 않습니다. 번들 안의 CLI를 직접 실행할 수 있습니다.
-
-```sh
-.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS/vphone-cli host preflight
-```
-
-위 예시의 `vphone-cli` 대신 이 앱 내부 경로를 사용할 수 있습니다. 소스 빌드에는 vphoned용 iPhoneOS SDK가 포함된 Xcode가 필요합니다.
+macOS 15 이상이 설치된 Apple Silicon Mac, 소스 빌드용 Xcode, iPhone 복원 IPSW, 호환되는 cloudOS IPSW가 필요합니다. [호스트 설정](Guides/host-setup.md)에 따라 VM의 비공개 권한을 허용하고 [검증된 펌웨어 조합](Guides/compatibility.md)을 확인하세요. 중첩된 macOS VM에서는 게스트를 실행할 수 없습니다.
 
 ```sh
 git clone https://github.com/Lakr233/vphone-cli.git
@@ -42,8 +23,55 @@ cd vphone-cli
 xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
   -configuration Debug -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath .build/XcodeBundle build
+export PATH="$PWD/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS:$PATH"
+
+vphone-cli host preflight
+vphone-cli vm create myphone \
+  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw
+vphone-cli vm launch myphone
 ```
 
-빌드 과정에서 생성된 `VPhone.bundle`을 자동으로 검증합니다.
+`vm create`는 게스트 준비와 복원, JB 시스템 변경 설치, `vphoned` 응답 확인을 수행합니다. 확인용 부팅은 완료 후 중지되므로, 실제 사용을 위해 `vm launch`로 VM 창을 여세요. 생성에는 네트워크 연결이, CFW 설치에는 관리자 권한이 필요합니다. 자세한 내용은 [생성 및 실행 가이드](Guides/create-and-run.md)를 참고하세요.
 
-AMFI 허용 목록을 사용하는 호스트에서는 빌드할 때마다 [호스트 설정 가이드](Guides/host-setup.md)에 따라 서명된 VM 바이너리를 다시 허용하세요. 현재 가이드와 연구 자료는 [문서 목차](README.md)에 모았습니다. 상세 가이드는 현재 영어로 제공됩니다.
+2.x 버전은 `schemaVersion=2` 형식으로 생성한 VM만 시작할 수 있습니다. 이전 버전의 VM은 다시 만들어야 합니다.
+
+## 커스텀 펌웨어 Bootstrap
+
+VM을 실행한 뒤 macOS 메뉴 막대에서 **Guest > Install Bootstrap…**을 선택하고 환경 레이아웃을 고르세요. 그러면 게스트에 Irisin이 설치됩니다.
+
+현재는 Irisin에서 `coreutils`, `debianutils`, `dash` 등의 기본 패키지를 하나씩 설치해야 합니다. 패키지 스크립트 오류로 설치가 실패하면 실패한 작업 화면 왼쪽 위의 **More** 메뉴에서 **Ignore Script Errors and Retry**를 선택하세요. 스크립트는 실행되지만 오류를 무시하고 계속 진행합니다. 환경이 준비되면 일반 설치 방식으로 돌아갈 수 있습니다. 이 초기 설정 과정은 후속 버전에서 개선할 예정입니다.
+
+## 기본 사용법
+
+VM 창에서 앱과 파일 탐색, 클립보드와 설정 관리, 스크린샷, 녹화, 진단 기능을 사용할 수 있습니다. 로컬 자동화에는 `--api-listen 127.0.0.1:8765` 옵션으로 실행하세요. 자세한 내용은 [게스트 API](../Research/vphoned_http_api.md)를 참고하세요.
+
+| 작업 | 명령 |
+| --- | --- |
+| VM 목록 | `vphone-cli vm list` |
+| VM 정보 | `vphone-cli vm info myphone` |
+| VM 창 시작 | `vphone-cli vm launch myphone` |
+| VM 중지 | `vphone-cli vm stop myphone` |
+| 백업 내보내기 | `vphone-cli vm export myphone --out myphone.tzst` |
+| 백업 가져오기 | `vphone-cli vm import myphone.tzst --name restored` |
+
+VM은 기본적으로 `~/.vphone/`에 저장됩니다. 다른 명령은 `vphone-cli <group> --help`에서 확인할 수 있습니다.
+
+## 구성
+
+`vphone-cli`는 펌웨어 준비, VM 복원 및 수명 주기 관리를 담당합니다. 번들에 포함된 `vphone-vm`이 게스트를 실행하고 macOS 창을 관리합니다. 게스트 내부의 `vphoned`는 창의 제어 기능과 선택적으로 공개하는 HTTP·WebSocket API를 제공합니다. Xcode의 `VPhone` scheme은 독립적으로 실행 가능한 `VPhone.bundle`을 빌드하고 검증합니다.
+
+## 저장소 안내
+
+| 경로 | 내용 |
+| --- | --- |
+| [`VPhoneExecutable/`](../VPhoneExecutable/) | CLI, VM 프로세스, 펌웨어 패치 도구, 복원 백엔드 |
+| [`VPhoneKit/`](../VPhoneKit/) | 호스트 공용 라이브러리와 API 클라이언트 |
+| [`VPhoneDaemon/`](../VPhoneDaemon/) | 게스트 제어 데몬 `vphoned` |
+| [`VPhoneGuestComponents/`](../VPhoneGuestComponents/) | 게스트 후크와 지원 바이너리 |
+| [`Documents/`](README.md) | 설정, 사용법, 호환성, 문제 해결 가이드 |
+| [`Research/`](../Research/README.md) | 패치 및 구현 연구 기록 |
+
+## 감사의 말
+
+- [wh1te4ever/super-tart-vphone-writeup](https://github.com/wh1te4ever/super-tart-vphone-writeup)
