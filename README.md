@@ -2,6 +2,9 @@
 
 # vphone-cli
 
+> [!WARNING]
+> **Version 2.0 is under construction.** If you need a stable version, check out the [1.0.14 release](https://github.com/Lakr233/vphone-cli/tree/1.0.14): `git checkout 1.0.14`.
+
 Boot a virtual iPhone with Apple's Virtualization.framework and PCC research VM infrastructure.
 
 ![Virtual iPhone running on macOS](Documents/demo.jpeg)
