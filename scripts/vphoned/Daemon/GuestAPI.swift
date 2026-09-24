@@ -27,8 +27,12 @@ enum GuestAPI {
     static let binaryHash: String = {
         guard let url = Bundle.main.executableURL,
               let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return "unknown" }
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return sha256Hex(data)
     }()
+
+    private static func sha256Hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
 
     static func health() -> [String: Any] {
         let addresses = networkInfo()["addresses"] as? [String] ?? []
@@ -171,7 +175,7 @@ enum GuestAPI {
             let cache = "/var/root/Library/Caches/vphoned"
             let next = cache + ".next"
             let data = try Data(contentsOf: URL(fileURLWithPath: next), options: .mappedIfSafe)
-            let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            let actual = sha256Hex(data)
             guard actual == expected else { throw GuestAPIError.invalidRequest("Update hash mismatch") }
             guard chmod(next, 0o755) == 0 else { throw GuestAPIError.operationFailed("Could not make update executable") }
             guard rename(next, cache) == 0 else { throw GuestAPIError.operationFailed("Could not install update") }

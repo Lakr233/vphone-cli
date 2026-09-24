@@ -49,11 +49,13 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
             _ = try layout.stageVphoned(into: bundle)
         }
 
-        var args = ["--config", bundle.configURL.path]
-        if dfu { args.append("--dfu") }
-        if headless { args.append("--headless") }
-        if let apiListen { args += ["--api-listen", apiListen] }
-        if let kernelDebugPort { args += ["--kernel-debug-port", String(kernelDebugPort)] }
+        var boot = VPhoneBootCLI()
+        boot.config = bundle.configURL
+        boot.dfu = dfu
+        boot.headless = headless
+        boot.apiListen = apiListen
+        boot.kernelDebugPort = kernelDebugPort
+        let args = boot.bootArguments
 
         if v.tracesInternals {
             let (exe, spawned) = launcher.plan(args)
