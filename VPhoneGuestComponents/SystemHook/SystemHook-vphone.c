@@ -10,27 +10,31 @@
 
 static int vpInXPCProxy;
 
+static void vpLogSpawn(const char *path, const char *decision) {
+    int fd = open("/var/mobile/Library/Caches/vphone-systemhook-spawn.log",
+                  O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+    if (fd < 0) return;
+    dprintf(fd, "pid=%d path=%s decision=%s\n", getpid(), path ? path : "<null>", decision);
+    close(fd);
+}
+
 static int vpSpawnP(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *restrict actions,
                     const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                     char *const envp[restrict]) {
     if (!vpInXPCProxy)
         return posix_spawnp(pid, path, actions, attributes, argv, envp);
-    int fd =
-        open("/var/mobile/Library/Caches/vphone-systemhook-spawn.log", O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
-    if (fd >= 0) {
-        dprintf(fd, "pid=%d entry=posix_spawnp path=%s\n", getpid(), path ? path : "<null>");
-        close(fd);
-    }
     if (!path || vpInjectionDisabled(envp)) {
+        vpLogSpawn(path, "disabled");
         return posix_spawnp(pid, path, actions, attributes, argv, envp);
     }
     VPInjectionEnvironment injected = vpInsertHook(envp);
+    vpLogSpawn(path, injected.values ? "inserted" : "unchanged");
     int status = posix_spawnp(pid, path, actions, attributes, argv, injected.values ? injected.values : envp);
     vpFreeEnvironment(&injected);
     return status;
 }
 
-// Diagnostic only: confirm which processes actually load SystemHook.
+// xpcproxy needs this bridge because launchd only spawns the proxy, not its target.
 __attribute__((constructor)) static void vpLogProcess(void) {
     char path[PATH_MAX];
     uint32_t length = sizeof(path);
