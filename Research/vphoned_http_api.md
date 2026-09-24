@@ -44,7 +44,14 @@ to start the daemon; a launchd start error is returned as
 `service_start_warning` while the installed bootstrap remains available.
 RootHide's plist gets a physical daemon path and `__Patched`
 marker before launchd reads it. This is a manual payload install: no maintainer
-script runs and the dpkg database is not changed. The reply includes the tag,
+script runs. For this minimal vphone bootstrap, vphoned writes a real installed
+`firmware` record with the guest iOS version to the selected root's
+`Library/dpkg/status`; Irisin's installed list, resolver, and helper then read
+the same record. If the status already contains firmware from another
+bootstrap, vphoned preserves it. A vphoned-owned record is updated after an
+iOS version change when vphoned starts. `POST /v1/bootstrap/firmware` (RPC `bootstrap.firmware`)
+repairs the record for a bootstrap already identified by the completion marker
+without running another install. The reply includes the tag,
 bootstrap path, registration record, and launchd status. A successful bootstrap
 writes `.vphoned-boostrap-completed` beside the running vphoned binary; later
 requests refuse to bootstrap again when that marker exists.

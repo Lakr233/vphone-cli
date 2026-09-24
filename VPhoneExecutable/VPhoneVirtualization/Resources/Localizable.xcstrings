@@ -1,6 +1,10 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Recording firmware version…": { "localizations": {
+      "en": { "stringUnit": { "state": "translated", "value": "Recording firmware version…" } },
+      "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在登记固件版本…" } }
+    } },
     "Install Bootstrap…": { "localizations": {
       "en": { "stringUnit": { "state": "translated", "value": "Install Bootstrap…" } },
       "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装引导环境…" } }

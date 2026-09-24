@@ -205,6 +205,8 @@ enum GuestAPI {
             )
         case "bootstrap.status":
             return GuestIrisinInstaller.status()
+        case "bootstrap.firmware":
+            return try GuestIrisinInstaller.repairFirmwareRecord()
         case "input.touch":
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")

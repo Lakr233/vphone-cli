@@ -211,6 +211,8 @@ extension VPhoneMenuController {
             label.stringValue = VPhoneLocalization.text("Extracting Irisin…")
         case "installing":
             label.stringValue = VPhoneLocalization.text("Registering Irisin…")
+        case "firmware":
+            label.stringValue = VPhoneLocalization.text("Recording firmware version…")
         default: break
         }
     }
