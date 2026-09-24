@@ -73,7 +73,9 @@ struct VPhoneSignEntitlements: Equatable {
         entries = try reader.read()
     }
 
-    var isEmpty: Bool { entries.isEmpty }
+    var isEmpty: Bool {
+        entries.isEmpty
+    }
 
     /// Merges `other` in as `-M` does: each of its keys set to its value
     /// where the key already stands, appended where it does not.
@@ -112,7 +114,7 @@ struct VPhoneSignEntitlements: Equatable {
     /// refused rather than signed.
     func xml() throws -> Data {
         let foundation = try? PropertyListSerialization.data(
-            fromPropertyList: Self.foundation(.dictionary(entries)), format: .xml, options: 0
+            fromPropertyList: Self.foundation(.dictionary(entries)), format: .xml, options: 0,
         )
         guard Self.document(.dictionary(entries), sorted: true) == foundation else {
             throw VPhoneSignError.unsupportedEntitlements("Foundation and libplist would write this list differently")
@@ -157,7 +159,7 @@ struct VPhoneSignEntitlements: Equatable {
         case let .dictionary(entries):
             NSDictionary(
                 objects: entries.map { foundation($0.value) },
-                forKeys: entries.map { NSString(string: $0.key) }
+                forKeys: entries.map { NSString(string: $0.key) },
             )
         }
     }
@@ -237,7 +239,7 @@ struct VPhoneSignEntitlements: Equatable {
                 0x31,
                 entries.map { tagged(0x30, tagged(0x0C, Array($0.key.utf8)) + der($0.value)) }
                     .sorted { $0.lexicographicallyPrecedes($1) }
-                    .flatMap(\.self)
+                    .flatMap(\.self),
             )
         }
     }

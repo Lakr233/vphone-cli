@@ -73,7 +73,7 @@ extension KernelPatcher {
                     ARM64.movW0_0,
                     patchID: "apfs_graft",
                     virtualAddress: va,
-                    description: "mov w0,#0 [_apfs_graft]"
+                    description: "mov w0,#0 [_apfs_graft]",
                 )
                 return true
             }

@@ -10,12 +10,12 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
     public let udid: String?
 
     public init(bundle: VPhoneBundle) {
-        self.name = bundle.name
-        self.cpuCount = Int(bundle.manifest.cpuCount)
-        self.memoryMB = Int(bundle.manifest.memorySize / (1024 * 1024))
-        self.diskSizeBytes = bundle.diskSizeBytes
-        self.network = bundle.manifest.networkConfig
-        self.restoreInfo = VPhoneRestoreInfo.load(fromBundle: bundle)
-        self.udid = VPhoneRestoreOps.resolveUDID(bundle: bundle)
+        name = bundle.name
+        cpuCount = Int(bundle.manifest.cpuCount)
+        memoryMB = Int(bundle.manifest.memorySize / (1024 * 1024))
+        diskSizeBytes = bundle.diskSizeBytes
+        network = bundle.manifest.networkConfig
+        restoreInfo = VPhoneRestoreInfo.load(fromBundle: bundle)
+        udid = VPhoneRestoreOps.resolveUDID(bundle: bundle)
     }
 }

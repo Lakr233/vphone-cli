@@ -1,6 +1,6 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 struct RestoreOpsTests {
     private func bundle(in root: URL) throws -> VPhoneBundle {
@@ -8,19 +8,19 @@ struct RestoreOpsTests {
         let manifest = VPhoneVirtualMachineManifest(
             cpuCount: 2,
             memorySize: 1024 * 1024,
-            romImages: .init(avpBooter: "a", avpSEPBooter: "b")
+            romImages: .init(avpBooter: "a", avpSEPBooter: "b"),
         )
         return VPhoneBundle(url: root, manifest: manifest)
     }
 
-    @Test func resolveECIDPrefersExplicit() throws {
+    @Test func `resolve ECID prefers explicit`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let b = try bundle(in: root)
         #expect(VPhoneRestoreOps.resolveECID(explicit: "0xABCD", bundle: b) == "0xABCD")
     }
 
-    @Test func resolveECIDFromPredictionFile() throws {
+    @Test func `resolve ECID from prediction file`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let b = try bundle(in: root)
@@ -29,14 +29,14 @@ struct RestoreOpsTests {
         #expect(VPhoneRestoreOps.resolveECID(explicit: nil, bundle: b) == "1122334455667788")
     }
 
-    @Test func resolveECIDNilWhenMissing() throws {
+    @Test func `resolve ECID nil when missing`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let b = try bundle(in: root)
         #expect(VPhoneRestoreOps.resolveECID(explicit: nil, bundle: b) == nil)
     }
 
-    @Test func resolveUDIDFromPredictionFile() throws {
+    @Test func `resolve UDID from prediction file`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let b = try bundle(in: root)
@@ -45,14 +45,14 @@ struct RestoreOpsTests {
         #expect(VPhoneRestoreOps.resolveUDID(bundle: b) == "AAAABBBB-1122334455667788")
     }
 
-    @Test func resolveUDIDNilWhenMissing() throws {
+    @Test func `resolve UDID nil when missing`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let b = try bundle(in: root)
         #expect(VPhoneRestoreOps.resolveUDID(bundle: b) == nil)
     }
 
-    @Test func isAEAEncryptedDetectsMagic() throws {
+    @Test func `is AEA encrypted detects magic`() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }

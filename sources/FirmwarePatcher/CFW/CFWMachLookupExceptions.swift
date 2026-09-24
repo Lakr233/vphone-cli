@@ -73,13 +73,13 @@ public enum CFWMachLookupExceptions {
         guard let parsed = try? PropertyListSerialization.propertyList(
             from: data,
             options: [],
-            format: nil
+            format: nil,
         ) else {
             throw PatcherError.invalidFormat("cannot parse as plist: \(url.path)")
         }
         guard var entitlements = parsed as? [String: Any] else {
             throw PatcherError.invalidFormat(
-                "top-level plist is \(type(of: parsed)), expected dict: \(url.path)"
+                "top-level plist is \(type(of: parsed)), expected dict: \(url.path)",
             )
         }
 
@@ -91,7 +91,7 @@ public enum CFWMachLookupExceptions {
         let output = try PropertyListSerialization.data(
             fromPropertyList: entitlements,
             format: .xml,
-            options: 0
+            options: 0,
         )
         try output.write(to: url)
 
@@ -113,13 +113,13 @@ public enum CFWMachLookupExceptions {
         guard let value else { return [] }
         guard let array = value as? [Any] else {
             throw PatcherError.invalidFormat(
-                "'\(exceptionKey)' is \(type(of: value)), expected array: \(path)"
+                "'\(exceptionKey)' is \(type(of: value)), expected array: \(path)",
             )
         }
         return try array.map { element in
             guard let string = element as? String else {
                 throw PatcherError.invalidFormat(
-                    "'\(exceptionKey)' holds a non-string entry (\(type(of: element))): \(path)"
+                    "'\(exceptionKey)' holds a non-string entry (\(type(of: element))): \(path)",
                 )
             }
             return string

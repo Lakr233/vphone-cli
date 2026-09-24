@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct VerboseJBDebug {
-    @Test func debugFailingPatches() throws {
+    @Test func `debug failing patches`() throws {
         let baseDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()

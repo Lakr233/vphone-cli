@@ -23,7 +23,9 @@ do {
         // `boot` is a request for a guest, not work this process does. Hand it
         // to vphone-vm and report back whatever the guest exits with.
         let status = try VPhoneGuestLaunchPlanner().run(boot.bootArguments)
-        if status != 0 { throw ExitCode(status) }
+        if status != 0 {
+            throw ExitCode(status)
+        }
 
     default:
         var runnable = command

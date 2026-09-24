@@ -27,8 +27,8 @@
 // instant and near-free on APFS — and are discarded afterwards.
 // `VPHONE_DSC_SCRATCH` moves them somewhere else on the same volume.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -142,7 +142,9 @@ private enum CameraFixture {
         ProcessInfo.processInfo.environment["VPHONE_DSC_FIXTURE_OPTIONAL"] == "1"
     }
 
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -172,15 +174,15 @@ private enum CameraFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let result = try CameraSubprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
-                + (try FileManager.default.contentsOfDirectory(atPath: pristine.path))
+                + (FileManager.default.contentsOfDirectory(atPath: pristine.path))
                 .sorted()
                 .map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         #expect(result.status == 0, "cp -c failed: \(result.stderr)")
         return destination
@@ -237,12 +239,14 @@ private enum CameraSubprocess {
     static func run(
         executable: URL,
         arguments: [String],
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
     ) throws -> Result {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let environment { process.environment = environment }
+        if let environment {
+            process.environment = environment
+        }
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out
@@ -255,7 +259,7 @@ private enum CameraSubprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -266,8 +270,8 @@ private enum CameraSubprocess {
 struct DSCCameraPatcherParityTests {
     /// The gate. One clone, one run, one byte-for-byte comparison against the
     /// digests the reference left on every chunk file in the cache.
-    @Test("Swift leaves the real cache in the reference's bytes")
-    func matchesTheReferenceByteForByte() throws {
+    @Test
+    func `Swift leaves the real cache in the reference's bytes`() throws {
         let pristine = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let swiftSide = try CameraFixture.cloneCache(named: "camera_swift")
@@ -276,7 +280,7 @@ struct DSCCameraPatcherParityTests {
         var log: [String] = []
         let result = try DSCCameraPatcher.applyAll(
             chunksDirectory: swiftSide,
-            log: { log.append($0) }
+            log: { log.append($0) },
         )
         #expect(result.siteCount == 6, "the port wrote \(result.siteCount) sites, not 6")
         #expect(result.isComplete)
@@ -289,7 +293,7 @@ struct DSCCameraPatcherParityTests {
         for site in result.sites {
             let theirs = try #require(
                 reference[site.symbol],
-                "the reference did not report \(site.symbol)"
+                "the reference did not report \(site.symbol)",
             )
             #expect(site.vma == theirs.vma, "\(site.symbol) address")
             #expect(site.originalBytes.hex == theirs.before, "\(site.symbol) original bytes")
@@ -311,15 +315,17 @@ struct DSCCameraPatcherParityTests {
         print("[camera parity] \(result.siteCount) sites, "
             + "\(result.reattestation?.updated.count ?? 0) slots rewritten, "
             + "\(mine.count) chunk files, \(changed.count) with the reference's digests")
-        for line in log where line.contains("re-attest: wrote") { print(line) }
+        for line in log where line.contains("re-attest: wrote") {
+            print(line)
+        }
     }
 
     /// The reference re-attested per family off bare addresses; this re-attests
     /// once at the end off recorded spans. Same pages on this cache — which is
     /// worth checking rather than assuming, because it is the only reason the
     /// two runs can come out identical.
-    @Test("The port re-attests exactly the pages the reference did")
-    func reattestedPagesMatchTheReference() throws {
+    @Test
+    func `The port re-attests exactly the pages the reference did`() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let swiftSide = try CameraFixture.cloneCache(named: "camera_pages_swift")
@@ -329,19 +335,19 @@ struct DSCCameraPatcherParityTests {
         let minePages = Set(
             (result.reattestation?.updated ?? []).map {
                 "\($0.chunkURL.lastPathComponent):\($0.pageIndex)"
-            }
+            },
         )
         #expect(
             minePages == FrozenReference.reattestedPages,
-            "swift \(minePages.sorted()) vs reference \(FrozenReference.reattestedPages.sorted())"
+            "swift \(minePages.sorted()) vs reference \(FrozenReference.reattestedPages.sorted())",
         )
         print("[camera pages] \(minePages.sorted().joined(separator: ", "))")
     }
 
     /// Patch ids feed `cfw_records`, which is what a captured reference is
     /// keyed on. A port that renames them writes records nothing lines up with.
-    @Test("Patch ids match the reference's _sym_slug")
-    func patchIDsMatchTheReference() throws {
+    @Test
+    func `Patch ids match the reference's _sym_slug`() {
         let symbols = DSCCameraPatcher.styleTransferSymbols
             + [DSCCameraPatcher.authorizationStatusSymbol]
         let mine = symbols.map(DSCCameraPatcher.symbolSlug)
@@ -351,13 +357,13 @@ struct DSCCameraPatcherParityTests {
 
     /// Both replacements come out of the Keystone-checked encoders, and both
     /// have to be what keystone itself assembled.
-    @Test("Both replacements are the bytes keystone assembled")
-    func replacementsMatchKeystone() throws {
+    @Test
+    func `Both replacements are the bytes keystone assembled`() throws {
         let styleTransfer = try DSCCameraPatcher.replacement(
-            returning: DSCCameraPatcher.Family.neutrinoStyleTransfer.returnValue
+            returning: DSCCameraPatcher.Family.neutrinoStyleTransfer.returnValue,
         )
         let authorization = try DSCCameraPatcher.replacement(
-            returning: DSCCameraPatcher.Family.avfAuthorization.returnValue
+            returning: DSCCameraPatcher.Family.avfAuthorization.returnValue,
         )
         #expect(styleTransfer.hex == FrozenReference.keystoneReturningZero)
         #expect(authorization.hex == FrozenReference.keystoneReturningThree)
@@ -371,8 +377,8 @@ struct DSCCameraPatcherParityTests {
 
 @Suite(.serialized, .enabled(if: CameraFixture.runs, CameraFixture.skipReason))
 struct DSCCameraPatcherBehaviourTests {
-    @Test("A dry run finds every site and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run finds every site and writes nothing`() throws {
         let pristine = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_dryrun")
@@ -381,7 +387,7 @@ struct DSCCameraPatcherBehaviourTests {
         let result = try DSCCameraPatcher.applyAll(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(result.siteCount == 6)
         #expect(result.dryRun)
@@ -394,8 +400,8 @@ struct DSCCameraPatcherBehaviourTests {
         print("[camera dry run] \(result.siteCount) sites reported, \(after.count) files unchanged")
     }
 
-    @Test("AVF-only mode patches one site and leaves NeutrinoCore alone")
-    func avfOnlyPatchesOneSite() throws {
+    @Test
+    func `AVF-only mode patches one site and leaves NeutrinoCore alone`() throws {
         let pristine = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_avf_only")
@@ -403,7 +409,7 @@ struct DSCCameraPatcherBehaviourTests {
 
         let result = try DSCCameraPatcher.applyAVFAuthorizationOnly(
             chunksDirectory: clone,
-            log: nil
+            log: nil,
         )
         #expect(result.siteCount == 1)
         #expect(result.sites.first?.family == .avfAuthorization)
@@ -421,7 +427,7 @@ struct DSCCameraPatcherBehaviourTests {
         let resolver = try DSCSymbolResolver(chunks: chunks)
         let untouched = try resolver.addresses(
             of: DSCCameraPatcher.styleTransferSymbols,
-            inImage: DSCCameraPatcher.Family.neutrinoStyleTransfer.imagePath
+            inImage: DSCCameraPatcher.Family.neutrinoStyleTransfer.imagePath,
         )
         for (symbol, vma) in untouched {
             let head = try chunks.bytesAtVMA(vma, length: 4)
@@ -432,8 +438,8 @@ struct DSCCameraPatcherBehaviourTests {
 
     /// Three sibling DSC gates shipped a version that raised on their own
     /// output. This one recognises it.
-    @Test("A second run over an already-patched cache is inert, not an error")
-    func reRunIsIdempotent() throws {
+    @Test
+    func `A second run over an already-patched cache is inert, not an error`() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_idempotent")
@@ -447,8 +453,8 @@ struct DSCCameraPatcherBehaviourTests {
         let second = try DSCCameraPatcher.applyAll(chunksDirectory: clone, log: nil)
         #expect(second.siteCount == 6)
         #expect(
-            second.sites.allSatisfy { $0.wasAlreadyPatched },
-            "a re-run did not recognise its own output"
+            second.sites.allSatisfy(\.wasAlreadyPatched),
+            "a re-run did not recognise its own output",
         )
         #expect(second.reattestation?.updated.isEmpty == true, "a re-run rewrote slot hashes")
         #expect(second.isComplete)
@@ -473,8 +479,8 @@ struct DSCCameraPatcherBehaviourTests {
     /// half-patched and unloadable — it SIGKILLs on the first demand-page-in of
     /// a modified page. `apply` now plans every family before it writes any of
     /// them, so a failure writes nothing at all.
-    @Test("A failure part-way through leaves the cache untouched")
-    func failureWritesNothing() throws {
+    @Test
+    func `A failure part-way through leaves the cache untouched`() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_midrun_failure")
@@ -487,7 +493,7 @@ struct DSCCameraPatcherBehaviourTests {
         let resolver = try DSCSymbolResolver(chunks: chunks)
         let avf = try resolver.address(
             of: DSCCameraPatcher.authorizationStatusSymbol,
-            inImage: DSCCameraPatcher.Family.avfAuthorization.imagePath
+            inImage: DSCCameraPatcher.Family.avfAuthorization.imagePath,
         )
         try chunks.write(at: avf, ARM64.nop)
         try DSCCodeSignature.reattestRecordedWrites(in: chunks, log: nil)
@@ -504,13 +510,13 @@ struct DSCCameraPatcherBehaviourTests {
         print(
             changed.isEmpty
                 ? "[camera failure] applyAll threw and wrote nothing — \(before.count) files unchanged"
-                : "[camera failure] applyAll threw AFTER writing \(changed.joined(separator: ", "))"
+                : "[camera failure] applyAll threw AFTER writing \(changed.joined(separator: ", "))",
         )
     }
 
     /// The reference's `--force`, and what it is a guard against.
-    @Test("An unexpected prologue is refused unless forced")
-    func unexpectedPrologueIsRefused() throws {
+    @Test
+    func `An unexpected prologue is refused unless forced`() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_force")
@@ -522,7 +528,7 @@ struct DSCCameraPatcherBehaviourTests {
         let resolver = try DSCSymbolResolver(chunks: chunks)
         let vma = try resolver.address(
             of: DSCCameraPatcher.authorizationStatusSymbol,
-            inImage: DSCCameraPatcher.Family.avfAuthorization.imagePath
+            inImage: DSCCameraPatcher.Family.avfAuthorization.imagePath,
         )
         try chunks.write(at: vma, ARM64.nop)
         try DSCCodeSignature.reattestRecordedWrites(in: chunks, log: nil)
@@ -530,7 +536,7 @@ struct DSCCameraPatcherBehaviourTests {
         #expect(throws: PatcherError.self) {
             _ = try DSCCameraPatcher.applyAVFAuthorizationOnly(
                 chunksDirectory: clone,
-                log: nil
+                log: nil,
             )
         }
 
@@ -538,7 +544,7 @@ struct DSCCameraPatcherBehaviourTests {
         let forced = try DSCCameraPatcher.applyAVFAuthorizationOnly(
             chunksDirectory: clone,
             force: true,
-            log: { log.append($0) }
+            log: { log.append($0) },
         )
         #expect(forced.siteCount == 1)
         #expect(forced.sites.first?.wasAlreadyPatched == false)
@@ -554,8 +560,8 @@ struct DSCCameraPatcherBehaviourTests {
     /// The prologue classifier decides whether a site may be written at all, so
     /// it is worth exercising away from the cache too — including the shape a
     /// byte comparison would get right only by coincidence.
-    @Test("The prologue classifier reads instructions, not bytes")
-    func prologueClassifierIsSemantic() throws {
+    @Test
+    func `The prologue classifier reads instructions, not bytes`() throws {
         let disassembler = ARM64Disassembler()
         let replacement = try DSCCameraPatcher.replacement(returning: 3)
 
@@ -567,7 +573,7 @@ struct DSCCameraPatcherBehaviourTests {
                 returning: 3,
                 disassembler: disassembler,
                 force: force,
-                log: nil
+                log: nil,
             )
         }
 
@@ -603,14 +609,14 @@ struct DSCCameraPatcherBehaviourTests {
 
     /// A cache with no `.symbols` side file cannot resolve an ObjC method, and
     /// has to say so rather than reporting six renamed symbols.
-    @Test("A cache without local symbols fails loudly")
-    func missingLocalSymbolsFailsLoudly() throws {
+    @Test
+    func `A cache without local symbols fails loudly`() throws {
         _ = try #require(CameraFixture.pristine, CameraFixture.missing)
 
         let clone = try CameraFixture.cloneCache(named: "camera_no_symbols")
         defer { CameraFixture.discard(clone) }
         try FileManager.default.removeItem(
-            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols")
+            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols"),
         )
 
         #expect(throws: DSCError.self) {

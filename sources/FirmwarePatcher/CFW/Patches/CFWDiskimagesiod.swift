@@ -134,7 +134,9 @@ public enum CFWDiskimagesiod {
         public let original: Data
 
         /// True when the site already holds this patch's own output.
-        public var isAlreadyPatched: Bool { original == CFWDiskimagesiod.replacement }
+        public var isAlreadyPatched: Bool {
+            original == CFWDiskimagesiod.replacement
+        }
     }
 
     /// What a run did.
@@ -160,7 +162,9 @@ public enum CFWDiskimagesiod {
         public let rehashes: [CFWSlotRehash]
 
         /// The parity number: the Python writes exactly one site, and so must this.
-        public var sitesWritten: Int { record == nil ? 0 : 1 }
+        public var sitesWritten: Int {
+            record == nil ? 0 : 1
+        }
     }
 
     /// Where progress goes when the caller does not say. The Python prints to
@@ -191,9 +195,11 @@ public enum CFWDiskimagesiod {
         _ data: inout Data,
         reattest: Bool = false,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let site = try locate(in: data)
         let patched = replacement
@@ -221,9 +227,11 @@ public enum CFWDiskimagesiod {
             // leave the second page's slot stale.
             rehashes = try CFWMachOCodeSignature.reattest(
                 &data,
-                modifiedOffsets: [site.fileOffset, site.fileOffset + patched.count - 1]
+                modifiedOffsets: [site.fileOffset, site.fileOffset + patched.count - 1],
             )
-            for rehash in rehashes { log?("      [~] \(rehash)") }
+            for rehash in rehashes {
+                log?("      [~] \(rehash)")
+            }
             if rehashes.isEmpty {
                 log?("  [=] code directory slots already current; no re-attest needed")
             }
@@ -232,7 +240,7 @@ public enum CFWDiskimagesiod {
         let written = data[site.fileOffset ..< site.fileOffset + patched.count]
         guard written == patched else {
             throw PatcherError.patchVerificationFailed(
-                "\(method): site at 0x\(hex(UInt64(site.fileOffset))) reads \(Data(written).hex) after write"
+                "\(method): site at 0x\(hex(UInt64(site.fileOffset))) reads \(Data(written).hex) after write",
             )
         }
 
@@ -241,7 +249,7 @@ public enum CFWDiskimagesiod {
             outcome: site.isAlreadyPatched ? .alreadyPatched : .patched,
             site: site,
             record: record,
-            rehashes: rehashes
+            rehashes: rehashes,
         )
     }
 
@@ -254,7 +262,7 @@ public enum CFWDiskimagesiod {
         fileAt url: URL,
         reattest: Bool = false,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -293,7 +301,7 @@ public enum CFWDiskimagesiod {
                fileOffset: offset,
                virtualAddress: va,
                anchor: .symbolTable,
-               textRange: textRange
+               textRange: textRange,
            )
         {
             return site
@@ -303,7 +311,7 @@ public enum CFWDiskimagesiod {
         let (impVA, anchor) = try resolveIMPViaObjCMetadata(in: data, sections: sections)
         guard let offset = MachOParser.vaToFileOffset(impVA, segments: segments) else {
             throw PatcherError.invalidFormat(
-                "\(method): IMP va 0x\(hex(impVA)) is in no mapped segment"
+                "\(method): IMP va 0x\(hex(impVA)) is in no mapped segment",
             )
         }
         guard let site = makeSite(
@@ -311,11 +319,11 @@ public enum CFWDiskimagesiod {
             fileOffset: offset,
             virtualAddress: impVA,
             anchor: anchor,
-            textRange: textRange
+            textRange: textRange,
         ) else {
             throw PatcherError.patchSiteNotFound(
                 "\(method): IMP at 0x\(hex(impVA)) (foff 0x\(hex(UInt64(offset)))) "
-                    + "is outside __TEXT,__text or does not decode as instructions"
+                    + "is outside __TEXT,__text or does not decode as instructions",
             )
         }
         return site
@@ -331,7 +339,7 @@ public enum CFWDiskimagesiod {
         fileOffset: Int,
         virtualAddress: UInt64?,
         anchor: Anchor,
-        textRange: Range<Int>?
+        textRange: Range<Int>?,
     ) -> Site? {
         let length = replacement.count
         guard fileOffset >= 0, fileOffset + length <= data.count else { return nil }
@@ -344,16 +352,18 @@ public enum CFWDiskimagesiod {
             fileOffset: fileOffset,
             virtualAddress: virtualAddress,
             anchor: anchor,
-            original: original
+            original: original,
         )
-        if site.isAlreadyPatched { return site }
+        if site.isAlreadyPatched {
+            return site
+        }
 
         // `skipData` is on in the shared disassembler, so an undecodable word
         // arrives as a data pseudo-instruction (id 0) instead of ending the
         // stream — which is what makes this a usable "is this code?" test.
         let decoded = ARM64Disassembler().disassemble(
             original,
-            at: virtualAddress ?? UInt64(fileOffset)
+            at: virtualAddress ?? UInt64(fileOffset),
         )
         guard decoded.count == length / 4, decoded.allSatisfy({ $0.id != 0 }) else { return nil }
         return site
@@ -364,11 +374,11 @@ public enum CFWDiskimagesiod {
     /// selector cstring → selref → method-list entry → IMP.
     static func resolveIMPViaObjCMetadata(
         in data: Data,
-        sections: [String: MachOSectionInfo]
+        sections: [String: MachOSectionInfo],
     ) throws -> (impVA: UInt64, anchor: Anchor) {
         guard let selectorVA = selectorStringVA(in: data, sections: sections) else {
             throw PatcherError.patchSiteNotFound(
-                "\(component): selector '\(selector)' not present in the image"
+                "\(component): selector '\(selector)' not present in the image",
             )
         }
 
@@ -382,7 +392,7 @@ public enum CFWDiskimagesiod {
                in: data,
                selrefs: selrefsSection,
                selectorVA: selectorVA,
-               imageBase: imageBase(sections)
+               imageBase: imageBase(sections),
            )
         {
             targets.insert(selrefVA)
@@ -414,7 +424,7 @@ public enum CFWDiskimagesiod {
         }
 
         throw PatcherError.patchSiteNotFound(
-            "\(method): no ObjC method-list entry names '\(selector)'"
+            "\(method): no ObjC method-list entry names '\(selector)'",
         )
     }
 
@@ -430,7 +440,7 @@ public enum CFWDiskimagesiod {
             let list = distinct.sorted().map { "0x\(hex($0))" }.joined(separator: ", ")
             throw PatcherError.invalidFormat(
                 "\(method): \(strategy) names '\(selector)' from \(distinct.count) "
-                    + "implementations (\(list)) — no unambiguous target"
+                    + "implementations (\(list)) — no unambiguous target",
             )
         }
         return first
@@ -489,7 +499,7 @@ public enum CFWDiskimagesiod {
         in data: Data,
         selrefs: MachOSectionInfo,
         selectorVA: UInt64,
-        imageBase: UInt64
+        imageBase: UInt64,
     ) -> UInt64? {
         let start = Int(selrefs.fileOffset)
         let count = Int(selrefs.size)
@@ -528,7 +538,7 @@ public enum CFWDiskimagesiod {
     static func relativeMethodListIMPs(
         in data: Data,
         section: MachOSectionInfo,
-        naming targets: Set<UInt64>
+        naming targets: Set<UInt64>,
     ) -> [UInt64] {
         let base = Int(section.fileOffset)
         let size = Int(section.size)
@@ -553,7 +563,7 @@ public enum CFWDiskimagesiod {
                     in: data,
                     fileOffset: base + entryOffset,
                     virtualAddress: section.address + UInt64(entryOffset),
-                    naming: targets
+                    naming: targets,
                 ) {
                     found.append(impVA)
                 }
@@ -570,7 +580,7 @@ public enum CFWDiskimagesiod {
     static func scanRelativeMethodEntryIMPs(
         in data: Data,
         section: MachOSectionInfo,
-        naming targets: Set<UInt64>
+        naming targets: Set<UInt64>,
     ) -> [UInt64] {
         let base = Int(section.fileOffset)
         let size = Int(section.size)
@@ -583,7 +593,7 @@ public enum CFWDiskimagesiod {
                 in: data,
                 fileOffset: base + offset,
                 virtualAddress: section.address + UInt64(offset),
-                naming: targets
+                naming: targets,
             ) {
                 found.append(impVA)
             }
@@ -598,7 +608,7 @@ public enum CFWDiskimagesiod {
         in data: Data,
         fileOffset: Int,
         virtualAddress: UInt64,
-        naming targets: Set<UInt64>
+        naming targets: Set<UInt64>,
     ) -> UInt64? {
         guard fileOffset >= 0, fileOffset + relativeMethodEntrySize <= data.count else { return nil }
         let nameRelative = Int32(bitPattern: data.loadLE(UInt32.self, at: fileOffset))
@@ -623,7 +633,7 @@ public enum CFWDiskimagesiod {
             patchedBytes: patched,
             beforeDisasm: disassemblyText(of: site.original, at: site.virtualAddress),
             afterDisasm: disassemblyText(of: patched, at: site.virtualAddress),
-            description: "\(method) -> mov x0, #1; ret"
+            description: "\(method) -> mov x0, #1; ret",
         )
     }
 
@@ -665,7 +675,9 @@ public enum CFWDiskimagesiod {
 
     static func section(_ sections: [String: MachOSectionInfo], _ keys: String...) -> MachOSectionInfo? {
         for key in keys {
-            if let section = sections[key] { return section }
+            if let section = sections[key] {
+                return section
+            }
         }
         return nil
     }

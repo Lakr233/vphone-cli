@@ -3,8 +3,8 @@
 // Update the hash in the firmware manifest according to the actual hash of the corresponding files.
 //
 
-import Foundation
 import CryptoKit
+import Foundation
 import Img4tool
 
 /// Patcher for Manifest payloads.
@@ -61,18 +61,18 @@ public final class ManifestHashPatcher: Patcher {
     public var patchedData: Data {
         buffer.data
     }
-    
+
     private func parsePayload(_ blob: Data) throws -> PlistDict {
         guard let buildManifest = try PropertyListSerialization.propertyList(
             from: blob,
             options: [],
-            format: nil
+            format: nil,
         ) as? PlistDict else {
             throw FirmwareManifest.ManifestError.invalidPlist("")
         }
         return buildManifest
     }
-    
+
     func applyPatches(buildManifest: PlistDict) throws -> PlistDict {
         var buildManifest = buildManifest
         guard let restoreDir else {
@@ -81,7 +81,8 @@ public final class ManifestHashPatcher: Patcher {
 
         // We assume that FirmwareManifest has generated the manifest containing a single build identity.
         guard let buildIdentities = buildManifest["BuildIdentities"] as? [Any],
-              buildIdentities.count == 1 else {
+              buildIdentities.count == 1
+        else {
             throw FirmwareManifest.ManifestError.missingKey("BuildIdentities in BuildManifest")
         }
         guard var buildIdentity = buildIdentities.first! as? PlistDict else {
@@ -102,31 +103,31 @@ public final class ManifestHashPatcher: Patcher {
             guard let path = info["Path"] as? String else {
                 throw FirmwareManifest.ManifestError.missingKey("Path in build identity component info")
             }
-            
+
             // Mapped, not read. This loop hashes every component the build
             // identity names, and that list includes `OS` — the filesystem
             // DMG, which is ten gigabytes. Reading it meant holding all of it
             // while SHA384 walked it; mapping means the kernel pages it in
             // ahead of the hash and evicts behind it.
             let componentData = try Data(
-                contentsOf: restoreDir.appendingPathComponent(path), options: .mappedIfSafe
+                contentsOf: restoreDir.appendingPathComponent(path), options: .mappedIfSafe,
             )
             let finalData = try patchIm4pTypeTag(comp, info["Img4PayloadType"] as? String, componentData)
             let shaHash = SHA384.hash(data: finalData)
             dict["Digest"] = Data(shaHash)
             newBuildIdentityManifest[comp] = dict
         }
-        
+
         buildIdentity["Manifest"] = newBuildIdentityManifest
         buildManifest["BuildIdentities"] = [buildIdentity]
         return buildManifest
     }
-    
+
     private func serializePayload(_ buildManifest: PlistDict) throws -> Data {
-        return try PropertyListSerialization.data(
+        try PropertyListSerialization.data(
             fromPropertyList: buildManifest,
             format: .xml,
-            options: 0
+            options: 0,
         )
     }
 }
@@ -146,7 +147,7 @@ func patchIm4pTypeTag(_ component: String, _ declaredType: String?, _ data: Data
         "Ap,RestoreSecureM3Firmware",
         "Ap,RestoreSecurePageTableMonitor",
         "Ap,RestoreTrustedExecutionMonitor",
-        "Ap,RestorecL4"
+        "Ap,RestorecL4",
     ].contains(component) else {
         return data
     }

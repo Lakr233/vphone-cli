@@ -16,14 +16,18 @@ extension VPhoneControl {
 
     func settingsGet(domain: String, key: String? = nil) async throws -> Any? {
         var req: [String: Any] = ["t": "settings_get", "domain": domain]
-        if let key { req["key"] = key }
+        if let key {
+            req["key"] = key
+        }
         let (resp, _) = try await sendRequest(req)
         return resp["value"]
     }
 
     func settingsSet(domain: String, key: String, value: Any, type: String? = nil) async throws {
         var req: [String: Any] = ["t": "settings_set", "domain": domain, "key": key, "value": value]
-        if let type { req["type"] = type }
+        if let type {
+            req["type"] = type
+        }
         _ = try await sendRequest(req)
     }
 

@@ -83,7 +83,7 @@ struct VPhoneMachOImage {
         // none of that is exercised by anything.
         guard Self.armCPUTypes.contains(cpuType) else {
             throw VPhoneSignError.unsupportedSlice(
-                "slice at \(range.lowerBound) is cputype \(cpuType); this signer is ARM only"
+                "slice at \(range.lowerBound) is cputype \(cpuType); this signer is ARM only",
             )
         }
         fileType = image.littleEndianValue(at: 12)
@@ -122,7 +122,7 @@ struct VPhoneMachOImage {
                 signature = (
                     cursor,
                     Int(image.littleEndianValue(at: start + 8) as UInt32),
-                    Int(image.littleEndianValue(at: start + 12) as UInt32)
+                    Int(image.littleEndianValue(at: start + 12) as UInt32),
                 )
             case UInt32(LC_SYMTAB):
                 guard size >= MemoryLayout<symtab_command>.size else {
@@ -133,7 +133,7 @@ struct VPhoneMachOImage {
                 // an all-zero symbol table is no symbol table, as ldid reads it
                 stringTableEnd = offset == 0 && length == 0 ? nil : UInt64(offset) + UInt64(length)
             case UInt32(LC_SEGMENT_64):
-                segments.append(try Self.segment(in: image, at: start, commandOffset: cursor, size: size))
+                try segments.append(Self.segment(in: image, at: start, commandOffset: cursor, size: size))
             default:
                 break
             }
@@ -180,7 +180,7 @@ struct VPhoneMachOImage {
             sections.append((
                 Self.name(in: image, at: section),
                 image.littleEndianValue(at: section + 48),
-                image.littleEndianValue(at: section + 40)
+                image.littleEndianValue(at: section + 40),
             ))
         }
         return Segment(
@@ -189,7 +189,7 @@ struct VPhoneMachOImage {
             fileOffset: fileOffset,
             fileSize: fileSize,
             initialProtection: Int32(bitPattern: image.littleEndianValue(at: start + 60) as UInt32),
-            sections: sections
+            sections: sections,
         )
     }
 
@@ -204,7 +204,7 @@ struct VPhoneMachOImage {
     /// number of CodeDirectories has a different CDHash. So it is
     /// reproduced, not corrected.
     private static func digests(
-        in image: Data, command: UInt32, at start: Int, size: Int
+        in image: Data, command: UInt32, at start: Int, size: Int,
     ) throws -> [VPhoneCodeSignature.Digest]? {
         /// A packed version: patch, minor, then major in the high 16 bits.
         func version(_ value: UInt32) -> (major: UInt32, minor: UInt32) {
@@ -300,7 +300,9 @@ struct VPhoneMachOImage {
     /// in a fat file, and in a thin one what it takes the CPU's page to be.
     /// ldid's table has an entry per CPU; only the ARM one can be reached
     /// here, because `init` refuses everything else.
-    var linkeditAlignment: Int { 14 }
+    var linkeditAlignment: Int {
+        14
+    }
 
     // MARK: Rewriting
 
@@ -313,7 +315,7 @@ struct VPhoneMachOImage {
     func signed(
         alignment: Int,
         signatureSize: (_ codeLimit: Int) -> Int,
-        makeSignature: (_ code: Data, _ codeLimit: Int) throws -> Data
+        makeSignature: (_ code: Data, _ codeLimit: Int) throws -> Data,
     ) throws -> Data {
         let codeEnd = try codeEnd()
         let codeLimit = codeEnd.aligned(to: 16)
@@ -436,9 +438,9 @@ struct VPhoneMachOFile {
                 architectures.append(Architecture(
                     cpuType: data.bigEndianValue(at: entry),
                     cpuSubtype: data.bigEndianValue(at: entry + 4),
-                    alignment: alignment
+                    alignment: alignment,
                 ))
-                slices.append(try VPhoneMachOImage(file: data, range: offset ..< offset + length))
+                try slices.append(VPhoneMachOImage(file: data, range: offset ..< offset + length))
             }
             self.architectures = architectures
             self.slices = slices
@@ -446,7 +448,7 @@ struct VPhoneMachOFile {
             throw VPhoneSignError.unsupportedSlice("a fat file this signer does not read")
         default:
             architectures = nil
-            slices = [try VPhoneMachOImage(file: data, range: 0 ..< data.count)]
+            slices = try [VPhoneMachOImage(file: data, range: 0 ..< data.count)]
         }
     }
 

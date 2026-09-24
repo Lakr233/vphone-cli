@@ -127,6 +127,7 @@ public enum CFWWatchdogd {
     static let argumentRegister = "x0"
 
     // MARK: - Scan windows
+
     //
     // Instruction counts, not byte counts. Same values as the Python, which
     // measured them against the shipped binary.
@@ -201,7 +202,9 @@ public enum CFWWatchdogd {
 
         /// Sites whose bytes this run changed. The parity number against the
         /// Python, whose `patch_watchdogd()` returns exactly this.
-        public var sitesWritten: Int { records.count / 2 }
+        public var sitesWritten: Int {
+            records.count / 2
+        }
     }
 
     /// Where progress goes when the caller does not say. The Python prints to
@@ -223,7 +226,7 @@ public enum CFWWatchdogd {
     public static func patch(
         at url: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -242,9 +245,11 @@ public enum CFWWatchdogd {
     public static func patch(
         _ data: inout Data,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let sites = try locateSites(in: data, log: log)
         let pending = sites.filter { $0.state == .pristine }
@@ -262,7 +267,7 @@ public enum CFWWatchdogd {
         for site in pending {
             guard let value = ARM64Encoder.encodeMovzW(rd: site.valueRegisterNumber, imm16: 1) else {
                 throw PatcherError.patchVerificationFailed(
-                    "could not encode `mov \(site.valueRegister), #1`"
+                    "could not encode `mov \(site.valueRegister), #1`",
                 )
             }
             let gate = ARM64.nop
@@ -278,7 +283,7 @@ public enum CFWWatchdogd {
                 patched: gate,
                 id: "\(component).hv_vmm_cache.cbnz@0x\(hex(site.gateVMA))",
                 description: "NOP the cbnz w0 that skips the cached hv_vmm_present store",
-                disassembler: disassembler
+                disassembler: disassembler,
             ))
             records.append(record(
                 in: data,
@@ -288,7 +293,7 @@ public enum CFWWatchdogd {
                 id: "\(component).hv_vmm_cache.cset@0x\(hex(site.valueVMA))",
                 description: "cset \(site.valueRegister) -> mov \(site.valueRegister), #1 "
                     + "(cached 'am I a VM?' byte forced to 1)",
-                disassembler: disassembler
+                disassembler: disassembler,
             ))
 
             if !dryRun {
@@ -314,7 +319,9 @@ public enum CFWWatchdogd {
         }
 
         let rehashed = try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: modifiedOffsets)
-        for slot in rehashed { log?("      [+] re-attest: \(slot)") }
+        for slot in rehashed {
+            log?("      [+] re-attest: \(slot)")
+        }
         log?("  [+] re-attest updated \(rehashed.count) slot(s)")
 
         try verify(sites: pending, in: data)
@@ -343,7 +350,7 @@ public enum CFWWatchdogd {
 
         guard let symbols = CFWWatchdogdSymbolTargets(data: data) else {
             throw PatcherError.invalidFormat(
-                "no LC_SYMTAB/LC_DYSYMTAB — \(sysctlFunction) cannot be resolved"
+                "no LC_SYMTAB/LC_DYSYMTAB — \(sysctlFunction) cannot be resolved",
             )
         }
 
@@ -394,17 +401,19 @@ public enum CFWWatchdogd {
                 literalVMA: literal.address,
                 text: text,
                 segments: segments,
-                symbols: symbols
+                symbols: symbols,
             ) else { continue }
 
-            if !sites.contains(where: { $0.gateVMA == site.gateVMA }) { sites.append(site) }
+            if !sites.contains(where: { $0.gateVMA == site.gateVMA }) {
+                sites.append(site)
+            }
         }
 
         guard !sites.isEmpty else {
             throw PatcherError.patchSiteNotFound(
                 "no '\(sysctlName)' cache site: expected an adrp+add for the cstring reaching "
                     + "\(argumentRegister), a bl \(sysctlFunction), a cbnz w0 gate, a cset wN, ne "
-                    + "and a strb into a \(globalSegmentPrefix) global"
+                    + "and a strb into a \(globalSegmentPrefix) global",
             )
         }
         return sites.sorted { $0.gateVMA < $1.gateVMA }
@@ -420,22 +429,22 @@ public enum CFWWatchdogd {
         literalVMA: UInt64,
         text: MachOSectionInfo,
         segments: [MachOSegmentInfo],
-        symbols: CFWWatchdogdSymbolTargets
+        symbols: CFWWatchdogdSymbolTargets,
     ) -> Site? {
         // Layer 3: the call, and the import it resolves to.
         guard let callIndex = firstIndex(
             in: instructions, from: addIndex + 1, within: argumentSetupWindow,
-            where: { $0.mnemonic == "bl" }
+            where: { $0.mnemonic == "bl" },
         ) else { return nil }
         let call = instructions[callIndex]
         guard let target = ARM64Encoder.decodeBranchTarget(
-            insn: word(of: call), pc: call.address
+            insn: word(of: call), pc: call.address,
         ), symbols.name(forBranchTarget: target) == sysctlFunction else { return nil }
 
         // Layer 2, concluded: the literal has to be the call's `name` argument,
         // not just something this stretch of code also mentions.
         guard passesLiteral(
-            inRegister: pointerRegister, from: addIndex, toCallAt: callIndex, in: instructions
+            inRegister: pointerRegister, from: addIndex, toCallAt: callIndex, in: instructions,
         ) else { return nil }
 
         // Layer 4a: the gate, which must be the very next instruction — the
@@ -464,7 +473,7 @@ public enum CFWWatchdogd {
                 case .patched:
                     isMoveOfOne(instruction)
                 }
-            }
+            },
         ) else { return nil }
         let value = instructions[valueIndex]
         guard let valueRegister = registerName(value, 0),
@@ -474,13 +483,13 @@ public enum CFWWatchdogd {
         // __DATA address — the cached global.
         guard let storeIndex = firstIndex(
             in: instructions, from: valueIndex + 1, within: valueToStoreWindow,
-            where: { $0.mnemonic == "strb" && registerName($0, 0) == valueRegister }
+            where: { $0.mnemonic == "strb" && registerName($0, 0) == valueRegister },
         ) else { return nil }
         let store = instructions[storeIndex]
         guard let memory = memoryOperand(store) else { return nil }
         guard let basePage = pageAddress(
             ofRegister: UInt32(memory.base.rawValue),
-            before: storeIndex, notBefore: addIndex, in: instructions
+            before: storeIndex, notBefore: addIndex, in: instructions,
         ) else { return nil }
         let cachedByte = basePage &+ UInt64(bitPattern: Int64(memory.disp))
         guard let segment = segments.first(where: {
@@ -499,7 +508,7 @@ public enum CFWWatchdogd {
             valueRegister: valueRegister,
             valueRegisterNumber: valueNumber,
             storeVMA: store.address,
-            cachedByteVMA: cachedByte
+            cachedByteVMA: cachedByte,
         )
     }
 
@@ -515,9 +524,11 @@ public enum CFWWatchdogd {
         inRegister pointer: String,
         from addIndex: Int,
         toCallAt callIndex: Int,
-        in instructions: [Instruction]
+        in instructions: [Instruction],
     ) -> Bool {
-        if pointer == argumentRegister { return true }
+        if pointer == argumentRegister {
+            return true
+        }
         for index in (addIndex + 1) ..< callIndex {
             let instruction = instructions[index]
             if instruction.mnemonic == "mov",
@@ -534,7 +545,7 @@ public enum CFWWatchdogd {
     /// boundary so a suffix of a longer literal cannot pass.
     static func findLiteral(
         in data: Data,
-        sections: [String: MachOSectionInfo]
+        sections: [String: MachOSectionInfo],
     ) -> (address: UInt64, fileOffset: Int, section: String)? {
         for (key, section) in sections.sorted(by: { $0.key < $1.key })
             where literalSectionNames.contains(section.sectionName)
@@ -564,13 +575,13 @@ public enum CFWWatchdogd {
             let gate = data.subdata(in: site.gateFileOffset ..< site.gateFileOffset + 4)
             guard gate == ARM64.nop else {
                 throw PatcherError.patchVerificationFailed(
-                    "gate at 0x\(hex(site.gateVMA)) reads \(gate.hex) after write"
+                    "gate at 0x\(hex(site.gateVMA)) reads \(gate.hex) after write",
                 )
             }
             let value = data.subdata(in: site.valueFileOffset ..< site.valueFileOffset + 4)
             guard value == ARM64Encoder.encodeMovzW(rd: site.valueRegisterNumber, imm16: 1) else {
                 throw PatcherError.patchVerificationFailed(
-                    "value at 0x\(hex(site.valueVMA)) reads \(value.hex) after write"
+                    "value at 0x\(hex(site.valueVMA)) reads \(value.hex) after write",
                 )
             }
         }
@@ -585,7 +596,7 @@ public enum CFWWatchdogd {
         patched: Data,
         id: String,
         description: String,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> PatchRecord {
         let original = data.subdata(in: fileOffset ..< fileOffset + patched.count)
         return PatchRecord(
@@ -597,7 +608,7 @@ public enum CFWWatchdogd {
             patchedBytes: patched,
             beforeDisasm: text(of: original, at: virtualAddress, disassembler),
             afterDisasm: text(of: patched, at: virtualAddress, disassembler),
-            description: description
+            description: description,
         )
     }
 
@@ -618,14 +629,16 @@ public enum CFWWatchdogd {
         in instructions: [Instruction],
         from: Int,
         within: Int,
-        where predicate: (Instruction) -> Bool
+        where predicate: (Instruction) -> Bool,
     ) -> Int? {
         guard from >= 0 else { return nil }
         let end = min(instructions.count, from + within)
         var index = from
         while index < end {
             guard instructions[index].id != 0 else { return nil }
-            if predicate(instructions[index]) { return index }
+            if predicate(instructions[index]) {
+                return index
+            }
             index += 1
         }
         return nil
@@ -637,7 +650,7 @@ public enum CFWWatchdogd {
         ofRegister register: UInt32,
         before: Int,
         notBefore: Int,
-        in instructions: [Instruction]
+        in instructions: [Instruction],
     ) -> UInt64? {
         var index = before - 1
         while index >= notBefore {
@@ -665,7 +678,9 @@ public enum CFWWatchdogd {
     /// The instruction's raw little-endian word, for the branch decoder.
     static func word(of instruction: Instruction) -> UInt32 {
         var value: UInt32 = 0
-        for byte in instruction.bytes.prefix(4).reversed() { value = (value << 8) | UInt32(byte) }
+        for byte in instruction.bytes.prefix(4).reversed() {
+            value = (value << 8) | UInt32(byte)
+        }
         return value
     }
 
@@ -800,7 +815,7 @@ struct CFWWatchdogdSymbolTargets {
                             address: data.loadLE(UInt64.self, at: section + 32),
                             size: data.loadLE(UInt64.self, at: section + 40),
                             entrySize: entrySize,
-                            firstIndirectIndex: Int(data.loadLE(UInt32.self, at: section + 68)) // reserved1
+                            firstIndirectIndex: Int(data.loadLE(UInt32.self, at: section + 68)), // reserved1
                         ))
                     }
                     section += 80
@@ -863,7 +878,9 @@ struct CFWWatchdogdSymbolTargets {
         guard start < data.count else { return nil }
         var end = start
         let limit = min(data.count, stringOffset + stringSize)
-        while end < limit, data[end] != 0 { end += 1 }
+        while end < limit, data[end] != 0 {
+            end += 1
+        }
         return String(data: data.subdata(in: start ..< end), encoding: .utf8)
     }
 }

@@ -3,7 +3,6 @@ import AppKit
 
 @MainActor
 final class VPhoneQuickLookController: NSResponder, QLPreviewPanelDataSource {
-
     private var tempDir: URL?
     private(set) var previewURL: URL?
 
@@ -44,30 +43,32 @@ final class VPhoneQuickLookController: NSResponder, QLPreviewPanelDataSource {
     }
 
     // MARK: - QLPreviewPanelDataSource
+
     // AppKit calls these on the main thread.
 
-    nonisolated func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+    nonisolated func numberOfPreviewItems(in _: QLPreviewPanel!) -> Int {
         MainActor.assumeIsolated { previewURL != nil ? 1 : 0 }
     }
 
-    nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> any QLPreviewItem {
+    nonisolated func previewPanel(_: QLPreviewPanel!, previewItemAt _: Int) -> any QLPreviewItem {
         MainActor.assumeIsolated { (previewURL ?? URL(fileURLWithPath: "/dev/null")) as NSURL }
     }
 
     // MARK: - QLPreviewPanelController
+
     // AppKit calls these when walking the responder chain.
 
-    nonisolated override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+    override nonisolated func acceptsPreviewPanelControl(_: QLPreviewPanel!) -> Bool {
         // Called on main thread; synchronous return required.
         MainActor.assumeIsolated { previewURL != nil }
     }
 
-    nonisolated override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+    override nonisolated func beginPreviewPanelControl(_: QLPreviewPanel!) {
         // `open()` already sets panel.dataSource synchronously before showing the panel.
         // Nothing to do here; the conformance method must exist for QLPreviewPanelController.
     }
 
-    nonisolated override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+    override nonisolated func endPreviewPanelControl(_: QLPreviewPanel!) {
         Task { @MainActor in
             cleanupTempFiles()
         }

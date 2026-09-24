@@ -87,7 +87,7 @@ private enum FrozenReference {
             changedChunks: [
                 "dyld_shared_cache_arm64e.38":
                     "b49bbe7872273242c73973a451d9dac1a7ec803da8efeb5dcd1e04c7b5292f1d",
-            ]
+            ],
         ),
         0x560: SizeRun(
             sitesWritten: 1,
@@ -95,7 +95,7 @@ private enum FrozenReference {
             changedChunks: [
                 "dyld_shared_cache_arm64e.38":
                     "72f07ea587a523ed602d30f8f9a3508d291451a75ab90a0c578313d208b8a0e4",
-            ]
+            ],
         ),
         0x6E0: SizeRun(sitesWritten: 0, wasAlreadyCorrect: true, changedChunks: [:]),
     ]
@@ -125,7 +125,9 @@ private enum SwapEndFixture {
         ProcessInfo.processInfo.environment["VPHONE_DSC_FIXTURE_OPTIONAL"] == "1"
     }
 
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -155,15 +157,15 @@ private enum SwapEndFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let result = try SwapEndSubprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
-                + (try FileManager.default.contentsOfDirectory(atPath: pristine.path))
+                + (FileManager.default.contentsOfDirectory(atPath: pristine.path))
                 .sorted()
                 .map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         guard result.status == 0 else { throw CocoaError(.fileWriteUnknown) }
         return destination
@@ -209,7 +211,7 @@ private enum SwapEndSubprocess {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -253,9 +255,11 @@ private enum CacheComparison {
                     "-s",
                     left.appendingPathComponent(name).path,
                     right.appendingPathComponent(name).path,
-                ]
+                ],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return differing
     }
@@ -277,7 +281,7 @@ private enum SwapEndCallSetup {
     static func assemble(
         selector: UInt16 = 5,
         size: UInt16 = sourceSize,
-        terminator: Data? = nil
+        terminator: Data? = nil,
     ) -> Data? {
         let branchPC = Int(baseAddress) + 24
         guard let ldr = ARM64Encoder.encodeLdrWUnsignedOffset(rt: 0, rn: 0, offset: 0x14),
@@ -298,10 +302,9 @@ private enum SwapEndCallSetup {
 
 // MARK: - 1 · The anchor, with no cache in sight
 
-@Suite
 struct DSCIOMFBSwapEndShapeTests {
-    @Test("The finder lands on the size move of the external-method call set-up")
-    func findsTheSizeMove() throws {
+    @Test
+    func `The finder lands on the size move of the external-method call set-up`() throws {
         let disassembler = ARM64Disassembler()
         let code = try #require(SwapEndCallSetup.assemble())
         let instructions = SwapEndCallSetup.disassemble(code, disassembler)
@@ -310,28 +313,28 @@ struct DSCIOMFBSwapEndShapeTests {
         let site = try #require(
             DSCIOMFBSwapEndPatcher.findSizeInstruction(
                 in: instructions,
-                disassembler: disassembler
-            )
+                disassembler: disassembler,
+            ),
         )
         #expect(site.index == SwapEndCallSetup.sizeIndex)
         #expect(
             site.instruction.address
-                == SwapEndCallSetup.baseAddress + UInt64(SwapEndCallSetup.sizeIndex * 4)
+                == SwapEndCallSetup.baseAddress + UInt64(SwapEndCallSetup.sizeIndex * 4),
         )
 
         let decoded = try #require(
             DSCIOMFBSwapEndPatcher.movRegisterImmediate(
                 site.instruction,
-                disassembler: disassembler
-            )
+                disassembler: disassembler,
+            ),
         )
         #expect(decoded.register == DSCIOMFBSwapEndPatcher.sizeRegister)
         #expect(decoded.immediate == Int64(SwapEndCallSetup.sourceSize))
         print("[shape] size move at index \(site.index): \(site.instruction)")
     }
 
-    @Test("A different selector is not this call, and is not patched")
-    func rejectsAnotherSelector() throws {
+    @Test
+    func `A different selector is not this call, and is not patched`() throws {
         let disassembler = ARM64Disassembler()
         // Selector 6 is some other external method of the same userclient; the
         // size it passes is none of this patcher's business.
@@ -340,49 +343,49 @@ struct DSCIOMFBSwapEndShapeTests {
         #expect(
             DSCIOMFBSwapEndPatcher.findSizeInstruction(
                 in: instructions,
-                disassembler: disassembler
-            ) == nil
+                disassembler: disassembler,
+            ) == nil,
         )
     }
 
-    @Test("Without the call itself the shape is not a call set-up")
-    func rejectsASequenceThatNeverCalls() throws {
+    @Test
+    func `Without the call itself the shape is not a call set-up`() throws {
         let disassembler = ARM64Disassembler()
         let code = try #require(SwapEndCallSetup.assemble(terminator: ARM64.nop))
         let instructions = SwapEndCallSetup.disassemble(code, disassembler)
         #expect(
             DSCIOMFBSwapEndPatcher.findSizeInstruction(
                 in: instructions,
-                disassembler: disassembler
-            ) == nil
+                disassembler: disassembler,
+            ) == nil,
         )
     }
 
-    @Test("The replacement is the encoder's MOVZ, for every size a base kernel wants")
-    func replacementComesFromTheEncoder() throws {
+    @Test
+    func `The replacement is the encoder's MOVZ, for every size a base kernel wants`() throws {
         // 0x560 is the 26.1 base, 0x588 the 26.4 one; both are passed by
         // `cfw_install*.sh` / `cfw-kit` today.
         for size: UInt16 in [0x560, 0x588] {
             let encoded = try #require(ARM64Encoder.encodeMovzW(rd: 3, imm16: size))
             #expect(encoded.count == 4)
             let decoded = try #require(
-                ARM64Disassembler().disassembleOne(encoded, at: SwapEndCallSetup.baseAddress)
+                ARM64Disassembler().disassembleOne(encoded, at: SwapEndCallSetup.baseAddress),
             )
             let move = try #require(
                 DSCIOMFBSwapEndPatcher.movRegisterImmediate(
                     decoded,
-                    disassembler: ARM64Disassembler()
-                )
+                    disassembler: ARM64Disassembler(),
+                ),
             )
             #expect(move.register == DSCIOMFBSwapEndPatcher.sizeRegister)
             #expect(move.immediate == Int64(size))
         }
     }
 
-    @Test("A size that will not fit a MOVZ immediate is refused, not truncated")
-    func oversizedTargetIsRefused() throws {
+    @Test
+    func `A size that will not fit a MOVZ immediate is refused, not truncated`() throws {
         #expect(throws: PatcherError.self) {
-            _ = try DSCIOMFBSwapEndPatcher.replacement(forTargetSize: 0x1_0000)
+            _ = try DSCIOMFBSwapEndPatcher.replacement(forTargetSize: 0x10000)
         }
         // And it is refused before the 6.7 GB cache is opened, so the caller
         // gets "that size cannot be encoded" rather than whatever the cache
@@ -392,9 +395,9 @@ struct DSCIOMFBSwapEndShapeTests {
         do {
             _ = try DSCIOMFBSwapEndPatcher.patch(
                 chunksDirectory: URL(fileURLWithPath: "/nonexistent-dyld-cache"),
-                targetSize: 0x1_0000,
+                targetSize: 0x10000,
                 dryRun: true,
-                log: nil
+                log: nil,
             )
         } catch {
             thrown = error
@@ -418,15 +421,14 @@ struct DSCIOMFBSwapEndParityTests {
     static let targetSizes: [UInt32] = [0x588, 0x560, 0x6E0]
 
     @Test(
-        "Swift patches the real cache to the reference's bytes",
-        arguments: targetSizes
+        arguments: targetSizes,
     )
-    func matchesTheReferenceByteForByte(targetSize: UInt32) throws {
+    func `Swift patches the real cache to the reference's bytes`(targetSize: UInt32) throws {
         let pristine = try #require(SwapEndFixture.pristine, SwapEndFixture.missing)
         let suffix = String(targetSize, radix: 16)
         let reference = try #require(
             FrozenReference.bySize[targetSize],
-            "no frozen reference run for this target size"
+            "no frozen reference run for this target size",
         )
 
         let swiftClone = try SwapEndFixture.cloneCache(named: "swift_\(suffix)")
@@ -435,13 +437,13 @@ struct DSCIOMFBSwapEndParityTests {
         let mine = try DSCIOMFBSwapEndPatcher.patch(
             chunksDirectory: swiftClone,
             targetSize: targetSize,
-            log: nil
+            log: nil,
         )
 
         // Same number of sites, at the same address, from the same source size.
         #expect(
             mine.sitesWritten == reference.sitesWritten,
-            "swift wrote \(mine.sitesWritten) site(s), reference \(reference.sitesWritten)"
+            "swift wrote \(mine.sitesWritten) site(s), reference \(reference.sitesWritten)",
         )
         #expect(mine.wasAlreadyCorrect == reference.wasAlreadyCorrect)
         #expect(mine.siteVMA == FrozenReference.siteVMA)
@@ -469,12 +471,12 @@ struct DSCIOMFBSwapEndParityTests {
                 + "(0x\(String(mine.originalSize, radix: 16, uppercase: true)) -> "
                 + "0x\(String(mine.targetSize, radix: 16, uppercase: true)) at "
                 + "0x\(String(mine.siteVMA, radix: 16, uppercase: true))); "
-                + "chunks changed: \(touched) — digests match the reference"
+                + "chunks changed: \(touched) — digests match the reference",
         )
     }
 
-    @Test("A dry run reports the site and leaves every chunk untouched")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run reports the site and leaves every chunk untouched`() throws {
         let pristine = try #require(SwapEndFixture.pristine, SwapEndFixture.missing)
         let clone = try SwapEndFixture.cloneCache(named: "dry")
         defer { SwapEndFixture.discard(clone) }
@@ -483,7 +485,7 @@ struct DSCIOMFBSwapEndParityTests {
             chunksDirectory: clone,
             targetSize: 0x588,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(mine.sitesWritten == 0)
         #expect(mine.reattestation == nil)
@@ -495,12 +497,12 @@ struct DSCIOMFBSwapEndParityTests {
         print(
             "[dry-run] would patch 0x\(String(mine.originalSize, radix: 16, uppercase: true)) "
                 + "-> 0x588 at 0x\(String(mine.siteVMA, radix: 16, uppercase: true)); "
-                + "0 chunks changed"
+                + "0 chunks changed",
         )
     }
 
-    @Test("Patching an already-patched cache is a no-op, not a second write")
-    func secondRunChangesNothing() throws {
+    @Test
+    func `Patching an already-patched cache is a no-op, not a second write`() throws {
         try #require(SwapEndFixture.pristine != nil, SwapEndFixture.missing)
         let clone = try SwapEndFixture.cloneCache(named: "idempotent")
         let afterFirst = try SwapEndFixture.cloneCache(named: "idempotent_snapshot")
@@ -509,7 +511,7 @@ struct DSCIOMFBSwapEndParityTests {
         let first = try DSCIOMFBSwapEndPatcher.patch(
             chunksDirectory: clone,
             targetSize: 0x588,
-            log: nil
+            log: nil,
         )
         #expect(first.sitesWritten == 1)
         #expect(!first.wasAlreadyCorrect)
@@ -518,14 +520,14 @@ struct DSCIOMFBSwapEndParityTests {
         try? FileManager.default.removeItem(at: afterFirst)
         let copy = try SwapEndSubprocess.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
-            arguments: ["-c", "-R", clone.path, afterFirst.path]
+            arguments: ["-c", "-R", clone.path, afterFirst.path],
         )
         #expect(copy.status == 0)
 
         let second = try DSCIOMFBSwapEndPatcher.patch(
             chunksDirectory: clone,
             targetSize: 0x588,
-            log: nil
+            log: nil,
         )
         #expect(second.wasAlreadyCorrect)
         #expect(second.sitesWritten == 0)
@@ -544,8 +546,8 @@ struct DSCIOMFBSwapEndParityTests {
         print("[idempotent] second run wrote 0 sites and changed 0 chunks")
     }
 
-    @Test("The symbol and the site are found without `ipsw` on the patch path")
-    func resolvesWithoutIpsw() throws {
+    @Test
+    func `The symbol and the site are found without ipsw on the patch path`() throws {
         let pristine = try #require(SwapEndFixture.pristine, SwapEndFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         let resolver = try DSCSymbolResolver(chunks: chunks)
@@ -553,7 +555,7 @@ struct DSCIOMFBSwapEndParityTests {
 
         let functionVMA = try resolver.address(
             of: DSCIOMFBSwapEndPatcher.symbolName,
-            inImage: DSCIOMFBSwapEndPatcher.imagePath
+            inImage: DSCIOMFBSwapEndPatcher.imagePath,
         )
         #expect(functionVMA == FrozenReference.functionVMA)
 
@@ -562,23 +564,23 @@ struct DSCIOMFBSwapEndParityTests {
             in: chunks,
             at: functionVMA,
             maximumInstructions: DSCIOMFBSwapEndPatcher.maximumInstructions,
-            disassembler: disassembler
+            disassembler: disassembler,
         )
         #expect(!instructions.isEmpty)
 
         let site = try #require(
             DSCIOMFBSwapEndPatcher.findSizeInstruction(
                 in: instructions,
-                disassembler: disassembler
+                disassembler: disassembler,
             ),
-            "the SwapEnd call set-up was not found in \(DSCIOMFBSwapEndPatcher.symbolName)"
+            "the SwapEnd call set-up was not found in \(DSCIOMFBSwapEndPatcher.symbolName)",
         )
         // The shape, on the real function: selector, size, two zeros, the call.
         let selector = try #require(
             DSCIOMFBSwapEndPatcher.movRegisterImmediate(
                 instructions[site.index - 1],
-                disassembler: disassembler
-            )
+                disassembler: disassembler,
+            ),
         )
         #expect(selector.register == "w1")
         #expect(selector.immediate == DSCIOMFBSwapEndPatcher.selector)
@@ -587,8 +589,8 @@ struct DSCIOMFBSwapEndParityTests {
         let size = try #require(
             DSCIOMFBSwapEndPatcher.movRegisterImmediate(
                 site.instruction,
-                disassembler: disassembler
-            )
+                disassembler: disassembler,
+            ),
         )
         // The reference resolved the same function and landed on the same move.
         #expect(site.instruction.address == FrozenReference.siteVMA)
@@ -597,7 +599,7 @@ struct DSCIOMFBSwapEndParityTests {
             "[resolve] \(DSCIOMFBSwapEndPatcher.symbolName) @ "
                 + "0x\(String(functionVMA, radix: 16, uppercase: true)), size move "
                 + "0x\(String(size.immediate, radix: 16, uppercase: true)) @ "
-                + "0x\(String(site.instruction.address, radix: 16, uppercase: true))"
+                + "0x\(String(site.instruction.address, radix: 16, uppercase: true))",
         )
     }
 }

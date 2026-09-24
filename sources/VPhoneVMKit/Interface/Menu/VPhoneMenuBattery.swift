@@ -64,7 +64,9 @@ extension VPhoneMenuController {
     @objc func setBatteryLevel(_ sender: NSMenuItem) {
         guard let menu = sender.menu else { return }
         for mi in menu.items {
-            if mi.isSeparatorItem { break }
+            if mi.isSeparatorItem {
+                break
+            }
             mi.state = mi === sender ? .on : .off
         }
         let charge = Double(sender.tag)
@@ -77,8 +79,12 @@ extension VPhoneMenuController {
         guard let menu = sender.menu else { return }
         var pastSeparator = false
         for mi in menu.items {
-            if mi.isSeparatorItem { pastSeparator = true; continue }
-            if pastSeparator { mi.state = mi === sender ? .on : .off }
+            if mi.isSeparatorItem {
+                pastSeparator = true; continue
+            }
+            if pastSeparator {
+                mi.state = mi === sender ? .on : .off
+            }
         }
         let charge = currentBatteryCharge(in: menu)
         vm?.setBattery(charge: charge, connectivity: sender.tag)
@@ -144,7 +150,7 @@ extension VPhoneMenuController {
         Task {
             do {
                 try await control.lowPowerMode(enabled: enabled)
-                syncBatteryFromHost()  // refresh status label with updated LPM state
+                syncBatteryFromHost() // refresh status label with updated LPM state
                 print("[battery] sync LPM: \(enabled)")
             } catch {
                 print("[battery] sync LPM failed: \(error)")
@@ -189,7 +195,7 @@ extension VPhoneMenuController {
         lowPowerObserver = NotificationCenter.default.addObserver(
             forName: Notification.Name("NSProcessInfoPowerStateDidChangeNotification"),
             object: nil,
-            queue: .main
+            queue: .main,
         ) { [weak self] _ in
             Task { @MainActor in self?.syncLowPowerModeFromHost() }
         }
@@ -214,8 +220,12 @@ extension VPhoneMenuController {
 
     private func currentBatteryCharge(in menu: NSMenu) -> Double {
         for mi in menu.items {
-            if mi.isSeparatorItem { break }
-            if mi.state == .on { return Double(mi.tag) }
+            if mi.isSeparatorItem {
+                break
+            }
+            if mi.state == .on {
+                return Double(mi.tag)
+            }
         }
         return 100.0
     }
@@ -223,8 +233,12 @@ extension VPhoneMenuController {
     private func currentBatteryConnectivity(in menu: NSMenu) -> Int {
         var pastSeparator = false
         for mi in menu.items {
-            if mi.isSeparatorItem { pastSeparator = true; continue }
-            if pastSeparator, mi.state == .on { return mi.tag }
+            if mi.isSeparatorItem {
+                pastSeparator = true; continue
+            }
+            if pastSeparator, mi.state == .on {
+                return mi.tag
+            }
         }
         return 1
     }

@@ -30,11 +30,11 @@ enum VPhoneFirmwarePreparer {
         iPhoneSource: String,
         cloudOSSource: String,
         bundle: VPhoneBundle,
-        cacheDirectory: URL
+        cacheDirectory: URL,
     ) throws {
         let fm = FileManager.default
         let existing = try fm.contentsOfDirectory(
-            at: bundle.url, includingPropertiesForKeys: [.isDirectoryKey]
+            at: bundle.url, includingPropertiesForKeys: [.isDirectoryKey],
         )
         for candidate in existing where candidate.lastPathComponent.contains("Restore") {
             if try candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
@@ -117,14 +117,16 @@ enum VPhoneFirmwarePreparer {
         from source: URL,
         into destination: URL,
         overwrite: Bool = true,
-        where predicate: (String) -> Bool
+        where predicate: (String) -> Bool,
     ) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: source.path) else { throw Error.missingComponent(source) }
         let names = try fm.contentsOfDirectory(atPath: source.path).filter(predicate)
         for name in names {
             let to = destination.appendingPathComponent(name)
-            if !overwrite, fm.fileExists(atPath: to.path) { continue }
+            if !overwrite, fm.fileExists(atPath: to.path) {
+                continue
+            }
             try clone(source.appendingPathComponent(name), to: to)
         }
     }
@@ -132,24 +134,32 @@ enum VPhoneFirmwarePreparer {
     private static func clone(_ source: URL, to destination: URL) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: source.path) else { throw Error.missingComponent(source) }
-        if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-        if clonefile(source.path, destination.path, 0) == 0 { return }
-        if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
+        if fm.fileExists(atPath: destination.path) {
+            try fm.removeItem(at: destination)
+        }
+        if clonefile(source.path, destination.path, 0) == 0 {
+            return
+        }
+        if fm.fileExists(atPath: destination.path) {
+            try fm.removeItem(at: destination)
+        }
         try fm.copyItem(at: source, to: destination)
     }
 
     private static func makeUserWritable(_ directory: URL) throws {
         let fm = FileManager.default
         guard let entries = fm.enumerator(
-            at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey]
+            at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey],
         ) else { return }
         for case let file as URL in entries {
             let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey])
-            if values.isSymbolicLink == true { continue }
+            if values.isSymbolicLink == true {
+                continue
+            }
             let attributes = try fm.attributesOfItem(atPath: file.path)
             let mode = (attributes[.posixPermissions] as? NSNumber)?.uint16Value ?? 0o644
             try fm.setAttributes(
-                [.posixPermissions: NSNumber(value: mode | 0o200)], ofItemAtPath: file.path
+                [.posixPermissions: NSNumber(value: mode | 0o200)], ofItemAtPath: file.path,
             )
         }
     }

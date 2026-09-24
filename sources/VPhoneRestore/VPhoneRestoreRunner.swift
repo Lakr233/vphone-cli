@@ -25,7 +25,7 @@ public enum VPhoneRestoreRunner {
     /// which is why it is `@Sendable`.
     public static func run(
         _ options: VPhoneRestoreOptions,
-        onEvent: @escaping VPhoneRestoreEventHandler = { _ in }
+        onEvent: @escaping VPhoneRestoreEventHandler = { _ in },
     ) throws {
         let sink = VPhoneRestoreEventSink(onEvent)
         let result = options.withCOptions { base -> Int32 in
@@ -36,7 +36,7 @@ public enum VPhoneRestoreRunner {
                 let sink = Unmanaged<VPhoneRestoreEventSink>.fromOpaque(context).takeUnretainedValue()
                 sink.handler(.log(
                     level: VPhoneRestoreLogLevel(clamping: level),
-                    message: String(cString: message)
+                    message: String(cString: message),
                 ))
             }
             c.progress_cb = { step, fraction, context in
@@ -66,14 +66,14 @@ public enum VPhoneRestoreRunner {
             throw VPhoneRestoreBackendError.restoreDirectoryUnusable(options.restoreDirectory)
         case VPHONE_RESTORE_E_TICKET:
             throw VPhoneRestoreBackendError.ticketUnreadable(
-                options.ticketPath ?? options.restoreDirectory
+                options.ticketPath ?? options.restoreDirectory,
             )
         default:
             // Everything else, including the small negatives idevicerestore
             // returns itself. The log stream carries what actually went wrong.
             throw VPhoneRestoreBackendError.restoreFailed(
                 code: result,
-                reason: String(cString: vphone_restore_error_string(result))
+                reason: String(cString: vphone_restore_error_string(result)),
             )
         }
     }

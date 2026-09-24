@@ -15,9 +15,14 @@ struct VPhoneCodeSignature {
     enum Digest: Equatable {
         case sha1, sha256
 
-        var size: Int { self == .sha1 ? 20 : 32 }
+        var size: Int {
+            self == .sha1 ? 20 : 32
+        }
+
         /// `CS_HASHTYPE_SHA1` / `CS_HASHTYPE_SHA256`.
-        var type: UInt8 { self == .sha1 ? 1 : 2 }
+        var type: UInt8 {
+            self == .sha1 ? 1 : 2
+        }
 
         func hash(_ data: Data) -> Data {
             self == .sha1 ? Data(Insecure.SHA1.hash(data: data)) : Data(SHA256.hash(data: data))
@@ -105,7 +110,7 @@ struct VPhoneCodeSignature {
         code: Data,
         codeLimit: Int,
         executable: (base: UInt64, limit: UInt64),
-        cms: ((_ primary: Data, _ cdHashes: [Data]) throws -> Data)? = nil
+        cms: ((_ primary: Data, _ cdHashes: [Data]) throws -> Data)? = nil,
     ) throws -> Data {
         var blobs: [(slot: UInt32, bytes: Data)] = [(2, requirementsBlob)]
         if let entitlements {
@@ -115,8 +120,8 @@ struct VPhoneCodeSignature {
 
         var directories: [Data] = []
         for (index, digest) in digests.enumerated() {
-            let directory = self.directory(
-                digest: digest, code: code, codeLimit: codeLimit, executable: executable, blobs: blobs
+            let directory = directory(
+                digest: digest, code: code, codeLimit: codeLimit, executable: executable, blobs: blobs,
             )
             directories.append(directory)
             blobs.append((index == 0 ? 0 : 0x1000 + UInt32(index) - 1, directory))
@@ -126,7 +131,7 @@ struct VPhoneCodeSignature {
             // each CodeDirectory hashed with its own digest, at full length:
             // the attribute that carries them truncates to 20 bytes itself
             let cdHashes = zip(digests, directories).map { $0.hash($1) }
-            blobs.append((0x10000, Self.wrapped(0xFADE_0B01, try cms(primary, cdHashes))))
+            try blobs.append((0x10000, Self.wrapped(0xFADE_0B01, cms(primary, cdHashes))))
         }
 
         // ldid keeps the blobs in a map, so they come out in slot order
@@ -149,7 +154,7 @@ struct VPhoneCodeSignature {
         code: Data,
         codeLimit: Int,
         executable: (base: UInt64, limit: UInt64),
-        blobs: [(slot: UInt32, bytes: Data)]
+        blobs: [(slot: UInt32, bytes: Data)],
     ) -> Data {
         let identifierBytes = Data(identifier.utf8) + [0]
         let teamBytes = teamIdentifier.isEmpty ? Data() : Data(teamIdentifier.utf8) + [0]
@@ -164,7 +169,7 @@ struct VPhoneCodeSignature {
         directory.appendBigEndian(0x0002_0400 as UInt32) // the version with an executable segment
         directory.appendBigEndian(flags)
         directory.appendBigEndian(UInt32(
-            Self.directoryHeader + identifierBytes.count + teamBytes.count + special * digest.size
+            Self.directoryHeader + identifierBytes.count + teamBytes.count + special * digest.size,
         )) // hashOffset
         directory.appendBigEndian(UInt32(Self.directoryHeader)) // identOffset
         directory.appendBigEndian(UInt32(special))

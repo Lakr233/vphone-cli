@@ -110,7 +110,7 @@ public struct DSCLocalSymbolTable: Sendable {
             return ImageEntry(
                 dylibOffset: file.at(UInt64.self, base),
                 nlistStartIndex: Int(file.at(UInt32.self, base + 8)),
-                nlistCount: Int(file.at(UInt32.self, base + 12))
+                nlistCount: Int(file.at(UInt32.self, base + 12)),
             )
         }
     }
@@ -123,7 +123,9 @@ public struct DSCLocalSymbolTable: Sendable {
         let start = file.startIndex + stringBase + stringIndex
         let limit = file.startIndex + stringBase + stringSize
         var end = start
-        while end < limit, file[end] != 0 { end += 1 }
+        while end < limit, file[end] != 0 {
+            end += 1
+        }
         guard end > start else { return "" }
         return String(decoding: file[start ..< end], as: UTF8.self)
     }
@@ -143,7 +145,7 @@ public struct DSCLocalSymbolTable: Sendable {
             for index in 0 ..< nlistCount {
                 let base = nlistBase + index * 16
                 let stringIndex = Int(
-                    bytes.loadUnaligned(fromByteOffset: base, as: UInt32.self).littleEndian
+                    bytes.loadUnaligned(fromByteOffset: base, as: UInt32.self).littleEndian,
                 )
                 guard matches(wanted, in: bytes, atStringIndex: stringIndex) else { continue }
                 return bytes
@@ -169,7 +171,9 @@ public struct DSCLocalSymbolTable: Sendable {
             let value = file.at(UInt64.self, base + 8)
             guard value != 0, let name = name(atStringIndex: stringIndex), !name.isEmpty
             else { continue }
-            if result[name] == nil { result[name] = value }
+            if result[name] == nil {
+                result[name] = value
+            }
         }
         return result
     }
@@ -183,7 +187,7 @@ public struct DSCLocalSymbolTable: Sendable {
     private func matches(
         _ wanted: [UInt8],
         in bytes: UnsafeRawBufferPointer,
-        atStringIndex stringIndex: Int
+        atStringIndex stringIndex: Int,
     ) -> Bool {
         guard stringIndex >= 0, stringIndex + wanted.count < stringSize else { return false }
         let base = stringBase + stringIndex

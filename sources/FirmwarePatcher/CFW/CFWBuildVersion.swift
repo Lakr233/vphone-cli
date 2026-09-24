@@ -38,7 +38,9 @@ public enum CFWBuildVersion {
         /// True only when bytes landed on disk — mirrors the Python's
         /// `patch_plist()` return value.
         public var didWrite: Bool {
-            if case .rewritten = self { return true }
+            if case .rewritten = self {
+                return true
+            }
             return false
         }
     }
@@ -56,7 +58,7 @@ public enum CFWBuildVersion {
         at url: URL,
         to target: String,
         dryRun: Bool = false,
-        verbose: Bool = true
+        verbose: Bool = true,
     ) throws -> Outcome {
         let data = try readFile(at: url)
         let format = detectFormat(data)
@@ -64,14 +66,14 @@ public enum CFWBuildVersion {
         guard let parsed = try? PropertyListSerialization.propertyList(
             from: data,
             options: [],
-            format: nil
+            format: nil,
         ) else {
             throw PatcherError.invalidFormat("cannot parse as plist: \(url.path)")
         }
 
         guard var plist = parsed as? [String: Any] else {
             throw PatcherError.invalidFormat(
-                "top-level plist is \(type(of: parsed)), expected dict: \(url.path)"
+                "top-level plist is \(type(of: parsed)), expected dict: \(url.path)",
             )
         }
 
@@ -80,27 +82,33 @@ public enum CFWBuildVersion {
         }
         guard let currentString = current as? String else {
             throw PatcherError.invalidFormat(
-                "'\(key)' is \(type(of: current)), expected str: \(url.path)"
+                "'\(key)' is \(type(of: current)), expected str: \(url.path)",
             )
         }
 
         if currentString == target {
-            if verbose { print("  [.] \(url.path): \(key) already = '\(target)'") }
+            if verbose {
+                print("  [.] \(url.path): \(key) already = '\(target)'")
+            }
             return .alreadyTarget(target)
         }
 
-        if verbose { print("  [+] \(url.path): \(key) '\(currentString)' -> '\(target)'") }
+        if verbose {
+            print("  [+] \(url.path): \(key) '\(currentString)' -> '\(target)'")
+        }
         plist[key] = target
 
         if dryRun {
-            if verbose { print("  [.] dry-run — not writing back") }
+            if verbose {
+                print("  [.] dry-run — not writing back")
+            }
             return .dryRun(from: currentString, to: target)
         }
 
         let output = try PropertyListSerialization.data(
             fromPropertyList: plist,
             format: format,
-            options: 0
+            options: 0,
         )
         try output.write(to: url)
         return .rewritten(from: currentString, to: target)

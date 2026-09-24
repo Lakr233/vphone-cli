@@ -28,7 +28,7 @@ extension FirmwarePipeline {
         restoreDir: URL,
         iosBaseIs18: Bool,
         iosBaseIs27: Bool,
-        cloudOSIsFridaCapable: Bool
+        cloudOSIsFridaCapable: Bool,
     ) -> [ComponentDescriptor] {
         var components: [ComponentDescriptor] = []
 
@@ -73,7 +73,7 @@ extension FirmwarePipeline {
                     ]
                 }
                 return []
-            }()
+            }(),
         ))
 
         // 2. iBSS — JB and EXP variants run the base iBSS patcher, then the nonce-skip extension.
@@ -82,7 +82,7 @@ extension FirmwarePipeline {
             inRestoreDir: true,
             searchPatterns: ["Firmware/dfu/iBSS.vresearch101.RELEASE.im4p"],
             patcherFactories: {
-                return switch variant {
+                switch variant {
                 case .less:
                     []
                 case .regular, .dev:
@@ -99,7 +99,7 @@ extension FirmwarePipeline {
                         },
                     ]
                 }
-            }()
+            }(),
         ))
 
         // 3. iBEC - Not required by the less variant, still added for the serial logs.
@@ -111,7 +111,7 @@ extension FirmwarePipeline {
                 let p = IBootPatcher(data: data, mode: .ibec, verbose: verbose)
                 p.extraBootArgs = extraBootArgs
                 return p
-            }]
+            }],
         ))
 
         // 4. LLB - Not required by the less variant, still added for the serial logs.
@@ -123,7 +123,7 @@ extension FirmwarePipeline {
                 let p = IBootPatcher(data: data, mode: .llb, verbose: verbose)
                 p.extraBootArgs = extraBootArgs
                 return p
-            }]
+            }],
         ))
 
         // 5. TXM — dev/jb/exp variants use TXMDevPatcher (adds entitlements, debugger, dev-mode)
@@ -132,7 +132,7 @@ extension FirmwarePipeline {
             inRestoreDir: true,
             searchPatterns: ["Firmware/txm.iphoneos.research.im4p"],
             patcherFactories: {
-                return switch variant {
+                switch variant {
                 case .less:
                     []
                 case .regular:
@@ -144,7 +144,7 @@ extension FirmwarePipeline {
                         TXMDevPatcher(data: data, verbose: verbose)
                     }]
                 }
-            }()
+            }(),
         ))
 
         // 6. Kernel — JB variant runs base kernel patches first, then JB extensions.
@@ -154,7 +154,7 @@ extension FirmwarePipeline {
             inRestoreDir: true,
             searchPatterns: ["kernelcache.research.vphone600"],
             patcherFactories: {
-                return switch variant {
+                switch variant {
                 case .less:
                     []
                 case .regular:
@@ -193,7 +193,7 @@ extension FirmwarePipeline {
                         },
                     ]
                 }
-            }()
+            }(),
         ))
 
         // 7. DeviceTree — base property patches for every variant. EXP additionally
@@ -208,9 +208,9 @@ extension FirmwarePipeline {
                 DeviceTreePatcher(
                     data: data,
                     verbose: verbose,
-                    includeIdentityPatches: dtIncludeIdentity
+                    includeIdentityPatches: dtIncludeIdentity,
                 )
-            }]
+            }],
         ))
 
         // 8. Filesystem
@@ -219,20 +219,20 @@ extension FirmwarePipeline {
             inRestoreDir: true,
             searchPatterns: ["BuildManifest.plist"],
             patcherFactories: {
-                return switch variant {
+                switch variant {
                 case .less:
                     [{ data, verbose in
                         CryptexFilesystemPatcher(
                             buildManiest: data,
                             restoreDir: restoreDir,
                             verbose: verbose,
-                            noBinpack: self.noBinpack
+                            noBinpack: self.noBinpack,
                         )
                     }]
                 case .regular, .dev, .jb, .exp:
                     []
                 }
-            }()
+            }(),
         ))
 
         // 9. Firmware Manifest - Only required when excluding the img4 signature patches.
@@ -241,7 +241,7 @@ extension FirmwarePipeline {
             inRestoreDir: true,
             searchPatterns: ["BuildManifest.plist"],
             patcherFactories: {
-                return switch variant {
+                switch variant {
                 case .less:
                     [{ data, verbose in
                         ManifestHashPatcher(data: data, restoreDir: restoreDir, verbose: verbose)
@@ -249,7 +249,7 @@ extension FirmwarePipeline {
                 case .regular, .dev, .jb, .exp:
                     []
                 }
-            }()
+            }(),
         ))
 
         return components

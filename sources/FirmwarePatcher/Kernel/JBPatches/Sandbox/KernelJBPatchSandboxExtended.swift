@@ -110,7 +110,7 @@ extension KernelJBPatcher {
                 newBytes,
                 patchID: "sandbox_ext_\(idx)",
                 virtualAddress: nil,
-                description: "ops[\(idx)] -> allow stub [_hook_\(hookName)]"
+                description: "ops[\(idx)] -> allow stub [_hook_\(hookName)]",
             )
             patched += 1
         }
@@ -163,12 +163,16 @@ extension KernelJBPatcher {
                 defer { i += 8 }
                 let val = buffer.readU64(at: i)
                 // Must not be zero or a tagged (high-bit set) pointer at position [0].
-                if val == 0 || (val & (1 << 63)) != 0 { continue }
+                if val == 0 || (val & (1 << 63)) != 0 {
+                    continue
+                }
                 // Low 43 bits must point to sandboxOff (auth-rebase chained ptr format).
                 guard (val & 0x7FF_FFFF_FFFF) == UInt64(sandboxOff) else { continue }
 
                 let val2 = buffer.readU64(at: i + 8)
-                if (val2 & (1 << 63)) != 0 { continue }
+                if (val2 & (1 << 63)) != 0 {
+                    continue
+                }
                 guard (val2 & 0x7FF_FFFF_FFFF) == UInt64(seatbeltOff) else { continue }
 
                 // Offset +32: tagged ptr to mac_policy_ops.

@@ -74,7 +74,9 @@ public struct DSCIOMFBSwapEndPatch: Sendable {
     public let reattestation: DSCReattestation?
 
     /// The Python's return value: one site *considered*, patched or not.
-    public var sitesConsidered: Int { 1 }
+    public var sitesConsidered: Int {
+        1
+    }
 }
 
 public enum DSCIOMFBSwapEndPatcher {
@@ -123,7 +125,7 @@ public enum DSCIOMFBSwapEndPatcher {
         chunksDirectory: URL,
         targetSize: UInt32 = defaultTargetSize,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> DSCIOMFBSwapEndPatch {
         // Before opening a 6.7 GB cache and its 1.2 GB symbol table: a target
         // size that cannot be encoded is an argument error, and it should read
@@ -137,7 +139,7 @@ public enum DSCIOMFBSwapEndPatcher {
             resolver: resolver,
             targetSize: targetSize,
             dryRun: dryRun,
-            log: log
+            log: log,
         )
     }
 
@@ -153,7 +155,7 @@ public enum DSCIOMFBSwapEndPatcher {
         resolver: DSCSymbolResolver,
         targetSize: UInt32 = defaultTargetSize,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = DSCCodeSignature.stderrLog
+        log: ((String) -> Void)? = DSCCodeSignature.stderrLog,
     ) throws -> DSCIOMFBSwapEndPatch {
         let replacement = try replacement(forTargetSize: targetSize)
 
@@ -167,14 +169,14 @@ public enum DSCIOMFBSwapEndPatcher {
             in: chunks,
             at: functionVMA,
             maximumInstructions: maximumInstructions,
-            disassembler: disassembler
+            disassembler: disassembler,
         )
         guard let site = findSizeInstruction(in: instructions, disassembler: disassembler),
               let current = movRegisterImmediate(site.instruction, disassembler: disassembler)
         else {
             throw PatcherError.patchSiteNotFound(
                 "\(symbolName) SwapEnd size site (mov w1, #\(selector) -> "
-                    + "mov \(sizeRegister), #imm -> mov x4, #0 -> mov x5, #0 -> bl) not found"
+                    + "mov \(sizeRegister), #imm -> mov x4, #0 -> mov x5, #0 -> bl) not found",
             )
         }
 
@@ -185,13 +187,13 @@ public enum DSCIOMFBSwapEndPatcher {
         if wasAlreadyCorrect {
             log?(
                 "      [=] already 0x\(hex(targetSize)) at 0x\(hex(siteVMA)); "
-                    + "re-attesting page only"
+                    + "re-attesting page only",
             )
         } else {
             log?(
                 "      [\(dryRun ? "~" : "+")] \(dryRun ? "would patch" : "patched") "
                     + "\(imagePath) \(symbolName) size 0x\(hex(originalSize)) -> "
-                    + "0x\(hex(targetSize)) at 0x\(hex(siteVMA))"
+                    + "0x\(hex(targetSize)) at 0x\(hex(siteVMA))",
             )
         }
 
@@ -210,7 +212,7 @@ public enum DSCIOMFBSwapEndPatcher {
             guard readBack == replacement else {
                 throw PatcherError.patchVerificationFailed(
                     "\(symbolName) size site at 0x\(hex(siteVMA)) reads back "
-                        + "\(readBack.hex), expected \(replacement.hex)"
+                        + "\(readBack.hex), expected \(replacement.hex)",
                 )
             }
         }
@@ -223,7 +225,7 @@ public enum DSCIOMFBSwapEndPatcher {
             targetSize: targetSize,
             wasAlreadyCorrect: wasAlreadyCorrect,
             sitesWritten: (dryRun || wasAlreadyCorrect) ? 0 : 1,
-            reattestation: reattestation
+            reattestation: reattestation,
         )
     }
 
@@ -237,14 +239,14 @@ public enum DSCIOMFBSwapEndPatcher {
     static func replacement(forTargetSize targetSize: UInt32) throws -> Data {
         guard let immediate = UInt16(exactly: targetSize) else {
             throw PatcherError.invalidFormat(
-                "SwapEnd target size 0x\(hex(targetSize)) does not fit a MOVZ immediate"
+                "SwapEnd target size 0x\(hex(targetSize)) does not fit a MOVZ immediate",
             )
         }
         guard let encoded = ARM64Encoder.encodeMovzW(rd: 3, imm16: immediate),
               encoded.count == 4
         else {
             throw PatcherError.invalidFormat(
-                "could not encode mov \(sizeRegister), #0x\(hex(targetSize))"
+                "could not encode mov \(sizeRegister), #0x\(hex(targetSize))",
             )
         }
         return encoded
@@ -269,7 +271,7 @@ public enum DSCIOMFBSwapEndPatcher {
     /// operand string.
     static func findSizeInstruction(
         in instructions: [Instruction],
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> SizeSite? {
         // selector, size, the zeroed argument registers, then the call.
         let shapeLength = 3 + zeroedRegisters.count
@@ -278,20 +280,20 @@ public enum DSCIOMFBSwapEndPatcher {
         for index in 0 ... (instructions.count - shapeLength) {
             guard let selectorMove = movRegisterImmediate(
                 instructions[index],
-                disassembler: disassembler
+                disassembler: disassembler,
             ), selectorMove.register == "w1", selectorMove.immediate == selector
             else { continue }
 
             guard let sizeMove = movRegisterImmediate(
                 instructions[index + 1],
-                disassembler: disassembler
+                disassembler: disassembler,
             ), sizeMove.register == sizeRegister
             else { continue }
 
             let zeroed = zeroedRegisters.enumerated().allSatisfy { offset, name in
                 guard let move = movRegisterImmediate(
                     instructions[index + 2 + offset],
-                    disassembler: disassembler
+                    disassembler: disassembler,
                 ) else { return false }
                 return move.register == name && move.immediate == 0
             }
@@ -311,7 +313,7 @@ public enum DSCIOMFBSwapEndPatcher {
     /// a change in how Capstone renders an operand cannot move the site.
     static func movRegisterImmediate(
         _ instruction: Instruction,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> (register: String, immediate: Int64)? {
         guard instruction.mnemonic == "mov" else { return nil }
         guard let operands = instruction.aarch64?.operands, operands.count == 2,
@@ -332,17 +334,19 @@ public enum DSCIOMFBSwapEndPatcher {
         in chunks: DSCChunkSet,
         at vma: UInt64,
         maximumInstructions: Int,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) throws -> [Instruction] {
         let code = try chunks.readAtVMA(
             vma,
             length: maximumInstructions * 4,
-            allowShort: true
+            allowShort: true,
         )
         var result: [Instruction] = []
         for instruction in disassembler.disassemble(code, at: vma, count: maximumInstructions) {
             result.append(instruction)
-            if instruction.mnemonic == "ret" || instruction.mnemonic == "retab" { break }
+            if instruction.mnemonic == "ret" || instruction.mnemonic == "retab" {
+                break
+            }
         }
         return result
     }

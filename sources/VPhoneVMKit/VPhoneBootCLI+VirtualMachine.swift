@@ -1,9 +1,9 @@
 import Foundation
 import VPhoneCore
 
-// The half of VPhoneBootCLI that needs the Virtualization framework. The
-// options themselves live in VPhoneCore so vphone-cli can parse and forward
-// them without linking any of this.
+/// The half of VPhoneBootCLI that needs the Virtualization framework. The
+/// options themselves live in VPhoneCore so vphone-cli can parse and forward
+/// them without linking any of this.
 extension VPhoneBootCLI {
     /// Resolve final options by merging manifest values.
     func resolveOptions() throws -> VPhoneVirtualMachine.Options {
@@ -29,7 +29,7 @@ extension VPhoneBootCLI {
             screenHeight: manifest.screenConfig.height,
             screenPPI: manifest.screenConfig.pixelsPerInch,
             screenScale: manifest.screenConfig.scale,
-            kernelDebugPort: kernelDebugPort
+            kernelDebugPort: kernelDebugPort,
         )
     }
 }

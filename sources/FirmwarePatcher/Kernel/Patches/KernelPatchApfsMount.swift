@@ -115,7 +115,7 @@ extension KernelPatcher {
                     ARM64.cmpX0X0,
                     patchID: "kernel.apfs_vfsop_mount.cmp_x0_x0",
                     virtualAddress: va,
-                    description: "cmp x0,x0 (was \(insn.mnemonic) \(insn.operandString)) [_apfs_vfsop_mount]"
+                    description: "cmp x0,x0 (was \(insn.mnemonic) \(insn.operandString)) [_apfs_vfsop_mount]",
                 )
                 return true
             }
@@ -188,7 +188,7 @@ extension KernelPatcher {
                 ARM64.movW0_0,
                 patchID: "kernel.apfs_mount_upgrade_checks.mov_w0_0",
                 virtualAddress: va,
-                description: "mov w0,#0 [_apfs_mount_upgrade_checks]"
+                description: "mov w0,#0 [_apfs_mount_upgrade_checks]",
             )
             return true
         }
@@ -261,7 +261,7 @@ extension KernelPatcher {
                     ARM64.movW0_0,
                     patchID: "kernel.handle_fsioc_graft.mov_w0_0",
                     virtualAddress: va,
-                    description: "mov w0,#0 [_handle_fsioc_graft]"
+                    description: "mov w0,#0 [_handle_fsioc_graft]",
                 )
                 return true
             }
@@ -356,7 +356,7 @@ extension KernelPatcher {
                         ARM64.nop,
                         patchID: "kernel.handle_get_dev_by_role.gate_\(String(format: "%X", cand.off))",
                         virtualAddress: va,
-                        description: "NOP [handle_get_dev_by_role entitlement gate -> 0x\(String(format: "%X", cand.target))]"
+                        description: "NOP [handle_get_dev_by_role entitlement gate -> 0x\(String(format: "%X", cand.target))]",
                     )
                 }
                 return true
@@ -373,7 +373,9 @@ extension KernelPatcher {
         var refs = Set<Int>()
         for needle in needles {
             guard let strOff = buffer.findString(needle) else { continue }
-            for ref in findStringRefs(strOff, in: range) { refs.insert(ref.adrpOff) }
+            for ref in findStringRefs(strOff, in: range) {
+                refs.insert(ref.adrpOff)
+            }
         }
         return refs
     }

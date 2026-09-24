@@ -23,7 +23,9 @@ public struct VPhoneFirmwarePairing: Sendable, Equatable {
 public struct VPhoneCloudOSOption: Sendable, Equatable {
     public let name: String
     public let url: String
-    public init(name: String, url: String) { self.name = name; self.url = url }
+    public init(name: String, url: String) {
+        self.name = name; self.url = url
+    }
 }
 
 // MARK: - VPhoneFirmwareCatalog
@@ -85,8 +87,10 @@ public enum VPhoneFirmwareCatalog {
             pairings: pairings.map {
                 .init(
                     ios: .init(name: $0.iosName, url: $0.iosURL),
-                    recommendedCloudOS: .init(name: $0.cloudosName, url: $0.cloudosURL))
-            })
+                    recommendedCloudOS: .init(name: $0.cloudosName, url: $0.cloudosURL),
+                )
+            },
+        )
     }
 }
 
@@ -97,7 +101,9 @@ public struct VPhoneFirmwareCatalogReport: Codable, Equatable, Sendable {
     public struct Firmware: Codable, Equatable, Sendable {
         public let name: String
         public let url: String
-        public init(name: String, url: String) { self.name = name; self.url = url }
+        public init(name: String, url: String) {
+            self.name = name; self.url = url
+        }
     }
 
     public struct Entry: Codable, Equatable, Sendable {

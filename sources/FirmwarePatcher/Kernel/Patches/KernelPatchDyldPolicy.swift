@@ -17,7 +17,7 @@ extension KernelPatcher {
 
         // Anchor: entitlement string referenced from within the function.
         guard let strOff = buffer.findString(
-            "com.apple.developer.swift-playgrounds-app.development-build"
+            "com.apple.developer.swift-playgrounds-app.development-build",
         ) else {
             log("  [-] swift-playgrounds entitlement string not found")
             return false
@@ -67,14 +67,14 @@ extension KernelPatcher {
                 ARM64.movW0_1,
                 patchID: "dyld_policy_1",
                 virtualAddress: va1,
-                description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @1]"
+                description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @1]",
             )
             emit(
                 bl2.blOff,
                 ARM64.movW0_1,
                 patchID: "dyld_policy_2",
                 virtualAddress: va2,
-                description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @2]"
+                description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @2]",
             )
             return true
         }

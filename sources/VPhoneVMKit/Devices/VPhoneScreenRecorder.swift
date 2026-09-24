@@ -1,7 +1,7 @@
 import AppKit
-import ImageIO
 import AVFoundation
 import CoreVideo
+import ImageIO
 import ObjectiveC.runtime
 import Virtualization
 
@@ -71,7 +71,7 @@ class VPhoneScreenRecorder {
         ]
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input,
-            sourcePixelBufferAttributes: bufferAttrs
+            sourcePixelBufferAttributes: bufferAttrs,
         )
 
         writer.add(input)
@@ -94,7 +94,7 @@ class VPhoneScreenRecorder {
         }
 
         print(
-            "[record] started - \(url.lastPathComponent) (\(width)x\(height), source: private VZGraphicsDisplay screenshots)"
+            "[record] started - \(url.lastPathComponent) (\(width)x\(height), source: private VZGraphicsDisplay screenshots)",
         )
     }
 
@@ -153,7 +153,7 @@ class VPhoneScreenRecorder {
             url as CFURL,
             utType as CFString,
             1,
-            nil
+            nil,
         ) else {
             throw CaptureError.encodingFailed
         }
@@ -179,7 +179,7 @@ class VPhoneScreenRecorder {
 
     private func captureGraphicsDisplayFrame(
         _ graphicsDisplay: VZGraphicsDisplay,
-        adaptor: AVAssetWriterInputPixelBufferAdaptor
+        adaptor: AVAssetWriterInputPixelBufferAdaptor,
     ) {
         guard !screenshotInFlight else { return }
 
@@ -233,7 +233,7 @@ class VPhoneScreenRecorder {
             bytesPerRow: CVPixelBufferGetBytesPerRow(pb),
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-                | CGBitmapInfo.byteOrder32Little.rawValue
+                | CGBitmapInfo.byteOrder32Little.rawValue,
         ) {
             ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: pbWidth, height: pbHeight))
         }
@@ -256,7 +256,7 @@ class VPhoneScreenRecorder {
 
     private func takeGraphicsScreenshot(
         from graphicsDisplay: VZGraphicsDisplay,
-        completion: @escaping (CGImage?) -> Void
+        completion: @escaping (CGImage?) -> Void,
     ) {
         let selector = NSSelectorFromString("_takeScreenshotWithCompletionHandler:")
         guard graphicsDisplay.responds(to: selector),

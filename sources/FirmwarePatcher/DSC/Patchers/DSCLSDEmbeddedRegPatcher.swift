@@ -84,7 +84,9 @@ public enum DSCLSDEmbeddedRegPatcher {
         public let resultRegister: String
 
         /// True when the site already holds this patch's own output.
-        public var wasAlreadyNOP: Bool { mnemonic == "nop" }
+        public var wasAlreadyNOP: Bool {
+            mnemonic == "nop"
+        }
 
         /// How the gate reads in disassembly.
         public var text: String {
@@ -117,11 +119,15 @@ public enum DSCLSDEmbeddedRegPatcher {
 
         /// Sites whose bytes this run changed. The parity number: the Python
         /// writes exactly one, and so must this.
-        public var sitesWritten: Int { record == nil ? 0 : 1 }
+        public var sitesWritten: Int {
+            record == nil ? 0 : 1
+        }
 
         /// Whether the gate method exists in this cache at all. Mirrors the
         /// Python's return value, which is 0 when absent and 1 otherwise.
-        public var methodIsPresent: Bool { outcome != .methodAbsent }
+        public var methodIsPresent: Bool {
+            outcome != .methodAbsent
+        }
     }
 
     /// Where progress goes when the caller does not say. The Python prints to
@@ -147,7 +153,7 @@ public enum DSCLSDEmbeddedRegPatcher {
     public static func patch(
         chunksDirectory: URL,
         dryRun: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         let chunks = try DSCChunkSet(directory: chunksDirectory)
         log?("  [.] \(chunksDirectory.path): \(chunks.chunkURLs.count) chunk(s), "
@@ -197,7 +203,7 @@ public enum DSCLSDEmbeddedRegPatcher {
         let written = try chunks.bytesAtVMA(gate.vma, length: nop.count)
         guard written == nop else {
             throw PatcherError.patchVerificationFailed(
-                "\(method): gate at 0x\(hex(gate.vma)) reads \(written.hex) after write"
+                "\(method): gate at 0x\(hex(gate.vma)) reads \(written.hex) after write",
             )
         }
 
@@ -206,10 +212,10 @@ public enum DSCLSDEmbeddedRegPatcher {
         guard !alreadyNOP else {
             return Report(outcome: .alreadyPatched, gate: gate, record: nil)
         }
-        return Report(
+        return try Report(
             outcome: .patched,
             gate: gate,
-            record: try record(for: gate, in: chunks, original: original, patched: nop)
+            record: record(for: gate, in: chunks, original: original, patched: nop),
         )
     }
 
@@ -220,14 +226,14 @@ public enum DSCLSDEmbeddedRegPatcher {
     /// Returns `nil` when the method is absent, which is the pre-iOS-27 no-op
     /// case rather than an error.
     public static func locateGate(
-        in chunks: DSCChunkSet
+        in chunks: DSCChunkSet,
     ) throws -> (functionVMA: UInt64, gate: Gate)? {
         guard let functionVMA = try chunks.resolveLocalSymbol(method) else { return nil }
 
         let instructions = try disassembleFunction(in: chunks, at: functionVMA)
         guard let gate = findGate(in: instructions) else {
             throw PatcherError.patchSiteNotFound(
-                "\(method): entitled-result gate (cbz/cbnz w0 -> mov w<reg>,#1) not found"
+                "\(method): entitled-result gate (cbz/cbnz w0 -> mov w<reg>,#1) not found",
             )
         }
         return (functionVMA, gate)
@@ -241,12 +247,12 @@ public enum DSCLSDEmbeddedRegPatcher {
     /// mapping must not turn into an unmapped-span error.
     static func disassembleFunction(
         in chunks: DSCChunkSet,
-        at vma: UInt64
+        at vma: UInt64,
     ) throws -> [Instruction] {
         let buffer = try chunks.readAtVMA(
             vma,
             length: maxInstructions * 4,
-            allowShort: true
+            allowShort: true,
         )
         let decoded = ARM64Disassembler().disassemble(buffer, at: vma)
         var result: [Instruction] = []
@@ -259,7 +265,9 @@ public enum DSCLSDEmbeddedRegPatcher {
             // be matching noise.
             guard instruction.id != 0 else { break }
             result.append(instruction)
-            if instruction.mnemonic == "ret" || instruction.mnemonic == "retab" { break }
+            if instruction.mnemonic == "ret" || instruction.mnemonic == "retab" {
+                break
+            }
         }
         return result
     }
@@ -293,7 +301,7 @@ public enum DSCLSDEmbeddedRegPatcher {
                 vma: candidate.address,
                 mnemonic: candidate.mnemonic,
                 operandString: candidate.operandString,
-                resultRegister: next.register
+                resultRegister: next.register,
             )
         }
         return nil
@@ -306,7 +314,7 @@ public enum DSCLSDEmbeddedRegPatcher {
     /// source — rather than on operand text.
     static func movRegisterImmediate(
         _ instruction: Instruction,
-        _ disassembler: ARM64Disassembler
+        _ disassembler: ARM64Disassembler,
     ) -> (register: String, immediate: Int64)? {
         guard instruction.mnemonic == "mov",
               let operands = instruction.aarch64?.operands,
@@ -327,7 +335,7 @@ public enum DSCLSDEmbeddedRegPatcher {
         for gate: Gate,
         in chunks: DSCChunkSet,
         original: Data,
-        patched: Data
+        patched: Data,
     ) throws -> PatchRecord {
         let span = DSCWriteSpan(vma: gate.vma, length: patched.count)
         let (chunkURL, range) = try chunks.fileRange(of: span)
@@ -341,7 +349,7 @@ public enum DSCLSDEmbeddedRegPatcher {
             beforeDisasm: disassemblyText(of: original, at: gate.vma),
             afterDisasm: disassemblyText(of: patched, at: gate.vma),
             description: "NOP `\(gate.text)` in \(method) so the fall-through "
-                + "sets \(gate.resultRegister)=1 (entitled)"
+                + "sets \(gate.resultRegister)=1 (entitled)",
         )
     }
 

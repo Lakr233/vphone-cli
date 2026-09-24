@@ -29,7 +29,7 @@ struct NoOverwriteDirTests {
         try Data("from archive\n".utf8).write(to: dir.appendingPathComponent("inside.txt"))
         try Data("beside\n".utf8).write(to: staging.appendingPathComponent("beside.txt"))
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: directoryMode)], ofItemAtPath: dir.path
+            [.posixPermissions: NSNumber(value: directoryMode)], ofItemAtPath: dir.path,
         )
 
         let archive = FileManager.default.temporaryDirectory
@@ -74,8 +74,8 @@ struct NoOverwriteDirTests {
 
     // MARK: - The behaviour that matters
 
-    @Test("an existing directory keeps its own permissions")
-    func existingDirectoryKeepsItsMode() throws {
+    @Test
+    func `an existing directory keeps its own permissions`() throws {
         let archive = try Self.makeFixture(directoryMode: 0o777)
         let destination = try Self.makeDestination()
         defer {
@@ -88,17 +88,18 @@ struct NoOverwriteDirTests {
         let existing = destination.appendingPathComponent("dir")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path
+            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+        )
 
         #expect(try Self.mode(of: existing) == 0o700)
     }
 
-    @Test("without the flag, the archive's permissions win — the behaviour we must not have")
-    func defaultOverwritesTheMode() throws {
+    @Test
+    func `without the flag, the archive's permissions win — the behaviour we must not have`() throws {
         let archive = try Self.makeFixture(directoryMode: 0o777)
         let destination = try Self.makeDestination()
         defer {
@@ -109,11 +110,12 @@ struct NoOverwriteDirTests {
         let existing = destination.appendingPathComponent("dir")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
         try FileManager.default.setAttributes(
-            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path
+            [.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: existing.path,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: false))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: false),
+        )
 
         // `man 3 archive_write_disk`: "existing directories will have their
         // permissions updated". Confirmed — 0700 in, 0777 out. This is
@@ -126,8 +128,8 @@ struct NoOverwriteDirTests {
         #expect(try Self.mode(of: existing) == 0o777)
     }
 
-    @Test("skipping a directory header still writes the files under it")
-    func filesUnderASkippedDirectoryAreStillWritten() throws {
+    @Test
+    func `skipping a directory header still writes the files under it`() throws {
         let archive = try Self.makeFixture()
         let destination = try Self.makeDestination()
         defer {
@@ -139,7 +141,8 @@ struct NoOverwriteDirTests {
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+        )
 
         // This is the difference from ARCHIVE_EXTRACT_NO_OVERWRITE, which
         // would have skipped the whole subtree.
@@ -148,8 +151,8 @@ struct NoOverwriteDirTests {
         #expect(try String(contentsOf: inside, encoding: .utf8) == "from archive\n")
     }
 
-    @Test("an existing regular file is still replaced")
-    func existingFilesAreStillOverwritten() throws {
+    @Test
+    func `an existing regular file is still replaced`() throws {
         let archive = try Self.makeFixture()
         let destination = try Self.makeDestination()
         defer {
@@ -161,15 +164,16 @@ struct NoOverwriteDirTests {
         try Data("stale\n".utf8).write(to: beside)
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+        )
 
         // The other half of why ARCHIVE_EXTRACT_NO_OVERWRITE is not a
         // substitute: it would have left "stale" in place.
         #expect(try String(contentsOf: beside, encoding: .utf8) == "beside\n")
     }
 
-    @Test("a directory that does not exist yet is created normally")
-    func newDirectoriesAreUnaffected() throws {
+    @Test
+    func `a directory that does not exist yet is created normally`() throws {
         let archive = try Self.makeFixture(directoryMode: 0o755)
         let destination = try Self.makeDestination()
         defer {
@@ -178,15 +182,16 @@ struct NoOverwriteDirTests {
         }
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+        )
 
         let dir = destination.appendingPathComponent("dir")
         #expect(FileManager.default.fileExists(atPath: dir.path))
         #expect(try Self.mode(of: dir) == 0o755)
     }
 
-    @Test("a symlink standing where a directory would go is replaced, not followed")
-    func symlinkIsNotFollowed() throws {
+    @Test
+    func `a symlink standing where a directory would go is replaced, not followed`() throws {
         let archive = try Self.makeFixture()
         let destination = try Self.makeDestination()
         defer {
@@ -199,11 +204,12 @@ struct NoOverwriteDirTests {
         let elsewhere = destination.appendingPathComponent("elsewhere")
         try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(
-            at: destination.appendingPathComponent("dir"), withDestinationURL: elsewhere
+            at: destination.appendingPathComponent("dir"), withDestinationURL: elsewhere,
         )
 
         try VPhoneArchiveExtractor.extract(
-            archive, into: destination, options: Self.installOptions(noOverwriteDir: true))
+            archive, into: destination, options: Self.installOptions(noOverwriteDir: true),
+        )
 
         // Two things have to hold, and both do.
         //
@@ -217,10 +223,10 @@ struct NoOverwriteDirTests {
         #expect(lstat(destination.appendingPathComponent("dir").path, &info) == 0)
         #expect((info.st_mode & S_IFMT) == S_IFDIR)
         #expect(!FileManager.default.fileExists(
-            atPath: elsewhere.appendingPathComponent("inside.txt").path
+            atPath: elsewhere.appendingPathComponent("inside.txt").path,
         ))
         #expect(FileManager.default.fileExists(
-            atPath: destination.appendingPathComponent("dir/inside.txt").path
+            atPath: destination.appendingPathComponent("dir/inside.txt").path,
         ))
     }
 }

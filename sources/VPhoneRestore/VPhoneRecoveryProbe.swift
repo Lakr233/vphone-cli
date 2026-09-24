@@ -12,7 +12,9 @@ import MobileRecoveryCore
 public struct VPhoneRecoveryMode: RawRepresentable, Sendable, Hashable, CustomStringConvertible {
     public let rawValue: Int32
 
-    public init(rawValue: Int32) { self.rawValue = rawValue }
+    public init(rawValue: Int32) {
+        self.rawValue = rawValue
+    }
 
     public static let recovery1 = VPhoneRecoveryMode(rawValue: 0x1280)
     public static let recovery2 = VPhoneRecoveryMode(rawValue: 0x1281)
@@ -26,7 +28,7 @@ public struct VPhoneRecoveryMode: RawRepresentable, Sendable, Hashable, CustomSt
     /// DFU. Port DFU is not in its enum at all; it is a DFU variant, so it
     /// answers `false` here, and an unknown mode does too.
     public var isRecovery: Bool {
-        (Self.recovery1.rawValue...Self.recovery4.rawValue).contains(rawValue)
+        (Self.recovery1.rawValue ... Self.recovery4.rawValue).contains(rawValue)
     }
 
     public var description: String {
@@ -78,7 +80,7 @@ public enum VPhoneRecoveryProbe {
     public static func probe(
         ecid: UInt64?,
         timeout: Int,
-        isRecovery: Bool? = nil
+        isRecovery: Bool? = nil,
     ) throws -> VPhoneRecoveryDevice {
         let deadline = DispatchTime.now() + .seconds(max(timeout, 0))
         while DispatchTime.now() < deadline {
@@ -90,7 +92,7 @@ public enum VPhoneRecoveryProbe {
         // "dfu/recovery"` says "dfu/recovery" for None AND for False. Keeping
         // it means the message a user greps for has not changed.
         throw VPhoneRestoreBackendError.recoveryProbeTimedOut(
-            mode: isRecovery == true ? "recovery" : "dfu/recovery"
+            mode: isRecovery == true ? "recovery" : "dfu/recovery",
         )
     }
 
@@ -134,7 +136,7 @@ public enum VPhoneRecoveryProbe {
             boardID: UInt32(info.pointee.bdid),
             serialNumber: info.pointee.srnm.map { String(cString: $0) },
             productType: productType,
-            hardwareModel: hardwareModel
+            hardwareModel: hardwareModel,
         )
     }
 
@@ -150,7 +152,7 @@ public enum VPhoneRecoveryProbe {
         }
         return (
             device.pointee.product_type.map { String(cString: $0) },
-            device.pointee.hardware_model.map { String(cString: $0) }
+            device.pointee.hardware_model.map { String(cString: $0) },
         )
     }
 }

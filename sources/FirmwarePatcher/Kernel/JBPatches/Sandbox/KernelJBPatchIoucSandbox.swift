@@ -84,7 +84,7 @@ extension KernelJBPatcher {
                     patchBytes,
                     patchID: "iouc_sandbox_gate",
                     virtualAddress: va,
-                    description: "b #\(delta >= 0 ? "" : "-")0x\(String(format: "%X", abs(delta))) [IOUC sandbox deny → allow]"
+                    description: "b #\(delta >= 0 ? "" : "-")0x\(String(format: "%X", abs(delta))) [IOUC sandbox deny → allow]",
                 )
                 return true
             }
@@ -95,7 +95,9 @@ extension KernelJBPatcher {
     }
 
     /// CBNZ Wt, <label> (32-bit): high byte 0x35.
-    private func isCbnzW(_ insn: UInt32) -> Bool { ((insn >> 24) & 0xFF) == 0x35 }
+    private func isCbnzW(_ insn: UInt32) -> Bool {
+        ((insn >> 24) & 0xFF) == 0x35
+    }
 
     /// Decode CBZ/CBNZ target (imm19, sign-extended, scaled by 4).
     private func cbTarget(_ insn: UInt32, at pc: Int) -> Int? {

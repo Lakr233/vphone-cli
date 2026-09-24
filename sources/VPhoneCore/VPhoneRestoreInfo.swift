@@ -45,7 +45,8 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     /// existed still report their versions. `nil` when neither is available.
     public static func load(fromBundle bundle: VPhoneBundle) -> VPhoneRestoreInfo? {
         if let data = try? Data(contentsOf: url(forBundle: bundle), options: .mappedIfSafe),
-           let info = try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: data) {
+           let info = try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: data)
+        {
             return info
         }
         return derive(fromBundle: bundle)
@@ -80,7 +81,8 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
             ios: base.ios,
             cloudOS: base.cloudOS,
             variant: variant,
-            device: device(forVariant: variant))
+            device: device(forVariant: variant),
+        )
         try merged.write(toBundle: bundle)
         return merged
     }
@@ -99,7 +101,8 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     static func findRestoreDirectory(inBundle bundle: VPhoneBundle) -> URL? {
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: bundle.url,
-            includingPropertiesForKeys: nil)) ?? []
+            includingPropertiesForKeys: nil,
+        )) ?? []
         return entries
             .filter { $0.lastPathComponent.hasPrefix("iPhone") && $0.lastPathComponent.hasSuffix("_Restore") }
             .max { $0.lastPathComponent < $1.lastPathComponent }

@@ -65,7 +65,7 @@ extension KernelJBPatcher {
         guard let (caveBytes, codeOff) = buildSyscallmaskCave(
             caveOff: caveOff,
             zallocOff: mutatorOff,
-            setterOff: setterOff
+            setterOff: setterOff,
         ) else {
             log("  [-] failed to encode C22 cave branches")
             return false
@@ -83,21 +83,21 @@ extension KernelJBPatcher {
             callOff,
             ARM64.encodeU32(movX17X0),
             patchID: "jb.syscallmask.save_selector",
-            description: "mov x17,x0 [syscallmask C22 save RO selector]"
+            description: "mov x17,x0 [syscallmask C22 save RO selector]",
         )
 
         emit(
             branchOff,
             branchToCave,
             patchID: "jb.syscallmask.tail_redirect",
-            description: "b cave [syscallmask C22 mutate mask then setter]"
+            description: "b cave [syscallmask C22 mutate mask then setter]",
         )
 
         emit(
             caveOff,
             caveBytes,
             patchID: "jb.syscallmask.c22_cave",
-            description: "syscallmask C22 cave (ff blob 0x\(String(format: "%X", Self.syscallmaskFFBlobSize)) + structural mutator + setter tail)"
+            description: "syscallmask C22 cave (ff blob 0x\(String(format: "%X", Self.syscallmaskFFBlobSize)) + structural mutator + setter tail)",
         )
 
         return true
@@ -110,7 +110,9 @@ extension KernelJBPatcher {
     private func findSyscallmaskApplyFunc() -> Int? {
         // Try symbol lookup first
         for name in ["_syscallmask_apply_to_proc", "_proc_apply_syscall_masks"] {
-            if let off = resolveSymbol(name) { return off }
+            if let off = resolveSymbol(name) {
+                return off
+            }
         }
 
         // Find manager via error strings
@@ -160,7 +162,9 @@ extension KernelJBPatcher {
             let whiches = Set(calls.compactMap { callOff in
                 extractW1ImmNearCall(funcOff: managerOff, callOff: callOff)
             })
-            if whiches.isSuperset(of: [0, 1, 2]) { return target }
+            if whiches.isSuperset(of: [0, 1, 2]) {
+                return target
+            }
         }
         return nil
     }
@@ -175,9 +179,13 @@ extension KernelJBPatcher {
             if insn.mnemonic == "mov", op.hasPrefix("w1,#") {
                 let imm = String(op.dropFirst(4))
                 if imm.hasPrefix("0x") || imm.hasPrefix("0X") {
-                    if let v = Int(imm.dropFirst(2), radix: 16) { return v }
+                    if let v = Int(imm.dropFirst(2), radix: 16) {
+                        return v
+                    }
                 } else {
-                    if let v = Int(imm) { return v }
+                    if let v = Int(imm) {
+                        return v
+                    }
                 }
             }
             off -= 4
@@ -284,7 +292,7 @@ extension KernelJBPatcher {
     private func buildSyscallmaskCave(
         caveOff: Int,
         zallocOff: Int,
-        setterOff: Int
+        setterOff: Int,
     ) -> (Data, Int)? {
         let blobSize = Self.syscallmaskFFBlobSize
         let codeOff = caveOff + blobSize

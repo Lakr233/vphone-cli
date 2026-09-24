@@ -14,8 +14,8 @@ import Testing
 /// result of that comparison, so it cannot drift once the Python is gone.
 @Suite("Fresh VM manifest")
 struct NewVMManifestTests {
-    @Test("defaults match the Python's")
-    func defaults() {
+    @Test
+    func `defaults match the Python's`() {
         let m = VPhoneVirtualMachineManifest.newVM()
 
         #expect(m.platformType == .vresearch101)
@@ -33,31 +33,31 @@ struct NewVMManifestTests {
         #expect(m.networkConfig.mode == .nat)
     }
 
-    @Test("machineIdentifier starts empty, for first boot to fill in")
-    func machineIdentifierIsEmpty() {
+    @Test
+    func `machineIdentifier starts empty, for first boot to fill in`() {
         #expect(VPhoneVirtualMachineManifest.newVM().machineIdentifier.isEmpty)
     }
 
-    @Test("macAddress starts empty so the framework assigns one")
-    func macAddressIsEmpty() {
+    @Test
+    func `macAddress starts empty so the framework assigns one`() {
         // Not cosmetic: forcing a MAC here breaks guest networking.
         #expect(VPhoneVirtualMachineManifest.newVM().networkConfig.macAddress.isEmpty)
     }
 
-    @Test("memory is MB in, bytes out")
-    func memoryConversion() {
+    @Test
+    func `memory is MB in, bytes out`() {
         #expect(VPhoneVirtualMachineManifest.newVM(memoryMB: 4096).memorySize == 4_294_967_296)
     }
 
-    @Test("platformFusing is absent unless asked for")
-    func platformFusingOmitted() throws {
+    @Test
+    func `platformFusing is absent unless asked for`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil
+            from: Data(contentsOf: url), format: nil,
         ) as? [String: Any]
 
         // Absent, not null: the host OS decides when the key is missing.
@@ -65,29 +65,29 @@ struct NewVMManifestTests {
         #expect(parsed?["bridgeInterface"] == nil)
     }
 
-    @Test("platformFusing is written when asked for")
-    func platformFusingWritten() throws {
+    @Test
+    func `platformFusing is written when asked for`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try VPhoneVirtualMachineManifest.newVM(platformFusing: .dev).write(to: url)
         let parsed = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil
+            from: Data(contentsOf: url), format: nil,
         ) as? [String: Any]
 
         #expect(parsed?["platformFusing"] as? String == "dev")
     }
 
-    @Test("the exact key set the Python wrote")
-    func keySet() throws {
+    @Test
+    func `the exact key set the Python wrote`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try #require(PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil
+            from: Data(contentsOf: url), format: nil,
         ) as? [String: Any])
 
         #expect(parsed.keys.sorted() == [
@@ -97,8 +97,8 @@ struct NewVMManifestTests {
         ])
     }
 
-    @Test("what is written can be read back")
-    func roundTrips() throws {
+    @Test
+    func `what is written can be read back`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -113,15 +113,15 @@ struct NewVMManifestTests {
         #expect(read.networkConfig.mode == .nat)
     }
 
-    @Test("cpuCount stays an integer, not a string")
-    func typesAreNotCoerced() throws {
+    @Test
+    func `cpuCount stays an integer, not a string`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphone-manifest-\(UUID().uuidString).plist")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try VPhoneVirtualMachineManifest.newVM().write(to: url)
         let parsed = try #require(PropertyListSerialization.propertyList(
-            from: Data(contentsOf: url), format: nil
+            from: Data(contentsOf: url), format: nil,
         ) as? [String: Any])
 
         // A number that becomes "8" parses fine and fails much later.

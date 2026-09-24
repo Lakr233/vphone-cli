@@ -38,7 +38,9 @@ public enum VPhoneGuestBinaries {
         let searched = directories()
         for directory in searched {
             let candidate = directory.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
         }
         throw Error.missing(name, searched)
     }

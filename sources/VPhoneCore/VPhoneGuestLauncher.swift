@@ -99,7 +99,7 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
         if try Self.amfidRefuses(vm) {
             throw VPhoneGuestLaunchError.blockedByAMFI(
                 guest: vm,
-                cdHash: Self.codeDirectoryHash(of: vm)
+                cdHash: Self.codeDirectoryHash(of: vm),
             )
         }
     }
@@ -125,11 +125,12 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
     private static func hasRequiredEntitlements(_ vm: URL) throws -> Bool {
         let result = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/bin/codesign"),
-            ["-d", "--entitlements", "-", "--xml", vm.path]
+            ["-d", "--entitlements", "-", "--xml", vm.path],
         )
         guard result.succeeded,
               let plist = try? PropertyListSerialization.propertyList(
-                  from: Data(result.stdout.utf8), format: nil) as? [String: Any]
+                  from: Data(result.stdout.utf8), format: nil,
+              ) as? [String: Any]
         else { return false }
         return plist["com.apple.private.virtualization"] as? Bool == true &&
             plist["com.apple.private.virtualization.security-research"] as? Bool == true
@@ -146,11 +147,15 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
     /// itself rather than being mistaken for an AMFI refusal.
     private static func amfidRefuses(_ vm: URL) throws -> Bool {
         let probe = try VPhoneProcessRunner.runCapturing(vm, ["--help"])
-        if probe.succeeded { return false }
-        if probe.exitCode == SIGKILL { return true }
+        if probe.succeeded {
+            return false
+        }
+        if probe.exitCode == SIGKILL {
+            return true
+        }
         throw VPhoneGuestLaunchError.probeFailed(
             exitCode: probe.exitCode,
-            output: (probe.stderr + probe.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
+            output: (probe.stderr + probe.stdout).trimmingCharacters(in: .whitespacesAndNewlines),
         )
     }
 

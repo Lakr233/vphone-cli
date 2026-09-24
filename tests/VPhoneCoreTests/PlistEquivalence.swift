@@ -28,13 +28,15 @@ enum PlistEquivalence {
         let path: String
         let detail: String
 
-        var description: String { "\(path.isEmpty ? "<root>" : path): \(detail)" }
+        var description: String {
+            "\(path.isEmpty ? "<root>" : path): \(detail)"
+        }
     }
 
     static func differences(
         between lhs: Any,
         and rhs: Any,
-        at path: String = ""
+        at path: String = "",
     ) -> [Difference] {
         // Dictionaries: compare key sets first so a missing key is reported as
         // a missing key, not as a mismatch at some deeper path.
@@ -51,7 +53,7 @@ enum PlistEquivalence {
             for key in Set(l.keys).intersection(r.keys).sorted() {
                 found += differences(
                     between: l[key]!, and: r[key]!,
-                    at: path.isEmpty ? key : "\(path).\(key)"
+                    at: path.isEmpty ? key : "\(path).\(key)",
                 )
             }
             return found
@@ -61,7 +63,7 @@ enum PlistEquivalence {
             guard l.count == r.count else {
                 return [Difference(path: path, detail: "\(l.count) elements on the left, \(r.count) on the right")]
             }
-            return (0..<l.count).flatMap {
+            return (0 ..< l.count).flatMap {
                 differences(between: l[$0], and: r[$0], at: "\(path)[\($0)]")
             }
         }
@@ -75,7 +77,7 @@ enum PlistEquivalence {
             if lIsBool != rIsBool {
                 return [Difference(
                     path: path,
-                    detail: "one is a boolean and the other is a number (\(l) vs \(r))"
+                    detail: "one is a boolean and the other is a number (\(l) vs \(r))",
                 )]
             }
             return l == r ? [] : [Difference(path: path, detail: "\(l) vs \(r)")]
@@ -86,10 +88,12 @@ enum PlistEquivalence {
         }
 
         if let l = lhs as? Data, let r = rhs as? Data {
-            if l == r { return [] }
+            if l == r {
+                return []
+            }
             return [Difference(
                 path: path,
-                detail: "data differs (\(l.count) vs \(r.count) bytes)"
+                detail: "data differs (\(l.count) vs \(r.count) bytes)",
             )]
         }
 
@@ -99,17 +103,17 @@ enum PlistEquivalence {
 
         return [Difference(
             path: path,
-            detail: "different types: \(type(of: lhs)) vs \(type(of: rhs))"
+            detail: "different types: \(type(of: lhs)) vs \(type(of: rhs))",
         )]
     }
 
     /// Parse two plist files and report every semantic difference.
     static func differences(betweenFileAt lhs: URL, andFileAt rhs: URL) throws -> [Difference] {
         let left = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: lhs), format: nil
+            from: Data(contentsOf: lhs), format: nil,
         )
         let right = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: rhs), format: nil
+            from: Data(contentsOf: rhs), format: nil,
         )
         return differences(between: left, and: right)
     }

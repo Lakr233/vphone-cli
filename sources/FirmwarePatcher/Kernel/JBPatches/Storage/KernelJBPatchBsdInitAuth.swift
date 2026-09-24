@@ -83,7 +83,7 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "jb.bsd_init_auth.nop_cbnz",
             virtualAddress: fileOffsetToVA(branchOff),
-            description: "NOP cbnz (rootvp auth) [_bsd_init]"
+            description: "NOP cbnz (rootvp auth) [_bsd_init]",
         )
         return true
     }
@@ -148,7 +148,9 @@ extension KernelJBPatcher {
         guard hasImagebootCallNear(off, imagebootNeeded: imagebootNeeded) else { return nil }
 
         // Check if already patched (NOP)
-        if insn.mnemonic == "nop" { return "patched" }
+        if insn.mnemonic == "nop" {
+            return "patched"
+        }
 
         // Must be CBNZ on w0 or x0
         guard insn.mnemonic == "cbnz" else { return nil }
@@ -181,7 +183,9 @@ extension KernelJBPatcher {
             // If we know _imageboot_needed, require an exact match;
             // otherwise any BL counts (stripped kernel).
             if let ib = imagebootNeeded {
-                if target == ib { return true }
+                if target == ib {
+                    return true
+                }
             } else {
                 return true
             }

@@ -40,14 +40,14 @@ struct RestoreOptionsTests {
                 debugLevel: c.debug_level,
                 hasLogCallback: c.log_cb != nil,
                 hasProgressCallback: c.progress_cb != nil,
-                hasContext: c.context != nil
+                hasContext: c.context != nil,
             )
         }
     }
 
     // MARK: - Mapping
 
-    @Test func everyFieldReachesTheCStruct() {
+    @Test func `every field reaches the C struct`() {
         let options = VPhoneRestoreOptions(
             restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
             cacheDirectory: URL(fileURLWithPath: "/tmp/cache"),
@@ -57,7 +57,7 @@ struct RestoreOptionsTests {
             ticketPath: URL(fileURLWithPath: "/tmp/vm/000000011A2B3C4D.shsh"),
             shshOnly: false,
             keepPers: true,
-            debugLevel: 2
+            debugLevel: 2,
         )
         let c = snapshot(options)
         #expect(c.restoreDir == "/tmp/vm/iPhone17,3_Restore")
@@ -71,11 +71,11 @@ struct RestoreOptionsTests {
         #expect(c.debugLevel == 2)
     }
 
-    @Test func absentOptionalsBecomeNullNotEmptyStrings() {
+    @Test func `absent optionals become null not empty strings`() {
         // A `udid` of "" is a device whose UDID is the empty string, which
         // matches nothing; NULL is "whichever device is attached".
         let options = VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
         )
         let c = snapshot(options)
         #expect(c.cacheDir == nil)
@@ -83,11 +83,11 @@ struct RestoreOptionsTests {
         #expect(c.ticketPath == nil)
     }
 
-    @Test func defaultsAreAnOnlineEraseRestore() {
+    @Test func `defaults are an online erase restore`() {
         // Which is what `restore-update` did with no flags: Behavior.Erase,
         // a ticket from Apple, no debug logging.
         let c = snapshot(VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
         ))
         #expect(c.erase)
         #expect(c.ecid == 0)
@@ -97,70 +97,70 @@ struct RestoreOptionsTests {
         #expect(c.ticketPath == nil)
     }
 
-    @Test func updateInPlaceClearsErase() {
+    @Test func `update in place clears erase`() {
         // pymobiledevice3's Behavior.Update, the bridge's `--no-erase`.
         let c = snapshot(VPhoneRestoreOptions(
             restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
-            erase: false
+            erase: false,
         ))
         #expect(!c.erase)
     }
 
-    @Test func eraseAndShshOnlyAreIndependent() {
+    @Test func `erase and shsh only are independent`() {
         // The SHSH fetch asks for an ERASE ticket and stops before the device;
         // both bits are set, and swapping them would fetch the wrong blob.
         let c = snapshot(VPhoneRestoreOptions(
             restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
             erase: true,
-            shshOnly: true
+            shshOnly: true,
         ))
         #expect(c.erase)
         #expect(c.shshOnly)
     }
 
-    @Test func callbackFieldsAreLeftForTheRunner() {
+    @Test func `callback fields are left for the runner`() {
         // `withCOptions` maps the data only; `VPhoneRestoreRunner` installs the
         // function pointers and the context on its own copy.
         let c = snapshot(VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/vm/iPhone17,3_Restore"),
         ))
         #expect(!c.hasLogCallback)
         #expect(!c.hasProgressCallback)
         #expect(!c.hasContext)
     }
 
-    @Test func pathsAreTakenFromTheURLNotItsDescription() {
+    @Test func `paths are taken from the URL not its description`() {
         // A URL's description is "file:///…"; its `path` is what a C API wants.
         let c = snapshot(VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/a space/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/a space/iPhone17,3_Restore"),
         ))
         #expect(c.restoreDir == "/tmp/a space/iPhone17,3_Restore")
     }
 
     // MARK: - Storage lifetime
 
-    @Test func eachCallGetsItsOwnStorage() {
+    @Test func `each call gets its own storage`() {
         // `withCOptions` frees its strings on the way out, so two snapshots
         // taken separately must not alias — a stale pointer here would be a
         // use-after-free inside idevicerestore.
         let first = snapshot(VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/one/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/one/iPhone17,3_Restore"),
         ))
         let second = snapshot(VPhoneRestoreOptions(
-            restoreDirectory: URL(fileURLWithPath: "/tmp/two/iPhone17,3_Restore")
+            restoreDirectory: URL(fileURLWithPath: "/tmp/two/iPhone17,3_Restore"),
         ))
         #expect(first.restoreDir == "/tmp/one/iPhone17,3_Restore")
         #expect(second.restoreDir == "/tmp/two/iPhone17,3_Restore")
     }
 
-    @Test func nestedCallsDoNotClobberEachOther() {
+    @Test func `nested calls do not clobber each other`() {
         let outer = VPhoneRestoreOptions(restoreDirectory: URL(fileURLWithPath: "/tmp/outer"))
         let inner = VPhoneRestoreOptions(restoreDirectory: URL(fileURLWithPath: "/tmp/inner"))
         let pair = outer.withCOptions { outerC in
             inner.withCOptions { innerC in
                 (
                     outerC.restore_dir.map { String(cString: $0) },
-                    innerC.restore_dir.map { String(cString: $0) }
+                    innerC.restore_dir.map { String(cString: $0) },
                 )
             }
         }

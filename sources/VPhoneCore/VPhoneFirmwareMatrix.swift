@@ -49,7 +49,7 @@ public struct VPhoneStatusStyle: Sendable, Equatable {
     /// The policy above, resolved for one file descriptor.
     public static func forStream(
         _ fileDescriptor: Int32,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
     ) -> VPhoneStatusStyle {
         if let noColor = environment["NO_COLOR"], !noColor.isEmpty {
             return VPhoneStatusStyle(isColored: false)
@@ -163,7 +163,7 @@ public enum VPhoneFirmwareMatrix {
             ? String(device.dropFirst("iPhone".count))
             : device
         guard let cell = try? NSRegularExpression(
-            pattern: "`(\\d+,\\d+)_([^_`]+)_([A-Za-z0-9]+)`"
+            pattern: "`(\\d+,\\d+)_([^_`]+)_([A-Za-z0-9]+)`",
         ) else { return [] }
 
         var tested: Set<VPhoneFirmwareBuildID> = []
@@ -173,7 +173,9 @@ public enum VPhoneFirmwareMatrix {
                 inSection = true
                 continue
             }
-            if inSection, line.hasPrefix("## ") { break }
+            if inSection, line.hasPrefix("## ") {
+                break
+            }
             guard inSection else { continue }
 
             for match in cell.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
@@ -208,7 +210,9 @@ public enum VPhoneFirmwareMatrix {
                   let build = group(3, of: match, in: line)
             else { continue }
             let release = VPhoneFirmwareRelease(version: version, build: build, url: line)
-            if seen.insert(release).inserted { found.append(release) }
+            if seen.insert(release).inserted {
+                found.append(release)
+            }
         }
         return found
     }
@@ -216,7 +220,7 @@ public enum VPhoneFirmwareMatrix {
     /// The verdict for one release, given what the compatibility guide records.
     public static func support(
         of release: VPhoneFirmwareRelease,
-        tested: Set<VPhoneFirmwareBuildID>
+        tested: Set<VPhoneFirmwareBuildID>,
     ) -> VPhoneFirmwareSupport {
         tested.contains(VPhoneFirmwareBuildID(version: release.version, build: release.build))
             ? .supported
@@ -230,7 +234,7 @@ public enum VPhoneFirmwareMatrix {
         device: String,
         readme: String?,
         downloadURLs: String,
-        style: VPhoneStatusStyle
+        style: VPhoneStatusStyle,
     ) -> VPhoneFirmwareListing {
         let releases = releases(downloadURLs: downloadURLs, device: device)
         guard !releases.isEmpty else {
@@ -269,7 +273,7 @@ public enum VPhoneFirmwareMatrix {
         build: String,
         readme: String?,
         downloadURLs: String,
-        style: VPhoneStatusStyle
+        style: VPhoneStatusStyle,
     ) -> VPhoneFirmwareSelection {
         let matches = releases(downloadURLs: downloadURLs, device: device).filter {
             (version.isEmpty || $0.version == version) && (build.isEmpty || $0.build == build)
@@ -330,7 +334,11 @@ public enum VPhoneFirmwareMatrix {
     /// prefix, so `26.4` < `26.4.1`.
     static func versionKey(_ version: String) -> [VersionPart] {
         version.components(separatedBy: ".").map { part in
-            if let number = Int(part) { .number(number) } else { .text(part) }
+            if let number = Int(part) {
+                .number(number)
+            } else {
+                .text(part)
+            }
         }
     }
 
@@ -342,14 +350,20 @@ public enum VPhoneFirmwareMatrix {
     /// behaviour to reproduce, so the order here is total and reproducible.
     static func isNewer(_ lhs: VPhoneFirmwareRelease, than rhs: VPhoneFirmwareRelease) -> Bool {
         let (l, r) = (versionKey(lhs.version), versionKey(rhs.version))
-        for (lp, rp) in zip(l, r) where lp != rp { return rp < lp }
-        if l.count != r.count { return r.count < l.count }
+        for (lp, rp) in zip(l, r) where lp != rp {
+            return rp < lp
+        }
+        if l.count != r.count {
+            return r.count < l.count
+        }
         return hasHigherBuild(lhs, than: rhs)
     }
 
     /// Build descending, URL descending as the tie-break.
     static func hasHigherBuild(_ lhs: VPhoneFirmwareRelease, than rhs: VPhoneFirmwareRelease) -> Bool {
-        if lhs.build != rhs.build { return codePointsAscending(rhs.build, lhs.build) }
+        if lhs.build != rhs.build {
+            return codePointsAscending(rhs.build, lhs.build)
+        }
         return codePointsAscending(rhs.url, lhs.url)
     }
 
@@ -379,7 +393,9 @@ public enum VPhoneFirmwareMatrix {
             case (nil, .some): return true
             case (.some, nil): return false
             case let (.some(l), .some(r)):
-                if l.value != r.value { return l.value < r.value }
+                if l.value != r.value {
+                    return l.value < r.value
+                }
             }
         }
     }
@@ -389,8 +405,12 @@ public enum VPhoneFirmwareMatrix {
     static func normalizedLines(of text: String) -> [String] {
         var normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
         normalized = normalized.replacingOccurrences(of: "\r", with: "\n")
-        if normalized.hasSuffix("\n") { normalized.removeLast() }
-        if normalized.isEmpty { return [] }
+        if normalized.hasSuffix("\n") {
+            normalized.removeLast()
+        }
+        if normalized.isEmpty {
+            return []
+        }
         return normalized.components(separatedBy: "\n")
     }
 
@@ -418,14 +438,14 @@ public enum VPhoneFirmwareMatrixCommandLine {
         downloadURLs: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         stdout: FileHandle = .standardOutput,
-        stderr: FileHandle = .standardError
+        stderr: FileHandle = .standardError,
     ) -> Int32 {
         let readme = try? String(contentsOfFile: readmePath, encoding: .utf8)
         switch VPhoneFirmwareMatrix.listing(
             device: device,
             readme: readme,
             downloadURLs: downloadURLs,
-            style: .forStream(stdout.fileDescriptor, environment: environment)
+            style: .forStream(stdout.fileDescriptor, environment: environment),
         ) {
         case let .matrix(text):
             write(text, to: stdout)
@@ -446,7 +466,7 @@ public enum VPhoneFirmwareMatrixCommandLine {
         downloadURLs: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         stdout: FileHandle = .standardOutput,
-        stderr: FileHandle = .standardError
+        stderr: FileHandle = .standardError,
     ) -> Int32 {
         let readme = try? String(contentsOfFile: readmePath, encoding: .utf8)
         let selection = VPhoneFirmwareMatrix.selection(
@@ -455,7 +475,7 @@ public enum VPhoneFirmwareMatrixCommandLine {
             build: build,
             readme: readme,
             downloadURLs: downloadURLs,
-            style: .forStream(stderr.fileDescriptor, environment: environment)
+            style: .forStream(stderr.fileDescriptor, environment: environment),
         )
         switch selection {
         case .selected:

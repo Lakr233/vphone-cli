@@ -30,18 +30,18 @@ struct VPhoneFWAEAKeyCommand: ParsableCommand {
         This makes one network request, to the wkms-public.apple.com URL the
         archive itself names. There is no offline path: the key is not in the
         file, by design. Fetching it is what `ipsw fw aea --key` did too.
-        """
+        """,
     )
 
     @Argument(help: "The .aea archive", transform: URL.init(fileURLWithPath:))
     var file: URL
 
-    // Not `AsyncParsableCommand`: this command tree is dispatched synchronously
-    // from main.swift, and an async `run()` there is never called — the default
-    // synchronous one is, which prints help and exits zero. That failure is
-    // silent, so the one await is bridged here instead.
+    /// Not `AsyncParsableCommand`: this command tree is dispatched synchronously
+    /// from main.swift, and an async `run()` there is never called — the default
+    /// synchronous one is, which prints help and exits zero. That failure is
+    /// silent, so the one await is bridged here instead.
     func run() throws {
-        print(try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: file) })
+        try print(vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: file) })
     }
 }
 
@@ -56,7 +56,7 @@ struct VPhoneFWIM4PCreateCommand: ParsableCommand {
         there: `--version 0` writes the one-character description "0". It is not
         a format version, and it is not optional — an IM4P with an empty
         description is not valid.
-        """
+        """,
     )
 
     @Argument(help: "The payload to wrap", transform: URL.init(fileURLWithPath:))
@@ -74,7 +74,7 @@ struct VPhoneFWIM4PCreateCommand: ParsableCommand {
     func run() throws {
         let im4p = try IM4P(
             fourcc: fourcc, description: version,
-            payload: Data(contentsOf: file, options: .mappedIfSafe)
+            payload: Data(contentsOf: file, options: .mappedIfSafe),
         )
         try im4p.data.write(to: output)
     }
@@ -83,7 +83,7 @@ struct VPhoneFWIM4PCreateCommand: ParsableCommand {
 struct VPhoneFWIM4PExtractCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "im4p-extract",
-        abstract: "Unwrap an IM4P's payload (replaces `ipsw img4 im4p extract`)"
+        abstract: "Unwrap an IM4P's payload (replaces `ipsw img4 im4p extract`)",
     )
 
     @Argument(help: "The IM4P container", transform: URL.init(fileURLWithPath:))

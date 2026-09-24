@@ -8,19 +8,19 @@ import Foundation
 import Img4tool
 
 extension CryptexFilesystemPatcher {
-    // `ipsw img4 im4p create --type T --version V` three times over. Img4tool is
-    // already a dependency of this module and builds the same DER: the IM4P
-    // SEQUENCE is the string "IM4P", the four-character type, the description
-    // — which is what ipsw's `--version` set — and the payload OCTET STRING.
-    // Dropping the subprocess takes the last Homebrew program out of the
-    // firmware pipeline.
+    /// `ipsw img4 im4p create --type T --version V` three times over. Img4tool is
+    /// already a dependency of this module and builds the same DER: the IM4P
+    /// SEQUENCE is the string "IM4P", the four-character type, the description
+    /// — which is what ipsw's `--version` set — and the payload OCTET STRING.
+    /// Dropping the subprocess takes the last Homebrew program out of the
+    /// firmware pipeline.
     private func wrap(_ payload: URL, fourcc: String, description: String, named: String) throws -> URL {
         let im4pPath = try createTmpDir().appending(path: named)
         // Mapped: the mtree .aar this wraps is the whole system volume's
         // metadata and runs to hundreds of megabytes.
         let im4p = try IM4P(
             fourcc: fourcc, description: description,
-            payload: Data(contentsOf: payload, options: .mappedIfSafe)
+            payload: Data(contentsOf: payload, options: .mappedIfSafe),
         )
         try im4p.data.write(to: im4pPath)
         return im4pPath
@@ -45,7 +45,7 @@ extension CryptexFilesystemPatcher {
         _ = try runProcess("/usr/bin/aa", [
             "archive",
             "-d", tmpDir.path,
-            "-o", archivePath.path
+            "-o", archivePath.path,
         ])
 
         return try wrap(archivePath, fourcc: "msys", description: "0", named: "metadata.mtree")
@@ -57,7 +57,7 @@ extension CryptexFilesystemPatcher {
         // wherever fw_prepare.sh's download_apfs_sealvolume() wrote the file; unset
         // (dev Makefile flow) falls back to the historical repo-relative `.tools/`.
         let sealDir = ProcessInfo.processInfo.environment["VPHONE_SEAL_DIR"].map { URL(fileURLWithPath: $0) }
-            ?? self.vphoneCliDirectory.appending(path: ".tools")
+            ?? vphoneCliDirectory.appending(path: ".tools")
         let path = sealDir.appendingPathComponent("apfs_sealvolume_\(iosVersion)")
         guard FileManager.default.fileExists(atPath: path.path) else {
             throw FirmwareManifest.ManifestError.fileNotFound(path.path)
@@ -83,17 +83,17 @@ extension CryptexFilesystemPatcher {
         // Therefore, we parse the modification time of /private/var.
         let modificationTime = try parsePrivateVarTime(mtree: mtree)
         let remapContent = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-            \(remap ? """
-                    <key>MODIFICATION</key>
-                    <integer>\(modificationTime)</integer>
-                """ : "")
-            </dict>
-            </plist>
-            """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+        \(remap ? """
+            <key>MODIFICATION</key>
+            <integer>\(modificationTime)</integer>
+        """ : "")
+        </dict>
+        </plist>
+        """
         print("Modification time: \(remap ? modificationTime : "none")")
         FileManager.default.createFile(atPath: mtreeRemapPath.path, contents: remapContent.data(using: .utf8))
 
@@ -104,14 +104,15 @@ extension CryptexFilesystemPatcher {
             "-R", mtreeRemapPath.path,
             "-U", digestDbPath.path, // Save digest records
             "-M", rootHashPath.path, // Save root hash
-            device
+            device,
         ], output: sealLogPath)
         return (digestDbPath, rootHashPath)
     }
 
     func parsePrivateVarTime(mtree: URL) throws -> String {
         guard let mtreeData = FileManager.default.contents(atPath: mtree.path),
-              let text = String(data: mtreeData, encoding: .utf8) else {
+              let text = String(data: mtreeData, encoding: .utf8)
+        else {
             throw FirmwareManifest.ManifestError.fileNotFound(mtree.path)
         }
         let lines = text.split(whereSeparator: \.isNewline).map(String.init)
@@ -133,7 +134,8 @@ extension CryptexFilesystemPatcher {
 
             // Extract time=...
             guard let match = line.range(of: #"time=([0-9]+(?:\.[0-9]+)?)"#,
-                                         options: .regularExpression) else {
+                                         options: .regularExpression)
+            else {
                 throw FirmwareManifest.ManifestError.fileNotFound("modification time for /private/var in \(mtree.path)")
             }
 
@@ -184,8 +186,8 @@ extension CryptexFilesystemPatcher {
         defer { try? detachImage(deviceNode: device) }
 
         let oldTrustcache = try componentPath("StaticTrustCache")
-        let oldTrustcachePath = self.restoreDir.appending(path: oldTrustcache)
-        let newTrustcachePath = self.restoreDir.appending(path: "Firmware/new.trustcache")
+        let oldTrustcachePath = restoreDir.appending(path: oldTrustcache)
+        let newTrustcachePath = restoreDir.appending(path: "Firmware/new.trustcache")
         let tmpDir = try createTmpDir()
 
         let tcContainer = tmpDir.appending(path: "new.trustcache")
@@ -193,7 +195,7 @@ extension CryptexFilesystemPatcher {
             "generate-trust-cache", "--type", "static",
             "--base-trust-cache", oldTrustcachePath.path,
             "--output-file", tcContainer.path,
-            mount
+            mount,
         ])
 
         if FileManager.default.fileExists(atPath: newTrustcachePath.path) {

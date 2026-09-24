@@ -148,7 +148,7 @@ extension KernelEXPPatcher {
              patchID: "kernelcache_exp.hv_vmm_oid_rename",
              virtualAddress: va,
              description: "Part A: rename OID name 'h' -> 'X' "
-                + "('hv_vmm_present' -> 'Xv_vmm_present')")
+                 + "('hv_vmm_present' -> 'Xv_vmm_present')")
         return true
     }
 
@@ -176,16 +176,16 @@ extension KernelEXPPatcher {
         //   21 bytes total (leading NUL + 19 cstring bytes + trailing NUL).
         //   Mangle offset within the needle: 1 (skip leading NUL) + 5 = 6.
         let cstrOriginalNeedle = Data([
-            0x00,                                            // \0
-            0x6B, 0x65, 0x72, 0x6E, 0x2E,                    // "kern."
-            0x68, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F,        // "hv_vmm_"
-            0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74,        // "present"
-            0x00,                                            // \0
+            0x00, // \0
+            0x6B, 0x65, 0x72, 0x6E, 0x2E, // "kern."
+            0x68, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F, // "hv_vmm_"
+            0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74, // "present"
+            0x00, // \0
         ])
         let cstrPatchedNeedle = Data([
             0x00,
-            0x6B, 0x65, 0x72, 0x6E, 0x2E,                    // "kern."
-            0x58, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F,        // "Xv_vmm_"
+            0x6B, 0x65, 0x72, 0x6E, 0x2E, // "kern."
+            0x58, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F, // "Xv_vmm_"
             0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74,
             0x00,
         ])
@@ -194,14 +194,14 @@ extension KernelEXPPatcher {
         //   20 bytes total (19 name bytes + trailing \x0f). No leading byte
         //   in the needle. Mangle offset within the needle: 5.
         let tlvOriginalNeedle = Data([
-            0x6B, 0x65, 0x72, 0x6E, 0x2E,                    // "kern."
-            0x68, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F,        // "hv_vmm_"
-            0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74,        // "present"
-            0x0F,                                            // sandbox EOT
+            0x6B, 0x65, 0x72, 0x6E, 0x2E, // "kern."
+            0x68, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F, // "hv_vmm_"
+            0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74, // "present"
+            0x0F, // sandbox EOT
         ])
         let tlvPatchedNeedle = Data([
             0x6B, 0x65, 0x72, 0x6E, 0x2E,
-            0x58, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F,        // "Xv_vmm_"
+            0x58, 0x76, 0x5F, 0x76, 0x6D, 0x6D, 0x5F, // "Xv_vmm_"
             0x70, 0x72, 0x65, 0x73, 0x65, 0x6E, 0x74,
             0x0F,
         ])
@@ -246,9 +246,9 @@ extension KernelEXPPatcher {
                      patchID: "kernelcache_exp.hv_vmm_internal_caller_mangle",
                      virtualAddress: va,
                      description: "Part B (\(site.label)): byte-5 mangle "
-                        + "'h' -> 'X' at foff 0x"
-                        + String(format: "%X", mangleOffset)
-                        + " ('kern.hv_vmm_present' -> 'kern.Xv_vmm_present')")
+                         + "'h' -> 'X' at foff 0x"
+                         + String(format: "%X", mangleOffset)
+                         + " ('kern.hv_vmm_present' -> 'kern.Xv_vmm_present')")
                 totalWritten += 1
             }
         }

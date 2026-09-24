@@ -27,7 +27,9 @@ public final class IBootJBPatcher: IBootPatcher {
         let stringOffsets = buffer.findAll(needle)
 
         if stringOffsets.isEmpty {
-            if verbose { print("  [-] iBSS JB: no refs to 'boot-nonce'") }
+            if verbose {
+                print("  [-] iBSS JB: no refs to 'boot-nonce'")
+            }
             return false
         }
 
@@ -43,7 +45,9 @@ public final class IBootJBPatcher: IBootPatcher {
         }
 
         if addOffsets.isEmpty {
-            if verbose { print("  [-] iBSS JB: no ADRP+ADD refs to 'boot-nonce'") }
+            if verbose {
+                print("  [-] iBSS JB: no ADRP+ADD refs to 'boot-nonce'")
+            }
             return false
         }
 
@@ -120,7 +124,7 @@ public final class IBootJBPatcher: IBootPatcher {
                     patchedBytes: patchBytes,
                     beforeDisasm: beforeStr,
                     afterDisasm: afterStr,
-                    description: "JB: skip generate_nonce"
+                    description: "JB: skip generate_nonce",
                 )
                 patches.append(record)
 
@@ -129,14 +133,16 @@ public final class IBootJBPatcher: IBootPatcher {
                         format: "  0x%06X: %@ → %@  [ibss_jb.skip_generate_nonce]",
                         scan,
                         beforeStr,
-                        afterStr
+                        afterStr,
                     ))
                 }
                 return true
             }
         }
 
-        if verbose { print("  [-] iBSS JB: generate_nonce branch pattern not found") }
+        if verbose {
+            print("  [-] iBSS JB: generate_nonce branch pattern not found")
+        }
         return false
     }
 

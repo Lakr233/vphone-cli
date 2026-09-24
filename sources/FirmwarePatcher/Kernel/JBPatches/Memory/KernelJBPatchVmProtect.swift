@@ -102,7 +102,7 @@ extension KernelJBPatcher {
             patchID: "kernelcache_jb.vm_map_protect",
             virtualAddress: fileOffsetToVA(brOff),
             description: "b #0x\(String(format: "%X", delta)) "
-                + "[_vm_map_protect skip W^X downgrade, shape \(shape)]"
+                + "[_vm_map_protect skip W^X downgrade, shape \(shape)]",
         )
         return true
     }
@@ -124,7 +124,7 @@ extension KernelJBPatcher {
     }
 
     private func scanRange(
-        _ start: Int, _ end: Int, _ entryFlagBit: Int64, _ hits: inout [(Int, Int)]
+        _ start: Int, _ end: Int, _ entryFlagBit: Int64, _ hits: inout [(Int, Int)],
     ) {
         var off = start
         while off + 0x18 < end {
@@ -182,7 +182,7 @@ extension KernelJBPatcher {
             // explicit shape tested, so this stays anchored on that flag and cannot
             // drift onto an unrelated fused compare.
             guard findEntryFlagMask(
-                before: off, limit: start, reg: flagsReg, bit: entryFlagBit
+                before: off, limit: start, reg: flagsReg, bit: entryFlagBit,
             ) != nil else { continue }
 
             // And the block it guards must be the downgrade.
@@ -319,7 +319,9 @@ extension KernelJBPatcher {
             while p + 4 <= end {
                 let insn = buffer.readU32(at: p)
                 if ARM64Inst.isMOVZW(insn), ARM64Inst.rd(insn) == maskReg, ARM64Inst.movImm16(insn) == 5 {
-                    if movOff >= 0 { movOff = -2; break } // ambiguous writer
+                    if movOff >= 0 {
+                        movOff = -2; break
+                    } // ambiguous writer
                     movOff = p
                 }
                 p += 4

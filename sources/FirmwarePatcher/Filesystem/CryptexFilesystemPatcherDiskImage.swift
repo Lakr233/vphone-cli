@@ -17,7 +17,7 @@ extension CryptexFilesystemPatcher {
         let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
         guard let enumerator = FileManager.default.enumerator(at: sourceRoot, includingPropertiesForKeys: keys) else {
             throw FirmwareManifest.ManifestError.fileNotFound(
-                "Unable to read \(sourceRoot.path). Check that the image is still mounted, then try again."
+                "Unable to read \(sourceRoot.path). Check that the image is still mounted, then try again.",
             )
         }
         for case let fileURL as URL in enumerator {
@@ -36,7 +36,7 @@ extension CryptexFilesystemPatcher {
                     fileURL.path,
                     destinationPath.path,
                     nil,
-                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA)
+                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA),
                 )
                 if result < 0 {
                     print("Unable to copy \(destinationPath.path). Check permissions and free space, then try again.")
@@ -47,14 +47,15 @@ extension CryptexFilesystemPatcher {
             let vals = try destinationPath.resourceValues(forKeys: Set(keys))
             if values.isDirectory != vals.isDirectory ||
                 values.isRegularFile != vals.isRegularFile ||
-                values.isSymbolicLink != vals.isSymbolicLink {
+                values.isSymbolicLink != vals.isSymbolicLink
+            {
                 try FileManager.default.removeItem(at: destinationPath)
                 // try FileManager.default.copyItem(at: fileURL, to: destinationPath)
                 let result = copyfile(
                     fileURL.path,
                     destinationPath.path,
                     nil,
-                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA)
+                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA),
                 )
                 if result < 0 {
                     print("Unable to copy \(destinationPath.path). Check permissions and free space, then try again.")
@@ -67,7 +68,7 @@ extension CryptexFilesystemPatcher {
         _ = try runProcess("/usr/sbin/diskutil", [
             "image", "create", "from",
             "--format", "RAW", input.path,
-            output.path
+            output.path,
         ])
 
         // Resize to max. Asking diskutil how big it may get returns a plist, and
@@ -76,11 +77,11 @@ extension CryptexFilesystemPatcher {
         // can read directly — and a pipeline whose stdout is also where diskutil's
         // own warnings land, so a noisy run produced a "size" that was a sentence.
         let sizes = try runProcess("/usr/sbin/diskutil", [
-            "image", "resize", "--plist", output.path
+            "image", "resize", "--plist", output.path,
         ])
         let maxsize = try Self.maxResizeSize(fromDiskutilPlist: sizes)
         _ = try runProcess("/usr/sbin/diskutil", [
-            "image", "resize", "--size", maxsize, output.path
+            "image", "resize", "--size", maxsize, output.path,
         ])
     }
 
@@ -94,7 +95,7 @@ extension CryptexFilesystemPatcher {
         let body = output.range(of: "<?xml").map { String(output[$0.lowerBound...]) } ?? output
         guard let data = body.data(using: .utf8),
               let root = try? PropertyListSerialization.propertyList(
-                  from: data, options: [], format: nil
+                  from: data, options: [], format: nil,
               ) as? [String: Any]
         else {
             throw ProcessError.failed(0, "diskutil did not return a plist:\n\(output)")
@@ -115,7 +116,7 @@ extension CryptexFilesystemPatcher {
             "convert",
             input.path,
             "-format", "UDRW",
-            "-o", output.path
+            "-o", output.path,
         ])
     }
 
@@ -124,7 +125,7 @@ extension CryptexFilesystemPatcher {
             "image",
             "resize",
             "--size", "min",
-            dmg.path
+            dmg.path,
         ])
     }
 
@@ -132,20 +133,24 @@ extension CryptexFilesystemPatcher {
         _ = try runProcess("/usr/sbin/diskutil", ["unmount", mount])
     }
 
-    // attachImage returns the device and mount point
+    /// attachImage returns the device and mount point
     func attachImage(path: URL, readonly: Bool = false, forceRW: Bool = false) throws -> (String, String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = if readonly {[
-            "attach",
-            "-readonly",
-            "-plist",
-            path.path,
-        ]} else {[
-            "attach",
-            "-plist",
-            path.path,
-        ]}
+        process.arguments = if readonly {
+            [
+                "attach",
+                "-readonly",
+                "-plist",
+                path.path,
+            ]
+        } else {
+            [
+                "attach",
+                "-plist",
+                path.path,
+            ]
+        }
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -167,7 +172,8 @@ extension CryptexFilesystemPatcher {
         for entry in entries {
             guard let entry = entry as? PlistDict,
                   let volumeKind = entry["volume-kind"] as? String,
-                  volumeKind == "apfs" || volumeKind == "hfs" else {
+                  volumeKind == "apfs" || volumeKind == "hfs"
+            else {
                 continue
             }
             let device = entry["dev-entry"] as? String ?? ""

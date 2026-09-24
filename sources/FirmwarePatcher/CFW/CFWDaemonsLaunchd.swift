@@ -10,11 +10,11 @@
 
 import Foundation
 
-extension CFWDaemons {
+public extension CFWDaemons {
     // MARK: - Daemon
 
     /// One LaunchDaemon to merge, already loaded and already rewritten.
-    public struct Daemon {
+    struct Daemon {
         /// Label as installed, without `.plist` — e.g. `dropbear`, `com.vphone.jb-setup`.
         public let name: String
         public let contents: PlistDict
@@ -35,7 +35,7 @@ extension CFWDaemons {
     /// A fixed list rather than a directory listing, so what gets injected does
     /// not depend on what else a variant happens to leave in the staging
     /// directory, and so the order stays the order the log lines come out in.
-    public static let defaultDaemonNames: [String] = [
+    static let defaultDaemonNames: [String] = [
         "bash",
         "dropbear",
         "trollvnc",
@@ -50,7 +50,7 @@ extension CFWDaemons {
     /// A daemon that is not there is not an error — a variant that does not ship
     /// `rpcserver_ios` still installs — so absence is a result, not a throw. The
     /// scan is returned in order because the caller logs it line by line.
-    public enum StagedDaemon {
+    enum StagedDaemon {
         case present(Daemon)
         case absent(source: String)
     }
@@ -59,7 +59,7 @@ extension CFWDaemons {
     ///
     /// The dropbear rewrite lives here rather than in the directory loader so it
     /// holds however the daemon reaches the merge.
-    public static func loadDaemon(name: String, from url: URL) throws -> Daemon {
+    static func loadDaemon(name: String, from url: URL) throws -> Daemon {
         var contents = try loadPlist(url)
         if name == "dropbear" {
             patchDropbearDaemon(&contents)
@@ -68,16 +68,16 @@ extension CFWDaemons {
     }
 
     /// Scan a staging directory for the named daemons, in the order given.
-    public static func loadDaemons(
+    static func loadDaemons(
         inDirectory directory: URL,
-        names: [String] = defaultDaemonNames
+        names: [String] = defaultDaemonNames,
     ) throws -> [StagedDaemon] {
         try names.map { name in
             let source = directory.appendingPathComponent("\(name).plist")
             guard FileManager.default.fileExists(atPath: source.path) else {
                 return .absent(source: source.path)
             }
-            return .present(try loadDaemon(name: name, from: source))
+            return try .present(loadDaemon(name: name, from: source))
         }
     }
 
@@ -92,7 +92,7 @@ extension CFWDaemons {
     ///
     /// - Returns: the names injected, in the order given.
     @discardableResult
-    public static func inject(_ daemons: [Daemon], into launchdPlist: URL) throws -> [String] {
+    static func inject(_ daemons: [Daemon], into launchdPlist: URL) throws -> [String] {
         var target = try loadPlist(launchdPlist)
         var launchDaemons = target["LaunchDaemons"] as? PlistDict ?? [:]
 
@@ -109,10 +109,10 @@ extension CFWDaemons {
     ///
     /// - Returns: the scan, in scan order, so the caller can log one line each.
     @discardableResult
-    public static func injectDaemons(
+    static func injectDaemons(
         into launchdPlist: URL,
         fromDirectory directory: URL,
-        names: [String] = defaultDaemonNames
+        names: [String] = defaultDaemonNames,
     ) throws -> [StagedDaemon] {
         let staged = try loadDaemons(inDirectory: directory, names: names)
         try inject(staged.present, into: launchdPlist)
@@ -124,10 +124,10 @@ extension CFWDaemons {
     /// `name` is the installed label, which is not the source filename: the jb
     /// setup daemon ships as `vphone_jb_setup.plist` and installs as
     /// `com.vphone.jb-setup.plist`.
-    public static func injectDaemon(
+    static func injectDaemon(
         into launchdPlist: URL,
         name: String,
-        from source: URL
+        from source: URL,
     ) throws {
         try inject([loadDaemon(name: name, from: source)], into: launchdPlist)
     }
@@ -137,7 +137,13 @@ extension CFWDaemons {
 
 public extension [CFWDaemons.StagedDaemon] {
     var present: [CFWDaemons.Daemon] {
-        compactMap { if case let .present(daemon) = $0 { daemon } else { nil } }
+        compactMap {
+            if case let .present(daemon) = $0 {
+                daemon
+            } else {
+                nil
+            }
+        }
     }
 
     var injectedNames: [String] {
@@ -145,6 +151,12 @@ public extension [CFWDaemons.StagedDaemon] {
     }
 
     var missingSources: [String] {
-        compactMap { if case let .absent(source) = $0 { source } else { nil } }
+        compactMap {
+            if case let .absent(source) = $0 {
+                source
+            } else {
+                nil
+            }
+        }
     }
 }

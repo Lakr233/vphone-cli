@@ -39,7 +39,7 @@ extension CryptexFilesystemPatcher {
     /// Follows symlinks, which is what chmod(1) does without `-h`.
     func setMode(_ mode: Int, at url: URL) throws {
         try FileManager.default.setAttributes(
-            [.posixPermissions: mode], ofItemAtPath: url.path
+            [.posixPermissions: mode], ofItemAtPath: url.path,
         )
     }
 
@@ -77,7 +77,7 @@ extension CryptexFilesystemPatcher {
             try FileManager.default.removeItem(at: link)
         }
         try FileManager.default.createSymbolicLink(
-            atPath: link.path, withDestinationPath: destination
+            atPath: link.path, withDestinationPath: destination,
         )
     }
 
@@ -94,7 +94,8 @@ extension CryptexFilesystemPatcher {
     func deleteAppleDoubleFiles(under directory: URL) throws -> Int {
         var removed = 0
         for entry in entriesBelow(directory)
-        where entry.url.lastPathComponent.hasPrefix("._") {
+            where entry.url.lastPathComponent.hasPrefix("._")
+        {
             // unlink(2), not FileManager.removeItem: Foundation reads a `._name`
             // as the partner file's metadata rather than as a file of its own,
             // which is the same confusion that hides these from its directory
@@ -132,7 +133,9 @@ extension CryptexFilesystemPatcher {
                     String(cString: $0)
                 }
             }
-            if name == "." || name == ".." { continue }
+            if name == "." || name == ".." {
+                continue
+            }
 
             let child = directory.appendingPathComponent(name)
             var isDirectory = entry.pointee.d_type == UInt8(DT_DIR)
@@ -141,7 +144,9 @@ extension CryptexFilesystemPatcher {
                 isDirectory = lstat(child.path, &info) == 0
                     && info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
             }
-            if isDirectory { entries.append(contentsOf: entriesBelow(child)) }
+            if isDirectory {
+                entries.append(contentsOf: entriesBelow(child))
+            }
             entries.append((child, isDirectory))
         }
         return entries

@@ -8,10 +8,10 @@ import Foundation
 
 extension CryptexFilesystemPatcher {
     func serializePayload(_ buildManifest: PlistDict) throws -> Data {
-        return try PropertyListSerialization.data(
+        try PropertyListSerialization.data(
             fromPropertyList: buildManifest,
             format: .xml,
-            options: 0
+            options: 0,
         )
     }
 
@@ -19,12 +19,13 @@ extension CryptexFilesystemPatcher {
         filesystem: URL,
         trustcache: URL,
         metadata: URL,
-        rootHash: URL
+        rootHash: URL,
     ) throws -> PlistDict {
         var root = try parsePlist(data: buildManiest)
         guard var buildIdentities = root["BuildIdentities"] as? [Any],
               buildIdentities.count > 0,
-              var buildIdentity = buildIdentities.first! as? PlistDict else {
+              var buildIdentity = buildIdentities.first! as? PlistDict
+        else {
             throw FirmwareManifest.ManifestError.missingKey("Component in BuildManifest")
         }
         var identityManifest = try getChildPlistDict(parent: buildIdentity, key: "Manifest")
@@ -33,40 +34,40 @@ extension CryptexFilesystemPatcher {
         identityManifest = try updateManifestComponentPath(
             identityManifest: identityManifest,
             component: "OS",
-            at: filesystem
+            at: filesystem,
         )
 
-        let newTrustcachePath = self.restoreDir.appending(path: "Firmware").appending(path: trustcache.lastPathComponent)
-        if trustcache != newTrustcachePath && FileManager.default.fileExists(atPath: newTrustcachePath.path) {
+        let newTrustcachePath = restoreDir.appending(path: "Firmware").appending(path: trustcache.lastPathComponent)
+        if trustcache != newTrustcachePath, FileManager.default.fileExists(atPath: newTrustcachePath.path) {
             try FileManager.default.removeItem(at: newTrustcachePath)
         }
         try FileManager.default.moveItem(at: trustcache, to: newTrustcachePath)
         identityManifest = try updateManifestComponentPath(
             identityManifest: identityManifest,
             component: "StaticTrustCache",
-            at: newTrustcachePath
+            at: newTrustcachePath,
         )
 
-        let newMetadataPath = self.restoreDir.appending(path: "Firmware").appending(path: metadata.lastPathComponent)
-        if metadata != newMetadataPath && FileManager.default.fileExists(atPath: newMetadataPath.path) {
+        let newMetadataPath = restoreDir.appending(path: "Firmware").appending(path: metadata.lastPathComponent)
+        if metadata != newMetadataPath, FileManager.default.fileExists(atPath: newMetadataPath.path) {
             try FileManager.default.removeItem(at: newMetadataPath)
         }
         try FileManager.default.moveItem(at: metadata, to: newMetadataPath)
         identityManifest = try updateManifestComponentPath(
             identityManifest: identityManifest,
             component: "Ap,SystemVolumeCanonicalMetadata",
-            at: newMetadataPath
+            at: newMetadataPath,
         )
 
-        let newRootHashPath = self.restoreDir.appending(path: "Firmware").appending(path: rootHash.lastPathComponent)
-        if rootHash != newRootHashPath && FileManager.default.fileExists(atPath: newRootHashPath.path) {
+        let newRootHashPath = restoreDir.appending(path: "Firmware").appending(path: rootHash.lastPathComponent)
+        if rootHash != newRootHashPath, FileManager.default.fileExists(atPath: newRootHashPath.path) {
             try FileManager.default.removeItem(at: newRootHashPath)
         }
         try FileManager.default.moveItem(at: rootHash, to: newRootHashPath)
         identityManifest = try updateManifestComponentPath(
             identityManifest: identityManifest,
             component: "SystemVolume",
-            at: newRootHashPath
+            at: newRootHashPath,
         )
 
         buildIdentity["Manifest"] = identityManifest
@@ -77,7 +78,7 @@ extension CryptexFilesystemPatcher {
 
     func updateManifestComponentPath(identityManifest: PlistDict, component: String, at: URL) throws -> PlistDict {
         var identityManifest = identityManifest
-        let pathSuffix = relativePath(from: at, base: self.restoreDir.appendingPathComponent("", isDirectory: true))
+        let pathSuffix = relativePath(from: at, base: restoreDir.appendingPathComponent("", isDirectory: true))
         var comp = try getChildPlistDict(parent: identityManifest, key: component)
         var info = try getChildPlistDict(parent: comp, key: "Info")
         info["Path"] = pathSuffix
@@ -105,7 +106,7 @@ extension CryptexFilesystemPatcher {
     }
 
     func componentPath(_ component: String) throws -> String {
-        let path = self.restoreDir.appending(path: "iPhone-BuildManifest.plist")
+        let path = restoreDir.appending(path: "iPhone-BuildManifest.plist")
         let manifest = try getBuildIdentityManifest(path: path)
         return try getComponentPath(component: component, buildManifest: manifest)
     }
@@ -120,7 +121,7 @@ extension CryptexFilesystemPatcher {
     }
 
     func getBuildIdentityManifest(path: URL) throws -> PlistDict {
-        let data = try Data.init(contentsOf: path)
+        let data = try Data(contentsOf: path)
         return try getBuildIdentityManifest(data: data)
     }
 
@@ -128,7 +129,8 @@ extension CryptexFilesystemPatcher {
         let buildManifest = try parsePlist(data: data)
         guard let buildIdentities = buildManifest["BuildIdentities"] as? [Any],
               buildIdentities.count > 0,
-              let buildIdentity = buildIdentities.first! as? PlistDict else {
+              let buildIdentity = buildIdentities.first! as? PlistDict
+        else {
             throw FirmwareManifest.ManifestError.missingKey("Component in BuildManifest")
         }
         return try getChildPlistDict(parent: buildIdentity, key: "Manifest")
@@ -138,7 +140,7 @@ extension CryptexFilesystemPatcher {
         guard let buildManifest = try PropertyListSerialization.propertyList(
             from: data,
             options: [],
-            format: nil
+            format: nil,
         ) as? PlistDict else {
             throw FirmwareManifest.ManifestError.invalidPlist("")
         }

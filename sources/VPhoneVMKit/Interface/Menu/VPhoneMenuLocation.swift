@@ -12,25 +12,25 @@ private let locationPresets: [LocationPreset] = [
         title: "Apple Park (Cupertino)",
         latitude: 37.334606,
         longitude: -122.009102,
-        altitude: 14
+        altitude: 14,
     ),
     LocationPreset(
         title: "SF Ferry Building",
         latitude: 37.795490,
         longitude: -122.393738,
-        altitude: 5
+        altitude: 5,
     ),
     LocationPreset(
         title: "Times Square (NYC)",
         latitude: 40.758000,
         longitude: -73.985500,
-        altitude: 12
+        altitude: 12,
     ),
     LocationPreset(
         title: "Shibuya Crossing (Tokyo)",
         latitude: 35.659500,
         longitude: 139.700500,
-        altitude: 38
+        altitude: 38,
     ),
 ]
 
@@ -122,7 +122,7 @@ extension VPhoneMenuController {
             name: preset.title,
             latitude: preset.latitude,
             longitude: preset.longitude,
-            altitude: preset.altitude
+            altitude: preset.altitude,
         )
         refreshLocationReplayState(available: true)
     }
@@ -134,7 +134,7 @@ extension VPhoneMenuController {
             name: locationReplayName,
             points: locationReplayPoints,
             intervalSeconds: 1.5,
-            loop: true
+            loop: true,
         )
         refreshLocationReplayState(available: true)
     }

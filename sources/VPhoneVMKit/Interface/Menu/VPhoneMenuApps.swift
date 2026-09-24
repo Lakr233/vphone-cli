@@ -74,9 +74,9 @@ extension VPhoneMenuController {
                     title: "Install App Package",
                     message: VPhoneInstallPackage.successMessage(
                         for: url.lastPathComponent,
-                        detail: result
+                        detail: result,
                     ),
-                    style: .informational
+                    style: .informational,
                 )
             } catch {
                 showAlert(title: "Install App Package", message: "\(error)", style: .warning)
@@ -89,7 +89,7 @@ extension VPhoneMenuController {
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 110),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Open URL"
         panel.center()

@@ -56,7 +56,9 @@ private enum VPhoneCreateError: Error, CustomStringConvertible {
 }
 
 extension VPhoneCreateError: LocalizedError {
-    var errorDescription: String? { description }
+    var errorDescription: String? {
+        description
+    }
 }
 
 // MARK: - VPhoneCreateOrchestrator
@@ -83,7 +85,7 @@ public struct VPhoneCreateOrchestrator {
     public init(
         library: VPhoneLibrary,
         resources: VPhoneResources,
-        launcher: VPhoneGuestLaunchPlanner
+        launcher: VPhoneGuestLaunchPlanner,
     ) {
         self.library = library
         self.resources = resources
@@ -114,7 +116,11 @@ public struct VPhoneCreateOrchestrator {
         // never sees it.
         var sudoEnvExtras: [String: String] = [:]
         var askpassScript: URL?
-        defer { if let askpassScript { try? FileManager.default.removeItem(at: askpassScript) } }
+        defer {
+            if let askpassScript {
+                try? FileManager.default.removeItem(at: askpassScript)
+            }
+        }
         if let password = options.sudoPassword, !password.isEmpty {
             let script = try makeSudoAskpassScript()
             askpassScript = script
@@ -124,13 +130,15 @@ public struct VPhoneCreateOrchestrator {
             } else {
                 print("[!] --sudo-password failed validation; will still try at CFW-install time")
             }
-        } else if !options.rootPopup && isatty(FileHandle.standardInput.fileDescriptor) == 0 {
+        } else if !options.rootPopup, isatty(FileHandle.standardInput.fileDescriptor) == 0 {
             // A preconfigured passwordless sudo is valid in a non-interactive
             // session. Probe it now so a failure happens before the restore.
             let sudo = try? VPhoneProcessRunner.runCapturing(
-                URL(fileURLWithPath: "/usr/bin/sudo"), ["-n", "/usr/bin/true"]
+                URL(fileURLWithPath: "/usr/bin/sudo"), ["-n", "/usr/bin/true"],
             )
-            if sudo?.succeeded != true { throw VPhoneCreateError.sudoPasswordRequired }
+            if sudo?.succeeded != true {
+                throw VPhoneCreateError.sudoPasswordRequired
+            }
         }
 
         print("\n=== vm new ===")
@@ -140,7 +148,7 @@ public struct VPhoneCreateOrchestrator {
             memoryMB: options.memoryMB,
             diskSizeGB: options.diskSizeGB,
             romSource: VPhoneBundleOps.defaultROMSource(),
-            sepromSource: VPhoneBundleOps.defaultSEPROMSource()
+            sepromSource: VPhoneBundleOps.defaultSEPROMSource(),
         )
         let bundle = try VPhoneBundleOps.create(spec, in: library)
         print("created \(bundle.url.path)")
@@ -162,7 +170,8 @@ public struct VPhoneCreateOrchestrator {
         // CFW install is the last consumer of the built restore tree (it copies
         // the SystemOS/AppOS cryptexes from it onto Disk.img); reclaim it now.
         if !options.keepArtifacts, let bundle = try? VPhoneBundle.load(at: bundleURL),
-           let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle) {
+           let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle)
+        {
             print("[+] Removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
         }
 
@@ -216,12 +225,14 @@ public struct VPhoneCreateOrchestrator {
     /// (`sudo -A -v`). Returns whether it succeeded.
     private func preloadSudoCredential(env extras: [String: String], verbosity v: VPhoneVerbosity) -> Bool {
         var env = ProcessInfo.processInfo.environment
-        for (key, value) in extras { env[key] = value }
+        for (key, value) in extras {
+            env[key] = value
+        }
         trace("spawn /usr/bin/sudo -A -v (env keys added: \(extras.keys.sorted().joined(separator: ", ")))", v)
         let result = try? VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/bin/sudo"),
             ["-A", "-v"],
-            env: env
+            env: env,
         )
         return result?.succeeded == true
     }
@@ -235,7 +246,7 @@ public struct VPhoneCreateOrchestrator {
         let bundle = try VPhoneBundle.load(at: bundleURL)
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
-            bundle: bundle, cacheDirectory: resources.ipswCacheDir
+            bundle: bundle, cacheDirectory: resources.ipswCacheDir,
         )
         print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")
     }
@@ -243,7 +254,7 @@ public struct VPhoneCreateOrchestrator {
     private func runFWPatch(
         enableFrida: Bool,
         bundleURL: URL,
-        verbosity v: VPhoneVerbosity
+        verbosity v: VPhoneVerbosity,
     ) throws {
         // In-process pipeline (no subprocess) — CryptexFilesystemPatcher's
         // apfs_sealvolume read honors VPHONE_SEAL_DIR from *this* process's
@@ -258,7 +269,7 @@ public struct VPhoneCreateOrchestrator {
             verbose: v.showsToolDetail,
             noBinpack: true,
             forceExcGuard: false,
-            enableFrida: enableFrida
+            enableFrida: enableFrida,
         )
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) JB patches")
@@ -301,7 +312,7 @@ public struct VPhoneCreateOrchestrator {
                 erase: true,
                 ticketPath: nil,
                 debugLevel: v.restoreDebugLevel,
-                onEvent: onEvent
+                onEvent: onEvent,
             )
         } catch {
             throw VPhoneCreateError.restoreUpdateFailed("\(error)")
@@ -359,10 +370,14 @@ public struct VPhoneCreateOrchestrator {
         var ecid = ""
         for line in text.split(whereSeparator: \.isNewline) {
             guard let eq = line.firstIndex(of: "=") else { continue }
-            let key = line[line.startIndex..<eq]
+            let key = line[line.startIndex ..< eq]
             let value = String(line[line.index(after: eq)...])
-            if key == "UDID" { udid = value.uppercased() }
-            if key == "ECID" { ecid = VPhoneBootPatterns.normalizeECID(value) ?? "" }
+            if key == "UDID" {
+                udid = value.uppercased()
+            }
+            if key == "ECID" {
+                ecid = VPhoneBootPatterns.normalizeECID(value) ?? ""
+            }
         }
 
         guard udid.range(of: "^[0-9A-F]{8}-[0-9A-F]{16}$", options: .regularExpression) != nil else {
@@ -387,7 +402,7 @@ public struct VPhoneCreateOrchestrator {
     /// wait is now one `irecv_open_with_ecid_and_attempts` poll per round.
     private func waitForRecovery(ecid: UInt64?, verbosity v: VPhoneVerbosity) throws {
         print("[*] Waiting for recovery/DFU endpoint...")
-        for _ in 1...90 {
+        for _ in 1 ... 90 {
             if let device = try? VPhoneRestoreBridge.recoveryProbe(ecid: ecid, timeout: 2) {
                 print("[+] Device endpoint is reachable")
                 trace("recovery-probe: \(device.productType ?? "device") in \(device.mode)", v)
@@ -409,12 +424,13 @@ public struct VPhoneCreateOrchestrator {
         let code = try VPhoneCFWInstaller.elevate(
             bundle: bundleURL, resources: resources,
             forceDSCMaxSlide: options.forceDSCMaxSlide,
-            rootPopup: usePopup, environment: sudoEnvExtras
+            rootPopup: usePopup, environment: sudoEnvExtras,
         )
         guard code == 0 else { throw VPhoneCreateError.cfwInstallFailed(code) }
         print("[+] JB CFW installed.")
         if let bundle = try? VPhoneBundle.load(at: bundleURL),
-           let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {
+           let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil
+        {
             print("[+] Recorded variant jb, device \(info.device ?? "?")")
         }
     }
@@ -455,5 +471,4 @@ public struct VPhoneCreateOrchestrator {
         print("[-] Boot analysis timeout (300s); stopping VM.")
         throw VPhoneCreateError.bootAnalysisTimeout
     }
-
 }

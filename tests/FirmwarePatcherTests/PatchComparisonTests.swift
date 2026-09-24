@@ -24,7 +24,7 @@ import Testing
 /// True when the unreproducible Python reference records are present.
 private var hasReferencePatches: Bool {
     FileManager.default.fileExists(
-        atPath: baseDir.appendingPathComponent("reference_patches").path
+        atPath: baseDir.appendingPathComponent("reference_patches").path,
     )
 }
 
@@ -70,7 +70,7 @@ private func loadReference(_ name: String) throws -> [ReferencePatch] {
 private func comparePatchRecords(
     swift swiftPatches: [PatchRecord],
     reference refPatches: [ReferencePatch],
-    component: String
+    component: String,
 ) {
     // Sort both by file_offset for stable comparison
     let sortedSwift = swiftPatches.sorted { $0.fileOffset < $1.fileOffset }
@@ -121,7 +121,7 @@ private func comparePatchRecords(
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct AVPBooterComparisonTests {
-    @Test func compareAVPBooter() throws {
+    @Test func `compare AVP booter`() throws {
         let data = try loadRawPayload("avpbooter.bin")
         let patcher = AVPBooterPatcher(data: data, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -134,7 +134,7 @@ struct AVPBooterComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBSSComparisonTests {
-    @Test func compareIBSS() throws {
+    @Test func `compare IBSS`() throws {
         let data = try loadRawPayload("ibss.bin")
         let patcher = IBootPatcher(data: data, mode: .ibss, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -145,7 +145,7 @@ struct IBSSComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBECComparisonTests {
-    @Test func compareIBEC() throws {
+    @Test func `compare IBEC`() throws {
         let data = try loadRawPayload("ibec.bin")
         let patcher = IBootPatcher(data: data, mode: .ibec, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -156,7 +156,7 @@ struct IBECComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct LLBComparisonTests {
-    @Test func compareLLB() throws {
+    @Test func `compare LLB`() throws {
         let data = try loadRawPayload("llb.bin")
         let patcher = IBootPatcher(data: data, mode: .llb, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -169,7 +169,7 @@ struct LLBComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct TXMComparisonTests {
-    @Test func compareTXM() throws {
+    @Test func `compare TXM`() throws {
         let data = try loadRawPayload("txm.bin")
         let patcher = TXMPatcher(data: data, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -180,7 +180,7 @@ struct TXMComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct TXMDevComparisonTests {
-    @Test func compareTXMDev() throws {
+    @Test func `compare TXM dev`() throws {
         let url = baseDir.appendingPathComponent("reference_patches/txm_dev.json")
         let jsonData = try Data(contentsOf: url)
         let ref = try JSONDecoder().decode(TXMDevReference.self, from: jsonData)
@@ -199,7 +199,7 @@ struct TXMDevComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct KernelcacheComparisonTests {
-    @Test func compareKernelcache() throws {
+    @Test func `compare kernelcache`() throws {
         let data = try loadRawPayload("kernelcache.bin")
         let patcher = KernelPatcher(data: data, verbose: false)
         let swiftPatches = try patcher.findAll()
@@ -212,7 +212,7 @@ struct KernelcacheComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct IBSSJBComparisonTests {
-    @Test func compareIBSSJB() throws {
+    @Test func `compare IBSSJB`() throws {
         let data = try loadRawPayload("ibss.bin")
         let patcher = IBootJBPatcher(data: data, mode: .ibss, verbose: false)
         // IBootJBPatcher only adds JB-specific patches on top of base
@@ -226,7 +226,7 @@ struct IBSSJBComparisonTests {
 
 @Suite(.enabled(if: hasReferencePatches, referenceMissing))
 struct KernelcacheJBComparisonTests {
-    @Test func compareKernelcacheJB() throws {
+    @Test func `compare kernelcache JB`() throws {
         let data = try loadRawPayload("kernelcache.bin")
         let patcher = KernelJBPatcher(data: data, verbose: false)
         let swiftPatches = try patcher.findAll()

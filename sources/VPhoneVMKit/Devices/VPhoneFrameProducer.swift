@@ -42,8 +42,8 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
         // IOSurfaces and BGRA hardware paths. For 1280 width: 1280*4 = 5120
         // (already 16-aligned).
         let stride = ((width * 4) + 15) & ~15
-        self.bytesPerRow = stride
-        self.startedAt = ProcessInfo.processInfo.systemUptime
+        bytesPerRow = stride
+        startedAt = ProcessInfo.processInfo.systemUptime
     }
 
     func nextFrame() -> VPhoneCameraFrame? {
@@ -53,8 +53,8 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
         var bytes = [UInt8](repeating: 0, count: pixelCount)
 
         // Vertical gradient. Hue rolls with time.
-        let hueOffset = elapsed * 0.4  // turns per second
-        for y in 0..<height {
+        let hueOffset = elapsed * 0.4 // turns per second
+        for y in 0 ..< height {
             let v = Double(y) / Double(height)
             // Simple HSV → RGB on hue, full sat/val.
             let h = (v + hueOffset).truncatingRemainder(dividingBy: 1.0)
@@ -66,11 +66,11 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
             let rowStart = y * bytesPerRow
             var idx = rowStart
             // BGRA order on little-endian Apple platforms.
-            for _ in 0..<width {
-                bytes[idx + 0] = bB  // B
-                bytes[idx + 1] = gB  // G
-                bytes[idx + 2] = rB  // R
-                bytes[idx + 3] = 255  // A
+            for _ in 0 ..< width {
+                bytes[idx + 0] = bB // B
+                bytes[idx + 1] = gB // G
+                bytes[idx + 2] = rB // R
+                bytes[idx + 3] = 255 // A
                 idx += 4
             }
         }
@@ -80,9 +80,9 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
         let sqSize = 32
         let xPos = Int(elapsed * 200) % max(1, width - sqSize)
         let yPos = max(8, (height - sqSize) / 8)
-        for dy in 0..<sqSize {
+        for dy in 0 ..< sqSize {
             let row = (yPos + dy) * bytesPerRow
-            for dx in 0..<sqSize {
+            for dx in 0 ..< sqSize {
                 let off = row + (xPos + dx) * 4
                 bytes[off + 0] = 255
                 bytes[off + 1] = 255
@@ -97,7 +97,7 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
             height: height,
             bytesPerRow: bytesPerRow,
             timestampNS: ts,
-            pixels: Data(bytes)
+            pixels: Data(bytes),
         )
     }
 
@@ -146,9 +146,9 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         self.url = url
         self.width = width
         self.height = height
-        self.bytesPerRow = ((width * 4) + 15) & ~15
-        self.asset = AVURLAsset(url: url)
-        self.ciContext = CIContext(options: [.useSoftwareRenderer: false])
+        bytesPerRow = ((width * 4) + 15) & ~15
+        asset = AVURLAsset(url: url)
+        ciContext = CIContext(options: [.useSoftwareRenderer: false])
         try restartReader()
     }
 
@@ -158,7 +158,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                 domain: "VPhoneVideoFileProducer",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey:
-                    "\(url.lastPathComponent): no video track"])
+                    "\(url.lastPathComponent): no video track"],
+            )
         }
         let r = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(
@@ -166,7 +167,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
             outputSettings: [
                 kCVPixelBufferPixelFormatTypeKey as String:
                     Int(kCVPixelFormatType_32BGRA),
-            ])
+            ],
+        )
         output.alwaysCopiesSampleData = false
         r.add(output)
         guard r.startReading() else {
@@ -174,10 +176,11 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                 domain: "VPhoneVideoFileProducer",
                 code: 2,
                 userInfo: [NSLocalizedDescriptionKey:
-                    "AVAssetReader.startReading failed: \(r.error?.localizedDescription ?? "?")"])
+                    "AVAssetReader.startReading failed: \(r.error?.localizedDescription ?? "?")"],
+            )
         }
-        self.reader = r
-        self.readerOutput = output
+        reader = r
+        readerOutput = output
     }
 
     func nextFrame() -> VPhoneCameraFrame? {
@@ -200,7 +203,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         // BGRA — copy the planar bytes directly without going through Core
         // Image. Saves the GPU render.
         if srcWidth == width, srcHeight == height,
-            CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA {
+           CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA
+        {
             CVPixelBufferLockBaseAddress(pb, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
             let srcBPR = CVPixelBufferGetBytesPerRow(pb)
@@ -208,7 +212,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
             var out = Data(count: bytesPerRow * height)
             out.withUnsafeMutableBytes { dst in
                 let dstBase = dst.baseAddress!
-                for y in 0..<height {
+                for y in 0 ..< height {
                     let dstRow = dstBase.advanced(by: y * bytesPerRow)
                     let srcRow = base.advanced(by: y * srcBPR)
                     let copyLen = min(srcBPR, bytesPerRow)
@@ -220,7 +224,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                 height: height,
                 bytesPerRow: bytesPerRow,
                 timestampNS: UInt64(ProcessInfo.processInfo.systemUptime * 1e9),
-                pixels: out
+                pixels: out,
             )
         }
 
@@ -230,7 +234,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         let scaleX = CGFloat(width) / CGFloat(srcWidth)
         let scaleY = CGFloat(height) / CGFloat(srcHeight)
         let scaled = srcImage.transformed(
-            by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+            by: CGAffineTransform(scaleX: scaleX, y: scaleY),
+        )
 
         var out = Data(count: bytesPerRow * height)
         out.withUnsafeMutableBytes { dst in
@@ -241,7 +246,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                 rowBytes: bytesPerRow,
                 bounds: CGRect(x: 0, y: 0, width: width, height: height),
                 format: .BGRA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB()
+                colorSpace: CGColorSpaceCreateDeviceRGB(),
             )
         }
         return VPhoneCameraFrame(
@@ -249,7 +254,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
             height: height,
             bytesPerRow: bytesPerRow,
             timestampNS: UInt64(ProcessInfo.processInfo.systemUptime * 1e9),
-            pixels: out
+            pixels: out,
         )
     }
 }

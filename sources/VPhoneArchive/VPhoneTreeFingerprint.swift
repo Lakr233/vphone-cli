@@ -62,9 +62,9 @@ public struct VPhoneTreeFingerprint: Codable, Equatable, Sendable {
 
         var paths: [String] = []
 
-        // An explicit walk rather than FileManager's enumerator, which follows
-        // its own rules about symlinks and packages. This has to see exactly
-        // what is on disk, in a stable order.
+        /// An explicit walk rather than FileManager's enumerator, which follows
+        /// its own rules about symlinks and packages. This has to see exactly
+        /// what is on disk, in a stable order.
         func walk(_ directory: String) throws {
             let names = try FileManager.default.contentsOfDirectory(atPath: directory)
             for name in names.sorted() {
@@ -72,13 +72,15 @@ public struct VPhoneTreeFingerprint: Codable, Equatable, Sendable {
                 paths.append(full)
                 var info = stat()
                 guard lstat(full, &info) == 0 else { continue }
-                if (info.st_mode & S_IFMT) == S_IFDIR { try walk(full) }
+                if (info.st_mode & S_IFMT) == S_IFDIR {
+                    try walk(full)
+                }
             }
         }
         try walk(rootPath)
 
         // Hardlink groups, assigned in path order so the numbering is stable.
-        var groupOf: [String: Int] = [:]   // "dev:ino" -> group
+        var groupOf: [String: Int] = [:] // "dev:ino" -> group
         var linkCounts: [String: Int] = [:]
         for path in paths {
             var info = stat()
@@ -123,7 +125,7 @@ public struct VPhoneTreeFingerprint: Codable, Equatable, Sendable {
                 blocks: Int64(info.st_blocks),
                 contentSHA256: includeContentHashes && fileType == S_IFREG
                     ? digest(of: path)
-                    : nil
+                    : nil,
             ))
         }
 
@@ -147,13 +149,21 @@ public struct VPhoneTreeFingerprint: Codable, Equatable, Sendable {
         }
         for path in Set(mine.keys).intersection(theirs.keys).sorted() {
             let a = mine[path]!, b = theirs[path]!
-            if a == b { continue }
-            if a.type != b.type { found.append("\(path): type \(a.type) vs \(b.type)") }
-            if a.mode != b.mode { found.append("\(path): mode \(a.mode) vs \(b.mode)") }
+            if a == b {
+                continue
+            }
+            if a.type != b.type {
+                found.append("\(path): type \(a.type) vs \(b.type)")
+            }
+            if a.mode != b.mode {
+                found.append("\(path): mode \(a.mode) vs \(b.mode)")
+            }
             if a.uid != b.uid || a.gid != b.gid {
                 found.append("\(path): owner \(a.uid):\(a.gid) vs \(b.uid):\(b.gid)")
             }
-            if a.size != b.size { found.append("\(path): size \(a.size) vs \(b.size)") }
+            if a.size != b.size {
+                found.append("\(path): size \(a.size) vs \(b.size)")
+            }
             if a.mtimeNanoseconds != b.mtimeNanoseconds {
                 found.append("\(path): mtime \(a.mtimeNanoseconds) vs \(b.mtimeNanoseconds)")
             }
@@ -166,11 +176,15 @@ public struct VPhoneTreeFingerprint: Codable, Equatable, Sendable {
             if a.xattrs != b.xattrs {
                 found.append("\(path): xattrs \(a.xattrs.keys.sorted()) vs \(b.xattrs.keys.sorted())")
             }
-            if a.acl != b.acl { found.append("\(path): ACL differs") }
+            if a.acl != b.acl {
+                found.append("\(path): ACL differs")
+            }
             if a.blocks != b.blocks {
                 found.append("\(path): occupancy \(a.blocks) vs \(b.blocks) blocks (sparseness)")
             }
-            if a.contentSHA256 != b.contentSHA256 { found.append("\(path): contents differ") }
+            if a.contentSHA256 != b.contentSHA256 {
+                found.append("\(path): contents differ")
+            }
         }
         return found
     }

@@ -71,14 +71,16 @@ struct CryptexFileOpsTests {
                     String(cString: $0)
                 }
             }
-            if name != "." && name != ".." { names.append(name) }
+            if name != ".", name != ".." {
+                names.append(name)
+            }
         }
         return names.sorted()
     }
 
     // MARK: - chmod
 
-    @Test func theModeIsTheModeItWasGiven() throws {
+    @Test func `the mode is the mode it was given`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -97,7 +99,7 @@ struct CryptexFileOpsTests {
 
     // MARK: - ln -sf
 
-    @Test func aSymlinkStoresItsDestinationVerbatim() throws {
+    @Test func `a symlink stores its destination verbatim`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -113,7 +115,7 @@ struct CryptexFileOpsTests {
         #expect(stored == destination)
     }
 
-    @Test func rerunningReplacesTheLinkInsteadOfFailing() throws {
+    @Test func `rerunning replaces the link instead of failing`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -127,7 +129,7 @@ struct CryptexFileOpsTests {
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == "../second")
     }
 
-    @Test func aPlainFileInTheWayIsReplaced() throws {
+    @Test func `a plain file in the way is replaced`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -139,7 +141,7 @@ struct CryptexFileOpsTests {
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == "../elsewhere")
     }
 
-    @Test func aDirectoryInTheWayIsAnErrorRatherThanANestedLink() throws {
+    @Test func `a directory in the way is an error rather than A nested link`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -160,7 +162,7 @@ struct CryptexFileOpsTests {
 
     // MARK: - find -name '._*' -delete
 
-    @Test func appleDoubleFilesGoIncludingNestedOnes() throws {
+    @Test func `apple double files go including nested ones`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -178,7 +180,9 @@ struct CryptexFileOpsTests {
             bundle.appendingPathComponent("Info.plist"),
             codeSignature.appendingPathComponent("CodeResources"),
         ]
-        for file in doomed + kept { try touch(file) }
+        for file in doomed + kept {
+            try touch(file)
+        }
         // The fixture has to be real before the sweep is worth anything: if
         // `touch` had gone through Foundation, these names would not be here
         // and the sweep would "pass" by finding nothing.
@@ -194,7 +198,7 @@ struct CryptexFileOpsTests {
         #expect(realEntryNames(in: codeSignature) == ["CodeResources"])
     }
 
-    @Test func aTreeWithNoneOfThemIsNotAFailure() throws {
+    @Test func `a tree with none of them is not A failure`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -205,7 +209,7 @@ struct CryptexFileOpsTests {
 
     // MARK: - chown -R
 
-    @Test func theOwnershipWalkDoesNotFollowSymlinks() throws {
+    @Test func `the ownership walk does not follow symlinks`() throws {
         let scratch = try makeScratch()
         defer { try? FileManager.default.removeItem(at: scratch) }
         let patcher = makePatcher(scratch)
@@ -219,7 +223,7 @@ struct CryptexFileOpsTests {
         // defaults to the latter, and so must this.
         try FileManager.default.createSymbolicLink(
             atPath: nested.appendingPathComponent("dangling").path,
-            withDestinationPath: "../../gone/missing"
+            withDestinationPath: "../../gone/missing",
         )
 
         // Re-applying the ids this process already has: a no-op that still
@@ -243,33 +247,33 @@ struct CryptexFileOpsTests {
     </plist>
     """
 
-    @Test func theMaxSizeComesBackAsTheStringDiskutilWantsBack() throws {
+    @Test func `the max size comes back as the string diskutil wants back`() throws {
         #expect(try CryptexFilesystemPatcher.maxResizeSize(
-            fromDiskutilPlist: Self.sizesPlist
+            fromDiskutilPlist: Self.sizesPlist,
         ) == "21474836480")
     }
 
-    @Test func noiseInFrontOfThePlistDoesNotBreakTheParse() throws {
+    @Test func `noise in front of the plist does not break the parse`() throws {
         // runProcess points stderr at the same pipe as stdout, so this is what
         // a diskutil with anything to say actually returns. The shell pipeline
         // this replaced handed that whole string to `--size`.
         let noisy = "Warning: some warning from diskutil\n" + Self.sizesPlist
         #expect(try CryptexFilesystemPatcher.maxResizeSize(
-            fromDiskutilPlist: noisy
+            fromDiskutilPlist: noisy,
         ) == "21474836480")
     }
 
-    @Test func outputThatIsNotAPlistIsAnError() {
+    @Test func `output that is not A plist is an error`() {
         #expect(throws: ProcessError.self) {
             try CryptexFilesystemPatcher.maxResizeSize(
-                fromDiskutilPlist: "Could not find disk: /tmp/nope.img"
+                fromDiskutilPlist: "Could not find disk: /tmp/nope.img",
             )
         }
     }
 
-    @Test func aPlistWithoutAMaxKeyIsAnError() {
+    @Test func `a plist without A max key is an error`() {
         let withoutMax = Self.sizesPlist.replacingOccurrences(
-            of: "<key>max</key>", with: "<key>maximum</key>"
+            of: "<key>max</key>", with: "<key>maximum</key>",
         )
         #expect(throws: ProcessError.self) {
             try CryptexFilesystemPatcher.maxResizeSize(fromDiskutilPlist: withoutMax)

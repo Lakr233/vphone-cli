@@ -72,7 +72,7 @@ public struct VPhoneArchiveExtractOptions: Sendable {
         exactPermissions: Bool = false,
         noOverwriteDir: Bool = false,
         macMetadata: Bool = false,
-        extendedMetadata: Bool = false
+        extendedMetadata: Bool = false,
     ) {
         self.ownership = ownership
         self.exactPermissions = exactPermissions
@@ -96,7 +96,7 @@ public struct VPhoneArchiveExtractOptions: Sendable {
         exactPermissions: true,
         noOverwriteDir: true,
         macMetadata: false,
-        extendedMetadata: true
+        extendedMetadata: true,
     )
 
     /// Unpacking into a host directory we own and can throw away.
@@ -116,7 +116,7 @@ public struct VPhoneArchiveExtractOptions: Sendable {
         exactPermissions: false,
         noOverwriteDir: false,
         macMetadata: false,
-        extendedMetadata: false
+        extendedMetadata: false,
     )
 
     /// The libarchive `archive_write_disk` flags for these options.
@@ -153,10 +153,18 @@ public struct VPhoneArchiveExtractOptions: Sendable {
         // archive_write_disk_new(). Setting it unconditionally is how `vm
         // import` came to write a world-writable, setuid tree out of an
         // archive from somewhere else. See the two presets above.
-        if exactPermissions { flags |= ARCHIVE_EXTRACT_PERM }
-        if ownership == .preserveNumeric { flags |= ARCHIVE_EXTRACT_OWNER }
-        if extendedMetadata { flags |= ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS }
-        if macMetadata { flags |= ARCHIVE_EXTRACT_MAC_METADATA }
+        if exactPermissions {
+            flags |= ARCHIVE_EXTRACT_PERM
+        }
+        if ownership == .preserveNumeric {
+            flags |= ARCHIVE_EXTRACT_OWNER
+        }
+        if extendedMetadata {
+            flags |= ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS
+        }
+        if macMetadata {
+            flags |= ARCHIVE_EXTRACT_MAC_METADATA
+        }
 
         return Int32(flags)
     }

@@ -34,7 +34,7 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
         guard let key = SecKeyCreateWithData(
             container.privateKey as CFData,
             [kSecAttrKeyType: kSecAttrKeyTypeRSA, kSecAttrKeyClass: kSecAttrKeyClassPrivate] as CFDictionary,
-            nil
+            nil,
         ) else {
             throw VPhoneSignError.identityUnreadable("the private key is not an RSA key Security will take")
         }
@@ -76,7 +76,7 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
         // 1.2.840.113635.100.9.1: a plist of every cdhash, truncated to 20
         // bytes, which is the form the older attribute carries.
         if let plist = try? PropertyListSerialization.data(
-            fromPropertyList: ["cdhashes": cdHashes.map { $0.prefix(20) }], format: .xml, options: 0
+            fromPropertyList: ["cdhashes": cdHashes.map { $0.prefix(20) }], format: .xml, options: 0,
         ) {
             attributes.append(attribute(VPhoneDER.OID.hashAgility, [VPhoneDER.octetString(plist)]))
         }
@@ -127,10 +127,10 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
     private func sign(_ content: Data) throws -> Data {
         var error: Unmanaged<CFError>?
         guard let signature = SecKeyCreateSignature(
-            key, .rsaSignatureMessagePKCS1v15SHA256, content as CFData, &error
+            key, .rsaSignatureMessagePKCS1v15SHA256, content as CFData, &error,
         ) as Data? else {
             throw VPhoneSignError.signingFailed(
-                (error?.takeRetainedValue()).map { "\($0)" } ?? "SecKeyCreateSignature gave no signature"
+                (error?.takeRetainedValue()).map { "\($0)" } ?? "SecKeyCreateSignature gave no signature",
             )
         }
         return signature
@@ -143,9 +143,9 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
     // MARK: Reading the certificate
 
     private static func certificateFields(_ certificate: Data) throws -> (
-        issuer: Data, subject: Data, serialNumber: Data
+        issuer: Data, subject: Data, serialNumber: Data,
     ) {
-        let tbs = try VPhoneDER.children(of: try VPhoneDER.element(in: certificate, at: 0).content)
+        let tbs = try VPhoneDER.children(of: VPhoneDER.element(in: certificate, at: 0).content)
         guard let first = tbs.first else { throw VPhoneSignError.identityUnreadable("an empty certificate") }
         let fields = try VPhoneDER.children(of: first.content)
         // [0] EXPLICIT version is optional; everything after it shifts by one
@@ -165,7 +165,7 @@ public struct VPhoneSignIdentity: VPhoneSigningIdentity, @unchecked Sendable {
 
     /// One attribute of a `Name`: a SEQUENCE of SETs of type-and-value.
     private static func name(_ encoded: Data, oid: String) throws -> String {
-        for set in try VPhoneDER.children(of: try VPhoneDER.element(in: encoded, at: 0).content) {
+        for set in try VPhoneDER.children(of: VPhoneDER.element(in: encoded, at: 0).content) {
             for pair in try VPhoneDER.children(of: set.content) {
                 let fields = try VPhoneDER.children(of: pair.content)
                 guard fields.count >= 2, VPhoneDER.objectIdentifier(fields[0].content) == oid else { continue }

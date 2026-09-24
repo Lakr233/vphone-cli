@@ -41,11 +41,15 @@ extension IBootPatcher {
         let cbzOff = errOff - 4
 
         guard let insn = disasm.disassembleOne(in: buffer.original, at: cbzOff) else {
-            if verbose { print("  [-] \(description): no instruction at 0x\(String(format: "%X", cbzOff))") }
+            if verbose {
+                print("  [-] \(description): no instruction at 0x\(String(format: "%X", cbzOff))")
+            }
             return
         }
         guard insn.mnemonic == "cbz" || insn.mnemonic == "cbnz" else {
-            if verbose { print("  [-] \(description): expected cbz/cbnz at 0x\(String(format: "%X", cbzOff)), got \(insn.mnemonic)") }
+            if verbose {
+                print("  [-] \(description): expected cbz/cbnz at 0x\(String(format: "%X", cbzOff)), got \(insn.mnemonic)")
+            }
             return
         }
 
@@ -54,7 +58,9 @@ extension IBootPatcher {
         let target = Int(detail.operands[1].imm)
 
         guard let bInsn = ARM64Encoder.encodeB(from: cbzOff, to: target) else {
-            if verbose { print("  [-] \(description): B encoding out of range") }
+            if verbose {
+                print("  [-] \(description): B encoding out of range")
+            }
             return
         }
 
@@ -72,12 +78,16 @@ extension IBootPatcher {
                 let bhsOff = Int(insn.address) + 4
                 guard let next = disasm.disassembleOne(in: buffer.original, at: bhsOff),
                       next.mnemonic == "b.hs" else { continue }
-                if !bhsSites.contains(bhsOff) { bhsSites.append(bhsOff) }
+                if !bhsSites.contains(bhsOff) {
+                    bhsSites.append(bhsOff)
+                }
             }
         }
 
         guard bhsSites.count == 1 else {
-            if verbose { print("  [-] rootfs b.hs: expected 1 'cmp x8,#0x400 ; b.hs' pair, found \(bhsSites.count)") }
+            if verbose {
+                print("  [-] rootfs b.hs: expected 1 'cmp x8,#0x400 ; b.hs' pair, found \(bhsSites.count)")
+            }
             return
         }
 
@@ -85,7 +95,7 @@ extension IBootPatcher {
             bhsSites[0],
             ARM64.nop,
             id: "\(component).rootfs_bhs_0x400",
-            description: "rootfs: NOP b.hs size check (0x400)"
+            description: "rootfs: NOP b.hs size check (0x400)",
         )
     }
 
@@ -97,7 +107,9 @@ extension IBootPatcher {
         let locs = buffer.findAll(pattern)
 
         guard locs.count == 1 else {
-            if verbose { print("  [-] rootfs null check: expected 1 'mov w8, #0x110', found \(locs.count)") }
+            if verbose {
+                print("  [-] rootfs null check: expected 1 'mov w8, #0x110', found \(locs.count)")
+            }
             return
         }
 
@@ -123,13 +135,15 @@ extension IBootPatcher {
                     scan + 4,
                     ARM64.nop,
                     id: "\(component).rootfs_null_check_0x78",
-                    description: "rootfs: NOP cbz x8 null check (#0x78)"
+                    description: "rootfs: NOP cbz x8 null check (#0x78)",
                 )
                 return
             }
             scan -= 4
         }
 
-        if verbose { print("  [-] rootfs null check: ldr+cbz #0x78 pattern not found") }
+        if verbose {
+            print("  [-] rootfs null check: ldr+cbz #0x78 pattern not found")
+        }
     }
 }

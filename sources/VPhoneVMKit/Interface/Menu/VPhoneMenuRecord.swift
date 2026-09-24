@@ -30,7 +30,7 @@ extension VPhoneMenuController {
                 showAlert(
                     title: "Recording",
                     message: "No VM window is open. Start a VM, then try again.",
-                    style: .warning
+                    style: .warning,
                 )
                 return
             }
@@ -49,7 +49,7 @@ extension VPhoneMenuController {
             showAlert(
                 title: "Screenshot",
                 message: "No VM window is open. Start a VM, then try again.",
-                style: .warning
+                style: .warning,
             )
             return
         }
@@ -70,7 +70,7 @@ extension VPhoneMenuController {
             showAlert(
                 title: "Screenshot",
                 message: "No VM window is open. Start a VM, then try again.",
-                style: .warning
+                style: .warning,
             )
             return
         }
@@ -95,7 +95,7 @@ extension VPhoneMenuController {
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 110),
             styleMask: [.titled, .closable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         panel.title = "Recording"
         panel.center()
@@ -122,8 +122,13 @@ extension VPhoneMenuController {
         // Use a custom approach: reveal button stops modal with code 100
         class RevealHelper: NSObject {
             var action: () -> Void
-            init(_ action: @escaping () -> Void) { self.action = action }
-            @objc func clicked() { action() }
+            init(_ action: @escaping () -> Void) {
+                self.action = action
+            }
+
+            @objc func clicked() {
+                action()
+            }
         }
         let helper = RevealHelper {
             NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: 100))

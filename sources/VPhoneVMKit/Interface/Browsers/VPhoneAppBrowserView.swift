@@ -17,8 +17,8 @@ struct VPhoneAppBrowserView: View {
                     description: Text(
                         model.searchText.isEmpty
                             ? "No apps are installed on the guest."
-                            : "No apps match your search."
-                    )
+                            : "No apps match your search.",
+                    ),
                 )
             } else {
                 appTable
@@ -35,8 +35,12 @@ struct VPhoneAppBrowserView: View {
             "Error",
             isPresented: .init(
                 get: { model.error != nil },
-                set: { if !$0 { model.error = nil } }
-            )
+                set: {
+                    if !$0 {
+                        model.error = nil
+                    }
+                },
+            ),
         ) {
             Button("OK") { model.error = nil }
         } message: {
@@ -110,7 +114,7 @@ struct VPhoneAppBrowserView: View {
                         .padding(.vertical, 1)
                         .background(
                             app.type == "system"
-                                ? Color.blue.opacity(0.15) : Color.green.opacity(0.15)
+                                ? Color.blue.opacity(0.15) : Color.green.opacity(0.15),
                         )
                         .cornerRadius(3)
                 }

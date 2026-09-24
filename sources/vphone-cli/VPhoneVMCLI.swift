@@ -22,7 +22,7 @@ struct VPhoneVMCommand: ParsableCommand {
             VPhoneVMStopCommand.self,
             VPhoneVMCreateCommand.self,
             VPhoneVMWriteManifestCommand.self,
-        ]
+        ],
     )
 }
 
@@ -31,15 +31,15 @@ struct VPhoneVMCommand: ParsableCommand {
 struct VPhoneVMWriteManifestCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "write-manifest",
-        abstract: "Write a fresh config.plist into a VM directory"
+        abstract: "Write a fresh config.plist into a VM directory",
     )
 
     @Option(
         name: .customLong("vm-dir"),
         help: "VM directory to write config.plist into",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
-    var vmDirectory: URL = URL(fileURLWithPath: "vm")
+    var vmDirectory: URL = .init(fileURLWithPath: "vm")
 
     @Option(name: .customLong("cpu"), help: "CPU core count")
     var cpuCount: UInt = 8
@@ -49,14 +49,14 @@ struct VPhoneVMWriteManifestCommand: ParsableCommand {
 
     @Option(
         name: .customLong("platform-fusing"),
-        help: "prod or dev. Omit to let the host OS decide."
+        help: "prod or dev. Omit to let the host OS decide.",
     )
     var platformFusing: VPhoneVirtualMachineManifest.PlatformFusing?
 
     func run() throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(
-            atPath: vmDirectory.path, isDirectory: &isDirectory
+            atPath: vmDirectory.path, isDirectory: &isDirectory,
         ), isDirectory.boolValue else {
             throw ValidationError("VM directory does not exist: \(vmDirectory.path)")
         }
@@ -64,7 +64,7 @@ struct VPhoneVMWriteManifestCommand: ParsableCommand {
         let manifest = VPhoneVirtualMachineManifest.newVM(
             cpuCount: cpuCount,
             memoryMB: memoryMB,
-            platformFusing: platformFusing
+            platformFusing: platformFusing,
         )
         let configURL = vmDirectory.appendingPathComponent("config.plist")
         try manifest.write(to: configURL)
@@ -107,7 +107,7 @@ struct VPhoneVMListCommand: ParsableCommand {
             print("(no VMs in \(library.root.path))")
         } else {
             for r in reports {
-                var line = "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024*1024*1024)) GB disk"
+                var line = "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024 * 1024 * 1024)) GB disk"
                 if let info = r.restoreInfo {
                     line += "  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
                 }
@@ -131,19 +131,25 @@ struct VPhoneVMInfoCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         let report = VPhoneBundleReport(bundle: bundle)
         if json {
-            print(String(decoding: try JSONEncoder().encode(report), as: UTF8.self))
+            try print(String(decoding: JSONEncoder().encode(report), as: UTF8.self))
         } else {
             print("name:  \(report.name)")
             print("cpu:   \(report.cpuCount)")
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
             print("net:   \(describeNetwork(report.network))")
-            if let udid = report.udid { print("udid:  \(udid)") }
+            if let udid = report.udid {
+                print("udid:  \(udid)")
+            }
             if let info = report.restoreInfo {
                 print("iOS:     \(info.ios.version) (\(info.ios.build))")
                 print("cloudOS: \(info.cloudOS.version) (\(info.cloudOS.build))")
-                if let variant = info.variant { print("variant: \(variant)") }
-                if let device = info.device { print("device:  \(device)") }
+                if let variant = info.variant {
+                    print("variant: \(variant)")
+                }
+                if let device = info.device {
+                    print("device:  \(device)")
+                }
             }
         }
     }
@@ -169,7 +175,7 @@ struct VPhoneVMNewCommand: ParsableCommand {
             memoryMB: memory,
             diskSizeGB: diskSize,
             romSource: rom.map { URL(fileURLWithPath: $0) } ?? VPhoneBundleOps.defaultROMSource(),
-            sepromSource: seprom.map { URL(fileURLWithPath: $0) } ?? VPhoneBundleOps.defaultSEPROMSource()
+            sepromSource: seprom.map { URL(fileURLWithPath: $0) } ?? VPhoneBundleOps.defaultSEPROMSource(),
         )
         let bundle = try VPhoneBundleOps.create(spec, in: lib.library)
         print("created \(bundle.url.path)")
@@ -181,7 +187,7 @@ struct VPhoneVMNewCommand: ParsableCommand {
 struct VPhoneVMConfigCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "config",
-        abstract: "Edit VM manifest fields (cpu/memory/network)"
+        abstract: "Edit VM manifest fields (cpu/memory/network)",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -201,10 +207,10 @@ struct VPhoneVMConfigCommand: ParsableCommand {
             cpuCount: cpu,
             memoryMB: memory,
             networkMode: mode,
-            bridgeInterface: bridgeInterface
+            bridgeInterface: bridgeInterface,
         )
         let m = updated.manifest
-        print("updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024*1024)) MB, "
+        print("updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
             + "net=\(describeNetwork(m.networkConfig))")
     }
 
@@ -225,7 +231,9 @@ struct VPhoneVMConfigCommand: ParsableCommand {
 
 private func describeNetwork(_ net: VPhoneVirtualMachineManifest.NetworkConfig) -> String {
     var s = net.mode.rawValue
-    if net.mode == .bridged, let iface = net.bridgeInterface { s += "(\(iface))" }
+    if net.mode == .bridged, let iface = net.bridgeInterface {
+        s += "(\(iface))"
+    }
     return s
 }
 

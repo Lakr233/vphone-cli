@@ -51,7 +51,9 @@ extension IBootPatcher {
         }
 
         if candidates.isEmpty {
-            if verbose { print("  [-] image4 callback: pattern not found") }
+            if verbose {
+                print("  [-] image4 callback: pattern not found")
+            }
             return
         }
 
@@ -67,7 +69,7 @@ extension IBootPatcher {
             off + 4,
             ARM64.movX0_0,
             id: "\(component).image4_callback_mov",
-            description: "image4 callback: mov x0,x22 → mov x0,#0"
+            description: "image4 callback: mov x0,x22 → mov x0,#0",
         )
     }
 }

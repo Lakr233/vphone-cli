@@ -15,7 +15,10 @@ extension VPhoneLibraryError: CustomStringConvertible, LocalizedError {
             "Invalid VM name '\(name)'. Use a name that is not empty, has no '/', and does not start with '.'."
         }
     }
-    public var errorDescription: String? { description }
+
+    public var errorDescription: String? {
+        description
+    }
 }
 
 public struct VPhoneLibrarySkip: Sendable {
@@ -33,7 +36,9 @@ public struct VPhoneLibrarySkip: Sendable {
 public struct VPhoneLibrary: Sendable {
     public let root: URL
 
-    public init(root: URL) { self.root = root }
+    public init(root: URL) {
+        self.root = root
+    }
 
     public static func defaultRoot() -> URL {
         if let override = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"] {
@@ -56,13 +61,15 @@ public struct VPhoneLibrary: Sendable {
         let entries = try fm.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles])
+            options: [.skipsHiddenFiles],
+        )
         var bundles: [VPhoneBundle] = []
         var skipped: [VPhoneLibrarySkip] = []
         for url in entries
-            where fm.fileExists(atPath: url.appendingPathComponent("config.plist").path) {
+            where fm.fileExists(atPath: url.appendingPathComponent("config.plist").path)
+        {
             do {
-                bundles.append(try VPhoneBundle.load(at: url))
+                try bundles.append(VPhoneBundle.load(at: url))
             } catch {
                 skipped.append(VPhoneLibrarySkip(name: url.lastPathComponent, reason: "\(error)"))
             }
@@ -77,7 +84,8 @@ public struct VPhoneLibrary: Sendable {
     public func bundle(named name: String) throws -> VPhoneBundle {
         let url = url(forName: name)
         guard FileManager.default.fileExists(
-            atPath: url.appendingPathComponent("config.plist").path) else {
+            atPath: url.appendingPathComponent("config.plist").path,
+        ) else {
             throw VPhoneLibraryError.notFound(name: name)
         }
         return try VPhoneBundle.load(at: url)

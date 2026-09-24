@@ -24,7 +24,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         screenScale: Double,
         keyHelper: VPhoneKeyHelper,
         control: VPhoneControl,
-        ecid: String?
+        ecid: String?,
     ) {
         self.control = control
         self.ecid = ecid
@@ -40,14 +40,14 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
         let scale = CGFloat(screenScale)
         let windowSize = NSSize(
             width: CGFloat(screenWidth) / scale,
-            height: CGFloat(screenHeight) / scale
+            height: CGFloat(screenHeight) / scale,
         )
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
 
         window.isReleasedWhenClosed = false
@@ -108,7 +108,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
     nonisolated func toolbar(
         _: NSToolbar,
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar _: Bool
+        willBeInsertedIntoToolbar _: Bool,
     ) -> NSToolbarItem? {
         MainActor.assumeIsolated {
             if itemIdentifier == Self.homeItemID {
@@ -117,7 +117,7 @@ class VPhoneWindowController: NSObject, NSToolbarDelegate {
                 item.toolTip = "Home Button"
                 item.image = NSImage(
                     systemSymbolName: "circle.circle",
-                    accessibilityDescription: "Home"
+                    accessibilityDescription: "Home",
                 )
                 item.target = self
                 item.action = #selector(homePressed)

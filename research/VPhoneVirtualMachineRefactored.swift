@@ -36,7 +36,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
             width: 1290,
             height: 2796,
             pixelsPerInch: 460,
-            scale: 3.0
+            scale: 3.0,
         )
     }
 
@@ -60,7 +60,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
         let platform = try configurePlatform(
             machineIDURL: options.machineIDURL,
             nvramURL: options.nvramURL,
-            hardwareModel: hardwareModel
+            hardwareModel: hardwareModel,
         )
 
         if let machineIdentifier = platform.machineIdentifier {
@@ -74,7 +74,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
         let config = buildConfiguration(
             options: options,
             platform: platform,
-            bootloader: bootloader
+            bootloader: bootloader,
         )
 
         try config.validate()
@@ -98,7 +98,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
     private func configurePlatform(
         machineIDURL: URL,
         nvramURL: URL,
-        hardwareModel: VZMacHardwareModel
+        hardwareModel: VZMacHardwareModel,
     ) throws -> VZMacPlatformConfiguration {
         let platform = VZMacPlatformConfiguration()
         platform.hardwareModel = hardwareModel
@@ -109,7 +109,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
         let auxiliaryStorage = try VZMacAuxiliaryStorage(
             creatingStorageAt: nvramURL,
             hardwareModel: hardwareModel,
-            options: .allowOverwrite
+            options: .allowOverwrite,
         )
         platform.auxiliaryStorage = auxiliaryStorage
 
@@ -158,7 +158,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
     private func buildConfiguration(
         options: Configuration,
         platform: VZMacPlatformConfiguration,
-        bootloader: VZMacOSBootLoader
+        bootloader: VZMacOSBootLoader,
     ) -> VZVirtualMachineConfiguration {
         let config = VZVirtualMachineConfiguration()
         config.bootLoader = bootloader
@@ -185,7 +185,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
         let displayConfiguration = VZMacGraphicsDisplayConfiguration(
             widthInPixels: screen.width,
             heightInPixels: screen.height,
-            pixelsPerInch: screen.pixelsPerInch
+            pixelsPerInch: screen.pixelsPerInch,
         )
         graphicsConfiguration.displays = [displayConfiguration]
         config.graphicsDevices = [graphicsConfiguration]
@@ -230,7 +230,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
 
         serialPort.attachment = VZFileHandleSerialPortAttachment(
             fileHandleForReading: inputPipe.fileHandleForReading,
-            fileHandleForWriting: outputPipe.fileHandleForWriting
+            fileHandleForWriting: outputPipe.fileHandleForWriting,
         )
 
         forwardStandardInput(to: inputPipe.fileHandleForWriting)
@@ -276,7 +276,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
         guard let batteryObject = batteryConfiguration.asObject else { return }
 
         Dynamic(config)._setPowerSourceDevices([batteryObject])
-        self.batterySource = syntheticBatterySource.asObject as AnyObject?
+        batterySource = syntheticBatterySource.asObject as AnyObject?
         print("[vphone] Synthetic battery configured (100%, charging)")
     }
 
@@ -403,7 +403,7 @@ class VPhoneVirtualMachineRefactored: NSObject, VZVirtualMachineDelegate {
     nonisolated func virtualMachine(
         _: VZVirtualMachine,
         networkDevice _: VZNetworkDevice,
-        attachmentWasDisconnectedWithError error: Error
+        attachmentWasDisconnectedWithError error: Error,
     ) {
         print("[vphone] Network error: \(error)")
     }

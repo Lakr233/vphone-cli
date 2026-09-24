@@ -25,7 +25,7 @@ class VPhoneLocationProvider: NSObject {
             horizontalAccuracy: Double = 5,
             verticalAccuracy: Double = 8,
             speed: Double = 0,
-            course: Double = -1
+            course: Double = -1,
         ) {
             self.latitude = latitude
             self.longitude = longitude
@@ -101,7 +101,7 @@ class VPhoneLocationProvider: NSObject {
             horizontalAccuracy: 5,
             verticalAccuracy: 8,
             speed: 0,
-            course: -1
+            course: -1,
         )
         print("[location] applied preset '\(name)' (\(latitude), \(longitude))")
     }
@@ -111,7 +111,7 @@ class VPhoneLocationProvider: NSObject {
         name: String,
         points: [ReplayPoint],
         intervalSeconds: Double = 1.5,
-        loop: Bool = true
+        loop: Bool = true,
     ) {
         guard !points.isEmpty else {
             print("[location] replay '\(name)' ignored: no points")
@@ -124,7 +124,7 @@ class VPhoneLocationProvider: NSObject {
         replayName = name
         let sleepNanos = UInt64((max(intervalSeconds, 0.1) * 1_000_000_000).rounded())
         print(
-            "[location] starting replay '\(name)' (\(points.count) points, interval \(String(format: "%.1f", intervalSeconds))s, loop=\(loop))"
+            "[location] starting replay '\(name)' (\(points.count) points, interval \(String(format: "%.1f", intervalSeconds))s, loop=\(loop))",
         )
 
         replayTask = Task { @MainActor [weak self] in
@@ -144,7 +144,7 @@ class VPhoneLocationProvider: NSObject {
                     horizontalAccuracy: point.horizontalAccuracy,
                     verticalAccuracy: point.verticalAccuracy,
                     speed: point.speed,
-                    course: point.course
+                    course: point.course,
                 )
 
                 index += 1
@@ -191,7 +191,7 @@ class VPhoneLocationProvider: NSObject {
             horizontalAccuracy: location.horizontalAccuracy,
             verticalAccuracy: location.verticalAccuracy,
             speed: location.speed,
-            course: location.course
+            course: location.course,
         )
     }
 
@@ -202,7 +202,7 @@ class VPhoneLocationProvider: NSObject {
         horizontalAccuracy: Double,
         verticalAccuracy: Double,
         speed: Double,
-        course: Double
+        course: Double,
     ) {
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         lastLocation = CLLocation(
@@ -210,7 +210,7 @@ class VPhoneLocationProvider: NSObject {
             altitude: altitude,
             horizontalAccuracy: horizontalAccuracy,
             verticalAccuracy: verticalAccuracy,
-            timestamp: Date()
+            timestamp: Date(),
         )
 
         guard control.isConnected else {
@@ -225,7 +225,7 @@ class VPhoneLocationProvider: NSObject {
             horizontalAccuracy: horizontalAccuracy,
             verticalAccuracy: verticalAccuracy,
             speed: speed,
-            course: course
+            course: course,
         )
     }
 }
@@ -244,7 +244,7 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         let c = location.coordinate
         print(
-            "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (+/-\(String(format: "%.0f", location.horizontalAccuracy))m)"
+            "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (+/-\(String(format: "%.0f", location.horizontalAccuracy))m)",
         )
         handler(location)
     }
@@ -252,7 +252,9 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
     func locationManager(_: CLLocationManager, didFailWithError error: any Error) {
         let clErr = (error as NSError).code
         // kCLErrorLocationUnknown (0) = transient, just waiting for fix
-        if clErr == 0 { return }
+        if clErr == 0 {
+            return
+        }
         print("[location] CLLocationManager error: \(error.localizedDescription) (code \(clErr))")
     }
 

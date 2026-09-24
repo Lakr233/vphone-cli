@@ -46,8 +46,8 @@ extension DeviceTreePatcher {
             parentPath: ["device-tree", "product"],
             nodeName: "camera",
             properties: [
-                .init(name: "aggregate-cam-photo-zoom", length: 4, flags: 0, value: .integer(0x7d0)),
-                .init(name: "aggregate-cam-video-zoom", length: 4, flags: 0, value: .integer(0x4b0)),
+                .init(name: "aggregate-cam-photo-zoom", length: 4, flags: 0, value: .integer(0x7D0)),
+                .init(name: "aggregate-cam-video-zoom", length: 4, flags: 0, value: .integer(0x4B0)),
                 .init(name: "aggregate-camera", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "auto-focus", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "auto-low-light-video", length: 4, flags: 0, value: .integer(1)),
@@ -110,7 +110,7 @@ extension DeviceTreePatcher {
                 .init(name: "video-stills", length: 4, flags: 0, value: .integer(1)),
             ],
             patchID: "devicetree.product.camera_node",
-            description: "Add /product/camera node with full iPhone17,3 D47AP property set (62 props)"
+            description: "Add /product/camera node with full iPhone17,3 D47AP property set (62 props)",
         ),
 
         // ── /product/facetime (Tier C — front-camera video-call config) ──
@@ -128,28 +128,28 @@ extension DeviceTreePatcher {
                 .init(name: "bitrate-lte", length: 4, flags: 0, value: .integer(228)),
                 .init(name: "bitrate-wifi", length: 4, flags: 0, value: .integer(2000)),
                 .init(name: "decoding", length: 48, flags: 0, value: .bytes(Data([
-                    0x40, 0x01, 0x00, 0x00, 0x0f, 0x00, 0xf0, 0x00,
-                    0x40, 0x01, 0x00, 0x00, 0x1e, 0x00, 0xf0, 0x00,
-                    0xe0, 0x01, 0x00, 0x00, 0x0f, 0x00, 0x70, 0x01,
-                    0xe0, 0x01, 0x00, 0x00, 0x1e, 0x00, 0x70, 0x01,
-                    0x80, 0x02, 0x00, 0x00, 0x1e, 0x00, 0xe0, 0x01,
-                    0x00, 0x04, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x03,
+                    0x40, 0x01, 0x00, 0x00, 0x0F, 0x00, 0xF0, 0x00,
+                    0x40, 0x01, 0x00, 0x00, 0x1E, 0x00, 0xF0, 0x00,
+                    0xE0, 0x01, 0x00, 0x00, 0x0F, 0x00, 0x70, 0x01,
+                    0xE0, 0x01, 0x00, 0x00, 0x1E, 0x00, 0x70, 0x01,
+                    0x80, 0x02, 0x00, 0x00, 0x1E, 0x00, 0xE0, 0x01,
+                    0x00, 0x04, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x03,
                 ]))),
                 .init(name: "encoding", length: 56, flags: 0, value: .bytes(Data([
-                    0x40, 0x01, 0x00, 0x00, 0x0f, 0x00, 0xf0, 0x00,
-                    0x40, 0x01, 0x00, 0x00, 0x1e, 0x00, 0xf0, 0x00,
-                    0xe0, 0x01, 0x00, 0x00, 0x0f, 0x00, 0x70, 0x01,
-                    0xe0, 0x01, 0x00, 0x00, 0x1e, 0x00, 0x70, 0x01,
-                    0x80, 0x02, 0x00, 0x00, 0x1e, 0x00, 0xe0, 0x01,
-                    0x00, 0x04, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x03,
-                    0x00, 0x05, 0x00, 0x00, 0x1e, 0x00, 0xd0, 0x02,
+                    0x40, 0x01, 0x00, 0x00, 0x0F, 0x00, 0xF0, 0x00,
+                    0x40, 0x01, 0x00, 0x00, 0x1E, 0x00, 0xF0, 0x00,
+                    0xE0, 0x01, 0x00, 0x00, 0x0F, 0x00, 0x70, 0x01,
+                    0xE0, 0x01, 0x00, 0x00, 0x1E, 0x00, 0x70, 0x01,
+                    0x80, 0x02, 0x00, 0x00, 0x1E, 0x00, 0xE0, 0x01,
+                    0x00, 0x04, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x03,
+                    0x00, 0x05, 0x00, 0x00, 0x1E, 0x00, 0xD0, 0x02,
                 ]))),
-                .init(name: "pref-decoding", length: 8, flags: 0, value: .integer(0x0300_001e_0000_0400)),
+                .init(name: "pref-decoding", length: 8, flags: 0, value: .integer(0x0300_001E_0000_0400)),
                 .init(name: "tnr-mode-back", length: 4, flags: 0, value: .integer(10)),
                 .init(name: "tnr-mode-front", length: 4, flags: 0, value: .integer(10)),
             ],
             patchID: "devicetree.product.facetime_node",
-            description: "Add /product/facetime node with full iPhone17,3 D47AP property set (9 props)"
+            description: "Add /product/facetime node with full iPhone17,3 D47AP property set (9 props)",
         ),
 
         // ── /product/audio (Tier C — audio + spatial-capture flags) ──
@@ -170,16 +170,16 @@ extension DeviceTreePatcher {
             nodeName: "audio",
             properties: [
                 .init(name: "acoustic-id", length: 4, flags: 0, value: .integer(8018)),
-                .init(name: "actuator-cpms-bgd_100ms", length: 8, flags: 0, value: .integer(0x0000_0eef_0000_01f4)),
-                .init(name: "actuator-cpms-bgd_inst", length: 8, flags: 0, value: .integer(0x0000_1db0_0000_06d6)),
+                .init(name: "actuator-cpms-bgd_100ms", length: 8, flags: 0, value: .integer(0x0000_0EEF_0000_01F4)),
+                .init(name: "actuator-cpms-bgd_inst", length: 8, flags: 0, value: .integer(0x0000_1DB0_0000_06D6)),
                 .init(name: "enabledChannels", length: 4, flags: 0, value: .integer(15)),
                 .init(name: "historyChannels", length: 4, flags: 0, value: .integer(15)),
                 .init(name: "mic-trim-gains-0", length: 12, flags: 0, value: .string("syscfg/MiGH")),
                 .init(name: "mic-trim-gains-2", length: 12, flags: 0, value: .string("syscfg/MiGB")),
                 .init(name: "mic-trim-gains-key-cnt", length: 4, flags: 0, value: .integer(2)),
-                .init(name: "speaker-cpms-bgd_100ms", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04b0)),
-                .init(name: "speaker-cpms-bgd_1s", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04b0)),
-                .init(name: "speaker-cpms-bgd_inst", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04b0)),
+                .init(name: "speaker-cpms-bgd_100ms", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04B0)),
+                .init(name: "speaker-cpms-bgd_1s", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04B0)),
+                .init(name: "speaker-cpms-bgd_inst", length: 8, flags: 0, value: .integer(0x0000_2328_0000_04B0)),
                 .init(name: "speaker-thiele-small-0", length: 12, flags: 0, value: .string("syscfg/SpPH")),
                 .init(name: "speaker-thiele-small-key-cnt", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "speaker-trim-gains-0", length: 12, flags: 0, value: .string("syscfg/SpGH")),
@@ -196,23 +196,23 @@ extension DeviceTreePatcher {
                 .init(name: "supports-spatial-audio-capture", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "supports-spatial-facetime", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "use-case-client-format", length: 96, flags: 0, value: .bytes(Data([
-                    0x61, 0x64, 0x6e, 0x73, 0x80, 0xbb, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x61, 0x64, 0x6E, 0x73, 0x80, 0xBB, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x69, 0x72, 0x69, 0x73, 0x80, 0x3e, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x69, 0x72, 0x69, 0x73, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x73, 0x74, 0x70, 0x6c, 0x80, 0x3e, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x73, 0x74, 0x70, 0x6C, 0x80, 0x3E, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 ]))),
                 .init(name: "use-case-dsp-in-format", length: 160, flags: 0, value: .bytes(Data([
-                    0x64, 0x6b, 0x74, 0x6d, 0x80, 0xbb, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x64, 0x6B, 0x74, 0x6D, 0x80, 0xBB, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x61, 0x64, 0x6e, 0x73, 0x80, 0xbb, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x61, 0x64, 0x6E, 0x73, 0x80, 0xBB, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x64, 0x76, 0x70, 0x73, 0x80, 0xbb, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x64, 0x76, 0x70, 0x73, 0x80, 0xBB, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x69, 0x72, 0x69, 0x73, 0x80, 0x3e, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x69, 0x72, 0x69, 0x73, 0x80, 0x3E, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x73, 0x74, 0x70, 0x6c, 0x80, 0x3e, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+                    0x73, 0x74, 0x70, 0x6C, 0x80, 0x3E, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 ]))),
                 .init(name: "use-case-struct-version", length: 4, flags: 0, value: .integer(1)),
@@ -220,7 +220,7 @@ extension DeviceTreePatcher {
                 .init(name: "wireless-splitter", length: 4, flags: 0, value: .integer(1)),
             ],
             patchID: "devicetree.product.audio_node",
-            description: "Add /product/audio node with full iPhone17,3 D47AP property set (31 props)"
+            description: "Add /product/audio node with full iPhone17,3 D47AP property set (31 props)",
         ),
 
         // ── /product/iopm (Tier C — always-on technology) ────────────
@@ -240,7 +240,7 @@ extension DeviceTreePatcher {
                 .init(name: "aot-mode", length: 4, flags: 0, value: .integer(13)),
             ],
             patchID: "devicetree.product.iopm_node",
-            description: "Add /product/iopm node with aot-mode=13 + aot-linger-time-ms=0 (2 props)"
+            description: "Add /product/iopm node with aot-mode=13 + aot-linger-time-ms=0 (2 props)",
         ),
 
         // ── ISP / SMC camera-flag stubs (Tier F — /arm-io subtree) ──
@@ -283,7 +283,7 @@ extension DeviceTreePatcher {
             nodeName: "smc",
             properties: [],
             patchID: "devicetree.arm_io.smc_stub",
-            description: "Add /arm-io/smc empty stub (parent for smc-ext-charger chain)"
+            description: "Add /arm-io/smc empty stub (parent for smc-ext-charger chain)",
         ),
 
         // /arm-io/smc/iop-smc-nub — empty stub (parent for smc-ext-charger).
@@ -292,7 +292,7 @@ extension DeviceTreePatcher {
             nodeName: "iop-smc-nub",
             properties: [],
             patchID: "devicetree.arm_io.smc.iop_smc_nub_stub",
-            description: "Add /arm-io/smc/iop-smc-nub empty stub (parent for smc-ext-charger)"
+            description: "Add /arm-io/smc/iop-smc-nub empty stub (parent for smc-ext-charger)",
         ),
 
         // /arm-io/smc/iop-smc-nub/smc-ext-charger — carries camera-driver.
@@ -303,7 +303,7 @@ extension DeviceTreePatcher {
                 .init(name: "camera-driver", length: 14, flags: 0, value: .string("AppleH16CamIn")),
             ],
             patchID: "devicetree.arm_io.smc.smc_ext_charger_camera_driver",
-            description: "Add /arm-io/smc/iop-smc-nub/smc-ext-charger with camera-driver='AppleH16CamIn'"
+            description: "Add /arm-io/smc/iop-smc-nub/smc-ext-charger with camera-driver='AppleH16CamIn'",
         ),
 
         // /arm-io/isp — minimal stub carrying camera-front + camera-rear.
@@ -315,7 +315,7 @@ extension DeviceTreePatcher {
                 .init(name: "camera-rear", length: 4, flags: 0, value: .integer(1)),
             ],
             patchID: "devicetree.arm_io.isp_camera_flags",
-            description: "Add /arm-io/isp stub with camera-front=1 + camera-rear=1"
+            description: "Add /arm-io/isp stub with camera-front=1 + camera-rear=1",
         ),
 
         // /arm-io/ispRtb — minimal stub carrying camera-front + camera-rear.
@@ -327,7 +327,7 @@ extension DeviceTreePatcher {
                 .init(name: "camera-rear", length: 4, flags: 0, value: .integer(1)),
             ],
             patchID: "devicetree.arm_io.ispRtb_camera_flags",
-            description: "Add /arm-io/ispRtb stub with camera-front=1 + camera-rear=1"
+            description: "Add /arm-io/ispRtb stub with camera-front=1 + camera-rear=1",
         ),
     ]
 }

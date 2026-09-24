@@ -36,7 +36,9 @@ public enum VPhoneRestoreOps {
 
     /// ECID from `--ecid`, else the `ECID=` line of the bundle's udid-prediction.txt.
     public static func resolveECID(explicit: String?, bundle: VPhoneBundle) -> String? {
-        if let explicit, !explicit.isEmpty { return explicit }
+        if let explicit, !explicit.isEmpty {
+            return explicit
+        }
         return predictedValue(forKey: "ECID=", bundle: bundle)
     }
 
@@ -80,7 +82,8 @@ public enum VPhoneRestoreOps {
             let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: aea) }
             let code = try VPhoneProcessRunner.runStreaming(
                 URL(fileURLWithPath: "/usr/bin/aea"),
-                ["decrypt", "-i", aea.path, "-o", decrypted.path, "-key-value", key])
+                ["decrypt", "-i", aea.path, "-o", decrypted.path, "-key-value", key],
+            )
             guard code == 0 else { throw VPhoneRestoreError.aeaDecryptFailed(aea.lastPathComponent) }
             guard fm.fileExists(atPath: decrypted.path) else {
                 throw VPhoneRestoreError.aeaDecryptFailed(aea.lastPathComponent)

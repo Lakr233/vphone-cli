@@ -66,7 +66,7 @@ public struct VPhoneRemoteZip: Sendable {
 
         // The EOCD is 22 bytes plus up to 64 KiB of comment, so the last 64 KiB
         // and change always contains it.
-        let tailLength = min(size, 66_000)
+        let tailLength = min(size, 66000)
         let tail = try await range(of: url, from: size - tailLength, count: tailLength)
 
         guard let eocd = lastIndex(of: [0x50, 0x4B, 0x05, 0x06], in: tail) else {
@@ -95,8 +95,8 @@ public struct VPhoneRemoteZip: Sendable {
         }
 
         let directory = try await range(of: url, from: directoryOffset, count: directorySize)
-        return VPhoneRemoteZip(
-            url: url, entries: try parseCentralDirectory(directory, expected: entryCount)
+        return try VPhoneRemoteZip(
+            url: url, entries: parseCentralDirectory(directory, expected: entryCount),
         )
     }
 
@@ -111,7 +111,9 @@ public struct VPhoneRemoteZip: Sendable {
     /// first in the central directory picked a nested one and then failed to
     /// find a ramdisk in it.
     public func entry(endingWith suffix: String) throws -> Entry {
-        if let exact = entries.first(where: { $0.name == suffix }) { return exact }
+        if let exact = entries.first(where: { $0.name == suffix }) {
+            return exact
+        }
         let matches = entries.filter { $0.name.hasSuffix("/" + suffix) || $0.name.hasSuffix(suffix) }
         guard let shallowest = matches.min(by: {
             ($0.name.count(where: { $0 == "/" }), $0.name.count)
@@ -151,7 +153,7 @@ public struct VPhoneRemoteZip: Sendable {
                 compression_decode_buffer(
                     destination.baseAddress!.assumingMemoryBound(to: UInt8.self), size,
                     source.baseAddress!.assumingMemoryBound(to: UInt8.self), data.count,
-                    nil, COMPRESSION_ZLIB
+                    nil, COMPRESSION_ZLIB,
                 )
             }
         }
@@ -197,7 +199,7 @@ public struct VPhoneRemoteZip: Sendable {
 
         while offset + 46 <= data.count {
             guard data[data.startIndex + offset ..< data.startIndex + offset + 4]
-                    == Data([0x50, 0x4B, 0x01, 0x02])
+                == Data([0x50, 0x4B, 0x01, 0x02])
             else { break }
 
             let method = u16(data, offset + 10)
@@ -242,7 +244,7 @@ public struct VPhoneRemoteZip: Sendable {
                 compressedSize: compressed,
                 uncompressedSize: uncompressed,
                 localHeaderOffset: localOffset,
-                compressionMethod: method
+                compressionMethod: method,
             ))
             offset += 46 + nameLength + extraLength + commentLength
         }
@@ -256,7 +258,9 @@ public struct VPhoneRemoteZip: Sendable {
         let bytes = [UInt8](data)
         var i = bytes.count - needle.count
         while i >= 0 {
-            if Array(bytes[i ..< i + needle.count]) == needle { return i }
+            if Array(bytes[i ..< i + needle.count]) == needle {
+                return i
+            }
             i -= 1
         }
         return nil

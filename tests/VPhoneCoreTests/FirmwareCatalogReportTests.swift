@@ -1,9 +1,9 @@
-@testable import VPhoneCore
 import Foundation
 import Testing
+@testable import VPhoneCore
 
 struct FirmwareCatalogReportTests {
-    @Test func mapsEveryPairing() throws {
+    @Test func `maps every pairing`() {
         let report = VPhoneFirmwareCatalog.report
         #expect(report.device == VPhoneFirmwareCatalog.device)
         #expect(report.pairings.count == VPhoneFirmwareCatalog.pairings.count)
@@ -16,9 +16,9 @@ struct FirmwareCatalogReportTests {
         }
     }
 
-    @Test func roundTripsJSON() throws {
+    @Test func `round trips JSON`() throws {
         let report = VPhoneFirmwareCatalog.report
-        let back = try JSONDecoder().decode(VPhoneFirmwareCatalogReport.self, from: try JSONEncoder().encode(report))
+        let back = try JSONDecoder().decode(VPhoneFirmwareCatalogReport.self, from: JSONEncoder().encode(report))
         #expect(back == report)
     }
 }

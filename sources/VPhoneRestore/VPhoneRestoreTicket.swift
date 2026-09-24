@@ -50,7 +50,7 @@ public enum VPhoneRestoreTicket {
         guard let object = try? PropertyListSerialization.propertyList(
             from: unwrapped,
             options: [],
-            format: nil
+            format: nil,
         ), object is [String: Any] else {
             throw VPhoneRestoreBackendError.shshMalformed(path)
         }
@@ -75,7 +75,7 @@ public enum VPhoneRestoreTicket {
             &stream,
             15 + 32,
             zlibVersion(),
-            Int32(MemoryLayout<z_stream>.size)
+            Int32(MemoryLayout<z_stream>.size),
         )
         guard initialized == Z_OK else { return nil }
         defer { inflateEnd(&stream) }
@@ -96,7 +96,9 @@ public enum VPhoneRestoreTicket {
                     return inflate(&stream, Z_NO_FLUSH)
                 }
                 let produced = chunkSize - Int(stream.avail_out)
-                if produced > 0 { output.append(contentsOf: chunk[0..<produced]) }
+                if produced > 0 {
+                    output.append(contentsOf: chunk[0 ..< produced])
+                }
 
                 switch status {
                 case Z_STREAM_END:
@@ -106,7 +108,9 @@ public enum VPhoneRestoreTicket {
                     // make no further progress and the stream ended without
                     // its trailer — a truncated file, not a finished one. Z_OK
                     // otherwise just means "call me again".
-                    if produced == 0, stream.avail_in == 0 { return false }
+                    if produced == 0, stream.avail_in == 0 {
+                        return false
+                    }
                 default:
                     return false
                 }

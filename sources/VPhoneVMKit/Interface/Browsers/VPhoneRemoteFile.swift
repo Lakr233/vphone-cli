@@ -30,7 +30,9 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
     }
 
     var displaySize: String {
-        if isDirectory || isSymbolicLink { return "-" }
+        if isDirectory || isSymbolicLink {
+            return "-"
+        }
         return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
     }
 

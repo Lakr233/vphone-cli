@@ -15,14 +15,16 @@ final class VPhoneProgressBar {
 
     init(label: String) {
         self.label = label
-        self.enabled = isatty(FileHandle.standardError.fileDescriptor) != 0
+        enabled = isatty(FileHandle.standardError.fileDescriptor) != 0
     }
 
     func update(done: Int64, total: Int64) {
         guard enabled else { return }
         self.total = total
         let now = Date()
-        if done < total, now.timeIntervalSince(lastRender) < 0.066 { return }  // ~15 fps
+        if done < total, now.timeIntervalSince(lastRender) < 0.066 {
+            return
+        } // ~15 fps
         lastRender = now
         render(done: done, now: now)
     }
@@ -41,17 +43,25 @@ final class VPhoneProgressBar {
         let rate = elapsed > 0 ? Double(done) / elapsed : 0
 
         var line = "\r\(label) [\(bar)] \(Int(frac * 100))%  \(Self.bytes(done))"
-        if total > 0 { line += "/\(Self.bytes(total))" }
-        if rate > 0 { line += "  \(Self.bytes(Int64(rate)))/s" }
-        if total > 0, rate > 0, done < total { line += "  eta \(Self.clock(Double(total - done) / rate))" }
-        line += "\u{1B}[K"  // clear to end of line
+        if total > 0 {
+            line += "/\(Self.bytes(total))"
+        }
+        if rate > 0 {
+            line += "  \(Self.bytes(Int64(rate)))/s"
+        }
+        if total > 0, rate > 0, done < total {
+            line += "  eta \(Self.clock(Double(total - done) / rate))"
+        }
+        line += "\u{1B}[K" // clear to end of line
         FileHandle.standardError.write(Data(line.utf8))
     }
 
     static func bytes(_ n: Int64) -> String {
         let units = ["B", "KB", "MB", "GB", "TB"]
         var value = Double(n), i = 0
-        while value >= 1024, i < units.count - 1 { value /= 1024; i += 1 }
+        while value >= 1024, i < units.count - 1 {
+            value /= 1024; i += 1
+        }
         return i == 0 ? "\(n) B" : String(format: "%.1f %@", value, units[i])
     }
 

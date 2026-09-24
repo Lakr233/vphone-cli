@@ -16,17 +16,17 @@ extension CryptexFilesystemPatcher {
     /// identity for these binaries.
     func guestSigningOptions(
         identifier: String? = nil,
-        entitlements: URL? = nil
+        entitlements: URL? = nil,
     ) throws -> VPhoneSignOptions {
-        return VPhoneSignOptions(
+        try VPhoneSignOptions(
             identifier: identifier,
-            entitlements: try entitlements.map { try Data(contentsOf: $0, options: .mappedIfSafe) },
-            mergesExisting: true
+            entitlements: entitlements.map { try Data(contentsOf: $0, options: .mappedIfSafe) },
+            mergesExisting: true,
         )
     }
 
     func patchLaunchdCacheLoader(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         let launchdCacheLoaderPath = target.appending(path: "/usr/libexec/launchd_cache_loader")
         // Patched in place with no `.bak` to restore from, so this is the call
         // site that needs the port's idempotence. No re-attestation: the sign
@@ -36,14 +36,14 @@ extension CryptexFilesystemPatcher {
 
         try VPhoneSigner.sign(
             fileAt: launchdCacheLoaderPath,
-            options: try guestSigningOptions(
-                identifier: "com.apple.launchd_cache_loader"
-            )
+            options: guestSigningOptions(
+                identifier: "com.apple.launchd_cache_loader",
+            ),
         )
     }
 
     func injectLaunchDaemons(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         let scriptDir = resources.scriptsDir
 
         let tmpDir = try createTmpDir()
@@ -55,7 +55,7 @@ extension CryptexFilesystemPatcher {
         let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
         try FileManager.default.copyItem(
             at: vphonedLaunchdPlist,
-            to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist")
+            to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"),
         )
         try CFWDaemons.injectDaemon(into: launchdPath, name: "vphoned", from: vphonedLaunchdPlist)
         print("  [+] Injected vphoned")
@@ -64,7 +64,7 @@ extension CryptexFilesystemPatcher {
     }
 
     func addVphoned(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         let scriptDir = resources.scriptsDir
         let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
         // vphonedSrc (bundled source) is read-only inside a packaged .app, so the
@@ -80,9 +80,9 @@ extension CryptexFilesystemPatcher {
         try FileManager.default.copyItem(at: vphonedBin, to: targetBin)
         try VPhoneSigner.sign(
             fileAt: targetBin,
-            options: try guestSigningOptions(
-                entitlements: vphonedSrc.appendingPathComponent("entitlements.plist")
-            )
+            options: guestSigningOptions(
+                entitlements: vphonedSrc.appendingPathComponent("entitlements.plist"),
+            ),
         )
         try setMode(0o755, at: targetBin)
     }
@@ -100,12 +100,12 @@ extension CryptexFilesystemPatcher {
     }
 
     func addGpuDriver(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         let bundle = target.appending(path: "/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")
         let staged = VPhonePCCGPUDriver.stagedBundle(in: restoreDir)
         guard FileManager.default.fileExists(atPath: staged.path) else {
             throw FirmwarePatcher.PatcherError.patchVerificationFailed(
-                "PCC GPU driver is missing: \(staged.path). Re-run fw prepare with the PCC IPSW."
+                "PCC GPU driver is missing: \(staged.path). Re-run fw prepare with the PCC IPSW.",
             )
         }
         if FileManager.default.fileExists(atPath: bundle.path) {
@@ -125,14 +125,14 @@ extension CryptexFilesystemPatcher {
         }
         for path in [
             bundle.appending(path: "/_CodeSignature/CodeResources"),
-            bundle.appending(path: "/Info.plist")
+            bundle.appending(path: "/Info.plist"),
         ] {
             try setMode(0o644, at: path)
         }
     }
 
     func patchMobileActivation(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         let mobileActivationdPath = target.appending(path: "/usr/libexec/mobileactivationd")
         // `resign: false` because the sign below replaces the signature, and
         // re-attesting would refuse an unsigned input the Python accepted.
@@ -141,19 +141,19 @@ extension CryptexFilesystemPatcher {
 
         try VPhoneSigner.sign(
             fileAt: mobileActivationdPath,
-            options: try guestSigningOptions()
+            options: guestSigningOptions(),
         )
     }
 
     func addDyldSymlinks(targetMount: String) throws {
-        let target = URL.init(filePath: targetMount)
+        let target = URL(filePath: targetMount)
         try createSymlink(
             at: target.appending(path: "/System/Library/Caches/com.apple.dyld"),
-            to: "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+            to: "../../../System/Cryptexes/OS/System/Library/Caches/com.apple.dyld",
         )
         try createSymlink(
             at: target.appending(path: "/System/DriverKit/System/Library/dyld"),
-            to: "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld"
+            to: "../../../../System/Cryptexes/OS/System/DriverKit/System/Library/dyld",
         )
     }
 }

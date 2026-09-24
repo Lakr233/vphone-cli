@@ -38,7 +38,7 @@ extension IBootPatcher {
                             step + 4,
                             ARM64.nop,
                             id: "\(component).panic_bypass",
-                            description: "panic bypass: NOP cbnz w0"
+                            description: "panic bypass: NOP cbnz w0",
                         )
                         return
                     }
@@ -48,6 +48,8 @@ extension IBootPatcher {
             }
         }
 
-        if verbose { print("  [-] panic bypass: pattern not found") }
+        if verbose {
+            print("  [-] panic bypass: pattern not found")
+        }
     }
 }

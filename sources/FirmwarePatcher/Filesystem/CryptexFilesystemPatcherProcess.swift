@@ -21,7 +21,7 @@ extension CryptexFilesystemPatcher {
     func runProcess(
         _ launchPath: String,
         _ arguments: [String],
-        output: URL? = nil
+        output: URL? = nil,
     ) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
@@ -29,7 +29,7 @@ extension CryptexFilesystemPatcher {
 
         let outPipe = Pipe()
         if let output {
-            let outFile = try FileHandle.init(forWritingTo: output)
+            let outFile = try FileHandle(forWritingTo: output)
             process.standardOutput = outFile
             process.standardError = outFile
         } else {

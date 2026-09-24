@@ -98,8 +98,13 @@ class VPhoneFileBrowserModel {
         navigate(to: path)
     }
 
-    var canGoBack: Bool { !pathHistory.isEmpty }
-    var canGoForward: Bool { !forwardHistory.isEmpty }
+    var canGoBack: Bool {
+        !pathHistory.isEmpty
+    }
+
+    var canGoForward: Bool {
+        !forwardHistory.isEmpty
+    }
 
     func openItem(_ file: VPhoneRemoteFile) {
         if file.isDirectoryLike {
@@ -161,7 +166,9 @@ class VPhoneFileBrowserModel {
             } else {
                 await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
             }
-            if error != nil { break }
+            if error != nil {
+                break
+            }
         }
         transferName = nil
     }
@@ -207,10 +214,12 @@ class VPhoneFileBrowserModel {
                     remotePath: child.path,
                     name: child.name,
                     size: child.size,
-                    to: localDir
+                    to: localDir,
                 )
             }
-            if error != nil { return }
+            if error != nil {
+                return
+            }
         }
     }
 
@@ -240,7 +249,9 @@ class VPhoneFileBrowserModel {
         transferName = nil
         await refresh()
         // Set error after refresh so refresh() doesn't clear it before the alert fires.
-        if let e = uploadError { error = e }
+        if let e = uploadError {
+            error = e
+        }
     }
 
     func createNewFolder(name: String) async {

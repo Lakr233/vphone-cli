@@ -37,49 +37,49 @@ struct ARM64ConstantTests {
         #expect(insn?.mnemonic == "pacibsp" || insn?.mnemonic == "hint")
     }
 
-    @Test func movX0_0() {
+    @Test func `mov X 0 0`() {
         let insn = disasm.disassembleOne(ARM64.movX0_0, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "movz")
     }
 
-    @Test func movX0_1() {
+    @Test func `mov X 0 1`() {
         let insn = disasm.disassembleOne(ARM64.movX0_1, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "movz")
     }
 
-    @Test func movW0_0() {
+    @Test func `mov W 0 0`() {
         let insn = disasm.disassembleOne(ARM64.movW0_0, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "movz")
     }
 
-    @Test func movW0_1() {
+    @Test func `mov W 0 1`() {
         let insn = disasm.disassembleOne(ARM64.movW0_1, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "movz")
     }
 
-    @Test func cmpW0W0() {
+    @Test func `cmp W 0 W 0`() {
         verifyConstant(ARM64.cmpW0W0, expectedMnemonic: "cmp")
     }
 
-    @Test func cmpX0X0() {
+    @Test func `cmp X 0 X 0`() {
         verifyConstant(ARM64.cmpX0X0, expectedMnemonic: "cmp")
     }
 
-    @Test func movX0X20() {
+    @Test func `mov X 0 X 20`() {
         let insn = disasm.disassembleOne(ARM64.movX0X20, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "orr")
     }
 
-    @Test func strbW0X20_30() {
+    @Test func `strb W 0 X 20 30`() {
         verifyConstant(ARM64.strbW0X20_30, expectedMnemonic: "strb")
     }
 
-    @Test func movW0_0xA1() {
+    @Test func `mov W 0 0 x A 1`() {
         let insn = disasm.disassembleOne(ARM64.movW0_0xA1, at: 0)
         #expect(insn != nil)
         #expect(insn?.mnemonic == "mov" || insn?.mnemonic == "movz")
@@ -89,7 +89,7 @@ struct ARM64ConstantTests {
 struct ARM64EncoderTests {
     let disasm = ARM64Disassembler()
 
-    @Test func encodeBForward() throws {
+    @Test func `encode B forward`() throws {
         // B from 0x1000 to 0x2000 (forward 0x1000 bytes)
         let data = ARM64Encoder.encodeB(from: 0x1000, to: 0x2000)
         #expect(data != nil)
@@ -97,7 +97,7 @@ struct ARM64EncoderTests {
         #expect(insn?.mnemonic == "b")
     }
 
-    @Test func encodeBBackward() throws {
+    @Test func `encode B backward`() throws {
         // B from 0x2000 to 0x1000 (backward 0x1000 bytes)
         let data = ARM64Encoder.encodeB(from: 0x2000, to: 0x1000)
         #expect(data != nil)
@@ -105,14 +105,14 @@ struct ARM64EncoderTests {
         #expect(insn?.mnemonic == "b")
     }
 
-    @Test func encodeBLForward() throws {
+    @Test func `encode BL forward`() throws {
         let data = ARM64Encoder.encodeBL(from: 0x1000, to: 0x2000)
         #expect(data != nil)
         let insn = try disasm.disassembleOne(#require(data), at: 0x1000)
         #expect(insn?.mnemonic == "bl")
     }
 
-    @Test func decodeBranchTarget() throws {
+    @Test func `decode branch target`() throws {
         // Encode a B, then decode and verify the target matches
         let from: UInt64 = 0x10000
         let to: UInt64 = 0x20000
@@ -122,27 +122,27 @@ struct ARM64EncoderTests {
         #expect(decoded == to)
     }
 
-    @Test func encodeBOutOfRange() {
+    @Test func `encode B out of range`() {
         // Try to encode a branch that's too far (> 128MB)
         let data = ARM64Encoder.encodeB(from: 0, to: 0x1000_0000)
         #expect(data == nil)
     }
 
-    @Test func encodeADRP() throws {
+    @Test func `encode ADRP`() throws {
         let data = ARM64Encoder.encodeADRP(rd: 0, pc: 0x1000, target: 0x2000)
         #expect(data != nil)
         let insn = try disasm.disassembleOne(#require(data), at: 0x1000)
         #expect(insn?.mnemonic == "adrp")
     }
 
-    @Test func encodeAddImm12() throws {
+    @Test func `encode add imm 12`() throws {
         let data = ARM64Encoder.encodeAddImm12(rd: 0, rn: 0, imm12: 0x100)
         #expect(data != nil)
         let insn = try disasm.disassembleOne(#require(data), at: 0)
         #expect(insn?.mnemonic == "add")
     }
 
-    @Test func encodeMovXFromZR() {
+    @Test func `encode mov X from ZR`() {
         // `mov x8, xzr` — the mac_mount state-clear encoding (ORR X8, XZR, XZR).
         let bytes = ARM64Encoder.encodeMovX(rd: 8, rm: 31)
         let insn = disasm.disassembleOne(bytes, at: 0)
@@ -152,16 +152,17 @@ struct ARM64EncoderTests {
         #expect(bytes == withUnsafeBytes(of: UInt32(0xAA1F_03E8).littleEndian) { Data($0) })
     }
 
-    @Test func encodeMovXIsRegisterMove() {
+    @Test func `encode mov X is register move`() {
         // `mov x0, x20` matches the project's preverified ARM64.movX0X20 constant.
         #expect(ARM64Encoder.encodeMovX(rd: 0, rm: 20) == ARM64.movX0X20)
     }
 
-    @Test func encodeTestBitBranchRoundTrips() throws {
+    @Test func `encode test bit branch round trips`() throws {
         // The vm_map_delete --frida patch retargets `tbz/tbnz w8,#9` to bit 13
         // (current-protection.X → max_protection.X), preserving sense and target.
         let tbz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: false, register: 8, bit: 13, from: 0x1000, to: 0x1020))
+            nonzero: false, register: 8, bit: 13, from: 0x1000, to: 0x1020,
+        ))
         let tbzI = try #require(disasm.disassembleOne(tbz, at: 0x1000))
         #expect(tbzI.mnemonic == "tbz")
         #expect(tbzI.operandString.contains("w8"))
@@ -169,7 +170,8 @@ struct ARM64EncoderTests {
         #expect(tbzI.operandString.contains("0x1020"))
 
         let tbnz = try #require(ARM64Encoder.encodeTestBitBranch(
-            nonzero: true, register: 8, bit: 13, from: 0x2000, to: 0x1f00))
+            nonzero: true, register: 8, bit: 13, from: 0x2000, to: 0x1F00,
+        ))
         let tbnzI = try #require(disasm.disassembleOne(tbnz, at: 0x2000))
         #expect(tbnzI.mnemonic == "tbnz")
         #expect(tbnzI.operandString.contains("#0xd"))
@@ -181,7 +183,7 @@ struct ARM64EncoderTests {
         #expect(ARM64Encoder.encodeTestBitBranch(nonzero: false, register: 8, bit: 13, from: 0, to: 0x8000) == nil)
     }
 
-    @Test func encodeMovzWClearsTSSFCheckEntitlement() throws {
+    @Test func `encode movz W clears TSSF check entitlement`() throws {
         // The thread_set_state --frida patch rewrites `mov w6, #0x201`
         // (TSSF_TRANSLATE_TO_USER | TSSF_CHECK_ENTITLEMENT) to `mov w6, #0x1`,
         // clearing only the entitlement bit while preserving user translation.
@@ -205,7 +207,7 @@ struct ARM64InstTests {
         return disasm.disassembleOne(data, at: 0)?.mnemonic
     }
 
-    @Test func fieldAccessors() {
+    @Test func `field accessors`() {
         // ldr x1, [x0, #0x3e0]  → Rt=1, Rn=0
         let ldr: UInt32 = 0xF941_F001
         #expect(ARM64Inst.rd(ldr) == 1)
@@ -229,14 +231,14 @@ struct ARM64InstTests {
         #expect(!ARM64Inst.isADRP(0xF941_F001)) // an ldr is not adrp
     }
 
-    @Test func ldrImm64() {
+    @Test func `ldr imm 64`() {
         let w: UInt32 = 0xF941_F001 // ldr x1, [x0, #0x3e0]
         #expect(mnemonic(of: w) == "ldr")
         #expect(ARM64Inst.isLDRImm64(w))
         #expect(!ARM64Inst.isLDRImm64(0x9000_0000))
     }
 
-    @Test func cmpReg64() {
+    @Test func `cmp reg 64`() {
         let w: UInt32 = 0xEB01_001F // cmp x0, x1
         #expect(mnemonic(of: w) == "cmp")
         #expect(ARM64Inst.isCMPReg64(w))
@@ -245,14 +247,14 @@ struct ARM64InstTests {
         #expect(!ARM64Inst.isCMPReg64(0x5100_0462)) // sub-imm is not cmp-reg
     }
 
-    @Test func subImm32() {
+    @Test func `sub imm 32`() {
         let w: UInt32 = 0x5100_0462 // sub w2, w3, #1
         #expect(mnemonic(of: w) == "sub")
         #expect(ARM64Inst.isSUBImm32(w))
         #expect(!ARM64Inst.isSUBImm32(0x5280_02C0)) // movz is not sub
     }
 
-    @Test func movzW() {
+    @Test func `movz W`() {
         let w: UInt32 = 0x5280_02C0 // movz w0, #0x16
         let m = mnemonic(of: w)
         #expect(m == "mov" || m == "movz")
@@ -261,14 +263,14 @@ struct ARM64InstTests {
         #expect(!ARM64Inst.isMOVZW(0xF941_F001))
     }
 
-    @Test func andRegW() {
+    @Test func `and reg W`() {
         let w: UInt32 = 0x0A05_0083 // and w3, w4, w5
         #expect(mnemonic(of: w) == "and")
         #expect(ARM64Inst.isANDRegW(w))
         #expect(!ARM64Inst.isANDRegW(0x5280_02C0))
     }
 
-    @Test func lsrImm7W() {
+    @Test func `lsr imm 7 W`() {
         let w: UInt32 = 0x5307_7C20 // lsr w0, w1, #7
         let m = mnemonic(of: w)
         #expect(m == "lsr" || m == "ubfm")
@@ -276,16 +278,16 @@ struct ARM64InstTests {
         #expect(!ARM64Inst.isLSRImm7W(0x0A05_0083))
     }
 
-    @Test func branchPredicates() {
-        let bl = ARM64Encoder.encodeBL(from: 0x1000, to: 0x2000)!
-            .withUnsafeBytes { $0.load(as: UInt32.self) }
+    @Test func `branch predicates`() throws {
+        let bl = try #require(ARM64Encoder.encodeBL(from: 0x1000, to: 0x2000)?
+            .withUnsafeBytes { $0.load(as: UInt32.self) })
         #expect(ARM64Inst.isBL(bl))
         // b.eq vs b.ne (cond field)
         #expect(ARM64Inst.isBEQ(0x5400_0020)) // b.eq #4
         #expect(!ARM64Inst.isBEQ(0x5400_0021)) // b.ne #4
     }
 
-    @Test func compareAndBranch() {
+    @Test func `compare and branch`() {
         #expect(ARM64Inst.isCBZW(0x3400_0020)) // cbz w0, #4
         #expect(!ARM64Inst.isCBZW(0x3500_0020)) // that is cbnz
         #expect(ARM64Inst.isCBNZW(0x3500_0020))
@@ -297,14 +299,14 @@ struct ARM64InstTests {
 }
 
 struct BinaryBufferTests {
-    @Test func readWriteU32() {
+    @Test func `read write U 32`() {
         let data = Data(repeating: 0, count: 16)
         let buf = BinaryBuffer(data)
         buf.writeU32(at: 4, value: 0xDEAD_BEEF)
         #expect(buf.readU32(at: 4) == 0xDEAD_BEEF)
     }
 
-    @Test func findString() {
+    @Test func `find string`() {
         let testStr = "Hello, World!\0Extra"
         let data = Data(testStr.utf8)
         let buf = BinaryBuffer(data)
@@ -312,7 +314,7 @@ struct BinaryBufferTests {
         #expect(offset == 0)
     }
 
-    @Test func findAll() {
+    @Test func `find all`() {
         var data = Data(repeating: 0, count: 32)
         // Write NOP at offset 8 and 20
         let nop = ARM64.nop
@@ -325,7 +327,7 @@ struct BinaryBufferTests {
         #expect(offsets.contains(20))
     }
 
-    @Test func readUnalignedValues() {
+    @Test func `read unaligned values`() {
         let data = Data([0xFF, 0x78, 0x56, 0x34, 0x12, 0xF0, 0xDE, 0xBC, 0x9A])
         let buf = BinaryBuffer(data)
         #expect(buf.readU32(at: 1) == 0x1234_5678)
@@ -356,19 +358,21 @@ final class BytePatchPatcher: Patcher {
                 fileOffset: offset,
                 originalBytes: Data([data[offset]]),
                 patchedBytes: Data([byte]),
-                description: id
+                description: id,
             ),
         ]
     }
 
-    func apply() throws -> Int { 1 }
+    func apply() throws -> Int {
+        1
+    }
 }
 
 struct FirmwarePipelineDataFlowTests {
-    @Test func chainedPatchersReceivePreviousPatchedBytes() throws {
+    @Test func `chained patchers receive previous patched bytes`() throws {
         let pipeline = FirmwarePipeline(
             vmDirectory: URL(fileURLWithPath: NSTemporaryDirectory()),
-            verbose: false
+            verbose: false,
         )
         var secondInput = Data()
 
@@ -383,7 +387,7 @@ struct FirmwarePipelineDataFlowTests {
                     secondInput = data
                     return BytePatchPatcher(data: data, offset: 1, byte: 0xBB, id: "second")
                 },
-            ]
+            ],
         )
 
         #expect(secondInput == Data([0xAA, 0x00]))
@@ -393,7 +397,7 @@ struct FirmwarePipelineDataFlowTests {
 }
 
 struct IBootPatcherIdempotencyTests {
-    @Test func serialLabelsPatchTwoBannerRunsWhenLabelAbsent() {
+    @Test func `serial labels patch two banner runs when label absent`() {
         let banner = String(repeating: "=", count: 32)
         let payload = Data("prefix \(banner) middle \(banner) suffix".utf8)
         let patcher = IBootPatcher(data: payload, mode: .ibss, verbose: false)
@@ -406,7 +410,7 @@ struct IBootPatcherIdempotencyTests {
         })
     }
 
-    @Test func serialLabelsSkipWhenLabelAlreadyPresent() {
+    @Test func `serial labels skip when label already present`() {
         let payload = Data("Loaded iBSS\0 middle Loaded iBSS\0 suffix".utf8)
         let patcher = IBootPatcher(data: payload, mode: .ibss, verbose: false)
 
@@ -415,7 +419,7 @@ struct IBootPatcherIdempotencyTests {
         #expect(patcher.patches.isEmpty)
     }
 
-    @Test func serialLabelsDoNotSkipForUnrelatedSingleLabel() {
+    @Test func `serial labels do not skip for unrelated single label`() {
         let banner = String(repeating: "=", count: 32)
         let payload = Data("Loaded iBSS\0 prefix \(banner) middle \(banner) suffix".utf8)
         let patcher = IBootPatcher(data: payload, mode: .ibss, verbose: false)
@@ -427,7 +431,7 @@ struct IBootPatcherIdempotencyTests {
 }
 
 struct IM4PPayloadParityTests {
-    @Test func ibssIM4PPayloadMatchesRawAndJBPatcherFindsNoncePatch() throws {
+    @Test func `ibss IM 4 P payload matches raw and JB patcher finds nonce patch`() throws {
         let baseDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -436,7 +440,7 @@ struct IM4PPayloadParityTests {
 
         let rawIBSS = try Data(contentsOf: baseDir.appendingPathComponent("raw_payloads/ibss.bin"))
         let (im4pPayload, _) = try IM4PHandler.load(
-            contentsOf: baseDir.appendingPathComponent("Firmware/dfu/iBSS.vresearch101.RELEASE.im4p")
+            contentsOf: baseDir.appendingPathComponent("Firmware/dfu/iBSS.vresearch101.RELEASE.im4p"),
         )
 
         #expect(im4pPayload == rawIBSS)
@@ -446,7 +450,7 @@ struct IM4PPayloadParityTests {
         #expect(records.count == 1)
     }
 
-    @Test func savingIBSSIM4PRoundTripsPayload() throws {
+    @Test func `saving IBSSIM 4 P round trips payload`() throws {
         let baseDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -466,10 +470,10 @@ struct IM4PPayloadParityTests {
 
         let (roundTripPayload, _) = try IM4PHandler.load(contentsOf: tempURL)
         #expect(roundTripPayload == payload)
-        #expect((try Data(contentsOf: tempURL)).count > originalFile.count)
+        #expect(try (Data(contentsOf: tempURL)).count > originalFile.count)
     }
 
-    @Test func savingTXMIM4PPreservesPAYPTrailer() throws {
+    @Test func `saving TXMIM 4 P preserves PAYP trailer`() throws {
         let baseDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -497,7 +501,7 @@ struct IM4PPayloadParityTests {
 }
 
 struct FirmwarePipelineTests {
-    @Test func findFileSupportsGlobPatterns() throws {
+    @Test func `find file supports glob patterns`() throws {
         let fm = FileManager.default
         let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
@@ -519,7 +523,7 @@ struct FirmwarePipelineTests {
 }
 
 struct FridaGatingTests {
-    @Test func cloudOSVersionGate() {
+    @Test func `cloud OS version gate`() {
         // Frida kernel patches apply on cloudOS 26.4+ only.
         #expect(FirmwarePipeline.productVersionAtLeast("26.4", 26, 4))
         #expect(FirmwarePipeline.productVersionAtLeast("26.5", 26, 4))

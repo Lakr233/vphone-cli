@@ -52,7 +52,7 @@ extension KernelJBPatcher {
                 ARM64.nop,
                 patchID: "kernelcache_jb.vm_fault_enter_prepare",
                 virtualAddress: va,
-                description: "NOP [_vm_fault_enter_prepare]"
+                description: "NOP [_vm_fault_enter_prepare]",
             )
             return true
         } else if candidateSites.count > 1 {

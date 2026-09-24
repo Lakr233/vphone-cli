@@ -34,7 +34,7 @@ public enum VPhoneArchiveExtractor {
         options: VPhoneArchiveExtractOptions,
         progress: ((Progress) -> Void)? = nil,
         bytesRead: ((Int64) -> Void)? = nil,
-        isCancelled: (() -> Bool)? = nil
+        isCancelled: (() -> Bool)? = nil,
     ) throws -> Int {
         let reader = archive_read_new()
         archive_read_support_format_all(reader)
@@ -50,7 +50,7 @@ public enum VPhoneArchiveExtractor {
 
         guard archive_read_open_filename(reader, archive.path, blockSize) == ARCHIVE_OK else {
             throw VPhoneArchiveError.cannotOpen(
-                path: archive.path, reason: archiveErrorString(reader)
+                path: archive.path, reason: archiveErrorString(reader),
             )
         }
 
@@ -69,14 +69,18 @@ public enum VPhoneArchiveExtractor {
         var bytes: Int64 = 0
 
         while true {
-            if isCancelled?() == true { throw VPhoneArchiveError.cancelled }
+            if isCancelled?() == true {
+                throw VPhoneArchiveError.cancelled
+            }
 
             var entry: OpaquePointer?
             let status = archive_read_next_header(reader, &entry)
-            if status == ARCHIVE_EOF { break }
+            if status == ARCHIVE_EOF {
+                break
+            }
             guard status == ARCHIVE_OK || status == ARCHIVE_WARN, let entry else {
                 throw VPhoneArchiveError.readFailed(
-                    path: archive.path, reason: archiveErrorString(reader)
+                    path: archive.path, reason: archiveErrorString(reader),
                 )
             }
 
@@ -96,7 +100,7 @@ public enum VPhoneArchiveExtractor {
             let targetPath = target.standardized.path
             guard targetPath == destinationPath || targetPath.hasPrefix(destinationPath + "/") else {
                 throw VPhoneArchiveError.pathEscapesDestination(
-                    member: memberPath, destination: destinationPath
+                    member: memberPath, destination: destinationPath,
                 )
             }
             archive_entry_set_pathname(entry, targetPath)
@@ -116,7 +120,7 @@ public enum VPhoneArchiveExtractor {
                 let resolvedLink = linkTarget.standardized.path
                 guard resolvedLink.hasPrefix(destinationPath + "/") else {
                     throw VPhoneArchiveError.pathEscapesDestination(
-                        member: linkPath, destination: destinationPath
+                        member: linkPath, destination: destinationPath,
                     )
                 }
                 archive_entry_set_hardlink(entry, resolvedLink)
@@ -131,7 +135,7 @@ public enum VPhoneArchiveExtractor {
 
             guard archive_write_header(writer, entry) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: target.path, reason: archiveErrorString(writer)
+                    path: target.path, reason: archiveErrorString(writer),
                 )
             }
 
@@ -140,13 +144,13 @@ public enum VPhoneArchiveExtractor {
                     from: reader, to: writer, isCancelled: isCancelled,
                     onBlock: bytesRead.map { report in
                         { report(archive_filter_bytes(reader, -1)) }
-                    }
+                    },
                 )
             }
 
             guard archive_write_finish_entry(writer) == ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: target.path, reason: archiveErrorString(writer)
+                    path: target.path, reason: archiveErrorString(writer),
                 )
             }
 
@@ -187,7 +191,7 @@ public enum VPhoneArchiveExtractor {
     /// its metadata is left alone.
     private static func shouldSkipExistingDirectory(
         _ entry: OpaquePointer,
-        at target: URL
+        at target: URL,
     ) -> Bool {
         // S_IFDIR rather than AE_IFDIR: the AE_* names are C macros that Swift
         // does not import, and they are defined to the same values as the
@@ -207,30 +211,34 @@ public enum VPhoneArchiveExtractor {
         from reader: OpaquePointer?,
         to writer: OpaquePointer?,
         isCancelled: (() -> Bool)?,
-        onBlock: (() -> Void)? = nil
+        onBlock: (() -> Void)? = nil,
     ) throws -> Int64 {
         var total: Int64 = 0
         while true {
             // Cancellation is checked per block, not per entry: a single
             // multi-gigabyte disk image is one entry, and a check that only
             // happens between entries would not interrupt it.
-            if isCancelled?() == true { throw VPhoneArchiveError.cancelled }
+            if isCancelled?() == true {
+                throw VPhoneArchiveError.cancelled
+            }
 
             var buffer: UnsafeRawPointer?
             var size = 0
             var offset: la_int64_t = 0
 
             let status = archive_read_data_block(reader, &buffer, &size, &offset)
-            if status == ARCHIVE_EOF { return total }
+            if status == ARCHIVE_EOF {
+                return total
+            }
             guard status == ARCHIVE_OK || status == ARCHIVE_WARN else {
                 throw VPhoneArchiveError.readFailed(
-                    path: "<member data>", reason: archiveErrorString(reader)
+                    path: "<member data>", reason: archiveErrorString(reader),
                 )
             }
 
             guard archive_write_data_block(writer, buffer, size, offset) >= ARCHIVE_OK else {
                 throw VPhoneArchiveError.writeFailed(
-                    path: "<member data>", reason: archiveErrorString(writer)
+                    path: "<member data>", reason: archiveErrorString(writer),
                 )
             }
             total += Int64(size)

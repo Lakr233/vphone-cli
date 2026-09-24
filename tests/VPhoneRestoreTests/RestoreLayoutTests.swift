@@ -21,13 +21,13 @@ struct RestoreLayoutTests {
     private func makeDirectory(_ name: String, in root: URL) throws {
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent(name, isDirectory: true),
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
     }
 
     // MARK: - Restore directory
 
-    @Test func findsTheOneRestoreTree() throws {
+    @Test func `finds the one restore tree`() throws {
         try withTemporaryDirectory { root in
             try makeDirectory("iPhone17,3_Restore", in: root)
             try makeDirectory("cfw_input", in: root)
@@ -36,7 +36,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func noRestoreTreeIsAnError() throws {
+    @Test func `no restore tree is an error`() throws {
         try withTemporaryDirectory { root in
             try makeDirectory("cfw_input", in: root)
             #expect(throws: VPhoneRestoreBackendError.noRestoreDirectory(root)) {
@@ -45,7 +45,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func missingBundleDirectoryIsTheSameError() throws {
+    @Test func `missing bundle directory is the same error`() throws {
         // contentsOfDirectory fails rather than returning nothing; the caller
         // should still hear "no restore tree", not a Cocoa error.
         let absent = FileManager.default.temporaryDirectory
@@ -55,7 +55,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func twoRestoreTreesAreAnErrorNamingBoth() throws {
+    @Test func `two restore trees are an error naming both`() throws {
         try withTemporaryDirectory { root in
             try makeDirectory("iPhone17,3_Restore", in: root)
             try makeDirectory("iPhone16,1_Restore", in: root)
@@ -67,7 +67,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func threeRestoreTreesAreStillAnError() throws {
+    @Test func `three restore trees are still an error`() throws {
         try withTemporaryDirectory { root in
             try makeDirectory("iPhone17,3_Restore", in: root)
             try makeDirectory("iPhone16,1_Restore", in: root)
@@ -80,7 +80,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func aFileWithTheRightNameIsNotARestoreTree() throws {
+    @Test func `a file with the right name is not A restore tree`() throws {
         try withTemporaryDirectory { root in
             // Python's `if p.is_dir()`. A stray file would otherwise be handed
             // to idevicerestore as a restore directory.
@@ -92,7 +92,7 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func theGlobStarMayMatchNothing() throws {
+    @Test func `the glob star may match nothing`() throws {
         try withTemporaryDirectory { root in
             // "iPhone*_Restore" with an empty star. `hasPrefix` + `hasSuffix`
             // has to accept it, and the two literals cannot overlap, so it does.
@@ -103,7 +103,7 @@ struct RestoreLayoutTests {
     }
 
     @Test(arguments: ["iPhone17,3", "iPhone", "17,3_Restore", "Restore", "iphone17,3_restore"])
-    func neighbouringNamesAreNotRestoreTrees(_ name: String) throws {
+    func `neighbouring names are not restore trees`(_ name: String) throws {
         try withTemporaryDirectory { root in
             try makeDirectory(name, in: root)
             let names = try VPhoneRestoreLayout.restoreDirectoryNames(in: root)
@@ -111,14 +111,14 @@ struct RestoreLayoutTests {
         }
     }
 
-    @Test func aSymlinkToADirectoryCounts() throws {
+    @Test func `a symlink to A directory counts`() throws {
         try withTemporaryDirectory { root in
             // Python's glob + `p.is_dir()` follows symlinks, and a bundle that
             // points at a shared firmware tree is a reasonable thing to build.
             try makeDirectory("real_tree", in: root)
             try FileManager.default.createSymbolicLink(
                 at: root.appendingPathComponent("iPhone17,3_Restore"),
-                withDestinationURL: root.appendingPathComponent("real_tree")
+                withDestinationURL: root.appendingPathComponent("real_tree"),
             )
             let found = try VPhoneRestoreLayout.findRestoreDirectory(in: root)
             #expect(found.lastPathComponent == "iPhone17,3_Restore")
@@ -127,7 +127,7 @@ struct RestoreLayoutTests {
 
     // MARK: - SHSH filename
 
-    @Test func shshIsNamedAfterTheECIDInSixteenHexDigits() {
+    @Test func `shsh is named after the ECID in sixteen hex digits`() {
         let root = URL(fileURLWithPath: "/tmp/vm")
         #expect(VPhoneRestoreLayout.shshOutput(vmDir: root, ecid: 0x0000_0001_1A2B_3C4D).path
             == "/tmp/vm/000000011A2B3C4D.shsh")
@@ -135,17 +135,17 @@ struct RestoreLayoutTests {
             == "/tmp/vm/0000000000000001.shsh")
     }
 
-    @Test func shshFallsBackToAutoWithoutAnECID() {
+    @Test func `shsh falls back to auto without an ECID`() {
         let root = URL(fileURLWithPath: "/tmp/vm")
         #expect(VPhoneRestoreLayout.shshOutput(vmDir: root, ecid: nil).path == "/tmp/vm/auto.shsh")
     }
 
-    @Test func theDerivedNameIsTheOneOfflineRestoresLookFor() throws {
+    @Test func `the derived name is the one offline restores look for`() {
         // `vphone-cli restore --offline` takes the first *.shsh in the bundle.
         // Whatever else changes, the extension has to stay.
         let derived = VPhoneRestoreLayout.shshOutput(
             vmDir: URL(fileURLWithPath: "/tmp/vm"),
-            ecid: 0xAABB
+            ecid: 0xAABB,
         )
         #expect(derived.pathExtension == "shsh")
         #expect(derived.deletingPathExtension().lastPathComponent == "000000000000AABB")

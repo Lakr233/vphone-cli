@@ -38,24 +38,26 @@ extension KernelJBPatcher {
             entryOff,
             newEntry,
             patchID: "jb.fpfs_scoped_open.ops_retarget",
-            description: "ops[267] -> FileProvider-scoped vnode_check_open trampoline"
+            description: "ops[267] -> FileProvider-scoped vnode_check_open trampoline",
         )
         emit(
             caveOff,
             caveBytes,
             patchID: "jb.fpfs_scoped_open.cave",
-            description: "trampoline: FileProvider daemons -> real check, else allow"
+            description: "trampoline: FileProvider daemons -> real check, else allow",
         )
         return true
     }
 
-    // vphone600 struct offsets recovered via the kernel gdb stub; cave bytes verified by
-    // capstone round-trip. p_comm[0:8] little-endian: "Resolver" = ResolverService,
-    // "fileprov" = fileproviderd.
+    /// vphone600 struct offsets recovered via the kernel gdb stub; cave bytes verified by
+    /// capstone round-trip. p_comm[0:8] little-endian: "Resolver" = ResolverService,
+    /// "fileprov" = fileproviderd.
     private func buildScopedOpenCave(caveOff: Int, realHookOff: Int) -> Data? {
         func movkX10(_ hw: [UInt16]) -> [UInt32] {
             var out: [UInt32] = [0xD280_0000 | (UInt32(hw[0]) << 5) | 10] // movz x10, #hw0
-            for i in 1 ..< 4 { out.append(0xF280_0000 | (UInt32(i) << 21) | (UInt32(hw[i]) << 5) | 10) } // movk lsl #16*i
+            for i in 1 ..< 4 {
+                out.append(0xF280_0000 | (UInt32(i) << 21) | (UInt32(hw[i]) << 5) | 10)
+            } // movk lsl #16*i
             return out
         }
         var w: [UInt32] = [
@@ -65,10 +67,10 @@ extension KernelJBPatcher {
             0x9115_B108, // add x8, x8, #0x56C     ; &p_comm
             0xF940_0109, // ldr x9, [x8]           ; p_comm[0:8]
         ]
-        w += movkX10([0x6552, 0x6f73, 0x766c, 0x7265]) // x10 = "Resolver"
+        w += movkX10([0x6552, 0x6F73, 0x766C, 0x7265]) // x10 = "Resolver"
         w.append(0xEB0A_013F) // cmp x9, x10
         let beqA = w.count; w.append(0)
-        w += movkX10([0x6966, 0x656c, 0x7270, 0x766f]) // x10 = "fileprov"
+        w += movkX10([0x6966, 0x656C, 0x7270, 0x766F]) // x10 = "fileprov"
         w.append(0xEB0A_013F) // cmp x9, x10
         let beqB = w.count; w.append(0)
         w.append(0xD280_0000) // mov x0, #0
@@ -86,7 +88,9 @@ extension KernelJBPatcher {
 
         guard w.count == 20 else { log("  [-] cave length drifted: \(w.count)"); return nil }
         var data = Data(capacity: 80)
-        for x in w { withUnsafeBytes(of: x.littleEndian) { data.append(contentsOf: $0) } }
+        for x in w {
+            withUnsafeBytes(of: x.littleEndian) { data.append(contentsOf: $0) }
+        }
         return data
     }
 
@@ -110,7 +114,9 @@ extension KernelJBPatcher {
                 let v1 = buffer.readU64(at: i + 8)
                 guard (v1 & (1 << 63)) == 0, (v1 & 0x7FF_FFFF_FFFF) == UInt64(seatbeltOff) else { continue }
                 let vOps = buffer.readU64(at: i + 32)
-                if (vOps & (1 << 63)) == 0 { return Int(vOps & 0x7FF_FFFF_FFFF) }
+                if (vOps & (1 << 63)) == 0 {
+                    return Int(vOps & 0x7FF_FFFF_FFFF)
+                }
             }
         }
         return nil

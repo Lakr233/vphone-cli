@@ -85,7 +85,7 @@ public enum ARM64Encoder {
         register: UInt32,
         bit: UInt32,
         from pc: Int,
-        to target: Int
+        to target: Int,
     ) -> Data? {
         guard register < 32, bit < 64 else { return nil }
         let delta = target - pc
@@ -173,7 +173,7 @@ public enum ARM64Encoder {
     ///               `[11:10] = 01 (o2:o1, selects CSINC)`, `[9:5] = Rn`, `[4:0] = Rd`
     public static func encodeCsetW(rd: UInt32, condition: ARM64Condition) -> Data? {
         guard rd < 32 else { return nil }
-        var insn: UInt32 = 0b0_0_0_1101_0100 << 21
+        var insn: UInt32 = 0b000_1101_0100 << 21
         insn |= 31 << 16 // Rm = WZR
         insn |= condition.inverted.rawValue << 12
         insn |= 0b01 << 10 // CSINC

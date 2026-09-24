@@ -61,7 +61,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         print("CPU     : \(options.cpuCount)")
         print("Memory  : \(options.memorySize / 1024 / 1024) MB")
         print(
-            "Screen: \(options.screenWidth)x\(options.screenHeight) @ \(options.screenPPI) PPI (scale \(options.screenScale)x)"
+            "Screen: \(options.screenWidth)x\(options.screenHeight) @ \(options.screenPPI) PPI (scale \(options.screenScale)x)",
         )
         if let kernelDebugPort = options.kernelDebugPort {
             print("Kernel debug stub : 127.0.0.1:\(kernelDebugPort)")
@@ -108,7 +108,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 screenScale: options.screenScale,
                 keyHelper: keyHelper,
                 control: control,
-                ecid: vm.ecidHex
+                ecid: vm.ecidHex,
             )
             windowController = wc
 
@@ -161,7 +161,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
                 screenRecorder: recorder,
                 control: control,
                 screenWidth: options.screenWidth,
-                screenHeight: options.screenHeight
+                screenHeight: options.screenHeight,
             )
             hostControl = hc
 
@@ -235,7 +235,7 @@ class VPhoneAppDelegate: NSObject, NSApplicationDelegate {
         }
         guard caps.contains("ipa_install") else {
             print(
-                "[install] guest does not advertise ipa_install; reconnect or reboot the guest so the updated daemon can take over"
+                "[install] guest does not advertise ipa_install; reconnect or reboot the guest so the updated daemon can take over",
             )
             return
         }

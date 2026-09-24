@@ -52,11 +52,15 @@ private enum DiskImagesFixture {
         return FileManager.default.fileExists(atPath: main.path) ? url : nil
     }
 
-    static var pristine: URL? { pristineDirectory?.appendingPathComponent("diskimagesiod") }
+    static var pristine: URL? {
+        pristineDirectory?.appendingPathComponent("diskimagesiod")
+    }
 
     /// A second real binary from the same firmware, used as the negative case:
     /// it has no `DIDiskArb`, so locating must fail rather than find something.
-    static var unrelated: URL? { pristineDirectory?.appendingPathComponent("watchdogd") }
+    static var unrelated: URL? {
+        pristineDirectory?.appendingPathComponent("watchdogd")
+    }
 
     /// Opt-out for a machine that cannot carry the fixture.
     static var isOptional: Bool {
@@ -64,7 +68,9 @@ private enum DiskImagesFixture {
     }
 
     /// The suite runs unless the fixture is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e diskimagesiod is required — put it at \
@@ -87,7 +93,7 @@ private enum DiskImagesFixture {
     /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
     /// taken again from a shell over the same file.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     /// Clone the pristine binary into a fresh file the caller may write to.
@@ -100,7 +106,7 @@ private enum DiskImagesFixture {
         let pristine = try #require(self.pristine, missing)
         try FileManager.default.createDirectory(
             at: scratchRoot,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let destination = scratchRoot.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: destination)
@@ -108,9 +114,11 @@ private enum DiskImagesFixture {
         for flags in [["-c"], []] {
             let result = try DiskImagesShell.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: flags + [pristine.path, destination.path]
+                arguments: flags + [pristine.path, destination.path],
             )
-            if result.status == 0 { return destination }
+            if result.status == 0 {
+                return destination
+            }
         }
         Issue.record("could not clone \(pristine.path) to \(destination.path)")
         throw CocoaError(.fileWriteUnknown)
@@ -133,7 +141,7 @@ private enum DiskImagesFixture {
     static func codesignVerify(_ binary: URL) throws -> DiskImagesShell.Result {
         try DiskImagesShell.run(
             executable: URL(fileURLWithPath: "/usr/bin/codesign"),
-            arguments: ["-v", "--verbose=2", binary.path]
+            arguments: ["-v", "--verbose=2", binary.path],
         )
     }
 }
@@ -156,12 +164,14 @@ private enum DiskImagesShell {
     static func run(
         executable: URL,
         arguments: [String],
-        currentDirectory: URL? = nil
+        currentDirectory: URL? = nil,
     ) throws -> Result {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+        if let currentDirectory {
+            process.currentDirectoryURL = currentDirectory
+        }
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out
@@ -185,7 +195,7 @@ private enum DiskImagesShell {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: collected.standardOutput, as: UTF8.self),
-            stderr: String(decoding: collected.standardError, as: UTF8.self)
+            stderr: String(decoding: collected.standardError, as: UTF8.self),
         )
     }
 
@@ -198,11 +208,20 @@ private enum DiskImagesShell {
         func store(_ data: Data, isStandardOutput: Bool) {
             lock.lock()
             defer { lock.unlock() }
-            if isStandardOutput { out = data } else { err = data }
+            if isStandardOutput {
+                out = data
+            } else {
+                err = data
+            }
         }
 
-        var standardOutput: Data { lock.withLock { out } }
-        var standardError: Data { lock.withLock { err } }
+        var standardOutput: Data {
+            lock.withLock { out }
+        }
+
+        var standardError: Data {
+            lock.withLock { err }
+        }
     }
 }
 
@@ -226,7 +245,7 @@ private enum DiskImagesGolden {
     static let patched = "41daf01d25fc98317516c1aa4c3a095a0e449715907e9e71f1cff6310bcd9cbd"
 
     /// The IMP that run resolved, from that stdout line.
-    static let impFileOffset = 0x3_20C0
+    static let impFileOffset = 0x320C0
     static let impVirtualAddress: UInt64 = 0x1_0003_20C0
 
     /// ``patched``, then
@@ -268,7 +287,9 @@ private enum DiskImagesComparison {
         var offsets: [Int] = []
         for index in 0 ..< left.count where left[index] != right[index] {
             offsets.append(index)
-            if offsets.count >= limit { break }
+            if offsets.count >= limit {
+                break
+            }
         }
         return offsets
     }
@@ -282,21 +303,21 @@ private enum DiskImagesComparison {
 
 @Suite("diskimagesiod replacement encoding")
 struct CFWDiskimagesiodEncodingTests {
-    @Test("`mov x0, #1` built from ISA fields is the keystone-verified constant")
-    func movzAgreesWithKeystone() throws {
+    @Test
+    func `mov x0, #1 built from ISA fields is the keystone-verified constant`() throws {
         let encoded = try #require(ARM64Encoder.encodeMovzX(rd: 0, imm16: 1))
         #expect(encoded == ARM64.movX0_1)
         // 0xD2800020, little-endian on disk.
         #expect(encoded.hex == "200080d2")
     }
 
-    @Test("the patch writes exactly `mov x0, #1 ; ret`")
-    func replacementDisassembles() {
+    @Test
+    func `the patch writes exactly mov x0, #1 ; ret`() {
         #expect(CFWDiskimagesiod.replacement.count == 8)
         #expect(CFWDiskimagesiod.replacement == ARM64.movX0_1 + ARM64.ret)
         #expect(
             CFWDiskimagesiod.disassemblyText(of: CFWDiskimagesiod.replacement, at: nil)
-                == "mov x0, #1; ret"
+                == "mov x0, #1; ret",
         )
     }
 }
@@ -306,11 +327,11 @@ struct CFWDiskimagesiodEncodingTests {
 @Suite(
     "diskimagesiod anchoring",
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWDiskimagesiodAnchorTests {
-    @Test("the IMP resolves through the relative method list, into __TEXT,__text")
-    func locatesImplementation() throws {
+    @Test
+    func `the IMP resolves through the relative method list, into __TEXT,__text`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let data = try Data(contentsOf: pristine)
         let site = try CFWDiskimagesiod.locate(in: data)
@@ -336,8 +357,8 @@ struct CFWDiskimagesiodAnchorTests {
             .hasPrefix("pacibsp; stp"))
     }
 
-    @Test("the fixture is the one the goldens were recorded from")
-    func fixtureMatchesTheGoldens() throws {
+    @Test
+    func `the fixture is the one the goldens were recorded from`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         #expect(
             try DiskImagesFixture.digest(of: pristine) == DiskImagesGolden.pristine,
@@ -345,62 +366,62 @@ struct CFWDiskimagesiodAnchorTests {
             this is not the 24A435 diskimagesiod DiskImagesGolden was recorded \
             from — re-derive the goldens before reading a failure elsewhere in \
             this file as a patcher bug
-            """
+            """,
         )
     }
 
-    @Test("the reference's own anchor walk agreed on the same offset")
-    func agreesWithTheFrozenAnchor() throws {
+    @Test
+    func `the reference's own anchor walk agreed on the same offset`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
-        let site = try CFWDiskimagesiod.locate(in: try Data(contentsOf: pristine))
+        let site = try CFWDiskimagesiod.locate(in: Data(contentsOf: pristine))
 
         // The offset the Python printed; both walks must land on it.
         #expect(site.fileOffset == DiskImagesGolden.impFileOffset)
         #expect(site.virtualAddress == DiskImagesGolden.impVirtualAddress)
     }
 
-    @Test("the selector names exactly one implementation in the image")
-    func selectorIsUnique() throws {
+    @Test
+    func `the selector names exactly one implementation in the image`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let data = try Data(contentsOf: pristine)
         let sections = MachOParser.parseSections(from: data)
 
         let selectorVA = try #require(
-            CFWDiskimagesiod.selectorStringVA(in: data, sections: sections)
+            CFWDiskimagesiod.selectorStringVA(in: data, sections: sections),
         )
         let selrefs = try #require(sections["__DATA,__objc_selrefs"])
         let selrefVA = try #require(CFWDiskimagesiod.selectorReferenceVA(
             in: data,
             selrefs: selrefs,
             selectorVA: selectorVA,
-            imageBase: CFWDiskimagesiod.imageBase(sections)
+            imageBase: CFWDiskimagesiod.imageBase(sections),
         ))
 
         let methlist = try #require(sections["__TEXT,__objc_methlist"])
         let imps = CFWDiskimagesiod.relativeMethodListIMPs(
             in: data,
             section: methlist,
-            naming: [selectorVA, selrefVA]
+            naming: [selectorVA, selrefVA],
         )
         #expect(imps.count == 1)
-        #expect(imps.first == (try CFWDiskimagesiod.locate(in: data)).virtualAddress)
+        #expect(try imps.first == (CFWDiskimagesiod.locate(in: data)).virtualAddress)
     }
 
-    @Test("the strided fallback scan lands on the same IMP as the structural walk")
-    func scanFallbackAgreesWithStructuralWalk() throws {
+    @Test
+    func `the strided fallback scan lands on the same IMP as the structural walk`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let data = try Data(contentsOf: pristine)
         let sections = MachOParser.parseSections(from: data)
 
         let selectorVA = try #require(
-            CFWDiskimagesiod.selectorStringVA(in: data, sections: sections)
+            CFWDiskimagesiod.selectorStringVA(in: data, sections: sections),
         )
         let selrefs = try #require(sections["__DATA,__objc_selrefs"])
         let selrefVA = try #require(CFWDiskimagesiod.selectorReferenceVA(
             in: data,
             selrefs: selrefs,
             selectorVA: selectorVA,
-            imageBase: CFWDiskimagesiod.imageBase(sections)
+            imageBase: CFWDiskimagesiod.imageBase(sections),
         ))
         let methlist = try #require(sections["__TEXT,__objc_methlist"])
         let targets: Set<UInt64> = [selectorVA, selrefVA]
@@ -412,19 +433,19 @@ struct CFWDiskimagesiodAnchorTests {
         let structural = CFWDiskimagesiod.relativeMethodListIMPs(
             in: data,
             section: methlist,
-            naming: targets
+            naming: targets,
         )
         let strided = CFWDiskimagesiod.scanRelativeMethodEntryIMPs(
             in: data,
             section: methlist,
-            naming: targets
+            naming: targets,
         )
         #expect(structural == strided)
         #expect(strided.count == 1)
     }
 
-    @Test("a binary without DIDiskArb is refused, not guessed at")
-    func unrelatedBinaryIsRefused() throws {
+    @Test
+    func `a binary without DIDiskArb is refused, not guessed at`() throws {
         let unrelated = try #require(DiskImagesFixture.unrelated, DiskImagesFixture.missing)
         let data = try Data(contentsOf: unrelated)
         #expect(throws: PatcherError.self) {
@@ -438,11 +459,11 @@ struct CFWDiskimagesiodAnchorTests {
 @Suite(
     "diskimagesiod parity",
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWDiskimagesiodParityTests {
-    @Test("Swift reproduces the reference's bytes, one site each")
-    func byteForByteParity() throws {
+    @Test
+    func `Swift reproduces the reference's bytes, one site each`() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift")
         defer { DiskImagesFixture.discard(swiftClone) }
 
@@ -456,12 +477,12 @@ struct CFWDiskimagesiodParityTests {
 
         #expect(
             try DiskImagesFixture.digest(of: swiftClone) == DiskImagesGolden.patched,
-            "Swift and the frozen reference disagree"
+            "Swift and the frozen reference disagree",
         )
     }
 
-    @Test("the recorded write names the site, the bytes and both disassemblies")
-    func recordDescribesTheSite() throws {
+    @Test
+    func `the recorded write names the site, the bytes and both disassemblies`() throws {
         let clone = try DiskImagesFixture.clone(named: "record")
         defer { DiskImagesFixture.discard(clone) }
 
@@ -484,8 +505,8 @@ struct CFWDiskimagesiodParityTests {
         #expect(patched[range] == record.patchedBytes)
     }
 
-    @Test("only the eight patched bytes differ from the pristine binary")
-    func onlyTheSiteChanges() throws {
+    @Test
+    func `only the eight patched bytes differ from the pristine binary`() throws {
         let clone = try DiskImagesFixture.clone(named: "minimal")
         defer { DiskImagesFixture.discard(clone) }
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
@@ -494,7 +515,7 @@ struct CFWDiskimagesiodParityTests {
         let differences = try DiskImagesComparison.differences(
             between: pristine,
             and: clone,
-            limit: 64
+            limit: 64,
         )
         #expect(differences.allSatisfy {
             (report.site.fileOffset ..< report.site.fileOffset + 8).contains($0)
@@ -508,11 +529,11 @@ struct CFWDiskimagesiodParityTests {
 @Suite(
     "diskimagesiod re-attestation",
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWDiskimagesiodReattestTests {
-    @Test("the fixture really does have the short tail slot this path regressed on")
-    func fixtureHasShortTail() throws {
+    @Test
+    func `the fixture really does have the short tail slot this path regressed on`() throws {
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)
         let data = try Data(contentsOf: pristine)
         let directories = try #require(CFWMachOCodeSignature.codeDirectories(in: data))
@@ -527,8 +548,8 @@ struct CFWDiskimagesiodReattestTests {
         #expect(tail.upperBound == directory.codeLimit)
     }
 
-    @Test("`codesign -v` rejects the un-attested patch and accepts the attested one")
-    func codesignAgrees() throws {
+    @Test
+    func `codesign -v rejects the un-attested patch and accepts the attested one`() throws {
         let bare = try DiskImagesFixture.clone(named: "bare")
         let attested = try DiskImagesFixture.clone(named: "attested")
         defer { DiskImagesFixture.discard(bare, attested) }
@@ -549,8 +570,8 @@ struct CFWDiskimagesiodReattestTests {
         #expect(verification.status == 0, "codesign said: \(verification.stderr)")
     }
 
-    @Test("the re-attested bytes are the reference re-attest's bytes")
-    func reattestMatchesTheFrozenReference() throws {
+    @Test
+    func `the re-attested bytes are the reference re-attest's bytes`() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift-attested")
         defer { DiskImagesFixture.discard(swiftClone) }
 
@@ -558,12 +579,12 @@ struct CFWDiskimagesiodReattestTests {
         #expect(report.rehashes.first?.pageIndex == DiskImagesGolden.reattestedSlot)
         #expect(
             try DiskImagesFixture.digest(of: swiftClone) == DiskImagesGolden.patchedAndReattested,
-            "the re-attested slot hash must be the one the reference computed"
+            "the re-attested slot hash must be the one the reference computed",
         )
     }
 
-    @Test("a short-tail slot is hashed to codeLimit, not to the end of its page")
-    func tailSlotStopsAtCodeLimit() throws {
+    @Test
+    func `a short-tail slot is hashed to codeLimit, not to the end of its page`() throws {
         let swiftClone = try DiskImagesFixture.clone(named: "swift-tail")
         defer { DiskImagesFixture.discard(swiftClone) }
 
@@ -591,7 +612,7 @@ struct CFWDiskimagesiodReattestTests {
         #expect(
             try DiskImagesFixture.digest(of: swiftClone)
                 == DiskImagesGolden.tailFlippedAndReattested,
-            "the tail slot hash must be the one the reference re-attester computed"
+            "the tail slot hash must be the one the reference re-attester computed",
         )
     }
 }
@@ -601,11 +622,11 @@ struct CFWDiskimagesiodReattestTests {
 @Suite(
     "diskimagesiod idempotence",
     .enabled(if: DiskImagesFixture.runs, DiskImagesFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWDiskimagesiodIdempotenceTests {
-    @Test("a second Swift run recognises its own output and writes nothing")
-    func secondRunIsANoOp() throws {
+    @Test
+    func `a second Swift run recognises its own output and writes nothing`() throws {
         let clone = try DiskImagesFixture.clone(named: "twice")
         defer { DiskImagesFixture.discard(clone) }
 
@@ -625,8 +646,8 @@ struct CFWDiskimagesiodIdempotenceTests {
         #expect(after[.modificationDate] as? Date == attributes[.modificationDate] as? Date)
     }
 
-    @Test("a second run with re-attestation leaves the slot hashes alone")
-    func secondAttestedRunIsANoOp() throws {
+    @Test
+    func `a second run with re-attestation leaves the slot hashes alone`() throws {
         let clone = try DiskImagesFixture.clone(named: "twice-attested")
         defer { DiskImagesFixture.discard(clone) }
 
@@ -650,15 +671,15 @@ struct CFWDiskimagesiodIdempotenceTests {
     /// "the reference over its own output" — the two files are byte-identical
     /// by `byteForByteParity` — and what is left to measure is this side:
     /// Swift over the bytes the reference left behind must change nothing.
-    @Test("the reference's output is what this port reports as already patched")
-    func crossImplementationRerunsAgree() throws {
+    @Test
+    func `the reference's output is what this port reports as already patched`() throws {
         let referenceOutput = try DiskImagesFixture.clone(named: "reference-then-swift")
         defer { DiskImagesFixture.discard(referenceOutput) }
 
         // Reproduce the reference's output, and prove it is that, by digest.
         try CFWDiskimagesiod.patch(fileAt: referenceOutput, log: nil)
         try #require(
-            try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched
+            try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched,
         )
         #expect(DiskImagesGolden.patchedTwice == DiskImagesGolden.patched)
 
@@ -667,8 +688,8 @@ struct CFWDiskimagesiodIdempotenceTests {
         #expect(try DiskImagesFixture.digest(of: referenceOutput) == DiskImagesGolden.patched)
     }
 
-    @Test("a dry run locates the site and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `a dry run locates the site and writes nothing`() throws {
         let clone = try DiskImagesFixture.clone(named: "dry")
         defer { DiskImagesFixture.discard(clone) }
         let pristine = try #require(DiskImagesFixture.pristine, DiskImagesFixture.missing)

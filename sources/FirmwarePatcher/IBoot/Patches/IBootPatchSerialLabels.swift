@@ -45,10 +45,14 @@ extension IBootPatcher {
                 searchStart = range.upperBound
             }
             if labelCount >= 2 {
-                if verbose { print("  [*] serial labels: already present, skipping") }
+                if verbose {
+                    print("  [*] serial labels: already present, skipping")
+                }
                 return
             }
-            if verbose { print("  [-] serial labels: <2 banner runs found") }
+            if verbose {
+                print("  [-] serial labels: <2 banner runs found")
+            }
             return
         }
 

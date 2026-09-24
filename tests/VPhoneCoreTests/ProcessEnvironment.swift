@@ -25,7 +25,7 @@ enum ProcessEnvironment {
     /// `nil` value unsets.
     static func withOverrides(
         _ overrides: [String: String?],
-        _ body: () throws -> Void
+        _ body: () throws -> Void,
     ) rethrows {
         lock.lock()
         defer { lock.unlock() }
@@ -33,9 +33,13 @@ enum ProcessEnvironment {
         let previous = overrides.keys.reduce(into: [String: String?]()) { saved, key in
             saved[key] = ProcessInfo.processInfo.environment[key]
         }
-        defer { for (key, value) in previous { apply(key, value) } }
+        defer { for (key, value) in previous {
+            apply(key, value)
+        } }
 
-        for (key, value) in overrides { apply(key, value) }
+        for (key, value) in overrides {
+            apply(key, value)
+        }
         try body()
     }
 
@@ -48,6 +52,10 @@ enum ProcessEnvironment {
     }
 
     private static func apply(_ key: String, _ value: String?) {
-        if let value { setenv(key, value, 1) } else { unsetenv(key) }
+        if let value {
+            setenv(key, value, 1)
+        } else {
+            unsetenv(key)
+        }
     }
 }

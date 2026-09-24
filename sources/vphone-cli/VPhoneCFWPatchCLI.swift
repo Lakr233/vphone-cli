@@ -30,7 +30,7 @@ struct VPhoneCFWCryptexPathsCommand: ParsableCommand {
         in a real manifest has none at all. The first identity carrying both
         wins. When no identity carries both, this exits non-zero rather than
         printing a blank line the caller would read as a path.
-        """
+        """,
     )
 
     @Argument(help: "Path to BuildManifest.plist", transform: URL.init(fileURLWithPath:))
@@ -63,7 +63,7 @@ struct VPhoneCFWInjectDaemonsCommand: ParsableCommand {
 
         dropbear's ProgramArguments are rewritten on the way through to point at
         the /var/dropbear host keys — see `patch-dropbear-plist`.
-        """
+        """,
     )
 
     @Argument(help: "Path to the guest's /System/Library/xpc/launchd.plist", transform: URL.init(fileURLWithPath:))
@@ -98,7 +98,7 @@ struct VPhoneCFWInjectDaemonCommand: ParsableCommand {
         installs as `com.vphone.jb-setup.plist`. It is the key launchd looks the
         daemon up by, so it has to match the file written into
         /System/Library/LaunchDaemons.
-        """
+        """,
     )
 
     @Argument(help: "Path to the guest's /System/Library/xpc/launchd.plist", transform: URL.init(fileURLWithPath:))
@@ -129,7 +129,7 @@ struct VPhoneCFWPatchDropbearPlistCommand: ParsableCommand {
 
         An empty or missing ProgramArguments list is left alone: there is
         nothing there to point at a key.
-        """
+        """,
     )
 
     @Argument(help: "Path to dropbear.plist", transform: URL.init(fileURLWithPath:))
@@ -155,7 +155,7 @@ struct VPhoneCFWInjectDylibCommand: ParsableCommand {
         place boots instead of panicking, and the existing LC_CODE_SIGNATURE and
         its blob are removed — exactly what insert_dylib does by default. The
         binary is not left unsigned: the install re-signs it on the next line.
-        """
+        """,
     )
 
     @Argument(help: "The Mach-O to patch, in place", transform: URL.init(fileURLWithPath:))
@@ -194,7 +194,7 @@ struct VPhoneCFWPatchBuildVersionCommand: ParsableCommand {
 
         Idempotent — a re-run on an already-patched plist reports and exits
         without rewriting.
-        """
+        """,
     )
 
     @Argument(help: "Path to SystemVersion.plist", transform: URL.init(fileURLWithPath:))
@@ -230,7 +230,7 @@ struct VPhoneCFWPatchCampoEntitlementsCommand: ParsableCommand {
         downgrade.
 
         The file is written back as XML, which is what the signer expects.
-        """
+        """,
     )
 
     @Argument(help: "Path to the dumped entitlements plist", transform: URL.init(fileURLWithPath:))
@@ -260,7 +260,7 @@ struct VPhoneCFWPatchPostRestoreDTCommand: ParsableCommand {
 
         Takes a devicetree.img4 (preferred) or a bare .im4p. An encrypted
         payload is refused, not guessed at.
-        """
+        """,
     )
 
     @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))

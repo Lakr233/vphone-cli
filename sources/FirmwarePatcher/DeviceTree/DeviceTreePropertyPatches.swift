@@ -52,7 +52,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("vphone-1337"),
             patchID: "devicetree.serial_number",
-            description: "Set serial number to vphone-1337"
+            description: "Set serial number to vphone-1337",
         ),
         PropertyPatch(
             nodePath: ["device-tree", "buttons"],
@@ -61,7 +61,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .integer(2),
             patchID: "devicetree.home_button_type",
-            description: "Set home button type to 2"
+            description: "Set home button type to 2",
         ),
         PropertyPatch(
             nodePath: ["device-tree", "product"],
@@ -70,7 +70,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .integer(2556),
             patchID: "devicetree.artwork_device_subtype",
-            description: "Set artwork device subtype to 2556"
+            description: "Set artwork device subtype to 2556",
         ),
         PropertyPatch(
             nodePath: ["device-tree", "product"],
@@ -79,7 +79,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .integer(144),
             patchID: "devicetree.island_notch_location",
-            description: "Set island notch location to 144"
+            description: "Set island notch location to 144",
         ),
     ]
 
@@ -119,7 +119,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("D47AP"),
             patchID: "devicetree.target_sub_type",
-            description: "Set target-sub-type to D47AP (was VPHONE600AP)"
+            description: "Set target-sub-type to D47AP (was VPHONE600AP)",
         ),
 
         // #3 — root `compatible` surgical mangle. Keep VPHONE600AP as first
@@ -136,7 +136,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .bytes(compatibleRewrite),
             patchID: "devicetree.compatible_secondary",
-            description: "Surgical rewrite of compatible[1]: iPhone99,11 -> iPhone17,3"
+            description: "Surgical rewrite of compatible[1]: iPhone99,11 -> iPhone17,3",
         ),
 
         // #10 — device-tree/product/fdr-product-type "iPhone99,11" -> "iPhone17,3".
@@ -149,7 +149,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("iPhone17,3"),
             patchID: "devicetree.product.fdr_product_type",
-            description: "Set product/fdr-product-type to iPhone17,3 (was iPhone99,11)"
+            description: "Set product/fdr-product-type to iPhone17,3 (was iPhone99,11)",
         ),
 
         // #11 — device-tree/product/sub-product-type "iPhone99,11" -> "iPhone17,3".
@@ -162,7 +162,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("iPhone17,3"),
             patchID: "devicetree.product.sub_product_type",
-            description: "Set product/sub-product-type to iPhone17,3 (was iPhone99,11)"
+            description: "Set product/sub-product-type to iPhone17,3 (was iPhone99,11)",
         ),
 
         // #12 — device-tree/product/unique-model "VPHONE600AP" -> "D47AP".
@@ -175,7 +175,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("D47AP"),
             patchID: "devicetree.product.unique_model",
-            description: "Set product/unique-model to D47AP (was VPHONE600AP)"
+            description: "Set product/unique-model to D47AP (was VPHONE600AP)",
         ),
 
         // ── Identity rewrite (Tier 1c) ────────────────────────────────
@@ -195,7 +195,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("t8140-io"),
             patchID: "devicetree.arm_io.device_type",
-            description: "Set arm-io/device_type to t8140-io (was vresearch1-io)"
+            description: "Set arm-io/device_type to t8140-io (was vresearch1-io)",
         ),
 
         // #7 — device-tree/arm-io/soc-generation "VResearch1" -> "H17".
@@ -209,7 +209,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("H17"),
             patchID: "devicetree.arm_io.soc_generation",
-            description: "Set arm-io/soc-generation to H17 (was VResearch1)"
+            description: "Set arm-io/soc-generation to H17 (was VResearch1)",
         ),
 
         // #13 — rename node device-tree/product/vphone600-gestalt-variants
@@ -230,7 +230,7 @@ extension DeviceTreePatcher {
             flags: 0,
             value: .string("d47-gestalt-variants"),
             patchID: "devicetree.product.gestalt_variants_rename",
-            description: "Rename node vphone600-gestalt-variants -> d47-gestalt-variants"
+            description: "Rename node vphone600-gestalt-variants -> d47-gestalt-variants",
         ),
 
         // ── Camera physical-offset rewrites (Tier B) ──────────────────
@@ -248,12 +248,12 @@ extension DeviceTreePatcher {
             length: 20,
             flags: 0,
             value: .bytes(Data([
-                0x61, 0x00, 0x01, 0x00, 0x92, 0x1c, 0x00, 0x00,
-                0xd8, 0x13, 0x00, 0x00, 0xe8, 0x03, 0x00, 0x00,
+                0x61, 0x00, 0x01, 0x00, 0x92, 0x1C, 0x00, 0x00,
+                0xD8, 0x13, 0x00, 0x00, 0xE8, 0x03, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
             ])),
             patchID: "devicetree.product.front_cam_offset",
-            description: "Set product/front-cam-offset-from-center to d47ap geometry (was syscfg/fcof)"
+            description: "Set product/front-cam-offset-from-center to d47ap geometry (was syscfg/fcof)",
         ),
         PropertyPatch(
             nodePath: ["device-tree", "product"],
@@ -261,12 +261,12 @@ extension DeviceTreePatcher {
             length: 20,
             flags: 0,
             value: .bytes(Data([
-                0xed, 0xa5, 0x00, 0x00, 0xb2, 0x56, 0x00, 0x00,
-                0x59, 0x08, 0x00, 0x00, 0xe8, 0x03, 0x00, 0x00,
+                0xED, 0xA5, 0x00, 0x00, 0xB2, 0x56, 0x00, 0x00,
+                0x59, 0x08, 0x00, 0x00, 0xE8, 0x03, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
             ])),
             patchID: "devicetree.product.rear_cam_offset",
-            description: "Set product/rear-cam-offset-from-center to d47ap geometry (was syscfg/rcof)"
+            description: "Set product/rear-cam-offset-from-center to d47ap geometry (was syscfg/rcof)",
         ),
     ]
 }

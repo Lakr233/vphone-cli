@@ -41,6 +41,7 @@ class VPhoneControl {
         else { return false }
         return major < 26
     }
+
     /// Path to the signed vphoned binary. When set, enables auto-update.
     var guestBinaryURL: URL?
 
@@ -56,7 +57,7 @@ class VPhoneControl {
     private var connectionAttemptToken: UInt64 = 0
     private var reconnectWorkItem: DispatchWorkItem?
     init() {}
-    
+
     // MARK: - Pending Requests
 
     /// Callback for a pending request. Called on the read-loop queue.
@@ -69,7 +70,7 @@ class VPhoneControl {
 
     private nonisolated func addPending(
         id: String,
-        handler: @escaping (Result<([String: Any], Data?), any Error>) -> Void
+        handler: @escaping (Result<([String: Any], Data?), any Error>) -> Void,
     ) {
         pendingLock.lock()
         pendingRequests[id] = PendingRequest(handler: handler)
@@ -125,7 +126,7 @@ class VPhoneControl {
         guestBinaryData = data
         guestBinaryHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         print(
-            "[control] vphoned binary: \(url.lastPathComponent) (\(data.count) bytes, \(guestBinaryHash!.prefix(12))...)"
+            "[control] vphoned binary: \(url.lastPathComponent) (\(data.count) bytes, \(guestBinaryHash!.prefix(12))...)",
         )
     }
 
@@ -197,7 +198,7 @@ class VPhoneControl {
                 guard self.isCurrentAttempt(attemptToken, fd: fd) else { return }
                 guard type == "hello", version == Self.protocolVersion else {
                     print(
-                        "[control] handshake: version mismatch (guest v\(version), host v\(Self.protocolVersion))"
+                        "[control] handshake: version mismatch (guest v\(version), host v\(Self.protocolVersion))",
                     )
                     self.disconnect(ifCurrentAttempt: attemptToken)
                     return
@@ -280,14 +281,16 @@ class VPhoneControl {
             "page": page,
             "usage": usage,
         ]
-        if let down { msg["down"] = down }
+        if let down {
+            msg["down"] = down
+        }
         guard let fd = connection?.fileDescriptor, writeMessage(fd: fd, dict: msg) else {
             print("[control] send failed (not connected)")
             return
         }
         let suffix = down.map { $0 ? " down" : " up" } ?? ""
         print(
-            "[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)"
+            "[control] hid page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))\(suffix)",
         )
     }
 
@@ -434,7 +437,7 @@ class VPhoneControl {
             return try await installIPAWithBuiltInInstaller(localURL: localURL)
         } catch let ControlError.guestError(message) where message == "unknown type: ipa_install" {
             throw ControlError.guestError(
-                "Guest vphoned does not support ipa_install yet. Reconnect or reboot the guest so the updated daemon can take over."
+                "Guest vphoned does not support ipa_install yet. Reconnect or reboot the guest so the updated daemon can take over.",
             )
         }
     }
@@ -497,7 +500,7 @@ class VPhoneControl {
             types: types,
             hasImage: hasImage,
             changeCount: changeCount,
-            imageData: data
+            imageData: data,
         )
     }
 
@@ -556,7 +559,7 @@ class VPhoneControl {
         horizontalAccuracy: Double,
         verticalAccuracy: Double,
         speed: Double,
-        course: Double
+        course: Double,
     ) {
         nextRequestId += 1
         let msg: [String: Any] = [
@@ -586,7 +589,9 @@ class VPhoneControl {
             "t": "location_stop",
             "id": String(nextRequestId, radix: 16),
         ]
-        if let fd = connection?.fileDescriptor { writeMessage(fd: fd, dict: msg) }
+        if let fd = connection?.fileDescriptor {
+            writeMessage(fd: fd, dict: msg)
+        }
     }
 
     // MARK: - Disconnect & Reconnect
@@ -674,7 +679,7 @@ class VPhoneControl {
                                 buf.deallocate()
                                 DispatchQueue.main.async {
                                     pending.handler(
-                                        .failure(ControlError.protocolError("failed to read clipboard image data"))
+                                        .failure(ControlError.protocolError("failed to read clipboard image data")),
                                     )
                                 }
                             }
@@ -693,7 +698,9 @@ class VPhoneControl {
                 switch type {
                 case "ok":
                     let detail = msg["msg"] as? String ?? ""
-                    if !detail.isEmpty { print("[vphoned] ok: \(detail)") }
+                    if !detail.isEmpty {
+                        print("[vphoned] ok: \(detail)")
+                    }
                 case "pong":
                     print("[vphoned] pong")
                 case "version":
@@ -827,7 +834,9 @@ class VPhoneControl {
         var offset = 0
         while offset < count {
             let n = Darwin.read(fd, buf + offset, count - offset)
-            if n <= 0 { return false }
+            if n <= 0 {
+                return false
+            }
             offset += n
         }
         return true
@@ -837,7 +846,9 @@ class VPhoneControl {
         var offset = 0
         while offset < count {
             let n = Darwin.write(fd, buf + offset, count - offset)
-            if n <= 0 { return false }
+            if n <= 0 {
+                return false
+            }
             offset += n
         }
         return true

@@ -41,7 +41,7 @@ public enum CFWPostRestoreDeviceTree {
 
     /// The reordered `compatible` body, NUL-delimited, before slot padding.
     static let targetCompatibleBody = Data(
-        "D47AP\0VPHONE600AP\0AppleVirtualPlatformARM\0".utf8
+        "D47AP\0VPHONE600AP\0AppleVirtualPlatformARM\0".utf8,
     )
 
     // MARK: - Results
@@ -70,7 +70,7 @@ public enum CFWPostRestoreDeviceTree {
     public static func patch(
         at url: URL,
         dryRun: Bool = false,
-        verbose: Bool = true
+        verbose: Bool = true,
     ) throws -> Outcome {
         let data: Data
         do {
@@ -83,7 +83,7 @@ public enum CFWPostRestoreDeviceTree {
         let im4p = try IM4P(container.im4pBytes)
         guard im4p.fourcc == "dtre" else {
             throw PatcherError.invalidFormat(
-                "expected DT payload (fourcc='dtre'), got fourcc='\(im4p.fourcc)'"
+                "expected DT payload (fourcc='dtre'), got fourcc='\(im4p.fourcc)'",
             )
         }
         guard !im4p.isEncrypted else {
@@ -104,14 +104,18 @@ public enum CFWPostRestoreDeviceTree {
         // it: the alternative is parsing compressed bytes as a device tree.
         guard compression == .none || !compression.isStillCompressed(blob) else {
             throw PatcherError.invalidFormat(
-                "IM4P payload is \(compression) but did not decompress — no compression-info element?"
+                "IM4P payload is \(compression) but did not decompress — no compression-info element?",
             )
         }
-        if verbose { print("  [.] DT blob: \(blob.count) bytes") }
+        if verbose {
+            print("  [.] DT blob: \(blob.count) bytes")
+        }
 
         let (newBlob, changes) = try patchedDeviceTree(blob)
         guard !changes.isEmpty else {
-            if verbose { print("  [.] \(url.path): DT already in target state — no change") }
+            if verbose {
+                print("  [.] \(url.path): DT already in target state — no change")
+            }
             return Outcome(changes: [], wrote: false, outputSize: data.count)
         }
         if verbose {
@@ -125,7 +129,7 @@ public enum CFWPostRestoreDeviceTree {
         // uncompressed size will not load.
         guard newBlob.count == blob.count else {
             throw PatcherError.patchVerificationFailed(
-                "DT size changed: \(blob.count) -> \(newBlob.count) bytes (would break IM4P offsets)"
+                "DT size changed: \(blob.count) -> \(newBlob.count) bytes (would break IM4P offsets)",
             )
         }
 
@@ -133,18 +137,24 @@ public enum CFWPostRestoreDeviceTree {
             fourcc: im4p.fourcc,
             description: im4p.description,
             payload: newBlob,
-            compression: compression.img4toolName
+            compression: compression.img4toolName,
         )
         let output = try container.rebuilt(im4pBytes: newIM4P.data)
 
-        if verbose { print("  [.] output size: \(output.count) bytes (was \(data.count))") }
+        if verbose {
+            print("  [.] output size: \(output.count) bytes (was \(data.count))")
+        }
         if dryRun {
-            if verbose { print("  [.] dry-run — not writing back") }
+            if verbose {
+                print("  [.] dry-run — not writing back")
+            }
             return Outcome(changes: changes, wrote: false, outputSize: output.count)
         }
 
         try output.write(to: url)
-        if verbose { print("  [+] wrote \(url.path)") }
+        if verbose {
+            print("  [+] wrote \(url.path)")
+        }
         return Outcome(changes: changes, wrote: true, outputSize: output.count)
     }
 
@@ -157,12 +167,12 @@ public enum CFWPostRestoreDeviceTree {
         let (root, end) = try parseNode(blob, at: 0)
         guard end == blob.count else {
             throw PatcherError.invalidFormat(
-                "DT parse length mismatch: ended at \(end), blob is \(blob.count)"
+                "DT parse length mismatch: ended at \(end), blob is \(blob.count)",
             )
         }
         guard nodeName(root) == "device-tree" else {
             throw PatcherError.invalidFormat(
-                "expected root node 'device-tree', got '\(nodeName(root))'"
+                "expected root node 'device-tree', got '\(nodeName(root))'",
             )
         }
 
@@ -174,7 +184,7 @@ public enum CFWPostRestoreDeviceTree {
             changes.append(Change(
                 property: "model",
                 before: cString(model.value),
-                after: targetModel
+                after: targetModel,
             ))
             model.value = newModel
         }
@@ -185,7 +195,7 @@ public enum CFWPostRestoreDeviceTree {
             changes.append(Change(
                 property: "target-type",
                 before: cString(targetType.value),
-                after: targetTargetType
+                after: targetTargetType,
             ))
             targetType.value = newTargetType
         }
@@ -193,18 +203,18 @@ public enum CFWPostRestoreDeviceTree {
         let compatible = try property(root, named: "compatible")
         guard targetCompatibleBody.count <= compatible.length else {
             throw PatcherError.invalidFormat(
-                "compatible body \(targetCompatibleBody.count)B > slot \(compatible.length)B"
+                "compatible body \(targetCompatibleBody.count)B > slot \(compatible.length)B",
             )
         }
         var newCompatible = targetCompatibleBody
         newCompatible.append(
-            contentsOf: [UInt8](repeating: 0, count: compatible.length - newCompatible.count)
+            contentsOf: [UInt8](repeating: 0, count: compatible.length - newCompatible.count),
         )
         if compatible.value != newCompatible {
             changes.append(Change(
                 property: "compatible",
                 before: "[\(cStringList(compatible.value).joined(separator: ", "))]",
-                after: "[D47AP, VPHONE600AP, AppleVirtualPlatformARM]"
+                after: "[D47AP, VPHONE600AP, AppleVirtualPlatformARM]",
             ))
             compatible.value = newCompatible
         }
@@ -214,6 +224,7 @@ public enum CFWPostRestoreDeviceTree {
     }
 
     // MARK: - Flat device tree format
+
     //
     // Per node: u32 nProps, u32 nChildren, then each property as
     // char[32] name, u16 length, u16 flags, u8[length] value, padded to a
@@ -225,11 +236,13 @@ public enum CFWPostRestoreDeviceTree {
     // its own parse/serialize pair is file-private. See `integrationNeeded`
     // in the migration notes.
 
-    private static func align4(_ n: Int) -> Int { (n + 3) & ~3 }
+    private static func align4(_ n: Int) -> Int {
+        (n + 3) & ~3
+    }
 
     private static func parseNode(
         _ blob: Data,
-        at offset: Int
+        at offset: Int,
     ) throws -> (DeviceTreePatcher.DTNode, Int) {
         guard offset + 8 <= blob.count else {
             throw PatcherError.invalidFormat("DT truncated at offset 0x\(String(offset, radix: 16))")
@@ -242,7 +255,7 @@ public enum CFWPostRestoreDeviceTree {
         for _ in 0 ..< propertyCount {
             guard pos + 36 <= blob.count else {
                 throw PatcherError.invalidFormat(
-                    "DT property header truncated at 0x\(String(pos, radix: 16))"
+                    "DT property header truncated at 0x\(String(pos, radix: 16))",
                 )
             }
             let name = cString(slice(blob, pos, 32))
@@ -251,7 +264,7 @@ public enum CFWPostRestoreDeviceTree {
             let valueOffset = pos + 36
             guard valueOffset + length <= blob.count else {
                 throw PatcherError.invalidFormat(
-                    "DT property value '\(name)' truncated at 0x\(String(valueOffset, radix: 16))"
+                    "DT property value '\(name)' truncated at 0x\(String(valueOffset, radix: 16))",
                 )
             }
             node.properties.append(DeviceTreePatcher.DTProperty(
@@ -259,7 +272,7 @@ public enum CFWPostRestoreDeviceTree {
                 length: length,
                 flags: flags,
                 value: slice(blob, valueOffset, length),
-                valueOffset: valueOffset
+                valueOffset: valueOffset,
             ))
             pos = valueOffset + align4(length)
         }
@@ -278,14 +291,18 @@ public enum CFWPostRestoreDeviceTree {
         out.append(littleEndian: UInt32(node.children.count))
         for property in node.properties {
             var name = Data(property.name.utf8)
-            if name.count >= 32 { name = Data(name.prefix(31)) }
+            if name.count >= 32 {
+                name = Data(name.prefix(31))
+            }
             name.append(contentsOf: [UInt8](repeating: 0, count: 32 - name.count))
             out.append(name)
             out.append(littleEndian: UInt16(property.length))
             out.append(littleEndian: property.flags)
             out.append(property.value)
             let pad = align4(property.length) - property.length
-            if pad > 0 { out.append(Data(repeating: 0, count: pad)) }
+            if pad > 0 {
+                out.append(Data(repeating: 0, count: pad))
+            }
         }
         for child in node.children {
             out.append(serializeNode(child))
@@ -302,13 +319,13 @@ public enum CFWPostRestoreDeviceTree {
 
     private static func property(
         _ node: DeviceTreePatcher.DTNode,
-        named name: String
+        named name: String,
     ) throws -> DeviceTreePatcher.DTProperty {
         for property in node.properties where property.name == name {
             return property
         }
         throw PatcherError.patchSiteNotFound(
-            "property '\(name)' not found in node '\(nodeName(node))'"
+            "property '\(name)' not found in node '\(nodeName(node))'",
         )
     }
 
@@ -318,7 +335,9 @@ public enum CFWPostRestoreDeviceTree {
     private static func encodeFixedString(_ text: String, length: Int) -> Data {
         var raw = Data(text.utf8)
         raw.append(0)
-        if raw.count > length { return Data(raw.prefix(length)) }
+        if raw.count > length {
+            return Data(raw.prefix(length))
+        }
         raw.append(contentsOf: [UInt8](repeating: 0, count: length - raw.count))
         return raw
     }
@@ -430,7 +449,10 @@ extension CFWPostRestoreDeviceTree {
             }
             let payload = DER.value(im4pBytes, children[3])
             for candidate in [PayloadCompression.lzss, .lzfse]
-                where candidate.isStillCompressed(payload) { return candidate }
+                where candidate.isStillCompressed(payload)
+            {
+                return candidate
+            }
             return .none
         }
 
@@ -439,7 +461,9 @@ extension CFWPostRestoreDeviceTree {
             guard isIMG4 else { return newIM4P }
             var body = leading
             body.append(newIM4P)
-            for element in trailing { body.append(element) }
+            for element in trailing {
+                body.append(element)
+            }
             var out = DER.sequenceHeader(bodyCount: body.count)
             out.append(body)
             return out
@@ -448,6 +472,7 @@ extension CFWPostRestoreDeviceTree {
 }
 
 // MARK: - Minimal DER reader
+
 //
 // Enough of DER to walk an Image4 container and splice one element: tags
 // are single-byte here, lengths are definite. Img4tool's own DER helpers are
@@ -457,7 +482,9 @@ private enum DER {
     static let sequence: UInt8 = 0x30
     static let ia5String: UInt8 = 0x16
 
-    static func contextConstructed(_ number: UInt8) -> UInt8 { 0xA0 | number }
+    static func contextConstructed(_ number: UInt8) -> UInt8 {
+        0xA0 | number
+    }
 
     struct Element {
         let tag: UInt8
@@ -495,7 +522,7 @@ private enum DER {
         return Element(
             tag: tag,
             valueRange: cursor ..< (cursor + length),
-            range: offset ..< (cursor + length)
+            range: offset ..< (cursor + length),
         )
     }
 
@@ -550,7 +577,7 @@ private enum DER {
 // MARK: - Little-endian append
 
 private extension Data {
-    mutating func append<T: FixedWidthInteger>(littleEndian value: T) {
+    mutating func append(littleEndian value: some FixedWidthInteger) {
         Swift.withUnsafeBytes(of: value.littleEndian) { append(contentsOf: $0) }
     }
 }

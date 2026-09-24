@@ -23,12 +23,12 @@ extension KernelJBPatcher {
     private static let hookCredLabelIndex = 18
     private static let c23CaveWords = 46 // Must match Python _C23_CAVE_WORDS
 
-    // Stable prologue prefix of vfs_context_current (4 words, version-independent).
-    // The function reads current_thread() from tpidr_el1, then loads the
-    // uthread/uu_context pointer via `ldr x1, [x0, #uthread_off]`. Only that final
-    // immediate drifts across versions (0x3E0 on 26.1, 0x3E8 on macOS 26.5.1,
-    // 0x3F0 on iOS 26.5), so we match the 4 fixed words exactly and require the
-    // 5th to be *any* `ldr x1, [x0, #imm]` — never pinning the version-specific offset.
+    /// Stable prologue prefix of vfs_context_current (4 words, version-independent).
+    /// The function reads current_thread() from tpidr_el1, then loads the
+    /// uthread/uu_context pointer via `ldr x1, [x0, #uthread_off]`. Only that final
+    /// immediate drifts across versions (0x3E0 on 26.1, 0x3E8 on macOS 26.5.1,
+    /// 0x3F0 on iOS 26.5), so we match the 4 fixed words exactly and require the
+    /// 5th to be *any* `ldr x1, [x0, #imm]` — never pinning the version-specific offset.
     private static let vfsContextCurrentPrefix: [UInt32] = [
         ARM64.pacibspU32, // pacibsp
         ARM64.stpFP_LR_pre, // stp x29, x30, [sp, #-0x10]!
@@ -74,7 +74,7 @@ extension KernelJBPatcher {
             caveOff: caveOff,
             vfsContextCurrentOff: vfsCtxOff,
             vnodeGetattrOff: vnodeGetattrOff,
-            wrapperOff: wrapperOff
+            wrapperOff: wrapperOff,
         ) else {
             log("  [-] failed to encode faithful C23 branch/call relocations")
             return false
@@ -90,14 +90,14 @@ extension KernelJBPatcher {
             entryOff,
             newEntry,
             patchID: "jb.hook_cred_label.ops_retarget",
-            description: "retarget ops[\(Self.hookCredLabelIndex)] to faithful C23 cave [_hook_cred_label_update_execve]"
+            description: "retarget ops[\(Self.hookCredLabelIndex)] to faithful C23 cave [_hook_cred_label_update_execve]",
         )
 
         emit(
             caveOff,
             caveBytes,
             patchID: "jb.hook_cred_label.c23_cave",
-            description: "faithful upstream C23 cave (vnode getattr -> uid/gid/P_SUGID fixup -> wrapper)"
+            description: "faithful upstream C23 cave (vnode getattr -> uid/gid/P_SUGID fixup -> wrapper)",
         )
 
         _ = opsTable
@@ -138,11 +138,15 @@ extension KernelJBPatcher {
             while i <= dEnd - 40 {
                 defer { i += 8 }
                 let val = buffer.readU64(at: i)
-                if val == 0 || (val & (1 << 63)) != 0 { continue }
+                if val == 0 || (val & (1 << 63)) != 0 {
+                    continue
+                }
                 guard (val & 0x7FF_FFFF_FFFF) == UInt64(sandboxOff) else { continue }
 
                 let val2 = buffer.readU64(at: i + 8)
-                if (val2 & (1 << 63)) != 0 { continue }
+                if (val2 & (1 << 63)) != 0 {
+                    continue
+                }
                 guard (val2 & 0x7FF_FFFF_FFFF) == UInt64(seatbeltOff) else { continue }
 
                 let valOps = buffer.readU64(at: i + 32)
@@ -203,7 +207,9 @@ extension KernelJBPatcher {
     /// uthread offset is version-specific and deliberately left unpinned).
     private func findVfsContextCurrentByShape() -> Int {
         let cacheKey = "c23_vfs_context_current"
-        if let cached = jbScanCache[cacheKey] { return cached }
+        if let cached = jbScanCache[cacheKey] {
+            return cached
+        }
 
         // Symbol fast-path (version-independent; this research kernel is stripped here, but free + future-proof).
         if let sym = resolveSymbol("_vfs_context_current"),
@@ -337,7 +343,7 @@ extension KernelJBPatcher {
         caveOff: Int,
         vfsContextCurrentOff: Int,
         vnodeGetattrOff: Int,
-        wrapperOff: Int
+        wrapperOff: Int,
     ) -> Data? {
         var code: [Data] = []
 

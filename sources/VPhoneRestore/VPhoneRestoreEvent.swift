@@ -33,7 +33,9 @@ public enum VPhoneRestoreLogLevel: Int32, Sendable, Comparable, CaseIterable {
 public struct VPhoneRestoreStep: RawRepresentable, Sendable, Hashable, CustomStringConvertible {
     public let rawValue: Int32
 
-    public init(rawValue: Int32) { self.rawValue = rawValue }
+    public init(rawValue: Int32) {
+        self.rawValue = rawValue
+    }
 
     public static let detect = VPhoneRestoreStep(rawValue: VPHONE_RESTORE_STEP_DETECT)
     public static let prepare = VPhoneRestoreStep(rawValue: VPHONE_RESTORE_STEP_PREPARE)
@@ -49,7 +51,9 @@ public struct VPhoneRestoreStep: RawRepresentable, Sendable, Hashable, CustomStr
         String(cString: vphone_restore_step_name(rawValue))
     }
 
-    public var description: String { name }
+    public var description: String {
+        name
+    }
 }
 
 // MARK: - VPhoneRestoreEvent
@@ -101,7 +105,7 @@ public enum VPhoneRestoreConsole {
     /// `vphone_restore_bridge.c`; printing from here is the case it exists for.
     public static func handler(
         level: VPhoneRestoreLogLevel = .info,
-        showsProgress: Bool = false
+        showsProgress: Bool = false,
     ) -> VPhoneRestoreEventHandler {
         let lock = NSLock()
         return { event in

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
-import zlib
 @testable import VPhoneRestore
+import zlib
 
 /// Turning what idevicerestore's `-t/--shsh` wrote into what this project has
 /// always kept beside a VM: a gzipped binary plist under
@@ -36,7 +36,7 @@ struct RestoreTicketTests {
             8,
             Z_DEFAULT_STRATEGY,
             zlibVersion(),
-            Int32(MemoryLayout<z_stream>.size)
+            Int32(MemoryLayout<z_stream>.size),
         )
         try #require(started == Z_OK)
         defer { deflateEnd(&stream) }
@@ -54,9 +54,15 @@ struct RestoreTicketTests {
                     return deflate(&stream, Z_FINISH)
                 }
                 let produced = chunk.count - Int(stream.avail_out)
-                if produced > 0 { output.append(contentsOf: chunk[0..<produced]) }
-                if status == Z_STREAM_END { break }
-                if status != Z_OK { break }
+                if produced > 0 {
+                    output.append(contentsOf: chunk[0 ..< produced])
+                }
+                if status == Z_STREAM_END {
+                    break
+                }
+                if status != Z_OK {
+                    break
+                }
             }
         }
         return output
@@ -71,7 +77,7 @@ struct RestoreTicketTests {
         ("1-iPhone17,3-26.0.shsh", UInt64(1)),
         ("18446744073709551615-iPhone17,3-26.0.shsh", UInt64.max),
     ])
-    func readsTheDecimalECIDOffTheFilename(_ name: String, _ expected: UInt64) {
+    func `reads the decimal ECID off the filename`(_ name: String, _ expected: UInt64) {
         // idevicerestore prints client->ecid in DECIMAL there, and it is the
         // ECID the device reported — which is how a fetch with no --ecid still
         // produces a named .shsh, exactly as Python's
@@ -80,18 +86,18 @@ struct RestoreTicketTests {
     }
 
     @Test(arguments: ["shsh", "-iPhone17,3-26.0.shsh", "auto.shsh", "iPhone17,3-26.0.shsh", ""])
-    func aFilenameWithoutALeadingECIDGivesNothing(_ name: String) {
+    func `a filename without A leading ECID gives nothing`(_ name: String) {
         #expect(VPhoneRestoreTicket.ecid(fromSHSHFilename: name) == nil)
     }
 
-    @Test func anECIDTooLargeForSixtyFourBitsGivesNothing() {
+    @Test func `an ECID too large for sixty four bits gives nothing`() {
         // Rather than wrapping into some other device's identifier.
         #expect(VPhoneRestoreTicket.ecid(fromSHSHFilename: "99999999999999999999-x-y.shsh") == nil)
     }
 
     // MARK: - Magic
 
-    @Test func recognisesTheGzipMagic() {
+    @Test func `recognises the gzip magic`() {
         #expect(VPhoneRestoreTicket.isGzipped(Data([0x1F, 0x8B, 0x08, 0x00])))
         #expect(!VPhoneRestoreTicket.isGzipped(Data("<?xml".utf8)))
         #expect(!VPhoneRestoreTicket.isGzipped(Data("bplist00".utf8)))
@@ -101,7 +107,7 @@ struct RestoreTicketTests {
 
     // MARK: - Decompression
 
-    @Test func inflatesWhatGzipWrote() throws {
+    @Test func `inflates what gzip wrote`() throws {
         let original = Data("the quick brown fox, repeated: \(String(repeating: "ab", count: 5000))".utf8)
         let compressed = try gzip(original)
         #expect(VPhoneRestoreTicket.isGzipped(compressed))
@@ -109,23 +115,25 @@ struct RestoreTicketTests {
         #expect(inflated == original)
     }
 
-    @Test func inflatesAcrossTheOutputChunkBoundary() throws {
+    @Test func `inflates across the output chunk boundary`() throws {
         // The inflate loop refills a 64 KiB buffer; a blob bigger than that is
         // the case that finds an off-by-one in the refill.
         var original = Data()
-        for index in 0..<400_000 { original.append(UInt8(index % 251)) }
-        let inflated = try #require(VPhoneRestoreTicket.gunzip(try gzip(original)))
+        for index in 0 ..< 400_000 {
+            original.append(UInt8(index % 251))
+        }
+        let inflated = try #require(try VPhoneRestoreTicket.gunzip(gzip(original)))
         #expect(inflated.count == original.count)
         #expect(inflated == original)
     }
 
-    @Test func refusesGarbageRatherThanLoopingOnIt() {
+    @Test func `refuses garbage rather than looping on it`() {
         #expect(VPhoneRestoreTicket.gunzip(Data([0x1F, 0x8B, 0x00, 0x01, 0x02, 0x03])) == nil)
         #expect(VPhoneRestoreTicket.gunzip(Data()) == nil)
         #expect(VPhoneRestoreTicket.gunzip(Data("not compressed at all".utf8)) == nil)
     }
 
-    @Test func refusesATruncatedStream() throws {
+    @Test func `refuses A truncated stream`() throws {
         let compressed = try gzip(Data(repeating: 0x5A, count: 100_000))
         let truncated = compressed.prefix(compressed.count / 2)
         #expect(VPhoneRestoreTicket.gunzip(Data(truncated)) == nil)
@@ -133,7 +141,7 @@ struct RestoreTicketTests {
 
     // MARK: - Reading a .shsh
 
-    @Test func readsTheGzippedBinaryPlistIdevicerestoreWrites() throws {
+    @Test func `reads the gzipped binary plist idevicerestore writes`() throws {
         let binary = try plist(tssResponse, format: .binary)
         let onDisk = try gzip(binary)
         let recovered = try VPhoneRestoreTicket.plistData(of: onDisk, at: anyPath)
@@ -144,7 +152,7 @@ struct RestoreTicketTests {
         #expect((parsed as? [String: Any])?["ApImg4Ticket"] is Data)
     }
 
-    @Test func readsThePlainXMLPlistThePythonBridgeWrote() throws {
+    @Test func `reads the plain XML plist the python bridge wrote`() throws {
         // plistlib.dump defaults to XML, so every .shsh already sitting in a
         // bundle is this shape.
         let xml = try plist(tssResponse, format: .xml)
@@ -152,19 +160,19 @@ struct RestoreTicketTests {
         #expect(recovered == xml)
     }
 
-    @Test func readsABareBinaryPlist() throws {
+    @Test func `reads A bare binary plist`() throws {
         let binary = try plist(tssResponse, format: .binary)
         let recovered = try VPhoneRestoreTicket.plistData(of: binary, at: anyPath)
         #expect(recovered == binary)
     }
 
-    @Test func rejectsSomethingThatIsNotAPlist() {
+    @Test func `rejects something that is not A plist`() {
         #expect(throws: VPhoneRestoreBackendError.shshMalformed(anyPath)) {
             try VPhoneRestoreTicket.plistData(of: Data("just some bytes".utf8), at: anyPath)
         }
     }
 
-    @Test func rejectsAPlistThatIsNotADictionary() throws {
+    @Test func `rejects A plist that is not A dictionary`() throws {
         // A TSS response is a dict with an entry per component. An array here
         // means the wrong file, and hearing that now beats hearing it from a
         // device that rejects every component it is sent.
@@ -174,14 +182,14 @@ struct RestoreTicketTests {
         }
     }
 
-    @Test func rejectsAGzipStreamOfSomethingThatIsNotAPlist() throws {
+    @Test func `rejects A gzip stream of something that is not A plist`() throws {
         let compressed = try gzip(Data("hello, not a plist".utf8))
         #expect(throws: VPhoneRestoreBackendError.shshMalformed(anyPath)) {
             try VPhoneRestoreTicket.plistData(of: compressed, at: anyPath)
         }
     }
 
-    @Test func reportsADamagedGzipSeparatelyFromADamagedPlist() {
+    @Test func `reports A damaged gzip separately from A damaged plist`() {
         // Different fixes: one is a corrupt file, the other is the wrong file.
         #expect(throws: VPhoneRestoreBackendError.shshNotDecompressible(anyPath)) {
             try VPhoneRestoreTicket.plistData(of: Data([0x1F, 0x8B, 0x08, 0xFF, 0x00]), at: anyPath)

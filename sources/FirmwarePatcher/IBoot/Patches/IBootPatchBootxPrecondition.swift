@@ -30,7 +30,7 @@ extension IBootPatcher {
     /// Refuses to patch on ambiguity (multiple matches).
     func patchBootxPrecondition() {
         let hashGetters = enumerateHashGetters()
-        let bitGetters  = enumerateBitGetters()
+        let bitGetters = enumerateBitGetters()
 
         guard !hashGetters.isEmpty, !bitGetters.isEmpty else {
             if verbose {
@@ -41,7 +41,9 @@ extension IBootPatcher {
 
         let panicBlocks = enumeratePanicBlocks(hashGetters: hashGetters)
         if panicBlocks.isEmpty {
-            if verbose { print("  [-] bootx precondition: no panic-shaped call blocks") }
+            if verbose {
+                print("  [-] bootx precondition: no panic-shaped call blocks")
+            }
             return
         }
 
@@ -79,13 +81,17 @@ extension IBootPatcher {
 
         if gates.isEmpty {
             // 26.4+ construct; genuinely absent on previous iBoot versions.
-            if verbose { print("  [.] bootx precondition: construct not present (pre-26.4 iBoot) — skipping") }
+            if verbose {
+                print("  [.] bootx precondition: construct not present (pre-26.4 iBoot) — skipping")
+            }
             return
         }
         if gates.count > 1 {
             if verbose {
                 print("  [-] bootx precondition: ambiguous (\(gates.count) candidates)")
-                for g in gates.sorted() { print(String(format: "      0x%X", g)) }
+                for g in gates.sorted() {
+                    print(String(format: "      0x%X", g))
+                }
             }
             return
         }
@@ -94,7 +100,7 @@ extension IBootPatcher {
             gate,
             ARM64.nop,
             id: "\(component).bootx_precondition",
-            description: "bootx precondition: NOP gate TBZ"
+            description: "bootx precondition: NOP gate TBZ",
         )
     }
 
@@ -111,7 +117,7 @@ extension IBootPatcher {
                 guard insns[i + 1].mnemonic == "movk" else { continue }
                 guard insns[i + 2].mnemonic == "movk" else { continue }
                 guard insns[i + 3].mnemonic == "movk" else { continue }
-                guard insns[i + 4].mnemonic == "ret"  else { continue }
+                guard insns[i + 4].mnemonic == "ret" else { continue }
                 // All four MOV/MOVK destinations must be the same register.
                 var regs = Set<UInt32>()
                 var ok = true
@@ -166,7 +172,7 @@ extension IBootPatcher {
             for i in 0 ..< (insns.count - 2) {
                 guard
                     insns[i].mnemonic == "bl",
-                    (insns[i + 1].mnemonic == "mov" || insns[i + 1].mnemonic == "movz"),
+                    insns[i + 1].mnemonic == "mov" || insns[i + 1].mnemonic == "movz",
                     insns[i + 2].mnemonic == "bl"
                 else { continue }
                 guard

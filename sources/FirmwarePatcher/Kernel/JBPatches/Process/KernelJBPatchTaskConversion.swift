@@ -48,7 +48,7 @@ extension KernelJBPatcher {
             ARM64.cmpXzrXzr,
             patchID: "task_conversion_eval",
             virtualAddress: va,
-            description: "cmp xzr,xzr [_task_conversion_eval_internal]"
+            description: "cmp xzr,xzr [_task_conversion_eval_internal]",
         )
         return true
     }
@@ -56,8 +56,8 @@ extension KernelJBPatcher {
     // MARK: - Private scanner
 
     private func collectTaskConversionCandidates(start: Int, end: Int) -> [Int] {
-        // True iff `cmp` compares register `reg` against the kernel_task register `k`
-        // (in either operand position — the order drifts across versions).
+        /// True iff `cmp` compares register `reg` against the kernel_task register `k`
+        /// (in either operand position — the order drifts across versions).
         func comparesRegAgainst(_ cmp: UInt32, reg: UInt32, k: UInt32) -> Bool {
             (ARM64Inst.rn(cmp) == reg && ARM64Inst.rm(cmp) == k) ||
                 (ARM64Inst.rn(cmp) == k && ARM64Inst.rm(cmp) == reg)

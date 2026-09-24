@@ -70,7 +70,7 @@ public enum FirmwareManifest {
     public static func generate(
         iPhoneDir: URL,
         cloudOSDir: URL,
-        verbose: Bool = true
+        verbose: Bool = true,
     ) throws {
         // Load source plists.
         let cloudOSBM = try loadPlist(cloudOSDir.appendingPathComponent("BuildManifest.plist"))
@@ -104,7 +104,7 @@ public enum FirmwareManifest {
             res: res,
             vp: vp,
             vpr: vpr,
-            iErase: iErase
+            iErase: iErase,
         )
 
         // Assemble BuildManifest.
@@ -119,15 +119,19 @@ public enum FirmwareManifest {
         // Assemble Restore.plist.
         let restore = try buildRestorePlist(
             cloudOSRP: cloudOSRP,
-            iPhoneRP: iPhoneRP
+            iPhoneRP: iPhoneRP,
         )
 
         // Write output.
         try writePlist(buildManifest, to: iPhoneDir.appendingPathComponent("BuildManifest.plist"))
-        if verbose { print("  wrote BuildManifest.plist") }
+        if verbose {
+            print("  wrote BuildManifest.plist")
+        }
 
         try writePlist(restore, to: iPhoneDir.appendingPathComponent("Restore.plist"))
-        if verbose { print("  wrote Restore.plist") }
+        if verbose {
+            print("  wrote Restore.plist")
+        }
     }
 
     // MARK: - Identity Discovery
@@ -151,7 +155,7 @@ public enum FirmwareManifest {
     /// Find release and research identity indices for the given DeviceClass.
     static func findCloudOS(
         _ identities: [PlistDict],
-        deviceClass: String
+        deviceClass: String,
     ) throws -> (release: Int, research: Int) {
         var release: Int?
         var research: Int?
@@ -159,9 +163,13 @@ public enum FirmwareManifest {
             let dc = (bi["Info"] as? PlistDict)?["DeviceClass"] as? String ?? ""
             guard dc == deviceClass else { continue }
             if isResearch(bi) {
-                if research == nil { research = i }
+                if research == nil {
+                    research = i
+                }
             } else {
-                if release == nil { release = i }
+                if release == nil {
+                    release = i
+                }
             }
         }
         guard let rel = release else {
@@ -193,7 +201,7 @@ public enum FirmwareManifest {
     static func entry(
         _ identities: [PlistDict],
         _ idx: Int,
-        _ key: String
+        _ key: String,
     ) throws -> PlistDict {
         guard let manifest = identities[idx]["Manifest"] as? PlistDict,
               let value = manifest[key] as? PlistDict
@@ -211,7 +219,7 @@ public enum FirmwareManifest {
         res: Int,
         vp: Int,
         vpr: Int,
-        iErase: Int
+        iErase: Int,
     ) throws -> PlistDict {
         // Identity base from vresearch101ap PROD.
         var bi = deepCopyPlistDict(C[prod])
@@ -303,7 +311,7 @@ public enum FirmwareManifest {
     /// Build the merged Restore.plist from cloudOS and iPhone sources.
     static func buildRestorePlist(
         cloudOSRP: PlistDict,
-        iPhoneRP: PlistDict
+        iPhoneRP: PlistDict,
     ) throws -> PlistDict {
         // DeviceMap: iPhone first entry + cloudOS vphone600ap/vresearch101ap entries.
         guard let iPhoneDeviceMap = iPhoneRP["DeviceMap"] as? [PlistDict],
@@ -369,7 +377,7 @@ public enum FirmwareManifest {
         guard let dict = try PropertyListSerialization.propertyList(
             from: data,
             options: [],
-            format: nil
+            format: nil,
         ) as? PlistDict else {
             throw ManifestError.invalidPlist(path)
         }
@@ -381,7 +389,7 @@ public enum FirmwareManifest {
         let data = try PropertyListSerialization.data(
             fromPropertyList: dict,
             format: .xml,
-            options: 0
+            options: 0,
         )
         try data.write(to: url, options: .atomic)
     }

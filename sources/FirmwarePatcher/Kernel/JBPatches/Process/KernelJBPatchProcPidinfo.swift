@@ -75,14 +75,14 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "jb.proc_pidinfo.nop_guard_a",
             virtualAddress: fileOffsetToVA(guardA),
-            description: "NOP [_proc_pidinfo pid-0 guard A]"
+            description: "NOP [_proc_pidinfo pid-0 guard A]",
         )
         emit(
             guardB,
             ARM64.nop,
             patchID: "jb.proc_pidinfo.nop_guard_b",
             virtualAddress: fileOffsetToVA(guardB),
-            description: "NOP [_proc_pidinfo pid-0 guard B]"
+            description: "NOP [_proc_pidinfo pid-0 guard B]",
         )
         return true
     }

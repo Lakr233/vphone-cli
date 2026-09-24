@@ -61,9 +61,14 @@ public struct DSCWriteSpan: Sendable, Hashable {
     }
 
     /// Last address the span covers.
-    public var lastVMA: UInt64 { vma &+ UInt64(length - 1) }
+    public var lastVMA: UInt64 {
+        vma &+ UInt64(length - 1)
+    }
+
     /// One past the last address the span covers.
-    public var endVMA: UInt64 { vma &+ UInt64(length) }
+    public var endVMA: UInt64 {
+        vma &+ UInt64(length)
+    }
 }
 
 /// Random-access byte view over a chunked dyld shared cache.
@@ -82,9 +87,13 @@ public final class DSCChunkSet {
         public let chunkURL: URL
 
         /// One past the last address the mapping covers.
-        public var endAddress: UInt64 { address &+ size }
+        public var endAddress: UInt64 {
+            address &+ size
+        }
 
-        public var isExecutable: Bool { initProt & DSCChunkSet.vmProtExecute != 0 }
+        public var isExecutable: Bool {
+            initProt & DSCChunkSet.vmProtExecute != 0
+        }
     }
 
     public static let vmProtExecute: UInt32 = 4
@@ -171,7 +180,11 @@ public final class DSCChunkSet {
         var high = mappings.count
         while low < high {
             let mid = (low + high) / 2
-            if mappings[mid].address <= vma { low = mid + 1 } else { high = mid }
+            if mappings[mid].address <= vma {
+                low = mid + 1
+            } else {
+                high = mid
+            }
         }
         guard low > 0 else { return nil }
         return vma < mappings[low - 1].endAddress ? low - 1 : nil
@@ -323,7 +336,9 @@ public final class DSCChunkSet {
     /// both of them `nil`.
     public func localSymbolTable() throws -> DSCLocalSymbolTable {
         try stateLock.withLock {
-            if let loadedLocalSymbols { return loadedLocalSymbols }
+            if let loadedLocalSymbols {
+                return loadedLocalSymbols
+            }
             guard FileManager.default.fileExists(atPath: localSymbolsURL.path) else {
                 throw DSCError.localSymbolsMissing(path: localSymbolsURL.path)
             }
@@ -364,7 +379,7 @@ public final class DSCChunkSet {
         var results: [UInt64] = []
         for mapping in mappings where mapping.isExecutable {
             let buffer = try Self.window(
-                over: mapping, at: mapping.fileOffset, length: Int(mapping.size)
+                over: mapping, at: mapping.fileOffset, length: Int(mapping.size),
             )
             var searchFrom = buffer.startIndex
             while searchFrom < buffer.endIndex,
@@ -389,7 +404,7 @@ public final class DSCChunkSet {
     /// `__text`, so the search never has to leave the containing mapping.
     public func findMachOHeaderBefore(
         _ vma: UInt64,
-        maxWalk: Int = 64 * 1024 * 1024
+        maxWalk: Int = 64 * 1024 * 1024,
     ) throws -> UInt64? {
         guard let mapping = mapping(forVMA: vma) else { return nil }
         let localOffset = Int(vma &- mapping.address)
@@ -399,19 +414,21 @@ public final class DSCChunkSet {
         let buffer = try Self.window(
             over: mapping,
             at: mapping.fileOffset &+ UInt64(scanStart),
-            length: scanLength + 4
+            length: scanLength + 4,
         )
         var searchEnd = buffer.endIndex
         while searchEnd > buffer.startIndex,
               let found = buffer.range(
                   of: Self.machOMagic64LE,
                   options: .backwards,
-                  in: buffer.startIndex ..< searchEnd
+                  in: buffer.startIndex ..< searchEnd,
               )
         {
             let position = found.lowerBound - buffer.startIndex
             let candidate = mapping.address &+ UInt64(scanStart + position)
-            if candidate & 0xFFF == 0 { return candidate }
+            if candidate & 0xFFF == 0 {
+                return candidate
+            }
             searchEnd = found.lowerBound
         }
         return nil
@@ -441,12 +458,16 @@ public final class DSCChunkSet {
                 guard nameStart < head.count, nameStart < offset + commandSize else { return nil }
                 let limit = min(head.count, offset + commandSize)
                 var end = nameStart
-                while end < limit, head[head.startIndex + end] != 0 { end += 1 }
+                while end < limit, head[head.startIndex + end] != 0 {
+                    end += 1
+                }
                 let bytes = head[(head.startIndex + nameStart) ..< (head.startIndex + end)]
                 return String(decoding: bytes, as: UTF8.self)
             }
             offset += commandSize
-            if offset > Int(commandsSize) + 32 { return nil }
+            if offset > Int(commandsSize) + 32 {
+                return nil
+            }
         }
         return nil
     }
@@ -460,15 +481,19 @@ public final class DSCChunkSet {
             .filter { $0.hasPrefix(prefix) }
             .filter { !$0.hasSuffix(".symbols") && !$0.hasSuffix(".map") }
 
-        // Base file first, then numerically by sub-cache index. Files whose
-        // suffix is not a bare number (`.75.dylddata`, `.atlas`) sort after,
-        // by name — they still carry mappings and must not be dropped.
+        /// Base file first, then numerically by sub-cache index. Files whose
+        /// suffix is not a bare number (`.75.dylddata`, `.atlas`) sort after,
+        /// by name — they still carry mappings and must not be dropped.
         func sortKey(_ name: String) -> (Int, Int, String) {
-            if name == prefix { return (0, -1, name) }
+            if name == prefix {
+                return (0, -1, name)
+            }
             let suffix = name.dropFirst(prefix.count)
             guard suffix.hasPrefix(".") else { return (1, 0, name) }
             let rest = suffix.dropFirst()
-            if let index = Int(rest), !rest.isEmpty { return (0, index, name) }
+            if let index = Int(rest), !rest.isEmpty {
+                return (0, index, name)
+            }
             return (1, 0, name)
         }
         return names
@@ -495,7 +520,7 @@ public final class DSCChunkSet {
         guard let raw = try? read(
             url: url,
             offset: UInt64(mappingOffset),
-            length: Int(mappingCount) * 32
+            length: Int(mappingCount) * 32,
         ), raw.count == Int(mappingCount) * 32 else { return [] }
 
         return (0 ..< Int(mappingCount)).map { index in
@@ -506,7 +531,7 @@ public final class DSCChunkSet {
                 fileOffset: raw.loadLE(UInt64.self, at: base + 16),
                 maxProt: raw.loadLE(UInt32.self, at: base + 24),
                 initProt: raw.loadLE(UInt32.self, at: base + 28),
-                chunkURL: url
+                chunkURL: url,
             )
         }
     }

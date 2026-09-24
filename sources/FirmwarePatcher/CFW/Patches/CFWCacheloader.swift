@@ -127,7 +127,9 @@ public enum CFWCacheLoaderPatcher {
         public let targetVMA: UInt64?
 
         /// True when the site already holds this patch's own output.
-        public var wasAlreadyNOP: Bool { mnemonic == "nop" }
+        public var wasAlreadyNOP: Bool {
+            mnemonic == "nop"
+        }
 
         /// How the gate reads in disassembly.
         public var text: String {
@@ -158,7 +160,9 @@ public enum CFWCacheLoaderPatcher {
 
         /// Sites whose bytes this run changed. The parity number: the Python
         /// writes exactly one, and so must this.
-        public var sitesWritten: Int { record == nil ? 0 : 1 }
+        public var sitesWritten: Int {
+            record == nil ? 0 : 1
+        }
     }
 
     /// Where progress goes when the caller does not say. The Python prints to
@@ -185,7 +189,7 @@ public enum CFWCacheLoaderPatcher {
         fileAt url: URL,
         dryRun: Bool = false,
         reattestsCodeSignature: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -195,7 +199,7 @@ public enum CFWCacheLoaderPatcher {
             &data,
             dryRun: dryRun,
             reattestsCodeSignature: reattestsCodeSignature,
-            log: log
+            log: log,
         )
         if !dryRun, report.sitesWritten > 0 || !report.reattestedSlots.isEmpty {
             try data.write(to: url)
@@ -212,11 +216,13 @@ public enum CFWCacheLoaderPatcher {
         _ data: inout Data,
         dryRun: Bool = false,
         reattestsCodeSignature: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Report {
         // Every offset below is an absolute file offset, so the buffer has to be
         // zero-based — a slice handed in by a caller is not.
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let located = try locateGate(in: data)
         let anchor = located.anchor
@@ -249,14 +255,16 @@ public enum CFWCacheLoaderPatcher {
             var slots: [CFWSlotRehash] = []
             if reattestsCodeSignature, !dryRun {
                 slots = try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: [gate.fileOffset])
-                for slot in slots { log?("    re-attested \(slot)") }
+                for slot in slots {
+                    log?("    re-attested \(slot)")
+                }
             }
             return Report(
                 outcome: .alreadyPatched,
                 anchor: anchor,
                 gate: gate,
                 record: nil,
-                reattestedSlots: slots
+                reattestedSlots: slots,
             )
         }
 
@@ -273,7 +281,7 @@ public enum CFWCacheLoaderPatcher {
                 anchor: anchor,
                 gate: gate,
                 record: nil,
-                reattestedSlots: []
+                reattestedSlots: [],
             )
         }
 
@@ -285,14 +293,16 @@ public enum CFWCacheLoaderPatcher {
         let written = Data(data[gate.fileOffset ..< gate.fileOffset + nop.count])
         guard written == nop else {
             throw PatcherError.patchVerificationFailed(
-                "\(component): gate at 0x\(hex(UInt64(gate.fileOffset))) reads \(written.hex) after write"
+                "\(component): gate at 0x\(hex(UInt64(gate.fileOffset))) reads \(written.hex) after write",
             )
         }
 
         var slots: [CFWSlotRehash] = []
         if reattestsCodeSignature {
             slots = try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: [gate.fileOffset])
-            for slot in slots { log?("    re-attested \(slot)") }
+            for slot in slots {
+                log?("    re-attested \(slot)")
+            }
         }
 
         log?("  [+] NOPped at 0x\(hex(UInt64(gate.fileOffset)))")
@@ -302,7 +312,7 @@ public enum CFWCacheLoaderPatcher {
             anchor: anchor,
             gate: gate,
             record: record(anchor: anchor, gate: gate, original: original, patched: nop),
-            reattestedSlots: slots
+            reattestedSlots: slots,
         )
     }
 
@@ -326,7 +336,9 @@ public enum CFWCacheLoaderPatcher {
 
         var firstFound: StringHit?
         for hit in stringHits(in: data, sections: sections) {
-            if firstFound == nil { firstFound = hit }
+            if firstFound == nil {
+                firstFound = hit
+            }
             // The code addresses the string's first byte, so that VA is tried
             // first; the substring's own VA is the Python's fallback, for a
             // compiler that split the literal.
@@ -345,19 +357,19 @@ public enum CFWCacheLoaderPatcher {
                 stringVMA: hit.stringVMA,
                 matchVMA: hit.matchVMA,
                 referenceFileOffset: reference.fileOffset,
-                referenceVMA: reference.vma
+                referenceVMA: reference.vma,
             )
-            return (anchor, try findGate(in: data, text: text, anchor: anchor))
+            return try (anchor, findGate(in: data, text: text, anchor: anchor))
         }
 
         guard let found = firstFound else {
             throw PatcherError.patchSiteNotFound(
-                "\(component): none of \(anchorTokens) appears in this binary's string sections"
+                "\(component): none of \(anchorTokens) appears in this binary's string sections",
             )
         }
         throw PatcherError.patchSiteNotFound(
             "\(component): \"\(found.text)\" is present but nothing in __TEXT,__text "
-                + "forms its address (ADRP+ADD) — the boot-arg check looks compiled out"
+                + "forms its address (ADRP+ADD) — the boot-arg check looks compiled out",
         )
     }
 
@@ -410,7 +422,7 @@ public enum CFWCacheLoaderPatcher {
                     sectionName: "\(section.segmentName),\(section.sectionName)",
                     stringFileOffset: stringStart,
                     stringVMA: section.address + UInt64(stringStart - start),
-                    matchVMA: section.address + UInt64(match - start)
+                    matchVMA: section.address + UInt64(match - start),
                 ))
                 break
             }
@@ -426,7 +438,9 @@ public enum CFWCacheLoaderPatcher {
                 matched = false
                 break
             }
-            if matched { return offset }
+            if matched {
+                return offset
+            }
         }
         return nil
     }
@@ -438,13 +452,17 @@ public enum CFWCacheLoaderPatcher {
     /// address can be looked for.
     static func cStringStart(in data: Data, containing offset: Int, notBefore floor: Int) -> Int {
         var position = offset - 1
-        while position >= floor, data[position] != 0 { position -= 1 }
+        while position >= floor, data[position] != 0 {
+            position -= 1
+        }
         return position + 1
     }
 
     static func cStringEnd(in data: Data, from start: Int, notAfter ceiling: Int) -> Int {
         var position = start
-        while position < ceiling, data[position] != 0 { position += 1 }
+        while position < ceiling, data[position] != 0 {
+            position += 1
+        }
         return position
     }
 
@@ -461,13 +479,13 @@ public enum CFWCacheLoaderPatcher {
     static func findStringReference(
         in data: Data,
         text: MachOSectionInfo,
-        targetVMA: UInt64
+        targetVMA: UInt64,
     ) -> (fileOffset: Int, vma: UInt64)? {
         let targetPage = Int64(targetVMA & ~0xFFF)
         let targetPageOffset = Int64(targetVMA & 0xFFF)
         let disassembler = ARM64Disassembler()
 
-        /// ADRP destination register -> (instruction index, address, page).
+        // ADRP destination register -> (instruction index, address, page).
         var pendingADRP: [UInt32: (index: Int, fileOffset: Int, vma: UInt64, page: Int64)] = [:]
 
         for (index, offset) in wordOffsets(of: text).enumerated() {
@@ -513,7 +531,7 @@ public enum CFWCacheLoaderPatcher {
     static func findGate(
         in data: Data,
         text: MachOSectionInfo,
-        anchor: Anchor
+        anchor: Anchor,
     ) throws -> Gate {
         let disassembler = ARM64Disassembler()
         let textEnd = Int(text.fileOffset) + Int(text.size)
@@ -522,7 +540,7 @@ public enum CFWCacheLoaderPatcher {
             return disassembler.disassembleOne(
                 in: data,
                 at: offset,
-                address: text.address + UInt64(offset - Int(text.fileOffset))
+                address: text.address + UInt64(offset - Int(text.fileOffset)),
             )
         }
 
@@ -554,7 +572,7 @@ public enum CFWCacheLoaderPatcher {
                     operandString: instruction.operandString,
                     callFileOffset: call.map { Int($0.address - text.address) + Int(text.fileOffset) },
                     callVMA: call?.address,
-                    targetVMA: nil
+                    targetVMA: nil,
                 )
             }
 
@@ -567,14 +585,14 @@ public enum CFWCacheLoaderPatcher {
                 operandString: instruction.operandString,
                 callFileOffset: call.map { Int($0.address - text.address) + Int(text.fileOffset) },
                 callVMA: call?.address,
-                targetVMA: branchTarget(of: instruction)
+                targetVMA: branchTarget(of: instruction),
             )
         }
 
         throw PatcherError.patchSiteNotFound(
             "\(component): no conditional branch within \(window) instructions of "
                 + (call.map { "the call at 0x\(hex($0.address))" }
-                    ?? "the \"\(anchor.text)\" xref at 0x\(hex(anchor.referenceVMA))")
+                    ?? "the \"\(anchor.text)\" xref at 0x\(hex(anchor.referenceVMA))"),
         )
     }
 
@@ -598,14 +616,14 @@ public enum CFWCacheLoaderPatcher {
         in data: Data,
         text: MachOSectionInfo,
         after call: Instruction?,
-        _ disassembler: ARM64Disassembler
+        _ disassembler: ARM64Disassembler,
     ) throws {
         if let target = branchTarget(of: gate) {
             let textEnd = text.address + text.size
             guard target > gate.address, target < textEnd else {
                 throw PatcherError.patchSiteNotFound(
                     "\(component): branch at 0x\(hex(gate.address)) jumps to 0x\(hex(target)), "
-                        + "which is not forward inside __TEXT,__text — not the unsecure-cache gate"
+                        + "which is not forward inside __TEXT,__text — not the unsecure-cache gate",
                 )
             }
         }
@@ -618,7 +636,7 @@ public enum CFWCacheLoaderPatcher {
             guard register == "x0" || register == "w0" else {
                 throw PatcherError.patchSiteNotFound(
                     "\(component): branch at 0x\(hex(gate.address)) tests "
-                        + "\(register ?? "an unknown register"), not the call's result in x0/w0"
+                        + "\(register ?? "an unknown register"), not the call's result in x0/w0",
                 )
             }
         default:
@@ -628,7 +646,7 @@ public enum CFWCacheLoaderPatcher {
             else {
                 throw PatcherError.patchSiteNotFound(
                     "\(component): \(gate.mnemonic) at 0x\(hex(gate.address)) is not preceded by a "
-                        + "compare of the call's result — nothing ties it to the boot-arg lookup"
+                        + "compare of the call's result — nothing ties it to the boot-arg lookup",
                 )
             }
         }
@@ -641,7 +659,7 @@ public enum CFWCacheLoaderPatcher {
         and gate: Instruction,
         in data: Data,
         text: MachOSectionInfo,
-        _ disassembler: ARM64Disassembler
+        _ disassembler: ARM64Disassembler,
     ) -> Bool {
         var address = call.address + 4
         while address < gate.address {
@@ -653,7 +671,9 @@ public enum CFWCacheLoaderPatcher {
             else { continue }
             for operand in operands where operand.type == AARCH64_OP_REG {
                 let name = disassembler.registerName(UInt32(operand.reg.rawValue))
-                if name == "x0" || name == "w0" { return true }
+                if name == "x0" || name == "w0" {
+                    return true
+                }
             }
         }
         return false
@@ -676,7 +696,7 @@ public enum CFWCacheLoaderPatcher {
         anchor: Anchor,
         gate: Gate,
         original: Data,
-        patched: Data
+        patched: Data,
     ) -> PatchRecord {
         PatchRecord(
             patchID: patchID,
@@ -688,7 +708,7 @@ public enum CFWCacheLoaderPatcher {
             beforeDisasm: disassemblyText(of: original, at: gate.vma),
             afterDisasm: disassemblyText(of: patched, at: gate.vma),
             // Worded as the Python words it, so a captured reference compares.
-            description: "NOP the cache-validation branch gated on '\(anchor.token)'"
+            description: "NOP the cache-validation branch gated on '\(anchor.token)'",
         )
     }
 

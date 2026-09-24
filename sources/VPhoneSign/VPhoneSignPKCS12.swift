@@ -23,7 +23,7 @@ struct VPhoneSignPKCS12 {
     init(data: Data, password: String) throws {
         // as in VPhoneMachOFile: the DER reader counts from zero
         let data = data.startIndex == 0 ? data : Data(data)
-        let pfx = try VPhoneDER.children(of: try VPhoneDER.element(in: data, at: 0).content)
+        let pfx = try VPhoneDER.children(of: VPhoneDER.element(in: data, at: 0).content)
         guard pfx.count >= 2 else { throw VPhoneSignError.identityUnreadable("a PFX with \(pfx.count) fields") }
         let authenticated = try Self.contentInfo(pfx[1], password: password)
 
@@ -31,9 +31,9 @@ struct VPhoneSignPKCS12 {
         var privateKey: Data?
         // Each payload is the DER of a SEQUENCE, not its contents, so it is
         // unwrapped once more on the way in.
-        for content in try VPhoneDER.children(of: try VPhoneDER.element(in: authenticated, at: 0).content) {
+        for content in try VPhoneDER.children(of: VPhoneDER.element(in: authenticated, at: 0).content) {
             let safeContents = try Self.contentInfo(content, password: password)
-            for bag in try VPhoneDER.children(of: try VPhoneDER.element(in: safeContents, at: 0).content) {
+            for bag in try VPhoneDER.children(of: VPhoneDER.element(in: safeContents, at: 0).content) {
                 let fields = try VPhoneDER.children(of: bag.content)
                 guard fields.count >= 2 else { continue }
                 let value = try VPhoneDER.element(in: fields[1].content, at: 0)
@@ -43,9 +43,9 @@ struct VPhoneSignPKCS12 {
                     guard certificate.count >= 2,
                           VPhoneDER.objectIdentifier(certificate[0].content) == VPhoneDER.OID.x509Certificate
                     else { continue }
-                    certificates.append(try VPhoneDER.element(in: certificate[1].content, at: 0).content)
+                    try certificates.append(VPhoneDER.element(in: certificate[1].content, at: 0).content)
                 case VPhoneDER.OID.shroudedKeyBag:
-                    privateKey = try Self.privateKey(in: try Self.decryptPrivateKey(value.encoded, password: password))
+                    privateKey = try Self.privateKey(in: Self.decryptPrivateKey(value.encoded, password: password))
                 case VPhoneDER.OID.keyBag:
                     privateKey = try Self.privateKey(in: value.encoded)
                 default:
@@ -71,7 +71,7 @@ struct VPhoneSignPKCS12 {
             // BER; DER keeps it in one
             return try VPhoneDER.element(in: fields[1].content, at: 0).content
         case VPhoneDER.OID.encryptedData:
-            let encrypted = try VPhoneDER.children(of: try VPhoneDER.element(in: fields[1].content, at: 0).content)
+            let encrypted = try VPhoneDER.children(of: VPhoneDER.element(in: fields[1].content, at: 0).content)
             guard encrypted.count >= 2 else { throw VPhoneSignError.identityUnreadable("an EncryptedData without content") }
             let info = try VPhoneDER.children(of: encrypted[1].content)
             guard info.count >= 3 else { throw VPhoneSignError.identityUnreadable("an EncryptedContentInfo without content") }
@@ -79,21 +79,21 @@ struct VPhoneSignPKCS12 {
             return try decrypt(info[2].content, algorithm: info[1], password: password)
         default:
             throw VPhoneSignError.identityUnreadable(
-                "a PKCS#12 bag of type \(VPhoneDER.objectIdentifier(fields[0].content))"
+                "a PKCS#12 bag of type \(VPhoneDER.objectIdentifier(fields[0].content))",
             )
         }
     }
 
     /// An EncryptedPrivateKeyInfo.
     private static func decryptPrivateKey(_ encoded: Data, password: String) throws -> Data {
-        let fields = try VPhoneDER.children(of: try VPhoneDER.element(in: encoded, at: 0).content)
+        let fields = try VPhoneDER.children(of: VPhoneDER.element(in: encoded, at: 0).content)
         guard fields.count >= 2 else { throw VPhoneSignError.identityUnreadable("an EncryptedPrivateKeyInfo without content") }
         return try decrypt(fields[1].content, algorithm: fields[0], password: password)
     }
 
     /// The PKCS#1 `RSAPrivateKey` inside a PKCS#8 `PrivateKeyInfo`.
     private static func privateKey(in pkcs8: Data) throws -> Data {
-        let fields = try VPhoneDER.children(of: try VPhoneDER.element(in: pkcs8, at: 0).content)
+        let fields = try VPhoneDER.children(of: VPhoneDER.element(in: pkcs8, at: 0).content)
         guard fields.count >= 3 else { throw VPhoneSignError.identityUnreadable("a PrivateKeyInfo without a key") }
         let algorithm = try VPhoneDER.children(of: fields[1].content)
         guard let first = algorithm.first,
@@ -173,7 +173,7 @@ struct VPhoneSignPKCS12 {
                     bytes.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) }, bytes.count,
                     salt.baseAddress, salt.count,
                     prf, UInt32(iterations),
-                    &key, key.count
+                    &key, key.count,
                 )
             }
         }
@@ -189,7 +189,7 @@ struct VPhoneSignPKCS12 {
                     CCOperation(kCCDecrypt), CCAlgorithm(kCCAlgorithmAES), CCOptions(kCCOptionPKCS7Padding),
                     key, key.count, iv.baseAddress,
                     input.baseAddress, input.count,
-                    &plaintext, plaintext.count, &written
+                    &plaintext, plaintext.count, &written,
                 )
             }
         }
@@ -198,7 +198,7 @@ struct VPhoneSignPKCS12 {
             throw VPhoneSignError.identityUnreadable(
                 status == kCCDecodeError || status == kCCAlignmentError
                     ? "the PKCS#12 password is wrong"
-                    : "decrypting the PKCS#12 failed with \(status)"
+                    : "decrypting the PKCS#12 failed with \(status)",
             )
         }
         return Data(plaintext.prefix(written))

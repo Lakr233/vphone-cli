@@ -20,9 +20,9 @@
 // `cp -c` — APFS `clonefile`, so instant and near-free — under the system
 // temporary directory, or `VPHONE_DSC_SCRATCH` when it is set.
 
-@testable import FirmwarePatcher
 import Capstone
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -103,7 +103,9 @@ private enum LWCRFixture {
     }
 
     /// The suites run unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -138,14 +140,14 @@ private enum LWCRFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let entries = try FileManager.default.contentsOfDirectory(atPath: pristine.path).sorted()
         let result = try Shell.run(
             executable: URL(fileURLWithPath: "/bin/cp"),
             arguments: ["-c", "-R"]
                 + entries.map { pristine.appendingPathComponent($0).path }
-                + [destination.path]
+                + [destination.path],
         )
         guard result.status == 0 else {
             Issue.record("cp -c failed: \(result.stderr)")
@@ -172,8 +174,8 @@ private enum LWCRFixture {
     /// Returns the names of files that differ, plus the names present in one
     /// directory and not the other. Empty means the two trees are identical.
     static func differences(between left: URL, and right: URL) throws -> [String] {
-        let leftNames = Set(try FileManager.default.contentsOfDirectory(atPath: left.path))
-        let rightNames = Set(try FileManager.default.contentsOfDirectory(atPath: right.path))
+        let leftNames = try Set(FileManager.default.contentsOfDirectory(atPath: left.path))
+        let rightNames = try Set(FileManager.default.contentsOfDirectory(atPath: right.path))
         var differing = Array(leftNames.symmetricDifference(rightNames))
 
         for name in leftNames.intersection(rightNames).sorted() {
@@ -183,9 +185,11 @@ private enum LWCRFixture {
             // to compare them is not a thing this test can afford.
             let result = try Shell.run(
                 executable: URL(fileURLWithPath: "/usr/bin/cmp"),
-                arguments: ["-s", a.path, b.path]
+                arguments: ["-s", a.path, b.path],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return differing.sorted()
     }
@@ -252,7 +256,7 @@ private enum Shell {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -261,8 +265,8 @@ private enum Shell {
 
 @Suite(.serialized, .enabled(if: LWCRFixture.runs, LWCRFixture.skipReason))
 struct DSCXPCLWCRParityTests {
-    @Test("Swift patches the reference's three sites, to the reference's bytes")
-    func patchedCloneMatchesTheReference() throws {
+    @Test
+    func `Swift patches the reference's three sites, to the reference's bytes`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
 
         let swiftClone = try LWCRFixture.cloneCache(named: "swift")
@@ -278,8 +282,8 @@ struct DSCXPCLWCRParityTests {
         try Digest.expectMatchesReference(swiftClone)
     }
 
-    @Test("The replacement words are exactly cset w0,eq / nop / nop")
-    func replacementWordsComeFromTheEncoders() throws {
+    @Test
+    func `The replacement words are exactly cset w0,eq / nop / nop`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let clone = try LWCRFixture.cloneCache(named: "words")
         defer { LWCRFixture.discard(clone) }
@@ -303,8 +307,8 @@ struct DSCXPCLWCRParityTests {
         #expect(addresses[2] == addresses[1] + 4)
     }
 
-    @Test("A dry run reports the same three sites and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `A dry run reports the same three sites and writes nothing`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
 
         let clone = try LWCRFixture.cloneCache(named: "dry")
@@ -320,8 +324,8 @@ struct DSCXPCLWCRParityTests {
         #expect(changed.isEmpty, "a dry run modified \(changed)")
     }
 
-    @Test("Re-running over a patched cache is a no-op")
-    func secondRunIsANoOp() throws {
+    @Test
+    func `Re-running over a patched cache is a no-op`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
 
         let swiftClone = try LWCRFixture.cloneCache(named: "swift_twice")
@@ -339,8 +343,8 @@ struct DSCXPCLWCRParityTests {
         try Digest.expectMatchesReference(swiftClone)
     }
 
-    @Test("Every page the writes dirtied is re-attested")
-    func patchedPagesAreAttested() throws {
+    @Test
+    func `Every page the writes dirtied is re-attested`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let clone = try LWCRFixture.cloneCache(named: "attest")
         defer { LWCRFixture.discard(clone) }
@@ -357,14 +361,14 @@ struct DSCXPCLWCRParityTests {
         #expect(again.skipped.isEmpty)
     }
 
-    @Test("A missing local symbol table is not the same answer as a missing symbol")
-    func missingSymbolTableThrows() throws {
+    @Test
+    func `A missing local symbol table is not the same answer as a missing symbol`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let clone = try LWCRFixture.cloneCache(named: "nosymbols")
         defer { LWCRFixture.discard(clone) }
 
         try FileManager.default.removeItem(
-            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols")
+            at: clone.appendingPathComponent("dyld_shared_cache_arm64e.symbols"),
         )
         #expect(throws: DSCError.self) {
             try DSCXPCLWCRPatcher.apply(directory: clone, dryRun: true, log: nil)
@@ -390,19 +394,19 @@ struct DSCXPCLWCRShapeTests {
         return try DSCXPCLWCRPatcher.disassembleFunction(
             in: chunks,
             at: vma,
-            disassembler: ARM64Disassembler()
+            disassembler: ARM64Disassembler(),
         )
     }
 
-    @Test("The symbol resolves under its mangled spelling, at a function prologue")
-    func symbolResolvesToAFunctionStart() throws {
+    @Test
+    func `The symbol resolves under its mangled spelling, at a function prologue`() throws {
         let pristine = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
 
         let mangledAddress = try chunks.resolveLocalSymbol("__xpc_token_satisfies_lwcr")
         let mangled = try #require(
             mangledAddress,
-            "the double-underscore spelling is the one Mach-O stores"
+            "the double-underscore spelling is the one Mach-O stores",
         )
         // The reference resolved the same symbol to the same address.
         #expect(mangled == FrozenReference.functionVMA)
@@ -414,21 +418,21 @@ struct DSCXPCLWCRShapeTests {
         let stream = try DSCXPCLWCRPatcher.disassembleFunction(
             in: chunks,
             at: mangled,
-            disassembler: ARM64Disassembler()
+            disassembler: ARM64Disassembler(),
         )
         #expect(stream.first?.mnemonic == "pacibsp")
         #expect(stream.last?.mnemonic == "retab")
         #expect(stream.count < DSCXPCLWCRPatcher.maxInstructions)
     }
 
-    @Test("On a pristine stream the idiom matches and the patched shape does not")
-    func pristineStreamMatchesTheIdiomOnly() throws {
+    @Test
+    func `On a pristine stream the idiom matches and the patched shape does not`() throws {
         let pristine = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let disassembler = ARM64Disassembler()
         let stream = try functionStream(in: pristine)
 
         let site = try #require(
-            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler)
+            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler),
         )
         #expect(site.cset.mnemonic == "cset")
         #expect(site.cset.aarch64?.conditionCode == AArch64CC_NE)
@@ -448,14 +452,14 @@ struct DSCXPCLWCRShapeTests {
         #expect(DSCXPCLWCRPatcher.register(site.eor, 1, disassembler) == "w0")
         #expect(
             DSCXPCLWCRPatcher.register(site.eor, 2, disassembler)
-                == DSCXPCLWCRPatcher.register(site.cset, 0, disassembler)
+                == DSCXPCLWCRPatcher.register(site.cset, 0, disassembler),
         )
 
         #expect(DSCXPCLWCRPatcher.findPatchedShape(in: stream, disassembler: disassembler) == nil)
     }
 
-    @Test("On a patched stream the patched shape matches and the idiom does not")
-    func patchedStreamMatchesThePatchedShapeOnly() throws {
+    @Test
+    func `On a patched stream the patched shape matches and the idiom does not`() throws {
         _ = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let clone = try LWCRFixture.cloneCache(named: "shape")
         defer { LWCRFixture.discard(clone) }
@@ -468,20 +472,20 @@ struct DSCXPCLWCRShapeTests {
         #expect(DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler) == nil)
 
         let already = try #require(
-            DSCXPCLWCRPatcher.findPatchedShape(in: stream, disassembler: disassembler)
+            DSCXPCLWCRPatcher.findPatchedShape(in: stream, disassembler: disassembler),
         )
         #expect(already.mnemonic == "cset")
         #expect(already.aarch64?.conditionCode == AArch64CC_EQ)
         #expect(already.address == outcome.records[0].virtualAddress)
     }
 
-    @Test("Neither detector matches a stream that stops before the check")
-    func aTruncatedStreamMatchesNothing() throws {
+    @Test
+    func `Neither detector matches a stream that stops before the check`() throws {
         let pristine = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let disassembler = ARM64Disassembler()
         let stream = try functionStream(in: pristine)
         let site = try #require(
-            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler)
+            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler),
         )
         let csetIndex = try #require(stream.firstIndex { $0.address == site.cset.address })
 
@@ -496,13 +500,13 @@ struct DSCXPCLWCRShapeTests {
         #expect(DSCXPCLWCRPatcher.findPatchedShape(in: [], disassembler: disassembler) == nil)
     }
 
-    @Test("The idiom needs the cset that feeds the xor, not just any cset")
-    func aStrandedXorDoesNotMatch() throws {
+    @Test
+    func `The idiom needs the cset that feeds the xor, not just any cset`() throws {
         let pristine = try #require(LWCRFixture.pristine, LWCRFixture.missing)
         let disassembler = ARM64Disassembler()
         let stream = try functionStream(in: pristine)
         let site = try #require(
-            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler)
+            DSCXPCLWCRPatcher.findConsistencyCheck(in: stream, disassembler: disassembler),
         )
         let csetIndex = try #require(stream.firstIndex { $0.address == site.cset.address })
 
@@ -512,7 +516,7 @@ struct DSCXPCLWCRShapeTests {
         var withoutCset = stream
         withoutCset.remove(at: csetIndex)
         #expect(
-            DSCXPCLWCRPatcher.findConsistencyCheck(in: withoutCset, disassembler: disassembler) == nil
+            DSCXPCLWCRPatcher.findConsistencyCheck(in: withoutCset, disassembler: disassembler) == nil,
         )
     }
 }

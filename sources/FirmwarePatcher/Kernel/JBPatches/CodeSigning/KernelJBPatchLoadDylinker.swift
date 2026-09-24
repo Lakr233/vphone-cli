@@ -42,7 +42,7 @@ extension KernelJBPatcher {
                 bBytes,
                 patchID: "jb.load_dylinker.policy_bypass",
                 virtualAddress: fileOffsetToVA(blOff),
-                description: "b #0x\(String(format: "%X", allowTarget - blOff)) [_load_dylinker policy bypass]"
+                description: "b #0x\(String(format: "%X", allowTarget - blOff)) [_load_dylinker policy bypass]",
             )
             return true
         }

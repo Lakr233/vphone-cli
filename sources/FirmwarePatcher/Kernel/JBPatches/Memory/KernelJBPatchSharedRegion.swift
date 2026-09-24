@@ -56,7 +56,7 @@ extension KernelJBPatcher {
             ARM64.cmpX0X0,
             patchID: "kernelcache_jb.shared_region_map",
             virtualAddress: va,
-            description: "cmp x0,x0 [_shared_region_map_and_slide_setup]"
+            description: "cmp x0,x0 [_shared_region_map_and_slide_setup]",
         )
         return true
     }

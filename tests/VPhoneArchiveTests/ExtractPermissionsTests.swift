@@ -48,19 +48,22 @@ struct ExtractPermissionsTests {
             try fm.createDirectory(at: source, withIntermediateDirectories: true)
             try Data("#!/bin/sh\n".utf8).write(to: source.appendingPathComponent(setuidFile))
             try fm.createDirectory(
-                at: source.appendingPathComponent(wideDirectory), withIntermediateDirectories: true)
+                at: source.appendingPathComponent(wideDirectory), withIntermediateDirectories: true,
+            )
             try Data("owo\n".utf8).write(to: source.appendingPathComponent(worldWritableFile))
             // chmod after the writes: creating a file resets its mode.
             for (name, mode) in archivedModes {
                 try fm.setAttributes(
                     [.posixPermissions: NSNumber(value: mode)],
-                    ofItemAtPath: source.appendingPathComponent(name).path)
+                    ofItemAtPath: source.appendingPathComponent(name).path,
+                )
             }
             // A setuid bit that the filesystem refused would make every
             // assertion below vacuously true.
             try #require(
-                self.mode(of: source.appendingPathComponent(setuidFile)) == 0o4755,
-                "the test filesystem would not keep a setuid bit")
+                mode(of: source.appendingPathComponent(setuidFile)) == 0o4755,
+                "the test filesystem would not keep a setuid bit",
+            )
 
             // Uncompressed, so /usr/bin/tar can read it without a filter
             // helper on PATH.
@@ -82,7 +85,9 @@ struct ExtractPermissionsTests {
         }
 
         func cleanUp() {
-            for url in [source, archive] { try? FileManager.default.removeItem(at: url) }
+            for url in [source, archive] {
+                try? FileManager.default.removeItem(at: url)
+            }
         }
     }
 
@@ -95,7 +100,7 @@ struct ExtractPermissionsTests {
     /// umask; with it, the archive's mode is written exactly. Anything that
     /// sets it on the host preset — including "tidying up" the conditional —
     /// fails here.
-    @Test func hostPresetNeverRestoresSetuid() {
+    @Test func `host preset never restores setuid`() {
         let host = VPhoneArchiveExtractOptions.intoHostDirectory
         #expect(!host.exactPermissions)
         #expect(host.extractFlags & Int32(ARCHIVE_EXTRACT_PERM) == 0)
@@ -109,7 +114,7 @@ struct ExtractPermissionsTests {
 
     /// The default is the safe one, so an option set built by hand — or a
     /// preset someone copies — does not acquire `-p` by omission.
-    @Test func exactPermissionsIsOptIn() {
+    @Test func `exact permissions is opt in`() {
         #expect(!VPhoneArchiveExtractOptions(ownership: .currentUser).exactPermissions)
         #expect(!VPhoneArchiveExtractOptions(ownership: .preserveNumeric).exactPermissions)
     }
@@ -122,7 +127,7 @@ struct ExtractPermissionsTests {
     /// Comparing against `tar` rather than against literals keeps this true
     /// whatever umask the test runs under — and `tar -xf` is precisely what
     /// `vm import` used to run, so agreement with it *is* the contract.
-    @Test func hostExtractionMatchesPlainSystemTar() throws {
+    @Test func `host extraction matches plain system tar`() throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
         let fm = FileManager.default
@@ -131,13 +136,17 @@ struct ExtractPermissionsTests {
         let theirs = Fixture.scratch("perm-tar")
         try fm.createDirectory(at: ours, withIntermediateDirectories: true)
         try fm.createDirectory(at: theirs, withIntermediateDirectories: true)
-        defer { for url in [ours, theirs] { try? fm.removeItem(at: url) } }
+        defer { for url in [ours, theirs] {
+            try? fm.removeItem(at: url)
+        } }
 
         try VPhoneArchiveExtractor.extract(
-            fixture.archive, into: ours, options: .intoHostDirectory)
+            fixture.archive, into: ours, options: .intoHostDirectory,
+        )
         let untarred = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/bin/tar"),
-            ["-xf", fixture.archive.path, "-C", theirs.path])
+            ["-xf", fixture.archive.path, "-C", theirs.path],
+        )
         try #require(untarred.succeeded, "system tar could not unpack the fixture: \(untarred.stderr)")
 
         for name in Fixture.archivedModes.keys.sorted() {
@@ -152,7 +161,7 @@ struct ExtractPermissionsTests {
     /// archive may be setuid, setgid or sticky. Run as root — `vm import`
     /// under sudo — restoring the archive's mode would give a setuid-root
     /// binary out of an untrusted file.
-    @Test func hostExtractionStripsSetuidSetgidAndSticky() throws {
+    @Test func `host extraction strips setuid setgid and sticky`() throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
         let fm = FileManager.default
@@ -161,7 +170,8 @@ struct ExtractPermissionsTests {
         defer { try? fm.removeItem(at: destination) }
 
         try VPhoneArchiveExtractor.extract(
-            fixture.archive, into: destination, options: .intoHostDirectory)
+            fixture.archive, into: destination, options: .intoHostDirectory,
+        )
 
         for name in Fixture.archivedModes.keys.sorted() {
             let mode = try #require(Fixture.mode(of: destination.appendingPathComponent(name)))
@@ -175,7 +185,7 @@ struct ExtractPermissionsTests {
     /// being root: with `-p` the setuid bit survives. (Ownership cannot —
     /// `ARCHIVE_EXTRACT_OWNER` needs root — but the mode does, because the
     /// file already belongs to whoever is running.)
-    @Test func guestPresetKeepsExactModes() throws {
+    @Test func `guest preset keeps exact modes`() throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
         let fm = FileManager.default
@@ -193,7 +203,8 @@ struct ExtractPermissionsTests {
         for (name, archived) in Fixture.archivedModes.sorted(by: { $0.key < $1.key }) {
             #expect(
                 Fixture.mode(of: destination.appendingPathComponent(name)) == archived,
-                "\(name) did not come back with the mode the archive stores")
+                "\(name) did not come back with the mode the archive stores",
+            )
         }
     }
 }

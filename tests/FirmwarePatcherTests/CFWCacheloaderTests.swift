@@ -48,7 +48,9 @@ private enum CacheLoaderFixture {
     }
 
     /// The suite runs unless the binary is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 launchd_cache_loader is required — put it at \
@@ -75,7 +77,7 @@ private enum CacheLoaderFixture {
     /// SHA-256 as `shasum -a 256` prints it, so a digest asserted here can be
     /// taken again from a shell over the same file.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 
     /// Clone the pristine binary into a file the caller may write to.
@@ -89,7 +91,7 @@ private enum CacheLoaderFixture {
         let pristine = try #require(self.pristine, missing)
         try FileManager.default.createDirectory(
             at: scratchRoot,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let destination = scratchRoot.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: destination)
@@ -97,9 +99,11 @@ private enum CacheLoaderFixture {
         for flags in [["-c"], []] {
             let result = try Shell.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: flags + [pristine.path, destination.path]
+                arguments: flags + [pristine.path, destination.path],
             )
-            if result.status == 0 { return destination }
+            if result.status == 0 {
+                return destination
+            }
         }
         Issue.record("could not clone \(pristine.path) to \(destination.path)")
         throw CocoaError(.fileWriteUnknown)
@@ -124,11 +128,13 @@ private enum CacheLoaderFixture {
     static func codesignVerify(_ binary: URL) throws -> Shell.Result {
         try Shell.run(
             executable: URL(fileURLWithPath: "/usr/bin/codesign"),
-            arguments: ["-v", "--verbose=2", binary.path]
+            arguments: ["-v", "--verbose=2", binary.path],
         )
     }
 
-    static func bytes(of url: URL) throws -> Data { try Data(contentsOf: url) }
+    static func bytes(of url: URL) throws -> Data {
+        try Data(contentsOf: url)
+    }
 }
 
 // MARK: - Subprocess helper
@@ -138,19 +144,23 @@ private enum Shell {
         let status: Int32
         let stdout: String
         let stderr: String
-        var output: String { stdout + stderr }
+        var output: String {
+            stdout + stderr
+        }
     }
 
     @discardableResult
     static func run(
         executable: URL,
         arguments: [String],
-        currentDirectory: URL? = nil
+        currentDirectory: URL? = nil,
     ) throws -> Result {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+        if let currentDirectory {
+            process.currentDirectoryURL = currentDirectory
+        }
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out
@@ -162,7 +172,7 @@ private enum Shell {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -222,13 +232,13 @@ private enum ByteComparison {
 
 @Suite(
     "launchd_cache_loader gate discovery",
-    .enabled(if: CacheLoaderFixture.runs, CacheLoaderFixture.missing)
+    .enabled(if: CacheLoaderFixture.runs, CacheLoaderFixture.missing),
 )
 struct CFWCacheLoaderGateTests {
-    @Test("the anchor is the whole launchd_unsecure_cache= literal, found in __cstring")
-    func anchorIsTheBootArgLiteral() throws {
+    @Test
+    func `the anchor is the whole launchd_unsecure_cache= literal, found in __cstring`() throws {
         let data = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let located = try CFWCacheLoaderPatcher.locateGate(in: data)
         let anchor = located.anchor
@@ -246,10 +256,10 @@ struct CFWCacheLoaderGateTests {
         #expect(data[anchor.stringFileOffset - 1] == 0)
     }
 
-    @Test("the xref is an ADRP+ADD that really computes the literal's address")
-    func referenceComputesTheString() throws {
+    @Test
+    func `the xref is an ADRP+ADD that really computes the literal's address`() throws {
         let data = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let anchor = try CFWCacheLoaderPatcher.locateGate(in: data).anchor
         let sections = MachOParser.parseSections(from: data)
@@ -259,10 +269,10 @@ struct CFWCacheLoaderGateTests {
         // Recomputed here from the two instructions, independently of how the
         // patcher found them: page(ADRP) + imm(ADD) has to be the literal.
         let adrp = try #require(disassembler.disassembleOne(
-            in: data, at: anchor.referenceFileOffset, address: anchor.referenceVMA
+            in: data, at: anchor.referenceFileOffset, address: anchor.referenceVMA,
         ))
         let add = try #require(disassembler.disassembleOne(
-            in: data, at: anchor.referenceFileOffset + 4, address: anchor.referenceVMA + 4
+            in: data, at: anchor.referenceFileOffset + 4, address: anchor.referenceVMA + 4,
         ))
         #expect(adrp.mnemonic == "adrp")
         #expect(add.mnemonic == "add")
@@ -277,10 +287,10 @@ struct CFWCacheLoaderGateTests {
         #expect(anchor.referenceVMA < text.address + text.size)
     }
 
-    @Test("the gate is a forward cbz on the boot-arg lookup's result")
-    func gateShape() throws {
+    @Test
+    func `the gate is a forward cbz on the boot-arg lookup's result`() throws {
         let data = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let located = try CFWCacheLoaderPatcher.locateGate(in: data)
         let gate = located.gate
@@ -297,10 +307,10 @@ struct CFWCacheLoaderGateTests {
         #expect(target > gate.vma)
     }
 
-    @Test("the fixture's code directory is the SHA-256, short-tail shape this port assumes")
-    func fixtureSignatureShape() throws {
+    @Test
+    func `the fixture's code directory is the SHA-256, short-tail shape this port assumes`() throws {
         let data = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let directories = try #require(CFWMachOCodeSignature.codeDirectories(in: data))
         let directory = try #require(directories.first)
@@ -319,7 +329,7 @@ struct CFWCacheLoaderGateTests {
         let bounds = try #require(CFWMachOCodeSignature.pageBounds(
             fileOffset: gate.fileOffset,
             pageSize: directory.pageSize,
-            codeLimit: directory.codeLimit
+            codeLimit: directory.codeLimit,
         ))
         #expect(bounds.index == 0)
     }
@@ -330,14 +340,14 @@ struct CFWCacheLoaderGateTests {
 @Suite(
     "launchd_cache_loader parity",
     .enabled(if: CacheLoaderFixture.runs, CacheLoaderFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWCacheLoaderParityTests {
     /// The fixture the frozen digests were taken over. Without this a digest
     /// mismatch below would read as a patcher bug when the real cause is a
     /// different firmware's `launchd_cache_loader`.
-    @Test("the fixture is the one the goldens were recorded from")
-    func fixtureMatchesTheGoldens() throws {
+    @Test
+    func `the fixture is the one the goldens were recorded from`() throws {
         let pristine = try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
         #expect(
             try CacheLoaderFixture.digest(of: pristine) == CacheLoaderGolden.pristine,
@@ -345,12 +355,12 @@ struct CFWCacheLoaderParityTests {
             this is not the 24A435 launchd_cache_loader CacheLoaderGolden was \
             recorded from — re-derive the goldens before reading a failure \
             below as a patcher bug
-            """
+            """,
         )
     }
 
-    @Test("Swift reproduces the reference's bytes")
-    func byteForByteParity() throws {
+    @Test
+    func `Swift reproduces the reference's bytes`() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "swift")
         defer { CacheLoaderFixture.discard(swiftClone) }
 
@@ -364,17 +374,17 @@ struct CFWCacheLoaderParityTests {
 
         #expect(
             try CacheLoaderFixture.digest(of: swiftClone) == CacheLoaderGolden.patched,
-            "Swift and the frozen reference disagree"
+            "Swift and the frozen reference disagree",
         )
     }
 
-    @Test("exactly one instruction changes, and it is the gate")
-    func onlyTheGateChanges() throws {
+    @Test
+    func `exactly one instruction changes, and it is the gate`() throws {
         let clone = try CacheLoaderFixture.clone(named: "single-site")
         defer { CacheLoaderFixture.discard(clone) }
 
         let pristine = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let report = try CFWCacheLoaderPatcher.patch(fileAt: clone, log: nil)
         let patched = try CacheLoaderFixture.bytes(of: clone)
@@ -384,8 +394,8 @@ struct CFWCacheLoaderParityTests {
         #expect(patched[report.gate.fileOffset ..< report.gate.fileOffset + 4] == ARM64.nop)
     }
 
-    @Test("the record names the byte that changed, its address and the anchor")
-    func recordDescribesTheSite() throws {
+    @Test
+    func `the record names the byte that changed, its address and the anchor`() throws {
         let clone = try CacheLoaderFixture.clone(named: "record")
         defer { CacheLoaderFixture.discard(clone) }
 
@@ -414,8 +424,8 @@ struct CFWCacheLoaderParityTests {
     /// before/after window starts two instructions ahead of the gate, and it
     /// once converted that negative delta with `UInt64(Int)` — a trap on every
     /// real patch that no `log: nil` test could see.
-    @Test("patching with logging on succeeds and prints the marked window")
-    func loggingPathDoesNotTrap() throws {
+    @Test
+    func `patching with logging on succeeds and prints the marked window`() throws {
         let clone = try CacheLoaderFixture.clone(named: "logged")
         defer { CacheLoaderFixture.discard(clone) }
 
@@ -436,11 +446,11 @@ struct CFWCacheLoaderParityTests {
 @Suite(
     "launchd_cache_loader re-runs",
     .enabled(if: CacheLoaderFixture.runs, CacheLoaderFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWCacheLoaderRerunTests {
-    @Test("a second run is a byte-for-byte no-op")
-    func secondRunChangesNothing() throws {
+    @Test
+    func `a second run is a byte-for-byte no-op`() throws {
         let clone = try CacheLoaderFixture.clone(named: "twice")
         defer { CacheLoaderFixture.discard(clone) }
 
@@ -467,8 +477,8 @@ struct CFWCacheLoaderRerunTests {
         #expect(try CacheLoaderFixture.bytes(of: clone) == afterFirst)
     }
 
-    @Test("the reference double-applied where this port stops — the reason they diverge")
-    func referenceWasNotIdempotent() throws {
+    @Test
+    func `the reference double-applied where this port stops — the reason they diverge`() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "swift-twice")
         defer { CacheLoaderFixture.discard(swiftClone) }
 
@@ -481,7 +491,7 @@ struct CFWCacheLoaderRerunTests {
         #expect(
             CacheLoaderGolden.secondRunOffsets
                 .allSatisfy { !(CacheLoaderGolden.gateFileOffset ..< CacheLoaderGolden.gateFileOffset + 4).contains($0) },
-            "the reference's second write was a different instruction, not the gate again"
+            "the reference's second write was a different instruction, not the gate again",
         )
 
         // The Swift half, measured: two runs land exactly on one reference run.
@@ -494,7 +504,7 @@ struct CFWCacheLoaderRerunTests {
         // And the bytes the reference's second run would have touched are still
         // the instruction the pristine binary carries there.
         let pristine = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let patched = try CacheLoaderFixture.bytes(of: swiftClone)
         let second = CacheLoaderGolden.secondRunOffsets
@@ -502,13 +512,13 @@ struct CFWCacheLoaderRerunTests {
             .allSatisfy { !second.contains($0) })
     }
 
-    @Test("a dry run locates the site and writes nothing")
-    func dryRunChangesNothing() throws {
+    @Test
+    func `a dry run locates the site and writes nothing`() throws {
         let clone = try CacheLoaderFixture.clone(named: "dry-run")
         defer { CacheLoaderFixture.discard(clone) }
 
         let pristine = try CacheLoaderFixture.bytes(
-            of: try #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing)
+            of: #require(CacheLoaderFixture.pristine, CacheLoaderFixture.missing),
         )
         let report = try CFWCacheLoaderPatcher.patch(fileAt: clone, dryRun: true, log: nil)
 
@@ -524,11 +534,11 @@ struct CFWCacheLoaderRerunTests {
 @Suite(
     "launchd_cache_loader re-signing",
     .enabled(if: CacheLoaderFixture.runs, CacheLoaderFixture.missing),
-    .serialized
+    .serialized,
 )
 struct CFWCacheLoaderSignatureTests {
-    @Test("the default output fails codesign, exactly as the reference's did")
-    func defaultOutputIsUnattested() throws {
+    @Test
+    func `the default output fails codesign, exactly as the reference's did`() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "unattested-swift")
         defer { CacheLoaderFixture.discard(swiftClone) }
 
@@ -547,15 +557,15 @@ struct CFWCacheLoaderSignatureTests {
         #expect(try CacheLoaderFixture.digest(of: swiftClone) == CacheLoaderGolden.patched)
     }
 
-    @Test("re-attested output passes codesign and matches the reference's slot hashes")
-    func reattestedOutputVerifies() throws {
+    @Test
+    func `re-attested output passes codesign and matches the reference's slot hashes`() throws {
         let swiftClone = try CacheLoaderFixture.clone(named: "attested-swift")
         defer { CacheLoaderFixture.discard(swiftClone) }
 
         let report = try CFWCacheLoaderPatcher.patch(
             fileAt: swiftClone,
             reattestsCodeSignature: true,
-            log: nil
+            log: nil,
         )
         #expect(report.outcome == .patched)
         let slot = try #require(report.reattestedSlots.first)
@@ -573,12 +583,12 @@ struct CFWCacheLoaderSignatureTests {
         #expect(
             try CacheLoaderFixture.digest(of: swiftClone)
                 == CacheLoaderGolden.patchedAndReattested,
-            "the re-attested slot hash must be the one the reference computed"
+            "the re-attested slot hash must be the one the reference computed",
         )
     }
 
-    @Test("re-attesting an already-patched binary repairs it without moving an instruction")
-    func reattestRepairsAStaleSlot() throws {
+    @Test
+    func `re-attesting an already-patched binary repairs it without moving an instruction`() throws {
         let clone = try CacheLoaderFixture.clone(named: "repair")
         defer { CacheLoaderFixture.discard(clone) }
 
@@ -590,7 +600,7 @@ struct CFWCacheLoaderSignatureTests {
         let report = try CFWCacheLoaderPatcher.patch(
             fileAt: clone,
             reattestsCodeSignature: true,
-            log: nil
+            log: nil,
         )
         #expect(report.outcome == .alreadyPatched)
         #expect(report.sitesWritten == 0)

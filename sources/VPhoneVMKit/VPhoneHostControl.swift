@@ -57,7 +57,7 @@ class VPhoneHostControl {
         screenRecorder: VPhoneScreenRecorder,
         control: VPhoneControl,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
     ) {
         self.captureView = captureView
         self.screenRecorder = screenRecorder
@@ -149,7 +149,7 @@ class VPhoneHostControl {
             bitsPerComponent: 8,
             bytesPerRow: dstW,
             space: gray,
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
+            bitmapInfo: CGImageAlphaInfo.none.rawValue,
         ) else { return nil }
 
         // High contrast: bump brightness
@@ -272,7 +272,7 @@ class VPhoneHostControl {
                     pixelX: x,
                     pixelY: y,
                     screenWidth: controller.screenWidth,
-                    screenHeight: controller.screenHeight
+                    screenHeight: controller.screenHeight,
                 )
                 result.ok = true
                 if wantScreen {
@@ -308,7 +308,7 @@ class VPhoneHostControl {
                     toY: y2,
                     screenWidth: controller.screenWidth,
                     screenHeight: controller.screenHeight,
-                    durationMs: durationMs
+                    durationMs: durationMs,
                 )
                 result.ok = true
                 if wantScreen {
@@ -402,7 +402,9 @@ class VPhoneHostControl {
             let n = read(fd, &buffer, buffer.count)
             guard n > 0 else { break }
             accumulated.append(contentsOf: buffer[..<n])
-            if accumulated.contains(0x0A) { break }
+            if accumulated.contains(0x0A) {
+                break
+            }
         }
 
         if let nlRange = accumulated.firstIndex(of: 0x0A) {
@@ -416,12 +418,18 @@ class VPhoneHostControl {
         ok: Bool,
         path: String? = nil,
         error: String? = nil,
-        image: String? = nil
+        image: String? = nil,
     ) {
         var dict: [String: Any] = ["ok": ok]
-        if let path { dict["path"] = path }
-        if let error { dict["error"] = error }
-        if let image { dict["image"] = image }
+        if let path {
+            dict["path"] = path
+        }
+        if let error {
+            dict["error"] = error
+        }
+        if let image {
+            dict["image"] = image
+        }
 
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               var json = String(data: data, encoding: .utf8)
@@ -433,7 +441,9 @@ class VPhoneHostControl {
             var offset = 0
             while remaining > 0 {
                 let written = write(fd, ptr.advanced(by: offset), remaining)
-                if written <= 0 { break }
+                if written <= 0 {
+                    break
+                }
                 offset += written
                 remaining -= written
             }

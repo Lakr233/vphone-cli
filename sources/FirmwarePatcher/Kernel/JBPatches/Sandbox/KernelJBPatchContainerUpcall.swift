@@ -94,7 +94,7 @@ extension KernelJBPatcher {
             bBytes,
             patchID: "container_manager_upcall_force_success",
             virtualAddress: va,
-            description: "cbz w0 -> b [force container-manager exec upcall success; skip autobox/temporary-sandbox]"
+            description: "cbz w0 -> b [force container-manager exec upcall success; skip autobox/temporary-sandbox]",
         )
         return true
     }

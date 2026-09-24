@@ -23,7 +23,7 @@ class VPhoneFileWindowController {
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
-            defer: false
+            defer: false,
         )
         window.title = "Files"
         window.subtitle = "vphone"
@@ -45,7 +45,7 @@ class VPhoneFileWindowController {
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
-            queue: .main
+            queue: .main,
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.model?.closeQuickLook()

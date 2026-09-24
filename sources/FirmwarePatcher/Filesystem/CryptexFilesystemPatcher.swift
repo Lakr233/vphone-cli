@@ -14,8 +14,8 @@
 // CryptexFilesystemPatcherAEA.swift, CryptexFilesystemPatcherDiskImage.swift and
 // CryptexFilesystemPatcherProcess.swift.
 
-import Foundation
 import CryptoKit
+import Foundation
 import Img4tool
 import VPhoneArchive
 import VPhoneCore
@@ -39,7 +39,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         buildManiest: Data,
         restoreDir: URL,
         verbose: Bool = true,
-        noBinpack: Bool = false
+        noBinpack: Bool = false,
     ) {
         self.buildManiest = buildManiest
         self.restoreDir = restoreDir
@@ -56,7 +56,7 @@ public final class CryptexFilesystemPatcher: Patcher {
     // MARK: - Patcher
 
     public func findAll() throws -> [PatchRecord] {
-        return [PatchRecord(
+        [PatchRecord(
             patchID: "filesystem.cryptex.merge",
             component: "",
             fileOffset: 0,
@@ -83,7 +83,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         let (digestDbPath, rootHashPath) = try createDigestAndHash(
             filesystem: unencryptedImage,
             mtree: mtreePath,
-            remap: didEdit
+            remap: didEdit,
         )
         let metadataPath = try compressCanonicalMetadata(mtree: mtreePath, digestDb: digestDbPath)
         let rootHashContainer = try wrapRootHash(rootHashPath)
@@ -93,7 +93,7 @@ public final class CryptexFilesystemPatcher: Patcher {
             filesystem: aeaImage,
             trustcache: trustcachePath,
             metadata: metadataPath,
-            rootHash: rootHashContainer
+            rootHash: rootHashContainer,
         )
         rebuiltData = try serializePayload(updatedManifest)
 
@@ -105,12 +105,12 @@ public final class CryptexFilesystemPatcher: Patcher {
         rebuiltData!
     }
 
-    // mergeFilesystems merges the main OS filesystem with the Cryptexes filesystems.
-    // It returns the path of the merged image (plain and encrypted)
+    /// mergeFilesystems merges the main OS filesystem with the Cryptexes filesystems.
+    /// It returns the path of the merged image (plain and encrypted)
     func mergeFilesystems() throws -> (URL, URL) {
         let osPath = try componentPath("OS")
-        let osDmgPath = try decryptAeaFile(self.restoreDir.appending(path: osPath))
-        let newDmgPath = self.restoreDir.appending(path: "new-filesystem.dmg")
+        let osDmgPath = try decryptAeaFile(restoreDir.appending(path: osPath))
+        let newDmgPath = restoreDir.appending(path: "new-filesystem.dmg")
 
         print("- Converting OS image…")
         let tmpDir = try createTmpDir()
@@ -144,10 +144,10 @@ public final class CryptexFilesystemPatcher: Patcher {
         print("- Finalizing merged image…")
         try shrinkImage(dmg: targetImagePath)
         try convertToUDRWImage(input: targetImagePath, output: newDmgPath)
-        let metadata = try getAeaMetadata(self.restoreDir.appending(path: osPath))
-        let key = try getAeaKey(self.restoreDir.appending(path: osPath), metadata: metadata)
+        let metadata = try getAeaMetadata(restoreDir.appending(path: osPath))
+        let key = try getAeaKey(restoreDir.appending(path: osPath), metadata: metadata)
         let finalFile = newDmgPath.appendingPathExtension("aea")
-        let finalDestination = self.restoreDir.appending(path: finalFile.lastPathComponent)
+        let finalDestination = restoreDir.appending(path: finalFile.lastPathComponent)
         if FileManager.default.fileExists(atPath: finalDestination.path) {
             try FileManager.default.removeItem(at: finalDestination)
         }
@@ -157,30 +157,30 @@ public final class CryptexFilesystemPatcher: Patcher {
     }
 
     func copyCryptex(targetMount: String, appOS: Bool = false, systemOS: Bool = false) throws {
-        guard (appOS || systemOS) && !(appOS && systemOS) else {
+        guard appOS || systemOS, !(appOS && systemOS) else {
             throw FirmwarePatcher.PatcherError.patchVerificationFailed("Can patch only one at a time")
         }
 
         let osPath = if appOS {
-            self.restoreDir.appending(path: try componentPath("Cryptex1,AppOS"))
+            try restoreDir.appending(path: componentPath("Cryptex1,AppOS"))
         } else {
-            try decryptAeaFile(self.restoreDir.appending(path: try componentPath("Cryptex1,SystemOS")))
+            try decryptAeaFile(restoreDir.appending(path: componentPath("Cryptex1,SystemOS")))
         }
         let (osDevice, osMount) = try attachImage(path: osPath, readonly: true)
         defer { try? detachImage(deviceNode: osDevice) }
 
-        let destination = URL.init(filePath: targetMount)
+        let destination = URL(filePath: targetMount)
             .appending(path: appOS ? "/System/Cryptexes/App" : "/System/Cryptexes/OS")
         try FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
-        try copyImageContents(source: URL.init(filePath: osMount), destination: destination)
+        try copyImageContents(source: URL(filePath: osMount), destination: destination)
     }
 
     func createTmpDir() throws -> URL {
         let tmpDir = FileManager.default.temporaryDirectory
-            .appending(path: "vphone-\(UUID.init().uuidString)")
+            .appending(path: "vphone-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        self.tmpDirectories.append(tmpDir)
+        tmpDirectories.append(tmpDir)
         return tmpDir
     }
 }

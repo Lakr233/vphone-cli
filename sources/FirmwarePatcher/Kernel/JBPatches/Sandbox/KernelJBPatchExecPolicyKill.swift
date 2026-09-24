@@ -94,7 +94,7 @@ extension KernelJBPatcher {
             bBytes,
             patchID: "exec_security_policy_kill",
             virtualAddress: va,
-            description: "cbz -> b [exec ip_mac_return SECURITY_POLICY kill bypass]"
+            description: "cbz -> b [exec ip_mac_return SECURITY_POLICY kill bypass]",
         )
         return true
     }

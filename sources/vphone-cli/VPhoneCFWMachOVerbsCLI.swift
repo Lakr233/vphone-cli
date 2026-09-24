@@ -83,7 +83,7 @@ private func requireUntruncatedMachO(at url: URL) throws {
         throw PatcherError.invalidFormat(
             "\(url.lastPathComponent): truncated Mach-O — the header claims "
                 + "\(numberOfCommands) load command(s) in \(sizeOfCommands) bytes, "
-                + "and the file is \(fileSize) bytes"
+                + "and the file is \(fileSize) bytes",
         )
     }
 }
@@ -108,7 +108,7 @@ struct VPhoneCFWPatchSeputilCommand: ParsableCommand {
         Idempotent: a binary already reading "/AA.gl" is reported and left
         alone. The Python exits 1 there, because the string it searches for is
         no longer in the file.
-        """
+        """,
     )
 
     @Argument(help: "Path to the seputil Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -143,7 +143,7 @@ struct VPhoneCFWPatchLaunchdCacheLoaderCommand: ParsableCommand {
         Idempotent: a gate already holding a NOP is reported and left alone.
         The Python exits 1 there — a NOP is not one of the branches it looks
         for.
-        """
+        """,
     )
 
     @Argument(help: "Path to the launchd_cache_loader Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -156,7 +156,7 @@ struct VPhoneCFWPatchLaunchdCacheLoaderCommand: ParsableCommand {
         try CFWCacheLoaderPatcher.patch(
             fileAt: binary,
             reattestsCodeSignature: false,
-            log: machOVerbLog
+            log: machOVerbLog,
         )
     }
 }
@@ -180,7 +180,7 @@ struct VPhoneCFWPatchMobileactivationdCommand: ParsableCommand {
 
         Idempotent: a getter already reading `mov x0, #1 ; ret` is reported and
         the file is not rewritten, so even its mtime survives.
-        """
+        """,
     )
 
     @Argument(help: "Path to the mobileactivationd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -213,7 +213,7 @@ struct VPhoneCFWPatchLaunchdJetsamCommand: ParsableCommand {
         sitting ahead of every conditional one means a previous run did the
         work, and nothing is written. Neither implementation would otherwise
         pick the same site twice.
-        """
+        """,
     )
 
     @Argument(help: "Path to the /sbin/launchd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -249,7 +249,7 @@ struct VPhoneCFWPatchWatchdogdCommand: ParsableCommand {
         unparseable binary or a missing anchor is fatal. Unlike the other five
         verbs this one re-attests the pages it dirties, because its Python does
         too.
-        """
+        """,
     )
 
     @Argument(help: "Path to the watchdogd Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
@@ -281,7 +281,7 @@ struct VPhoneCFWPatchDiskimagesiodCommand: ParsableCommand {
 
         Idempotent: a prologue already reading `mov x0, #1 ; ret` is reported
         and the file is left byte-for-byte alone.
-        """
+        """,
     )
 
     @Argument(help: "Path to the diskimagesiod Mach-O, patched in place", transform: URL.init(fileURLWithPath:))

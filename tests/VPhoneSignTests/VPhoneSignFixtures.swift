@@ -135,7 +135,7 @@ enum VPhoneSignFixtures {
         let url = root.appendingPathComponent(name)
         try #require(
             FileManager.default.fileExists(atPath: url.path),
-            "fixture \"\(name)\" is missing from \(root.path); the corpus is committed, not built"
+            "fixture \"\(name)\" is missing from \(root.path); the corpus is committed, not built",
         )
         return url
     }
@@ -154,12 +154,12 @@ enum VPhoneSignFixtures {
     static func expect(
         _ key: String,
         matches data: Data,
-        sourceLocation: SourceLocation = #_sourceLocation
+        sourceLocation: SourceLocation = #_sourceLocation,
     ) throws {
         let frozen = try #require(
             expected[key],
             "no frozen digest for \"\(key)\" — a typo, or a row the table never had",
-            sourceLocation: sourceLocation
+            sourceLocation: sourceLocation,
         )
         let ours = digest(data)
         #expect(
@@ -169,7 +169,7 @@ enum VPhoneSignFixtures {
               ldid  \(frozen)
               ours  \(ours)
             """,
-            sourceLocation: sourceLocation
+            sourceLocation: sourceLocation,
         )
     }
 
@@ -177,19 +177,21 @@ enum VPhoneSignFixtures {
     static func expect(
         length key: String,
         is length: Int,
-        sourceLocation: SourceLocation = #_sourceLocation
+        sourceLocation: SourceLocation = #_sourceLocation,
     ) throws {
         let frozen = try #require(
             expectedLengths[key],
             "no frozen length for \"\(key)\"",
-            sourceLocation: sourceLocation
+            sourceLocation: sourceLocation,
         )
         #expect(length == frozen, "\(key): ldid \(frozen) bytes, ours \(length)", sourceLocation: sourceLocation)
     }
 
     /// Whether the table has a row at all, for the cases that assert a blob is
     /// present exactly when ldid wrote one.
-    static func isFrozen(_ key: String) -> Bool { expected[key] != nil }
+    static func isFrozen(_ key: String) -> Bool {
+        expected[key] != nil
+    }
 
     // MARK: - Working files
 
@@ -253,7 +255,7 @@ enum VPhoneSignFixtures {
         entitlements: Data? = nil,
         mergesExisting: Bool = false,
         style: VPhoneSignOptions.Style = .ldid,
-        identity: (any VPhoneSigningIdentity)? = nil
+        identity: (any VPhoneSigningIdentity)? = nil,
     ) throws -> URL {
         let name = fixture.lastPathComponent
         let file = try copy(fixture, into: directory, as: name)
@@ -262,7 +264,7 @@ enum VPhoneSignFixtures {
             entitlements: entitlements,
             mergesExisting: mergesExisting,
             style: style,
-            identity: identity
+            identity: identity,
         ))
         return file
     }

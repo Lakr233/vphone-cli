@@ -107,7 +107,7 @@ extension KernelJBPatcher {
                     dCaveOff + i,
                     Data(chunk),
                     patchID: "jb.cred_label_update_execve.deny_cave",
-                    description: "deny_trampoline+\(i) [_cred_label_update_execve C21-v3]"
+                    description: "deny_trampoline+\(i) [_cred_label_update_execve C21-v3]",
                 )
             }
 
@@ -120,7 +120,7 @@ extension KernelJBPatcher {
                 dOff,
                 branchToCave,
                 patchID: "jb.cred_label_update_execve.deny_redirect",
-                description: "b deny cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", dOff))]"
+                description: "b deny cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", dOff))]",
             )
         }
 
@@ -160,7 +160,7 @@ extension KernelJBPatcher {
                 successCaveOff + i,
                 Data(chunk),
                 patchID: "jb.cred_label_update_execve.success_cave",
-                description: "success_trampoline+\(i) [_cred_label_update_execve C21-v3]"
+                description: "success_trampoline+\(i) [_cred_label_update_execve C21-v3]",
             )
         }
 
@@ -174,7 +174,7 @@ extension KernelJBPatcher {
                 exitOff,
                 branchToCave,
                 patchID: "jb.cred_label_update_execve.success_redirect",
-                description: "b success cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", exitOff))]"
+                description: "b success cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", exitOff))]",
             )
         }
     }
@@ -275,7 +275,9 @@ extension KernelJBPatcher {
                     break
                 }
             }
-            if hasMov { exits.append(off) }
+            if hasMov {
+                exits.append(off)
+            }
         }
         return exits
     }

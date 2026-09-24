@@ -26,14 +26,16 @@ extension VPhoneControl {
                 type: app["type"] as? String ?? "",
                 state: app["state"] as? String ?? "",
                 pid: app["pid"] as? Int ?? 0,
-                path: app["path"] as? String ?? ""
+                path: app["path"] as? String ?? "",
             )
         }
     }
 
     func appLaunch(bundleId: String, url: String? = nil) async throws -> Int {
         var req: [String: Any] = ["t": "app_launch", "bundle_id": bundleId]
-        if let url { req["url"] = url }
+        if let url {
+            req["url"] = url
+        }
         let (resp, _) = try await sendRequest(req)
         return resp["pid"] as? Int ?? 0
     }
@@ -47,7 +49,7 @@ extension VPhoneControl {
         return (
             bundleId: resp["bundle_id"] as? String ?? "",
             name: resp["name"] as? String ?? "",
-            pid: resp["pid"] as? Int ?? 0
+            pid: resp["pid"] as? Int ?? 0,
         )
     }
 }

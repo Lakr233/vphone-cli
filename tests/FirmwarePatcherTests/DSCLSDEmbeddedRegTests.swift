@@ -21,8 +21,8 @@
 // (instant and near-free on APFS) under the system temporary directory, or
 // under `VPHONE_DSC_SCRATCH` when the caller names one.
 
-@testable import FirmwarePatcher
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
 
@@ -103,7 +103,9 @@ private enum LSDRegFixture {
     }
 
     /// The suite runs unless the cache is absent *and* the caller opted out.
-    static var runs: Bool { pristine != nil || !isOptional }
+    static var runs: Bool {
+        pristine != nil || !isOptional
+    }
 
     static let missing: Comment = """
     the real 24A435 arm64e shared cache is required — put it at \
@@ -137,7 +139,7 @@ private enum LSDRegFixture {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.createDirectory(
             at: destination,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
         )
         let entries = try FileManager.default
             .contentsOfDirectory(atPath: pristine.path)
@@ -147,9 +149,11 @@ private enum LSDRegFixture {
         for flags in [["-c", "-R"], ["-R"]] {
             let result = try Shell.run(
                 executable: URL(fileURLWithPath: "/bin/cp"),
-                arguments: flags + entries + [destination.path]
+                arguments: flags + entries + [destination.path],
             )
-            if result.status == 0 { return destination }
+            if result.status == 0 {
+                return destination
+            }
         }
         Issue.record("could not clone the pristine cache into \(destination.path)")
         throw CocoaError(.fileWriteUnknown)
@@ -182,12 +186,14 @@ private enum Shell {
     static func run(
         executable: URL,
         arguments: [String],
-        currentDirectory: URL? = nil
+        currentDirectory: URL? = nil,
     ) throws -> Result {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+        if let currentDirectory {
+            process.currentDirectoryURL = currentDirectory
+        }
         let out = Pipe()
         let err = Pipe()
         process.standardOutput = out
@@ -199,7 +205,7 @@ private enum Shell {
         return Result(
             status: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stderr: String(decoding: errData, as: UTF8.self),
         )
     }
 }
@@ -230,8 +236,8 @@ private enum CacheComparison {
     /// compared first so a missing or extra chunk is reported as such.
     static func differences(between lhs: URL, and rhs: URL) throws -> [String] {
         let manager = FileManager.default
-        let left = Set(try manager.contentsOfDirectory(atPath: lhs.path))
-        let right = Set(try manager.contentsOfDirectory(atPath: rhs.path))
+        let left = try Set(manager.contentsOfDirectory(atPath: lhs.path))
+        let right = try Set(manager.contentsOfDirectory(atPath: rhs.path))
         var differing = Array(left.symmetricDifference(right)).sorted()
 
         for name in left.intersection(right).sorted() {
@@ -241,9 +247,11 @@ private enum CacheComparison {
                     "-s",
                     lhs.appendingPathComponent(name).path,
                     rhs.appendingPathComponent(name).path,
-                ]
+                ],
             )
-            if result.status != 0 { differing.append(name) }
+            if result.status != 0 {
+                differing.append(name)
+            }
         }
         return differing.sorted()
     }
@@ -260,16 +268,16 @@ private enum CacheComparison {
 @Suite(
     "DSC lsd embedded-registration gate",
     .enabled(if: LSDRegFixture.runs, LSDRegFixture.missing),
-    .serialized
+    .serialized,
 )
 struct DSCLSDEmbeddedRegGateTests {
-    @Test("the gate is a cbz/cbnz on w0 whose fall-through sets a w register to 1")
-    func gateShape() throws {
+    @Test
+    func `the gate is a cbz/cbnz on w0 whose fall-through sets a w register to 1`() throws {
         let pristine = try #require(LSDRegFixture.pristine, LSDRegFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         let located = try #require(
             try DSCLSDEmbeddedRegPatcher.locateGate(in: chunks),
-            "the iOS 27 fixture must carry \(DSCLSDEmbeddedRegPatcher.method)"
+            "the iOS 27 fixture must carry \(DSCLSDEmbeddedRegPatcher.method)",
         )
 
         #expect(["cbz", "cbnz"].contains(located.gate.mnemonic))
@@ -279,7 +287,7 @@ struct DSCLSDEmbeddedRegGateTests {
         // The gate is inside the disassembly window, by construction.
         #expect(
             located.gate.vma
-                < located.functionVMA + UInt64(DSCLSDEmbeddedRegPatcher.maxInstructions * 4)
+                < located.functionVMA + UInt64(DSCLSDEmbeddedRegPatcher.maxInstructions * 4),
         )
 
         // …and it is the exact site the reference Python reported.
@@ -289,13 +297,13 @@ struct DSCLSDEmbeddedRegGateTests {
         #expect(located.gate.resultRegister == FrozenReference.gateResultRegister)
     }
 
-    @Test("the symbol resolves through the cache's own local symbol table")
-    func symbolIsLocal() throws {
+    @Test
+    func `the symbol resolves through the cache's own local symbol table`() throws {
         let pristine = try #require(LSDRegFixture.pristine, LSDRegFixture.missing)
         let chunks = try DSCChunkSet(directory: pristine)
         let address = try #require(
             try chunks.resolveLocalSymbol(DSCLSDEmbeddedRegPatcher.method),
-            "\(DSCLSDEmbeddedRegPatcher.method) must be in the .symbols table"
+            "\(DSCLSDEmbeddedRegPatcher.method) must be in the .symbols table",
         )
         #expect(address == FrozenReference.methodVMA)
         // It has to live in an executable mapping, or it is not the method.
@@ -309,17 +317,17 @@ struct DSCLSDEmbeddedRegGateTests {
 @Suite(
     "DSC lsd embedded-registration parity",
     .enabled(if: LSDRegFixture.runs, LSDRegFixture.missing),
-    .serialized
+    .serialized,
 )
 struct DSCLSDEmbeddedRegParityTests {
-    @Test("Swift reproduces the reference cache byte for byte, one site")
-    func byteForByteParity() throws {
+    @Test
+    func `Swift reproduces the reference cache byte for byte, one site`() throws {
         let swiftClone = try LSDRegFixture.cloneCache(named: "swift")
         defer { LSDRegFixture.discard(swiftClone) }
 
         let report = try DSCLSDEmbeddedRegPatcher.patch(
             chunksDirectory: swiftClone,
-            log: nil
+            log: nil,
         )
         #expect(report.outcome == .patched)
         #expect(report.sitesWritten == FrozenReference.sitesWritten)
@@ -336,8 +344,8 @@ struct DSCLSDEmbeddedRegParityTests {
         }
     }
 
-    @Test("the recorded write names the chunk, its offset and the gate address")
-    func recordDescribesTheSite() throws {
+    @Test
+    func `the recorded write names the chunk, its offset and the gate address`() throws {
         let clone = try LSDRegFixture.cloneCache(named: "record")
         defer { LSDRegFixture.discard(clone) }
 
@@ -361,7 +369,7 @@ struct DSCLSDEmbeddedRegParityTests {
 
         // The offset has to name the byte that changed, in the file it names.
         let handle = try FileHandle(
-            forReadingFrom: clone.appendingPathComponent(record.component)
+            forReadingFrom: clone.appendingPathComponent(record.component),
         )
         defer { try? handle.close() }
         try handle.seek(toOffset: UInt64(record.fileOffset))
@@ -374,11 +382,11 @@ struct DSCLSDEmbeddedRegParityTests {
 @Suite(
     "DSC lsd embedded-registration re-runs",
     .enabled(if: LSDRegFixture.runs, LSDRegFixture.missing),
-    .serialized
+    .serialized,
 )
 struct DSCLSDEmbeddedRegRerunTests {
-    @Test("a second Swift run is idempotent and leaves the bytes alone")
-    func swiftIsIdempotent() throws {
+    @Test
+    func `a second Swift run is idempotent and leaves the bytes alone`() throws {
         let clone = try LSDRegFixture.cloneCache(named: "idempotent")
         defer { LSDRegFixture.discard(clone) }
 
@@ -398,20 +406,20 @@ struct DSCLSDEmbeddedRegRerunTests {
         for name in afterFirst {
             #expect(
                 try Digest.sha256(of: clone.appendingPathComponent(name))
-                    == FrozenReference.changedChunks[name]
+                    == FrozenReference.changedChunks[name],
             )
         }
     }
 
-    @Test("a dry run locates the gate and writes nothing")
-    func dryRunWritesNothing() throws {
+    @Test
+    func `a dry run locates the gate and writes nothing`() throws {
         let clone = try LSDRegFixture.cloneCache(named: "dryrun")
         defer { LSDRegFixture.discard(clone) }
 
         let report = try DSCLSDEmbeddedRegPatcher.patch(
             chunksDirectory: clone,
             dryRun: true,
-            log: nil
+            log: nil,
         )
         #expect(report.outcome == .wouldPatch)
         #expect(report.sitesWritten == 0)

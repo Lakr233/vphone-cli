@@ -27,7 +27,9 @@ public enum VPhoneRestoreIdentity {
         guard let value, !value.isEmpty else { return nil }
 
         var raw = Substring(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-        if raw.hasPrefix("0x") { raw = raw.dropFirst(2) }
+        if raw.hasPrefix("0x") {
+            raw = raw.dropFirst(2)
+        }
 
         guard !raw.isEmpty else { throw VPhoneRestoreBackendError.ecidEmpty }
         guard raw.allSatisfy(\.isHexDigitASCII) else {
@@ -74,6 +76,6 @@ private extension Character {
     /// forms too, and `UInt64(_:radix:)` would then reject what this accepted.
     var isHexDigitASCII: Bool {
         guard let ascii = asciiValue else { return false }
-        return (0x30...0x39).contains(ascii) || (0x61...0x66).contains(ascii)
+        return (0x30 ... 0x39).contains(ascii) || (0x61 ... 0x66).contains(ascii)
     }
 }

@@ -29,7 +29,7 @@ struct VPhoneFWURLsCommand: ParsableCommand {
         Reads Apple's own iTunes version plist — the document Finder consults to
         decide what it can restore a device to. One URL per line, which is what
         fw_prepare.sh feeds into DOWNLOADABLE_IPSW_URLS.
-        """
+        """,
     )
 
     @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
@@ -38,7 +38,9 @@ struct VPhoneFWURLsCommand: ParsableCommand {
         let urls = try vphoneRunBlocking {
             try await VPhoneFirmwareIndex.restoreURLs(forDevice: device)
         }
-        for url in urls { print(url) }
+        for url in urls {
+            print(url)
+        }
     }
 }
 
@@ -61,7 +63,7 @@ struct VPhoneFWSealToolCommand: ParsableCommand {
         The result is ad-hoc signed before it is used, because a binary lifted
         out of a ramdisk carries a signature that does not validate once it is
         somewhere else.
-        """
+        """,
     )
 
     @Option(help: "OS marketing version, e.g. 26.1") var version: String
@@ -93,7 +95,7 @@ struct VPhoneFWSealToolCommand: ParsableCommand {
         let result = try VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: tool), args)
         guard result.succeeded else {
             throw VPhoneRemoteZip.Error.malformed(
-                "\(tool) exited \(result.exitCode): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
+                "\(tool) exited \(result.exitCode): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))",
             )
         }
         return result.stdout
@@ -110,11 +112,12 @@ struct VPhoneFWSealToolCommand: ParsableCommand {
         let manifestData = try await zip.read(manifestEntry)
 
         guard let manifest = try PropertyListSerialization.propertyList(
-                  from: manifestData, format: nil) as? [String: Any],
-              let identities = manifest["BuildIdentities"] as? [[String: Any]]
+            from: manifestData, format: nil,
+        ) as? [String: Any],
+            let identities = manifest["BuildIdentities"] as? [[String: Any]]
         else {
             throw VPhoneRemoteZip.Error.malformed(
-                "\(manifestEntry.name) (\(manifestData.count) bytes) has no BuildIdentities"
+                "\(manifestEntry.name) (\(manifestData.count) bytes) has no BuildIdentities",
             )
         }
         // Any identity will do — every one of them names the same restore
@@ -122,10 +125,10 @@ struct VPhoneFWSealToolCommand: ParsableCommand {
         // that does rather than assuming identity 0.
         guard let path = identities.lazy.compactMap({ identity -> String? in
             (((identity["Manifest"] as? [String: Any])?["RestoreRamDisk"]
-                as? [String: Any])?["Info"] as? [String: Any])?["Path"] as? String
+                    as? [String: Any])?["Info"] as? [String: Any])?["Path"] as? String
         }).first else {
             throw VPhoneRemoteZip.Error.malformed(
-                "none of \(identities.count) build identities names a RestoreRamDisk"
+                "none of \(identities.count) build identities names a RestoreRamDisk",
             )
         }
         print("  ramdisk: \(path)")
@@ -144,14 +147,15 @@ struct VPhoneFWSealToolCommand: ParsableCommand {
         let attached = try run("/usr/bin/hdiutil",
                                ["attach", "-readonly", "-nobrowse", "-plist", dmg.path])
         guard let plist = try PropertyListSerialization.propertyList(
-                  from: Data(attached.utf8), format: nil) as? [String: Any],
-              let entities = plist["system-entities"] as? [[String: Any]],
-              let mount = entities.compactMap({ $0["mount-point"] as? String }).first
+            from: Data(attached.utf8), format: nil,
+        ) as? [String: Any],
+            let entities = plist["system-entities"] as? [[String: Any]],
+            let mount = entities.compactMap({ $0["mount-point"] as? String }).first
         else { throw VPhoneRemoteZip.Error.malformed("hdiutil attached nothing with a mount point") }
         defer { try? run("/usr/bin/hdiutil", ["detach", mount]) }
 
         let source = URL(fileURLWithPath: mount).appending(
-            path: "System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume"
+            path: "System/Library/Filesystems/apfs.fs/Contents/Resources/apfs_sealvolume",
         )
         try FileManager.default.copyItem(at: source, to: destination)
         try FileManager.default.setAttributes([.posixPermissions: 0o755],

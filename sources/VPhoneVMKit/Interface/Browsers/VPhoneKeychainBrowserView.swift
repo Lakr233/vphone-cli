@@ -29,8 +29,12 @@ struct VPhoneKeychainBrowserView: View {
             "Error",
             isPresented: .init(
                 get: { model.error != nil },
-                set: { if !$0 { model.error = nil } }
-            )
+                set: {
+                    if !$0 {
+                        model.error = nil
+                    }
+                },
+            ),
         ) {
             Button("OK") { model.error = nil }
         } message: {

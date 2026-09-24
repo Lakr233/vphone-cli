@@ -1,5 +1,5 @@
-@testable import VPhoneCore
 import Testing
+@testable import VPhoneCore
 
 struct VMPickerTests {
     /// A scripted stdin: pops one line per `read()` call.
@@ -8,19 +8,19 @@ struct VMPickerTests {
         return { defer { i += 1 }; return i < lines.count ? lines[i] : nil }
     }
 
-    @Test func returnsProvidedNameUnchanged() throws {
+    @Test func `returns provided name unchanged`() throws {
         let out = try VPhoneVMPicker.resolve(
             provided: "myvm",
             names: ["a", "b"],
             libraryRoot: "/r",
             isInteractive: true,
             read: { nil },
-            write: { _ in }
+            write: { _ in },
         )
-        #expect(out == "myvm")   // no prompt when a name is supplied
+        #expect(out == "myvm") // no prompt when a name is supplied
     }
 
-    @Test func nonInteractiveWithoutNameThrows() {
+    @Test func `non interactive without name throws`() {
         #expect(throws: VPhoneVMPickerError.notInteractive) {
             _ = try VPhoneVMPicker.resolve(
                 provided: nil,
@@ -28,12 +28,12 @@ struct VMPickerTests {
                 libraryRoot: "/r",
                 isInteractive: false,
                 read: { nil },
-                write: { _ in }
+                write: { _ in },
             )
         }
     }
 
-    @Test func emptyLibraryThrows() {
+    @Test func `empty library throws`() {
         #expect(throws: VPhoneVMPickerError.emptyLibrary(root: "/r")) {
             _ = try VPhoneVMPicker.resolve(
                 provided: nil,
@@ -41,36 +41,36 @@ struct VMPickerTests {
                 libraryRoot: "/r",
                 isInteractive: true,
                 read: { nil },
-                write: { _ in }
+                write: { _ in },
             )
         }
     }
 
-    @Test func selectsByIndex() throws {
+    @Test func `selects by index`() throws {
         let out = try VPhoneVMPicker.resolve(
             provided: nil,
             names: ["alpha", "beta", "gamma"],
             libraryRoot: "/r",
             isInteractive: true,
             read: reader(["2"]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == "beta")
     }
 
-    @Test func selectsByExactName() throws {
+    @Test func `selects by exact name`() throws {
         let out = try VPhoneVMPicker.resolve(
             provided: nil,
             names: ["alpha", "beta"],
             libraryRoot: "/r",
             isInteractive: true,
             read: reader(["alpha"]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == "alpha")
     }
 
-    @Test func retriesThenSucceeds() throws {
+    @Test func `retries then succeeds`() throws {
         // blank, out-of-range, bad-name, then a good index.
         let out = try VPhoneVMPicker.resolve(
             provided: nil,
@@ -78,12 +78,12 @@ struct VMPickerTests {
             libraryRoot: "/r",
             isInteractive: true,
             read: reader(["", "9", "nope", "1"]),
-            write: { _ in }
+            write: { _ in },
         )
         #expect(out == "alpha")
     }
 
-    @Test func eofAborts() {
+    @Test func `eof aborts`() {
         #expect(throws: VPhoneVMPickerError.aborted) {
             _ = try VPhoneVMPicker.resolve(
                 provided: nil,
@@ -91,12 +91,12 @@ struct VMPickerTests {
                 libraryRoot: "/r",
                 isInteractive: true,
                 read: { nil },
-                write: { _ in }
+                write: { _ in },
             )
         }
     }
 
-    @Test func tooManyInvalidThrows() {
+    @Test func `too many invalid throws`() {
         #expect(throws: VPhoneVMPickerError.invalidSelection) {
             _ = try VPhoneVMPicker.resolve(
                 provided: nil,
@@ -105,7 +105,7 @@ struct VMPickerTests {
                 isInteractive: true,
                 maxRetries: 2,
                 read: reader(["x", "y", "z"]),
-                write: { _ in }
+                write: { _ in },
             )
         }
     }

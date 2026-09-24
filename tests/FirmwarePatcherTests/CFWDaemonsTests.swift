@@ -1,7 +1,7 @@
 import CryptoKit
+@testable import FirmwarePatcher
 import Foundation
 import Testing
-@testable import FirmwarePatcher
 
 // MARK: - Plist semantics
 
@@ -159,12 +159,13 @@ enum CFWDaemonsFixtures {
 @Suite("CFW daemon plist rewrites")
 struct CFWDaemonsTests {
     // MARK: - dropbear ProgramArguments
+
     //
     // Both cases below came over verbatim from tests/test_dropbear_plist.py,
     // which covered this exact rewrite and which no runner ever invoked.
 
-    @Test("-R is dropped and the seeded host keys are appended")
-    func rewritesReadOnlyRootKeyGeneration() {
+    @Test
+    func `-R is dropped and the seeded host keys are appended`() {
         var daemon: PlistDict = [
             "ProgramArguments": [
                 "/iosbinpack64/usr/local/bin/dropbear",
@@ -187,8 +188,8 @@ struct CFWDaemonsTests {
         #expect(Array(strings.suffix(CFWDaemons.dropbearKeyArguments.count)) == CFWDaemons.dropbearKeyArguments)
     }
 
-    @Test("stale explicit -r key paths are replaced, not kept")
-    func replacesStaleExplicitKeyPaths() {
+    @Test
+    func `stale explicit -r key paths are replaced, not kept`() {
         var daemon: PlistDict = [
             "ProgramArguments": [
                 "dropbear",
@@ -210,25 +211,25 @@ struct CFWDaemonsTests {
         #expect(strings == ["dropbear", "-E", "-p", "22222"] + CFWDaemons.dropbearKeyArguments)
     }
 
-    @Test("an empty argument list is left alone — there is nothing to point at a key")
-    func leavesEmptyArgumentsAlone() {
+    @Test
+    func `an empty argument list is left alone — there is nothing to point at a key`() {
         var daemon: PlistDict = ["ProgramArguments": [String]()]
         CFWDaemons.patchDropbearDaemon(&daemon)
         #expect((daemon["ProgramArguments"] as? [Any])?.isEmpty == true)
     }
 
-    @Test("a trailing -r with no path does not read past the end")
-    func toleratesTrailingKeyFlag() {
+    @Test
+    func `a trailing -r with no path does not read past the end`() {
         #expect(
             CFWDaemons.patchedDropbearArguments(["dropbear", "-r"]).compactMap { $0 as? String }
-                == ["dropbear"] + CFWDaemons.dropbearKeyArguments
+                == ["dropbear"] + CFWDaemons.dropbearKeyArguments,
         )
     }
 
     // MARK: - Cryptex paths
 
-    @Test("Cryptex paths are found in a later identity, not just the first")
-    func cryptexPathsSearchesEveryIdentity() throws {
+    @Test
+    func `Cryptex paths are found in a later identity, not just the first`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -251,8 +252,8 @@ struct CFWDaemonsTests {
         #expect(paths.appOS == "043-69297-784.dmg")
     }
 
-    @Test("an identity carrying only one of the two is not a match")
-    func cryptexPathsNeedsBoth() throws {
+    @Test
+    func `an identity carrying only one of the two is not a match`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -271,8 +272,8 @@ struct CFWDaemonsTests {
 
     // MARK: - launchd.plist injection
 
-    @Test("injection creates LaunchDaemons when the target has none")
-    func injectionCreatesLaunchDaemonsDictionary() throws {
+    @Test
+    func `injection creates LaunchDaemons when the target has none`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -281,7 +282,7 @@ struct CFWDaemonsTests {
 
         try CFWDaemons.inject(
             [CFWDaemons.Daemon(name: "vphoned", contents: ["Label": "vphoned"])],
-            into: launchd
+            into: launchd,
         )
 
         let result = try CFWDaemons.loadPlist(launchd)
@@ -290,8 +291,8 @@ struct CFWDaemonsTests {
         #expect(result["VersionNumber"] as? Int == 1)
     }
 
-    @Test("injecting twice replaces rather than duplicates, so a re-run is safe")
-    func injectionIsIdempotent() throws {
+    @Test
+    func `injecting twice replaces rather than duplicates, so a re-run is safe`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -308,8 +309,8 @@ struct CFWDaemonsTests {
         #expect((second["LaunchDaemons"] as? PlistDict)?.count == 1)
     }
 
-    @Test("a daemon absent from the staging directory is reported, not fatal")
-    func missingDaemonsAreReported() throws {
+    @Test
+    func `a daemon absent from the staging directory is reported, not fatal`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -326,11 +327,13 @@ struct CFWDaemonsTests {
         // Scan order, not injected-then-missing: the caller logs one line each,
         // and those lines have always come out in the order the names are tried.
         #expect(staged.count == CFWDaemons.defaultDaemonNames.count)
-        if case .present = staged[0] {} else { Issue.record("bash should be first in scan order") }
+        if case .present = staged[0] {} else {
+            Issue.record("bash should be first in scan order")
+        }
     }
 
-    @Test("the directory loader applies the dropbear rewrite on its way through")
-    func directoryLoaderPatchesDropbear() throws {
+    @Test
+    func `the directory loader applies the dropbear rewrite on its way through`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -338,7 +341,7 @@ struct CFWDaemonsTests {
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         try CFWDaemons.savePlist(
             ["ProgramArguments": ["dropbear", "-R"]],
-            to: staging.appending(path: "dropbear.plist")
+            to: staging.appending(path: "dropbear.plist"),
         )
 
         let staged = try CFWDaemons.loadDaemons(inDirectory: staging, names: ["dropbear"])
@@ -347,38 +350,39 @@ struct CFWDaemonsTests {
         #expect(arguments == ["dropbear"] + CFWDaemons.dropbearKeyArguments)
     }
 
-    @Test("the installed label, not the source filename, is what launchd keys on")
-    func launchdKeyComesFromTheInstalledLabel() {
+    @Test
+    func `the installed label, not the source filename, is what launchd keys on`() {
         let daemon = CFWDaemons.Daemon(name: "com.vphone.jb-setup", contents: [:])
         #expect(daemon.launchdKey == "/System/Library/LaunchDaemons/com.vphone.jb-setup.plist")
     }
 
     // MARK: - The comparator itself
+
     //
     // The equivalence tests below are only worth their run time if the thing
     // judging them can fail. These are what say it can.
 
-    @Test("the comparator catches a reordered array")
-    func comparatorCatchesArrayOrder() {
+    @Test
+    func `the comparator catches a reordered array`() {
         let differences = PlistSemantics.differences(
             ["ProgramArguments": ["-r", "/a", "-r", "/b"]],
-            ["ProgramArguments": ["-r", "/b", "-r", "/a"]]
+            ["ProgramArguments": ["-r", "/b", "-r", "/a"]],
         )
         #expect(differences.count == 2)
     }
 
-    @Test("the comparator catches true standing in for 1, and a missing key")
-    func comparatorCatchesTypeAndKeySet() {
+    @Test
+    func `the comparator catches true standing in for 1, and a missing key`() {
         #expect(!PlistSemantics.differences(["RunAtLoad": true], ["RunAtLoad": 1]).isEmpty)
         #expect(!PlistSemantics.differences(["Umask": 0], ["Umask": 0, "Extra": 1]).isEmpty)
         #expect(!PlistSemantics.differences(["Version": 1], ["Version": 1.0]).isEmpty)
     }
 
-    @Test("the comparator catches differing Data bytes of equal length")
-    func comparatorCatchesDataBytes() {
+    @Test
+    func `the comparator catches differing Data bytes of equal length`() {
         #expect(!PlistSemantics.differences(
             ["Blob": Data([0x01, 0x02])],
-            ["Blob": Data([0x01, 0x03])]
+            ["Blob": Data([0x01, 0x03])],
         ).isEmpty)
     }
 }
@@ -450,7 +454,7 @@ enum CFWDaemonsGolden {
 
     /// SHA-256 as `shasum -a 256` prints it.
     static func digest(of url: URL) throws -> String {
-        Data(SHA256.hash(data: try Data(contentsOf: url))).hex
+        try Data(SHA256.hash(data: Data(contentsOf: url))).hex
     }
 }
 
@@ -463,18 +467,18 @@ enum CFWDaemonsGolden {
 /// out of an IPSW, and `ipsws/` is not in the repo.
 @Suite(
     "CFW daemon rewrites match the Python they replaced",
-    .enabled(if: CFWDaemonsFixtures.referenceInputsAvailable)
+    .enabled(if: CFWDaemonsFixtures.referenceInputsAvailable),
 )
 struct CFWDaemonsReferenceEquivalenceTests {
-    @Test("cryptex-paths on a real BuildManifest")
-    func cryptexPathsMatchTheReference() throws {
+    @Test
+    func `cryptex-paths on a real BuildManifest`() throws {
         let swift = try CFWDaemons.cryptexPaths(buildManifest: CFWDaemonsFixtures.buildManifest)
         #expect(swift.systemOS == CFWDaemonsGolden.cryptexSystemOS)
         #expect(swift.appOS == CFWDaemonsGolden.cryptexAppOS)
     }
 
-    @Test("patch-dropbear-plist on the installer's real dropbear.plist")
-    func dropbearPlistMatchesTheReference() throws {
+    @Test
+    func `patch-dropbear-plist on the installer's real dropbear.plist`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -482,7 +486,7 @@ struct CFWDaemonsReferenceEquivalenceTests {
         let source = staging.appending(path: "dropbear.plist")
         try #require(
             try CFWDaemonsGolden.digest(of: source) == CFWDaemonsGolden.dropbearSource,
-            "the archive's dropbear.plist is not the one the golden was recorded over"
+            "the archive's dropbear.plist is not the one the golden was recorded over",
         )
         let before = try CFWDaemonsFixtures.loadPlist(source)
 
@@ -492,7 +496,7 @@ struct CFWDaemonsReferenceEquivalenceTests {
 
         #expect(
             (after["ProgramArguments"] as? [Any])?.compactMap { $0 as? String }
-                == CFWDaemonsGolden.dropbearProgramArguments
+                == CFWDaemonsGolden.dropbearProgramArguments,
         )
         // …and nothing but that key moved, which is the other half of what the
         // Python's own output diff said.
@@ -502,14 +506,14 @@ struct CFWDaemonsReferenceEquivalenceTests {
         #expect(differences.isEmpty, "\(differences)")
     }
 
-    @Test("inject-daemons on a real launchd.plist and the real staging directory")
-    func injectDaemonsMatchesTheReference() throws {
+    @Test
+    func `inject-daemons on a real launchd.plist and the real staging directory`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let staging = try CFWDaemonsFixtures.unpackLaunchDaemons(into: directory)
         let swiftCopy = try CFWDaemonsFixtures.writableCopy(
-            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist"
+            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist",
         )
         let before = try CFWDaemonsFixtures.loadPlist(swiftCopy)
 
@@ -522,7 +526,7 @@ struct CFWDaemonsReferenceEquivalenceTests {
         let after = try CFWDaemonsFixtures.loadPlist(swiftCopy)
         try assertOnlyAdded(
             CFWDaemonsGolden.injectedDaemonNames.map(CFWDaemonsGolden.launchdKey),
-            to: before, in: after
+            to: before, in: after,
         )
 
         // Each added value is the staged plist verbatim — dropbear with the
@@ -545,26 +549,26 @@ struct CFWDaemonsReferenceEquivalenceTests {
     /// `cfw_install_exp.sh:702-711`, measured against the same input as the
     /// Swift single-daemon form. This is what "one implementation, three call
     /// sites" has to mean: the inline snippet was not a second behaviour.
-    @Test("the installers' inline jb-setup merge is the same merge")
-    func inlineInstallerSnippetMatchesSwift() throws {
+    @Test
+    func `the installers' inline jb-setup merge is the same merge`() throws {
         let directory = try CFWDaemonsFixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try #require(
             try CFWDaemonsGolden.digest(of: CFWDaemonsFixtures.jbSetupPlist)
                 == CFWDaemonsGolden.jbSetupSource,
-            "vphone_jb_setup.plist is not the one the golden was recorded over"
+            "vphone_jb_setup.plist is not the one the golden was recorded over",
         )
 
         let swiftCopy = try CFWDaemonsFixtures.writableCopy(
-            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist"
+            of: CFWDaemonsFixtures.hostLaunchdPlist, in: directory, named: "swift-launchd.plist",
         )
         let before = try CFWDaemonsFixtures.loadPlist(swiftCopy)
 
         try CFWDaemons.injectDaemon(
             into: swiftCopy,
             name: "com.vphone.jb-setup",
-            from: CFWDaemonsFixtures.jbSetupPlist
+            from: CFWDaemonsFixtures.jbSetupPlist,
         )
 
         let after = try CFWDaemonsFixtures.loadPlist(swiftCopy)
@@ -584,7 +588,7 @@ struct CFWDaemonsReferenceEquivalenceTests {
     private func assertOnlyAdded(
         _ keys: [String],
         to before: [String: Any],
-        in after: [String: Any]
+        in after: [String: Any],
     ) throws {
         #expect(Set(before.keys).union(["LaunchDaemons"]) == Set(after.keys))
         for key in before.keys where key != "LaunchDaemons" {

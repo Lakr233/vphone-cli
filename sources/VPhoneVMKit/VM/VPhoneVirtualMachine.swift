@@ -68,7 +68,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 diskImage: manifest.diskImage,
                 nvramStorage: manifest.nvramStorage,
                 romImages: manifest.romImages,
-                sepStorage: manifest.sepStorage
+                sepStorage: manifest.sepStorage,
             )
             try manifest.write(to: options.configURL)
 
@@ -84,7 +84,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             print("[vphone] ECID: \(ecidHex!)")
             print("[vphone] Predicted UDID: \(identity.udid)")
             let outputURL = options.configURL.deletingLastPathComponent().appendingPathComponent(
-                "udid-prediction.txt"
+                "udid-prediction.txt",
             )
             do {
                 try Self.writeUDIDPrediction(identity: identity, to: outputURL)
@@ -100,7 +100,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let auxStorage = try VZMacAuxiliaryStorage(
             creatingStorageAt: options.nvramURL,
             hardwareModel: hwModel,
-            options: .allowOverwrite
+            options: .allowOverwrite,
         )
         platform.auxiliaryStorage = auxStorage
         platform.hardwareModel = hwModel
@@ -112,7 +112,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 Dynamic(auxStorage)
                     ._setDataValue(bootArgsData, forNVRAMVariableNamed: "boot-args", error: nil)
                     .asBool ?? false
-            if ok { print("[vphone] NVRAM boot-args: \(bootArgs)") }
+            if ok {
+                print("[vphone] NVRAM boot-args: \(bootArgs)")
+            }
         }
 
         // --- Boot loader with custom ROM ---
@@ -128,7 +130,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         config.cpuCount = max(options.cpuCount, VZVirtualMachineConfiguration.minimumAllowedCPUCount)
         config.memorySize = max(
             options.memorySize,
-            VZVirtualMachineConfiguration.minimumAllowedMemorySize
+            VZVirtualMachineConfiguration.minimumAllowedMemorySize,
         )
 
         // Display
@@ -137,7 +139,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             VZMacGraphicsDisplayConfiguration(
                 widthInPixels: options.screenWidth,
                 heightInPixels: options.screenHeight,
-                pixelsPerInch: options.screenPPI
+                pixelsPerInch: options.screenPPI,
             ),
         ]
         config.graphicsDevices = [gfx]
@@ -174,7 +176,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
             serialPort.attachment = VZFileHandleSerialPortAttachment(
                 fileHandleForReading: inputPipe.fileHandleForReading,
-                fileHandleForWriting: outputPipe.fileHandleForWriting
+                fileHandleForWriting: outputPipe.fileHandleForWriting,
             )
 
             // Forward host stdin -> VM serial input
@@ -184,7 +186,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 var buf = [UInt8](repeating: 0, count: 4096)
                 while true {
                     let n = read(stdinFD, &buf, buf.count)
-                    if n <= 0 { break }
+                    if n <= 0 {
+                        break
+                    }
                     writeHandle.write(Data(buf[..<n]))
                 }
             }
@@ -194,12 +198,12 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             config.serialPorts = [serialPort]
             print("[vphone] PL011 serial port attached (interactive)")
         }
-        
+
         if let obj1 = Dynamic._VZMacVideoToolboxDeviceConfiguration().asObject,
            let obj2 = Dynamic._VZMacNeuralEngineDeviceConfiguration().asObject,
            let obj3 = Dynamic._VZMacScalerAcceleratorDeviceConfiguration().asObject
         {
-            Dynamic(config)._setAcceleratorDevices([obj1,obj2,obj3])
+            Dynamic(config)._setAcceleratorDevices([obj1, obj2, obj3])
             print("[vphone] Accelerator devices configured")
         }
 
@@ -208,7 +212,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             Dynamic(config)._setMultiTouchDevices([obj])
             print("[vphone] USB touch screen configured")
         }
-        
+
         let obj = VZVirtioEntropyDeviceConfiguration()
         config.entropyDevices = [obj]
         print("[vphone] Entropy device configured")
@@ -272,7 +276,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         if let readHandle = serialOutputReadHandle {
             readHandle.readabilityHandler = { handle in
                 let data = handle.availableData
-                if data.isEmpty { return }
+                if data.isEmpty {
+                    return
+                }
                 FileHandle.standardOutput.write(data)
             }
         }
@@ -363,7 +369,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     nonisolated func virtualMachine(
         _: VZVirtualMachine,
         networkDevice _: VZNetworkDevice,
-        attachmentWasDisconnectedWithError error: Error
+        attachmentWasDisconnectedWithError error: Error,
     ) {
         print("[vphone] Network error: \(error)")
     }

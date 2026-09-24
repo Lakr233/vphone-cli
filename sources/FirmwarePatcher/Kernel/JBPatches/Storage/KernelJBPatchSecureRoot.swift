@@ -56,7 +56,7 @@ extension KernelJBPatcher {
             patchBytes,
             patchID: "jb.io_secure_bsd_root.zero_return",
             virtualAddress: fileOffsetToVA(off),
-            description: "mov \(destReg), #0 [_IOSecureBSDRoot SecureRootName allow]"
+            description: "mov \(destReg), #0 [_IOSecureBSDRoot SecureRootName allow]",
         )
         return true
     }
@@ -150,9 +150,10 @@ extension KernelJBPatcher {
             guard disasm.writesRegister(ins, named: regName) else { continue }
             let ops = ins.operandString.replacingOccurrences(of: " ", with: "").lowercased()
             // movk Wn, #0xe000, lsl #16  → "wN,#0xe000,lsl#16"
-            if ops.contains("#0xe000,lsl#16") { return true }
+            if ops.contains("#0xe000,lsl#16") {
+                return true
+            }
         }
         return false
     }
-
 }

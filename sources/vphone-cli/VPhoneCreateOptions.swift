@@ -2,8 +2,8 @@ import VPhoneCore
 
 // MARK: - Create Options
 
-extension VPhoneCreateOrchestrator {
-    public struct Options {
+public extension VPhoneCreateOrchestrator {
+    struct Options {
         public var name: String
         public var iphoneSource: String?
         public var cloudosSource: String?
@@ -29,7 +29,7 @@ extension VPhoneCreateOrchestrator {
             memoryMB: UInt64 = 8192,
             diskSizeGB: UInt64 = 64,
             verbosity: VPhoneVerbosity = .quiet,
-            keepArtifacts: Bool = false
+            keepArtifacts: Bool = false,
         ) {
             self.name = name
             self.iphoneSource = iphoneSource

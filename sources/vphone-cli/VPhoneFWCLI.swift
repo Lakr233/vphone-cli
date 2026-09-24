@@ -1,6 +1,6 @@
 import ArgumentParser
-import Foundation
 import FirmwarePatcher
+import Foundation
 import VPhoneCore
 
 struct VPhoneFWCommand: ParsableCommand {
@@ -20,7 +20,8 @@ struct VPhoneFWCommand: ParsableCommand {
             VPhoneFWIM4PExtractCommand.self,
             VPhoneFWURLsCommand.self,
             VPhoneFWSealToolCommand.self,
-        ])
+        ],
+    )
 }
 
 /// Check a PCC IPSW's build identities using HTTP ranges before committing
@@ -28,7 +29,7 @@ struct VPhoneFWCommand: ParsableCommand {
 struct VPhoneFWInspectCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "inspect",
-        abstract: "Inspect a remote IPSW manifest without downloading the archive"
+        abstract: "Inspect a remote IPSW manifest without downloading the archive",
     )
 
     @Argument(help: "Remote IPSW URL") var source: String
@@ -42,8 +43,9 @@ struct VPhoneFWInspectCommand: ParsableCommand {
             return try await zip.read(zip.entry(endingWith: "BuildManifest.plist"))
         }
         guard let manifest = try PropertyListSerialization.propertyList(from: data, format: nil)
-                as? [String: Any],
-              let identities = manifest["BuildIdentities"] as? [[String: Any]] else {
+            as? [String: Any],
+            let identities = manifest["BuildIdentities"] as? [[String: Any]]
+        else {
             throw VPhoneRemoteZip.Error.malformed("BuildManifest.plist has no BuildIdentities")
         }
         print("\(manifest["ProductVersion"] ?? "unknown") (\(manifest["ProductBuildVersion"] ?? "unknown"))")
@@ -68,7 +70,7 @@ struct VPhoneFWInspectCommand: ParsableCommand {
 struct VPhoneFWListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list",
-        abstract: "Print the downloadable-firmware support matrix for a device"
+        abstract: "Print the downloadable-firmware support matrix for a device",
     )
 
     @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
@@ -78,9 +80,11 @@ struct VPhoneFWListCommand: ParsableCommand {
         let code = VPhoneFirmwareMatrixCommandLine.list(
             device: device,
             readmePath: readme,
-            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? ""
+            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? "",
         )
-        if code != 0 { throw ExitCode(code) }
+        if code != 0 {
+            throw ExitCode(code)
+        }
     }
 }
 
@@ -94,7 +98,7 @@ struct VPhoneFWResolveCommand: ParsableCommand {
         Exits 2 — not 1 — when a bare version matches more than one build, so a
         caller can tell "pick a build" from "there is no such firmware". An empty
         --version or --build means unconstrained.
-        """
+        """,
     )
 
     @Option(help: "Device identifier, e.g. iPhone17,3") var device: String
@@ -108,9 +112,11 @@ struct VPhoneFWResolveCommand: ParsableCommand {
             version: version,
             build: build,
             readmePath: readme,
-            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? ""
+            downloadURLs: ProcessInfo.processInfo.environment["DOWNLOADABLE_IPSW_URLS"] ?? "",
         )
-        if code != 0 { throw ExitCode(code) }
+        if code != 0 {
+            throw ExitCode(code)
+        }
     }
 }
 
@@ -128,18 +134,18 @@ struct VPhoneFWManifestCommand: ParsableCommand {
 
         Both files are written into <iphone-dir>, replacing what is there.
         `fw prepare` keeps the original as iPhone-BuildManifest.plist first.
-        """
+        """,
     )
 
     @Argument(
         help: "Extracted iPhone IPSW directory — also where the output is written",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var iPhoneDirectory: URL
 
     @Argument(
         help: "Extracted cloudOS IPSW directory",
-        transform: URL.init(fileURLWithPath:)
+        transform: URL.init(fileURLWithPath:),
     )
     var cloudOSDirectory: URL
 
@@ -150,7 +156,7 @@ struct VPhoneFWManifestCommand: ParsableCommand {
         try FirmwareManifest.generate(
             iPhoneDir: iPhoneDirectory,
             cloudOSDir: cloudOSDirectory,
-            verbose: true
+            verbose: true,
         )
     }
 }
@@ -160,7 +166,7 @@ struct VPhoneFWManifestCommand: ParsableCommand {
 struct VPhoneFWCatalogCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "catalog",
-        abstract: "Show the known iOS ↔ cloudOS firmware pairings (recommended per iOS build)"
+        abstract: "Show the known iOS ↔ cloudOS firmware pairings (recommended per iOS build)",
     )
 
     @Flag(name: .shortAndLong, help: "Emit JSON") var json = false
@@ -168,7 +174,7 @@ struct VPhoneFWCatalogCommand: ParsableCommand {
     func run() throws {
         let report = VPhoneFirmwareCatalog.report
         if json {
-            print(String(decoding: try JSONEncoder().encode(report), as: UTF8.self))
+            try print(String(decoding: JSONEncoder().encode(report), as: UTF8.self))
             return
         }
         print("Firmware catalog (\(report.device))")
@@ -187,7 +193,7 @@ struct VPhoneFWCatalogCommand: ParsableCommand {
 struct VPhoneFWPrepareCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "prepare",
-        abstract: "Download + merge IPSWs into a VM bundle"
+        abstract: "Download + merge IPSWs into a VM bundle",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -210,13 +216,17 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
             try vphoneRunBlocking {
                 try await VPhoneFirmwareIndex.restoreURLs(forDevice: "iPhone17,3")
             }.joined(separator: "\n")
-        } else { "" }
+        } else {
+            ""
+        }
 
         if list {
             let code = VPhoneFirmwareMatrixCommandLine.list(
-                device: "iPhone17,3", readmePath: readme, downloadURLs: urls
+                device: "iPhone17,3", readmePath: readme, downloadURLs: urls,
             )
-            if code != 0 { throw ExitCode(code) }
+            if code != 0 {
+                throw ExitCode(code)
+            }
             return
         }
 
@@ -229,7 +239,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
                 device: "iPhone17,3", version: iphoneVersion ?? "", build: iphoneBuild ?? "",
                 readme: try? String(contentsOfFile: readme, encoding: .utf8),
                 downloadURLs: urls,
-                style: .forStream(FileHandle.standardError.fileDescriptor)
+                style: .forStream(FileHandle.standardError.fileDescriptor),
             )
             switch selection {
             case let .selected(release, _): source = release.url
@@ -246,7 +256,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
         let bundle = try lib.library.bundle(named: name)
         try VPhoneFirmwarePreparer.prepare(
             iPhoneSource: phone, cloudOSSource: cloud,
-            bundle: bundle, cacheDirectory: resources.ipswCacheDir
+            bundle: bundle, cacheDirectory: resources.ipswCacheDir,
         )
     }
 }
@@ -256,7 +266,7 @@ struct VPhoneFWPrepareCommand: ParsableCommand {
 struct VPhoneFWPatchCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "patch",
-        abstract: "Patch the boot chain (native Swift FirmwarePipeline)"
+        abstract: "Patch the boot chain (native Swift FirmwarePipeline)",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
@@ -283,7 +293,7 @@ struct VPhoneFWPatchCommand: ParsableCommand {
             verbose: !quiet,
             noBinpack: true,
             forceExcGuard: forceExcGuard,
-            enableFrida: frida
+            enableFrida: frida,
         )
         let records = try pipeline.patchAll()
         print("[fw patch] applied \(records.count) JB patches")

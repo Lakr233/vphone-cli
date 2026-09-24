@@ -153,9 +153,14 @@ public enum DSCMaxSlidePatcher {
         public let writtenSpan: DSCWriteSpan?
 
         /// Sites patched — the Python function's return value, which is 0 or 1.
-        public var siteCount: Int { record == nil ? 0 : 1 }
+        public var siteCount: Int {
+            record == nil ? 0 : 1
+        }
+
         /// Whether bytes actually reached the chunk file.
-        public var didWrite: Bool { writtenSpan != nil }
+        public var didWrite: Bool {
+            writtenSpan != nil
+        }
     }
 
     // MARK: - Patching
@@ -185,7 +190,7 @@ public enum DSCMaxSlidePatcher {
         kernelRegionSize: UInt64 = kernelSharedRegionSize,
         dryRun: Bool = false,
         force: Bool = false,
-        verbose: Bool = true
+        verbose: Bool = true,
     ) throws -> Result {
         let mainChunkName = "dyld_shared_cache_\(architecture)"
         let mainChunk = chunksDirectory.appendingPathComponent(mainChunkName)
@@ -204,7 +209,7 @@ public enum DSCMaxSlidePatcher {
         if verbose {
             print(
                 "  [.] \(mainChunkName): start=\(hex(header.sharedRegionStart)) "
-                    + "size=\(hex(header.sharedRegionSize)) maxSlide=\(hex(header.maxSlide))"
+                    + "size=\(hex(header.sharedRegionSize)) maxSlide=\(hex(header.maxSlide))",
             )
         }
 
@@ -216,7 +221,7 @@ public enum DSCMaxSlidePatcher {
         guard !overflowed else {
             throw PatcherError.invalidFormat(
                 "\(mainChunk.path): sharedRegionSize \(hex(header.sharedRegionSize)) + maxSlide "
-                    + "\(hex(header.maxSlide)) overflows 64 bits; header is not a dyld_cache_header"
+                    + "\(hex(header.maxSlide)) overflows 64 bits; header is not a dyld_cache_header",
             )
         }
 
@@ -225,7 +230,7 @@ public enum DSCMaxSlidePatcher {
             if verbose {
                 print(
                     "      [=] fits: span+maxSlide \(hex(combined)) <= "
-                        + "region \(hex(kernelRegionSize)); no change"
+                        + "region \(hex(kernelRegionSize)); no change",
                 )
             }
             return Result(
@@ -234,18 +239,20 @@ public enum DSCMaxSlidePatcher {
                 sharedRegionSize: header.sharedRegionSize,
                 maxSlide: header.maxSlide,
                 record: nil,
-                writtenSpan: nil
+                writtenSpan: nil,
             )
         }
         guard header.maxSlide != 0 else {
-            if verbose { print("      [=] maxSlide already 0; no change") }
+            if verbose {
+                print("      [=] maxSlide already 0; no change")
+            }
             return Result(
                 outcome: .alreadyZero,
                 sharedRegionStart: header.sharedRegionStart,
                 sharedRegionSize: header.sharedRegionSize,
                 maxSlide: header.maxSlide,
                 record: nil,
-                writtenSpan: nil
+                writtenSpan: nil,
             )
         }
 
@@ -256,7 +263,7 @@ public enum DSCMaxSlidePatcher {
         if verbose {
             print(
                 "      [+] \(reason); \(dryRun ? "would set" : "set") "
-                    + "maxSlide \(hex(header.maxSlide)) -> 0x0"
+                    + "maxSlide \(hex(header.maxSlide)) -> 0x0",
             )
         }
 
@@ -270,7 +277,7 @@ public enum DSCMaxSlidePatcher {
             virtualAddress: fieldVMA,
             originalBytes: originalBytes,
             patchedBytes: patchedBytes,
-            description: "dyld_cache_header maxSlide \(hex(header.maxSlide)) -> 0 (\(reason))"
+            description: "dyld_cache_header maxSlide \(hex(header.maxSlide)) -> 0 (\(reason))",
         )
 
         guard !dryRun else {
@@ -278,14 +285,16 @@ public enum DSCMaxSlidePatcher {
             // did complete, it just wrote nothing. Every log line in this
             // function is kept identical to the Python's, so a `--dry-run` of
             // one can be diffed against a `--dry-run` of the other.
-            if verbose { print("  [+] DSC maxSlide patch complete") }
+            if verbose {
+                print("  [+] DSC maxSlide patch complete")
+            }
             return Result(
                 outcome: outcome,
                 sharedRegionStart: header.sharedRegionStart,
                 sharedRegionSize: header.sharedRegionSize,
                 maxSlide: header.maxSlide,
                 record: record,
-                writtenSpan: nil
+                writtenSpan: nil,
             )
         }
 
@@ -298,7 +307,7 @@ public enum DSCMaxSlidePatcher {
         let readBack = try chunks.bytesAtVMA(fieldVMA, length: 8).loadLE(UInt64.self, at: 0)
         guard readBack == 0 else {
             throw PatcherError.patchVerificationFailed(
-                "maxSlide write verify failed: \(hex(readBack))"
+                "maxSlide write verify failed: \(hex(readBack))",
             )
         }
 
@@ -307,14 +316,16 @@ public enum DSCMaxSlidePatcher {
         // cs_validate'd code page, and leaving the slot alone is the behaviour
         // that was validated on device.
 
-        if verbose { print("  [+] DSC maxSlide patch complete") }
+        if verbose {
+            print("  [+] DSC maxSlide patch complete")
+        }
         return Result(
             outcome: outcome,
             sharedRegionStart: header.sharedRegionStart,
             sharedRegionSize: header.sharedRegionSize,
             maxSlide: header.maxSlide,
             record: record,
-            writtenSpan: span
+            writtenSpan: span,
         )
     }
 
@@ -338,7 +349,7 @@ public enum DSCMaxSlidePatcher {
             $0.chunkURL == main && $0.fileOffset == 0
         }) else {
             throw PatcherError.invalidFormat(
-                "\(main.path): no mapping covers the cache header at file offset 0"
+                "\(main.path): no mapping covers the cache header at file offset 0",
             )
         }
         return mapping.address
@@ -361,14 +372,14 @@ public enum DSCMaxSlidePatcher {
     static func readHeader(
         from chunks: DSCChunkSet,
         at headerVMA: UInt64,
-        chunkName: String
+        chunkName: String,
     ) throws -> Header {
         let header = try chunks.bytesAtVMA(headerVMA, length: 0x100)
 
         guard header.prefix(magicPrefix.count) == magicPrefix else {
             let magic = header.subdata(in: HeaderField.magic ..< (HeaderField.magic + 16))
             throw PatcherError.invalidFormat(
-                "\(chunkName): not a dyld shared cache (magic=\(magic.hex))"
+                "\(chunkName): not a dyld shared cache (magic=\(magic.hex))",
             )
         }
 
@@ -378,14 +389,14 @@ public enum DSCMaxSlidePatcher {
             throw PatcherError.invalidFormat(
                 "\(chunkName): dyld_cache_header ends at \(hex(UInt64(mappingOffset))), before "
                     + "maxSlide at \(hex(UInt64(HeaderField.maxSlide))); this cache version has no "
-                    + "maxSlide field"
+                    + "maxSlide field",
             )
         }
 
         let parsed = Header(
             sharedRegionStart: header.loadLE(UInt64.self, at: HeaderField.sharedRegionStart),
             sharedRegionSize: header.loadLE(UInt64.self, at: HeaderField.sharedRegionSize),
-            maxSlide: header.loadLE(UInt64.self, at: HeaderField.maxSlide)
+            maxSlide: header.loadLE(UInt64.self, at: HeaderField.maxSlide),
         )
 
         let mapped = chunks.addressRange
@@ -393,7 +404,7 @@ public enum DSCMaxSlidePatcher {
             throw PatcherError.invalidFormat(
                 "\(chunkName): sharedRegionStart \(hex(parsed.sharedRegionStart)) is not the "
                     + "cache's lowest mapped address \(hex(mapped.lowerBound)); the header layout "
-                    + "is not the one these offsets describe"
+                    + "is not the one these offsets describe",
             )
         }
         let span = mapped.upperBound &- mapped.lowerBound
@@ -401,7 +412,7 @@ public enum DSCMaxSlidePatcher {
             throw PatcherError.invalidFormat(
                 "\(chunkName): sharedRegionSize \(hex(parsed.sharedRegionSize)) is smaller than "
                     + "the \(hex(span)) the cache actually maps; the header layout is not the one "
-                    + "these offsets describe"
+                    + "these offsets describe",
             )
         }
         return parsed

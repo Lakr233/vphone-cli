@@ -168,7 +168,9 @@ public enum DSCCameraPatcher {
         public let reattestation: DSCReattestation?
         public let dryRun: Bool
 
-        public var siteCount: Int { sites.count }
+        public var siteCount: Int {
+            sites.count
+        }
 
         /// True when every site was written and every page they dirtied now
         /// carries a matching slot hash. A dry run is never complete.
@@ -201,7 +203,7 @@ public enum DSCCameraPatcher {
         symbolCacheURL: URL? = nil,
         dryRun: Bool = false,
         force: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Result {
         try apply(
             families: Family.allCases,
@@ -209,7 +211,7 @@ public enum DSCCameraPatcher {
             symbolCacheURL: symbolCacheURL,
             dryRun: dryRun,
             force: force,
-            log: log
+            log: log,
         )
     }
 
@@ -222,7 +224,7 @@ public enum DSCCameraPatcher {
         symbolCacheURL: URL? = nil,
         dryRun: Bool = false,
         force: Bool = false,
-        log: ((String) -> Void)? = stdoutLog
+        log: ((String) -> Void)? = stdoutLog,
     ) throws -> Result {
         try apply(
             families: [.avfAuthorization],
@@ -230,7 +232,7 @@ public enum DSCCameraPatcher {
             symbolCacheURL: symbolCacheURL,
             dryRun: dryRun,
             force: force,
-            log: log
+            log: log,
         )
     }
 
@@ -242,11 +244,11 @@ public enum DSCCameraPatcher {
         symbolCacheURL: URL?,
         dryRun: Bool,
         force: Bool,
-        log: ((String) -> Void)?
+        log: ((String) -> Void)?,
     ) throws -> Result {
         let chunks = try DSCChunkSet(directory: chunksDirectory)
         let resolver = try DSCSymbolResolver(
-            mainCacheURL: symbolCacheURL ?? chunks.mainCacheURL
+            mainCacheURL: symbolCacheURL ?? chunks.mainCacheURL,
         )
         // Every symbol here is an ObjC class method, and those live only in the
         // stripped local-symbol table. Without it the six lookups would each
@@ -283,7 +285,7 @@ public enum DSCCameraPatcher {
             log?("    resolving \(family.symbols.count) symbol(s) in \(family.imagePath)")
             let addresses = try resolver.addresses(
                 of: family.symbols,
-                inImage: family.imagePath
+                inImage: family.imagePath,
             )
 
             // Sorted by symbol, as the Python's `sorted(vmas.items())` is. Only
@@ -304,7 +306,7 @@ public enum DSCCameraPatcher {
                     returning: family.returnValue,
                     disassembler: disassembler,
                     force: force,
-                    log: log
+                    log: log,
                 )
 
                 sites.append(
@@ -315,8 +317,8 @@ public enum DSCCameraPatcher {
                         vma: vma,
                         originalBytes: original,
                         patchedBytes: replacement,
-                        wasAlreadyPatched: alreadyPatched
-                    )
+                        wasAlreadyPatched: alreadyPatched,
+                    ),
                 )
             }
         }
@@ -336,7 +338,7 @@ public enum DSCCameraPatcher {
         // which addresses were touched, so nothing can under-attest.
         let reattestation = try DSCCodeSignature.reattestRecordedWrites(
             in: chunks,
-            log: log
+            log: log,
         )
         log?("  re-attested \(reattestation.pagesAttested) page(s)")
 
@@ -348,7 +350,7 @@ public enum DSCCameraPatcher {
             guard written == site.patchedBytes else {
                 throw PatcherError.patchVerificationFailed(
                     "post-write verify failed at 0x\(String(site.vma, radix: 16, uppercase: true)): "
-                        + "read back \(written.hex), expected \(site.patchedBytes.hex)"
+                        + "read back \(written.hex), expected \(site.patchedBytes.hex)",
                 )
             }
         }
@@ -394,11 +396,13 @@ public enum DSCCameraPatcher {
         returning value: UInt16,
         disassembler: ARM64Disassembler,
         force: Bool,
-        log: ((String) -> Void)?
+        log: ((String) -> Void)?,
     ) throws -> Bool {
         let decoded = disassembler.disassemble(bytes, at: vma, count: 2)
 
-        if decoded.first?.mnemonic == "pacibsp" { return false }
+        if decoded.first?.mnemonic == "pacibsp" {
+            return false
+        }
 
         if isReturnConstantShape(decoded, returning: value, disassembler: disassembler) {
             log?("    [=] already `mov w0, #\(value); ret` — re-install, rewriting inertly")
@@ -411,7 +415,7 @@ public enum DSCCameraPatcher {
                 ?? "<undecodable>"
             throw PatcherError.patchVerificationFailed(
                 "\(symbol) @ 0x\(String(vma, radix: 16, uppercase: true)): prologue is not "
-                    + "pacibsp (got \(head), bytes \(bytes.prefix(4).hex)); pass force to override"
+                    + "pacibsp (got \(head), bytes \(bytes.prefix(4).hex)); pass force to override",
             )
         }
         log?("    [!] prologue is not pacibsp — forced")
@@ -428,7 +432,7 @@ public enum DSCCameraPatcher {
     static func isReturnConstantShape(
         _ decoded: [Instruction],
         returning value: UInt16,
-        disassembler: ARM64Disassembler
+        disassembler: ARM64Disassembler,
     ) -> Bool {
         guard decoded.count == 2,
               decoded[1].mnemonic == "ret",
@@ -451,7 +455,9 @@ public enum DSCCameraPatcher {
         var pendingSeparator = false
         for character in symbol {
             if character.isASCII, character.isLetter || character.isNumber {
-                if pendingSeparator, !slug.isEmpty { slug.append("_") }
+                if pendingSeparator, !slug.isEmpty {
+                    slug.append("_")
+                }
                 pendingSeparator = false
                 slug.append(character)
             } else {

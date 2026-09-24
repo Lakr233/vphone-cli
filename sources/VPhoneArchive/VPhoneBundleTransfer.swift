@@ -14,7 +14,9 @@ public enum VPhoneBundleTransferError: Error, Equatable, CustomStringConvertible
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }
 
 // MARK: - VPhoneBundleTransfer
@@ -51,7 +53,9 @@ public enum VPhoneBundleTransfer {
 
         /// Extension for auto-named output when `export`'s destination is a
         /// directory.
-        public var fileExtension: String { archiveCompression.tarExtension }
+        public var fileExtension: String {
+            archiveCompression.tarExtension
+        }
     }
 
     // MARK: - Export
@@ -70,9 +74,9 @@ public enum VPhoneBundleTransfer {
         includeIPSW: Bool,
         compression: ExportCompression = .fast,
         in library: VPhoneLibrary,
-        progress: ((Int64, Int64) -> Void)? = nil
+        progress: ((Int64, Int64) -> Void)? = nil,
     ) throws -> URL {
-        _ = try library.bundle(named: name)  // validate it exists
+        _ = try library.bundle(named: name) // validate it exists
         var isDir: ObjCBool = false
         let outFile = FileManager.default.fileExists(atPath: outFile.path, isDirectory: &isDir)
             && isDir.boolValue
@@ -81,7 +85,9 @@ public enum VPhoneBundleTransfer {
 
         let bundleDir = library.url(forName: name)
         var excludes = VPhoneBundleOps.exportExcludePatterns
-        if !includeIPSW { excludes.append("*_Restore*") }
+        if !includeIPSW {
+            excludes.append("*_Restore*")
+        }
 
         let total = progress != nil
             ? archivedLogicalSize(bundleDir: bundleDir, includeIPSW: includeIPSW)
@@ -101,7 +107,7 @@ public enum VPhoneBundleTransfer {
             format: .gnutar,
             compression: compression.archiveCompression,
             excluding: excludes,
-            bytesPacked: progress.map { report in { done in report(done, total) } }
+            bytesPacked: progress.map { report in { done in report(done, total) } },
         )
         return outFile
     }
@@ -120,13 +126,15 @@ public enum VPhoneBundleTransfer {
         let fm = FileManager.default
         guard let en = fm.enumerator(at: bundleDir, includingPropertiesForKeys: keys)
         else { return 0 }
-        let prefix = bundleDir.path.count + 1  // members are relative to the bundle
+        let prefix = bundleDir.path.count + 1 // members are relative to the bundle
         var total: Int64 = 0
         var countedInodes = Set<Inode>()
         for case let url as URL in en {
             guard url.path.count > prefix else { continue }
             let rel = String(url.path.dropFirst(prefix))
-            if !includeIPSW, rel.contains("_Restore") { en.skipDescendants(); continue }
+            if !includeIPSW, rel.contains("_Restore") {
+                en.skipDescendants(); continue
+            }
             if VPhoneBundleOps.exportExcludePatterns.contains(where: { fnmatch($0, rel, 0) == 0 }) {
                 continue
             }
@@ -170,7 +178,7 @@ public enum VPhoneBundleTransfer {
         from inFile: URL,
         name: String?,
         in library: VPhoneLibrary,
-        progress: ((Int64, Int64) -> Void)? = nil
+        progress: ((Int64, Int64) -> Void)? = nil,
     ) throws -> VPhoneBundle {
         let fm = FileManager.default
         // Fail fast when the destination name is already known (explicit rename).
@@ -200,7 +208,7 @@ public enum VPhoneBundleTransfer {
             inFile,
             into: staging,
             options: .intoHostDirectory,
-            bytesRead: progress.map { report in { done in report(done, total) } }
+            bytesRead: progress.map { report in { done in report(done, total) } },
         )
         // A tar reader stops at the end-of-archive marker, which in a
         // compressed file can sit short of the last byte, so the read position
@@ -210,16 +218,20 @@ public enum VPhoneBundleTransfer {
         let entries = try fm.contentsOfDirectory(atPath: staging.path)
         guard entries.count == 1, let archived = entries.first else {
             throw VPhoneBundleTransferError.badArchive(
-                "This archive is not a VM export. Choose an archive created by 'vphone-cli vm export'.")
+                "This archive is not a VM export. Choose an archive created by 'vphone-cli vm export'.",
+            )
         }
         let finalName = name ?? archived
         try VPhoneBundleOps.requireValidName(finalName)
         let dst = library.url(forName: finalName)
-        if fm.fileExists(atPath: dst.path) { throw VPhoneLibraryError.alreadyExists(name: finalName) }
+        if fm.fileExists(atPath: dst.path) {
+            throw VPhoneLibraryError.alreadyExists(name: finalName)
+        }
         let extracted = staging.appendingPathComponent(archived)
         guard fm.fileExists(atPath: extracted.appendingPathComponent("config.plist").path) else {
             throw VPhoneBundleTransferError.badArchive(
-                "This archive does not contain a valid VM. Choose an archive created by 'vphone-cli vm export'.")
+                "This archive does not contain a valid VM. Choose an archive created by 'vphone-cli vm export'.",
+            )
         }
         let bundle = try VPhoneBundle.load(at: extracted)
         try fm.moveItem(at: extracted, to: dst)

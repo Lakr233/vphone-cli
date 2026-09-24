@@ -70,14 +70,14 @@ extension KernelJBPatcher {
             ARM64.nop,
             patchID: "kernelcache_jb.mac_mount.flag_gate",
             virtualAddress: va1,
-            description: "NOP [___mac_mount upstream flag gate]"
+            description: "NOP [___mac_mount upstream flag gate]",
         )
         emit(
             movOff,
             clearBytes,
             patchID: "kernelcache_jb.mac_mount.state_clear",
             virtualAddress: va2,
-            description: "mov x,xzr [___mac_mount upstream state clear]"
+            description: "mov x,xzr [___mac_mount upstream state clear]",
         )
         return true
     }
@@ -88,7 +88,9 @@ extension KernelJBPatcher {
         // Require the wrapper to actually call mount_common.
         var callsMountCommon = false
         for off in stride(from: start, to: end, by: 4) {
-            if decodeBL(at: off) == mountCommon { callsMountCommon = true; break }
+            if decodeBL(at: off) == mountCommon {
+                callsMountCommon = true; break
+            }
         }
         guard callsMountCommon else { return nil }
 

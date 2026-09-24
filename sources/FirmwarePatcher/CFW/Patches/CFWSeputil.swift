@@ -147,7 +147,7 @@ public enum CFWSeputil {
             site: Site,
             references: [UInt64],
             record: PatchRecord? = nil,
-            rehashes: [CFWSlotRehash] = []
+            rehashes: [CFWSlotRehash] = [],
         ) {
             self.verdict = verdict
             self.site = site
@@ -158,7 +158,9 @@ public enum CFWSeputil {
 
         /// Sites this run put on disk — 1 on a live patch, 0 otherwise. Mirrors
         /// what `patch_seputil()` reports.
-        public var sitesWritten: Int { verdict == .patched ? 1 : 0 }
+        public var sitesWritten: Int {
+            verdict == .patched ? 1 : 0
+        }
     }
 
     // MARK: - Entry points
@@ -175,7 +177,7 @@ public enum CFWSeputil {
         fileAt url: URL,
         dryRun: Bool = false,
         reattest: Bool = true,
-        log: ((String) -> Void)? = stderrLog
+        log: ((String) -> Void)? = stderrLog,
     ) throws -> Outcome {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)
@@ -195,15 +197,17 @@ public enum CFWSeputil {
         _ data: inout Data,
         dryRun: Bool = false,
         reattest: Bool = true,
-        log: ((String) -> Void)? = stderrLog
+        log: ((String) -> Void)? = stderrLog,
     ) throws -> Outcome {
-        if data.startIndex != 0 { data = Data(data) }
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
 
         let (cstring, text) = try sections(in: data)
         let site = try findSite(in: data, cstring: cstring)
         log?(
             "      [.] literal \"\(site.literal)\" @ 0x\(hex(site.literalVMA)) "
-                + "(file 0x\(hex(site.literalOffset)))"
+                + "(file 0x\(hex(site.literalOffset)))",
         )
 
         // The literal has to be one the code actually formats with. Without
@@ -215,7 +219,7 @@ public enum CFWSeputil {
             throw PatcherError.patchSiteNotFound(
                 "seputil: \"\(site.literal)\" @ 0x\(hex(site.literalVMA)) has no adrp+add "
                     + "reference in \(textSection.segment),\(textSection.section); "
-                    + "it is not the literal the gigalocker path is built from"
+                    + "it is not the literal the gigalocker path is built from",
             )
         }
         log?("      [.] referenced from \(references.map { "0x" + hex($0) }.joined(separator: ", "))")
@@ -223,7 +227,7 @@ public enum CFWSeputil {
         guard site.isPristine else {
             log?(
                 "      [=] field at 0x\(hex(site.fieldOffset)) already reads "
-                    + "\"\(uuidReplacement)\"; nothing to patch/re-attest"
+                    + "\"\(uuidReplacement)\"; nothing to patch/re-attest",
             )
             return Outcome(verdict: .alreadyPatched, site: site, references: references)
         }
@@ -239,14 +243,14 @@ public enum CFWSeputil {
                 verdict: .wouldPatch,
                 site: site,
                 references: references,
-                record: record
+                record: record,
             )
         }
 
         data.replaceSubrange(range, with: replacement)
         log?(
             "      [+] 0x\(hex(site.fieldOffset)): \(original.hex) -> \(replacement.hex) "
-                + "(\"\(site.literal)\" -> \"\(patchedLiteral(of: site))\")"
+                + "(\"\(site.literal)\" -> \"\(patchedLiteral(of: site))\")",
         )
 
         var rehashes: [CFWSlotRehash] = []
@@ -254,11 +258,13 @@ public enum CFWSeputil {
             for directory in CFWMachOCodeSignature.unsupportedCodeDirectories(in: data) {
                 log?(
                     "      [-] CodeDirectory @ 0x\(hex(directory.offset)) is hashType "
-                        + "\(directory.hashType), not SHA-256 — left untouched"
+                        + "\(directory.hashType), not SHA-256 — left untouched",
                 )
             }
             rehashes = try CFWMachOCodeSignature.reattest(&data, modifiedOffsets: site.modifiedOffsets)
-            for rehash in rehashes { log?("      [+] \(rehash)") }
+            for rehash in rehashes {
+                log?("      [+] \(rehash)")
+            }
         }
 
         // Re-read the site the same way it was found, rather than trusting the
@@ -266,7 +272,7 @@ public enum CFWSeputil {
         let after = try findSite(in: data, cstring: cstring)
         guard after.fieldOffset == site.fieldOffset, !after.isPristine else {
             throw PatcherError.patchVerificationFailed(
-                "seputil: post-write read back \"\(after.literal)\" at 0x\(hex(after.fieldOffset))"
+                "seputil: post-write read back \"\(after.literal)\" at 0x\(hex(after.fieldOffset))",
             )
         }
         log?("  [+] seputil gigalocker name pinned to \"\(uuidReplacement)\(gigalockerSuffix)\"")
@@ -276,7 +282,7 @@ public enum CFWSeputil {
             site: site,
             references: references,
             record: record,
-            rehashes: rehashes
+            rehashes: rehashes,
         )
     }
 
@@ -288,12 +294,12 @@ public enum CFWSeputil {
         guard let cstring = all["\(cstringSection.segment),\(cstringSection.section)"] else {
             throw PatcherError.invalidFormat(
                 "seputil: no \(cstringSection.segment),\(cstringSection.section) section "
-                    + "(not a 64-bit Mach-O, or not the binary we were handed)"
+                    + "(not a 64-bit Mach-O, or not the binary we were handed)",
             )
         }
         guard let text = all["\(textSection.segment),\(textSection.section)"] else {
             throw PatcherError.invalidFormat(
-                "seputil: no \(textSection.segment),\(textSection.section) section"
+                "seputil: no \(textSection.segment),\(textSection.section) section",
             )
         }
         return (cstring, text)
@@ -314,7 +320,7 @@ public enum CFWSeputil {
         guard start >= 0, end <= data.count, start <= end else {
             throw PatcherError.invalidFormat(
                 "seputil: \(cstringSection.section) runs to 0x\(hex(end)), past the end of a "
-                    + "0x\(hex(data.count))-byte file"
+                    + "0x\(hex(data.count))-byte file",
             )
         }
 
@@ -322,7 +328,9 @@ public enum CFWSeputil {
         var cursor = start
         while cursor < end {
             var terminator = cursor
-            while terminator < end, data[terminator] != 0 { terminator += 1 }
+            while terminator < end, data[terminator] != 0 {
+                terminator += 1
+            }
             guard terminator < end else { break } // unterminated tail, not a literal
             let literal = Array(data[cursor ..< terminator])
             if let field = fileField(of: literal), let pristine = pristineness(of: literal[field]) {
@@ -332,7 +340,7 @@ public enum CFWSeputil {
                     literal: String(decoding: literal, as: UTF8.self),
                     fieldOffset: cursor + field.lowerBound,
                     fieldVMA: cstring.address + UInt64(cursor - start + field.lowerBound),
-                    isPristine: pristine
+                    isPristine: pristine,
                 ))
             }
             cursor = terminator + 1
@@ -341,14 +349,14 @@ public enum CFWSeputil {
         guard let site = sites.first else {
             throw PatcherError.patchSiteNotFound(
                 "seputil: no \"<dir>/\(uuidConversion)\(gigalockerSuffix)\" literal in "
-                    + "\(cstringSection.segment),\(cstringSection.section)"
+                    + "\(cstringSection.segment),\(cstringSection.section)",
             )
         }
         guard sites.count == 1 else {
             throw PatcherError.patchSiteNotFound(
                 "seputil: \(sites.count) gigalocker path literals "
                     + "(\(sites.map { "\"\($0.literal)\" @ 0x" + hex($0.literalOffset) }.joined(separator: ", "))); "
-                    + "refusing to guess which one builds the path"
+                    + "refusing to guess which one builds the path",
             )
         }
         return site
@@ -375,8 +383,12 @@ public enum CFWSeputil {
     /// `true` for a field that still reads `%s`, `false` for one already
     /// reading `AA`, `nil` for anything else — which is not this patch's site.
     static func pristineness(of field: ArraySlice<UInt8>) -> Bool? {
-        if field.elementsEqual(uuidConversion.utf8) { return true }
-        if field.elementsEqual(uuidReplacement.utf8) { return false }
+        if field.elementsEqual(uuidConversion.utf8) {
+            return true
+        }
+        if field.elementsEqual(uuidReplacement.utf8) {
+            return false
+        }
         return nil
     }
 
@@ -468,7 +480,7 @@ public enum CFWSeputil {
             originalBytes: original,
             patchedBytes: replacement,
             description: "gigalocker path format '/\(uuidConversion)\(gigalockerSuffix)' "
-                + "-> '/\(uuidReplacement)\(gigalockerSuffix)'"
+                + "-> '/\(uuidReplacement)\(gigalockerSuffix)'",
         )
     }
 

@@ -6,7 +6,7 @@
 
 import Foundation
 
-extension CFWDaemons {
+public extension CFWDaemons {
     // MARK: - Host keys
 
     /// The host keys dropbear is pointed at instead of generating its own.
@@ -14,7 +14,7 @@ extension CFWDaemons {
     /// `/var` is on the writable Data volume; `/etc/dropbear`, where `-R` would
     /// put them, is on a read-only root during a normal VM boot.  `cfw_install`
     /// seeds these two files.
-    public static let dropbearKeyArguments: [String] = [
+    static let dropbearKeyArguments: [String] = [
         "-r",
         "/var/dropbear/dropbear_rsa_host_key",
         "-r",
@@ -33,7 +33,7 @@ extension CFWDaemons {
     /// Elements are compared as strings but carried through as read, so a plist
     /// holding a non-string in `ProgramArguments` round-trips unchanged rather
     /// than failing.
-    public static func patchedDropbearArguments(_ arguments: [Any]) -> [Any] {
+    static func patchedDropbearArguments(_ arguments: [Any]) -> [Any] {
         guard !arguments.isEmpty else { return arguments }
 
         var cleaned: [Any] = []
@@ -53,7 +53,7 @@ extension CFWDaemons {
     }
 
     /// Apply `patchedDropbearArguments` to a loaded daemon plist in place.
-    public static func patchDropbearDaemon(_ daemon: inout PlistDict) {
+    static func patchDropbearDaemon(_ daemon: inout PlistDict) {
         guard let arguments = daemon["ProgramArguments"] as? [Any], !arguments.isEmpty else {
             return
         }
@@ -61,7 +61,7 @@ extension CFWDaemons {
     }
 
     /// Rewrite a dropbear daemon plist on disk. Implements `cfw.py patch-dropbear-plist`.
-    public static func patchDropbearPlist(at url: URL) throws {
+    static func patchDropbearPlist(at url: URL) throws {
         var daemon = try loadPlist(url)
         patchDropbearDaemon(&daemon)
         try savePlist(daemon, to: url)

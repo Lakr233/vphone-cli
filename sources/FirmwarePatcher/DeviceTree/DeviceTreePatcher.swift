@@ -144,7 +144,7 @@ public final class DeviceTreePatcher: Patcher {
                 length: length,
                 flags: flags,
                 value: value,
-                valueOffset: valueOffset
+                valueOffset: valueOffset,
             ))
         }
 
@@ -162,7 +162,7 @@ public final class DeviceTreePatcher: Patcher {
         let (root, end) = try parseNode(blob, offset: 0)
         guard end == blob.count else {
             throw PatcherError.invalidFormat(
-                "DeviceTree: unexpected trailing bytes (\(blob.count - end) extra)"
+                "DeviceTree: unexpected trailing bytes (\(blob.count - end) extra)",
             )
         }
         return root
@@ -329,7 +329,7 @@ public final class DeviceTreePatcher: Patcher {
                 virtualAddress: nil,
                 originalBytes: originalBytes,
                 patchedBytes: newValue,
-                description: patch.description
+                description: patch.description,
             )
             patches.append(record)
 
@@ -339,7 +339,7 @@ public final class DeviceTreePatcher: Patcher {
                     prop.valueOffset,
                     originalBytes.hex,
                     newValue.hex,
-                    patch.patchID
+                    patch.patchID,
                 ))
             }
         }
@@ -380,7 +380,7 @@ public final class DeviceTreePatcher: Patcher {
             length: nameValue.count,
             flags: 0,
             value: nameValue,
-            valueOffset: 0
+            valueOffset: 0,
         ))
 
         for spec in patch.properties {
@@ -397,7 +397,7 @@ public final class DeviceTreePatcher: Patcher {
                 length: spec.length,
                 flags: spec.flags,
                 value: value,
-                valueOffset: 0
+                valueOffset: 0,
             ))
         }
 
@@ -415,7 +415,7 @@ public final class DeviceTreePatcher: Patcher {
             virtualAddress: nil,
             originalBytes: Data(),
             patchedBytes: serialized,
-            description: patch.description
+            description: patch.description,
         ))
 
         if verbose {

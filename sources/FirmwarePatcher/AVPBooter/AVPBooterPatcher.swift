@@ -142,7 +142,7 @@ public final class AVPBooterPatcher: Patcher {
             patchedBytes: patchedBytes,
             beforeDisasm: beforeStr,
             afterDisasm: afterStr,
-            description: "DGST validation bypass: force x0=0 return value"
+            description: "DGST validation bypass: force x0=0 return value",
         )
         patches.append(record)
 
@@ -151,7 +151,7 @@ public final class AVPBooterPatcher: Patcher {
                 format: "  0x%06X: %@ → %@  [avpbooter.dgst_bypass]",
                 fileOff,
                 beforeStr,
-                afterStr
+                afterStr,
             ))
         }
     }

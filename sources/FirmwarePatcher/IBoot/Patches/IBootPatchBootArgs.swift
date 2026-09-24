@@ -22,17 +22,23 @@ extension IBootPatcher {
         guard let newArgsData = newArgs.data(using: .ascii) else { return }
 
         guard let fmtOff = findBootArgsFmt() else {
-            if verbose { print("  [-] boot-args: format string not found") }
+            if verbose {
+                print("  [-] boot-args: format string not found")
+            }
             return
         }
 
         guard let (adrpOff, addOff) = findBootArgsAdrp(fmtOff: fmtOff) else {
-            if verbose { print("  [-] boot-args: ADRP+ADD x2 not found") }
+            if verbose {
+                print("  [-] boot-args: ADRP+ADD x2 not found")
+            }
             return
         }
 
         guard let newOff = findStringSlot(length: newArgsData.count) else {
-            if verbose { print("  [-] boot-args: no NUL slot") }
+            if verbose {
+                print("  [-] boot-args: no NUL slot")
+            }
             return
         }
 
@@ -41,7 +47,9 @@ extension IBootPatcher {
 
         // Re-encode ADRP x2 → new page
         guard let newAdrp = ARM64Encoder.encodeADRP(rd: 2, pc: UInt64(adrpOff), target: UInt64(newOff)) else {
-            if verbose { print("  [-] boot-args: ADRP encoding out of range") }
+            if verbose {
+                print("  [-] boot-args: ADRP encoding out of range")
+            }
             return
         }
         emit(adrpOff, newAdrp, id: "\(component).boot_args_adrp", description: "boot-args: adrp x2 → new string page")
@@ -49,7 +57,9 @@ extension IBootPatcher {
         // Re-encode ADD x2, x2, #offset
         let imm12 = UInt32(newOff & 0xFFF)
         guard let newAdd = ARM64Encoder.encodeAddImm12(rd: 2, rn: 2, imm12: imm12) else {
-            if verbose { print("  [-] boot-args: ADD encoding out of range") }
+            if verbose {
+                print("  [-] boot-args: ADD encoding out of range")
+            }
             return
         }
         emit(addOff, newAdd, id: "\(component).boot_args_add", description: "boot-args: add x2 → new string offset")
@@ -76,7 +86,9 @@ extension IBootPatcher {
         while off < searchEnd {
             guard let range = raw.range(of: pctS, in: off ..< min(searchEnd, raw.count)) else { return nil }
             let found = raw.distance(from: raw.startIndex, to: range.lowerBound)
-            if found >= off + raw.count { return nil }
+            if found >= off + raw.count {
+                return nil
+            }
 
             // Must have NUL before and NUL after (isolated "%s\0")
             if found > 0, raw[found - 1] == 0, found + 2 < raw.count, raw[found + 2] == 0 {
