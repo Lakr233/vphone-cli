@@ -69,7 +69,9 @@ final class VPhoneLaunchpadCreationPipeline {
     private(set) var statuses: [Step: VPhoneLaunchpadStatus] = [:]
     private(set) var durations: [Step: TimeInterval] = [:]
     private(set) var current: Step?
-    private(set) var log: [String] = []
+    /// The creation log. The sheet shows it in a terminal; the model keeps
+    /// only the last few lines, for error details.
+    private let log: VPhoneLaunchpadLogWriter
     private(set) var failure: VPhoneLaunchpadError?
     private(set) var isRunning = false
 
@@ -79,7 +81,7 @@ final class VPhoneLaunchpadCreationPipeline {
     private weak var library: VPhoneLaunchpadMachineLibrary?
     private var task: Task<Void, Never>?
     private var dfu: VPhoneLaunchpadChildProcess?
-    private var dfuLines: [String] = []
+    private var dfuPanicked = false
 
     nonisolated static let panicPattern = #"(^|[^p])(panic|kernel panic|panic\.apple\.com|stackshot succeeded)"#
 
@@ -95,6 +97,11 @@ final class VPhoneLaunchpadCreationPipeline {
         self.bundles = bundles
         self.helper = helper
         self.library = library
+        log = VPhoneLaunchpadLogWriter(url: VPhoneLaunchpadMachineLibrary.consoleLog(options.name, suffix: "-create"))
+    }
+
+    var logFile: URL {
+        log.url
     }
 
     var isFinished: Bool {
@@ -178,10 +185,7 @@ final class VPhoneLaunchpadCreationPipeline {
     }
 
     private func append(_ line: String) {
-        log.append(line)
-        if log.count > 3000 {
-            log.removeFirst(log.count - 3000)
-        }
+        log.write(line)
     }
 
     // MARK: - Steps
@@ -193,7 +197,8 @@ final class VPhoneLaunchpadCreationPipeline {
         let name = options.name
         let library = ["--library-root", libraryRoot.path]
         let machine = libraryRoot.appendingPathComponent(name, isDirectory: true)
-        let output: @MainActor @Sendable (String) -> Void = { [weak self] line in self?.append(line) }
+        let log = log
+        let output: @Sendable (String) -> Void = { line in log.write(line) }
 
         func run(_ arguments: [String]) async throws {
             append("$ \(VPhoneLaunchpadCommandLine.display(arguments))")
@@ -219,13 +224,15 @@ final class VPhoneLaunchpadCreationPipeline {
         case .bootDFU:
             let arguments = ["vm", "launch", name, "--dfu"] + library
             append("$ \(VPhoneLaunchpadCommandLine.display(arguments))")
-            dfuLines = []
+            dfuPanicked = false
             dfu = try commandLine.start(
                 arguments,
                 logFile: VPhoneLaunchpadMachineLibrary.consoleLog(name, suffix: "-dfu"),
             ) { [weak self] line in
-                self?.dfuLines.append(line)
-                self?.append("dfu  \(line)")
+                log.write("dfu  \(line)")
+                if Self.isPanic(line) {
+                    Task { @MainActor in self?.dfuPanicked = true }
+                }
             }
             let identity = machine.appendingPathComponent("udid-prediction.txt")
             for _ in 0 ..< 30 {
@@ -262,7 +269,7 @@ final class VPhoneLaunchpadCreationPipeline {
         case .stopDFU:
             append("waiting up to 30s for the post-restore reboot")
             for _ in 0 ..< 30 {
-                if dfu?.isRunning != true || dfuLines.contains(where: Self.isPanic) {
+                if dfu?.isRunning != true || dfuPanicked {
                     break
                 }
                 try await Task.sleep(for: .seconds(1))
@@ -286,7 +293,7 @@ final class VPhoneLaunchpadCreationPipeline {
                 onLine: output,
             )
             guard status == 0 else {
-                throw VPhoneLaunchpadError(String(localized: "Unable to install CFW. Check the log for details."), detail: log.suffix(12).joined(separator: "\n"))
+                throw VPhoneLaunchpadError(String(localized: "Unable to install CFW. Check the log for details."), detail: log.tail)
             }
 
         case .firstBoot:
@@ -309,7 +316,7 @@ final class VPhoneLaunchpadCreationPipeline {
         append("waiting up to 300s for vphoned")
         for _ in 0 ..< 300 {
             try Task.checkCancellation()
-            if (library.consoles[name] ?? []).contains(where: Self.isPanic) {
+            if library.panicked.contains(name) {
                 throw VPhoneLaunchpadError(String(localized: "The machine had a kernel panic during first boot."), detail: String(localized: "See the machine's console."))
             }
             guard child.isRunning else {
@@ -326,7 +333,7 @@ final class VPhoneLaunchpadCreationPipeline {
 
     private func requireDFURunning() throws {
         guard dfu?.isRunning == true else {
-            throw VPhoneLaunchpadError(String(localized: "The machine stopped while in DFU mode."), detail: dfuLines.suffix(12).joined(separator: "\n"))
+            throw VPhoneLaunchpadError(String(localized: "The machine stopped while in DFU mode."), detail: log.tail)
         }
     }
 
@@ -433,7 +440,6 @@ final class VPhoneLaunchpadCreationPipeline {
             statuses[.restore] = .running
             current = .restore
             isRunning = true
-            log = VPhoneLaunchpadPreview.creationLog
         }
     }
 #endif

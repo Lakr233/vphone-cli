@@ -9,6 +9,7 @@ struct VPhoneLaunchpadMachinesView: View {
         case rename(String)
         case clone(String)
         case export(String)
+        case console(String)
 
         var id: String {
             switch self {
@@ -18,6 +19,7 @@ struct VPhoneLaunchpadMachinesView: View {
             case let .rename(name): "rename-\(name)"
             case let .clone(name): "clone-\(name)"
             case let .export(name): "export-\(name)"
+            case let .console(name): "console-\(name)"
             }
         }
     }
@@ -43,7 +45,11 @@ struct VPhoneLaunchpadMachinesView: View {
         .inspector(isPresented: $showsInspector) {
             Group {
                 if let machine = library.selected {
-                    VPhoneLaunchpadMachineInspector(machine: machine) { name in sheet = .creation(name) }
+                    VPhoneLaunchpadMachineInspector(
+                        machine: machine,
+                        onShowProgress: { name in sheet = .creation(name) },
+                        onOpenConsole: { name in sheet = .console(name) },
+                    )
                 } else {
                     ContentUnavailableView("No Selection", systemImage: "iphone")
                 }
@@ -156,6 +162,7 @@ struct VPhoneLaunchpadMachinesView: View {
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([library.libraryRoot.appendingPathComponent(machine.name)])
             }
+            Button("Open Console") { sheet = .console(machine.name) }
             Button("Show Console Log") {
                 NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.name))
             }
@@ -243,6 +250,8 @@ struct VPhoneLaunchpadMachinesView: View {
             }
         case let .export(name):
             VPhoneLaunchpadExportView(name: name)
+        case let .console(name):
+            VPhoneLaunchpadConsoleView(name: name)
         }
     }
 

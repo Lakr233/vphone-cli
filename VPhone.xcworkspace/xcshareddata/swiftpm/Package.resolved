@@ -1,5 +1,5 @@
 {
-  "originHash" : "01b56dbe07461c056f9f787f47fe980bea82d0877db7a293439df58ce597d835",
+  "originHash" : "a6866c860e660ef27df596c0ba8795342d386b1b265f3a7cc212d640cd67c649",
   "pins" : [
     {
       "identity" : "applemobiledevicelibrary",
@@ -47,6 +47,15 @@
       }
     },
     {
+      "identity" : "libghostty-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/libghostty-spm.git",
+      "state" : {
+        "revision" : "b7f888e3baf8585ea9d590ab1a45b49475e00d1c",
+        "version" : "1.6.20260922"
+      }
+    },
+    {
       "identity" : "libimg4-spm",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Lakr233/libimg4-spm.git",
@@ -62,6 +71,15 @@
       "state" : {
         "revision" : "773e10797abc53914b94c2ee8c6f40f5da0b06eb",
         "version" : "0.52.2"
+      }
+    },
+    {
+      "identity" : "msdisplaylink",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/MSDisplayLink.git",
+      "state" : {
+        "revision" : "87eb0af130744c8cbe2e31b6e1a5bcd659f1c220",
+        "version" : "2.2.0"
       }
     },
     {

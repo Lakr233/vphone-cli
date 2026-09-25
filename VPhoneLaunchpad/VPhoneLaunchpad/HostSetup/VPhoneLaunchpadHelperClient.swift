@@ -191,18 +191,17 @@ final class VPhoneLaunchpadHelperClient {
         }
     }
 
-    /// Runs `cfw install` as root. Output lines go to `onLine`.
+    /// Runs `cfw install` as root. Output lines go to `onLine`, on the XPC
+    /// connection's queue.
     func installCustomFirmware(
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
         forceDyldSharedCacheMaxSlide: Bool,
         keepArtifacts: Bool,
-        onLine: @escaping @MainActor @Sendable (String) -> Void,
+        onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
-        receiver.setHandler { line in
-            DispatchQueue.main.async { MainActor.assumeIsolated { onLine(line) } }
-        }
+        receiver.setHandler(onLine)
         defer { receiver.setHandler(nil) }
         return try await withTaskCancellationHandler {
             try await request { proxy, done in
