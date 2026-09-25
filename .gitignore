@@ -355,3 +355,4 @@ setup_logs/
 # vphone-launchpad signing team; never committed
 VPhoneLaunchpad/Configuration/Developer.xcconfig
 VPhoneLaunchpad/Configuration/DevelopmentDeveloper.xcconfig
+.claude/worktrees

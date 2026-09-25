@@ -27,18 +27,39 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
+      - name: Install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
+
       - name: Toolchain versions
         run: |
           swift --version
           xcodebuild -version
+          xcbeautify --version
 
       - name: Build VPhone.bundle
         env:
           SWIFT_JOBS: "4"
         run: |
+          set -o pipefail
+          mkdir -p .build
           xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
             -configuration Release -destination 'platform=macOS,arch=arm64' \
-            -derivedDataPath .build/XcodeBundle -jobs 4 build
+            -derivedDataPath .build/XcodeBundle -jobs 4 build 2>&1 \
+            | tee .build/xcodebuild.log \
+            | xcbeautify --quiet --disable-logging --renderer github-actions
+
+      # Quiet mode hides unannotated build-phase output, including the reason
+      # a script phase failed. Keep the full log for that case.
+      - name: Show raw build log
+        if: failure()
+        run: tail -n 300 .build/xcodebuild.log
+
+      - name: Upload raw build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: .build/xcodebuild.log
 
       - name: Verify bundle
         run: |
@@ -68,15 +89,37 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
+      - name: Install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
+
       - name: Toolchain versions
-        run: xcodebuild -version
+        run: |
+          xcodebuild -version
+          xcbeautify --version
 
       - name: Build vphone-launchpad.app
         run: |
+          set -o pipefail
+          mkdir -p .build
           xcodebuild -project VPhoneLaunchpad/VPhoneLaunchpad.xcodeproj \
             -scheme VPhoneLaunchpad -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
-            -derivedDataPath .build/XcodeLaunchpad build
+            -derivedDataPath .build/XcodeLaunchpad build 2>&1 \
+            | tee .build/xcodebuild.log \
+            | xcbeautify --quiet --disable-logging --renderer github-actions
+
+      # Quiet mode hides unannotated build-phase output, including the reason
+      # a script phase failed. Keep the full log for that case.
+      - name: Show raw build log
+        if: failure()
+        run: tail -n 300 .build/xcodebuild.log
+
+      - name: Upload raw build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log-launchpad
+          path: .build/xcodebuild.log
 
       # The asset name must not match Launchpad's own `^VPhone-.+\.zip$`
       # bundle asset pattern.
