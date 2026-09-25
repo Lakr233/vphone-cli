@@ -5,7 +5,13 @@ import NIOPosix
 import NIOWebSocket
 import VphonedNative
 
-vp_native_bootstrap_cached_binary()
+let mode = vp_native_process_mode()
+if mode != 1 {
+    guard mode == 0 else { exit(64) }
+    vp_native_bootstrap_cached_binary()
+    exit(vp_native_run_proxy())
+}
+guard vp_native_watch_proxy() == 0 else { exit(1) }
 vp_vcam_start()
 GuestIrisinInstaller.refreshBootstrapOnStartup()
 

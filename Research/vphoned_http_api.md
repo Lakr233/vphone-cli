@@ -220,8 +220,23 @@ message.
 ## Connection failure behavior
 
 A dropped HTTP or WebSocket connection closes only that request channel. The
-guest launchd plist keeps vphoned alive and restarts it if the daemon itself
-exits. Host socket writes use `F_SETNOSIGPIPE`, so a guest disconnect becomes
+guest launchd plist starts a small vphoned proxy. It uses `posix_spawn` to
+start the same signed executable with `--io`, then waits for and reaps that
+worker. The worker owns VSOCK 1338 and 1339 and all API state. The proxy
+restarts an unexpectedly exited worker with bounded backoff, and forwards
+shutdown to it. A pipe makes the worker exit if launchd kills the proxy, so
+the old worker cannot retain the ports after launchd starts a replacement.
+The proxy never initializes NIO, IcliKit, or the camera server under its
+6 MB per-process Jetsam limit. A successful `agent.apply_update` worker exit
+makes the proxy exit so launchd can restart the updated cached binary. If a
+cached worker fails before binding, the bundled-binary fallback remains in
+effect. On a 26.6.2 VM, the proxy's physical footprint stayed near 1.4 MB
+through 30 health requests and six app listings; the worker served those
+requests without a PID change. Killing the proxy caused the worker to leave
+and launchd to start one new proxy/worker pair. The worker's Jetsam snapshot
+reported no per-process limit.
+
+Host socket writes use `F_SETNOSIGPIPE`, so a guest disconnect becomes
 an ordinary error instead of terminating `vphone-vm`. The host HTTP client
 also times out stalled reads and writes. Camera frames use a duplicated
 descriptor for each in-flight send; the original descriptor remains owned by
