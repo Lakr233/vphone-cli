@@ -5,8 +5,8 @@ import Foundation
 /// Installs one VPhone.bundle release into the root-owned store.
 enum VPhoneLaunchpadHelperBundleInstaller {
     static func install(version: String, archive: FileHandle, sha256: String) throws {
-        guard VPhoneLaunchpadNames.isValidVersion(version) else {
-            throw VPhoneLaunchpadHelperError("\"\(version)\" is not a valid bundle version.")
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(version) else {
+            throw VPhoneLaunchpadHelperError("VPhone.bundle \(version) is not supported. Use \(VPhoneLaunchpadNames.minimumBundleVersion) or newer.")
         }
         let expected = sha256.lowercased().replacingOccurrences(of: "sha256:", with: "")
         guard expected.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
@@ -36,12 +36,20 @@ enum VPhoneLaunchpadHelperBundleInstaller {
         try runTool("/usr/bin/ditto", ["-x", "-k", "--noqtn", archiveURL.path, extracted.path])
         let bundle = extracted.appendingPathComponent("VPhone.bundle", isDirectory: true)
         try requireDirectory(bundle, "The download does not contain VPhone.bundle. Download it again.")
-        for name in VPhoneLaunchpadBundleStore.pinnedExecutables {
+        for name in VPhoneLaunchpadBundleStore.pinnedExecutables + ["vphone-escalator"] {
             let executable = bundle.appendingPathComponent("Contents/MacOS/\(name)")
             try requireRegularFile(executable, "VPhone.bundle is missing \(name). Download it again.")
         }
 
         try VPhoneLaunchpadHelperCodeCheck.requireValidBundle(bundle)
+        let infoURL = bundle.appendingPathComponent("Contents/Info.plist")
+        let info = try PropertyListSerialization.propertyList(from: Data(contentsOf: infoURL), format: nil)
+        let bundleVersion = (info as? [String: Any])?["CFBundleShortVersionString"] as? String
+        guard let bundleVersion, VPhoneLaunchpadNames.isCompatibleBundleVersion(bundleVersion),
+              version == bundleVersion || version == "\(bundleVersion)-local"
+        else {
+            throw VPhoneLaunchpadHelperError("VPhone.bundle version does not match \(version). Download it again.")
+        }
         var cdhashes: [String: String] = [:]
         for name in VPhoneLaunchpadBundleStore.pinnedExecutables {
             cdhashes[name] = try VPhoneLaunchpadHelperCodeCheck.cdhash(

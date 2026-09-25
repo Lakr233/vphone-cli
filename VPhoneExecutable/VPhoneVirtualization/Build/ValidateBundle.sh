@@ -33,7 +33,7 @@ require_signed_macho() {
     }
 }
 
-for name in vphone-vm vphone-cli VPhoneEscalator libswiftCompatibilitySpan.vphone.dylib; do
+for name in vphone-vm vphone-cli vphone-escalator libswiftCompatibilitySpan.vphone.dylib; do
     require_signed_macho "$macos/$name"
 done
 for name in vphoned launchdhook-vphone.dylib SystemHook-vphone.dylib libcamfix.dylib libvlocation.dylib \
@@ -44,7 +44,7 @@ for name in vphoned.plist libcamfix.plist libvcamcaptured.plist; do
     [[ -f "$guest/$name" ]] || { print -u2 "Missing guest configuration: $name"; exit 1; }
 done
 
-for name in vphoned vphoned.signed vphone-app VPhoneAMFIAllow vphone-archive icli vpregister \
+for name in vphoned vphoned.signed vphone-app VPhoneAMFIAllow VPhoneEscalator vphone-archive icli vpregister \
     vphone-ask-for-permission libcamfix.dylib libvlocation.dylib libvcamcaptured.dylib launchdhook-vphone.dylib \
     SystemHook-vphone.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: Contents/MacOS/$name"; exit 1; }
@@ -101,7 +101,7 @@ daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$guest/vphon
     print -u2 "vphoned has the wrong entitlements"
     exit 1
 }
-for name in vphone-cli VPhoneEscalator; do
+for name in vphone-cli vphone-escalator; do
     process_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/$name" 2>/dev/null || true)"
     [[ "$process_entitlements" != *'com.apple.private.virtualization'* &&
         "$process_entitlements" != *'com.apple.CommCenter.fine-grained'* ]] || {
@@ -110,7 +110,7 @@ for name in vphone-cli VPhoneEscalator; do
     }
 done
 
-for name in vphone-vm vphone-cli VPhoneEscalator; do
+for name in vphone-vm vphone-cli vphone-escalator; do
     /usr/bin/otool -L "$macos/$name" | /usr/bin/awk 'NR > 1 {print $1}' |
     while IFS= read -r dependency; do
         case "$dependency" in

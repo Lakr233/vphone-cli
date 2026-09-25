@@ -73,12 +73,14 @@ extension VPhoneMenuController {
         }
         let close = alert.addButton(withTitle: VPhoneLocalization.text("Close"))
         close.isEnabled = false
+        // NSAlert places the accessory 16 points from each edge; inset its
+        // contents another 6 points to align with the alert's text columns.
         let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 52))
         let statusLabel = NSTextField(labelWithString: VPhoneLocalization.text("Preparing bootstrap…"))
-        statusLabel.frame = NSRect(x: 0, y: 26, width: 360, height: 22)
+        statusLabel.frame = NSRect(x: 6, y: 26, width: 348, height: 22)
         statusLabel.lineBreakMode = .byTruncatingMiddle
         accessory.addSubview(statusLabel)
-        let indicator = NSProgressIndicator(frame: NSRect(x: 0, y: 4, width: 360, height: 16))
+        let indicator = NSProgressIndicator(frame: NSRect(x: 6, y: 4, width: 348, height: 16))
         indicator.style = .bar
         indicator.isIndeterminate = true
         indicator.startAnimation(nil)
@@ -95,7 +97,9 @@ extension VPhoneMenuController {
                 updateBootstrapUninstallAvailability(
                     available: control.isConnected && control.guestCapabilities.contains("bootstrap_uninstall"),
                 )
-                indicator.stopAnimation(nil)
+                if indicator.isIndeterminate {
+                    indicator.stopAnimation(nil)
+                }
                 close.isEnabled = true
             }
             let poller = Task {
@@ -109,9 +113,12 @@ extension VPhoneMenuController {
             do {
                 let result = try await control.installBootstrap(layout: layout, localURL: localURL)
                 poller.cancel()
+                await poller.value
                 let version = result["version"] as? String ?? ""
                 let root = result["jbroot"] as? String ?? ""
                 indicator.isIndeterminate = false
+                indicator.minValue = 0
+                indicator.maxValue = 100
                 indicator.doubleValue = 100
                 statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installed")
                 alert.informativeText = if result["service_start_warning"] as? String != nil {
@@ -125,6 +132,7 @@ extension VPhoneMenuController {
                 }
             } catch {
                 poller.cancel()
+                await poller.value
                 statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installation failed")
                 alert.alertStyle = .warning
                 alert.informativeText = if localURL != nil {

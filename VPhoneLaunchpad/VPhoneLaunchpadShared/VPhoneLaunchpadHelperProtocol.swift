@@ -42,7 +42,7 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
     func removeBundle(authorization: Data, version: String, reply: @escaping @Sendable (String?) -> Void)
 
     /// Allows only the installed bundle's receipt-pinned vphone-vm through
-    /// AMFI, using that bundle's VPhoneEscalator as root.
+    /// AMFI, using that bundle's vphone-escalator as root.
     func allowVirtualMachine(authorization: Data, bundleVersion: String, reply: @escaping @Sendable (String?) -> Void)
 
     /// Runs `vphone-cli cfw install` from a store bundle as root, on behalf of

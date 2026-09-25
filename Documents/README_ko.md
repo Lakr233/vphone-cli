@@ -14,7 +14,7 @@ Apple Silicon Mac에서 가상 iPhone을 만들고 실행합니다. vphone-cli�
 
 ## 시작하기
 
-macOS 15 이상을 실행하는 물리 Apple Silicon Mac에서는 공증된 [vphone-launchpad 2.0.6](https://github.com/Lakr233/vphone-cli/releases/download/2.0.6/vphone-launchpad-2.0.6-notarized.zip)를 사용하세요. 릴리스 버전을 실행할 때 Xcode, Python, Homebrew는 필요하지 않습니다.
+macOS 15 이상을 실행하는 물리 Apple Silicon Mac에서는 공증된 [vphone-launchpad 2.0.8](https://github.com/Lakr233/vphone-cli/releases/download/2.0.8/vphone-launchpad-2.0.8-notarized.zip)를 사용하세요. 릴리스 버전을 실행할 때 Xcode, Python, Homebrew는 필요하지 않습니다.
 
 1. macOS 복구 환경에서 `csrutil enable --without debug`와 `csrutil allow-research-guests enable`을 실행한 다음 재시동하세요. 자세한 내용은 [호스트 설정](Guides/host-setup.md)을 참고하세요.
 2. 압축을 풀고 앱을 여세요. **Host Setup**의 안내에 따라 개발자 도구 접근을 허용하고 권한 있는 도우미를 설치하세요.

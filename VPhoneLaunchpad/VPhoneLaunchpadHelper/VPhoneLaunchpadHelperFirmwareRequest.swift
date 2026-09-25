@@ -19,8 +19,8 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         callerUID: uid_t,
         callerGID: gid_t,
     ) throws {
-        guard VPhoneLaunchpadNames.isValidVersion(bundleVersion) else {
-            throw VPhoneLaunchpadHelperError("\"\(bundleVersion)\" is not a valid bundle version.")
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(bundleVersion) else {
+            throw VPhoneLaunchpadHelperError("VPhone.bundle \(bundleVersion) is not supported. Use \(VPhoneLaunchpadNames.minimumBundleVersion) or newer.")
         }
         guard let receipt = VPhoneLaunchpadBundleReceipt.load(version: bundleVersion) else {
             throw VPhoneLaunchpadHelperError("VPhone.bundle \(bundleVersion) is not installed. Install it in Core Bundle, then try again.")

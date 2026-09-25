@@ -101,10 +101,10 @@ final class VPhoneLaunchpadCoreBundle {
         get {
             access(keyPath: \.activeVersion)
             let stored = UserDefaults.standard.string(forKey: Self.activeVersionKey)
-            if let stored, installed.contains(where: { $0.version == stored }) {
+            if let stored, installed.contains(where: { $0.version == stored && VPhoneLaunchpadNames.isCompatibleBundleVersion($0.version) }) {
                 return stored
             }
-            return installed.first?.version
+            return installed.first { VPhoneLaunchpadNames.isCompatibleBundleVersion($0.version) }?.version
         }
         set {
             withMutation(keyPath: \.activeVersion) {
@@ -174,13 +174,28 @@ final class VPhoneLaunchpadCoreBundle {
             .compactMap(VPhoneLaunchpadBundleReceipt.load)
             .sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }
         installed = receipts.map { receipt in
-            installed.first { $0.version == receipt.version && $0.receipt == receipt } ?? Installed(receipt: receipt)
+            var item = installed.first { $0.version == receipt.version && $0.receipt == receipt }
+                ?? Installed(receipt: receipt)
+            if !VPhoneLaunchpadNames.isCompatibleBundleVersion(receipt.version) {
+                item.policy = .failed
+                item.preflight = .failed
+                item.preflightDetail = String(localized: "Requires VPhone.bundle \(VPhoneLaunchpadNames.minimumBundleVersion) or newer.")
+            }
+            return item
         }
     }
 
     /// Adds the execution policy exception, allows an AMFI-refused VM through
     /// the root helper, and runs host preflight again for confirmation.
     func verify(_ version: String) async {
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(version) else {
+            update(version) {
+                $0.policy = .failed
+                $0.preflight = .failed
+                $0.preflightDetail = String(localized: "Requires VPhone.bundle \(VPhoneLaunchpadNames.minimumBundleVersion) or newer.")
+            }
+            return
+        }
         update(version) {
             $0.policy = .running
             $0.preflight = .running
@@ -335,6 +350,7 @@ final class VPhoneLaunchpadCoreBundle {
     // MARK: - Use and remove
 
     func use(_ version: String) async {
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(version) else { return }
         activeVersion = version
         await verify(version)
     }

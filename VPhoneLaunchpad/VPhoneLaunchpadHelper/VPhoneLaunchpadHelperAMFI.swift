@@ -13,7 +13,7 @@ enum VPhoneLaunchpadHelperAMFI {
 
         try VPhoneLaunchpadHostPolicy.requireReady()
 
-        guard VPhoneLaunchpadNames.isValidVersion(bundleVersion),
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(bundleVersion),
               let receipt = VPhoneLaunchpadBundleReceipt.load(version: bundleVersion)
         else {
             throw VPhoneLaunchpadHelperError("VPhone.bundle \(bundleVersion) is not installed. Reinstall it, then try again.")
@@ -21,7 +21,7 @@ enum VPhoneLaunchpadHelperAMFI {
 
         let bundle = VPhoneLaunchpadBundleStore.bundle(version: bundleVersion)
         let vm = VPhoneLaunchpadBundleStore.executable(version: bundleVersion, named: "vphone-vm")
-        let escalator = VPhoneLaunchpadBundleStore.executable(version: bundleVersion, named: "VPhoneEscalator")
+        let escalator = VPhoneLaunchpadBundleStore.executable(version: bundleVersion, named: "vphone-escalator")
         try VPhoneLaunchpadHelperCodeCheck.requireValidBundle(bundle)
         try VPhoneLaunchpadHelperCodeCheck.requireCDHash(vm, receipt.cdhashes["vphone-vm"])
 
@@ -31,7 +31,7 @@ enum VPhoneLaunchpadHelperAMFI {
               info.st_uid == 0,
               info.st_mode & 0o022 == 0
         else {
-            throw VPhoneLaunchpadHelperError("VPhoneEscalator is missing or is not root-owned. Reinstall VPhone.bundle.")
+            throw VPhoneLaunchpadHelperError("vphone-escalator is missing or is not root-owned. Reinstall VPhone.bundle.")
         }
 
         let process = Process()
@@ -44,13 +44,13 @@ enum VPhoneLaunchpadHelperAMFI {
         do {
             try process.run()
         } catch {
-            throw VPhoneLaunchpadHelperError("Unable to start VPhoneEscalator: \(error.localizedDescription)")
+            throw VPhoneLaunchpadHelperError("Unable to start vphone-escalator: \(error.localizedDescription)")
         }
         let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         process.waitUntilExit()
         guard process.terminationReason == .exit, process.terminationStatus == 0 else {
-            throw VPhoneLaunchpadHelperError(text.isEmpty ? "VPhoneEscalator failed. Check the host's SIP settings." : text)
+            throw VPhoneLaunchpadHelperError(text.isEmpty ? "vphone-escalator failed. Check the host's SIP settings." : text)
         }
     }
 }

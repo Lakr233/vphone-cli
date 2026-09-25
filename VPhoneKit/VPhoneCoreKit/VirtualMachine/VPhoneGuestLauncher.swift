@@ -20,7 +20,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
 
         case let .blockedByAMFI(guest, cdHash):
             let helper = guest.deletingLastPathComponent()
-                .appendingPathComponent("VPhoneEscalator")
+                .appendingPathComponent("vphone-escalator")
             return """
             AMFI blocked vphone-vm, so the VM could not start.
 

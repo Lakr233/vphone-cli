@@ -33,7 +33,7 @@ nonisolated struct VPhoneLaunchpadRelease: Identifiable, Hashable, Sendable {
         decoder.dateDecodingStrategy = .iso8601
         let payload = try decoder.decode([Payload].self, from: data)
         return payload.compactMap { release in
-            guard !release.draft, VPhoneLaunchpadNames.isValidVersion(release.tag_name) else {
+            guard !release.draft, VPhoneLaunchpadNames.isCompatibleBundleVersion(release.tag_name) else {
                 return nil
             }
             let asset = release.assets.first {

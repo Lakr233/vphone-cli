@@ -1,4 +1,4 @@
-// VPhoneEscalator — let an ad-hoc signed binary carry Apple-private
+// vphone-escalator — let an ad-hoc signed binary carry Apple-private
 // entitlements, without writing a single byte into anyone's __TEXT.
 //
 // This is the project's copy of github.com/Lakr233/amfi-allow (MIT), built
@@ -111,6 +111,8 @@
 #ifndef PREFS_PATH
 #define PREFS_PATH "/Library/Preferences/com.apple.security.coderequirements.plist"
 #endif
+// Persistent preference key; changing the executable name must not orphan
+// hashes already written under this key.
 #define MANAGED_KEY CFSTR("VPhoneEscalator")
 
 #define SCAN_INSNS 64 // +sharedManager is short; this is generous
@@ -639,7 +641,7 @@ static int update_allow_preferences(int count, char **paths) {
         if (!base || CFGetTypeID(base) != CFStringGetTypeID() || !valid_hashes(saved) ||
             !original_entitlements ||
             CFGetTypeID(original_entitlements) != CFBooleanGetTypeID()) {
-            fprintf(stderr, "error: invalid %s metadata in %s\n", "VPhoneEscalator", PREFS_PATH);
+            fprintf(stderr, "error: invalid %s metadata in %s\n", "vphone-escalator", PREFS_PATH);
             CFRelease(prefs);
             return 1;
         }
@@ -648,7 +650,7 @@ static int update_allow_preferences(int count, char **paths) {
         bool matches = current && CFEqual(current, expected);
         CFRelease(expected);
         if (!matches) {
-            fprintf(stderr, "error: Entitlements changed since VPhoneEscalator wrote it\n");
+            fprintf(stderr, "error: Entitlements changed since vphone-escalator wrote it\n");
             CFRelease(hashes);
             CFRelease(prefs);
             return 1;
@@ -782,7 +784,7 @@ static int remove_allow_preferences(bool *changed) {
     CFDictionaryRef managed = CFDictionaryGetValue(prefs, MANAGED_KEY);
     if (managed) {
         if (CFGetTypeID(managed) != CFDictionaryGetTypeID()) {
-            fprintf(stderr, "error: invalid VPhoneEscalator metadata\n");
+            fprintf(stderr, "error: invalid vphone-escalator metadata\n");
             CFRelease(prefs);
             return 0;
         }
@@ -792,7 +794,7 @@ static int remove_allow_preferences(bool *changed) {
         if (!base || CFGetTypeID(base) != CFStringGetTypeID() || !valid_hashes(hashes) ||
             !had_entitlements ||
             CFGetTypeID(had_entitlements) != CFBooleanGetTypeID()) {
-            fprintf(stderr, "error: invalid VPhoneEscalator metadata\n");
+            fprintf(stderr, "error: invalid vphone-escalator metadata\n");
             CFRelease(prefs);
             return 0;
         }
@@ -802,7 +804,7 @@ static int remove_allow_preferences(bool *changed) {
                        CFEqual(current, expected);
         CFRelease(expected);
         if (!matches) {
-            fprintf(stderr, "error: Entitlements changed since VPhoneEscalator wrote it; refusing to remove other rules\n");
+            fprintf(stderr, "error: Entitlements changed since vphone-escalator wrote it; refusing to remove other rules\n");
             CFRelease(prefs);
             return 0;
         }
@@ -812,9 +814,9 @@ static int remove_allow_preferences(bool *changed) {
             CFDictionaryRemoveValue(prefs, CFSTR("Entitlements"));
         CFDictionaryRemoveValue(prefs, MANAGED_KEY);
         if (!write_prefs(prefs)) { CFRelease(prefs); return 0; }
-        printf("removed VPhoneEscalator cdhashes from %s\n", PREFS_PATH);
+        printf("removed vphone-escalator cdhashes from %s\n", PREFS_PATH);
     } else {
-        printf("no VPhoneEscalator entries to remove\n");
+        printf("no vphone-escalator entries to remove\n");
         CFRelease(prefs);
         return 1;
     }
@@ -871,9 +873,9 @@ int main(int argc, char **argv) {
 
     fprintf(stderr,
             "usage:\n"
-            "  VPhoneEscalator status\n"
-            "  sudo VPhoneEscalator allow [--hold N] <binary> [<binary>...]\n"
-            "  sudo VPhoneEscalator off\n"
+            "  vphone-escalator status\n"
+            "  sudo vphone-escalator allow [--hold N] <binary> [<binary>...]\n"
+            "  sudo vphone-escalator off\n"
             "\n"
             "Allow both signed vphone-vm copies after each build.\n");
     return 2;

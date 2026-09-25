@@ -171,7 +171,9 @@ final class VPhoneLaunchpadModel {
             setupCompleted = true
         }
         let after = sections
-        if selectNewest || after.count > before.count || !after.contains(selection) {
+        if selectNewest {
+            selection = !host.requiredPassed ? .hostSetup : bundles.isReady ? .machines : .coreBundle
+        } else if after.count > before.count || !after.contains(selection) {
             selection = after.last ?? .hostSetup
         }
     }

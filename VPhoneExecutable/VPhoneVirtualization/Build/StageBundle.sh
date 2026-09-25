@@ -56,7 +56,7 @@ fi
 /bin/mkdir -p "$macos" "$guest"
 /bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
-/bin/cp "$amfi_products/VPhoneEscalator" "$macos/VPhoneEscalator"
+/bin/cp "$amfi_products/vphone-escalator" "$macos/vphone-escalator"
 /bin/cp "$daemon_products/vphoned" "$guest/vphoned"
 /bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$guest/vphoned.plist"
 /bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$guest/launchdhook-vphone.dylib"
@@ -88,7 +88,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
-/usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"
+/usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"
 /usr/bin/codesign --force --sign - "$bundle"

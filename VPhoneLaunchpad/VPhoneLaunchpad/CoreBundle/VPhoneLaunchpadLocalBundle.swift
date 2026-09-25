@@ -96,8 +96,8 @@ nonisolated struct VPhoneLaunchpadLocalBundle: Sendable {
             throw notVPhoneBundle(source)
         }
         let version = shortVersion + versionSuffix
-        guard VPhoneLaunchpadNames.isValidVersion(version) else {
-            throw VPhoneLaunchpadError(String(localized: "VPhone.bundle has an unsupported version \"\(shortVersion)\"."))
+        guard VPhoneLaunchpadNames.isCompatibleBundleVersion(version) else {
+            throw VPhoneLaunchpadError(String(localized: "VPhone.bundle \(shortVersion) is not supported. Use version \(VPhoneLaunchpadNames.minimumBundleVersion) or newer."))
         }
         return version
     }

@@ -1,4 +1,4 @@
-MARKETING_VERSION = 0.1.0
+MARKETING_VERSION = 2.0.8
 // Bump whenever the helper changes. The app blesses the helper again when the
 // installed helper's version or bytes differ from the copy it embeds.
-CURRENT_PROJECT_VERSION = 4
+CURRENT_PROJECT_VERSION = 5

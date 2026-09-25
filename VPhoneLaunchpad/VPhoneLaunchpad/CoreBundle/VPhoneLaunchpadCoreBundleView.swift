@@ -184,8 +184,9 @@ struct VPhoneLaunchpadCoreBundleView: View {
             .help(bundle.preflightDetail)
             Menu {
                 Button("Use This Version") { Task { await bundles.use(bundle.version) } }
-                    .disabled(isActive)
+                    .disabled(isActive || !VPhoneLaunchpadNames.isCompatibleBundleVersion(bundle.version))
                 Button("Run Preflight Again") { Task { await bundles.verify(bundle.version) } }
+                    .disabled(!VPhoneLaunchpadNames.isCompatibleBundleVersion(bundle.version))
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([VPhoneLaunchpadBundleStore.bundle(version: bundle.version)])
                 }

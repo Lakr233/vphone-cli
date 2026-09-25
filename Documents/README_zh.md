@@ -14,7 +14,7 @@
 
 ## 开始使用
 
-推荐在运行 macOS 15 或更新版本的实体 Apple Silicon Mac 上使用已公证的 [vphone-launchpad 2.0.6](https://github.com/Lakr233/vphone-cli/releases/download/2.0.6/vphone-launchpad-2.0.6-notarized.zip)。运行发布版无需 Xcode、Python 或 Homebrew。
+推荐在运行 macOS 15 或更新版本的实体 Apple Silicon Mac 上使用已公证的 [vphone-launchpad 2.0.8](https://github.com/Lakr233/vphone-cli/releases/download/2.0.8/vphone-launchpad-2.0.8-notarized.zip)。运行发布版无需 Xcode、Python 或 Homebrew。
 
 1. 在 macOS 恢复模式中执行 `csrutil enable --without debug` 和 `csrutil allow-research-guests enable`，然后重新启动。详见[宿主机设置](Guides/host-setup.md)。
 2. 解压并打开 App，按 **Host Setup** 的提示授予开发者工具权限并安装特权辅助程序。

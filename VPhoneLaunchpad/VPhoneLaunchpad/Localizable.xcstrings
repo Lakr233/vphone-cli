@@ -6825,6 +6825,40 @@
         }
       }
     },
+    "Requires VPhone.bundle %@ or newer." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires VPhone.bundle %@ or newer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %@ 以降が必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %@ 이상이 필요합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cần VPhone.bundle phiên bản %@ trở lên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 VPhone.bundle %@ 或更新版本。"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "en" : {
@@ -9813,6 +9847,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法移除 VPhone.bundle %@。"
+          }
+        }
+      }
+    },
+    "VPhone.bundle %1$@ is not supported. Use version %2$@ or newer." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %1$@ is not supported. Use version %2$@ or newer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %1$@ は非対応です。%2$@ 以降を使用してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %1$@은(는) 지원되지 않습니다. %2$@ 이상을 사용하세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone.bundle %1$@ không được hỗ trợ. Hãy dùng phiên bản %2$@ trở lên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持 VPhone.bundle %1$@。请使用 %2$@ 或更新版本。"
           }
         }
       }

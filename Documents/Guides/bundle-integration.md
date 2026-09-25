@@ -10,7 +10,7 @@ executables and resources, not a macOS app or a dynamically loaded plug-in.
 | --- | --- |
 | `Contents/MacOS/vphone-cli` | Unentitled command entry point |
 | `Contents/MacOS/vphone-vm` | VM and window process; private virtualization entitlements |
-| `Contents/MacOS/VPhoneEscalator` | AMFI allowlist tool for the current VM cdhash |
+| `Contents/MacOS/vphone-escalator` | AMFI allowlist tool for the current VM cdhash |
 | `Contents/MacOS/libswiftCompatibilitySpan.vphone.dylib` | Swift back-deployment library for `vphone-vm` on macOS 15 |
 | `Contents/Resources/guest-resources/vphoned` | Pre-signed guest daemon with its own entitlements; the bundle contains no unsigned copy |
 | `Contents/Resources/guest-resources/*.dylib` | Guest libraries: launchd hook, SystemHook, camera hooks and the GPU compiler plugin |
@@ -20,6 +20,8 @@ executables and resources, not a macOS app or a dynamically loaded plug-in.
 `Contents/MacOS` holds only programs that run on the Mac.
 `guest-resources` holds only files installed into the guest; every Mach-O in
 it is built for iOS. `ValidateBundle.sh` enforces both rules.
+Launchpad 2.0.8 requires a bundle version of at least 2.0.8 and the
+`vphone-escalator` executable. It does not load older bundle layouts.
 
 All executable payloads use ad hoc code signatures. Only the required child
 processes carry private entitlements. The bundle has no `CFBundleExecutable`,
