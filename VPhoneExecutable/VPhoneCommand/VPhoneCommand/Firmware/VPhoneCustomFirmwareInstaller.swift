@@ -278,18 +278,23 @@ struct VPhoneCustomFirmwareInstaller {
             let paths = try CustomFirmwareDaemons.cryptexPaths(
                 buildManifest: restore.appendingPathComponent("iPhone-BuildManifest.plist"),
             )
-            let encrypted = restore.appendingPathComponent(paths.systemOS)
+            let systemImage = restore.appendingPathComponent(paths.systemOS)
             let appImage = restore.appendingPathComponent(paths.appOS)
-            let plain = work.appendingPathComponent("SystemOS.dmg")
-            let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: encrypted) }
-            try tool(
-                "/usr/bin/aea",
-                [
-                    "decrypt", "-i", encrypted.path,
-                    "-o", plain.path, "-key-value", key,
-                ],
-                quiet: true,
-            )
+            // `restore --offline` decrypts the image in place and keeps its
+            // .aea name, so the file may already be a plain disk image.
+            var plain = systemImage
+            if try VPhoneRestoreOperations.isAEAEncrypted(systemImage) {
+                plain = work.appendingPathComponent("SystemOS.dmg")
+                let key = try vphoneRunBlocking { try await VPhoneAEA.symmetricKey(of: systemImage) }
+                try tool(
+                    "/usr/bin/aea",
+                    [
+                        "decrypt", "-i", systemImage.path,
+                        "-o", plain.path, "-key-value", key,
+                    ],
+                    quiet: true,
+                )
+            }
             let osMount = work.appendingPathComponent("mnt-os")
             let appMount = work.appendingPathComponent("mnt-app")
             try fm.createDirectory(at: osMount, withIntermediateDirectories: true)
