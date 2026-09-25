@@ -39,6 +39,7 @@ vphone-cli vm launch myphone
 ## 커스텀 펌웨어 Bootstrap
 
 VM을 실행한 뒤 macOS 메뉴 막대에서 **Guest > Install Bootstrap…**을 선택하고 환경 레이아웃을 고르세요. 그러면 게스트에 Irisin이 설치됩니다.
+Option 키를 누른 채 이 메뉴를 열면 로컬 Irisin `.deb` 파일을 선택할 수 있습니다. **Uninstall Bootstrap…**의 Option 메뉴는 rootless와 RootHide 환경을 모두 삭제하지만 게스트를 재시동하지 않습니다. 일반 제거는 삭제 후 재시동합니다.
 
 환경을 처음 준비할 때는 Irisin에서 `apt`와 `bash`를 선택하세요. **Install** 버튼을 길게 누른 다음 **Bootstrap Install**을 선택하세요. 이 모드는 이번 설치에 포함된 모든 패키지를 먼저 압축 해제한 뒤 설치 절차를 다시 실행합니다. 따라서 `debianutils`에는 `bash`가 필요하지만 `bash`에는 이미 설정된 `debianutils`가 필요한 초기 의존성 순환을 우회할 수 있습니다. 첫 준비가 끝나면 일반 설치 방식을 사용하면 됩니다.
 

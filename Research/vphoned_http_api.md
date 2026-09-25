@@ -31,6 +31,13 @@ before IcliKit copies it into a container, registers it, and owns rollback.
 `POST /v1/bootstrap/install` (or RPC method `bootstrap.install`) accepts
 `{"layout":"rootless"}` or `{"layout":"roothide"}` and installs the latest
 published `Lakr233/Irisin` release as the selected bootstrap's initial app.
+An optional `package_path` selects a guest-uploaded Irisin `.deb` instead.
+The path must be `/var/root/Library/Caches/vphoned-irisin-<UUID>.deb`; vphoned
+opens it without following symlinks, requires a regular file of at most 64 MiB,
+and validates the Debian package name, architecture, app version, executables,
+and launchd plist before installing. The Guest menu's Option alternate opens
+a file picker, uploads the selected package, and chooses the layout. The default
+menu item retains the verified latest-release download.
 Rootless uses `/var/jb`. RootHide reuses the sole valid `.jbroot-<16 hex>` under
 `/var/containers/Bundle/Application`, or creates
 `.jbroot-000114514191980C` when none exists. The selected stem is zero padded
@@ -79,21 +86,23 @@ The status reports `phase` and, during download, `downloaded_bytes` and
 `total_bytes` when the server provides a length. The sheet shows the download
 progress, then the installation result without closing.
 
-`GET /v1/bootstrap/inspect` (RPC `bootstrap.inspect`) reports the layout and
-path recorded by a completed vphoned installation, or `installed: false`.
+`GET /v1/bootstrap/inspect` (RPC `bootstrap.inspect`) reports `roots`, the
+rootless `/var/jb` and all valid RootHide `.jbroot-<16 hex>` environments found
+on the guest, including the completed vphoned root if it is now missing.
 `POST /v1/bootstrap/uninstall` (RPC `bootstrap.uninstall`) requires
-`{"jbroot":"<path from inspect>","force":true}`. It accepts only the
-rootless `/var/jb` directory or a valid RootHide `.jbroot-<16 hex>` directory
-recorded by vphoned. A rootless `/var/jb` symlink is accepted only when its
+`{"roots":["<paths from inspect>"],"force":true}` and removes all the listed
+environments in one operation. The paths must still match the current
+inspection result. A single `jbroot` is accepted for older clients only when
+it is the only environment. A rootless `/var/jb` symlink is accepted only when its
 target is a physical directory under `/private/preboot`; the target and link
 are both removed. The daemon rejects a changed path and symlinked child
-directories. It unloads the bootstrap's launch daemons, unregisters apps in
-its `Applications` directory, deletes the bootstrap root, marks the completion
-record uninstalled, then schedules a full guest reboot. If cleanup fails, the
+directories. It unloads each bootstrap's launch daemons, unregisters its apps,
+deletes both rootless and RootHide roots, marks the completion record uninstalled,
+then schedules a full guest reboot. `"reboot":false` skips the reboot; holding
+Option on the Guest menu's uninstall item selects this mode. If cleanup fails, the
 installed record remains so the operation can be retried. Irisin's mobile
 Documents data outside the bootstrap is retained. Guest > Uninstall Bootstrap…
-shows the recorded path
-in a destructive confirmation alert before sending the request.
+shows every path in a destructive confirmation alert before sending the request.
 
 ## HTTP and WebSocket contract
 

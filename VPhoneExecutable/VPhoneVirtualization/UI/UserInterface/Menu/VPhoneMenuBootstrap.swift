@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Bootstrap Installation and Removal
 
@@ -6,17 +7,44 @@ import AppKit
 /// vphoned's progress while it downloads, extracts and registers it.
 extension VPhoneMenuController {
     func updateBootstrapAvailability(available: Bool) {
-        installBootstrapItem?.isEnabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
+        let enabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
+        installBootstrapItem?.isEnabled = enabled
+        installBootstrapFromFileItem?.isEnabled = enabled
     }
 
     func updateBootstrapUninstallAvailability(available: Bool) {
-        uninstallBootstrapItem?.isEnabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
+        let enabled = available && !isInstallingBootstrap && !isUninstallingBootstrap
+        uninstallBootstrapItem?.isEnabled = enabled
+        uninstallBootstrapNoRestartItem?.isEnabled = enabled
     }
 
     @objc func installBootstrap() {
+        chooseBootstrapLayout(localURL: nil)
+    }
+
+    @objc func installBootstrapFromFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "deb") ?? .data]
+        panel.prompt = VPhoneLocalization.text("Install")
+        panel.message = VPhoneLocalization.text("Choose an Irisin .deb package to install in the guest.")
+        VPhoneAlert.present(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.chooseBootstrapLayout(localURL: url)
+        }
+    }
+
+    private func chooseBootstrapLayout(localURL: URL?) {
+        let message = if let localURL {
+            VPhoneLocalization.format("Choose the bootstrap layout for %@.", localURL.lastPathComponent)
+        } else {
+            VPhoneLocalization.text("Choose the bootstrap layout. This installs the latest Irisin release once in the guest.")
+        }
         VPhoneAlert.present(
             title: "Install Bootstrap",
-            message: "Choose the bootstrap layout. This installs the latest Irisin release once in the guest.",
+            message: message,
             style: .informational,
             buttons: ["roothide", "rootless (deprecated)", "Cancel"],
         ) { [weak self] response in
@@ -26,17 +54,23 @@ extension VPhoneMenuController {
             case .alertSecondButtonReturn: layout = "rootless"
             default: return
             }
-            self?.performBootstrapInstallation(layout: layout)
+            self?.performBootstrapInstallation(layout: layout, localURL: localURL)
         }
     }
 
-    private func performBootstrapInstallation(layout: String) {
+    private func performBootstrapInstallation(layout: String, localURL: URL?) {
         isInstallingBootstrap = true
         installBootstrapItem?.isEnabled = false
+        installBootstrapFromFileItem?.isEnabled = false
         uninstallBootstrapItem?.isEnabled = false
+        uninstallBootstrapNoRestartItem?.isEnabled = false
         let alert = NSAlert()
         alert.messageText = VPhoneLocalization.text("Install Bootstrap")
-        alert.informativeText = VPhoneLocalization.text("Installing the latest Irisin release in the guest.")
+        alert.informativeText = if let localURL {
+            VPhoneLocalization.format("Installing %@ in the guest.", localURL.lastPathComponent)
+        } else {
+            VPhoneLocalization.text("Installing the latest Irisin release in the guest.")
+        }
         let close = alert.addButton(withTitle: VPhoneLocalization.text("Close"))
         close.isEnabled = false
         let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 52))
@@ -73,7 +107,7 @@ extension VPhoneMenuController {
                 }
             }
             do {
-                let result = try await control.installBootstrap(layout: layout)
+                let result = try await control.installBootstrap(layout: layout, localURL: localURL)
                 poller.cancel()
                 let version = result["version"] as? String ?? ""
                 let root = result["jbroot"] as? String ?? ""
@@ -95,6 +129,14 @@ extension VPhoneMenuController {
     }
 
     @objc func uninstallBootstrap() {
+        performBootstrapUninstall(reboot: true)
+    }
+
+    @objc func uninstallBootstrapWithoutRestart() {
+        performBootstrapUninstall(reboot: false)
+    }
+
+    private func performBootstrapUninstall(reboot: Bool) {
         guard !isInstallingBootstrap && !isUninstallingBootstrap else { return }
         isUninstallingBootstrap = true
         updateBootstrapAvailability(available: false)
@@ -103,22 +145,31 @@ extension VPhoneMenuController {
             do {
                 let installation = try await control.installedBootstrap()
                 guard installation["installed"] as? Bool == true,
-                      let root = installation["jbroot"] as? String else {
+                      let roots = installation["roots"] as? [String], !roots.isEmpty else {
                     VPhoneAlert.present(
                         title: "Uninstall Bootstrap",
-                        message: "No completed bootstrap installation was found.",
+                        message: "No bootstrap environment was found.",
                         style: .informational,
                     )
                     finishBootstrapUninstall()
                     return
                 }
+                let message = if reboot {
+                    VPhoneLocalization.format(
+                        "Permanently delete these bootstrap environments and restart the guest?\n%@",
+                        roots.joined(separator: "\n"),
+                    )
+                } else {
+                    VPhoneLocalization.format(
+                        "Permanently delete these bootstrap environments without restarting the guest?\n%@",
+                        roots.joined(separator: "\n"),
+                    )
+                }
                 VPhoneAlert.present(
                     title: "Uninstall Bootstrap",
-                    message: VPhoneLocalization.format(
-                        "Permanently delete the bootstrap at %@ and restart the guest?", root,
-                    ),
+                    message: message,
                     style: .warning,
-                    buttons: ["Delete and Restart", "Cancel"],
+                    buttons: [reboot ? "Delete and Restart" : "Delete", "Cancel"],
                 ) { response in
                     guard response == .alertFirstButtonReturn else {
                         self.finishBootstrapUninstall()
@@ -126,10 +177,12 @@ extension VPhoneMenuController {
                     }
                     Task {
                         do {
-                            _ = try await self.control.uninstallBootstrap(at: root)
+                            _ = try await self.control.uninstallBootstrap(at: roots, reboot: reboot)
                             VPhoneAlert.present(
                                 title: "Uninstall Bootstrap",
-                                message: "Bootstrap removed. The guest is restarting.",
+                                message: reboot
+                                    ? "Bootstrap removed. The guest is restarting."
+                                    : "Bootstrap removed. The guest was not restarted.",
                                 style: .informational,
                             )
                         } catch {

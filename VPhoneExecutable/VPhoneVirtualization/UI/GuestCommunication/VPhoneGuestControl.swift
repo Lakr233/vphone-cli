@@ -312,9 +312,21 @@ final class VPhoneGuestControl {
         return result["msg"] as? String ?? "Installed \(localURL.lastPathComponent)."
     }
 
-    func installBootstrap(layout: String) async throws -> [String: Any] {
+    func installBootstrap(layout: String, localURL: URL? = nil) async throws -> [String: Any] {
         guard guestCapabilities.contains("bootstrap_install") else {
             throw ControlError.unsupportedCapability("bootstrap_install")
+        }
+        if let localURL {
+            let size = try FileManager.default.attributesOfItem(atPath: localURL.path)[.size] as? Int ?? 0
+            guard localURL.pathExtension.lowercased() == "deb", size > 0, size <= 64 * 1024 * 1024 else {
+                throw ControlError.guestError("Choose an Irisin .deb file no larger than 64 MiB.")
+            }
+            let data = try Data(contentsOf: localURL, options: .mappedIfSafe)
+            let path = "/var/root/Library/Caches/vphoned-irisin-\(UUID().uuidString).deb"
+            try await createDirectory(path: "/var/root/Library/Caches")
+            try await uploadFile(path: path, data: data)
+            defer { Task { try? await deleteFile(path: path) } }
+            return try await call("bootstrap.install", params: ["layout": layout, "package_path": path])
         }
         return try await call("bootstrap.install", params: ["layout": layout])
     }
@@ -330,11 +342,11 @@ final class VPhoneGuestControl {
         return try await call("bootstrap.inspect")
     }
 
-    func uninstallBootstrap(at root: String) async throws -> [String: Any] {
+    func uninstallBootstrap(at roots: [String], reboot: Bool) async throws -> [String: Any] {
         guard guestCapabilities.contains("bootstrap_uninstall") else {
             throw ControlError.unsupportedCapability("bootstrap_uninstall")
         }
-        return try await call("bootstrap.uninstall", params: ["jbroot": root, "force": true])
+        return try await call("bootstrap.uninstall", params: ["roots": roots, "reboot": reboot, "force": true])
     }
 
     func clipboardGet() async throws -> ClipboardContent {

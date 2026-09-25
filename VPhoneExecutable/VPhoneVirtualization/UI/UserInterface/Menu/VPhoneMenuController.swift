@@ -21,7 +21,9 @@ class VPhoneMenuController {
     var connectPingItem: NSMenuItem?
     var connectGuestHashItem: NSMenuItem?
     var installBootstrapItem: NSMenuItem?
+    var installBootstrapFromFileItem: NSMenuItem?
     var uninstallBootstrapItem: NSMenuItem?
+    var uninstallBootstrapNoRestartItem: NSMenuItem?
     var isInstallingBootstrap = false
     var isUninstallingBootstrap = false
     var installPackageItem: NSMenuItem?
