@@ -62,6 +62,7 @@ fi
 /bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$guest/launchdhook-vphone.dylib"
 /bin/cp "$guest_products/systemhook/SystemHook-vphone.dylib" "$guest/SystemHook-vphone.dylib"
 /bin/cp "$guest_products/camfix/libcamfix.dylib" "$guest/libcamfix.dylib"
+/bin/cp "$guest_products/locationfix/libvlocation.dylib" "$guest/libvlocation.dylib"
 /bin/cp "$guest_products/camfix/libcamfix.plist" "$guest/libcamfix.plist"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$guest/libvcamcaptured.dylib"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$guest/libvcamcaptured.plist"

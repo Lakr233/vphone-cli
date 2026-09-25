@@ -139,6 +139,7 @@ static int vpExecve(const char *path, char *const argv[], char *const envp[]) {
 // They need no tweak loader: each installs its own Objective-C hooks.
 #define VP_CAMERA_DAEMON_HOOK "/usr/lib/libvcamcaptured.dylib"
 #define VP_CAMERA_APP_HOOK "/usr/lib/libcamfix.dylib"
+#define VP_LOCATION_APP_HOOK "/usr/lib/libvlocation.dylib"
 #define VP_AVFOUNDATION "/System/Library/Frameworks/AVFoundation.framework/AVFoundation"
 
 // A missing library is expected and stays quiet; anything else is logged.
@@ -195,6 +196,8 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     }
     if (!vpInBootstrap && !vpIsAppPath(path))
         return;
+    if (vpIsAppPath(path))
+        vpLoadLibrary("location-hook", VP_LOCATION_APP_HOOK);
     if (vpIsAppPath(path) && dlopen(VP_AVFOUNDATION, RTLD_LAZY | RTLD_NOLOAD))
         vpLoadLibrary("camera-hook", VP_CAMERA_APP_HOOK);
     const char *root = getenv("VPHONE_JB_ROOT");

@@ -667,8 +667,8 @@ struct VPhoneCustomFirmwareInstaller {
         try bundle.replaceFile(".vphoned.signed", fromFileAt: work.file("vphoned"), mode: 0o755, owner: owner)
     }
 
-    /// The launchd hook, SystemHook and the camera hooks. SystemHook loads the
-    /// camera hooks from /usr/lib without a bootstrap or tweak loader.
+    /// The launchd hook, SystemHook, camera hooks, and location hook. SystemHook
+    /// loads app hooks from /usr/lib without a bootstrap or tweak loader.
     private func installEnvironment(system: VPhoneConfinedDirectory) throws {
         for name in VPhoneGuestEnvironment.libraries {
             let source = try VPhoneGuestBinaries.resolve(name)

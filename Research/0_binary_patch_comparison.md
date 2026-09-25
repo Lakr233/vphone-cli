@@ -1412,3 +1412,13 @@ difference that a real directory in the link's place is now an error instead of 
 silent nested link. `diskutil image resize --plist | plutil -extract max raw` loses the
 shell and `plutil`: the plist is parsed in-process, starting at `<?xml` so that a warning
 on diskutil's merged stderr can no longer be handed back as the `--size` argument.
+
+## iOS 26.4 location delivery uses an app hook (2026-09-25)
+
+The guest's locationd accepts simulation requests but did not deliver a usable
+fused fix to Maps. This change adds no Apple binary patch. SystemHook loads
+`libvlocation.dylib` into app processes, where it supplies the vphoned-published
+coordinate through `CLLocationManager` for authorized clients. The location
+state is an atomically replaced JSON file, and removal restores the native
+path. Maps showed the Tokyo and Apple Park coordinates in the running 26.4 VM;
+the automatic SystemHook injection path was verified after relaunching Maps.

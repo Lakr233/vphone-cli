@@ -1,0 +1,66 @@
+name: package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build VPhone.bundle
+        env:
+          SWIFT_JOBS: "4"
+        run: |
+          set -o pipefail
+          xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
+            -configuration Release -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .build/XcodeBundle -jobs 4 build \
+            2>&1 | tee vphone-build.log
+
+      - name: Validate and package VPhone.bundle
+        run: |
+          set -euo pipefail
+          bundle=.build/XcodeBundle/Build/Products/Release/VPhone.bundle
+          zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh "$bundle"
+          ditto -c -k --keepParent "$bundle" "VPhone-${GITHUB_SHA}.zip"
+
+      - name: Build vphone-launchpad.app
+        run: |
+          set -o pipefail
+          xcodebuild -project VPhoneLaunchpad/VPhoneLaunchpad.xcodeproj \
+            -scheme VPhoneLaunchpad -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .build/XcodeLaunchpad build \
+            2>&1 | tee launchpad-build.log
+
+      - name: Package unsigned vphone-launchpad.app
+        run: |
+          set -euo pipefail
+          app=.build/XcodeLaunchpad/Build/Products/Release/vphone-launchpad.app
+          ditto -c -k --keepParent "$app" "vphone-launchpad-${GITHUB_SHA}.zip"
+
+      - name: Upload Release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: vphone-release-${{ github.sha }}
+          path: |
+            VPhone-${{ github.sha }}.zip
+            vphone-launchpad-${{ github.sha }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vphone-package-logs-${{ github.sha }}
+          path: |
+            vphone-build.log
+            launchpad-build.log
+          if-no-files-found: ignore

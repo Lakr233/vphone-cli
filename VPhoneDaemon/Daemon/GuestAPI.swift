@@ -250,19 +250,19 @@ enum GuestAPI {
             }
             return try hidPress(page: page, usage: usage)
         case "location.set":
-            return try simulateLocation(
+            return try GuestLocationSimulation.set(.init(
                 latitude: number(params, "latitude"),
                 longitude: number(params, "longitude"),
                 altitude: number(params, "altitude", default: 0),
                 horizontalAccuracy: number(params, "horizontal_accuracy", default: 5),
                 verticalAccuracy: number(params, "vertical_accuracy", default: 5),
-                speed: (params["speed"] as? NSNumber)?.doubleValue,
-                course: (params["course"] as? NSNumber)?.doubleValue,
-            )
+                speed: (params["speed"] as? NSNumber)?.doubleValue ?? -1,
+                course: (params["course"] as? NSNumber)?.doubleValue ?? -1,
+            ))
         case "location.clear":
-            return try clearSimulatedLocation()
+            return try GuestLocationSimulation.clear()
         case "location.current":
-            return try currentLocation(timeout: number(params, "timeout", default: 10))
+            return try GuestLocationSimulation.current(timeout: number(params, "timeout", default: 10))
         case "developer_mode.status":
             return try developerModeStatus()
         case "developer_mode.enable":

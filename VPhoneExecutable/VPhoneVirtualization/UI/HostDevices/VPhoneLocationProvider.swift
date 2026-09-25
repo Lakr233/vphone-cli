@@ -42,9 +42,10 @@ class VPhoneLocationProvider: NSObject {
 
     private var locationManager: CLLocationManager?
     private var delegateProxy: LocationDelegateProxy?
-    private var lastLocation: CLLocation?
+    private var lastHostLocation: CLLocation?
     private var replayTask: Task<Void, Never>?
     private var replayName: String?
+    var onAuthorizationFailure: (() -> Void)?
 
     var isReplaying: Bool {
         replayTask != nil
@@ -54,11 +55,14 @@ class VPhoneLocationProvider: NSObject {
         self.control = control
         super.init()
 
-        let proxy = LocationDelegateProxy { [weak self] location in
-            Task { @MainActor in
-                self?.forward(location)
-            }
-        }
+        let proxy = LocationDelegateProxy(
+            locationHandler: { [weak self] location in
+                Task { @MainActor in self?.forward(location) }
+            },
+            authorizationHandler: { [weak self] status in
+                Task { @MainActor in self?.handleAuthorization(status) }
+            },
+        )
         delegateProxy = proxy
         let mgr = CLLocationManager()
         mgr.delegate = proxy
@@ -71,15 +75,10 @@ class VPhoneLocationProvider: NSObject {
     func startForwarding() {
         stopReplay()
         guard let mgr = locationManager else { return }
-        mgr.requestAlwaysAuthorization()
-        mgr.startUpdatingLocation()
         hostModeStarted = true
+        mgr.requestWhenInUseAuthorization()
+        handleAuthorization(mgr.authorizationStatus)
         print("[location] started host location tracking")
-        // Re-send last known location immediately on reconnect
-        if let last = lastLocation {
-            forward(last)
-            print("[location] re-sent last known host location")
-        }
     }
 
     /// Stop forwarding host location updates.
@@ -88,6 +87,22 @@ class VPhoneLocationProvider: NSObject {
             locationManager?.stopUpdatingLocation()
             hostModeStarted = false
             print("[location] stopped host location tracking")
+        }
+    }
+
+    private func handleAuthorization(_ status: CLAuthorizationStatus) {
+        guard hostModeStarted else { return }
+        switch status {
+        case .authorized, .authorizedAlways:
+            locationManager?.startUpdatingLocation()
+            if let last = lastHostLocation, abs(last.timestamp.timeIntervalSinceNow) < 60 {
+                forward(last)
+            }
+        case .denied, .restricted:
+            stopForwarding()
+            onAuthorizationFailure?()
+        default:
+            break
         }
     }
 
@@ -179,7 +194,8 @@ class VPhoneLocationProvider: NSObject {
     }
 
     private func forward(_ location: CLLocation) {
-        lastLocation = location
+        lastHostLocation = location
+        guard hostModeStarted else { return }
         guard control.isConnected else {
             print("[location] forward: not connected, cached for later")
             return
@@ -204,15 +220,6 @@ class VPhoneLocationProvider: NSObject {
         speed: Double,
         course: Double,
     ) {
-        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        lastLocation = CLLocation(
-            coordinate: coordinate,
-            altitude: altitude,
-            horizontalAccuracy: horizontalAccuracy,
-            verticalAccuracy: verticalAccuracy,
-            timestamp: Date(),
-        )
-
         guard control.isConnected else {
             print("[location] simulate: not connected, cached for later")
             return
@@ -234,10 +241,15 @@ class VPhoneLocationProvider: NSObject {
 
 /// Separate object to avoid @MainActor vs nonisolated delegate conflicts.
 private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
-    let handler: (CLLocation) -> Void
+    let locationHandler: (CLLocation) -> Void
+    let authorizationHandler: (CLAuthorizationStatus) -> Void
 
-    init(handler: @escaping (CLLocation) -> Void) {
-        self.handler = handler
+    init(
+        locationHandler: @escaping (CLLocation) -> Void,
+        authorizationHandler: @escaping (CLAuthorizationStatus) -> Void,
+    ) {
+        self.locationHandler = locationHandler
+        self.authorizationHandler = authorizationHandler
     }
 
     func locationManager(_: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -246,7 +258,7 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
         print(
             "[location] got location: \(String(format: "%.6f,%.6f", c.latitude, c.longitude)) (+/-\(String(format: "%.0f", location.horizontalAccuracy))m)",
         )
-        handler(location)
+        locationHandler(location)
     }
 
     func locationManager(_: CLLocationManager, didFailWithError error: any Error) {
@@ -261,8 +273,6 @@ private class LocationDelegateProxy: NSObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         print("[location] authorization status: \(status.rawValue)")
-        if status == .authorized || status == .authorizedAlways {
-            manager.startUpdatingLocation()
-        }
+        authorizationHandler(status)
     }
 }

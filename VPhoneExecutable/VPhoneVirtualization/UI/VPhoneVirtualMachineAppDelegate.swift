@@ -169,6 +169,13 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             }
             if let provider = locationProvider {
                 mc.locationProvider = provider
+                provider.onAuthorizationFailure = { [weak mc] in
+                    mc?.locationMenuItem?.state = .off
+                    let alert = NSAlert()
+                    alert.messageText = "Host Location Unavailable"
+                    alert.informativeText = "Allow location access for vphone in System Settings to sync the Mac's location."
+                    alert.runModal()
+                }
             }
             if let camServer = cameraServer {
                 mc.cameraServer = camServer

@@ -296,20 +296,32 @@ icli's own error `code` (`failed`, `unavailable`, `device_locked`, …) and
 message.
 
 The environment update keeps `launchdhook-vphone.dylib`,
-`SystemHook-vphone.dylib`, `libvcamcaptured.dylib` and `libcamfix.dylib` in
+`SystemHook-vphone.dylib`, `libvcamcaptured.dylib`, `libcamfix.dylib`, and
+`libvlocation.dylib` in
 `/usr/lib` in step with the host bundle. After each connection the VM
 process compares the guest's hashes with `Contents/Resources/guest-resources`,
 uploads the libraries that differ to the staging directory
 (`/var/root/Library/Caches/vphone-environment`) and calls
-`environment.install`. vphoned accepts only those four names and checks each
+`environment.install`. vphoned accepts only those five names and checks each
 SHA-256. When `/` is mounted read-only it runs `/sbin/mount -u -w /`, copies
 each library beside its destination, renames it into place with mode 0755
-and owner root, and runs `/sbin/mount -u -r /` again; jailbreak detection
-reads a writable root as a rootful layout. It stops a running
+and owner root, and tries `/sbin/mount -u -r /` again. An APFS guest can reject
+that live read-only remount; in that case the install still reports success
+with `reboot_required: true` and `root_read_only: false`. The reboot restores
+the intended root state for jailbreak detection. It stops a running
 `cameracaptured` when a camera hook or SystemHook changed, so the next
 camera client loads the new hook. The result lists `installed`,
 `restarted_pids` and `reboot_required`, which is true when the launchd hook
 changed: launchd keeps the copy it mapped at boot.
+
+`location.set` publishes the validated coordinate atomically to
+`/var/mobile/Library/Caches/vphone-location.json`. The app hook reads that file
+and delivers updates to authorized `CLLocationManager` clients, including Maps;
+`location.clear` removes it. The system simulation request remains best effort
+because iOS 26.4's location fusion may reject it. `location.current` reports
+`delivery: application_override` when the state file exists; it reports the
+published coordinate, not independent confirmation from each app. Newly
+installed hooks require app relaunch before that app receives overrides.
 
 ## Connection failure behavior
 
