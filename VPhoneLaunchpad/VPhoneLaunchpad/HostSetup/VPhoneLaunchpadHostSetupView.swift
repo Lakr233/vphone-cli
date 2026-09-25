@@ -24,7 +24,7 @@ struct VPhoneLaunchpadHostSetupView: View {
                 if !host.requiredPassed {
                     VStack(alignment: .leading, spacing: 4) {
                         if host.checks.contains(where: { $0.kind == .developerTools && $0.status != .passed }) {
-                            Text("Allow vphone-launchpad in Privacy & Security → Developer Tools, then quit and reopen the app.")
+                            Text("Allow vphone-launchpad in Privacy & Security → Developer Tools, then click Reopen.")
                         }
                         Text("Core Bundle appears once every required check passes.")
                     }
@@ -44,6 +44,9 @@ struct VPhoneLaunchpadHostSetupView: View {
             }
         }
         .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            host.refreshDeveloperTools()
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -81,8 +84,17 @@ struct VPhoneLaunchpadHostSetupView: View {
     private func action(for check: VPhoneLaunchpadHostCheck) -> some View {
         switch check.kind {
         case .developerTools where check.status != .passed:
-            Button("Open Settings") {
-                Task { await host.requestDeveloperTools() }
+            HStack(spacing: 8) {
+                if host.canRequestDeveloperTools {
+                    Button("Open Settings") {
+                        Task { await host.requestDeveloperTools() }
+                    }
+                }
+                if host.needsRelaunch {
+                    Button("Reopen") {
+                        host.relaunch()
+                    }
+                }
             }
         case .helper where check.status == .pending:
             Button(host.helper.state == .notInstalled ? "Install…" : "Update…") {

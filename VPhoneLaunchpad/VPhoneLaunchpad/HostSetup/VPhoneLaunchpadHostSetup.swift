@@ -50,6 +50,13 @@ final class VPhoneLaunchpadHostSetup {
     ]
     private(set) var isChecking = false
     var actionError: VPhoneLaunchpadError?
+    /// Set once Settings was opened for Developer Tools. The status the
+    /// system reports can lag the switch, so Reopen is offered from then on.
+    private(set) var didOpenDeveloperTools = false
+
+    /// Developer Tools access applies to processes launched after it is
+    /// granted. This process keeps the access it started with.
+    @ObservationIgnored private let launchDeveloperToolStatus = EPDeveloperTool().authorizationStatus
 
     let helper: VPhoneLaunchpadHelperClient
     let libraryRoot: URL
@@ -81,7 +88,18 @@ final class VPhoneLaunchpadHostSetup {
                 return checks.first { $0.kind == .developerTools }?.status == .passed
             }
         #endif
-        return EPDeveloperTool().authorizationStatus == .authorized
+        return launchDeveloperToolStatus == .authorized && EPDeveloperTool().authorizationStatus == .authorized
+    }
+
+    /// False once the system reports the grant, even before a relaunch.
+    var canRequestDeveloperTools: Bool {
+        EPDeveloperTool().authorizationStatus != .authorized
+    }
+
+    /// True when a grant made after launch needs a relaunch to apply.
+    var needsRelaunch: Bool {
+        launchDeveloperToolStatus != .authorized
+            && (didOpenDeveloperTools || EPDeveloperTool().authorizationStatus == .authorized)
     }
 
     // MARK: - Checking
@@ -108,6 +126,12 @@ final class VPhoneLaunchpadHostSetup {
         update(.network, await Self.network())
     }
 
+    /// Re-reads Developer Tools access alone, for when the app comes back
+    /// from Settings.
+    func refreshDeveloperTools() {
+        update(.developerTools, developerTools())
+    }
+
     private func update(_ kind: VPhoneLaunchpadHostCheck.Kind, _ result: (VPhoneLaunchpadStatus, String)) {
         guard let index = checks.firstIndex(where: { $0.kind == kind }) else {
             return
@@ -123,8 +147,31 @@ final class VPhoneLaunchpadHostSetup {
     /// the pane is opened explicitly.
     func requestDeveloperTools() async {
         _ = await EPDeveloperTool().requestAccess()
+        didOpenDeveloperTools = true
         update(.developerTools, developerTools())
         NSWorkspace.shared.open(Self.developerToolsSettings)
+    }
+
+    /// Quits and opens Launchpad again so a new Developer Tools grant
+    /// applies. A detached waiter opens the app once this process has exited.
+    /// No machine can be in creation here: Core Bundle needs this access.
+    func relaunch() {
+        let waiter = Process()
+        waiter.executableURL = URL(fileURLWithPath: "/bin/sh")
+        waiter.arguments = [
+            "-c",
+            "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; /usr/bin/open \"$2\"",
+            "sh",
+            String(getpid()),
+            Bundle.main.bundlePath,
+        ]
+        do {
+            try waiter.run()
+        } catch {
+            actionError = VPhoneLaunchpadError(String(localized: "Unable to Reopen"), detail: String(localized: "Quit vphone-launchpad and open it again."))
+            return
+        }
+        NSApp.terminate(nil)
     }
 
     private static let developerToolsSettings = URL(
@@ -146,8 +193,10 @@ final class VPhoneLaunchpadHostSetup {
 
     private func developerTools() -> (VPhoneLaunchpadStatus, String) {
         switch EPDeveloperTool().authorizationStatus {
-        case .authorized:
+        case .authorized where launchDeveloperToolStatus == .authorized:
             (.passed, String(localized: "Allowed"))
+        case .authorized:
+            (.pending, String(localized: "Reopen to apply"))
         case .denied:
             (.failed, String(localized: "Not allowed"))
         case .restricted:

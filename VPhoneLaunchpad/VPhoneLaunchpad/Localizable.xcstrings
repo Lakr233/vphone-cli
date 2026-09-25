@@ -761,36 +761,36 @@
         }
       }
     },
-    "Allow vphone-launchpad in Privacy & Security → Developer Tools, then quit and reopen the app." : {
+    "Allow vphone-launchpad in Privacy & Security → Developer Tools, then click Reopen." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Allow vphone-launchpad in Privacy & Security → Developer Tools, then quit and reopen the app."
+            "value" : "Allow vphone-launchpad in Privacy & Security → Developer Tools, then click Reopen."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「プライバシーとセキュリティ」→「デベロッパツール」で vphone-launchpad を許可してから、App を終了して開き直してください。"
+            "value" : "「プライバシーとセキュリティ」→「デベロッパツール」で vphone-launchpad を許可してから、「開き直す」をクリックしてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "개인정보 보호 및 보안 → 개발자 도구에서 vphone-launchpad를 허용한 후 앱을 종료했다가 다시 여십시오."
+            "value" : "개인정보 보호 및 보안 → 개발자 도구에서 vphone-launchpad를 허용한 후 다시 열기를 클릭하십시오."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hãy cho phép vphone-launchpad trong Quyền riêng tư & Bảo mật → Công cụ dành cho nhà phát triển, rồi thoát và mở lại ứng dụng."
+            "value" : "Hãy cho phép vphone-launchpad trong Quyền riêng tư & Bảo mật → Công cụ dành cho nhà phát triển, rồi bấm Mở lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请在“隐私与安全性”→“开发者工具”中允许 vphone-launchpad，然后退出并重新打开 App。"
+            "value" : "在“隐私与安全性”→“开发者工具”中允许 vphone-launchpad，然后点按“重新打开”。"
           }
         }
       }
@@ -6077,6 +6077,40 @@
         }
       }
     },
+    "Quit vphone-launchpad and open it again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit vphone-launchpad and open it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vphone-launchpad を終了して、もう一度開いてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vphone-launchpad를 종료한 후 다시 여십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy thoát vphone-launchpad rồi mở lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出 vphone-launchpad，然后重新打开。"
+          }
+        }
+      }
+    },
     "Quitting stops creating this machine. You can retry later from the step where it stopped." : {
       "localizations" : {
         "en" : {
@@ -6549,6 +6583,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在重命名…"
+          }
+        }
+      }
+    },
+    "Reopen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開き直す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 열기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新打开"
+          }
+        }
+      }
+    },
+    "Reopen to apply" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen to apply"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開き直すと適用されます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 열면 적용됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở lại để áp dụng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新打开后生效"
           }
         }
       }
@@ -9099,6 +9201,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法移除 VPhone.bundle %@"
+          }
+        }
+      }
+    },
+    "Unable to Reopen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to Reopen"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開き直せません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 열 수 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể mở lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法重新打开"
           }
         }
       }
