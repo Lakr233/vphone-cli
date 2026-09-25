@@ -1,0 +1,12 @@
+#include "Base.xcconfig"
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) DEBUG
+
+// Like PRODUCT_NAME, these are Xcode-template settings, not build-system
+// defaults — the default optimization is -O in every configuration, and
+// previews hard-require -Onone ("Not built with -Onone").
+SWIFT_OPTIMIZATION_LEVEL = -Onone
+ONLY_ACTIVE_ARCH = YES
+DEBUG_INFORMATION_FORMAT = dwarf
+
+#include? "DevelopmentDeveloper.xcconfig"
