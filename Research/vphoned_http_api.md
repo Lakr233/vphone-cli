@@ -55,6 +55,10 @@ library directories. On startup it repairs missing links for an existing
 completed installation without replacing links that point elsewhere. These
 links let `@loader_path/.jbroot/usr/lib/...` dependencies resolve when a
 package manager later installs tools such as `dash`.
+The launchd and SystemHook spawn bridges also create a missing `.jbroot`
+beside a bootstrap executable just before it starts, covering applications
+installed after the initial bootstrap. The fixed links remain necessary for
+jobs whose launch path does not pass through either observed spawn bridge.
 `POST /v1/bootstrap/firmware` (RPC `bootstrap.firmware`)
 repairs the record for a bootstrap already identified by the completion marker
 without running another install. The reply includes the tag,

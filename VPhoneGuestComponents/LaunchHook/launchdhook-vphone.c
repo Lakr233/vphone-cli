@@ -1,4 +1,5 @@
 #include "../Shared/InjectionEnvironment.h"
+#include "../Shared/RootHideLoaderLinks.h"
 #include <ctype.h>
 #include <dirent.h>
 #include <dlfcn.h>
@@ -14,6 +15,7 @@
 #include <xpc/xpc.h>
 
 static char vpBootRoot[PATH_MAX];
+static int vpFindJBRoot(char root[PATH_MAX]);
 
 static void vpLogInjection(const char *event, const char *path, int status) {
     int fd = open("/var/mobile/Library/Caches/vphone-launchdhook-injection.log",
@@ -44,14 +46,31 @@ static int vpIsAppProgram(const char *path) {
                    sizeof("/private/var/containers/Bundle/Application/") - 1) == 0;
 }
 
+static int vpIsBootstrapProgram(const char *path) {
+    if (!path)
+        return 0;
+    if (strncmp(path, "/var/jb/", 8) == 0)
+        return 1;
+    const char *root = vpBootRoot;
+    if (strncmp(root, "/private/var/", 13) == 0 && strncmp(path, "/var/", 5) == 0) {
+        root += 8; // /private/var/... and /var/... name the same directory.
+    }
+    size_t length = strlen(root);
+    return length && strncmp(path, root, length) == 0 && path[length] == '/';
+}
+
 static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *restrict actions,
                    const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                    char *const envp[restrict]) {
-    size_t rootLength = strlen(vpBootRoot);
-    int bootstrapProgram =
-        path && ((rootLength && strncmp(path, vpBootRoot, rootLength) == 0 && path[rootLength] == '/') ||
-                 strncmp(path, "/var/jb/", 8) == 0);
+    if (!vpBootRoot[0] && path && (vpIsAppProgram(path) || strstr(path, "/.jbroot-")))
+        vpFindJBRoot(vpBootRoot);
+    int bootstrapProgram = vpIsBootstrapProgram(path);
     int appProgram = vpIsAppProgram(path);
+    if (bootstrapProgram || appProgram) {
+        int linkStatus = vpEnsureRootHideLoaderLink(path, vpBootRoot);
+        if (linkStatus || (path && strstr(path, "/.jbroot-")))
+            vpLogInjection("loader-link", path, linkStatus);
+    }
     if (!path || (strcmp(path, "/usr/libexec/xpcproxy") != 0 && !bootstrapProgram && !appProgram) ||
         vpInjectionDisabled(envp)) {
         int status = posix_spawn(pid, path, actions, attributes, argv, envp);

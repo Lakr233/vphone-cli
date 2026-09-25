@@ -76,6 +76,14 @@
 > `_MSSafeMode=1` each reported no `DYLD_INSERT_LIBRARIES` and
 > `systemhook_loaded=0` after reboot. This diagnostic library proves the
 > loading path, not real ElleKit or a tweak package.
+> On 2026-09-25, the launchd and SystemHook spawn bridges gained a shared
+> RootHide loader-link helper. Before a bootstrap executable is spawned, it
+> creates or validates the `.jbroot` link beside that executable, accepting
+> `/var` and `/private/var` spellings of the same root. On an isolated clone
+> of `vphone-27.0-cloudos-26.4`, Xrash and Irisin App launches each created a
+> missing link and reached the foreground. A dynamically loaded LaunchDaemon
+> did not traverse the observed interposers; it still needed its link before
+> service load. vphoned's initial fixed-directory link seeding remains in place.
 > A bootstrap CLI probe then spawned itself with explicit stripped
 > environments. Its `posix_spawn`, `posix_spawnp` (absolute program path), and
 > `execve` children all reported `systemhook_loaded=1`,

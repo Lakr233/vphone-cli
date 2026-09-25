@@ -1,4 +1,5 @@
 #include "../Shared/InjectionEnvironment.h"
+#include "../Shared/RootHideLoaderLinks.h"
 #include <crt_externs.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -17,6 +18,9 @@ static int vpInBootstrap;
 static int vpIsBootstrapPath(const char *path, const char *root) {
     if (path && strncmp(path, "/var/jb/", 8) == 0)
         return 1;
+    if (path && root && strncmp(root, "/private/var/", 13) == 0 &&
+        strncmp(path, "/var/", 5) == 0)
+        root += 8;
     size_t length = root ? strlen(root) : 0;
     return path && length && strncmp(path, root, length) == 0 && path[length] == '/';
 }
@@ -60,11 +64,24 @@ static void vpLogSpawn(const char *path, const char *decision) {
     close(fd);
 }
 
+static void vpPrepareLoaderLink(const char *path) {
+    const char *root = getenv("VPHONE_JB_ROOT");
+    int status = vpEnsureRootHideLoaderLink(path, root);
+    if (!status && (!path || !strstr(path, "/.jbroot-")))
+        return;
+    int fd = vpOpenLog("vphone-systemhook-spawn.log");
+    if (fd >= 0) {
+        dprintf(fd, "pid=%d path=%s loader_link_errno=%d\n", getpid(), path ? path : "<null>", status);
+        close(fd);
+    }
+}
+
 static int vpSpawnP(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *restrict actions,
                     const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                     char *const envp[restrict]) {
     if (!vpIsInjectionTarget(path))
         return posix_spawnp(pid, path, actions, attributes, argv, envp);
+    vpPrepareLoaderLink(path);
     if (vpInjectionDisabled(envp)) {
         vpLogSpawn(path, "disabled");
         return posix_spawnp(pid, path, actions, attributes, argv, envp);
@@ -81,6 +98,7 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
                    char *const envp[restrict]) {
     if (!vpIsInjectionTarget(path))
         return posix_spawn(pid, path, actions, attributes, argv, envp);
+    vpPrepareLoaderLink(path);
     if (vpInjectionDisabled(envp)) {
         vpLogSpawn(path, "disabled");
         return posix_spawn(pid, path, actions, attributes, argv, envp);
@@ -95,6 +113,7 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
 static int vpExecve(const char *path, char *const argv[], char *const envp[]) {
     if (!vpIsInjectionTarget(path))
         return execve(path, argv, envp);
+    vpPrepareLoaderLink(path);
     if (vpInjectionDisabled(envp)) {
         vpLogSpawn(path, "exec-disabled");
         return execve(path, argv, envp);

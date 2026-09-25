@@ -15,10 +15,10 @@ VCAMCAPTURED := $(STAGE)/vcamcaptured/libvcamcaptured.dylib
 VCAMCAPTURED_SOURCES := $(wildcard VCamCaptured/*.m)
 VCAMCAPTURED_INCLUDES := $(wildcard VCamCaptured/*.h VCamCaptured/*.inc)
 LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
-LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c)
+LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideLoaderLinks.c
 LAUNCHHOOK_INCLUDES := $(wildcard LaunchHook/*.h LaunchHook/*.inc Shared/*.h)
 SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
-SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c)
+SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) Shared/RootHideLoaderLinks.c
 SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc Shared/*.h)
 GPU_PLUGIN := $(STAGE)/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib
 GPU_PLUGIN_SOURCES := $(wildcard GraphicLoader/*.mm)
@@ -29,7 +29,7 @@ GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
 # Directory timestamps also catch files removed from the wildcard inputs.
 
-.PHONY: all gpu package clean
+.PHONY: all gpu package test-loader-links clean
 
 all: $(ARTIFACTS) $(PLISTS) $(GPU_PROVENANCE)
 
@@ -39,6 +39,12 @@ package: all
 	@rm -f $(ARCHIVE)
 	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured launchhook systemhook gpu
 	@echo "Packaged $(ARCHIVE)"
+
+test-loader-links:
+	@mkdir -p $(OUT)
+	/usr/bin/clang -Wall -Wextra -Werror -o $(OUT)/RootHideLoaderLinksTests \
+		Tests/RootHideLoaderLinksTests.c Shared/RootHideLoaderLinks.c
+	@$(OUT)/RootHideLoaderLinksTests
 
 $(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/launchhook $(STAGE)/systemhook $(STAGE)/gpu:
 	@mkdir -p $@
