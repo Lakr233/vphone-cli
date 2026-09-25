@@ -86,7 +86,7 @@
                 creation.applyPreview(failed: true)
                 await sheet(.creation("ios27-rc"), "08b-creation-failed", suffix)
                 creation.applyPreview()
-                await standalone("08c-creation-log", suffix, size: NSSize(width: 900, height: 560)) {
+                await standalone("08c-creation-log", suffix, size: NSSize(width: 960, height: 700)) {
                     VPhoneLaunchpadConsoleView(title: "ios27-rc Creation Log", url: creation.logFile)
                 }
                 model.machines.selection = "frida-lab"
