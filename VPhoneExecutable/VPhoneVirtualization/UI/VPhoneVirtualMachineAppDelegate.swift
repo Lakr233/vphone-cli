@@ -98,9 +98,11 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 camServer.connect(device: device)
                 if let listen = command.apiListen {
                     let proxy = try VPhoneAPIProxy(device: device, listen: listen)
-                    let url = try await proxy.start()
+                    let (url, token) = try await proxy.start()
                     apiProxy = proxy
                     print("[api] HTTP/WebSocket API: \(url.absoluteString)")
+                    print("[api] token: \(token)")
+                    print("[api] send it as: Authorization: Bearer \(token)")
                 }
             } else if command.apiListen != nil {
                 throw VPhoneVirtualMachineError.apiSocketUnavailable

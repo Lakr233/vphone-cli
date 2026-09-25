@@ -37,6 +37,8 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     }
 
     init(options: Options) throws {
+        try Self.checkBundleFiles(options)
+
         // --- Hardware model (PV=3) ---
         let hwModel = try VPhoneHardware.createModel()
         print("[vphone] PV=3 hardware model: isSupported = true")
@@ -99,6 +101,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             print("[vphone] Warning: failed to resolve ECID from machineIdentifier")
         }
 
+        // .allowOverwrite truncates whatever is at nvramURL, so a symbolic link
+        // there is refused rather than followed.
+        try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.nvramURL)
         let auxStorage = try VZMacAuxiliaryStorage(
             creatingStorageAt: options.nvramURL,
             hardwareModel: hwModel,
@@ -157,7 +162,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         config.audioDevices = [afg]
 
         // Storage
-        guard FileManager.default.fileExists(atPath: options.diskURL.path) else {
+        guard try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.diskURL) else {
             throw VPhoneVirtualMachineError.diskNotFound(options.diskURL.path)
         }
         let attachment = try VZDiskImageStorageDeviceAttachment(url: options.diskURL, readOnly: false)
@@ -284,6 +289,26 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
                 }
                 FileHandle.standardOutput.write(data)
             }
+        }
+    }
+
+    // MARK: - Bundle Files
+
+    /// Every file below is opened, created or overwritten by this process or
+    /// by Virtualization, and neither refuses a symbolic link. A bundle can
+    /// come from someone else's export, so an entry that exists must be a
+    /// regular file in the bundle itself. A missing NVRAM or SEP storage is
+    /// fine, because it is created; a missing disk is not.
+    private static func checkBundleFiles(_ options: Options) throws {
+        guard try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.configURL) else {
+            throw VPhoneManifestError.loadFailed(path: options.configURL.path)
+        }
+        guard try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.diskURL) else {
+            throw VPhoneVirtualMachineError.diskNotFound(options.diskURL.path)
+        }
+        let others = [options.nvramURL, options.sepStorageURL, options.romURL, options.sepRomURL]
+        for case let url? in others {
+            try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: url)
         }
     }
 

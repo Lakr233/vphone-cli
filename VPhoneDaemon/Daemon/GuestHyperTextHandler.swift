@@ -30,6 +30,12 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
             exceededLimit = false
             upload = nil
             uploadError = nil
+            // Refuse before an upload stages any file in the guest.
+            if let refusal = Self.refusal(for: request) {
+                head = nil
+                Self.send(refusal, on: context.channel)
+                return
+            }
             let requestPath = request.uri.split(separator: "?", maxSplits: 1).first
             if request.method == .PUT, requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image" {
                 do {
@@ -49,6 +55,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
                 } catch { uploadError = error }
             }
         case var .body(buffer):
+            guard head != nil else { return }
             let requestPath = head?.uri.split(separator: "?", maxSplits: 1).first
             if head?.method == .PUT, requestPath == "/v1/files/content" || requestPath == "/v1/clipboard/image" {
                 upload?.append(buffer, channel: context.channel)
@@ -125,7 +132,9 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
                 request = try APIWire.decode(body)
             } else {
                 let method = try Self.route(head.method, path: path)
-                var params = try Self.parameters(body)
+                // GET routes only read: a body cannot turn one into a setter
+                // such as power.low_power_mode.
+                var params: [String: Any] = try head.method == .GET ? [:] : Self.parameters(body)
                 let components = URLComponents(string: "http://vphoned\(head.uri)")
                 for item in components?.queryItems ?? [] {
                     if let value = item.value {
@@ -139,6 +148,53 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         } catch {
             Self.send(APIWire.error(String(describing: error)), on: channel)
         }
+    }
+
+    // MARK: - Request Admission
+
+    /// Names a first-party client may use in `Host`. The VM's own client sends
+    /// `vphoned`; VPhoneAPIClient and curl send the loopback address the host
+    /// proxy listens on. vphoned cannot see that port, so it is ignored.
+    private static let localHostnames: Set<String> = ["vphoned", "localhost", "127.0.0.1", "::1"]
+
+    /// First-party clients never send `Origin`. A browser sends it on every
+    /// WebSocket handshake and cross-origin POST, and a DNS-rebound page sends
+    /// its own name as `Host`, so either marks a request from a web page.
+    static func isLocalClient(_ headers: HTTPHeaders) -> Bool {
+        guard !headers.contains(name: "Origin") else { return false }
+        let hosts = headers["Host"]
+        guard let host = hosts.first else { return true }
+        return hosts.count == 1 && localHostnames.contains(hostname(host).lowercased())
+    }
+
+    private static func hostname(_ host: String) -> String {
+        let value = host.trimmingCharacters(in: .whitespaces)
+        if value.hasPrefix("[") {
+            guard let end = value.firstIndex(of: "]") else { return value }
+            return String(value[value.index(after: value.startIndex) ..< end])
+        }
+        // A bare IPv6 literal has no port and more than one colon.
+        if value.filter({ $0 == ":" }).count > 1 {
+            return value
+        }
+        return value.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? value
+    }
+
+    /// POST is the only method a web page can send cross-origin without a
+    /// preflight, and only with a form or text content type, so JSON is
+    /// required. Binary uploads use PUT.
+    private static func refusal(for request: HTTPRequestHead) -> APIReply? {
+        guard isLocalClient(request.headers) else {
+            return APIWire.error("Requests from web pages are not accepted", status: 403)
+        }
+        if request.method == .POST {
+            let type = request.headers.first(name: "Content-Type")?
+                .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+            guard type.hasPrefix("application/json") else {
+                return APIWire.error("POST requires Content-Type: application/json", status: 415)
+            }
+        }
+        return nil
     }
 
     private static func parameters(_ body: Data) throws -> [String: Any] {

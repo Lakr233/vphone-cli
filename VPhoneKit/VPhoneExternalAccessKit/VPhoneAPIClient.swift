@@ -67,13 +67,20 @@ public enum VPhoneAPIMessage: Sendable {
 
 /// An unentitled client for the optional host proxy. vphone-ui can import this
 /// product without linking Virtualization.framework or running the Command.
+///
+/// The proxy admits a connection only with the token `vphone-vm` prints at
+/// launch (`[api] token: …`). Pass it as `token`, or set `VPHONE_API_TOKEN`
+/// in this process's environment.
 public struct VPhoneAPIClient: Sendable {
     public let baseURL: URL
+    public let token: String?
     private let session: URLSession
 
-    public init(baseURL: URL, session: URLSession = .shared) {
+    public init(baseURL: URL, session: URLSession = .shared, token: String? = nil) {
         self.baseURL = baseURL
         self.session = session
+        let configured = token ?? ProcessInfo.processInfo.environment["VPHONE_API_TOKEN"]
+        self.token = configured?.isEmpty == false ? configured : nil
     }
 
     public func call(
@@ -87,7 +94,7 @@ public struct VPhoneAPIClient: Sendable {
         http.timeoutInterval = 130
         http.setValue("application/json", forHTTPHeaderField: "Content-Type")
         http.httpBody = try JSONEncoder().encode(request)
-        let (data, response) = try await session.data(for: http)
+        let (data, response) = try await session.data(for: authorized(http))
         guard let response = response as? HTTPURLResponse else {
             throw VPhoneAPIError(code: "transport", message: "No HTTP response")
         }
@@ -111,6 +118,11 @@ public struct VPhoneAPIClient: Sendable {
         default: throw VPhoneAPIError(code: "url", message: "API URL must use HTTP or HTTPS")
         }
         components.path = (components.path as NSString).appendingPathComponent("v1/events")
+        // The token travels as a query item, which any WebSocket client can
+        // send; the proxy removes it before vphoned sees the request.
+        if let token {
+            components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "token", value: token)]
+        }
         guard let url = components.url else {
             throw VPhoneAPIError(code: "url", message: "Invalid WebSocket URL")
         }
@@ -124,7 +136,7 @@ public struct VPhoneAPIClient: Sendable {
     /// returned file and should move or delete it when finished.
     public func downloadFile(at guestPath: String) async throws -> URL {
         let url = try fileURL(guestPath)
-        let (temporary, response) = try await session.download(from: url)
+        let (temporary, response) = try await session.download(for: authorized(URLRequest(url: url)))
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             throw VPhoneAPIError(code: "download", message: "Guest file download failed")
         }
@@ -144,7 +156,7 @@ public struct VPhoneAPIClient: Sendable {
         var request = try URLRequest(url: fileURL(guestPath, mode: permissions))
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.upload(for: request, fromFile: localURL)
+        let (data, response) = try await session.upload(for: authorized(request), fromFile: localURL)
         let object = try JSONDecoder().decode([String: VPhoneJSONValue].self, from: data)
         if let error = object["error"] {
             let encoded = try JSONEncoder().encode(error)
@@ -154,6 +166,17 @@ public struct VPhoneAPIClient: Sendable {
               response.statusCode == 200, let result = object["result"]
         else { throw VPhoneAPIError(code: "upload", message: "Guest file upload failed") }
         return result
+    }
+
+    // MARK: - Requests
+
+    /// Adds the proxy token as a bearer credential; the proxy drops the
+    /// header before relaying to vphoned.
+    private func authorized(_ request: URLRequest) -> URLRequest {
+        guard let token else { return request }
+        var request = request
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return request
     }
 
     private func fileURL(_ guestPath: String, mode: String? = nil) throws -> URL {

@@ -223,6 +223,132 @@ struct BundleTransferTests {
         #expect(try lib.bundle(named: "original").manifest.cpuCount == 2)
     }
 
+    // MARK: - Links and file names from someone else's export
+
+    /// vphone-vm overwrites nvram.bin, attaches Disk.img read-write and
+    /// rewrites config.plist, so a link from any of them to a host file would
+    /// let an archive write outside its bundle.
+    @Test(arguments: ["nvram.bin", "config.plist", "Disk.img"])
+    func `import rejects a bundle file linked to an absolute path`(member: String) throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let lib = VPhoneLibrary(root: root.appendingPathComponent("source"))
+        let bundle = try makeBundle("orig", in: lib)
+        let file = bundle.url.appendingPathComponent(member)
+        let outside = root.appendingPathComponent("outside-\(member)")
+        if fm.fileExists(atPath: file.path) {
+            try fm.moveItem(at: file, to: outside)
+        } else {
+            try Data("host file".utf8).write(to: outside)
+        }
+        try fm.createSymbolicLink(atPath: file.path, withDestinationPath: outside.path)
+
+        let archive = root.appendingPathComponent("orig.tgz")
+        try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: false, in: lib)
+
+        let lib2 = VPhoneLibrary(root: root.appendingPathComponent("library"))
+        #expect(throws: VPhoneBundleTransferError.self) {
+            _ = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib2)
+        }
+        #expect(try fm.contentsOfDirectory(atPath: lib2.root.path).isEmpty)
+    }
+
+    @Test func `import rejects a top level symbolic link`() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        // A real bundle elsewhere on this Mac that the archive's only entry
+        // points at; following the link would make the import look valid.
+        let elsewhere = VPhoneLibrary(root: root.appendingPathComponent("elsewhere"))
+        let target = try makeBundle("target", in: elsewhere)
+        let src = root.appendingPathComponent("src")
+        try fm.createDirectory(at: src, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(
+            atPath: src.appendingPathComponent("vm").path,
+            withDestinationPath: target.url.path,
+        )
+        let archive = root.appendingPathComponent("link.tgz")
+        try VPhoneArchiveWriter.create(archive: archive, from: src, compression: .gzip(level: 1))
+        let members = try VPhoneArchiveReader.entries(of: archive)
+        #expect(members.map(\.path) == ["vm"])
+        #expect(members.first?.isSymlink == true)
+
+        let lib = VPhoneLibrary(root: root.appendingPathComponent("library"))
+        #expect(throws: VPhoneBundleTransferError.self) {
+            _ = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib)
+        }
+        #expect(try fm.contentsOfDirectory(atPath: lib.root.path).isEmpty)
+    }
+
+    @Test func `import keeps relative links inside the bundle and rejects escaping ones`() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let lib = VPhoneLibrary(root: root.appendingPathComponent("source"))
+        let bundle = try makeBundle("orig", in: lib)
+        let restoreDir = bundle.url.appendingPathComponent("iPhone_Restore")
+        try fm.createDirectory(at: restoreDir, withIntermediateDirectories: true)
+        try Data([0]).write(to: restoreDir.appendingPathComponent("marker"))
+        try fm.createSymbolicLink(
+            atPath: restoreDir.appendingPathComponent("sibling").path,
+            withDestinationPath: "marker",
+        )
+        try fm.createSymbolicLink(
+            atPath: restoreDir.appendingPathComponent("parent").path,
+            withDestinationPath: "../config.plist",
+        )
+
+        let archive = root.appendingPathComponent("orig.tgz")
+        try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: true, in: lib)
+        let lib2 = VPhoneLibrary(root: root.appendingPathComponent("library"))
+        let imported = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib2)
+        let importedRestore = imported.url.appendingPathComponent("iPhone_Restore")
+        #expect(try fm.destinationOfSymbolicLink(atPath: importedRestore.appendingPathComponent("sibling").path)
+            == "marker")
+
+        for escaping in ["../../outside", "/etc/hosts", "marker/../../../outside"] {
+            let link = restoreDir.appendingPathComponent("escape")
+            try? fm.removeItem(at: link)
+            try fm.createSymbolicLink(atPath: link.path, withDestinationPath: escaping)
+            try? fm.removeItem(at: archive)
+            try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: true, in: lib)
+            let lib3 = VPhoneLibrary(root: root.appendingPathComponent("library-\(UUID().uuidString)"))
+            #expect(throws: VPhoneBundleTransferError.self) {
+                _ = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib3)
+            }
+        }
+    }
+
+    @Test func `import rejects a manifest file name outside the bundle`() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let lib = VPhoneLibrary(root: root.appendingPathComponent("source"))
+        let bundle = try makeBundle("orig", in: lib)
+        var plist = try #require(PropertyListSerialization.propertyList(
+            from: Data(contentsOf: bundle.configURL),
+            format: nil,
+        ) as? [String: Any])
+        plist["nvramStorage"] = "../x"
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: bundle.configURL)
+
+        // Packed directly: `vm export` itself loads the manifest and would refuse it.
+        let archive = root.appendingPathComponent("orig.tgz")
+        try VPhoneArchiveWriter.create(
+            archive: archive,
+            from: bundle.url,
+            topLevel: "orig",
+            compression: .gzip(level: 1),
+        )
+        let lib2 = VPhoneLibrary(root: root.appendingPathComponent("library"))
+        #expect(throws: VPhoneManifestError.self) {
+            _ = try VPhoneBundleTransfer.importArchive(from: archive, name: nil, in: lib2)
+        }
+        #expect(try fm.contentsOfDirectory(atPath: lib2.root.path).isEmpty)
+    }
+
     // MARK: - Compression presets
 
     private static let zstdMagic: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD]

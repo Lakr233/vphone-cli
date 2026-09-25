@@ -10,7 +10,7 @@ import Foundation
 ///   pipe, quitting the app would close the read end and the next line of
 ///   guest serial output would kill the VM with SIGPIPE. The file is tailed
 ///   while the app runs and stays behind as the machine's console log.
-nonisolated final class VPhoneLaunchpadChildProcess: @unchecked Sendable {
+final nonisolated class VPhoneLaunchpadChildProcess: @unchecked Sendable {
     private let process = Process()
     private let lock = NSLock()
     private var exitStatus: Int32?

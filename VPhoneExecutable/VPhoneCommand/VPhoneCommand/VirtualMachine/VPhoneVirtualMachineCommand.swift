@@ -125,7 +125,7 @@ struct VPhoneVirtualMachineListCommand: ParsableCommand {
                 let diskGB = r.diskSizeBytes / (1024 * 1024 * 1024)
                 if let info = r.restoreInfo {
                     print(
-                        "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(diskGB) GB disk  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
+                        "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(diskGB) GB disk  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)",
                     )
                 } else {
                     print("\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(diskGB) GB disk")

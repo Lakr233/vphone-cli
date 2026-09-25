@@ -55,7 +55,11 @@ struct VPhoneLaunchpadRootView: View {
     ) -> Binding<Bool> {
         Binding(
             get: { model[keyPath: keyPath] != nil },
-            set: { if !$0 { model[keyPath: keyPath] = nil } },
+            set: {
+                if !$0 {
+                    model[keyPath: keyPath] = nil
+                }
+            },
         )
     }
 }

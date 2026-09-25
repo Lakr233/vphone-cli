@@ -87,7 +87,9 @@ struct VPhoneProcessRow: Identifiable, Hashable {
     var jetsamLimitTitle: String {
         guard let jetsamLimitMB else { return "—" }
         guard jetsamLimitMB > 0 else { return String(localized: "None", bundle: VPhoneLocalization.bundle) }
-        return VPhonePanelFormat.bytes(Int64(jetsamLimitMB) * 1_048_576)
+        // The guest supplies the value; a limit past Int64 bytes shows as the maximum.
+        let (bytes, overflow) = Int64(jetsamLimitMB).multipliedReportingOverflow(by: 1_048_576)
+        return VPhonePanelFormat.bytes(overflow ? Int64.max : bytes)
     }
 
     /// The time of day for a process started today, else a short date.

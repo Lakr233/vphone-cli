@@ -108,12 +108,14 @@ final class VPhoneLaunchpadMachineLibrary {
 
     /// The same test `vm stop` uses: a machine runs while some process holds
     /// its disk image open. This also finds guests started outside Launchpad.
-    nonisolated private static func machinesHoldingDisks(root: URL, names: [String]) -> Set<String> {
+    private nonisolated static func machinesHoldingDisks(root: URL, names: [String]) -> Set<String> {
         var diskOwners: [String: String] = [:]
         for name in names {
             let bundle = root.appendingPathComponent(name, isDirectory: true)
             let manifest = NSDictionary(contentsOf: bundle.appendingPathComponent("config.plist"))
-            let disk = manifest?["diskImage"] as? String ?? "Disk.img"
+            // Only a plain file name inside the bundle: a crafted manifest must
+            // not point lsof, and then `vm stop`, at another path.
+            let disk = (manifest?["diskImage"] as? String).flatMap(Self.plainFileName) ?? "Disk.img"
             diskOwners[bundle.appendingPathComponent(disk).path] = name
         }
         guard !diskOwners.isEmpty else {
@@ -137,6 +139,14 @@ final class VPhoneLaunchpadMachineLibrary {
             }
         }
         return running
+    }
+
+    /// `name` when it is one path component, otherwise nil.
+    private nonisolated static func plainFileName(_ name: String) -> String? {
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\0") else {
+            return nil
+        }
+        return name
     }
 
     // MARK: - Console

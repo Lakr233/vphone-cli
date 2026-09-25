@@ -279,7 +279,7 @@ final class VPhoneGuestControl {
     }
 
     func downloadFile(path: String) async throws -> Data {
-        let response = try await http(method: "GET", path: filePath(path))
+        let response = try await http(method: "GET", path: filePath(path), limits: .download)
         guard response.status == 200 else { throw try httpError(response) }
         return response.body
     }
@@ -290,6 +290,7 @@ final class VPhoneGuestControl {
             path: filePath(path, mode: permissions),
             body: data,
             contentType: "application/octet-stream",
+            limits: .upload,
         )
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -336,7 +337,7 @@ final class VPhoneGuestControl {
     }
 
     func bootstrapStatus() async throws -> [String: Any] {
-        return try await call("bootstrap.status")
+        try await call("bootstrap.status")
     }
 
     func installedBootstrap() async throws -> [String: Any] {
@@ -374,6 +375,7 @@ final class VPhoneGuestControl {
             path: "/v1/clipboard/image",
             body: imageData,
             contentType: "application/octet-stream",
+            limits: .upload,
         )
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -441,6 +443,7 @@ final class VPhoneGuestControl {
         path: String,
         body: Data = Data(),
         contentType: String = "application/json",
+        limits: VPhoneHTTPLimits = .rpc,
     ) async throws -> VPhoneHTTPResponse {
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
@@ -454,6 +457,7 @@ final class VPhoneGuestControl {
             path: path,
             body: body,
             contentType: contentType,
+            limits: limits,
         )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -470,6 +474,24 @@ private struct VPhoneHTTPResponse: Sendable {
     let body: Data
 }
 
+// MARK: - Limits
+
+/// How much one guest response may send and how long the whole exchange may
+/// take. SO_RCVTIMEO bounds each read; the deadline bounds a guest that
+/// drips bytes so that queued input behind the request is not held forever.
+private struct VPhoneHTTPLimits: Sendable {
+    let maxBodyLength: Int
+    let deadline: Duration
+
+    /// JSON, RPC and clipboard responses. A guest operation may run up to the
+    /// 120 s read timeout before it answers, so the deadline sits above it.
+    static let rpc = VPhoneHTTPLimits(maxBodyLength: 64 * 1024 * 1024, deadline: .seconds(180))
+    /// File downloads: the response body is the file.
+    static let download = VPhoneHTTPLimits(maxBodyLength: 2_147_483_647, deadline: .seconds(30 * 60))
+    /// Uploads: the request body is large, the response is a small JSON reply.
+    static let upload = VPhoneHTTPLimits(maxBodyLength: 64 * 1024 * 1024, deadline: .seconds(30 * 60))
+}
+
 private struct VPhoneSocketResult: @unchecked Sendable {
     let result: Result<VZVirtioSocketConnection, any Error>
     init(_ result: Result<VZVirtioSocketConnection, any Error>) {
@@ -477,12 +499,19 @@ private struct VPhoneSocketResult: @unchecked Sendable {
     }
 }
 
+// MARK: - Transaction
+
 private final class VPhoneHTTPTransaction: @unchecked Sendable {
     let connection: VZVirtioSocketConnection
     let method: String
     let path: String
     let body: Data
     let contentType: String
+    let limits: VPhoneHTTPLimits
+    private let deadline: ContinuousClock.Instant
+
+    /// Per-read and per-write socket timeout.
+    private static let socketTimeout: Duration = .seconds(120)
 
     init(
         connection: VZVirtioSocketConnection,
@@ -490,12 +519,15 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         path: String,
         body: Data,
         contentType: String,
+        limits: VPhoneHTTPLimits,
     ) {
         self.connection = connection
         self.method = method
         self.path = path
         self.body = body
         self.contentType = contentType
+        self.limits = limits
+        deadline = ContinuousClock.now + limits.deadline
     }
 
     func run() throws -> VPhoneHTTPResponse {
@@ -503,7 +535,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         guard fcntl(fd, F_SETNOSIGPIPE, 1) != -1 else {
             throw VPhoneGuestControl.ControlError.notConnected
         }
-        var timeout = timeval(tv_sec: 120, tv_usec: 0)
+        var timeout = Self.socketTimeval(Self.socketTimeout)
         guard
             setsockopt(
                 fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
@@ -537,11 +569,9 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         guard let first = lines.first, let status = Int(first.split(separator: " ").dropFirst().first ?? "") else {
             throw VPhoneGuestControl.ControlError.protocolError("invalid HTTP status")
         }
-        guard let lengthLine = lines.first(where: { $0.lowercased().hasPrefix("content-length:") }),
-              let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
-              length >= 0, length <= 2_147_483_647
-        else {
-            throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
+        let length = try Self.contentLength(lines.dropFirst())
+        guard length <= limits.maxBodyLength else {
+            throw VPhoneGuestControl.ControlError.protocolError("HTTP body of \(length) bytes exceeds the \(limits.maxBodyLength)-byte limit")
         }
         var payload = Data(received[boundary.upperBound...])
         while payload.count < length {
@@ -553,11 +583,37 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         return VPhoneHTTPResponse(status: status, body: payload)
     }
 
+    /// The single Content-Length of a response. A missing, malformed, negative
+    /// or repeated-but-different value is a protocol error.
+    private static func contentLength(_ lines: ArraySlice<String>) throws -> Int {
+        var length: Int?
+        for line in lines {
+            guard let colon = line.firstIndex(of: ":"),
+                  line[..<colon].trimmingCharacters(in: .whitespaces).lowercased() == "content-length"
+            else { continue }
+            let text = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty, text.allSatisfy({ $0 >= "0" && $0 <= "9" }), let value = Int(text), value >= 0 else {
+                throw VPhoneGuestControl.ControlError.protocolError("invalid HTTP content length")
+            }
+            if let length, length != value {
+                throw VPhoneGuestControl.ControlError.protocolError("conflicting HTTP content lengths")
+            }
+            length = value
+        }
+        guard let length else {
+            throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
+        }
+        return length
+    }
+
     private func write(_ fd: Int32, data: Data) throws {
         try data.withUnsafeBytes { bytes in
             guard let base = bytes.baseAddress else { return }
             var offset = 0
             while offset < bytes.count {
+                guard ContinuousClock.now < deadline else {
+                    throw VPhoneGuestControl.ControlError.protocolError("HTTP request timed out")
+                }
                 let sent = Darwin.write(fd, base + offset, bytes.count - offset)
                 if sent < 0, errno == EINTR {
                     continue
@@ -571,6 +627,15 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     }
 
     private func readMore(_ fd: Int32, into data: inout Data) throws {
+        // Each read waits at most until the overall deadline.
+        let remaining = ContinuousClock.now.duration(to: deadline)
+        guard remaining > .zero else {
+            throw VPhoneGuestControl.ControlError.protocolError("HTTP response timed out")
+        }
+        var timeout = Self.socketTimeval(min(remaining, Self.socketTimeout))
+        guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+            throw VPhoneGuestControl.ControlError.notConnected
+        }
         var bytes = [UInt8](repeating: 0, count: 32 * 1024)
         var count = 0
         repeat {
@@ -580,5 +645,12 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             throw VPhoneGuestControl.ControlError.notConnected
         }
         data.append(contentsOf: bytes[..<count])
+    }
+
+    private static func socketTimeval(_ duration: Duration) -> timeval {
+        let (seconds, attoseconds) = duration.components
+        // A zero timeval means "wait forever", so round up to at least 1 µs.
+        let microseconds = max(Int32(attoseconds / 1_000_000_000_000), seconds == 0 ? 1 : 0)
+        return timeval(tv_sec: Int(seconds), tv_usec: microseconds)
     }
 }

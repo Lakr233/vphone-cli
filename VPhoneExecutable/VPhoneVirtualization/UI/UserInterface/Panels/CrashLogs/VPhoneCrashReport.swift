@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 // MARK: - Report Row
 
@@ -37,9 +38,15 @@ struct VPhoneCrashReport: Identifiable, Hashable, Sendable {
         sizeText = Self.sizeText(size)
     }
 
+    /// Returns nil for a report whose name is not one path component: the
+    /// name becomes a host file name on export.
     init?(json: [String: Any]) {
         guard let path = json.string("path"), !path.isEmpty else { return nil }
         let name = json.string("name") ?? (path as NSString).lastPathComponent
+        guard VPhoneGuestFileName.isSafe(name) else {
+            print("[crashlogs] skipping report with unsafe name: \(name.debugDescription)")
+            return nil
+        }
         self.init(
             path: path,
             name: name,

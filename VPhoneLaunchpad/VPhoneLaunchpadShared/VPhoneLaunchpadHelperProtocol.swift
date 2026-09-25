@@ -8,12 +8,18 @@ import Foundation
 nonisolated enum VPhoneLaunchpadHelperIdentity {
     static let label = "com.vphone.launchpad.helper"
     static let machServiceName = label
+    /// Authorization right every privileged verb requires. The helper
+    /// writes its rule (an administrator, no shared credential) as root.
+    static let privilegedRight = "com.vphone.launchpad.helper.privileged"
 }
 
 // MARK: - Helper interface
 
 /// The whole root surface of vphone-launchpad. Every call is a fixed verb with
 /// validated arguments; there is deliberately no "run this command" entry.
+/// Every verb but `helperVersion` takes `authorization`, the caller's
+/// AuthorizationExternalForm, and fails unless it holds
+/// `VPhoneLaunchpadHelperIdentity.privilegedRight`.
 @objc(VPhoneLaunchpadHelperProtocol)
 nonisolated protocol VPhoneLaunchpadHelperProtocol {
     /// CFBundleVersion of the running helper, compared against the copy
@@ -25,6 +31,7 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
     /// it into the root-owned bundle store. Replies with an error message, or
     /// nil on success.
     func installBundle(
+        authorization: Data,
         version: String,
         archive: FileHandle,
         sha256: String,
@@ -32,17 +39,18 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
     )
 
     /// Removes one version from the bundle store.
-    func removeBundle(version: String, reply: @escaping @Sendable (String?) -> Void)
+    func removeBundle(authorization: Data, version: String, reply: @escaping @Sendable (String?) -> Void)
 
     /// Allows only the installed bundle's receipt-pinned vphone-vm through
     /// AMFI, using that bundle's VPhoneEscalator as root.
-    func allowVirtualMachine(bundleVersion: String, reply: @escaping @Sendable (String?) -> Void)
+    func allowVirtualMachine(authorization: Data, bundleVersion: String, reply: @escaping @Sendable (String?) -> Void)
 
     /// Runs `vphone-cli cfw install` from a store bundle as root, on behalf of
     /// the calling user. Output lines arrive through
     /// `VPhoneLaunchpadHelperClientProtocol`. Replies with the exit status and
     /// an error message when the request was refused before running.
     func installCustomFirmware(
+        authorization: Data,
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
@@ -51,11 +59,11 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
         reply: @escaping @Sendable (Int32, String?) -> Void,
     )
 
-    /// Sends SIGINT to a running CFW install.
-    func cancelCustomFirmware(reply: @escaping @Sendable () -> Void)
+    /// Sends SIGINT to a running CFW install started by the same user.
+    func cancelCustomFirmware(authorization: Data, reply: @escaping @Sendable () -> Void)
 
     /// Removes the helper's launchd job and binary, then exits.
-    func uninstallHelper(reply: @escaping @Sendable (String?) -> Void)
+    func uninstallHelper(authorization: Data, reply: @escaping @Sendable (String?) -> Void)
 }
 
 // MARK: - Client interface

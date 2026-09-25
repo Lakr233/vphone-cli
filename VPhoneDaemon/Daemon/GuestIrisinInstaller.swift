@@ -10,7 +10,7 @@ enum GuestIrisinInstaller {
     private static let serviceLabel = "wiki.qaq.irisind"
     private static let installLock = NSLock()
     private static let progressLock = NSLock()
-    nonisolated(unsafe) private static var progress: [String: Any] = ["phase": "idle"]
+    private nonisolated(unsafe) static var progress: [String: Any] = ["phase": "idle"]
     private static let completionMarker = URL(fileURLWithPath: "/private/var/db/vphoned/bootstrap.json")
     private static let legacyCompletionMarker = Bundle.main.executableURL!
         .deletingLastPathComponent()
@@ -81,7 +81,9 @@ enum GuestIrisinInstaller {
 
     private static func bootstrapRoots() throws -> [(layout: String, root: String)] {
         var roots: [(layout: String, root: String)] = []
-        if let installation = try completedBootstrap() { roots.append(installation) }
+        if let installation = try completedBootstrap() {
+            roots.append(installation)
+        }
         if itemExists(URL(fileURLWithPath: "/var/jb")), !roots.contains(where: { $0.root == "/var/jb" }) {
             roots.append(("rootless", "/var/jb"))
         }
@@ -113,7 +115,9 @@ enum GuestIrisinInstaller {
                         throw GuestAPIError.operationFailed("Bootstrap service is not a regular plist: \(plist)")
                     }
                 }
-                if !plists.isEmpty { _ = try loadServices(plists, load: false, override: false) }
+                if !plists.isEmpty {
+                    _ = try loadServices(plists, load: false, override: false)
+                }
             }
 
             let apps = rootURL.appendingPathComponent("Applications", isDirectory: true).path
@@ -122,7 +126,9 @@ enum GuestIrisinInstaller {
             }
             try files.removeItem(atPath: removal.physicalPath)
         }
-        if removal.isSymlink { try files.removeItem(at: rootURL) }
+        if removal.isSymlink {
+            try files.removeItem(at: rootURL)
+        }
     }
 
     private static func completedBootstrap() throws -> (layout: String, root: String)? {
@@ -131,19 +137,25 @@ enum GuestIrisinInstaller {
         guard let marker = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw GuestAPIError.operationFailed("Completed bootstrap marker is invalid")
         }
-        if marker["installed"] as? Bool == false { return nil }
+        if marker["installed"] as? Bool == false {
+            return nil
+        }
         guard let layout = marker["layout"] as? String,
               let root = marker["jbroot"] as? String,
               (layout == "rootless" && root == "/var/jb") ||
               (layout == "roothide" && root.hasPrefix("/private/var/containers/Bundle/Application/")
-               && roothideName(String(root.dropFirst("/private/var/containers/Bundle/Application/".count))))
+                  && roothideName(String(root.dropFirst("/private/var/containers/Bundle/Application/".count))))
         else { throw GuestAPIError.operationFailed("Completed bootstrap marker has an invalid root") }
         return (layout, root)
     }
 
     private static func markerForRead() -> URL? {
-        if itemExists(completionMarker) { return completionMarker }
-        if itemExists(legacyCompletionMarker) { return legacyCompletionMarker }
+        if itemExists(completionMarker) {
+            return completionMarker
+        }
+        if itemExists(legacyCompletionMarker) {
+            return legacyCompletionMarker
+        }
         return nil
     }
 
@@ -159,7 +171,9 @@ enum GuestIrisinInstaller {
     private static func directoryExistsWithoutSymlink(_ path: String) throws -> Bool {
         var info = stat()
         if lstat(path, &info) != 0 {
-            if errno == ENOENT { return false }
+            if errno == ENOENT {
+                return false
+            }
             throw GuestAPIError.operationFailed("Could not inspect bootstrap directory: \(path)")
         }
         guard info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) else {
@@ -180,10 +194,14 @@ enum GuestIrisinInstaller {
     private static func removalRoot(_ root: String, layout: String) throws -> (physicalPath: String, isSymlink: Bool) {
         var info = stat()
         guard lstat(root, &info) == 0 else {
-            if errno == ENOENT { return (root, false) }
+            if errno == ENOENT {
+                return (root, false)
+            }
             throw GuestAPIError.operationFailed("Could not inspect bootstrap root: \(root)")
         }
-        if info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) { return (root, false) }
+        if info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) {
+            return (root, false)
+        }
         guard layout == "rootless", info.st_mode & mode_t(S_IFMT) == mode_t(S_IFLNK) else {
             throw GuestAPIError.operationFailed("Bootstrap root is not a directory: \(root)")
         }
@@ -195,7 +213,8 @@ enum GuestIrisinInstaller {
         ) else { throw GuestAPIError.operationFailed("Bootstrap link has an invalid path: \(root)") }
         guard physicalPath.hasPrefix("/private/preboot/"),
               physicalPath != "/private/preboot/",
-              physicalPath == (physicalPath as NSString).standardizingPath else {
+              physicalPath == (physicalPath as NSString).standardizingPath
+        else {
             throw GuestAPIError.operationFailed("Rootless bootstrap link has an unexpected target: \(physicalPath)")
         }
         return (physicalPath, true)
@@ -210,7 +229,9 @@ enum GuestIrisinInstaller {
     private static func downloadProgress(received: Int64, total: Int64) {
         progressLock.lock()
         progress["downloaded_bytes"] = received
-        if total > 0 { progress["total_bytes"] = total }
+        if total > 0 {
+            progress["total_bytes"] = total
+        }
         progressLock.unlock()
     }
 
@@ -299,9 +320,11 @@ enum GuestIrisinInstaller {
         do {
             setProgress(["phase": "installing", "layout": layout, "tag": tag])
             for (source, target) in components {
-                replaced.append(try replace(source, at: target))
+                try replaced.append(replace(source, at: target))
             }
-            if layout == "roothide" { try ensureRootHideLinks(root: root) }
+            if layout == "roothide" {
+                try ensureRootHideLinks(root: root)
+            }
             let registration = try registerApp(installedApp.path)
             let loaded = try loadServices([installedPlist.path], load: true, override: false)
             var started: [String: Any]?
@@ -323,7 +346,9 @@ enum GuestIrisinInstaller {
             let marker = ["tag": tag, "layout": layout, "jbroot": root]
             try writeMarker(marker)
             for entry in replaced {
-                if let backup = entry.backup { try? FileManager.default.removeItem(at: backup) }
+                if let backup = entry.backup {
+                    try? FileManager.default.removeItem(at: backup)
+                }
             }
             var result: [String: Any] = [
                 "tag": tag,
@@ -339,8 +364,12 @@ enum GuestIrisinInstaller {
                 "maintainer_scripts_executed": false,
                 "dpkg_database_updated": firmware.updated,
             ]
-            if let started { result["service_start"] = started }
-            if let startWarning { result["service_start_warning"] = startWarning }
+            if let started {
+                result["service_start"] = started
+            }
+            if let startWarning {
+                result["service_start_warning"] = startWarning
+            }
             return result
         } catch {
             if itemExists(installedPlist) {
@@ -355,8 +384,12 @@ enum GuestIrisinInstaller {
                     try? FileManager.default.moveItem(at: backup, to: entry.target)
                 }
             }
-            if itemExists(installedApp) { _ = try? registerApp(installedApp.path) }
-            if hadService { _ = try? loadServices([installedPlist.path], load: true, override: false) }
+            if itemExists(installedApp) {
+                _ = try? registerApp(installedApp.path)
+            }
+            if hadService {
+                _ = try? loadServices([installedPlist.path], load: true, override: false)
+            }
             throw error
         }
     }
@@ -365,7 +398,7 @@ enum GuestIrisinInstaller {
         installLock.lock()
         defer { installLock.unlock() }
         guard let marker = try completedBootstrap(),
-              marker.root == (try bootstrapRoot(layout: marker.layout, detected: nil)),
+              try marker.root == bootstrapRoot(layout: marker.layout, detected: nil),
               isDirectory(marker.root)
         else { throw GuestAPIError.operationFailed("No valid completed vphoned bootstrap was found") }
         let firmware = try ensureFirmwareRecord(root: marker.root)
@@ -402,7 +435,8 @@ enum GuestIrisinInstaller {
             var info = stat()
             if lstat(path, &info) == 0 {
                 guard info.st_mode & mode_t(S_IFMT) == mode_t(S_IFLNK),
-                      try files.destinationOfSymbolicLink(atPath: path) == target else {
+                      try files.destinationOfSymbolicLink(atPath: path) == target
+                else {
                     throw GuestAPIError.operationFailed("RootHide loader link has an unexpected target: \(path)")
                 }
                 return
@@ -468,11 +502,15 @@ enum GuestIrisinInstaller {
             if !lines.contains("Maintainer: vphoned") {
                 return (oldVersion, false)
             }
-            if oldVersion == version { return (version, false) }
+            if oldVersion == version {
+                return (version, false)
+            }
             var updated = lines.map {
                 $0.hasPrefix("Version: ") ? "Version: \(version)" : $0
             }
-            if oldVersion.isEmpty { updated.append("Version: \(version)") }
+            if oldVersion.isEmpty {
+                updated.append("Version: \(version)")
+            }
             paragraphs[index] = updated.joined(separator: "\n")
         } else {
             paragraphs.append("""
@@ -497,8 +535,12 @@ enum GuestIrisinInstaller {
     // MARK: - Release and payload
 
     private static func bootstrapRoot(layout: String, detected: String?) throws -> String {
-        if layout == "rootless" { return "/var/jb" }
-        if let detected { return detected }
+        if layout == "rootless" {
+            return "/var/jb"
+        }
+        if let detected {
+            return detected
+        }
 
         let parent = "/private/var/containers/Bundle/Application"
         let names = try FileManager.default.contentsOfDirectory(atPath: parent)
@@ -506,7 +548,9 @@ enum GuestIrisinInstaller {
         guard names.count <= 1 else {
             throw GuestAPIError.operationFailed("Multiple RootHide bootstrap roots exist")
         }
-        if let name = names.first { return parent + "/" + name }
+        if let name = names.first {
+            return parent + "/" + name
+        }
 
         // User-selected stem, zero-padded to 16 hex digits with RootHide's
         // XOR checksum in the final byte (0C instead of the proposed 10).
@@ -582,7 +626,7 @@ enum GuestIrisinInstaller {
 
     private static func validatePayload(
         app: URL, daemon: URL, helper: URL, plist: URL,
-        version: String, architecture: String, layout: String
+        version: String, architecture: String, layout: String,
     ) throws {
         let info = NSDictionary(contentsOf: app.appendingPathComponent("Info.plist"))
         guard info?["CFBundleIdentifier"] as? String == "wiki.qaq.irisin",
@@ -609,11 +653,34 @@ enum GuestIrisinInstaller {
         try updated.write(to: url, options: .atomic)
     }
 
+    /// mobile owns /var/mobile/Documents, so either path component may be a
+    /// symlink it planted to have root hand another directory to mobile. Both
+    /// are opened without following a link, and ownership is set through the
+    /// descriptor rather than the path.
     private static func prepareAppData() throws {
-        let path = "/var/mobile/Documents/wiki.qaq.irisin"
-        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true,
-                                                attributes: [.posixPermissions: 0o755])
-        guard chown(path, 501, 501) == 0 else {
+        let documents = "/var/mobile/Documents"
+        let name = "wiki.qaq.irisin"
+        if mkdir(documents, 0o755) != 0, errno != EEXIST {
+            throw GuestAPIError.operationFailed("Could not create \(documents): \(String(cString: strerror(errno)))")
+        }
+        let parent = open(documents, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parent >= 0 else {
+            throw GuestAPIError.operationFailed("\(documents) is not a real directory")
+        }
+        defer { close(parent) }
+        if mkdirat(parent, name, 0o755) != 0, errno != EEXIST {
+            throw GuestAPIError.operationFailed("Could not create Irisin app data: \(String(cString: strerror(errno)))")
+        }
+        var info = stat()
+        guard fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+              info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
+        else { throw GuestAPIError.operationFailed("Irisin app data path is not a real directory") }
+        let directory = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard directory >= 0 else {
+            throw GuestAPIError.operationFailed("Irisin app data path is not a real directory")
+        }
+        defer { close(directory) }
+        guard fchown(directory, 501, 501) == 0, fchmod(directory, 0o755) == 0 else {
             throw GuestAPIError.operationFailed("Could not assign Irisin app data to mobile")
         }
     }
@@ -685,7 +752,9 @@ enum GuestIrisinInstaller {
             return (target, old)
         } catch {
             try? files.removeItem(at: candidate)
-            if let old { try? files.moveItem(at: old, to: target) }
+            if let old {
+                try? files.moveItem(at: old, to: target)
+            }
             throw error
         }
     }

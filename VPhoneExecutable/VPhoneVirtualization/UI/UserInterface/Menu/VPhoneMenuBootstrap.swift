@@ -149,7 +149,7 @@ extension VPhoneMenuController {
     }
 
     private func performBootstrapUninstall(reboot: Bool) {
-        guard !isInstallingBootstrap && !isUninstallingBootstrap else { return }
+        guard !isInstallingBootstrap, !isUninstallingBootstrap else { return }
         isUninstallingBootstrap = true
         updateBootstrapAvailability(available: false)
         updateBootstrapUninstallAvailability(available: false)
@@ -157,7 +157,8 @@ extension VPhoneMenuController {
             do {
                 let installation = try await control.installedBootstrap()
                 guard installation["installed"] as? Bool == true,
-                      let roots = installation["roots"] as? [String], !roots.isEmpty else {
+                      let roots = installation["roots"] as? [String], !roots.isEmpty
+                else {
                     VPhoneAlert.present(
                         title: "Uninstall Bootstrap",
                         message: "No bootstrap environment was found.",
@@ -229,7 +230,7 @@ extension VPhoneMenuController {
     }
 
     private func updateBootstrapProgress(
-        _ status: [String: Any], label: NSTextField, indicator: NSProgressIndicator
+        _ status: [String: Any], label: NSTextField, indicator: NSProgressIndicator,
     ) {
         switch status["phase"] as? String {
         case "downloading":

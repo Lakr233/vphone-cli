@@ -153,17 +153,29 @@ struct IPSWCacheTests {
         #expect {
             try VPhoneIPSWCache.checkPair(iPhone: cloud, cloudOS: phone)
         } throws: { error in
-            if case .swappedSources? = error as? VPhoneIPSWCache.Error { true } else { false }
+            if case .swappedSources? = error as? VPhoneIPSWCache.Error {
+                true
+            } else {
+                false
+            }
         }
         #expect {
             try VPhoneIPSWCache.checkPair(iPhone: other, cloudOS: cloud)
         } throws: { error in
-            if case .notIPhoneSource? = error as? VPhoneIPSWCache.Error { true } else { false }
+            if case .notIPhoneSource? = error as? VPhoneIPSWCache.Error {
+                true
+            } else {
+                false
+            }
         }
         #expect {
             try VPhoneIPSWCache.checkPair(iPhone: phone, cloudOS: phone)
         } throws: { error in
-            if case .notCloudOSSource? = error as? VPhoneIPSWCache.Error { true } else { false }
+            if case .notCloudOSSource? = error as? VPhoneIPSWCache.Error {
+                true
+            } else {
+                false
+            }
         }
     }
 }

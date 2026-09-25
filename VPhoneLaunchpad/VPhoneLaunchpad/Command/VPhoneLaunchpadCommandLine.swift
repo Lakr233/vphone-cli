@@ -159,7 +159,7 @@ struct VPhoneLaunchpadCommandLine {
 }
 
 /// Collects output lines from the reader thread, keeping the most recent.
-nonisolated final class VPhoneLaunchpadLineCollector: @unchecked Sendable {
+final nonisolated class VPhoneLaunchpadLineCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String] = []
 

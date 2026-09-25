@@ -123,7 +123,7 @@ final class VPhoneLaunchpadHostSetup {
 
         await helper.refresh()
         update(.helper, helperStatus())
-        update(.network, await Self.network())
+        await update(.network, Self.network())
     }
 
     /// Re-reads Developer Tools access alone, for when the app comes back
@@ -232,24 +232,24 @@ final class VPhoneLaunchpadHostSetup {
         return Int(value)
     }
 
-    nonisolated private static func appleSilicon() -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func appleSilicon() -> (VPhoneLaunchpadStatus, String) {
         sysctlInt("hw.optional.arm64") == 1 ? (.passed, "arm64") : (.failed, String(localized: "Intel Macs are not supported"))
     }
 
-    nonisolated private static func macOSVersion() -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func macOSVersion() -> (VPhoneLaunchpadStatus, String) {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let text = "\(version.majorVersion).\(version.minorVersion)"
         return version.majorVersion >= 15 ? (.passed, text) : (.failed, String(localized: "macOS \(text) is not supported"))
     }
 
-    nonisolated private static func physicalMac() -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func physicalMac() -> (VPhoneLaunchpadStatus, String) {
         let present = sysctlInt("kern.hv_vmm_present") ?? 0
         return present == 0
             ? (.passed, String(localized: "Not a virtual machine"))
             : (.failed, String(localized: "Running in a virtual machine"))
     }
 
-    nonisolated private static func libraryVolume(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func libraryVolume(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
         let path = existingAncestor(of: root).path
         var info = statfs()
         guard statfs(path, &info) == 0 else {
@@ -261,7 +261,7 @@ final class VPhoneLaunchpadHostSetup {
             : (.failed, String(localized: "\(abbreviated(root)) is on \(type)"))
     }
 
-    nonisolated private static func diskSpace(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func diskSpace(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
         let url = existingAncestor(of: root)
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         guard let available = values?.volumeAvailableCapacityForImportantUsage else {
@@ -273,21 +273,21 @@ final class VPhoneLaunchpadHostSetup {
             : (.warning, String(localized: "\(gigabytes) GB free, 100 GB recommended"))
     }
 
-    nonisolated private static func resources() -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func resources() -> (VPhoneLaunchpadStatus, String) {
         let cores = ProcessInfo.processInfo.activeProcessorCount
         let memory = ProcessInfo.processInfo.physicalMemory / (1 << 30)
         let text = String(localized: "\(cores) cores, \(memory) GB")
         return cores >= 8 && memory >= 16 ? (.passed, text) : (.warning, String(localized: "\(text); 8 cores, 16 GB recommended"))
     }
 
-    nonisolated private static func network() async -> (VPhoneLaunchpadStatus, String) {
+    private nonisolated static func network() async -> (VPhoneLaunchpadStatus, String) {
         let hosts = ["updates.cdn-apple.com", "api.github.com"]
         var unreachable: [String] = []
         for host in hosts {
             var request = URLRequest(url: URL(string: "https://\(host)/")!)
             request.httpMethod = "HEAD"
             request.timeoutInterval = 6
-            if (try? await URLSession.shared.data(for: request)) == nil {
+            if await (try? URLSession.shared.data(for: request)) == nil {
                 unreachable.append(host)
             }
         }

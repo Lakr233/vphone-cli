@@ -39,4 +39,3 @@ struct VPhoneLaunchpadStatusIcon: View {
         }
     }
 }
-

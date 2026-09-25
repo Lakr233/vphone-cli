@@ -21,8 +21,9 @@ final class VPhoneLaunchpadHelperClient {
     private(set) var state: State = .unknown
     private var connection: NSXPCConnection?
     private let receiver = VPhoneLaunchpadHelperReceiver()
+    private let authorizationSession = VPhoneLaunchpadHelperAuthorizationSession()
 
-    nonisolated private static let label = VPhoneLaunchpadHelperIdentity.label
+    private nonisolated static let label = VPhoneLaunchpadHelperIdentity.label
 
     // MARK: - Status
 
@@ -72,7 +73,7 @@ final class VPhoneLaunchpadHelperClient {
             return
         }
         let bundled = bundledVersion ?? "?"
-        guard hasJob && hasExecutable else {
+        guard hasJob, hasExecutable else {
             state = .outdated(installed: "unknown", bundled: bundled)
             return
         }
@@ -109,8 +110,11 @@ final class VPhoneLaunchpadHelperClient {
     }
 
     func uninstall() async throws {
+        let authorization = try await authorizationSession.externalForm()
         try await call { proxy, done in
-            proxy.uninstallHelper { message in done(message.map { VPhoneLaunchpadError($0) }) }
+            proxy.uninstallHelper(authorization: authorization) { message in
+                done(message.map { VPhoneLaunchpadError($0) })
+            }
         }
         connection?.invalidate()
         connection = nil
@@ -130,14 +134,14 @@ final class VPhoneLaunchpadHelperClient {
     /// (SMPrivilegedExecutables and SMAuthorizedClients). Moving to
     /// `SMAppService.daemon` would change all three. The lookup keeps that
     /// choice here instead of as a standing deprecation warning.
-    nonisolated private static let jobBless: JobBless? = dlopen(
+    private nonisolated static let jobBless: JobBless? = dlopen(
         "/System/Library/Frameworks/ServiceManagement.framework/ServiceManagement",
         RTLD_LAZY,
     )
     .flatMap { dlsym($0, "SMJobBless") }
     .map { unsafeBitCast($0, to: JobBless.self) }
 
-    nonisolated private static func bless() throws {
+    private nonisolated static func bless() throws {
         var authorization: AuthorizationRef?
         var status = AuthorizationCreate(nil, nil, [], &authorization)
         guard status == errAuthorizationSuccess, let authorization else {
@@ -183,16 +187,25 @@ final class VPhoneLaunchpadHelperClient {
     }
 
     func installBundle(version: String, archive: FileHandle, sha256: String) async throws {
+        let authorization = try await authorizationSession.externalForm()
         try await call { proxy, done in
-            proxy.installBundle(version: version, archive: archive, sha256: sha256) { message in
+            proxy.installBundle(
+                authorization: authorization,
+                version: version,
+                archive: archive,
+                sha256: sha256,
+            ) { message in
                 done(message.map { VPhoneLaunchpadError($0) })
             }
         }
     }
 
     func removeBundle(version: String) async throws {
+        let authorization = try await authorizationSession.externalForm()
         try await call { proxy, done in
-            proxy.removeBundle(version: version) { message in done(message.map { VPhoneLaunchpadError($0) }) }
+            proxy.removeBundle(authorization: authorization, version: version) { message in
+                done(message.map { VPhoneLaunchpadError($0) })
+            }
         }
     }
 
@@ -206,8 +219,9 @@ final class VPhoneLaunchpadHelperClient {
                 String(localized: "Update the privileged helper in Host Setup, then run preflight again."),
             )
         }
+        let authorization = try await authorizationSession.externalForm()
         try await call { proxy, done in
-            proxy.allowVirtualMachine(bundleVersion: bundleVersion) { message in
+            proxy.allowVirtualMachine(authorization: authorization, bundleVersion: bundleVersion) { message in
                 done(message.map { VPhoneLaunchpadError($0) })
             }
         }
@@ -223,11 +237,13 @@ final class VPhoneLaunchpadHelperClient {
         keepArtifacts: Bool,
         onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
+        let authorization = try await authorizationSession.externalForm()
         receiver.setHandler(onLine)
         defer { receiver.setHandler(nil) }
         return try await withTaskCancellationHandler {
             try await request { proxy, done in
                 proxy.installCustomFirmware(
+                    authorization: authorization,
                     bundleVersion: bundleVersion,
                     machineName: machineName,
                     libraryRoot: libraryRoot,
@@ -246,9 +262,14 @@ final class VPhoneLaunchpadHelperClient {
         }
     }
 
+    /// Reuses the authorization the install obtained and never prompts. With
+    /// none yet, this app has started no install to cancel.
     func cancelCustomFirmware() {
+        guard let authorization = authorizationSession.existingExternalForm() else {
+            return
+        }
         let proxy = currentConnection().remoteObjectProxy as? VPhoneLaunchpadHelperProtocol
-        proxy?.cancelCustomFirmware {}
+        proxy?.cancelCustomFirmware(authorization: authorization) {}
     }
 
     // MARK: - XPC plumbing
@@ -325,7 +346,7 @@ final class VPhoneLaunchpadHelperClient {
 
 /// Resumes a continuation exactly once, whichever of reply, error handler or
 /// timeout arrives first.
-nonisolated final class VPhoneLaunchpadResumeOnce<T: Sendable>: @unchecked Sendable {
+final nonisolated class VPhoneLaunchpadResumeOnce<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<T, Error>?
 
@@ -342,8 +363,86 @@ nonisolated final class VPhoneLaunchpadResumeOnce<T: Sendable>: @unchecked Senda
     }
 }
 
+/// The app's AuthorizationRef for the helper's privileged right, created once
+/// and kept for the app's lifetime, so an administrator's approval lasts for
+/// the right's timeout instead of being asked for on every call.
+final nonisolated class VPhoneLaunchpadHelperAuthorizationSession: @unchecked Sendable {
+    private let lock = NSLock()
+    private var reference: AuthorizationRef?
+    /// Runs prompts one at a time, off the main actor and the cooperative pool.
+    private let queue = DispatchQueue(label: "com.vphone.launchpad.authorization")
+
+    /// Obtains the privileged right, asking for an administrator when needed,
+    /// and returns the AuthorizationExternalForm to send to the helper.
+    func externalForm() async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                continuation.resume(with: Result { try self.authorize() })
+            }
+        }
+    }
+
+    /// The external form of the authorization obtained earlier, without
+    /// prompting. Nil when no privileged call has been made yet.
+    func existingExternalForm() -> Data? {
+        guard let reference = lock.withLock({ self.reference }) else {
+            return nil
+        }
+        return try? Self.externalForm(of: reference)
+    }
+
+    private func authorize() throws -> Data {
+        let reference = try lock.withLock {
+            if let reference = self.reference {
+                return reference
+            }
+            var created: AuthorizationRef?
+            guard AuthorizationCreate(nil, nil, [], &created) == errAuthorizationSuccess, let created else {
+                throw Self.failure
+            }
+            self.reference = created
+            return created
+        }
+        let status = VPhoneLaunchpadHelperIdentity.privilegedRight.withCString { name in
+            var item = AuthorizationItem(name: name, valueLength: 0, value: nil, flags: 0)
+            return withUnsafeMutablePointer(to: &item) { pointer in
+                var rights = AuthorizationRights(count: 1, items: pointer)
+                return AuthorizationCopyRights(
+                    reference,
+                    &rights,
+                    nil,
+                    [.interactionAllowed, .extendRights, .preAuthorize],
+                    nil,
+                )
+            }
+        }
+        guard status == errAuthorizationSuccess else {
+            if status == errAuthorizationCanceled {
+                throw CancellationError()
+            }
+            throw Self.failure
+        }
+        return try Self.externalForm(of: reference)
+    }
+
+    private static func externalForm(of reference: AuthorizationRef) throws -> Data {
+        var form = AuthorizationExternalForm()
+        guard AuthorizationMakeExternalForm(reference, &form) == errAuthorizationSuccess else {
+            throw failure
+        }
+        return withUnsafeBytes(of: form.bytes) { Data($0) }
+    }
+
+    private static var failure: VPhoneLaunchpadError {
+        VPhoneLaunchpadError(
+            String(localized: "Unable to Get Administrator Permission"),
+            detail: String(localized: "Try again."),
+        )
+    }
+}
+
 /// Receives output lines the helper streams back during a CFW install.
-nonisolated final class VPhoneLaunchpadHelperReceiver: NSObject, VPhoneLaunchpadHelperClientProtocol, @unchecked Sendable {
+final nonisolated class VPhoneLaunchpadHelperReceiver: NSObject, VPhoneLaunchpadHelperClientProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var handler: (@Sendable (String) -> Void)?
 

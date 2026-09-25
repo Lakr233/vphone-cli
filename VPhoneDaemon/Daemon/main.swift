@@ -11,6 +11,7 @@ if mode != 1 {
     vp_native_bootstrap_cached_binary()
     exit(vp_native_run_proxy())
 }
+
 guard vp_native_watch_proxy() == 0 else { exit(1) }
 vp_vcam_start()
 GuestIrisinInstaller.refreshBootstrapOnStartup()
@@ -30,8 +31,21 @@ do {
             let upgrader = NIOWebSocketServerUpgrader(
                 maxFrameSize: 1 << 20,
                 shouldUpgrade: { channel, request in
-                    let allowed = request.uri == "/v1/events" || GuestPortForwardHandler.port(from: request.uri) != nil
-                    return channel.eventLoop.makeSucceededFuture(allowed ? HTTPHeaders() : nil)
+                    // Browsers apply no CORS to WebSockets; refuse any handshake
+                    // that carries Origin or a non-loopback Host. The refused
+                    // request then reaches GuestHyperTextHandler, which replies 403.
+                    let allowed = GuestHyperTextHandler.isLocalClient(request.headers) &&
+                        (request.uri == "/v1/events" || GuestPortForwardHandler.port(from: request.uri) != nil)
+                    guard allowed else { return channel.eventLoop.makeSucceededFuture(nil) }
+                    // A client that gave the host proxy its token as a WebSocket
+                    // subprotocol expects the server to select that protocol.
+                    var headers = HTTPHeaders()
+                    if let offered = request.headers[canonicalForm: "Sec-WebSocket-Protocol"]
+                        .first(where: { $0.hasPrefix("vphone-token.") })
+                    {
+                        headers.add(name: "Sec-WebSocket-Protocol", value: String(offered))
+                    }
+                    return channel.eventLoop.makeSucceededFuture(headers)
                 },
                 upgradePipelineHandler: { channel, request in
                     // Add the post-upgrade handlers synchronously on the channel's

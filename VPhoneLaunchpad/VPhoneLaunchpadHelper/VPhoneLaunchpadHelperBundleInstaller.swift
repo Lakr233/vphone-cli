@@ -132,26 +132,91 @@ enum VPhoneLaunchpadHelperBundleInstaller {
     }
 
     /// root:wheel and no group or other write bit anywhere in the tree.
-    /// lchown and a symlink check keep this from following links out.
+    /// lchown and a symlink check keep this from following links out. The
+    /// tree is checked first, and the mode mask also clears setuid, setgid
+    /// and sticky bits, so nothing in the store runs as root by itself.
     private static func makeRootOwned(_ root: URL) throws {
-        var paths = [root.path]
+        var entries = [(path: root.path, relative: "")]
         if let enumerator = FileManager.default.enumerator(atPath: root.path) {
             for case let relative as String in enumerator {
-                paths.append(root.appendingPathComponent(relative).path)
+                entries.append((root.appendingPathComponent(relative).path, relative))
             }
         }
-        for path in paths {
+        for entry in entries {
+            try requireSafeEntry(entry.path, relative: entry.relative)
+        }
+        for entry in entries {
             var info = stat()
-            guard lstat(path, &info) == 0 else {
+            guard lstat(entry.path, &info) == 0 else {
                 throw VPhoneLaunchpadHelperError("Unable to install VPhone.bundle. Try again.")
             }
-            guard lchown(path, 0, 0) == 0 else {
+            guard lchown(entry.path, 0, 0) == 0 else {
                 throw VPhoneLaunchpadHelperError("Unable to install VPhone.bundle. Try again.")
             }
             if (info.st_mode & S_IFMT) != S_IFLNK {
-                chmod(path, info.st_mode & 0o7755)
+                chmod(entry.path, info.st_mode & 0o0755)
             }
         }
+    }
+
+    /// Refuses setuid or setgid entries, hard-linked files, devices, FIFOs,
+    /// sockets, and symbolic links that point outside the bundle.
+    private static func requireSafeEntry(_ path: String, relative: String) throws {
+        var info = stat()
+        guard lstat(path, &info) == 0 else {
+            throw VPhoneLaunchpadHelperError("Unable to install VPhone.bundle. Try again.")
+        }
+        let unsafe = VPhoneLaunchpadHelperError("VPhone.bundle contains an unsafe file at \(relative). Download it again.")
+        guard info.st_mode & (S_ISUID | S_ISGID) == 0 else {
+            throw unsafe
+        }
+        switch info.st_mode & S_IFMT {
+        case S_IFDIR:
+            break
+        case S_IFREG:
+            guard info.st_nlink == 1 else {
+                throw unsafe
+            }
+        case S_IFLNK:
+            var buffer = [CChar](repeating: 0, count: Int(PATH_MAX) + 1)
+            let length = readlink(path, &buffer, Int(PATH_MAX))
+            guard length > 0 else {
+                throw unsafe
+            }
+            let target = String(decoding: buffer[..<length].map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            guard !target.hasPrefix("/"), staysInside(link: relative, target: target) else {
+                throw unsafe
+            }
+        default:
+            throw unsafe
+        }
+    }
+
+    /// Resolves `target` lexically from the folder holding `link` (both
+    /// relative to the bundle root) and reports whether it stays inside.
+    ///
+    /// The enumerator walks only real folders, so leading `..` components
+    /// climb real folders. A `..` after a named component is refused: that
+    /// name may itself be a link (`sub/up -> ..`, then `sub/x -> up/..`), and
+    /// the climb would then land above where the lexical walk says.
+    private static func staysInside(link: String, target: String) -> Bool {
+        var stack = link.split(separator: "/").dropLast().map(String.init)
+        var descended = false
+        for component in target.split(separator: "/") {
+            switch component {
+            case ".":
+                continue
+            case "..":
+                guard !descended, !stack.isEmpty else {
+                    return false
+                }
+                stack.removeLast()
+            default:
+                descended = true
+                stack.append(String(component))
+            }
+        }
+        return true
     }
 
     private static func requireDirectory(_ url: URL, _ message: String) throws {

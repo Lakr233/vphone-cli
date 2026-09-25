@@ -4,12 +4,72 @@
 
 `vphoned` listens on guest VSOCK port 1339 with SwiftNIO HTTP/1.1. A WebSocket
 upgrade at `/v1/events` uses the same port. `vphone-vm` can expose that byte
-stream on a host TCP address. It opens one VSOCK connection per TCP connection
-and forwards bytes in both directions; it does not translate HTTP or WebSocket
-messages. The host listener is absent unless boot receives `--api-listen
-host:port`. Port `0` asks the OS for an available host port and the actual
-address is printed after the VM starts. The API is also usable from guest and
-host code that connects to VSOCK 1339 directly.
+stream on a host TCP address. After it admits a connection's first request
+head with the API token (see [Access control](#access-control)), it opens one
+VSOCK connection for that TCP connection and forwards bytes in both
+directions; it does not translate HTTP or WebSocket messages. The host
+listener is absent unless boot receives `--api-listen host:port`. Port `0`
+asks the OS for an available host port and the actual address is printed
+after the VM starts. The API is also usable from guest and host code that
+connects to VSOCK 1339 directly.
+
+## Access control
+
+vphoned runs as root, and the API can read and write any guest file, list
+the keychain and load launch daemons. It cannot tell a proxied connection
+from the VM's own VSOCK client, so the host proxy and vphoned each apply a
+check.
+
+**Token (host proxy).** `vphone-vm` creates a token when the proxy starts: 32
+bytes from `SecRandomCopyBytes`, in hex, new for each launch. It prints the
+token after the API address:
+
+```text
+[api] HTTP/WebSocket API: http://127.0.0.1:8765
+[api] token: 3f9c…
+[api] send it as: Authorization: Bearer 3f9c…
+```
+
+To use a fixed token, set `VPHONE_API_TOKEN` before launching.
+`vphone-cli vm launch` passes its environment through to `vphone-vm`. The
+value must be 16 to 256 characters of `A-Z a-z 0-9 - . _ ~`; any other
+non-empty value stops the launch. The proxy reads at most 16 KiB of the
+first request head, waiting up to 10 seconds, and accepts the token in any
+of these forms:
+
+- `Authorization: Bearer <token>`, for HTTP and for WebSocket clients that
+  can set headers
+- a `token=<token>` query item, such as `ws://127.0.0.1:8765/v1/events?token=<token>`
+- a `Sec-WebSocket-Protocol` value `vphone-token.<token>`; vphoned selects
+  that protocol in its 101 reply
+
+The comparison runs in constant time. A missing or wrong token, an oversized
+head, or a malformed head gets `401 Unauthorized` and the connection closes
+before any guest connection opens. A malformed head includes bare CR or LF,
+control bytes, folded lines, or a space before a header colon. On success the
+proxy removes the `Authorization` header and the `token` query item, so
+`/v1/events?token=…` reaches vphoned as `/v1/events`. It forwards every other
+byte unchanged. The token covers the whole TCP connection. vphoned closes
+each HTTP connection after one reply, and a WebSocket stays on the connection
+it was admitted on. A listen address other than loopback prints a warning.
+The proxy then sends `Host: localhost` in place of the client's value, so
+vphoned's Host check still passes. `VPhoneAPIClient` sends the token as a
+bearer header on HTTP and as the `token` query item on WebSocket. It takes
+the token from its `token:` argument or from `VPHONE_API_TOKEN`.
+
+**Browser requests (vphoned).** Browsers apply no CORS to WebSockets, and a
+page can send a form POST to any address. vphoned therefore refuses a request
+that carries an `Origin` header, or a `Host` whose name is not `vphoned`,
+`localhost`, `127.0.0.1` or `::1`. It ignores the port, and it allows a
+request with no `Host`. The refusal is `403`, for WebSocket upgrades too. The
+check runs before an upload to `PUT /v1/files/content` or
+`/v1/clipboard/image` stages a file. Every `POST` must send `Content-Type:
+application/json` or it gets `415`. That closes the no-preflight form and
+`text/plain` routes. The VM's own client sends `Host: vphoned` and a JSON
+content type, and `VPhoneAPIClient` sends the loopback address it connects
+to. Neither sends `Origin`. GET routes only read. vphoned ignores a GET
+request body, so `GET /v1/low-power-mode` cannot turn low power mode on or
+off; use `PUT` with `{"enabled": true}`.
 
 The SwiftPM `VPhoneAPIKit` product is an unentitled HTTP/WebSocket client for
 `vphone-ui` and other macOS apps. The separate public `VPhoneVirtualMachineKit` product
@@ -46,7 +106,10 @@ It selects the matching architecture, verifies the release
 asset's GitHub SHA-256 digest and Debian control fields, then uses IcliKit to
 extract the `.deb` into a temporary directory. It copies the full payload
 into the bootstrap, creates Irisin's mobile-owned data directory, registers
-the app with IcliKit, and loads the daemon through IcliKit. It also attempts
+the app with IcliKit, and loads the daemon through IcliKit. mobile owns
+`/var/mobile/Documents`, so vphoned opens it and `wiki.qaq.irisin` without
+following a symlink. It refuses an entry that is not a real directory and sets
+the owner and mode through the directory descriptor. It also attempts
 to start the daemon; a launchd start error is returned as
 `service_start_warning` while the installed bootstrap remains available.
 On the iOS 26.6.2 RootHide test VM, launchd returned service-configure status
@@ -128,8 +191,8 @@ guest. Ports 1 through 65535 are accepted. Ping/pong and close frames retain
 normal WebSocket behavior; text frames close the tunnel. A failed guest
 connection closes the WebSocket with code 1011. Each tunnel has its own guest
 TCP connection and closes it when the WebSocket closes. For example, with
-`--api-listen 127.0.0.1:8765`, `ws://127.0.0.1:8765/v1/ports/22` carries
-the guest SSH byte stream. An SSH client still needs a local TCP-to-WebSocket
+`--api-listen 127.0.0.1:8765`, `ws://127.0.0.1:8765/v1/ports/22?token=<token>`
+carries the guest SSH byte stream. An SSH client still needs a local TCP-to-WebSocket
 bridge; SSH cannot use a WebSocket URL directly.
 WebSocket fragmentation is reassembled before forwarding. On disconnect, the
 guest tunnel and the host TCP-to-VSOCK proxy let their final queued write
@@ -179,8 +242,13 @@ duplicates remain visible because the two sources have no stable join key.
 The VM GUI uses HTTP over
 VSOCK 1339 directly; host TCP forwarding is opt-in. The former length-prefixed
 VSOCK 1337 protocol and duplicate ObjC command handlers have been removed.
-The 1338 virtual camera stream remains. At startup, the host compares the
-signed daemon hash from `/v1/health`; an update is uploaded through HTTP,
+The 1338 virtual camera stream remains. mobile owns
+`/var/mobile/Media/SimulatedCamera`. vphoned opens that directory, its
+`vphone-vcam-frame.shm` frame file and its `vphone-vcam.log` log with
+`openat` and `O_NOFOLLOW`. It opens the log once at startup. An entry that
+is not a root-owned regular file with one link is removed and created again
+exclusively. Only after that does vphoned resize, chmod or map it.
+At startup, the host compares the signed daemon hash from `/v1/health`; an update is uploaded through HTTP,
 verified by SHA-256, made executable, and activated through launchd restart.
 This intentionally breaks compatibility with guests that still have the old
 daemon: install a guest image carrying this vphoned build before using the new
@@ -256,7 +324,12 @@ The proxy never initializes NIO, IcliKit, or the camera server under its
 6 MB per-process Jetsam limit. A successful `agent.apply_update` worker exit
 makes the proxy exit so launchd can restart the updated cached binary. If a
 cached worker fails before binding, the bundled-binary fallback remains in
-effect. On a 26.6.2 VM, the proxy's physical footprint stayed near 1.4 MB
+effect. Before it execs `/var/root/Library/Caches/vphoned`, the proxy
+opens the binary and its `vphoned.api-v2` marker without following a link.
+The two files and their directory must be root-owned and not writable by
+group or other. The proxy hashes the descriptor it opened and execs the path
+only while it still names the same device and inode. The guest has no
+`fexecve`. Anything else leaves the bundled binary running. On a 26.6.2 VM, the proxy's physical footprint stayed near 1.4 MB
 through 30 health requests and six app listings; the worker served those
 requests without a PID change. Killing the proxy caused the worker to leave
 and launchd to start one new proxy/worker pair. The worker's Jetsam snapshot
@@ -274,13 +347,21 @@ proxy uses NIO channels and closes the paired channel when either side ends.
 
 ```sh
 vphone-cli vm launch <name> --api-listen 127.0.0.1:8765
-curl http://127.0.0.1:8765/v1/health
+# copy the value from the "[api] token:" line, or set VPHONE_API_TOKEN first
+TOKEN=...
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/v1/health
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+     -d '{"method":"device.snapshot","params":{}}' http://127.0.0.1:8765/v1/rpc
+websocat "ws://127.0.0.1:8765/v1/events?token=$TOKEN"
 ```
 
 ```swift
 import VPhoneAPIKit
 
-let client = VPhoneAPIClient(baseURL: URL(string: "http://127.0.0.1:8765")!)
+let client = VPhoneAPIClient(
+    baseURL: URL(string: "http://127.0.0.1:8765")!,
+    token: token, // or nil to read VPHONE_API_TOKEN
+)
 let device = try await client.call("device.snapshot")
 let apps = try await client.call("apps.refresh")
 let socket = try client.openWebSocket()
@@ -291,5 +372,6 @@ let message = try await socket.next()
 ```
 
 The listener accepts the address specified by the user. For local-only use,
-pass `127.0.0.1` or `[::1]`. The API currently has no authentication layer;
-exposing it beyond a trusted host requires the caller's own access control.
+pass `127.0.0.1` or `[::1]`. Any other address prints a warning: every machine
+that can reach it needs only the token, which travels in clear text over
+plain HTTP, so use it only on a trusted network.

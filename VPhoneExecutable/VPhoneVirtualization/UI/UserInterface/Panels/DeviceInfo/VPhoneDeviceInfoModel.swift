@@ -158,12 +158,13 @@ final class VPhoneDeviceInfoModel {
             VPhoneDeviceInfoRow(label: Self.text("CPU Count"), value: Self.value(info.string("processor_count"))),
         ]
         let storage = info.object("storage") ?? [:]
-        if let total = storage.double("total_bytes"), total > 0 {
-            let available = storage.double("available_bytes") ?? 0
+        // Guest numbers: only finite values that fit in Int64 are converted.
+        if let total = storage.double("total_bytes").flatMap(Self.byteCount), total > 0 {
+            let available = storage.double("available_bytes").flatMap(Self.byteCount) ?? 0
             let used = max(0, total - available)
-            let fraction = min(1, used / total)
+            let fraction = min(1, Double(used) / Double(total))
             let value = String(
-                localized: "\(VPhonePanelFormat.bytes(Int64(used))) used of \(VPhonePanelFormat.bytes(Int64(total))) (\(VPhonePanelFormat.percent(fraction)))",
+                localized: "\(VPhonePanelFormat.bytes(used)) used of \(VPhonePanelFormat.bytes(total)) (\(VPhonePanelFormat.percent(fraction)))",
                 bundle: VPhoneLocalization.bundle,
             )
             let tone: VPhoneDeviceInfoRow.Tone = fraction >= 0.95 ? .critical : fraction >= 0.85 ? .warning : .good
@@ -354,17 +355,24 @@ final class VPhoneDeviceInfoModel {
         value.formatted(.number.precision(.fractionLength(0 ... 2)).grouping(.never))
     }
 
+    /// A guest byte count as Int64, or nil when it is not finite, negative, or
+    /// too large. `Double(Int64.max)` rounds up to 2^63, so the bound is exclusive.
+    private static func byteCount(_ value: Double) -> Int64? {
+        guard value.isFinite, value >= 0, value < Double(Int64.max) else { return nil }
+        return Int64(value)
+    }
+
     /// UIDeviceOrientation raw values.
     private static func deviceOrientation(_ value: Int?) -> String {
         switch value {
-        case 1: Self.text("Portrait")
-        case 2: Self.text("Upside Down")
-        case 3: Self.text("Landscape Left")
-        case 4: Self.text("Landscape Right")
-        case 5: Self.text("Face Up")
-        case 6: Self.text("Face Down")
+        case 1: text("Portrait")
+        case 2: text("Upside Down")
+        case 3: text("Landscape Left")
+        case 4: text("Landscape Right")
+        case 5: text("Face Up")
+        case 6: text("Face Down")
         case nil: "—"
-        default: Self.text("Unknown")
+        default: text("Unknown")
         }
     }
 }

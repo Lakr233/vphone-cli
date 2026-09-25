@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 struct VPhoneRemoteFile: Identifiable, Hashable {
     let dir: String
@@ -34,7 +35,7 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
         if isDirectory || isSymbolicLink {
             return "-"
         }
-        return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+        return ByteCountFormatter.string(fromByteCount: Int64(clamping: size), countStyle: .file)
     }
 
     var displayDate: String {
@@ -85,8 +86,11 @@ struct VPhoneRemoteFile: Identifiable, Hashable {
 
 extension VPhoneRemoteFile {
     /// Parse from the dict returned by vphoned file_list entries.
+    /// Returns nil for an entry whose name is not one path component, so a
+    /// guest name never reaches a host path.
     init?(dir: String, entry: [String: Any]) {
         guard let name = entry["name"] as? String,
+              VPhoneGuestFileName.isSafe(name),
               let typeStr = entry["type"] as? String,
               let type = FileType(rawValue: typeStr)
         else { return nil }
@@ -96,7 +100,8 @@ extension VPhoneRemoteFile {
         self.type = type
         symlinkTargetsDirectory = entry["link_target_dir"] as? Bool ?? false
         resolvedPath = entry["resolved_path"] as? String
-        size = (entry["size"] as? NSNumber)?.uint64Value ?? 0
+        // Read signed so a negative size becomes 0, not UInt64.max.
+        size = UInt64(clamping: (entry["size"] as? NSNumber)?.int64Value ?? 0)
         permissions = entry["perm"] as? String ?? "---"
         modified = Date(timeIntervalSince1970: (entry["mtime"] as? Double) ?? 0)
     }

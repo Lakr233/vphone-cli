@@ -8,6 +8,10 @@ public enum VPhoneManifestError: Error {
     case unsupportedSchema(path: String, found: Int?)
     case unsupportedRuntimeVersion(String)
     case writeFailed(path: String)
+    /// A file name in the manifest is not one plain name inside the VM folder.
+    case invalidPath(path: String, field: String)
+    /// A VM file exists but is a symbolic link or not a regular file.
+    case notRegularFile(path: String)
 }
 
 extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
@@ -23,6 +27,10 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
             "This vphone build is version \(version). VMs with schema version 2 require vphone 2.x. Install vphone 2.x before launching this VM."
         case let .writeFailed(path):
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
+        case let .invalidPath(path, field):
+            "The VM configuration at \(path) has an invalid \(field). It must be a single file name inside the VM folder. Recreate the VM, or restore a backup of config.plist."
+        case let .notRegularFile(path):
+            "\(path) is a symbolic link or not a regular file. VM files must be regular files inside the VM folder. Recreate the VM, or restore the file from a backup."
         }
     }
 
@@ -256,31 +264,119 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             throw VPhoneManifestError.unsupportedSchema(path: url.path, found: marker?.schemaVersion)
         }
         try VPhoneRuntimeVersion.requireVersion2()
+        let manifest: VPhoneVirtualMachineManifest
         do {
-            return try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
+            manifest = try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
         } catch {
             throw VPhoneManifestError.parseFailed(path: url.path)
         }
+        try manifest.validateFileNames(configPath: url.path)
+        return manifest
     }
 
-    /// Save manifest to a plist file
+    /// Save manifest to a plist file.
+    ///
+    /// Atomic, so a config.plist that is a symbolic link is replaced by a new
+    /// file rather than written through to wherever it points.
     public func write(to url: URL) throws {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
 
         do {
             let data = try encoder.encode(self)
-            try data.write(to: url)
+            try data.write(to: url, options: .atomic)
         } catch {
             throw VPhoneManifestError.writeFailed(path: url.path)
         }
     }
 
+    // MARK: - File Names
+
+    /// Whether `name` is one plain entry in a directory: not empty, not `.` or
+    /// `..`, no `/`, no NUL, and within NAME_MAX bytes.
+    public static func isPlainFileName(_ name: String) -> Bool {
+        !name.isEmpty
+            && name != "."
+            && name != ".."
+            && !name.contains("/")
+            && !name.contains("\0")
+            && name.utf8.count <= 255
+    }
+
+    /// The bundle files this manifest names, keyed by their plist field.
+    public var bundleFileNames: [(field: String, name: String)] {
+        var names = [
+            (field: "diskImage", name: diskImage),
+            (field: "nvramStorage", name: nvramStorage),
+            (field: "sepStorage", name: sepStorage),
+        ]
+        if let romImages {
+            names.append((field: "romImages.avpBooter", name: romImages.avpBooter))
+            names.append((field: "romImages.avpSEPBooter", name: romImages.avpSEPBooter))
+        }
+        return names
+    }
+
+    /// Every file the manifest names must sit directly in the VM folder. An
+    /// imported config.plist is untrusted, and vphone-vm overwrites the NVRAM
+    /// file and attaches the disk read-write, so a `../` name would reach any
+    /// file the user can write.
+    func validateFileNames(configPath: String) throws {
+        for (field, name) in bundleFileNames where !Self.isPlainFileName(name) {
+            throw VPhoneManifestError.invalidPath(path: configPath, field: field)
+        }
+    }
+
     // MARK: - Convenience
 
-    /// Resolve relative path to absolute URL within VM directory
-    public func resolve(path: String, in vmDirectory: URL) -> URL {
-        vmDirectory.appendingPathComponent(path)
+    /// Resolve a manifest file name to its URL directly inside the VM directory.
+    ///
+    /// `load(from:)` already rejects names that are not plain; this refuses
+    /// them again so no caller can reach outside the bundle with a manifest
+    /// built some other way.
+    public func resolve(path: String, in vmDirectory: URL) throws -> URL {
+        let configPath = vmDirectory.appendingPathComponent("config.plist").path
+        guard Self.isPlainFileName(path) else {
+            throw VPhoneManifestError.invalidPath(path: configPath, field: "file name \"\(path)\"")
+        }
+        let url = vmDirectory.appendingPathComponent(path, isDirectory: false)
+        guard url.deletingLastPathComponent().standardizedFileURL.path
+            == vmDirectory.standardizedFileURL.path
+        else {
+            throw VPhoneManifestError.invalidPath(path: configPath, field: "file name \"\(path)\"")
+        }
+        return url
+    }
+
+    // MARK: - Bundle Files
+
+    /// What `lstat` finds at a VM file's path. A symbolic link is never
+    /// followed, so it counts as `.other`.
+    public enum FileKind: Sendable {
+        case missing
+        case regularFile
+        case other
+    }
+
+    public static func fileKind(at url: URL) -> FileKind {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else {
+            return errno == ENOENT ? .missing : .other
+        }
+        return info.st_mode & S_IFMT == S_IFREG ? .regularFile : .other
+    }
+
+    /// Throws unless the entry at `url` is missing or a regular file, and
+    /// returns whether it exists. Checked before a VM file is handed to
+    /// Virtualization, which opens, creates and overwrites through symbolic
+    /// links.
+    @discardableResult
+    public static func requireRegularFileIfPresent(at url: URL) throws -> Bool {
+        switch fileKind(at: url) {
+        case .missing: false
+        case .regularFile: true
+        case .other: throw VPhoneManifestError.notRegularFile(path: url.path)
+        }
     }
 
     // MARK: - Editing

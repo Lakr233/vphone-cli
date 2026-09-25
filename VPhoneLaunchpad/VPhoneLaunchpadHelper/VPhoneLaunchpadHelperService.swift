@@ -9,9 +9,11 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
     private let work = DispatchQueue(label: "com.vphone.launchpad.helper.work")
 
     /// One CFW install at a time across every connection: two installs
-    /// host-mounting disks at once is never what anyone wants.
+    /// host-mounting disks at once is never what anyone wants. The owner is
+    /// the user that started it, the only one allowed to cancel it.
     private static let firmwareLock = NSLock()
-    nonisolated(unsafe) private static var firmwareProcess: Process?
+    private nonisolated(unsafe) static var firmwareProcess: Process?
+    private nonisolated(unsafe) static var firmwareOwner: uid_t?
 
     init(connection: NSXPCConnection) {
         self.connection = connection
@@ -28,6 +30,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
     // MARK: - Bundles
 
     func installBundle(
+        authorization: Data,
         version: String,
         archive: FileHandle,
         sha256: String,
@@ -35,6 +38,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
     ) {
         work.async {
             do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
                 try VPhoneLaunchpadHelperBundleInstaller.install(version: version, archive: archive, sha256: sha256)
                 reply(nil)
             } catch {
@@ -43,9 +47,10 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         }
     }
 
-    func removeBundle(version: String, reply: @escaping @Sendable (String?) -> Void) {
+    func removeBundle(authorization: Data, version: String, reply: @escaping @Sendable (String?) -> Void) {
         work.async {
             do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
                 try VPhoneLaunchpadHelperBundleInstaller.remove(version: version)
                 reply(nil)
             } catch {
@@ -54,9 +59,10 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         }
     }
 
-    func allowVirtualMachine(bundleVersion: String, reply: @escaping @Sendable (String?) -> Void) {
+    func allowVirtualMachine(authorization: Data, bundleVersion: String, reply: @escaping @Sendable (String?) -> Void) {
         work.async {
             do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
                 try VPhoneLaunchpadHelperAMFI.allow(bundleVersion: bundleVersion)
                 reply(nil)
             } catch {
@@ -68,6 +74,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
     // MARK: - CFW install
 
     func installCustomFirmware(
+        authorization: Data,
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
@@ -80,6 +87,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         DispatchQueue.global(qos: .userInitiated).async { [self] in
             let request: VPhoneLaunchpadHelperFirmwareRequest
             do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
                 request = try VPhoneLaunchpadHelperFirmwareRequest(
                     bundleVersion: bundleVersion,
                     machineName: machineName,
@@ -111,10 +119,12 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
                 return
             }
             Self.firmwareProcess = process
+            Self.firmwareOwner = callerUID
             Self.firmwareLock.unlock()
             defer {
                 Self.firmwareLock.lock()
                 Self.firmwareProcess = nil
+                Self.firmwareOwner = nil
                 Self.firmwareLock.unlock()
             }
 
@@ -131,16 +141,37 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         }
     }
 
-    func cancelCustomFirmware(reply: @escaping @Sendable () -> Void) {
-        Self.firmwareLock.lock()
-        Self.firmwareProcess?.interrupt()
-        Self.firmwareLock.unlock()
-        reply()
+    func cancelCustomFirmware(authorization: Data, reply: @escaping @Sendable () -> Void) {
+        let callerUID = callerUID
+        // Not on `work`: a bundle install queued there must not delay a cancel.
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { reply() }
+            guard (try? VPhoneLaunchpadHelperAuthorization.require(authorization)) != nil else {
+                return
+            }
+            Self.firmwareLock.lock()
+            if Self.firmwareOwner == callerUID {
+                Self.firmwareProcess?.interrupt()
+            }
+            Self.firmwareLock.unlock()
+        }
     }
 
     // MARK: - Uninstall
 
-    func uninstallHelper(reply: @escaping @Sendable (String?) -> Void) {
+    func uninstallHelper(authorization: Data, reply: @escaping @Sendable (String?) -> Void) {
+        work.async { [self] in
+            do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
+            } catch {
+                reply(error.localizedDescription)
+                return
+            }
+            removeHelper(reply: reply)
+        }
+    }
+
+    private func removeHelper(reply: @escaping @Sendable (String?) -> Void) {
         let label = VPhoneLaunchpadHelperIdentity.label
         let fileManager = FileManager.default
         try? fileManager.removeItem(atPath: "/Library/LaunchDaemons/\(label).plist")

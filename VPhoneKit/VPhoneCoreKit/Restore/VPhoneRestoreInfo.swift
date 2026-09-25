@@ -43,8 +43,10 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     /// The `restore-info.json` snapshot if present, else derived live from the
     /// bundle's restore-directory plists — so bundles restored before this file
     /// existed still report their versions. `nil` when neither is available.
+    /// A snapshot that is a symbolic link or not a regular file is ignored.
     public static func load(fromBundle bundle: VPhoneBundle) -> VPhoneRestoreInfo? {
-        if let data = try? Data(contentsOf: url(forBundle: bundle), options: .mappedIfSafe),
+        if let directory = readableDirectory(of: bundle),
+           let data = try? directory.readData(fileName),
            let info = try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: data)
         {
             return info
@@ -57,17 +59,26 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
     /// `BuildManifest.plist` (cloudOS kernel). `nil` if the restore directory or
     /// either version is missing.
     public static func derive(fromBundle bundle: VPhoneBundle) -> VPhoneRestoreInfo? {
-        guard let restoreDir = findRestoreDirectory(inBundle: bundle),
-              let ios = readVersion(restoreDir.appendingPathComponent("iPhone-BuildManifest.plist")),
-              let cloudOS = readVersion(restoreDir.appendingPathComponent("BuildManifest.plist"))
+        guard let directory = readableDirectory(of: bundle),
+              let name = findRestoreDirectory(in: directory),
+              let restore = try? directory.directory(name),
+              let ios = readVersion("iPhone-BuildManifest.plist", in: restore),
+              let cloudOS = readVersion("BuildManifest.plist", in: restore)
         else { return nil }
         return VPhoneRestoreInfo(ios: ios, cloudOS: cloudOS)
     }
 
+    /// Root runs this in a folder the caller controls (`vm new` under sudo),
+    /// so the write is descriptor relative: a new file created exclusively
+    /// beside the old one, then renamed over it. A symbolic link planted at
+    /// `restore-info.json` is replaced, never written through, and the bundle
+    /// folder itself must not be a link.
     public func write(toBundle bundle: VPhoneBundle) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(self).write(to: Self.url(forBundle: bundle))
+        let data = try encoder.encode(self)
+        let directory = try VPhoneConfinedDirectory(root: bundle.url.path)
+        try directory.writeFile(Self.fileName, contents: data, mode: 0o644)
     }
 
     /// Set `variant` (and its device) on the bundle's restore-info.json, keeping
@@ -89,31 +100,48 @@ public struct VPhoneRestoreInfo: Codable, Equatable, Sendable {
 
     /// Remove the `iPhone*_Restore/` tree from the bundle; returns its name, or
     /// nil if absent. Record versions (`derive`) first — it reads this directory.
+    /// Only a real folder is removed, without following any link inside it:
+    /// an `iPhone*_Restore` symbolic link is not a restore tree.
     @discardableResult
     public static func removeBuiltFirmware(fromBundle bundle: VPhoneBundle) throws -> String? {
-        guard let dir = findRestoreDirectory(inBundle: bundle) else { return nil }
-        try FileManager.default.removeItem(at: dir)
-        return dir.lastPathComponent
+        let directory = try VPhoneConfinedDirectory(root: bundle.url.path)
+        guard let name = findRestoreDirectory(in: directory) else { return nil }
+        try directory.removeItem(name)
+        return name
     }
 
     // MARK: - Restore-directory reads
 
-    static func findRestoreDirectory(inBundle bundle: VPhoneBundle) -> URL? {
-        let entries = (try? FileManager.default.contentsOfDirectory(
-            at: bundle.url,
-            includingPropertiesForKeys: nil,
-        )) ?? []
-        return entries
-            .filter { $0.lastPathComponent.hasPrefix("iPhone") && $0.lastPathComponent.hasSuffix("_Restore") }
-            .max { $0.lastPathComponent < $1.lastPathComponent }
+    /// Reads may follow a bundle folder that is itself a link (a VM moved to
+    /// another disk); everything below it is still opened without following.
+    private static func readableDirectory(of bundle: VPhoneBundle) -> VPhoneConfinedDirectory? {
+        try? VPhoneConfinedDirectory(root: bundle.url.resolvingSymlinksInPath().path)
     }
 
-    private static func readVersion(_ plist: URL) -> OSVersion? {
-        guard let data = try? Data(contentsOf: plist, options: .mappedIfSafe),
+    /// The newest `iPhone*_Restore` entry that `lstat` reports as a folder.
+    static func findRestoreDirectory(in directory: VPhoneConfinedDirectory) -> String? {
+        let entries = (try? directory.entries()) ?? []
+        return entries
+            .filter { $0.hasPrefix("iPhone") && $0.hasSuffix("_Restore") }
+            .filter { (try? directory.isDirectory($0)) == true }
+            .max()
+    }
+
+    private static func readVersion(_ name: String, in directory: VPhoneConfinedDirectory) -> OSVersion? {
+        guard let data = try? directory.readData(name),
               let root = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-              let version = root["ProductVersion"] as? String,
-              let build = root["ProductBuildVersion"] as? String
+              let version = root["ProductVersion"] as? String, isVersionToken(version),
+              let build = root["ProductBuildVersion"] as? String, isVersionToken(build)
         else { return nil }
         return OSVersion(version: version, build: build)
+    }
+
+    /// Versions and builds come from plists in a caller-controlled folder and
+    /// end up in JSON, logs and UI: accept only `[0-9A-Za-z.]{1,32}`.
+    static func isVersionToken(_ text: String) -> Bool {
+        (1 ... 32).contains(text.utf8.count) && text.utf8.allSatisfy { byte in
+            (byte >= 0x30 && byte <= 0x39) || (byte >= 0x41 && byte <= 0x5A)
+                || (byte >= 0x61 && byte <= 0x7A) || byte == 0x2E
+        }
     }
 }

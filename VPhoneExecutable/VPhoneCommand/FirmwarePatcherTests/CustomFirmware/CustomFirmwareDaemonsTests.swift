@@ -275,6 +275,32 @@ struct CustomFirmwareDaemonsTests {
         }
     }
 
+    @Test
+    func `a Cryptex path that leaves the restore folder is refused`() throws {
+        let directory = try CustomFirmwareDaemonsFixtures.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        // Root joins these onto the restore folder and opens the result, so
+        // a manifest in a caller's VM folder must not reach anything else.
+        for unsafe in ["../x.dmg", "/abs.dmg", "a/../../x.dmg", "./x.dmg", "a//x.dmg"] {
+            let manifest: PlistDict = [
+                "BuildIdentities": [
+                    ["Manifest": [
+                        "Cryptex1,SystemOS": ["Info": ["Path": unsafe]],
+                        "Cryptex1,AppOS": ["Info": ["Path": "043-69297-784.dmg"]],
+                    ] as PlistDict],
+                ],
+            ]
+            let url = directory.appending(path: "BuildManifest.plist")
+            try CustomFirmwareDaemons.savePlist(manifest, to: url)
+
+            #expect(throws: CustomFirmwareDaemons.DaemonError.self, "accepted \(unsafe)") {
+                try CustomFirmwareDaemons.cryptexPaths(buildManifest: url)
+            }
+        }
+        #expect(CustomFirmwareDaemons.isPlainRelativePath("Firmware/043-70113-702.dmg.aea"))
+    }
+
     // MARK: - launchd.plist injection
 
     @Test

@@ -18,6 +18,7 @@ public enum CustomFirmwareDaemons {
         case fileNotFound(String)
         case invalidPlist(String)
         case cryptexPathsNotFound(String)
+        case unsafeCryptexPath(String)
 
         public var description: String {
             switch self {
@@ -27,6 +28,8 @@ public enum CustomFirmwareDaemons {
                 "Invalid plist: \(path)"
             case let .cryptexPathsNotFound(path):
                 "Cryptex1,SystemOS/AppOS paths not found in any BuildIdentity: \(path)"
+            case let .unsafeCryptexPath(path):
+                "Cryptex image path is not a plain path inside the restore folder: \(path)"
             }
         }
     }
@@ -49,6 +52,10 @@ public enum CustomFirmwareDaemons {
     /// Every BuildIdentity is searched, not just the first: vResearch IPSWs carry
     /// their Cryptex entries in a later identity, and the last identity in a real
     /// manifest has none at all.  The first identity carrying *both* wins.
+    ///
+    /// The manifest sits in a caller-controlled VM folder and root opens what
+    /// it names, so a path that is absolute or has a `.` or `..` component is
+    /// refused rather than joined onto the restore folder.
     public static func cryptexPaths(buildManifest url: URL) throws -> CryptexPaths {
         let manifest = try loadPlist(url)
         let identities = manifest["BuildIdentities"] as? [Any] ?? []
@@ -58,11 +65,22 @@ public enum CustomFirmwareDaemons {
             let systemOS = componentPath(manifestSection, "Cryptex1,SystemOS")
             let appOS = componentPath(manifestSection, "Cryptex1,AppOS")
             if !systemOS.isEmpty, !appOS.isEmpty {
+                for path in [systemOS, appOS] where !isPlainRelativePath(path) {
+                    throw DaemonError.unsafeCryptexPath(path)
+                }
                 return CryptexPaths(systemOS: systemOS, appOS: appOS)
             }
         }
 
         throw DaemonError.cryptexPathsNotFound(url.path)
+    }
+
+    /// Non-empty, relative, and made only of non-empty names other than `.`
+    /// and `..`.
+    static func isPlainRelativePath(_ path: String) -> Bool {
+        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\0") else { return false }
+        return path.split(separator: "/", omittingEmptySubsequences: false)
+            .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
     }
 
     /// `Manifest -> <component> -> Info -> Path`, or "" when any link is missing.

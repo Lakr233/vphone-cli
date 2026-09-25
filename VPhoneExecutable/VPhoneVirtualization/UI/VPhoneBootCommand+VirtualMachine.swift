@@ -7,24 +7,25 @@ import VPhoneCoreKit
 extension VPhoneBootCommand {
     /// Resolve final options by merging manifest values.
     func resolveOptions() throws -> VPhoneVirtualMachine.Options {
+        // config.plist is rewritten on first boot; a symbolic link here would
+        // be read from and written back through to a file outside the bundle.
+        guard try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: config) else {
+            throw VPhoneManifestError.loadFailed(path: config.path)
+        }
         let manifest = try VPhoneVirtualMachineManifest.load(from: config)
         print("[vphone] Loaded VM manifest from \(config.path)")
 
         let vmDir = config.deletingLastPathComponent()
 
-        return VPhoneVirtualMachine.Options(
+        return try VPhoneVirtualMachine.Options(
             configURL: config,
-            romURL: manifest.romImages != nil
-                ? manifest.resolve(path: manifest.romImages!.avpBooter, in: vmDir)
-                : nil,
+            romURL: manifest.romImages.map { try manifest.resolve(path: $0.avpBooter, in: vmDir) },
             nvramURL: manifest.resolve(path: manifest.nvramStorage, in: vmDir),
             diskURL: manifest.resolve(path: manifest.diskImage, in: vmDir),
             cpuCount: Int(manifest.cpuCount),
             memorySize: manifest.memorySize,
             sepStorageURL: manifest.resolve(path: manifest.sepStorage, in: vmDir),
-            sepRomURL: manifest.romImages != nil
-                ? manifest.resolve(path: manifest.romImages!.avpSEPBooter, in: vmDir)
-                : nil,
+            sepRomURL: manifest.romImages.map { try manifest.resolve(path: $0.avpSEPBooter, in: vmDir) },
             screenWidth: manifest.screenConfig.width,
             screenHeight: manifest.screenConfig.height,
             screenPPI: manifest.screenConfig.pixelsPerInch,

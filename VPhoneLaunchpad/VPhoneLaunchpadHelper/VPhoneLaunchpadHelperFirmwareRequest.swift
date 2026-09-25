@@ -31,20 +31,14 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         guard VPhoneLaunchpadNames.isValidMachineName(machineName) else {
             throw VPhoneLaunchpadHelperError("\"\(machineName)\" is not a valid machine name.")
         }
-        // The path must already be canonical: no symlink anywhere in it, so a
-        // component cannot be swapped to point root somewhere else.
-        guard libraryRoot.hasPrefix("/"), let resolved = realpath(libraryRoot, nil) else {
-            throw VPhoneLaunchpadHelperError("The library folder \(libraryRoot) does not exist.")
-        }
-        let canonical = String(cString: resolved)
-        free(resolved)
-        guard canonical == libraryRoot else {
-            throw VPhoneLaunchpadHelperError("The library path cannot include symbolic links.")
-        }
+        // Checked by walking the path from "/" without following any link:
+        // the library folder, the machine folder and its Disk.img must belong
+        // to the caller. The caller can still rename these afterwards, so this
+        // only refuses a bad request up front; the root vphone-cli child pins
+        // the machine directory again itself before it touches anything.
+        try Self.requireMachine(libraryRoot: libraryRoot, machineName: machineName, ownedBy: callerUID)
         let machine = URL(fileURLWithPath: libraryRoot, isDirectory: true)
             .appendingPathComponent(machineName, isDirectory: true)
-        try Self.requireDirectory(libraryRoot, ownedBy: callerUID)
-        try Self.requireDirectory(machine.path, ownedBy: callerUID)
 
         guard let account = getpwuid(callerUID) else {
             throw VPhoneLaunchpadHelperError("Unable to find the user account with ID \(callerUID).")
@@ -78,9 +72,65 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         ]
     }
 
-    private static func requireDirectory(_ path: String, ownedBy uid: uid_t) throws {
+    // MARK: - Machine directory
+
+    private static func requireMachine(libraryRoot: String, machineName: String, ownedBy uid: uid_t) throws {
+        let root = try openDirectory(libraryRoot)
+        defer { close(root) }
+        try requireOwner(root, libraryRoot, uid)
+
+        let machinePath = libraryRoot + "/" + machineName
+        let machine = openat(root, machineName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard machine >= 0 else {
+            throw VPhoneLaunchpadHelperError("\(machinePath) is not a folder, or is a symbolic link.")
+        }
+        defer { close(machine) }
+        try requireOwner(machine, machinePath, uid)
+
+        var disk = stat()
+        guard fstatat(machine, "Disk.img", &disk, AT_SYMLINK_NOFOLLOW) == 0,
+              (disk.st_mode & S_IFMT) == S_IFREG,
+              disk.st_nlink == 1
+        else {
+            throw VPhoneLaunchpadHelperError("\(machinePath)/Disk.img must be a regular file, not a link.")
+        }
+        guard disk.st_uid == uid else {
+            throw VPhoneLaunchpadHelperError("\(machinePath)/Disk.img is not owned by your user account.")
+        }
+    }
+
+    /// Opens an absolute, canonical directory path one component at a time
+    /// from "/", refusing a symbolic link anywhere in it.
+    private static func openDirectory(_ path: String) throws -> Int32 {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false).dropFirst()
+        guard path.hasPrefix("/"),
+              !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." })
+        else {
+            throw VPhoneLaunchpadHelperError("The library path \(path) must be an absolute path without . or .. components.")
+        }
+        var directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard directory >= 0 else {
+            throw VPhoneLaunchpadHelperError("The library folder \(path) does not exist.")
+        }
+        for component in components {
+            let next = openat(directory, String(component), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            let failure = errno
+            close(directory)
+            guard next >= 0 else {
+                throw VPhoneLaunchpadHelperError(
+                    failure == ELOOP || failure == ENOTDIR
+                        ? "The library path cannot include symbolic links."
+                        : "The library folder \(path) does not exist.",
+                )
+            }
+            directory = next
+        }
+        return directory
+    }
+
+    private static func requireOwner(_ descriptor: Int32, _ path: String, _ uid: uid_t) throws {
         var info = stat()
-        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else {
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else {
             throw VPhoneLaunchpadHelperError("\(path) is not a folder.")
         }
         guard info.st_uid == uid else {

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import VPhoneCoreKit
 
 @MainActor
 @Observable
@@ -195,6 +196,7 @@ final class VPhoneCrashLogsModel {
         do {
             let content = try await content(of: report)
             try Data(content.rawText.utf8).write(to: url, options: .atomic)
+            VPhoneHostDownloadDirectory.markQuarantined(url)
             succeed(String(localized: "Exported \(url.lastPathComponent).", bundle: VPhoneLocalization.bundle))
         } catch {
             fail(String(localized: "Unable to export \(report.name). Check the connection and the destination, then try again.", bundle: VPhoneLocalization.bundle))
@@ -203,17 +205,21 @@ final class VPhoneCrashLogsModel {
 
     /// Writes each report into a folder under its guest file name. A name
     /// that already exists there gets a numbered suffix instead of replacing it.
+    /// Files are created relative to the folder's descriptor and never
+    /// through a link.
     func export(_ reports: [VPhoneCrashReport], toDirectory directory: URL) async {
         guard activity == nil, !reports.isEmpty else { return }
         activity = .exporting
         defer { activity = nil }
         var exported = 0
         var failed: [String] = []
+        let destination = try? VPhoneHostDownloadDirectory(url: directory)
         for report in reports {
             do {
+                guard let destination else { throw POSIXError(.ENOENT) }
                 let content = try await content(of: report)
-                let url = Self.availableURL(for: report.name, in: directory)
-                try Data(content.rawText.utf8).write(to: url, options: .atomic)
+                let url = try destination.writeUniqueFile(named: report.name, data: Data(content.rawText.utf8))
+                VPhoneHostDownloadDirectory.markQuarantined(url)
                 exported += 1
             } catch {
                 failed.append(report.name)
@@ -223,21 +229,6 @@ final class VPhoneCrashLogsModel {
             succeed(String(localized: "Exported \(exported) reports to \(directory.lastPathComponent).", bundle: VPhoneLocalization.bundle))
         } else {
             fail(String(localized: "Exported \(exported) of \(reports.count) reports. Unable to export \(failed.joined(separator: ", ")). Check the connection, then try again.", bundle: VPhoneLocalization.bundle))
-        }
-    }
-
-    private static func availableURL(for name: String, in directory: URL) -> URL {
-        let base = directory.appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: base.path) else { return base }
-        let stem = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        var number = 2
-        while true {
-            let candidate = directory.appendingPathComponent(ext.isEmpty ? "\(stem) \(number)" : "\(stem) \(number).\(ext)")
-            if !FileManager.default.fileExists(atPath: candidate.path) {
-                return candidate
-            }
-            number += 1
         }
     }
 

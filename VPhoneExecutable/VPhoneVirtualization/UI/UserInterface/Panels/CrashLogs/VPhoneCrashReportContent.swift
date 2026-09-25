@@ -75,8 +75,12 @@ struct VPhoneCrashReportContent: Sendable {
             incidentID: json.string("incident_id"),
         )
         let body = text[text.index(after: newline)...]
-        if (try? JSONSerialization.jsonObject(with: Data(body.utf8))) != nil {
-            displayText = Self.reindent(body)
+        // A body past the size cap, or one reindent() declines, is shown as it is.
+        if body.utf8.count <= Self.maxReindentInput,
+           (try? JSONSerialization.jsonObject(with: Data(body.utf8))) != nil,
+           let reindented = Self.reindent(body)
+        {
+            displayText = reindented
             isReindented = true
         } else {
             displayText = String(body)
@@ -86,9 +90,19 @@ struct VPhoneCrashReportContent: Sendable {
 
     // MARK: - JSON Layout
 
+    /// Largest body, in bytes, that is re-indented.
+    static let maxReindentInput = 4 * 1024 * 1024
+    /// Deepest nesting that is re-indented. Each newline adds `depth * 2`
+    /// spaces, so deep guest JSON could otherwise grow the text many times over.
+    static let maxReindentDepth = 64
+    /// Largest re-indented text, in bytes.
+    static let maxReindentOutput = 16 * 1024 * 1024
+
     /// Re-indents valid JSON two spaces per level. Unlike a round trip
     /// through JSONSerialization, this keeps the report's key order.
-    static func reindent(_ json: Substring) -> String {
+    /// Returns nil when the input, nesting or output passes its limit.
+    static func reindent(_ json: Substring) -> String? {
+        guard json.utf8.count <= maxReindentInput else { return nil }
         let input = Array(json.utf8)
         var output: [UInt8] = []
         output.reserveCapacity(input.count + input.count / 2)
@@ -136,6 +150,7 @@ struct VPhoneCrashReportContent: Sendable {
                     index = next
                 } else {
                     depth += 1
+                    guard depth <= maxReindentDepth else { return nil }
                     newline()
                 }
             case UInt8(ascii: "}"), UInt8(ascii: "]"):
@@ -154,6 +169,9 @@ struct VPhoneCrashReportContent: Sendable {
                 }
             }
             index += 1
+            if output.count > maxReindentOutput {
+                return nil
+            }
         }
         return String(decoding: output, as: UTF8.self)
     }

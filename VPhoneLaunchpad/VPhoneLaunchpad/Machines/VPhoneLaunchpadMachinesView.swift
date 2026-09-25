@@ -62,31 +62,39 @@ struct VPhoneLaunchpadMachinesView: View {
                 sheet = note.object as? Sheet
             }
         #endif
-        .sheet(item: $sheet) { sheet in
-            sheetContent(sheet)
-                .environment(model)
-        }
-        .confirmationDialog(
-            "Delete \(deletion ?? "")?",
-            isPresented: Binding(get: { deletion != nil }, set: { if !$0 { deletion = nil } }),
-        ) {
-            Button("Delete", role: .destructive) {
-                if let name = deletion {
-                    Task { await library.delete(name) }
-                }
+            .sheet(item: $sheet) { sheet in
+                sheetContent(sheet)
+                    .environment(model)
             }
-        } message: {
-            Text("The machine's disk, firmware and settings are removed. This cannot be undone.")
-        }
-        .alert(
-            library.actionError?.message ?? "",
-            isPresented: Binding(get: { library.actionError != nil }, set: { if !$0 { library.actionError = nil } }),
-            presenting: library.actionError,
-        ) { _ in
-            Button("OK") {}
-        } message: { error in
-            Text(error.detail ?? "")
-        }
+            .confirmationDialog(
+                "Delete \(deletion ?? "")?",
+                isPresented: Binding(get: { deletion != nil }, set: {
+                    if !$0 {
+                        deletion = nil
+                    }
+                }),
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let name = deletion {
+                        Task { await library.delete(name) }
+                    }
+                }
+            } message: {
+                Text("The machine's disk, firmware and settings are removed. This cannot be undone.")
+            }
+            .alert(
+                library.actionError?.message ?? "",
+                isPresented: Binding(get: { library.actionError != nil }, set: {
+                    if !$0 {
+                        library.actionError = nil
+                    }
+                }),
+                presenting: library.actionError,
+            ) { _ in
+                Button("OK") {}
+            } message: { error in
+                Text(error.detail ?? "")
+            }
     }
 
     // MARK: - Toolbar

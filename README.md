@@ -33,7 +33,7 @@ For the first setup, select `apt` and `bash` in Irisin. Press and hold the **Ins
 
 ## Everyday use
 
-The VM window provides app and file browsing, clipboard and preference tools, screenshots, recording, and diagnostics. For local automation, launch with `--api-listen 127.0.0.1:8765`; see the [guest API](Research/vphoned_http_api.md).
+The VM window provides app and file browsing, clipboard and preference tools, screenshots, recording, and diagnostics. For local automation, launch with `--api-listen 127.0.0.1:8765`. The VM prints a new API token at each launch as `[api] token: …`, or uses `VPHONE_API_TOKEN` when you set it. Send the token with every request, for example `curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/v1/health`. Requests without the token are refused, and so are requests from web pages. See the [guest API](Research/vphoned_http_api.md).
 
 | Task | Command |
 | --- | --- |

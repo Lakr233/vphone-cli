@@ -1,5 +1,6 @@
 import AppKit
 @preconcurrency import Quartz
+import VPhoneCoreKit
 
 @MainActor
 final class VPhoneQuickLookController: NSResponder, QLPreviewPanelDataSource {
@@ -11,22 +12,25 @@ final class VPhoneQuickLookController: NSResponder, QLPreviewPanelDataSource {
     func open(data: Data, filename: String) {
         cleanupTempFiles()
 
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        // A fresh private directory; the guest's name is created in it
+        // exclusively and never through a link.
+        let directory: VPhoneHostDownloadDirectory
         do {
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            directory = try VPhoneHostDownloadDirectory.makeTemporary()
         } catch {
             print("[ql] failed to create temp dir: \(error)")
             return
         }
-        let fileURL = dir.appendingPathComponent(filename)
+        let dir = directory.url
+        let fileURL: URL
         do {
-            try data.write(to: fileURL)
+            fileURL = try directory.writeNewFile(named: filename, data: data)
         } catch {
             print("[ql] failed to write temp file: \(error)")
             try? FileManager.default.removeItem(at: dir)
             return
         }
+        VPhoneHostDownloadDirectory.markQuarantined(fileURL)
         tempDir = dir
         previewURL = fileURL
 

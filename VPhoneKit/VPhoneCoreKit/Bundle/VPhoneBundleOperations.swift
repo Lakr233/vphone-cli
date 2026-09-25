@@ -49,7 +49,11 @@ public enum VPhoneBundleOperations {
         if fm.fileExists(atPath: dir.path) {
             throw VPhoneLibraryError.alreadyExists(name: spec.name)
         }
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        // The bundle folder itself is created exclusively (mkdir, no
+        // intermediates): a folder or link another account planted after the
+        // check above makes this fail instead of being written into as root.
+        try fm.createDirectory(at: library.root, withIntermediateDirectories: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: false)
         // Roll back the partial bundle on any failure after the dir is created,
         // so a retry with the same name isn't permanently blocked by the
         // alreadyExists check.

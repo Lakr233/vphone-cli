@@ -252,6 +252,18 @@ struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
             forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
         )
         if code == 0 {
+            try recordInstall(in: bundle)
+        }
+        throw ExitCode(code)
+    }
+
+    /// Host bookkeeping in the caller's VM folder. Under sudo or the
+    /// Launchpad helper this runs with the invoking user's credentials, so
+    /// the kernel applies that user's permissions: a link planted in the
+    /// folder can only lead where the user could already write.
+    private func recordInstall(in bundle: VPhoneBundle) throws {
+        let keepArtifacts = keepArtifacts
+        let record = {
             if let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil {
                 print("[cfw] recorded variant jb, device \(info.device ?? "?")")
             }
@@ -259,6 +271,15 @@ struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
                 print("[cfw] removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
             }
         }
-        throw ExitCode(code)
+        guard geteuid() == 0, let invokingUser = VPhoneInvokingUser.current else {
+            record()
+            return
+        }
+        do {
+            try invokingUser.withUserCredentials(record)
+        } catch {
+            // Never fall back to doing this as root.
+            fputs("warning: skipped recording the install in \(bundle.url.path): \(error)\n", stderr)
+        }
     }
 }

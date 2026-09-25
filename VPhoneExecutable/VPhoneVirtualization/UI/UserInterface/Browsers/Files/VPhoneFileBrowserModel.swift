@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import VPhoneCoreKit
 
 @Observable
 @MainActor
@@ -171,11 +172,20 @@ class VPhoneFileBrowserModel {
 
     func downloadSelected(to directory: URL) async {
         let selected = files.filter { selection.contains($0.id) }
+        // Everything is written relative to the chosen folder's descriptor,
+        // so a guest name or a link swapped in on the host cannot redirect it.
+        let destination: VPhoneHostDownloadDirectory
+        do {
+            destination = try VPhoneHostDownloadDirectory(url: directory)
+        } catch {
+            self.error = VPhoneLocalization.format("Unable to open the folder “%@” on this Mac. Choose another location, then try again.", directory.lastPathComponent)
+            return
+        }
         for file in selected {
             if file.isDirectoryLike {
-                await downloadDirectory(file, to: directory, ancestors: [])
+                await downloadDirectory(file, to: destination, ancestors: [])
             } else {
-                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
+                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: destination)
             }
             if error != nil {
                 break
@@ -184,15 +194,16 @@ class VPhoneFileBrowserModel {
         transferName = nil
     }
 
-    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: URL) async {
+    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: VPhoneHostDownloadDirectory) async {
         transferName = name
-        transferTotal = Int64(size)
+        transferTotal = Int64(clamping: size)
         transferCurrent = 0
         do {
             let data = try await control.downloadFile(path: remotePath)
             transferCurrent = Int64(data.count)
-            let dest = directory.appendingPathComponent(name)
-            try data.write(to: dest)
+            // A name already taken gets a numbered suffix; nothing is replaced.
+            let dest = try directory.writeUniqueFile(named: name, data: data)
+            VPhoneHostDownloadDirectory.markQuarantined(dest)
             print("[files] downloaded \(remotePath) (\(data.count) bytes)")
         } catch {
             self.error = VPhoneLocalization.format("Unable to download “%@”. Try again.", name)
@@ -201,7 +212,7 @@ class VPhoneFileBrowserModel {
 
     private func downloadDirectory(
         _ file: VPhoneRemoteFile,
-        to localParent: URL,
+        to localParent: VPhoneHostDownloadDirectory,
         ancestors: Set<String>,
     ) async {
         guard !file.isSymbolicLink || file.resolvedPath != nil else {
@@ -214,9 +225,10 @@ class VPhoneFileBrowserModel {
             return
         }
         let ancestors = ancestors.union([resolvedPath])
-        let localDir = localParent.appendingPathComponent(file.name)
+        let localDir: VPhoneHostDownloadDirectory
         do {
-            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+            localDir = try localParent.makeSubdirectory(named: file.name)
+            VPhoneHostDownloadDirectory.markQuarantined(localDir.url)
         } catch {
             self.error = VPhoneLocalization.format("Unable to create the folder “%@” on this Mac. Choose another location, then try again.", file.name)
             return

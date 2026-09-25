@@ -161,7 +161,7 @@ nonisolated struct VPhoneLaunchpadNewlineTranslator {
 /// Appends lines to a log file on a serial queue, so command output is
 /// written from the thread that read it and never waits on the main actor.
 /// Keeps the last few lines for error details.
-nonisolated final class VPhoneLaunchpadLogWriter: @unchecked Sendable {
+final nonisolated class VPhoneLaunchpadLogWriter: @unchecked Sendable {
     let url: URL
     private let queue = DispatchQueue(label: "com.vphone.launchpad.log")
     private let lock = NSLock()

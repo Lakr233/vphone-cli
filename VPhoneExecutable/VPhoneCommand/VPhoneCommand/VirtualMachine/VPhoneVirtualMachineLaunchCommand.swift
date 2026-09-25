@@ -95,7 +95,15 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
     func run() throws {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
-        let disk = bundle.url.appendingPathComponent(bundle.manifest.diskImage)
+        // Every PID lsof reports for this path gets SIGINT and then SIGKILL, so
+        // it must be the bundle's own disk: a plain name inside the bundle and
+        // a regular file, never a symbolic link to something shared like
+        // /dev/null.
+        let disk = try bundle.manifest.resolve(path: bundle.manifest.diskImage, in: bundle.url)
+        guard try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: disk) else {
+            print("\(name): not running")
+            return
+        }
 
         func runningPIDs() -> [Int32] {
             guard let r = try? VPhoneProcessRunner.runCapturing(

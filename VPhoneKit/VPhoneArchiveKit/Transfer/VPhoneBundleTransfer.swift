@@ -228,14 +228,108 @@ public enum VPhoneBundleTransfer {
             throw VPhoneLibraryError.alreadyExists(name: finalName)
         }
         let extracted = staging.appendingPathComponent(archived)
-        guard fm.fileExists(atPath: extracted.appendingPathComponent("config.plist").path) else {
+        // The extractor restores symbolic links as they were stored, so the
+        // single top-level entry could itself be a link to a directory
+        // anywhere on this Mac. lstat, not fileExists, which follows it.
+        guard fileType(at: extracted) == S_IFDIR else {
+            throw VPhoneBundleTransferError.badArchive(
+                "This archive does not contain a VM folder. Choose an archive created by 'vphone-cli vm export'.",
+            )
+        }
+        guard VPhoneVirtualMachineManifest.fileKind(at: extracted.appendingPathComponent("config.plist"))
+            == .regularFile
+        else {
             throw VPhoneBundleTransferError.badArchive(
                 "This archive does not contain a valid VM. Choose an archive created by 'vphone-cli vm export'.",
             )
         }
+        try checkSymbolicLinks(in: extracted, depth: 0)
         let bundle = try VPhoneBundle.load(at: extracted)
+        try checkBundleFiles(of: bundle)
         try fm.moveItem(at: extracted, to: dst)
         return VPhoneBundle(url: dst, manifest: bundle.manifest)
+    }
+
+    // MARK: - Import Checks
+
+    /// The `S_IFMT` bits `lstat` reports, or nil when there is no entry.
+    private static func fileType(at url: URL) -> mode_t? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { return nil }
+        return info.st_mode & S_IFMT
+    }
+
+    /// A VM export never needs a link that leaves the bundle, and vphone-vm
+    /// and vphone-cli open, overwrite and chmod the bundle's files, so an
+    /// absolute or escaping link would reach host files as the importing user.
+    /// Relative links that stay inside, such as those in an unpacked
+    /// `*_Restore` tree, are kept.
+    ///
+    /// `depth` is how many directories below the bundle root `dir` is. Only
+    /// real directories are walked, never a linked one, so a target's leading
+    /// `..` components climb real directories and can be counted against
+    /// `depth`. A `..` after a named component is refused: that name could be
+    /// a link itself, and then the climb would not be where it looks.
+    private static func checkSymbolicLinks(in dir: URL, depth: Int) throws {
+        let fm = FileManager.default
+        let names: [String]
+        do {
+            names = try fm.contentsOfDirectory(atPath: dir.path)
+        } catch {
+            throw VPhoneBundleTransferError.badArchive(
+                "This archive contains a folder that cannot be read. Choose an archive created by 'vphone-cli vm export'.",
+            )
+        }
+        for name in names {
+            let url = dir.appendingPathComponent(name)
+            switch fileType(at: url) {
+            case S_IFDIR:
+                try checkSymbolicLinks(in: url, depth: depth + 1)
+            case S_IFLNK:
+                let target = try? fm.destinationOfSymbolicLink(atPath: url.path)
+                guard let target, linkTargetStaysInside(target, depth: depth) else {
+                    throw VPhoneBundleTransferError.badArchive(
+                        "This archive contains a symbolic link that points outside the VM folder. Choose an archive created by 'vphone-cli vm export'.",
+                    )
+                }
+            default:
+                continue
+            }
+        }
+    }
+
+    private static func linkTargetStaysInside(_ target: String, depth: Int) -> Bool {
+        guard !target.isEmpty, !target.hasPrefix("/") else { return false }
+        var climbs = 0
+        var descended = false
+        for component in target.split(separator: "/", omittingEmptySubsequences: true) {
+            switch component {
+            case ".":
+                continue
+            case "..":
+                guard !descended else { return false }
+                climbs += 1
+            default:
+                descended = true
+            }
+        }
+        return climbs <= depth
+    }
+
+    /// config.plist, the files the manifest names and the files vphone writes
+    /// at the bundle root must be regular files when present. The symbolic
+    /// link walk already refused links that leave the bundle; this also
+    /// refuses in-bundle links and FIFOs or devices in these places.
+    private static func checkBundleFiles(of bundle: VPhoneBundle) throws {
+        let names = ["config.plist", "restore-info.json", "udid-prediction.txt"]
+            + bundle.manifest.bundleFileNames.map(\.name)
+        for name in names
+            where VPhoneVirtualMachineManifest.fileKind(at: bundle.url.appendingPathComponent(name)) == .other
+        {
+            throw VPhoneBundleTransferError.badArchive(
+                "This archive's VM file \(name) is a symbolic link or not a regular file. Choose an archive created by 'vphone-cli vm export'.",
+            )
+        }
     }
 
     private static func fileByteSize(_ url: URL) -> Int64 {

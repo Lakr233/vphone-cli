@@ -35,22 +35,112 @@
 static pthread_once_t s_start_once = PTHREAD_ONCE_INIT;
 static uint8_t       *s_shm_base   = NULL;
 static int            s_notify_token = -1;
+/* Opened once, relative to the camera directory, by open_shm(). Until then
+ * log lines go to NSLog. */
+static _Atomic int    s_log_fd = -1;
 
 __attribute__((format(printf, 1, 2)))
 static void vvc_logf(const char *fmt, ...) {
-  FILE *fp = fopen(VPHONE_VCAM_DAEMON_LOG_PATH, "a");
+  char message[1024];
   va_list ap;
   va_start(ap, fmt);
-  if (!fp) {
-    char message[1024];
-    vsnprintf(message, sizeof(message), fmt, ap);
-    NSLog(@"%s", message);
-  } else {
-    vfprintf(fp, fmt, ap);
-    fputc('\n', fp);
-    fclose(fp);
-  }
+  vsnprintf(message, sizeof(message) - 1, fmt, ap);
   va_end(ap);
+  int fd = atomic_load(&s_log_fd);
+  if (fd < 0) {
+    NSLog(@"%s", message);
+    return;
+  }
+  size_t length = strlen(message);
+  message[length++] = '\n';
+  /* One write per line keeps O_APPEND lines whole across threads. */
+  (void)write(fd, message, length);
+}
+
+// MARK: - Root-owned files in a mobile-owned directory
+
+static bool is_private_root_file(int fd) {
+  struct stat info;
+  return fstat(fd, &info) == 0 && S_ISREG(info.st_mode) && info.st_uid == 0 &&
+         info.st_nlink == 1;
+}
+
+/* mobile owns the camera directory, so any entry in it may be a symlink, a
+ * hard link to a root-only file, a FIFO, or a file mobile created. Open it
+ * relative to the directory without following links, and accept only a
+ * regular root-owned file with a single name. Anything else is removed and
+ * created again exclusively. O_NONBLOCK keeps a FIFO from blocking the open. */
+static int open_root_file(int directory_fd, const char *path, int access) {
+  const char *name = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+  int flags = access | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK;
+  int fd = openat(directory_fd, name, flags | O_CREAT, 0644);
+  if (fd < 0 || !is_private_root_file(fd)) {
+    if (fd >= 0) close(fd);
+    if (unlinkat(directory_fd, name, 0) < 0 && errno != ENOENT) return -1;
+    fd = openat(directory_fd, name, flags | O_CREAT | O_EXCL, 0644);
+    if (fd < 0) return -1;
+    if (!is_private_root_file(fd)) {
+      close(fd);
+      errno = EPERM;
+      return -1;
+    }
+  }
+  int status = fcntl(fd, F_GETFL);
+  if (status < 0 || fcntl(fd, F_SETFL, status & ~O_NONBLOCK) < 0) {
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+
+static void open_log(int directory_fd) {
+  if (atomic_load(&s_log_fd) >= 0) return;
+  int fd = open_root_file(directory_fd, VPHONE_VCAM_DAEMON_LOG_PATH, O_WRONLY | O_APPEND);
+  if (fd < 0) {
+    vvc_logf("vphoned_vcam: open log failed: %s", strerror(errno));
+    return;
+  }
+  fchmod(fd, 0644);
+  int expected = -1;
+  if (!atomic_compare_exchange_strong(&s_log_fd, &expected, fd)) close(fd);
+}
+
+// MARK: - Shared frame memory
+
+/* Opens the camera directory without following a link in its last two
+ * components. /var/mobile belongs to mobile, so Media could be replaced by a
+ * symlink; the parent is opened with O_NOFOLLOW and the leaf with openat. */
+static int open_camera_directory(uid_t owner, gid_t group) {
+  NSString *directory = [NSString stringWithUTF8String:VPHONE_VCAM_DIRECTORY];
+  NSString *parent = directory.stringByDeletingLastPathComponent;
+  const char *leaf = directory.lastPathComponent.fileSystemRepresentation;
+  int parent_fd = open(parent.fileSystemRepresentation, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (parent_fd < 0) {
+    vvc_logf("vphoned_vcam: open(%s) failed: %s", parent.UTF8String, strerror(errno));
+    return -1;
+  }
+  if (mkdirat(parent_fd, leaf, 0755) < 0 && errno != EEXIST) {
+    vvc_logf("vphoned_vcam: create(%s) failed: %s", directory.UTF8String, strerror(errno));
+    close(parent_fd);
+    return -1;
+  }
+  int directory_fd = openat(parent_fd, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  close(parent_fd);
+  if (directory_fd < 0) {
+    vvc_logf("vphoned_vcam: open directory failed: %s", strerror(errno));
+    return -1;
+  }
+  if (fchown(directory_fd, owner, group) < 0) {
+    vvc_logf("vphoned_vcam: chown directory failed: %s", strerror(errno));
+    close(directory_fd);
+    return -1;
+  }
+  if (fchmod(directory_fd, 0755) < 0) {
+    vvc_logf("vphoned_vcam: chmod directory failed: %s", strerror(errno));
+    close(directory_fd);
+    return -1;
+  }
+  return directory_fd;
 }
 
 static int open_shm(void) {
@@ -62,35 +152,13 @@ static int open_shm(void) {
     vvc_logf("vphoned_vcam: mobile home is not ready");
     return -1;
   }
-  NSString *directory = [NSString stringWithUTF8String:VPHONE_VCAM_DIRECTORY];
-  NSError *error = nil;
-  if (![[NSFileManager defaultManager] createDirectoryAtPath:directory
-                                withIntermediateDirectories:YES
-                                                 attributes:@{NSFilePosixPermissions: @0755}
-                                                      error:&error]) {
-    vvc_logf("vphoned_vcam: create(%s) failed: %s", directory.UTF8String,
-             error.localizedDescription.UTF8String);
-    return -1;
-  }
-  int directory_fd = open(VPHONE_VCAM_DIRECTORY, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
-  if (directory_fd < 0) {
-    vvc_logf("vphoned_vcam: open directory failed: %s", strerror(errno));
-    return -1;
-  }
-  if (fchown(directory_fd, mobile_user->pw_uid, mobile_user->pw_gid) < 0) {
-    vvc_logf("vphoned_vcam: chown directory failed: %s", strerror(errno));
-    close(directory_fd);
-    return -1;
-  }
-  if (fchmod(directory_fd, 0755) < 0) {
-    vvc_logf("vphoned_vcam: chmod directory failed: %s", strerror(errno));
-    close(directory_fd);
-    return -1;
-  }
-  close(directory_fd);
+  int directory_fd = open_camera_directory(mobile_user->pw_uid, mobile_user->pw_gid);
+  if (directory_fd < 0) return -1;
+  open_log(directory_fd);
   /* Truncate to total size each fresh open so a stale half-written file
    * from a previous boot doesn't confuse readers. */
-  int fd = open(VPHONE_VCAM_SHM_PATH, O_RDWR | O_CREAT, 0644);
+  int fd = open_root_file(directory_fd, VPHONE_VCAM_SHM_PATH, O_RDWR);
+  close(directory_fd);
   if (fd < 0) {
     vvc_logf("vphoned_vcam: open(%s) failed: %s",
           VPHONE_VCAM_SHM_PATH,
@@ -250,7 +318,14 @@ static void handle_client(int fd) {
 }
 
 static void *listener_thread(__unused void *unused) {
-  while (open_shm() < 0) sleep(3);
+  for (;;) {
+    int ready;
+    @autoreleasepool {
+      ready = open_shm();
+    }
+    if (ready == 0) break;
+    sleep(3);
+  }
 
   /* Register the notify name so notify_post() actually delivers. */
   if (notify_register_check(VPHONE_VCAM_NOTIFY_NAME,

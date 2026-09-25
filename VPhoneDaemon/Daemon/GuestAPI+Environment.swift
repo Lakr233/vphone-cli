@@ -46,7 +46,7 @@ extension GuestAPI {
             guard let data = try? Data(contentsOf: staged, options: .mappedIfSafe) else {
                 throw GuestAPIError.invalidRequest("Upload \(name) to \(environmentStaging) first")
             }
-            guard sha256Hex(data) == (try string(entry, "sha256")) else {
+            guard try sha256Hex(data) == string(entry, "sha256") else {
                 throw GuestAPIError.invalidRequest("\(name) does not match its SHA-256")
             }
             names.append(name)

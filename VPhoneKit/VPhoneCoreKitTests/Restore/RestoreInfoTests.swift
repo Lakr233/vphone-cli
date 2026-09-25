@@ -174,6 +174,106 @@ struct RestoreInfoTests {
         #expect(VPhoneBundleReport(bundle: b).udid == "AAAABBBB-1122334455667788")
     }
 
+    // MARK: - Links planted in the bundle
+
+    @Test func `write replaces a planted restore-info link without writing through it`() throws {
+        let b = try makeBundle()
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: b.url)
+            try? FileManager.default.removeItem(at: outside)
+        }
+        try Data("host file".utf8).write(to: outside)
+        try FileManager.default.createSymbolicLink(
+            at: VPhoneRestoreInfo.url(forBundle: b),
+            withDestinationURL: outside,
+        )
+        // load() must not read through the link either.
+        #expect(VPhoneRestoreInfo.load(fromBundle: b) == nil)
+
+        let info = VPhoneRestoreInfo(
+            ios: .init(version: "18.6.2", build: "22G100"),
+            cloudOS: .init(version: "26.1", build: "23B85"),
+        )
+        try info.write(toBundle: b)
+
+        #expect(try Data(contentsOf: outside) == Data("host file".utf8))
+        var metadata = stat()
+        #expect(lstat(VPhoneRestoreInfo.url(forBundle: b).path, &metadata) == 0)
+        #expect(metadata.st_mode & S_IFMT == S_IFREG)
+        #expect(VPhoneRestoreInfo.load(fromBundle: b) == info)
+    }
+
+    @Test func `a restore-tree link is neither followed nor removed`() throws {
+        let b = try makeBundle()
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: b.url)
+            try? FileManager.default.removeItem(at: outside)
+        }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let kept = outside.appendingPathComponent("iPhone-BuildManifest.plist")
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["ProductVersion": "27.0", "ProductBuildVersion": "24A5390f"],
+            format: .xml,
+            options: 0,
+        )
+        try plist.write(to: kept)
+        try plist.write(to: outside.appendingPathComponent("BuildManifest.plist"))
+        let link = b.url.appendingPathComponent("iPhoneX_Restore")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+
+        #expect(VPhoneRestoreInfo.derive(fromBundle: b) == nil)
+        #expect(try VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: b) == nil)
+        #expect(FileManager.default.fileExists(atPath: kept.path))
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) != nil)
+    }
+
+    @Test func `remove built firmware removes a real tree without following links inside it`() throws {
+        let b = try makeBundle()
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: b.url)
+            try? FileManager.default.removeItem(at: outside)
+        }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let kept = outside.appendingPathComponent("keep")
+        try Data("keep".utf8).write(to: kept)
+        try makeRestoreDir(
+            in: b,
+            iosVersion: "27.0",
+            iosBuild: "24A5390f",
+            cloudVersion: "26.4",
+            cloudBuild: "23E5207q",
+        )
+        let restore = b.url.appendingPathComponent("iPhone17,3_27.0_24A5390f_Restore")
+        try FileManager.default.createSymbolicLink(
+            at: restore.appendingPathComponent("escape"),
+            withDestinationURL: outside,
+        )
+
+        #expect(try VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: b) == "iPhone17,3_27.0_24A5390f_Restore")
+        #expect(!FileManager.default.fileExists(atPath: restore.path))
+        #expect(FileManager.default.fileExists(atPath: kept.path))
+    }
+
+    @Test func `version strings outside the allowed set are rejected`() throws {
+        for bad in ["27.0; rm -rf /", "../27", "27.0\n", "", String(repeating: "9", count: 33), "２７.0"] {
+            let b = try makeBundle()
+            defer { try? FileManager.default.removeItem(at: b.url) }
+            try makeRestoreDir(
+                in: b,
+                iosVersion: bad,
+                iosBuild: "24A5390f",
+                cloudVersion: "26.4",
+                cloudBuild: "23E5207q",
+            )
+            #expect(VPhoneRestoreInfo.derive(fromBundle: b) == nil, "accepted \(bad.debugDescription)")
+        }
+        #expect(VPhoneRestoreInfo.isVersionToken("26.4"))
+        #expect(VPhoneRestoreInfo.isVersionToken("23E5207q"))
+    }
+
     /// The snapshot lives at the bundle root, so `vm export` must not strip it:
     /// it is matched by neither the `*_Restore*` exclude nor any regenerable-
     /// artifact pattern. Guards against a future exclude edit dropping it.

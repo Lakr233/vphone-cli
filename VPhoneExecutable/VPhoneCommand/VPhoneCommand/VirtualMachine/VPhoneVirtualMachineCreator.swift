@@ -98,12 +98,19 @@ public struct VPhoneVirtualMachineCreator {
         }
 
         let bundleURL = library.url(forName: options.name)
+        // Check before the fixup below is armed: an existing directory, possibly
+        // planted by another account, must never be walked as root.
+        if FileManager.default.fileExists(atPath: bundleURL.path) {
+            throw VPhoneLibraryError.alreadyExists(name: options.name)
+        }
         let ownedOutputs = [bundleURL]
+        // Set only once this run has created the bundle directory itself.
+        var createdBundle = false
         var ownershipRestored = false
         var permissionsRestored = false
         defer {
             if let invokingUser, !ownershipRestored {
-                for output in ownedOutputs {
+                for output in ownedOutputs where createdBundle {
                     do { try invokingUser.restoreOwnership(at: output) } catch {
                         fputs("warning: could not restore ownership of \(output.path): \(error)\n", stderr)
                     }
@@ -112,7 +119,7 @@ public struct VPhoneVirtualMachineCreator {
                 try? invokingUser.restoreOwnerOfDirectory(at: VPhoneResources.userDataRoot())
             }
             if !permissionsRestored {
-                for output in ownedOutputs {
+                for output in ownedOutputs where createdBundle {
                     do { try VPhoneHostFilePermissions.makeAccessible(at: output) } catch {
                         fputs("warning: could not set permissions on \(output.path): \(error)\n", stderr)
                     }
@@ -120,9 +127,6 @@ public struct VPhoneVirtualMachineCreator {
                 try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: library.root)
                 try? VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
             }
-        }
-        if FileManager.default.fileExists(atPath: bundleURL.path) {
-            throw VPhoneLibraryError.alreadyExists(name: options.name)
         }
 
         print("\n=== vm new ===")
@@ -135,6 +139,7 @@ public struct VPhoneVirtualMachineCreator {
             sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
         )
         let bundle = try VPhoneBundleOperations.create(spec, in: library)
+        createdBundle = true
         print("created \(bundle.url.path)")
 
         print("\n=== fw prepare ===")
@@ -148,6 +153,13 @@ public struct VPhoneVirtualMachineCreator {
 
         print("[*] Waiting 5s for cleanup before CFW install...")
         Thread.sleep(forTimeInterval: 5)
+        // Under sudo the steps above created the bundle as root, but the CFW
+        // installer only accepts a VM folder, Disk.img and restore tree owned
+        // by the invoking user. Hand this run's own bundle back first (the
+        // same descriptor-relative walk as the final fixup).
+        if let invokingUser {
+            try invokingUser.restoreOwnership(at: bundleURL)
+        }
         print("\n=== CFW install (host-mount) ===")
         try runCustomFirmwareInstall(
             options: options,

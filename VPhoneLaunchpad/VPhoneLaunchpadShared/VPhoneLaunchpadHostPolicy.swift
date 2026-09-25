@@ -51,5 +51,7 @@ nonisolated struct VPhoneLaunchpadHostPolicyError: LocalizedError {
         self.message = message
     }
 
-    var errorDescription: String? { message }
+    var errorDescription: String? {
+        message
+    }
 }
