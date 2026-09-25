@@ -1,6 +1,5 @@
 import AVFoundation
 import CoreGraphics
-import CoreImage
 import CoreVideo
 import Foundation
 
@@ -122,16 +121,19 @@ final class VPhoneTestPatternProducer: VPhoneFrameProducer, @unchecked Sendable 
 
 // MARK: - Video file (.mov / .mp4 / .m4v via AVAssetReader)
 
-/// Plays a video file in a loop. Decode is delegated to `AVAssetReader`
-/// with a BGRA output spec, so anything AVFoundation can demux on macOS
-/// works (`.mov`, `.mp4`, `.m4v`). For unsupported containers
+/// Plays a video file in a loop. Decode is delegated to
+/// `AVAssetReaderVideoCompositionOutput`, so anything AVFoundation can demux
+/// on macOS works (`.mov`, `.mp4`, `.m4v`). For unsupported containers
 /// (`.mkv`, `.webm`, `.avi`) convert externally first
 /// (e.g. `ffmpeg -i in.mkv -c copy out.mov` if codecs are compatible).
 ///
-/// The producer rescales the input video to the configured camera
-/// width/height using a Core Image render so the wire-format payload
-/// length stays constant regardless of the source resolution. Output is
-/// always 8-bit BGRA, top-down, 16-byte aligned bytesPerRow.
+/// A letterbox video composition renders every frame at the configured
+/// camera width/height, so full-resolution BGRA frames of a large source
+/// (a 2160x3840 portrait clip is about 33 MB per frame) are never
+/// materialized. The aspect ratio is preserved with black bars, and the
+/// track's preferred transform is applied so rotated portrait clips stay
+/// upright. Output is always 8-bit BGRA, top-down, 16-byte aligned
+/// bytesPerRow.
 final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
     private let url: URL
     private let width: Int
@@ -139,8 +141,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
     private let bytesPerRow: Int
     private var asset: AVURLAsset
     private var reader: AVAssetReader?
-    private var readerOutput: AVAssetReaderTrackOutput?
-    private let ciContext: CIContext
+    private var readerOutput: AVAssetReaderVideoCompositionOutput?
 
     init(url: URL, width: Int, height: Int) throws {
         self.url = url
@@ -148,8 +149,36 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         self.height = height
         bytesPerRow = ((width * 4) + 15) & ~15
         asset = AVURLAsset(url: url)
-        ciContext = CIContext(options: [.useSoftwareRenderer: false])
         try restartReader()
+    }
+
+    /// Aspect-fit letterbox composition at the camera size.
+    private func letterboxComposition(for track: AVAssetTrack) -> AVMutableVideoComposition {
+        let composition = AVMutableVideoComposition()
+        composition.renderSize = CGSize(width: width, height: height)
+        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        let bounds = CGRect(origin: .zero, size: track.naturalSize)
+            .applying(track.preferredTransform)
+        let boundsWidth = abs(bounds.width)
+        let boundsHeight = abs(bounds.height)
+        let scale = min(CGFloat(width) / boundsWidth, CGFloat(height) / boundsHeight)
+        let tx = (CGFloat(width) - boundsWidth * scale) / 2 - bounds.minX * scale
+        let ty = (CGFloat(height) - boundsHeight * scale) / 2 - bounds.minY * scale
+        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        layer.setTransform(
+            track.preferredTransform
+                .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+                .concatenating(CGAffineTransform(translationX: tx, y: ty)),
+            at: .zero,
+        )
+        // The layer instruction must sit inside a composition instruction.
+        // Assigning it to `instructions` directly raises an unrecognized
+        // selector (`timeRange`) when the reader validates the composition.
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+        instruction.layerInstructions = [layer]
+        composition.instructions = [instruction]
+        return composition
     }
 
     private func restartReader() throws {
@@ -162,13 +191,14 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
             )
         }
         let r = try AVAssetReader(asset: asset)
-        let output = AVAssetReaderTrackOutput(
-            track: track,
-            outputSettings: [
+        let output = AVAssetReaderVideoCompositionOutput(
+            videoTracks: [track],
+            videoSettings: [
                 kCVPixelBufferPixelFormatTypeKey as String:
                     Int(kCVPixelFormatType_32BGRA),
             ],
         )
+        output.videoComposition = letterboxComposition(for: track)
         output.alwaysCopiesSampleData = false
         r.add(output)
         guard r.startReading() else {
@@ -199,9 +229,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         let srcWidth = CVPixelBufferGetWidth(pb)
         let srcHeight = CVPixelBufferGetHeight(pb)
 
-        // Fast path: source already matches our requested dimensions and is
-        // BGRA — copy the planar bytes directly without going through Core
-        // Image. Saves the GPU render.
+        // The composition output already has the camera size and BGRA
+        // format; copy it row by row into the 16-byte aligned wire stride.
         if srcWidth == width, srcHeight == height,
            CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA
         {
@@ -228,33 +257,12 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
             )
         }
 
-        // Slow path: resize via Core Image. Stretches to fit; pick aspect
-        // strategy here if you want letterboxing instead.
-        let srcImage = CIImage(cvPixelBuffer: pb)
-        let scaleX = CGFloat(width) / CGFloat(srcWidth)
-        let scaleY = CGFloat(height) / CGFloat(srcHeight)
-        let scaled = srcImage.transformed(
-            by: CGAffineTransform(scaleX: scaleX, y: scaleY),
-        )
-
-        var out = Data(count: bytesPerRow * height)
-        out.withUnsafeMutableBytes { dst in
-            let dstBase = dst.baseAddress!
-            ciContext.render(
-                scaled,
-                toBitmap: dstBase,
-                rowBytes: bytesPerRow,
-                bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                format: .BGRA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB(),
-            )
-        }
-        return VPhoneCameraFrame(
-            width: width,
-            height: height,
-            bytesPerRow: bytesPerRow,
-            timestampNS: UInt64(ProcessInfo.processInfo.systemUptime * 1e9),
-            pixels: out,
-        )
+        // The composition renders every frame at the camera size in BGRA,
+        // so the copy above always applies. Any other size means the
+        // composition was ignored; drop the frame instead of sending a
+        // malformed payload.
+        print("[camera] video frame mismatch: \(srcWidth)x\(srcHeight) "
+            + "format \(CVPixelBufferGetPixelFormatType(pb))")
+        return nil
     }
 }
