@@ -20,7 +20,7 @@ public struct VPhoneBundle: Sendable {
     }
 
     public var diskSizeBytes: Int64 {
-        let disk = url.appendingPathComponent(manifest.diskImage)
+        guard let disk = try? manifest.resolve(path: manifest.diskImage, in: url) else { return 0 }
         let attrs = try? FileManager.default.attributesOfItem(atPath: disk.path)
         return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
     }

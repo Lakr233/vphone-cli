@@ -8,6 +8,7 @@ public enum VPhoneManifestError: Error {
     case unsupportedSchema(path: String, found: Int?)
     case unsupportedRuntimeVersion(String)
     case writeFailed(path: String)
+    case unsafePath(path: String, reason: String)
 }
 
 extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
@@ -23,6 +24,9 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
             "This vphone build is version \(version). VMs with schema version 2 require vphone 2.x. Install vphone 2.x before launching this VM."
         case let .writeFailed(path):
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
+        case let .unsafePath(path, reason):
+            "The VM configuration names the path \"\(path)\", which is not allowed: \(reason). "
+                + "Paths must be relative, stay inside the VM bundle, and must not pass through symbolic links."
         }
     }
 
@@ -256,15 +260,19 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             throw VPhoneManifestError.unsupportedSchema(path: url.path, found: marker?.schemaVersion)
         }
         try VPhoneRuntimeVersion.requireVersion2()
+        let manifest: VPhoneVirtualMachineManifest
         do {
-            return try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
+            manifest = try decoder.decode(VPhoneVirtualMachineManifest.self, from: data)
         } catch {
             throw VPhoneManifestError.parseFailed(path: url.path)
         }
+        try manifest.validatePaths(in: url.deletingLastPathComponent())
+        return manifest
     }
 
     /// Save manifest to a plist file
     public func write(to url: URL) throws {
+        try validatePaths(in: url.deletingLastPathComponent())
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
 
@@ -278,9 +286,71 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
 
     // MARK: - Convenience
 
-    /// Resolve relative path to absolute URL within VM directory
-    public func resolve(path: String, in vmDirectory: URL) -> URL {
-        vmDirectory.appendingPathComponent(path)
+    /// Every bundle-relative path this manifest names.
+    var bundlePaths: [String] {
+        [diskImage, nvramStorage, sepStorage] + (romImages.map { [$0.avpBooter, $0.avpSEPBooter] } ?? [])
+    }
+
+    /// Check every path field against the bundle directory.
+    public func validatePaths(in vmDirectory: URL) throws {
+        for path in bundlePaths {
+            _ = try resolve(path: path, in: vmDirectory)
+        }
+    }
+
+    /// Resolve a relative path to an absolute URL within the VM directory.
+    ///
+    /// The path must be non-empty, relative, and free of `.` and `..` parts.
+    /// No existing component may be a symbolic link (broken links included),
+    /// and the deepest existing component must stay under the bundle's real
+    /// path. Components that do not exist yet are allowed.
+    public func resolve(path: String, in vmDirectory: URL) throws -> URL {
+        try Self.resolve(path: path, in: vmDirectory)
+    }
+
+    static func resolve(path: String, in vmDirectory: URL) throws -> URL {
+        func unsafe(_ reason: String) -> VPhoneManifestError {
+            .unsafePath(path: path, reason: reason)
+        }
+        guard !path.isEmpty else { throw unsafe("the path is empty") }
+        guard !path.hasPrefix("/") else { throw unsafe("the path is absolute") }
+        guard !path.contains("\0") else { throw unsafe("the path contains a NUL byte") }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !parts.isEmpty else { throw unsafe("the path is empty") }
+        guard !parts.contains(where: { $0 == ".." || $0 == "." }) else {
+            throw unsafe("the path contains a '.' or '..' component")
+        }
+
+        guard let baseReal = realpath(vmDirectory.path, nil) else {
+            throw unsafe("the VM directory \(vmDirectory.path) cannot be resolved")
+        }
+        let base = String(cString: baseReal)
+        free(baseReal)
+
+        var current = base
+        var existing = base
+        for part in parts {
+            current = (current as NSString).appendingPathComponent(part)
+            var metadata = stat()
+            if lstat(current, &metadata) != 0 {
+                guard errno == ENOENT else { throw unsafe("cannot inspect \(current): \(String(cString: strerror(errno)))") }
+                break
+            }
+            guard metadata.st_mode & S_IFMT != S_IFLNK else {
+                throw unsafe("\(current) is a symbolic link")
+            }
+            existing = current
+        }
+
+        guard let existingReal = realpath(existing, nil) else {
+            throw unsafe("\(existing) cannot be resolved")
+        }
+        let resolved = String(cString: existingReal)
+        free(existingReal)
+        guard resolved == base || resolved.hasPrefix(base.hasSuffix("/") ? base : base + "/") else {
+            throw unsafe("the path leaves the VM bundle")
+        }
+        return URL(fileURLWithPath: base).appendingPathComponent(parts.joined(separator: "/"))
     }
 
     // MARK: - Editing

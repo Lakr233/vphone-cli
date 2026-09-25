@@ -12,7 +12,7 @@ extension VPhoneBootCommand {
 
         let vmDir = config.deletingLastPathComponent()
 
-        return VPhoneVirtualMachine.Options(
+        return try VPhoneVirtualMachine.Options(
             configURL: config,
             romURL: manifest.romImages != nil
                 ? manifest.resolve(path: manifest.romImages!.avpBooter, in: vmDir)

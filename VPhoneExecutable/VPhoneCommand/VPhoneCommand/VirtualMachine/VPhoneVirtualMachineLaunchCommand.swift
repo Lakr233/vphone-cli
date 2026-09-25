@@ -95,7 +95,7 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
     func run() throws {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
-        let disk = bundle.url.appendingPathComponent(bundle.manifest.diskImage)
+        let disk = try bundle.manifest.resolve(path: bundle.manifest.diskImage, in: bundle.url)
 
         func runningPIDs() -> [Int32] {
             guard let r = try? VPhoneProcessRunner.runCapturing(
