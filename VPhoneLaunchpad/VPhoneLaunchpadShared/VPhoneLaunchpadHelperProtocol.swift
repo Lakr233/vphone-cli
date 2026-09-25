@@ -59,8 +59,9 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
         reply: @escaping @Sendable (Int32, String?) -> Void,
     )
 
-    /// Sends SIGINT to a running CFW install started by the same user.
-    func cancelCustomFirmware(authorization: Data, reply: @escaping @Sendable () -> Void)
+    /// Sends SIGINT to a running CFW install started by the same user. It
+    /// needs no authorization: it can only stop the caller's own install.
+    func cancelCustomFirmware(reply: @escaping @Sendable () -> Void)
 
     /// Removes the helper's launchd job and binary, then exits.
     func uninstallHelper(authorization: Data, reply: @escaping @Sendable (String?) -> Void)

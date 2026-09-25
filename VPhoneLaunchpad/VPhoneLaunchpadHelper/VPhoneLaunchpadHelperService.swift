@@ -141,14 +141,14 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         }
     }
 
-    func cancelCustomFirmware(authorization: Data, reply: @escaping @Sendable () -> Void) {
+    func cancelCustomFirmware(reply: @escaping @Sendable () -> Void) {
         let callerUID = callerUID
         // Not on `work`: a bundle install queued there must not delay a cancel.
+        // No authorization check: the install's right may have expired by
+        // now, and a prompt here could leave the install running. Only the
+        // user who started the install can stop it.
         DispatchQueue.global(qos: .userInitiated).async {
             defer { reply() }
-            guard (try? VPhoneLaunchpadHelperAuthorization.require(authorization)) != nil else {
-                return
-            }
             Self.firmwareLock.lock()
             if Self.firmwareOwner == callerUID {
                 Self.firmwareProcess?.interrupt()

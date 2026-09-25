@@ -262,14 +262,10 @@ final class VPhoneLaunchpadHelperClient {
         }
     }
 
-    /// Reuses the authorization the install obtained and never prompts. With
-    /// none yet, this app has started no install to cancel.
+    /// Never prompts. The helper stops only an install this user started.
     func cancelCustomFirmware() {
-        guard let authorization = authorizationSession.existingExternalForm() else {
-            return
-        }
         let proxy = currentConnection().remoteObjectProxy as? VPhoneLaunchpadHelperProtocol
-        proxy?.cancelCustomFirmware(authorization: authorization) {}
+        proxy?.cancelCustomFirmware {}
     }
 
     // MARK: - XPC plumbing
@@ -380,15 +376,6 @@ final nonisolated class VPhoneLaunchpadHelperAuthorizationSession: @unchecked Se
                 continuation.resume(with: Result { try self.authorize() })
             }
         }
-    }
-
-    /// The external form of the authorization obtained earlier, without
-    /// prompting. Nil when no privileged call has been made yet.
-    func existingExternalForm() -> Data? {
-        guard let reference = lock.withLock({ self.reference }) else {
-            return nil
-        }
-        return try? Self.externalForm(of: reference)
     }
 
     private func authorize() throws -> Data {

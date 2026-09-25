@@ -193,6 +193,24 @@ public enum VPhoneAPFSSnapshot {
         dryRun: Bool = false,
         log: (String) -> Void = { print($0) },
     ) throws -> Report {
+        let fd = open(url.path, dryRun ? O_RDONLY : O_RDWR)
+        guard fd >= 0 else { throw VPhoneAPFSSnapshotError.cannotOpen(url, errno: errno) }
+        defer { close(fd) }
+        return try rename(descriptor: fd, url: url, newPrefix: newPrefix, dryRun: dryRun, log: log)
+    }
+
+    /// The same rename on an image the caller already opened (read-write
+    /// unless `dryRun`). Root code uses this to rewrite the exact file it
+    /// verified rather than whatever the path names later. `url` only labels
+    /// errors.
+    @discardableResult
+    public static func rename(
+        descriptor fd: Int32,
+        url: URL,
+        newPrefix: String = defaultNewPrefix,
+        dryRun: Bool = false,
+        log: (String) -> Void = { print($0) },
+    ) throws -> Report {
         let newPrefixBytes = Array(newPrefix.utf8)
         guard newPrefixBytes.count == oldPrefix.count else {
             throw VPhoneAPFSSnapshotError.prefixLengthMismatch(
@@ -200,10 +218,6 @@ public enum VPhoneAPFSSnapshot {
                 required: oldPrefix.count,
             )
         }
-
-        let fd = open(url.path, dryRun ? O_RDONLY : O_RDWR)
-        guard fd >= 0 else { throw VPhoneAPFSSnapshotError.cannotOpen(url, errno: errno) }
-        defer { close(fd) }
 
         var stats = stat()
         guard fstat(fd, &stats) == 0 else {

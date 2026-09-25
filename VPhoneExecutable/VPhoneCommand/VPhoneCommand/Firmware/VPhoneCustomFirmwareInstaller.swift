@@ -121,8 +121,10 @@ struct VPhoneCustomFirmwareInstaller {
             // Another volume, or no clone support: attach the caller's file
             // in place. Confirm the name still refers to the inode verified
             // above immediately before hdiutil opens it. A swap in the moment
-            // between this check and hdiutil's own open remains possible;
-            // the clone path, the normal case on APFS, has no such window.
+            // between this check and hdiutil's own open remains possible,
+            // and hdiutil then works on the caller's own replacement. The
+            // snapshot rename below writes only the verified inode. The clone
+            // path, the normal case on APFS, has no such window.
             guard try bundleDirectory.refersTo("Disk.img", file: disk) else {
                 throw ValidationError("The VM disk image changed during the install. Try again.")
             }
@@ -207,7 +209,11 @@ struct VPhoneCustomFirmwareInstaller {
         systemMounted = false
         _ = try tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)
         diskAttached = false
-        try VPhoneAPFSSnapshot.rename(imageAt: image)
+        if cloned {
+            try VPhoneAPFSSnapshot.rename(imageAt: image)
+        } else {
+            try renameSnapshot(in: bundleDirectory, verified: disk, label: image)
+        }
         if cloned {
             // Hand the clone back with the original's owner and mode, then
             // swap it in by rename through the pinned bundle descriptor.
@@ -255,6 +261,32 @@ struct VPhoneCustomFirmwareInstaller {
         } catch {
             throw ValidationError("The VM disk image cannot be used for a root install: \(error)")
         }
+    }
+
+    /// Renames the root snapshot in the caller's Disk.img when it could not
+    /// be cloned. The install runs for minutes after the image was checked,
+    /// so the name is opened again without following links and must still be
+    /// the same single-link inode before root writes to it.
+    private func renameSnapshot(
+        in bundle: VPhoneConfinedDirectory,
+        verified disk: VPhoneConfinedFile,
+        label: URL,
+    ) throws {
+        let writable = openat(bundle.descriptor, "Disk.img", O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard writable >= 0 else {
+            throw ValidationError("The VM disk image changed during the install. Try again.")
+        }
+        defer { close(writable) }
+        var metadata = stat()
+        guard fstat(writable, &metadata) == 0,
+              metadata.st_mode & S_IFMT == S_IFREG,
+              metadata.st_dev == disk.device,
+              metadata.st_ino == disk.inode,
+              metadata.st_nlink == 1
+        else {
+            throw ValidationError("The VM disk image changed during the install. Try again.")
+        }
+        try VPhoneAPFSSnapshot.rename(descriptor: writable, url: label)
     }
 
     /// The prepared restore tree: a real folder (not a link) owned by the

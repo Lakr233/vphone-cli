@@ -59,10 +59,11 @@ public final class VPhoneAPIProxy {
     @discardableResult
     public func start() async throws -> (url: URL, token: String) {
         let token = try Self.makeToken()
-        // vphoned accepts only a loopback Host. A proxy on another address
-        // receives that address as Host, so it forwards admitted requests
+        // vphoned accepts only a few loopback Host names, and a client names
+        // whatever address the proxy listens on (127.0.0.2, a LAN address).
+        // The token already admitted the request, so it is always forwarded
         // with `Host: localhost`.
-        let forwardedHost = Self.isLoopback(host) ? nil : "localhost"
+        let forwardedHost = "localhost"
         let provider = provider
         let channel = try await ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 128)

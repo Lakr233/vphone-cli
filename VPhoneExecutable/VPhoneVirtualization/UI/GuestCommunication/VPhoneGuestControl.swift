@@ -219,7 +219,7 @@ final class VPhoneGuestControl {
             var info = try await call("clipboard.get")
             let image =
                 (info["has_image"] as? Bool == true)
-                    ? try await http(method: "GET", path: "/v1/clipboard/image").body : nil
+                    ? try await http(method: "GET", path: "/v1/clipboard/image", limits: .download).body : nil
             info["ok"] = true
             return (info, image)
         }
