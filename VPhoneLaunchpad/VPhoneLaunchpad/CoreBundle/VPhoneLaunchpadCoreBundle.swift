@@ -158,7 +158,8 @@ final class VPhoneLaunchpadCoreBundle {
         }
     }
 
-    /// Adds the execution policy exception and runs host preflight.
+    /// Adds the execution policy exception, allows an AMFI-refused VM through
+    /// the root helper, and runs host preflight again for confirmation.
     func verify(_ version: String) async {
         update(version) {
             $0.policy = .running
@@ -183,12 +184,19 @@ final class VPhoneLaunchpadCoreBundle {
             history: history,
         )
         do {
-            let result = try await commandLine.run(["host", "preflight", "--quiet"])
+            try await Task.detached { try VPhoneLaunchpadHostPolicy.requireReady() }.value
+            var result = try await commandLine.run(["host", "preflight", "--quiet"])
+            if result.lines.contains(where: { $0.hasPrefix("Error: AMFI blocked vphone-vm") }) {
+                try await helper.allowVirtualMachine(bundleVersion: version)
+                result = try await commandLine.run(["host", "preflight", "--quiet"])
+            }
+            let failure = result.lines.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             update(version) {
                 $0.preflight = result.succeeded ? .passed : .failed
                 $0.preflightDetail = result.succeeded
                     ? String(localized: "Passed")
-                    : (result.lines.last ?? String(localized: "Preflight failed"))
+                    : (failure.isEmpty ? String(localized: "Preflight failed") : failure)
                         .replacingOccurrences(of: "Error: ", with: "")
             }
         } catch {

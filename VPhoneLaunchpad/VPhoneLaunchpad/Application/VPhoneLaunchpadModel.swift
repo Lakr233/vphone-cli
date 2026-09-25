@@ -128,6 +128,10 @@ final class VPhoneLaunchpadModel {
             }
         #endif
         await host.refresh()
+        if case .outdated = helper.state {
+            await host.installHelper()
+            await host.refresh()
+        }
         await bundles.refresh()
         await machines.refresh()
         machines.startMonitoring()

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 import Security
@@ -27,9 +28,23 @@ final class VPhoneLaunchpadHelperClient {
 
     /// CFBundleVersion of the helper embedded in this app.
     var bundledVersion: String? {
-        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchServices/\(Self.label)")
-        let info = CFBundleCopyInfoDictionaryForURL(url as CFURL) as? [String: Any]
+        let info = CFBundleCopyInfoDictionaryForURL(bundledHelper as CFURL) as? [String: Any]
         return info?["CFBundleVersion"] as? String
+    }
+
+    private var bundledHelper: URL {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchServices/\(Self.label)")
+    }
+
+    private var installedHelper: URL {
+        URL(fileURLWithPath: "/Library/PrivilegedHelperTools/\(Self.label)")
+    }
+
+    private var installedHelperMatches: Bool {
+        guard let bundled = try? Data(contentsOf: bundledHelper, options: .mappedIfSafe),
+              let installed = try? Data(contentsOf: installedHelper, options: .mappedIfSafe)
+        else { return false }
+        return SHA256.hash(data: bundled) == SHA256.hash(data: installed)
     }
 
     /// The requirement the app holds the helper to, from SMPrivilegedExecutables.
@@ -50,16 +65,24 @@ final class VPhoneLaunchpadHelperClient {
             state = .unconfigured
             return
         }
-        guard FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/\(Self.label).plist") else {
+        let hasJob = FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/\(Self.label).plist")
+        let hasExecutable = FileManager.default.fileExists(atPath: installedHelper.path)
+        guard hasJob || hasExecutable else {
             state = .notInstalled
+            return
+        }
+        let bundled = bundledVersion ?? "?"
+        guard hasJob && hasExecutable else {
+            state = .outdated(installed: "unknown", bundled: bundled)
             return
         }
         do {
             let installed = try await version()
-            let bundled = bundledVersion ?? "?"
-            state = installed == bundled ? .ready(installed) : .outdated(installed: installed, bundled: bundled)
+            state = installed == bundled && installedHelperMatches
+                ? .ready(installed)
+                : .outdated(installed: installed, bundled: bundled)
         } catch {
-            state = .notInstalled
+            state = .outdated(installed: "unknown", bundled: bundled)
         }
     }
 
@@ -77,6 +100,12 @@ final class VPhoneLaunchpadHelperClient {
         connection?.invalidate()
         connection = nil
         await refresh()
+        guard case .ready = state else {
+            throw VPhoneLaunchpadError(
+                String(localized: "Unable to Install Helper"),
+                detail: String(localized: "The installed helper did not match the copy in this app. Try again."),
+            )
+        }
     }
 
     func uninstall() async throws {
@@ -118,8 +147,8 @@ final class VPhoneLaunchpadHelperClient {
 
         var error: Unmanaged<CFError>?
         guard SMJobBless(kSMDomainSystemLaunchd, label as CFString, authorization, &error) else {
-            error?.release()
-            throw VPhoneLaunchpadError(String(localized: "Unable to Install Helper"), detail: String(localized: "Try again."))
+            let detail = error?.takeRetainedValue().localizedDescription ?? String(localized: "Try again.")
+            throw VPhoneLaunchpadError(String(localized: "Unable to Install Helper"), detail: detail)
         }
     }
 
@@ -142,6 +171,23 @@ final class VPhoneLaunchpadHelperClient {
     func removeBundle(version: String) async throws {
         try await call { proxy, done in
             proxy.removeBundle(version: version) { message in done(message.map { VPhoneLaunchpadError($0) }) }
+        }
+    }
+
+    func allowVirtualMachine(bundleVersion: String) async throws {
+        await refresh()
+        if case .outdated = state {
+            try await install()
+        }
+        guard case .ready = state else {
+            throw VPhoneLaunchpadError(
+                String(localized: "Update the privileged helper in Host Setup, then run preflight again."),
+            )
+        }
+        try await call { proxy, done in
+            proxy.allowVirtualMachine(bundleVersion: bundleVersion) { message in
+                done(message.map { VPhoneLaunchpadError($0) })
+            }
         }
     }
 
