@@ -9,9 +9,9 @@ struct VPhoneLaunchpadMachineStateLabel: View {
 
     var body: some View {
         let (status, text): (VPhoneLaunchpadStatus, String) = switch state {
-        case .running: (.passed, "Running")
-        case .stopped: (.pending, "Stopped")
-        case let .busy(activity): (.running, activity.prefix(1).uppercased() + activity.dropFirst())
+        case .running: (.passed, String(localized: "Running"))
+        case .stopped: (.pending, String(localized: "Stopped"))
+        case let .busy(activity): (.running, activity)
         }
         Label {
             Text(text).lineLimit(1)
@@ -65,7 +65,7 @@ struct VPhoneLaunchpadMachineInspector: View {
             }
 
             Section("Hardware") {
-                LabeledContent("CPU", value: "\(machine.cpuCount) cores")
+                LabeledContent("CPU", value: String(localized: "\(machine.cpuCount) cores"))
                 LabeledContent("Memory", value: VPhoneLaunchpadMachinesView.memory(machine.memoryMB))
                 LabeledContent("Disk", value: VPhoneLaunchpadMachinesView.disk(machine.diskSizeBytes))
                 LabeledContent("Network", value: machine.networkDescription)
@@ -95,7 +95,7 @@ struct VPhoneLaunchpadMachineInspector: View {
         .onChange(of: machine.name) { _, name in library.loadConsoleIfNeeded(name) }
     }
 
-    private func value(_ title: String, _ value: String) -> some View {
+    private func value(_ title: LocalizedStringKey, _ value: String) -> some View {
         LabeledContent(title) {
             Text(value)
                 .lineLimit(1)
@@ -114,7 +114,7 @@ struct VPhoneLaunchpadMachineInspector: View {
             } else if creation.isFinished {
                 Label { Text("Created") } icon: { VPhoneLaunchpadStatusIcon(status: .passed) }
             } else {
-                Label { Text(creation.failure?.message ?? "Creation stopped") } icon: { VPhoneLaunchpadStatusIcon(status: .failed) }
+                Label { Text(creation.failure?.message ?? String(localized: "Creation stopped")) } icon: { VPhoneLaunchpadStatusIcon(status: .failed) }
             }
         }
     }

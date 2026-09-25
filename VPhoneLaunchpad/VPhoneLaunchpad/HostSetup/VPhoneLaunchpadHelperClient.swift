@@ -69,8 +69,8 @@ final class VPhoneLaunchpadHelperClient {
     func install() async throws {
         guard isConfigured else {
             throw VPhoneLaunchpadError(
-                "This build has no signing team.",
-                detail: "Set VPHONE_LAUNCHPAD_TEAM, rebuild, and sign the app before installing the helper.",
+                String(localized: "This build has no signing team."),
+                detail: String(localized: "Set VPHONE_LAUNCHPAD_TEAM, rebuild, and sign the app before installing the helper."),
             )
         }
         try await Task.detached { try Self.bless() }.value
@@ -92,7 +92,7 @@ final class VPhoneLaunchpadHelperClient {
         var authorization: AuthorizationRef?
         var status = AuthorizationCreate(nil, nil, [], &authorization)
         guard status == errAuthorizationSuccess, let authorization else {
-            throw VPhoneLaunchpadError("Cannot create an authorization (OSStatus \(status)).")
+            throw VPhoneLaunchpadError(String(localized: "Cannot create an authorization (OSStatus \(status))."))
         }
         defer { AuthorizationFree(authorization, []) }
 
@@ -113,13 +113,13 @@ final class VPhoneLaunchpadHelperClient {
             if status == errAuthorizationCanceled {
                 throw CancellationError()
             }
-            throw VPhoneLaunchpadError("Administrator authorization failed (OSStatus \(status)).")
+            throw VPhoneLaunchpadError(String(localized: "Administrator authorization failed (OSStatus \(status))."))
         }
 
         var error: Unmanaged<CFError>?
         guard SMJobBless(kSMDomainSystemLaunchd, label as CFString, authorization, &error) else {
-            let reason = error.map { "\($0.takeRetainedValue())" } ?? "unknown error"
-            throw VPhoneLaunchpadError("The helper could not be installed.", detail: reason)
+            let reason = error.map { "\($0.takeRetainedValue())" } ?? String(localized: "Unknown error")
+            throw VPhoneLaunchpadError(String(localized: "The helper could not be installed."), detail: reason)
         }
     }
 
@@ -216,7 +216,7 @@ final class VPhoneLaunchpadHelperClient {
                 once.resume(.failure(error))
             }
             guard let helper = proxy as? VPhoneLaunchpadHelperProtocol else {
-                once.resume(.failure(VPhoneLaunchpadError("The helper connection has the wrong interface.")))
+                once.resume(.failure(VPhoneLaunchpadError(String(localized: "The helper connection has the wrong interface."))))
                 return
             }
             body(helper) { once.resume($0) }
@@ -243,10 +243,10 @@ final class VPhoneLaunchpadHelperClient {
                 once.resume(.failure(error))
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-                once.resume(.failure(VPhoneLaunchpadError("The helper did not answer.")))
+                once.resume(.failure(VPhoneLaunchpadError(String(localized: "The helper did not answer."))))
             }
             guard let helper = proxy as? VPhoneLaunchpadHelperProtocol else {
-                once.resume(.failure(VPhoneLaunchpadError("The helper connection has the wrong interface.")))
+                once.resume(.failure(VPhoneLaunchpadError(String(localized: "The helper connection has the wrong interface."))))
                 return
             }
             body(helper) { once.resume($0) }

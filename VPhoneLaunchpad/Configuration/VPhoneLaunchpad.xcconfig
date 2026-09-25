@@ -10,3 +10,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.vphone.launchpad
 GENERATE_INFOPLIST_FILE = NO
 INFOPLIST_FILE = Resources/VPhoneLaunchpad.Info.plist
 LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
+// VPhoneLaunchpad/AppIcon.icon, an Icon Composer document with light, dark
+// and tinted appearances. actool merges CFBundleIconName into the plist.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+// Same languages and String Catalog setup as VPhone.bundle: English source,
+// with zh-Hans, ja, ko and vi in VPhoneLaunchpad/Localizable.xcstrings.
+SWIFT_EMIT_LOC_STRINGS = YES

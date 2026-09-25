@@ -48,15 +48,15 @@ final class VPhoneLaunchpadCreationPipeline {
 
         var title: String {
             switch self {
-            case .create: "Create bundle"
-            case .prepare: "Download firmware"
-            case .patch: "Patch boot chain"
-            case .bootDFU: "Boot into DFU"
-            case .waitDFU: "Wait for DFU"
-            case .restore: "Restore"
-            case .stopDFU: "Stop VM"
-            case .installCFW: "Install CFW"
-            case .firstBoot: "First boot"
+            case .create: String(localized: "Create bundle")
+            case .prepare: String(localized: "Download firmware")
+            case .patch: String(localized: "Patch boot chain")
+            case .bootDFU: String(localized: "Boot into DFU")
+            case .waitDFU: String(localized: "Wait for DFU")
+            case .restore: String(localized: "Restore")
+            case .stopDFU: String(localized: "Stop VM")
+            case .installCFW: String(localized: "Install CFW")
+            case .firstBoot: String(localized: "First boot")
             }
         }
 
@@ -164,10 +164,10 @@ final class VPhoneLaunchpadCreationPipeline {
                 statuses[step] = .failed
                 durations[step] = Date().timeIntervalSince(began)
                 if error is CancellationError || Task.isCancelled {
-                    failure = VPhoneLaunchpadError("Cancelled during \(step.title.lowercased()).")
+                    failure = VPhoneLaunchpadError(String(localized: "\(step.title) was cancelled."))
                 } else {
                     failure = error as? VPhoneLaunchpadError
-                        ?? VPhoneLaunchpadError("\(step.title) failed.", detail: error.localizedDescription)
+                        ?? VPhoneLaunchpadError(String(localized: "\(step.title) failed."), detail: error.localizedDescription)
                 }
                 append("✕ \(failure?.message ?? step.title)")
                 await library?.refresh()
@@ -188,7 +188,7 @@ final class VPhoneLaunchpadCreationPipeline {
 
     private func perform(_ step: Step) async throws {
         guard let commandLine = bundles.commandLine() else {
-            throw VPhoneLaunchpadError("No core bundle is active.")
+            throw VPhoneLaunchpadError(String(localized: "No core bundle is active."))
         }
         let name = options.name
         let library = ["--library-root", libraryRoot.path]
@@ -235,7 +235,7 @@ final class VPhoneLaunchpadCreationPipeline {
                 try requireDFURunning()
                 try await Task.sleep(for: .seconds(1))
             }
-            throw VPhoneLaunchpadError("The DFU boot did not write udid-prediction.txt within 30 seconds.")
+            throw VPhoneLaunchpadError(String(localized: "The DFU boot did not write udid-prediction.txt within 30 seconds."))
 
         case .waitDFU:
             let ecid = try Self.ecid(in: machine)
@@ -253,7 +253,7 @@ final class VPhoneLaunchpadCreationPipeline {
                 }
                 try await Task.sleep(for: .seconds(2))
             }
-            throw VPhoneLaunchpadError("Timed out waiting for the device to enter recovery mode.")
+            throw VPhoneLaunchpadError(String(localized: "Timed out waiting for the device to enter recovery mode."))
 
         case .restore:
             try requireDFURunning()
@@ -275,7 +275,7 @@ final class VPhoneLaunchpadCreationPipeline {
 
         case .installCFW:
             guard let version = bundles.activeVersion else {
-                throw VPhoneLaunchpadError("No core bundle is active.")
+                throw VPhoneLaunchpadError(String(localized: "No core bundle is active."))
             }
             let status = try await helper.installCustomFirmware(
                 bundleVersion: version,
@@ -286,7 +286,7 @@ final class VPhoneLaunchpadCreationPipeline {
                 onLine: output,
             )
             guard status == 0 else {
-                throw VPhoneLaunchpadError("cfw install exited with status \(status).", detail: log.suffix(12).joined(separator: "\n"))
+                throw VPhoneLaunchpadError(String(localized: "cfw install exited with status \(status)."), detail: log.suffix(12).joined(separator: "\n"))
             }
 
         case .firstBoot:
@@ -303,17 +303,17 @@ final class VPhoneLaunchpadCreationPipeline {
         append("$ vphone-cli vm launch \(name)")
         library.start(name)
         guard let child = library.launchedProcess(name) else {
-            throw VPhoneLaunchpadError("\(name) could not be started.")
+            throw VPhoneLaunchpadError(String(localized: "\(name) could not be started."))
         }
         let socket = machine.appendingPathComponent("vphone.sock").path
         append("waiting up to 300s for vphoned")
         for _ in 0 ..< 300 {
             try Task.checkCancellation()
             if (library.consoles[name] ?? []).contains(where: Self.isPanic) {
-                throw VPhoneLaunchpadError("The guest panicked on first boot.", detail: "See the machine's console.")
+                throw VPhoneLaunchpadError(String(localized: "The guest panicked on first boot."), detail: String(localized: "See the machine's console."))
             }
             guard child.isRunning else {
-                throw VPhoneLaunchpadError("The VM exited before vphoned answered.")
+                throw VPhoneLaunchpadError(String(localized: "The VM exited before vphoned answered."))
             }
             if await Task.detached(operation: { Self.ping(socketPath: socket) }).value {
                 append("vphoned answered")
@@ -321,12 +321,12 @@ final class VPhoneLaunchpadCreationPipeline {
             }
             try await Task.sleep(for: .seconds(1))
         }
-        throw VPhoneLaunchpadError("vphoned did not answer within 300 seconds.")
+        throw VPhoneLaunchpadError(String(localized: "vphoned did not answer within 300 seconds."))
     }
 
     private func requireDFURunning() throws {
         guard dfu?.isRunning == true else {
-            throw VPhoneLaunchpadError("The DFU boot exited.", detail: dfuLines.suffix(12).joined(separator: "\n"))
+            throw VPhoneLaunchpadError(String(localized: "The DFU boot exited."), detail: dfuLines.suffix(12).joined(separator: "\n"))
         }
     }
 
@@ -355,7 +355,7 @@ final class VPhoneLaunchpadCreationPipeline {
         if let suffix = udid.split(separator: "-", maxSplits: 1).last, udid.contains("-") {
             return String(suffix)
         }
-        throw VPhoneLaunchpadError("udid-prediction.txt has no ECID.")
+        throw VPhoneLaunchpadError(String(localized: "udid-prediction.txt has no ECID."))
     }
 
     nonisolated static func canonicalPath(_ url: URL) -> String {

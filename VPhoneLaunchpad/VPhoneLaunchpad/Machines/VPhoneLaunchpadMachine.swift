@@ -37,10 +37,10 @@ nonisolated struct VPhoneLaunchpadMachine: Decodable, Hashable, Identifiable, Se
 
     var networkDescription: String {
         switch network.mode {
-        case "nat": "NAT"
-        case "bridged": "bridged" + (network.bridgeInterface.map { " to \($0)" } ?? "")
-        case "hostOnly": "host only"
-        default: "none"
+        case "nat": String(localized: "NAT")
+        case "bridged": network.bridgeInterface.map { String(localized: "Bridged to \($0)") } ?? String(localized: "Bridged")
+        case "hostOnly": String(localized: "Host only")
+        default: String(localized: "None")
         }
     }
 }

@@ -27,7 +27,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
             }
             Section {
                 LabeledContent("Location", value: VPhoneLaunchpadBundleStore.root.path)
-                LabeledContent("Owner", value: "root:wheel, written only by the helper")
+                LabeledContent("Owner", value: String(localized: "root:wheel, written only by the helper"))
             } header: {
                 Text("Store")
             } footer: {
@@ -138,7 +138,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 // The version in use is the one with the green title.
-                Text("VPhone.bundle \(bundle.version)")
+                Text(verbatim: "VPhone.bundle \(bundle.version)")
                     .foregroundStyle(isActive ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
                     .accessibilityValue(isActive ? "In use" : "")
                     .help(isActive ? "In use" : "")
@@ -154,7 +154,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
             }
             .font(.callout)
             Label {
-                Text(bundle.preflight == .passed ? "Preflight passed" : bundle.preflightDetail.isEmpty ? "Preflight" : bundle.preflightDetail)
+                Text(bundle.preflight == .passed ? String(localized: "Preflight passed") : bundle.preflightDetail.isEmpty ? String(localized: "Preflight") : bundle.preflightDetail)
                     .lineLimit(1)
             } icon: {
                 VPhoneLaunchpadStatusIcon(status: bundle.preflight)
@@ -194,13 +194,13 @@ struct VPhoneLaunchpadCoreBundleView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("VPhone.bundle \(release.version)")
+                    Text(verbatim: "VPhone.bundle \(release.version)")
                     if release.isPrerelease {
                         Text("Pre-release")
                             .foregroundStyle(.orange)
                     }
                 }
-                Text("\(release.publishedAt.formatted(date: .abbreviated, time: .omitted)) · \(Self.size(release.size)) · SHA-256 \(Self.shortDigest(release.sha256))")
+                Text(verbatim: "\(release.publishedAt.formatted(date: .abbreviated, time: .omitted)) · \(Self.size(release.size)) · SHA-256 \(Self.shortDigest(release.sha256))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

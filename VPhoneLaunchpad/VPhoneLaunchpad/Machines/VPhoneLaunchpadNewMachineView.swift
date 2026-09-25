@@ -41,10 +41,10 @@ struct VPhoneLaunchpadNewMachineView: View {
             return nil
         }
         if !VPhoneLaunchpadNames.isValidMachineName(name) {
-            return "Use letters, digits, dots, dashes and underscores."
+            return String(localized: "Use letters, digits, dots, dashes and underscores.")
         }
         if model.machines.machines.contains(where: { $0.name == name }) {
-            return "A machine with this name already exists."
+            return String(localized: "A machine with this name already exists.")
         }
         return nil
     }
@@ -56,7 +56,7 @@ struct VPhoneLaunchpadNewMachineView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Name", text: $name, prompt: Text("research-01"))
+                TextField("Name", text: $name, prompt: Text(verbatim: "research-01"))
             } footer: {
                 if let nameProblem {
                     Text(nameProblem).foregroundStyle(.red)
@@ -117,7 +117,7 @@ struct VPhoneLaunchpadNewMachineView: View {
             } else if let catalog {
                 Picker("iOS", selection: $pairing) {
                     ForEach(catalog.pairings.reversed()) { pairing in
-                        Text("\(pairing.ios.name) (\(pairing.build))").tag(Optional(pairing.id))
+                        Text(verbatim: "\(pairing.ios.name) (\(pairing.build))").tag(Optional(pairing.id))
                     }
                 }
                 LabeledContent("cloudOS", value: selectedPairing?.recommendedCloudOS.name ?? "—")
@@ -140,7 +140,7 @@ struct VPhoneLaunchpadNewMachineView: View {
         }
     }
 
-    private func sourceField(_ title: String, _ text: Binding<String>) -> some View {
+    private func sourceField(_ title: LocalizedStringKey, _ text: Binding<String>) -> some View {
         LabeledContent(title) {
             HStack {
                 TextField(title, text: text, prompt: Text("URL or path"))
@@ -161,7 +161,7 @@ struct VPhoneLaunchpadNewMachineView: View {
         let root = VPhoneLaunchpadHostSetup.existingAncestor(of: model.libraryRoot)
         let free = (try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
-        return "Needs about \(diskSizeGB + 20) GB; \(free / 1_000_000_000) GB free."
+        return String(localized: "Needs about \(diskSizeGB + 20) GB; \(free / 1_000_000_000) GB free.")
     }
 
     // MARK: - Actions
@@ -283,7 +283,7 @@ struct VPhoneLaunchpadCreationView: View {
                                 .help("Runs as root through the privileged helper")
                         }
                     }
-                    Text("vphone-cli \(creation.command(for: step))")
+                    Text(verbatim: "vphone-cli \(creation.command(for: step))")
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

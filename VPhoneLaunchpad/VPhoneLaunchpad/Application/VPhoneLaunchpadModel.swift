@@ -21,9 +21,9 @@ final class VPhoneLaunchpadModel {
 
         var title: String {
             switch self {
-            case .hostSetup: "Host Setup"
-            case .coreBundle: "Core Bundle"
-            case .machines: "Machines"
+            case .hostSetup: String(localized: "Host Setup")
+            case .coreBundle: String(localized: "Core Bundle")
+            case .machines: String(localized: "Machines")
             }
         }
     }

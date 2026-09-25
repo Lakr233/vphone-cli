@@ -73,10 +73,10 @@ struct VPhoneLaunchpadMachineSettingsView: View {
 // MARK: - Rename and clone
 
 struct VPhoneLaunchpadNameSheet: View {
-    let title: String
-    let action: String
+    let title: LocalizedStringKey
+    let action: LocalizedStringKey
     let initial: String
-    var note: String?
+    var note: LocalizedStringKey?
     let onConfirm: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -151,7 +151,7 @@ struct VPhoneLaunchpadExportView: View {
 
     private func choose() {
         let panel = NSSavePanel()
-        panel.title = "Export \(name)"
+        panel.title = String(localized: "Export \(name)")
         panel.nameFieldStringValue = "\(name).\(densest ? "txz" : "tzst")"
         guard panel.runModal() == .OK, let url = panel.url else {
             return

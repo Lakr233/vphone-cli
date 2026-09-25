@@ -172,7 +172,7 @@ struct VPhoneLaunchpadMachinesView: View {
             TableColumn("Name", value: \.name)
                 .width(min: 90, ideal: 110)
             TableColumn("iOS") { machine in
-                Text(machine.restoreInfo.map { "\($0.ios.version) (\($0.ios.build))" } ?? "—")
+                Text(verbatim: machine.restoreInfo.map { "\($0.ios.version) (\($0.ios.build))" } ?? "—")
             }
             .width(min: 110, ideal: 120)
             TableColumn("State") { machine in
@@ -180,7 +180,7 @@ struct VPhoneLaunchpadMachinesView: View {
             }
             .width(min: 150, ideal: 160)
             TableColumn("CPU") { machine in
-                Text("\(machine.cpuCount)").monospacedDigit()
+                Text(verbatim: "\(machine.cpuCount)").monospacedDigit()
             }
             .width(40)
             TableColumn("Memory") { machine in
@@ -205,7 +205,7 @@ struct VPhoneLaunchpadMachinesView: View {
         ContentUnavailableView {
             Label("No Machines", systemImage: "iphone")
         } description: {
-            Text(library.listError ?? "Machines in \(VPhoneLaunchpadHostSetup.abbreviated(library.libraryRoot)) appear here.")
+            Text(library.listError ?? String(localized: "Machines in \(VPhoneLaunchpadHostSetup.abbreviated(library.libraryRoot)) appear here."))
         } actions: {
             Button("New Machine…") { sheet = .newMachine }
                 .buttonStyle(.borderedProminent)
@@ -248,8 +248,8 @@ struct VPhoneLaunchpadMachinesView: View {
 
     private func chooseImport() {
         let panel = NSOpenPanel()
-        panel.title = "Import Machine"
-        panel.message = "Choose a .tzst or .txz archive made by Export."
+        panel.title = String(localized: "Import Machine")
+        panel.message = String(localized: "Choose a .tzst or .txz archive made by Export.")
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else {

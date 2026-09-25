@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import ExecutionPolicy
 import Foundation
@@ -37,15 +38,15 @@ struct VPhoneLaunchpadHostCheck: Identifiable, Equatable {
 @Observable
 final class VPhoneLaunchpadHostSetup {
     private(set) var checks: [VPhoneLaunchpadHostCheck] = [
-        .init(kind: .appleSilicon, title: "Apple silicon", isRequired: true),
-        .init(kind: .macOS, title: "macOS 15 or later", isRequired: true),
-        .init(kind: .physicalMac, title: "Physical Mac", isRequired: true),
-        .init(kind: .libraryVolume, title: "Library on APFS", isRequired: true),
-        .init(kind: .developerTools, title: "Developer Tools access", isRequired: true),
-        .init(kind: .helper, title: "Privileged helper", isRequired: true),
-        .init(kind: .diskSpace, title: "Free disk space", isRequired: false),
-        .init(kind: .resources, title: "CPU and memory", isRequired: false),
-        .init(kind: .network, title: "Network", isRequired: false),
+        .init(kind: .appleSilicon, title: String(localized: "Apple silicon"), isRequired: true),
+        .init(kind: .macOS, title: String(localized: "macOS 15 or later"), isRequired: true),
+        .init(kind: .physicalMac, title: String(localized: "Physical Mac"), isRequired: true),
+        .init(kind: .libraryVolume, title: String(localized: "Library on APFS"), isRequired: true),
+        .init(kind: .developerTools, title: String(localized: "Developer Tools access"), isRequired: true),
+        .init(kind: .helper, title: String(localized: "Privileged helper"), isRequired: true),
+        .init(kind: .diskSpace, title: String(localized: "Free disk space"), isRequired: false),
+        .init(kind: .resources, title: String(localized: "CPU and memory"), isRequired: false),
+        .init(kind: .network, title: String(localized: "Network"), isRequired: false),
     ]
     private(set) var isChecking = false
     var actionError: VPhoneLaunchpadError?
@@ -97,10 +98,10 @@ final class VPhoneLaunchpadHostSetup {
         update(.physicalMac, Self.physicalMac())
         update(.libraryVolume, Self.libraryVolume(libraryRoot))
         update(.developerTools, developerTools())
-        update(.helper, (.running, "Checking…"))
+        update(.helper, (.running, String(localized: "Checking…")))
         update(.diskSpace, Self.diskSpace(libraryRoot))
         update(.resources, Self.resources())
-        update(.network, (.running, "Checking…"))
+        update(.network, (.running, String(localized: "Checking…")))
 
         await helper.refresh()
         update(.helper, helperStatus())
@@ -118,20 +119,27 @@ final class VPhoneLaunchpadHostSetup {
     // MARK: - Actions
 
     /// Opens Privacy & Security → Developer Tools with Launchpad listed.
+    /// `requestAccess()` only adds the row to Settings and shows no UI, so
+    /// the pane is opened explicitly.
     func requestDeveloperTools() async {
         _ = await EPDeveloperTool().requestAccess()
         update(.developerTools, developerTools())
+        NSWorkspace.shared.open(Self.developerToolsSettings)
     }
 
+    private static let developerToolsSettings = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_DevTools",
+    )!
+
     func installHelper() async {
-        update(.helper, (.running, "Waiting for an administrator…"))
+        update(.helper, (.running, String(localized: "Waiting for an administrator…")))
         do {
             try await helper.install()
         } catch is CancellationError {
         } catch let error as VPhoneLaunchpadError {
             actionError = error
         } catch {
-            actionError = VPhoneLaunchpadError("The helper could not be installed.", detail: "\(error)")
+            actionError = VPhoneLaunchpadError(String(localized: "The helper could not be installed."), detail: "\(error)")
         }
         update(.helper, helperStatus())
     }
@@ -139,28 +147,28 @@ final class VPhoneLaunchpadHostSetup {
     private func developerTools() -> (VPhoneLaunchpadStatus, String) {
         switch EPDeveloperTool().authorizationStatus {
         case .authorized:
-            (.passed, "Allowed")
+            (.passed, String(localized: "Allowed"))
         case .denied:
-            (.failed, "Not allowed")
+            (.failed, String(localized: "Not allowed"))
         case .restricted:
-            (.failed, "Restricted by the system")
+            (.failed, String(localized: "Restricted by the system"))
         default:
-            (.pending, "Not requested")
+            (.pending, String(localized: "Not requested"))
         }
     }
 
     private func helperStatus() -> (VPhoneLaunchpadStatus, String) {
         switch helper.state {
         case .unknown:
-            (.running, "Checking…")
+            (.running, String(localized: "Checking…"))
         case .notInstalled:
-            (.pending, "Not installed")
+            (.pending, String(localized: "Not installed"))
         case let .outdated(installed, bundled):
-            (.pending, "Version \(installed) installed, \(bundled) available")
+            (.pending, String(localized: "Version \(installed) installed, \(bundled) available"))
         case let .ready(version):
-            (.passed, "Version \(version)")
+            (.passed, String(localized: "Version \(version)"))
         case .unconfigured:
-            (.failed, "No signing team in this build")
+            (.failed, String(localized: "No signing team in this build"))
         }
     }
 
@@ -176,51 +184,51 @@ final class VPhoneLaunchpadHostSetup {
     }
 
     nonisolated private static func appleSilicon() -> (VPhoneLaunchpadStatus, String) {
-        sysctlInt("hw.optional.arm64") == 1 ? (.passed, "arm64") : (.failed, "Intel Macs are not supported")
+        sysctlInt("hw.optional.arm64") == 1 ? (.passed, "arm64") : (.failed, String(localized: "Intel Macs are not supported"))
     }
 
     nonisolated private static func macOSVersion() -> (VPhoneLaunchpadStatus, String) {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let text = "\(version.majorVersion).\(version.minorVersion)"
-        return version.majorVersion >= 15 ? (.passed, text) : (.failed, "\(text) is too old")
+        return version.majorVersion >= 15 ? (.passed, text) : (.failed, String(localized: "\(text) is too old"))
     }
 
     nonisolated private static func physicalMac() -> (VPhoneLaunchpadStatus, String) {
         let present = sysctlInt("kern.hv_vmm_present") ?? 0
         return present == 0
             ? (.passed, "kern.hv_vmm_present = 0")
-            : (.failed, "Running in a virtual machine")
+            : (.failed, String(localized: "Running in a virtual machine"))
     }
 
     nonisolated private static func libraryVolume(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
         let path = existingAncestor(of: root).path
         var info = statfs()
         guard statfs(path, &info) == 0 else {
-            return (.failed, "Cannot read the volume of \(abbreviated(root))")
+            return (.failed, String(localized: "Cannot read the volume of \(abbreviated(root))"))
         }
         let type = withUnsafeBytes(of: info.f_fstypename) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
         return type == "apfs"
             ? (.passed, abbreviated(root))
-            : (.failed, "\(abbreviated(root)) is on \(type)")
+            : (.failed, String(localized: "\(abbreviated(root)) is on \(type)"))
     }
 
     nonisolated private static func diskSpace(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
         let url = existingAncestor(of: root)
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         guard let available = values?.volumeAvailableCapacityForImportantUsage else {
-            return (.warning, "Unknown")
+            return (.warning, String(localized: "Unknown"))
         }
         let gigabytes = available / 1_000_000_000
         return gigabytes >= 100
-            ? (.passed, "\(gigabytes) GB free")
-            : (.warning, "\(gigabytes) GB free, 100 GB recommended")
+            ? (.passed, String(localized: "\(gigabytes) GB free"))
+            : (.warning, String(localized: "\(gigabytes) GB free, 100 GB recommended"))
     }
 
     nonisolated private static func resources() -> (VPhoneLaunchpadStatus, String) {
         let cores = ProcessInfo.processInfo.activeProcessorCount
         let memory = ProcessInfo.processInfo.physicalMemory / (1 << 30)
-        let text = "\(cores) cores, \(memory) GB"
-        return cores >= 8 && memory >= 16 ? (.passed, text) : (.warning, "\(text); 8 cores, 16 GB recommended")
+        let text = String(localized: "\(cores) cores, \(memory) GB")
+        return cores >= 8 && memory >= 16 ? (.passed, text) : (.warning, String(localized: "\(text); 8 cores, 16 GB recommended"))
     }
 
     nonisolated private static func network() async -> (VPhoneLaunchpadStatus, String) {
@@ -236,7 +244,7 @@ final class VPhoneLaunchpadHostSetup {
         }
         return unreachable.isEmpty
             ? (.passed, hosts.joined(separator: ", "))
-            : (.warning, "Cannot reach \(unreachable.joined(separator: ", "))")
+            : (.warning, String(localized: "Cannot reach \(unreachable.joined(separator: ", "))"))
     }
 
     nonisolated static func existingAncestor(of url: URL) -> URL {
@@ -259,10 +267,10 @@ final class VPhoneLaunchpadHostSetup {
             update(.macOS, (.passed, "27.0"))
             update(.physicalMac, (.passed, "kern.hv_vmm_present = 0"))
             update(.libraryVolume, (.passed, "~/.vphone/machines"))
-            update(.developerTools, blocked ? (.pending, "Not requested") : (.passed, "Allowed"))
-            update(.helper, blocked ? (.pending, "Not installed") : (.passed, "Version 1"))
-            update(.diskSpace, (.warning, "84 GB free, 100 GB recommended"))
-            update(.resources, (.passed, "12 cores, 36 GB"))
+            update(.developerTools, blocked ? (.pending, String(localized: "Not requested")) : (.passed, String(localized: "Allowed")))
+            update(.helper, blocked ? (.pending, String(localized: "Not installed")) : (.passed, String(localized: "Version \("1")")))
+            update(.diskSpace, (.warning, String(localized: "\(84) GB free, 100 GB recommended")))
+            update(.resources, (.passed, String(localized: "\(12) cores, \(UInt64(36)) GB")))
             update(.network, (.passed, "updates.cdn-apple.com, api.github.com"))
         }
     }

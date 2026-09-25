@@ -7,7 +7,7 @@ struct VPhoneLaunchpadApp: App {
     @State private var model = VPhoneLaunchpadModel()
 
     var body: some Scene {
-        Window("vphone-launchpad", id: "main") {
+        Window(Text(verbatim: "vphone-launchpad"), id: "main") {
             VPhoneLaunchpadRootView()
                 .environment(model)
                 .frame(minWidth: 820, minHeight: 560)
@@ -41,10 +41,10 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
             return .terminateNow
         }
         let alert = NSAlert()
-        alert.messageText = "Stop creating the machine?"
-        alert.informativeText = "Quitting stops the New Machine pipeline. You can retry it later from the step it stopped at."
-        alert.addButton(withTitle: "Quit")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "Stop creating the machine?")
+        alert.informativeText = String(localized: "Quitting stops the New Machine pipeline. You can retry it later from the step it stopped at.")
+        alert.addButton(withTitle: String(localized: "Quit"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }

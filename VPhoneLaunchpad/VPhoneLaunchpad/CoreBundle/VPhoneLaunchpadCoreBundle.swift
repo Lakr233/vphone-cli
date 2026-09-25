@@ -40,11 +40,11 @@ final class VPhoneLaunchpadCoreBundle {
 
         var title: String {
             switch self {
-            case .download: "Download"
-            case .verify: "Verify SHA-256"
-            case .install: "Install as root"
-            case .policy: "Add execution policy exception"
-            case .preflight: "Host preflight"
+            case .download: String(localized: "Download")
+            case .verify: String(localized: "Verify SHA-256")
+            case .install: String(localized: "Install as root")
+            case .policy: String(localized: "Add execution policy exception")
+            case .preflight: String(localized: "Host preflight")
             }
         }
     }
@@ -187,8 +187,8 @@ final class VPhoneLaunchpadCoreBundle {
             update(version) {
                 $0.preflight = result.succeeded ? .passed : .failed
                 $0.preflightDetail = result.succeeded
-                    ? "passed"
-                    : (result.lines.last ?? "exit status \(result.status)")
+                    ? String(localized: "Passed")
+                    : (result.lines.last ?? String(localized: "Exit status \(result.status)"))
                         .replacingOccurrences(of: "Error: ", with: "")
             }
         } catch {
@@ -228,8 +228,8 @@ final class VPhoneLaunchpadCoreBundle {
             set(.verify, .running)
             guard digest == release.sha256.lowercased() else {
                 throw VPhoneLaunchpadError(
-                    "The download does not match the published SHA-256.",
-                    detail: "expected \(release.sha256)\nreceived \(digest)",
+                    String(localized: "The download does not match the published SHA-256."),
+                    detail: String(localized: "Expected \(release.sha256)\nReceived \(digest)"),
                 )
             }
             set(.verify, .passed)
@@ -250,7 +250,7 @@ final class VPhoneLaunchpadCoreBundle {
             set(.preflight, installed?.preflight ?? .failed)
             if installed?.preflight != .passed {
                 throw VPhoneLaunchpadError(
-                    "Host preflight did not pass.",
+                    String(localized: "Host preflight did not pass."),
                     detail: installed?.preflightDetail,
                 )
             }
@@ -259,7 +259,7 @@ final class VPhoneLaunchpadCoreBundle {
                 set(step, .failed)
             }
             progress?.error = error as? VPhoneLaunchpadError
-                ?? VPhoneLaunchpadError("The install failed.", detail: error.localizedDescription)
+                ?? VPhoneLaunchpadError(String(localized: "The install failed."), detail: error.localizedDescription)
         }
     }
 
@@ -282,7 +282,7 @@ final class VPhoneLaunchpadCoreBundle {
         do {
             try await helper.removeBundle(version: version)
         } catch {
-            actionError = VPhoneLaunchpadError("VPhone.bundle \(version) could not be removed.", detail: "\(error)")
+            actionError = VPhoneLaunchpadError(String(localized: "VPhone.bundle \(version) could not be removed."), detail: "\(error)")
         }
         loadInstalled()
     }
@@ -311,7 +311,7 @@ final class VPhoneLaunchpadCoreBundle {
                 bundle.policy = .passed
                 bundle.policyDetail = "exception"
                 bundle.preflight = .passed
-                bundle.preflightDetail = "passed"
+                bundle.preflightDetail = String(localized: "Passed")
                 return bundle
             }
         }

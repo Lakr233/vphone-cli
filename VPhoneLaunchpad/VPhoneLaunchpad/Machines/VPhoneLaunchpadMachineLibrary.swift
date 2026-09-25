@@ -53,7 +53,7 @@ final class VPhoneLaunchpadMachineLibrary {
 
     func state(of name: String) -> RunState {
         if let creation = creations[name], creation.isRunning, let step = creation.current {
-            return .busy("creating: \(step.title.lowercased())")
+            return .busy(String(localized: "Creating: \(step.title)"))
         }
         if let activity = activities[name] {
             return .busy(activity)
@@ -199,12 +199,12 @@ final class VPhoneLaunchpadMachineLibrary {
                 await refresh()
             }
         } catch {
-            actionError = VPhoneLaunchpadError("\(name) could not be started.", detail: error.localizedDescription)
+            actionError = VPhoneLaunchpadError(String(localized: "\(name) could not be started."), detail: error.localizedDescription)
         }
     }
 
     func stop(_ name: String) async {
-        await perform("stopping", on: name, ["vm", "stop", name] + libraryArguments)
+        await perform(String(localized: "Stopping"), on: name, ["vm", "stop", name] + libraryArguments)
         launched[name]?.interrupt()
     }
 
@@ -224,23 +224,23 @@ final class VPhoneLaunchpadMachineLibrary {
         if let bridgeInterface, !bridgeInterface.isEmpty {
             arguments += ["--bridge-interface", bridgeInterface]
         }
-        await perform("saving settings", on: name, arguments)
+        await perform(String(localized: "Saving settings"), on: name, arguments)
     }
 
     func rename(_ name: String, to newName: String) async {
-        if await perform("renaming", on: name, ["vm", "rename", name, newName] + libraryArguments) {
+        if await perform(String(localized: "Renaming"), on: name, ["vm", "rename", name, newName] + libraryArguments) {
             selection = newName
         }
     }
 
     func clone(_ name: String, as newName: String) async {
-        if await perform("cloning", on: name, ["vm", "clone", name, newName] + libraryArguments) {
+        if await perform(String(localized: "Cloning"), on: name, ["vm", "clone", name, newName] + libraryArguments) {
             selection = newName
         }
     }
 
     func delete(_ name: String) async {
-        await perform("deleting", on: name, ["vm", "delete", name, "--force"] + libraryArguments)
+        await perform(String(localized: "Deleting"), on: name, ["vm", "delete", name, "--force"] + libraryArguments)
     }
 
     func export(_ name: String, to destination: URL, densest: Bool, includeIPSW: Bool) async {
@@ -251,11 +251,11 @@ final class VPhoneLaunchpadMachineLibrary {
         if includeIPSW {
             arguments.append("--include-ipsw")
         }
-        await perform("exporting", on: name, arguments)
+        await perform(String(localized: "Exporting"), on: name, arguments)
     }
 
     func importArchive(_ archive: URL) async {
-        await perform("Importing \(archive.lastPathComponent)", on: nil, ["vm", "import", archive.path] + libraryArguments)
+        await perform(String(localized: "Importing \(archive.lastPathComponent)"), on: nil, ["vm", "import", archive.path] + libraryArguments)
     }
 
     @discardableResult
@@ -281,7 +281,7 @@ final class VPhoneLaunchpadMachineLibrary {
             return true
         } catch {
             actionError = error as? VPhoneLaunchpadError
-                ?? VPhoneLaunchpadError("The command failed.", detail: error.localizedDescription)
+                ?? VPhoneLaunchpadError(String(localized: "The command failed."), detail: error.localizedDescription)
             await refresh()
             return false
         }
