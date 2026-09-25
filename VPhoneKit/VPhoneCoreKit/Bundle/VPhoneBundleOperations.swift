@@ -149,10 +149,8 @@ public enum VPhoneBundleOperations {
 
     // MARK: - Clone
 
-    /// Clone a bundle with a fast APFS copy-on-write clone (fallback: recursive
-    /// copy), then reset the boot-identity artifacts so the clone comes up as a
-    /// fresh device on next boot. NOTE: SEPStorage is copied as-is — cloning an
-    /// already-restored VM may need a re-restore for a fully clean identity.
+    /// Copy the whole bundle, using APFS copy-on-write when available. The
+    /// machine identifier and boot state remain unchanged in the copy.
     public static func clone(
         bundleNamed name: String,
         to newName: String,
@@ -171,26 +169,8 @@ public enum VPhoneBundleOperations {
             try? fm.removeItem(at: dst) // clear any partial clonefile output first
             try fm.copyItem(at: src, to: dst)
         }
-        try resetIdentity(inBundleAt: dst)
         try VPhoneHostFilePermissions.makeAccessible(at: dst)
         return try VPhoneBundle.load(at: dst)
-    }
-
-    private static func resetIdentity(inBundleAt dir: URL) throws {
-        let fm = FileManager.default
-        for name in ["nvram.bin", "udid-prediction.txt"] {
-            let u = dir.appendingPathComponent(name)
-            if fm.fileExists(atPath: u.path) {
-                try fm.removeItem(at: u)
-            }
-        }
-        let entries = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
-        for u in entries where u.pathExtension == "shsh" {
-            try fm.removeItem(at: u)
-        }
-        let configURL = dir.appendingPathComponent("config.plist")
-        let manifest = try VPhoneVirtualMachineManifest.load(from: configURL)
-        try manifest.updating(machineIdentifier: Data()).write(to: configURL)
     }
 
     // MARK: - Export

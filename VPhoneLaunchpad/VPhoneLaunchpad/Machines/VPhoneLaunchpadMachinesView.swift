@@ -244,7 +244,7 @@ struct VPhoneLaunchpadMachinesView: View {
         case let .settings(machine):
             VPhoneLaunchpadMachineSettingsView(machine: machine)
         case let .rename(name):
-            VPhoneLaunchpadNameSheet(title: "Rename \(name)", action: "Rename", initial: name) { newName in
+            VPhoneLaunchpadNameSheet(title: "Rename \(name)", action: "Rename", initial: name, existingName: name) { newName in
                 Task { await library.rename(name, to: newName) }
             }
         case let .clone(name):
@@ -252,7 +252,7 @@ struct VPhoneLaunchpadMachinesView: View {
                 title: "Clone \(name)",
                 action: "Clone",
                 initial: "\(name)-clone",
-                note: "The clone starts as a new device. Its Secure Enclave data is copied unchanged, so you may need to restore the clone again.",
+                existingName: name,
             ) { newName in
                 Task { await library.clone(name, as: newName) }
             }

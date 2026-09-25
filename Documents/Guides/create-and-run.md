@@ -68,4 +68,6 @@ vphone-cli vm export myphone --out myphone.tzst
 vphone-cli vm import myphone.tzst --name restored
 ```
 
+`vm clone` copies the complete machine state, including its device identity and boot files. It uses APFS copy-on-write when available. Edit the identity yourself if you need a different device.
+
 Run resource-heavy creations **one at a time**. Both the IPSWs and temporary restore tree consume substantial disk space, and patching large caches can be memory intensive. Check free space before starting a second VM.

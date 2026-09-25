@@ -88,7 +88,7 @@ struct ManifestTests {
         return url
     }
 
-    /// An imported config.plist is untrusted: vphone-vm overwrites the NVRAM
+    /// An imported config.plist is untrusted: vphone-vm opens the NVRAM
     /// file and attaches the disk read-write, so every file name must stay
     /// directly inside the VM folder.
     @Test(arguments: ["diskImage", "nvramStorage", "sepStorage", "romImages.avpBooter", "romImages.avpSEPBooter"])

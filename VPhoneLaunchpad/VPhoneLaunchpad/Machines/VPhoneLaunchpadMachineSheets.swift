@@ -76,13 +76,13 @@ struct VPhoneLaunchpadNameSheet: View {
     let title: LocalizedStringKey
     let action: LocalizedStringKey
     let initial: String
-    var note: LocalizedStringKey?
+    let existingName: String
     let onConfirm: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
 
     private var isValid: Bool {
-        VPhoneLaunchpadNames.isValidMachineName(name) && name != initial
+        VPhoneLaunchpadNames.isValidMachineName(name) && name != existingName
     }
 
     var body: some View {
@@ -90,7 +90,7 @@ struct VPhoneLaunchpadNameSheet: View {
             Section {
                 TextField("Name", text: $name)
             } footer: {
-                Text(note ?? "Use letters, numbers, periods, hyphens, and underscores.")
+                Text("Use letters, numbers, periods, hyphens, and underscores.")
                     .foregroundStyle(.secondary)
             }
         }

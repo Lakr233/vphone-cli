@@ -6,8 +6,8 @@ import VPhoneCoreKit
 struct VPhoneVirtualMachineCloneCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "clone",
-        abstract: "Clone a VM bundle (fast APFS clone; resets device identity)",
-        discussion: "The clone starts as a new device, with NVRAM, machine identifier, and SHSH blobs cleared. SEPStorage is copied unchanged, so a clone of a restored VM may need to be restored again.",
+        abstract: "Copy a VM bundle (using APFS copy-on-write when available)",
+        discussion: "The copy keeps the machine identifier, NVRAM, SEP storage, and SHSH blobs unchanged. Edit the device identity yourself if you need a different one.",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption

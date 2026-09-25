@@ -101,14 +101,16 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             print("[vphone] Warning: failed to resolve ECID from machineIdentifier")
         }
 
-        // .allowOverwrite truncates whatever is at nvramURL, so a symbolic link
-        // there is refused rather than followed.
-        try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.nvramURL)
-        let auxStorage = try VZMacAuxiliaryStorage(
-            creatingStorageAt: options.nvramURL,
-            hardwareModel: hwModel,
-            options: .allowOverwrite,
-        )
+        let auxStorage: VZMacAuxiliaryStorage
+        if try VPhoneVirtualMachineManifest.requireRegularFileIfPresent(at: options.nvramURL) {
+            auxStorage = VZMacAuxiliaryStorage(url: options.nvramURL)
+        } else {
+            auxStorage = try VZMacAuxiliaryStorage(
+                creatingStorageAt: options.nvramURL,
+                hardwareModel: hwModel,
+                options: [],
+            )
+        }
         try VPhoneHostFilePermissions.makeAccessible(at: options.nvramURL)
         platform.auxiliaryStorage = auxStorage
         platform.hardwareModel = hwModel

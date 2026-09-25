@@ -252,7 +252,7 @@ struct BundleOperationsTests {
         }
     }
 
-    @Test func `clone copies bundle and resets identity`() throws {
+    @Test func `clone preserves bundle contents and keeps copy independent`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let rom = try fakeROM(); let seprom = try fakeROM()
@@ -269,7 +269,7 @@ struct BundleOperationsTests {
             ),
             in: lib,
         )
-        // Simulate a booted/restored VM: identity artifacts present + non-empty machineIdentifier.
+        // Simulate a booted/restored VM with identity artifacts.
         let fm = FileManager.default
         try Data([1, 2, 3]).write(to: src.url.appendingPathComponent("nvram.bin"))
         try Data([4]).write(to: src.url.appendingPathComponent("udid-prediction.txt"))
@@ -282,13 +282,15 @@ struct BundleOperationsTests {
         // Copy happened (disk + ROMs present in the clone).
         #expect(fm.fileExists(atPath: clone.url.appendingPathComponent("Disk.img").path))
         #expect(fm.fileExists(atPath: clone.url.appendingPathComponent("AVPBooter.vresearch1.bin").path))
-        // Identity artifacts cleared in the clone.
-        #expect(!fm.fileExists(atPath: clone.url.appendingPathComponent("nvram.bin").path))
-        #expect(!fm.fileExists(atPath: clone.url.appendingPathComponent("udid-prediction.txt").path))
-        #expect(!fm.fileExists(atPath: clone.url.appendingPathComponent("ABC123.shsh").path))
-        #expect(clone.manifest.machineIdentifier.isEmpty)
-        // Original untouched.
-        #expect(fm.fileExists(atPath: src.url.appendingPathComponent("nvram.bin").path))
+        // A clone has the same boot identity and state as the source.
+        #expect(try Data(contentsOf: clone.url.appendingPathComponent("nvram.bin")) == Data([1, 2, 3]))
+        #expect(try Data(contentsOf: clone.url.appendingPathComponent("udid-prediction.txt")) == Data([4]))
+        #expect(try Data(contentsOf: clone.url.appendingPathComponent("ABC123.shsh")) == Data([5]))
+        #expect(try Data(contentsOf: clone.url.appendingPathComponent("SEPStorage")) == Data(contentsOf: src.url.appendingPathComponent("SEPStorage")))
+        #expect(clone.manifest.machineIdentifier == Data([9, 9]))
+        // Writing to the copy does not change the source, including with CoW.
+        try Data([8]).write(to: clone.url.appendingPathComponent("nvram.bin"))
+        #expect(try Data(contentsOf: src.url.appendingPathComponent("nvram.bin")) == Data([1, 2, 3]))
         #expect(try lib.bundle(named: "src").manifest.machineIdentifier == Data([9, 9]))
     }
 
