@@ -42,6 +42,9 @@ into the bootstrap, creates Irisin's mobile-owned data directory, registers
 the app with IcliKit, and loads the daemon through IcliKit. It also attempts
 to start the daemon; a launchd start error is returned as
 `service_start_warning` while the installed bootstrap remains available.
+On the iOS 26.6.2 RootHide test VM, launchd returned service-configure status
+144 during installation, then started `irisind` on demand when Irisin opened
+after a reboot.
 RootHide's plist gets a physical daemon path and `__Patched`
 marker before launchd reads it. This is a manual payload install: no maintainer
 script runs. For this minimal vphone bootstrap, vphoned writes a real installed
@@ -63,8 +66,11 @@ jobs whose launch path does not pass through either observed spawn bridge.
 repairs the record for a bootstrap already identified by the completion marker
 without running another install. The reply includes the tag,
 bootstrap path, registration record, and launchd status. A successful bootstrap
-writes `.vphoned-boostrap-completed` beside the running vphoned binary; later
-requests refuse to bootstrap again when that marker exists.
+writes `/private/var/db/vphoned/bootstrap.json` on the writable data volume;
+later requests refuse to bootstrap again while that record describes an installed
+bootstrap. Older records beside the vphoned binary are read when no data-volume
+record exists. Uninstall writes a tombstone so a legacy record on a read-only
+system volume cannot reappear.
 The VM window exposes the same operation at Guest > Install Bootstrap…;
 choose Rootless or RootHide in the confirmation sheet. The item is enabled
 when vphoned advertises `bootstrap_install`. Its sheet polls
@@ -82,10 +88,11 @@ recorded by vphoned. A rootless `/var/jb` symlink is accepted only when its
 target is a physical directory under `/private/preboot`; the target and link
 are both removed. The daemon rejects a changed path and symlinked child
 directories. It unloads the bootstrap's launch daemons, unregisters apps in
-its `Applications` directory, deletes the bootstrap root and completion marker,
-then schedules a full guest reboot. If cleanup fails, the marker remains so
-the operation can be retried. Irisin's mobile Documents data outside the
-bootstrap is retained. Guest > Uninstall Bootstrap… shows the recorded path
+its `Applications` directory, deletes the bootstrap root, marks the completion
+record uninstalled, then schedules a full guest reboot. If cleanup fails, the
+installed record remains so the operation can be retried. Irisin's mobile
+Documents data outside the bootstrap is retained. Guest > Uninstall Bootstrap…
+shows the recorded path
 in a destructive confirmation alert before sending the request.
 
 ## HTTP and WebSocket contract

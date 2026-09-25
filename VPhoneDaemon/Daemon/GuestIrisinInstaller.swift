@@ -11,15 +11,16 @@ enum GuestIrisinInstaller {
     private static let installLock = NSLock()
     private static let progressLock = NSLock()
     nonisolated(unsafe) private static var progress: [String: Any] = ["phase": "idle"]
-    private static let completionMarker = Bundle.main.executableURL!
+    private static let completionMarker = URL(fileURLWithPath: "/private/var/db/vphoned/bootstrap.json")
+    private static let legacyCompletionMarker = Bundle.main.executableURL!
         .deletingLastPathComponent()
         .appendingPathComponent(".vphoned-boostrap-completed")
 
     static func install(jailbreak: [String: Any], layout: String) throws -> [String: Any] {
         installLock.lock()
         defer { installLock.unlock() }
-        guard !itemExists(completionMarker) else {
-            throw GuestAPIError.operationFailed("Irisin bootstrap already completed: \(completionMarker.path)")
+        guard try completedBootstrap() == nil else {
+            throw GuestAPIError.operationFailed("Irisin bootstrap already completed")
         }
         setProgress(["phase": "preparing", "layout": layout])
         do {
@@ -82,7 +83,9 @@ enum GuestIrisinInstaller {
             try files.removeItem(atPath: removal.physicalPath)
         }
         if removal.isSymlink { try files.removeItem(at: rootURL) }
-        try files.removeItem(at: completionMarker)
+        // A legacy marker may live beside vphoned on the read-only system
+        // volume. Shadow it with a writable tombstone after removal.
+        try writeMarker(["installed": false])
         DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
             do {
                 _ = try requestReboot(userspace: false, force: true)
@@ -94,15 +97,34 @@ enum GuestIrisinInstaller {
     }
 
     private static func completedBootstrap() throws -> (layout: String, root: String)? {
-        guard itemExists(completionMarker) else { return nil }
-        let data = try Data(contentsOf: completionMarker)
-        guard let marker = try JSONSerialization.jsonObject(with: data) as? [String: String],
-              let layout = marker["layout"], let root = marker["jbroot"],
+        guard let markerURL = markerForRead() else { return nil }
+        let data = try Data(contentsOf: markerURL)
+        guard let marker = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw GuestAPIError.operationFailed("Completed bootstrap marker is invalid")
+        }
+        if marker["installed"] as? Bool == false { return nil }
+        guard let layout = marker["layout"] as? String,
+              let root = marker["jbroot"] as? String,
               (layout == "rootless" && root == "/var/jb") ||
               (layout == "roothide" && root.hasPrefix("/private/var/containers/Bundle/Application/")
                && roothideName(String(root.dropFirst("/private/var/containers/Bundle/Application/".count))))
         else { throw GuestAPIError.operationFailed("Completed bootstrap marker has an invalid root") }
         return (layout, root)
+    }
+
+    private static func markerForRead() -> URL? {
+        if itemExists(completionMarker) { return completionMarker }
+        if itemExists(legacyCompletionMarker) { return legacyCompletionMarker }
+        return nil
+    }
+
+    private static func writeMarker(_ marker: [String: Any]) throws {
+        try FileManager.default.createDirectory(
+            at: completionMarker.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o755],
+        )
+        try JSONSerialization.data(withJSONObject: marker).write(to: completionMarker, options: .atomic)
     }
 
     private static func directoryExistsWithoutSymlink(_ path: String) throws -> Bool {
@@ -258,7 +280,7 @@ enum GuestIrisinInstaller {
             setProgress(["phase": "firmware", "layout": layout, "tag": release.tag])
             let firmware = try ensureFirmwareRecord(root: root)
             let marker = ["tag": release.tag, "layout": layout, "jbroot": root]
-            try JSONSerialization.data(withJSONObject: marker).write(to: completionMarker, options: .atomic)
+            try writeMarker(marker)
             for entry in replaced {
                 if let backup = entry.backup { try? FileManager.default.removeItem(at: backup) }
             }
@@ -301,22 +323,19 @@ enum GuestIrisinInstaller {
     static func repairFirmwareRecord() throws -> [String: Any] {
         installLock.lock()
         defer { installLock.unlock() }
-        let data = try Data(contentsOf: completionMarker)
-        guard let marker = try JSONSerialization.jsonObject(with: data) as? [String: String],
-              let layout = marker["layout"], let root = marker["jbroot"],
-              layout == "rootless" || layout == "roothide",
-              root == (try bootstrapRoot(layout: layout, detected: nil)),
-              isDirectory(root)
+        guard let marker = try completedBootstrap(),
+              marker.root == (try bootstrapRoot(layout: marker.layout, detected: nil)),
+              isDirectory(marker.root)
         else { throw GuestAPIError.operationFailed("No valid completed vphoned bootstrap was found") }
-        let firmware = try ensureFirmwareRecord(root: root)
-        return ["layout": layout, "jbroot": root,
+        let firmware = try ensureFirmwareRecord(root: marker.root)
+        return ["layout": marker.layout, "jbroot": marker.root,
                 "firmware_version": firmware.version, "dpkg_database_updated": firmware.updated]
     }
 
     static func refreshBootstrapOnStartup() {
-        guard itemExists(completionMarker) else { return }
         do {
-            if let installation = try completedBootstrap(), installation.layout == "roothide" {
+            guard let installation = try completedBootstrap() else { return }
+            if installation.layout == "roothide" {
                 try ensureRootHideLinks(root: installation.root)
             }
         } catch {
