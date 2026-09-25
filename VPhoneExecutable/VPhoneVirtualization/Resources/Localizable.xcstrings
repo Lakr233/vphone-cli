@@ -7328,25 +7328,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete"
+            "value" : "削除"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete"
+            "value" : "삭제"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete"
+            "value" : "Xóa"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete"
+            "value" : "删除"
           }
         }
       }
