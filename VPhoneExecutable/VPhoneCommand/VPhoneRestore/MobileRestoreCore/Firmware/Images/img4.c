@@ -166,7 +166,7 @@ static void asn1_write_element(unsigned char **p, unsigned int *length, unsigned
 	case ASN1_IA5_STRING: {
 		char *str = (char*)data;
 		size_t len = (data_len < 0) ? strlen(str) : data_len;
-		asn1_write_element_header(type, len, p, &this_len);
+		asn1_write_element_header(type, (unsigned int)len, p, &this_len);
 		*length += this_len;
 		memcpy(*p, str, len);
 		*p += len;
@@ -570,16 +570,16 @@ int img4_stitch_component(const char* component_name, const void* component_data
 			unsigned char *p_inner_seq = &inner_seq[0];
 			unsigned int inner_seq_hdr_len = 0;
 			asn1_write_element(&p_inner_seq, &inner_seq_hdr_len, ASN1_IA5_STRING, (void*)"ucon", -1);
-			asn1_write_element_header(ASN1_OCTET_STRING, ucon_size, &p_inner_seq, &inner_seq_hdr_len);
+			asn1_write_element_header(ASN1_OCTET_STRING, (unsigned int)ucon_size, &p_inner_seq, &inner_seq_hdr_len);
 
 			// write ucon sequence
 			unsigned char elem_seq[8];
 			unsigned char *p = &elem_seq[0];
 			unsigned int seq_hdr_len = 0;
-			asn1_write_element_header(ASN1_SEQUENCE | ASN1_CONSTRUCTED, inner_seq_hdr_len + ucon_size, &p, &seq_hdr_len);
+			asn1_write_element_header(ASN1_SEQUENCE | ASN1_CONSTRUCTED, inner_seq_hdr_len + (unsigned int)ucon_size, &p, &seq_hdr_len);
 
 			// add size to priv ucon element
-			asn1_write_size(inner_seq_hdr_len + ucon_size + seq_hdr_len, &p_im4rset, &im4rlen);
+			asn1_write_size(inner_seq_hdr_len + (unsigned int)ucon_size + seq_hdr_len, &p_im4rset, &im4rlen);
 
 			// put it together
 			memcpy(p_im4rset, elem_seq, seq_hdr_len);
@@ -604,16 +604,16 @@ int img4_stitch_component(const char* component_name, const void* component_data
 			unsigned char *p_inner_seq = &inner_seq[0];
 			unsigned int inner_seq_hdr_len = 0;
 			asn1_write_element(&p_inner_seq, &inner_seq_hdr_len, ASN1_IA5_STRING, (void*)"ucer", -1);
-			asn1_write_element_header(ASN1_OCTET_STRING, ucer_size, &p_inner_seq, &inner_seq_hdr_len);
+			asn1_write_element_header(ASN1_OCTET_STRING, (unsigned int)ucer_size, &p_inner_seq, &inner_seq_hdr_len);
 
 			// write ucer sequence
 			unsigned char elem_seq[8];
 			unsigned char *p = &elem_seq[0];
 			unsigned int seq_hdr_len = 0;
-			asn1_write_element_header(ASN1_SEQUENCE | ASN1_CONSTRUCTED, inner_seq_hdr_len + ucer_size, &p, &seq_hdr_len);
+			asn1_write_element_header(ASN1_SEQUENCE | ASN1_CONSTRUCTED, inner_seq_hdr_len + (unsigned int)ucer_size, &p, &seq_hdr_len);
 
 			// add size to priv ucer element
-			asn1_write_size(inner_seq_hdr_len + ucer_size + seq_hdr_len, &p_im4rset, &im4rlen);
+			asn1_write_size(inner_seq_hdr_len + (unsigned int)ucer_size + seq_hdr_len, &p_im4rset, &im4rlen);
 
 			// put it together
 			memcpy(p_im4rset, elem_seq, seq_hdr_len);
@@ -678,7 +678,7 @@ int img4_stitch_component(const char* component_name, const void* component_data
 	asn1_create_element_header(ASN1_CONTEXT_SPECIFIC|ASN1_CONSTRUCTED, blob_size, &blob_header, &blob_header_size);
 
 	// calculate the size for the final IMG4 file (asn1 sequence)
-	content_size = magic_header_size + IMG4_MAGIC_SIZE + component_size + blob_header_size + blob_size + additional_size;
+	content_size = (unsigned int)(magic_header_size + IMG4_MAGIC_SIZE + component_size + blob_header_size + blob_size + additional_size);
 
 	// create element header for the final IMG4 asn1 blob
 	asn1_create_element_header(ASN1_SEQUENCE|ASN1_CONSTRUCTED, content_size, &img4header, &img4header_size);
@@ -798,7 +798,7 @@ static void _manifest_write_component(unsigned char **p, unsigned int *length, c
 		uint64_t digest_len = 0;
 		const char *digest = plist_get_data_ptr(node, &digest_len);
 		if (digest_len > 0) {
-			_manifest_write_key_value(&tmp, &tmp_len, "DGST", ASN1_OCTET_STRING, (void*)digest, digest_len);
+			_manifest_write_key_value(&tmp, &tmp_len, "DGST", ASN1_OCTET_STRING, (void*)digest, (int)digest_len);
 		}
 	}
 
@@ -839,7 +839,7 @@ static void _manifest_write_component(unsigned char **p, unsigned int *length, c
 		if (!tbmtag) {
 			logger(LL_ERROR, "Unexpected TMBDigests for comp '%s'\n", tag);
 		} else {
-			_manifest_write_key_value(&tmp, &tmp_len, tbmtag, ASN1_OCTET_STRING, (void*)data, datalen);
+			_manifest_write_key_value(&tmp, &tmp_len, tbmtag, ASN1_OCTET_STRING, (void*)data, (int)datalen);
 		}
 	}
 

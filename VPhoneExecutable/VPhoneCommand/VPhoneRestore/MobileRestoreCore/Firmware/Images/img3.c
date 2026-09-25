@@ -415,7 +415,7 @@ int img3_stitch_component(const char* component_name, const void* component_data
 	logger(LL_INFO, "Personalizing IMG3 component %s...\n", component_name);
 
 	/* parse current component as img3 */
-	img3 = img3_parse_file(component_data, component_size);
+	img3 = img3_parse_file(component_data, (unsigned int)component_size);
 	if (img3 == NULL) {
 		logger(LL_ERROR, "Unable to parse %s IMG3 file\n", component_name);
 		return -1;

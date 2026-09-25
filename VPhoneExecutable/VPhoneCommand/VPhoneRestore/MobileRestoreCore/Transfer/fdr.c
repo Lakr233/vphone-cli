@@ -486,7 +486,7 @@ static int fdr_handle_proxy_cmd(fdr_client_t fdr)
 {
 	idevice_error_t device_error = IDEVICE_E_SUCCESS;
 	char *buf = NULL;
-	size_t bufsize = 1048576;
+	uint32_t bufsize = 1048576;
 	uint32_t sent = 0, bytes = 0;
 	char *host = NULL;
 	uint16_t port = 0;

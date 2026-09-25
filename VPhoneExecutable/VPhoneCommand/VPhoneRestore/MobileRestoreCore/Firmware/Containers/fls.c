@@ -155,7 +155,7 @@ int fls_update_sig_blob(fls_file* fls, const void* sigdata, size_t siglen)
 		return -1;
 	}
 
-	size_t oldsiglen = datasize - sigoffset;
+	uint32_t oldsiglen = datasize - sigoffset;
 	size_t newsize = fls->size - oldsiglen + siglen;
 
 	unsigned int i;

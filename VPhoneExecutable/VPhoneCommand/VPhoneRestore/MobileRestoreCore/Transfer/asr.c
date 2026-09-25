@@ -180,7 +180,7 @@ int asr_send_buffer(asr_client_t asr, const void* data, size_t size)
 	uint32_t bytes = 0;
 	idevice_error_t device_error = IDEVICE_E_SUCCESS;
 
-	device_error = idevice_connection_send(asr->connection, data, size, &bytes);
+	device_error = idevice_connection_send(asr->connection, data, (uint32_t)size, &bytes);
 	if (device_error != IDEVICE_E_SUCCESS || bytes != size) {
 		logger(LL_ERROR, "Unable to send data to ASR. Sent %u of %zu bytes.\n", bytes, size);
 		return -1;
@@ -372,7 +372,7 @@ int asr_send_payload(asr_client_t asr, ipsw_file_handle_t file)
 		uint32_t sendsize = 0;
 
 		if (i < ASR_PAYLOAD_CHUNK_SIZE) {
-			size = i;
+			size = (uint32_t)i;
 		}
 
 		if (ipsw_file_read(file, data, size) != (int64_t)size) {

@@ -236,7 +236,7 @@ static int load_version_data(struct idevicerestore_client_t* client)
 	}
 
 	client->version_data = NULL;
-	plist_from_xml(verbuf, verlen, &client->version_data);
+	plist_from_xml(verbuf, (uint32_t)verlen, &client->version_data);
 	free(verbuf);
 
 	if (!client->version_data) {
@@ -2969,7 +2969,7 @@ void build_manifest_get_version_information(plist_t build_manifest, struct idevi
 	}
 	plist_get_string_val(node, &client->build);
 
-	client->build_major = strtoul(client->build, NULL, 10);
+	client->build_major = (int)strtoul(client->build, NULL, 10);
 }
 
 void build_identity_print_information(plist_t build_identity)

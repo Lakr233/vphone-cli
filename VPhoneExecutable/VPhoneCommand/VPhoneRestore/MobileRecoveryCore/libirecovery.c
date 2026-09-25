@@ -744,7 +744,7 @@ INITIALIZER(_irecv_init)
 {
 	char* dbglvl = getenv("LIBIRECOVERY_DEBUG_LEVEL");
 	if (dbglvl) {
-		libirecovery_debug = strtol(dbglvl, NULL, 0);
+		libirecovery_debug = (int)strtol(dbglvl, NULL, 0);
 		irecv_set_debug_level(libirecovery_debug);
 	}
 #ifndef USE_DUMMY
@@ -946,7 +946,7 @@ static void irecv_load_device_info_from_iboot_string(irecv_client_t client, cons
 
 static void irecv_copy_nonce_with_tag_from_buffer(const char* tag, unsigned char** nonce, unsigned int* nonce_size, const char *buf)
 {
-	int taglen = strlen(tag);
+	int taglen = (int)strlen(tag);
 	int nlen = 0;
 	const char* nonce_string = NULL;
 	const char* p = buf;
@@ -962,9 +962,9 @@ static void irecv_copy_nonce_with_tag_from_buffer(const char* tag, unsigned char
 		if (strncmp(colon-taglen, tag, taglen) == 0) {
 			p = colon+1;
 			if (!space) {
-				nlen = strlen(p);
+				nlen = (int)strlen(p);
 			} else {
-				nlen = space-p;
+				nlen = (int)(space-p);
 			}
 			nonce_string = p;
 			nlen/=2;
@@ -1081,7 +1081,7 @@ static irecv_error_t irecv_kis_request(irecv_client_t client, KIS_req_header *re
 	}
 
 	int sent = 0;
-	irecv_error_t err = irecv_usb_bulk_transfer(client, endpoint, (unsigned char *) req, reqSize, &sent, USB_TIMEOUT);
+	irecv_error_t err = irecv_usb_bulk_transfer(client, endpoint, (unsigned char *) req, (int)reqSize, &sent, USB_TIMEOUT);
 	if (err != IRECV_E_SUCCESS) {
 		debug("[send] irecv_usb_bulk_transfer failed, error %d\n", err);
 		return err;
@@ -1093,7 +1093,7 @@ static irecv_error_t irecv_kis_request(irecv_client_t client, KIS_req_header *re
 	}
 
 	int rcvd = 0;
-	err = irecv_usb_bulk_transfer(client, endpoint | 0x80, (unsigned char *) rpl, *rplSize, &rcvd, USB_TIMEOUT);
+	err = irecv_usb_bulk_transfer(client, endpoint | 0x80, (unsigned char *) rpl, (int)*rplSize, &rcvd, USB_TIMEOUT);
 	if (err != IRECV_E_SUCCESS) {
 		debug("[rcv] irecv_usb_bulk_transfer failed, error %d\n", err);
 		return err;
@@ -3475,7 +3475,7 @@ const char* irecv_version()
 #ifndef USE_DUMMY
 static irecv_error_t irecv_send_command_raw(irecv_client_t client, const char* command, uint8_t b_request)
 {
-	unsigned int length = strlen(command);
+	unsigned int length = (unsigned int)strlen(command);
 	if (length >= 0x100) {
 		return IRECV_E_INVALID_INPUT;
 	}
@@ -3527,7 +3527,7 @@ irecv_error_t irecv_send_command_breq(irecv_client_t client, const char* command
 	if (check_context(client) != IRECV_E_SUCCESS)
 		return IRECV_E_NO_DEVICE;
 
-	unsigned int length = strlen(command);
+	unsigned int length = (unsigned int)strlen(command);
 	if (length >= 0x100) {
 		return IRECV_E_INVALID_INPUT;
 	}
@@ -3655,7 +3655,7 @@ static irecv_error_t irecv_kis_send_buffer(irecv_client_t client, unsigned char*
 		}
 
 		chunk->address = address;
-		chunk->size    = toUpload;
+		chunk->size    = (uint32_t)toUpload;
 		memcpy(chunk->data, buffer, toUpload);
 #endif
 
@@ -3683,7 +3683,7 @@ static irecv_error_t irecv_kis_send_buffer(irecv_client_t client, unsigned char*
 			event.progress = ((double) (origLen - length) / (double) origLen) * 100.0;
 			event.type = IRECV_PROGRESS;
 			event.data = (char*)"Uploading";
-			event.size = origLen - length;
+			event.size = (int)(origLen - length);
 			client->progress_callback(client, &event);
 		} else {
 			debug("Sent: %lu bytes - %lu of %lu\n", toUpload, origLen - length, origLen);
@@ -3698,7 +3698,7 @@ static irecv_error_t irecv_kis_send_buffer(irecv_client_t client, unsigned char*
 		int ret = DeviceIoControl(client->handle, 0x22000C, &amount, 4, NULL, 0, (PDWORD)&transferred, NULL);
 		irecv_error_t error = (ret) ? IRECV_E_SUCCESS : IRECV_E_USB_UPLOAD;
 #else
-		irecv_error_t error = irecv_kis_config_write32(client, KIS_PORTAL_RSM, KIS_INDEX_BOOT_IMG, origLen);
+		irecv_error_t error = irecv_kis_config_write32(client, KIS_PORTAL_RSM, KIS_INDEX_BOOT_IMG, (uint32_t)origLen);
 #endif
 		if (error != IRECV_E_SUCCESS) {
 			debug("Failed to boot image, error %d\n", error);
@@ -3758,7 +3758,7 @@ irecv_error_t irecv_send_buffer(irecv_client_t client, unsigned char* buffer, un
 		dfu_crc = 0;
 	}
 	int last = length % packet_size;
-	int packets = length / packet_size;
+	int packets = (int)(length / packet_size);
 
 	if (last != 0) {
 		packets++;
@@ -3913,7 +3913,7 @@ irecv_error_t irecv_send_buffer(irecv_client_t client, unsigned char* buffer, un
 			event.progress = ((double) count/ (double) length) * 100.0;
 			event.type = IRECV_PROGRESS;
 			event.data = (char*)"Uploading";
-			event.size = count;
+			event.size = (int)count;
 			client->progress_callback(client, &event);
 		} else {
 			debug("Sent: %d bytes - %lu of %lu\n", bytes, count, length);
@@ -4349,7 +4349,7 @@ irecv_error_t irecv_recv_buffer(irecv_client_t client, char* buffer, unsigned lo
 
 	int packet_size = recovery_mode ? 0x2000: 0x800;
 	int last = length % packet_size;
-	int packets = length / packet_size;
+	int packets = (int)(length / packet_size);
 	if (last != 0) {
 		packets++;
 	} else {
@@ -4373,7 +4373,7 @@ irecv_error_t irecv_recv_buffer(irecv_client_t client, char* buffer, unsigned lo
 			event.progress = ((double) count/ (double) length) * 100.0;
 			event.type = IRECV_PROGRESS;
 			event.data = (char*)"Downloading";
-			event.size = count;
+			event.size = (int)count;
 			client->progress_callback(client, &event);
 		} else {
 			debug("Sent: %d bytes - %lu of %lu\n", bytes, count, length);

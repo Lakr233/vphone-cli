@@ -126,7 +126,7 @@ int ace3_create_binary(const void* uarp_fw, size_t uarp_size, uint64_t bdid, uns
 	struct uarp_header* uarp_hdr = (struct uarp_header*)uarp_fw;
 	uint32_t uarp_hdr_size = be32toh(uarp_hdr->header_size);
 	uint32_t plist_offset = be32toh(uarp_hdr->plist_offset);
-	uint32_t plist_size = uarp_size - plist_offset;
+	uint32_t plist_size = (uint32_t)(uarp_size - plist_offset);
 	nskeyedarchive_t ka = nskeyedarchive_new_from_data(uarp_fw + plist_offset, plist_size);
 	if (!ka) {
 		return -1;
@@ -241,7 +241,7 @@ int ace3_create_binary(const void* uarp_fw, size_t uarp_size, uint64_t bdid, uns
 		p += te_size;
 	}
 
-	uint32_t content_size = data1_size + data2_size + im4m_size + dl_size;
+	uint32_t content_size = (uint32_t)(data1_size + data2_size + im4m_size + dl_size);
 
 	*bin_out = malloc(0x40 + content_size);
 	struct ace3bin_header* hdr = (struct ace3bin_header*)(*bin_out);
@@ -252,7 +252,7 @@ int ace3_create_binary(const void* uarp_fw, size_t uarp_size, uint64_t bdid, uns
 	hdr->data1_size = htole32(data1_size);
 	hdr->data2_size = htole32(data2_size);;
 	hdr->im4m_offset = htole32(0x40 + data1_size + data2_size);
-	hdr->im4m_dl_size = htole32(im4m_size + dl_size);
+	hdr->im4m_dl_size = htole32((uint32_t)(im4m_size + dl_size));
 	hdr->content_size = htole32(content_size);
 	hdr->crc = 0;
 	hdr->fill1 = 0xFFFFFFFFFFFFFFFFLL;

@@ -2364,7 +2364,7 @@ static int restore_send_baseband_data(struct idevicerestore_client_t* client, pl
 		response = NULL;
 	}
 
-	res = restore_sign_bbfw(bbfwtmp, (client->restore->bbtss) ? client->restore->bbtss : response, bb_nonce, bb_chip_id);
+	res = restore_sign_bbfw(bbfwtmp, (client->restore->bbtss) ? client->restore->bbtss : response, bb_nonce, (uint32_t)bb_chip_id);
 	if (res != 0) {
 		goto leave;
 	}
@@ -3192,10 +3192,10 @@ static plist_t restore_get_veridian_firmware_data(struct idevicerestore_client_t
 	}
 
 	plist_t fw_map = NULL;
-	if (plist_is_binary((const char*)component_data, component_size)) {
-		plist_from_bin((const char*)component_data, component_size, &fw_map);
+	if (plist_is_binary((const char*)component_data, (uint32_t)component_size)) {
+		plist_from_bin((const char*)component_data, (uint32_t)component_size, &fw_map);
 	} else {
-		plist_from_xml((const char*)component_data, component_size, &fw_map);
+		plist_from_xml((const char*)component_data, (uint32_t)component_size, &fw_map);
 	}
 	free(component_data);
 	component_data = NULL;
@@ -3957,19 +3957,19 @@ static int cpio_send_file(idevice_connection_t connection, const char *name, str
 	memset(&hdr, '0', sizeof(hdr));
 	memcpy(hdr.c_magic, "070707", 6);
 	octal(hdr.c_dev, 6, st->st_dev);
-	octal(hdr.c_ino, 6, st->st_ino);
+	octal(hdr.c_ino, 6, (int)st->st_ino);
 	octal(hdr.c_mode, 6, st->st_mode);
 	octal(hdr.c_uid, 6, st->st_uid);
 	octal(hdr.c_gid, 6, st->st_gid);
 	octal(hdr.c_nlink, 6, st->st_nlink);
 	octal(hdr.c_rdev, 6, st->st_rdev);
-	octal(hdr.c_mtime, 11, st->st_mtime);
-	octal(hdr.c_namesize, 6, strlen(name) + 1);
+	octal(hdr.c_mtime, 11, (int)st->st_mtime);
+	octal(hdr.c_namesize, 6, (int)(strlen(name) + 1));
 	if (data)
-		octal(hdr.c_filesize, 11, st->st_size);
+		octal(hdr.c_filesize, 11, (int)st->st_size);
 
 	uint32_t bytes = 0;
-	int name_len = strlen(name) + 1;
+	int name_len = (int)(strlen(name) + 1);
 	idevice_error_t device_error;
 
 	device_error = idevice_connection_send(connection, (void *)&hdr, sizeof(hdr), &bytes);
@@ -3985,7 +3985,7 @@ static int cpio_send_file(idevice_connection_t connection, const char *name, str
 	}
 
 	if (st->st_size && data) {
-		device_error = idevice_connection_send(connection, data, st->st_size, &bytes);
+		device_error = idevice_connection_send(connection, data, (uint32_t)st->st_size, &bytes);
 		if (device_error != IDEVICE_E_SUCCESS || bytes != st->st_size) {
 			logger(LL_ERROR, "BootabilityBundle unable to send data. (%d) Sent %u of %lu bytes.\n", device_error, bytes, (long)st->st_size);
 			return -1;
@@ -4366,7 +4366,7 @@ int restore_send_personalized_boot_object_v3(struct idevicerestore_client_t* cli
 
 	int64_t i = size;
 	while (i > 0) {
-		int blob_size = i > 8192 ? 8192 : i;
+		int blob_size = i > 8192 ? 8192 : (int)i;
 		if (_restore_send_file_data(&rctx, ((char*)data + size - i), blob_size, size-i, size) < 0) {
 			free(data);
 			_restore_service_free(service);

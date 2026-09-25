@@ -358,7 +358,7 @@ int ipsw_get_file_size(ipsw_archive_t ipsw, const char* infile, uint64_t* size)
 			logger(LL_ERROR, "zip_open: %s: %d\n", ipsw->path, err);
 			return -1;
 		}
-		int zindex = zip_name_locate(zip, infile, 0);
+		zip_int64_t zindex = zip_name_locate(zip, infile, 0);
 		if (zindex < 0) {
 			logger(LL_ERROR, "zip_name_locate: %s\n", infile);
 			zip_unchange_all(zip);
@@ -412,7 +412,7 @@ int ipsw_extract_to_file_with_progress(ipsw_archive_t ipsw, const char* infile, 
 			return -1;
 		}
 
-		int zindex = zip_name_locate(zip, infile, 0);
+		zip_int64_t zindex = zip_name_locate(zip, infile, 0);
 		if (zindex < 0) {
 			zip_unchange_all(zip);
 			zip_close(zip);
@@ -464,8 +464,8 @@ int ipsw_extract_to_file_with_progress(ipsw_archive_t ipsw, const char* infile, 
 				break;
 			}
 			if (i < BUFSIZE)
-				size = i;
-			count = zip_fread(zfile, buffer, size);
+				size = (int)i;
+			count = (int)zip_fread(zfile, buffer, size);
 			if (count < 0) {
 				int zep = 0;
 				int sep = 0;
@@ -605,7 +605,7 @@ int ipsw_file_exists(ipsw_archive_t ipsw, const char* infile)
 			logger(LL_ERROR, "zip_open: %s: %d\n", ipsw->path, err);
 			return 0;
 		}
-		int zindex = zip_name_locate(zip, infile, 0);
+		zip_int64_t zindex = zip_name_locate(zip, infile, 0);
 		zip_unchange_all(zip);
 		zip_close(zip);
 		if (zindex < 0) {
@@ -640,7 +640,7 @@ int ipsw_extract_to_memory(ipsw_archive_t ipsw, const char* infile, void** pbuff
 			return -1;
 		}
 
-		int zindex = zip_name_locate(zip, infile, 0);
+		zip_int64_t zindex = zip_name_locate(zip, infile, 0);
 		if (zindex < 0) {
 			zip_unchange_all(zip);
 			zip_close(zip);
@@ -782,7 +782,7 @@ int ipsw_extract_send(ipsw_archive_t ipsw, const char* infile, int blocksize, ip
 			return -1;
 		}
 
-		int zindex = zip_name_locate(zip, infile, 0);
+		zip_int64_t zindex = zip_name_locate(zip, infile, 0);
 		if (zindex < 0) {
 			zip_unchange_all(zip);
 			zip_close(zip);
@@ -921,7 +921,7 @@ int ipsw_extract_build_manifest(ipsw_archive_t ipsw, plist_t* buildmanifest, int
 	/* older devices don't require personalized firmwares and use a BuildManifesto.plist */
 	if (ipsw_file_exists(ipsw, "BuildManifesto.plist")) {
 		if (ipsw_extract_to_memory(ipsw, "BuildManifesto.plist", &data, &size) == 0) {
-			plist_from_memory((char*)data, size, buildmanifest, NULL);
+			plist_from_memory((char*)data, (uint32_t)size, buildmanifest, NULL);
 			free(data);
 			return 0;
 		}
@@ -933,7 +933,7 @@ int ipsw_extract_build_manifest(ipsw_archive_t ipsw, plist_t* buildmanifest, int
 	/* whereas newer devices do not require personalized firmwares and use a BuildManifest.plist */
 	if (ipsw_extract_to_memory(ipsw, "BuildManifest.plist", &data, &size) == 0) {
 		*tss_enabled = 1;
-		plist_from_memory((char*)data, size, buildmanifest, NULL);
+		plist_from_memory((char*)data, (uint32_t)size, buildmanifest, NULL);
 		free(data);
 		return 0;
 	}
@@ -947,7 +947,7 @@ int ipsw_extract_restore_plist(ipsw_archive_t ipsw, plist_t* restore_plist)
 	void* data = NULL;
 
 	if (ipsw_extract_to_memory(ipsw, "Restore.plist", &data, &size) == 0) {
-		plist_from_memory((char*)data, size, restore_plist, NULL);
+		plist_from_memory((char*)data, (uint32_t)size, restore_plist, NULL);
 		free(data);
 		return 0;
 	}
@@ -1104,7 +1104,7 @@ int ipsw_get_signed_firmwares(const char* product, plist_t* firmwares)
 		logger(LL_ERROR, "Download from %s failed.\n", url);
 		return -1;
 	}
-	plist_from_json(jdata, jsize, &dict);
+	plist_from_json(jdata, (uint32_t)jsize, &dict);
 	free(jdata);
 	if (!dict || plist_get_node_type(dict) != PLIST_DICT) {
 		logger(LL_ERROR, "Failed to parse json data.\n");

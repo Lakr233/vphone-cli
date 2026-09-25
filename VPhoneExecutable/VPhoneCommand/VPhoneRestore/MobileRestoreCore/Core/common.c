@@ -99,7 +99,7 @@ int write_file(const char* filename, const void* data, size_t size) {
 		return -1;
 	}
 
-	return size;
+	return (int)size;
 }
 
 int read_file(const char* filename, void** data, size_t* size) {
@@ -149,7 +149,7 @@ int read_file(const char* filename, void** data, size_t* size) {
 int process_text_lines(const char* text, int maxwidth, struct tuple** lines_out, int* maxlen_out)
 {
 	if (!text) return 0;
-	int len = strlen(text);
+	int len = (int)strlen(text);
 	int numlines = 0;
 	int maxlen = 0;
 	int linestart = 0;
@@ -261,7 +261,7 @@ int prompt_user(const char* title, const char* text)
 	struct tuple* lines = NULL;
 	int numlines = process_text_lines(text, 74, &lines, &maxlen);
 	int outerlen = maxlen+4;
-	int titlelen = (title) ? strlen(title) : 0;
+	int titlelen = (title) ? (int)strlen(title) : 0;
 	if (titlelen > 0) {
 		int lefttitlelen = (titlelen+4)/2;
 		int leftpounds = outerlen/2 - lefttitlelen;
@@ -275,7 +275,7 @@ int prompt_user(const char* title, const char* text)
 	}
 	free(lines);
 	const char* yesmsg = "Type YES and press ENTER to continue, or hit CTRL+C to cancel.";
-	int ylen = strlen(yesmsg);
+	int ylen = (int)strlen(yesmsg);
 	printf("%c %.*s%.*s %c\n", *POUNDS, ylen, yesmsg, maxlen-ylen, SPACES, *POUNDS);
 	printf("%.*s\n", outerlen, POUNDS);
 
@@ -456,7 +456,7 @@ char *generate_guid(void)
 {
 	char *guid = (char *) malloc(sizeof(char) * 37);
 	const char *chars = "ABCDEF0123456789";
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
 	int i = 0;
 
 	for (i = 0; i < 36; i++) {

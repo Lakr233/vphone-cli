@@ -358,6 +358,7 @@
 				PRODUCT_NAME = MobileRecoveryCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
 			};
 			name = Debug;
 		};
@@ -382,6 +383,7 @@
 				PRODUCT_NAME = MobileRecoveryCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
 			};
 			name = Release;
 		};
@@ -415,6 +417,7 @@
 				PRODUCT_NAME = MobileRestoreCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
 			};
 			name = Debug;
 		};
@@ -448,6 +451,7 @@
 				PRODUCT_NAME = MobileRestoreCore;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				USE_HEADERMAP = NO;
 			};
 			name = Release;
 		};

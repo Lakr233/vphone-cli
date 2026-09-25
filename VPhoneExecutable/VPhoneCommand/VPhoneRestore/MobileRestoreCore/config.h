@@ -9,7 +9,11 @@
  * header directory and becomes the generated module's umbrella, and no
  * dependent should inherit a PACKAGE_VERSION it did not ask for. Two targets
  * in this package now carry a config.h, and if both were public they would
- * collide in any translation unit that imported both modules.
+ * collide in any translation unit that imported both modules. For the same
+ * reason both C targets build with USE_HEADERMAP = NO: Xcode's project header
+ * map indexes every header in the project by bare name, so a quoted
+ * "config.h" here (or in libimobiledevice-glue's termcolors.h) would resolve
+ * to libirecovery's copy instead, and the two would be stacked in one unit.
  * `.headerSearchPath(".")` plus `.define("HAVE_CONFIG_H")` is what reaches it.
  *
  * Every value below is read off upstream's configure.ac rather than guessed:

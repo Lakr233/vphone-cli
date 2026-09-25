@@ -127,7 +127,7 @@ int ftab_add_entry(ftab_t ftab, uint32_t tag, const void *data, size_t data_size
 
 	ftab->storage[new_index] = data_copy;
 	ftab->entries[new_index].tag = tag;
-	ftab->entries[new_index].size = data_size;
+	ftab->entries[new_index].size = (uint32_t)data_size;
 	ftab->header.num_entries++;
 
 	uint32_t off = sizeof(struct ftab_header) + sizeof(struct ftab_entry) * ftab->header.num_entries;
