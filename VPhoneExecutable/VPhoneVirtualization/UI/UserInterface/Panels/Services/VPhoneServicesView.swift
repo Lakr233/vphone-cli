@@ -234,7 +234,7 @@ struct VPhoneServicesView: View {
                 Button {
                     model.request(.signal(signal), on: row.label)
                 } label: {
-                    Text(verbatim: signal.title + "…")
+                    Text(verbatim: "\(signal.title)…")
                 }
             }
         }

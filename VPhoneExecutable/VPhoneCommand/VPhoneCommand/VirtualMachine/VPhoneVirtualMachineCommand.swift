@@ -122,12 +122,14 @@ struct VPhoneVirtualMachineListCommand: ParsableCommand {
             print("No VMs in \(library.root.path). Create one with vm create.")
         } else {
             for r in reports {
-                var line =
-                    "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(r.diskSizeBytes / (1024 * 1024 * 1024)) GB disk"
+                let diskGB = r.diskSizeBytes / (1024 * 1024 * 1024)
                 if let info = r.restoreInfo {
-                    line += "  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
+                    print(
+                        "\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(diskGB) GB disk  iOS \(info.ios.version) / cloudOS \(info.cloudOS.version)"
+                    )
+                } else {
+                    print("\(r.name)  \(r.cpuCount) CPU  \(r.memoryMB) MB  \(diskGB) GB disk")
                 }
-                print(line)
             }
         }
     }
@@ -248,11 +250,10 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
 }
 
 private func describeNetwork(_ net: VPhoneVirtualMachineManifest.NetworkConfig) -> String {
-    var s = net.mode.rawValue
     if net.mode == .bridged, let iface = net.bridgeInterface {
-        s += "(\(iface))"
+        return "\(net.mode.rawValue)(\(iface))"
     }
-    return s
+    return net.mode.rawValue
 }
 
 // MARK: - rename

@@ -399,7 +399,7 @@ final class VPhoneControlsModel {
     static func guestMessage(_ error: Error) -> String {
         if case let VPhoneGuestControl.ControlError.guestError(message) = error, !message.isEmpty {
             let sentence = message.prefix(1).uppercased() + message.dropFirst()
-            return sentence.hasSuffix(".") ? sentence : sentence + "."
+            return sentence.hasSuffix(".") ? sentence : "\(sentence)."
         }
         return String(localized: "Check the connection, then try again.", bundle: VPhoneLocalization.bundle)
     }

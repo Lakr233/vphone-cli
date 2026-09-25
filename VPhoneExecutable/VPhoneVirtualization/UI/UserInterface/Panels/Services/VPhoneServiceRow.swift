@@ -130,7 +130,7 @@ struct VPhoneServiceExit {
             return String((status >> 8) & 0xFF)
         }
         if signal != 0x7F {
-            return Self.signalName(signal) + (status & 0x80 != 0 ? "+core" : "")
+            return status & 0x80 != 0 ? "\(Self.signalName(signal))+core" : Self.signalName(signal)
         }
         return String(status)
     }

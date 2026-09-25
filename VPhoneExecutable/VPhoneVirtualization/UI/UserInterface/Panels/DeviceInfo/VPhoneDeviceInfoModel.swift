@@ -252,9 +252,11 @@ final class VPhoneDeviceInfoModel {
                 scale = "\(Self.number(factor))×"
             }
         }
-        var orientation = rotation.string("name") ?? "—"
-        if let degrees = rotation.int("degrees") {
-            orientation += " (\(degrees)°)"
+        let orientationName = rotation.string("name") ?? "—"
+        let orientation = if let degrees = rotation.int("degrees") {
+            "\(orientationName) (\(degrees)°)"
+        } else {
+            orientationName
         }
         let rotationLocked = rotation.bool("locked")
         return VPhoneDeviceInfoSection(kind: .display, title: Self.text("Display"), rows: [
