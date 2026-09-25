@@ -80,12 +80,13 @@
 // the same prerequisite the old tools had, and the same one that makes amfid
 // honour the preference at all (see the csr_check note above).
 //
-// `off` removes the preference and kills amfid; it is launch-on-demand with
-// EnablePressuredExit, so it comes back clean with the byte back at zero.
+// `off` removes only hashes this tool added, then restarts amfid. It preserves
+// the preference and every other value, including AllowUnsafeDynamicLinking.
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <libproc.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
@@ -107,7 +108,10 @@
     "/System/Library/PrivateFrameworks/AppleMobileFileIntegrity.framework/"    \
     "AppleMobileFileIntegrity"
 #define MANAGER_CLASS "AMFIRequirementsManager"
+#ifndef PREFS_PATH
 #define PREFS_PATH "/Library/Preferences/com.apple.security.coderequirements.plist"
+#endif
+#define MANAGED_KEY CFSTR("VPhoneEscalator")
 
 #define SCAN_INSNS 64 // +sharedManager is short; this is generous
 
@@ -384,12 +388,8 @@ static CFStringRef stock_requirement(void) {
     return text;
 }
 
-static CFStringRef requirement_for(int count, char **paths) {
-    CFStringRef stock = stock_requirement();
-    CFMutableStringRef req = CFStringCreateMutable(NULL, 0);
-    CFStringAppend(req, stock);
-    CFRelease(stock);
-
+static CFMutableArrayRef cdhashes_for(int count, char **paths) {
+    CFMutableArrayRef result = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
     for (int i = 0; i < count; i++) {
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(
             NULL,
@@ -430,13 +430,25 @@ static CFStringRef requirement_for(int count, char **paths) {
         }
         for (CFIndex h = 0; h < n; h++) {
             CFDataRef d = hashes ? CFArrayGetValueAtIndex(hashes, h) : unique;
-            CFStringAppendCString(req, " or cdhash H\"", kCFStringEncodingUTF8);
+            CFMutableStringRef hash = CFStringCreateMutable(NULL, 0);
             const UInt8 *b = CFDataGetBytePtr(d);
             for (CFIndex k = 0; k < CFDataGetLength(d); k++)
-                CFStringAppendFormat(req, NULL, CFSTR("%02x"), b[k]);
-            CFStringAppendCString(req, "\"", kCFStringEncodingUTF8);
+                CFStringAppendFormat(hash, NULL, CFSTR("%02x"), b[k]);
+            if (!CFArrayContainsValue(result, CFRangeMake(0, CFArrayGetCount(result)), hash))
+                CFArrayAppendValue(result, hash);
+            CFRelease(hash);
         }
         CFRelease(info);
+    }
+    return result;
+}
+
+static CFStringRef requirement_with_hashes(CFStringRef base, CFArrayRef hashes) {
+    CFMutableStringRef req = CFStringCreateMutableCopy(NULL, 0, base);
+    for (CFIndex i = 0; i < CFArrayGetCount(hashes); i++) {
+        CFStringAppend(req, CFSTR(" or cdhash H\""));
+        CFStringAppend(req, CFArrayGetValueAtIndex(hashes, i));
+        CFStringAppend(req, CFSTR("\""));
     }
 
     // It has to compile here, or amfid would silently keep the old one.
@@ -450,37 +462,101 @@ static CFStringRef requirement_for(int count, char **paths) {
     return req;
 }
 
-static int write_prefs(CFStringRef requirement) {
-    CFMutableDictionaryRef d = CFDictionaryCreateMutable(
-        NULL,
-        0,
-        &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks
-    );
-    CFDictionarySetValue(d, CFSTR("Entitlements"), requirement);
-    // Setting Entitlements alone also turns _allowUnsafeDynamicLinking on
-    // (checkCodeRequirementsPreferenceUnsynchronized, 0x23cea5758), which would
-    // unrestrict every process on the machine and hand DYLD_INSERT_LIBRARIES
-    // back to anyone. The explicit key is the only thing that overrides it.
-    CFDictionarySetValue(d, CFSTR("AllowUnsafeDynamicLinking"), kCFBooleanFalse);
+static bool valid_hashes(CFArrayRef hashes) {
+    if (!hashes || CFGetTypeID(hashes) != CFArrayGetTypeID()) return false;
+    for (CFIndex i = 0; i < CFArrayGetCount(hashes); i++) {
+        CFTypeRef value = CFArrayGetValueAtIndex(hashes, i);
+        if (CFGetTypeID(value) != CFStringGetTypeID()) return false;
+        CFStringRef hash = value;
+        CFIndex length = CFStringGetLength(hash);
+        if (length < 2 || length > 128 || length % 2) return false;
+        for (CFIndex j = 0; j < length; j++) {
+            UniChar c = CFStringGetCharacterAtIndex(hash, j);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+        }
+    }
+    return true;
+}
+
+static CFMutableDictionaryRef read_prefs(bool *existed) {
+    int fd = open(PREFS_PATH, O_RDONLY | O_NOFOLLOW);
+    if (fd < 0 && errno == ENOENT) {
+        *existed = false;
+        return CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks,
+                                         &kCFTypeDictionaryValueCallBacks);
+    }
+    if (fd < 0) {
+        fprintf(stderr, "error: open %s: %s\n", PREFS_PATH, strerror(errno));
+        return NULL;
+    }
+    *existed = true;
+    struct stat st;
+    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0 || st.st_size > 1024 * 1024) {
+        fprintf(stderr, "error: %s is not a regular plist under 1 MiB\n", PREFS_PATH);
+        close(fd);
+        return NULL;
+    }
+    UInt8 *bytes = malloc(st.st_size ? (size_t)st.st_size : 1);
+    if (!bytes) { close(fd); return NULL; }
+    size_t done = 0;
+    while (done < (size_t)st.st_size) {
+        ssize_t n = read(fd, bytes + done, (size_t)st.st_size - done);
+        if (n <= 0) break;
+        done += (size_t)n;
+    }
+    close(fd);
+    if (done != (size_t)st.st_size) {
+        fprintf(stderr, "error: could not read %s completely\n", PREFS_PATH);
+        free(bytes);
+        return NULL;
+    }
+    CFDataRef data = CFDataCreate(NULL, bytes, (CFIndex)done);
+    free(bytes);
+    CFPropertyListRef plist = CFPropertyListCreateWithData(NULL, data,
+        kCFPropertyListMutableContainersAndLeaves, NULL, NULL);
+    CFRelease(data);
+    if (!plist || CFGetTypeID(plist) != CFDictionaryGetTypeID()) {
+        fprintf(stderr, "error: %s is not a valid dictionary plist\n", PREFS_PATH);
+        if (plist) CFRelease(plist);
+        return NULL;
+    }
+    return (CFMutableDictionaryRef)plist;
+}
+
+static int write_prefs(CFDictionaryRef d) {
     CFDataRef data = CFPropertyListCreateData(NULL, d, kCFPropertyListXMLFormat_v1_0, 0, NULL);
-    CFRelease(d);
     if (!data) return 0;
 
-    char tmp[] = PREFS_PATH ".new";
-    FILE *f = fopen(tmp, "w");
-    if (!f) {
+    char tmp[] = PREFS_PATH ".XXXXXX";
+    int fd = mkstemp(tmp);
+    if (fd < 0) {
         fprintf(stderr, "error: %s: %s\n", tmp, strerror(errno));
         CFRelease(data);
         return 0;
     }
-    fwrite(CFDataGetBytePtr(data), 1, (size_t)CFDataGetLength(data), f);
-    fclose(f);
+    const UInt8 *bytes = CFDataGetBytePtr(data);
+    size_t length = (size_t)CFDataGetLength(data), done = 0;
+    while (done < length) {
+        ssize_t n = write(fd, bytes + done, length - done);
+        if (n <= 0) break;
+        done += (size_t)n;
+    }
     CFRelease(data);
-    chmod(tmp, 0644);
-    chown(tmp, 0, 0);
+    struct stat old;
+    bool had_old = stat(PREFS_PATH, &old) == 0;
+    int ok = done == length && fchmod(fd, had_old ? old.st_mode & 0777 : 0644) == 0 &&
+             fchown(fd, had_old ? old.st_uid : geteuid(),
+                    had_old ? old.st_gid : getegid()) == 0 &&
+             fsync(fd) == 0;
+    if (close(fd) != 0) ok = 0;
+    if (!ok) {
+        fprintf(stderr, "error: could not write %s: %s\n", tmp, strerror(errno));
+        unlink(tmp);
+        return 0;
+    }
     if (rename(tmp, PREFS_PATH) != 0) {
         fprintf(stderr, "error: rename %s: %s\n", PREFS_PATH, strerror(errno));
+        unlink(tmp);
         return 0;
     }
     return 1;
@@ -540,16 +616,107 @@ static void report(const char *self_path) {
 
 // --------------------------------------------------------------------------
 
-static int cmd_allow(const char *self_path, int count, char **paths, int hold_seconds) {
-    CFStringRef req = requirement_for(count, paths);
+static int update_allow_preferences(int count, char **paths) {
+    bool existed = false;
+    CFMutableDictionaryRef prefs = read_prefs(&existed);
+    if (!prefs) return 1;
+    CFTypeRef current = CFDictionaryGetValue(prefs, CFSTR("Entitlements"));
+    CFTypeRef unsafe = CFDictionaryGetValue(prefs, CFSTR("AllowUnsafeDynamicLinking"));
+    CFDictionaryRef managed = CFDictionaryGetValue(prefs, MANAGED_KEY);
+    if ((current && CFGetTypeID(current) != CFStringGetTypeID()) ||
+        (managed && CFGetTypeID(managed) != CFDictionaryGetTypeID())) {
+        fprintf(stderr, "error: %s has unexpected value types\n", PREFS_PATH);
+        CFRelease(prefs);
+        return 1;
+    }
+    CFStringRef base = NULL;
+    CFMutableArrayRef hashes = NULL;
+    bool had_entitlements = current != NULL;
+    if (managed) {
+        base = CFDictionaryGetValue(managed, CFSTR("Base"));
+        CFArrayRef saved = CFDictionaryGetValue(managed, CFSTR("Hashes"));
+        CFTypeRef original_entitlements = CFDictionaryGetValue(managed, CFSTR("HadEntitlements"));
+        if (!base || CFGetTypeID(base) != CFStringGetTypeID() || !valid_hashes(saved) ||
+            !original_entitlements ||
+            CFGetTypeID(original_entitlements) != CFBooleanGetTypeID()) {
+            fprintf(stderr, "error: invalid %s metadata in %s\n", "VPhoneEscalator", PREFS_PATH);
+            CFRelease(prefs);
+            return 1;
+        }
+        hashes = CFArrayCreateMutableCopy(NULL, 0, saved);
+        CFStringRef expected = requirement_with_hashes(base, hashes);
+        bool matches = current && CFEqual(current, expected);
+        CFRelease(expected);
+        if (!matches) {
+            fprintf(stderr, "error: Entitlements changed since VPhoneEscalator wrote it\n");
+            CFRelease(hashes);
+            CFRelease(prefs);
+            return 1;
+        }
+        had_entitlements = CFBooleanGetValue(original_entitlements);
+    } else {
+        base = current ? CFRetain(current) : stock_requirement();
+        hashes = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    }
+
+    CFMutableArrayRef incoming = cdhashes_for(count, paths);
+    bool added = false;
+    for (CFIndex i = 0; i < CFArrayGetCount(incoming); i++) {
+        CFStringRef hash = CFArrayGetValueAtIndex(incoming, i);
+        CFMutableStringRef clause = CFStringCreateMutable(NULL, 0);
+        CFStringAppend(clause, CFSTR("cdhash H\""));
+        CFStringAppend(clause, hash);
+        CFStringAppend(clause, CFSTR("\""));
+        bool already_present = CFStringFind(base, clause, kCFCompareCaseInsensitive).location !=
+                               kCFNotFound;
+        CFRelease(clause);
+        if (!already_present && !CFArrayContainsValue(hashes, CFRangeMake(0, CFArrayGetCount(hashes)), hash)) {
+            CFArrayAppendValue(hashes, hash);
+            added = true;
+        }
+    }
+    CFRelease(incoming);
+    CFStringRef req = requirement_with_hashes(base, hashes);
     char buf[4096];
-    CFStringGetCString(req, buf, sizeof(buf), kCFStringEncodingUTF8);
-    printf("requirement: %s\n", buf);
+    if (CFStringGetCString(req, buf, sizeof(buf), kCFStringEncodingUTF8))
+        printf("requirement: %s\n", buf);
+    else
+        printf("requirement: %ld characters\n", CFStringGetLength(req));
 
-    if (!write_prefs(req)) return 1;
+    if (added) {
+        CFMutableDictionaryRef tracking = CFDictionaryCreateMutable(NULL, 0,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFDictionarySetValue(tracking, CFSTR("Base"), base);
+        CFDictionarySetValue(tracking, CFSTR("Hashes"), hashes);
+        CFDictionarySetValue(tracking, CFSTR("HadEntitlements"), had_entitlements ? kCFBooleanTrue : kCFBooleanFalse);
+        CFDictionarySetValue(prefs, MANAGED_KEY, tracking);
+        CFRelease(tracking);
+        CFDictionarySetValue(prefs, CFSTR("Entitlements"), req);
+    }
+    // Entitlements without this key enables unsafe dynamic linking globally.
+    // Leave any existing value untouched, including values set by another tool.
+    if (!unsafe) CFDictionarySetValue(prefs, CFSTR("AllowUnsafeDynamicLinking"), kCFBooleanFalse);
+    if (added || !unsafe) {
+        if (!write_prefs(prefs)) {
+            CFRelease(req);
+            CFRelease(hashes);
+            if (!managed) CFRelease(base);
+            CFRelease(prefs);
+            return 1;
+        }
+        printf("updated %s\n", PREFS_PATH);
+    } else {
+        printf("cdhash already allowed; left %s unchanged\n", PREFS_PATH);
+    }
     CFRelease(req);
-    printf("wrote %s\n", PREFS_PATH);
+    CFRelease(hashes);
+    if (!managed) CFRelease(base);
+    CFRelease(prefs);
+    return 0;
+}
 
+static int cmd_allow(const char *self_path, int count, char **paths, int hold_seconds) {
+    if (update_allow_preferences(count, paths)) return 1;
     if (!attach_amfid(self_path)) return 1;
     mach_vm_address_t mgr = amfid_manager(self_path);
     if (!mgr) return 1;
@@ -607,13 +774,59 @@ live:
     return 0;
 }
 
-static int cmd_off(const char *self_path) {
-    if (unlink(PREFS_PATH) != 0 && errno != ENOENT) {
-        fprintf(stderr, "error: unlink %s: %s\n", PREFS_PATH, strerror(errno));
+static int remove_allow_preferences(bool *changed) {
+    *changed = false;
+    bool existed = false;
+    CFMutableDictionaryRef prefs = read_prefs(&existed);
+    if (!prefs) return 0;
+    CFDictionaryRef managed = CFDictionaryGetValue(prefs, MANAGED_KEY);
+    if (managed) {
+        if (CFGetTypeID(managed) != CFDictionaryGetTypeID()) {
+            fprintf(stderr, "error: invalid VPhoneEscalator metadata\n");
+            CFRelease(prefs);
+            return 0;
+        }
+        CFStringRef base = CFDictionaryGetValue(managed, CFSTR("Base"));
+        CFArrayRef hashes = CFDictionaryGetValue(managed, CFSTR("Hashes"));
+        CFTypeRef had_entitlements = CFDictionaryGetValue(managed, CFSTR("HadEntitlements"));
+        if (!base || CFGetTypeID(base) != CFStringGetTypeID() || !valid_hashes(hashes) ||
+            !had_entitlements ||
+            CFGetTypeID(had_entitlements) != CFBooleanGetTypeID()) {
+            fprintf(stderr, "error: invalid VPhoneEscalator metadata\n");
+            CFRelease(prefs);
+            return 0;
+        }
+        CFStringRef expected = requirement_with_hashes(base, hashes);
+        CFTypeRef current = CFDictionaryGetValue(prefs, CFSTR("Entitlements"));
+        bool matches = current && CFGetTypeID(current) == CFStringGetTypeID() &&
+                       CFEqual(current, expected);
+        CFRelease(expected);
+        if (!matches) {
+            fprintf(stderr, "error: Entitlements changed since VPhoneEscalator wrote it; refusing to remove other rules\n");
+            CFRelease(prefs);
+            return 0;
+        }
+        if (CFBooleanGetValue(had_entitlements))
+            CFDictionarySetValue(prefs, CFSTR("Entitlements"), base);
+        else
+            CFDictionaryRemoveValue(prefs, CFSTR("Entitlements"));
+        CFDictionaryRemoveValue(prefs, MANAGED_KEY);
+        if (!write_prefs(prefs)) { CFRelease(prefs); return 0; }
+        printf("removed VPhoneEscalator cdhashes from %s\n", PREFS_PATH);
+    } else {
+        printf("no VPhoneEscalator entries to remove\n");
+        CFRelease(prefs);
         return 1;
     }
-    printf("removed %s\n", PREFS_PATH);
+    CFRelease(prefs);
+    *changed = true;
+    return 1;
+}
 
+static int cmd_off(const char *self_path) {
+    bool changed = false;
+    if (!remove_allow_preferences(&changed)) return 1;
+    if (!changed) return 0;
     // The requirement amfid already built lives in its heap; the honest way to
     // drop it is to let launchd hand us a fresh amfid.
     pid_t pid = find_amfid();

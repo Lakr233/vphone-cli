@@ -56,7 +56,7 @@ sudo "$bundle/Contents/MacOS/VPhoneEscalator" allow "$bundle/Contents/MacOS/vpho
 "$bundle/Contents/MacOS/vphone-cli" host preflight
 ```
 
-The helper records the current `vphone-vm` cdhash in the AMFI code-requirements preference and enables amfid to consult it by changing one byte in its heap. It is scoped to that signed binary. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. Run `sudo "$bundle/Contents/MacOS/VPhoneEscalator" off` to remove the allowlist and restart amfid.
+The helper creates the AMFI code-requirements preference if absent. If it exists, it appends the current `vphone-vm` cdhash to its `Entitlements` requirement, preserving other cdhashes and preference keys. It leaves any existing `AllowUnsafeDynamicLinking` value untouched and writes `false` only when that key is absent. It avoids duplicate hashes and enables amfid to consult the requirement by changing one byte in its heap. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. You may pass additional signed host binaries to the same `allow` command when they need restricted entitlements; the unentitled `vphone-cli` does not need this. `sudo "$bundle/Contents/MacOS/VPhoneEscalator" off` removes only hashes added by this helper and restarts amfid. It preserves the preference and its other values.
 
 For a distributed bundle without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../VPhoneEscalator allow .../vphone-vm` command for that bundle.
 
