@@ -60,6 +60,8 @@ The helper creates the AMFI code-requirements preference if absent. If it exists
 
 For a distributed bundle without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../VPhoneEscalator allow .../vphone-vm` command for that bundle.
 
+In `vphone-launchpad`, bundle preflight checks that SIP debugging restrictions are disabled (or SIP is fully disabled) and Research Guests is enabled. When a newer app includes a newer SMJobBless helper, Launchpad asks for administrator authorization to update the helper at startup. If the installed `vphone-vm` is blocked by AMFI, the helper checks those host settings again, verifies the root-owned bundle and its recorded cdhash, runs that bundle's `VPhoneEscalator allow` as root, and Launchpad repeats preflight. Each new bundle signature is checked and allowed separately. The standalone CLI still reports the manual command.
+
 ## What the build contains
 
 `vphone-cli` orchestrates the work without private entitlements and handles archives through `vphone-cli archive`. `vphone-vm` is the signed, entitled GUI/VM process. The bundle also contains `vphoned`, compiled for iOS at build time; it is installed into each created guest. The [research notes on the binary split](../../Research/Host/host_binary_split.md) record the implementation history, including superseded approaches.
