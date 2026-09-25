@@ -1,0 +1,16 @@
+// The SMJobBless helper. SMJobBless requires the file name to equal the
+// launchd label and both plists to be embedded in the Mach-O.
+
+PRODUCT_NAME = com.vphone.launchpad.helper
+PRODUCT_MODULE_NAME = VPhoneLaunchpadHelper
+PRODUCT_BUNDLE_IDENTIFIER = com.vphone.launchpad.helper
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_FILE = Resources/VPhoneLaunchpadHelper.Info.plist
+CREATE_INFOPLIST_SECTION_IN_BINARY = YES
+OTHER_LDFLAGS = $(inherited) -sectcreate __TEXT __launchd_plist $(SRCROOT)/Resources/VPhoneLaunchpadHelper.Launchd.plist
+// Embedded in the app, never installed on its own.
+SKIP_INSTALL = YES
+
+// A daemon has no main actor worth defaulting to: XPC replies and child
+// processes all run on background queues.
+SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated

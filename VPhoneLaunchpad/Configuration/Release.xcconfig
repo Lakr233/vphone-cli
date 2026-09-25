@@ -1,0 +1,4 @@
+#include "Base.xcconfig"
+
+// Nothing to add: Xcode's Release defaults (-O, wholemodule) are already what
+// we want.

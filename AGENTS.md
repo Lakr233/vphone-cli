@@ -48,13 +48,15 @@ See `Research/` for detailed firmware pipeline, component origins, patch breakdo
 - `VPhoneKit`: shared core, archive, and external access kits with their tests.
 - `VPhoneDaemon`: guest `vphoned`, native operations, and daemon configuration.
 - `VPhoneGuestComponents`: guest dylibs built by Makefile from the bundle build phase.
+- `VPhoneLaunchpad`: `vphone-launchpad.app`, the workstation app that downloads and manages `VPhone.bundle` releases and drives VMs through the active bundle's `vphone-cli`, plus its SMJobBless helper `com.vphone.launchpad.helper`. Shipped separately from the bundle. Settings live only in `VPhoneLaunchpad/Configuration/*.xcconfig`; the pbxproj holds none.
 
 The `VPhone` scheme puts all shipped Mach-O files in `VPhone.bundle/Contents/MacOS`. Guest configuration is in `Contents/Resources`. Xcode targets have `CODE_SIGNING_ALLOWED=NO`; the bundle build phase signs each binary ad hoc with only its own entitlements, then seals the outer bundle. `VPhoneVirtualization.entitlements` belongs to `vphone-vm`; `VPhoneDaemon.entitlements` belongs to `vphoned`. The bundle and CLI have no private entitlements.
 
 ### Key Patterns
 
 - `vphone-cli` is the unentitled entry point. `VPhoneGuestLaunchPlanner` resolves `vphone-vm` beside the running executable, checks its entitlements, probes AMFI, and reports the exact allowlist command on refusal. It never obtains root itself.
-- `VPhoneEscalator` manages AMFI cdhash admission only. It writes amfid heap state, not executable code. Root authorization and installation are owned by the user or a future workstation application; this repository has no SMJobBless or sudo password flow.
+- `VPhoneEscalator` manages AMFI cdhash admission only. It writes amfid heap state, not executable code. Root authorization belongs to the user or to `vphone-launchpad`; neither `vphone-cli` nor the bundle has an SMJobBless or sudo password flow.
+- `vphone-launchpad` has no entitlements. It asks for Developer Tools access (`EPDeveloperTool`) and adds an `EPExecutionPolicy` exception for each installed bundle. Its helper is the only root surface: it installs verified releases into the root-owned store `/Library/Application Support/vphone-launchpad/Bundles` and runs `cfw install` from that store after rechecking the recorded cdhash. There is no generic command verb. Nothing is signed at build time: `VPhoneLaunchpad/Build/SignLaunchpad.sh` signs afterwards, and the team comes from the gitignored `Configuration/Developer.xcconfig`. Never commit a team ID.
 - Host VM artifacts, caches, and archives created by vphone use mode `0777` for workstation access. Symlinks are not followed when changing permissions. Guest filesystem modes inside `Disk.img` remain unchanged.
 - `VPhoneRestore` runs in the CLI process over vendored libirecovery and idevicerestore. No Python or runtime Homebrew dependency is allowed.
 - The VM process owns AppKit windows and the guest control connection. `vphoned` serves HTTP and WebSocket over VSOCK 1339, with camera data on 1338.
@@ -131,3 +133,5 @@ The VM process requires private entitlements for PV=3 virtualization. Build the 
 - **Typography:** System monospace (SF Mono / Menlo) for UI and log output.
 - **Depth:** Flat with 1px borders (`#333333`). No shadows.
 - **Spacing:** 8px base unit, 12px component padding, 16px section gaps.
+
+`vphone-launchpad` is the exception: it is a native SwiftUI Mac app. It uses system controls, grouped `Form`s, `Table`, SF Symbols, toolbar buttons for page actions, and the system appearance. Monospace is only for command text and logs.

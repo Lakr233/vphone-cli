@@ -1,0 +1,110 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 70;
+	objects = {
+/* Begin PBXBuildFile section */
+		5A1000000000000000000061 /* com.vphone.launchpad.helper in Embed Privileged Helper */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000032 /* com.vphone.launchpad.helper */; };
+/* End PBXBuildFile section */
+/* Begin PBXContainerItemProxy section */
+		5A1000000000000000000071 /* PBXContainerItemProxy */ = {isa = PBXContainerItemProxy; containerPortal = 5A1000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = 5A1000000000000000000012; remoteInfo = VPhoneLaunchpadHelper; };
+/* End PBXContainerItemProxy section */
+/* Begin PBXCopyFilesBuildPhase section */
+		5A1000000000000000000053 /* Embed Privileged Helper */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = Contents/Library/LaunchServices; dstSubfolderSpec = 1; files = (5A1000000000000000000061 /* com.vphone.launchpad.helper in Embed Privileged Helper */, ); name = "Embed Privileged Helper"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+/* Begin PBXFileReference section */
+		5A1000000000000000000031 /* vphone-launchpad.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "vphone-launchpad.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A1000000000000000000032 /* com.vphone.launchpad.helper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = com.vphone.launchpad.helper; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A1000000000000000000033 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		5A1000000000000000000034 /* VPhoneLaunchpad.Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = VPhoneLaunchpad.Info.plist; sourceTree = "<group>"; };
+		5A1000000000000000000035 /* VPhoneLaunchpadHelper.Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = VPhoneLaunchpadHelper.Info.plist; sourceTree = "<group>"; };
+		5A1000000000000000000036 /* VPhoneLaunchpadHelper.Launchd.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = VPhoneLaunchpadHelper.Launchd.plist; sourceTree = "<group>"; };
+		5A1000000000000000000037 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+		5A1000000000000000000038 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
+		5A1000000000000000000039 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		5A100000000000000000003A /* VPhoneLaunchpad.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = VPhoneLaunchpad.xcconfig; sourceTree = "<group>"; };
+		5A100000000000000000003B /* VPhoneLaunchpadHelper.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = VPhoneLaunchpadHelper.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5A1000000000000000000021 /* VPhoneLaunchpad */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneLaunchpad; sourceTree = "<group>"; };
+		5A1000000000000000000022 /* VPhoneLaunchpadHelper */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneLaunchpadHelper; sourceTree = "<group>"; };
+		5A1000000000000000000023 /* VPhoneLaunchpadShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneLaunchpadShared; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+/* Begin PBXFrameworksBuildPhase section */
+		5A1000000000000000000041 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		5A1000000000000000000042 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+/* Begin PBXGroup section */
+		5A1000000000000000000002 = {isa = PBXGroup; children = (5A1000000000000000000021 /* VPhoneLaunchpad */, 5A1000000000000000000022 /* VPhoneLaunchpadHelper */, 5A1000000000000000000023 /* VPhoneLaunchpadShared */, 5A1000000000000000000004 /* Configuration */, 5A1000000000000000000005 /* Resources */, 5A1000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
+		5A1000000000000000000003 /* Products */ = {isa = PBXGroup; children = (5A1000000000000000000031 /* vphone-launchpad.app */, 5A1000000000000000000032 /* com.vphone.launchpad.helper */, ); name = Products; sourceTree = "<group>"; };
+		5A1000000000000000000004 /* Configuration */ = {isa = PBXGroup; children = (5A1000000000000000000037 /* Version.xcconfig */, 5A1000000000000000000033 /* Base.xcconfig */, 5A1000000000000000000038 /* Development.xcconfig */, 5A1000000000000000000039 /* Release.xcconfig */, 5A100000000000000000003A /* VPhoneLaunchpad.xcconfig */, 5A100000000000000000003B /* VPhoneLaunchpadHelper.xcconfig */, ); path = Configuration; sourceTree = "<group>"; };
+		5A1000000000000000000005 /* Resources */ = {isa = PBXGroup; children = (5A1000000000000000000034 /* VPhoneLaunchpad.Info.plist */, 5A1000000000000000000035 /* VPhoneLaunchpadHelper.Info.plist */, 5A1000000000000000000036 /* VPhoneLaunchpadHelper.Launchd.plist */, ); path = Resources; sourceTree = "<group>"; };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+		5A1000000000000000000011 /* VPhoneLaunchpad */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A1000000000000000000092 /* Build configuration list for PBXNativeTarget "VPhoneLaunchpad" */;
+			buildPhases = (5A1000000000000000000051 /* Sources */, 5A1000000000000000000041 /* Frameworks */, 5A1000000000000000000052 /* Resources */, 5A1000000000000000000053 /* Embed Privileged Helper */, );
+			buildRules = ();
+			dependencies = (5A1000000000000000000072 /* PBXTargetDependency */, );
+			fileSystemSynchronizedGroups = (5A1000000000000000000021 /* VPhoneLaunchpad */, 5A1000000000000000000023 /* VPhoneLaunchpadShared */, );
+			name = VPhoneLaunchpad;
+			productName = VPhoneLaunchpad;
+			productReference = 5A1000000000000000000031 /* vphone-launchpad.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5A1000000000000000000012 /* VPhoneLaunchpadHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A1000000000000000000093 /* Build configuration list for PBXNativeTarget "VPhoneLaunchpadHelper" */;
+			buildPhases = (5A1000000000000000000054 /* Sources */, 5A1000000000000000000042 /* Frameworks */, );
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (5A1000000000000000000022 /* VPhoneLaunchpadHelper */, 5A1000000000000000000023 /* VPhoneLaunchpadShared */, );
+			name = VPhoneLaunchpadHelper;
+			productName = VPhoneLaunchpadHelper;
+			productReference = 5A1000000000000000000032 /* com.vphone.launchpad.helper */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+		5A1000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {LastUpgradeCheck = 2700; };
+			buildConfigurationList = 5A1000000000000000000091 /* Build configuration list for PBXProject "VPhoneLaunchpad" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			knownRegions = (en, Base, );
+			mainGroup = 5A1000000000000000000002;
+			productRefGroup = 5A1000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (5A1000000000000000000011 /* VPhoneLaunchpad */, 5A1000000000000000000012 /* VPhoneLaunchpadHelper */, );
+		};
+/* End PBXProject section */
+/* Begin PBXResourcesBuildPhase section */
+		5A1000000000000000000052 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+/* Begin PBXSourcesBuildPhase section */
+		5A1000000000000000000051 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		5A1000000000000000000054 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+/* Begin PBXTargetDependency section */
+		5A1000000000000000000072 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = 5A1000000000000000000012 /* VPhoneLaunchpadHelper */; targetProxy = 5A1000000000000000000071 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+/* Begin XCBuildConfiguration section */
+		5A1000000000000000000081 /* Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A1000000000000000000038 /* Development.xcconfig */; buildSettings = {}; name = Debug; };
+		5A1000000000000000000082 /* Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A1000000000000000000039 /* Release.xcconfig */; buildSettings = {}; name = Release; };
+		5A1000000000000000000083 /* Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A100000000000000000003A /* VPhoneLaunchpad.xcconfig */; buildSettings = {}; name = Debug; };
+		5A1000000000000000000084 /* Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A100000000000000000003A /* VPhoneLaunchpad.xcconfig */; buildSettings = {}; name = Release; };
+		5A1000000000000000000085 /* Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A100000000000000000003B /* VPhoneLaunchpadHelper.xcconfig */; buildSettings = {}; name = Debug; };
+		5A1000000000000000000086 /* Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5A100000000000000000003B /* VPhoneLaunchpadHelper.xcconfig */; buildSettings = {}; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+		5A1000000000000000000091 /* Build configuration list for PBXProject "VPhoneLaunchpad" */ = {isa = XCConfigurationList; buildConfigurations = (5A1000000000000000000081 /* Debug */, 5A1000000000000000000082 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		5A1000000000000000000092 /* Build configuration list for PBXNativeTarget "VPhoneLaunchpad" */ = {isa = XCConfigurationList; buildConfigurations = (5A1000000000000000000083 /* Debug */, 5A1000000000000000000084 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		5A1000000000000000000093 /* Build configuration list for PBXNativeTarget "VPhoneLaunchpadHelper" */ = {isa = XCConfigurationList; buildConfigurations = (5A1000000000000000000085 /* Debug */, 5A1000000000000000000086 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 5A1000000000000000000001 /* Project object */;
+}

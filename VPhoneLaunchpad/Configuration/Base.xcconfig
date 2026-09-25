@@ -1,0 +1,41 @@
+#include "Version.xcconfig"
+
+// Everything in this file is a deliberate choice. Anything Xcode already
+// defaults to correctly is left out on purpose — do not re-add settings just
+// because the template used to emit them. Target xcconfigs hold only what
+// differs between the app and the helper; the pbxproj holds no settings.
+
+// Nothing is signed at build time, like every other target in the workspace.
+// Signing is a separate step with a Developer ID identity, run by whoever
+// distributes the app: Build/SignLaunchpad.sh. Leaving CODE_SIGNING_ALLOWED
+// on would sign with whatever identity the build machine happens to have.
+CODE_SIGNING_ALLOWED = NO
+
+// The team pinned by SMPrivilegedExecutables (app → helper) and
+// SMAuthorizedClients (helper → app). It is never committed: set it in a
+// local, gitignored Configuration/Developer.xcconfig. Left empty, the app
+// builds and runs, and Host Setup reports that the helper cannot be installed.
+VPHONE_LAUNCHPAD_TEAM =
+
+// vphone runs only on Apple silicon (PV=3 guests), so an Intel slice would be
+// a binary that can never do its job.
+ARCHS = arm64
+SDKROOT = macosx
+// vphone-cli's own floor: Sequoia.
+MACOSX_DEPLOYMENT_TARGET = 15.0
+
+// Xcode warns that traditional headermaps are no longer supported. There is
+// no C in these targets to search user paths for.
+ALWAYS_SEARCH_USER_PATHS = NO
+
+// Swift 6 language mode with approachable concurrency: the app module is
+// @MainActor by default and `nonisolated` async functions stay on the
+// caller's actor. Anything that must run off the main actor says so
+// explicitly — the process reader threads, downloads, and all shared code.
+// The helper target overrides the default isolation to nonisolated.
+SWIFT_VERSION = 6.0
+SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor
+SWIFT_APPROACHABLE_CONCURRENCY = YES
+
+// Local developer overrides (optional, gitignored).
+#include? "Developer.xcconfig"

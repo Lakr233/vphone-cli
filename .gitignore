@@ -351,3 +351,7 @@ setup_logs/
 /vm.backups
 /vm-*/
 /debs/
+
+# vphone-launchpad signing team; never committed
+VPhoneLaunchpad/Configuration/Developer.xcconfig
+VPhoneLaunchpad/Configuration/DevelopmentDeveloper.xcconfig

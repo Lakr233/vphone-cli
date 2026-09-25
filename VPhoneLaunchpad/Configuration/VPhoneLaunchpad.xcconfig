@@ -1,0 +1,12 @@
+// The app. Build configuration (Development or Release) comes from the
+// project level; this file only names the product.
+
+PRODUCT_NAME = vphone-launchpad
+// PRODUCT_NAME has a dash, which is not a valid Swift module name.
+PRODUCT_MODULE_NAME = VPhoneLaunchpad
+PRODUCT_BUNDLE_IDENTIFIER = com.vphone.launchpad
+// Hand-written so SMPrivilegedExecutables can carry the helper requirement.
+// Outside the synchronized group: a build input, not a bundled resource.
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_FILE = Resources/VPhoneLaunchpad.Info.plist
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
