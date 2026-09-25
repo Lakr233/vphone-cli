@@ -93,9 +93,11 @@ struct VPhoneCustomFirmwareInstaller {
         let disk = try openDiskImage(in: bundleDirectory, path: bundlePath, owner: callerUID)
         let diskPath = (bundlePath as NSString).appendingPathComponent("Disk.img")
         let busy = try VPhoneProcessRunner.runCapturing(
-            URL(fileURLWithPath: "/usr/sbin/lsof"), [diskPath],
+            URL(fileURLWithPath: "/usr/sbin/lsof"), ["-t", "--", diskPath],
         )
-        guard busy.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        // openDiskImage holds our verified descriptor throughout the install,
+        // so lsof always lists this process even when the VM is stopped.
+        guard !VPhoneLsof.parsePIDs(busy.stdout).contains(where: { $0 != getpid() }) else {
             throw ValidationError("The VM disk is in use. Stop the VM, then install CFW again.")
         }
         let restore = try restoreTree(in: bundleDirectory, path: bundlePath, owner: callerUID)
