@@ -32,6 +32,11 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
+        #if DEBUG
+            if VPhoneLaunchpadPreview.isActive {
+                return .terminateNow
+            }
+        #endif
         guard let model, model.machines.hasActiveCreation else {
             return .terminateNow
         }

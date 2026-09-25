@@ -53,9 +53,19 @@ final class VPhoneLaunchpadModel {
 
     // MARK: - Sections
 
+    #if DEBUG
+        /// Snapshot mode keeps setup state in memory, off the real defaults.
+        var previewSetupCompleted: Bool?
+    #endif
+
     private var setupCompleted: Bool {
         get {
             access(keyPath: \.setupCompleted)
+            #if DEBUG
+                if let previewSetupCompleted {
+                    return previewSetupCompleted
+                }
+            #endif
             return UserDefaults.standard.bool(forKey: Self.setupCompletedKey)
         }
         set {
@@ -111,6 +121,12 @@ final class VPhoneLaunchpadModel {
             return
         }
         isStarted = true
+        #if DEBUG
+            if VPhoneLaunchpadPreview.isActive {
+                await VPhoneLaunchpadPreview.run(self)
+                return
+            }
+        #endif
         await host.refresh()
         await bundles.refresh()
         await machines.refresh()

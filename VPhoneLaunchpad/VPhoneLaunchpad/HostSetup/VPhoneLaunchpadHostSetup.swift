@@ -75,7 +75,12 @@ final class VPhoneLaunchpadHostSetup {
     }
 
     var isDeveloperToolAuthorized: Bool {
-        EPDeveloperTool().authorizationStatus == .authorized
+        #if DEBUG
+            if VPhoneLaunchpadPreview.isActive {
+                return checks.first { $0.kind == .developerTools }?.status == .passed
+            }
+        #endif
+        return EPDeveloperTool().authorizationStatus == .authorized
     }
 
     // MARK: - Checking
@@ -246,3 +251,19 @@ final class VPhoneLaunchpadHostSetup {
         (url.path as NSString).abbreviatingWithTildeInPath
     }
 }
+
+#if DEBUG
+    extension VPhoneLaunchpadHostSetup {
+        func applyPreview(blocked: Bool) {
+            update(.appleSilicon, (.passed, "arm64"))
+            update(.macOS, (.passed, "27.0"))
+            update(.physicalMac, (.passed, "kern.hv_vmm_present = 0"))
+            update(.libraryVolume, (.passed, "~/.vphone/machines"))
+            update(.developerTools, blocked ? (.pending, "Not requested") : (.passed, "Allowed"))
+            update(.helper, blocked ? (.pending, "Not installed") : (.passed, "Version 1"))
+            update(.diskSpace, (.warning, "84 GB free, 100 GB recommended"))
+            update(.resources, (.passed, "12 cores, 36 GB"))
+            update(.network, (.passed, "updates.cdn-apple.com, api.github.com"))
+        }
+    }
+#endif

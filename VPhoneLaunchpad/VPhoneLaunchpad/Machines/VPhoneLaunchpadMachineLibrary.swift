@@ -308,3 +308,16 @@ final class VPhoneLaunchpadMachineLibrary {
         }
     }
 }
+
+#if DEBUG
+    extension VPhoneLaunchpadMachineLibrary {
+        func applyPreview(creation: VPhoneLaunchpadCreationPipeline) {
+            machines = VPhoneLaunchpadPreview.machines
+            externallyRunning = ["research-01"]
+            startedAt = ["research-01": Date().addingTimeInterval(-6130)]
+            consoles = ["research-01": VPhoneLaunchpadPreview.console]
+            creations = ["ios27-rc": creation]
+            selection = "research-01"
+        }
+    }
+#endif

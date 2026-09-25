@@ -25,6 +25,7 @@ struct VPhoneLaunchpadMachinesView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
     @State private var sheet: Sheet?
     @State private var deletion: String?
+    @State private var showsInspector = true
 
     private var library: VPhoneLaunchpadMachineLibrary {
         model.machines
@@ -36,21 +37,25 @@ struct VPhoneLaunchpadMachinesView: View {
             if library.machines.isEmpty {
                 emptyState
             } else {
-                VSplitView {
-                    table(selection: $library.selection)
-                        .frame(minHeight: 140, idealHeight: 200)
-                    Group {
-                        if let machine = library.selected {
-                            detail(machine)
-                        } else {
-                            ContentUnavailableView("No Selection", systemImage: "iphone")
-                        }
-                    }
-                    .frame(minHeight: 260)
-                }
+                table(selection: $library.selection)
             }
         }
+        .inspector(isPresented: $showsInspector) {
+            Group {
+                if let machine = library.selected {
+                    VPhoneLaunchpadMachineInspector(machine: machine) { name in sheet = .creation(name) }
+                } else {
+                    ContentUnavailableView("No Selection", systemImage: "iphone")
+                }
+            }
+            .inspectorColumnWidth(min: 300, ideal: 360, max: 520)
+        }
         .toolbar { toolbar }
+        #if DEBUG
+            .onReceive(NotificationCenter.default.publisher(for: VPhoneLaunchpadPreview.sheetNotification)) { note in
+                sheet = note.object as? Sheet
+            }
+        #endif
         .sheet(item: $sheet) { sheet in
             sheetContent(sheet)
                 .environment(model)
@@ -122,6 +127,12 @@ struct VPhoneLaunchpadMachinesView: View {
                 Label("New Machine", systemImage: "plus")
             }
             .help("Create a machine")
+            Button {
+                showsInspector.toggle()
+            } label: {
+                Label("Inspector", systemImage: "sidebar.trailing")
+            }
+            .help(showsInspector ? "Hide the inspector" : "Show the inspector")
         }
     }
 
@@ -159,25 +170,27 @@ struct VPhoneLaunchpadMachinesView: View {
     private func table(selection: Binding<String?>) -> some View {
         Table(library.machines, selection: selection) {
             TableColumn("Name", value: \.name)
+                .width(min: 90, ideal: 110)
             TableColumn("iOS") { machine in
                 Text(machine.restoreInfo.map { "\($0.ios.version) (\($0.ios.build))" } ?? "—")
             }
+            .width(min: 110, ideal: 120)
             TableColumn("State") { machine in
-                stateLabel(machine.name)
+                VPhoneLaunchpadMachineStateLabel(state: library.state(of: machine.name))
             }
-            .width(min: 120, ideal: 180)
+            .width(min: 150, ideal: 160)
             TableColumn("CPU") { machine in
                 Text("\(machine.cpuCount)").monospacedDigit()
             }
-            .width(50)
+            .width(40)
             TableColumn("Memory") { machine in
                 Text(Self.memory(machine.memoryMB)).monospacedDigit()
             }
-            .width(70)
+            .width(64)
             TableColumn("Disk") { machine in
                 Text(Self.disk(machine.diskSizeBytes)).monospacedDigit()
             }
-            .width(70)
+            .width(64)
         }
         .contextMenu(forSelectionType: String.self) { names in
             machineActions(library.machines.first { names.contains($0.name) })
@@ -185,19 +198,6 @@ struct VPhoneLaunchpadMachinesView: View {
             if let name = names.first, library.state(of: name) == .stopped {
                 library.start(name)
             }
-        }
-    }
-
-    private func stateLabel(_ name: String) -> some View {
-        let (status, text): (VPhoneLaunchpadStatus, String) = switch library.state(of: name) {
-        case .running: (.passed, "Running")
-        case .stopped: (.pending, "Stopped")
-        case let .busy(activity): (.running, activity.prefix(1).uppercased() + activity.dropFirst())
-        }
-        return Label {
-            Text(text).lineLimit(1)
-        } icon: {
-            VPhoneLaunchpadStatusIcon(status: status)
         }
     }
 
@@ -210,94 +210,6 @@ struct VPhoneLaunchpadMachinesView: View {
             Button("New Machine…") { sheet = .newMachine }
                 .buttonStyle(.borderedProminent)
             Button("Import…") { chooseImport() }
-        }
-    }
-
-    // MARK: - Detail
-
-    private func detail(_ machine: VPhoneLaunchpadMachine) -> some View {
-        Form {
-            Section {
-                if let creation = library.creations[machine.name] {
-                    creationSummary(creation)
-                }
-                LabeledContent("State") { stateLabel(machine.name) }
-                if let started = library.startedAt[machine.name] {
-                    LabeledContent("Started", value: started.formatted(date: .omitted, time: .shortened))
-                }
-                LabeledContent("Firmware", value: machine.restoreInfo.map {
-                    "iOS \($0.ios.version) (\($0.ios.build)) on cloudOS \($0.cloudOS.version)"
-                } ?? "Not restored")
-                if let variant = machine.restoreInfo?.variant {
-                    LabeledContent("Variant", value: variant)
-                }
-                LabeledContent(
-                    "Hardware",
-                    value: "\(machine.cpuCount) cores, \(Self.memory(machine.memoryMB)), \(Self.disk(machine.diskSizeBytes)) disk",
-                )
-                LabeledContent("Network", value: machine.networkDescription)
-                if let udid = machine.udid {
-                    LabeledContent("UDID") { Text(udid).textSelection(.enabled) }
-                }
-                LabeledContent(
-                    "Location",
-                    value: VPhoneLaunchpadHostSetup.abbreviated(library.libraryRoot.appendingPathComponent(machine.name)),
-                )
-            } header: {
-                Text(machine.name)
-            }
-
-            Section("Console") {
-                VPhoneLaunchpadLogView(lines: library.consoles[machine.name] ?? [])
-                    .frame(minHeight: 160)
-            }
-
-            Section("Recent Commands") {
-                commands
-            }
-        }
-        .formStyle(.grouped)
-        .onAppear { library.loadConsoleIfNeeded(machine.name) }
-        .onChange(of: machine.name) { _, name in library.loadConsoleIfNeeded(name) }
-    }
-
-    private func creationSummary(_ creation: VPhoneLaunchpadCreationPipeline) -> some View {
-        LabeledContent {
-            Button("Show Progress") { sheet = .creation(creation.options.name) }
-        } label: {
-            if creation.isRunning {
-                Label { Text("Creating: \(creation.current?.title ?? "")") } icon: { VPhoneLaunchpadStatusIcon(status: .running) }
-            } else if creation.isFinished {
-                Label { Text("Created") } icon: { VPhoneLaunchpadStatusIcon(status: .passed) }
-            } else {
-                Label { Text(creation.failure?.message ?? "Creation stopped") } icon: { VPhoneLaunchpadStatusIcon(status: .failed) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var commands: some View {
-        let entries = Array(model.history.entries.suffix(12).reversed())
-        if entries.isEmpty {
-            Text("Commands Launchpad runs appear here.")
-                .foregroundStyle(.secondary)
-        }
-        ForEach(entries) { entry in
-            Label {
-                Text(entry.text)
-                    .font(.system(.callout, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-            } icon: {
-                VPhoneLaunchpadStatusIcon(status: entry.status.map { $0 == 0 ? .passed : .failed } ?? .running)
-            }
-            .contextMenu {
-                Button("Copy Command") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(entry.text, forType: .string)
-                }
-            }
         }
     }
 

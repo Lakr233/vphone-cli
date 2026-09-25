@@ -289,3 +289,11 @@ nonisolated final class VPhoneLaunchpadHelperReceiver: NSObject, VPhoneLaunchpad
         handler?(line)
     }
 }
+
+#if DEBUG
+    extension VPhoneLaunchpadHelperClient {
+        func applyPreview(_ state: State) {
+            self.state = state
+        }
+    }
+#endif

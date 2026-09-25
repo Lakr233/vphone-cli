@@ -135,16 +135,13 @@ struct VPhoneLaunchpadCoreBundleView: View {
 
     private func installedRow(_ bundle: VPhoneLaunchpadCoreBundle.Installed) -> some View {
         let isActive = bundle.version == bundles.activeVersion
-        return HStack(spacing: 12) {
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("VPhone.bundle \(bundle.version)")
-                    if isActive {
-                        Text("Active")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                // The version in use is the one with the green title.
+                Text("VPhone.bundle \(bundle.version)")
+                    .foregroundStyle(isActive ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
+                    .accessibilityValue(isActive ? "In use" : "")
+                    .help(isActive ? "In use" : "")
                 Text("Installed \(bundle.receipt.installedAt.formatted(date: .abbreviated, time: .omitted)) · SHA-256 \(Self.shortDigest(bundle.receipt.sha256))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -164,10 +161,9 @@ struct VPhoneLaunchpadCoreBundleView: View {
             }
             .font(.callout)
             .help(bundle.preflightDetail)
-            if !isActive {
-                Button("Use") { Task { await bundles.use(bundle.version) } }
-            }
             Menu {
+                Button("Use This Version") { Task { await bundles.use(bundle.version) } }
+                    .disabled(isActive)
                 Button("Run Preflight Again") { Task { await bundles.verify(bundle.version) } }
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([VPhoneLaunchpadBundleStore.bundle(version: bundle.version)])
@@ -195,13 +191,12 @@ struct VPhoneLaunchpadCoreBundleView: View {
     }
 
     private func releaseRow(_ release: VPhoneLaunchpadRelease, prominent: Bool) -> some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("VPhone.bundle \(release.version)")
                     if release.isPrerelease {
                         Text("Pre-release")
-                            .font(.caption)
                             .foregroundStyle(.orange)
                     }
                 }

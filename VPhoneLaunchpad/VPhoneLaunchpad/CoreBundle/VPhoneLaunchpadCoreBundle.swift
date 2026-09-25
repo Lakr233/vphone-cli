@@ -287,3 +287,33 @@ final class VPhoneLaunchpadCoreBundle {
         loadInstalled()
     }
 }
+
+#if DEBUG
+    extension VPhoneLaunchpadCoreBundle {
+        func applyPreview(installing: Bool) {
+            releases = VPhoneLaunchpadPreview.releases
+            if installing {
+                installed = []
+                var progress = InstallProgress(release: releases[0])
+                progress.steps = [.download: .running]
+                progress.received = 9_400_000
+                self.progress = progress
+                return
+            }
+            progress = nil
+            installed = VPhoneLaunchpadPreview.releases.dropFirst().map { release in
+                var bundle = Installed(receipt: VPhoneLaunchpadBundleReceipt(
+                    version: release.version,
+                    sha256: release.sha256,
+                    installedAt: release.publishedAt.addingTimeInterval(3600),
+                    cdhashes: [:],
+                ))
+                bundle.policy = .passed
+                bundle.policyDetail = "exception"
+                bundle.preflight = .passed
+                bundle.preflightDetail = "passed"
+                return bundle
+            }
+        }
+    }
+#endif

@@ -421,3 +421,19 @@ final class VPhoneLaunchpadCreationPipeline {
         return false
     }
 }
+
+#if DEBUG
+    extension VPhoneLaunchpadCreationPipeline {
+        func applyPreview() {
+            let finished: [Step: TimeInterval] = [.create: 1, .prepare: 862, .patch: 48, .bootDFU: 6, .waitDFU: 3]
+            for (step, duration) in finished {
+                statuses[step] = .passed
+                durations[step] = duration
+            }
+            statuses[.restore] = .running
+            current = .restore
+            isRunning = true
+            log = VPhoneLaunchpadPreview.creationLog
+        }
+    }
+#endif

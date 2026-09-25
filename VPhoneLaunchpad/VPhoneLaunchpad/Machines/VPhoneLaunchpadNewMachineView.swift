@@ -167,6 +167,13 @@ struct VPhoneLaunchpadNewMachineView: View {
     // MARK: - Actions
 
     private func loadCatalog() async {
+        #if DEBUG
+            if VPhoneLaunchpadPreview.isActive {
+                catalog = VPhoneLaunchpadPreview.catalog
+                pairing = catalog?.pairings.last?.id
+                return
+            }
+        #endif
         guard catalog == nil, let commandLine = model.bundles.commandLine() else {
             return
         }
