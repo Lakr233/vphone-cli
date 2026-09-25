@@ -149,6 +149,12 @@ final class VPhoneLaunchpadModel {
         advance(selectNewest: false)
     }
 
+    func installLocalBundle(_ source: URL) async {
+        await bundles.installLocal(source)
+        await machines.refresh()
+        advance(selectNewest: false)
+    }
+
     func removeBundle(_ version: String) async {
         await bundles.remove(version)
         if let active = bundles.activeVersion, bundles.active?.preflight == .pending {

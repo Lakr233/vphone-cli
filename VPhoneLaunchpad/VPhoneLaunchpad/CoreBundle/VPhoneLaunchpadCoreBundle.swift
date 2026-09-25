@@ -28,6 +28,7 @@ final class VPhoneLaunchpadCoreBundle {
     // MARK: - Install progress
 
     enum InstallStep: CaseIterable, Identifiable {
+        case prepare
         case download
         case verify
         case install
@@ -40,6 +41,7 @@ final class VPhoneLaunchpadCoreBundle {
 
         var title: String {
             switch self {
+            case .prepare: String(localized: "Read local build")
             case .download: String(localized: "Download")
             case .verify: String(localized: "Verify SHA-256")
             case .install: String(localized: "Install as root")
@@ -50,10 +52,28 @@ final class VPhoneLaunchpadCoreBundle {
     }
 
     struct InstallProgress {
-        let release: VPhoneLaunchpadRelease
+        /// The store version, once known. A local build's comes from its
+        /// Info.plist in the prepare step.
+        var version: String?
+        let source: String
+        let size: Int64
+        let plan: [InstallStep]
         var steps: [InstallStep: VPhoneLaunchpadStatus] = [:]
         var received: Int64 = 0
         var error: VPhoneLaunchpadError?
+
+        init(release: VPhoneLaunchpadRelease) {
+            version = release.version
+            source = release.assetName
+            size = release.size
+            plan = [.download, .verify, .install, .policy, .preflight]
+        }
+
+        init(local: URL) {
+            source = local.lastPathComponent
+            size = 0
+            plan = [.prepare, .install, .policy, .preflight]
+        }
 
         func status(_ step: InstallStep) -> VPhoneLaunchpadStatus {
             steps[step] ?? .pending
@@ -197,7 +217,7 @@ final class VPhoneLaunchpadCoreBundle {
                 $0.preflightDetail = result.succeeded
                     ? String(localized: "Passed")
                     : (failure.isEmpty ? String(localized: "Preflight failed") : failure)
-                        .replacingOccurrences(of: "Error: ", with: "")
+                    .replacingOccurrences(of: "Error: ", with: "")
             }
         } catch {
             update(version) {
@@ -242,33 +262,66 @@ final class VPhoneLaunchpadCoreBundle {
             }
             set(.verify, .passed)
 
-            set(.install, .running)
-            let handle = try FileHandle(forReadingFrom: file)
-            defer { try? handle.close() }
-            try await helper.installBundle(version: release.version, archive: handle, sha256: release.sha256)
-            set(.install, .passed)
-
-            loadInstalled()
-            activeVersion = release.version
-            set(.policy, .running)
-            set(.preflight, .running)
-            await verify(release.version)
-            let installed = installed.first { $0.version == release.version }
-            set(.policy, installed?.policy ?? .failed)
-            set(.preflight, installed?.preflight ?? .failed)
-            if installed?.preflight != .passed {
-                throw VPhoneLaunchpadError(
-                    String(localized: "Host preflight failed. Fix the issue below, then choose Run Preflight Again."),
-                    detail: installed?.preflightDetail,
-                )
-            }
+            try await installAndVerify(version: release.version, archive: file, sha256: release.sha256)
         } catch {
-            for step in InstallStep.allCases where progress?.status(step) == .running {
-                set(step, .failed)
-            }
-            progress?.error = error as? VPhoneLaunchpadError
-                ?? VPhoneLaunchpadError(String(localized: "Unable to install the bundle. Try again."), detail: error.localizedDescription)
+            fail(error)
         }
+    }
+
+    /// Installs a VPhone.bundle folder or .zip built on this Mac as
+    /// `<version>-local`.
+    func installLocal(_ source: URL) async {
+        progress = InstallProgress(local: source)
+        var work: URL?
+        defer {
+            if let work {
+                try? FileManager.default.removeItem(at: work)
+            }
+        }
+        do {
+            set(.prepare, .running)
+            let local = try await VPhoneLaunchpadLocalBundle.prepare(source)
+            work = local.workDirectory
+            progress?.version = local.version
+            set(.prepare, .passed)
+
+            try await installAndVerify(version: local.version, archive: local.archive, sha256: local.sha256)
+        } catch {
+            fail(error)
+        }
+    }
+
+    /// The steps a release and a local build share: the helper installs the
+    /// archive as root, then the new version becomes active and is checked.
+    private func installAndVerify(version: String, archive: URL, sha256: String) async throws {
+        set(.install, .running)
+        let handle = try FileHandle(forReadingFrom: archive)
+        defer { try? handle.close() }
+        try await helper.installBundle(version: version, archive: handle, sha256: sha256)
+        set(.install, .passed)
+
+        loadInstalled()
+        activeVersion = version
+        set(.policy, .running)
+        set(.preflight, .running)
+        await verify(version)
+        let installed = installed.first { $0.version == version }
+        set(.policy, installed?.policy ?? .failed)
+        set(.preflight, installed?.preflight ?? .failed)
+        if installed?.preflight != .passed {
+            throw VPhoneLaunchpadError(
+                String(localized: "Host preflight failed. Fix the issue below, then choose Run Preflight Again."),
+                detail: installed?.preflightDetail,
+            )
+        }
+    }
+
+    private func fail(_ error: Error) {
+        for step in InstallStep.allCases where progress?.status(step) == .running {
+            set(step, .failed)
+        }
+        progress?.error = error as? VPhoneLaunchpadError
+            ?? VPhoneLaunchpadError(String(localized: "Unable to install the bundle. Try again."), detail: error.localizedDescription)
     }
 
     func dismissProgress() {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct VPhoneLaunchpadCoreBundleView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
@@ -41,6 +42,17 @@ struct VPhoneLaunchpadCoreBundleView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
+                    chooseLocalBuild()
+                } label: {
+                    Label("Install Local Build…", systemImage: "shippingbox")
+                }
+                .help(model.canInstallBundles
+                    ? "Install a VPhone.bundle folder or .zip built on this Mac."
+                    : "Installing needs the privileged helper and Developer Tools access.")
+                .disabled(!model.canInstallBundles)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
                     Task { await bundles.refresh() }
                 } label: {
                     Label("Check for Updates", systemImage: "arrow.clockwise")
@@ -51,7 +63,11 @@ struct VPhoneLaunchpadCoreBundleView: View {
         }
         .confirmationDialog(
             "Remove VPhone.bundle \(removal ?? "")?",
-            isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
+            isPresented: Binding(get: { removal != nil }, set: {
+                if !$0 {
+                    removal = nil
+                }
+            }),
         ) {
             Button("Remove", role: .destructive) {
                 if let version = removal {
@@ -65,7 +81,6 @@ struct VPhoneLaunchpadCoreBundleView: View {
 
     // MARK: - Latest
 
-    @ViewBuilder
     private var latestSection: some View {
         Section("Latest Release") {
             if let latest = bundles.releases.first {
@@ -87,13 +102,13 @@ struct VPhoneLaunchpadCoreBundleView: View {
     private func progressSection(_ progress: VPhoneLaunchpadCoreBundle.InstallProgress) -> some View {
         Section {
             if progress.status(.download) == .running {
-                ProgressView(value: Double(progress.received), total: Double(max(progress.release.size, 1))) {
+                ProgressView(value: Double(progress.received), total: Double(max(progress.size, 1))) {
                     Text("Downloading…")
                 } currentValueLabel: {
-                    Text("\(Self.size(progress.received)) of \(Self.size(progress.release.size))")
+                    Text("\(Self.size(progress.received)) of \(Self.size(progress.size))")
                 }
             }
-            ForEach(VPhoneLaunchpadCoreBundle.InstallStep.allCases) { step in
+            ForEach(progress.plan) { step in
                 Label {
                     Text(step.title)
                 } icon: {
@@ -113,7 +128,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
             }
         } header: {
             HStack {
-                Text("Installing \(progress.release.version)")
+                Text("Installing \(progress.version ?? progress.source)")
                 Spacer()
                 if !bundles.isInstalling {
                     Button("Dismiss") { bundles.dismissProgress() }
@@ -142,9 +157,15 @@ struct VPhoneLaunchpadCoreBundleView: View {
                     .foregroundStyle(isActive ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
                     .accessibilityValue(isActive ? "In use" : "")
                     .help(isActive ? "In use" : "")
-                Text("Installed \(bundle.receipt.installedAt.formatted(date: .abbreviated, time: .omitted)) · SHA-256 \(Self.shortDigest(bundle.receipt.sha256))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if VPhoneLaunchpadLocalBundle.isLocal(version: bundle.version) {
+                        Text("Local build · Installed \(bundle.receipt.installedAt.formatted(date: .abbreviated, time: .shortened)) · SHA-256 \(Self.shortDigest(bundle.receipt.sha256))")
+                    } else {
+                        Text("Installed \(bundle.receipt.installedAt.formatted(date: .abbreviated, time: .omitted)) · SHA-256 \(Self.shortDigest(bundle.receipt.sha256))")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             Spacer()
             Label {
@@ -215,6 +236,24 @@ struct VPhoneLaunchpadCoreBundleView: View {
             }
         }
         .help(model.canInstallBundles ? "" : "Installing needs the privileged helper and Developer Tools access.")
+    }
+
+    // MARK: - Local build
+
+    private func chooseLocalBuild() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Install Local Build")
+        panel.message = String(localized: "Choose a VPhone.bundle folder or a .zip that contains one.")
+        panel.prompt = String(localized: "Install")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.treatsFilePackagesAsDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.zip, .bundle]
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        Task { await model.installLocalBundle(url) }
     }
 
     // MARK: - Formatting
