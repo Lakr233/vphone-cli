@@ -1,6 +1,7 @@
 @preconcurrency import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
+import VPhoneCoreKit
 
 struct VPhoneFileBrowserView: View {
     @Bindable var model: VPhoneFileBrowserModel
@@ -460,13 +461,18 @@ private struct FileDragItem: Transferable {
             guard !item.file.isDirectoryLike else {
                 throw CocoaError(.fileNoSuchFile)
             }
-            let data = try await item.control.downloadFile(path: item.file.path)
+            guard VPhoneHostSafeFile.isSafeName(item.file.name) else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
             let tempDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let tempURL = tempDir.appendingPathComponent(item.file.name)
-            try data.write(to: tempURL)
-            return SentTransferredFile(tempURL)
+            let directory = try VPhoneHostSafeFile.openDestination(tempDir)
+            defer { close(directory) }
+            try await VPhoneHostSafeFile.write(named: item.file.name, in: directory) { handle in
+                _ = try await item.control.downloadFile(path: item.file.path, to: handle)
+            }
+            return SentTransferredFile(tempDir.appendingPathComponent(item.file.name))
         }
     }
 }

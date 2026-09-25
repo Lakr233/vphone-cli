@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 struct VPhoneRemoteFile: Identifiable, Hashable {
     let dir: String
@@ -88,7 +89,8 @@ extension VPhoneRemoteFile {
     init?(dir: String, entry: [String: Any]) {
         guard let name = entry["name"] as? String,
               let typeStr = entry["type"] as? String,
-              let type = FileType(rawValue: typeStr)
+              let type = FileType(rawValue: typeStr),
+              VPhoneHostSafeFile.isSafeName(name)
         else { return nil }
 
         self.dir = dir

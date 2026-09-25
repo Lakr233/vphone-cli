@@ -284,6 +284,32 @@ final class VPhoneGuestControl {
         return response.body
     }
 
+    /// Stream a guest file into `handle` in 64 KiB chunks. Returns the byte count.
+    func downloadFile(path: String, to handle: FileHandle) async throws -> Int64 {
+        let response = try await http(method: "GET", path: filePath(path), sink: handle)
+        guard response.status == 200 else { throw try httpError(response) }
+        return response.streamedCount
+    }
+
+    /// Stream a local file to the guest in 64 KiB chunks without loading it.
+    func uploadFile(path: String, from url: URL, permissions: String = "644") async throws -> Int64 {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var metadata = stat()
+        guard fstat(handle.fileDescriptor, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFREG else {
+            throw ControlError.protocolError("upload source is not a regular file")
+        }
+        let length = Int64(metadata.st_size)
+        let response = try await http(
+            method: "PUT",
+            path: filePath(path, mode: permissions),
+            contentType: "application/octet-stream",
+            source: (handle, length),
+        )
+        guard response.status == 200 else { throw try httpError(response) }
+        return length
+    }
+
     func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
         let response = try await http(
             method: "PUT",
@@ -441,6 +467,8 @@ final class VPhoneGuestControl {
         path: String,
         body: Data = Data(),
         contentType: String = "application/json",
+        source: (handle: FileHandle, length: Int64)? = nil,
+        sink: FileHandle? = nil,
     ) async throws -> VPhoneHTTPResponse {
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
@@ -454,6 +482,8 @@ final class VPhoneGuestControl {
             path: path,
             body: body,
             contentType: contentType,
+            source: source,
+            sink: sink,
         )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -468,6 +498,8 @@ final class VPhoneGuestControl {
 private struct VPhoneHTTPResponse: Sendable {
     let status: Int
     let body: Data
+    /// Bytes written to the transaction's sink; the body is then empty.
+    var streamedCount: Int64 = 0
 }
 
 private struct VPhoneSocketResult: @unchecked Sendable {
@@ -483,6 +515,12 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     let path: String
     let body: Data
     let contentType: String
+    let source: (handle: FileHandle, length: Int64)?
+    let sink: FileHandle?
+
+    /// Largest body held in memory; file transfers stream through a handle.
+    static let maxInMemoryBody = 64 * 1024 * 1024
+    static let chunkSize = 64 * 1024
 
     init(
         connection: VZVirtioSocketConnection,
@@ -490,7 +528,11 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         path: String,
         body: Data,
         contentType: String,
+        source: (handle: FileHandle, length: Int64)?,
+        sink: FileHandle?,
     ) {
+        self.source = source
+        self.sink = sink
         self.connection = connection
         self.method = method
         self.path = path
@@ -517,9 +559,19 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             throw VPhoneGuestControl.ControlError.notConnected
         }
         let headers =
-            "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
+            "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(source?.length ?? Int64(body.count))\r\n\r\n"
         try write(fd, data: Data(headers.utf8))
-        if !body.isEmpty {
+        if let source {
+            var remaining = source.length
+            while remaining > 0 {
+                let chunk = try source.handle.read(upToCount: Int(min(remaining, Int64(Self.chunkSize)))) ?? Data()
+                guard !chunk.isEmpty else {
+                    throw VPhoneGuestControl.ControlError.protocolError("upload source ended early")
+                }
+                try write(fd, data: chunk)
+                remaining -= Int64(chunk.count)
+            }
+        } else if !body.isEmpty {
             try write(fd, data: body)
         }
 
@@ -539,13 +591,33 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         }
         guard let lengthLine = lines.first(where: { $0.lowercased().hasPrefix("content-length:") }),
               let length = Int(lengthLine.split(separator: ":", maxSplits: 1)[1].trimmingCharacters(in: .whitespaces)),
-              length >= 0, length <= 2_147_483_647
+              length >= 0
         else {
             throw VPhoneGuestControl.ControlError.protocolError("missing HTTP content length")
         }
         var payload = Data(received[boundary.upperBound...])
+        if status == 200, let sink {
+            // Stream straight to disk; never hold more than one chunk.
+            guard payload.count <= length else {
+                throw VPhoneGuestControl.ControlError.protocolError("HTTP body length mismatch")
+            }
+            var written = Int64(0)
+            while true {
+                if !payload.isEmpty {
+                    try sink.write(contentsOf: payload)
+                    written += Int64(payload.count)
+                    payload.removeAll(keepingCapacity: true)
+                }
+                guard written < Int64(length) else { break }
+                try readMore(fd, into: &payload, limit: min(Self.chunkSize, length - Int(written)))
+            }
+            return VPhoneHTTPResponse(status: status, body: Data(), streamedCount: written)
+        }
+        guard length <= Self.maxInMemoryBody else {
+            throw VPhoneGuestControl.ControlError.protocolError("HTTP body too large (\(length) bytes)")
+        }
         while payload.count < length {
-            try readMore(fd, into: &payload)
+            try readMore(fd, into: &payload, limit: min(Self.chunkSize, length - payload.count))
         }
         guard payload.count == length else {
             throw VPhoneGuestControl.ControlError.protocolError("HTTP body length mismatch")
@@ -570,8 +642,8 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         }
     }
 
-    private func readMore(_ fd: Int32, into data: inout Data) throws {
-        var bytes = [UInt8](repeating: 0, count: 32 * 1024)
+    private func readMore(_ fd: Int32, into data: inout Data, limit: Int = 32 * 1024) throws {
+        var bytes = [UInt8](repeating: 0, count: max(1, limit))
         var count = 0
         repeat {
             count = Darwin.read(fd, &bytes, bytes.count)

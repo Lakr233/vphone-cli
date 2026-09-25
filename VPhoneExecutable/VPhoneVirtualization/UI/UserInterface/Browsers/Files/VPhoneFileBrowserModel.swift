@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import VPhoneCoreKit
 
 @Observable
 @MainActor
@@ -171,11 +172,19 @@ class VPhoneFileBrowserModel {
 
     func downloadSelected(to directory: URL) async {
         let selected = files.filter { selection.contains($0.id) }
+        let destination: Int32
+        do {
+            destination = try VPhoneHostSafeFile.openDestination(directory)
+        } catch {
+            self.error = VPhoneLocalization.format("Download failed: %@", String(describing: error))
+            return
+        }
+        defer { close(destination) }
         for file in selected {
             if file.isDirectoryLike {
-                await downloadDirectory(file, to: directory, ancestors: [])
+                await downloadDirectory(file, to: destination, ancestors: [])
             } else {
-                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: directory)
+                await downloadFile(remotePath: file.path, name: file.name, size: file.size, to: destination)
             }
             if error != nil {
                 break
@@ -184,16 +193,19 @@ class VPhoneFileBrowserModel {
         transferName = nil
     }
 
-    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: URL) async {
+    /// `directory` is an open descriptor; the file lands there through a
+    /// temporary O_EXCL|O_NOFOLLOW entry and a rename, never through a link.
+    private func downloadFile(remotePath: String, name: String, size: UInt64, to directory: Int32) async {
         transferName = name
         transferTotal = Int64(size)
         transferCurrent = 0
         do {
-            let data = try await control.downloadFile(path: remotePath)
-            transferCurrent = Int64(data.count)
-            let dest = directory.appendingPathComponent(name)
-            try data.write(to: dest)
-            print("[files] downloaded \(remotePath) (\(data.count) bytes)")
+            var count = Int64(0)
+            try await VPhoneHostSafeFile.write(named: name, in: directory) { handle in
+                count = try await control.downloadFile(path: remotePath, to: handle)
+            }
+            transferCurrent = count
+            print("[files] downloaded \(remotePath) (\(count) bytes)")
         } catch {
             self.error = VPhoneLocalization.format("Unable to download “%@”. Try again.", name)
         }
@@ -201,7 +213,7 @@ class VPhoneFileBrowserModel {
 
     private func downloadDirectory(
         _ file: VPhoneRemoteFile,
-        to localParent: URL,
+        to localParent: Int32,
         ancestors: Set<String>,
     ) async {
         guard !file.isSymbolicLink || file.resolvedPath != nil else {
@@ -214,13 +226,14 @@ class VPhoneFileBrowserModel {
             return
         }
         let ancestors = ancestors.union([resolvedPath])
-        let localDir = localParent.appendingPathComponent(file.name)
+        let localDir: Int32
         do {
-            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+            localDir = try VPhoneHostSafeFile.makeDirectory(named: file.name, in: localParent)
         } catch {
             self.error = VPhoneLocalization.format("Unable to create the folder “%@” on this Mac. Choose another location, then try again.", file.name)
             return
         }
+        defer { close(localDir) }
 
         let entries: [[String: Any]]
         do {
@@ -252,20 +265,16 @@ class VPhoneFileBrowserModel {
         var uploadError: String?
         for url in urls {
             let name = url.lastPathComponent
-            // Mapped: this is a drag-and-drop target, so the size is the
-            // user's choice and the transfer chunks it anyway.
-            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
-                uploadError = VPhoneLocalization.format("Unable to read “%@”. Check that the file still exists, then try again.", name)
-                break
-            }
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
             let dest = (currentPath as NSString).appendingPathComponent(name)
             transferName = name
-            transferTotal = Int64(data.count)
+            transferTotal = size
             transferCurrent = 0
             do {
-                try await control.uploadFile(path: dest, data: data)
-                transferCurrent = Int64(data.count)
-                print("[files] uploaded \(name) (\(data.count) bytes)")
+                // Streamed from disk in chunks; the file is never loaded whole.
+                let sent = try await control.uploadFile(path: dest, from: url)
+                transferCurrent = sent
+                print("[files] uploaded \(name) (\(sent) bytes)")
             } catch {
                 uploadError = VPhoneLocalization.format("Unable to upload “%@”. Check the connection, then try again.", name)
                 break
