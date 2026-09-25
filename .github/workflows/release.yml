@@ -1,7 +1,9 @@
 name: release
 
-# Build the self-contained VPhone.bundle and attach it to a published
-# GitHub Release. The Xcode scheme signs and validates the bundle.
+# Build the self-contained VPhone.bundle and vphone-launchpad.app and attach
+# both to a published GitHub Release. The Xcode scheme signs and validates the
+# bundle. Launchpad ships unsigned: nothing is signed at build time, and
+# Build/SignLaunchpad.sh is a separate step with a Developer ID identity.
 
 on:
   release:
@@ -57,3 +59,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: gh release upload "$TAG" "VPhone-${TAG}.zip" --clobber
+
+  launchpad:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Toolchain versions
+        run: xcodebuild -version
+
+      - name: Build vphone-launchpad.app
+        run: |
+          xcodebuild -project VPhoneLaunchpad/VPhoneLaunchpad.xcodeproj \
+            -scheme VPhoneLaunchpad -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath .build/XcodeLaunchpad build
+
+      # The asset name must not match Launchpad's own `^VPhone-.+\.zip$`
+      # bundle asset pattern.
+      - name: Package app
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          ditto -c -k --keepParent \
+            .build/XcodeLaunchpad/Build/Products/Release/vphone-launchpad.app \
+            "vphone-launchpad-${TAG}.zip"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" "vphone-launchpad-${TAG}.zip" --clobber
