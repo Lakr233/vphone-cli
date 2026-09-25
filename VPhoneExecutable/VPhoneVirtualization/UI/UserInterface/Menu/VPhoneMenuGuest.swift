@@ -36,11 +36,26 @@ extension VPhoneMenuController {
         installBootstrap.isEnabled = false
         installBootstrapItem = installBootstrap
         menu.addItem(installBootstrap)
+        let installFromFile = makeItem(
+            "Install Bootstrap from File…", action: #selector(installBootstrapFromFile), modifiers: [.option],
+        )
+        installFromFile.isAlternate = true
+        installFromFile.isEnabled = false
+        installBootstrapFromFileItem = installFromFile
+        menu.addItem(installFromFile)
 
         let uninstallBootstrap = makeItem("Uninstall Bootstrap…", action: #selector(uninstallBootstrap))
         uninstallBootstrap.isEnabled = false
         uninstallBootstrapItem = uninstallBootstrap
         menu.addItem(uninstallBootstrap)
+        let uninstallNoRestart = makeItem(
+            "Uninstall Bootstrap… (No Restart)", action: #selector(uninstallBootstrapWithoutRestart),
+            modifiers: [.option],
+        )
+        uninstallNoRestart.isAlternate = true
+        uninstallNoRestart.isEnabled = false
+        uninstallBootstrapNoRestartItem = uninstallNoRestart
+        menu.addItem(uninstallNoRestart)
 
         menu.addItem(NSMenuItem.separator())
 

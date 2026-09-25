@@ -218,6 +218,7 @@ enum GuestAPI {
             return try GuestIrisinInstaller.install(
                 jailbreak: jailbreakInfo(),
                 layout: layout,
+                packagePath: params["package_path"] as? String,
             )
         case "bootstrap.status":
             return GuestIrisinInstaller.status()
@@ -225,7 +226,11 @@ enum GuestAPI {
             return try GuestIrisinInstaller.installedBootstrap()
         case "bootstrap.uninstall":
             try requireForce(params, "uninstall the bootstrap")
-            return try GuestIrisinInstaller.uninstall(expectedRoot: string(params, "jbroot"))
+            let roots = try (params["roots"] as? [String]) ?? [string(params, "jbroot")]
+            return try GuestIrisinInstaller.uninstall(
+                expectedRoots: roots,
+                reboot: params["reboot"] as? Bool ?? true,
+            )
         case "bootstrap.firmware":
             return try GuestIrisinInstaller.repairFirmwareRecord()
         case "input.touch":

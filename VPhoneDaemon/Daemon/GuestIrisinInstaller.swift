@@ -16,7 +16,7 @@ enum GuestIrisinInstaller {
         .deletingLastPathComponent()
         .appendingPathComponent(".vphoned-boostrap-completed")
 
-    static func install(jailbreak: [String: Any], layout: String) throws -> [String: Any] {
+    static func install(jailbreak: [String: Any], layout: String, packagePath: String? = nil) throws -> [String: Any] {
         installLock.lock()
         defer { installLock.unlock() }
         guard try completedBootstrap() == nil else {
@@ -24,7 +24,7 @@ enum GuestIrisinInstaller {
         }
         setProgress(["phase": "preparing", "layout": layout])
         do {
-            let result = try performInstall(jailbreak: jailbreak, layout: layout)
+            let result = try performInstall(jailbreak: jailbreak, layout: layout, packagePath: packagePath)
             setProgress(["phase": "completed", "layout": layout,
                          "version": result["version"] ?? "", "jbroot": result["jbroot"] ?? ""])
             return result
@@ -41,24 +41,64 @@ enum GuestIrisinInstaller {
     }
 
     static func installedBootstrap() throws -> [String: Any] {
-        guard let installation = try completedBootstrap() else { return ["installed": false] }
-        return ["installed": true, "layout": installation.layout, "jbroot": installation.root]
+        let roots = try bootstrapRoots()
+        var result: [String: Any] = ["installed": !roots.isEmpty, "roots": roots.map(\.root)]
+        if let installation = try completedBootstrap() {
+            result["layout"] = installation.layout
+            result["jbroot"] = installation.root
+        }
+        return result
     }
 
-    static func uninstall(expectedRoot: String) throws -> [String: Any] {
+    static func uninstall(expectedRoots: [String], reboot: Bool = true) throws -> [String: Any] {
         installLock.lock()
         defer { installLock.unlock() }
-        guard let installation = try completedBootstrap() else {
-            throw GuestAPIError.operationFailed("No completed vphoned bootstrap was found")
+        let roots = try bootstrapRoots()
+        guard !roots.isEmpty else {
+            throw GuestAPIError.operationFailed("No bootstrap environment was found")
         }
-        let root = installation.root
-        guard expectedRoot == root else {
-            throw GuestAPIError.invalidRequest("Bootstrap path changed; inspect it again before uninstalling")
+        guard expectedRoots == roots.map(\.root) else {
+            throw GuestAPIError.invalidRequest("Bootstrap paths changed; inspect them again before uninstalling")
         }
 
+        for installation in roots {
+            try removeBootstrap(root: installation.root, layout: installation.layout)
+        }
+        // A legacy marker may live beside vphoned on the read-only system
+        // volume. Shadow it with a writable tombstone after removal.
+        try writeMarker(["installed": false])
+        if reboot {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+                do {
+                    _ = try requestReboot(userspace: false, force: true)
+                } catch {
+                    NSLog("vphoned: bootstrap removed but reboot failed: %@", String(describing: error))
+                }
+            }
+        }
+        return ["roots": expectedRoots, "deleted": true, "reboot_scheduled": reboot]
+    }
+
+    private static func bootstrapRoots() throws -> [(layout: String, root: String)] {
+        var roots: [(layout: String, root: String)] = []
+        if let installation = try completedBootstrap() { roots.append(installation) }
+        if itemExists(URL(fileURLWithPath: "/var/jb")), !roots.contains(where: { $0.root == "/var/jb" }) {
+            roots.append(("rootless", "/var/jb"))
+        }
+        let parent = "/private/var/containers/Bundle/Application"
+        for name in try FileManager.default.contentsOfDirectory(atPath: parent).sorted() where roothideName(name) {
+            let root = parent + "/" + name
+            if !roots.contains(where: { $0.root == root }) {
+                roots.append(("roothide", root))
+            }
+        }
+        return roots.sorted { $0.root < $1.root }
+    }
+
+    private static func removeBootstrap(root: String, layout: String) throws {
         let files = FileManager.default
         let rootURL = URL(fileURLWithPath: root, isDirectory: true)
-        let removal = try removalRoot(root, layout: installation.layout)
+        let removal = try removalRoot(root, layout: layout)
         if try directoryExistsWithoutSymlink(removal.physicalPath) {
             for relative in ["Library/LaunchDaemons", "basebin/LaunchDaemons"] {
                 let directory = rootURL.appendingPathComponent(relative, isDirectory: true).path
@@ -83,17 +123,6 @@ enum GuestIrisinInstaller {
             try files.removeItem(atPath: removal.physicalPath)
         }
         if removal.isSymlink { try files.removeItem(at: rootURL) }
-        // A legacy marker may live beside vphoned on the read-only system
-        // volume. Shadow it with a writable tombstone after removal.
-        try writeMarker(["installed": false])
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
-            do {
-                _ = try requestReboot(userspace: false, force: true)
-            } catch {
-                NSLog("vphoned: bootstrap removed but reboot failed: %@", String(describing: error))
-            }
-        }
-        return ["jbroot": root, "layout": installation.layout, "deleted": true, "reboot_scheduled": true]
     }
 
     private static func completedBootstrap() throws -> (layout: String, root: String)? {
@@ -185,7 +214,7 @@ enum GuestIrisinInstaller {
         progressLock.unlock()
     }
 
-    private static func performInstall(jailbreak: [String: Any], layout: String) throws -> [String: Any] {
+    private static func performInstall(jailbreak: [String: Any], layout: String, packagePath: String?) throws -> [String: Any] {
         let detectedLayout = jailbreak["layout"] as? String
         guard layout == "rootless" || layout == "roothide" else {
             throw GuestAPIError.invalidRequest("layout must be rootless or roothide")
@@ -203,29 +232,41 @@ enum GuestIrisinInstaller {
         }
 
         let architecture = layout == "roothide" ? "iphoneos-arm64e" : "iphoneos-arm64"
-        let release = try releaseAsset(architecture: architecture)
-        setProgress(["phase": "downloading", "layout": layout, "tag": release.tag,
-                     "downloaded_bytes": 0])
         let work = FileManager.default.temporaryDirectory
             .appendingPathComponent("vphoned-irisin-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: work) }
 
-        let package = work.appendingPathComponent(release.name)
-        let packageData = try fetch(release.url, reportDownload: true)
-        let digest = SHA256.hash(data: packageData).map { String(format: "%02x", $0) }.joined()
-        guard digest == release.digest else {
-            throw GuestAPIError.operationFailed("Irisin release asset SHA-256 mismatch")
+        let package = work.appendingPathComponent("Irisin.deb")
+        let tag: String
+        let expectedVersion: String?
+        if let packagePath {
+            try copyLocalPackage(packagePath, to: package)
+            tag = "local"
+            expectedVersion = nil
+        } else {
+            let release = try releaseAsset(architecture: architecture)
+            setProgress(["phase": "downloading", "layout": layout, "tag": release.tag,
+                         "downloaded_bytes": 0])
+            let packageData = try fetch(release.url, reportDownload: true)
+            let digest = SHA256.hash(data: packageData).map { String(format: "%02x", $0) }.joined()
+            guard digest == release.digest else {
+                throw GuestAPIError.operationFailed("Irisin release asset SHA-256 mismatch")
+            }
+            try packageData.write(to: package, options: .atomic)
+            tag = release.tag
+            expectedVersion = release.version
         }
-        try packageData.write(to: package, options: .atomic)
-        setProgress(["phase": "extracting", "layout": layout, "tag": release.tag])
+        setProgress(["phase": "extracting", "layout": layout, "tag": tag])
 
         let metadata = try readDeb(package.path)
         let control = metadata["control"] as? [String: String] ?? [:]
+        let version = control["Version"] ?? ""
         guard control["Package"] == "wiki.qaq.irisin",
-              control["Version"] == release.version,
+              !version.isEmpty, version.count <= 128,
+              expectedVersion == nil || version == expectedVersion,
               control["Architecture"] == architecture
-        else { throw GuestAPIError.operationFailed("Irisin package metadata does not match the release") }
+        else { throw GuestAPIError.operationFailed("Irisin package metadata does not match the selected layout") }
 
         let extracted = work.appendingPathComponent("extracted", isDirectory: true)
         _ = try extractDeb(package.path, to: extracted.path)
@@ -237,7 +278,7 @@ enum GuestIrisinInstaller {
         let helper = payload.appendingPathComponent("usr/libexec/irisin-install")
         let plist = payload.appendingPathComponent("Library/LaunchDaemons/\(serviceLabel).plist")
         try validatePayload(app: app, daemon: daemon, helper: helper, plist: plist,
-                            version: release.version, architecture: architecture, layout: layout)
+                            version: version, architecture: architecture, layout: layout)
 
         if layout == "roothide" {
             try prepareRootHidePlist(plist, executable: root + "/usr/libexec/irisind")
@@ -256,7 +297,7 @@ enum GuestIrisinInstaller {
 
         var replaced: [(target: URL, backup: URL?)] = []
         do {
-            setProgress(["phase": "installing", "layout": layout, "tag": release.tag])
+            setProgress(["phase": "installing", "layout": layout, "tag": tag])
             for (source, target) in components {
                 replaced.append(try replace(source, at: target))
             }
@@ -277,16 +318,16 @@ enum GuestIrisinInstaller {
             guard status["loaded"] as? Bool == true else {
                 throw GuestAPIError.operationFailed("Irisin daemon is not loaded")
             }
-            setProgress(["phase": "firmware", "layout": layout, "tag": release.tag])
+            setProgress(["phase": "firmware", "layout": layout, "tag": tag])
             let firmware = try ensureFirmwareRecord(root: root)
-            let marker = ["tag": release.tag, "layout": layout, "jbroot": root]
+            let marker = ["tag": tag, "layout": layout, "jbroot": root]
             try writeMarker(marker)
             for entry in replaced {
                 if let backup = entry.backup { try? FileManager.default.removeItem(at: backup) }
             }
             var result: [String: Any] = [
-                "tag": release.tag,
-                "version": release.version,
+                "tag": tag,
+                "version": version,
                 "architecture": architecture,
                 "layout": layout,
                 "jbroot": root,
@@ -492,6 +533,31 @@ enum GuestIrisinInstaller {
         let name: String
         let url: URL
         let digest: String
+    }
+
+    private static func copyLocalPackage(_ path: String, to destination: URL) throws {
+        let prefix = "/var/root/Library/Caches/vphoned-irisin-"
+        guard path.hasPrefix(prefix), path.hasSuffix(".deb"),
+              let id = UUID(uuidString: String(path.dropFirst(prefix.count).dropLast(4))),
+              path == prefix + id.uuidString + ".deb"
+        else { throw GuestAPIError.invalidRequest("Invalid staged Irisin package path") }
+
+        let descriptor = open(path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw GuestAPIError.operationFailed("Could not open staged Irisin package")
+        }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0,
+              info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+              info.st_size > 0, info.st_size <= 64 * 1024 * 1024
+        else { throw GuestAPIError.invalidRequest("Irisin package must be a regular file under 64 MiB") }
+        let data = try FileHandle(fileDescriptor: descriptor, closeOnDealloc: false).readToEnd() ?? Data()
+        guard data.count == info.st_size else {
+            throw GuestAPIError.operationFailed("Could not read the complete Irisin package")
+        }
+        try data.write(to: destination, options: .atomic)
+        try? FileManager.default.removeItem(atPath: path)
     }
 
     private static func releaseAsset(architecture: String) throws -> Asset {

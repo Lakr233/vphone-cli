@@ -39,6 +39,7 @@ vphone-cli vm launch myphone
 ## 定制固件 Bootstrap
 
 启动虚拟机后，在 macOS 菜单栏选择 **Guest > Install Bootstrap…**，再选择所需的环境布局。此操作会在访客系统内安装 Irisin。
+按住 Option 打开此菜单项可选取本地 Irisin `.deb`；按住 Option 打开 **Uninstall Bootstrap…** 会同时删除现存的 rootless 和 RootHide 环境，但不重启客体。普通卸载会在删除后重启。
 
 首次准备环境时，在 Irisin 中选中 `apt` 和 `bash`，长按**安装**按钮，然后选择**引导安装（Bootstrap Install）**。这种模式会先解压本次安装涉及的所有软件包，再重新执行安装流程，以绕过初始阶段的依赖循环：`debianutils` 需要 `bash`，而 `bash` 又需要已经配置好的 `debianutils`。首次准备完成后，即可使用普通安装模式。
 
