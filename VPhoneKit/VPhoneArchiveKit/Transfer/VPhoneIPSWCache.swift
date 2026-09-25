@@ -10,6 +10,10 @@ public enum VPhoneIPSWCache {
         public let file: URL
         public let version: String
         public let build: String
+        /// `SupportedProductTypes`, such as `iPhone17,3`.
+        public let productTypes: [String]
+        /// Every build identity's `Info.DeviceClass`, such as `vresearch101ap`.
+        public let deviceClasses: Set<String>
     }
 
     public enum Error: Swift.Error, LocalizedError {
@@ -18,6 +22,9 @@ public enum VPhoneIPSWCache {
         case invalidManifest(URL)
         case unexpectedHTTP(URL, Int)
         case incompleteDownload(URL, expected: Int64, actual: Int64)
+        case swappedSources(iPhone: URL, cloudOS: URL)
+        case notIPhoneSource(URL, productTypes: [String])
+        case notCloudOSSource(URL)
 
         public var errorDescription: String? {
             switch self {
@@ -27,6 +34,12 @@ public enum VPhoneIPSWCache {
             case let .unexpectedHTTP(url, _): "Unable to download the IPSW from \(url). Try again later."
             case let .incompleteDownload(url, expected, actual):
                 "The IPSW download from \(url) is incomplete (\(actual) of \(expected) bytes). Try again."
+            case let .swappedSources(iPhone, cloudOS):
+                "The iPhone and cloudOS IPSWs are swapped: \(iPhone.lastPathComponent) is a cloudOS IPSW and \(cloudOS.lastPathComponent) is an iPhone IPSW. Swap the two sources, then try again."
+            case let .notIPhoneSource(file, productTypes):
+                "\(file.lastPathComponent) is not an \(VPhoneIPSWCache.iPhoneProductType) IPSW; it is for \(productTypes.isEmpty ? "no listed product" : productTypes.joined(separator: ", ")). Choose an \(VPhoneIPSWCache.iPhoneProductType) IPSW as the iPhone source."
+            case let .notCloudOSSource(file):
+                "\(file.lastPathComponent) is not a cloudOS IPSW: it has no \(VPhoneIPSWCache.cloudOSDeviceClass) build identity. Choose a cloudOS IPSW as the cloudOS source."
             }
         }
     }
@@ -98,7 +111,13 @@ public enum VPhoneIPSWCache {
         try fm.moveItem(at: pending, to: cache)
         try VPhoneHostFilePermissions.makeAccessible(at: cache)
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
-        return Archive(file: cache, version: metadata.version, build: metadata.build)
+        return Archive(
+            file: cache,
+            version: metadata.version,
+            build: metadata.build,
+            productTypes: metadata.productTypes,
+            deviceClasses: metadata.deviceClasses,
+        )
     }
 
     public static func inspect(_ file: URL) throws -> Archive {
@@ -113,7 +132,43 @@ public enum VPhoneIPSWCache {
         else {
             throw Error.invalidManifest(file)
         }
-        return Archive(file: file, version: version, build: build)
+        let identities = plist["BuildIdentities"] as? [[String: Any]] ?? []
+        let deviceClasses = identities.compactMap { identity in
+            ((identity["Info"] as? [String: Any])?["DeviceClass"] as? String)?.lowercased()
+        }
+        return Archive(
+            file: file,
+            version: version,
+            build: build,
+            productTypes: plist["SupportedProductTypes"] as? [String] ?? [],
+            deviceClasses: Set(deviceClasses),
+        )
+    }
+
+    // MARK: - Pairing
+
+    /// The iPhone IPSW's product, and the cloudOS device class whose boot
+    /// chain matches the VM's DFU hardware. The restore tree needs both.
+    public static let iPhoneProductType = VPhoneFirmwareCatalog.device
+    public static let cloudOSDeviceClass = "vresearch101ap"
+
+    /// Checks each BuildManifest before anything is extracted, so a swapped
+    /// or wrong IPSW fails at once with the fix instead of deep in the merge.
+    public static func checkPair(iPhone: Archive, cloudOS: Archive) throws {
+        let iPhoneIsPhone = iPhone.productTypes.contains(iPhoneProductType)
+        let cloudOSIsCloudOS = cloudOS.deviceClasses.contains(cloudOSDeviceClass)
+        if !iPhoneIsPhone, !cloudOSIsCloudOS,
+           iPhone.deviceClasses.contains(cloudOSDeviceClass),
+           cloudOS.productTypes.contains(iPhoneProductType)
+        {
+            throw Error.swappedSources(iPhone: iPhone.file, cloudOS: cloudOS.file)
+        }
+        guard iPhoneIsPhone else {
+            throw Error.notIPhoneSource(iPhone.file, productTypes: iPhone.productTypes)
+        }
+        guard cloudOSIsCloudOS else {
+            throw Error.notCloudOSSource(cloudOS.file)
+        }
     }
 
     static func cacheName(for url: URL) -> String {

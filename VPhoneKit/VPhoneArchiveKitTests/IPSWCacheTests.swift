@@ -119,4 +119,51 @@ struct IPSWCacheTests {
             atPath: cacheDir.appendingPathComponent(VPhoneIPSWCache.cacheName(for: url)).path,
         ))
     }
+
+    // MARK: - Pairing
+
+    private func ipsw(in root: URL, _ name: String, productTypes: [String], deviceClasses: [String]) throws -> VPhoneIPSWCache.Archive {
+        let files = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: files, withIntermediateDirectories: true)
+        let manifest: [String: Any] = [
+            "ProductVersion": "27.0", "ProductBuildVersion": "24A435",
+            "SupportedProductTypes": productTypes,
+            "BuildIdentities": deviceClasses.map { ["Info": ["DeviceClass": $0]] },
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
+        try data.write(to: files.appendingPathComponent("BuildManifest.plist"))
+        let archive = root.appendingPathComponent("\(name).ipsw")
+        try VPhoneArchiveWriter.create(archive: archive, from: files)
+        return try VPhoneIPSWCache.inspect(archive)
+    }
+
+    @Test func `pair check reads each manifest and names the mistake`() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let phone = try ipsw(in: root, "phone", productTypes: ["iPhone17,3"], deviceClasses: ["D47AP", "D47AP"])
+        let cloud = try ipsw(in: root, "cloud", productTypes: ["iProd99,1"], deviceClasses: ["vresearch101ap", "vphone600ap"])
+        let other = try ipsw(in: root, "other", productTypes: ["iPhone16,1"], deviceClasses: ["d83ap"])
+
+        #expect(phone.productTypes == ["iPhone17,3"])
+        #expect(phone.deviceClasses == ["d47ap"])
+        #expect(cloud.deviceClasses == ["vresearch101ap", "vphone600ap"])
+
+        try VPhoneIPSWCache.checkPair(iPhone: phone, cloudOS: cloud)
+        #expect {
+            try VPhoneIPSWCache.checkPair(iPhone: cloud, cloudOS: phone)
+        } throws: { error in
+            if case .swappedSources? = error as? VPhoneIPSWCache.Error { true } else { false }
+        }
+        #expect {
+            try VPhoneIPSWCache.checkPair(iPhone: other, cloudOS: cloud)
+        } throws: { error in
+            if case .notIPhoneSource? = error as? VPhoneIPSWCache.Error { true } else { false }
+        }
+        #expect {
+            try VPhoneIPSWCache.checkPair(iPhone: phone, cloudOS: phone)
+        } throws: { error in
+            if case .notCloudOSSource? = error as? VPhoneIPSWCache.Error { true } else { false }
+        }
+    }
 }

@@ -55,6 +55,7 @@ enum VPhoneFirmwarePreparer {
         let cloud = try vphoneRunBlocking {
             try await VPhoneIPSWCache.resolve(cloudOSSource, in: cacheDirectory)
         }
+        try VPhoneIPSWCache.checkPair(iPhone: phone, cloudOS: cloud)
         try checkIPhoneName(iPhoneSource, archive: phone)
         print("[+] iPhone \(phone.version) (\(phone.build)); cloudOS \(cloud.version) (\(cloud.build))")
 
