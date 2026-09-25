@@ -14,7 +14,7 @@ The recommended host setup runs `csrutil enable --without debug` and `csrutil al
 
 ## Get started
 
-Use the notarized [vphone-launchpad 2.0.5](https://github.com/Lakr233/vphone-cli/releases/download/2.0.5/vphone-launchpad-2.0.5-notarized.zip) on a physical Apple Silicon Mac running macOS 15 or newer. The release needs no Xcode, Python, or Homebrew at runtime.
+Use the notarized [vphone-launchpad 2.0.6](https://github.com/Lakr233/vphone-cli/releases/download/2.0.6/vphone-launchpad-2.0.6-notarized.zip) on a physical Apple Silicon Mac running macOS 15 or newer. The release needs no Xcode, Python, or Homebrew at runtime.
 
 1. In macOS Recovery, run `csrutil enable --without debug` and `csrutil allow-research-guests enable`, then restart. See [host setup](Documents/Guides/host-setup.md) for details.
 2. Unzip and open the app. Complete **Host Setup**, including Developer Tools access and installation of the privileged helper.

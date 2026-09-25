@@ -41,7 +41,7 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
 
 enum VPhoneRuntimeVersion {
     /// A plain `swift build` executable has no app bundle Info.plist.
-    private static let unbundledVersion = "2.0.5"
+    private static let unbundledVersion = "2.0.6"
 
     static var current: String {
         let contents = VPhoneResources.runningExecutable().deletingLastPathComponent().deletingLastPathComponent()
