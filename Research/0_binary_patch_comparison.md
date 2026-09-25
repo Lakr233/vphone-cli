@@ -27,6 +27,20 @@
 > second run. The Preboot DT rewrite succeeded on a copy and was likewise
 > unchanged on a second run. The original VM disk was not modified or booted.
 
+> **Camera hooks and environment update (2026-09-25; not yet verified in a
+> guest):** `cfw install` also places `libvcamcaptured.dylib` and
+> `libcamfix.dylib` in `/usr/lib`. SystemHook treats
+> `/usr/libexec/cameracaptured` as an injection target and loads
+> `/usr/lib/libvcamcaptured.dylib` there, and loads `/usr/lib/libcamfix.dylib`
+> into app processes that already have AVFoundation loaded. Neither needs
+> ElleKit or a bootstrap: both hooks install their own Objective-C method
+> replacements. A missing library is skipped silently; other load failures are
+> logged to `vphone-systemhook.log`. A running guest receives changed copies of
+> all four `/usr/lib` libraries through the vphoned environment update
+> (`Research/vphoned_http_api.md`). Validation: `processes.list` shows
+> `cameracaptured`, `vphone-systemhook.log` records `camera-hook=... result=loaded`
+> for its PID, and `vcamcaptured.log` shows the hook installing its source.
+
 > **Current launchd hook (2026-09-25; isolated VM verification):**
 > `cfw install` now places `launchdhook-vphone.dylib` and a diagnostic
 > `SystemHook-vphone.dylib` in `/usr/lib`, links `/vh` to the launchd hook,

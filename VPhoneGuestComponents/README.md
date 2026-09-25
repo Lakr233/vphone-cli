@@ -14,7 +14,11 @@ tweak filter plists, and the GPU provenance note:
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
 
 The archive is a local build artifact, not a VM bootstrap. `cfw install` places
-both hooks in `/usr/lib`. After a bootstrap installs ElleKit, the launchd hook
+the launchd hook, SystemHook and both camera hooks in `/usr/lib`, and the
+vphoned environment update replaces changed copies in a running guest. SystemHook
+loads `libvcamcaptured.dylib` into `/usr/libexec/cameracaptured` and
+`libcamfix.dylib` into apps that have AVFoundation loaded; neither camera hook
+needs ElleKit or a bootstrap. After a bootstrap installs ElleKit, the launchd hook
 inserts SystemHook into `xpcproxy`, bootstrap executables, and apps started
 directly by launchd. Inside `xpcproxy`, SystemHook carries itself into the
 final executable through `posix_spawnp`. Injected App and bootstrap processes

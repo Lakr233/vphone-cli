@@ -254,7 +254,7 @@ struct VPhoneCustomFirmwareInstaller {
         )
         try patchWatchdog(system: system, work: work)
         try installVphoned(system: system, work: work)
-        try installLaunchHook(system: system)
+        try installEnvironment(system: system)
         try patchMachO(
             system: system,
             work: work,
@@ -382,8 +382,10 @@ struct VPhoneCustomFirmwareInstaller {
         try replace(temp, at: launchd, mode: 0o644)
     }
 
-    private func installLaunchHook(system: URL) throws {
-        for name in ["launchdhook-vphone.dylib", "SystemHook-vphone.dylib"] {
+    // The launchd hook, SystemHook and the camera hooks. SystemHook loads the
+    // camera hooks from /usr/lib without a bootstrap or tweak loader.
+    private func installEnvironment(system: URL) throws {
+        for name in VPhoneGuestEnvironment.libraries {
             let source = try VPhoneGuestBinaries.resolve(name)
             try replace(source, at: system.appendingPathComponent("usr/lib/\(name)"), mode: 0o755)
         }

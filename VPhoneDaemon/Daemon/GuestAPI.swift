@@ -36,7 +36,7 @@ enum GuestAPI {
         return sha256Hex(data)
     }()
 
-    private static func sha256Hex(_ data: Data) -> String {
+    static func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -80,6 +80,7 @@ enum GuestAPI {
                 "system_control",
                 "file_tools",
                 "packages",
+                "environment_update",
             ],
         ]
     }

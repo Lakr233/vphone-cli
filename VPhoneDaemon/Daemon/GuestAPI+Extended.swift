@@ -13,6 +13,7 @@ extension GuestAPI {
             executeLog,
             executeAppDetail,
             executeFileTool,
+            executeEnvironment,
         ]
         for area in areas {
             if let result = try area(method, params) {

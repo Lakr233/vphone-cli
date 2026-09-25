@@ -30,7 +30,10 @@ installation-layout detection. A system log fallback retains diagnostics when
 file logging fails.
 
 At the 2026-09-24 transport test, the camera hook dylibs were not installed or
-loaded. An initial check of fixed application directories also missed
+loaded. Since 2026-09-25, `cfw install` and the vphoned environment update
+place both hooks in `/usr/lib`, and SystemHook loads them without a bootstrap;
+see the camera hook note in `Research/0_binary_patch_comparison.md`. The
+remainder of this section describes the earlier state. An initial check of fixed application directories also missed
 Camera.app, but a later app registration query found
 `com.apple.camera` in an application container under
 `/private/var/containers/Bundle/Application`. The guest component archive

@@ -116,6 +116,9 @@ final class VPhoneGuestControl {
                 isConnected = true
                 print("[control] connected to vphoned HTTP API (iOS \(guestIOSVersion ?? "?"))")
                 onConnect?(guestCapabilities)
+                if capabilities.contains("environment_update") {
+                    Task { await syncEnvironment() }
+                }
             }
         } catch {
             if !isConnected {

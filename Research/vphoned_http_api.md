@@ -213,6 +213,7 @@ request carries `"force": true`.
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
 | Packages (read-only) | `packages.list`, `status`, `info {path}`, `compare`, `tweaks`, `repos` |
 | Bootstrap | `bootstrap.install {layout}`, `bootstrap.status`, `bootstrap.inspect`, `bootstrap.uninstall {jbroot, force}`, `bootstrap.firmware` (see above) |
+| Environment | `environment.status` (SHA-256 of each vphone library in `/usr/lib`, or null when absent, plus the staging directory), `environment.install {libraries: [{name, sha256}]}` (see below) |
 
 `processes.list` joins icli's kernel process list with `proc_pid_rusage`
 footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),
@@ -221,10 +222,26 @@ Account passwords, boot logo rendering and package installation, removal and
 repository changes are deliberately not exposed. `/v1/health` lists the new
 areas in `capabilities` (`device_info`, `display`, `audio`, `input_gestures`,
 `ui_inspection`, `processes`, `services`, `logs`, `network_capture`,
-`app_details`, `system_control`, `file_tools`, `packages`) so a host can hide
+`app_details`, `system_control`, `file_tools`, `packages`, `environment_update`) so a host can hide
 panels an older agent cannot serve. icli failures reach the caller with
 icli's own error `code` (`failed`, `unavailable`, `device_locked`, …) and
 message.
+
+The environment update keeps `launchdhook-vphone.dylib`,
+`SystemHook-vphone.dylib`, `libvcamcaptured.dylib` and `libcamfix.dylib` in
+`/usr/lib` in step with the host bundle. After each connection the VM
+process compares the guest's hashes with `Contents/Resources/guest-resources`,
+uploads the libraries that differ to the staging directory
+(`/var/root/Library/Caches/vphone-environment`) and calls
+`environment.install`. vphoned accepts only those four names and checks each
+SHA-256. When `/` is mounted read-only it runs `/sbin/mount -u -w /`, copies
+each library beside its destination, renames it into place with mode 0755
+and owner root, and runs `/sbin/mount -u -r /` again; jailbreak detection
+reads a writable root as a rootful layout. It stops a running
+`cameracaptured` when a camera hook or SystemHook changed, so the next
+camera client loads the new hook. The result lists `installed`,
+`restarted_pids` and `reboot_required`, which is true when the launchd hook
+changed: launchd keeps the copy it mapped at boot.
 
 ## Connection failure behavior
 
