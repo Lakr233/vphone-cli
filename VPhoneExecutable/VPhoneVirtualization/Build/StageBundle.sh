@@ -50,18 +50,17 @@ if /usr/bin/nm -u "$daemon_products/vphoned" | /usr/bin/grep -q '_swift_initBorr
 fi
 
 /bin/rm -rf "$macos" "$resources"
-/bin/mkdir -p "$macos" "$resources/scripts/vphoned" "$resources/guest"
+/bin/mkdir -p "$macos" "$resources/guest"
 /bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
-/bin/cp "$daemon_products/vphoned" "$macos/vphoned"
+/bin/cp "$daemon_products/vphoned" "$macos/vphoned.signed"
 /bin/cp "$amfi_products/VPhoneEscalator" "$macos/VPhoneEscalator"
 /bin/cp "$guest_products/camfix/libcamfix.dylib" "$macos/libcamfix.dylib"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$macos/libvcamcaptured.dylib"
 /bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$macos/launchdhook-vphone.dylib"
 /bin/cp "$guest_products/systemhook/SystemHook-vphone.dylib" "$macos/SystemHook-vphone.dylib"
 /bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" "$macos/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
-/bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$resources/scripts/vphoned/vphoned.plist"
-/bin/cp "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$resources/scripts/vphoned/VPhoneDaemon.entitlements"
+/bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$resources/guest/vphoned.plist"
 /bin/cp "$guest_products/camfix/libcamfix.plist" "$resources/guest/libcamfix.plist"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$resources/guest/libvcamcaptured.plist"
 
@@ -83,8 +82,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /bin/rm -f "$bundle/Contents/Frameworks/libswiftCompatibilitySpan.dylib"
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
-/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$macos/vphoned"
-/bin/cp "$macos/vphoned" "$macos/vphoned.signed"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$macos/vphoned.signed"
 /usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"

@@ -355,7 +355,7 @@ struct VPhoneCustomFirmwareInstaller {
         // Install the same signed bytes that vm launch uses for auto-update.
         // Re-signing here changes the binary hash and forces an upload and
         // daemon restart on the VM's first boot.
-        let vphoned = try VPhoneGuestBinaries.resolve("vphoned")
+        let vphoned = try VPhoneGuestBinaries.resolve("vphoned.signed")
         let staged = work.appendingPathComponent("vphoned")
         try fm.copyItem(at: vphoned, to: staged)
         try replace(staged, at: system.appendingPathComponent("usr/bin/vphoned"), mode: 0o755)
@@ -364,7 +364,7 @@ struct VPhoneCustomFirmwareInstaller {
             try fm.removeItem(at: signed)
         }
         try fm.copyItem(at: staged, to: signed)
-        let daemon = resources.scriptsDir.appendingPathComponent("vphoned/vphoned.plist")
+        let daemon = resources.base.appendingPathComponent("guest/vphoned.plist")
         try replace(
             daemon,
             at: system.appendingPathComponent(

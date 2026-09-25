@@ -44,15 +44,12 @@ extension CryptexFilesystemPatcher {
 
     func injectLaunchDaemons(targetMount: String) throws {
         let target = URL(filePath: targetMount)
-        let scriptDir = resources.scriptsDir
-
         let tmpDir = try createTmpDir()
         let launchdPath = tmpDir.appending(path: "launchd.plist")
         let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
         try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
 
-        let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
-        let vphonedLaunchdPlist = vphonedSrc.appending(path: "vphoned.plist")
+        let vphonedLaunchdPlist = resources.base.appendingPathComponent("guest/vphoned.plist")
         try FileManager.default.copyItem(
             at: vphonedLaunchdPlist,
             to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"),
@@ -65,25 +62,16 @@ extension CryptexFilesystemPatcher {
 
     func addVphoned(targetMount: String) throws {
         let target = URL(filePath: targetMount)
-        let scriptDir = resources.scriptsDir
-        let vphonedSrc = scriptDir.appendingPathComponent("vphoned")
-        // vphonedSrc (bundled source) is read-only inside a packaged .app, so the
-        // compiled binary must land in a writable temp dir, not next to the source.
+        // The signed payload in the bundle is read-only, so stage it in a
+        // writable temp directory before copying it into the mounted guest.
         let buildDir = try createTmpDir()
         let vphonedBin = buildDir.appendingPathComponent("vphoned")
 
         try stageVphoned(to: vphonedBin)
         defer { try? FileManager.default.removeItem(at: vphonedBin) }
 
-        // Sign
         let targetBin = target.appending(path: "/usr/bin/vphoned")
         try FileManager.default.copyItem(at: vphonedBin, to: targetBin)
-        try VPhoneSigner.sign(
-            fileAt: targetBin,
-            options: guestSigningOptions(
-                entitlements: vphonedSrc.appendingPathComponent("VPhoneDaemon.entitlements"),
-            ),
-        )
         try setMode(0o755, at: targetBin)
     }
 
@@ -95,7 +83,7 @@ extension CryptexFilesystemPatcher {
     /// that VM. vphoned is cross-compiled at build time now
     /// by the Xcode guest target and staged into the bundle.
     func stageVphoned(to vphonedBin: URL) throws {
-        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned")
+        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned.signed")
         try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)
     }
 
