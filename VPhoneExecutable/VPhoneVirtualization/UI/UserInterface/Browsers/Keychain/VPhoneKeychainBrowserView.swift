@@ -46,7 +46,7 @@ struct VPhoneKeychainBrowserView: View {
 
     var tableView: some View {
         Table(of: VPhoneKeychainItem.self, selection: $model.selection, sortOrder: $model.sortOrder) {
-            TableColumn("", value: \.itemClass) { item in
+            TableColumn(Text(verbatim: ""), value: \.itemClass) { item in
                 Image(systemName: item.classIcon)
                     .foregroundStyle(.secondary)
                     .frame(width: 20)

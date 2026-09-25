@@ -107,7 +107,7 @@ extension View {
         background {
             ForEach(shortcuts.indices, id: \.self) { index in
                 let shortcut = shortcuts[index]
-                Button("", action: shortcut.action)
+                Button(action: shortcut.action) { EmptyView() }
                     .keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
                     .disabled(!shortcut.isEnabled)
                     .opacity(0)

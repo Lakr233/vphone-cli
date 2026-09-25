@@ -62,7 +62,7 @@ struct VPhoneFileBrowserView: View {
 
     var tableView: some View {
         Table(of: VPhoneRemoteFile.self, selection: $model.selection, sortOrder: $model.sortOrder) {
-            TableColumn("", value: \.name) { file in
+            TableColumn(Text(verbatim: ""), value: \.name) { file in
                 Image(systemName: file.icon)
                     .foregroundStyle(file.isDirectoryLike ? .blue : .secondary)
                     .frame(width: 20)
