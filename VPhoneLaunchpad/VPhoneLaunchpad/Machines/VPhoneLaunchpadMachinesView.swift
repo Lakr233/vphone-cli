@@ -251,7 +251,7 @@ struct VPhoneLaunchpadMachinesView: View {
         case let .export(name):
             VPhoneLaunchpadExportView(name: name)
         case let .console(name):
-            VPhoneLaunchpadConsoleView(name: name)
+            VPhoneLaunchpadConsoleView(title: "\(name) Console", url: VPhoneLaunchpadMachineLibrary.consoleLog(name))
         }
     }
 

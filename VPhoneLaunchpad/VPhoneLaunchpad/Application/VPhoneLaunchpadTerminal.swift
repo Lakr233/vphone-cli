@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - Theme
 
 /// The one terminal look for every console and log. The light palette is the
-/// project's; the dark side keeps the same ANSI colours on a dark ground.
+/// project's; the dark side keeps the same ANSI colours.
 /// `TerminalSurfaceView` picks the side from the SwiftUI colour scheme.
 enum VPhoneLaunchpadTerminalTheme {
     static let configuration = TerminalConfiguration {
@@ -14,6 +14,8 @@ enum VPhoneLaunchpadTerminalTheme {
         $0.withFontSize(10)
         $0.withFontThicken(true)
         $0.withCustom("window-padding-color", "extend")
+        // The default background is clear: the sheet or window shows through.
+        $0.withBackgroundOpacity(0)
     }
 
     static let theme = TerminalTheme(

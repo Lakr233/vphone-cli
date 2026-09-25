@@ -35,6 +35,40 @@
         }
       }
     },
+    "%@ Creation Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Creation Log"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の作成ログ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 생성 로그"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhật ký tạo %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 创建日志"
+          }
+        }
+      }
+    },
     "%@ could not be started." : {
       "localizations" : {
         "en" : {
@@ -2915,36 +2949,36 @@
         }
       }
     },
-    "Download firmware" : {
+    "Download and prepare firmware" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Download firmware"
+            "value" : "Download and prepare firmware"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファームウェアをダウンロード"
+            "value" : "ファームウェアをダウンロードして準備"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "펌웨어 다운로드"
+            "value" : "펌웨어 다운로드 및 준비"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tải xuống firmware"
+            "value" : "Tải xuống và chuẩn bị firmware"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下载固件"
+            "value" : "下载并准备固件"
           }
         }
       }
@@ -4649,40 +4683,6 @@
         }
       }
     },
-    "Log" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Log"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ログ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "로그"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhật ký"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日志"
-          }
-        }
-      }
-    },
     "Machines" : {
       "localizations" : {
         "en" : {
@@ -5733,6 +5733,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开控制台"
+          }
+        }
+      }
+    },
+    "Open Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Log"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그 열기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở nhật ký"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开日志"
           }
         }
       }

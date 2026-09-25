@@ -49,7 +49,7 @@ final class VPhoneLaunchpadCreationPipeline {
         var title: String {
             switch self {
             case .create: String(localized: "Create machine")
-            case .prepare: String(localized: "Download firmware")
+            case .prepare: String(localized: "Download and prepare firmware")
             case .patch: String(localized: "Patch boot chain")
             case .bootDFU: String(localized: "Boot into DFU")
             case .waitDFU: String(localized: "Wait for DFU")
@@ -431,7 +431,19 @@ final class VPhoneLaunchpadCreationPipeline {
 
 #if DEBUG
     extension VPhoneLaunchpadCreationPipeline {
-        func applyPreview() {
+        /// Running the restore, or failed while preparing firmware.
+        func applyPreview(failed: Bool = false) {
+            statuses = [:]
+            durations = [:]
+            if failed {
+                statuses[.create] = .passed
+                durations[.create] = 0
+                statuses[.prepare] = .failed
+                durations[.prepare] = 6
+                current = nil
+                isRunning = false
+                return
+            }
             let finished: [Step: TimeInterval] = [.create: 1, .prepare: 862, .patch: 48, .bootDFU: 6, .waitDFU: 3]
             for (step, duration) in finished {
                 statuses[step] = .passed

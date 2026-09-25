@@ -83,6 +83,12 @@
 
                 await sheet(.newMachine, "07-new-machine", suffix)
                 await sheet(.creation("ios27-rc"), "08-creation-progress", suffix)
+                creation.applyPreview(failed: true)
+                await sheet(.creation("ios27-rc"), "08b-creation-failed", suffix)
+                creation.applyPreview()
+                await standalone("08c-creation-log", suffix, size: NSSize(width: 900, height: 560)) {
+                    VPhoneLaunchpadConsoleView(title: "ios27-rc Creation Log", url: creation.logFile)
+                }
                 model.machines.selection = "frida-lab"
                 if let machine = model.machines.selected {
                     await sheet(.settings(machine), "09-machine-settings", suffix)

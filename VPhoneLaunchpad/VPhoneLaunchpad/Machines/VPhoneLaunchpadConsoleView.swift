@@ -1,15 +1,16 @@
 import SwiftUI
 
-/// A machine's console: the log `vm launch` writes, in a terminal that fills
-/// the sheet.
+/// A log in a terminal that fills the sheet: a machine's console, which
+/// `vm launch` writes, or a creation log.
 struct VPhoneLaunchpadConsoleView: View {
-    let name: String
+    let title: LocalizedStringKey
+    let url: URL
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VPhoneLaunchpadLogTerminal(url: VPhoneLaunchpadMachineLibrary.consoleLog(name))
+        VPhoneLaunchpadLogTerminal(url: url)
             .frame(minWidth: 900, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
-            .navigationTitle("\(name) Console")
+            .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Close") { dismiss() }

@@ -215,10 +215,12 @@ struct VPhoneLaunchpadNewMachineView: View {
 
 // MARK: - Pipeline
 
-/// The pipeline, which keeps running when this sheet closes.
+/// The pipeline, which keeps running when this sheet closes. A failure shows
+/// on its step; the log, which records why, opens in its own sheet.
 struct VPhoneLaunchpadCreationView: View {
     let creation: VPhoneLaunchpadCreationPipeline
     @Environment(\.dismiss) private var dismiss
+    @State private var showsLog = false
 
     var body: some View {
         Form {
@@ -227,28 +229,24 @@ struct VPhoneLaunchpadCreationView: View {
                     stepRow(step)
                 }
             } footer: {
-                if let failure = creation.failure {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(failure.message).foregroundStyle(.red)
-                        if let detail = failure.detail {
-                            Text(detail)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                                .lineLimit(8)
-                        }
-                    }
-                } else if creation.isRunning {
+                if creation.isRunning {
                     Text("Creation continues if you close this window.").foregroundStyle(.secondary)
                 }
             }
-            Section("Log") {
-                VPhoneLaunchpadLogTerminal(url: creation.logFile)
-                    .frame(minHeight: 200)
+            Section {
+                Button {
+                    showsLog = true
+                } label: {
+                    Label("Open Log", systemImage: "arrow.up.right")
+                }
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Creating \(creation.options.name)")
         .frame(width: 720, height: 640)
+        .sheet(isPresented: $showsLog) {
+            VPhoneLaunchpadConsoleView(title: "\(creation.options.name) Creation Log", url: creation.logFile)
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close") { dismiss() }
