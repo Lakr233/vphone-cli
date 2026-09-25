@@ -26,6 +26,16 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- vphone-vm reads the host location for the guest. A VM started from
+	     Launchpad can have Launchpad as its responsible process, so TCC shows
+	     these descriptions from this bundle. Same text as VPhone.bundle,
+	     localized by VPhoneLaunchpad/InfoPlist.xcstrings. -->
+	<key>NSLocationUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
 	<key>SMPrivilegedExecutables</key>
 	<dict>
 		<key>com.vphone.launchpad.helper</key>
