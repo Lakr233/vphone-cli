@@ -20,7 +20,7 @@ public final class KernelExperimentalPatcher: KernelJailbreakPatcherBase, Patche
     public let component = "kernelcache_exp"
 
     public func findAll() throws -> [PatchRecord] {
-        try parseMachO()
+        parseMachO()
         buildADRPIndex()
         buildBLIndex()
         buildSymbolTable()

@@ -34,9 +34,15 @@ do {
                     return channel.eventLoop.makeSucceededFuture(allowed ? HTTPHeaders() : nil)
                 },
                 upgradePipelineHandler: { channel, request in
-                    channel.pipeline.removeHandler(http).flatMap {
+                    // Add the post-upgrade handlers synchronously on the channel's
+                    // event loop (removeHandler's future completes there). Building
+                    // them through syncOperations keeps them off any concurrency
+                    // boundary, so NIOWebSocketFrameAggregator's unavailable Sendable
+                    // conformance is never required. The pipeline is unchanged.
+                    channel.pipeline.removeHandler(http).flatMapThrowing {
+                        let sync = channel.pipeline.syncOperations
                         if let port = GuestPortForwardHandler.port(from: request.uri) {
-                            return channel.pipeline.addHandlers([
+                            try sync.addHandlers([
                                 NIOWebSocketFrameAggregator(
                                     minNonFinalFragmentSize: 1,
                                     maxAccumulatedFrameCount: 32,
@@ -44,15 +50,16 @@ do {
                                 ),
                                 GuestPortForwardHandler(port: port),
                             ])
+                        } else {
+                            try sync.addHandlers([
+                                NIOWebSocketFrameAggregator(
+                                    minNonFinalFragmentSize: 1,
+                                    maxAccumulatedFrameCount: 32,
+                                    maxAccumulatedFrameSize: 1 << 20,
+                                ),
+                                GuestWebSocketHandler(hub: hub),
+                            ])
                         }
-                        return channel.pipeline.addHandlers([
-                            NIOWebSocketFrameAggregator(
-                                minNonFinalFragmentSize: 1,
-                                maxAccumulatedFrameCount: 32,
-                                maxAccumulatedFrameSize: 1 << 20,
-                            ),
-                            GuestWebSocketHandler(hub: hub),
-                        ])
                     }
                 },
             )

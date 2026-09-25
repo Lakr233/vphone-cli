@@ -23,6 +23,30 @@ SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc Shared/*.h)
 GPU_PLUGIN := $(STAGE)/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib
 GPU_PLUGIN_SOURCES := $(wildcard GraphicLoader/*.mm)
 GPU_PLUGIN_INCLUDES := $(wildcard GraphicLoader/*.h GraphicLoader/*.hpp GraphicLoader/*.inc)
+# The compiler plugin resolves the guest's libLLVM.dylib and libGPUCompiler.dylib
+# entry points at runtime; neither is in the iPhoneOS SDK, so those symbols are
+# left for flat dynamic lookup. Naming them individually (`-U`) keeps the link
+# import table identical to `-undefined dynamic_lookup` — the C++/libSystem
+# symbols still bind two-level — without that flag's iOS deprecation warning.
+GPU_DYNAMIC_LOOKUP_SYMS := \
+	-Wl,-U,_LLVMDisposeMemoryBuffer \
+	-Wl,-U,_LLVMGetBufferStart \
+	-Wl,-U,_LLVMGetBufferSize \
+	-Wl,-U,_LLVMGetTarget \
+	-Wl,-U,_LLVMExtraMakeSharedModule \
+	-Wl,-U,_LLVMExtraDisposeSharedModule \
+	-Wl,-U,_LLVMGetNamedMetadataNumOperands \
+	-Wl,-U,_LLVMGetNamedMetadataOperands \
+	-Wl,-U,_LLVMGetMDNodeNumOperands \
+	-Wl,-U,_LLVMGetMDNodeOperands \
+	-Wl,-U,_LLVMGetValueName2 \
+	-Wl,-U,_MTLGPUCompilerCreate \
+	-Wl,-U,_MTLGPUCompilerDestroy \
+	-Wl,-U,_MTLDowngradeAIRModule \
+	-Wl,-U,_MTLMetalLibCreateExecutableWithTriple \
+	-Wl,-U,_MTLMetalFunctionCreate \
+	-Wl,-U,_MTLMetalLibInsertFunction \
+	-Wl,-U,_MTLWriteMetalLibToMemoryBuffer
 ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(GPU_PLUGIN)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
@@ -89,7 +113,7 @@ $(SYSTEMHOOK): $(SYSTEMHOOK_SOURCES) $(SYSTEMHOOK_INCLUDES) SystemHook Shared | 
 
 $(GPU_PLUGIN): $(GPU_PLUGIN_SOURCES) $(GPU_PLUGIN_INCLUDES) GraphicLoader | $(STAGE)/gpu
 	xcrun --sdk iphoneos clang++ -arch arm64e -miphoneos-version-min=26.1 \
-		-std=c++17 -O2 -dynamiclib -Wl,-undefined,dynamic_lookup \
+		-std=c++17 -O2 -dynamiclib $(GPU_DYNAMIC_LOOKUP_SYMS) \
 		-Wl,-not_for_dyld_shared_cache \
 		-install_name /System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle/libAppleParavirtCompilerPluginIOGPUFamily.dylib \
 		-o $@ $(GPU_PLUGIN_SOURCES)

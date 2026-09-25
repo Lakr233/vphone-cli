@@ -438,7 +438,7 @@ struct VPhoneCustomFirmwareInstaller {
         let mount = work.appendingPathComponent("preboot")
         try fm.createDirectory(at: mount, withIntermediateDirectories: false)
         try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(device)", mount.path])
-        defer { try? tool("/sbin/umount", [mount.path], quiet: true) }
+        defer { _ = try? tool("/sbin/umount", [mount.path], quiet: true) }
         let roots = try fm.contentsOfDirectory(at: mount, includingPropertiesForKeys: [.isDirectoryKey])
         let candidates = roots.map {
             $0.appendingPathComponent("usr/standalone/firmware/devicetree.img4")

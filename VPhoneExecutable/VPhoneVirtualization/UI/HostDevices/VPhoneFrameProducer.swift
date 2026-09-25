@@ -140,6 +140,8 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
     private let height: Int
     private let bytesPerRow: Int
     private var asset: AVURLAsset
+    private let videoTrack: AVAssetTrack
+    private let composition: AVMutableVideoComposition
     private var reader: AVAssetReader?
     private var readerOutput: AVAssetReaderVideoCompositionOutput?
 
@@ -149,24 +151,82 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         self.height = height
         bytesPerRow = ((width * 4) + 15) & ~15
         asset = AVURLAsset(url: url)
+        // The track and its geometry are invariant for the asset, so they
+        // are loaded once and the composition is reused on every loop.
+        let loaded = try Self.loadVideoTrack(from: asset, url: url)
+        videoTrack = loaded.track
+        composition = Self.letterboxComposition(loaded, width: width, height: height)
         try restartReader()
     }
 
+    private struct LoadedTrack {
+        let track: AVAssetTrack
+        let naturalSize: CGSize
+        let preferredTransform: CGAffineTransform
+        let duration: CMTime
+    }
+
+    /// Bridges the async AVFoundation loaders into this synchronous,
+    /// throwing initializer. AVFoundation runs the load on its own queue, so
+    /// the caller's thread just parks on the semaphore until it resolves.
+    private static func loadVideoTrack(from asset: AVURLAsset, url: URL) throws -> LoadedTrack {
+        let box = LoadedTrackBox()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            do {
+                if let track = try await asset.loadTracks(withMediaType: .video).first {
+                    let (size, transform) = try await track.load(.naturalSize, .preferredTransform)
+                    let duration = try await asset.load(.duration)
+                    box.result = .success(LoadedTrack(
+                        track: track,
+                        naturalSize: size,
+                        preferredTransform: transform,
+                        duration: duration,
+                    ))
+                } else {
+                    box.result = .success(nil)
+                }
+            } catch {
+                box.result = .failure(error)
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        switch box.result {
+        case let .success(loaded?):
+            return loaded
+        case .success(nil), .none:
+            throw NSError(
+                domain: "VPhoneVideoFileProducer",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "\(url.lastPathComponent): no video track"],
+            )
+        case let .failure(error):
+            throw error
+        }
+    }
+
+    /// Carries the async load result across the semaphore hand-off.
+    private final class LoadedTrackBox: @unchecked Sendable {
+        var result: Result<LoadedTrack?, Error>?
+    }
+
     /// Aspect-fit letterbox composition at the camera size.
-    private func letterboxComposition(for track: AVAssetTrack) -> AVMutableVideoComposition {
+    private static func letterboxComposition(_ loaded: LoadedTrack, width: Int, height: Int) -> AVMutableVideoComposition {
         let composition = AVMutableVideoComposition()
         composition.renderSize = CGSize(width: width, height: height)
         composition.frameDuration = CMTime(value: 1, timescale: 30)
-        let bounds = CGRect(origin: .zero, size: track.naturalSize)
-            .applying(track.preferredTransform)
+        let bounds = CGRect(origin: .zero, size: loaded.naturalSize)
+            .applying(loaded.preferredTransform)
         let boundsWidth = abs(bounds.width)
         let boundsHeight = abs(bounds.height)
         let scale = min(CGFloat(width) / boundsWidth, CGFloat(height) / boundsHeight)
         let tx = (CGFloat(width) - boundsWidth * scale) / 2 - bounds.minX * scale
         let ty = (CGFloat(height) - boundsHeight * scale) / 2 - bounds.minY * scale
-        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: loaded.track)
         layer.setTransform(
-            track.preferredTransform
+            loaded.preferredTransform
                 .concatenating(CGAffineTransform(scaleX: scale, y: scale))
                 .concatenating(CGAffineTransform(translationX: tx, y: ty)),
             at: .zero,
@@ -175,21 +235,14 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
         // Assigning it to `instructions` directly raises an unrecognized
         // selector (`timeRange`) when the reader validates the composition.
         let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+        instruction.timeRange = CMTimeRange(start: .zero, duration: loaded.duration)
         instruction.layerInstructions = [layer]
         composition.instructions = [instruction]
         return composition
     }
 
     private func restartReader() throws {
-        guard let track = asset.tracks(withMediaType: .video).first else {
-            throw NSError(
-                domain: "VPhoneVideoFileProducer",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey:
-                    "\(url.lastPathComponent): no video track"],
-            )
-        }
+        let track = videoTrack
         let r = try AVAssetReader(asset: asset)
         let output = AVAssetReaderVideoCompositionOutput(
             videoTracks: [track],
@@ -198,7 +251,7 @@ final class VPhoneVideoFileProducer: VPhoneFrameProducer, @unchecked Sendable {
                     Int(kCVPixelFormatType_32BGRA),
             ],
         )
-        output.videoComposition = letterboxComposition(for: track)
+        output.videoComposition = composition
         output.alwaysCopiesSampleData = false
         r.add(output)
         guard r.startReading() else {

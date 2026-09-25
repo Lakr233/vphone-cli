@@ -28,7 +28,7 @@ public final class KernelJailbreakPatcher: KernelJailbreakPatcherBase, Patcher {
     public var applyFrida = false
 
     public func findAll() throws -> [PatchRecord] {
-        try parseMachO()
+        parseMachO()
         buildADRPIndex()
         buildBLIndex()
         buildSymbolTable()

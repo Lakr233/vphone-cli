@@ -518,7 +518,13 @@ static BOOL vcc_slot_value_is_cfarray(uintptr_t slot_addr) {
   for (unsigned i = 0; array_classes[i]; i++) {
     Class c = objc_getClass(array_classes[i]);
     if (!c) continue;
-    uintptr_t c_class = ((uintptr_t)c) & VCC_ISA_CLASS_MASK;
+    // Compare against the class object's raw address. Copy its bits into an
+    // integer first so the mask runs on a plain uintptr_t: bit-twiddling an
+    // Objective-C pointer directly is deprecated
+    // (-Wdeprecated-objc-pointer-introspection).
+    uintptr_t c_addr;
+    memcpy(&c_addr, &c, sizeof(c_addr));
+    uintptr_t c_class = c_addr & VCC_ISA_CLASS_MASK;
     if (isa_class == c_class) return YES;
   }
   return NO;

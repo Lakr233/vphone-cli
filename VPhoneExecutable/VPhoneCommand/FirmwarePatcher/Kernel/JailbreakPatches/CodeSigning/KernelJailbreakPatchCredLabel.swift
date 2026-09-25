@@ -72,6 +72,7 @@ extension KernelJailbreakPatcher {
             log("  [-] csflags stack reload (ldr x26, [x29, #imm]) not found")
             return
         }
+        log("  [+] csflags reload: ldr \(csflagsDesc)")
 
         // 6. Allocate code caves.
         var denyCaveOff: Int? = nil
