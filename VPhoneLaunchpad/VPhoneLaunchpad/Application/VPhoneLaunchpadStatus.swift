@@ -40,30 +40,3 @@ struct VPhoneLaunchpadStatusIcon: View {
     }
 }
 
-// MARK: - Log
-
-/// Command output. The one place the app uses a monospaced face. It sits
-/// directly in its form row: no inset, background or border of its own.
-struct VPhoneLaunchpadLogView: View {
-    let lines: [String]
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView([.vertical, .horizontal]) {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        Text(line)
-                            .id(index)
-                    }
-                }
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .scrollContentBackground(.hidden)
-            .onChange(of: lines.count) { _, count in
-                proxy.scrollTo(count - 1, anchor: .bottom)
-            }
-        }
-    }
-}

@@ -29,6 +29,7 @@ struct VPhoneLaunchpadMachineStateLabel: View {
 struct VPhoneLaunchpadMachineInspector: View {
     let machine: VPhoneLaunchpadMachine
     let onShowProgress: (String) -> Void
+    let onOpenConsole: (String) -> Void
     @Environment(VPhoneLaunchpadModel.self) private var model
 
     private var library: VPhoneLaunchpadMachineLibrary {
@@ -82,8 +83,11 @@ struct VPhoneLaunchpadMachineInspector: View {
             }
 
             Section("Console") {
-                VPhoneLaunchpadLogView(lines: library.consoles[machine.name] ?? [])
-                    .frame(minHeight: 160)
+                Button {
+                    onOpenConsole(machine.name)
+                } label: {
+                    Label("Open Console", systemImage: "arrow.up.right")
+                }
             }
 
             Section("Recent Commands") {
@@ -91,8 +95,6 @@ struct VPhoneLaunchpadMachineInspector: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { library.loadConsoleIfNeeded(machine.name) }
-        .onChange(of: machine.name) { _, name in library.loadConsoleIfNeeded(name) }
     }
 
     private func value(_ title: LocalizedStringKey, _ value: String) -> some View {

@@ -242,7 +242,7 @@ struct VPhoneLaunchpadCreationView: View {
                 }
             }
             Section("Log") {
-                VPhoneLaunchpadLogView(lines: creation.log)
+                VPhoneLaunchpadLogTerminal(url: creation.logFile)
                     .frame(minHeight: 200)
             }
         }

@@ -93,18 +93,17 @@ struct VPhoneLaunchpadCommandLine {
     }
 
     /// Runs to completion. Cancelling the calling task sends SIGINT.
+    /// `onLine` runs on the reader thread, never on the main actor.
     func run(
         _ arguments: [String],
         recordInHistory: Bool = true,
-        onLine: (@MainActor @Sendable (String) -> Void)? = nil,
+        onLine: (@Sendable (String) -> Void)? = nil,
     ) async throws -> VPhoneLaunchpadCommandResult {
         let entry = recordInHistory ? history.record(Self.display(arguments)) : nil
         let collector = VPhoneLaunchpadLineCollector()
         let child = try VPhoneLaunchpadChildProcess(executable: executable, arguments: arguments) { line in
             collector.append(line)
-            if let onLine {
-                DispatchQueue.main.async { MainActor.assumeIsolated { onLine(line) } }
-            }
+            onLine?(line)
         }
         let status = await withTaskCancellationHandler {
             await child.wait()
@@ -121,7 +120,7 @@ struct VPhoneLaunchpadCommandLine {
     @discardableResult
     func runChecked(
         _ arguments: [String],
-        onLine: (@MainActor @Sendable (String) -> Void)? = nil,
+        onLine: (@Sendable (String) -> Void)? = nil,
     ) async throws -> VPhoneLaunchpadCommandResult {
         let result = try await run(arguments, onLine: onLine)
         try Task.checkCancellation()
@@ -135,20 +134,21 @@ struct VPhoneLaunchpadCommandLine {
     }
 
     /// Starts a long-running command such as `vm launch` and returns at once.
-    /// Its output goes to `logFile`, so it outlives Launchpad.
+    /// Its output goes to `logFile`, so it outlives Launchpad. `onLine` runs on
+    /// the reader thread: a guest console can print faster than the main
+    /// thread should wake for.
     func start(
         _ arguments: [String],
         logFile: URL,
-        onLine: @escaping @MainActor @Sendable (String) -> Void,
+        onLine: @escaping @Sendable (String) -> Void,
     ) throws -> VPhoneLaunchpadChildProcess {
         let entry = history.record(Self.display(arguments))
         let child = try VPhoneLaunchpadChildProcess(
             executable: executable,
             arguments: arguments,
             logFile: logFile,
-        ) { line in
-            DispatchQueue.main.async { MainActor.assumeIsolated { onLine(line) } }
-        }
+            onLine: onLine,
+        )
         let history = history
         Task {
             let status = await child.wait()

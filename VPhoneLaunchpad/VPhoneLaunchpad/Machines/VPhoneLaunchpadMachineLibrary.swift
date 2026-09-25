@@ -14,7 +14,9 @@ final class VPhoneLaunchpadMachineLibrary {
     private(set) var machines: [VPhoneLaunchpadMachine] = []
     private(set) var listError: String?
     private(set) var startedAt: [String: Date] = [:]
-    private(set) var consoles: [String: [String]] = [:]
+    /// Machines whose console printed a panic since Launchpad last started
+    /// them. The console text itself stays in the log file.
+    private(set) var panicked: Set<String> = []
     private(set) var creations: [String: VPhoneLaunchpadCreationPipeline] = [:]
     private(set) var globalActivity: String?
     var selection: String?
@@ -145,31 +147,15 @@ final class VPhoneLaunchpadMachineLibrary {
             .appendingPathComponent("\(name)\(suffix).log")
     }
 
-    func appendConsole(_ name: String, _ line: String) {
-        var lines = consoles[name] ?? []
-        lines.append(line)
-        if lines.count > 500 {
-            lines.removeFirst(lines.count - 500)
-        }
-        consoles[name] = lines
-    }
-
-    /// Shows the tail of a previous session's console log for a machine that
-    /// Launchpad did not start in this session.
-    func loadConsoleIfNeeded(_ name: String) {
-        guard consoles[name] == nil,
-              let handle = try? FileHandle(forReadingFrom: Self.consoleLog(name))
-        else {
+    /// Adds a line of Launchpad's own to the console log, after the process
+    /// that wrote it has exited.
+    private func appendConsoleLog(_ name: String, _ line: String) {
+        guard let handle = try? FileHandle(forWritingTo: Self.consoleLog(name)) else {
             return
         }
         defer { try? handle.close() }
-        let size = (try? handle.seekToEnd()) ?? 0
-        try? handle.seek(toOffset: size > 65536 ? size - 65536 : 0)
-        var lines: [String] = []
-        var splitter = VPhoneLaunchpadLineSplitter()
-        splitter.feed((try? handle.readToEnd()) ?? Data()) { lines.append($0) }
-        splitter.flush { lines.append($0) }
-        consoles[name] = Array(lines.suffix(200))
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data("\n\(line)\n".utf8))
     }
 
     // MARK: - Start and stop
@@ -182,10 +168,12 @@ final class VPhoneLaunchpadMachineLibrary {
         if headless {
             arguments.append("--headless")
         }
-        consoles[name] = []
+        panicked.remove(name)
         do {
             let child = try commandLine.start(arguments, logFile: Self.consoleLog(name)) { [weak self] line in
-                self?.appendConsole(name, line)
+                if VPhoneLaunchpadCreationPipeline.isPanic(line) {
+                    Task { @MainActor in self?.panicked.insert(name) }
+                }
             }
             launched[name] = child
             startedAt[name] = Date()
@@ -194,8 +182,8 @@ final class VPhoneLaunchpadMachineLibrary {
                 if launched[name] === child {
                     launched[name] = nil
                     startedAt[name] = nil
+                    appendConsoleLog(name, "vm launch exited with status \(status)")
                 }
-                appendConsole(name, "vm launch exited with status \(status)")
                 await refresh()
             }
         } catch {
@@ -315,7 +303,6 @@ final class VPhoneLaunchpadMachineLibrary {
             machines = VPhoneLaunchpadPreview.machines
             externallyRunning = ["research-01"]
             startedAt = ["research-01": Date().addingTimeInterval(-6130)]
-            consoles = ["research-01": VPhoneLaunchpadPreview.console]
             creations = ["ios27-rc": creation]
             selection = "research-01"
         }

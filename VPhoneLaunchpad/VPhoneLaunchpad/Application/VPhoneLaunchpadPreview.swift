@@ -73,7 +73,7 @@
                 await shot("05-machines", suffix)
                 if let machine = model.machines.selected {
                     await standalone("05b-machine-inspector", suffix, size: NSSize(width: 380, height: 980)) {
-                        VPhoneLaunchpadMachineInspector(machine: machine) { _ in }
+                        VPhoneLaunchpadMachineInspector(machine: machine, onShowProgress: { _ in }, onOpenConsole: { _ in })
                             .environment(model)
                     }
                 }
@@ -89,6 +89,7 @@
                 }
                 await sheet(.clone("frida-lab"), "10-clone", suffix)
                 await sheet(.export("frida-lab"), "11-export", suffix)
+                await sheet(.console("research-01"), "12-console", suffix)
             }
             NSApp.terminate(nil)
         }
@@ -212,6 +213,11 @@
             forceDyldSharedCacheMaxSlide: false,
             keepArtifacts: false,
         )
+
+        /// What a log terminal shows in snapshot mode instead of the file.
+        static func log(for url: URL) -> [String] {
+            url.lastPathComponent.hasSuffix("-create.log") ? creationLog : console
+        }
 
         static let console = [
             "[vphone] Loaded VM manifest from ~/.vphone/machines/research-01/config.plist",
