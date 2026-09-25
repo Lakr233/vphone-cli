@@ -51,6 +51,7 @@ private let locationReplayPoints: [VPhoneLocationProvider.ReplayPoint] = [
 extension VPhoneMenuController {
     func buildLocationSubmenu() -> NSMenuItem {
         let item = NSMenuItem(title: "Location", action: nil, keyEquivalent: "")
+        item.image = menuSymbol("location")
         let menu = NSMenu(title: "Location")
 
         let toggle = makeItem("Sync Host Location", action: #selector(toggleLocationSync))
@@ -62,6 +63,7 @@ extension VPhoneMenuController {
         menu.addItem(NSMenuItem.separator())
 
         let presets = NSMenuItem(title: "Preset Location", action: nil, keyEquivalent: "")
+        presets.image = menuSymbol("mappin.and.ellipse")
         let presetsMenu = NSMenu(title: "Preset Location")
         for (index, preset) in locationPresets.enumerated() {
             let presetItem = makeItem(preset.title, action: #selector(setLocationPreset(_:)))
@@ -75,12 +77,12 @@ extension VPhoneMenuController {
 
         menu.addItem(NSMenuItem.separator())
 
-        let replayStart = makeItem("Start Route Replay", action: #selector(startLocationReplay(_:)))
+        let replayStart = makeItem("Start Route Replay", action: #selector(startLocationReplay(_:)), symbol: "play")
         replayStart.isEnabled = false
         locationReplayStartItem = replayStart
         menu.addItem(replayStart)
 
-        let replayStop = makeItem("Stop Route Replay", action: #selector(stopLocationReplay(_:)))
+        let replayStop = makeItem("Stop Route Replay", action: #selector(stopLocationReplay(_:)), symbol: "stop")
         replayStop.isEnabled = false
         locationReplayStopItem = replayStop
         menu.addItem(replayStop)

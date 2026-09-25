@@ -10,27 +10,31 @@ extension VPhoneMenuController {
         let menu = NSMenu(title: "Diagnostics")
         menu.autoenablesItems = false
 
-        menu.addItem(makePanelItem(.deviceInfo, "Device Info", keyEquivalent: "i"))
-        menu.addItem(makePanelItem(.processes, "Processes", keyEquivalent: "p"))
-        menu.addItem(makePanelItem(.services, "Services", keyEquivalent: "s"))
+        menu.addItem(makePanelItem(.deviceInfo, "Device Info", keyEquivalent: "i", symbol: "info.circle"))
+        menu.addItem(makePanelItem(.processes, "Processes", keyEquivalent: "p", symbol: "cpu"))
+        menu.addItem(makePanelItem(.services, "Services", keyEquivalent: "s", symbol: "gearshape.2"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makePanelItem(.console, "Console", keyEquivalent: "l"))
-        menu.addItem(makePanelItem(.crashLogs, "Crash Logs", keyEquivalent: "c"))
+        menu.addItem(makePanelItem(.console, "Console", keyEquivalent: "l", symbol: "terminal"))
+        menu.addItem(makePanelItem(.crashLogs, "Crash Logs", keyEquivalent: "c", symbol: "exclamationmark.triangle"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makePanelItem(.uiInspector, "UI Inspector", keyEquivalent: "u"))
+        menu.addItem(makePanelItem(.uiInspector, "UI Inspector", keyEquivalent: "u", symbol: "rectangle.dashed"))
         menu.addItem(NSMenuItem.separator())
 
-        let devModeStatus = makeItem("Developer Mode Status", action: #selector(devModeStatus))
+        let devModeStatus = makeItem(
+            "Developer Mode Status",
+            action: #selector(devModeStatus),
+            symbol: "hammer",
+        )
         devModeStatus.isEnabled = false
         connectDevModeStatusItem = devModeStatus
         menu.addItem(devModeStatus)
 
-        let ping = makeItem("Ping", action: #selector(sendPing))
+        let ping = makeItem("Ping", action: #selector(sendPing), symbol: "dot.radiowaves.left.and.right")
         ping.isEnabled = false
         connectPingItem = ping
         menu.addItem(ping)
 
-        let guestHash = makeItem("Guest Agent Hash", action: #selector(queryGuestHash))
+        let guestHash = makeItem("Guest Agent Hash", action: #selector(queryGuestHash), symbol: "number")
         guestHash.isEnabled = false
         connectGuestHashItem = guestHash
         menu.addItem(guestHash)
@@ -40,12 +44,18 @@ extension VPhoneMenuController {
     }
 
     /// A menu item that opens one guest panel with ⌥⌘ plus the given key.
-    func makePanelItem(_ panel: VPhoneGuestPanel, _ title: String, keyEquivalent: String) -> NSMenuItem {
+    func makePanelItem(
+        _ panel: VPhoneGuestPanel,
+        _ title: String,
+        keyEquivalent: String,
+        symbol: String,
+    ) -> NSMenuItem {
         let item = makeItem(
             title,
             action: #selector(openPanel(_:)),
             keyEquivalent: keyEquivalent,
             modifiers: [.command, .option],
+            symbol: symbol,
         )
         item.representedObject = panel
         item.isEnabled = false

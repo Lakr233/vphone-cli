@@ -354,6 +354,15 @@ final class VPhoneGuestControl {
         return try await call("bootstrap.uninstall", params: ["roots": roots, "reboot": reboot, "force": true])
     }
 
+    /// Asks the guest to restart. The guest usually restarts before it can
+    /// reply, so a dropped connection is the expected result.
+    func restartGuest() async throws {
+        guard guestCapabilities.contains("system_control") else {
+            throw ControlError.unsupportedCapability("system_control")
+        }
+        _ = try await call("system.reboot", params: ["force": true])
+    }
+
     func clipboardGet() async throws -> ClipboardContent {
         let (info, image) = try await sendRequest(["t": "clipboard_get"])
         return ClipboardContent(

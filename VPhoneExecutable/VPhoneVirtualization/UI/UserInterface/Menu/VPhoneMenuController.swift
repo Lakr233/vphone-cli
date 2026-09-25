@@ -33,6 +33,7 @@ class VPhoneMenuController {
     var appsOpenURLItem: NSMenuItem?
     var settingsGetItem: NSMenuItem?
     var settingsSetItem: NSMenuItem?
+    var restartGuestItem: NSMenuItem?
     var panelMenuItems: [VPhoneGuestPanel: NSMenuItem] = [:]
     var touchIDMonitor: VPhoneTouchIDMonitor? {
         didSet { touchIDMonitor?.isEnabled = touchIDMenuItem?.state == .on }
@@ -151,11 +152,19 @@ class VPhoneMenuController {
         action: Selector,
         keyEquivalent: String = "",
         modifiers: NSEvent.ModifierFlags = .command,
+        symbol: String? = nil,
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
         item.keyEquivalentModifierMask = modifiers
         item.target = self
+        item.image = symbol.flatMap(menuSymbol)
         return item
+    }
+
+    /// An SF Symbol for a menu item. Checkable items, value lists and status
+    /// rows have none, so the icons mark actions, windows and submenus.
+    func menuSymbol(_ name: String) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil)
     }
 
     @objc private func findKeychain() {

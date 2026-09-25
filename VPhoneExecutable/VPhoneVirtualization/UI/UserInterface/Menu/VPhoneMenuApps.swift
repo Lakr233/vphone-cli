@@ -15,6 +15,7 @@ extension VPhoneMenuController {
             action: #selector(openAppBrowser),
             keyEquivalent: "a",
             modifiers: [.command, .shift],
+            symbol: "square.grid.2x2",
         )
         browse.isEnabled = false
         appsListItem = browse
@@ -22,14 +23,18 @@ extension VPhoneMenuController {
 
         menu.addItem(NSMenuItem.separator())
 
-        let openURL = makeItem("Open URL…", action: #selector(openURL))
+        let openURL = makeItem("Open URL…", action: #selector(openURL), symbol: "link")
         openURL.isEnabled = false
         appsOpenURLItem = openURL
         menu.addItem(openURL)
 
         menu.addItem(NSMenuItem.separator())
 
-        let install = makeItem("Install App Package…", action: #selector(installIPAFromDisk))
+        let install = makeItem(
+            "Install App Package…",
+            action: #selector(installIPAFromDisk),
+            symbol: "square.and.arrow.down",
+        )
         install.isEnabled = false
         installPackageItem = install
         menu.addItem(install)

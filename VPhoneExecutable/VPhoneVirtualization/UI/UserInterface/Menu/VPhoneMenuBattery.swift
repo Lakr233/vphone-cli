@@ -6,6 +6,7 @@ import IOKit.ps
 extension VPhoneMenuController {
     func buildBatterySubmenu() -> NSMenuItem {
         let item = NSMenuItem(title: "Battery", action: nil, keyEquivalent: "")
+        item.image = menuSymbol("battery.100")
         let menu = NSMenu(title: "Battery")
 
         // Sync toggle

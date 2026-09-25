@@ -11,12 +11,21 @@ extension VPhoneMenuController {
             action: #selector(toggleRecording),
             keyEquivalent: "r",
             modifiers: [.command, .shift],
+            symbol: "record.circle",
         )
         recordingItem = toggle
         menu.addItem(toggle)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(makeItem("Copy Screenshot to Mac Clipboard", action: #selector(copyScreenshotToClipboard)))
-        menu.addItem(makeItem("Save Screenshot to File", action: #selector(saveScreenshotToFile)))
+        menu.addItem(makeItem(
+            "Copy Screenshot to Mac Clipboard",
+            action: #selector(copyScreenshotToClipboard),
+            symbol: "camera.viewfinder",
+        ))
+        menu.addItem(makeItem(
+            "Save Screenshot to File",
+            action: #selector(saveScreenshotToFile),
+            symbol: "square.and.arrow.down",
+        ))
         item.submenu = menu
         return item
     }
@@ -26,6 +35,7 @@ extension VPhoneMenuController {
             Task { @MainActor in
                 let url = await screenRecorder?.stopRecording()
                 recordingItem?.title = VPhoneLocalization.text("Start Recording")
+                recordingItem?.image = menuSymbol("record.circle")
                 if let url {
                     showRecordingSavedAlert(url: url)
                 }
@@ -42,6 +52,7 @@ extension VPhoneMenuController {
             do {
                 try screenRecorder?.startRecording(view: view)
                 recordingItem?.title = VPhoneLocalization.text("Stop Recording")
+                recordingItem?.image = menuSymbol("stop.circle")
             } catch {
                 showCaptureAlert(title: "Recording", message: "Unable to start recording. Try again.", style: .warning)
             }

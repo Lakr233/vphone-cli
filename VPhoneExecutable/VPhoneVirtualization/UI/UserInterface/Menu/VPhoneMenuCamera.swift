@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 extension VPhoneMenuController {
     func buildCameraSubmenu() -> NSMenuItem {
         let item = NSMenuItem(title: "Camera", action: nil, keyEquivalent: "")
+        item.image = menuSymbol("camera")
         let menu = NSMenu(title: "Camera")
 
         let status = NSMenuItem(
@@ -43,6 +44,7 @@ extension VPhoneMenuController {
         let startStop = makeItem(
             "Start Streaming",
             action: #selector(toggleCameraStreaming),
+            symbol: "play",
         )
         startStop.isEnabled = false
         cameraStartStopItem = startStop
@@ -74,6 +76,7 @@ extension VPhoneMenuController {
         refreshCameraSourceCheckmarks()
         cameraStartStopItem?.isEnabled = false
         cameraStartStopItem?.title = VPhoneLocalization.text("Start Streaming")
+        cameraStartStopItem?.image = menuSymbol("play")
     }
 
     @objc func setCameraSourceTestPattern() {
@@ -112,9 +115,11 @@ extension VPhoneMenuController {
         if cameraStartStopItem?.title == VPhoneLocalization.text("Start Streaming") {
             server.startStreaming()
             cameraStartStopItem?.title = VPhoneLocalization.text("Stop Streaming")
+            cameraStartStopItem?.image = menuSymbol("stop")
         } else {
             server.stopStreaming()
             cameraStartStopItem?.title = VPhoneLocalization.text("Start Streaming")
+            cameraStartStopItem?.image = menuSymbol("play")
         }
     }
 }
