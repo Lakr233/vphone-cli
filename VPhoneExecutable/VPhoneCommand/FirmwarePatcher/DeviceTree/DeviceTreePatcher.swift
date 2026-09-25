@@ -16,9 +16,8 @@ public final class DeviceTreePatcher: Patcher {
     public let verbose: Bool
 
     /// Whether to apply the 8 identity-rewrite property patches (Tier 1b + 1c)
-    /// that flip device identity towards iPhone17,3 / D47AP. Enabled only for
-    /// the `.exp` variant; all other variants run the base 4 patches only so
-    /// they remain unaffected by the experimental identity rewrites.
+    /// that flip device identity towards iPhone17,3 / D47AP. Enabled for
+    /// public JB and the historical internal EXP variant.
     let includeIdentityPatches: Bool
 
     let buffer: BinaryBuffer

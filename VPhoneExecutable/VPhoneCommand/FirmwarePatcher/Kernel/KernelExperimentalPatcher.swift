@@ -1,7 +1,7 @@
 // KernelExperimentalPatcher.swift — Experimental kernel patcher orchestrator.
 //
-// Runs after KernelPatcher + KernelJailbreakPatcher for the `.exp` firmware variant
-// only. JB and other variants are NOT affected by patches owned here.
+// Runs after KernelPatcher + KernelJailbreakPatcher for public JB firmware.
+// The internal historical `.exp` variant uses the same patcher.
 //
 // Current contents:
 //   - patchHvVmmRename (Part A + Part B): rename the kern.hv_vmm_present
@@ -26,7 +26,7 @@ public final class KernelExperimentalPatcher: KernelJailbreakPatcherBase, Patche
         buildSymbolTable()
         findPanic()
 
-        // Experimental patches (EXP variant only)
+        // Former EXP patch, now part of the public JB firmware pipeline.
         patchHvVmmRename()
 
         return patches

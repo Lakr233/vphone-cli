@@ -9,7 +9,10 @@ extension Data {
         precondition(offset >= 0 && offset + MemoryLayout<T>.size <= count)
         var value: T = .zero
         _ = Swift.withUnsafeMutableBytes(of: &value) { dst in
-            copyBytes(to: dst, from: offset ..< offset + MemoryLayout<T>.size)
+            copyBytes(
+                to: dst,
+                from: startIndex + offset ..< startIndex + offset + MemoryLayout<T>.size,
+            )
         }
         return T(littleEndian: value)
     }

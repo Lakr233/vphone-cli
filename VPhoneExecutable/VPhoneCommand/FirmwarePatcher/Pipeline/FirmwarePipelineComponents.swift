@@ -147,8 +147,8 @@ extension FirmwarePipeline {
             }(),
         ))
 
-        // 6. Kernel — JB variant runs base kernel patches first, then JB extensions.
-        //    EXP variant runs base + JB + experimental extensions (hv_vmm rename).
+        // 6. Kernel — the public JB firmware includes the former EXP
+        //    hv_vmm rename after the base and jailbreak patches.
         components.append(ComponentDescriptor(
             name: "kernelcache",
             inRestoreDir: true,
@@ -176,6 +176,9 @@ extension FirmwarePipeline {
                             p.applyFrida = applyFrida
                             return p
                         },
+                        { data, verbose in
+                            KernelExperimentalPatcher(data: data, verbose: verbose)
+                        },
                     ]
                 case .exp:
                     [
@@ -196,10 +199,9 @@ extension FirmwarePipeline {
             }(),
         ))
 
-        // 7. DeviceTree — base property patches for every variant. EXP additionally
-        //    applies the 8 identity-rewrite properties (Tier 1b + 1c) that flip the
-        //    device's userland-visible identity toward D47AP / iPhone17,3.
-        let dtIncludeIdentity = variant == .exp
+        // 7. DeviceTree — JB includes the former EXP identity and camera
+        //    properties so the guest presents a consistent iPhone17,3 identity.
+        let dtIncludeIdentity = variant == .jb || variant == .exp
         components.append(ComponentDescriptor(
             name: "DeviceTree",
             inRestoreDir: true,

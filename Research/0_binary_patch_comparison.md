@@ -6,8 +6,26 @@
 > repository. The native Swift JB install retains the base system patches,
 > launchd jetsam guard, debugserver entitlement edit, iOS 27 Campo entitlement
 > edit, GPU driver, mandatory vphoned, and the small vphone launchd hook described
-> below. Old variant rows are research history,
+> below. The JB firmware pipeline now also runs the former EXP kernel OID and
+> DeviceTree identity/camera patches. The JB system installer runs the former
+> EXP DSC hypervisor and camera patches, watchdogd patch, and post-restore
+> Preboot DeviceTree rewrite. `SPOOF_BUILD` remains opt-in and updates the
+> rootfs and installed SystemOS SystemVersion.plist copies, plus the Preboot
+> Cryptex copy when present. These are install-time integrations;
+> successful patch dry-runs do not establish guest boot or Camera.app behavior.
+> Old variant rows are research history,
 > not available install modes.
+
+> **Integration check (2026-09-25):** A clean `/tmp` restore tree assembled
+> from cloudOS 26.4 (23E5207q) and iPhone17,3 iOS 27.0 (24A435) completed
+> the public `fw patch` command with 191 records: 7 former EXP kernel records
+> and 23 DeviceTree records. The unchanged BuildManifest retained its input
+> SHA-256. Against the existing iOS 27 VM's read-only system image,
+> `patch-hv-vmm-dsc --dry-run` found 29 writable cstrings and 15 blacklist
+> entries; `patch-camera-dsc --dry-run` found six methods. A copy of that
+> VM's watchdogd was patched, passed `codesign -v`, and was unchanged on a
+> second run. The Preboot DT rewrite succeeded on a copy and was likewise
+> unchanged on a second run. The original VM disk was not modified or booted.
 
 > **Current launchd hook (2026-09-25; isolated VM verification):**
 > `cfw install` now places `launchdhook-vphone.dylib` and a diagnostic

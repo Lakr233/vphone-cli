@@ -20,6 +20,13 @@ struct VPhoneCustomFirmwareInstaller {
         .default
     }
 
+    private var spoofBuild: String? {
+        guard let build = ProcessInfo.processInfo.environment["SPOOF_BUILD"], !build.isEmpty else {
+            return nil
+        }
+        return build
+    }
+
     static func elevate(
         bundle: URL,
         resources: VPhoneResources,
@@ -137,6 +144,7 @@ struct VPhoneCustomFirmwareInstaller {
         try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(container)s3", data.path])
         print("[*] JB system install: \(bundle.lastPathComponent)")
         try installMounted(system: system, data: data, work: work)
+        try patchPreboot(container: container, work: work)
         _ = try tool("/sbin/umount", [data.path])
         dataMounted = false
         _ = try tool("/sbin/umount", [system.path])
@@ -170,6 +178,18 @@ struct VPhoneCustomFirmwareInstaller {
             try patch("patch-iomfb-swapend", [dsc.path, "--target-size", "0x560"])
         } else if forceDyldSharedCacheMaxSlide {
             try patch("patch-dsc-maxslide", [dsc.path, "--force"])
+        }
+        // These former EXP patches pair with the kernel OID rename and the
+        // camera DeviceTree additions in the public JB firmware pipeline.
+        try patch("patch-hv-vmm-dsc", [dsc.path])
+        try patch("patch-camera-dsc", [dsc.path, dsc.appendingPathComponent("dyld_shared_cache_arm64e").path])
+        if let build = spoofBuild {
+            for path in [
+                "System/Library/CoreServices/SystemVersion.plist",
+                "System/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist",
+            ] {
+                try patch("patch-build-version", [system.appendingPathComponent(path).path, build])
+            }
         }
         try patchMachO(
             system: system,
@@ -232,6 +252,7 @@ struct VPhoneCustomFirmwareInstaller {
             path: "usr/libexec/mobileactivationd",
             verb: "patch-mobileactivationd",
         )
+        try patchWatchdog(system: system, work: work)
         try installVphoned(system: system, work: work)
         try installLaunchHook(system: system)
         try patchMachO(
@@ -378,6 +399,59 @@ struct VPhoneCustomFirmwareInstaller {
             }
         } else {
             try fm.createSymbolicLink(atPath: alias.path, withDestinationPath: target)
+        }
+    }
+
+    private func patchWatchdog(system: URL, work: URL) throws {
+        let target = system.appendingPathComponent("usr/libexec/watchdogd")
+        let backup = target.appendingPathExtension("bak")
+        if !fm.fileExists(atPath: backup.path) {
+            try fm.copyItem(at: target, to: backup)
+        }
+        let staged = work.appendingPathComponent("watchdogd")
+        if fm.fileExists(atPath: staged.path) {
+            try fm.removeItem(at: staged)
+        }
+        try fm.copyItem(at: backup, to: staged)
+        // The patcher re-attests watchdogd's original CodeDirectory pages.
+        // Re-signing it would change Apple's identifier and break launchd's
+        // boot-task identity check.
+        try patch("patch-watchdogd", [staged.path])
+        try replace(staged, at: target, mode: 0o755)
+    }
+
+    private func patchPreboot(container: String, work: URL) throws {
+        let output = try tool("/usr/sbin/diskutil", ["apfs", "list", "-plist", container], quiet: true)
+        guard
+            let plist = try PropertyListSerialization.propertyList(from: Data(output.utf8), format: nil)
+                as? [String: Any],
+            let containers = plist["Containers"] as? [[String: Any]],
+            let volumes = containers.first(where: { $0["ContainerReference"] as? String == container })?["Volumes"]
+                as? [[String: Any]],
+            let preboot = volumes.first(where: { ($0["Roles"] as? [String])?.contains("Preboot") == true }),
+            let device = preboot["DeviceIdentifier"] as? String
+        else {
+            throw ValidationError("Could not locate the VM's Preboot APFS volume")
+        }
+        let mount = work.appendingPathComponent("preboot")
+        try fm.createDirectory(at: mount, withIntermediateDirectories: false)
+        try tool("/sbin/mount_apfs", ["-o", "rw", "/dev/\(device)", mount.path])
+        defer { try? tool("/sbin/umount", [mount.path], quiet: true) }
+        let roots = try fm.contentsOfDirectory(at: mount, includingPropertiesForKeys: [.isDirectoryKey])
+        let candidates = roots.map {
+            $0.appendingPathComponent("usr/standalone/firmware/devicetree.img4")
+        }.filter { fm.fileExists(atPath: $0.path) }
+        guard candidates.count == 1, let deviceTree = candidates.first else {
+            throw ValidationError("Expected one restored devicetree.img4 in Preboot, found \(candidates.count)")
+        }
+        try patch("patch-post-restore-dt", [deviceTree.path])
+        if let build = spoofBuild {
+            let version = mount.appendingPathComponent(
+                "Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist",
+            )
+            if fm.fileExists(atPath: version.path) {
+                try patch("patch-build-version", [version.path, build])
+            }
         }
     }
 

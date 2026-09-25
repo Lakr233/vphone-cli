@@ -307,6 +307,13 @@ struct ARM64InstTests {
 }
 
 struct BinaryBufferTests {
+    @Test func `loads little endian values from sliced data`() {
+        let source = Data([0xFF, 0x78, 0x56, 0x34, 0x12, 0xEE])
+        let slice = source[1 ..< 5]
+        #expect(slice.startIndex == 1)
+        #expect(slice.loadLE(UInt32.self, at: 0) == 0x1234_5678)
+    }
+
     @Test func `read write U 32`() {
         let data = Data(repeating: 0, count: 16)
         let buf = BinaryBuffer(data)
@@ -515,6 +522,26 @@ struct IM4PPayloadParityTests {
 }
 
 struct FirmwarePipelineTests {
+    @Test func `public JB includes former EXP kernel and device tree patchers`() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let pipeline = FirmwarePipeline(vmDirectory: root, variant: .jb, verbose: false)
+        let components = pipeline.buildComponentList(
+            restoreDir: root,
+            iosBaseIs18: false,
+            iosBaseIs27: true,
+            cloudOSIsFridaCapable: true,
+        )
+        let kernel = try #require(components.first { $0.name == "kernelcache" })
+        #expect(kernel.patcherFactories.count == 3)
+        #expect(kernel.patcherFactories[2](Data(), false) is KernelExperimentalPatcher)
+
+        let deviceTree = try #require(components.first { $0.name == "DeviceTree" })
+        let patcher = try #require(deviceTree.patcherFactories.first?(Data(), false) as? DeviceTreePatcher)
+        #expect(patcher.includeIdentityPatches)
+        #expect(components.first { $0.name == "Filesystem" }?.patcherFactories.isEmpty == true)
+        #expect(components.first { $0.name == "Manifest" }?.patcherFactories.isEmpty == true)
+    }
+
     @Test func `find file supports glob patterns`() throws {
         let fm = FileManager.default
         let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())

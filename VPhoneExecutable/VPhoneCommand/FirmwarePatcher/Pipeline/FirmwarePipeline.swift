@@ -8,9 +8,9 @@
 //   .regular — base patchers only
 //   .dev     — TXMDevPatcher instead of TXMPatcher
 //   .jb      — TXMDevPatcher + IBootJailbreakPatcher (iBSS) + KernelJailbreakPatcher
-//   .exp     — JB + experimental: KernelExperimentalPatcher (hv_vmm rename) +
-//              DeviceTreePatcher identity properties (D47AP/iPhone17,3).
-//              Other variants are NOT affected by experimental patches.
+//              + former EXP kernel and DeviceTree patches.
+//   .exp     — historical internal variant, currently equivalent to JB for
+//              the boot-chain patcher catalogue. Only JB is public.
 //
 // The component catalogue lives in FirmwarePipelineComponents.swift and the
 // Restore-directory/firmware-file lookup in FirmwarePipelineDiscovery.swift.
@@ -150,6 +150,10 @@ public final class FirmwarePipeline {
         var allRecords: [PatchRecord] = []
 
         for component in components {
+            guard !component.patcherFactories.isEmpty else {
+                log("  [=] \(component.name): no patches for \(variant.rawValue)")
+                continue
+            }
             let baseDir = component.inRestoreDir ? restoreDir : vmDirectory
             let fileURL = try findFile(in: baseDir, patterns: component.searchPatterns, label: component.name)
 
@@ -174,7 +178,7 @@ public final class FirmwarePipeline {
         }
 
         log("\n\(String(repeating: "=", count: 60))")
-        log("  All \(components.count) components patched successfully! (\(allRecords.count) total patches)")
+        log("  All \(components.count) components processed successfully! (\(allRecords.count) total patches)")
         log(String(repeating: "=", count: 60))
 
         return allRecords
