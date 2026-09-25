@@ -19,7 +19,7 @@ file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
 
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
-for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
+for name in vphone-vm vphone-cli VPhoneEscalator vphoned.signed \
     libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib \
     launchdhook-vphone.dylib SystemHook-vphone.dylib \
     libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
@@ -34,16 +34,18 @@ for name in vphone-vm vphone-cli VPhoneEscalator vphoned vphoned.signed \
     }
 done
 
-for name in vphone-app VPhoneAMFIAllow vphone-archive icli vpregister vphone-ask-for-permission; do
+for name in vphoned vphone-app VPhoneAMFIAllow vphone-archive icli vpregister vphone-ask-for-permission; do
     [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: $name"; exit 1; }
 done
 
-for name in vphoned.plist VPhoneDaemon.entitlements; do
-    [[ -f "$resources/scripts/vphoned/$name" ]] || {
-        print -u2 "Missing guest configuration: $name"
-        exit 1
-    }
-done
+[[ -f "$resources/guest/vphoned.plist" ]] || {
+    print -u2 "Missing guest configuration: vphoned.plist"
+    exit 1
+}
+[[ ! -e "$resources/scripts" ]] || {
+    print -u2 "Obsolete scripts directory in bundle"
+    exit 1
+}
 
 /usr/bin/codesign --verify --strict "$bundle"
 /usr/bin/codesign --verify "$macos/vphone-vm"

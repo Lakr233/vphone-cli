@@ -11,9 +11,10 @@ executables and resources, not a macOS app or a dynamically loaded plug-in.
 | `Contents/MacOS/vphone-cli` | Unentitled command entry point |
 | `Contents/MacOS/vphone-vm` | VM and window process; private virtualization entitlements |
 | `Contents/MacOS/VPhoneEscalator` | AMFI allowlist tool for the current VM cdhash |
-| `Contents/MacOS/vphoned.signed` | Guest daemon payload with its own entitlements |
+| `Contents/MacOS/vphoned.signed` | Pre-signed guest daemon payload with its own entitlements; the bundle contains no unsigned copy |
 | Guest dylibs in `Contents/MacOS` | Guest installation payloads |
-| `Contents/Resources` | Guest configuration and nonexecutable resources |
+| `Contents/Resources/guest/vphoned.plist` | Guest launch daemon configuration |
+| `Contents/Resources` | Guest configuration and nonexecutable resources; no signing script or entitlement file is shipped |
 
 All executable payloads use ad hoc code signatures. Only the required child
 processes carry private entitlements. The bundle has no `CFBundleExecutable`,
