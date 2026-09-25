@@ -2,7 +2,7 @@
 
 [Research notes](../Research/README.md)
 
-Start with the [one-command VM flow](Guides/create-and-run.md). The guides below describe the current **JB-only** CLI. Older patch variants and installation experiments remain in research notes as historical context, not supported user workflows.
+Start with the [Launchpad quick start](../README.md#get-started). For terminal use, see the [one-command VM flow](Guides/create-and-run.md). Version 2.x applies the complete firmware patch set, including the former EXP changes; selectable patch variants are not available. Earlier experiments remain in the research notes as historical context.
 
 | Guide | Use it for |
 | --- | --- |

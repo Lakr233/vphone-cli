@@ -2,37 +2,26 @@
 
 # vphone-cli
 
-> [!WARNING]
-> バージョン 2.0 は開発中です。安定版が必要な場合は [1.0.14](https://github.com/Lakr233/vphone-cli/tree/1.0.14) を使用してください。
+> 旧バージョンの vphone-cli 1.x をお探しの場合は、[1.0.14 のリリース](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14)をご覧ください。
 
 Apple Silicon Mac 上で仮想 iPhone を作成・実行します。vphone-cli は Apple の Virtualization.framework と PCC 研究用 VM 基盤を使用します。
 
 ![macOS 上で動作する仮想 iPhone](demo.jpeg)
 
-バージョン 2.0 では、1.0 の負担が大きく複雑なホスト設定を大幅に減らし、カスタムファームウェアに必要なシステム修正を整理しました。基本の流れが安定してきたため、構成は **JB の 1 種類**に絞っています。自己完結した `VPhone.bundle` の CLI から、ファームウェアのダウンロード、インストール、起動まで行えます。
+バージョン 2.x では、以前 EXP として提供していた変更を含む、ファームウェアの完全なパッチセットを適用します。パッチ構成は選択できません。自己完結した `VPhone.bundle` がファームウェアの準備、復元、VM の制御を担い、`vphone-launchpad` が bundle のインストールと VM の作成・起動を案内します。
 
-現時点で推奨するホスト設定は、macOS 復旧環境で `csrutil enable --without debug` と `csrutil allow-research-guests enable` を実行する方法です。SIP は有効のまま、デバッグの制限を緩和します。AMFI に VM バイナリを許可させるには root 権限が必要です。手順は[ホストの設定](Guides/host-setup.md)、仕組みは [amfi-allow の研究資料](https://github.com/Lakr233/amfi-allow)を参照してください。今後の `vphone-ui.app` ではセットアップを簡単にし、インストール時の修正を切り替えられるようにする予定です。
+推奨するホスト設定では、macOS 復旧環境で `csrutil enable --without debug` と `csrutil allow-research-guests enable` を実行します。SIP を有効に保ちつつ、デバッグの制限を緩和します。Launchpad はホストを確認し、特権ヘルパーを使用して検証済みの VM バイナリを AMFI に許可します。詳しくは[ホストの設定](Guides/host-setup.md)をご覧ください。
 
 ## はじめに
 
-macOS 15 以降の Apple Silicon Mac、ソースからのビルドに使う Xcode、iPhone の復元 IPSW、互換性のある cloudOS IPSW が必要です。[ホストの設定](Guides/host-setup.md)で VM に必要なプライベート権限を許可し、[検証済みのファームウェアの組み合わせ](Guides/compatibility.md)を確認してください。macOS VM の中でゲストを動かすことはできません。
+macOS 15 以降を搭載した物理 Apple Silicon Mac では、公証済みの [vphone-launchpad 2.0.4](https://github.com/Lakr233/vphone-cli/releases/download/2.0.4/vphone-launchpad-2.0.4-notarized.zip) を使用してください。リリース版の実行に Xcode、Python、Homebrew は不要です。
 
-```sh
-git clone https://github.com/Lakr233/vphone-cli.git
-cd vphone-cli
-xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
-  -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeBundle build
-export PATH="$PWD/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS:$PATH"
+1. macOS 復旧環境で `csrutil enable --without debug` と `csrutil allow-research-guests enable` を実行し、再起動します。詳しくは[ホストの設定](Guides/host-setup.md)をご覧ください。
+2. アーカイブを展開してアプリを開きます。**Host Setup** の案内に従い、開発者ツールへのアクセスを許可して特権ヘルパーをインストールします。
+3. **Core Bundle** で **Download and Install** を選び、最新の `VPhone.bundle` をインストールします。Launchpad はダウンロードを検証し、VM バイナリをホストで使用できるようにします。
+4. **Machines** で **New Machine** を選び、カタログからファームウェアの組み合わせを選択して **Create** をクリックします。Launchpad が初回起動を確認した後も、VM は実行されたままです。
 
-vphone-cli host preflight
-vphone-cli vm create myphone \
-  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
-  --cloudos-source /path/to/cloudOS.ipsw
-vphone-cli vm launch myphone
-```
-
-`vm create` はゲストの準備と復元、JB システム変更の導入、`vphoned` の応答確認を行います。確認用の起動は完了後に停止します。使用するには `vm launch` で VM ウィンドウを開いてください。作成にはネットワーク接続、CFW のインストールには管理者権限が必要です。詳しくは[作成と起動のガイド](Guides/create-and-run.md)を参照してください。
+カタログの組み合わせを選ぶと、ファームウェアがダウンロードされます。ローカルの IPSW を使う場合も、VM の作成には復元チケット取得のためのネットワーク接続と十分な空き容量が必要です。互換性のある iPhone と cloudOS の IPSW を自分で指定することもできます。検証済みの組み合わせは[互換性ガイド](Guides/compatibility.md)をご覧ください。ソースからのビルドとターミナルでの操作は[ホストの設定](Guides/host-setup.md)と[作成と起動のガイド](Guides/create-and-run.md)を参照してください。
 
 2.x 版で起動できるのは `schemaVersion=2` 形式で作成された VM だけです。旧版の VM は作り直す必要があります。
 

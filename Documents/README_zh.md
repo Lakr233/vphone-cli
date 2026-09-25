@@ -2,37 +2,26 @@
 
 # vphone-cli
 
-> [!WARNING]
-> 2.0 版仍在开发中。需要稳定版本请使用 [1.0.14](https://github.com/Lakr233/vphone-cli/tree/1.0.14)。
+> 查找旧版 1.x？请前往 [1.0.14 Release](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14)。
 
 在 Apple Silicon Mac 上创建和运行虚拟 iPhone。vphone-cli 使用 Apple 的 Virtualization.framework 和 PCC 研究虚拟机基础设施。
 
 ![在 macOS 上运行的虚拟 iPhone](demo.jpeg)
 
-2.0 移除了 1.0 中不少繁重的宿主机环境配置，也精简了定制固件所需的系统修复。目前核心流程已趋于稳定，因此只保留一套 **JB** 配置：自包含的 `VPhone.bundle` 通过其中的 CLI 完成固件下载、安装和启动。
+2.x 会应用完整的固件补丁集，包含此前作为 EXP 提供的改动；目前不能选择不同的补丁方案。自包含的 `VPhone.bundle` 负责固件准备、恢复和虚拟机控制；`vphone-launchpad` 负责安装 bundle，并引导你创建和运行虚拟机。
 
-目前推荐在 macOS 恢复模式中执行 `csrutil enable --without debug` 和 `csrutil allow-research-guests enable`。这样会保留 SIP，但放宽调试限制。让 AMFI 放行虚拟机程序需要 root 权限；具体步骤见[宿主机设置](Guides/host-setup.md)，原理见 [amfi-allow 研究项目](https://github.com/Lakr233/amfi-allow)。后续的 `vphone-ui.app` 会简化设置，并提供安装阶段修复项的开关。
+推荐在 macOS 恢复模式中执行 `csrutil enable --without debug` 和 `csrutil allow-research-guests enable`。这样会保留 SIP，但放宽调试限制。Launchpad 会检查宿主机，并通过特权辅助程序让 AMFI 放行已验证的虚拟机程序；详见[宿主机设置](Guides/host-setup.md)。
 
 ## 开始使用
 
-需要运行 macOS 15 或更新版本的 Apple Silicon Mac、用于源码构建的 Xcode、iPhone 恢复 IPSW，以及兼容的 cloudOS IPSW。先按[宿主机设置](Guides/host-setup.md)允许虚拟机所需的私有授权，并查看[已验证的固件组合](Guides/compatibility.md)。不能在嵌套的 macOS 虚拟机中运行访客系统。
+推荐在运行 macOS 15 或更新版本的实体 Apple Silicon Mac 上使用已公证的 [vphone-launchpad 2.0.4](https://github.com/Lakr233/vphone-cli/releases/download/2.0.4/vphone-launchpad-2.0.4-notarized.zip)。运行发布版无需 Xcode、Python 或 Homebrew。
 
-```sh
-git clone https://github.com/Lakr233/vphone-cli.git
-cd vphone-cli
-xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
-  -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeBundle build
-export PATH="$PWD/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS:$PATH"
+1. 在 macOS 恢复模式中执行 `csrutil enable --without debug` 和 `csrutil allow-research-guests enable`，然后重新启动。详见[宿主机设置](Guides/host-setup.md)。
+2. 解压并打开 App，按 **Host Setup** 的提示授予开发者工具权限并安装特权辅助程序。
+3. 在 **Core Bundle** 中点击 **Download and Install**，安装最新的 `VPhone.bundle`。Launchpad 会验证下载内容，并完成虚拟机程序的宿主机准备。
+4. 在 **Machines** 中点击 **New Machine**，从目录选择固件组合，再点击 **Create**。Launchpad 完成首次启动检查后，虚拟机会保持运行。
 
-vphone-cli host preflight
-vphone-cli vm create myphone \
-  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
-  --cloudos-source /path/to/cloudOS.ipsw
-vphone-cli vm launch myphone
-```
-
-`vm create` 准备和恢复访客系统、安装 JB 系统改动，并确认 `vphoned` 能响应。验证完成后，它会停止本次启动；执行 `vm launch` 才会打开供日常使用的虚拟机窗口。创建过程需要网络，安装 CFW 需要管理员权限。详见[创建与运行指南](Guides/create-and-run.md)。
+选择目录中的固件组合时会下载固件。即使使用本地 IPSW，创建虚拟机仍需联网获取恢复票据，并留出充足的磁盘空间。也可以自行提供兼容的 iPhone 和 cloudOS IPSW；已验证的组合见[兼容性说明](Guides/compatibility.md)。源码构建和命令行操作见[宿主机设置](Guides/host-setup.md)与[创建与运行指南](Guides/create-and-run.md)。
 
 2.x 版只能启动以 `schemaVersion=2` 格式创建的虚拟机。旧版虚拟机需要重新创建。
 

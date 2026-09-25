@@ -2,37 +2,26 @@
 
 # vphone-cli
 
-> [!WARNING]
-> Version 2.0 is under construction. For the stable version, use [1.0.14](https://github.com/Lakr233/vphone-cli/tree/1.0.14).
+> Looking for vphone-cli 1.x? See the [1.0.14 release](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14).
 
 Create and run a virtual iPhone on an Apple Silicon Mac. vphone-cli uses Apple's Virtualization.framework and PCC research VM infrastructure.
 
 ![Virtual iPhone running on macOS](Documents/demo.jpeg)
 
-Version 2.0 removes much of 1.0's heavy host setup and simplifies the system fixes needed by custom firmware. The core flow is now stable enough for a single **JB** configuration: the self-contained `VPhone.bundle` handles firmware download, installation, and launch through its CLI.
+Version 2.x applies the complete firmware patch set, including changes previously offered as EXP. There are no selectable patch variants. The self-contained `VPhone.bundle` handles firmware preparation, restore, and VM control; `vphone-launchpad` installs the bundle and guides you through creating and running a VM.
 
-For now, the recommended host setup runs `csrutil enable --without debug` and `csrutil allow-research-guests enable` in macOS Recovery. SIP remains enabled with debugging restrictions relaxed. Allowing the VM binary through AMFI requires root; see [host setup](Documents/Guides/host-setup.md) and the [amfi-allow research](https://github.com/Lakr233/amfi-allow). A future `vphone-ui.app` will make setup easier and offer switches for installation-time fixes.
+The recommended host setup runs `csrutil enable --without debug` and `csrutil allow-research-guests enable` in macOS Recovery. SIP remains enabled with debugging restrictions relaxed. Launchpad checks the host and uses its privileged helper to allow each verified VM binary through AMFI; see [host setup](Documents/Guides/host-setup.md) for details.
 
 ## Get started
 
-You need an Apple Silicon Mac running macOS 15 or newer, Xcode to build from source, an iPhone restore IPSW, and a compatible cloudOS IPSW. Follow [host setup](Documents/Guides/host-setup.md) to permit the VM's private entitlements, then check the [verified firmware pairs](Documents/Guides/compatibility.md). A nested macOS VM cannot run the guest.
+Use the notarized [vphone-launchpad 2.0.4](https://github.com/Lakr233/vphone-cli/releases/download/2.0.4/vphone-launchpad-2.0.4-notarized.zip) on a physical Apple Silicon Mac running macOS 15 or newer. The release needs no Xcode, Python, or Homebrew at runtime.
 
-```sh
-git clone https://github.com/Lakr233/vphone-cli.git
-cd vphone-cli
-xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
-  -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeBundle build
-export PATH="$PWD/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle/Contents/MacOS:$PATH"
+1. In macOS Recovery, run `csrutil enable --without debug` and `csrutil allow-research-guests enable`, then restart. See [host setup](Documents/Guides/host-setup.md) for details.
+2. Unzip and open the app. Complete **Host Setup**, including Developer Tools access and installation of the privileged helper.
+3. In **Core Bundle**, choose **Download and Install** for the latest `VPhone.bundle`. Launchpad verifies the download and prepares its VM binary for the host.
+4. In **Machines**, choose **New Machine**, select a firmware pairing from the catalog, and click **Create**. Launchpad completes the first-boot check and leaves the VM running.
 
-vphone-cli host preflight
-vphone-cli vm create myphone \
-  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
-  --cloudos-source /path/to/cloudOS.ipsw
-vphone-cli vm launch myphone
-```
-
-`vm create` prepares and restores the guest, installs the JB system changes, and checks that `vphoned` responds. It stops the verification boot when finished; `vm launch` starts the VM window for use. Creation needs network access and administrator privileges for CFW installation. See [create and run](Documents/Guides/create-and-run.md) for details.
+Catalog pairings download firmware. Creating a VM needs network access for restore tickets and substantial free disk space, even with local IPSWs. You can supply your own compatible iPhone and cloudOS IPSWs. See [compatibility](Documents/Guides/compatibility.md) for verified pairs. For source builds and terminal workflows, see [host setup](Documents/Guides/host-setup.md) and [create and run](Documents/Guides/create-and-run.md).
 
 Version 2.x starts only VMs created with its `schemaVersion=2` format. Older VMs must be recreated.
 
