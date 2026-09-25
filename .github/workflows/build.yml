@@ -55,3 +55,8 @@ jobs:
           set -euo pipefail
           zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh \
             .build/XcodeBundle/Build/Products/Debug/VPhone.bundle
+
+      - name: Guest component tests
+        run: |
+          make -C VPhoneGuestComponents test-loader-links
+          make -C VPhoneGuestComponents test-vcam-dataplane

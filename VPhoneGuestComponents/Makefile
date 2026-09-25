@@ -29,7 +29,7 @@ GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
 # Directory timestamps also catch files removed from the wildcard inputs.
 
-.PHONY: all gpu package test-loader-links clean
+.PHONY: all gpu package test-loader-links test-vcam-dataplane clean
 
 all: $(ARTIFACTS) $(PLISTS) $(GPU_PROVENANCE)
 
@@ -45,6 +45,16 @@ test-loader-links:
 	/usr/bin/clang -Wall -Wextra -Werror -o $(OUT)/RootHideLoaderLinksTests \
 		Tests/RootHideLoaderLinksTests.c Shared/RootHideLoaderLinks.c
 	@$(OUT)/RootHideLoaderLinksTests
+
+# Host proof harness for the camera data plane the guest hooks share.
+test-vcam-dataplane:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -O1 -Wall -Wextra -Werror -Wno-unused-parameter \
+		-o $(OUT)/VCamDataPlaneTests \
+		Tests/VCamDataPlaneTests.c VCamDataPlane/vcam_dataplane.c \
+		-framework CoreMedia -framework CoreVideo -framework CoreFoundation \
+		-framework CoreGraphics
+	@$(OUT)/VCamDataPlaneTests
 
 $(STAGE)/camfix $(STAGE)/vcamcaptured $(STAGE)/launchhook $(STAGE)/systemhook $(STAGE)/gpu:
 	@mkdir -p $@
