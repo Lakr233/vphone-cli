@@ -32,15 +32,7 @@ extension CryptexFilesystemPatcher {
             let destinationPath = destinationRoot.appendingPathComponent(suffix)
             guard let ok = try? destinationPath.checkResourceIsReachable(), ok else {
                 // try FileManager.default.copyItem(at: fileURL, to: destinationPath)
-                let result = copyfile(
-                    fileURL.path,
-                    destinationPath.path,
-                    nil,
-                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA),
-                )
-                if result < 0 {
-                    print("Unable to copy \(destinationPath.path). Check permissions and free space, then try again.")
-                }
+                try copyNoFollow(fileURL, to: destinationPath)
                 continue
             }
 
@@ -51,16 +43,21 @@ extension CryptexFilesystemPatcher {
             {
                 try FileManager.default.removeItem(at: destinationPath)
                 // try FileManager.default.copyItem(at: fileURL, to: destinationPath)
-                let result = copyfile(
-                    fileURL.path,
-                    destinationPath.path,
-                    nil,
-                    copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA),
-                )
-                if result < 0 {
-                    print("Unable to copy \(destinationPath.path). Check permissions and free space, then try again.")
-                }
+                try copyNoFollow(fileURL, to: destinationPath)
             }
+        }
+    }
+
+    /// copyfile without following a symlink at either end; a failure stops
+    /// the merge instead of leaving a volume with a silent hole in it.
+    private func copyNoFollow(_ source: URL, to destination: URL) throws {
+        guard copyfile(
+            source.path,
+            destination.path,
+            nil,
+            copyfile_flags_t(COPYFILE_SECURITY | COPYFILE_DATA | COPYFILE_NOFOLLOW),
+        ) == 0 else {
+            throw CryptexFileOperationError.guestIO(path: destination.path, operation: "copy", code: errno)
         }
     }
 
@@ -139,20 +136,25 @@ extension CryptexFilesystemPatcher {
     func attachImage(path: URL, readonly: Bool = false, forceRW: Bool = false) throws -> (String, String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = if readonly {
-            [
-                "attach",
-                "-readonly",
-                "-plist",
-                path.path,
-            ]
-        } else {
-            [
-                "attach",
-                "-plist",
-                path.path,
-            ]
+        // Mount under a fresh 0700 directory of our own, honour ownership, and
+        // keep it out of Finder, so nothing else can race us to the mount point.
+        var template = Array(FileManager.default.temporaryDirectory
+            .appendingPathComponent("vphone-mount.XXXXXX").path.utf8CString)
+        guard let created = mkdtemp(&template), let real = realpath(created, nil) else {
+            throw CryptexFileOperationError.guestIO(path: "mount directory", operation: "create", code: errno)
         }
+        // Real path: statfs reports /private/var, not the /var link.
+        let parent = String(cString: real)
+        free(real)
+        guard chmod(parent, 0o700) == 0 else {
+            rmdir(parent)
+            throw CryptexFileOperationError.guestIO(path: parent, operation: "chmod", code: errno)
+        }
+        var arguments = ["attach", "-nobrowse", "-owners", "on", "-mountrandom", parent]
+        if readonly {
+            arguments.append("-readonly")
+        }
+        process.arguments = arguments + ["-plist", path.path]
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -165,6 +167,7 @@ extension CryptexFilesystemPatcher {
         guard process.terminationStatus == 0 else {
             let output = String(data: data, encoding: .utf8) ?? ""
             detachReportedImage(in: output)
+            rmdir(parent)
             throw ProcessError.failed(process.terminationStatus, output)
         }
 
@@ -191,6 +194,14 @@ extension CryptexFilesystemPatcher {
             guard !device.isEmpty, !mountPoint.isEmpty else { continue }
 
             attachedDevices.insert(device)
+            mountParents[device] = parent
+            do {
+                try verifyMount(mountPoint, isFrom: device, under: parent)
+            } catch {
+                try? detachImage(deviceNode: device)
+                throw error
+            }
+            mountPoints[device] = mountPoint
             if forceRW {
                 do {
                     _ = try runProcess("/sbin/mount", ["-u", "-w", device, mountPoint])
@@ -203,6 +214,28 @@ extension CryptexFilesystemPatcher {
         }
         detachReportedImage(in: String(data: data, encoding: .utf8) ?? "")
         throw FirmwareManifest.ManifestError.missingKey("dev-entry or mount-point")
+    }
+
+    /// The mount point must really be the device we just attached, not
+    /// something mounted or linked there in between.
+    private func verifyMount(_ mountPoint: String, isFrom device: String, under parent: String) throws {
+        var info = statfs()
+        guard statfs(mountPoint, &info) == 0 else {
+            throw CryptexFileOperationError.guestIO(path: mountPoint, operation: "statfs", code: errno)
+        }
+        let source = withUnsafePointer(to: &info.f_mntfromname) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+        let mounted = withUnsafePointer(to: &info.f_mntonname) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+        guard source == device, mounted.hasPrefix(parent + "/"),
+              mounted == mountPoint || mounted == (mountPoint as NSString).resolvingSymlinksInPath
+        else {
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed(
+                "\(mountPoint) is mounted from \(source) at \(mounted), expected \(device)",
+            )
+        }
     }
 
     private func detachReportedImage(in output: String) {
@@ -221,5 +254,9 @@ extension CryptexFilesystemPatcher {
             _ = try runProcess("/usr/bin/hdiutil", ["detach", "-force", deviceNode])
         }
         attachedDevices.remove(deviceNode)
+        mountPoints.removeValue(forKey: deviceNode)
+        if let parent = mountParents.removeValue(forKey: deviceNode) {
+            rmdir(parent)
+        }
     }
 }

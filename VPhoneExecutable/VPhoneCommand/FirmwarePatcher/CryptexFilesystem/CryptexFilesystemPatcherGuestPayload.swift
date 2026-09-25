@@ -31,7 +31,14 @@ extension CryptexFilesystemPatcher {
         // Patched in place with no `.bak` to restore from, so this is the call
         // site that needs the port's idempotence. No re-attestation: the sign
         // below replaces the whole signature anyway.
-        try CustomFirmwareCacheLoaderPatcher.patch(fileAt: launchdCacheLoaderPath)
+        // Read, patch and replace through the no-follow helpers: the file is
+        // on a guest volume and this runs as root.
+        let original = try readGuestFile(at: launchdCacheLoaderPath)
+        var data = original
+        try CustomFirmwareCacheLoaderPatcher.patch(&data)
+        if data != original {
+            try writeGuestFile(data, to: launchdCacheLoaderPath, mode: 0o755)
+        }
         try setMode(0o755, at: launchdCacheLoaderPath)
 
         try VPhoneSigner.sign(
@@ -47,16 +54,17 @@ extension CryptexFilesystemPatcher {
         let tmpDir = try createTmpDir()
         let launchdPath = tmpDir.appending(path: "launchd.plist")
         let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
-        try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
+        try readGuestFile(at: launchdOgPath).write(to: launchdPath)
 
         let vphonedLaunchdPlist = resources.guestResources.appendingPathComponent("vphoned.plist")
-        try FileManager.default.copyItem(
-            at: vphonedLaunchdPlist,
+        try copyIntoGuest(
+            from: vphonedLaunchdPlist,
             to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"),
         )
         try CustomFirmwareDaemons.injectDaemon(into: launchdPath, name: "vphoned", from: vphonedLaunchdPlist)
         print("  [+] Injected vphoned")
-        try FileManager.default.moveItem(at: launchdPath, to: launchdOgPath)
+        try writeGuestFile(Data(contentsOf: launchdPath), to: launchdOgPath)
+        try? FileManager.default.removeItem(at: launchdPath)
         try setMode(0o644, at: launchdOgPath)
     }
 
@@ -71,7 +79,7 @@ extension CryptexFilesystemPatcher {
         defer { try? FileManager.default.removeItem(at: vphonedBin) }
 
         let targetBin = target.appending(path: "/usr/bin/vphoned")
-        try FileManager.default.copyItem(at: vphonedBin, to: targetBin)
+        try copyIntoGuest(from: vphonedBin, to: targetBin)
         try setMode(0o755, at: targetBin)
     }
 
@@ -96,10 +104,8 @@ extension CryptexFilesystemPatcher {
                 "PCC GPU driver is missing: \(staged.path). Re-run fw prepare with the PCC IPSW.",
             )
         }
-        if FileManager.default.fileExists(atPath: bundle.path) {
-            try FileManager.default.removeItem(at: bundle)
-        }
-        try FileManager.default.copyItem(at: staged, to: bundle)
+        try removeGuestItem(at: bundle)
+        try copyIntoGuest(from: staged, to: bundle)
         // Clean AppleDouble files if the host copy created any.
         try deleteAppleDoubleFiles(under: bundle)
         try chownRecursively(uid: 0, gid: 0, at: bundle)

@@ -32,6 +32,10 @@ public final class CryptexFilesystemPatcher: Patcher {
     var rebuiltData: Data?
     var tmpDirectories: [URL] = []
     var attachedDevices: Set<String> = []
+    /// Device node -> mount point for images this patcher attached.
+    var mountPoints: [String: String] = [:]
+    /// Device node -> the private 0700 directory hdiutil mounted it under.
+    var mountParents: [String: String] = [:]
 
     // MARK: - Init
 
@@ -190,8 +194,12 @@ public final class CryptexFilesystemPatcher: Patcher {
 
         let destination = URL(filePath: targetMount)
             .appending(path: appOS ? "/System/Cryptexes/App" : "/System/Cryptexes/OS")
-        try FileManager.default.removeItem(at: destination)
-        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        try removeGuestItem(at: destination)
+        try withGuestParent(of: destination) { parent, leaf in
+            guard mkdirat(parent, leaf, 0o755) == 0 else {
+                throw CryptexFileOperationError.guestIO(path: destination.path, operation: "create", code: errno)
+            }
+        }
         try copyImageContents(source: URL(filePath: osMount), destination: destination)
     }
 

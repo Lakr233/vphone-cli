@@ -16,6 +16,8 @@ enum CryptexFileOperationError: Error, CustomStringConvertible {
     case chown(path: String, code: Int32)
     case unlink(path: String, code: Int32)
     case symlinkOntoDirectory(path: String)
+    case unsafeGuestPath(path: String)
+    case guestIO(path: String, operation: String, code: Int32)
 
     var description: String {
         switch self {
@@ -25,19 +27,25 @@ enum CryptexFileOperationError: Error, CustomStringConvertible {
             "Unable to remove \(path): \(String(cString: strerror(code)))"
         case let .symlinkOntoDirectory(path):
             "Unable to create a symlink at \(path) because a directory already exists there."
+        case let .unsafeGuestPath(path):
+            "Unable to change \(path) because it is not a plain path under a mounted guest volume."
+        case let .guestIO(path, operation, code):
+            "Unable to \(operation) \(path): \(String(cString: strerror(code)))"
         }
     }
 }
 
 extension CryptexFilesystemPatcher {
-    /// `chmod <mode> <path>`.
+    /// `chmod -h <mode> <path>`.
     ///
-    /// Follows symlinks, which is what chmod(1) does without `-h`.
+    /// This runs as root against a guest volume, so neither the leaf nor any
+    /// directory on the way to it is followed if it is a symlink.
     func setMode(_ mode: Int, at url: URL) throws {
-        try FileManager.default.setAttributes(
-            [.posixPermissions: mode],
-            ofItemAtPath: url.path,
-        )
+        try withGuestParent(of: url) { parent, leaf in
+            guard fchmodat(parent, leaf, mode_t(mode), AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw CryptexFileOperationError.guestIO(path: url.path, operation: "chmod", code: errno)
+            }
+        }
     }
 
     /// `chown -R <uid>:<gid> <path>`, numerically.
@@ -66,17 +74,20 @@ extension CryptexFilesystemPatcher {
     /// arrive as symlinks already — and if it ever does, an error at patch time
     /// beats a guest that cannot find its dyld cache.
     func createSymlink(at link: URL, to destination: String) throws {
-        var info = stat()
-        if lstat(link.path, &info) == 0 {
-            guard info.st_mode & mode_t(S_IFMT) != mode_t(S_IFDIR) else {
-                throw CryptexFileOperationError.symlinkOntoDirectory(path: link.path)
+        try withGuestParent(of: link) { parent, leaf in
+            var info = stat()
+            if fstatat(parent, leaf, &info, AT_SYMLINK_NOFOLLOW) == 0 {
+                guard info.st_mode & mode_t(S_IFMT) != mode_t(S_IFDIR) else {
+                    throw CryptexFileOperationError.symlinkOntoDirectory(path: link.path)
+                }
+                guard unlinkat(parent, leaf, 0) == 0 else {
+                    throw CryptexFileOperationError.unlink(path: link.path, code: errno)
+                }
             }
-            try FileManager.default.removeItem(at: link)
+            guard symlinkat(destination, parent, leaf) == 0 else {
+                throw CryptexFileOperationError.guestIO(path: link.path, operation: "create symlink", code: errno)
+            }
         }
-        try FileManager.default.createSymbolicLink(
-            atPath: link.path,
-            withDestinationPath: destination,
-        )
     }
 
     /// `find <directory> -name '._*' -delete`.
@@ -148,5 +159,159 @@ extension CryptexFilesystemPatcher {
             entries.append((child, isDirectory))
         }
         return entries
+    }
+}
+
+// MARK: - No-follow guest paths
+
+/// Every write into a mounted guest volume runs as root, so a symlink planted
+/// anywhere on the way would redirect it onto the host. These walk from the
+/// mount root one component at a time with `O_NOFOLLOW | O_DIRECTORY` and do
+/// the final operation relative to the parent descriptor, never by path.
+extension CryptexFilesystemPatcher {
+    /// The mount root (or, for tests, the restore directory) `url` lives under.
+    private func guestRoot(for url: URL) throws -> String {
+        let path = url.path
+        let roots = Array(mountPoints.values) + [restoreDir.path]
+        let matches = roots.filter { path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
+        guard let root = matches.max(by: { $0.count < $1.count }) else {
+            throw CryptexFileOperationError.unsafeGuestPath(path: path)
+        }
+        return root
+    }
+
+    /// Open the directory holding `url` and hand it with the leaf name to `body`.
+    func withGuestParent<T>(of url: URL, _ body: (Int32, String) throws -> T) throws -> T {
+        let root = try guestRoot(for: url)
+        let parts = url.path.dropFirst(root.count).split(separator: "/").map(String.init)
+        guard let leaf = parts.last, !parts.contains(where: { $0 == "." || $0 == ".." }) else {
+            throw CryptexFileOperationError.unsafeGuestPath(path: url.path)
+        }
+        var directory = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard directory >= 0 else {
+            throw CryptexFileOperationError.guestIO(path: root, operation: "open", code: errno)
+        }
+        for part in parts.dropLast() {
+            let next = openat(directory, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            let code = errno
+            close(directory)
+            guard next >= 0 else {
+                throw CryptexFileOperationError.guestIO(path: url.path, operation: "open a directory of", code: code)
+            }
+            directory = next
+        }
+        defer { close(directory) }
+        return try body(directory, leaf)
+    }
+
+    /// Read a guest file without following a link at the leaf.
+    func readGuestFile(at url: URL) throws -> Data {
+        try withGuestParent(of: url) { parent, leaf in
+            let descriptor = openat(parent, leaf, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+            guard descriptor >= 0 else {
+                throw CryptexFileOperationError.guestIO(path: url.path, operation: "read", code: errno)
+            }
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            return try handle.readToEnd() ?? Data()
+        }
+    }
+
+    /// Replace a guest file: write a fresh O_EXCL|O_NOFOLLOW temp beside it,
+    /// then renameat over the old entry (which replaces a link, never follows it).
+    func writeGuestFile(_ data: Data, to url: URL, mode: mode_t = 0o644) throws {
+        try withGuestParent(of: url) { parent, leaf in
+            let temp = ".\(leaf).vphone-\(UUID().uuidString)"
+            let descriptor = openat(parent, temp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
+            guard descriptor >= 0 else {
+                throw CryptexFileOperationError.guestIO(path: url.path, operation: "create", code: errno)
+            }
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            do {
+                try handle.write(contentsOf: data)
+                try handle.close()
+                guard renameat(parent, temp, parent, leaf) == 0 else {
+                    throw CryptexFileOperationError.guestIO(path: url.path, operation: "rename into", code: errno)
+                }
+            } catch {
+                unlinkat(parent, temp, 0)
+                throw error
+            }
+        }
+    }
+
+    /// Copy a host file or directory tree into the guest. Host symlinks are
+    /// recreated as links; nothing in the guest is followed.
+    func copyIntoGuest(from source: URL, to destination: URL) throws {
+        var info = stat()
+        guard lstat(source.path, &info) == 0 else {
+            throw CryptexFileOperationError.guestIO(path: source.path, operation: "read", code: errno)
+        }
+        switch info.st_mode & mode_t(S_IFMT) {
+        case mode_t(S_IFDIR):
+            try withGuestParent(of: destination) { parent, leaf in
+                guard mkdirat(parent, leaf, info.st_mode & 0o7777) == 0 else {
+                    throw CryptexFileOperationError.guestIO(path: destination.path, operation: "create", code: errno)
+                }
+            }
+            for name in try FileManager.default.contentsOfDirectory(atPath: source.path) {
+                try copyIntoGuest(
+                    from: source.appendingPathComponent(name),
+                    to: destination.appendingPathComponent(name),
+                )
+            }
+        case mode_t(S_IFLNK):
+            let target = try FileManager.default.destinationOfSymbolicLink(atPath: source.path)
+            try createSymlink(at: destination, to: target)
+        case mode_t(S_IFREG):
+            try writeGuestFile(
+                Data(contentsOf: source, options: .mappedIfSafe),
+                to: destination,
+                mode: info.st_mode & 0o7777,
+            )
+        default:
+            throw CryptexFileOperationError.unsafeGuestPath(path: source.path)
+        }
+    }
+
+    /// `rm -rf` inside the guest, by descriptor. Missing is not an error.
+    func removeGuestItem(at url: URL) throws {
+        try withGuestParent(of: url) { parent, leaf in
+            try removeTree(parent: parent, name: leaf, path: url.path)
+        }
+    }
+
+    private func removeTree(parent: Int32, name: String, path: String) throws {
+        var info = stat()
+        guard fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+            if errno == ENOENT { return }
+            throw CryptexFileOperationError.unlink(path: path, code: errno)
+        }
+        if info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) {
+            let directory = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard directory >= 0, let stream = fdopendir(directory) else {
+                throw CryptexFileOperationError.unlink(path: path, code: errno)
+            }
+            var children: [String] = []
+            while let entry = readdir(stream) {
+                var storage = entry.pointee.d_name
+                let child = withUnsafePointer(to: &storage) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) {
+                        String(cString: $0)
+                    }
+                }
+                if child != ".", child != ".." { children.append(child) }
+            }
+            defer { closedir(stream) }
+            for child in children {
+                try removeTree(parent: dirfd(stream), name: child, path: path + "/" + child)
+            }
+            guard unlinkat(parent, name, AT_REMOVEDIR) == 0 else {
+                throw CryptexFileOperationError.unlink(path: path, code: errno)
+            }
+        } else {
+            guard unlinkat(parent, name, 0) == 0 else {
+                throw CryptexFileOperationError.unlink(path: path, code: errno)
+            }
+        }
     }
 }
