@@ -98,9 +98,13 @@ public struct VPhoneResources: Sendable {
         base.appendingPathComponent("scripts")
     }
 
+    /// Files installed into the guest. Nothing here runs on the Mac.
+    public var guestResources: URL {
+        base.appendingPathComponent("guest-resources")
+    }
+
     public var vphoned: URL {
-        let bundled = base.deletingLastPathComponent()
-            .appendingPathComponent("MacOS/vphoned.signed")
+        let bundled = guestResources.appendingPathComponent("vphoned")
         if FileManager.default.fileExists(atPath: bundled.path) {
             return bundled
         }
@@ -109,7 +113,7 @@ public struct VPhoneResources: Sendable {
     }
 
     public var gpuCompilerPlugin: URL {
-        Self.siblingExecutable("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
+        guestResources.appendingPathComponent("libAppleParavirtCompilerPluginIOGPUFamily.dylib")
     }
 
     // MARK: - Cache dirs

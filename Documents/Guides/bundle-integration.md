@@ -11,10 +11,15 @@ executables and resources, not a macOS app or a dynamically loaded plug-in.
 | `Contents/MacOS/vphone-cli` | Unentitled command entry point |
 | `Contents/MacOS/vphone-vm` | VM and window process; private virtualization entitlements |
 | `Contents/MacOS/VPhoneEscalator` | AMFI allowlist tool for the current VM cdhash |
-| `Contents/MacOS/vphoned.signed` | Pre-signed guest daemon payload with its own entitlements; the bundle contains no unsigned copy |
-| Guest dylibs in `Contents/MacOS` | Guest installation payloads |
-| `Contents/Resources/guest/vphoned.plist` | Guest launch daemon configuration |
-| `Contents/Resources` | Guest configuration and nonexecutable resources; no signing script or entitlement file is shipped |
+| `Contents/MacOS/libswiftCompatibilitySpan.vphone.dylib` | Swift back-deployment library for `vphone-vm` on macOS 15 |
+| `Contents/Resources/guest-resources/vphoned` | Pre-signed guest daemon with its own entitlements; the bundle contains no unsigned copy |
+| `Contents/Resources/guest-resources/*.dylib` | Guest libraries: launchd hook, SystemHook, camera hooks and the GPU compiler plugin |
+| `Contents/Resources/guest-resources/*.plist` | Guest launch daemon configuration and camera hook filters |
+| `Contents/Resources` | Localized strings; no signing script or entitlement file is shipped |
+
+`Contents/MacOS` holds only programs that run on the Mac.
+`guest-resources` holds only files installed into the guest; every Mach-O in
+it is built for iOS. `ValidateBundle.sh` enforces both rules.
 
 All executable payloads use ad hoc code signatures. Only the required child
 processes carry private entitlements. The bundle has no `CFBundleExecutable`,

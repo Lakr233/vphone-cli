@@ -7,6 +7,9 @@ configuration="${CONFIGURATION:?}"
 bundle="${TARGET_BUILD_DIR:?}/${FULL_PRODUCT_NAME:?}"
 macos="$bundle/Contents/MacOS"
 resources="$bundle/Contents/Resources"
+# Host programs run from Contents/MacOS. Everything installed into the guest
+# lives in guest-resources and never runs on the Mac.
+guest="$resources/guest-resources"
 
 # Xcode exports the bundle target's SDK and package paths to build phases. Nested
 # xcodebuild must resolve each project's own graph, especially the iOS daemon.
@@ -50,19 +53,20 @@ if /usr/bin/nm -u "$daemon_products/vphoned" | /usr/bin/grep -q '_swift_initBorr
 fi
 
 /bin/rm -rf "$macos" "$resources"
-/bin/mkdir -p "$macos" "$resources/guest"
+/bin/mkdir -p "$macos" "$guest"
 /bin/cp "$TARGET_BUILD_DIR/vphone-vm" "$macos/vphone-vm"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
-/bin/cp "$daemon_products/vphoned" "$macos/vphoned.signed"
 /bin/cp "$amfi_products/VPhoneEscalator" "$macos/VPhoneEscalator"
-/bin/cp "$guest_products/camfix/libcamfix.dylib" "$macos/libcamfix.dylib"
-/bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$macos/libvcamcaptured.dylib"
-/bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$macos/launchdhook-vphone.dylib"
-/bin/cp "$guest_products/systemhook/SystemHook-vphone.dylib" "$macos/SystemHook-vphone.dylib"
-/bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" "$macos/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
-/bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$resources/guest/vphoned.plist"
-/bin/cp "$guest_products/camfix/libcamfix.plist" "$resources/guest/libcamfix.plist"
-/bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$resources/guest/libvcamcaptured.plist"
+/bin/cp "$daemon_products/vphoned" "$guest/vphoned"
+/bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$guest/vphoned.plist"
+/bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$guest/launchdhook-vphone.dylib"
+/bin/cp "$guest_products/systemhook/SystemHook-vphone.dylib" "$guest/SystemHook-vphone.dylib"
+/bin/cp "$guest_products/camfix/libcamfix.dylib" "$guest/libcamfix.dylib"
+/bin/cp "$guest_products/camfix/libcamfix.plist" "$guest/libcamfix.plist"
+/bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$guest/libvcamcaptured.dylib"
+/bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$guest/libvcamcaptured.plist"
+/bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" \
+    "$guest/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
 
 "${0:a:h}/SyncStrings.sh"
 for catalog in Localizable InfoPlist; do
@@ -82,7 +86,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /bin/rm -f "$bundle/Contents/Frameworks/libswiftCompatibilitySpan.dylib"
 
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
-/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$macos/vphoned.signed"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - "$macos/VPhoneEscalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"

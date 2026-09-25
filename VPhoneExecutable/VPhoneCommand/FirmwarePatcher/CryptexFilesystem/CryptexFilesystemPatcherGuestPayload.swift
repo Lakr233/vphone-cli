@@ -49,7 +49,7 @@ extension CryptexFilesystemPatcher {
         let launchdOgPath = target.appending(path: "/System/Library/xpc/launchd.plist")
         try FileManager.default.moveItem(at: launchdOgPath, to: launchdPath)
 
-        let vphonedLaunchdPlist = resources.base.appendingPathComponent("guest/vphoned.plist")
+        let vphonedLaunchdPlist = resources.guestResources.appendingPathComponent("vphoned.plist")
         try FileManager.default.copyItem(
             at: vphonedLaunchdPlist,
             to: target.appending(path: "System/Library/LaunchDaemons/vphoned.plist"),
@@ -83,7 +83,7 @@ extension CryptexFilesystemPatcher {
     /// that VM. vphoned is cross-compiled at build time now
     /// by the Xcode guest target and staged into the bundle.
     func stageVphoned(to vphonedBin: URL) throws {
-        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned.signed")
+        let prebuilt = try VPhoneGuestBinaries.resolve("vphoned")
         try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)
     }
 

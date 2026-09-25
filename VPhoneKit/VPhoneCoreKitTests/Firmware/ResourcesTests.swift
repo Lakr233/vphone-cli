@@ -18,6 +18,7 @@ struct ResourcesTests {
         let exe = "/Applications/VPhone.bundle/Contents/MacOS/vphone-cli"
         let r = VPhoneResources.resolve(executablePath: exe)
         #expect(r.base.path == "/Applications/VPhone.bundle/Contents/Resources")
+        #expect(r.guestResources.path == "/Applications/VPhone.bundle/Contents/Resources/guest-resources")
     }
 
     @Test func `dev layout walks up to project root`() throws {

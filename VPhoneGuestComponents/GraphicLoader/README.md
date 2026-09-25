@@ -20,6 +20,6 @@ Metal compilation, leaving the host VM window black even while vphoned connects.
 `main.mm` is the compiler-plugin reimplementation from
 [0xjohnnydev's metal-patch](https://github.com/0xjohnnydev/0xjohnnydev.github.io/blob/main/blog/assets/metal-patch/main.mm).
 `make -C VPhoneGuestComponents gpu` builds and ad-hoc signs it for iPhoneOS arm64e.
-The Xcode app build stages it in `Contents/MacOS`.
+The Xcode bundle build stages it in `Contents/Resources/guest-resources`.
 `fw prepare` copies that dylib alongside the
 firmware-sourced GPU driver before exposing the complete restore tree.

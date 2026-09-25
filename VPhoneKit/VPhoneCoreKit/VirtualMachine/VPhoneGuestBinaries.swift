@@ -1,7 +1,8 @@
 // VPhoneGuestBinaries.swift — where the prebuilt iOS binaries live.
 //
-// vphoned is cross-compiled on the build machine and shipped in the bundle.
-// The bundle carries the signed binary for installation and host auto-update.
+// Guest payloads are cross-compiled on the build machine and shipped in the
+// bundle's guest resources. The bundle carries the signed vphoned for
+// installation and host auto-update.
 
 import Foundation
 
@@ -20,17 +21,18 @@ public enum VPhoneGuestBinaries {
         }
     }
 
-    /// `Contents/MacOS` in the bundle, `.build/guest` in a dev tree.
+    /// `Contents/Resources/guest-resources` in the bundle, `.build/guest` in a
+    /// dev tree.
     ///
     /// Both are derived from `VPhoneResources.base`, which is already the
     /// running image's own location rather than anything on `PATH` — so this
     /// finds the binaries that were built beside this one, not whatever else is
     /// on the machine.
     public static func directories() -> [URL] {
-        let base = VPhoneResources.resolve().base
+        let resources = VPhoneResources.resolve()
         return [
-            base.deletingLastPathComponent().appendingPathComponent("MacOS"),
-            base.appendingPathComponent(".build/guest"),
+            resources.guestResources,
+            resources.base.appendingPathComponent(".build/guest"),
         ]
     }
 

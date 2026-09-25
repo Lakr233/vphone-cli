@@ -6,6 +6,7 @@ root="$(cd "${0:a:h}/../../.." && pwd)"
 bundle="${1:-$root/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle}"
 macos="$bundle/Contents/MacOS"
 resources="$bundle/Contents/Resources"
+guest="$resources/guest-resources"
 
 file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
     "$root/VPhoneDaemon" "$root/VPhoneGuestComponents" \
@@ -19,39 +20,40 @@ file_copy_spawns="$(/usr/bin/find "$root/VPhoneExecutable" "$root/VPhoneKit" \
 
 [[ -d "$bundle" ]] || { print -u2 "Missing Xcode bundle: $bundle"; exit 1; }
 
-for name in vphone-vm vphone-cli VPhoneEscalator vphoned.signed \
-    libswiftCompatibilitySpan.vphone.dylib libcamfix.dylib libvcamcaptured.dylib \
-    launchdhook-vphone.dylib SystemHook-vphone.dylib \
-    libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
-    [[ -f "$macos/$name" ]] || { print -u2 "Missing binary: Contents/MacOS/$name"; exit 1; }
-    /usr/bin/file "$macos/$name" | /usr/bin/grep -q 'Mach-O' || {
-        print -u2 "Not a Mach-O: $name"
+require_signed_macho() {
+    local file="$1"
+    [[ -f "$file" ]] || { print -u2 "Missing binary: ${file#$bundle/}"; exit 1; }
+    /usr/bin/file "$file" | /usr/bin/grep -q 'Mach-O' || {
+        print -u2 "Not a Mach-O: ${file#$bundle/}"
         exit 1
     }
-    /usr/bin/codesign --verify "$macos/$name" || {
-        print -u2 "Invalid signature: $name"
+    /usr/bin/codesign --verify "$file" || {
+        print -u2 "Invalid signature: ${file#$bundle/}"
         exit 1
     }
+}
+
+for name in vphone-vm vphone-cli VPhoneEscalator libswiftCompatibilitySpan.vphone.dylib; do
+    require_signed_macho "$macos/$name"
+done
+for name in vphoned launchdhook-vphone.dylib SystemHook-vphone.dylib libcamfix.dylib \
+    libvcamcaptured.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
+    require_signed_macho "$guest/$name"
+done
+for name in vphoned.plist libcamfix.plist libvcamcaptured.plist; do
+    [[ -f "$guest/$name" ]] || { print -u2 "Missing guest configuration: $name"; exit 1; }
 done
 
-for name in vphoned vphone-app VPhoneAMFIAllow vphone-archive icli vpregister vphone-ask-for-permission; do
-    [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: $name"; exit 1; }
+for name in vphoned vphoned.signed vphone-app VPhoneAMFIAllow vphone-archive icli vpregister \
+    vphone-ask-for-permission libcamfix.dylib libvcamcaptured.dylib launchdhook-vphone.dylib \
+    SystemHook-vphone.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
+    [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: Contents/MacOS/$name"; exit 1; }
 done
-
-[[ -f "$resources/guest/vphoned.plist" ]] || {
-    print -u2 "Missing guest configuration: vphoned.plist"
-    exit 1
-}
-[[ ! -e "$resources/scripts" ]] || {
-    print -u2 "Obsolete scripts directory in bundle"
-    exit 1
-}
+for name in guest scripts; do
+    [[ ! -e "$resources/$name" ]] || { print -u2 "Obsolete directory: Contents/Resources/$name"; exit 1; }
+done
 
 /usr/bin/codesign --verify --strict "$bundle"
-/usr/bin/codesign --verify "$macos/vphone-vm"
-/usr/bin/codesign --verify "$macos/vphone-cli"
-/usr/bin/codesign --verify "$macos/VPhoneEscalator"
-/usr/bin/codesign --verify "$macos/vphoned.signed"
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$bundle/Contents/Info.plist")" == "BNDL" ]] || {
     print -u2 "The product is not a generic bundle"
@@ -61,11 +63,23 @@ if /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info
     print -u2 "The container must not declare an executable"
     exit 1
 fi
+# Host programs live in Contents/MacOS and guest payloads in guest-resources.
+# The build platform keeps an iOS binary from landing among the host programs.
 while IFS= read -r file; do
-    if /usr/bin/file "$file" | /usr/bin/grep -q 'Mach-O' && [[ "$file" != "$macos/"* ]]; then
-        print -u2 "Mach-O outside Contents/MacOS: $file"
-        exit 1
-    fi
+    /usr/bin/file "$file" | /usr/bin/grep -q 'Mach-O' || continue
+    platform="$(/usr/bin/vtool -show-build "$file" 2>/dev/null | /usr/bin/awk '$1 == "platform" {print $2; exit}')"
+    case "$file" in
+        "$macos/"*)
+            [[ "$platform" != IOS ]] || { print -u2 "iOS binary in Contents/MacOS: ${file#$bundle/}"; exit 1; }
+            ;;
+        "$guest/"*)
+            [[ "$platform" == IOS ]] || { print -u2 "Non-iOS binary in guest-resources: ${file#$bundle/}"; exit 1; }
+            ;;
+        *)
+            print -u2 "Mach-O outside Contents/MacOS and guest-resources: ${file#$bundle/}"
+            exit 1
+            ;;
+    esac
 done < <(/usr/bin/find "$bundle/Contents" -type f)
 bundle_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$bundle" 2>/dev/null || true)"
 [[ "$bundle_entitlements" != *'com.apple.private.virtualization'* ]] || {
@@ -81,7 +95,7 @@ vm_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphone-vm
     print -u2 "Guest daemon entitlements leaked into vphone-vm"
     exit 1
 }
-daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphoned.signed" 2>/dev/null)"
+daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$guest/vphoned" 2>/dev/null)"
 [[ "$daemon_entitlements" == *'com.apple.CommCenter.fine-grained'* &&
     "$daemon_entitlements" != *'com.apple.private.virtualization'* ]] || {
     print -u2 "vphoned has the wrong entitlements"
