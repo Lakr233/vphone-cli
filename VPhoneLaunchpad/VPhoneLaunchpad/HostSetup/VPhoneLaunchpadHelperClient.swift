@@ -117,6 +117,26 @@ final class VPhoneLaunchpadHelperClient {
         state = .notInstalled
     }
 
+    private typealias JobBless = @convention(c) (
+        CFString,
+        CFString,
+        AuthorizationRef,
+        UnsafeMutablePointer<Unmanaged<CFError>?>?,
+    ) -> DarwinBoolean
+
+    /// `SMJobBless`, looked up in ServiceManagement at run time. macOS 13
+    /// deprecated it in favour of `SMAppService`, but it still works, and the
+    /// helper's install, update and client checks are built on it
+    /// (SMPrivilegedExecutables and SMAuthorizedClients). Moving to
+    /// `SMAppService.daemon` would change all three. The lookup keeps that
+    /// choice here instead of as a standing deprecation warning.
+    nonisolated private static let jobBless: JobBless? = dlopen(
+        "/System/Library/Frameworks/ServiceManagement.framework/ServiceManagement",
+        RTLD_LAZY,
+    )
+    .flatMap { dlsym($0, "SMJobBless") }
+    .map { unsafeBitCast($0, to: JobBless.self) }
+
     nonisolated private static func bless() throws {
         var authorization: AuthorizationRef?
         var status = AuthorizationCreate(nil, nil, [], &authorization)
@@ -146,7 +166,9 @@ final class VPhoneLaunchpadHelperClient {
         }
 
         var error: Unmanaged<CFError>?
-        guard SMJobBless(kSMDomainSystemLaunchd, label as CFString, authorization, &error) else {
+        guard let jobBless = Self.jobBless,
+              jobBless(kSMDomainSystemLaunchd, label as CFString, authorization, &error).boolValue
+        else {
             let detail = error?.takeRetainedValue().localizedDescription ?? String(localized: "Try again.")
             throw VPhoneLaunchpadError(String(localized: "Unable to Install Helper"), detail: detail)
         }
