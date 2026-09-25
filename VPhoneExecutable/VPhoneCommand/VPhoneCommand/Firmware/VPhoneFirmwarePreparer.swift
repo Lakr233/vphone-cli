@@ -17,11 +17,11 @@ enum VPhoneFirmwarePreparer {
         var errorDescription: String? {
             switch self {
             case let .existingRestore(path):
-                "Firmware preparation would replace an existing restore tree: \(path.path)"
+                "A restore tree already exists at \(path.path). Remove it, then prepare the firmware again."
             case let .missingComponent(path):
-                "Firmware component is missing: \(path.path)"
+                "A firmware component is missing: \(path.path). Check that the IPSW is complete, then prepare the firmware again."
             case let .sourceNameMismatch(path, version, build):
-                "IPSW name and BuildManifest disagree (\(version)/\(build)): \(path.path)"
+                "The IPSW file name does not match its contents (\(version)/\(build)): \(path.path). Use the original file name or download the IPSW again."
             }
         }
     }

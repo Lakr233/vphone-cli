@@ -395,7 +395,7 @@ final class VPhoneUIInspectorModel {
         guard case let VPhoneGuestControl.ControlError.guestError(detail) = error, !detail.isEmpty else {
             return base
         }
-        return String(localized: "\(base) Guest error: \(detail)", bundle: VPhoneLocalization.bundle)
+        return String(localized: "\(base) The guest reported: \(detail)", bundle: VPhoneLocalization.bundle)
     }
 
     private func succeed(_ message: String) {

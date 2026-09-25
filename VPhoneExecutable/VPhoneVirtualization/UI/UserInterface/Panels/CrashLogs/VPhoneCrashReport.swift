@@ -116,7 +116,7 @@ extension VPhoneCrashReport {
         var title: String {
             switch self {
             case .jetsamEvent: String(localized: "Jetsam Event", bundle: VPhoneLocalization.bundle)
-            case .excResource: String(localized: "Exc Resource", bundle: VPhoneLocalization.bundle)
+            case .excResource: String(localized: "Resource Limit", bundle: VPhoneLocalization.bundle)
             case .excUserFault: String(localized: "User Fault", bundle: VPhoneLocalization.bundle)
             case .cpuResource: String(localized: "CPU Resource", bundle: VPhoneLocalization.bundle)
             case .diskWritesResource: String(localized: "Disk Writes", bundle: VPhoneLocalization.bundle)

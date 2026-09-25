@@ -13,7 +13,7 @@ enum VPhoneHostPreflight {
         if probe.succeeded,
            probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
         {
-            throw ValidationError("Nested virtualization is unavailable for this VM")
+            throw ValidationError("This Mac is running inside a VM, so vphone-vm cannot start a guest. Run it on a macOS host that is not itself a VM.")
         }
         return try VPhoneGuestLaunchPlanner()
     }

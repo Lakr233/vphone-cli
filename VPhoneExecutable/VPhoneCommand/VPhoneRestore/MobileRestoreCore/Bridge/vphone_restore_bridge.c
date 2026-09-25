@@ -494,11 +494,11 @@ const char *vphone_restore_error_string(int code)
     case VPHONE_RESTORE_E_TICKET:
         return "the ticket file could not be read as a TSS response";
     case VPHONE_RESTORE_E_OUT_OF_MEMORY:
-        return "out of memory";
+        return "Not enough memory. Close other apps and try again.";
     case VPHONE_RESTORE_E_BUSY:
         return "another restore is already running in this process";
     default:
-        return "idevicerestore stopped; see the log for what happened";
+        return "Check the log above for details.";
     }
 }
 

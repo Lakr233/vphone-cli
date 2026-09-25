@@ -59,7 +59,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             default: (10, cleaned[...])
             }
         guard !digits.isEmpty, let parsed = UInt32(digits, radix: radix) else {
-            throw ValidationError("not an integer: '\(value)'")
+            throw ValidationError("'\(value)' is not a valid number. Enter a decimal or hexadecimal value.")
         }
         return parsed
     }

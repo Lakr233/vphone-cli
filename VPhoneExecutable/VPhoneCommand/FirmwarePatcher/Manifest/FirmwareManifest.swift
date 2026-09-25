@@ -32,11 +32,11 @@ public enum FirmwareManifest {
         public var description: String {
             switch self {
             case let .fileNotFound(path):
-                "Manifest file not found: \(path)"
+                "File not found: \(path)"
             case let .invalidPlist(path):
                 "Invalid plist: \(path)"
             case let .identityNotFound(msg):
-                "Identity not found: \(msg)"
+                "Unable to find the \(msg)."
             case let .missingKey(key):
                 "Missing required key: \(key)"
             }
@@ -157,10 +157,10 @@ public enum FirmwareManifest {
             }
         }
         guard let rel = release else {
-            throw ManifestError.identityNotFound("No release identity for DeviceClass=\(deviceClass)")
+            throw ManifestError.identityNotFound("release identity for \(deviceClass) in the cloudOS BuildManifest")
         }
         guard let res = research else {
-            throw ManifestError.identityNotFound("No research identity for DeviceClass=\(deviceClass)")
+            throw ManifestError.identityNotFound("research identity for \(deviceClass) in the cloudOS BuildManifest")
         }
         return (rel, res)
     }
@@ -176,7 +176,7 @@ public enum FirmwareManifest {
                 return i
             }
         }
-        throw ManifestError.identityNotFound("No erase identity found in iPhone manifest")
+        throw ManifestError.identityNotFound("erase identity in the iPhone BuildManifest")
     }
 
     // MARK: - Build Identity Construction

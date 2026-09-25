@@ -852,18 +852,18 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (strcmp(verb, "off") == 0) {
-        if (geteuid() != 0) { fprintf(stderr, "error: run as root\n"); return 1; }
+        if (geteuid() != 0) { fprintf(stderr, "error: This command needs root. Run it with sudo.\n"); return 1; }
         return cmd_off(self_path);
     }
     if (strcmp(verb, "allow") == 0) {
-        if (geteuid() != 0) { fprintf(stderr, "error: run as root\n"); return 1; }
+        if (geteuid() != 0) { fprintf(stderr, "error: This command needs root. Run it with sudo.\n"); return 1; }
         int hold = 0, first = 2;
         if (argc > 3 && strcmp(argv[2], "--hold") == 0) {
             hold = atoi(argv[3]);
             first = 4;
         }
         if (first >= argc) {
-            fprintf(stderr, "error: no binary given\n");
+            fprintf(stderr, "error: Specify at least one binary to allow.\n");
             return 2;
         }
         return cmd_allow(self_path, argc - first, argv + first, hold);

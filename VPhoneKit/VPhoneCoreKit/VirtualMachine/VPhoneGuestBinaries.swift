@@ -13,8 +13,8 @@ public enum VPhoneGuestBinaries {
             switch self {
             case let .missing(name, searched):
                 """
-                no prebuilt guest binary '\(name)'. Build the VPhone scheme in VPhone.xcworkspace.
-                Looked in: \(searched.map(\.path).joined(separator: ", "))
+                Guest binary '\(name)' not found. Build the VPhone scheme in VPhone.xcworkspace.
+                Searched: \(searched.map(\.path).joined(separator: ", "))
                 """
             }
         }

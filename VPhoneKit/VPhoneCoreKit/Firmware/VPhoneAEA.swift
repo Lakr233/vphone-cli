@@ -33,15 +33,15 @@ public enum VPhoneAEA {
         public var errorDescription: String? {
             switch self {
             case let .notAEA(url):
-                "\(url.lastPathComponent) does not start with AEA1"
+                "\(url.lastPathComponent) is not an encrypted firmware archive."
             case let .truncatedPrologue(url):
-                "\(url.lastPathComponent) has a truncated AEA prologue"
-            case let .missingAuthField(name):
-                "the AEA prologue has no '\(name)' field"
+                "\(url.lastPathComponent) is incomplete or damaged. Download the firmware again."
+            case .missingAuthField:
+                "The firmware file is missing decryption key information. Download the firmware again."
             case .malformedFCSResponse:
-                "the AEA prologue's fcs-response is not the expected JSON"
-            case let .keyFetchFailed(url, status):
-                "fetching the AEA key from \(url.host() ?? url.absoluteString) returned HTTP \(status)"
+                "Unable to read the decryption key information in this firmware file. Download the firmware again."
+            case let .keyFetchFailed(url, _):
+                "Unable to download the decryption key from \(url.host() ?? url.absoluteString). Try again later."
             }
         }
     }

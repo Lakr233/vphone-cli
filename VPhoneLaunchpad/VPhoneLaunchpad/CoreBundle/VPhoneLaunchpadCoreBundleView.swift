@@ -45,7 +45,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
                 } label: {
                     Label("Check for Updates", systemImage: "arrow.clockwise")
                 }
-                .help("List releases again and rerun host preflight")
+                .help("Reload releases and run host preflight again.")
                 .disabled(bundles.isInstalling)
             }
         }
@@ -88,7 +88,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
         Section {
             if progress.status(.download) == .running {
                 ProgressView(value: Double(progress.received), total: Double(max(progress.release.size, 1))) {
-                    Text("Downloading")
+                    Text("Downloading…")
                 } currentValueLabel: {
                     Text("\(Self.size(progress.received)) of \(Self.size(progress.release.size))")
                 }

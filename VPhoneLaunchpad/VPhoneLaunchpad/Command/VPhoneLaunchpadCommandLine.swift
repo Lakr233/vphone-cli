@@ -127,7 +127,7 @@ struct VPhoneLaunchpadCommandLine {
         try Task.checkCancellation()
         guard result.succeeded else {
             throw VPhoneLaunchpadError(
-                String(localized: "\(Self.display(arguments)) exited with status \(result.status)."),
+                String(localized: "\(Self.display(arguments)) failed. Check the output and try again."),
                 detail: result.tail,
             )
         }

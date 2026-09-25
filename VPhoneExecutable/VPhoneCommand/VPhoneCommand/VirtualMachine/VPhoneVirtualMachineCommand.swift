@@ -75,8 +75,7 @@ struct VPhoneVirtualMachineWriteManifestCommand: ParsableCommand {
             _ = try VPhoneVirtualMachineManifest.load(from: configURL)
         } else if try !((FileManager.default.contentsOfDirectory(atPath: vmDirectory.path)).isEmpty) {
             throw ValidationError(
-                "The VM directory contains data but has no config.plist. Recreate the VM in a new directory; "
-                    + "write-manifest cannot upgrade an existing VM.",
+                "This VM directory has data but no config.plist. write-manifest cannot upgrade an existing VM. Create the VM in a new directory.",
             )
         }
         try manifest.write(to: configURL)
@@ -120,7 +119,7 @@ struct VPhoneVirtualMachineListCommand: ParsableCommand {
             let data = try JSONEncoder().encode(reports)
             print(String(decoding: data, as: UTF8.self))
         } else if reports.isEmpty {
-            print("(no VMs in \(library.root.path))")
+            print("No VMs in \(library.root.path). Create one with vm create.")
         } else {
             for r in reports {
                 var line =
@@ -241,9 +240,9 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         case "bridged": return .bridged
         case "none", "off": return .off
         case "hostonly", "host-only":
-            throw ValidationError("network mode 'hostOnly' is not supported; use nat, bridged, or none")
+            throw ValidationError("Host-only networking is not supported. Use nat, bridged, or none.")
         default:
-            throw ValidationError("unknown network mode '\(s)'; expected nat, bridged, or none")
+            throw ValidationError("Unknown network mode '\(s)'. Use nat, bridged, or none.")
         }
     }
 }
@@ -287,7 +286,7 @@ struct VPhoneVirtualMachineDeleteCommand: ParsableCommand {
         if !force {
             print("Delete '\(name)' and all its files? [y/N] ", terminator: "")
             guard (readLine() ?? "").lowercased() == "y" else {
-                print("aborted")
+                print("Canceled. Nothing was deleted.")
                 return
             }
         }

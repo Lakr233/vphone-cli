@@ -78,7 +78,7 @@ struct VPhoneLaunchpadNewMachineView: View {
 
             Section {
                 Toggle("Frida Stalker kernel relaxations", isOn: $enableFrida)
-                Toggle("Zero the dyld cache maxSlide", isOn: $forceMaxSlide)
+                Toggle("Disable dyld shared cache randomization", isOn: $forceMaxSlide)
                 Toggle("Keep the prepared restore tree", isOn: $keepArtifacts)
             } header: {
                 Text("Options")
@@ -127,14 +127,14 @@ struct VPhoneLaunchpadNewMachineView: View {
             } else {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("Loading fw catalog…").foregroundStyle(.secondary)
+                    Text("Loading firmware catalog…").foregroundStyle(.secondary)
                 }
             }
         } header: {
             Text("Firmware")
         } footer: {
             if !usesCustomSources, let catalog {
-                Text("Recommended pairings for \(catalog.device) from vphone-cli fw catalog.")
+                Text("Recommended firmware pairings for \(catalog.device).")
                     .foregroundStyle(.secondary)
             }
         }
@@ -238,7 +238,7 @@ struct VPhoneLaunchpadCreationView: View {
                         }
                     }
                 } else if creation.isRunning {
-                    Text("Closing this window keeps it running.").foregroundStyle(.secondary)
+                    Text("Creation continues if you close this window.").foregroundStyle(.secondary)
                 }
             }
             Section("Log") {

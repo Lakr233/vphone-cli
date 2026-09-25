@@ -114,16 +114,28 @@ extension VPhoneMenuController {
                 indicator.isIndeterminate = false
                 indicator.doubleValue = 100
                 statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installed")
-                var message = VPhoneLocalization.format("Installed Irisin %@ in %@.", version, root)
-                if let warning = result["service_start_warning"] as? String {
-                    message += "\n\n" + VPhoneLocalization.format("Daemon start: %@", warning)
+                alert.informativeText = if result["service_start_warning"] as? String != nil {
+                    VPhoneLocalization.format(
+                        "Installed Irisin %1$@ in %2$@.\n\nSome services did not start, but the bootstrap is ready to use.",
+                        version,
+                        root,
+                    )
+                } else {
+                    VPhoneLocalization.format("Installed Irisin %@ in %@.", version, root)
                 }
-                alert.informativeText = message
             } catch {
                 poller.cancel()
                 statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installation failed")
                 alert.alertStyle = .warning
-                alert.informativeText = String(describing: error)
+                alert.informativeText = if localURL != nil {
+                    VPhoneLocalization.text(
+                        "Unable to install the bootstrap. Check the file and guest connection, then try again.",
+                    )
+                } else {
+                    VPhoneLocalization.text(
+                        "Unable to install the bootstrap. Check that the guest agent is connected, then try again.",
+                    )
+                }
             }
         }
     }
@@ -187,8 +199,8 @@ extension VPhoneMenuController {
                             )
                         } catch {
                             VPhoneAlert.present(
-                                title: "Bootstrap removal failed",
-                                message: String(describing: error),
+                                title: "Unable to Remove Bootstrap",
+                                message: "Unable to remove the bootstrap. Check that the guest agent is connected, then try again.",
                                 style: .warning,
                             )
                         }
@@ -197,8 +209,8 @@ extension VPhoneMenuController {
                 }
             } catch {
                 VPhoneAlert.present(
-                    title: "Bootstrap removal failed",
-                    message: String(describing: error),
+                    title: "Unable to Remove Bootstrap",
+                    message: "Unable to remove the bootstrap. Check that the guest agent is connected, then try again.",
                     style: .warning,
                 )
                 finishBootstrapUninstall()

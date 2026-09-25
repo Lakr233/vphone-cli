@@ -136,7 +136,7 @@ struct VPhoneControlsView: View {
                 await model.setLowPowerMode(enabled)
             })
             .disabled(!model.canWrite || model.lowPowerMode == nil)
-            .help("Turn Low Power Mode on or off through powerd")
+            .help("Turn Low Power Mode on or off")
         }
     }
 

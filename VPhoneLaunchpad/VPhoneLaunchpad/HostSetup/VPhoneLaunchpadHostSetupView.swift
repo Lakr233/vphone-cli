@@ -24,7 +24,7 @@ struct VPhoneLaunchpadHostSetupView: View {
                 if !host.requiredPassed {
                     VStack(alignment: .leading, spacing: 4) {
                         if host.checks.contains(where: { $0.kind == .developerTools && $0.status != .passed }) {
-                            Text("After allowing vphone-launchpad under Privacy & Security → Developer Tools, quit and reopen it.")
+                            Text("Allow vphone-launchpad in Privacy & Security → Developer Tools, then quit and reopen the app.")
                         }
                         Text("Core Bundle appears once every required check passes.")
                     }

@@ -118,7 +118,7 @@ extension CryptexFilesystemPatcher {
 
         // Find the section header for /private/var
         guard let sectionIndex = lines.firstIndex(of: "# ./private/var") else {
-            throw FirmwareManifest.ManifestError.fileNotFound("/private/var")
+            throw FirmwareManifest.ManifestError.fileNotFound("the /private/var entry in \(mtree.path)")
         }
 
         // Look at the lines after that header until the next section header
@@ -135,7 +135,7 @@ extension CryptexFilesystemPatcher {
             guard let match = line.range(of: #"time=([0-9]+(?:\.[0-9]+)?)"#,
                                          options: .regularExpression)
             else {
-                throw FirmwareManifest.ManifestError.fileNotFound("modification time for /private/var in \(mtree.path)")
+                throw FirmwareManifest.ManifestError.fileNotFound("the /private/var modification time in \(mtree.path)")
             }
 
             let matchedText = String(line[match])

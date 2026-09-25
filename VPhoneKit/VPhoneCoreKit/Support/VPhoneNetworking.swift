@@ -27,12 +27,7 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
         case .noBridgeInterfaces:
             "Bridged mode needs a host network interface, but none are available. Use nat instead."
         case .bridgeInterfaceMustBeNamed:
-            """
-            Bridged mode needs an interface name here. vphone-cli carries no \
-            entitlements, so it cannot list the host's bridgeable interfaces \
-            and cannot pick one for you.
-            Name it explicitly, for example: --bridge-interface en0
-            """
+            "Bridged mode requires an interface name because vphone-cli cannot list host interfaces. Pass one with --bridge-interface, for example --bridge-interface en0."
         case .bridgeInterfaceWithoutBridgedMode:
             "--bridge-interface is only valid with --network bridged."
         }

@@ -6,8 +6,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "create",
         abstract: "Create a VM end-to-end (prepare → patch → restore → CFW → first boot)",
-        discussion: "Runs the JB pipeline for a fresh VM. Needs an internet connection "
-            + "(IPSW download), a non-nested macOS host, and sudo (CFW host-mount).",
+        discussion: "Runs the full jailbreak pipeline for a new VM. Requires an internet connection to download IPSWs, a macOS host that is not itself a VM, and sudo to install custom firmware.",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption

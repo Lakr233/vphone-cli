@@ -31,8 +31,7 @@ private enum VPhoneVirtualMachineCreationError: Error, CustomStringConvertible {
         case let .invalidECID(v):
             "Invalid ECID in the device identity file: '\(v)'. Run vm create again to regenerate it."
         case let .udidECIDMismatch(udid, ecid):
-            "The UDID and ECID in the device identity file do not match: \(udid) vs 0x\(ecid). "
-                + "Run vm create again to regenerate it."
+            "The UDID and ECID in the device identity file do not match (\(udid), 0x\(ecid)). Run vm create again to regenerate it."
         case .recoveryTimeout:
             "Timed out waiting for the device to enter recovery mode."
         // No exit code any more: the restore backend is in this process, so
@@ -42,7 +41,7 @@ private enum VPhoneVirtualMachineCreationError: Error, CustomStringConvertible {
         case let .cfwInstallFailed(code):
             "Custom firmware installation failed (exit code \(code))."
         case .bootAnalysisPanic:
-            "Boot analysis failed: the guest panicked."
+            "Boot check failed: the guest panicked. Run vm create again."
         case let .bootAnalysisExited(code):
             "Boot check ended before vphoned connected (exit code \(code))."
         case .bootAnalysisTimeout:

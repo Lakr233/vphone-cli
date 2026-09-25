@@ -16,7 +16,8 @@ final class VPhoneGuestControl {
 
         var description: String {
             switch self {
-            case .notConnected: "not connected to vphoned"
+            case .notConnected:
+                VPhoneLocalization.text("The guest agent is not connected. Wait for it to connect, then try again.")
             case let .unsupportedCapability(value): "guest does not support capability: \(value)"
             case let .protocolError(value): "API protocol error: \(value)"
             case let .guestError(value): value

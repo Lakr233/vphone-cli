@@ -10,7 +10,7 @@ enum VPhoneLaunchpadHelperBundleInstaller {
         }
         let expected = sha256.lowercased().replacingOccurrences(of: "sha256:", with: "")
         guard expected.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
-            throw VPhoneLaunchpadHelperError("\"\(sha256)\" is not a SHA-256 digest.")
+            throw VPhoneLaunchpadHelperError("The published SHA-256 \"\(sha256)\" is not valid.")
         }
 
         let fileManager = FileManager.default
@@ -29,16 +29,16 @@ enum VPhoneLaunchpadHelperBundleInstaller {
         let archiveURL = staging.appendingPathComponent("VPhone.zip")
         let actual = try copyAndHash(from: archive, to: archiveURL)
         guard actual == expected else {
-            throw VPhoneLaunchpadHelperError("SHA-256 mismatch: expected \(expected), got \(actual).")
+            throw VPhoneLaunchpadHelperError("The download does not match the published SHA-256. Download it again.")
         }
 
         let extracted = staging.appendingPathComponent("extracted", isDirectory: true)
         try runTool("/usr/bin/ditto", ["-x", "-k", "--noqtn", archiveURL.path, extracted.path])
         let bundle = extracted.appendingPathComponent("VPhone.bundle", isDirectory: true)
-        try requireDirectory(bundle, "The archive does not contain VPhone.bundle.")
+        try requireDirectory(bundle, "The download does not contain VPhone.bundle. Download it again.")
         for name in VPhoneLaunchpadBundleStore.pinnedExecutables {
             let executable = bundle.appendingPathComponent("Contents/MacOS/\(name)")
-            try requireRegularFile(executable, "VPhone.bundle has no \(name).")
+            try requireRegularFile(executable, "VPhone.bundle is missing \(name). Download it again.")
         }
 
         try VPhoneLaunchpadHelperCodeCheck.requireValidBundle(bundle)
@@ -104,7 +104,7 @@ enum VPhoneLaunchpadHelperBundleInstaller {
                   info.st_mode & 0o022 == 0
             else {
                 throw VPhoneLaunchpadHelperError(
-                    "\(directory.path) must be a directory owned by root and not writable by others.",
+                    "\(directory.path) is not secure. It must be a folder owned by root that only root can modify.",
                 )
             }
         }
@@ -118,7 +118,7 @@ enum VPhoneLaunchpadHelperBundleInstaller {
             contents: nil,
             attributes: [.posixPermissions: 0o600],
         ) else {
-            throw VPhoneLaunchpadHelperError("Cannot create \(destination.path).")
+            throw VPhoneLaunchpadHelperError("Unable to save the download. Try again.")
         }
         let output = try FileHandle(forWritingTo: destination)
         defer { try? output.close() }
@@ -143,10 +143,10 @@ enum VPhoneLaunchpadHelperBundleInstaller {
         for path in paths {
             var info = stat()
             guard lstat(path, &info) == 0 else {
-                throw VPhoneLaunchpadHelperError("Cannot inspect \(path).")
+                throw VPhoneLaunchpadHelperError("Unable to install VPhone.bundle. Try again.")
             }
             guard lchown(path, 0, 0) == 0 else {
-                throw VPhoneLaunchpadHelperError("Cannot change the owner of \(path).")
+                throw VPhoneLaunchpadHelperError("Unable to install VPhone.bundle. Try again.")
             }
             if (info.st_mode & S_IFMT) != S_IFLNK {
                 chmod(path, info.st_mode & 0o7755)
@@ -179,7 +179,7 @@ enum VPhoneLaunchpadHelperBundleInstaller {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             throw VPhoneLaunchpadHelperError(
-                "\(URL(fileURLWithPath: path).lastPathComponent) exited with status \(process.terminationStatus).",
+                "Unable to extract the downloaded archive. Download it again.",
             )
         }
     }

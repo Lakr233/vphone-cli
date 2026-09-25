@@ -17,7 +17,7 @@ extension CryptexFilesystemPatcher {
         let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
         guard let enumerator = FileManager.default.enumerator(at: sourceRoot, includingPropertiesForKeys: keys) else {
             throw FirmwareManifest.ManifestError.fileNotFound(
-                "Unable to read \(sourceRoot.path). Check that the image is still mounted, then try again.",
+                "\(sourceRoot.path). Check that the image is still mounted, then try again.",
             )
         }
         for case let fileURL as URL in enumerator {

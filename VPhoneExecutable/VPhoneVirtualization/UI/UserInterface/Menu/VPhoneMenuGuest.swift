@@ -49,7 +49,7 @@ extension VPhoneMenuController {
         uninstallBootstrapItem = uninstallBootstrap
         menu.addItem(uninstallBootstrap)
         let uninstallNoRestart = makeItem(
-            "Uninstall Bootstrap… (No Restart)", action: #selector(uninstallBootstrapWithoutRestart),
+            "Uninstall Bootstrap Without Restarting…", action: #selector(uninstallBootstrapWithoutRestart),
             modifiers: [.option],
         )
         uninstallNoRestart.isAlternate = true

@@ -130,7 +130,7 @@ struct VPhoneGuestPreferencesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ContentUnavailableView(
-                "No Preference Read",
+                "No Preferences Loaded",
                 systemImage: "list.bullet.rectangle",
                 description: Text("Enter a domain, then choose Read. Leave Key empty to read every key in the domain."),
             )

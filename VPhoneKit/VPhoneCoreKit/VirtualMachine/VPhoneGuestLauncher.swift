@@ -15,16 +15,14 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
         switch self {
         case let .missingCompanion(name, url):
             return """
-            \(name) is missing — expected it next to this binary at:
-              \(url.path)
-            The bundle is incomplete. Rebuild the VPhone scheme in Xcode.
+            \(name) not found at \(url.path). The app bundle is incomplete. Rebuild the VPhone scheme in Xcode.
             """
 
         case let .blockedByAMFI(guest, cdHash):
             let helper = guest.deletingLastPathComponent()
                 .appendingPathComponent("VPhoneEscalator")
             return """
-            amfid refused to launch vphone-vm, so no guest could start.
+            AMFI blocked vphone-vm, so the VM could not start.
 
             Binary: \(guest.path)
             CDHash: \(cdHash ?? "unavailable")
@@ -39,15 +37,14 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
 
         case let .missingEntitlements(guest):
             return """
-            vphone-vm is missing the private PV=3 entitlements: \(guest.path)
+            vphone-vm at \(guest.path) is missing required virtualization entitlements.
             Rebuild the VPhone scheme in Xcode to sign this binary, then allow the new signature
             through the host's AMFI policy before launching a VM.
             """
 
         case let .probeFailed(code, output):
             return """
-            vphone-vm could not start (exit \(code)). This is not the signature \
-            of an amfid refusal, so AMFI is not what to look at.
+            vphone-vm could not start (exit code \(code)). AMFI did not block it.
             \(output.isEmpty ? "It produced no output." : output)
             """
         }

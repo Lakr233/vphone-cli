@@ -20,13 +20,13 @@ extension VPhoneRestoreError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .ecidUnresolved:
-            "No ECID: pass --ecid, or restore a bundle whose udid-prediction.txt carries one"
+            "ECID not found. Pass --ecid, or restore a VM whose udid-prediction.txt includes one."
         case .noSHSH:
-            "No cached .shsh in the bundle; run `restore --get-shsh` first, or drop the --offline flag"
+            "No saved SHSH blob found for this VM. Run `restore --get-shsh` first, or run without --offline."
         case let .aeaDecryptFailed(name):
-            "Could not decrypt \(name)"
+            "Unable to decrypt \(name). Download the firmware again and retry the restore."
         case let .aeaStillEncrypted(name):
-            "\(name) is still AEA-encrypted after decryption reported success"
+            "\(name) is still encrypted after decryption. Download the firmware again and retry the restore."
         }
     }
 }

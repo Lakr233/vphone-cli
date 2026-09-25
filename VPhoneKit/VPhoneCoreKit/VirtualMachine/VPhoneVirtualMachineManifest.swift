@@ -18,11 +18,9 @@ extension VPhoneManifestError: CustomStringConvertible, LocalizedError {
         case let .parseFailed(path):
             "The VM configuration at \(path) is not valid. Recreate the VM, or restore a backup of config.plist."
         case let .unsupportedSchema(path, found):
-            "The VM configuration at \(path) has \(found.map { "schema version \($0)" } ?? "no valid schema version"). "
-                + "vphone 2.x requires schema version 2. Recreate this VM with `vphone-cli vm create`."
+            "The VM configuration at \(path) has \(found.map { "schema version \($0)" } ?? "no valid schema version"). vphone 2.x requires schema version 2. Recreate this VM with `vphone-cli vm create`."
         case let .unsupportedRuntimeVersion(version):
-            "This vphone build reports version \(version). VMs with schema version 2 require vphone 2.x. "
-                + "Install a vphone 2.x build before launching this VM."
+            "This vphone build is version \(version). VMs with schema version 2 require vphone 2.x. Install vphone 2.x before launching this VM."
         case let .writeFailed(path):
             "Unable to save the VM configuration to \(path). Check that the file is writable and try again."
         }

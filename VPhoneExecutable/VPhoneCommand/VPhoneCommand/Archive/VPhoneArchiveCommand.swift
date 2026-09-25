@@ -140,11 +140,11 @@ struct Create: ParsableCommand {
 
     func validate() throws {
         if zstd, xz {
-            throw ValidationError("choose one of --zstd or --xz")
+            throw ValidationError("Use either --zstd or --xz, not both.")
         }
         guard VPhoneArchiveFormat(rawValue: format) != nil else {
             throw ValidationError(
-                "unknown format '\(format)' (gnutar, pax, ustar)",
+                "Unknown format '\(format)'. Use gnutar, pax, or ustar.",
             )
         }
     }

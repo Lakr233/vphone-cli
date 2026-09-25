@@ -100,9 +100,8 @@ final class VPhoneConsoleModel {
             }
             return true
         } catch {
-            let detail = String(describing: error)
             status = VPhoneGuestToolStatus(
-                message: String(localized: "Unable to capture the guest log: \(detail). Check the connection; retrying in 3 seconds.", bundle: VPhoneLocalization.bundle),
+                message: String(localized: "Unable to capture the guest log. Check the connection. Retrying in 3 seconds.", bundle: VPhoneLocalization.bundle),
                 isError: true,
             )
             return false

@@ -68,7 +68,7 @@ public final class ManifestHashPatcher: Patcher {
             options: [],
             format: nil,
         ) as? PlistDict else {
-            throw FirmwareManifest.ManifestError.invalidPlist("")
+            throw FirmwareManifest.ManifestError.invalidPlist("BuildManifest.plist")
         }
         return buildManifest
     }
@@ -76,7 +76,7 @@ public final class ManifestHashPatcher: Patcher {
     func applyPatches(buildManifest: PlistDict) throws -> PlistDict {
         var buildManifest = buildManifest
         guard let restoreDir else {
-            throw FirmwareManifest.ManifestError.fileNotFound("Restore Directory")
+            throw FirmwareManifest.ManifestError.fileNotFound("the restore directory")
         }
 
         // We assume that FirmwareManifest has generated the manifest containing a single build identity.

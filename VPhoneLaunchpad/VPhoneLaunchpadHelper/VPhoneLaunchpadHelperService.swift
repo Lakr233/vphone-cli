@@ -96,7 +96,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
             Self.firmwareLock.lock()
             guard Self.firmwareProcess == nil else {
                 Self.firmwareLock.unlock()
-                reply(-1, "Another CFW install is already running.")
+                reply(-1, "Another CFW install is in progress. Wait for it to finish, then try again.")
                 return
             }
             Self.firmwareProcess = process
@@ -110,7 +110,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
             do {
                 try process.run()
             } catch {
-                reply(-1, "Cannot start vphone-cli: \(error.localizedDescription)")
+                reply(-1, "Unable to start vphone-cli. \(error.localizedDescription)")
                 return
             }
             emit("$ vphone-cli \(request.arguments.joined(separator: " "))  (as root)")

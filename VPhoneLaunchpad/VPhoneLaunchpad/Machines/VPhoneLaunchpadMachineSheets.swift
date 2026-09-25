@@ -90,7 +90,7 @@ struct VPhoneLaunchpadNameSheet: View {
             Section {
                 TextField("Name", text: $name)
             } footer: {
-                Text(note ?? "Letters, digits, dots, dashes and underscores.")
+                Text(note ?? "Use letters, numbers, periods, hyphens, and underscores.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -126,12 +126,12 @@ struct VPhoneLaunchpadExportView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Densest compression", isOn: $densest)
+                Toggle("Maximum compression", isOn: $densest)
                 Toggle("Include the restore IPSW directory", isOn: $includeIPSW)
             } footer: {
                 Text(densest
-                    ? "Writes a .txz archive with xz -9. Smaller, and much slower."
-                    : "Writes a .tzst archive with zstd -3.")
+                    ? "Creates a smaller .txz archive. Export takes much longer."
+                    : "Creates a .tzst archive.")
                     .foregroundStyle(.secondary)
             }
         }

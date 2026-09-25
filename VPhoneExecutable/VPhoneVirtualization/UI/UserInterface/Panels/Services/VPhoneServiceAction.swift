@@ -63,15 +63,15 @@ enum VPhoneServiceAction: Hashable {
         }
     }
 
-    func failureTitle(_ label: String) -> String {
+    func failureMessage(_ label: String, reason: String) -> String {
         switch self {
-        case .start: String(localized: "Unable to start \(label).", bundle: VPhoneLocalization.bundle)
-        case .stop: String(localized: "Unable to stop \(label).", bundle: VPhoneLocalization.bundle)
-        case .restart: String(localized: "Unable to restart \(label).", bundle: VPhoneLocalization.bundle)
-        case .enable: String(localized: "Unable to enable \(label).", bundle: VPhoneLocalization.bundle)
-        case .disable: String(localized: "Unable to disable \(label).", bundle: VPhoneLocalization.bundle)
-        case let .signal(signal): String(localized: "Unable to send \(signal.title) to \(label).", bundle: VPhoneLocalization.bundle)
-        case .remove: String(localized: "Unable to remove \(label).", bundle: VPhoneLocalization.bundle)
+        case .start: String(localized: "Unable to start \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case .stop: String(localized: "Unable to stop \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case .restart: String(localized: "Unable to restart \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case .enable: String(localized: "Unable to enable \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case .disable: String(localized: "Unable to disable \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case let .signal(signal): String(localized: "Unable to send \(signal.title) to \(label). \(reason)", bundle: VPhoneLocalization.bundle)
+        case .remove: String(localized: "Unable to remove \(label). \(reason)", bundle: VPhoneLocalization.bundle)
         }
     }
 

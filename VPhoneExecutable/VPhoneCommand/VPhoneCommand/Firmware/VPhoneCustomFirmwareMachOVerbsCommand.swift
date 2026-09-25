@@ -89,9 +89,7 @@ private func requireUntruncatedMachO(at url: URL) throws {
     // claiming more commands than that much room is lying about one of the two.
     guard 32 + sizeOfCommands <= fileSize, numberOfCommands * 8 <= sizeOfCommands else {
         throw PatcherError.invalidFormat(
-            "\(url.lastPathComponent): truncated Mach-O — the header claims "
-                + "\(numberOfCommands) load command(s) in \(sizeOfCommands) bytes, "
-                + "and the file is \(fileSize) bytes",
+            "\(url.lastPathComponent) is a truncated Mach-O file: the header lists \(numberOfCommands) load commands in \(sizeOfCommands) bytes, but the file is only \(fileSize) bytes.",
         )
     }
 }

@@ -29,8 +29,7 @@ enum VPhoneLaunchpadHelperCodeCheck {
         var error: Unmanaged<CFError>?
         let status = SecStaticCodeCheckValidityWithErrors(code, flags, nil, &error)
         guard status == errSecSuccess else {
-            let reason = error.map { "\($0.takeRetainedValue())" } ?? "OSStatus \(status)"
-            throw VPhoneLaunchpadHelperError("VPhone.bundle failed signature validation: \(reason)")
+            throw VPhoneLaunchpadHelperError("VPhone.bundle has an invalid code signature. Download it again.")
         }
     }
 
@@ -43,7 +42,7 @@ enum VPhoneLaunchpadHelperCodeCheck {
               let dictionary = information as? [String: Any],
               let hash = dictionary[kSecCodeInfoUnique as String] as? Data
         else {
-            throw VPhoneLaunchpadHelperError("\(url.lastPathComponent) has no readable code signature.")
+            throw VPhoneLaunchpadHelperError("Unable to read the code signature of \(url.lastPathComponent). Reinstall VPhone.bundle.")
         }
         return hash.map { String(format: "%02x", $0) }.joined()
     }
@@ -51,12 +50,12 @@ enum VPhoneLaunchpadHelperCodeCheck {
     /// Refuses to go on unless `url` still has the cdhash recorded at install.
     static func requireCDHash(_ url: URL, _ expected: String?) throws {
         guard let expected else {
-            throw VPhoneLaunchpadHelperError("The bundle receipt has no cdhash for \(url.lastPathComponent).")
+            throw VPhoneLaunchpadHelperError("Unable to verify \(url.lastPathComponent). Reinstall VPhone.bundle.")
         }
         let actual = try cdhash(of: url)
         guard actual == expected else {
             throw VPhoneLaunchpadHelperError(
-                "\(url.lastPathComponent) changed since it was installed (cdhash \(actual), expected \(expected)).",
+                "\(url.lastPathComponent) was modified after installation. Reinstall VPhone.bundle.",
             )
         }
     }
@@ -65,7 +64,7 @@ enum VPhoneLaunchpadHelperCodeCheck {
         var code: SecStaticCode?
         let status = SecStaticCodeCreateWithPath(url as CFURL, [], &code)
         guard status == errSecSuccess, let code else {
-            throw VPhoneLaunchpadHelperError("Cannot read the code signature of \(url.path) (OSStatus \(status)).")
+            throw VPhoneLaunchpadHelperError("Unable to read the code signature of \(url.lastPathComponent). Reinstall VPhone.bundle.")
         }
         return code
     }

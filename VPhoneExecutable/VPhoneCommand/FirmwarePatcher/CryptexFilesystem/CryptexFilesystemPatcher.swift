@@ -109,7 +109,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         rebuiltData = try serializePayload(updatedManifest)
 
         guard attachedDevices.isEmpty else {
-            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Filesystem image is still attached")
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed("The filesystem image is still attached. Detach it, then try again.")
         }
 
         return 1
@@ -157,7 +157,7 @@ public final class CryptexFilesystemPatcher: Patcher {
         }
 
         guard attachedDevices.isEmpty else {
-            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Filesystem image is still attached")
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed("The filesystem image is still attached. Detach it, then try again.")
         }
 
         print("- Finalizing merged image…")
@@ -177,7 +177,7 @@ public final class CryptexFilesystemPatcher: Patcher {
 
     func copyCryptex(targetMount: String, appOS: Bool = false, systemOS: Bool = false) throws {
         guard appOS || systemOS, !(appOS && systemOS) else {
-            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Can patch only one at a time")
+            throw FirmwarePatcher.PatcherError.patchVerificationFailed("Specify exactly one cryptex to copy: AppOS or SystemOS.")
         }
 
         let osPath = if appOS {

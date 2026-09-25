@@ -35,14 +35,14 @@ public enum VPhoneFirmwareIndex {
 
         public var errorDescription: String? {
             switch self {
-            case let .fetchFailed(url, status):
-                "HTTP \(status) from \(url.host() ?? url.absoluteString)"
+            case let .fetchFailed(url, _):
+                "Unable to download the firmware catalog from \(url.host() ?? url.absoluteString). Check your connection and try again."
             case let .unexpectedShape(url):
-                "\(url.host() ?? url.absoluteString) answered in a shape this does not understand"
+                "Unable to read the firmware catalog from \(url.host() ?? url.absoluteString). Try again later."
             case .decompressionFailed:
-                "the firmware catalogue did not decompress"
+                "Unable to read the firmware catalog. Try again later."
             case let .noRelease(os, what):
-                "the firmware catalogue lists no released \(os) \(what)"
+                "No released \(os) \(what) found in the firmware catalog."
             }
         }
     }

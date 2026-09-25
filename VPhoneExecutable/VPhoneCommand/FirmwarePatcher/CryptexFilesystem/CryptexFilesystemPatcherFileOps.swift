@@ -20,15 +20,11 @@ enum CryptexFileOperationError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case let .chown(path, code):
-            "cannot change owner of \(path): \(String(cString: strerror(code)))"
+            "Unable to change the owner of \(path): \(String(cString: strerror(code)))"
         case let .unlink(path, code):
-            "cannot remove \(path): \(String(cString: strerror(code)))"
+            "Unable to remove \(path): \(String(cString: strerror(code)))"
         case let .symlinkOntoDirectory(path):
-            """
-            refusing to replace the directory at \(path) with a symlink.
-            `ln -sf` would have created the link *inside* it, which leaves the \
-            guest with a path that resolves to nothing and only fails at boot.
-            """
+            "Unable to create a symlink at \(path) because a directory already exists there."
         }
     }
 }

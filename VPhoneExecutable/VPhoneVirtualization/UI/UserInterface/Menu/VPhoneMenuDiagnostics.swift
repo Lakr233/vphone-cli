@@ -78,8 +78,7 @@ extension VPhoneMenuController {
             } catch {
                 VPhoneAlert.present(
                     title: "Developer Mode",
-                    message: "Unable to read Developer Mode status. Check that the guest agent is connected, "
-                        + "then try again.",
+                    message: "Unable to read Developer Mode status. Check that the guest agent is connected, then try again.",
                     style: .warning,
                 )
             }
@@ -109,8 +108,7 @@ extension VPhoneMenuController {
             } catch {
                 VPhoneAlert.present(
                     title: "Guest Agent Hash",
-                    message: "Unable to read the guest agent hash. Check that the guest agent is connected, "
-                        + "then try again.",
+                    message: "Unable to read the guest agent hash. Check that the guest agent is connected, then try again.",
                     style: .warning,
                 )
             }

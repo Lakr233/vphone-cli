@@ -171,7 +171,7 @@ final class VPhoneServicesModel {
         } catch {
             guard selection == label else { return }
             detail = nil
-            detailError = String(localized: "Unable to print \(label). \(Self.reason(error))", bundle: VPhoneLocalization.bundle)
+            detailError = String(localized: "Unable to load details for \(label). \(Self.reason(error))", bundle: VPhoneLocalization.bundle)
         }
     }
 
@@ -215,7 +215,7 @@ final class VPhoneServicesModel {
         do {
             message = try await run(action, on: label)
         } catch {
-            fail(action.failureTitle(label) + " " + Self.reason(error))
+            fail(action.failureMessage(label, reason: Self.reason(error)))
             await refreshRow(label)
             return
         }

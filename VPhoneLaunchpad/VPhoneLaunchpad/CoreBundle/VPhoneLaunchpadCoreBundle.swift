@@ -188,7 +188,7 @@ final class VPhoneLaunchpadCoreBundle {
                 $0.preflight = result.succeeded ? .passed : .failed
                 $0.preflightDetail = result.succeeded
                     ? String(localized: "Passed")
-                    : (result.lines.last ?? String(localized: "Exit status \(result.status)"))
+                    : (result.lines.last ?? String(localized: "Preflight failed"))
                         .replacingOccurrences(of: "Error: ", with: "")
             }
         } catch {
@@ -228,7 +228,7 @@ final class VPhoneLaunchpadCoreBundle {
             set(.verify, .running)
             guard digest == release.sha256.lowercased() else {
                 throw VPhoneLaunchpadError(
-                    String(localized: "The download does not match the published SHA-256."),
+                    String(localized: "The download could not be verified. Try again."),
                     detail: String(localized: "Expected \(release.sha256)\nReceived \(digest)"),
                 )
             }
@@ -250,7 +250,7 @@ final class VPhoneLaunchpadCoreBundle {
             set(.preflight, installed?.preflight ?? .failed)
             if installed?.preflight != .passed {
                 throw VPhoneLaunchpadError(
-                    String(localized: "Host preflight did not pass."),
+                    String(localized: "Host preflight failed. Fix the issue below, then choose Run Preflight Again."),
                     detail: installed?.preflightDetail,
                 )
             }
@@ -259,7 +259,7 @@ final class VPhoneLaunchpadCoreBundle {
                 set(step, .failed)
             }
             progress?.error = error as? VPhoneLaunchpadError
-                ?? VPhoneLaunchpadError(String(localized: "The install failed."), detail: error.localizedDescription)
+                ?? VPhoneLaunchpadError(String(localized: "Unable to install the bundle. Try again."), detail: error.localizedDescription)
         }
     }
 
@@ -282,7 +282,7 @@ final class VPhoneLaunchpadCoreBundle {
         do {
             try await helper.removeBundle(version: version)
         } catch {
-            actionError = VPhoneLaunchpadError(String(localized: "VPhone.bundle \(version) could not be removed."), detail: "\(error)")
+            actionError = VPhoneLaunchpadError(String(localized: "Unable to Remove VPhone.bundle \(version)"), detail: error.localizedDescription)
         }
         loadInstalled()
     }

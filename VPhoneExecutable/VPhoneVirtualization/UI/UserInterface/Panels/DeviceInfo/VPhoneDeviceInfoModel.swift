@@ -277,7 +277,7 @@ final class VPhoneDeviceInfoModel {
         if developer.bool("enabled") == true {
             (developerValue, developerTone) = (Self.text("On"), .good)
         } else if developer.bool("armed") == true {
-            (developerValue, developerTone) = (Self.text("Armed, turns on after restart"), .warning)
+            (developerValue, developerTone) = (Self.text("On After Restart"), .warning)
         } else if developer.bool("enabled") == false {
             (developerValue, developerTone) = (Self.text("Off"), nil)
         } else {
@@ -355,14 +355,14 @@ final class VPhoneDeviceInfoModel {
     /// UIDeviceOrientation raw values.
     private static func deviceOrientation(_ value: Int?) -> String {
         switch value {
-        case 1: "portrait"
-        case 2: "portrait-upside-down"
-        case 3: "landscape-left"
-        case 4: "landscape-right"
-        case 5: "face-up"
-        case 6: "face-down"
+        case 1: Self.text("Portrait")
+        case 2: Self.text("Upside Down")
+        case 3: Self.text("Landscape Left")
+        case 4: Self.text("Landscape Right")
+        case 5: Self.text("Face Up")
+        case 6: Self.text("Face Down")
         case nil: "—"
-        default: "unknown"
+        default: Self.text("Unknown")
         }
     }
 }

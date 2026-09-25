@@ -37,9 +37,9 @@ public enum DyldSharedCacheError: Error, CustomStringConvertible, Sendable {
     public var description: String {
         switch self {
         case let .noChunksFound(directory):
-            "No dyld shared cache chunks found under \(directory)"
+            "No dyld shared cache chunks found in \(directory). Check the path, then try again."
         case let .noMappingsParsed(directory):
-            "Chunks present under \(directory) but no mapping table was recognised"
+            "Found dyld shared cache chunks under \(directory), but none has a recognized mapping table."
         case let .addressNotMapped(vma):
             "VMA 0x\(String(vma, radix: 16, uppercase: true)) is not mapped by any chunk"
         case let .addressSpanCrossesChunk(vma, length):
@@ -47,9 +47,9 @@ public enum DyldSharedCacheError: Error, CustomStringConvertible, Sendable {
         case let .shortRead(vma, wanted, got):
             "Short read at VMA 0x\(String(vma, radix: 16, uppercase: true)): got \(got) of \(wanted) bytes"
         case let .noCodeDirectory(chunk):
-            "Chunk \(chunk) has no recognised CS_SuperBlob / CS_CodeDirectory"
+            "Chunk \(chunk) has no recognized code signature."
         case let .unsupportedCodeDirectory(chunk, reason):
-            "Chunk \(chunk) code directory unsupported: \(reason)"
+            "Chunk \(chunk) has an unsupported code signature: \(reason)"
         case let .notADyldCache(path):
             "\(path) does not start with a dyld cache header"
         case let .localSymbolsMissing(path):

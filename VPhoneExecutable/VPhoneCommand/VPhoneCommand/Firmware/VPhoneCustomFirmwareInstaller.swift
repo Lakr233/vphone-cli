@@ -44,7 +44,7 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     func run() throws {
-        guard geteuid() == 0 else { throw ValidationError("CFW install requires administrator privileges") }
+        guard geteuid() == 0 else { throw ValidationError("CFW installation needs root. Run this command with sudo.") }
         let invokingUser = VPhoneInvokingUser.current
         defer {
             if let invokingUser {
@@ -58,19 +58,19 @@ struct VPhoneCustomFirmwareInstaller {
         }
         let diskImage = bundle.appendingPathComponent("Disk.img")
         guard fm.fileExists(atPath: diskImage.path) else {
-            throw ValidationError("Disk.img is missing: \(diskImage.path)")
+            throw ValidationError("The VM disk image is missing: \(diskImage.path). Create the VM again, then install CFW.")
         }
         let busy = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/sbin/lsof"), [diskImage.path],
         )
         guard busy.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ValidationError("VM disk is in use; stop the VM before installing CFW")
+            throw ValidationError("The VM disk is in use. Stop the VM, then install CFW again.")
         }
         let capacity =
             try bundle.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage ?? 0
         guard capacity > 50 * 1024 * 1024 * 1024 else {
-            throw ValidationError("Less than 50 GiB available; CFW install stopped before mounting")
+            throw ValidationError("Less than 50 GiB of disk space is available. Free up space, then install CFW again.")
         }
 
         let attached = try tool(
@@ -87,7 +87,7 @@ struct VPhoneCustomFirmwareInstaller {
             if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
                 _ = try? tool("/usr/bin/hdiutil", ["detach", "-force", String(attached[range])], quiet: true)
             }
-            throw ValidationError("hdiutil attached no disk device")
+            throw ValidationError("Unable to attach the VM disk image. Try again.")
         }
         var diskAttached = true
         var workToClean: URL?
@@ -115,7 +115,7 @@ struct VPhoneCustomFirmwareInstaller {
             let container = plist["APFSContainerReference"] as? String,
             container.hasPrefix("disk")
         else {
-            throw ValidationError("Could not resolve the APFS container for \(baseDisk)")
+            throw ValidationError("Unable to read the VM disk image. Try again.")
         }
         let work = bundle.appendingPathComponent(".cfw-native-\(UUID().uuidString)")
         let system = work.appendingPathComponent("system")
@@ -163,7 +163,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && fm.fileExists(atPath: $0.appendingPathComponent("iPhone-BuildManifest.plist").path)
             })
         else {
-            throw ValidationError("No prepared iPhone restore tree exists in \(bundle.path)")
+            throw ValidationError("No prepared iPhone restore tree was found in \(bundle.path). Run fw prepare, then install CFW again.")
         }
         try installCryptexes(restore: restore, system: system, work: work)
         let version = try productVersion(system: system)
@@ -395,7 +395,7 @@ struct VPhoneCustomFirmwareInstaller {
             || (try? alias.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
         {
             guard (try? fm.destinationOfSymbolicLink(atPath: alias.path)) == target else {
-                throw ValidationError("Root path /vh is already occupied")
+                throw ValidationError("Another file already uses /vh on the VM system volume. Remove it, then install CFW again.")
             }
         } else {
             try fm.createSymbolicLink(atPath: alias.path, withDestinationPath: target)
@@ -431,7 +431,7 @@ struct VPhoneCustomFirmwareInstaller {
             let preboot = volumes.first(where: { ($0["Roles"] as? [String])?.contains("Preboot") == true }),
             let device = preboot["DeviceIdentifier"] as? String
         else {
-            throw ValidationError("Could not locate the VM's Preboot APFS volume")
+            throw ValidationError("Unable to find the VM's Preboot volume. Restore the VM, then install CFW again.")
         }
         let mount = work.appendingPathComponent("preboot")
         try fm.createDirectory(at: mount, withIntermediateDirectories: false)
@@ -442,7 +442,7 @@ struct VPhoneCustomFirmwareInstaller {
             $0.appendingPathComponent("usr/standalone/firmware/devicetree.img4")
         }.filter { fm.fileExists(atPath: $0.path) }
         guard candidates.count == 1, let deviceTree = candidates.first else {
-            throw ValidationError("Expected one restored devicetree.img4 in Preboot, found \(candidates.count)")
+            throw ValidationError("Expected one device tree in the Preboot volume but found \(candidates.count). Restore the VM, then install CFW again.")
         }
         try patch("patch-post-restore-dt", [deviceTree.path])
         if let build = spoofBuild {
@@ -573,7 +573,7 @@ struct VPhoneCustomFirmwareInstaller {
             ) as? [String: Any],
             let version = value["ProductVersion"] as? String
         else {
-            throw ValidationError("SystemVersion.plist has no ProductVersion")
+            throw ValidationError("Unable to read the iOS version from the VM system volume. Restore the VM, then install CFW again.")
         }
         return version
     }
@@ -597,7 +597,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     private func removeWorkDirectory(_ work: URL) throws {
         guard let mounts = fm.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: []) else {
-            throw ValidationError("Could not verify that CFW volumes are detached")
+            throw ValidationError("Unable to confirm that the CFW volumes are detached. Eject them in Disk Utility, then try again.")
         }
         let root = work.resolvingSymlinksInPath().path
         guard
@@ -606,7 +606,7 @@ struct VPhoneCustomFirmwareInstaller {
                 return path == root || path.hasPrefix(root + "/")
             })
         else {
-            throw ValidationError("CFW volume is still mounted under \(work.path)")
+            throw ValidationError("A CFW volume is still mounted under \(work.path). Eject it, then try again.")
         }
         try fm.removeItem(at: work)
     }

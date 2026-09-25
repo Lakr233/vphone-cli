@@ -38,7 +38,7 @@ extension VPhoneMenuController {
         let charging = makeItem("Charging", action: #selector(setBatteryConnectivity(_:)))
         charging.tag = 1
         charging.state = .on
-        let disconnected = makeItem("Disconnected", action: #selector(setBatteryConnectivity(_:)))
+        let disconnected = makeItem("Not Charging", action: #selector(setBatteryConnectivity(_:)))
         disconnected.tag = 2
 
         menu.addItem(charging)
@@ -202,11 +202,11 @@ extension VPhoneMenuController {
 
     private func updateStatusLabel(charge: Double, connectivity: Int) {
         let connLabel = VPhoneLocalization.text(connectivity == 1 ? "charging" : "not charging")
-        let lpmLabel =
+        let format =
             ProcessInfo.processInfo.isLowPowerModeEnabled
-                ? VPhoneLocalization.text(", low power") : ""
+                ? "Status: %@%% (%@, Low Power Mode)" : "Status: %@%% (%@)"
         batterySyncStatusItem?.title = VPhoneLocalization.format(
-            "Status: %@%% (%@)", String(Int(charge)), connLabel + lpmLabel,
+            format, String(Int(charge)), connLabel,
         )
     }
 

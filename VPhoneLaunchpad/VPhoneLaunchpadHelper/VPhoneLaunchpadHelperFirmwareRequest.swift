@@ -23,7 +23,7 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
             throw VPhoneLaunchpadHelperError("\"\(bundleVersion)\" is not a valid bundle version.")
         }
         guard let receipt = VPhoneLaunchpadBundleReceipt.load(version: bundleVersion) else {
-            throw VPhoneLaunchpadHelperError("VPhone.bundle \(bundleVersion) is not installed.")
+            throw VPhoneLaunchpadHelperError("VPhone.bundle \(bundleVersion) is not installed. Install it in Core Bundle, then try again.")
         }
         let executable = VPhoneLaunchpadBundleStore.executable(version: bundleVersion, named: "vphone-cli")
         try VPhoneLaunchpadHelperCodeCheck.requireCDHash(executable, receipt.cdhashes["vphone-cli"])
@@ -34,12 +34,12 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         // The path must already be canonical: no symlink anywhere in it, so a
         // component cannot be swapped to point root somewhere else.
         guard libraryRoot.hasPrefix("/"), let resolved = realpath(libraryRoot, nil) else {
-            throw VPhoneLaunchpadHelperError("The library root \(libraryRoot) does not exist.")
+            throw VPhoneLaunchpadHelperError("The library folder \(libraryRoot) does not exist.")
         }
         let canonical = String(cString: resolved)
         free(resolved)
         guard canonical == libraryRoot else {
-            throw VPhoneLaunchpadHelperError("The library root must be a canonical path without symlinks.")
+            throw VPhoneLaunchpadHelperError("The library path cannot include symbolic links.")
         }
         let machine = URL(fileURLWithPath: libraryRoot, isDirectory: true)
             .appendingPathComponent(machineName, isDirectory: true)
@@ -47,7 +47,7 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         try Self.requireDirectory(machine.path, ownedBy: callerUID)
 
         guard let account = getpwuid(callerUID) else {
-            throw VPhoneLaunchpadHelperError("Unknown user \(callerUID).")
+            throw VPhoneLaunchpadHelperError("Unable to find the user account with ID \(callerUID).")
         }
         let userName = String(cString: account.pointee.pw_name)
         let home = String(cString: account.pointee.pw_dir)
@@ -81,10 +81,10 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
     private static func requireDirectory(_ path: String, ownedBy uid: uid_t) throws {
         var info = stat()
         guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else {
-            throw VPhoneLaunchpadHelperError("\(path) is not a directory.")
+            throw VPhoneLaunchpadHelperError("\(path) is not a folder.")
         }
         guard info.st_uid == uid else {
-            throw VPhoneLaunchpadHelperError("\(path) is not owned by the requesting user.")
+            throw VPhoneLaunchpadHelperError("\(path) is not owned by your user account.")
         }
     }
 }

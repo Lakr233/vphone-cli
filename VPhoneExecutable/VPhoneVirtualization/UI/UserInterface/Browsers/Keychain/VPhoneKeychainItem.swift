@@ -47,7 +47,7 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
         }
         if valueEncoding == "base64" {
             return VPhoneLocalization.format(
-                "[%@ binary]",
+                "Binary data (%@)",
                 ByteCountFormatter.string(fromByteCount: Int64(valueSize), countStyle: .file),
             )
         }
@@ -75,13 +75,13 @@ struct VPhoneKeychainItem: Identifiable, Hashable {
 
     var protectionDescription: String {
         switch protection {
-        case "ak": VPhoneLocalization.text("WhenUnlocked")
-        case "ck": VPhoneLocalization.text("AfterFirstUnlock")
+        case "ak": VPhoneLocalization.text("When Unlocked")
+        case "ck": VPhoneLocalization.text("After First Unlock")
         case "dk": VPhoneLocalization.text("Always")
-        case "aku": VPhoneLocalization.text("WhenUnlocked (ThisDevice)")
-        case "cku": VPhoneLocalization.text("AfterFirstUnlock (ThisDevice)")
-        case "dku": VPhoneLocalization.text("Always (ThisDevice)")
-        case "akpu": VPhoneLocalization.text("WhenPasscodeSet (ThisDevice)")
+        case "aku": VPhoneLocalization.text("When Unlocked (This Device Only)")
+        case "cku": VPhoneLocalization.text("After First Unlock (This Device Only)")
+        case "dku": VPhoneLocalization.text("Always (This Device Only)")
+        case "akpu": VPhoneLocalization.text("When Passcode Set (This Device Only)")
         default: protection
         }
     }

@@ -123,7 +123,7 @@ struct VPhoneLaunchpadMachineInspector: View {
     private var commands: some View {
         let entries = Array(model.history.entries.suffix(12).reversed())
         if entries.isEmpty {
-            Text("Commands Launchpad runs appear here.")
+            Text("Commands that Launchpad runs appear here.")
                 .foregroundStyle(.secondary)
         }
         ForEach(entries) { entry in

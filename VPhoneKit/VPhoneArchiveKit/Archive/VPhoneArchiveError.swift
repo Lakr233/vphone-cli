@@ -14,20 +14,17 @@ public enum VPhoneArchiveError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case let .cannotOpen(path, reason):
-            "Could not open \(path): \(reason)"
+            "Unable to open \(path) (\(reason)). Check that the file exists and try again."
         case let .readFailed(path, reason):
-            "Could not read \(path): \(reason)"
+            "Unable to read \(path) (\(reason)). The file may be damaged. Download it again."
         case let .writeFailed(path, reason):
-            "Could not write \(path): \(reason)"
+            "Unable to write to \(path) (\(reason)). Check that the folder is writable and has free space, then try again."
         case let .memberNotFound(member, archive):
-            "\(archive) has no member named \(member)"
+            "\(archive) does not contain '\(member)'."
         case let .pathEscapesDestination(member, destination):
-            """
-            Refusing to unpack '\(member)': it resolves outside \(destination).
-            The archive is malformed or hostile; nothing was written.
-            """
+            "Unable to unpack '\(member)' because it points outside \(destination). The archive may be damaged or unsafe. Nothing was written."
         case let .destinationNotWritable(path):
-            "Cannot write into \(path)"
+            "Unable to write to \(path). Check that the folder is writable and try again."
         case .cancelled:
             "Cancelled"
         }
@@ -37,7 +34,7 @@ public enum VPhoneArchiveError: Error, CustomStringConvertible {
 /// libarchive's own message for a handle, or a stand-in when it has none.
 func archiveErrorString(_ handle: OpaquePointer?) -> String {
     guard let handle, let message = archive_error_string(handle) else {
-        return "unknown libarchive error"
+        return "unknown error"
     }
     return String(cString: message)
 }

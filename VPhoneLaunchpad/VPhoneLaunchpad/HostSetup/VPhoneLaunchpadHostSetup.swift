@@ -132,14 +132,14 @@ final class VPhoneLaunchpadHostSetup {
     )!
 
     func installHelper() async {
-        update(.helper, (.running, String(localized: "Waiting for an administrator…")))
+        update(.helper, (.running, String(localized: "Waiting for administrator approval…")))
         do {
             try await helper.install()
         } catch is CancellationError {
         } catch let error as VPhoneLaunchpadError {
             actionError = error
         } catch {
-            actionError = VPhoneLaunchpadError(String(localized: "The helper could not be installed."), detail: "\(error)")
+            actionError = VPhoneLaunchpadError(String(localized: "Unable to Install Helper"), detail: String(localized: "Try again."))
         }
         update(.helper, helperStatus())
     }
@@ -190,13 +190,13 @@ final class VPhoneLaunchpadHostSetup {
     nonisolated private static func macOSVersion() -> (VPhoneLaunchpadStatus, String) {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let text = "\(version.majorVersion).\(version.minorVersion)"
-        return version.majorVersion >= 15 ? (.passed, text) : (.failed, String(localized: "\(text) is too old"))
+        return version.majorVersion >= 15 ? (.passed, text) : (.failed, String(localized: "macOS \(text) is not supported"))
     }
 
     nonisolated private static func physicalMac() -> (VPhoneLaunchpadStatus, String) {
         let present = sysctlInt("kern.hv_vmm_present") ?? 0
         return present == 0
-            ? (.passed, "kern.hv_vmm_present = 0")
+            ? (.passed, String(localized: "Not a virtual machine"))
             : (.failed, String(localized: "Running in a virtual machine"))
     }
 
@@ -265,7 +265,7 @@ final class VPhoneLaunchpadHostSetup {
         func applyPreview(blocked: Bool) {
             update(.appleSilicon, (.passed, "arm64"))
             update(.macOS, (.passed, "27.0"))
-            update(.physicalMac, (.passed, "kern.hv_vmm_present = 0"))
+            update(.physicalMac, (.passed, String(localized: "Not a virtual machine")))
             update(.libraryVolume, (.passed, "~/.vphone/machines"))
             update(.developerTools, blocked ? (.pending, String(localized: "Not requested")) : (.passed, String(localized: "Allowed")))
             update(.helper, blocked ? (.pending, String(localized: "Not installed")) : (.passed, String(localized: "Version \("1")")))

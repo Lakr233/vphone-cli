@@ -162,8 +162,8 @@ final class VPhoneProcessesModel {
         await refresh(automatic: true)
 
         let signal = request.signal.name
-        if let (target, reason) = failures.first, failures.count == request.targets.count, failures.count == 1 {
-            fail(String(localized: "Unable to send \(signal) to \(target.reference): \(reason). Check that the process still exists, then try again.", bundle: VPhoneLocalization.bundle))
+        if let (target, _) = failures.first, failures.count == request.targets.count, failures.count == 1 {
+            fail(String(localized: "Unable to send \(signal) to \(target.reference). Check that the process still exists, then try again.", bundle: VPhoneLocalization.bundle))
         } else if !failures.isEmpty {
             let names = failures.map(\.0.reference).joined(separator: ", ")
             fail(String(localized: "Unable to send \(signal) to \(names). Check that the processes still exist, then try again.", bundle: VPhoneLocalization.bundle))

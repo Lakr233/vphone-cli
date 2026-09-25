@@ -43,17 +43,17 @@ public struct VPhoneRemoteZip: Sendable {
         public var errorDescription: String? {
             switch self {
             case let .notSeekable(url):
-                "\(url.host() ?? "the server") does not support range requests, so the archive cannot be read without downloading all of it"
+                "\(url.host() ?? "The server") does not support partial downloads, so the archive must be downloaded in full."
             case let .noEndOfCentralDirectory(url):
-                "\(url.lastPathComponent) does not end in a zip central directory"
-            case let .malformed(what):
-                "malformed zip: \(what)"
+                "\(url.lastPathComponent) is not a valid ZIP archive. Download it again."
+            case .malformed:
+                "The ZIP archive is damaged. Download it again."
             case let .notFound(name):
-                "no member matching '\(name)' in the archive"
-            case let .unsupportedCompression(method):
-                "zip compression method \(method) is not supported (only stored and deflate)"
-            case let .http(status, url):
-                "HTTP \(status) from \(url.host() ?? url.absoluteString)"
+                "The archive does not contain '\(name)'."
+            case .unsupportedCompression:
+                "The archive uses an unsupported compression method. Download the full IPSW instead."
+            case let .http(_, url):
+                "Unable to download from \(url.host() ?? url.absoluteString). Try again later."
             }
         }
     }

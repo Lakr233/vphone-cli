@@ -81,7 +81,7 @@ extension VPhoneRestoreBackendError: CustomStringConvertible {
         case let .ecidInvalid(value):
             "Invalid ECID: \(value)"
         case let .ecidTooLarge(value):
-            "ECID does not fit in 64 bits: \(value)"
+            "ECID is too long: \(value). Enter up to 16 hexadecimal digits."
         case let .noRestoreDirectory(dir):
             "No iPhone*_Restore directory found in \(dir.path)"
         case .multipleRestoreDirectories:
@@ -91,20 +91,19 @@ extension VPhoneRestoreBackendError: CustomStringConvertible {
         case .recoveryDeviceUnreadable:
             "The recovery endpoint stopped answering while it was being read"
         case .restoreAlreadyRunning:
-            "Another restore is already running in this process"
+            "Another restore is already running. Wait for it to finish, then try again."
         case let .restoreDirectoryUnusable(dir):
-            "\(dir.path) cannot be used as a restore directory; it must be an extracted "
-                + "iPhone*_Restore directory, not a .ipsw archive"
+            "Unable to use \(dir.path) as a restore directory. Choose an extracted iPhone*_Restore directory, not an .ipsw archive."
         case let .ticketUnreadable(path):
-            "\(path.path) could not be read as a TSS response plist"
-        case let .restoreFailed(code, reason):
-            "Restore failed (\(code)): \(reason)"
+            "Unable to read the SHSH ticket at \(path.path). Fetch a new ticket and try again."
+        case let .restoreFailed(_, reason):
+            "Restore failed. \(reason)"
         case let .shshNotProduced(dir):
-            "The TSS record was fetched but no .shsh appeared under \(dir.path)"
+            "The SHSH ticket was fetched, but no file was saved in \(dir.path). Try again."
         case let .shshMalformed(path):
-            "\(path.path) is not a TSS response dictionary"
+            "\(path.path) is not a valid SHSH ticket. Fetch a new ticket and try again."
         case let .shshNotDecompressible(path):
-            "\(path.path) is gzipped and could not be decompressed"
+            "The SHSH ticket at \(path.path) is damaged. Fetch a new ticket and try again."
         }
     }
 }

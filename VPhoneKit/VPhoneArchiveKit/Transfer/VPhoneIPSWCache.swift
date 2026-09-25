@@ -21,12 +21,12 @@ public enum VPhoneIPSWCache {
 
         public var errorDescription: String? {
             switch self {
-            case let .unsupportedSource(source): "Unsupported IPSW source: \(source)"
-            case let .missingFile(file): "IPSW does not exist: \(file.path)"
-            case let .invalidManifest(file): "IPSW has no readable BuildManifest.plist: \(file.path)"
-            case let .unexpectedHTTP(url, status): "IPSW download returned HTTP \(status): \(url)"
+            case let .unsupportedSource(source): "Unsupported IPSW source: \(source). Use a local file path or an HTTP(S) URL."
+            case let .missingFile(file): "IPSW not found at \(file.path). Check the path and try again."
+            case let .invalidManifest(file): "\(file.path) is not a valid IPSW. Choose a different file."
+            case let .unexpectedHTTP(url, _): "Unable to download the IPSW from \(url). Try again later."
             case let .incompleteDownload(url, expected, actual):
-                "IPSW download from \(url) is incomplete: \(actual) of \(expected) bytes"
+                "The IPSW download from \(url) is incomplete (\(actual) of \(expected) bytes). Try again."
             }
         }
     }

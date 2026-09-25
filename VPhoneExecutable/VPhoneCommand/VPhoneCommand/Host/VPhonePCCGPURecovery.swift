@@ -13,9 +13,9 @@ enum VPhonePCCGPURecovery {
         var errorDescription: String? {
             switch self {
             case .identityTimedOut:
-                "Temporary PCC VM did not report its ECID"
+                "The temporary PCC VM did not report its ECID. Try again."
             case .recoveryTimedOut:
-                "Temporary PCC VM did not enter DFU/recovery mode"
+                "The temporary PCC VM did not enter DFU or recovery mode. Try again."
             case let .toolFailed(tool, detail):
                 "\(tool) failed while reading the restored PCC System volume: \(detail)"
             }
@@ -118,7 +118,7 @@ enum VPhonePCCGPURecovery {
             if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
                 _ = try? run("/usr/bin/hdiutil", ["detach", "-force", String(attached[range])])
             }
-            throw Error.toolFailed("hdiutil", "attached no disk device")
+            throw Error.toolFailed("hdiutil", "could not attach the PCC disk image. Try again.")
         }
         var mountToClean: URL?
         var diskAttached = true
@@ -151,7 +151,7 @@ enum VPhonePCCGPURecovery {
         ) as? [String: Any],
             let container = plist["APFSContainerReference"] as? String,
             container.hasPrefix("disk")
-        else { throw Error.toolFailed("diskutil", "could not locate the restored APFS container") }
+        else { throw Error.toolFailed("diskutil", "could not find the restored system volume. Try again.") }
 
         let mount = restoreDirectory.deletingLastPathComponent()
             .appending(path: ".pcc-system-\(UUID().uuidString)")

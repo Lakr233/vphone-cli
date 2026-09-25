@@ -41,8 +41,8 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
             return .terminateNow
         }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Stop creating the machine?")
-        alert.informativeText = String(localized: "Quitting stops the New Machine pipeline. You can retry it later from the step it stopped at.")
+        alert.messageText = String(localized: "Stop Creating Machine?")
+        alert.informativeText = String(localized: "Quitting stops creating this machine. You can retry later from the step where it stopped.")
         alert.addButton(withTitle: String(localized: "Quit"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel

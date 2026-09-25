@@ -102,7 +102,11 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
         Task { @MainActor in
             guard let control, control.isConnected else {
-                VPhoneAlert.present(title: "Install App Package", message: "Guest is not connected.", style: .warning)
+                VPhoneAlert.present(
+                    title: "Install App Package",
+                    message: "The guest agent is not connected. Wait for it to connect, then try again.",
+                    style: .warning,
+                )
                 return
             }
 
@@ -118,7 +122,11 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
                     style: .informational,
                 )
             } catch {
-                VPhoneAlert.present(title: "Install App Package", message: "\(error)", style: .warning)
+                VPhoneAlert.present(
+                    title: "Install App Package",
+                    message: "Unable to install the app package. Check the file and guest connection, then try again.",
+                    style: .warning,
+                )
             }
         }
         return true

@@ -237,7 +237,7 @@ struct VPhoneLaunchpadMachinesView: View {
                 title: "Clone \(name)",
                 action: "Clone",
                 initial: "\(name)-clone",
-                note: "The clone boots as a new device. SEP storage is copied as is, so a restored machine may need restoring again.",
+                note: "The clone starts as a new device. Its Secure Enclave data is copied unchanged, so you may need to restore the clone again.",
             ) { newName in
                 Task { await library.clone(name, as: newName) }
             }

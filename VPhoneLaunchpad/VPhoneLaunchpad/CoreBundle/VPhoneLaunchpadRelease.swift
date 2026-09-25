@@ -27,7 +27,7 @@ nonisolated struct VPhoneLaunchpadRelease: Identifiable, Hashable, Sendable {
         request.setValue("vphone-launchpad", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw VPhoneLaunchpadError(String(localized: "GitHub answered the release list with an error."))
+            throw VPhoneLaunchpadError(String(localized: "Unable to load releases from GitHub. Try again later."))
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -80,7 +80,7 @@ nonisolated struct VPhoneLaunchpadRelease: Identifiable, Hashable, Sendable {
         request.setValue("vphone-launchpad", forHTTPHeaderField: "User-Agent")
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw VPhoneLaunchpadError(String(localized: "The download of \(assetName) failed."))
+            throw VPhoneLaunchpadError(String(localized: "Unable to download \(assetName). Check your connection and try again."))
         }
 
         let directory = FileManager.default.temporaryDirectory
