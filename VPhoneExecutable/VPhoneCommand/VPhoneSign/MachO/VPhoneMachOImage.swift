@@ -351,6 +351,17 @@ struct VPhoneMachOImage {
             carried.removeAll { $0.command == UInt32(LC_SOURCE_VERSION) }
             rebuilt = carried.reduce(0) { $0 + $1.size } + commandSize
         }
+        // iOS 26.3 launchd has no LC_SOURCE_VERSION and can still run out of
+        // command space after the CFW dylib injection. LC_UUID is not required
+        // for loading, so drop it only as a last resort to make room for the
+        // replacement LC_CODE_SIGNATURE.
+        if UInt64(Self.headerSize + max(rebuilt, commandsSize)) > firstContent,
+           carried.contains(where: { $0.command == UInt32(LC_UUID) })
+        {
+            carried.removeAll { $0.command == UInt32(LC_UUID) }
+            rebuilt = carried.reduce(0) { $0 + $1.size } + commandSize
+        }
+
         guard UInt64(Self.headerSize + max(rebuilt, commandsSize)) <= firstContent,
               firstContent <= UInt64(codeEnd)
         else {
