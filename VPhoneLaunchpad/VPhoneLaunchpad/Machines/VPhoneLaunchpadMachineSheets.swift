@@ -59,7 +59,7 @@ struct VPhoneLaunchpadMachineSettingsView: View {
         let bridgeChanged = bridgeInterface != (machine.network.bridgeInterface ?? "")
         Task {
             await model.machines.configure(
-                machine.name,
+                machine.path,
                 cpu: cpu == machine.cpuCount ? nil : cpu,
                 memoryMB: memoryMB == machine.memoryMB ? nil : memoryMB,
                 network: network == currentNetwork && !bridgeChanged ? nil : network,
@@ -76,13 +76,18 @@ struct VPhoneLaunchpadNameSheet: View {
     let title: LocalizedStringKey
     let action: LocalizedStringKey
     let initial: String
-    let existingName: String
+    /// The machine renamed or cloned. The new name stays in its library.
+    let machine: VPhoneLaunchpadMachinePath
     let onConfirm: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
 
+    private var fitsLocation: Bool {
+        VPhoneLaunchpadMachineLocations.socketPathFits(root: machine.libraryRoot, name: name)
+    }
+
     private var isValid: Bool {
-        VPhoneLaunchpadNames.isValidMachineName(name) && name != existingName
+        VPhoneLaunchpadNames.isValidMachineName(name) && name != machine.name && fitsLocation
     }
 
     var body: some View {
@@ -90,8 +95,13 @@ struct VPhoneLaunchpadNameSheet: View {
             Section {
                 TextField("Name", text: $name)
             } footer: {
-                Text("Use letters, numbers, periods, hyphens, and underscores.")
-                    .foregroundStyle(.secondary)
+                if fitsLocation {
+                    Text("Use letters, numbers, periods, hyphens, and underscores.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("The path is too long. Use a shorter name, or a location with a shorter path.")
+                        .foregroundStyle(.red)
+                }
             }
         }
         .formStyle(.grouped)
@@ -117,11 +127,15 @@ struct VPhoneLaunchpadNameSheet: View {
 // MARK: - Export
 
 struct VPhoneLaunchpadExportView: View {
-    let name: String
+    let machine: VPhoneLaunchpadMachinePath
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var densest = false
     @State private var includeIPSW = false
+
+    private var name: String {
+        machine.name
+    }
 
     var body: some View {
         Form {
@@ -158,7 +172,7 @@ struct VPhoneLaunchpadExportView: View {
         }
         let densest = densest
         let includeIPSW = includeIPSW
-        Task { await model.machines.export(name, to: url, densest: densest, includeIPSW: includeIPSW) }
+        Task { await model.machines.export(machine, to: url, densest: densest, includeIPSW: includeIPSW) }
         dismiss()
     }
 }

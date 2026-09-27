@@ -1,14 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// Name, firmware pairing from `fw catalog`, hardware and options. Create
-/// hands off to the pipeline sheet.
+/// Name, location, firmware pairing from `fw catalog`, hardware and options.
+/// Create hands off to the pipeline sheet.
 struct VPhoneLaunchpadNewMachineView: View {
-    let onCreate: (String) -> Void
+    let onCreate: (VPhoneLaunchpadMachinePath) -> Void
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
+    /// The canonical library the machine is created in.
+    @State private var location = VPhoneLaunchpadMachineLocations.defaultRoot
+    /// A folder chosen with Other… that is not one of the library's locations.
+    @State private var chosenLocation: String?
     @State private var catalog: VPhoneLaunchpadFirmwareCatalog?
     @State private var catalogError: String?
     @State private var pairing: String?
@@ -36,6 +40,10 @@ struct VPhoneLaunchpadNewMachineView: View {
         return selectedPairing.map { ($0.ios.url, $0.recommendedCloudOS.url) }
     }
 
+    private var machine: VPhoneLaunchpadMachinePath {
+        VPhoneLaunchpadMachinePath(libraryRoot: location, name: name)
+    }
+
     private var nameProblem: String? {
         if name.isEmpty {
             return nil
@@ -43,23 +51,34 @@ struct VPhoneLaunchpadNewMachineView: View {
         if !VPhoneLaunchpadNames.isValidMachineName(name) {
             return String(localized: "Use letters, digits, dots, dashes and underscores.")
         }
-        if model.machines.machines.contains(where: { $0.name == name }) {
+        if model.machines.machines.contains(where: { $0.path == machine }) || model.machines.creations[machine]?.isRunning == true {
             return String(localized: "A machine with this name already exists.")
+        }
+        if FileManager.default.fileExists(atPath: machine.url.path) {
+            return String(localized: "A folder with this name already exists in this location.")
+        }
+        if !VPhoneLaunchpadMachineLocations.socketPathFits(root: location, name: name) {
+            return String(localized: "The path is too long. Use a shorter name, or a location with a shorter path.")
         }
         return nil
     }
 
+    private var locationProblem: String? {
+        VPhoneLaunchpadMachineLocations.problem(with: location)
+    }
+
     private var canCreate: Bool {
-        !name.isEmpty && nameProblem == nil && sources != nil
+        !name.isEmpty && nameProblem == nil && locationProblem == nil && sources != nil
     }
 
     var body: some View {
         Form {
             Section {
                 TextField("Name", text: $name, prompt: Text(verbatim: "research-01"))
+                locationPicker
             } footer: {
-                if let nameProblem {
-                    Text(nameProblem).foregroundStyle(.red)
+                if let problem = nameProblem ?? locationProblem {
+                    Text(problem).foregroundStyle(.red)
                 }
             }
 
@@ -99,6 +118,67 @@ struct VPhoneLaunchpadNewMachineView: View {
             }
         }
         .task { await loadCatalog() }
+        .onAppear { location = model.machines.preferredRoot }
+    }
+
+    // MARK: - Location
+
+    /// The library's locations that are mounted, the default one first, and
+    /// a folder chosen with Other….
+    private var locations: [String] {
+        var roots = model.machines.roots.filter { $0 == model.machines.libraryRoot || VPhoneLaunchpadMachineLocations.isAvailable($0) }
+        for root in [chosenLocation, location].compactMap(\.self) where !roots.contains(root) {
+            roots.append(root)
+        }
+        return roots
+    }
+
+    private var locationPicker: some View {
+        Picker("Location", selection: Binding(
+            get: { location },
+            set: { root in
+                if root.isEmpty {
+                    // Let the menu close before the open panel runs.
+                    Task { @MainActor in chooseLocation() }
+                } else {
+                    location = root
+                }
+            },
+        )) {
+            ForEach(locations, id: \.self) { root in
+                Text(verbatim: VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: root, isDirectory: true)))
+                    .tag(root)
+            }
+            Divider()
+            // Library roots are absolute, so an empty tag cannot be one.
+            Text("Other…").tag("")
+        }
+        .help(location)
+    }
+
+    private func chooseLocation() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Choose a Location")
+        panel.message = String(localized: "The machine is created in a folder with its name inside the folder you choose.")
+        panel.prompt = String(localized: "Choose")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: location, isDirectory: true)
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        let root = VPhoneLaunchpadMachineLocations.canonical(url)
+        if !model.machines.roots.contains(root) {
+            chosenLocation = root
+        }
+        location = root
+        // Machines already in the folder join the list; a folder that cannot
+        // hold machines is only shown here, with the reason.
+        if VPhoneLaunchpadMachineLocations.problem(with: root) == nil {
+            model.machines.addLocation(root)
+        }
     }
 
     // MARK: - Firmware
@@ -158,7 +238,7 @@ struct VPhoneLaunchpadNewMachineView: View {
 
     /// Disk plus roughly 20 GB of IPSWs and the prepared restore tree.
     private var spaceNote: String {
-        let root = VPhoneLaunchpadHostSetup.existingAncestor(of: model.libraryRoot)
+        let root = VPhoneLaunchpadHostSetup.existingAncestor(of: URL(fileURLWithPath: location, isDirectory: true))
         let free = (try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
         return String(localized: "Needs about \(diskSizeGB + 20) GB; \(free / 1_000_000_000) GB free.")
@@ -197,6 +277,7 @@ struct VPhoneLaunchpadNewMachineView: View {
         }
         let options = VPhoneLaunchpadCreationPipeline.Options(
             name: name,
+            libraryRoot: location,
             iphoneSource: iphone,
             cloudOSSource: cloudOS,
             cpuCount: cpu,
@@ -207,9 +288,9 @@ struct VPhoneLaunchpadNewMachineView: View {
             forceDyldSharedCacheMaxSlide: forceMaxSlide,
             keepArtifacts: keepArtifacts,
         )
-        _ = model.machines.create(options)
-        model.machines.selection = name
-        onCreate(name)
+        let pipeline = model.machines.create(options)
+        model.machines.selection = pipeline.machine
+        onCreate(pipeline.machine)
     }
 }
 

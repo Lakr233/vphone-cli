@@ -42,13 +42,10 @@ final class VPhoneLaunchpadModel {
     private static let showAllSectionsKey = "VPhoneLaunchpadShowAllSections"
 
     init() {
-        let environment = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"]
-        libraryRoot = environment.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".vphone/machines", isDirectory: true)
+        libraryRoot = URL(fileURLWithPath: VPhoneLaunchpadMachineLocations.defaultRoot, isDirectory: true)
         host = VPhoneLaunchpadHostSetup(helper: helper, libraryRoot: libraryRoot)
         bundles = VPhoneLaunchpadCoreBundle(helper: helper, history: history)
-        machines = VPhoneLaunchpadMachineLibrary(libraryRoot: libraryRoot, bundles: bundles, helper: helper)
+        machines = VPhoneLaunchpadMachineLibrary(bundles: bundles, helper: helper)
     }
 
     // MARK: - Sections

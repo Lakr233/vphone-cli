@@ -16,6 +16,8 @@ import Observation
 final class VPhoneLaunchpadCreationPipeline {
     struct Options: Sendable {
         var name: String
+        /// The canonical library the machine is created in.
+        var libraryRoot: String
         var iphoneSource: String
         var cloudOSSource: String
         var cpuCount: Int
@@ -25,6 +27,10 @@ final class VPhoneLaunchpadCreationPipeline {
         var enableFrida: Bool
         var forceDyldSharedCacheMaxSlide: Bool
         var keepArtifacts: Bool
+
+        var machine: VPhoneLaunchpadMachinePath {
+            VPhoneLaunchpadMachinePath(libraryRoot: libraryRoot, name: name)
+        }
     }
 
     enum Step: Int, CaseIterable, Identifiable, Comparable {
@@ -75,7 +81,6 @@ final class VPhoneLaunchpadCreationPipeline {
     private(set) var failure: VPhoneLaunchpadError?
     private(set) var isRunning = false
 
-    private let libraryRoot: URL
     private let bundles: VPhoneLaunchpadCoreBundle
     private let helper: VPhoneLaunchpadHelperClient
     private weak var library: VPhoneLaunchpadMachineLibrary?
@@ -87,21 +92,23 @@ final class VPhoneLaunchpadCreationPipeline {
 
     init(
         options: Options,
-        libraryRoot: URL,
         bundles: VPhoneLaunchpadCoreBundle,
         helper: VPhoneLaunchpadHelperClient,
         library: VPhoneLaunchpadMachineLibrary,
     ) {
         self.options = options
-        self.libraryRoot = libraryRoot
         self.bundles = bundles
         self.helper = helper
         self.library = library
-        log = VPhoneLaunchpadLogWriter(url: VPhoneLaunchpadMachineLibrary.consoleLog(options.name, suffix: "-create"))
+        log = VPhoneLaunchpadLogWriter(url: VPhoneLaunchpadMachineLibrary.consoleLog(options.machine, suffix: "-create"))
     }
 
     var logFile: URL {
         log.url
+    }
+
+    var machine: VPhoneLaunchpadMachinePath {
+        options.machine
     }
 
     var isFinished: Bool {
@@ -195,8 +202,8 @@ final class VPhoneLaunchpadCreationPipeline {
             throw VPhoneLaunchpadError(String(localized: "No Core Bundle version is in use. Choose a version in Core Bundle."))
         }
         let name = options.name
-        let library = ["--library-root", libraryRoot.path]
-        let machine = libraryRoot.appendingPathComponent(name, isDirectory: true)
+        let library = machine.libraryArguments
+        let bundle = machine.url
         let log = log
         let output: @Sendable (String) -> Void = { line in log.write(line) }
 
@@ -227,14 +234,14 @@ final class VPhoneLaunchpadCreationPipeline {
             dfuPanicked = false
             dfu = try commandLine.start(
                 arguments,
-                logFile: VPhoneLaunchpadMachineLibrary.consoleLog(name, suffix: "-dfu"),
+                logFile: VPhoneLaunchpadMachineLibrary.consoleLog(machine, suffix: "-dfu"),
             ) { [weak self] line in
                 log.write("dfu  \(line)")
                 if Self.isPanic(line) {
                     Task { @MainActor in self?.dfuPanicked = true }
                 }
             }
-            let identity = machine.appendingPathComponent("udid-prediction.txt")
+            let identity = bundle.appendingPathComponent("udid-prediction.txt")
             for _ in 0 ..< 30 {
                 if FileManager.default.fileExists(atPath: identity.path) {
                     return
@@ -245,7 +252,7 @@ final class VPhoneLaunchpadCreationPipeline {
             throw VPhoneLaunchpadError(String(localized: "The machine did not enter DFU mode within 30 seconds."))
 
         case .waitDFU:
-            let ecid = try Self.ecid(in: machine)
+            let ecid = try Self.ecid(in: bundle)
             append("$ vphone-cli recovery-probe --ecid \(ecid) --timeout 2  (up to 90 attempts)")
             for attempt in 1 ... 90 {
                 try Task.checkCancellation()
@@ -287,7 +294,7 @@ final class VPhoneLaunchpadCreationPipeline {
             let status = try await helper.installCustomFirmware(
                 bundleVersion: version,
                 machineName: name,
-                libraryRoot: Self.canonicalPath(libraryRoot),
+                libraryRoot: Self.canonicalPath(URL(fileURLWithPath: options.libraryRoot, isDirectory: true)),
                 forceDyldSharedCacheMaxSlide: options.forceDyldSharedCacheMaxSlide,
                 keepArtifacts: options.keepArtifacts,
                 onLine: output,
@@ -297,26 +304,27 @@ final class VPhoneLaunchpadCreationPipeline {
             }
 
         case .firstBoot:
-            try await firstBoot(name: name, machine: machine)
+            try await firstBoot()
         }
     }
 
     /// Boots with a window, as `vm create` does, and waits for vphoned to
     /// answer on the VM's automation socket. The machine keeps running.
-    private func firstBoot(name: String, machine: URL) async throws {
+    private func firstBoot() async throws {
         guard let library else {
             return
         }
+        let name = options.name
         append("$ vphone-cli vm launch \(name)")
-        library.start(name)
-        guard let child = library.launchedProcess(name) else {
+        library.start(machine)
+        guard let child = library.launchedProcess(machine) else {
             throw VPhoneLaunchpadError(String(localized: "\(name) could not be started."))
         }
-        let socket = machine.appendingPathComponent("vphone.sock").path
+        let socket = machine.url.appendingPathComponent("vphone.sock").path
         append("waiting up to 300s for vphoned")
         for _ in 0 ..< 300 {
             try Task.checkCancellation()
-            if library.panicked.contains(name) {
+            if library.panicked.contains(machine) {
                 throw VPhoneLaunchpadError(String(localized: "The machine had a kernel panic during first boot."), detail: String(localized: "See the machine's console."))
             }
             guard child.isRunning else {

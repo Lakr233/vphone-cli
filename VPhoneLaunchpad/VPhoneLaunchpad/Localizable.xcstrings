@@ -205,6 +205,108 @@
         }
       }
     },
+    "%@ is a machine. Choose the folder that contains it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is a machine. Choose the folder that contains it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はマシンです。それを含むフォルダを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) 머신입니다. 이 머신이 들어 있는 폴더를 선택하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ là một máy ảo. Hãy chọn thư mục chứa nó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 是一台虚拟机。请选择包含它的文件夹。"
+          }
+        }
+      }
+    },
+    "%@ is not on an APFS volume." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not on an APFS volume."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は APFS ボリューム上にありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) APFS 볼륨에 있지 않습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ không nằm trên ổ đĩa APFS."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 不在 APFS 宗卷上。"
+          }
+        }
+      }
+    },
+    "%@ is not owned by your user account." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not owned by your user account."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の所有者があなたのユーザアカウントではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@의 소유자가 사용자 계정이 아닙니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ không thuộc sở hữu của tài khoản người dùng của bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的所有者不是你的用户账户。"
+          }
+        }
+      }
+    },
     "%@ is on %@" : {
       "localizations" : {
         "en" : {
@@ -235,6 +337,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ 位于 %2$@ 卷宗"
+          }
+        }
+      }
+    },
+    "%@ is on a volume that ignores ownership. Select the volume in the Finder, choose File > Get Info, and turn off “Ignore ownership on this volume”." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is on a volume that ignores ownership. Select the volume in the Finder, choose File > Get Info, and turn off “Ignore ownership on this volume”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は所有権を無視するボリューム上にあります。Finder でボリュームを選択し、「ファイル」>「情報を見る」を選択して、「このボリューム上の所有権を無視」をオフにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) 소유권을 무시하는 볼륨에 있습니다. Finder에서 볼륨을 선택하고 파일 > 정보 가져오기를 선택한 다음 ‘이 볼륨의 소유권 무시’를 끄십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ nằm trên ổ đĩa bỏ qua quyền sở hữu. Hãy chọn ổ đĩa trong Finder, chọn Tệp > Lấy thông tin, rồi tắt “Bỏ qua quyền sở hữu trên ổ đĩa này”."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 所在的宗卷忽略了所有权。请在访达中选中该宗卷，选取“文件”>“显示简介”，然后取消勾选“忽略此宗卷上的所有权”。"
           }
         }
       }
@@ -587,6 +723,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已通过 %1$lld 项，共 %2$lld 项"
+          }
+        }
+      }
+    },
+    "A folder with this name already exists in this location." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder with this name already exists in this location."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所には同じ名前のフォルダが既に存在します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 위치에 같은 이름의 폴더가 이미 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vị trí này đã có một thư mục trùng tên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此位置已存在同名文件夹。"
           }
         }
       }
@@ -1373,6 +1543,40 @@
         }
       }
     },
+    "Choose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选取"
+          }
+        }
+      }
+    },
     "Choose a .tzst or .txz archive made by Export." : {
       "localizations" : {
         "en" : {
@@ -1403,6 +1607,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择由“导出”生成的 .tzst 或 .txz 归档。"
+          }
+        }
+      }
+    },
+    "Choose a Location" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Location"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "위치 선택"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn vị trí"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选取位置"
           }
         }
       }
@@ -5839,6 +6077,40 @@
         }
       }
     },
+    "Other…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기타…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khác…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他…"
+          }
+        }
+      }
+    },
     "Owner" : {
       "localizations" : {
         "en" : {
@@ -8695,6 +8967,40 @@
         }
       }
     },
+    "The machine is created in a folder with its name inside the folder you choose." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The machine is created in a folder with its name inside the folder you choose."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マシンは、選択したフォルダの中にマシン名のフォルダとして作成されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "머신은 선택한 폴더 안에 머신 이름으로 된 폴더로 생성됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy ảo được tạo trong một thư mục mang tên của nó, bên trong thư mục bạn chọn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机会创建在你所选文件夹中以其名称命名的子文件夹里。"
+          }
+        }
+      }
+    },
     "The machine stopped before first boot finished." : {
       "localizations" : {
         "en" : {
@@ -8793,6 +9099,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "虚拟机的磁盘、固件和设置都将被移除。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "The path is too long. Use a shorter name, or a location with a shorter path." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path is too long. Use a shorter name, or a location with a shorter path."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスが長すぎます。短い名前にするか、パスの短い場所を選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "경로가 너무 깁니다. 더 짧은 이름을 사용하거나 경로가 더 짧은 위치를 선택하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đường dẫn quá dài. Hãy dùng tên ngắn hơn hoặc chọn vị trí có đường dẫn ngắn hơn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径太长。请使用更短的名称，或选择路径更短的位置。"
           }
         }
       }
@@ -10085,6 +10425,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 zstd -3 写入 .tzst 归档。"
+          }
+        }
+      }
+    },
+    "You cannot write to %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You cannot write to %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に書き込めません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 쓸 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn không thể ghi vào %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你无法写入 %@。"
           }
         }
       }

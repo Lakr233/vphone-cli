@@ -26,7 +26,6 @@
 
             let creation = VPhoneLaunchpadCreationPipeline(
                 options: creationOptions,
-                libraryRoot: model.libraryRoot,
                 bundles: model.bundles,
                 helper: model.helper,
                 library: model.machines,
@@ -68,7 +67,7 @@
                 model.selection = .hostSetup
                 await shot("04-host-setup-passed", suffix)
 
-                model.machines.selection = "research-01"
+                model.machines.selection = path("research-01")
                 model.selection = .machines
                 await shot("05-machines", suffix)
                 if let machine = model.machines.selected {
@@ -78,24 +77,24 @@
                     }
                 }
 
-                model.machines.selection = "ios27-rc"
+                model.machines.selection = path("ios27-rc")
                 await shot("06-machines-creating", suffix)
 
                 await sheet(.newMachine, "07-new-machine", suffix)
-                await sheet(.creation("ios27-rc"), "08-creation-progress", suffix)
+                await sheet(.creation(path("ios27-rc")), "08-creation-progress", suffix)
                 creation.applyPreview(failed: true)
-                await sheet(.creation("ios27-rc"), "08b-creation-failed", suffix)
+                await sheet(.creation(path("ios27-rc")), "08b-creation-failed", suffix)
                 creation.applyPreview()
                 await standalone("08c-creation-log", suffix, size: NSSize(width: 960, height: 700)) {
                     VPhoneLaunchpadConsoleView(title: "ios27-rc Creation Log", url: creation.logFile)
                 }
-                model.machines.selection = "frida-lab"
+                model.machines.selection = labMachine
                 if let machine = model.machines.selected {
                     await sheet(.settings(machine), "09-machine-settings", suffix)
                 }
-                await sheet(.clone("frida-lab"), "10-clone", suffix)
-                await sheet(.export("frida-lab"), "11-export", suffix)
-                await sheet(.console("research-01"), "12-console", suffix)
+                await sheet(.clone(labMachine), "10-clone", suffix)
+                await sheet(.export(labMachine), "11-export", suffix)
+                await sheet(.console(path("research-01")), "12-console", suffix)
             }
             NSApp.terminate(nil)
         }
@@ -191,8 +190,22 @@
                "udid":"00008140-0011223344556677"}
             ]
             """
-            return (try? JSONDecoder().decode([VPhoneLaunchpadMachine].self, from: Data(json.utf8))) ?? []
+            var machines = (try? JSONDecoder().decode([VPhoneLaunchpadMachine].self, from: Data(json.utf8))) ?? []
+            for index in machines.indices {
+                machines[index].libraryRoot = machines[index].name == labMachine.name
+                    ? labMachine.libraryRoot
+                    : VPhoneLaunchpadMachineLocations.defaultRoot
+            }
+            return machines
         }()
+
+        /// A machine in the default library.
+        static func path(_ name: String) -> VPhoneLaunchpadMachinePath {
+            VPhoneLaunchpadMachinePath(libraryRoot: VPhoneLaunchpadMachineLocations.defaultRoot, name: name)
+        }
+
+        /// A machine in a second library, on an external volume.
+        static let labMachine = VPhoneLaunchpadMachinePath(libraryRoot: "/Volumes/Lab/machines", name: "frida-lab")
 
         static let catalog: VPhoneLaunchpadFirmwareCatalog? = {
             let base = "https://updates.cdn-apple.com/example"
@@ -209,6 +222,7 @@
 
         static let creationOptions = VPhoneLaunchpadCreationPipeline.Options(
             name: "ios27-rc",
+            libraryRoot: VPhoneLaunchpadMachineLocations.defaultRoot,
             iphoneSource: "https://updates.cdn-apple.com/example/iPhone17,3_27.0_24A435_Restore.ipsw",
             cloudOSSource: "https://updates.cdn-apple.com/example/cloudos-26.4",
             cpuCount: 8,

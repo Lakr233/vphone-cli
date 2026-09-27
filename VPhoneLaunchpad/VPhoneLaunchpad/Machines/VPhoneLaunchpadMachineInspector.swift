@@ -28,8 +28,8 @@ struct VPhoneLaunchpadMachineStateLabel: View {
 /// middle.
 struct VPhoneLaunchpadMachineInspector: View {
     let machine: VPhoneLaunchpadMachine
-    let onShowProgress: (String) -> Void
-    let onOpenConsole: (String) -> Void
+    let onShowProgress: (VPhoneLaunchpadMachinePath) -> Void
+    let onOpenConsole: (VPhoneLaunchpadMachinePath) -> Void
     @Environment(VPhoneLaunchpadModel.self) private var model
 
     private var library: VPhoneLaunchpadMachineLibrary {
@@ -39,13 +39,13 @@ struct VPhoneLaunchpadMachineInspector: View {
     var body: some View {
         Form {
             Section {
-                if let creation = library.creations[machine.name] {
+                if let creation = library.creations[machine.path] {
                     creationSummary(creation)
                 }
                 LabeledContent("State") {
-                    VPhoneLaunchpadMachineStateLabel(state: library.state(of: machine.name))
+                    VPhoneLaunchpadMachineStateLabel(state: library.state(of: machine.path))
                 }
-                if let started = library.startedAt[machine.name] {
+                if let started = library.startedAt[machine.path] {
                     LabeledContent("Started", value: started.formatted(date: .omitted, time: .shortened))
                 }
                 if let variant = machine.restoreInfo?.variant {
@@ -78,13 +78,13 @@ struct VPhoneLaunchpadMachineInspector: View {
                 }
                 value(
                     "Location",
-                    VPhoneLaunchpadHostSetup.abbreviated(library.libraryRoot.appendingPathComponent(machine.name)),
+                    VPhoneLaunchpadHostSetup.abbreviated(machine.path.url),
                 )
             }
 
             Section("Console") {
                 Button {
-                    onOpenConsole(machine.name)
+                    onOpenConsole(machine.path)
                 } label: {
                     Label("Open Console", systemImage: "arrow.up.right")
                 }
@@ -109,7 +109,7 @@ struct VPhoneLaunchpadMachineInspector: View {
 
     private func creationSummary(_ creation: VPhoneLaunchpadCreationPipeline) -> some View {
         LabeledContent {
-            Button("Show Progress") { onShowProgress(creation.options.name) }
+            Button("Show Progress") { onShowProgress(creation.machine) }
         } label: {
             if creation.isRunning {
                 Label { Text("Creating: \(creation.current?.title ?? "")") } icon: { VPhoneLaunchpadStatusIcon(status: .running) }

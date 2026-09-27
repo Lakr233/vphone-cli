@@ -2,6 +2,11 @@ import Foundation
 import Observation
 
 /// The third stage: the VM library, driven entirely through `vphone-cli vm`.
+///
+/// Machines can live in several libraries: the default one, and folders
+/// chosen in New Machine. Each library is listed with its own
+/// `--library-root`, and every action on a machine passes the root it was
+/// listed from.
 @MainActor
 @Observable
 final class VPhoneLaunchpadMachineLibrary {
@@ -11,63 +16,125 @@ final class VPhoneLaunchpadMachineLibrary {
         case busy(String)
     }
 
+    typealias Path = VPhoneLaunchpadMachinePath
+
     private(set) var machines: [VPhoneLaunchpadMachine] = []
     private(set) var listError: String?
-    private(set) var startedAt: [String: Date] = [:]
+    private(set) var startedAt: [Path: Date] = [:]
     /// Machines whose console printed a panic since Launchpad last started
     /// them. The console text itself stays in the log file.
-    private(set) var panicked: Set<String> = []
-    private(set) var creations: [String: VPhoneLaunchpadCreationPipeline] = [:]
+    private(set) var panicked: Set<Path> = []
+    private(set) var creations: [Path: VPhoneLaunchpadCreationPipeline] = [:]
     private(set) var globalActivity: String?
-    var selection: String?
+    /// Folders chosen in New Machine, in the order they were added. The
+    /// default library is not among them.
+    private(set) var addedRoots: [String]
+    var selection: Path?
     var actionError: VPhoneLaunchpadError?
 
-    let libraryRoot: URL
+    /// The default library, canonical. Import writes here.
+    let libraryRoot: String
     private let bundles: VPhoneLaunchpadCoreBundle
     private let helper: VPhoneLaunchpadHelperClient
-    private var launched: [String: VPhoneLaunchpadChildProcess] = [:]
-    private var externallyRunning: Set<String> = []
-    private var activities: [String: String] = [:]
+    private var launched: [Path: VPhoneLaunchpadChildProcess] = [:]
+    private var externallyRunning: Set<Path> = []
+    private var activities: [Path: String] = [:]
     private var isRefreshing = false
     private var timer: Timer?
 
-    init(libraryRoot: URL, bundles: VPhoneLaunchpadCoreBundle, helper: VPhoneLaunchpadHelperClient) {
-        self.libraryRoot = libraryRoot
+    private static let addedRootsKey = "VPhoneLaunchpadLibraryRoots"
+    private static let lastRootKey = "VPhoneLaunchpadLastLibraryRoot"
+
+    init(bundles: VPhoneLaunchpadCoreBundle, helper: VPhoneLaunchpadHelperClient) {
+        libraryRoot = VPhoneLaunchpadMachineLocations.defaultRoot
         self.bundles = bundles
         self.helper = helper
+        var roots: [String] = []
+        for root in UserDefaults.standard.stringArray(forKey: Self.addedRootsKey) ?? []
+            where root.hasPrefix("/") && root != libraryRoot && !roots.contains(root)
+        {
+            roots.append(root)
+        }
+        addedRoots = roots
     }
 
-    var libraryArguments: [String] {
-        ["--library-root", libraryRoot.path]
+    /// Every library, the default one first.
+    var roots: [String] {
+        [libraryRoot] + addedRoots
     }
 
     var selected: VPhoneLaunchpadMachine? {
-        machines.first { $0.name == selection }
+        machines.first { $0.id == selection }
     }
 
     var runningCount: Int {
-        machines.count(where: { state(of: $0.name) == .running })
+        machines.count(where: { state(of: $0.path) == .running })
     }
 
     var hasActiveCreation: Bool {
         creations.values.contains(where: \.isRunning)
     }
 
-    func state(of name: String) -> RunState {
-        if let creation = creations[name], creation.isRunning, let step = creation.current {
+    /// True while machines from more than one library are listed.
+    var spansLibraries: Bool {
+        Set(machines.map(\.libraryRoot)).count > 1
+    }
+
+    func state(of machine: Path) -> RunState {
+        if let creation = creations[machine], creation.isRunning, let step = creation.current {
             return .busy(String(localized: "Creating: \(step.title)"))
         }
-        if let activity = activities[name] {
+        if let activity = activities[machine] {
             return .busy(activity)
         }
-        if launched[name]?.isRunning == true || externallyRunning.contains(name) {
+        if launched[machine]?.isRunning == true || externallyRunning.contains(machine) {
             return .running
         }
         return .stopped
     }
 
-    func launchedProcess(_ name: String) -> VPhoneLaunchpadChildProcess? {
-        launched[name]
+    func launchedProcess(_ machine: Path) -> VPhoneLaunchpadChildProcess? {
+        launched[machine]
+    }
+
+    // MARK: - Locations
+
+    /// The library New Machine offers first: the one last created in, while
+    /// it is mounted and usable (even once it holds no machine), else the
+    /// default library.
+    var preferredRoot: String {
+        if let last = UserDefaults.standard.string(forKey: Self.lastRootKey), last.hasPrefix("/"),
+           VPhoneLaunchpadMachineLocations.isAvailable(last),
+           VPhoneLaunchpadMachineLocations.problem(with: last) == nil
+        {
+            return last
+        }
+        return libraryRoot
+    }
+
+    /// Remembers a folder so its machines are listed with the others.
+    func addLocation(_ root: String) {
+        guard root != libraryRoot, !addedRoots.contains(root) else {
+            return
+        }
+        addedRoots.append(root)
+        UserDefaults.standard.set(addedRoots, forKey: Self.addedRootsKey)
+        Task { await refresh() }
+    }
+
+    /// Forgets added folders that were listed and hold no machine. A folder
+    /// that is missing, or could not be listed, is kept: its volume may just
+    /// not be mounted.
+    private func forgetEmptyLocations(listed: Set<String>) {
+        let kept = addedRoots.filter { root in
+            !listed.contains(root)
+                || machines.contains { $0.libraryRoot == root }
+                || creations.keys.contains { $0.libraryRoot == root }
+        }
+        if kept != addedRoots {
+            addedRoots = kept
+            UserDefaults.standard.set(kept, forKey: Self.addedRootsKey)
+        }
     }
 
     // MARK: - Refresh
@@ -87,36 +154,54 @@ final class VPhoneLaunchpadMachineLibrary {
         }
         isRefreshing = true
         defer { isRefreshing = false }
-        do {
-            let result = try await commandLine.run(["vm", "list", "--json"] + libraryArguments, recordInHistory: false)
-            if result.succeeded, let data = result.jsonData {
-                machines = try JSONDecoder().decode([VPhoneLaunchpadMachine].self, from: data)
-                listError = nil
-            } else {
-                listError = result.tail
+        var found: [VPhoneLaunchpadMachine] = []
+        var listed: Set<String> = []
+        var errors: [String] = []
+        for root in roots {
+            // vm list reports an empty library for a missing default root;
+            // a missing added folder is skipped, and its machines go with it.
+            guard root == libraryRoot || VPhoneLaunchpadMachineLocations.isAvailable(root) else {
+                continue
             }
-        } catch {
-            listError = error.localizedDescription
+            do {
+                let result = try await commandLine.run(["vm", "list", "--json", "--library-root", root], recordInHistory: false)
+                if result.succeeded, let data = result.jsonData {
+                    var machines = try JSONDecoder().decode([VPhoneLaunchpadMachine].self, from: data)
+                    for index in machines.indices {
+                        machines[index].libraryRoot = root
+                    }
+                    found += machines
+                    listed.insert(root)
+                    continue
+                }
+                errors.append(result.tail)
+            } catch {
+                errors.append(error.localizedDescription)
+            }
+            // Keep what this library listed last time, as before.
+            found += machines.filter { $0.libraryRoot == root }
         }
-        if selection == nil || !machines.contains(where: { $0.name == selection }) {
-            selection = machines.first?.name
+        machines = found
+        listError = errors.first
+        forgetEmptyLocations(listed: listed)
+        if selection == nil || !machines.contains(where: { $0.id == selection }) {
+            selection = machines.first?.id
         }
-        let root = libraryRoot
-        let names = machines.map(\.name)
-        externallyRunning = await Task.detached { Self.machinesHoldingDisks(root: root, names: names) }.value
+        let paths = machines.map(\.path)
+        externallyRunning = await Task.detached { Self.machinesHoldingDisks(paths) }.value
     }
 
     /// The same test `vm stop` uses: a machine runs while some process holds
     /// its disk image open. This also finds guests started outside Launchpad.
-    private nonisolated static func machinesHoldingDisks(root: URL, names: [String]) -> Set<String> {
-        var diskOwners: [String: String] = [:]
-        for name in names {
-            let bundle = root.appendingPathComponent(name, isDirectory: true)
+    private nonisolated static func machinesHoldingDisks(_ machines: [Path]) -> Set<Path> {
+        var diskOwners: [String: Path] = [:]
+        for machine in machines {
+            let bundle = machine.url
             let manifest = NSDictionary(contentsOf: bundle.appendingPathComponent("config.plist"))
             // Only a plain file name inside the bundle: a crafted manifest must
             // not point lsof, and then `vm stop`, at another path.
             let disk = (manifest?["diskImage"] as? String).flatMap(Self.plainFileName) ?? "Disk.img"
-            diskOwners[bundle.appendingPathComponent(disk).path] = name
+            diskOwners[bundle.appendingPathComponent(disk).path] = machine
         }
         guard !diskOwners.isEmpty else {
             return []
@@ -132,10 +217,10 @@ final class VPhoneLaunchpadMachineLibrary {
         }
         let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
-        var running: Set<String> = []
+        var running: Set<Path> = []
         for line in output.split(separator: "\n") where line.hasPrefix("n") {
-            if let name = diskOwners[String(line.dropFirst())] {
-                running.insert(name)
+            if let machine = diskOwners[String(line.dropFirst())] {
+                running.insert(machine)
             }
         }
         return running
@@ -151,16 +236,22 @@ final class VPhoneLaunchpadMachineLibrary {
 
     // MARK: - Console
 
-    static func consoleLog(_ name: String, suffix: String = "") -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
+    /// Machines in the default library keep their log names. Elsewhere the
+    /// name gains a digest of the library, since two libraries may each hold
+    /// a machine with the same name.
+    static func consoleLog(_ machine: Path, suffix: String = "") -> URL {
+        let stem = machine.libraryRoot == VPhoneLaunchpadMachineLocations.defaultRoot
+            ? machine.name
+            : "\(machine.name)-\(VPhoneLaunchpadMachineLocations.digest(machine.libraryRoot))"
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/vphone-launchpad", isDirectory: true)
-            .appendingPathComponent("\(name)\(suffix).log")
+            .appendingPathComponent("\(stem)\(suffix).log")
     }
 
     /// Adds a line of Launchpad's own to the console log, after the process
     /// that wrote it has exited.
-    private func appendConsoleLog(_ name: String, _ line: String) {
-        guard let handle = try? FileHandle(forWritingTo: Self.consoleLog(name)) else {
+    private func appendConsoleLog(_ machine: Path, _ line: String) {
+        guard let handle = try? FileHandle(forWritingTo: Self.consoleLog(machine)) else {
             return
         }
         defer { try? handle.close() }
@@ -170,46 +261,46 @@ final class VPhoneLaunchpadMachineLibrary {
 
     // MARK: - Start and stop
 
-    func start(_ name: String, headless: Bool = false) {
+    func start(_ machine: Path, headless: Bool = false) {
         guard let commandLine = bundles.commandLine() else {
             return
         }
-        var arguments = ["vm", "launch", name] + libraryArguments
+        var arguments = ["vm", "launch", machine.name] + machine.libraryArguments
         if headless {
             arguments.append("--headless")
         }
-        panicked.remove(name)
+        panicked.remove(machine)
         do {
-            let child = try commandLine.start(arguments, logFile: Self.consoleLog(name)) { [weak self] line in
+            let child = try commandLine.start(arguments, logFile: Self.consoleLog(machine)) { [weak self] line in
                 if VPhoneLaunchpadCreationPipeline.isPanic(line) {
-                    Task { @MainActor in self?.panicked.insert(name) }
+                    Task { @MainActor in self?.panicked.insert(machine) }
                 }
             }
-            launched[name] = child
-            startedAt[name] = Date()
+            launched[machine] = child
+            startedAt[machine] = Date()
             Task {
                 let status = await child.wait()
-                if launched[name] === child {
-                    launched[name] = nil
-                    startedAt[name] = nil
-                    appendConsoleLog(name, "vm launch exited with status \(status)")
+                if launched[machine] === child {
+                    launched[machine] = nil
+                    startedAt[machine] = nil
+                    appendConsoleLog(machine, "vm launch exited with status \(status)")
                 }
                 await refresh()
             }
         } catch {
-            actionError = VPhoneLaunchpadError(String(localized: "Unable to Start \(name)"), detail: error.localizedDescription)
+            actionError = VPhoneLaunchpadError(String(localized: "Unable to Start \(machine.name)"), detail: error.localizedDescription)
         }
     }
 
-    func stop(_ name: String) async {
-        await perform(String(localized: "Stopping…"), on: name, ["vm", "stop", name] + libraryArguments)
-        launched[name]?.interrupt()
+    func stop(_ machine: Path) async {
+        await perform(String(localized: "Stopping…"), on: machine, ["vm", "stop", machine.name] + machine.libraryArguments)
+        launched[machine]?.interrupt()
     }
 
     // MARK: - Edits
 
-    func configure(_ name: String, cpu: Int?, memoryMB: Int?, network: String?, bridgeInterface: String?) async {
-        var arguments = ["vm", "config", name] + libraryArguments
+    func configure(_ machine: Path, cpu: Int?, memoryMB: Int?, network: String?, bridgeInterface: String?) async {
+        var arguments = ["vm", "config", machine.name] + machine.libraryArguments
         if let cpu {
             arguments += ["--cpu", String(cpu)]
         }
@@ -222,53 +313,57 @@ final class VPhoneLaunchpadMachineLibrary {
         if let bridgeInterface, !bridgeInterface.isEmpty {
             arguments += ["--bridge-interface", bridgeInterface]
         }
-        await perform(String(localized: "Saving settings…"), on: name, arguments)
+        await perform(String(localized: "Saving settings…"), on: machine, arguments)
     }
 
-    func rename(_ name: String, to newName: String) async {
-        if await perform(String(localized: "Renaming…"), on: name, ["vm", "rename", name, newName] + libraryArguments) {
-            selection = newName
+    func rename(_ machine: Path, to newName: String) async {
+        if await perform(String(localized: "Renaming…"), on: machine, ["vm", "rename", machine.name, newName] + machine.libraryArguments) {
+            selection = Path(libraryRoot: machine.libraryRoot, name: newName)
         }
     }
 
-    func clone(_ name: String, as newName: String) async {
-        if await perform(String(localized: "Cloning…"), on: name, ["vm", "clone", name, newName] + libraryArguments) {
-            selection = newName
+    func clone(_ machine: Path, as newName: String) async {
+        if await perform(String(localized: "Cloning…"), on: machine, ["vm", "clone", machine.name, newName] + machine.libraryArguments) {
+            selection = Path(libraryRoot: machine.libraryRoot, name: newName)
         }
     }
 
-    func delete(_ name: String) async {
-        await perform(String(localized: "Deleting…"), on: name, ["vm", "delete", name, "--force"] + libraryArguments)
+    func delete(_ machine: Path) async {
+        await perform(String(localized: "Deleting…"), on: machine, ["vm", "delete", machine.name, "--force"] + machine.libraryArguments)
     }
 
-    func export(_ name: String, to destination: URL, densest: Bool, includeIPSW: Bool) async {
-        var arguments = ["vm", "export", name, "--out", destination.path] + libraryArguments
+    func export(_ machine: Path, to destination: URL, densest: Bool, includeIPSW: Bool) async {
+        var arguments = ["vm", "export", machine.name, "--out", destination.path] + machine.libraryArguments
         if densest {
             arguments.append("--max")
         }
         if includeIPSW {
             arguments.append("--include-ipsw")
         }
-        await perform(String(localized: "Exporting…"), on: name, arguments)
+        await perform(String(localized: "Exporting…"), on: machine, arguments)
     }
 
     func importArchive(_ archive: URL) async {
-        await perform(String(localized: "Importing \(archive.lastPathComponent)"), on: nil, ["vm", "import", archive.path] + libraryArguments)
+        await perform(
+            String(localized: "Importing \(archive.lastPathComponent)"),
+            on: nil,
+            ["vm", "import", archive.path, "--library-root", libraryRoot],
+        )
     }
 
     @discardableResult
-    private func perform(_ activity: String, on name: String?, _ arguments: [String]) async -> Bool {
+    private func perform(_ activity: String, on machine: Path?, _ arguments: [String]) async -> Bool {
         guard let commandLine = bundles.commandLine() else {
             return false
         }
-        if let name {
-            activities[name] = activity
+        if let machine {
+            activities[machine] = activity
         } else {
             globalActivity = activity
         }
         defer {
-            if let name {
-                activities[name] = nil
+            if let machine {
+                activities[machine] = nil
             } else {
                 globalActivity = nil
             }
@@ -290,19 +385,20 @@ final class VPhoneLaunchpadMachineLibrary {
     func create(_ options: VPhoneLaunchpadCreationPipeline.Options) -> VPhoneLaunchpadCreationPipeline {
         let pipeline = VPhoneLaunchpadCreationPipeline(
             options: options,
-            libraryRoot: libraryRoot,
             bundles: bundles,
             helper: helper,
             library: self,
         )
-        creations[options.name] = pipeline
+        creations[pipeline.machine] = pipeline
+        UserDefaults.standard.set(options.libraryRoot, forKey: Self.lastRootKey)
+        addLocation(options.libraryRoot)
         pipeline.start()
         return pipeline
     }
 
-    func discardCreation(_ name: String) {
-        if creations[name]?.isRunning == false {
-            creations[name] = nil
+    func discardCreation(_ machine: Path) {
+        if creations[machine]?.isRunning == false {
+            creations[machine] = nil
         }
     }
 }
@@ -311,10 +407,10 @@ final class VPhoneLaunchpadMachineLibrary {
     extension VPhoneLaunchpadMachineLibrary {
         func applyPreview(creation: VPhoneLaunchpadCreationPipeline) {
             machines = VPhoneLaunchpadPreview.machines
-            externallyRunning = ["research-01"]
-            startedAt = ["research-01": Date().addingTimeInterval(-6130)]
-            creations = ["ios27-rc": creation]
-            selection = "research-01"
+            externallyRunning = [VPhoneLaunchpadPreview.path("research-01")]
+            startedAt = [VPhoneLaunchpadPreview.path("research-01"): Date().addingTimeInterval(-6130)]
+            creations = [creation.machine: creation]
+            selection = VPhoneLaunchpadPreview.path("research-01")
         }
     }
 #endif

@@ -2,31 +2,33 @@ import AppKit
 import SwiftUI
 
 struct VPhoneLaunchpadMachinesView: View {
+    typealias MachinePath = VPhoneLaunchpadMachinePath
+
     enum Sheet: Identifiable {
         case newMachine
-        case creation(String)
+        case creation(MachinePath)
         case settings(VPhoneLaunchpadMachine)
-        case rename(String)
-        case clone(String)
-        case export(String)
-        case console(String)
+        case rename(MachinePath)
+        case clone(MachinePath)
+        case export(MachinePath)
+        case console(MachinePath)
 
         var id: String {
             switch self {
             case .newMachine: "new"
-            case let .creation(name): "creation-\(name)"
-            case let .settings(machine): "settings-\(machine.name)"
-            case let .rename(name): "rename-\(name)"
-            case let .clone(name): "clone-\(name)"
-            case let .export(name): "export-\(name)"
-            case let .console(name): "console-\(name)"
+            case let .creation(machine): "creation-\(machine.url.path)"
+            case let .settings(machine): "settings-\(machine.path.url.path)"
+            case let .rename(machine): "rename-\(machine.url.path)"
+            case let .clone(machine): "clone-\(machine.url.path)"
+            case let .export(machine): "export-\(machine.url.path)"
+            case let .console(machine): "console-\(machine.url.path)"
             }
         }
     }
 
     @Environment(VPhoneLaunchpadModel.self) private var model
     @State private var sheet: Sheet?
-    @State private var deletion: String?
+    @State private var deletion: MachinePath?
     @State private var showsInspector = true
 
     private var library: VPhoneLaunchpadMachineLibrary {
@@ -47,8 +49,8 @@ struct VPhoneLaunchpadMachinesView: View {
                 if let machine = library.selected {
                     VPhoneLaunchpadMachineInspector(
                         machine: machine,
-                        onShowProgress: { name in sheet = .creation(name) },
-                        onOpenConsole: { name in sheet = .console(name) },
+                        onShowProgress: { path in sheet = .creation(path) },
+                        onOpenConsole: { path in sheet = .console(path) },
                     )
                 } else {
                     ContentUnavailableView("No Selection", systemImage: "iphone")
@@ -67,7 +69,7 @@ struct VPhoneLaunchpadMachinesView: View {
                     .environment(model)
             }
             .confirmationDialog(
-                "Delete \(deletion ?? "")?",
+                "Delete \(deletion?.name ?? "")?",
                 isPresented: Binding(get: { deletion != nil }, set: {
                     if !$0 {
                         deletion = nil
@@ -75,8 +77,8 @@ struct VPhoneLaunchpadMachinesView: View {
                 }),
             ) {
                 Button("Delete", role: .destructive) {
-                    if let name = deletion {
-                        Task { await library.delete(name) }
+                    if let machine = deletion {
+                        Task { await library.delete(machine) }
                     }
                 }
             } message: {
@@ -102,11 +104,11 @@ struct VPhoneLaunchpadMachinesView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         let selected = library.selected
-        let state = selected.map { library.state(of: $0.name) }
+        let state = selected.map { library.state(of: $0.path) }
         ToolbarItemGroup(placement: .primaryAction) {
             if state == .running, let selected {
                 Button {
-                    Task { await library.stop(selected.name) }
+                    Task { await library.stop(selected.path) }
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
@@ -114,7 +116,7 @@ struct VPhoneLaunchpadMachinesView: View {
             } else {
                 Button {
                     if let selected {
-                        library.start(selected.name)
+                        library.start(selected.path)
                     }
                 } label: {
                     Label("Start", systemImage: "play.fill")
@@ -154,44 +156,53 @@ struct VPhoneLaunchpadMachinesView: View {
     @ViewBuilder
     private func machineActions(_ machine: VPhoneLaunchpadMachine?) -> some View {
         if let machine {
-            let isStopped = library.state(of: machine.name) == .stopped
-            Button("Start Headless") { library.start(machine.name, headless: true) }
+            let isStopped = library.state(of: machine.path) == .stopped
+            Button("Start Headless") { library.start(machine.path, headless: true) }
                 .disabled(!isStopped)
             Divider()
             Button("Settings…") { sheet = .settings(machine) }
                 .disabled(!isStopped)
-            Button("Rename…") { sheet = .rename(machine.name) }
+            Button("Rename…") { sheet = .rename(machine.path) }
                 .disabled(!isStopped)
-            Button("Clone…") { sheet = .clone(machine.name) }
+            Button("Clone…") { sheet = .clone(machine.path) }
                 .disabled(!isStopped)
-            Button("Export…") { sheet = .export(machine.name) }
+            Button("Export…") { sheet = .export(machine.path) }
                 .disabled(!isStopped)
             Divider()
             Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([library.libraryRoot.appendingPathComponent(machine.name)])
+                NSWorkspace.shared.activateFileViewerSelecting([machine.path.url])
             }
-            Button("Open Console") { sheet = .console(machine.name) }
+            Button("Open Console") { sheet = .console(machine.path) }
             Button("Show Console Log") {
-                NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.name))
+                NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path))
             }
             Divider()
-            Button("Delete…", role: .destructive) { deletion = machine.name }
+            Button("Delete…", role: .destructive) { deletion = machine.path }
                 .disabled(!isStopped)
         }
     }
 
     // MARK: - Table
 
-    private func table(selection: Binding<String?>) -> some View {
+    private func table(selection: Binding<MachinePath?>) -> some View {
         Table(library.machines, selection: selection) {
             TableColumn("Name", value: \.name)
                 .width(min: 90, ideal: 110)
+            if library.spansLibraries {
+                TableColumn("Location") { machine in
+                    Text(verbatim: VPhoneLaunchpadMachineLocations.volumeName(machine.libraryRoot))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: machine.libraryRoot, isDirectory: true)))
+                }
+                .width(min: 80, ideal: 110)
+            }
             TableColumn("iOS") { machine in
                 Text(verbatim: machine.restoreInfo.map { "\($0.ios.version) (\($0.ios.build))" } ?? "—")
             }
             .width(min: 110, ideal: 120)
             TableColumn("State") { machine in
-                VPhoneLaunchpadMachineStateLabel(state: library.state(of: machine.name))
+                VPhoneLaunchpadMachineStateLabel(state: library.state(of: machine.path))
             }
             .width(min: 150, ideal: 160)
             TableColumn("CPU") { machine in
@@ -207,11 +218,11 @@ struct VPhoneLaunchpadMachinesView: View {
             }
             .width(64)
         }
-        .contextMenu(forSelectionType: String.self) { names in
-            machineActions(library.machines.first { names.contains($0.name) })
-        } primaryAction: { names in
-            if let name = names.first, library.state(of: name) == .stopped {
-                library.start(name)
+        .contextMenu(forSelectionType: MachinePath.self) { paths in
+            machineActions(library.machines.first { paths.contains($0.path) })
+        } primaryAction: { paths in
+            if let path = paths.first, library.state(of: path) == .stopped {
+                library.start(path)
             }
         }
     }
@@ -220,7 +231,7 @@ struct VPhoneLaunchpadMachinesView: View {
         ContentUnavailableView {
             Label("No Machines", systemImage: "iphone")
         } description: {
-            Text(library.listError ?? String(localized: "Machines in \(VPhoneLaunchpadHostSetup.abbreviated(library.libraryRoot)) appear here."))
+            Text(library.listError ?? String(localized: "Machines in \(VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: library.libraryRoot, isDirectory: true))) appear here."))
         } actions: {
             Button("New Machine…") { sheet = .newMachine }
                 .buttonStyle(.borderedProminent)
@@ -234,32 +245,32 @@ struct VPhoneLaunchpadMachinesView: View {
     private func sheetContent(_ sheet: Sheet) -> some View {
         switch sheet {
         case .newMachine:
-            VPhoneLaunchpadNewMachineView { name in
-                self.sheet = .creation(name)
+            VPhoneLaunchpadNewMachineView { path in
+                self.sheet = .creation(path)
             }
-        case let .creation(name):
-            if let creation = library.creations[name] {
+        case let .creation(path):
+            if let creation = library.creations[path] {
                 VPhoneLaunchpadCreationView(creation: creation)
             }
         case let .settings(machine):
             VPhoneLaunchpadMachineSettingsView(machine: machine)
-        case let .rename(name):
-            VPhoneLaunchpadNameSheet(title: "Rename \(name)", action: "Rename", initial: name, existingName: name) { newName in
-                Task { await library.rename(name, to: newName) }
+        case let .rename(path):
+            VPhoneLaunchpadNameSheet(title: "Rename \(path.name)", action: "Rename", initial: path.name, machine: path) { newName in
+                Task { await library.rename(path, to: newName) }
             }
-        case let .clone(name):
+        case let .clone(path):
             VPhoneLaunchpadNameSheet(
-                title: "Clone \(name)",
+                title: "Clone \(path.name)",
                 action: "Clone",
-                initial: "\(name)-clone",
-                existingName: name,
+                initial: "\(path.name)-clone",
+                machine: path,
             ) { newName in
-                Task { await library.clone(name, as: newName) }
+                Task { await library.clone(path, as: newName) }
             }
-        case let .export(name):
-            VPhoneLaunchpadExportView(name: name)
-        case let .console(name):
-            VPhoneLaunchpadConsoleView(title: "\(name) Console", url: VPhoneLaunchpadMachineLibrary.consoleLog(name))
+        case let .export(path):
+            VPhoneLaunchpadExportView(machine: path)
+        case let .console(path):
+            VPhoneLaunchpadConsoleView(title: "\(path.name) Console", url: VPhoneLaunchpadMachineLibrary.consoleLog(path))
         }
     }
 

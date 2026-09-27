@@ -1,5 +1,23 @@
 import Foundation
 
+// MARK: - Machine path
+
+/// A machine's library root and name. Machines in two libraries may share a
+/// name, so the pair, not the name, identifies a machine.
+nonisolated struct VPhoneLaunchpadMachinePath: Hashable, Sendable {
+    /// A canonical root, as `VPhoneLaunchpadMachineLocations.canonical` makes it.
+    let libraryRoot: String
+    let name: String
+
+    var url: URL {
+        URL(fileURLWithPath: libraryRoot, isDirectory: true).appendingPathComponent(name, isDirectory: true)
+    }
+
+    var libraryArguments: [String] {
+        ["--library-root", libraryRoot]
+    }
+}
+
 // MARK: - vm list / vm info
 
 /// Mirrors `VPhoneBundleReport`, the JSON `vphone-cli vm list --json` and
@@ -30,9 +48,19 @@ nonisolated struct VPhoneLaunchpadMachine: Decodable, Hashable, Identifiable, Se
     let network: Network
     let restoreInfo: RestoreInfo?
     let udid: String?
+    /// The library `vm list` was run on. Not part of the JSON.
+    var libraryRoot = ""
 
-    var id: String {
-        name
+    private enum CodingKeys: String, CodingKey {
+        case name, cpuCount, memoryMB, diskSizeBytes, network, restoreInfo, udid
+    }
+
+    var path: VPhoneLaunchpadMachinePath {
+        VPhoneLaunchpadMachinePath(libraryRoot: libraryRoot, name: name)
+    }
+
+    var id: VPhoneLaunchpadMachinePath {
+        path
     }
 
     var networkDescription: String {
