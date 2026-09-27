@@ -281,7 +281,10 @@ final class VPhoneLaunchpadHelperClient {
         if let helperRequirement {
             connection.setCodeSigningRequirement(helperRequirement)
         }
-        connection.invalidationHandler = { [weak self] in
+        // XPC calls this and the error handlers below on its own queue. Without
+        // @Sendable they would inherit the main actor, and Swift 6 traps when
+        // they run there.
+        connection.invalidationHandler = { @Sendable [weak self] in
             Task { @MainActor in self?.connection = nil }
         }
         connection.resume()
@@ -296,7 +299,7 @@ final class VPhoneLaunchpadHelperClient {
         let connection = currentConnection()
         return try await withCheckedThrowingContinuation { continuation in
             let once = VPhoneLaunchpadResumeOnce(continuation)
-            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            let proxy = connection.remoteObjectProxyWithErrorHandler { @Sendable error in
                 once.resume(.failure(error))
             }
             guard let helper = proxy as? VPhoneLaunchpadHelperProtocol else {
@@ -323,7 +326,7 @@ final class VPhoneLaunchpadHelperClient {
         let connection = currentConnection()
         return try await withCheckedThrowingContinuation { continuation in
             let once = VPhoneLaunchpadResumeOnce(continuation)
-            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            let proxy = connection.remoteObjectProxyWithErrorHandler { @Sendable error in
                 once.resume(.failure(error))
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
