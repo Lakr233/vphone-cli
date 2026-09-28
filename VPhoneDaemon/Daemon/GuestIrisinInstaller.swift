@@ -457,7 +457,7 @@ enum GuestIrisinInstaller {
         }
 
         try link(root + "/.jbroot", target: ".")
-        for relative in ["bin", "sbin", "usr/bin", "usr/sbin", "usr/lib", "usr/libexec"] {
+        for relative in ["bin", "sbin", "usr/bin", "usr/sbin", "usr/lib", "usr/libexec", "usr/lib/pam"] {
             var directory = root
             for component in relative.split(separator: "/") {
                 directory += "/" + component
