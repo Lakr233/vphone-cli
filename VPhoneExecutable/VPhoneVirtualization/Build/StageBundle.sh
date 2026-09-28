@@ -35,8 +35,8 @@ build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
 
 build_project -project "$root/VPhoneExecutable/VPhoneEscalator/VPhoneEscalator.xcodeproj" \
     -scheme VPhoneEscalator -configuration "$configuration" \
-    -destination 'platform=macOS,arch=arm64e' \
-    -derivedDataPath "$root/.build/XcodeAMFIAllow" CODE_SIGNING_ALLOWED=NO build
+    -derivedDataPath "$root/.build/XcodeAMFIAllow" \
+    ARCHS="arm64e arm64e.x1" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
 
 /usr/bin/make -C "$root/VPhoneGuestComponents" OUT="$root/.build/guest-components" all
 

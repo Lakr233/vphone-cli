@@ -120,6 +120,21 @@
 static mach_port_t g_task = MACH_PORT_NULL;
 static pid_t g_amfid = -1;
 
+static void *strip_pac(void *addr) {
+#if defined(__arm64__)
+    static uint32_t bits = 0;
+    static int have_bits = 0;
+    if (!have_bits) {
+        size_t len = sizeof(bits);
+        if (sysctlbyname("machdep.virtual_address_size", &bits, &len, NULL, 0) != 0) bits = -1;
+        have_bits = 1;
+    }
+    return (void *)((uintptr_t)addr & ((1UL << bits) - 1));
+#else
+    return addr;
+#endif
+}
+
 // --------------------------------------------------------------------------
 // this process
 // --------------------------------------------------------------------------
@@ -327,6 +342,8 @@ static mach_vm_address_t amfid_manager(const char *self_path) {
         fprintf(stderr, "error: amfid has not created its %s yet\n", MANAGER_CLASS);
         return 0;
     }
+
+    remote = (uintptr_t)strip_pac((void *)remote);
 
     // An ObjC object here, not a stale word: the class bits of its isa have to
     // match the class bits of ours.
