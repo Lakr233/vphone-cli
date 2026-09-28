@@ -120,6 +120,40 @@ struct IPSWCacheTests {
         ))
     }
 
+    /// The cache is shared by every machine, so a download killed midway would
+    /// otherwise leave its partial file there for good.
+    @Test func `abandoned partial downloads are removed and live ones kept`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try fixture(in: root)
+        IPSWStubProtocol.payload = try Data(contentsOf: source)
+        IPSWStubProtocol.status = 200
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IPSWStubProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        let cacheDir = root.appendingPathComponent("cache")
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        let abandoned = cacheDir.appendingPathComponent(".other.ipsw.A.partial")
+        let live = cacheDir.appendingPathComponent(".other.ipsw.B.partial")
+        try Data("stale".utf8).write(to: abandoned)
+        try Data("live".utf8).write(to: live)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-2 * 60 * 60)],
+            ofItemAtPath: abandoned.path,
+        )
+
+        _ = try await VPhoneIPSWCache.resolve(
+            "https://example.invalid/input.ipsw",
+            in: cacheDir,
+            session: session,
+        )
+        #expect(!FileManager.default.fileExists(atPath: abandoned.path))
+        #expect(FileManager.default.fileExists(atPath: live.path))
+    }
+
     // MARK: - Pairing
 
     private func ipsw(in root: URL, _ name: String, productTypes: [String], deviceClasses: [String]) throws -> VPhoneIPSWCache.Archive {

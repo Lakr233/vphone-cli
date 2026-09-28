@@ -9,6 +9,7 @@ public extension VPhoneVirtualMachineCreator {
         public var iphoneSource: String?
         public var cloudosSource: String?
         public var gpuDriverBundle: URL?
+        public var ipswCacheDirectory: URL
         public var forceDyldSharedCacheMaxSlide: Bool
         public var enableFrida: Bool
         public var cpuCount: UInt
@@ -22,6 +23,7 @@ public extension VPhoneVirtualMachineCreator {
             iphoneSource: String? = nil,
             cloudosSource: String? = nil,
             gpuDriverBundle: URL? = nil,
+            ipswCacheDirectory: URL = VPhoneResources.ipswCacheDirectory(),
             forceDyldSharedCacheMaxSlide: Bool = false,
             enableFrida: Bool = false,
             cpuCount: UInt = 8,
@@ -34,6 +36,7 @@ public extension VPhoneVirtualMachineCreator {
             self.iphoneSource = iphoneSource
             self.cloudosSource = cloudosSource
             self.gpuDriverBundle = gpuDriverBundle
+            self.ipswCacheDirectory = ipswCacheDirectory
             self.forceDyldSharedCacheMaxSlide = forceDyldSharedCacheMaxSlide
             self.enableFrida = enableFrida
             self.cpuCount = cpuCount

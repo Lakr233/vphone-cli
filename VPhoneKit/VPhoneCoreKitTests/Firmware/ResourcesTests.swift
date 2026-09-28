@@ -54,6 +54,18 @@ struct ResourcesTests {
         }
     }
 
+    /// Firmware caches are shared by every machine, not kept inside one, so a
+    /// second machine from the same source does not download it again.
+    @Test func `firmware caches sit under the user data root`() {
+        ProcessEnvironment.withOverrides([
+            "VPHONE_ROOT": "/tmp/vphone-test-root",
+            "VPHONE_LIBRARY_ROOT": "/tmp/vphone-test-library",
+        ]) {
+            #expect(VPhoneResources.ipswCacheDirectory().path == "/tmp/vphone-test-root/ipsws")
+            #expect(VPhoneResources.gpuDriverCacheDirectory().path == "/tmp/vphone-test-root/gpu-drivers")
+        }
+    }
+
     /// `VPhoneResources` resolves programs as siblings of the running image and
     /// scripts under `scriptsDir`, and nothing else — no `PATH` walk, no
     /// interpreter. That claim is what the deleted venv tests used to guard

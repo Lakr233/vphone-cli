@@ -30,6 +30,7 @@ enum VPhoneFirmwarePreparer {
         iPhoneSource: String,
         cloudOSSource: String,
         gpuDriverBundle: URL? = nil,
+        ipswCacheDirectory: URL = VPhoneResources.ipswCacheDirectory(),
         bundle: VPhoneBundle,
         resources: VPhoneResources,
     ) throws {
@@ -44,16 +45,16 @@ enum VPhoneFirmwarePreparer {
             }
         }
 
-        // Remote IPSWs belong to this VM, not a writable shared directory.
+        // Remote IPSWs go to one cache shared by every machine; keeping them
+        // inside the machine downloaded both again for each new one (#513).
         // Local IPSWs are read in place and are never copied into the cache.
-        let cacheDirectory = bundle.url.appendingPathComponent(".ipsw-cache", isDirectory: true)
         print("[*] Resolving iPhone IPSW...")
         let phone = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(iPhoneSource, in: cacheDirectory)
+            try await VPhoneIPSWCache.resolve(iPhoneSource, in: ipswCacheDirectory)
         }
         print("[*] Resolving cloudOS IPSW...")
         let cloud = try vphoneRunBlocking {
-            try await VPhoneIPSWCache.resolve(cloudOSSource, in: cacheDirectory)
+            try await VPhoneIPSWCache.resolve(cloudOSSource, in: ipswCacheDirectory)
         }
         try VPhoneIPSWCache.checkPair(iPhone: phone, cloudOS: cloud)
         try checkIPhoneName(iPhoneSource, archive: phone)
@@ -86,6 +87,7 @@ enum VPhoneFirmwarePreparer {
         let originalManifest = phoneTree.appendingPathComponent("BuildManifest.plist")
         try clone(originalManifest, to: phoneTree.appendingPathComponent("iPhone-BuildManifest.plist"))
         try FirmwareManifest.generate(iPhoneDir: phoneTree, cloudOSDir: cloudTree, verbose: true)
+        let cachedDriver = cachedGPUDriver(for: cloud)
         if let gpuDriverBundle {
             print("[*] Staging GPU driver from local bundle...")
             try VPhonePCCGPUDriver.stage(
@@ -93,6 +95,12 @@ enum VPhoneFirmwarePreparer {
                 into: phoneTree,
                 expectedPlatformVersion: cloud.version,
             )
+        } else if (try? VPhonePCCGPUDriver.stage(
+            from: cachedDriver,
+            into: phoneTree,
+            expectedPlatformVersion: cloud.version,
+        )) != nil {
+            print("[+] GPU driver reused from cloudOS \(cloud.version) (\(cloud.build)) cache")
         } else {
             print("[*] Restoring cloudOS in a temporary vphone VM to extract its GPU driver...")
             try VPhonePCCGPURecovery.stage(
@@ -100,6 +108,12 @@ enum VPhoneFirmwarePreparer {
                 into: phoneTree,
                 expectedPlatformVersion: cloud.version,
             )
+            // Every later machine on this cloudOS build skips the restore.
+            do {
+                try storeGPUDriver(VPhonePCCGPUDriver.stagedBundle(in: phoneTree), at: cachedDriver)
+            } catch {
+                fputs("warning: could not cache the GPU driver at \(cachedDriver.path): \(error.localizedDescription)\n", stderr)
+            }
         }
 
         let source = resources.gpuCompilerPlugin
@@ -118,6 +132,48 @@ enum VPhoneFirmwarePreparer {
         guard !fm.fileExists(atPath: destination.path) else { throw Error.existingRestore(destination) }
         try fm.moveItem(at: phoneTree, to: destination)
         print("[+] Restore tree ready: \(destination.path)")
+    }
+
+    // MARK: - GPU driver cache
+
+    /// Where the driver recovered from this cloudOS build is kept. The bundle
+    /// is cached as the System volume has it, before the compiler plugin merge.
+    static func cachedGPUDriver(
+        for cloud: VPhoneIPSWCache.Archive,
+        in cacheDirectory: URL = VPhoneResources.gpuDriverCacheDirectory(),
+    ) -> URL {
+        cacheDirectory
+            .appendingPathComponent("\(cloud.version)_\(cloud.build)", isDirectory: true)
+            .appendingPathComponent(VPhonePCCGPUDriver.name, isDirectory: true)
+    }
+
+    /// Copies into a private directory, then renames it into place, so a
+    /// concurrent prepare never sees half a bundle. If another prepare stores
+    /// the same build in between, its copy is kept.
+    static func storeGPUDriver(_ bundle: URL, at destination: URL) throws {
+        let fm = FileManager.default
+        let buildDirectory = destination.deletingLastPathComponent()
+        let cacheDirectory = buildDirectory.deletingLastPathComponent()
+        try fm.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
+        let pending = cacheDirectory.appendingPathComponent(".\(UUID().uuidString).partial", isDirectory: true)
+        defer { try? fm.removeItem(at: pending) }
+        try fm.createDirectory(at: pending, withIntermediateDirectories: false)
+        try fm.copyItem(at: bundle, to: pending.appendingPathComponent(destination.lastPathComponent))
+        try VPhoneHostFilePermissions.makeAccessible(at: pending)
+        // This runs only when the cached copy did not stage, so whatever is
+        // there is incomplete or damaged and would block the rename for good.
+        if fm.fileExists(atPath: buildDirectory.path) {
+            try fm.removeItem(at: buildDirectory)
+        }
+        do {
+            try fm.moveItem(at: pending, to: buildDirectory)
+        } catch {
+            if fm.fileExists(atPath: destination.path) {
+                return
+            }
+            throw error
+        }
     }
 
     private static func checkIPhoneName(_ source: String, archive: VPhoneIPSWCache.Archive) throws {

@@ -135,8 +135,13 @@ public enum VPhoneBundleTransfer {
             if !includeIPSW, rel.contains("_Restore") {
                 en.skipDescendants(); continue
             }
-            if VPhoneBundleOperations.exportExcludePatterns.contains(where: { fnmatch($0, rel, 0) == 0 }) {
-                continue
+            // The same match as VPhoneArchiveWriter's: the relative path or its
+            // last component, and an excluded directory takes its subtree.
+            let name = url.lastPathComponent
+            if VPhoneBundleOperations.exportExcludePatterns.contains(where: {
+                fnmatch($0, rel, 0) == 0 || fnmatch($0, name, 0) == 0
+            }) {
+                en.skipDescendants(); continue
             }
             guard let vals = try? url.resourceValues(forKeys: Set(keys)),
                   vals.isRegularFile == true else { continue }

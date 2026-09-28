@@ -118,13 +118,26 @@ public struct VPhoneResources: Sendable {
 
     // MARK: - Cache dirs
 
-    /// The per-user VM library root: `$VPHONE_ROOT` when set, else `~/.vphone`.
+    /// The per-user data root: `$VPHONE_ROOT` when set, else `~/.vphone`. The
+    /// default VM library and the shared firmware caches live under it.
     public static func userDataRoot() -> URL {
         if let root = ProcessInfo.processInfo.environment["VPHONE_ROOT"], !root.isEmpty {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         let home = VPhoneInvokingUser.current?.home ?? FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".vphone")
+    }
+
+    /// Remote IPSWs, shared by every machine. Each file is named after its
+    /// source URL, so a second machine from the same URL downloads nothing.
+    public static func ipswCacheDirectory() -> URL {
+        userDataRoot().appendingPathComponent("ipsws", isDirectory: true)
+    }
+
+    /// GPU driver bundles recovered from cloudOS, one directory per build.
+    /// Recovering one restores cloudOS into a temporary VM.
+    public static func gpuDriverCacheDirectory() -> URL {
+        userDataRoot().appendingPathComponent("gpu-drivers", isDirectory: true)
     }
 
     // MARK: - No interpreter

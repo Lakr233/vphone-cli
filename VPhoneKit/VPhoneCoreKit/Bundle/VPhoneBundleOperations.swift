@@ -176,9 +176,20 @@ public enum VPhoneBundleOperations {
     // MARK: - Export
 
     /// `.vphoned.signed` is re-staged on the next launch and need not be exported.
+    /// `.ipsw-cache` holds the downloaded IPSWs of machines prepared before the
+    /// cache moved to `VPhoneResources.ipswCacheDirectory()`; it is a cache,
+    /// not part of the machine. The staging directories are left behind only
+    /// when a disk image could not be detached, and one can hold a whole
+    /// temporary cloudOS VM. None of these is `--include-ipsw`'s restore tree.
     ///
     /// Export itself is `VPhoneBundleTransfer` in `VPhoneArchiveKit` — it needs
     /// libarchive, and this does not. The list stays here because it describes
     /// what a bundle is, and `VPhoneRestoreInfo` is checked against it.
-    public static let exportExcludePatterns = ["*.vphoned.signed"]
+    public static let exportExcludePatterns = [
+        "*.vphoned.signed",
+        ".ipsw-cache",
+        ".firmware-prepare-*",
+        ".pcc-restoration-*",
+        ".pcc-system-*",
+    ]
 }

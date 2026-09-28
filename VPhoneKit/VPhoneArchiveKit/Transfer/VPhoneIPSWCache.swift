@@ -61,14 +61,13 @@ public enum VPhoneIPSWCache {
 
         let fm = FileManager.default
         try fm.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        // Before anything can fail: the directory is shared, and one made by a
+        // sudo run must stay writable for the next run without sudo.
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
+        removeAbandonedDownloads(in: cacheDirectory)
         let cache = cacheDirectory.appendingPathComponent(cacheName(for: url))
-        if fm.fileExists(atPath: cache.path) {
-            if let valid = try? inspect(cache) {
-                try VPhoneHostFilePermissions.makeAccessible(at: cache)
-                try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
-                return valid
-            }
-            try fm.removeItem(at: cache)
+        if let valid = try reuse(cache, in: cacheDirectory) {
+            return valid
         }
 
         var request = URLRequest(url: url)
@@ -108,9 +107,16 @@ public enum VPhoneIPSWCache {
         }
 
         let metadata = try inspect(pending)
-        try fm.moveItem(at: pending, to: cache)
+        do {
+            try fm.moveItem(at: pending, to: cache)
+        } catch {
+            // Another machine's prepare finished the same URL first.
+            if let valid = try reuse(cache, in: cacheDirectory) {
+                return valid
+            }
+            throw error
+        }
         try VPhoneHostFilePermissions.makeAccessible(at: cache)
-        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: cacheDirectory)
         return Archive(
             file: cache,
             version: metadata.version,
@@ -118,6 +124,33 @@ public enum VPhoneIPSWCache {
             productTypes: metadata.productTypes,
             deviceClasses: metadata.deviceClasses,
         )
+    }
+
+    /// The cached archive when it is readable; an unreadable one is removed.
+    private static func reuse(_ cache: URL, in cacheDirectory: URL) throws -> Archive? {
+        guard FileManager.default.fileExists(atPath: cache.path) else { return nil }
+        guard let valid = try? inspect(cache) else {
+            try FileManager.default.removeItem(at: cache)
+            return nil
+        }
+        try VPhoneHostFilePermissions.makeAccessible(at: cache)
+        return valid
+    }
+
+    /// A download still in progress writes to its `.partial` file continuously.
+    /// One untouched for an hour belongs to a process that was killed, and in a
+    /// shared cache nothing else would ever remove it.
+    private static func removeAbandonedDownloads(in cacheDirectory: URL) {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: cacheDirectory.path)) ?? []
+        let cutoff = Date().addingTimeInterval(-60 * 60)
+        for name in names where name.hasPrefix(".") && name.hasSuffix(".partial") {
+            let file = cacheDirectory.appendingPathComponent(name)
+            guard let modified = try? fm.attributesOfItem(atPath: file.path)[.modificationDate] as? Date,
+                  modified < cutoff
+            else { continue }
+            try? fm.removeItem(at: file)
+        }
     }
 
     public static func inspect(_ file: URL) throws -> Archive {

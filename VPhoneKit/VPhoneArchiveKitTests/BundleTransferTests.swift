@@ -161,6 +161,34 @@ struct BundleTransferTests {
         #expect(members.contains("orig/config.plist"))
     }
 
+    /// A machine prepared while IPSWs were cached inside it still carries them.
+    /// They are a cache, so they stay out even with `--include-ipsw`, which is
+    /// about the restore tree; so do staging directories left by a failed detach.
+    @Test func `export excludes the IPSW cache and staging leftovers`() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lib = VPhoneLibrary(root: root)
+        let b = try makeBundle("orig", in: lib)
+        let fm = FileManager.default
+        for directory in [".ipsw-cache", ".firmware-prepare-A", ".pcc-restoration-B", ".pcc-system-C"] {
+            let url = b.url.appendingPathComponent(directory)
+            try fm.createDirectory(at: url, withIntermediateDirectories: true)
+            try Data([0]).write(to: url.appendingPathComponent("payload"))
+        }
+        let gpu = b.url.appendingPathComponent("iPhone_Restore/.pcc-gpu")
+        try fm.createDirectory(at: gpu, withIntermediateDirectories: true)
+        try Data([0]).write(to: gpu.appendingPathComponent("marker"))
+
+        for includeIPSW in [false, true] {
+            let archive = root.appendingPathComponent("orig-\(includeIPSW).tgz")
+            try VPhoneBundleTransfer.export(bundleNamed: "orig", to: archive, includeIPSW: includeIPSW, in: lib)
+            let members = try VPhoneArchiveReader.entries(of: archive).map(\.path)
+            #expect(!members.contains { $0.contains("payload") })
+            #expect(members.contains("orig/Disk.img"))
+            #expect(members.contains("orig/iPhone_Restore/.pcc-gpu/marker") == includeIPSW)
+        }
+    }
+
     // MARK: - Malformed input
 
     @Test func `import rejects multi top level archive`() throws {

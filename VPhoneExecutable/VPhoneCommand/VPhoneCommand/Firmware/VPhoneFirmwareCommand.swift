@@ -202,6 +202,8 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "cloudOS IPSW URL or local path") var cloudosSource: String?
     @Option(help: "GPU driver bundle from the same cloudOS build, for offline AEA recovery")
     var gpuDriverBundle: String?
+    @Option(help: "Directory for downloaded IPSWs, shared by every VM (default: ~/.vphone/ipsws or $VPHONE_ROOT/ipsws)")
+    var ipswCache: String?
     @Option(help: "iPhone version to resolve to an IPSW") var iphoneVersion: String?
     @Option(help: "iPhone build to resolve to an IPSW") var iphoneBuild: String?
     @Flag(help: "List downloadable IPSWs and exit") var list = false
@@ -269,6 +271,9 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
             iPhoneSource: phone,
             cloudOSSource: cloud,
             gpuDriverBundle: gpuDriverBundle.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
+            ipswCacheDirectory: ipswCache.map {
+                URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true)
+            } ?? VPhoneResources.ipswCacheDirectory(),
             bundle: bundle,
             resources: resources,
         )
