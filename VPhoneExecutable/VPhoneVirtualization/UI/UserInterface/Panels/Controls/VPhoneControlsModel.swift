@@ -1,6 +1,7 @@
 import Foundation
 
-/// Display, audio, power, hardware button and keyboard controls for the guest.
+/// Display, audio, power, hardware button, keyboard and Darwin notification
+/// controls for the guest.
 /// Every write reads the guest's value back; a failed write restores the
 /// control from the guest.
 @MainActor
@@ -13,6 +14,8 @@ final class VPhoneControlsModel {
         case sendingKey(String)
         case typing(Int)
         case pasting
+        case posting(String)
+        case readingNotification(String)
 
         var title: String {
             switch self {
@@ -28,6 +31,10 @@ final class VPhoneControlsModel {
                 String(localized: "Typing \(count) characters…", bundle: VPhoneLocalization.bundle)
             case .pasting:
                 String(localized: "Pasting text…", bundle: VPhoneLocalization.bundle)
+            case let .posting(name):
+                String(localized: "Posting \(name)…", bundle: VPhoneLocalization.bundle)
+            case let .readingNotification(name):
+                String(localized: "Reading \(name)…", bundle: VPhoneLocalization.bundle)
             }
         }
     }
@@ -63,6 +70,12 @@ final class VPhoneControlsModel {
     var keyboardText = ""
     var modifiers: Set<VPhoneControlsModifier> = []
 
+    // MARK: - Notification State
+
+    var notificationName = ""
+    /// Empty posts without a state; otherwise a UInt64 in decimal.
+    var notificationState = ""
+
     var isBusy: Bool {
         activity != nil
     }
@@ -73,6 +86,14 @@ final class VPhoneControlsModel {
 
     var canSendText: Bool {
         canWrite && !keyboardText.isEmpty && keyboardText.utf8.count <= 64 * 1024
+    }
+
+    var canUseNotification: Bool {
+        canWrite && !trimmedNotificationName.isEmpty
+    }
+
+    private var trimmedNotificationName: String {
+        notificationName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     init(control: VPhoneGuestControl) {
@@ -343,6 +364,53 @@ final class VPhoneControlsModel {
         } catch {
             activity = nil
             fail(String(localized: "Unable to paste the text. \(Self.guestMessage(error))", bundle: VPhoneLocalization.bundle))
+        }
+    }
+
+    // MARK: - Darwin Notification
+
+    /// Posts the notification; with a state, the guest stores it first so
+    /// observers read it through notify_get_state.
+    func postNotification() async {
+        guard canUseNotification else { return }
+        let name = trimmedNotificationName
+        let stateText = notificationState.trimmingCharacters(in: .whitespaces)
+        guard stateText.isEmpty || UInt64(stateText) != nil else {
+            fail(String(localized: "The state must be a whole number from 0 to \(String(UInt64.max)).", bundle: VPhoneLocalization.bundle))
+            return
+        }
+        var params: [String: Any] = ["name": name]
+        if !stateText.isEmpty {
+            // A decimal string keeps all 64 bits, which a JSON double does not.
+            params["state"] = stateText
+        }
+        activity = .posting(name)
+        do {
+            _ = try await control.call("notify.post", params: params)
+            activity = nil
+            succeed(stateText.isEmpty
+                ? String(localized: "Posted \(name).", bundle: VPhoneLocalization.bundle)
+                : String(localized: "Posted \(name) with state \(stateText).", bundle: VPhoneLocalization.bundle))
+        } catch {
+            activity = nil
+            fail(String(localized: "Unable to post \(name). \(Self.guestMessage(error))", bundle: VPhoneLocalization.bundle))
+        }
+    }
+
+    /// Reads the notification's current state into the state field.
+    func readNotificationState() async {
+        guard canUseNotification else { return }
+        let name = trimmedNotificationName
+        activity = .readingNotification(name)
+        do {
+            let result = try await control.call("notify.state", params: ["name": name])
+            let state = (result["state"] as? NSNumber)?.stringValue ?? "0"
+            notificationState = state
+            activity = nil
+            succeed(String(localized: "The state of \(name) is \(state).", bundle: VPhoneLocalization.bundle))
+        } catch {
+            activity = nil
+            fail(String(localized: "Unable to read \(name). \(Self.guestMessage(error))", bundle: VPhoneLocalization.bundle))
         }
     }
 

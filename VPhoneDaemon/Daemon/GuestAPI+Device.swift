@@ -61,6 +61,11 @@ extension GuestAPI {
             return sslKillswitchStatus()
         case "diagnostics.self_test":
             return try runSelfTests()
+        case "notify.post":
+            let state = try params["state"].map(notificationState)
+            return try postDarwinNotification(string(params, "name"), state: state)
+        case "notify.state":
+            return try darwinNotificationState(string(params, "name"))
         default:
             return nil
         }
@@ -68,5 +73,15 @@ extension GuestAPI {
 
     private static func brightnessState() -> [String: Any] {
         ["value": brightness(), "auto": autoBrightness().map { $0 as Any } ?? NSNull()]
+    }
+
+    /// A notify(3) state is a full UInt64, beyond what a JSON double holds
+    /// exactly, so a decimal string is accepted as well as a number.
+    private static func notificationState(_ value: Any) throws -> UInt64 {
+        let text = (value as? String) ?? (value as? NSNumber)?.stringValue
+        guard let text, let state = UInt64(text) else {
+            throw GuestAPIError.invalidRequest("state must be an unsigned 64-bit integer")
+        }
+        return state
     }
 }

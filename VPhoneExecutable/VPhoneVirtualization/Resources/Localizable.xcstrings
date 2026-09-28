@@ -1633,6 +1633,34 @@
         }
       }
     },
+    "A UInt64 the guest stores before posting, read by observers through notify_get_state. Leave empty to post without a state." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投稿の前にゲストが保存する UInt64 値です。オブザーバは notify_get_state で読み取ります。空欄のままにすると状態なしで投稿します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게시하기 전에 게스트가 저장하는 UInt64 값입니다. 관찰자는 notify_get_state로 읽습니다. 비워 두면 상태 없이 게시합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giá trị UInt64 mà máy khách lưu trước khi gửi; bên quan sát đọc giá trị này qua notify_get_state. Để trống để gửi không kèm trạng thái."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户机在发送前存储的 UInt64 值，观察者通过 notify_get_state 读取。留空则不带状态发送。"
+          }
+        }
+      }
+    },
     "Access Group" : {
       "localizations" : {
         "en" : {
@@ -4469,6 +4497,34 @@
         }
       }
     },
+    "Choose a notification name the system posts or observes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムが投稿または監視する通知名を選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템이 게시하거나 관찰하는 알림 이름 선택"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn tên thông báo mà hệ thống gửi hoặc theo dõi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择系统发送或监听的通知名称"
+          }
+        }
+      }
+    },
     "Choose accessibility elements or text recognized in the screenshot" : {
       "localizations" : {
         "ja" : {
@@ -7195,6 +7251,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "守护进程启动：%@"
+          }
+        }
+      }
+    },
+    "Darwin Notification" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darwin 通知"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darwin 알림"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thông báo Darwin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darwin 通知"
           }
         }
       }
@@ -16615,6 +16699,152 @@
         }
       }
     },
+    "Post" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投稿"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게시"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gửi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
+          }
+        }
+      }
+    },
+    "Post the notification in the guest" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストで通知を投稿"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트에서 알림 게시"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gửi thông báo trong máy khách"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在客户机中发送该通知"
+          }
+        }
+      }
+    },
+    "Posted %@ with state %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Posted %1$@ with state %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ を状態 %2$@ で投稿しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@을(를) 상태 %2$@(으)로 게시했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã gửi %1$@ với trạng thái %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送 %1$@，状态为 %2$@。"
+          }
+        }
+      }
+    },
+    "Posted %@." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を投稿しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 게시했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã gửi %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送 %@。"
+          }
+        }
+      }
+    },
+    "Posting %@…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を投稿中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 게시 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang gửi %@…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在发送 %@…"
+          }
+        }
+      }
+    },
     "Power" : {
       "localizations" : {
         "en" : {
@@ -16883,6 +17113,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "预设位置"
+          }
+        }
+      }
+    },
+    "Presets" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プリセット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프리셋"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mẫu có sẵn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预设"
           }
         }
       }
@@ -17513,6 +17771,34 @@
         }
       }
     },
+    "Read State" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状態を読み取る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상태 읽기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đọc trạng thái"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取状态"
+          }
+        }
+      }
+    },
     "Read one preference key, or leave the key empty to read all keys in the domain." : {
       "localizations" : {
         "en" : {
@@ -17667,6 +17953,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "读取该键；键为空时读取域中的所有键 (⌘R)"
+          }
+        }
+      }
+    },
+    "Read the notification's current state from the guest" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストから通知の現在の状態を読み取る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트에서 알림의 현재 상태 읽기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đọc trạng thái hiện tại của thông báo từ máy khách"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从客户机读取该通知的当前状态"
+          }
+        }
+      }
+    },
+    "Reading %@…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を読み取り中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 읽는 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang đọc %@…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在读取 %@…"
           }
         }
       }
@@ -24345,6 +24687,68 @@
         }
       }
     },
+    "The state must be a whole number from 0 to %@." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状態には 0 から %@ までの整数を入力してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상태는 0부터 %@ 사이의 정수여야 합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trạng thái phải là số nguyên từ 0 đến %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态必须是 0 到 %@ 之间的整数。"
+          }
+        }
+      }
+    },
+    "The state of %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The state of %1$@ is %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の状態は %2$@ です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@의 상태는 %2$@입니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trạng thái của %1$@ là %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 的状态为 %2$@。"
+          }
+        }
+      }
+    },
     "This app declares no URL schemes." : {
       "localizations" : {
         "ja" : {
@@ -26231,6 +26635,40 @@
         }
       }
     },
+    "Unable to post %@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unable to post %1$@. %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ を投稿できません。%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@을(를) 게시할 수 없습니다. %2$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể gửi %1$@. %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法发送 %1$@。%2$@"
+          }
+        }
+      }
+    },
     "Unable to press %@. %@" : {
       "localizations" : {
         "en" : {
@@ -26329,6 +26767,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法输出 %1$@ 的描述。%2$@"
+          }
+        }
+      }
+    },
+    "Unable to read %@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unable to read %1$@. %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ を読み取れません。%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@을(를) 읽을 수 없습니다. %2$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể đọc %1$@. %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取 %1$@。%2$@"
           }
         }
       }

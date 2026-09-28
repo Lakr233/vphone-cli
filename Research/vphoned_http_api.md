@@ -228,7 +228,7 @@ correlate them by `id`. The socket also sends
 receive pong frames. JSON WebSocket frames are limited to 1 MiB after
 fragment reassembly.
 
-SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.6.8
+SwiftNIO handles parsing, upgrade, masking, and backpressure. IcliKit 0.7.0
 owns general device operations. Each HTTP or WebSocket request runs independently
 on a concurrent worker queue, so a stalled system service does not block HID,
 file browsing, or unrelated requests. The host serializes the input events it
@@ -273,6 +273,7 @@ request carries `"force": true`.
 | Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
 | launchd | `services.list`, `status`, `print`, `dump`, `disabled`, `start`, `enable`, `load`; `services.stop`, `disable`, `remove`, `signal`, `unload` **force**; `launchd.getenv`, `setenv`, `unsetenv` |
 | Logs | `logs.syslog {seconds, process?, level?, max_lines?}` (a bounded capture of at most 60 s), `logs.crashes {bundle_id?}`, `logs.crash {path}` |
+| Darwin notifications | `notify.post {name, state?}` (`postDarwinNotification`; `state` is a UInt64, as a number or a decimal string, stored before the post), `notify.state {name}` (`darwinNotificationState`) |
 | Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory and returns its path), `security.ssl_killswitch` |
 | Apps | `apps.list`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force** |
 | System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `diagnostics.self_test` |

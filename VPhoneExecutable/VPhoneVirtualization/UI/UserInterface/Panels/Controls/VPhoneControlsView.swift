@@ -11,6 +11,7 @@ struct VPhoneControlsView: View {
                 powerSection
                 buttonsSection
                 keyboardSection
+                notificationSection
             }
             .formStyle(.grouped)
             .disabled(!model.isConnected)
@@ -223,6 +224,41 @@ struct VPhoneControlsView: View {
         .buttonStyle(.bordered)
         .help(String(localized: "Send \(model.keyName(key)) to the guest", bundle: VPhoneLocalization.bundle))
         .disabled(!model.canWrite)
+    }
+
+    // MARK: - Darwin Notification
+
+    private var notificationSection: some View {
+        Section("Darwin Notification") {
+            HStack(spacing: 8) {
+                TextField("Name", text: $model.notificationName, prompt: Text(verbatim: "com.apple.springboard.lockcomplete"))
+                    .font(.system(size: 11, design: .monospaced))
+                Menu("Presets") {
+                    ForEach(VPhoneControlsNotification.presets, id: \.self) { group in
+                        Section {
+                            ForEach(group, id: \.self) { name in
+                                Button(name) { model.notificationName = name }
+                            }
+                        }
+                    }
+                }
+                .fixedSize()
+                .help("Choose a notification name the system posts or observes")
+            }
+
+            TextField("State", text: $model.notificationState, prompt: Text("None"))
+                .font(.system(size: 11, design: .monospaced))
+                .help("A UInt64 the guest stores before posting, read by observers through notify_get_state. Leave empty to post without a state.")
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 8)
+                Button("Read State") { Task { await model.readNotificationState() } }
+                    .help("Read the notification's current state from the guest")
+                Button("Post") { Task { await model.postNotification() } }
+                    .help("Post the notification in the guest")
+            }
+            .disabled(!model.canUseNotification)
+        }
     }
 
     // MARK: - Bindings
