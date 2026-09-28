@@ -20,7 +20,7 @@ This directory keeps the evidence behind firmware patches, restore and the self-
 | Other patches and captures | [Launchd jetsam](Patches/cfw_patch_launchd_jetsam.md), [user-mode hypervisor references](Patches/hv_vmm_present_usermode_xrefs.md), [reference capture](Patches/patch_reference_capture.md) |
 | Restore | [DFU probe](Restore/virtual_dfu_probe.md), [in-process restore](Restore/native_restore_architecture.md) |
 | Host and archives | [Binary split](Host/host_binary_split.md), [runtime dependency tiers](Host/runtime_dependency_tiers.md), [archive extraction contracts](Host/archive_extraction_contracts.md), [libarchive validation](Host/libarchive_xcframework_validation.md) |
-| Guest interaction and VM identity | [DevMode XPC](Guest/devmode_xpc_protocol.md), [keyboard events](Guest/keyboard_event_pipeline.md), [machine identifier](Guest/machine_identifier_storage_analysis.md) |
+| Guest interaction and VM identity | [DevMode XPC](Guest/devmode_xpc_protocol.md), [keyboard events](Guest/keyboard_event_pipeline.md), [machine identifier](Guest/machine_identifier_storage_analysis.md), [RootHide bootstrap base](Guest/roothide_bootstrap_base.md) |
 | Historical project records | [Migration ledger](History/intg_update_status.md), [manifest refactoring summary](History/manifest_and_refactoring_summary.md) |
 
 `KernelSymbols/` holds symbol datasets and indexes; `Reference/` holds source references when present. They are evidence inputs, not steps for running the distributed app. The files in `History/` are preserved snapshots and may describe scripts or variants that have since been removed.
