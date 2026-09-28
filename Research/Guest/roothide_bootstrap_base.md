@@ -70,12 +70,15 @@ Rules:
 ## Open issues
 
 - **PAM.** With accounts and keys in place, the bootstrap's sshd (OpenSSH 9.2,
-  `UsePAM yes`) still fails with `PAM: initialisation failed`, although
-  `root/etc/pam.d/sshd` and every module it names exist. With
-  `-o UsePAM=no`, password login works. The likely cause, unverified, is a PAM
-  library that is not vroot-aware; check `otool -L root/usr/sbin/sshd`.
-  `sshd_config` is the package's conffile, so vphoned does not edit it. The fix
-  belongs in the bootstrap's libpam or the openssh package.
+  `UsePAM yes`) failed with `PAM: initialisation failed`, although
+  `root/etc/pam.d/sshd` and every module it names exist; with
+  `-o UsePAM=no`, password login worked. The modules in `root/usr/lib/pam`
+  load libroothide through `@loader_path/.jbroot`, and that directory had no
+  link. `ensureRootHideLinks` now seeds `usr/lib/pam/.jbroot →
+  ../../../.jbroot` (#515). On an existing RootHide VM, startup recreated the
+  link and root SSH worked with public-key and password authentication. A
+  fresh restore with the package's unmodified `sshd_config` has not been
+  checked yet. vphoned never edits `sshd_config`, the package's conffile.
 - **Alternatives links** such as `/usr/bin/pager` only exist when maintainer
   scripts ran. Check whether Irisin's Bootstrap Install creates them on a fresh
   vphone; if it does not, that is an Irisin bug.
@@ -94,7 +97,8 @@ ls -l /etc/pwd.db /etc/spwd.db /etc/ssh/ssh_host_*_key
 ```
 
 - iGhostVT opens a shell.
-- From the Mac, `ssh mobile@<guest address>` reaches a password prompt (and
-  logs in once PAM is settled).
+- `root/usr/lib/pam/.jbroot` resolves to the root, and from the Mac
+  `ssh mobile@<guest address>` logs in with the package's `sshd_config`
+  (`UsePAM yes`).
 - Change a password with `passwd`, restart, and confirm it still works and
   that the startup log reports nothing created.

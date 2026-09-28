@@ -21,8 +21,10 @@ framework or extension directory.
 ## Present vphone behavior
 
 - `GuestIrisinInstaller.ensureRootHideLinks` seeds the bootstrap root and
-  `bin`, `sbin`, `usr/bin`, `usr/sbin`, `usr/lib`, and `usr/libexec` at initial
-  bootstrap installation and on `vphoned` startup. It does not cover
+  `bin`, `sbin`, `usr/bin`, `usr/sbin`, `usr/lib`, `usr/libexec`, and
+  `usr/lib/pam` at initial bootstrap installation and on `vphoned` startup.
+  The PAM modules need their own link: without it sshd reports
+  `PAM: initialisation failed`. It does not cover
   `Applications/*.app` installed later.
 - The launchd hook sees physical bootstrap executable paths and app paths
   before `posix_spawn`. It passes `VPHONE_JB_ROOT` and SystemHook injection to
