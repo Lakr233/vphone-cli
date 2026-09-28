@@ -76,9 +76,11 @@ extension GuestAPI {
     }
 
     /// A notify(3) state is a full UInt64, beyond what a JSON double holds
-    /// exactly, so a decimal string is accepted as well as a number.
+    /// exactly, so a decimal string is accepted as well as a number. A JSON
+    /// boolean also decodes as NSNumber and is refused.
     private static func notificationState(_ value: Any) throws -> UInt64 {
-        let text = (value as? String) ?? (value as? NSNumber)?.stringValue
+        let number = (value as? NSNumber).flatMap { CFGetTypeID($0) == CFBooleanGetTypeID() ? nil : $0 }
+        let text = (value as? String) ?? number?.stringValue
         guard let text, let state = UInt64(text) else {
             throw GuestAPIError.invalidRequest("state must be an unsigned 64-bit integer")
         }
