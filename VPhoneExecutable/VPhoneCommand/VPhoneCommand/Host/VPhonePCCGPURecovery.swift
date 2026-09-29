@@ -111,10 +111,20 @@ enum VPhonePCCGPURecovery {
             "attach", "-readonly", "-nomount", "-imagekey",
             "diskimage-class=CRawDiskImage", diskImage.path,
         ])
-        guard let baseDisk = attached.split(whereSeparator: \.isNewline).first?
-            .split(whereSeparator: \.isWhitespace).first.map(String.init),
-            baseDisk.hasPrefix("/dev/disk")
-        else {
+        // macOS 27 prints the synthesized APFS container before the image's own
+        // disk, so the first line is not the disk to detach later; take the disk
+        // that carries the store partition. See VPhoneCustomFirmwareInstaller.
+        let devices = attached.split(whereSeparator: \.isNewline).compactMap { line -> (device: String, type: String)? in
+            let fields = line.split(whereSeparator: \.isWhitespace)
+            guard fields.count >= 2, fields[0].hasPrefix("/dev/disk") else { return nil }
+            return (String(fields[0]), String(fields[1]))
+        }
+        let store = devices.first(where: { $0.type == "Apple_APFS" })?.device
+        let baseDisk = store.flatMap { device in
+            device.range(of: "s", options: .backwards).map { String(device[..<$0.lowerBound]) }
+        } ?? devices.first(where: { $0.type == "GUID_partition_scheme" })?.device
+            ?? devices.first?.device
+        guard let baseDisk, baseDisk.hasPrefix("/dev/disk") else {
             if let range = attached.range(of: #"/dev/disk[0-9]+"#, options: .regularExpression) {
                 _ = try? run("/usr/bin/hdiutil", ["detach", "-force", String(attached[range])])
             }
