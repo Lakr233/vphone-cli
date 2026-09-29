@@ -954,9 +954,13 @@ struct VPhoneCustomFirmwareInstaller {
             fromPropertyList: plist,
             format: .xml, options: 0,
         )
+        // Replacement, not merge: `plist` is already the complete set we want,
+        // and merging it back over the file's own entitlements would re-add the
+        // `seatbelt-profiles` removed above — merge updates and appends keys, it
+        // cannot delete one.
         try VPhoneSigner.sign(
             fileAt: staged,
-            options: .init(entitlements: data, mergesExisting: true),
+            options: .init(entitlements: data),
         )
         try system.replaceFile(target, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
     }
