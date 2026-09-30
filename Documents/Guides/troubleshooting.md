@@ -20,7 +20,7 @@ Use the VM window's **Keys → Home** action. The current JB workflow does not i
 
 ## App exits with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`
 
-The optional `vphone-cli fw patch <name> --force-exc-guard` patch can address this class of crash. Repatching firmware alone does not alter an already restored guest: restore and reinstall CFW after changing the patch set. See [issue #291](https://github.com/Lakr233/vphone-cli/issues/291).
+The kernel patch `kernel.thread_guard_violation` stops fatal Mach port guard delivery. It applies only on an iOS 18 base, where it is needed to boot, and every preset turns it on there. Other bases cannot select it, so an app that trips this guard on a 26.x base still exits. See [issue #291](https://github.com/Lakr233/vphone-cli/issues/291).
 
 ## Restore or first boot fails
 

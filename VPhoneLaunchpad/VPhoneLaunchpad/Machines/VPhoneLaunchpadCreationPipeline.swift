@@ -26,7 +26,6 @@ final class VPhoneLaunchpadCreationPipeline {
         var network: String
         /// The preset and per-patch overrides the boot chain is built with.
         var patches: VPhoneLaunchpadPatchSelection
-        var forceDyldSharedCacheMaxSlide: Bool
         var keepArtifacts: Bool
 
         var machine: VPhoneLaunchpadMachinePath {
@@ -347,7 +346,6 @@ final class VPhoneLaunchpadCreationPipeline {
                 bundleVersion: version,
                 machineName: name,
                 libraryRoot: Self.canonicalPath(URL(fileURLWithPath: options.libraryRoot, isDirectory: true)),
-                forceDyldSharedCacheMaxSlide: options.forceDyldSharedCacheMaxSlide,
                 // The restore tree stays until first boot succeeds, so a
                 // failed boot can still be restored again without preparing
                 // the firmware anew. `removeRestoreFiles()` reclaims it then.

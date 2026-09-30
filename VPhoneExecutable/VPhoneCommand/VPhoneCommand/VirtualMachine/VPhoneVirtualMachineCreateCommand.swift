@@ -19,11 +19,6 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
     @Option(help: "Directory for downloaded IPSWs, shared by every VM (default: ~/.vphone/ipsws or $VPHONE_ROOT/ipsws)")
     var ipswCache: String?
     @Option(name: .shortAndLong, help: "Disk size (GB)") var diskSize: UInt64 = 64
-    @Flag(
-        name: .customLong("force-dsc-maxslide"),
-        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)",
-    )
-    var forceDyldSharedCacheMaxSlide = false
     @Option(
         name: .customLong("preset"),
         help: "Patch preset for the new VM. Defaults to standard; run `fw patches` to see what each one applies.",
@@ -61,7 +56,6 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
             ipswCacheDirectory: ipswCache.map {
                 URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true)
             } ?? VPhoneResources.ipswCacheDirectory(),
-            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
             patchPreset: preset,
             diskSizeGB: diskSize,
             verbosity: VPhoneVerbosity(count: verboseCount),

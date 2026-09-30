@@ -166,10 +166,10 @@ nonisolated struct VPhoneLaunchpadControlCommand: Sendable {
              summary: "The last lines of the console log (--kind create, dfu or patch for those logs)."),
         Self(name: "vm.create", arguments: ["name"], options: [
             "root", "iphone-source", "cloudos-source", "cpu", "memory", "disk-size", "network", "preset", "from",
-        ], flags: ["force-dsc-maxslide", "keep-artifacts", "no-wait"],
+        ], flags: ["keep-artifacts", "no-wait"],
         summary: "Create a machine through every step, as New Machine does. --from <step> retries a failed creation from that step."),
 
-        Self(name: "cfw.install", arguments: ["name"], options: ["root"], flags: ["force-dsc-maxslide", "keep-artifacts"],
+        Self(name: "cfw.install", arguments: ["name"], options: ["root"], flags: ["keep-artifacts"],
              summary: "Install CFW into a stopped machine through the root helper."),
 
         Self(name: "guest.send", arguments: ["name", "json"], options: ["root"], flags: [],

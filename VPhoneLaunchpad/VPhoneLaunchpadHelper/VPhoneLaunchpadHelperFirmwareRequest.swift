@@ -14,7 +14,6 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
-        forceDyldSharedCacheMaxSlide: Bool,
         keepArtifacts: Bool,
         callerUID: uid_t,
         callerGID: gid_t,
@@ -47,9 +46,6 @@ struct VPhoneLaunchpadHelperFirmwareRequest {
         let home = String(cString: account.pointee.pw_dir)
 
         var arguments = ["cfw", "install", machineName, "--library-root", libraryRoot]
-        if forceDyldSharedCacheMaxSlide {
-            arguments.append("--force-dsc-maxslide")
-        }
         if keepArtifacts {
             arguments.append("--keep-artifacts")
         }

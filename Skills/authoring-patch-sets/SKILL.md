@@ -107,10 +107,8 @@ Two rules follow, and they are the ones people get wrong:
 
 Do **not** add a boolean flag to `FirmwarePipeline` or a `--force-something` CLI
 flag for this. The patches behind `--frida`, `--force-exc-guard` and
-`--force-dsc-maxslide` are declarations now, and adding another flag is a
-regression. (`--force-dsc-maxslide` itself is still plumbed from `vm create`
-through the Launchpad helper; that chain is dead weight awaiting removal, not a
-pattern to copy.)
+`--force-dsc-maxslide` are declarations now, and all three flags are gone.
+Adding another is a regression.
 
 ## Boot-Essential Patches
 

@@ -231,11 +231,6 @@ struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Flag(
-        name: .customLong("force-dsc-maxslide"),
-        help: "Zero the dyld cache maxSlide on non-27 bases (opt-in DSC-map fit)",
-    )
-    var forceDyldSharedCacheMaxSlide = false
-    @Flag(
         name: .customLong("keep-artifacts"),
         help: "Keep the extracted firmware after install (default: removed to save space)",
     )
@@ -249,7 +244,6 @@ struct VPhoneCustomFirmwareInstallCommand: ParsableCommand {
         let code = try VPhoneCustomFirmwareInstaller.elevate(
             bundle: bundle.url,
             resources: resources,
-            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
         )
         if code == 0 {
             try recordInstall(in: bundle)

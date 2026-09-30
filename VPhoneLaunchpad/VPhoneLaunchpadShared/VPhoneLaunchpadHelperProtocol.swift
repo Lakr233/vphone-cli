@@ -54,7 +54,6 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
-        forceDyldSharedCacheMaxSlide: Bool,
         keepArtifacts: Bool,
         reply: @escaping @Sendable (Int32, String?) -> Void,
     )

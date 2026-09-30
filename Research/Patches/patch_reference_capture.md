@@ -80,7 +80,8 @@ so it is a superset of regular, and `dev` adds nothing exp does not already have
 | … on an **iOS 27** base | + `dsc_maxslide`, `lsd_embedded_reg`, `xpc_lwcr`, `lockdown_mode`, `iomfb_force_kern`, `diskimagesiod` |
 
 `dsc_maxslide` self-gates to a no-op on a base whose cache already fits. To
-capture it on a non-27 base anyway, add `FORCE_DSC_MAXSLIDE=1`.
+capture it on a non-27 base anyway, run `vphone-cli cfw patch-dsc-maxslide
+<dyld dir> --force` by hand; `cfw install` never forces it.
 
 Capture the same variant on more iOS builds than these two — the reference is
 per build, and a patcher that silently finds nothing on a new build is exactly

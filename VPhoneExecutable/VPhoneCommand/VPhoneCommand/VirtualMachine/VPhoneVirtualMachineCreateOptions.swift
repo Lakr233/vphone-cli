@@ -11,7 +11,6 @@ public extension VPhoneVirtualMachineCreator {
         public var cloudosSource: String?
         public var gpuDriverBundle: URL?
         public var ipswCacheDirectory: URL
-        public var forceDyldSharedCacheMaxSlide: Bool
         /// Which patch preset the new VM is built with. Individual patches are
         /// turned on or off per VM afterwards, through its patch selection.
         public var patchPreset: String
@@ -27,7 +26,6 @@ public extension VPhoneVirtualMachineCreator {
             cloudosSource: String? = nil,
             gpuDriverBundle: URL? = nil,
             ipswCacheDirectory: URL = VPhoneResources.ipswCacheDirectory(),
-            forceDyldSharedCacheMaxSlide: Bool = false,
             patchPreset: String = VPhonePatchPreset.standardIdentifier,
             cpuCount: UInt = 8,
             memoryMB: UInt64 = 8192,
@@ -40,7 +38,6 @@ public extension VPhoneVirtualMachineCreator {
             self.cloudosSource = cloudosSource
             self.gpuDriverBundle = gpuDriverBundle
             self.ipswCacheDirectory = ipswCacheDirectory
-            self.forceDyldSharedCacheMaxSlide = forceDyldSharedCacheMaxSlide
             self.patchPreset = patchPreset
             self.cpuCount = cpuCount
             self.memoryMB = memoryMB

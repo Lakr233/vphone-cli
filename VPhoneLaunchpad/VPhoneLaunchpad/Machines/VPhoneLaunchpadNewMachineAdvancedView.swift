@@ -5,7 +5,6 @@ import SwiftUI
 struct VPhoneLaunchpadNewMachineAdvancedView: View {
     @Binding var network: String
     @Binding var patches: VPhoneLaunchpadPatchSelection
-    @Binding var forceMaxSlide: Bool
     @Binding var keepArtifacts: Bool
     let patchCatalog: VPhoneLaunchpadPatchCatalog?
     let patchCatalogError: String?
@@ -38,7 +37,6 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
                 patchSection
 
                 Section("Options") {
-                    Toggle("Disable dyld shared cache randomization", isOn: $forceMaxSlide)
                     Toggle("Keep prepared restore files", isOn: $keepArtifacts)
                 }
             }

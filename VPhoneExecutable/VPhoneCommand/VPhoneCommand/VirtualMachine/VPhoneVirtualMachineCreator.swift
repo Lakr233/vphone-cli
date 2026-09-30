@@ -426,10 +426,7 @@ public struct VPhoneVirtualMachineCreator {
     ) throws {
         let v = options.verbosity
         trace("native JB CFW install for \(bundleURL.path)", v)
-        let code = try VPhoneCustomFirmwareInstaller.elevate(
-            bundle: bundleURL, resources: resources,
-            forceDyldSharedCacheMaxSlide: options.forceDyldSharedCacheMaxSlide,
-        )
+        let code = try VPhoneCustomFirmwareInstaller.elevate(bundle: bundleURL, resources: resources)
         guard code == 0 else { throw VPhoneVirtualMachineCreationError.cfwInstallFailed(code) }
         print("[+] JB CFW installed.")
         if let bundle = try? VPhoneBundle.load(at: bundleURL),

@@ -524,7 +524,6 @@ struct VPhoneLaunchpadControlCommands {
             diskSizeGB: number("disk-size", 64),
             network: request.option("network") ?? "nat",
             patches: patches,
-            forceDyldSharedCacheMaxSlide: request.flag("force-dsc-maxslide"),
             keepArtifacts: request.flag("keep-artifacts"),
         )
         return library.create(options)
@@ -576,7 +575,6 @@ struct VPhoneLaunchpadControlCommands {
             bundleVersion: version,
             machineName: machine.name,
             libraryRoot: machine.libraryRoot,
-            forceDyldSharedCacheMaxSlide: request.flag("force-dsc-maxslide"),
             keepArtifacts: request.flag("keep-artifacts"),
             onLine: emit,
         )

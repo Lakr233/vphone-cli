@@ -23,7 +23,6 @@ import VPhoneSign
 struct VPhoneCustomFirmwareInstaller {
     let bundle: URL
     let resources: VPhoneResources
-    let forceDyldSharedCacheMaxSlide: Bool
 
     /// Guest system files belong to root:wheel.
     private static let guestOwner: (uid: uid_t, gid: gid_t) = (0, 0)
@@ -47,17 +46,9 @@ struct VPhoneCustomFirmwareInstaller {
         return build
     }
 
-    static func elevate(
-        bundle: URL,
-        resources: VPhoneResources,
-        forceDyldSharedCacheMaxSlide: Bool,
-    ) throws -> Int32 {
+    static func elevate(bundle: URL, resources: VPhoneResources) throws -> Int32 {
         if geteuid() == 0 {
-            try VPhoneCustomFirmwareInstaller(
-                bundle: bundle,
-                resources: resources,
-                forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
-            ).run()
+            try VPhoneCustomFirmwareInstaller(bundle: bundle, resources: resources).run()
             return 0
         }
         throw ValidationError("CFW installation needs root. Run this command with sudo.")
@@ -445,12 +436,6 @@ struct VPhoneCustomFirmwareInstaller {
         } else if version.hasPrefix("26.0") || version.hasPrefix("18.") {
             if on("dsc.iomfb_swapend") {
                 try patch("patch-iomfb-swapend", [dsc, "--target-size", "0x560"])
-            }
-        } else if forceDyldSharedCacheMaxSlide {
-            // Superseded by the plan: `dsc_maxslide.zero` is pinned to iOS 27, so
-            // a VM with a plan cannot force it onto a 26.x base any more.
-            if on("dsc_maxslide.zero") {
-                try patch("patch-dsc-maxslide", [dsc, "--force"])
             }
         }
         // Version-agnostic: the guest is hacktivated on every base, so the
@@ -1106,13 +1091,11 @@ struct VPhoneCustomFirmwareInstallRootCommand: ParsableCommand {
 
     @Argument(help: "VM bundle path") var bundle: String
     @Option(help: "Resource base") var resources: String
-    @Flag(name: .customLong("force-dsc-maxslide")) var forceDyldSharedCacheMaxSlide = false
 
     func run() throws {
         try VPhoneCustomFirmwareInstaller(
             bundle: URL(fileURLWithPath: bundle),
             resources: VPhoneResources(base: URL(fileURLWithPath: resources)),
-            forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
         ).run()
     }
 }

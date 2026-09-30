@@ -86,7 +86,6 @@
                     VPhoneLaunchpadNewMachineAdvancedView(
                         network: .constant("nat"),
                         patches: .constant(VPhoneLaunchpadPatchSelection()),
-                        forceMaxSlide: .constant(false),
                         keepArtifacts: .constant(false),
                         patchCatalog: nil,
                         patchCatalogError: nil,
@@ -280,7 +279,6 @@
             diskSizeGB: 128,
             network: "nat",
             patches: VPhoneLaunchpadPatchSelection(),
-            forceDyldSharedCacheMaxSlide: false,
             keepArtifacts: false,
         )
 

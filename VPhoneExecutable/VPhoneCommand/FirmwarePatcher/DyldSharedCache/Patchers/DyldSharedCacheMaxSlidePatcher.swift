@@ -18,6 +18,13 @@
 //     iOS 27.0 (24A5380h): span 0x17C830000 (~5.95 GiB)
 //                        + maxSlide 0x20000000 (512 MiB)
 //                        = 0x19C830000 (~6.46 GiB) > 0x180000000 (6 GiB)
+//     iOS 27.0 (24A435):   size 0x17D504000 + maxSlide 0x20000000
+//                        = 0x19D504000 > 0x180000000
+//
+// The 512 MiB is not a per-build accident: the cache builder gives every iOS
+// arm64 cache a fixed 512 MiB slide and sizes it to fit the iOS 27 SDK's own,
+// larger region. So every 27 cache read so far overflows this kernel's region,
+// and the gate below patches it.
 //
 // `_shared_region_map_and_slide` then returns ENOMEM, dyld cannot map
 // libSystem, and launchd (pid 1) panics: "initproc failed to start -- Library
@@ -181,8 +188,8 @@ public enum DyldSharedCacheMaxSlidePatcher {
     ///     this project targets.
     ///   - kernelRegionSize: the guest kernel's `SHARED_REGION_SIZE_ARM64`.
     ///   - dryRun: decide and report, but write nothing.
-    ///   - force: clamp even when the cache already fits — the `--force` flag
-    ///     behind `FORCE_DSC_MAXSLIDE=1`.
+    ///   - force: clamp even when the cache already fits — the verb's `--force`,
+    ///     for use by hand. `cfw install` never sets it.
     ///   - verbose: print the Python's log lines.
     @discardableResult
     public static func patch(

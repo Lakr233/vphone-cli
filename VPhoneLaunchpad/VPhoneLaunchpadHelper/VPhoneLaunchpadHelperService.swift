@@ -78,7 +78,6 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
-        forceDyldSharedCacheMaxSlide: Bool,
         keepArtifacts: Bool,
         reply: @escaping @Sendable (Int32, String?) -> Void,
     ) {
@@ -92,7 +91,6 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
                     bundleVersion: bundleVersion,
                     machineName: machineName,
                     libraryRoot: libraryRoot,
-                    forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
                     keepArtifacts: keepArtifacts,
                     callerUID: callerUID,
                     callerGID: callerGID,

@@ -250,7 +250,6 @@ final class VPhoneLaunchpadHelperClient {
         bundleVersion: String,
         machineName: String,
         libraryRoot: String,
-        forceDyldSharedCacheMaxSlide: Bool,
         keepArtifacts: Bool,
         onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
@@ -264,7 +263,6 @@ final class VPhoneLaunchpadHelperClient {
                     bundleVersion: bundleVersion,
                     machineName: machineName,
                     libraryRoot: libraryRoot,
-                    forceDyldSharedCacheMaxSlide: forceDyldSharedCacheMaxSlide,
                     keepArtifacts: keepArtifacts,
                 ) { status, message in
                     if let message {

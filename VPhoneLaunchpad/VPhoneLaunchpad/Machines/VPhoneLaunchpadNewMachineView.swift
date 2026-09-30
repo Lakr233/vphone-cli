@@ -27,7 +27,6 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var patchCatalog: VPhoneLaunchpadPatchCatalog?
     @State private var patchCatalogError: String?
     @State private var showsAdvanced = false
-    @State private var forceMaxSlide = false
     @State private var keepArtifacts = false
 
     private var selectedPairing: VPhoneLaunchpadFirmwareCatalog.Pairing? {
@@ -128,7 +127,6 @@ struct VPhoneLaunchpadNewMachineView: View {
             VPhoneLaunchpadNewMachineAdvancedView(
                 network: $network,
                 patches: $patches,
-                forceMaxSlide: $forceMaxSlide,
                 keepArtifacts: $keepArtifacts,
                 patchCatalog: patchCatalog,
                 patchCatalogError: patchCatalogError,
@@ -392,7 +390,6 @@ struct VPhoneLaunchpadNewMachineView: View {
             diskSizeGB: diskSizeGB,
             network: network,
             patches: patches,
-            forceDyldSharedCacheMaxSlide: forceMaxSlide,
             keepArtifacts: keepArtifacts,
         )
         let pipeline = model.machines.create(options)

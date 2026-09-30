@@ -230,8 +230,8 @@ struct VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand: ParsableCommand 
         with full slide is left alone and a cache already at maxSlide 0 is left
         alone either way. Both are reported and exit 0.
 
-        --force zeroes maxSlide even when the cache fits — the opt-in behind
-        FORCE_DSC_MAXSLIDE=1 for a non-27 base.
+        --force zeroes maxSlide even when the cache fits. It is for running this
+        verb by hand; `cfw install` never passes it.
 
         No re-attestation: maxSlide lives in the cache header, which is not one
         of the cs_validate'd code pages.
