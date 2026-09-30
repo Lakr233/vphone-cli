@@ -13,8 +13,8 @@
 // blocks on a synchronous call to the throttled Bluetooth XPC service, the
 // `com.apple.locationd.migrator` data-migrator plugin hangs for over an hour, and
 // SpringBoard waits on migration — black screen, no panic. `--preset extended` or a
-// per-VM checkmark turns it back on, together with `hv_vmm_dsc` and
-// `watchdogd.hv_vmm_cache`.
+// per-VM checkmark turns it back on, together with `dyld-exp-hv_vmm` and
+// `system-watchdogd-exp-hv_vmm_cache`.
 //
 // Its own set because it is the one kernel change that is about hiding the
 // hypervisor rather than about jailbreaking, so a preset can take it or leave it
@@ -32,13 +32,13 @@ public enum FirmwareKernelHypervisorPatchSet {
         summary: "Renames the hv_vmm_present sysctl so userland does not see the hypervisor",
         patches: [
             VPhonePatchDeclaration(
-                identifier: "kernelcache_exp.hv_vmm",
+                identifier: "kernel-exp-hv_vmm",
                 title: "hv_vmm_present sysctl",
                 summary: """
                 Renames the hv_vmm_present OID and mangles its internal caller, so a userland \
                 check for the hypervisor finds nothing. Off by default: it leaves a freshly \
-                restored 26.4 guest on a black screen. Enable it together with hv_vmm_dsc \
-                and watchdogd.hv_vmm_cache, never alone.
+                restored 26.4 guest on a black screen. Enable it together with dyld-exp-hv_vmm \
+                and system-watchdogd-exp-hv_vmm_cache, never alone.
                 """,
                 target: .firmware(.kernelcache),
             ),

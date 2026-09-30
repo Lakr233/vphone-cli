@@ -111,7 +111,7 @@ extension KernelJailbreakPatcher {
         emit(
             patchOff,
             ARM64.cmpW0W0,
-            patchID: "jb.post_validation.cmp_w0_w0",
+            patchID: "kernel-boot-post_validation_unsigned.cmp_w0_w0",
             virtualAddress: fileOffsetToVA(patchOff),
             description: "cmp w0,w0 [postValidation additional]",
         )

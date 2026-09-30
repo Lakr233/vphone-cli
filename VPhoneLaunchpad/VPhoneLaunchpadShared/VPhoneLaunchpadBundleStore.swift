@@ -70,7 +70,13 @@ nonisolated struct VPhoneLaunchpadBundleReceipt: Codable, Equatable, Sendable {
 /// checks them to give an early message; the helper checks them because it
 /// must not trust the app.
 nonisolated enum VPhoneLaunchpadNames {
-    static let minimumBundleVersion = "2.1.0"
+    /// 2.2.0 renamed every patch to `{component}-{effect}-{name}` and dropped
+    /// `--force-dsc-maxslide` from `cfw install`, so an older bundle neither
+    /// reports the identifiers the patch table reads nor takes the arguments
+    /// the helper passes.
+    private static let minimumBundleComponents = (2, 2, 0)
+    static let minimumBundleVersion =
+        "\(minimumBundleComponents.0).\(minimumBundleComponents.1).\(minimumBundleComponents.2)"
 
     static func isValidVersion(_ value: String) -> Bool {
         matches(value, "^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$") && !value.contains("..")
@@ -95,7 +101,7 @@ nonisolated enum VPhoneLaunchpadNames {
         guard parts.count == 3,
               let major = Int(parts[0]), let minor = Int(parts[1]), let patch = Int(parts[2])
         else { return false }
-        return (major, minor, patch) >= (2, 1, 0)
+        return (major, minor, patch) >= minimumBundleComponents
     }
 
     static func isValidMachineName(_ value: String) -> Bool {

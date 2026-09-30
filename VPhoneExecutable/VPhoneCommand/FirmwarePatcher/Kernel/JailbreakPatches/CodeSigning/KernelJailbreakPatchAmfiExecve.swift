@@ -99,7 +99,7 @@ extension KernelJailbreakPatcher {
             emit(
                 targetOff,
                 ARM64.movW0_0,
-                patchID: "jb.amfi_execve.kill_return",
+                patchID: "kernel-boot-amfi_execve.kill_return",
                 description: "mov w0,#0 [AMFI kill return → allow]",
             )
 

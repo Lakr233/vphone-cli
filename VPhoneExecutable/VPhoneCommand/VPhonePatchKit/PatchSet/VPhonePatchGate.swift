@@ -7,7 +7,7 @@
 //
 // Gates answer about *record* identifiers, because that is what a patch site has
 // in hand, and record identifiers are finer than declarations: one declaration
-// covers `jb.kcall10.sy_call` and its three siblings. A record no declaration
+// covers `kernel-boot-kcall10.sy_call` and its three siblings. A record no declaration
 // covers is a gap in a manifest, not a patch the user turned off, so the gate
 // applies it and says so. Failing open keeps a missed declaration from silently
 // changing the firmware; the warning is what makes the gap findable.
@@ -33,7 +33,7 @@ public struct VPhonePatchGate: Sendable, Hashable {
     /// Only the plan's enabled patches apply.
     public init(plan: VPhonePatchPlan) {
         policy = .plan(
-            // Longest first, so `kernel.sandbox.mount_check_mount` is consulted
+            // Longest first, so `kernel-boot-sandbox_mount_check_mount` is consulted
             // before a shorter declaration that also happens to cover the record.
             declared: plan.declarations.map(\.identifier).sorted { $0.count > $1.count },
             enabled: plan.enabled,
@@ -97,7 +97,7 @@ public struct VPhonePatchGate: Sendable, Hashable {
     /// over a list already ordered longest first.
     private static func declaration(covering record: String, in declared: [String]) -> String? {
         declared.first {
-            record == $0 || record.hasPrefix($0 + ".") || record.hasPrefix($0 + "_")
+            record == $0 || record.hasPrefix($0 + ".")
         }
     }
 }

@@ -73,7 +73,7 @@ public enum DyldSharedCacheXPCLWCRPatcher {
     static let maxInstructions = 160
 
     /// The record group this patcher writes under, matching `cfw_records`.
-    public static let recordGroup = "xpc_lwcr"
+    public static let recordGroup = "dyld-boot-xpc_lwcr"
 
     // MARK: - Outcome
 

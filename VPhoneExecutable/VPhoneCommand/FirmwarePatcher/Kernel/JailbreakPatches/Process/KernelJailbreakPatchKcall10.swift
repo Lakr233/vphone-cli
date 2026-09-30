@@ -83,7 +83,7 @@ extension KernelJailbreakPatcher {
         emit(
             caveOff,
             caveBytes,
-            patchID: "jb.kcall10.cave",
+            patchID: "kernel-boot-kcall10.cave",
             description: "kcall10 ABI-correct cave (target + 7 args -> uint64 x0)",
         )
 
@@ -96,7 +96,7 @@ extension KernelJailbreakPatcher {
                 key: 0,
                 addrDiv: 0,
             ),
-            patchID: "jb.kcall10.sy_call",
+            patchID: "kernel-boot-kcall10.sy_call",
             description: "sysent[439].sy_call = cave 0x\(String(format: "%X", caveOff)) (auth rebase, div=0xBCAD, next=\(callNext)) [kcall10]",
         )
 
@@ -109,7 +109,7 @@ extension KernelJailbreakPatcher {
                 key: mungeKey,
                 addrDiv: mungeAddrDiv,
             ),
-            patchID: "jb.kcall10.sy_munge",
+            patchID: "kernel-boot-kcall10.sy_munge",
             description: "sysent[439].sy_arg_munge32 = 8-arg helper 0x\(String(format: "%X", mungerTarget)) [kcall10]",
         )
 
@@ -123,7 +123,7 @@ extension KernelJailbreakPatcher {
         emit(
             entry439 + 16,
             metadata,
-            patchID: "jb.kcall10.sysent_meta",
+            patchID: "kernel-boot-kcall10.sysent_meta",
             description: "sysent[439].sy_return_type=7,sy_narg=8,sy_arg_bytes=0x20 [kcall10]",
         )
 

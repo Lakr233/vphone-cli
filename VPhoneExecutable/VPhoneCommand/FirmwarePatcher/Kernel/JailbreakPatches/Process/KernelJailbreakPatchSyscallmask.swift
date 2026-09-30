@@ -83,21 +83,21 @@ extension KernelJailbreakPatcher {
         emit(
             callOff,
             ARM64.encodeU32(movX17X0),
-            patchID: "jb.syscallmask.save_selector",
+            patchID: "kernel-boot-syscallmask.save_selector",
             description: "mov x17,x0 [syscallmask C22 save RO selector]",
         )
 
         emit(
             branchOff,
             branchToCave,
-            patchID: "jb.syscallmask.tail_redirect",
+            patchID: "kernel-boot-syscallmask.tail_redirect",
             description: "b cave [syscallmask C22 mutate mask then setter]",
         )
 
         emit(
             caveOff,
             caveBytes,
-            patchID: "jb.syscallmask.c22_cave",
+            patchID: "kernel-boot-syscallmask.c22_cave",
             description: "syscallmask C22 cave (ff blob 0x\(String(format: "%X", Self.syscallmaskFFBlobSize)) + structural mutator + setter tail)",
         )
 

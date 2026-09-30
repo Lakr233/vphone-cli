@@ -339,7 +339,7 @@ struct CustomFirmwareMobileActivationParityTests {
         #expect(!differing.isEmpty)
         #expect(differing.allSatisfy { record.fileOffset ..< record.fileOffset + 8 ~= $0 })
         #expect(record.fileOffset == MobileactivationdGolden.impFileOffset)
-        #expect(record.patchID == "mobileactivationd.should_hactivate")
+        #expect(record.patchID == "system-mobileactivationd-boot-should_hactivate")
         #expect(record.component == "mobileactivationd")
         #expect(record.patchedBytes == ARM64.movX0_1 + ARM64.ret)
         #expect(record.beforeDisasm.hasSuffix("ret"))

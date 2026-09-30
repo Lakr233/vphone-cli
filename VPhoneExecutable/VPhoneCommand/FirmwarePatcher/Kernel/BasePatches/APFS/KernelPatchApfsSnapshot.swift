@@ -58,7 +58,7 @@ extension KernelPatcher {
                 }
 
                 let desc = "NOP \(insn.mnemonic) \(insn.operandString) (sealed vol check) [_apfs_vfsop_mount]"
-                emit(scan, ARM64.nop, patchID: "kernel.apfs_root_snapshot", description: desc)
+                emit(scan, ARM64.nop, patchID: "kernel-boot-apfs_root_snapshot", description: desc)
                 return true
             }
         }

@@ -40,14 +40,14 @@ extension KernelJailbreakPatcher {
         emit(
             firstCbz,
             ARM64.nop,
-            patchID: "kernelcache_jb.spawn_validate_persona.cbz1",
+            patchID: "kernel-boot-spawn_validate_persona.cbz1",
             virtualAddress: va1,
             description: "NOP [_spawn_validate_persona pid-slot guard]",
         )
         emit(
             secondCbz,
             ARM64.nop,
-            patchID: "kernelcache_jb.spawn_validate_persona.cbz2",
+            patchID: "kernel-boot-spawn_validate_persona.cbz2",
             virtualAddress: va2,
             description: "NOP [_spawn_validate_persona persona-slot guard]",
         )

@@ -4,7 +4,7 @@ import Foundation
 
 /// A single patch application record, used to compare Python vs Swift output.
 public struct PatchRecord: Codable, Equatable, Sendable {
-    /// Unique patch identifier (e.g., "kernel.bsd_init_rootvp").
+    /// Unique patch identifier (e.g., "kernel-boot-bsd_init_rootvp").
     public let patchID: String
 
     /// Component being patched (e.g., "kernelcache", "ibss", "txm").

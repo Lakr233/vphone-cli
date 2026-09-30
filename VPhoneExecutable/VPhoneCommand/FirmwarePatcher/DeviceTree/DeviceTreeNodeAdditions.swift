@@ -109,7 +109,7 @@ extension DeviceTreePatcher {
                 .init(name: "video-cap", length: 4, flags: 0, value: .integer(2)),
                 .init(name: "video-stills", length: 4, flags: 0, value: .integer(1)),
             ],
-            patchID: "devicetree.product.camera_node",
+            patchID: "devicetree-cfw-product_camera_node",
             description: "Add /product/camera node with full iPhone17,3 D47AP property set (62 props)",
         ),
 
@@ -148,7 +148,7 @@ extension DeviceTreePatcher {
                 .init(name: "tnr-mode-back", length: 4, flags: 0, value: .integer(10)),
                 .init(name: "tnr-mode-front", length: 4, flags: 0, value: .integer(10)),
             ],
-            patchID: "devicetree.product.facetime_node",
+            patchID: "devicetree-cfw-product_facetime_node",
             description: "Add /product/facetime node with full iPhone17,3 D47AP property set (9 props)",
         ),
 
@@ -219,7 +219,7 @@ extension DeviceTreePatcher {
                 .init(name: "voiceTriggerChannels", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "wireless-splitter", length: 4, flags: 0, value: .integer(1)),
             ],
-            patchID: "devicetree.product.audio_node",
+            patchID: "devicetree-cfw-product_audio_node",
             description: "Add /product/audio node with full iPhone17,3 D47AP property set (31 props)",
         ),
 
@@ -239,7 +239,7 @@ extension DeviceTreePatcher {
                 .init(name: "aot-linger-time-ms", length: 4, flags: 0, value: .integer(0)),
                 .init(name: "aot-mode", length: 4, flags: 0, value: .integer(13)),
             ],
-            patchID: "devicetree.product.iopm_node",
+            patchID: "devicetree-cfw-product_iopm_node",
             description: "Add /product/iopm node with aot-mode=13 + aot-linger-time-ms=0 (2 props)",
         ),
 
@@ -282,7 +282,7 @@ extension DeviceTreePatcher {
             parentPath: ["device-tree", "arm-io"],
             nodeName: "smc",
             properties: [],
-            patchID: "devicetree.arm_io.smc_stub",
+            patchID: "devicetree-cfw-arm_io_smc_stub",
             description: "Add /arm-io/smc empty stub (parent for smc-ext-charger chain)",
         ),
 
@@ -291,7 +291,7 @@ extension DeviceTreePatcher {
             parentPath: ["device-tree", "arm-io", "smc"],
             nodeName: "iop-smc-nub",
             properties: [],
-            patchID: "devicetree.arm_io.smc.iop_smc_nub_stub",
+            patchID: "devicetree-cfw-arm_io_smc_iop_smc_nub_stub",
             description: "Add /arm-io/smc/iop-smc-nub empty stub (parent for smc-ext-charger)",
         ),
 
@@ -302,7 +302,7 @@ extension DeviceTreePatcher {
             properties: [
                 .init(name: "camera-driver", length: 14, flags: 0, value: .string("AppleH16CamIn")),
             ],
-            patchID: "devicetree.arm_io.smc.smc_ext_charger_camera_driver",
+            patchID: "devicetree-cfw-arm_io_smc_ext_charger_camera_driver",
             description: "Add /arm-io/smc/iop-smc-nub/smc-ext-charger with camera-driver='AppleH16CamIn'",
         ),
 
@@ -314,7 +314,7 @@ extension DeviceTreePatcher {
                 .init(name: "camera-front", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "camera-rear", length: 4, flags: 0, value: .integer(1)),
             ],
-            patchID: "devicetree.arm_io.isp_camera_flags",
+            patchID: "devicetree-cfw-arm_io_isp_camera_flags",
             description: "Add /arm-io/isp stub with camera-front=1 + camera-rear=1",
         ),
 
@@ -326,7 +326,7 @@ extension DeviceTreePatcher {
                 .init(name: "camera-front", length: 4, flags: 0, value: .integer(1)),
                 .init(name: "camera-rear", length: 4, flags: 0, value: .integer(1)),
             ],
-            patchID: "devicetree.arm_io.ispRtb_camera_flags",
+            patchID: "devicetree-cfw-arm_io_isp_rtb_camera_flags",
             description: "Add /arm-io/ispRtb stub with camera-front=1 + camera-rear=1",
         ),
     ]

@@ -85,7 +85,7 @@ extension KernelJailbreakPatcher {
         emit(
             cmpOff,
             newBytes,
-            patchID: "iomfb_swapend_handler_size",
+            patchID: "kernel-boot-iomfb_swapend.handler_size",
             virtualAddress: va,
             description: "swap_submit cmp w2,#0x588 -> #0x6e0 [accept iOS 27 native SwapEnd struct]",
         )
@@ -136,7 +136,7 @@ extension KernelJailbreakPatcher {
         emit(
             sizeFieldOff,
             newBytes,
-            patchID: "iomfb_swapend_variable_size",
+            patchID: "kernel-boot-iomfb_swapend.variable_size",
             virtualAddress: va,
             description: "SwapEnd checkStructureInputSize 0x588 -> variable [accept iOS 27 native IOMFBSwapRec]",
         )

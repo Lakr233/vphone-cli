@@ -83,7 +83,7 @@ extension KernelJailbreakPatcher {
                 emit(
                     denyEntry,
                     patchBytes,
-                    patchID: "iouc_sandbox_gate",
+                    patchID: "kernel-boot-iouc_sandbox_gate",
                     virtualAddress: va,
                     description: "b #\(delta >= 0 ? "" : "-")0x\(String(format: "%X", abs(delta))) [IOUC sandbox deny → allow]",
                 )

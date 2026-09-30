@@ -31,12 +31,40 @@ struct FirmwarePatchSetCatalogTests {
         // Two declarations where one is a site of the other would make record
         // attribution depend on the order they happen to be checked in. The
         // resolver picks the longest, but a catalogue that needs that rule to
-        // disambiguate its own patches is a catalogue with a naming mistake.
+        // disambiguate its own patches is a catalogue with a naming mistake. Only
+        // a dot starts a site: an underscore continues a snake_case name.
         let identifiers = FirmwarePatchSetCatalog.allDeclarations.map(\.identifier)
         for outer in identifiers {
             for inner in identifiers where inner != outer {
-                let isSite = inner.hasPrefix(outer + ".") || inner.hasPrefix(outer + "_")
-                #expect(!isSite, "\(inner) reads as a site of \(outer)")
+                #expect(!inner.hasPrefix(outer + "."), "\(inner) reads as a site of \(outer)")
+            }
+        }
+    }
+
+    @Test
+    func `Every patch identifier names its component, effect and patch`() throws {
+        // `{component}-{effect}-{name}`. The effect is derived, not chosen:
+        // `boot` for a boot-essential patch, `exp` for one standard leaves off,
+        // `cfw` for the rest. A patch that changes either property has to be
+        // renamed with it, so the identifier never lies about what it is.
+        let shape = try Regex("^[a-z0-9_]+(-[a-z0-9_]+)*-(boot|cfw|exp)-[a-z0-9_]+$")
+        let standard = FirmwarePatchSetCatalog.standardPreset
+        let standardSets = Set(standard.patchSets.map(\.identifier))
+        var seen: Set<String> = []
+        for set in FirmwarePatchSetCatalog.bundled {
+            // The same rule `fw patches --json` reports as `inPreset`.
+            let setInStandard = standardSets.contains(set.identifier)
+            for patch in set.patches {
+                let identifier = patch.identifier
+                #expect(seen.insert(identifier).inserted, "\(identifier) is declared twice")
+                #expect(identifier.wholeMatch(of: shape) != nil, "\(identifier) does not match the naming scheme")
+
+                let segments = identifier.split(separator: "-", omittingEmptySubsequences: false)
+                guard segments.count >= 3 else { continue }
+                let effect = segments[segments.count - 2]
+                let inStandard = setInStandard && standard.selection.includes(identifier)
+                let expected = patch.bootEssential ? "boot" : (inStandard ? "cfw" : "exp")
+                #expect(effect == expected, "\(identifier) should use effect \(expected)")
             }
         }
     }
@@ -128,7 +156,7 @@ struct FirmwarePatchSetCatalogTests {
         // These two were flags once (`--force-exc-guard`, `--force-dsc-maxslide`).
         // They are now pinned to the release that needs them, so a base that does
         // not need them never gets them from a preset.
-        let pinned = ["kernel.thread_guard_violation": 18, "dsc_maxslide.zero": 27]
+        let pinned = ["kernel-boot-thread_guard_violation": 18, "dyld-boot-maxslide": 27]
         for (identifier, requiredMajor) in pinned {
             for base in [18, 26, 27] {
                 let plan = try VPhonePatchPlan.resolve(

@@ -492,7 +492,7 @@ struct CustomFirmwareDiskImageParityTests {
         let report = try CustomFirmwareDiskImage.patch(fileAt: clone, log: nil)
         let record = try #require(report.record)
 
-        #expect(record.patchID == "diskimagesiod.is_mount_complete")
+        #expect(record.patchID == "system-diskimagesiod-cfw-is_mount_complete")
         #expect(record.component == "diskimagesiod")
         #expect(record.fileOffset == report.site.fileOffset)
         #expect(record.virtualAddress == report.site.virtualAddress)

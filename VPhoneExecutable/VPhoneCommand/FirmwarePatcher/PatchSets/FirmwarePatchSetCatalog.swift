@@ -59,20 +59,20 @@ public enum FirmwarePatchSetCatalog {
     /// The former EXP patches that make the guest claim to be an iPhone17,3.
     ///
     /// `standard` is the JB baseline plus the camera. The camera needs the device
-    /// tree's `/product/camera`, ISP and SMC nodes and `camera_dsc`, which stay on;
+    /// tree's `/product/camera`, ISP and SMC nodes and `dyld-cfw-camera`, which stay on;
     /// it does not need the identity rewrites. They shipped on with the hypervisor
     /// concealment when EXP joined the JB flow, and guests from that build lost
     /// location (issue #438), so they go back to opt-in with it. `extended` or a
     /// per-VM checkmark turns them back on.
     public static let experimentalIdentityPatches: Set<String> = [
-        "devicetree.target_sub_type",
-        "devicetree.compatible_secondary",
-        "devicetree.product.fdr_product_type",
-        "devicetree.product.sub_product_type",
-        "devicetree.product.unique_model",
-        "devicetree.product.gestalt_variants_rename",
-        "devicetree.arm_io.device_type",
-        "devicetree.arm_io.soc_generation",
+        "devicetree-exp-target_sub_type",
+        "devicetree-exp-compatible_secondary",
+        "devicetree-exp-product_fdr_product_type",
+        "devicetree-exp-product_sub_product_type",
+        "devicetree-exp-product_unique_model",
+        "devicetree-exp-product_gestalt_variants_rename",
+        "devicetree-exp-arm_io_device_type",
+        "devicetree-exp-arm_io_soc_generation",
         FirmwareGuestIdentityPatchSet.prebootDeviceTreeIdentity,
     ]
 
@@ -92,9 +92,9 @@ public enum FirmwarePatchSetCatalog {
     /// waits on migration forever — a black screen with no panic. See
     /// `Research/Patches/hv_vmm_present_usermode_xrefs.md`.
     public static let hypervisorConcealmentPatches: Set<String> = [
-        "kernelcache_exp.hv_vmm",
-        "hv_vmm_dsc",
-        "watchdogd.hv_vmm_cache",
+        "kernel-exp-hv_vmm",
+        "dyld-exp-hv_vmm",
+        "system-watchdogd-exp-hv_vmm_cache",
     ]
 
     /// The preset a VM gets when nothing else is named.

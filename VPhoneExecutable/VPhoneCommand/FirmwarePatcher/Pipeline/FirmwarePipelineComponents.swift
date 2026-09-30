@@ -59,7 +59,7 @@ extension FirmwarePipeline {
         // patcher built to write nothing is a patcher whose log lines lie.
         // `standard` blocks it: see FirmwareKernelHypervisorPatchSet.
         let includeHypervisor = includesSet(FirmwareKernelHypervisorPatchSet.identifier)
-            && isEnabled("kernelcache_exp.hv_vmm", fallback: false)
+            && isEnabled("kernel-exp-hv_vmm", fallback: false)
 
         let baseIs18 = iOSBase?.major == 18
         let baseIs27 = iOSBase?.major == 27
@@ -68,7 +68,7 @@ extension FirmwarePipeline {
         // SpringBoard trip GUARD_TYPE_MACH_PORT flavor 10 and crash-loop the UI —
         // the VM does not boot there without it. On 26.x and 27.x it only hides
         // violations, so it is off unless a VM checks it on.
-        let applyExcGuard = isEnabled("kernel.thread_guard_violation", fallback: baseIs18)
+        let applyExcGuard = isEnabled("kernel-boot-thread_guard_violation", fallback: baseIs18)
 
         // Not a selection: `applyIOS27` changes which shapes the JB patch methods
         // look for, and which sandbox hook is left real for the fpfs trampoline.

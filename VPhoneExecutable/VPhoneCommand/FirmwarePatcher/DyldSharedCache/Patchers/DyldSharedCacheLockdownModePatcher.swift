@@ -323,7 +323,7 @@ public enum DyldSharedCacheLockdownModePatcher {
         let span = DyldSharedCacheWriteSpan(vma: gate.address, length: replacement.count)
         let (chunkURL, range) = try chunks.fileRange(of: span)
         return PatchRecord(
-            patchID: "lockdown_mode.sysctl_error_gate",
+            patchID: "dyld-boot-lockdown_mode",
             component: chunkURL.lastPathComponent,
             fileOffset: range.lowerBound,
             virtualAddress: gate.address,

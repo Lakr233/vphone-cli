@@ -23,49 +23,49 @@ public enum FirmwareKernelBasePatchSet {
             // MARK: APFS
 
             VPhonePatchDeclaration(
-                identifier: "kernel.apfs_root_snapshot",
+                identifier: "kernel-boot-apfs_root_snapshot",
                 title: "APFS root snapshot",
                 summary: "Boots the live root volume instead of its sealed snapshot.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.apfs_seal_broken",
+                identifier: "kernel-boot-apfs_seal_broken",
                 title: "APFS broken seal",
                 summary: "Accepts a root volume whose seal the patches broke.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "apfs_graft",
+                identifier: "kernel-boot-apfs_graft",
                 title: "APFS graft",
                 summary: "Allows grafting so the cryptex payload mounts.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.apfs_vfsop_mount",
+                identifier: "kernel-boot-apfs_vfsop_mount",
                 title: "APFS mount entry check",
                 summary: "Drops the vfsop_mount refusal for an unsealed volume.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.apfs_mount_upgrade_checks",
+                identifier: "kernel-boot-apfs_mount_upgrade_checks",
                 title: "APFS mount upgrade checks",
                 summary: "Lets a read-only root be remounted writable.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.handle_fsioc_graft",
+                identifier: "kernel-boot-handle_fsioc_graft",
                 title: "APFS graft ioctl",
                 summary: "Lets the graft ioctl succeed from the guest.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.handle_get_dev_by_role",
+                identifier: "kernel-boot-handle_get_dev_by_role",
                 title: "APFS device-by-role gates",
                 summary: "Resolves volume roles for the patched container layout.",
                 target: .firmware(.kernelcache),
@@ -75,7 +75,7 @@ public enum FirmwareKernelBasePatchSet {
             // MARK: Startup
 
             VPhonePatchDeclaration(
-                identifier: "kernel.bsd_init_rootvp",
+                identifier: "kernel-boot-bsd_init_rootvp",
                 title: "bsd_init root vnode",
                 summary: "Keeps bsd_init going when the root vnode is the patched image.",
                 target: .firmware(.kernelcache),
@@ -85,28 +85,28 @@ public enum FirmwareKernelBasePatchSet {
             // MARK: Code Signing
 
             VPhonePatchDeclaration(
-                identifier: "kernel.post_validation",
+                identifier: "kernel-boot-post_validation",
                 title: "Post-validation checks",
                 summary: "Accepts signatures the patched trust cache vouches for.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "launch_constraints",
+                identifier: "kernel-boot-launch_constraints",
                 title: "Launch constraints",
                 summary: "Stops launch constraints refusing a relocated system binary.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "dyld_policy",
+                identifier: "kernel-boot-dyld_policy",
                 title: "dyld loading policy",
                 summary: "Lets dyld load a library from outside the sealed image.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.debugger",
+                identifier: "kernel-cfw-debugger",
                 title: "Debugger check",
                 summary: "Reports the kernel as debuggable so task_for_pid works.",
                 target: .firmware(.kernelcache),
@@ -115,33 +115,33 @@ public enum FirmwareKernelBasePatchSet {
             // MARK: Sandbox MACF Hooks
 
             VPhonePatchDeclaration(
-                identifier: "kernel.sandbox.file_check_mmap",
+                identifier: "kernel-cfw-sandbox_file_check_mmap",
                 title: "Sandbox: file_check_mmap",
                 summary: "Stubs the mmap sandbox check to allow.",
                 target: .firmware(.kernelcache),
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.sandbox.mount_check_mount",
+                identifier: "kernel-boot-sandbox_mount_check_mount",
                 title: "Sandbox: mount_check_mount",
                 summary: "Stubs the mount sandbox check to allow.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.sandbox.mount_check_remount",
+                identifier: "kernel-boot-sandbox_mount_check_remount",
                 title: "Sandbox: mount_check_remount",
                 summary: "Stubs the remount sandbox check to allow.",
                 target: .firmware(.kernelcache),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.sandbox.mount_check_umount",
+                identifier: "kernel-cfw-sandbox_mount_check_umount",
                 title: "Sandbox: mount_check_umount",
                 summary: "Stubs the umount sandbox check to allow.",
                 target: .firmware(.kernelcache),
             ),
             VPhonePatchDeclaration(
-                identifier: "kernel.sandbox.vnode_check_rename",
+                identifier: "kernel-cfw-sandbox_vnode_check_rename",
                 title: "Sandbox: vnode_check_rename",
                 summary: "Stubs the rename sandbox check to allow.",
                 target: .firmware(.kernelcache),
@@ -150,7 +150,7 @@ public enum FirmwareKernelBasePatchSet {
             // MARK: Mach Port Guard
 
             VPhonePatchDeclaration(
-                identifier: "kernel.thread_guard_violation",
+                identifier: "kernel-boot-thread_guard_violation",
                 title: "Mach port guard violation",
                 summary: """
                 Turns a fatal EXC_GUARD port violation into a continue. Required on an iOS 18 \

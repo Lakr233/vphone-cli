@@ -96,7 +96,7 @@ public enum CustomFirmwareDiskImage {
 
     /// Record identity, matching the Python's `records.site` label so a captured
     /// reference and this port sort together.
-    public static let patchID = "diskimagesiod.is_mount_complete"
+    public static let patchID = "system-diskimagesiod-cfw-is_mount_complete"
 
     /// `mov x0, #1 ; ret`.
     ///

@@ -74,14 +74,14 @@ extension KernelJailbreakPatcher {
         emit(
             guardA,
             ARM64.nop,
-            patchID: "jb.proc_pidinfo.nop_guard_a",
+            patchID: "kernel-cfw-proc_pidinfo.nop_guard_a",
             virtualAddress: fileOffsetToVA(guardA),
             description: "NOP [_proc_pidinfo pid-0 guard A]",
         )
         emit(
             guardB,
             ARM64.nop,
-            patchID: "jb.proc_pidinfo.nop_guard_b",
+            patchID: "kernel-cfw-proc_pidinfo.nop_guard_b",
             virtualAddress: fileOffsetToVA(guardB),
             description: "NOP [_proc_pidinfo pid-0 guard B]",
         )

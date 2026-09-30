@@ -66,14 +66,14 @@ extension KernelPatcher {
             emit(
                 bl1.blOff,
                 ARM64.movW0_1,
-                patchID: "dyld_policy_1",
+                patchID: "kernel-boot-dyld_policy.1",
                 virtualAddress: va1,
                 description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @1]",
             )
             emit(
                 bl2.blOff,
                 ARM64.movW0_1,
-                patchID: "dyld_policy_2",
+                patchID: "kernel-boot-dyld_policy.2",
                 virtualAddress: va2,
                 description: "mov w0,#1 (was BL) [_check_dyld_policy_internal @2]",
             )

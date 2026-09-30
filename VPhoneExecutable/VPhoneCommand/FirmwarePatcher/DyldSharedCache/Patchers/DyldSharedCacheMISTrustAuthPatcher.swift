@@ -3,7 +3,7 @@
 //
 // A guest restored by this project is *hacktivated*: `mobileactivationd`'s
 // `-[DeviceType should_hactivate]` is forced to YES (see the
-// `mobileactivationd.should_hactivate` declaration), so the device never talks
+// `system-mobileactivationd-boot-should_hactivate` declaration), so the device never talks
 // to Apple's activation service and never receives an activation record. That
 // is what makes the VM boot without an Apple ID, and it is also why a profile
 // that wants online authorization can never get it:
@@ -108,8 +108,8 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
     /// own log strings rather than from any symbol table.
     public static let function = "checkTrustAndAuthorization"
 
-    /// Record identity. `mis_trust_auth` is the declaration prefix.
-    public static let patchID = "mis_trust_auth.force_success"
+    /// Record identity. `dyld-cfw-mis_trust_auth` is the declaration prefix.
+    public static let patchID = "dyld-cfw-mis_trust_auth.force_success"
 
     /// The literal that names the function. Matched with its NUL so the tail of
     /// a longer string cannot stand in for it.

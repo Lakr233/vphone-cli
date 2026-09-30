@@ -29,7 +29,7 @@ extension KernelJailbreakPatcher {
         emit(
             patchOff,
             ARM64.nop,
-            patchID: "jb.dounmount.nop_cleanup_bl",
+            patchID: "kernel-boot-dounmount.nop_cleanup_bl",
             virtualAddress: fileOffsetToVA(patchOff),
             description: "NOP [_dounmount upstream cleanup call]",
         )

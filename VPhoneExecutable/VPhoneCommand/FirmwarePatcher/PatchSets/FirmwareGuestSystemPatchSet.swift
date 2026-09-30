@@ -25,7 +25,7 @@ public enum FirmwareGuestSystemPatchSet {
             // MARK: Shared Cache Policy
 
             VPhonePatchDeclaration(
-                identifier: "dsc_maxslide.zero",
+                identifier: "dyld-boot-maxslide",
                 title: "Shared cache max slide",
                 summary: """
                 Zeroes the shared cache's maximum slide. A 27 userland otherwise computes a slide \
@@ -36,7 +36,7 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "lsd_embedded_reg.entitlement_gate",
+                identifier: "dyld-boot-lsd_embedded_reg",
                 title: "lsd registration entitlement",
                 summary: "Lets lsd register the guest's embedded app bundles.",
                 target: .dyldSharedCache,
@@ -44,7 +44,7 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "xpc_lwcr",
+                identifier: "dyld-boot-xpc_lwcr",
                 title: "XPC lightweight code requirements",
                 summary: "Stops XPC refusing a peer whose lightweight code requirement no longer matches.",
                 target: .dyldSharedCache,
@@ -52,7 +52,7 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "lockdown_mode.sysctl_error_gate",
+                identifier: "dyld-boot-lockdown_mode",
                 title: "Lockdown mode sysctl gate",
                 summary: "Stops a failed lockdown-mode sysctl read being treated as an error.",
                 target: .dyldSharedCache,
@@ -60,7 +60,7 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "mis_trust_auth",
+                identifier: "dyld-cfw-mis_trust_auth",
                 title: "MIS online authorization",
                 summary: """
                 Accepts a provisioning profile that wants online authorization. The guest is \
@@ -74,42 +74,42 @@ public enum FirmwareGuestSystemPatchSet {
             // MARK: System Daemons
 
             VPhonePatchDeclaration(
-                identifier: "seputil.gigalocker_uuid",
+                identifier: "system-seputil-boot-gigalocker_uuid",
                 title: "seputil Gigalocker UUID",
                 summary: "Points seputil at the renamed Gigalocker so key material resolves.",
                 target: .guestExecutable(path: "/usr/libexec/seputil"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "diskimagesiod.is_mount_complete",
+                identifier: "system-diskimagesiod-cfw-is_mount_complete",
                 title: "diskimagesiod mount completion",
                 summary: "Reports the personalised developer image as mounted on a 27 userland.",
                 target: .guestExecutable(path: "/usr/libexec/diskimagesiod"),
                 applicability: ios27,
             ),
             VPhonePatchDeclaration(
-                identifier: "launchd_cache_loader.unsecure_cache_gate",
+                identifier: "system-launchd_cache_loader-boot-unsecure_cache_gate",
                 title: "launchd cache loader gate",
                 summary: "Lets the launchd cache loader accept the patched, unsealed cache.",
                 target: .guestExecutable(path: "/usr/libexec/launchd_cache_loader"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "mobileactivationd.should_hactivate",
+                identifier: "system-mobileactivationd-boot-should_hactivate",
                 title: "mobileactivationd activation",
                 summary: "Reports the device activated, so the guest reaches the home screen.",
                 target: .guestExecutable(path: "/usr/libexec/mobileactivationd"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "launchd_jetsam.panic_guard_bypass",
+                identifier: "system-launchd-boot-jetsam_panic_guard_bypass",
                 title: "launchd jetsam panic guard",
                 summary: "Stops launchd panicking when jetsam reaps a process the VM needs.",
                 target: .guestExecutable(path: "/sbin/launchd"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "installd.adhoc_signature",
+                identifier: "system-installd-cfw-adhoc_signature",
                 title: "installd ad-hoc signatures",
                 summary: """
                 Lets Xcode install an app the guest would otherwise refuse. installd asks \
@@ -122,7 +122,7 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .guestExecutable(path: "/usr/libexec/installd"),
             ),
             VPhonePatchDeclaration(
-                identifier: "misagent.device_identity",
+                identifier: "system-misagent-cfw-device_identity",
                 title: "misagent device identity",
                 summary: """
                 Lets a provisioning profile written for a device you already own install on \
@@ -136,13 +136,13 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .guestExecutable(path: "/usr/libexec/misagent"),
             ),
             VPhonePatchDeclaration(
-                identifier: "guest.debugserver",
+                identifier: "system-debugserver-cfw-install",
                 title: "debugserver",
                 summary: "Installs a debugserver that can attach in the guest.",
                 target: .guestFile(path: "/usr/bin/debugserver"),
             ),
             VPhonePatchDeclaration(
-                identifier: "campo.entitlements",
+                identifier: "system-campo-cfw-entitlements",
                 title: "Campo entitlements",
                 summary: "Widens Campo's entitlements so the 27 setup assistant completes.",
                 target: .guestEntitlements(path: "/System/Library/PrivateFrameworks/Campo.framework/Campo"),
@@ -152,35 +152,35 @@ public enum FirmwareGuestSystemPatchSet {
             // MARK: Guest Payload
 
             VPhonePatchDeclaration(
-                identifier: "guest.gigalocker_rename",
+                identifier: "system-gigalocker-boot-rename",
                 title: "Gigalocker rename",
                 summary: "Renames the data volume's Gigalocker so the guest recreates it.",
                 target: .guestFile(path: "/private/var/Gigalocker"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "guest.gpu_bundle",
+                identifier: "system-extensions-boot-gpu_bundle",
                 title: "GPU driver bundle",
                 summary: "Installs the GPU bundle the virtual display needs.",
                 target: .guestFile(path: "/System/Library/Extensions"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "guest.vphoned",
+                identifier: "system-vphoned-boot-install",
                 title: "vphoned",
                 summary: "Installs the guest daemon the host talks to over VSOCK.",
                 target: .guestFile(path: "/usr/local/bin/vphoned"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "guest.environment",
+                identifier: "system-launchdaemons-boot-environment",
                 title: "Guest environment",
                 summary: "Installs the launchd environment and plists the guest tools read.",
                 target: .guestFile(path: "/Library/LaunchDaemons"),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "guest.build_version",
+                identifier: "system-systemversion-cfw-build_version",
                 title: "Reported build version",
                 summary: """
                 Rewrites the guest's SystemVersion build string. Needs a build to write: the \
@@ -194,6 +194,6 @@ public enum FirmwareGuestSystemPatchSet {
         provides: ["vphone.guest.system"],
     )
 
-    /// The preset parameter `guest.build_version` reads.
+    /// The preset parameter `system-systemversion-cfw-build_version` reads.
     public static let buildVersionParameter = "BuildVersion"
 }

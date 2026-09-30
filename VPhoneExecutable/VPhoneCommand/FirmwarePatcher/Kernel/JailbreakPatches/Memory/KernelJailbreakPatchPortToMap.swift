@@ -54,7 +54,7 @@ extension KernelJailbreakPatcher {
                 emit(
                     back + 4,
                     bBytes,
-                    patchID: "jb.port_to_map.skip_panic",
+                    patchID: "kernel-boot-port_to_map.skip_panic",
                     virtualAddress: fileOffsetToVA(back + 4),
                     description: "b 0x\(String(format: "%X", branchTarget)) [_convert_port_to_map skip panic]",
                 )

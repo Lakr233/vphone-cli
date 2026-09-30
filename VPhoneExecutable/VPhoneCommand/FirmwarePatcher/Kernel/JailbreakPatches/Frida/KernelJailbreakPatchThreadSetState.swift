@@ -1,6 +1,6 @@
 // KernelJailbreakPatchThreadSetState.swift — optional Frida Stalker support.
 //
-// Declared as `kernelcache_frida.thread_set_state_entitlement_flag`, off in
+// Declared as `kernel-exp-frida_thread_set_state_entitlement_flag`, off in
 // `standard`.
 //
 // Frida follows an existing thread via thread_set_state_from_user, whose flags
@@ -80,7 +80,7 @@ extension KernelJailbreakPatcher {
             emit(
                 setterOff,
                 bytes,
-                patchID: "kernelcache_frida.thread_set_state_entitlement_flag",
+                patchID: "kernel-exp-frida_thread_set_state_entitlement_flag",
                 virtualAddress: fileOffsetToVA(setterOff),
                 description: "clear TSSF_CHECK_ENTITLEMENT (0x201 -> 0x1) [thread_set_state user setter, --frida]",
             )

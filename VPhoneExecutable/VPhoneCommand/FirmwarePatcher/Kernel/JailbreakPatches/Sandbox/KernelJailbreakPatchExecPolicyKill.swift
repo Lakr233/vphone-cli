@@ -93,7 +93,7 @@ extension KernelJailbreakPatcher {
         emit(
             cbzOff,
             bBytes,
-            patchID: "exec_security_policy_kill",
+            patchID: "kernel-boot-exec_security_policy_kill",
             virtualAddress: va,
             description: "cbz -> b [exec ip_mac_return SECURITY_POLICY kill bypass]",
         )

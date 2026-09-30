@@ -47,7 +47,7 @@ extension KernelJailbreakPatcher {
         emit(
             site,
             ARM64.cmpXzrXzr,
-            patchID: "task_conversion_eval",
+            patchID: "kernel-boot-task_conversion_eval",
             virtualAddress: va,
             description: "cmp xzr,xzr [_task_conversion_eval_internal]",
         )

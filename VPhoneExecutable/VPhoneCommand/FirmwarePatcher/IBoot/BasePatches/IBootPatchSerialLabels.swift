@@ -58,7 +58,7 @@ extension IBootPatcher {
 
         for runStart in eqRuns.prefix(2) {
             let writeOff = runStart + 1 // Python: run_start + 1
-            emitString(writeOff, labelBytes, id: "\(component).serial_label", description: "serial label")
+            emitString(writeOff, labelBytes, id: "\(component)-cfw-serial_label", description: "serial label")
         }
     }
 }

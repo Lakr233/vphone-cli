@@ -108,7 +108,7 @@ extension KernelJailbreakPatcher {
                 emit(
                     dCaveOff + i,
                     Data(chunk),
-                    patchID: "jb.cred_label_update_execve.deny_cave",
+                    patchID: "kernel-boot-cred_label_update_execve.deny_cave",
                     description: "deny_trampoline+\(i) [_cred_label_update_execve C21-v3]",
                 )
             }
@@ -121,7 +121,7 @@ extension KernelJailbreakPatcher {
             emit(
                 dOff,
                 branchToCave,
-                patchID: "jb.cred_label_update_execve.deny_redirect",
+                patchID: "kernel-boot-cred_label_update_execve.deny_redirect",
                 description: "b deny cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", dOff))]",
             )
         }
@@ -161,7 +161,7 @@ extension KernelJailbreakPatcher {
             emit(
                 successCaveOff + i,
                 Data(chunk),
-                patchID: "jb.cred_label_update_execve.success_cave",
+                patchID: "kernel-boot-cred_label_update_execve.success_cave",
                 description: "success_trampoline+\(i) [_cred_label_update_execve C21-v3]",
             )
         }
@@ -175,7 +175,7 @@ extension KernelJailbreakPatcher {
             emit(
                 exitOff,
                 branchToCave,
-                patchID: "jb.cred_label_update_execve.success_redirect",
+                patchID: "kernel-boot-cred_label_update_execve.success_redirect",
                 description: "b success cave [_cred_label_update_execve C21-v3 exit @ 0x\(String(format: "%X", exitOff))]",
             )
         }

@@ -71,7 +71,7 @@ public enum CustomFirmwareMobileActivation {
 
     /// Record identity, matching the Python's `records.site` label so a captured
     /// reference and this port sort together.
-    public static let patchID = "mobileactivationd.should_hactivate"
+    public static let patchID = "system-mobileactivationd-boot-should_hactivate"
 
     /// Where progress goes when the caller does not say. The Python prints to
     /// stdout and `cfw_install*.sh` captures that, so this does too.

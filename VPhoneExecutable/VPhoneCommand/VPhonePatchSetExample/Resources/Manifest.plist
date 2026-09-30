@@ -36,7 +36,7 @@
 	<array>
 		<dict>
 			<key>Identifier</key>
-			<string>example.string_rewrite</string>
+			<string>ibec-exp-string_rewrite</string>
 			<key>Title</key>
 			<string>Example string rewrite</string>
 			<key>Summary</key>

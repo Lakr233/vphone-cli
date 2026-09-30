@@ -68,14 +68,14 @@ extension KernelJailbreakPatcher {
         emit(
             branchOff,
             ARM64.nop,
-            patchID: "kernelcache_jb.mac_mount.flag_gate",
+            patchID: "kernel-boot-mac_mount.flag_gate",
             virtualAddress: va1,
             description: "NOP [___mac_mount upstream flag gate]",
         )
         emit(
             movOff,
             clearBytes,
-            patchID: "kernelcache_jb.mac_mount.state_clear",
+            patchID: "kernel-boot-mac_mount.state_clear",
             virtualAddress: va2,
             description: "mov x,xzr [___mac_mount upstream state clear]",
         )

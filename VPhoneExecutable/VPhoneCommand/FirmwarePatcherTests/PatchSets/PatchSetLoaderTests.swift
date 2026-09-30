@@ -22,7 +22,7 @@ import VPhonePatchKit
 /// Where the example set is, and how to get sealed and tampered copies of it.
 private enum ExamplePatchSet {
     static let identifier = "com.vphone.patchset.example"
-    static let patchIdentifier = "example.string_rewrite"
+    static let patchIdentifier = "ibec-exp-string_rewrite"
 
     /// The built product, beside the running `.xctest`.
     static func url() throws -> URL {

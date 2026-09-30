@@ -96,20 +96,20 @@
 		<string>Block</string>
 		<key>Patches</key>
 		<array>
-			<string>kernelcache_frida.thread_set_state_entitlement_flag</string>
-			<string>kernelcache_frida.vm_map_delete_immutable_code</string>
-			<string>kernelcache_exp.hv_vmm</string>
-			<string>hv_vmm_dsc</string>
-			<string>watchdogd.hv_vmm_cache</string>
-			<string>devicetree.target_sub_type</string>
-			<string>devicetree.compatible_secondary</string>
-			<string>devicetree.product.fdr_product_type</string>
-			<string>devicetree.product.sub_product_type</string>
-			<string>devicetree.product.unique_model</string>
-			<string>devicetree.product.gestalt_variants_rename</string>
-			<string>devicetree.arm_io.device_type</string>
-			<string>devicetree.arm_io.soc_generation</string>
-			<string>preboot_devicetree.identity</string>
+			<string>kernel-exp-frida_thread_set_state_entitlement_flag</string>
+			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
+			<string>kernel-exp-hv_vmm</string>
+			<string>dyld-exp-hv_vmm</string>
+			<string>system-watchdogd-exp-hv_vmm_cache</string>
+			<string>devicetree-exp-target_sub_type</string>
+			<string>devicetree-exp-compatible_secondary</string>
+			<string>devicetree-exp-product_fdr_product_type</string>
+			<string>devicetree-exp-product_sub_product_type</string>
+			<string>devicetree-exp-product_unique_model</string>
+			<string>devicetree-exp-product_gestalt_variants_rename</string>
+			<string>devicetree-exp-arm_io_device_type</string>
+			<string>devicetree-exp-arm_io_soc_generation</string>
+			<string>preboot-exp-devicetree_identity</string>
 		</array>
 	</dict>
 </dict>

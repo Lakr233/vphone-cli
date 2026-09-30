@@ -49,7 +49,7 @@ extension KernelPatcher {
                 emit(
                     scan,
                     ARM64.nop,
-                    patchID: "kernel.post_validation.nop_tbnz",
+                    patchID: "kernel-boot-post_validation.nop_tbnz",
                     virtualAddress: va,
                     description: "NOP \(insn.mnemonic) \(insn.operandString) [txm post-validation]",
                 )
@@ -153,7 +153,7 @@ extension KernelPatcher {
         emit(
             patchOff,
             ARM64.cmpW0W0,
-            patchID: "kernel.post_validation.cmp_w0_w0",
+            patchID: "kernel-boot-post_validation.cmp_w0_w0",
             virtualAddress: fileOffsetToVA(patchOff),
             description: "cmp w0,w0 (was cmp w0,#imm) [postValidation]",
         )

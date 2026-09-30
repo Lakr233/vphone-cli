@@ -54,7 +54,7 @@ extension KernelJailbreakPatcher {
         emit(
             off,
             patchBytes,
-            patchID: "jb.io_secure_bsd_root.zero_return",
+            patchID: "kernel-boot-io_secure_bsd_root.zero_return",
             virtualAddress: fileOffsetToVA(off),
             description: "mov \(destReg), #0 [_IOSecureBSDRoot SecureRootName allow]",
         )

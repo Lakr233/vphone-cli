@@ -50,7 +50,7 @@ extension KernelJailbreakPatcher {
             emit(
                 patchOff,
                 ARM64.nop,
-                patchID: "kernelcache_jb.vm_fault_enter_prepare",
+                patchID: "kernel-boot-vm_fault_enter_prepare",
                 virtualAddress: va,
                 description: "NOP [_vm_fault_enter_prepare]",
             )

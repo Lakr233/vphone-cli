@@ -20,7 +20,7 @@ public final class KernelPatcher: KernelPatcherBase, BufferedPatcher {
     /// non-dev variants. Always required on iOS 18 bases: their older
     /// userland (runningboardd/SpringBoard) trips a Mach port guard
     /// "flavor 10" that crash-loops the UI. On other bases it is off: the
-    /// `kernel.thread_guard_violation` declaration is pinned to iOS 18, and no
+    /// `kernel-boot-thread_guard_violation` declaration is pinned to iOS 18, and no
     /// preset or checkmark can widen a version gate, so a 26.x or 27.x base cannot
     /// ask for it any more. What it used to be for: some
     /// third-party apps calling task_swap_exception_ports() (crash-reporting/

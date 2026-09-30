@@ -134,7 +134,7 @@ linked call, no options -> 0x0        (0xE8008014 without the hook)
 
 ## What was built
 
-`installd.adhoc_signature` — `VPhoneGuestComponents/MISFix/MISFix-vphone.c`,
+`system-installd-cfw-adhoc_signature` — `VPhoneGuestComponents/MISFix/MISFix-vphone.c`,
 built as `/usr/lib/libmisfix.dylib`, attached to `/usr/libexec/installd` by a
 `LC_LOAD_WEAK_DYLIB` that `cfw install` inserts. It interposes
 `MISValidateSignatureAndCopyInfo` and
@@ -251,7 +251,7 @@ again.
 
 ## What was built
 
-`misagent.device_identity` — the same `libmisfix.dylib`, attached to
+`system-misagent-cfw-device_identity` — the same `libmisfix.dylib`, attached to
 `/usr/libexec/misagent`, interposing `MGCopyAnswer` and `MGCopyAnswerWithError`
 and answering `UniqueDeviceID` with the value in `libmisfix.plist`. Set it to a
 device the team has already registered and that team's profiles install here,

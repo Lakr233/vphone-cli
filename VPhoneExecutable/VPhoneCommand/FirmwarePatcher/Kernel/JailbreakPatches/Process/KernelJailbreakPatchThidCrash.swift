@@ -51,7 +51,7 @@ extension KernelJailbreakPatcher {
             emit(
                 low32,
                 Data([0, 0, 0, 0]),
-                patchID: "kernelcache_jb.thid_should_crash",
+                patchID: "kernel-boot-thid_should_crash",
                 virtualAddress: va,
                 description: "zero [_thid_should_crash]",
             )

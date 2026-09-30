@@ -79,7 +79,7 @@ extension KernelJailbreakPatcher {
                 emit(
                     off + 4,
                     patchBytes,
-                    patchID: "iouc_macf_gate",
+                    patchID: "kernel-boot-iouc_macf_gate",
                     virtualAddress: va,
                     description: "b #0x\(String(format: "%X", delta)) [IOUC MACF deny → allow]",
                 )

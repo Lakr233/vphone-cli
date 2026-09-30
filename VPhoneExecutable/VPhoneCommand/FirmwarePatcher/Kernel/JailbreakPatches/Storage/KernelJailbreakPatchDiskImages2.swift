@@ -56,7 +56,7 @@ extension KernelJailbreakPatcher {
         log("\n[JB] DiskImages2 GATE1: CreateDevice controller-ABI b.ne -> nop")
         return nopAbiVersionGate(
             funcSig: "static IOReturn DIDeviceCreatorUserClient::CreateDevice(OSObject *, void *, IOExternalMethodArguments *)",
-            patchID: "di2_createdevice_abi",
+            patchID: "kernel-boot-di2.createdevice_abi",
             desc: "nop [DI2 CreateDevice controller-ABI cmp#9/b.ne gate]",
         )
     }
@@ -68,7 +68,7 @@ extension KernelJailbreakPatcher {
         log("\n[JB] DiskImages2 GATE2b: Connect daemon-ABI b.ne -> nop")
         return nopAbiVersionGate(
             funcSig: "static IOReturn DIDeviceIOUserClient::Connect(OSObject *, void *, IOExternalMethodArguments *)",
-            patchID: "di2_connect_abi",
+            patchID: "kernel-boot-di2.connect_abi",
             desc: "nop [DI2 Connect daemon-ABI cmp#9/b.ne gate]",
         )
     }
@@ -156,12 +156,12 @@ extension KernelJailbreakPatcher {
         var ok = applyDI2AllocPortsSize(at: allocSite)
         ok = applyFieldLoadMov800(
             at: f1,
-            patchID: "di2_notif_boundcheck_d8",
+            patchID: "kernel-boot-di2.notif_boundcheck_d8",
             desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field1 @+0xd8]",
         ) && ok
         ok = applyFieldLoadMov800(
             at: f2,
-            patchID: "di2_notif_boundcheck_e8",
+            patchID: "kernel-boot-di2.notif_boundcheck_e8",
             desc: "mov wD,#0x800 [DI2 RegisterNotificationPort bound-check field2 @+0xe8]",
         ) && ok
         return ok
@@ -236,7 +236,7 @@ extension KernelJailbreakPatcher {
         emit(
             lslOff,
             bytes,
-            patchID: "di2_allocports_size",
+            patchID: "kernel-boot-di2.allocports_size",
             virtualAddress: fileOffsetToVA(lslOff),
             description: "mov x1,#0x4000 [DI2 AllocPortsArray widen notif-ports alloc to 0x800 entries]",
         )

@@ -86,7 +86,7 @@ public final class VPhoneExampleStringPatcher: BufferedPatcher {
     /// them equal is what lets the gate turn this patch off: the gate resolves a
     /// record to the declaration covering it, and a record no declaration covers
     /// applies anyway, with a warning.
-    public static let patchIdentifier = "example.string_rewrite"
+    public static let patchIdentifier = "ibec-exp-string_rewrite"
 
     public let component = VPhoneFirmwareComponent.iBEC.rawValue
     public let verbose: Bool

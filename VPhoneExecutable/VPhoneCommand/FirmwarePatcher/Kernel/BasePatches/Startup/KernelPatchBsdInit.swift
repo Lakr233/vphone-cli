@@ -121,7 +121,7 @@ extension KernelPatcher {
                 emit(
                     back,
                     ARM64.nop,
-                    patchID: "kernel.bsd_init_rootvp",
+                    patchID: "kernel-boot-bsd_init_rootvp",
                     virtualAddress: va,
                     description: "NOP \(insn.mnemonic) (rootvp auth) [_bsd_init]",
                 )

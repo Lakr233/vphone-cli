@@ -99,7 +99,7 @@ extension IBootPatcher {
         emit(
             gate,
             ARM64.nop,
-            id: "\(component).bootx_precondition",
+            id: "\(component)-boot-bootx_precondition",
             description: "bootx precondition: NOP gate TBZ",
         )
     }

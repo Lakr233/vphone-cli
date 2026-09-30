@@ -99,7 +99,7 @@ extension KernelJailbreakPatcher {
         emit(
             brOff,
             bBytes,
-            patchID: "kernelcache_jb.vm_map_protect",
+            patchID: "kernel-boot-vm_map_protect",
             virtualAddress: fileOffsetToVA(brOff),
             description: "b #0x\(String(format: "%X", delta)) "
                 + "[_vm_map_protect skip W^X downgrade, shape \(shape)]",

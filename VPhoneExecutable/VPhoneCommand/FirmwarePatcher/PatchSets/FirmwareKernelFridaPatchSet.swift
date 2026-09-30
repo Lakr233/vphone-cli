@@ -22,14 +22,14 @@ public enum FirmwareKernelFridaPatchSet {
         summary: "Kernel relaxations Frida's Stalker needs to trace and rewrite code pages",
         patches: [
             VPhonePatchDeclaration(
-                identifier: "kernelcache_frida.thread_set_state_entitlement_flag",
+                identifier: "kernel-exp-frida_thread_set_state_entitlement_flag",
                 title: "thread_set_state entitlement",
                 summary: "Drops the entitlement flag thread_set_state checks, so Stalker can set thread state.",
                 target: .firmware(.kernelcache),
                 applicability: fridaCapable,
             ),
             VPhonePatchDeclaration(
-                identifier: "kernelcache_frida.vm_map_delete_immutable_code",
+                identifier: "kernel-exp-frida_vm_map_delete_immutable_code",
                 title: "Immutable code deletion",
                 summary: "Lets vm_map_delete remove an immutable code mapping, which Stalker rewrites over.",
                 target: .firmware(.kernelcache),

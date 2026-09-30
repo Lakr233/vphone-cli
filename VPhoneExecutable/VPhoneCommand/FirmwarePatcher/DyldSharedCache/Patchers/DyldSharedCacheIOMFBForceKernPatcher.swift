@@ -84,7 +84,7 @@ public enum DyldSharedCacheIOMFBForceKernPatcher {
     public static let requiredSuffixes: [String] = ["SwapBegin", "SwapEnd", "SwapSetLayer"]
 
     /// Record group name, matching `records.set_group("iomfb_force_kern")`.
-    public static let recordGroup = "iomfb_force_kern"
+    public static let recordGroup = "dyld-boot-iomfb_force_kern"
 
     /// Where diagnostics go when the caller does not say. Mirrors the
     /// reference's `print`, so the two runs can be diffed line by line.

@@ -2,7 +2,7 @@
 //
 // The identifier is the contract. It is the prefix of the ``PatchRecord``
 // identifiers the patch emits, so a patch writing four records under
-// `jb.cred_label_update_execve.*` declares one identifier and is selected or
+// `kernel-boot-cred_label_update_execve.*` declares one identifier and is selected or
 // blocked as a unit — a half-applied patch of that shape would not boot.
 
 import Foundation
@@ -95,14 +95,14 @@ public extension VPhonePatchDeclaration {
     /// Whether `recordIdentifier` came from this patch.
     ///
     /// A record either is the declaration itself or sits under it as
-    /// `<identifier><separator><site>`. Both separators count: record
-    /// identifiers predate declarations and spell their per-site suffix either
-    /// way — `jb.kcall10.sy_call` with a dot, `llb.rootfs_cbz_0x3b7` and
-    /// `sandbox_ext_267` with an underscore. A bare textual prefix does not
-    /// match, so `kernel.debuggerless` is not a site of `kernel.debugger`.
+    /// `<identifier>.<site>` — `kernel-boot-kcall10.sy_call`,
+    /// `llb-boot-rootfs.cbz_0x3b7`. Only a dot separates a site: identifiers
+    /// are snake_case and contain underscores, so an underscore suffix would
+    /// let `kernel-boot-sandbox_mount_check_mount` cover a different patch
+    /// that happens to extend its name. A bare textual prefix does not match
+    /// either, so `kernel-cfw-debuggerless` is not a site of `kernel-cfw-debugger`.
     func covers(recordIdentifier record: String) -> Bool {
         record == identifier
             || record.hasPrefix(identifier + ".")
-            || record.hasPrefix(identifier + "_")
     }
 }

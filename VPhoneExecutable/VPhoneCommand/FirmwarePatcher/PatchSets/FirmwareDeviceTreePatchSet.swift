@@ -39,22 +39,22 @@ public enum FirmwareDeviceTreePatchSet {
             // MARK: Board Presentation
 
             property(
-                "devicetree.serial_number",
+                "devicetree-cfw-serial_number",
                 "Serial number",
                 "Gives the board a well-formed serial number.",
             ),
             property(
-                "devicetree.home_button_type",
+                "devicetree-cfw-home_button_type",
                 "Home button type",
                 "Declares a gesture-driven device with no home button.",
             ),
             property(
-                "devicetree.artwork_device_subtype",
+                "devicetree-cfw-artwork_device_subtype",
                 "Artwork device subtype",
                 "Picks the artwork subtype the guest UI lays out against.",
             ),
             property(
-                "devicetree.island_notch_location",
+                "devicetree-cfw-island_notch_location",
                 "Island notch location",
                 "Places the sensor cutout so status bar layout matches the display.",
             ),
@@ -62,42 +62,42 @@ public enum FirmwareDeviceTreePatchSet {
             // MARK: Device Identity
 
             property(
-                "devicetree.target_sub_type",
+                "devicetree-exp-target_sub_type",
                 "Target sub type",
                 "Reports the iPhone17,3 target sub type.",
             ),
             property(
-                "devicetree.compatible_secondary",
+                "devicetree-exp-compatible_secondary",
                 "Compatible list",
                 "Adds the iPhone17,3 entry to the board's compatible list.",
             ),
             property(
-                "devicetree.product.fdr_product_type",
+                "devicetree-exp-product_fdr_product_type",
                 "FDR product type",
                 "Reports the iPhone17,3 product type to FDR.",
             ),
             property(
-                "devicetree.product.sub_product_type",
+                "devicetree-exp-product_sub_product_type",
                 "Sub product type",
                 "Reports the iPhone17,3 sub product type.",
             ),
             property(
-                "devicetree.product.unique_model",
+                "devicetree-exp-product_unique_model",
                 "Unique model code",
                 "Reports the model code a stock app reads for the device name.",
             ),
             property(
-                "devicetree.product.gestalt_variants_rename",
+                "devicetree-exp-product_gestalt_variants_rename",
                 "Gestalt variants",
                 "Renames the gestalt variants node so the identity is consistent.",
             ),
             property(
-                "devicetree.arm_io.device_type",
+                "devicetree-exp-arm_io_device_type",
                 "SoC device type",
                 "Reports the SoC device type the identity implies.",
             ),
             property(
-                "devicetree.arm_io.soc_generation",
+                "devicetree-exp-arm_io_soc_generation",
                 "SoC generation",
                 "Reports the SoC generation the identity implies.",
             ),
@@ -105,12 +105,12 @@ public enum FirmwareDeviceTreePatchSet {
             // MARK: Camera Geometry
 
             property(
-                "devicetree.product.front_cam_offset",
+                "devicetree-cfw-product_front_cam_offset",
                 "Front camera offset",
                 "Places the front camera where the identity's hardware has it.",
             ),
             property(
-                "devicetree.product.rear_cam_offset",
+                "devicetree-cfw-product_rear_cam_offset",
                 "Rear camera offset",
                 "Places the rear camera where the identity's hardware has it.",
             ),
@@ -118,47 +118,47 @@ public enum FirmwareDeviceTreePatchSet {
             // MARK: Added Nodes
 
             property(
-                "devicetree.product.camera_node",
+                "devicetree-cfw-product_camera_node",
                 "Camera node",
                 "Adds the camera node the virtual camera is published under.",
             ),
             property(
-                "devicetree.product.facetime_node",
+                "devicetree-cfw-product_facetime_node",
                 "FaceTime node",
                 "Adds the FaceTime camera node.",
             ),
             property(
-                "devicetree.product.audio_node",
+                "devicetree-cfw-product_audio_node",
                 "Audio node",
                 "Adds the audio topology node so the guest has speakers.",
             ),
             property(
-                "devicetree.product.iopm_node",
+                "devicetree-cfw-product_iopm_node",
                 "Power management node",
                 "Adds the IOPM node the power stack expects.",
             ),
             property(
-                "devicetree.arm_io.smc_stub",
+                "devicetree-cfw-arm_io_smc_stub",
                 "SMC stub",
                 "Adds a stub SMC so the power and thermal clients attach.",
             ),
             property(
-                "devicetree.arm_io.smc.iop_smc_nub_stub",
+                "devicetree-cfw-arm_io_smc_iop_smc_nub_stub",
                 "SMC nub stub",
                 "Adds the SMC nub the IOP driver binds to.",
             ),
             property(
-                "devicetree.arm_io.smc.smc_ext_charger_camera_driver",
+                "devicetree-cfw-arm_io_smc_ext_charger_camera_driver",
                 "SMC charger and camera driver",
                 "Publishes the charger and camera driver under the stub SMC.",
             ),
             property(
-                "devicetree.arm_io.isp_camera_flags",
+                "devicetree-cfw-arm_io_isp_camera_flags",
                 "ISP camera flags",
                 "Sets the ISP flags the virtual camera pipeline needs.",
             ),
             property(
-                "devicetree.arm_io.ispRtb_camera_flags",
+                "devicetree-cfw-arm_io_isp_rtb_camera_flags",
                 "ISP RTB camera flags",
                 "Sets the ISP round-trip buffer flags for the camera pipeline.",
             ),

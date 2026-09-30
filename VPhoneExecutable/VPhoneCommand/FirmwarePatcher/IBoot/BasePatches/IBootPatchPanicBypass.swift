@@ -37,7 +37,7 @@ extension IBootPatcher {
                         emit(
                             step + 4,
                             ARM64.nop,
-                            id: "\(component).panic_bypass",
+                            id: "\(component)-boot-panic_bypass",
                             description: "panic bypass: NOP cbnz w0",
                         )
                         return

@@ -33,8 +33,8 @@ public struct VPhonePatchPlan: Sendable, Hashable {
 
     /// Whether the patch that emits `recordIdentifier` runs.
     ///
-    /// Record identifiers are sometimes built at runtime (`sandbox_ext_3`,
-    /// `camera_dsc.<family>.<symbol>`), so this maps a record back to the
+    /// Record identifiers are sometimes built at runtime (`kernel-boot-sandbox_ext.3`,
+    /// `dyld-cfw-camera.<family>.<symbol>`), so this maps a record back to the
     /// declaration that owns it instead of matching the full string.
     public func isRecordEnabled(_ recordIdentifier: String) -> Bool {
         guard let declaration = declaration(coveringRecord: recordIdentifier) else { return false }

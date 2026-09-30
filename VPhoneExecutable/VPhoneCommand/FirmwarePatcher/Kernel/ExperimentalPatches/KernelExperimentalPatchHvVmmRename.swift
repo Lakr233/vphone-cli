@@ -146,7 +146,7 @@ extension KernelExperimentalPatcher {
         let va = fileOffsetToVA(cstringStart)
         emit(cstringStart,
              Data([0x58]),
-             patchID: "kernelcache_exp.hv_vmm_oid_rename",
+             patchID: "kernel-exp-hv_vmm.oid_rename",
              virtualAddress: va,
              description: "Part A: rename OID name 'h' -> 'X' "
                  + "('hv_vmm_present' -> 'Xv_vmm_present')")
@@ -244,7 +244,7 @@ extension KernelExperimentalPatcher {
                 let va = fileOffsetToVA(mangleOffset)
                 emit(mangleOffset,
                      Data([0x58]),
-                     patchID: "kernelcache_exp.hv_vmm_internal_caller_mangle",
+                     patchID: "kernel-exp-hv_vmm.internal_caller_mangle",
                      virtualAddress: va,
                      description: "Part B (\(site.label)): byte-5 mangle "
                          + "'h' -> 'X' at foff 0x"

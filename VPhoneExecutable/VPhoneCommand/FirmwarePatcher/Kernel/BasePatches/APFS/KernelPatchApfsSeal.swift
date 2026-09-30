@@ -67,7 +67,7 @@ extension KernelPatcher {
                 if let branchTarget = conditionalBranchTarget(insn: insn) {
                     if branchTarget >= errLo, branchTarget <= errHi {
                         let desc = "NOP \(insn.mnemonic) (seal broken) [_authapfs_seal_is_broken]"
-                        emit(back, ARM64.nop, patchID: "kernel.apfs_seal_broken", description: desc)
+                        emit(back, ARM64.nop, patchID: "kernel-boot-apfs_seal_broken", description: desc)
                         return true
                     }
                 }

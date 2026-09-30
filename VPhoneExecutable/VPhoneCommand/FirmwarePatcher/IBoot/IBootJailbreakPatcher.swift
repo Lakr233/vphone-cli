@@ -116,7 +116,7 @@ public final class IBootJailbreakPatcher: IBootPatcher {
                 let afterStr = afterInsn.map { "\($0.mnemonic) \($0.operandString)" } ?? "b"
 
                 let record = PatchRecord(
-                    patchID: "ibss_jb.skip_generate_nonce",
+                    patchID: "ibss-boot-skip_generate_nonce",
                     component: component,
                     fileOffset: scan,
                     virtualAddress: nil,
@@ -130,7 +130,7 @@ public final class IBootJailbreakPatcher: IBootPatcher {
 
                 if verbose {
                     print(String(
-                        format: "  0x%06X: %@ → %@  [ibss_jb.skip_generate_nonce]",
+                        format: "  0x%06X: %@ → %@  [ibss-boot-skip_generate_nonce]",
                         scan,
                         beforeStr,
                         afterStr,

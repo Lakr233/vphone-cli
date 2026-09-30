@@ -139,7 +139,7 @@ public enum DyldSharedCacheCameraPatcher {
     public struct Site: Sendable {
         public let family: Family
         public let symbol: String
-        /// `camera_dsc.<family>.<slug>` — the id `cfw_records.next_site` gives
+        /// `dyld-cfw-camera.<family>.<slug>` — the id `cfw_records.next_site` gives
         /// the same write, so a capture taken either side of this port lines up.
         public let patchID: String
         public let vma: UInt64
@@ -313,7 +313,7 @@ public enum DyldSharedCacheCameraPatcher {
                     Site(
                         family: family,
                         symbol: symbol,
-                        patchID: "camera_dsc.\(family.rawValue).\(symbolSlug(symbol))",
+                        patchID: "dyld-cfw-camera.\(family.rawValue).\(symbolSlug(symbol))",
                         vma: vma,
                         originalBytes: original,
                         patchedBytes: replacement,

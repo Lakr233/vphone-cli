@@ -64,7 +64,7 @@ extension IBootPatcher {
             return
         }
 
-        emit(cbzOff, bInsn, id: "\(component).rootfs_cbz_0x\(String(errorCode, radix: 16))", description: description)
+        emit(cbzOff, bInsn, id: "\(component)-boot-rootfs.cbz_0x\(String(errorCode, radix: 16))", description: description)
     }
 
     /// NOP the `b.hs` of the unique `cmp x8,#0x400 ; b.hs` rootfs size gate.
@@ -94,7 +94,7 @@ extension IBootPatcher {
         emit(
             bhsSites[0],
             ARM64.nop,
-            id: "\(component).rootfs_bhs_0x400",
+            id: "\(component)-boot-rootfs.bhs_0x400",
             description: "rootfs: NOP b.hs size check (0x400)",
         )
     }
@@ -134,7 +134,7 @@ extension IBootPatcher {
                 emit(
                     scan + 4,
                     ARM64.nop,
-                    id: "\(component).rootfs_null_check_0x78",
+                    id: "\(component)-boot-rootfs.null_check_0x78",
                     description: "rootfs: NOP cbz x8 null check (#0x78)",
                 )
                 return

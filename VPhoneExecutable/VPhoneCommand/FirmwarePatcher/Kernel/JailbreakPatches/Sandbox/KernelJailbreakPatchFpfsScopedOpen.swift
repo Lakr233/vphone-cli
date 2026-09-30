@@ -38,13 +38,13 @@ extension KernelJailbreakPatcher {
         emit(
             entryOff,
             newEntry,
-            patchID: "jb.fpfs_scoped_open.ops_retarget",
+            patchID: "kernel-boot-fpfs_scoped_open.ops_retarget",
             description: "ops[267] -> FileProvider-scoped vnode_check_open trampoline",
         )
         emit(
             caveOff,
             caveBytes,
-            patchID: "jb.fpfs_scoped_open.cave",
+            patchID: "kernel-boot-fpfs_scoped_open.cave",
             description: "trampoline: FileProvider daemons -> real check, else allow",
         )
         return true

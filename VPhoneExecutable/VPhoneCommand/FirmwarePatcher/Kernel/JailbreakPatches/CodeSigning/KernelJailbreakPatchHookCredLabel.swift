@@ -89,14 +89,14 @@ extension KernelJailbreakPatcher {
         emit(
             entryOff,
             newEntry,
-            patchID: "jb.hook_cred_label.ops_retarget",
+            patchID: "kernel-boot-hook_cred_label.ops_retarget",
             description: "retarget ops[\(Self.hookCredLabelIndex)] to faithful C23 cave [_hook_cred_label_update_execve]",
         )
 
         emit(
             caveOff,
             caveBytes,
-            patchID: "jb.hook_cred_label.c23_cave",
+            patchID: "kernel-boot-hook_cred_label.c23_cave",
             description: "faithful upstream C23 cave (vnode getattr -> uid/gid/P_SUGID fixup -> wrapper)",
         )
 

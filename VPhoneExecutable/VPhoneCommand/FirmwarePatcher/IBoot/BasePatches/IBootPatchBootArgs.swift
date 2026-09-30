@@ -43,7 +43,7 @@ extension IBootPatcher {
         }
 
         // Write the string itself
-        emitString(newOff, newArgsData, id: "\(component).boot_args_string", description: "boot-args string")
+        emitString(newOff, newArgsData, id: "\(component)-boot-boot_args.string", description: "boot-args string")
 
         // Re-encode ADRP x2 → new page
         guard let newAdrp = ARM64Encoder.encodeADRP(rd: 2, pc: UInt64(adrpOff), target: UInt64(newOff)) else {
@@ -52,7 +52,7 @@ extension IBootPatcher {
             }
             return
         }
-        emit(adrpOff, newAdrp, id: "\(component).boot_args_adrp", description: "boot-args: adrp x2 → new string page")
+        emit(adrpOff, newAdrp, id: "\(component)-boot-boot_args.adrp", description: "boot-args: adrp x2 → new string page")
 
         // Re-encode ADD x2, x2, #offset
         let imm12 = UInt32(newOff & 0xFFF)
@@ -62,7 +62,7 @@ extension IBootPatcher {
             }
             return
         }
-        emit(addOff, newAdd, id: "\(component).boot_args_add", description: "boot-args: add x2 → new string offset")
+        emit(addOff, newAdd, id: "\(component)-boot-boot_args.add", description: "boot-args: add x2 → new string offset")
     }
 
     /// Find the standalone "%s" format string near "rd=md0" or "BootArgs".

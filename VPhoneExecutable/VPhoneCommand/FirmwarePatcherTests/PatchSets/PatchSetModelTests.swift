@@ -159,22 +159,31 @@ struct VPhonePatchDeclarationTests {
 
     @Test
     func `A declaration covers its own record and its per-site records`() {
-        let kcall = declaration("jb.kcall10")
-        #expect(kcall.covers(recordIdentifier: "jb.kcall10"))
-        #expect(kcall.covers(recordIdentifier: "jb.kcall10.sy_call"))
+        let kcall = declaration("kernel-boot-kcall10")
+        #expect(kcall.covers(recordIdentifier: "kernel-boot-kcall10"))
+        #expect(kcall.covers(recordIdentifier: "kernel-boot-kcall10.sy_call"))
 
-        // Record identifiers predate declarations and use both separators.
-        let rootfs = declaration("llb.rootfs")
-        #expect(rootfs.covers(recordIdentifier: "llb.rootfs_cbz_0x3b7"))
-        let sandbox = declaration("sandbox_ext")
-        #expect(sandbox.covers(recordIdentifier: "sandbox_ext_267"))
+        let rootfs = declaration("llb-boot-rootfs")
+        #expect(rootfs.covers(recordIdentifier: "llb-boot-rootfs.cbz_0x3b7"))
+        let sandbox = declaration("kernel-boot-sandbox_ext")
+        #expect(sandbox.covers(recordIdentifier: "kernel-boot-sandbox_ext.267"))
+    }
+
+    @Test
+    func `Only a dot starts a site`() {
+        // Names are snake_case, so an underscore continues the name: covering
+        // `_` suffixes would let `sandbox_ext` claim a sibling `sandbox_ext_2`.
+        let sandbox = declaration("kernel-boot-sandbox_ext")
+        #expect(!sandbox.covers(recordIdentifier: "kernel-boot-sandbox_ext_267"))
+        #expect(!sandbox.covers(recordIdentifier: "kernel-boot-sandbox_ext_2"))
+        #expect(sandbox.covers(recordIdentifier: "kernel-boot-sandbox_ext.2"))
     }
 
     @Test
     func `A bare textual prefix is not a site`() {
-        let debugger = declaration("kernel.debugger")
-        #expect(!debugger.covers(recordIdentifier: "kernel.debuggerless"))
-        #expect(!debugger.covers(recordIdentifier: "kernel.debug"))
+        let debugger = declaration("kernel-cfw-debugger")
+        #expect(!debugger.covers(recordIdentifier: "kernel-cfw-debuggerless"))
+        #expect(!debugger.covers(recordIdentifier: "kernel-cfw-debug"))
     }
 
     @Test
@@ -322,9 +331,9 @@ struct VPhonePatchPlanTests {
 
     @Test
     func `A record maps back to the declaration that owns it`() throws {
-        let sets = [set("a", patches: [patch("kernel.sandbox"), patch("kernel.sandbox.mount_check_mount")])]
+        let sets = [set("a", patches: [patch("kernel-cfw-sandbox"), patch("kernel-cfw-sandbox.mount_check_mount")])]
         let plan = try VPhonePatchPlan.resolve(
-            preset: preset(["a"], selection: .allow(["kernel.sandbox"])),
+            preset: preset(["a"], selection: .allow(["kernel-cfw-sandbox"])),
             patchSets: sets,
             iOSBase: nil,
             cloudOS: nil,
@@ -332,11 +341,11 @@ struct VPhonePatchPlanTests {
         // The longest matching declaration wins, so a record is attributed to the
         // most specific patch that claims it.
         #expect(
-            plan.declaration(coveringRecord: "kernel.sandbox.mount_check_mount")?.identifier
-                == "kernel.sandbox.mount_check_mount",
+            plan.declaration(coveringRecord: "kernel-cfw-sandbox.mount_check_mount")?.identifier
+                == "kernel-cfw-sandbox.mount_check_mount",
         )
-        #expect(plan.isRecordEnabled("kernel.sandbox.file_check_mmap"))
-        #expect(!plan.isRecordEnabled("kernel.sandbox.mount_check_mount"))
+        #expect(plan.isRecordEnabled("kernel-cfw-sandbox.file_check_mmap"))
+        #expect(!plan.isRecordEnabled("kernel-cfw-sandbox.mount_check_mount"))
         // A record no declaration covers is not enabled by this plan; the gate,
         // not the plan, decides that it applies anyway.
         #expect(!plan.isRecordEnabled("something.else"))
@@ -518,9 +527,12 @@ struct VPhonePatchGateTests {
 
     @Test
     func `A gate answers about record identifiers, not just declarations`() {
-        let gate = VPhonePatchGate(declared: ["jb.kcall10", "sandbox_ext"], enabled: ["jb.kcall10"])
-        #expect(gate.allows(record: "jb.kcall10.sy_call"))
-        #expect(!gate.allows(record: "sandbox_ext_267"))
+        let gate = VPhonePatchGate(
+            declared: ["kernel-boot-kcall10", "kernel-boot-sandbox_ext"],
+            enabled: ["kernel-boot-kcall10"],
+        )
+        #expect(gate.allows(record: "kernel-boot-kcall10.sy_call"))
+        #expect(!gate.allows(record: "kernel-boot-sandbox_ext.267"))
     }
 
     @Test
@@ -537,10 +549,10 @@ struct VPhonePatchGateTests {
     @Test
     func `The longest declaration owns a record`() {
         let gate = VPhonePatchGate(
-            declared: ["kernel.sandbox", "kernel.sandbox.mount_check_mount"],
-            enabled: ["kernel.sandbox"],
+            declared: ["kernel-cfw-sandbox", "kernel-cfw-sandbox.mount_check_mount"],
+            enabled: ["kernel-cfw-sandbox"],
         )
-        #expect(!gate.allows(record: "kernel.sandbox.mount_check_mount"))
-        #expect(gate.allows(record: "kernel.sandbox.file_check_mmap"))
+        #expect(!gate.allows(record: "kernel-cfw-sandbox.mount_check_mount"))
+        #expect(gate.allows(record: "kernel-cfw-sandbox.file_check_mmap"))
     }
 }

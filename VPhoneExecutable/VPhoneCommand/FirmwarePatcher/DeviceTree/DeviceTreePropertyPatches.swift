@@ -51,7 +51,7 @@ extension DeviceTreePatcher {
             length: 12,
             flags: 0,
             value: .string("vphone-1337"),
-            patchID: "devicetree.serial_number",
+            patchID: "devicetree-cfw-serial_number",
             description: "Set serial number to vphone-1337",
         ),
         PropertyPatch(
@@ -60,7 +60,7 @@ extension DeviceTreePatcher {
             length: 4,
             flags: 0,
             value: .integer(2),
-            patchID: "devicetree.home_button_type",
+            patchID: "devicetree-cfw-home_button_type",
             description: "Set home button type to 2",
         ),
         PropertyPatch(
@@ -69,7 +69,7 @@ extension DeviceTreePatcher {
             length: 4,
             flags: 0,
             value: .integer(2556),
-            patchID: "devicetree.artwork_device_subtype",
+            patchID: "devicetree-cfw-artwork_device_subtype",
             description: "Set artwork device subtype to 2556",
         ),
         PropertyPatch(
@@ -78,7 +78,7 @@ extension DeviceTreePatcher {
             length: 4,
             flags: 0,
             value: .integer(144),
-            patchID: "devicetree.island_notch_location",
+            patchID: "devicetree-cfw-island_notch_location",
             description: "Set island notch location to 144",
         ),
     ]
@@ -118,7 +118,7 @@ extension DeviceTreePatcher {
             length: 12,
             flags: 0,
             value: .string("D47AP"),
-            patchID: "devicetree.target_sub_type",
+            patchID: "devicetree-exp-target_sub_type",
             description: "Set target-sub-type to D47AP (was VPHONE600AP)",
         ),
 
@@ -135,7 +135,7 @@ extension DeviceTreePatcher {
             length: 48,
             flags: 0,
             value: .bytes(compatibleRewrite),
-            patchID: "devicetree.compatible_secondary",
+            patchID: "devicetree-exp-compatible_secondary",
             description: "Surgical rewrite of compatible[1]: iPhone99,11 -> iPhone17,3",
         ),
 
@@ -148,7 +148,7 @@ extension DeviceTreePatcher {
             length: 12,
             flags: 0,
             value: .string("iPhone17,3"),
-            patchID: "devicetree.product.fdr_product_type",
+            patchID: "devicetree-exp-product_fdr_product_type",
             description: "Set product/fdr-product-type to iPhone17,3 (was iPhone99,11)",
         ),
 
@@ -161,7 +161,7 @@ extension DeviceTreePatcher {
             length: 12,
             flags: 0,
             value: .string("iPhone17,3"),
-            patchID: "devicetree.product.sub_product_type",
+            patchID: "devicetree-exp-product_sub_product_type",
             description: "Set product/sub-product-type to iPhone17,3 (was iPhone99,11)",
         ),
 
@@ -174,7 +174,7 @@ extension DeviceTreePatcher {
             length: 12,
             flags: 0,
             value: .string("D47AP"),
-            patchID: "devicetree.product.unique_model",
+            patchID: "devicetree-exp-product_unique_model",
             description: "Set product/unique-model to D47AP (was VPHONE600AP)",
         ),
 
@@ -194,7 +194,7 @@ extension DeviceTreePatcher {
             length: 14,
             flags: 0,
             value: .string("t8140-io"),
-            patchID: "devicetree.arm_io.device_type",
+            patchID: "devicetree-exp-arm_io_device_type",
             description: "Set arm-io/device_type to t8140-io (was vresearch1-io)",
         ),
 
@@ -208,7 +208,7 @@ extension DeviceTreePatcher {
             length: 11,
             flags: 0,
             value: .string("H17"),
-            patchID: "devicetree.arm_io.soc_generation",
+            patchID: "devicetree-exp-arm_io_soc_generation",
             description: "Set arm-io/soc-generation to H17 (was VResearch1)",
         ),
 
@@ -229,7 +229,7 @@ extension DeviceTreePatcher {
             length: 27,
             flags: 0,
             value: .string("d47-gestalt-variants"),
-            patchID: "devicetree.product.gestalt_variants_rename",
+            patchID: "devicetree-exp-product_gestalt_variants_rename",
             description: "Rename node vphone600-gestalt-variants -> d47-gestalt-variants",
         ),
 
@@ -252,7 +252,7 @@ extension DeviceTreePatcher {
                 0xD8, 0x13, 0x00, 0x00, 0xE8, 0x03, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
             ])),
-            patchID: "devicetree.product.front_cam_offset",
+            patchID: "devicetree-cfw-product_front_cam_offset",
             description: "Set product/front-cam-offset-from-center to d47ap geometry (was syscfg/fcof)",
         ),
         PropertyPatch(
@@ -265,7 +265,7 @@ extension DeviceTreePatcher {
                 0x59, 0x08, 0x00, 0x00, 0xE8, 0x03, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
             ])),
-            patchID: "devicetree.product.rear_cam_offset",
+            patchID: "devicetree-cfw-product_rear_cam_offset",
             description: "Set product/rear-cam-offset-from-center to d47ap geometry (was syscfg/rcof)",
         ),
     ]

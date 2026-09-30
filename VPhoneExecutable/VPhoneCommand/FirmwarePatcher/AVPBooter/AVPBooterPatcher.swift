@@ -127,7 +127,7 @@ public final class AVPBooterPatcher: BufferedPatcher {
             throw PatcherError.patchSiteNotFound("AVPBooter DGST: x0 setter not found before RET")
         }
 
-        guard gateAllows("avpbooter.dgst_bypass") else { return }
+        guard gateAllows("avpbooter-boot-dgst_bypass") else { return }
 
         let target = insns[targetIdx]
         let fileOff = Int(target.address) // base address is 0, so VA == file offset
@@ -140,7 +140,7 @@ public final class AVPBooterPatcher: BufferedPatcher {
         let afterStr = afterInsn.map { "\($0.mnemonic) \($0.operandString)" } ?? "mov x0, #0"
 
         let record = PatchRecord(
-            patchID: "avpbooter.dgst_bypass",
+            patchID: "avpbooter-boot-dgst_bypass",
             component: component,
             fileOffset: fileOff,
             virtualAddress: nil,
@@ -154,7 +154,7 @@ public final class AVPBooterPatcher: BufferedPatcher {
 
         if verbose {
             print(String(
-                format: "  0x%06X: %@ → %@  [avpbooter.dgst_bypass]",
+                format: "  0x%06X: %@ → %@  [avpbooter-boot-dgst_bypass]",
                 fileOff,
                 beforeStr,
                 afterStr,

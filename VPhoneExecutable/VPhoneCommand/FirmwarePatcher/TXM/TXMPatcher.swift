@@ -114,7 +114,7 @@ extension TXMPatcher {
             emit(
                 legacyBL,
                 ARM64.movX0_0,
-                patchID: "txm.trustcache_bypass",
+                patchID: "txm-boot-trustcache_bypass",
                 description: "trustcache bypass: legacy binary-search call → mov x0, #0",
             )
             return
@@ -124,7 +124,7 @@ extension TXMPatcher {
             emit(
                 selector24BL,
                 ARM64.movX0_0,
-                patchID: "txm.trustcache_bypass",
+                patchID: "txm-boot-trustcache_bypass",
                 description: "trustcache bypass: selector24 hash-flags call → mov x0, #0",
             )
             return

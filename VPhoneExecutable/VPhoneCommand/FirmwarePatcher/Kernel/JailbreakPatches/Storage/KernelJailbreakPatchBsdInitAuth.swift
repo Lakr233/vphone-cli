@@ -86,7 +86,7 @@ extension KernelJailbreakPatcher {
         emit(
             branchOff,
             ARM64.nop,
-            patchID: "jb.bsd_init_auth.nop_cbnz",
+            patchID: "kernel-boot-bsd_init_auth.nop_cbnz",
             virtualAddress: fileOffsetToVA(branchOff),
             description: "NOP cbnz (rootvp auth) [_bsd_init]",
         )

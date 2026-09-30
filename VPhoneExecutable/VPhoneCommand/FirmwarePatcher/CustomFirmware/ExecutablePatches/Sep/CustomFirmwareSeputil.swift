@@ -473,7 +473,7 @@ public enum CustomFirmwareSeputil {
     /// field.
     private static func record(for site: Site, original: Data, replacement: Data) -> PatchRecord {
         PatchRecord(
-            patchID: "seputil.gigalocker_uuid",
+            patchID: "system-seputil-boot-gigalocker_uuid",
             component: "seputil",
             fileOffset: site.fieldOffset,
             virtualAddress: site.fieldVMA,

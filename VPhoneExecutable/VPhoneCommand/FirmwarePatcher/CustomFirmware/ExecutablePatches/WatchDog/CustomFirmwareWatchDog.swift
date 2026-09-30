@@ -281,7 +281,7 @@ public enum CustomFirmwareWatchDog {
                 at: site.gateFileOffset,
                 virtualAddress: site.gateVMA,
                 patched: gate,
-                id: "\(component).hv_vmm_cache.cbnz@0x\(hex(site.gateVMA))",
+                id: "system-\(component)-exp-hv_vmm_cache.cbnz@0x\(hex(site.gateVMA))",
                 description: "NOP the cbnz w0 that skips the cached hv_vmm_present store",
                 disassembler: disassembler,
             ))
@@ -290,7 +290,7 @@ public enum CustomFirmwareWatchDog {
                 at: site.valueFileOffset,
                 virtualAddress: site.valueVMA,
                 patched: value,
-                id: "\(component).hv_vmm_cache.cset@0x\(hex(site.valueVMA))",
+                id: "system-\(component)-exp-hv_vmm_cache.cset@0x\(hex(site.valueVMA))",
                 description: "cset \(site.valueRegister) -> mov \(site.valueRegister), #1 "
                     + "(cached 'am I a VM?' byte forced to 1)",
                 disassembler: disassembler,

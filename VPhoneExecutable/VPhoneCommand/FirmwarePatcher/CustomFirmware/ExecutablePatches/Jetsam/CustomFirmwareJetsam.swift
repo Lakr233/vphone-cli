@@ -254,7 +254,7 @@ public enum CustomFirmwareJetsamPatcher {
 
         let original = Data(data[site.gateOffset ..< site.gateOffset + 4])
         let record = PatchRecord(
-            patchID: "launchd_jetsam.panic_guard_bypass",
+            patchID: "system-launchd-boot-jetsam_panic_guard_bypass",
             component: "launchd_jetsam",
             fileOffset: site.gateOffset,
             virtualAddress: gateVMA,

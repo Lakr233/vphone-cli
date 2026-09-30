@@ -37,12 +37,14 @@ extension KernelPatcher {
 
         let sandboxRange = discoverSandboxTextRange()
 
-        let hooks: [(name: String, index: Int)] = [
-            ("file_check_mmap", 36),
-            ("mount_check_mount", 87),
-            ("mount_check_remount", 88),
-            ("mount_check_umount", 91),
-            ("vnode_check_rename", 120),
+        // Each hook carries its own patch-set declaration id: the five hooks
+        // belong to different effects (boot vs cfw), so there is no single prefix.
+        let hooks: [(name: String, index: Int, decl: String)] = [
+            ("file_check_mmap", 36, "kernel-cfw-sandbox_file_check_mmap"),
+            ("mount_check_mount", 87, "kernel-boot-sandbox_mount_check_mount"),
+            ("mount_check_remount", 88, "kernel-boot-sandbox_mount_check_remount"),
+            ("mount_check_umount", 91, "kernel-cfw-sandbox_mount_check_umount"),
+            ("vnode_check_rename", 120, "kernel-cfw-sandbox_vnode_check_rename"),
         ]
 
         var patchedCount = 0
@@ -73,14 +75,14 @@ extension KernelPatcher {
             emit(
                 funcOff,
                 ARM64.movX0_0,
-                patchID: "kernel.sandbox.\(hook.name).mov_x0_0",
+                patchID: "\(hook.decl).mov_x0_0",
                 virtualAddress: va,
                 description: "mov x0,#0 [_hook_\(hook.name)]",
             )
             emit(
                 funcOff + 4,
                 ARM64.ret,
-                patchID: "kernel.sandbox.\(hook.name).ret",
+                patchID: "\(hook.decl).ret",
                 virtualAddress: va.map { $0 + 4 },
                 description: "ret [_hook_\(hook.name)]",
             )

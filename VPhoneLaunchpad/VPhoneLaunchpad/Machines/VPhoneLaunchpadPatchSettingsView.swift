@@ -168,6 +168,30 @@ struct VPhoneLaunchpadPatchSettingsView: View {
             }
             .width(36)
 
+            TableColumn("Component", value: \.component) { patch in
+                Text(verbatim: patch.component)
+                    .font(.system(.callout, design: .monospaced))
+                    .lineLimit(1)
+            }
+            .width(min: 80, ideal: 130)
+
+            TableColumn("Effect", value: \.effect) { patch in
+                Text(verbatim: patch.effect)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 40, ideal: 50)
+
+            TableColumn("Name", value: \.name) { patch in
+                Text(verbatim: patch.name)
+                    .font(.system(.callout, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(patch.identifier)
+            }
+            .width(min: 140, ideal: 240)
+
             // Most patches are boot-essential, so a mark on each would say
             // nothing. It shows only on one that is off.
             TableColumn("Patch", value: \.title) { patch in
@@ -182,22 +206,7 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 }
                 .help(patch.summary)
             }
-            .width(min: 160, ideal: 220)
-
-            TableColumn("Identifier", value: \.identifier) { patch in
-                Text(verbatim: patch.identifier)
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(patch.identifier)
-            }
-            .width(min: 180, ideal: 300)
-
-            TableColumn("Patch Set", value: \.patchSetName) { patch in
-                Text(verbatim: patch.patchSetName).lineLimit(1)
-            }
-            .width(min: 90, ideal: 120)
+            .width(min: 140, ideal: 200)
 
             TableColumn("Applies To", value: \.applicability) { patch in
                 if patch.isVersionGated {

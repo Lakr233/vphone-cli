@@ -60,7 +60,7 @@ extension KernelJailbreakPatcher {
         emit(
             patchOff,
             ARM64.nop,
-            patchID: "kernelcache_jb.nvram_verify_permission",
+            patchID: "kernel-cfw-nvram_verify_permission",
             virtualAddress: va,
             description: "NOP [verifyPermission NVRAM]",
         )

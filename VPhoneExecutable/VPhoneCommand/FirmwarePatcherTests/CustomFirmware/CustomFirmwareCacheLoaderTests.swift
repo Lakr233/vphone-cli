@@ -409,7 +409,7 @@ struct CustomFirmwareCacheLoaderParityTests {
         let report = try CustomFirmwareCacheLoaderPatcher.patch(fileAt: clone, log: nil)
         let record = try #require(report.record)
 
-        #expect(record.patchID == "launchd_cache_loader.unsecure_cache_gate")
+        #expect(record.patchID == "system-launchd_cache_loader-boot-unsecure_cache_gate")
         #expect(record.component == "launchd_cache_loader")
         #expect(record.fileOffset == report.gate.fileOffset)
         #expect(record.virtualAddress == report.gate.vma)

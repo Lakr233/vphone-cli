@@ -105,7 +105,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
     static let magicPrefix = Data("dyld_v1".utf8)
 
     /// The patch identifier the reference capture records under.
-    public static let patchID = "dsc_maxslide.zero"
+    public static let patchID = "dyld-boot-maxslide"
 
     // MARK: - Result
 

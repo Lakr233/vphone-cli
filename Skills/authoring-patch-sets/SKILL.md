@@ -34,11 +34,12 @@ nine in-tree sets and the two shipped presets live in
    `emit`. That is what ties the patch to its declaration.
 
 3. **Declare it** in the right set, with the identifier being the record
-   identifier, or their common prefix when the patch writes several sites:
+   identifier, or the part before `.<site>` when the patch writes several
+   sites. Name it by the scheme in [Naming](#naming):
 
    ```swift
    VPhonePatchDeclaration(
-       identifier: "jb.my_patch",
+       identifier: "kernel-boot-my_patch",
        title: "What it is, in three or four words",
        summary: "What it does and why the guest needs it. One or two sentences.",
        target: .firmware(.kernelcache),
@@ -51,29 +52,44 @@ nine in-tree sets and the two shipped presets live in
    `[!] <component>: <id> is declared by no patch set; applying it anyway`. Grep
    the logs for `declared by no patch set` — it must be absent.
 
+### Naming
+
+A patch identifier is `{component}-{effect}-{name}`, hyphen-separated:
+
+- **component** — where the bytes land: `avpbooter`, `ibss`, `ibec`, `llb`,
+  `txm`, `kernel`, `devicetree`, `dyld` (the shared cache), `preboot`, or
+  `system-<binary>` for a guest system binary or file
+  (`system-seputil-boot-gigalocker_uuid`, `system-vphoned-boot-install`).
+- **effect** — derived, never chosen: `boot` if `bootEssential`, else `exp` if
+  `standard` leaves it off, else `cfw`. A patch that changes either property is
+  renamed with it.
+- **name** — snake_case, `[a-z0-9_]`, no dots or hyphens.
+
+`Every patch identifier names its component, effect and patch` in
+`FirmwarePatchSetCatalogTests` checks the shape, the effect and uniqueness for
+every bundled declaration.
+
 ### Identifiers Are the Contract
 
-A declaration covers its own record and any record under it, with either
-separator:
+A declaration covers its own record and any record `<identifier>.<site>` —
+only a dot starts a site:
 
-- `jb.kcall10` covers `jb.kcall10.sy_call`, `jb.kcall10.sy_munge`, …
-- `llb.rootfs` covers `llb.rootfs_cbz_0x3b7`, `llb.rootfs_bhs_0x400`, …
-- `sandbox_ext` covers `sandbox_ext_267` and every other index
-- `kernel.debugger` does **not** cover `kernel.debuggerless`
+- `kernel-boot-kcall10` covers `kernel-boot-kcall10.sy_call`, `kernel-boot-kcall10.sy_munge`, …
+- `kernel-boot-sandbox_ext` covers `kernel-boot-sandbox_ext.3` and every other index
+- `kernel-boot-post_validation` does **not** cover `kernel-boot-post_validation_unsigned`
+- `kernel-cfw-debugger` does **not** cover `kernel-cfw-debuggerless`
 
-Both separators are supported because record identifiers predate declarations and
-spell their per-site suffix both ways. Do not rename an existing record
-identifier to tidy this up: they appear in logs, in research notes and in test
-expectations.
+An underscore continues a snake_case name, so it never separates a site: emit
+`.1`, not `_1`.
 
 Pick the granularity a user would want to tick. One declaration per patch method
 is usually right — a patch writing four sites that only work together is one
 checkbox, because half of it would not boot. Where sites are genuinely
-independent, declare them separately: `kernel.sandbox.*` is five declarations,
+independent, declare them separately: `kernel-*-sandbox_*` is five declarations,
 one per MACF hook, because turning one hook off is a sensible thing to want.
 
 **Never let one declaration read as a site of another.**
-`FirmwarePatchSetCatalogTests.noAmbiguousPrefixes` fails if you do.
+`No patch identifier is a record-site prefix of another` fails if you do.
 
 ## Version Gates
 
@@ -184,7 +200,7 @@ selection:
 	<string>Block</string>
 	<key>Patches</key>
 	<array>
-		<string>kernelcache_frida.thread_set_state_entitlement_flag</string>
+		<string>kernel-exp-frida_thread_set_state_entitlement_flag</string>
 	</array>
 </dict>
 ```
@@ -196,14 +212,15 @@ patch added later will not be in it.
 
 When you add or change a preset plist, mirror it in
 `FirmwarePatchSetCatalog` — that Swift copy is what a dev build with no staged
-bundle falls back to, and `shippedPresetsMatchBuiltIns` fails if they drift.
+bundle falls back to, and `The shipped preset plists match the built-in copies`
+fails if they drift.
 
 ### What a VM Records
 
 `fw set-patches` writes `<vm>/PatchSelection.plist`, and is the only writer:
 
 ```zsh
-vphone-cli fw set-patches lab --preset extended --block kernel.debugger
+vphone-cli fw set-patches lab --preset extended --block kernel-cfw-debugger
 vphone-cli fw set-patches lab                       # back to the preset alone
 ```
 

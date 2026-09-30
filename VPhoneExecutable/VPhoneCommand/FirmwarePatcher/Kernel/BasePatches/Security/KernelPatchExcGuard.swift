@@ -91,7 +91,7 @@ extension KernelPatcher {
                 emit(
                     inner,
                     ARM64.ret,
-                    patchID: "kernel.thread_guard_violation",
+                    patchID: "kernel-boot-thread_guard_violation",
                     virtualAddress: va,
                     description: "PACIBSP→RET (disable guard violation delivery)",
                 )

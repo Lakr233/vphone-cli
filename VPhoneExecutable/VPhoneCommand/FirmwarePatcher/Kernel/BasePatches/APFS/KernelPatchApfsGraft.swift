@@ -72,7 +72,7 @@ extension KernelPatcher {
                 emit(
                     scan,
                     ARM64.movW0_0,
-                    patchID: "apfs_graft",
+                    patchID: "kernel-boot-apfs_graft",
                     virtualAddress: va,
                     description: "mov w0,#0 [_apfs_graft]",
                 )

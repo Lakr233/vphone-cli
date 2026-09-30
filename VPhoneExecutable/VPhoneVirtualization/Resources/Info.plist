@@ -11,7 +11,7 @@
 	<key>CFBundleVersion</key>
 	<string>18</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.1.7</string>
+	<string>2.2.0</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

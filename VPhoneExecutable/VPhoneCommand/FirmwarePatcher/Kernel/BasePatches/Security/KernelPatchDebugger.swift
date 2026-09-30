@@ -62,14 +62,14 @@ extension KernelPatcher {
         emit(
             offset,
             ARM64.movX0_1,
-            patchID: "kernel.debugger.mov_x0_1",
+            patchID: "kernel-cfw-debugger.mov_x0_1",
             virtualAddress: va,
             description: "mov x0,#1 [_PE_i_can_has_debugger]",
         )
         emit(
             offset + 4,
             ARM64.ret,
-            patchID: "kernel.debugger.ret",
+            patchID: "kernel-cfw-debugger.ret",
             virtualAddress: va.map { $0 + 4 },
             description: "ret [_PE_i_can_has_debugger]",
         )

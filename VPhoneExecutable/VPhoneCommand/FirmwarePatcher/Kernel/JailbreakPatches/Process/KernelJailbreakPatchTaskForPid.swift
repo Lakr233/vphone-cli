@@ -56,7 +56,7 @@ extension KernelJailbreakPatcher {
         emit(
             patchOff,
             ARM64.nop,
-            patchID: "kernelcache_jb.task_for_pid",
+            patchID: "kernel-cfw-task_for_pid",
             virtualAddress: va,
             description: "NOP [_task_for_pid pid==0 gate]",
         )

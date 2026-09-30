@@ -65,7 +65,7 @@ public enum CustomFirmwareCacheLoaderPatcher {
 
     /// Record identity, matching the Python's `records.site` label so a captured
     /// reference and this port sort together.
-    public static let patchID = "launchd_cache_loader.unsecure_cache_gate"
+    public static let patchID = "system-launchd_cache_loader-boot-unsecure_cache_gate"
 
     /// Substrings that name the gate's boot-arg, most specific first. The same
     /// list the Python carries: the later three are there for a firmware that

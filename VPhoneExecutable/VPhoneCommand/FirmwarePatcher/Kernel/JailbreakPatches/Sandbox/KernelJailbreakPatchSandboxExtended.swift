@@ -109,7 +109,7 @@ extension KernelJailbreakPatcher {
             emit(
                 entryOff,
                 newBytes,
-                patchID: "sandbox_ext_\(idx)",
+                patchID: "kernel-boot-sandbox_ext.\(idx)",
                 virtualAddress: nil,
                 description: "ops[\(idx)] -> allow stub [_hook_\(hookName)]",
             )

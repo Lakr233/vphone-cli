@@ -379,7 +379,7 @@ struct DyldSharedCacheCameraPatcherParityTests {
             + [DyldSharedCacheCameraPatcher.authorizationStatusSymbol]
         let mine = symbols.map(DyldSharedCacheCameraPatcher.symbolSlug)
         #expect(mine == FrozenReference.symbolSlugs)
-        print("[camera slugs] \(mine.count) ids agreed, e.g. camera_dsc.nu_styletransfer.\(mine[0])")
+        print("[camera slugs] \(mine.count) ids agreed, e.g. dyld-cfw-camera.nu_styletransfer.\(mine[0])")
     }
 
     /// Both replacements come out of the Keystone-checked encoders, and both

@@ -1,6 +1,6 @@
 // KernelJailbreakPatchVmMapDelete.swift — optional Frida Stalker support.
 //
-// Declared as `kernelcache_frida.vm_map_delete_immutable_code`, off in `standard`.
+// Declared as `kernel-exp-frida_vm_map_delete_immutable_code`, off in `standard`.
 //
 // Frida's write-then-flip leaves a permanent CSM mapping at current RW / max RWX;
 // vm_map_delete's immutable-code exception tests current-protection EXECUTE, which
@@ -67,7 +67,7 @@ extension KernelJailbreakPatcher {
             emit(
                 gate.offset,
                 bytes,
-                patchID: "kernelcache_frida.vm_map_delete_immutable_code",
+                patchID: "kernel-exp-frida_vm_map_delete_immutable_code",
                 virtualAddress: fileOffsetToVA(gate.offset),
                 description: "\(gate.nonzero ? "tbnz" : "tbz") entry max_protection.X [vm_map_delete immutable-code \(gate.shape), frida]",
             )

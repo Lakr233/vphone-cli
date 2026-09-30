@@ -17,7 +17,7 @@ public enum FirmwareGuestDisplayPatchSet {
         summary: "IOMFB patches that let the guest present a frame on the virtual display",
         patches: [
             VPhonePatchDeclaration(
-                identifier: "iomfb_force_kern",
+                identifier: "dyld-boot-iomfb_force_kern",
                 title: "IOMFB force kernel swap",
                 summary: "Routes the 27 display swap through the kernel, where the virtual framebuffer lives.",
                 target: .dyldSharedCache,
@@ -25,7 +25,7 @@ public enum FirmwareGuestDisplayPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
-                identifier: "dsc.iomfb_swapend",
+                identifier: "dyld-boot-iomfb_swapend",
                 title: "IOMFB swap-end size",
                 summary: "Resizes the swap-end structure a 26.0 or 18.x userland submits.",
                 target: .dyldSharedCache,

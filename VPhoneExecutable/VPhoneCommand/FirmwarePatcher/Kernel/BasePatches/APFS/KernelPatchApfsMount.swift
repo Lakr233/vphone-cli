@@ -113,7 +113,7 @@ extension KernelPatcher {
                 emit(
                     scan,
                     ARM64.cmpX0X0,
-                    patchID: "kernel.apfs_vfsop_mount.cmp_x0_x0",
+                    patchID: "kernel-boot-apfs_vfsop_mount.cmp_x0_x0",
                     virtualAddress: va,
                     description: "cmp x0,x0 (was \(insn.mnemonic) \(insn.operandString)) [_apfs_vfsop_mount]",
                 )
@@ -186,7 +186,7 @@ extension KernelPatcher {
             emit(
                 nextOff,
                 ARM64.movW0_0,
-                patchID: "kernel.apfs_mount_upgrade_checks.mov_w0_0",
+                patchID: "kernel-boot-apfs_mount_upgrade_checks.mov_w0_0",
                 virtualAddress: va,
                 description: "mov w0,#0 [_apfs_mount_upgrade_checks]",
             )
@@ -259,7 +259,7 @@ extension KernelPatcher {
                 emit(
                     scan,
                     ARM64.movW0_0,
-                    patchID: "kernel.handle_fsioc_graft.mov_w0_0",
+                    patchID: "kernel-boot-handle_fsioc_graft.mov_w0_0",
                     virtualAddress: va,
                     description: "mov w0,#0 [_handle_fsioc_graft]",
                 )
@@ -354,7 +354,7 @@ extension KernelPatcher {
                     emit(
                         cand.off,
                         ARM64.nop,
-                        patchID: "kernel.handle_get_dev_by_role.gate_\(String(format: "%X", cand.off))",
+                        patchID: "kernel-boot-handle_get_dev_by_role.gate_\(String(format: "%X", cand.off))",
                         virtualAddress: va,
                         description: "NOP [handle_get_dev_by_role entitlement gate -> 0x\(String(format: "%X", cand.target))]",
                     )

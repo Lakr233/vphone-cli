@@ -66,8 +66,8 @@ public struct VPhonePatchSetManifest: Sendable, Hashable, Codable, Identifiable 
 
     /// The declaration owning `recordIdentifier`, if this set emits it.
     public func declaration(coveringRecord recordIdentifier: String) -> VPhonePatchDeclaration? {
-        // Longest identifier first, so `kernel.debugger.ret` is attributed to
-        // `kernel.debugger` rather than to a shorter `kernel` umbrella.
+        // Longest identifier first, so `kernel-cfw-debugger.ret` is attributed to
+        // `kernel-cfw-debugger` rather than to a shorter umbrella.
         patches
             .filter { $0.covers(recordIdentifier: recordIdentifier) }
             .max { $0.identifier.count < $1.identifier.count }

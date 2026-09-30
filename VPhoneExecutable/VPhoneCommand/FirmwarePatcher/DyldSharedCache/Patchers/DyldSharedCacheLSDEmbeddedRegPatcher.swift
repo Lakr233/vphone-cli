@@ -61,7 +61,7 @@ public enum DyldSharedCacheLSDEmbeddedRegPatcher {
 
     /// Record identity, matching the Python's `records.next_site` label so a
     /// captured reference and this port sort together.
-    public static let patchID = "lsd_embedded_reg.entitlement_gate"
+    public static let patchID = "dyld-boot-lsd_embedded_reg"
 
     /// How far into the method to look. The gate sits within the first handful
     /// of basic blocks; 96 instructions is the Python's window and is ample.

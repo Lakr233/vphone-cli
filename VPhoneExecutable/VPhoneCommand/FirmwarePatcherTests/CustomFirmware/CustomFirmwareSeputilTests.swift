@@ -376,7 +376,7 @@ struct CustomFirmwareSeputilParityTests {
 
         let outcome = try CustomFirmwareSeputil.patch(fileAt: file, dryRun: true, log: nil)
         let record = try #require(outcome.record)
-        #expect(record.patchID == "seputil.gigalocker_uuid")
+        #expect(record.patchID == "system-seputil-boot-gigalocker_uuid")
         #expect(record.component == "seputil")
         #expect(record.fileOffset == outcome.site.fieldOffset)
         #expect(record.virtualAddress == outcome.site.fieldVMA)
