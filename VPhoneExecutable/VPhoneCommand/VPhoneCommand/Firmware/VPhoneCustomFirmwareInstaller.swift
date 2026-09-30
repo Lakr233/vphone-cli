@@ -522,6 +522,28 @@ struct VPhoneCustomFirmwareInstaller {
                 injectedDylibPath: "/vh",
             )
         }
+        if on("installd.adhoc_signature") {
+            // No bytes of installd's own change: the hook rides in on a weak
+            // load command and does its work through dyld interposition.
+            try patchMachO(
+                system: system,
+                work: work,
+                path: "usr/libexec/installd",
+                identifier: "com.apple.installd",
+                preserveEntitlements: true,
+                injectedDylibPath: "/usr/lib/libmisfix.dylib",
+            )
+        }
+        if on("misagent.device_identity") {
+            try patchMachO(
+                system: system,
+                work: work,
+                path: "usr/libexec/misagent",
+                identifier: "com.apple.misagent",
+                preserveEntitlements: true,
+                injectedDylibPath: "/usr/lib/libmisfix.dylib",
+            )
+        }
         if on("guest.debugserver") {
             try patchDebugserver(system: system, work: work)
         }
@@ -775,6 +797,23 @@ struct VPhoneCustomFirmwareInstaller {
         } else {
             try system.createSymlink(target: target, at: alias)
         }
+        try installMISFixDefaults(system: system)
+    }
+
+    /// libmisfix's settings file, and only when the guest has none.
+    ///
+    /// Unlike the libraries above this is not the bundle's to own: it carries a
+    /// per-machine choice, so re-running `cfw install` must not put the
+    /// shipped, empty copy back over a UDID someone set.
+    private func installMISFixDefaults(system: VPhoneConfinedDirectory) throws {
+        let name = "libmisfix.plist"
+        let path = "usr/lib/\(name)"
+        guard try !system.exists(path) else {
+            print("  [·] \(path): already present, left as it is")
+            return
+        }
+        let source = try VPhoneGuestBinaries.resolve(name)
+        try system.replaceFile(path, fromFileAt: source, mode: 0o644, owner: Self.guestOwner)
     }
 
     private func patchWatchdog(system: VPhoneConfinedDirectory, work: WorkDirectory) throws {
@@ -875,11 +914,15 @@ struct VPhoneCustomFirmwareInstaller {
         )
     }
 
+    /// Stage a guest Mach-O, patch it, re-sign it and put it back.
+    ///
+    /// `verb` is optional: a binary that only needs a library injected — as
+    /// installd does for libmisfix — has no bytes of its own to change.
     private func patchMachO(
         system: VPhoneConfinedDirectory,
         work: WorkDirectory,
         path: String,
-        verb: String,
+        verb: String? = nil,
         identifier: String? = nil,
         preserveEntitlements: Bool = false,
         injectedDylibPath: String? = nil,
@@ -896,7 +939,9 @@ struct VPhoneCustomFirmwareInstaller {
             preserveEntitlements
                 ? try VPhoneSigner.entitlements(ofFileAt: staged).first(where: { !$0.isEmpty })
                 : nil
-        try patch(verb, [staged.path])
+        if let verb {
+            try patch(verb, [staged.path])
+        }
         if let injectedDylibPath {
             try patch("inject-dylib", [staged.path, injectedDylibPath])
         }

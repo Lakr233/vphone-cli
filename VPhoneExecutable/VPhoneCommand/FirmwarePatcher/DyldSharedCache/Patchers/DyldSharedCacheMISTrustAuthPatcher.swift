@@ -74,11 +74,22 @@
 //      the literal is found by Capstone decode. Walking back from that site to
 //      the nearest `pacibsp` gives the function start.
 //   2. That prologue is then required to seed `0xE8008026` into the register
-//      the function returns, within a short window.
+//      the function returns, within a short window — *or* to already hold this
+//      patch's own output, `pacibsp ; mov x0, #0 ; retab`.
 //
 // If the string is gone the patch reports itself absent; if the string is there
-// but the prologue no longer seeds the error, the shape has changed and the
+// but the prologue is neither of those two shapes, MIS has changed and the
 // install stops rather than guessing.
+//
+// The second shape is not decoration. The seed is normally several instructions
+// into the prologue and survives the write, so the byte comparison in `patch`
+// sees its own output and reports ``Outcome/alreadyPatched``. But where the
+// compiler puts the seed in the two words this patch overwrites — reported on a
+// 27.0 guest, `checkTrustAndAuthorization @ 0x22406F814` — the first run
+// destroys the very anchor the second run looks for, and `cfw install` then
+// dies part-way through on every later run. `DyldSharedCacheXPCLWCRPatcher` and
+// `DyldSharedCacheLockdownModePatcher` were fixed for the same thing on
+// 2026-09-22; this recognises its own shape the way they do.
 //
 // Writing a cache page invalidates its 16 KiB code slot, so the page is
 // re-attested afterwards, exactly as the other shared-cache patchers do.
@@ -122,16 +133,38 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
 
     // MARK: - Results
 
+    /// Which of the two accepted prologues the located function carries.
+    public enum Shape: Sendable, Equatable {
+        /// The stock prologue, seeding the failure code into the register the
+        /// function returns. This is the shape that gets written.
+        case seedsFailure(seedVMA: UInt64, resultRegister: String)
+        /// The prologue already reads `pacibsp ; mov x0, #0 ; retab` — this
+        /// patch's own output, from an earlier run over the same cache.
+        case alreadyShortCircuited
+    }
+
     /// The located function and the evidence that it is the right one.
     public struct Site: Sendable, Equatable {
         /// Address of the `pacibsp` that starts the function.
         public let functionVMA: UInt64
         /// Address of the ADRP that materialises the naming literal.
         public let anchorVMA: UInt64
-        /// Address of the `mov w<reg>, #0x8026` that seeds the failure code.
-        public let seedVMA: UInt64
-        /// The register the prologue seeds, which is the return value.
-        public let resultRegister: String
+        /// What the prologue looks like right now.
+        public let shape: Shape
+
+        /// Address of the `mov w<reg>, #0x8026` that seeds the failure code,
+        /// or `nil` once this patch has replaced the prologue.
+        public var seedVMA: UInt64? {
+            guard case let .seedsFailure(vma, _) = shape else { return nil }
+            return vma
+        }
+
+        /// The register the prologue seeds, which is the return value, or
+        /// `nil` once this patch has replaced the prologue.
+        public var resultRegister: String? {
+            guard case let .seedsFailure(_, register) = shape else { return nil }
+            return register
+        }
     }
 
     /// What a run did.
@@ -177,10 +210,13 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
     /// Self-gating: a cache whose `libmis` does not carry the naming literal
     /// reports ``Outcome/functionAbsent`` and changes nothing.
     ///
+    /// Idempotent: a cache this patch has already been run over reports
+    /// ``Outcome/alreadyPatched``, re-attests its page and changes nothing.
+    ///
     /// - Throws: ``PatcherError/patchSiteNotFound(_:)`` when the literal is
-    ///   present but the function around it no longer has the expected prologue.
-    ///   That is a MIS rewrite, and it has to stop the install rather than be
-    ///   guessed at.
+    ///   present but the function around it carries neither the seeding
+    ///   prologue nor this patch's own output. That is a MIS rewrite, and it
+    ///   has to stop the install rather than be guessed at.
     @discardableResult
     public static func patch(
         chunksDirectory: URL,
@@ -197,8 +233,13 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
         }
         log?("  [.] \(function) @ 0x\(hex(site.functionVMA)) in \(image)")
         log?("      [.] named by literal referenced at 0x\(hex(site.anchorVMA))")
-        log?("      [.] seeds \(site.resultRegister)=0x\(hex(UInt64(seededError))) "
-            + "at 0x\(hex(site.seedVMA))")
+        switch site.shape {
+        case let .seedsFailure(seedVMA, register):
+            log?("      [.] seeds \(register)=0x\(hex(UInt64(seededError))) "
+                + "at 0x\(hex(seedVMA))")
+        case .alreadyShortCircuited:
+            log?("      [.] prologue already reads `pacibsp ; mov x0, #0 ; retab`")
+        }
 
         let target = site.functionVMA + 4
         let patched = replacement
@@ -216,6 +257,9 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
         }
 
         guard !dryRun else {
+            guard !alreadyPatched else {
+                return Report(outcome: .alreadyPatched, site: site, record: nil)
+            }
             log?("  [.] dry-run: would re-attest page for 0x\(hex(target))")
             return Report(outcome: .wouldPatch, site: site, record: nil)
         }
@@ -294,19 +338,71 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
             )
         }
 
+        // This patch's own output first. On a cache where the seed survives the
+        // write both tests pass, and answering "already short-circuited" there
+        // keeps a second run's log saying the same thing as a second run's
+        // outcome. On a cache where the seed *was* the two words this patch
+        // overwrites, this is the only test that can still recognise the site.
+        let prologue = try decodePrologue(at: functionVMA, in: chunks)
+        if isShortCircuited(prologue) {
+            return Site(functionVMA: functionVMA, anchorVMA: anchorVMA, shape: .alreadyShortCircuited)
+        }
+
         guard let seed = try findSeededError(at: functionVMA, in: chunks) else {
             throw PatcherError.patchSiteNotFound(
-                "\(function): the prologue at 0x\(hex(functionVMA)) does not seed "
-                    + "0x\(hex(UInt64(seededError))) — MIS has been rewritten",
+                "\(function): the prologue at 0x\(hex(functionVMA)) neither seeds "
+                    + "0x\(hex(UInt64(seededError))) nor already reads "
+                    + "`pacibsp ; mov x0, #0 ; retab` — MIS has been rewritten",
             )
         }
 
         return Site(
             functionVMA: functionVMA,
             anchorVMA: anchorVMA,
-            seedVMA: seed.vma,
-            resultRegister: seed.register,
+            shape: .seedsFailure(seedVMA: seed.vma, resultRegister: seed.register),
         )
+    }
+
+    /// Decode the first few instructions at `functionVMA`.
+    ///
+    /// Three words is all ``isShortCircuited(_:)`` looks at; a fourth is read
+    /// so a truncated stream is visibly truncated rather than silently short.
+    static func decodePrologue(
+        at functionVMA: UInt64,
+        in chunks: DyldSharedCacheChunkSet,
+    ) throws -> [ARM64Instruction] {
+        let buffer = try chunks.readAtVMA(functionVMA, length: 16, allowShort: true)
+        return ARM64Disassembler().disassemble(buffer, at: functionVMA)
+    }
+
+    /// Whether `decoded` is the shape this patch leaves behind:
+    ///
+    ///     pacibsp
+    ///     mov  x0, #0
+    ///     retab
+    ///
+    /// Read off the decode, never off operand text: the `#0` is the `mov`'s
+    /// decoded immediate and `x0` its decoded destination register.
+    ///
+    /// A stock function cannot be mistaken for this. `pacibsp` signs LR before
+    /// the frame is built, so a function that then returns 0 without building
+    /// one has no body at all — and if some future `checkTrustAndAuthorization`
+    /// really did return 0 unconditionally, patching it would be a no-op
+    /// anyway, which is exactly what this reports.
+    static func isShortCircuited(_ decoded: [ARM64Instruction]) -> Bool {
+        guard decoded.count >= 3,
+              decoded[0].isDecoded, decoded[1].isDecoded, decoded[2].isDecoded,
+              decoded[0].mnemonic == "pacibsp",
+              decoded[2].mnemonic == "retab",
+              decoded[1].mnemonic == "mov",
+              let operands = decoded[1].detail?.operands,
+              operands.count == 2,
+              operands[0].type == .register,
+              operands[0].reg.name == "x0",
+              operands[1].type == .immediate,
+              operands[1].imm == 0
+        else { return false }
+        return true
     }
 
     /// The address of the `add` of the first ADRP+ADD pair in this image that
@@ -477,7 +573,8 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
             beforeDisasm: disassemblyText(of: original, at: target),
             afterDisasm: disassemblyText(of: patched, at: target),
             description: "Return 0 from \(function) in \(image) instead of seeding "
-                + "\(site.resultRegister)=0x\(hex(UInt64(seededError))), so a profile "
+                + "\(site.resultRegister ?? "the result register")"
+                + "=0x\(hex(UInt64(seededError))), so a profile "
                 + "needing online authorization is accepted without a device identity",
         )
     }

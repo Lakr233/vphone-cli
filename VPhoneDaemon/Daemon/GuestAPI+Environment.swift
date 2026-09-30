@@ -14,6 +14,7 @@ extension GuestAPI {
         "SystemHook-vphone.dylib",
         "libvcamcaptured.dylib",
         "libcamfix.dylib",
+        "libmisfix.dylib",
     ]
     static let environmentStaging = "/var/root/Library/Caches/vphone-environment"
 

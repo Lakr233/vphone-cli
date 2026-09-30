@@ -56,17 +56,17 @@ for preset in "$resources/patches_presets/"*.plist; do
 done
 
 for name in vphoned launchdhook-vphone.dylib SystemHook-vphone.dylib libcamfix.dylib \
-    libvcamcaptured.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
+    libvcamcaptured.dylib libmisfix.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     require_signed_macho "$guest/$name"
 done
-for name in vphoned.plist libcamfix.plist libvcamcaptured.plist; do
+for name in vphoned.plist libcamfix.plist libvcamcaptured.plist libmisfix.plist; do
     [[ -f "$guest/$name" ]] || { print -u2 "Missing guest configuration: $name"; exit 1; }
 done
 [[ ! -e "$guest/libvlocation.dylib" ]] || { print -u2 "Obsolete guest library: libvlocation.dylib"; exit 1; }
 
 for name in vphoned vphoned.signed vphone-app VPhoneAMFIAllow VPhoneEscalator vphone-archive icli vpregister \
     vphone-ask-for-permission libcamfix.dylib libvlocation.dylib libvcamcaptured.dylib launchdhook-vphone.dylib \
-    SystemHook-vphone.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
+    SystemHook-vphone.dylib libmisfix.dylib libAppleParavirtCompilerPluginIOGPUFamily.dylib; do
     [[ ! -e "$macos/$name" ]] || { print -u2 "Obsolete binary: Contents/MacOS/$name"; exit 1; }
 done
 for name in guest scripts; do

@@ -70,6 +70,8 @@ fi
 /bin/cp "$guest_products/camfix/libcamfix.plist" "$guest/libcamfix.plist"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.dylib" "$guest/libvcamcaptured.dylib"
 /bin/cp "$guest_products/vcamcaptured/libvcamcaptured.plist" "$guest/libvcamcaptured.plist"
+/bin/cp "$guest_products/misfix/libmisfix.dylib" "$guest/libmisfix.dylib"
+/bin/cp "$guest_products/misfix/libmisfix.plist" "$guest/libmisfix.plist"
 /bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" \
     "$guest/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
 

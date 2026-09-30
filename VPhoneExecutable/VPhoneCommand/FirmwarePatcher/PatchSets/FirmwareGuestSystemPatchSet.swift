@@ -109,6 +109,33 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
+                identifier: "installd.adhoc_signature",
+                title: "installd ad-hoc signatures",
+                summary: """
+                Lets Xcode install an app the guest would otherwise refuse. installd asks \
+                MobileIdentityService to validate a bundle without allowing an ad-hoc \
+                signature, so anything not signed with an Apple leaf fails at \
+                0xE8008014 even though the guest runs unsigned code perfectly well. A \
+                hook in /usr/lib/libmisfix.dylib, loaded into installd, sets the option \
+                MIS already understands. Nothing in the dyld shared cache is touched.
+                """,
+                target: .guestExecutable(path: "/usr/libexec/installd"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: "misagent.device_identity",
+                title: "misagent device identity",
+                summary: """
+                Lets a provisioning profile written for a device you already own install on \
+                this guest. misagent compares the profile's ProvisionedDevices against the \
+                UDID MobileGestalt reports, and a VM's UDID is in nobody's list, so a paid \
+                team's profile fails at 0xE8008012. The same hook, loaded into misagent, \
+                answers that one query with the UDID set in /usr/lib/libmisfix.plist. Off \
+                until a UDID is set there, and it does not change what Xcode or lockdown \
+                report.
+                """,
+                target: .guestExecutable(path: "/usr/libexec/misagent"),
+            ),
+            VPhonePatchDeclaration(
                 identifier: "guest.debugserver",
                 title: "debugserver",
                 summary: "Installs a debugserver that can attach in the guest.",

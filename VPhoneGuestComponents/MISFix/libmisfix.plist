@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  libmisfix's settings, installed beside the dylib at /usr/lib/libmisfix.plist.
+
+  Shipped empty. The hook's signature behaviour needs no configuration, and the
+  device-identity behaviour stays off until a UDID is set here.
+
+  UniqueDeviceID  A device already registered with your team, e.g.
+                  00008150-000815E014B8401C. misagent answers its MobileGestalt
+                  query with this instead of the guest's own UDID, so that
+                  team's provisioning profiles install on this VM without the
+                  VM being added to the account.
+
+                  Only processes carrying the hook see it. What Xcode,
+                  devicectl and lockdown report is unchanged and still the
+                  guest's own UDID — TXM builds that one from the device tree
+                  before the kernel runs. See
+                  Research/Guest/xcode_install_signature_gate.md.
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
