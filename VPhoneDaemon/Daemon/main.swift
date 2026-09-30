@@ -14,6 +14,9 @@ if mode != 1 {
 
 guard vp_native_watch_proxy() == 0 else { exit(1) }
 vp_vcam_start()
+// Multi-finger injection is resolved here so the first pinch is not the call
+// that pays for `dlopen`; a base without the symbols logs and stays a no-op.
+_ = vp_hid_load()
 GuestIrisinInstaller.refreshBootstrapOnStartup()
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)

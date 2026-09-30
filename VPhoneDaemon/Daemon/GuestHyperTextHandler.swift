@@ -236,6 +236,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         case (.POST, "/v1/bootstrap/uninstall"): "bootstrap.uninstall"
         case (.POST, "/v1/bootstrap/firmware"): "bootstrap.firmware"
         case (.POST, "/v1/input/touch"): "input.touch"
+        case (.POST, "/v1/input/touch2"): "input.touch2"
         case (.POST, "/v1/input/hid"): "input.hid"
         case (.GET, "/v1/location"): "location.current"
         case (.PUT, "/v1/location"): "location.set"

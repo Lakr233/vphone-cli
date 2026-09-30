@@ -20,6 +20,17 @@ extension VPhoneMenuController {
             modifiers: [.command, .shift],
             symbol: "house",
         ))
+        // iOS has no back key, so this item and the Esc key both replay the
+        // system back gesture. The key equivalent is here so the menu can show
+        // it; VPhoneApplication intercepts Esc before the menu is consulted,
+        // because AppKit's matching for a bare Esc missed presses.
+        menu.addItem(makeItem(
+            "Back",
+            action: #selector(sendBack),
+            keyEquivalent: "\u{1b}",
+            modifiers: [],
+            symbol: "arrow.uturn.backward",
+        ))
         menu.addItem(makeItem("Power", action: #selector(sendPower), symbol: "power"))
         menu.addItem(makeItem("Volume Up", action: #selector(sendVolumeUp), symbol: "speaker.plus"))
         menu.addItem(makeItem("Volume Down", action: #selector(sendVolumeDown), symbol: "speaker.minus"))
@@ -50,6 +61,16 @@ extension VPhoneMenuController {
         }
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeItem("Open Guest Spotlight", action: #selector(sendSpotlight), symbol: "magnifyingglass"))
+        // Trackpad scroll and pinch arrive as ordinary NSEvents; the view turns
+        // them into guest touches. Off hands both back to AppKit untouched.
+        let trackpadItem = makeItem(
+            "Trackpad Scroll & Pinch to Touch",
+            action: #selector(toggleTrackpadGestures),
+            symbol: "hand.draw",
+        )
+        trackpadItem.state = VPhoneTrackpadGestures.isEnabled ? .on : .off
+        trackpadGesturesItem = trackpadItem
+        menu.addItem(trackpadItem)
         let tidItem = makeItem("Touch ID Home Forwarding", action: #selector(toggleTouchIDForwarding))
         if hasTouchID {
             let tidEnabled = !UserDefaults.standard.bool(forKey: "touchIDForwardingDisabled")
@@ -71,6 +92,13 @@ extension VPhoneMenuController {
 
     @objc func sendHome() {
         keySender.sendHome()
+    }
+
+    /// iOS has no back key. Esc and this item both replay the system back
+    /// gesture instead of forwarding a keystroke the guest would only read as
+    /// "cancel" (or, in Safari, "stop loading").
+    @objc func sendBack() {
+        captureView?.performBackGesture()
     }
 
     @objc func sendPower() {
@@ -158,6 +186,15 @@ extension VPhoneMenuController {
             let next = current.turned(clockwise: clockwise)
             try? await control.rotate(toFirstOf: [next, next.turned(clockwise: clockwise)])
         }
+    }
+
+    /// Replays trackpad scroll and pinch inside the guest instead of letting
+    /// AppKit scroll the window. Persisted, so the choice survives relaunches.
+    @objc func toggleTrackpadGestures() {
+        let enabled = !VPhoneTrackpadGestures.isEnabled
+        VPhoneTrackpadGestures.isEnabled = enabled
+        trackpadGesturesItem?.state = enabled ? .on : .off
+        captureView?.trackpadGesturesEnabled = enabled
     }
 
     // MARK: - Restart

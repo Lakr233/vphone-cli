@@ -15,6 +15,17 @@ int vp_native_run_proxy(void);
 int vp_native_watch_proxy(void);
 void vp_vcam_start(void);
 
+/// Load the IOKit digitizer symbols used for multi-finger injection. Idempotent,
+/// safe to call more than once; returns false (injection then stays a no-op)
+/// on bases that do not expose the private symbols.
+bool vp_hid_load(void);
+
+/// Inject one two-finger digitizer event, the shape a trackpad pinch needs.
+/// Phase is 0 = down, 1 = move, 3 = up; coordinates are normalized 0..1 with
+/// the origin at the top-left. Neither icli's `input.touch` nor its
+/// `touchSequence` can carry two fingers at once, which is why this exists.
+void vp_hid_touch2(int phase, double x1, double y1, double x2, double y2);
+
 typedef struct {
     int32_t pid;
     int32_t ppid;
