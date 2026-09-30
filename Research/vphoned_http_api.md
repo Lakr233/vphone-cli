@@ -87,6 +87,12 @@ notch and cutout drawn by the host VM window.
 `apps.install` accepts IPA and TIPA archives. IcliKit 0.6.8 validates and
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.
+The synchronous install call uses a thread-local UTF-8 `LC_CTYPE`, restoring
+the worker's previous locale on success or error. This preserves Unicode ZIP
+pathnames without changing other concurrent requests or the archive's bytes;
+IcliKit's warning, integrity, and path-safety checks still apply. The host-side
+regression harness is `zsh VPhoneDaemon/Tests/ArchiveLocaleTests.sh`, run after
+building the workspace so it can use the pinned Icli and libarchive sources.
 `apps.uninstall` delegates removal to IcliKit and requires `force=true`.
 `POST /v1/bootstrap/install` (or RPC method `bootstrap.install`) accepts
 `{"layout":"rootless"}` or `{"layout":"roothide"}` and installs the latest

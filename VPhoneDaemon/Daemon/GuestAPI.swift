@@ -219,8 +219,10 @@ enum GuestAPI {
                     try? FileManager.default.removeItem(atPath: certificate)
                 }
             }
-            var result = try installIPAInContainer(path, registration: registration) { app in
-                try signAppForInstall(app, certificate: certificate)
+            var result = try GuestArchiveLocale.withUTF8 {
+                try installIPAInContainer(path, registration: registration) { app in
+                    try signAppForInstall(app, certificate: certificate)
+                }
             }
             let id = result["bundle_id"] as? String ?? "app"
             result["msg"] = "Installed \(id) as a \(registration.rawValue) app."

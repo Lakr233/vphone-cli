@@ -60,3 +60,6 @@ jobs:
         run: |
           make -C VPhoneGuestComponents test-loader-links
           make -C VPhoneGuestComponents test-vcam-dataplane
+
+      - name: Guest IPA locale tests
+        run: zsh VPhoneDaemon/Tests/ArchiveLocaleTests.sh
