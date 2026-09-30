@@ -33,6 +33,11 @@ struct VPhoneLaunchpadMachinesView: View {
     @State private var filter = ""
     /// Empty keeps the order `vm list` returns; a header click replaces it.
     @State private var sortOrder: [KeyPathComparator<VPhoneLaunchpadMachine>] = []
+    /// The table appears only once `vm list` returns, after the window has
+    /// picked its first responder, so nothing focuses it by itself. Unfocused,
+    /// AppKit draws the library's automatic selection in gray, not in the
+    /// accent color.
+    @FocusState private var tableIsFocused: Bool
 
     private var library: VPhoneLaunchpadMachineLibrary {
         model.machines
@@ -352,6 +357,14 @@ struct VPhoneLaunchpadMachinesView: View {
             machineActions(library.machines.filter { paths.contains($0.path) })
         } primaryAction: { paths in
             start(library.machines.filter { paths.contains($0.path) && library.state(of: $0.path) == .stopped })
+        }
+        .focused($tableIsFocused)
+        .onAppear {
+            // The table comes back when a search matches again; the search
+            // field keeps the keyboard then.
+            if !(NSApp.keyWindow?.firstResponder is NSText) {
+                tableIsFocused = true
+            }
         }
     }
 
