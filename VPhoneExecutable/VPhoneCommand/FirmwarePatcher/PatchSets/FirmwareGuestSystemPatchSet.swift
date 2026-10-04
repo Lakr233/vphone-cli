@@ -178,6 +178,104 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .guestFile(path: "/Library/LaunchDaemons"),
                 bootEssential: true,
             ),
+            // MARK: Audio
+
+            VPhonePatchDeclaration(
+                identifier: virtioSoundDriver,
+                title: "Virtual sound driver",
+                summary: """
+                Installs the CoreAudio HAL plugin that plays the guest's audio through the VM's \
+                virtio sound device. iOS ships the kernel driver but not this half, so without \
+                it nothing reaches the Mac's speakers.
+                """,
+                target: .guestFile(path: "/System/Library/Audio/Plug-Ins/HAL/VPhoneVirtIOSound.driver"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: virtualAudioSpeakerRouteThrows,
+                title: "VirtualAudio speaker-route throws",
+                summary: """
+                Turns VirtualAudio's \"No default VAD present\" exception into a quiet return. \
+                Applying a speaker route with no default VAD throws through an AudioServerPlugIn \
+                callback, which cannot propagate it: audiomxd aborts, and the saved route state \
+                replays the same throw into every launch. The speaker route the virtio plugin \
+                publishes is what makes the walk reach that throw, so the two patches go together.
+                """,
+                target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: virtualAudioMuteSetThrow,
+                title: "VirtualAudio mute-set throw",
+                summary: """
+                Turns the CAException VirtualAudio throws when the HAL server refuses its \
+                device-level mute set into a quiet return. iOS's HAL never forwards that \
+                selector to a plugin device, and RoutingManager catches the throw by \
+                abandoning the route — the aggregate is left on Null_Device and the guest \
+                is silent. With the throw quieted, the route survives on the virtio device.
+                """,
+                target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: virtualAudioSpeakerProtectionGate,
+                title: "VirtualAudio speaker-protection gate",
+                summary: """
+                Stops the ringtone route handler from declining its own finished route for lack \
+                of HAL Speaker Protection — a capability only a physical codec reports, whose \
+                query never leaves VirtualAudio. The decline leaves the vdef playing into \
+                Null_Device, silent with the volume dead; with the gate opened, the route keeps \
+                the virtio device it already built. The handler for routes that play and record \
+                has the same gate, and declines every recording app's route; it is opened too.
+                """,
+                target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: virtualAudioVolumeModePrecondition,
+                title: "VirtualAudio volume-mode precondition",
+                summary: """
+                One step after the speaker-protection gate, the same handler declines the \
+                finished route because its software-volume mode is not the kHardwareOnlyReadOnly \
+                the routing database demands — a mismatch every virtio-plugin device carries, \
+                since the mode a VM's device reports is SoftwareHardwareMix. The decline throws \
+                past the route's own teardown, leaving the session on Null_Device: silent, \
+                volume dead. With the precondition opened, the route keeps the virtio aggregate \
+                it already built.
+                """,
+                target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: virtualAudioGraphConfigurations,
+                title: "VirtualAudio speaker graph chains",
+                summary: """
+                Moves every speaker_* entry in the tuning set's graph_configurations.plist from the \
+                `clhs` HAL SpeakerProtection chain to the `dflt` generic graph chain the mic \
+                configurations use. The HAL chain's construction looks a physical "Speaker" device \
+                up in the device registry and throws when a VM has none, which is what still kills \
+                every speaker route once the route walk itself survives.
+                """,
+                target: .guestFile(path: "/Library/Audio/Tunings"),
+            ),
+            VPhonePatchDeclaration(
+                identifier: prebootBoardAudio,
+                title: "iPad audio configuration",
+                summary: """
+                Gives an iPad guest's restored Preboot device tree the iPad's own audio node, as \
+                fw patch now does. Earlier trees kept the iPhone's, whose acoustic ID names tunings \
+                an iPad image does not ship, so iOS's audio routing failed to start. Needs the \
+                iPad's device tree in the VM's FirmwareOriginals.
+                """,
+                target: .prebootDeviceTree,
+            ),
+            VPhonePatchDeclaration(
+                identifier: prebootHaptics,
+                title: "Haptics node",
+                summary: """
+                Removes the haptics node from a guest's restored Preboot device tree, iPhone or \
+                iPad, as fw patch now does. With it iOS believes the guest has a Taptic Engine, \
+                plays every tone with its haptic track, and drops the tone when the haptic engine \
+                a VM does not have fails to start.
+                """,
+                target: .prebootDeviceTree,
+            ),
+
             VPhonePatchDeclaration(
                 identifier: "system-systemversion-cfw-build_version",
                 title: "Reported build version",
@@ -192,6 +290,43 @@ public enum FirmwareGuestSystemPatchSet {
         requires: ["vphone.kernel.base"],
         provides: ["vphone.guest.system"],
     )
+
+    /// The virtio sound HAL plugin, installed by `cfw install` and by the
+    /// environment update.
+    public static let virtioSoundDriver = "system-virtiosound-cfw-hal_plugin"
+
+    /// The no-default-VAD throw VirtualAudio must survive when the virtio
+    /// plugin publishes the guest's speaker route.
+    public static let virtualAudioSpeakerRouteThrows = "system-virtualaudio-cfw-speaker_route_throws"
+
+    /// The mute-set CAException that makes VirtualAudio abandon the speaker
+    /// route when the HAL server refuses the device-level unmute.
+    public static let virtualAudioMuteSetThrow = "system-virtualaudio-cfw-mute_set_throw"
+
+    /// The branch that declines a finished route for lack of HAL Speaker
+    /// Protection, opened so the ringtone route keeps the virtio device it
+    /// already built instead of falling back to Null_Device, and so a route
+    /// that also records is not refused.
+    public static let virtualAudioSpeakerProtectionGate = "system-virtualaudio-cfw-speaker_protection_gate"
+
+    /// The precondition that declines a finished route whose software-volume
+    /// mode is not the kHardwareOnlyReadOnly the routing database demands,
+    /// opened one step after the speaker-protection gate so the route keeps
+    /// the virtio aggregate it already built.
+    public static let virtualAudioVolumeModePrecondition = "system-virtualaudio-cfw-volume_mode_precondition"
+
+    /// The speaker chains in graph_configurations.plist, moved onto the
+    /// generic graph path so the DSP chain factory never needs the physical
+    /// Speaker device a VM does not have.
+    public static let virtualAudioGraphConfigurations = "system-virtualaudio-cfw-speaker_graph_chains"
+
+    /// The iPad audio node repair in the restored Preboot device tree, for an
+    /// iPad VM patched before `fw patch` copied the board's node.
+    public static let prebootBoardAudio = "preboot-cfw-devicetree_board_audio"
+
+    /// The haptics node removal in the restored Preboot device tree, for any
+    /// VM patched before `fw patch` removed it from every guest's tree.
+    public static let prebootHaptics = "preboot-cfw-devicetree_haptics"
 
     /// The preset parameter `system-systemversion-cfw-build_version` reads.
     public static let buildVersionParameter = "BuildVersion"

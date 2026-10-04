@@ -319,6 +319,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
     /// `identityPropertyPatches` + `experimentalNodeAdditions` when
     /// `includeIdentityPatches` is true (the `.exp` firmware variant) —
     /// other variants leave the device's identity properties untouched.
+    /// `/product/haptics` is removed from every tree, whatever the variant.
     private func applyPatches(root: DTNode) throws {
         var patchesToApply = Self.basePropertyPatches
         if includeIdentityPatches {
@@ -384,6 +385,9 @@ public final class DeviceTreePatcher: BufferedPatcher {
         if presentsGuest {
             try applyGuestEdits(root: root)
         }
+
+        // Every guest, every tree: no VM has the haptics the node promises.
+        applyHapticsRemoval(root: root)
     }
 
     /// Property patches that describe the virtual board rather than a phone,

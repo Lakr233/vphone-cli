@@ -299,6 +299,16 @@ and whenever the settings change. SpringBoard reads the key when it starts, so
 a newly written one holds from the next boot or respring. Measurements:
 `Research/Guest/lock_screen_idle_timer.md`.
 
+`/v1/health` also carries `mobilegestalt_restart_pending`. At startup vphoned
+removes libMobileGestalt's cache,
+`/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches/com.apple.MobileGestalt.plist`,
+when it is older than the Preboot `devicetree.img4` the guest booted: its
+answers were worked out from an older tree
+(`VPhoneDaemon/Daemon/GuestMobileGestaltCache.swift`). Running processes keep
+the answers they read, so the field is true from that removal until the guest
+restarts, also across a vphoned restart in the same boot; vphoned does not
+restart the guest itself. See `Research/Guest/virtio_sound.md` §7.
+
 `screen.unlock` reads the lock state, then turns the display on with
 `SBSUndimScreen` (no toggle, unlike a power press) and presses Home to dismiss
 the Lock Screen: a passcode-free guest goes to the Home Screen, a guest with a

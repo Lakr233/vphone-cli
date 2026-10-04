@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AudioServerPlugIn_IOKitUserClients</key>
+	<array>
+		<string>AppleVirtIOSoundUserClient</string>
+	</array>
+	<key>AudioServerPlugIn_LoadingConditions</key>
+	<dict>
+		<key>IOService Matching</key>
+		<array>
+			<dict>
+				<key>IOProviderClass</key>
+				<string>AppleVirtIOSound</string>
+			</dict>
+		</array>
+	</dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>VPhoneVirtIOSound</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.vphone.audio.VirtIOSound</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>VPhoneVirtIOSound</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>iPhoneOS</string>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFPlugInFactories</key>
+	<dict>
+		<key>A5F451C6-A051-4EEE-A0E7-FF65407CDB43</key>
+		<string>VPVirtIOSoundFactory</string>
+	</dict>
+	<key>CFPlugInTypes</key>
+	<dict>
+		<key>443ABAB8-E7B3-491A-B985-BEB9187030DB</key>
+		<array>
+			<string>A5F451C6-A051-4EEE-A0E7-FF65407CDB43</string>
+		</array>
+	</dict>
+	<key>MinimumOSVersion</key>
+	<string>26.0</string>
+</dict>
+</plist>

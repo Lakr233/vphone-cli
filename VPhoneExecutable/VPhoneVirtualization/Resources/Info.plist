@@ -12,5 +12,7 @@
 	<string>27</string>
 	<key>CFBundleShortVersionString</key>
 	<string>2.4.0</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Shares this Mac's microphone with the virtual iPhone so apps running inside it can record.</string>
 </dict>
 </plist>

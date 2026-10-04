@@ -76,6 +76,9 @@ fi
 /bin/cp "$guest_products/hapticsfix/libhapticsfix.dylib" "$guest/libhapticsfix.dylib"
 /bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" \
     "$guest/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+# The HAL plugin is a bundle, signed whole by the Makefile; copied as a tree so
+# its _CodeSignature still matches.
+/bin/cp -R "$guest_products/virtiosound/VPhoneVirtIOSound.driver" "$guest/VPhoneVirtIOSound.driver"
 
 # The commit this bundle was built from, shown in vphone-vm's app menu next to
 # CFBundleShortVersionString and CFBundleVersion. A tree with uncommitted
@@ -100,6 +103,10 @@ fi
 "${0:a:h}/SyncStrings.sh"
 /usr/bin/xcrun xcstringstool compile \
     "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Localizable.xcstrings" \
+    --output-directory "$resources"
+# The microphone prompt names this bundle, and reads its text from here.
+/usr/bin/xcrun xcstringstool compile \
+    "$root/VPhoneExecutable/VPhoneVirtualization/Resources/InfoPlist.xcstrings" \
     --output-directory "$resources"
 
 # locationd ignores a client inside a generic bundle, so vphone-vm reads the

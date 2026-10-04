@@ -79,6 +79,7 @@ enum GuestAPI {
             "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
             "ip": ip ?? "",
             "setup_pending": setupAssistantPending(),
+            "mobilegestalt_restart_pending": GuestMobileGestaltCache.restartPending(),
             "capabilities": [
                 "touch",
                 "touch2",

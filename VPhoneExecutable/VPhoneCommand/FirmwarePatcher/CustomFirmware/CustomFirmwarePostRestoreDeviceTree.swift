@@ -73,13 +73,57 @@ public enum CustomFirmwarePostRestoreDeviceTree {
         dryRun: Bool = false,
         verbose: Bool = true,
     ) throws -> Outcome {
-        let data: Data
-        do {
-            data = try Data(contentsOfFileToRewrite: url)
-        } catch {
-            throw PatcherError.fileNotFound(url.path)
+        // Every identity rewrite lands in the property's existing slot.
+        try rewrite(at: url, dryRun: dryRun, verbose: verbose) { blob in
+            let (newBlob, changes) = try patchedDeviceTree(blob)
+            return (newBlob, changes, blob.count)
         }
+    }
 
+    /// Give an iPad guest's `devicetree.img4` (or bare `.im4p`) the audio node
+    /// of the iPad's own tree at `boardURL`, in place. See
+    /// `DeviceTreePatcher.presentBoardAudio`.
+    @discardableResult
+    public static func presentBoardAudio(
+        at url: URL,
+        board boardURL: URL,
+        dryRun: Bool = false,
+        verbose: Bool = true,
+    ) throws -> Outcome {
+        let boardData: Data
+        do {
+            boardData = try Data(contentsOf: boardURL)
+        } catch {
+            throw PatcherError.fileNotFound(boardURL.path)
+        }
+        let board = try openDeviceTree(boardData, path: boardURL.path).blob
+        return try rewrite(at: url, dryRun: dryRun, verbose: verbose) { blob in
+            let (newBlob, changes, delta) = try withBoardAudio(blob, board: board)
+            return (newBlob, changes, blob.count + delta)
+        }
+    }
+
+    /// Remove `/product/haptics` from a guest's `devicetree.img4` (or bare
+    /// `.im4p`), in place. See `DeviceTreePatcher.removeHaptics(from:)`.
+    @discardableResult
+    public static func removeHaptics(
+        at url: URL,
+        dryRun: Bool = false,
+        verbose: Bool = true,
+    ) throws -> Outcome {
+        try rewrite(at: url, dryRun: dryRun, verbose: verbose) { blob in
+            let (newBlob, changes, delta) = try withoutHaptics(blob)
+            return (newBlob, changes, blob.count + delta)
+        }
+    }
+
+    /// The container, payload and flat tree of a device tree file. Refuses a
+    /// payload that is not a device tree, is encrypted, or came back still
+    /// compressed.
+    private static func openDeviceTree(
+        _ data: Data,
+        path: String,
+    ) throws -> (container: Container, im4p: IM4P, compression: PayloadCompression, blob: Data) {
         let container = try Container(data)
         let im4p = try IM4P(container.im4pBytes)
         guard im4p.fourcc == "dtre" else {
@@ -88,16 +132,9 @@ public enum CustomFirmwarePostRestoreDeviceTree {
             )
         }
         guard !im4p.isEncrypted else {
-            throw PatcherError.invalidFormat("DT payload is encrypted (KBAG present): \(url.path)")
+            throw PatcherError.invalidFormat("DT payload is encrypted (KBAG present): \(path)")
         }
-
         let compression = try container.payloadCompression()
-        let kind = container.isIMG4 ? "IMG4" : "IM4P"
-        if verbose {
-            print("  [.] \(url.path): \(kind)  desc='\(im4p.description)'  "
-                + "payload_compression=\(compression.rawValue)")
-        }
-
         let blob = try im4p.payload()
         // Img4tool finds the uncompressed size in the IM4P's compression-info
         // element rather than in the bvx2 stream, so a container that carries
@@ -108,11 +145,35 @@ public enum CustomFirmwarePostRestoreDeviceTree {
                 "IM4P payload is \(compression) but did not decompress — no compression-info element?",
             )
         }
+        return (container, im4p, compression, blob)
+    }
+
+    /// Open the container, apply `transform` to the flat device tree, and
+    /// write the container back with its compression, manifest and restore
+    /// info when anything changed. `transform` also returns the size its
+    /// output must have, which is checked: a mismatch means the parser and the
+    /// serializer have drifted apart.
+    private static func rewrite(
+        at url: URL,
+        dryRun: Bool,
+        verbose: Bool,
+        transform: (Data) throws -> (Data, [Change], Int),
+    ) throws -> Outcome {
+        let data: Data
+        do {
+            data = try Data(contentsOfFileToRewrite: url)
+        } catch {
+            throw PatcherError.fileNotFound(url.path)
+        }
+
+        let (container, im4p, compression, blob) = try openDeviceTree(data, path: url.path)
         if verbose {
+            print("  [.] \(url.path): \(container.isIMG4 ? "IMG4" : "IM4P")  desc='\(im4p.description)'  "
+                + "payload_compression=\(compression.rawValue)")
             print("  [.] DT blob: \(blob.count) bytes")
         }
 
-        let (newBlob, changes) = try patchedDeviceTree(blob)
+        let (newBlob, changes, expectedSize) = try transform(blob)
         guard !changes.isEmpty else {
             if verbose {
                 print("  [.] \(url.path): DT already in target state — no change")
@@ -124,13 +185,9 @@ public enum CustomFirmwarePostRestoreDeviceTree {
                 print("  [+] \(change.property): '\(change.before)' -> '\(change.after)'")
             }
         }
-        // Every patch writes into the property's existing slot, so a size
-        // change means the parser and the serializer have drifted apart —
-        // and an IM4P whose payload no longer matches its recorded
-        // uncompressed size will not load.
-        guard newBlob.count == blob.count else {
+        guard newBlob.count == expectedSize else {
             throw PatcherError.patchVerificationFailed(
-                "DT size changed: \(blob.count) -> \(newBlob.count) bytes (would break IM4P offsets)",
+                "DT is \(newBlob.count) bytes, expected \(expectedSize) (was \(blob.count)): parser and serializer disagree",
             )
         }
 
@@ -165,12 +222,7 @@ public enum CustomFirmwarePostRestoreDeviceTree {
     /// Returns the blob unchanged and no changes when it is already in the
     /// target state.
     public static func patchedDeviceTree(_ blob: Data) throws -> (Data, [Change]) {
-        let (root, end) = try parseNode(blob, at: 0)
-        guard end == blob.count else {
-            throw PatcherError.invalidFormat(
-                "DT parse length mismatch: ended at \(end), blob is \(blob.count)",
-            )
-        }
+        let root = try parseTree(blob, label: "DT")
         guard nodeName(root) == "device-tree" else {
             throw PatcherError.invalidFormat(
                 "expected root node 'device-tree', got '\(nodeName(root))'",
@@ -222,6 +274,58 @@ public enum CustomFirmwarePostRestoreDeviceTree {
 
         guard !changes.isEmpty else { return (blob, []) }
         return (serializeNode(root), changes)
+    }
+
+    /// `blob` with `/product/audio` taken from the board's flat tree `board`,
+    /// through `DeviceTreePatcher.presentBoardAudio`, which fw patch uses for
+    /// a new iPad guest. Returns the size change with the changes, so the caller
+    /// can check the serialized size: the node's old bytes out, its new bytes in.
+    /// A tree that already matches, or a board with no audio node, comes back
+    /// unchanged.
+    public static func withBoardAudio(_ blob: Data, board: Data) throws -> (Data, [Change], Int) {
+        func acousticID(_ node: Data) -> String {
+            guard let (audio, _) = try? parseNode(node, at: 0),
+                  let id = audio.properties.first(where: { $0.name == "acoustic-id" }),
+                  id.length == 4
+            else { return "none" }
+            return String(id.value.loadLE(UInt32.self, at: 0))
+        }
+        let root = try parseTree(blob, label: "DT")
+        let source = try parseTree(board, label: "board DT")
+        guard let change = DeviceTreePatcher.presentBoardAudio(in: root, from: source) else {
+            return (blob, [], 0)
+        }
+        let record = Change(
+            property: "product/audio",
+            before: "acoustic-id \(acousticID(change.before))",
+            after: "acoustic-id \(acousticID(change.after)), \(change.after.count)B",
+        )
+        return (serializeNode(root), [record], change.after.count - change.before.count)
+    }
+
+    /// `blob` without `/product/haptics`, through
+    /// `DeviceTreePatcher.removeHaptics(from:)`, which fw patch uses for every
+    /// new guest. Returns the size change with the changes, as `withBoardAudio`
+    /// does: the node's bytes out. A tree with no haptics node comes back
+    /// unchanged.
+    public static func withoutHaptics(_ blob: Data) throws -> (Data, [Change], Int) {
+        let root = try parseTree(blob, label: "DT")
+        guard let removed = DeviceTreePatcher.removeHaptics(from: root) else {
+            return (blob, [], 0)
+        }
+        let record = Change(property: "product/haptics", before: "present, \(removed.count)B", after: "absent")
+        return (serializeNode(root), [record], -removed.count)
+    }
+
+    /// The root of a flat tree that must fill `blob` exactly.
+    private static func parseTree(_ blob: Data, label: String) throws -> DeviceTreePatcher.DTNode {
+        let (root, end) = try parseNode(blob, at: 0)
+        guard end == blob.count else {
+            throw PatcherError.invalidFormat(
+                "\(label) parse length mismatch: ended at \(end), blob is \(blob.count)",
+            )
+        }
+        return root
     }
 
     // MARK: - Flat device tree format

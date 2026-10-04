@@ -177,7 +177,43 @@
           }
         }
       }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shares this Mac's microphone with the virtual iPhone so apps running inside it can record."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac のマイクを仮想 iPhone と共有し、その中のアプリで録音できるようにします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가상 iPhone과 이 Mac의 마이크를 공유하여 그 안에서 실행되는 앱이 녹음할 수 있도록 합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chia sẻ micrô của máy Mac này với iPhone ảo để các ứng dụng bên trong có thể ghi âm."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将这台 Mac 的麦克风共享给虚拟 iPhone，使其中运行的应用能够录音。"
+          }
+        }
+      }
     }
+
   },
   "version" : "1.3"
 }

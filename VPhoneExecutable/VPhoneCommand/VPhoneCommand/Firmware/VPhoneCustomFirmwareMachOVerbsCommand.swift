@@ -302,7 +302,211 @@ struct VPhoneCustomFirmwarePatchDiskimagesiodCommand: ParsableCommand {
     }
 }
 
-// MARK: - Registration
+// MARK: - patch-virtualaudio-mute
+
+struct VPhoneCustomFirmwarePatchVirtualAudioMuteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-virtualaudio-mute",
+        abstract: "Keep VirtualAudio's mute-set CAException from abandoning the speaker route",
+        discussion: """
+        Establishing a speaker route asks the HAL device itself to unmute;
+        iOS's HAL server rejects a device-level mute on a plugin device with
+        'what' without ever forwarding the selector to the driver, and
+        VirtualAudio's set wrapper answers the failure by throwing a
+        CAException out of the callback. RoutingManager catches it and
+        abandons the route — the aggregate is left on Null_Device and the
+        guest is silent, the missing boot charge chime included.
+
+        The throw block's first instruction — the `mov w0, #<size>` sizing
+        the exception — is replaced with a branch to the wrapper's own
+        epilogue, so the failed set logs its diagnostics and returns; the
+        callers ignore the return value and the route proceeds. Anchored on
+        the mute-set log string, with the site discriminated by the
+        "Unable to set property data." EXCEPTION log directly above the
+        throw — iOS 27's wrapper holds a second, unrelated CAException that
+        the window rules out. The epilogue is the wrapper's single `retab`
+        walked back to its entry. No address is literal.
+
+        Idempotent: a site already holding the branch is reported and left
+        alone, byte for byte.
+        """,
+    )
+
+    @Argument(help: "Path to the VirtualAudio plugin Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the site and write nothing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        // reattest: false — the caller re-signs.
+        try CustomFirmwareVirtualAudio.patchMuteSet(
+            fileAt: binary,
+            reattest: false,
+            dryRun: dryRun,
+            log: machOVerbLog,
+        )
+    }
+}
+
+// MARK: - patch-virtualaudio-sp-gate
+
+struct VPhoneCustomFirmwarePatchVirtualAudioSPGateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-virtualaudio-sp-gate",
+        abstract: "Keep VirtualAudio's speaker-protection gate from declining a finished route",
+        discussion: """
+        With the speaker-route throws quieted, the ringtone ('crnp') route
+        change still builds its whole route — virtual stream, DSP chain,
+        format match — and then declines it at the last step, because the
+        route's device list calls for HAL Speaker Protection, a capability
+        only a physical codec reports and whose query never leaves
+        VirtualAudio. The decline drops the vdef's output stream onto
+        Null_Device: every "playing" signature is genuine and nothing is
+        audible, volume included.
+
+        The gate's branch is left alone; what changes is the log block it
+        jumps to, whose opening instruction — the `mov w0, #<size>` sizing
+        the os_log — becomes a branch back to the gate's own fall-through,
+        so a taken gate lands on the success path the handler already built.
+        That path never reads the verdict the gate tested, on either
+        supported build, and the block is reached only by the gate's jump —
+        the instruction above it is an unconditional branch, checked before
+        anything is written. The site is anchored on the decline's log
+        format and named by the handler's own source file: the same message
+        serves three routing handlers, ours among them by that file string
+        alone. No address is literal.
+
+        The handler for routes that play and record ('cpar', what a
+        recording app asks for) holds the same gate in the same shape and
+        declines the same way once the guest has a microphone port, so it
+        is opened too, as a second site of the same patch.
+
+        Idempotent: a site already holding the branch is reported and left
+        alone, byte for byte.
+        """,
+    )
+
+    @Argument(help: "Path to the VirtualAudio plugin Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the site and write nothing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        // reattest: false — the caller re-signs.
+        for handler in CustomFirmwareVirtualAudio.SPGateHandler.allCases {
+            try CustomFirmwareVirtualAudio.patchSpeakerProtectionGate(
+                fileAt: binary,
+                handler: handler,
+                reattest: false,
+                dryRun: dryRun,
+                log: machOVerbLog,
+            )
+        }
+    }
+}
+
+// MARK: - patch-virtualaudio-volume-gate
+
+struct VPhoneCustomFirmwarePatchVirtualAudioVolumeGateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-virtualaudio-volume-gate",
+        abstract: "Keep VirtualAudio's volume-mode precondition from declining a finished route",
+        discussion: """
+        One step after the speaker-protection gate, the same route handler
+        demands the route's software-volume mode be the packed (present,
+        kHardwareOnlyReadOnly) pair its routing database calls for. A device
+        whose software volume runs any other mode — the virtio plugin's
+        reports SoftwareHardwareMix — fails the test, and the handler throws
+        a std::logic_error that unwinds into RoutingManager: the route is
+        failed and the session torn down onto Null_Device, silent with the
+        volume dead, after its DSP chain, virtual stream and IOProc were
+        already built on the virtio aggregate.
+
+        The comparison is left alone; what changes is the decline's log
+        block, whose opening instruction — the `mov w0, #<size>` sizing the
+        os_log — becomes a branch back to the comparison's own fall-through,
+        so a failed precondition lands on the success path the handler
+        already built. That path never reads the value the comparison
+        tested, on either supported build, and the block is reached only by
+        the comparison's jump — the instruction above it is an
+        unconditional branch, checked before anything is written. The site
+        is anchored on the handler its speaker-protection sibling targets,
+        and picked out among the handler's three PRECONDITION FAILURE
+        declines by the comparison itself: the only one that masks a
+        lookup's return with the 33-bit volume-mode packing mask and
+        compares it against the expected pair. No address is literal.
+
+        Idempotent: a site already holding the branch is reported and left
+        alone, byte for byte.
+        """,
+    )
+
+    @Argument(help: "Path to the VirtualAudio plugin Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the site and write nothing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        // reattest: false — the caller re-signs.
+        try CustomFirmwareVirtualAudio.patchVolumeModePrecondition(
+            fileAt: binary,
+            reattest: false,
+            dryRun: dryRun,
+            log: machOVerbLog,
+        )
+    }
+}
+
+// MARK: - patch-virtualaudio
+
+struct VPhoneCustomFirmwarePatchVirtualAudioCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-virtualaudio",
+        abstract: "Keep VirtualAudio's \"No default VAD present\" exception from aborting audiomxd",
+        discussion: """
+        VirtualAudio answers a missing default VAD while applying a speaker
+        route with a C++ exception, from inside an AudioServerPlugIn property
+        callback — a C boundary the exception cannot cross, so audiomxd
+        terminates. With the virtio sound device publishing the guest's only
+        speaker port, every serialized route push lands on that throw, and the
+        saved state replays it into every launch: a crash loop.
+
+        The throw block's first instruction — the `mov w0, #<size>` sizing the
+        exception — is replaced with a branch to the function's own epilogue,
+        so a missing default VAD applies nothing and returns. The site is
+        anchored on the exception's message string, referenced by both the
+        diagnostic log and the runtime_error constructor; the epilogue is
+        located and shape-checked as the stack-guarded pop run after the
+        throw. No address is literal.
+
+        Idempotent: a site already holding the branch is reported and left
+        alone, byte for byte.
+        """,
+    )
+
+    @Argument(help: "Path to the VirtualAudio plugin Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the site and write nothing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        // reattest: false — the caller re-signs.
+        try CustomFirmwareVirtualAudio.patch(
+            fileAt: binary,
+            reattest: false,
+            dryRun: dryRun,
+            log: machOVerbLog,
+        )
+    }
+}
 
 enum VPhoneCustomFirmwareMachOVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
@@ -317,6 +521,10 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
+            VPhoneCustomFirmwarePatchVirtualAudioCommand.self,
+            VPhoneCustomFirmwarePatchVirtualAudioMuteCommand.self,
+            VPhoneCustomFirmwarePatchVirtualAudioSPGateCommand.self,
+            VPhoneCustomFirmwarePatchVirtualAudioVolumeGateCommand.self,
         ]
     }
 }

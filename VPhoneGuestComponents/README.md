@@ -13,6 +13,7 @@ tweak filter plists, and the GPU provenance note:
 | Process injection bridge | `systemhook/SystemHook-vphone.dylib` |
 | iOS 27 app registrar | `vpregister/vpregister` |
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
+| Virtio sound HAL plugin | `virtiosound/VPhoneVirtIOSound.driver` |
 
 The archive is a local build artifact, not a VM bootstrap. `cfw install` places
 the launchd hook, SystemHook, and camera hooks in `/usr/lib`, and the
@@ -39,3 +40,10 @@ Apple GPU binary is stored in this directory, the archive, or the shipped app.
 
 See `Research/Guest/virtual_camera_transport.md` for the camera transport
 validation and the hook installation prerequisites.
+
+The virtio sound plugin is the CoreAudio half of the VM's virtio-snd device,
+which iOS ships no driver for. audiomxd loads it when the kernel publishes
+`AppleVirtIOSound`, and it publishes a speaker and a microphone device.
+`make test-virtiosound` checks its format choice, its rings and how captured
+frames are served, on the host. See `Research/Guest/virtio_sound.md` and
+`Research/Guest/virtio_sound_microphone.md`.

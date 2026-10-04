@@ -19,7 +19,7 @@
 > three `hv_vmm_present` concealment patches, and the iPhone17,3 identity rewrites;
 > `extended` blocks nothing.
 >
-> **iPad guests (2026-10-01; every current iPad 2026-10-02):** four DeviceTree
+> **iPad guests (2026-10-01; every current iPad 2026-10-02):** five DeviceTree
 > patches, on in `standard`, exist only for a VM whose userland comes from an
 > iPad restore IPSW (iPad mini A17 Pro, iPad A16, iPad Air M3 11/13, iPad Pro
 > M4 and M5 11/13 — see `VPhoneGuestDevice.known`). Since 2026-10-02 their
@@ -27,8 +27,13 @@
 > `DeviceTree.<board>.im4p` in the restore tree rather than a table, so an
 > M-series board keeps Stage Manager (no `disable-chamois`) and the iPad (A16)
 > has no `medusa-overlay-app-capability`: `devicetree-cfw-ipad_artwork`,
-> `devicetree-cfw-ipad_product`, `devicetree-cfw-ipad_buttons` and
-> `devicetree-cfw-ipad_identity`. They are written to a second device tree,
+> `devicetree-cfw-ipad_product`, `devicetree-cfw-ipad_buttons`,
+> `devicetree-cfw-ipad_identity` and (2026-10-02) `devicetree-cfw-ipad_audio`,
+> which takes the board's `/product/audio` node. (`/product/haptics`, which no
+> iPad tree has, is not one of them: since 2026-10-03
+> `devicetree-cfw-product_haptics_node` removes it from every guest's tree,
+> iPhone and iPad alike — see "Why the haptics node goes" below.) They are
+> written to a second device tree,
 > `Firmware/all_flash/DeviceTree.vphone600ap.guest.im4p`, which `fw prepare`
 > copies from the vphone600 one and the hybrid manifest names as `DeviceTree`;
 > `RestoreDeviceTree` keeps pointing at the original, so restore still boots
@@ -1095,7 +1100,7 @@ header.
 | # | Target | Framework | Effect |
 |---|---|---|---|
 | 1 | `+[_NUStyleTransfer{,Apply,Thumbnail,Learn,Interpolate}Processor processWithInputs:arguments:output:error:]` (5 entry points) | NeutrinoCore | Each replaced with `mov w0, #0; ret`. Camera's CIImageProcessorKernel chain that drives the style preview thumbnails short-circuits before reaching `+[_NUStyleEngine usingSharedStyleEngineForUsage:...]` → `_NUStyleEngineMemoryResource initWithDevice:descriptor:` which would otherwise assert on a nil descriptor (root cause is an upstream ANE-detection gate in `CMIStyleEngineCommonSettings`; we workaround at the consumer instead of unblocking it). |
-| 2 | `+[AVCaptureDevice authorizationStatusForMediaType:]` | AVFCapture | Replaced with `mov w0, #3; ret` (AVAuthorizationStatusAuthorized = 3). Any process probing camera/audio/etc. media-type authorization gets "Authorized" without going through TCC. Stage 0 of the vcam stack — makes apps stop bailing on the auth check. Audio still doesn't work on the VM, so the broader scope is harmless (audio consumers would have failed downstream regardless). Downstream pipeline (cameracaptured rewrite, vcamd daemon) still owed for actual frame delivery. |
+| 2 | `+[AVCaptureDevice authorizationStatusForMediaType:]` | AVFCapture | Replaced with `mov w0, #3; ret` (AVAuthorizationStatusAuthorized = 3). Any process probing camera/audio/etc. media-type authorization gets "Authorized" without going through TCC. Stage 0 of the vcam stack — makes apps stop bailing on the auth check. Audio capture still does not work on the VM (the virtio sound driver added 2026-10-02 is output only), so the broader scope is harmless (audio-capture consumers fail downstream regardless). Downstream pipeline (cameracaptured rewrite, vcamd daemon) still owed for actual frame delivery. |
 
 Wired into `cfw_install_exp.sh` immediately after the hv_vmm DSC step,
 inside the same `hdiutil attach` block (one mount/unmount per install).
@@ -1162,7 +1167,7 @@ sibling nodes to `/product/camera`. vphone600 has none of them.
 | Node | Props | Camera relevance |
 |------|:-----:|------------------|
 | `/product/facetime` | 9 (excl. AAPL,phandle) | Front-camera video-call config — bitrates, codec encoding/decoding, tnr-mode-back/front. |
-| `/product/audio` | 31 (excl. AAPL,phandle) | Carries `supports-spatial-audio-capture=1` + `supports-spatial-facetime=1` (camera-joint). Rest is audio config. |
+| `/product/audio` | 31 (excl. AAPL,phandle; an iPad guest takes its board's node instead, see "Guest audio" 2026-10-02) | Carries `supports-spatial-audio-capture=1` + `supports-spatial-facetime=1` (camera-joint). Rest is audio config. |
 | `/product/iopm` | 2 (excl. AAPL,phandle) | `aot-mode=13` + `aot-linger-time-ms=0`. Always-On Technology mode. |
 
 All property values copied byte-for-byte from
@@ -2210,3 +2215,332 @@ early-exiting grep and awk closed their file/vtool producers under pipefail.
 Those probes now drain producer output while keeping matching, first-platform
 selection, failure propagation, and all signature checks. The full workspace
 build and strict signatures then passed.
+
+## Guest audio: a HAL plugin, and an iPad's own audio node (2026-10-02)
+
+The guest never produced sound, although `vphone-vm` has always attached a
+virtio sound device with a host output sink. Two faults; the full reveal is
+`Research/Guest/virtio_sound.md`.
+
+| Patch | Component | Effect |
+| --- | --- | --- |
+| `system-virtiosound-cfw-hal_plugin` (new) | `/System/Library/Audio/Plug-Ins/HAL/VPhoneVirtIOSound.driver`, `cfw install` and `cfw update-environment` | Installs the CoreAudio HAL plugin for `AppleVirtIOSound`, built from `VPhoneGuestComponents/VirtIOSound`. |
+| `devicetree-cfw-ipad_audio` (new) | An iPad guest's installed DeviceTree, `fw patch` | Replaces `/product/audio` with the board tree's node (`DeviceTreePatcher.presentBoardAudio`), all properties as the board has them except its `AAPL,phandle`. |
+| `preboot-cfw-devicetree_board_audio` (new) | Restored Preboot `devicetree.img4`, `cfw install` and `cfw update-environment` | The same replacement for an iPad VM patched before it (`vphone-cli cfw patch-dt-board-audio`), from the board tree in `FirmwareOriginals`. |
+| `devicetree-cfw-product_haptics_node` (new, 2026-10-03) | Every guest's DeviceTree, `fw patch`: an iPhone guest's one tree, an iPad guest's installed tree and its `RestoreDeviceTree` | Removes `/product/haptics` (`DeviceTreePatcher.removeHaptics(from:)`), whatever the variant and the board. |
+| `preboot-cfw-devicetree_haptics` (new, 2026-10-03) | Restored Preboot `devicetree.img4`, `cfw install` and `cfw update-environment`, every guest | The same removal for a VM patched before it (`vphone-cli cfw patch-dt-haptics`); it needs no board tree. A guest that booted before it keeps cached MobileGestalt answers, which vphoned drops at its next startup, see below. |
+
+`fw patch` now reads an iPad's board tree through the `FirmwareOriginals` stash,
+so `DeviceTree.<board>.im4p` stays in the VM folder after the restore tree goes.
+
+**Why the haptics node goes.** vphone600 carries `/product/haptics`
+(`closed-loop`, `supports-3rd-party-haptics`). With it MobileGestalt answers
+yes to `DeviceSupportsHaptics` and `DeviceSupportsClosedLoopHaptics`,
+ToneLibrary sets `playHapticTracks` on every tone, and mediaplaybackd builds a
+`CHHapticEngine` whose server, `com.apple.audio.hapticd` in audiomxd, never
+answers on a VM: six one-second XPC timeouts, `FigHapticEngineCreate` fails
+4099, and `itemfig_rebuildRenderPipelinesAndBoss` fails the item — the
+ringtone never starts although its route and audio queue are built. It was
+first seen on iPad guests, whose own trees (`DeviceTree.j410ap`, `.j820ap`)
+have no such node, and fixed there by making the node follow the board. An
+iPhone guest (iPhone99,11, iOS 27.0) then failed the same way — the same
+hapticd timeouts, the same 4099, the tone dropped — and a real iPhone's tree
+does have the node, so following the board cannot fix it. What is missing is
+the actuator and the haptic server, and no VM has either; every guest's tree
+loses the node, and the board-following patch and its Preboot repair were
+replaced by these two. The restore tree loses it as well: an iPad guest's
+`RestoreDeviceTree` is patched exactly as an iPhone guest's tree is, and
+restore reads nothing from the node. Without it the guest answers as a device
+with no Taptic Engine does and tones play. The answers are cached in
+`/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches/com.apple.MobileGestalt.plist`,
+written at first boot, so a guest that has already booted keeps the old ones
+until that file is removed and the guest restarted; a guest created with the
+patch never has them. The host cannot remove it: the file is on the guest's
+Data volume, a FileVault volume whose keys are in the guest's SEP, which the
+host sees locked and cannot mount (the volume the installer mounts beside
+System, s3, is xART). vphoned removes it at startup instead, when it is older
+than the Preboot `devicetree.img4` the guest booted
+(`VPhoneDaemon/Daemon/GuestMobileGestaltCache.swift`): the host rewrites that
+tree only with the VM stopped and only when a repair changed it, so an older
+cache was worked out from an older tree. It logs `vphoned: MobileGestalt
+cache predates the device tree, removed it; …`, and `/v1/health` reports
+`mobilegestalt_restart_pending` until the guest restarts, since running
+processes keep the answers they read. An existing guest therefore needs `cfw
+update-environment`, one boot, and one restart. This is no patch declaration
+of its own: it writes nothing to the tree, and with the repairs off the tree
+is not rewritten and the cache stays. Removing the file by hand (`files.remove`, then
+`system.reboot`) is what vphoned does, less the reboot. Detail and the
+measurements: `Research/Guest/virtio_sound.md` §7.
+
+**Why a plugin.** The cloudOS kernel has `AppleVirtIOSound` and its user client,
+but only macOS ships the HAL plugin that drives it; neither cloudOS nor any iOS
+image has one. `VPhoneVirtIOSound.driver` speaks the same user-client selectors
+as the macOS `AppleVirtIOSound.driver`, on AudioServerDriver as Apple's own
+plugins are. It is output only. Its host checks are `make -C VPhoneGuestComponents
+test-virtiosound`; `Build/ValidateBundle.sh` checks the staged bundle's signature
+and factory.
+
+**Why the audio node.** On an iPad guest VirtualAudio never initialized
+(`RoutingSettings_J98.cpp:805`, then `:856`, `PRECONDITION FAILURE`), so audiomxd
+had no device at all and Safari video would not start. J820's routing code builds
+its stereo and webcam microphone sub-ports from the tuning directory the device
+tree's `acoustic-id` names. `devicetree-cfw-product_audio_node` gives every guest
+the D47 iPhone's node, `acoustic-id = 8018`; the iPhone image ships `AID8018`, the
+iPad image ships `AID2028`/`AID2029` (J820's is 2029). Removing the
+`stereo-sound-recording` flag was tried first and only moved the failure to the
+webcam sub-port, whose flag comes from AVFCapture's per-board table; that attempt
+is not in the tree. iPhone guests are unchanged.
+
+**system-virtualaudio-cfw-speaker_route_throws.** The counterweight to the
+virtio plugin's `PuffinOutput` masquerade. iOS's speaker-route walker treats
+the synthetic speaker's missing protection metadata as fatal six different
+ways — five C++ throws out of an AudioServerPlugIn callback (terminate) and
+one direct `bl std::terminate` after a fault log — and MediaExperience's
+serialization replay hits the first of them on every launch. The patcher
+(`FirmwarePatcher/CustomFirmware/ExecutablePatches/VirtualAudio/`) branches
+each site to the function's own epilogue: anchored on the exception strings,
+shape-matched through Capstone (allocation call, x1 message load, constructor
+call, `brk` or branch terminator; the terminate as the last call of the fault
+logger's back-to-back `bl` run), never an offset. The installer stage re-seals
+the `.plugin` bundle after `patchMachO` re-signs the binary — the outer
+CodeResources still named the old bytes, and the code-signing monitor killed
+audiomxd on load. Research detail: `Research/Guest/virtualaudio_speaker_route_throws.md`.
+
+## VirtualAudio's mute-set throw — the chime's last blocker (2026-10-03)
+
+`system-virtualaudio-cfw-mute_set_throw` (new), same
+`VirtualAudio.plugin` binary, verb `cfw patch-virtualaudio-mute`, applied by
+`cfw install` and `cfw update-environment` riding the same `patchMachO`
+staged copy as `patch-virtualaudio` — staging restarts from the pristine
+`.bak`, so the two verbs must share one call.
+
+**Fault.** Establishing the speaker route asks the HAL device itself to
+unmute: `Device_HAL_Common`'s set wrapper pushes `kAudioDevicePropertyMute`
+('mute'/'outp'/0) and reads it back. The HAL *server* pre-validates the
+device-level set at `HALS_UCPlugIn.cpp:1190` and rejects it 'what'
+(2003329396) without ever forwarding the selector to the plugin — proven by a
+guest probe whose `hasProperty:` override saw 60 selectors and never 'mute',
+while the control-level 'bcvl' set on the same device succeeds (so no
+plugin-side fix exists on iOS). The wrapper answers the failure by throwing
+`CAException("Unable to set property data.")` out of the callback;
+`RoutingManager.cpp:3515` catches it and abandons the route — the aggregate's
+master stays `Null_Device`, no `PVMSetCurrentState`, and the boot charge chime
+is silent. Every caller ignores the wrapper's return value, so the fix is the
+same shape as the walker patch: branch the throw to the wrapper's own
+epilogue. The FAIL/EXCEPTION diagnostics still log; the route proceeds.
+
+**Reveal** (all Capstone-decoded, no literal address): anchor on the cstring
+containing `Set mute value of %u on HAL device`, referenced exactly once in
+`__text`; the wrapper is the enclosing pacibsp-to-pacibsp function. The site
+is the wrapper's CAException block — allocation call, vtable/status stores
+into `[x0]`/`[x0, #8]`, throw call, `brk` terminator; a CAException carries no
+message string, so the walker patch's runtime_error shape does not match, and
+the block runs 17 instructions where that scan budgeted 16 (the new scan
+budgets 32). Discriminated from iOS 27's second, unrelated CAException (the
+deactivated-device throw) by requiring an adrp+add forming a cstring
+containing `Unable to set property data.` within 0x40 bytes above the site —
+the EXCEPTION log that always precedes this throw. The epilogue is the
+wrapper's single `retab` walked back through the shared guarded-canary chain;
+it cannot be searched forwards from the throw because the throw sits below
+the epilogue, so the retab is enumerated within the wrapper's bounds.
+Verified on the real iPadOS 26.6.2 and iOS 27 binaries: exactly one site and
+epilogue each (0xee224 → 0xedfcc; 0x111ac8 → 0x11179c), byte-identical
+re-runs, and both verbs composing on one copy. Research detail:
+`Research/Guest/virtualaudio_speaker_route_throws.md`.
+
+## VirtualAudio's SpeakerProtection chain — the speaker route's last blocker (2026-10-03)
+
+`system-virtualaudio-cfw-speaker_graph_chains` (new), *not* a binary patch:
+it rewrites the tuning set's `graph_configurations.plist` on the guest system
+volume (`/Library/Audio/Tunings/<acoustic ID>/VAD/`, e.g. `AID2029` for an
+iPad Pro 13; the ID varies by board, so `cfw install` and
+`cfw update-environment` walk the `Tunings` directory instead of naming one).
+Verb `cfw patch-virtualaudio-graph-configurations` on a staged copy, format
+preserved (binary in, binary out), idempotent. An image with no tuning sets —
+iOS 27's VirtualAudio carries no `graph_configurations.plist` reference at
+all — is skipped quietly. Patcher:
+`FirmwarePatcher/CustomFirmware/CustomFirmwareVirtualAudioGraphConfigurations.swift`.
+
+**Fault.** With the walker and mute-set throws quieted and
+`ProductIDOverride=8010` (the only accepted ProductID whose VAD map covers
+`'crnp'`, the RingtonePreview category), the ringtone route change runs its
+full pipeline — route list built, aggregate master `PuffinOutput` — and then
+dies building the route's DSP chain. `graph_configurations.plist` gives every
+`speaker_*` configuration `chainType "clhs"`, and the DSP chain factory
+(0x117628, iPadOS 26.6.2) switches on it: `clhs` builds the HAL
+SpeakerProtection chain, whose config constructor (0x3dcccc) calls
+`findDevice("Speaker")` (0x3dc460) → registry lookup →
+`LockWeakPtrOrThrow` throws `Could not lock weak ptr (:60)` — a VM's device
+registry has no physical Speaker. The chain is destroyed,
+`RoutingManager.cpp:1774` logs `Failed to activate a route list`, the route
+change fails `nort` (1852797556), and the guest stays silent with no
+fallback. `dflt` — the chainType every `beam_mic_*`/`omni_mic_*`
+configuration already ships — takes the generic graph chain instead: no
+device lookup, the configuration's `graph` DSP file (which the tuning set
+ships for every speaker configuration) is loaded directly. The patch flips
+every `speaker_*` entry's `chainType` from `clhs` to `dflt` and touches
+nothing else. Static analysis ruled out every null-tolerant patch of
+`findDevice` itself: `buildParams` (0x3dc518) dereferences the returned
+`Device*` immediately at two call sites (0x3dcda4, 0x1182a4), so a null
+return would crash instead of degrade. Research detail:
+`Research/Guest/virtualaudio_speaker_route_throws.md`.
+
+## VirtualAudio's speaker-protection gate — the decline after the build (2026-10-03)
+
+`system-virtualaudio-cfw-speaker_protection_gate` (new), same
+`VirtualAudio.plugin` binary, verb `cfw patch-virtualaudio-sp-gate`, riding
+the same `patchMachO` staged copy as the other two VirtualAudio verbs
+(`patch-virtualaudio`, `patch-virtualaudio-mute`) in both `cfw install` and
+`cfw update-environment`. Patcher:
+`FirmwarePatcher/CustomFirmware/ExecutablePatches/VirtualAudio/CustomFirmwareVirtualAudio.swift`.
+
+**Fault.** With layers 1–3a quieted (walker throws, mute-set throw, plist
+chains), the ringtone route change still declines at its last step:
+`RoutingHandler_Playback_GenericConfig1.cpp:223` — "HAL Speaker Protection is
+missing. Failing route %s" — because the route's device list calls for HAL
+Speaker Protection, a capability only a physical codec reports. The route is
+*finished* when the decline lands: virtual stream on `pspk` at the matched
+rate, the `dflt` DSP chain built, IOProc cache warm. The capability query
+never leaves VirtualAudio — the ASD plugin's file logs show 0 'caps'
+selectors reaching it — so no plugin-side fix exists. The handler's failure
+path puts the vdef's output stream on `Null_Device`: a StartIO "Running"
+signature still appears (on `Null_Device`, `VAD [vdef] AggDev 8`), which is
+how an earlier validation was fooled; the audible era's signature is StartIO
+on the `PuffinOutput` aggregate (`AggDev 2`). The guest is completely silent
+and the volume is dead.
+
+**Reveal** (all Capstone-decoded, no literal address): anchored on the
+cstring containing `HAL Speaker Protection is missing. Failing route` — a
+format three routing handlers share — and discriminated by requiring the
+enclosing pacibsp-to-pacibsp function to also reference
+`RoutingHandler_Playback_GenericConfig1.cpp`. Within that one handler, the
+gate is the branch whose forward target heads the log block: a target at or
+above which, within 0x100, the format's adrp+add sits, and the file name's
+adrp+add too (both builds hold them 0x34 apart, 0x84 above the block's
+entry), and whose target opens the os_log allocation itself (`mov w0,
+#<size>` followed by the allocation call). That last shape check is what
+kills the near miss: iOS 27 holds a `cbz x0, 0x146360` whose target lands
+0xC4 below the format ref, inside the string window but on a `sub`, not a
+block head. The scan decodes each word rather than trusting Capstone's jump
+group — the gate is a `tbz` (`tbz w21, #0` on 26.6.2, `tbz w19, #0` on
+iOS 27), which the group tagging misses — through
+`decodeConditionalBranchTarget`, which reads the 19-bit immediates of
+`b.cond`/`cbz`/`cbnz` and the 14-bit one of `tbz`/`tbnz`, sign-extended.
+
+**The write.** The gate's branch is left untouched — that is what lets the
+anchor resolve the site again on an already-patched binary. What changes is
+the log block's own entry: the `mov w0, #0x14` opening the os_log becomes a
+`b` back to the gate's fall-through, so a taken gate lands directly on the
+success continuation the handler already built. Verified on both builds
+that the fall-through never re-reads the register the gate tested (w21 /
+w19), so no stale verdict flows on. The block is entered only by the gate's
+jump — the instruction above the head is an unconditional branch on both
+builds (`b 0x136d28` at 0x136874; `b 0x1467a0` at 0x14639c), checked before
+anything is written, so rewriting the head orphans no fall-through.
+Idempotency is exact, not marker-based: a re-run finds the head holding an
+unconditional branch, decodes it, and requires its target to be the gate
+site's own successor — a shape no compiler emits — before reporting
+already-patched; a foreign branch at the head is an error, never
+overwritten. Verified on the real iPadOS 26.6.2 and iOS 27 binaries: the
+expected sites on both (gate 0x136620 → head 0x136878, fall-through
+0x136624; gate 0x1460b4 → head 0x1463a0, fall-through 0x1460b8), writes
+byte-identical on re-run, and all three VirtualAudio verbs composing on one
+staged copy with a clean second pass. Research detail:
+`Research/Guest/virtualaudio_speaker_route_throws.md`.
+
+## VirtualAudio's volume-mode precondition — the decline after the gate (2026-10-03)
+
+`system-virtualaudio-cfw-volume_mode_precondition` (new), same
+`VirtualAudio.plugin` binary, verb `cfw patch-virtualaudio-volume-gate`,
+riding the same `patchMachO` staged copy as the other three VirtualAudio
+verbs in both `cfw install` and `cfw update-environment`. Patcher:
+`FirmwarePatcher/CustomFirmware/ExecutablePatches/VirtualAudio/CustomFirmwareVirtualAudio.swift`
+(the handler is resolved once for both gates, in `locatePlaybackHandler`).
+
+**Fault.** With layers 1–3 quieted (walker throws, mute-set throw, plist
+chains, speaker-protection gate), the same ringtone handler declines the
+same finished route one step later, at
+`RoutingHandler_Playback_GenericConfig1.cpp:252`: the route's
+software-volume mode must be the packed pair
+`(present, kHardwareOnlyReadOnly)` — present-flag in bit 32 over the
+mode's low 32 bits, expected value `0x1_00000003`. The virtio plugin's
+device reports `SoftwareHardwareMix`, so the precondition fails and the
+handler *throws* a `std::logic_error` — unlike the SP gate's quiet
+decline — which unwinds past the route's own teardown into
+`RoutingManager.cpp:3520`: the route change fails `nort`, the session is
+torn down onto `Null_Device`, and the guest is silent with the volume
+dead. iPadOS 26.6.2 logs this as a bare "Precondition failure."; iOS 27
+still carries the assert text
+`softwareVolumeModeForPerDefaultScope.has_value() && softwareVolumeModeForPerDefaultScope.value() == VolumeControl::SoftwareVolumeMode::kHardwareOnlyReadOnly`,
+which is what named the fault.
+
+**Reveal** (all Capstone-decoded, no literal address). The handler is the
+one `locatePlaybackHandler` already resolves for the SP gate — the
+function holding both the `HAL Speaker Protection is missing. Failing
+route` format and the `RoutingHandler_Playback_GenericConfig1.cpp` file
+name. Within it, the guard chain reads: `bl` a wrapper (ActivationParams
+check, else logs `Aspen.cpp:1428` and returns 0; on hit it calls a map
+getter that logs `Aspen.cpp:1445/1451` and returns the packed 64-bit
+map entry), then `and xN, xRet, #0x1ffffffff` — the 33-bit packing mask
+— then `add x9, xBase, #1` building the expected pair, `cmp`, and a
+`b.ne` to the decline. The decline's discriminator among the handler's
+three `PRECONDITION FAILURE (std::logic_error)` blocks (`:142`, `:252`,
+`:270`) plus the `Aspen.cpp:729` one is `isVolumeModeComparison`: within
+six instructions below a non-call branch, a `cmp` seen, then an `and`
+whose immediate operand is exactly `0x1ffffffff` and whose preceding
+word is a call. The inner exception-allocation labels (`cbz x19` to a
+`mov w0, #0x10` sizing) pass every block-shape check; it is the mask
+window that rejects them. Block layout matches the SP gate's: the
+format's adrp+add 0x58 above the head, the file name's 0x2c above, the
+sole entry the guard's branch, and an unconditional branch at the
+pre-head — checked before anything is written.
+
+**The write.** The comparison and its `b.ne` are left untouched; the
+decline's log-block head — the `mov w0, #0xe` sizing the os_log —
+becomes a `b` back to the comparison's own fall-through, so a failed
+precondition lands on the continuation the handler already built. The
+fall-through reloads its inputs from memory and never re-reads the
+tested value, on either build. Idempotency is the SP gate's exact scheme:
+a re-run finds an unconditional branch at the head and requires it to
+decode to the comparison site's own successor. Verified on the real
+iPadOS 26.6.2 and iOS 27 binaries: the expected sites on both
+(comparison `b.ne` 0x1369c4 → head 0x138124, fall-through 0x1369c8;
+comparison 0x1464e0 → head 0x1475d0, fall-through 0x1464e4), byte-
+identical re-runs, and all four VirtualAudio verbs composing on one
+staged copy with a clean second pass. Research detail:
+`Research/Guest/virtualaudio_speaker_route_throws.md`.
+
+## VirtualAudio's speaker-protection gate, second site — the play-and-record handler (2026-10-04)
+
+`system-virtualaudio-cfw-speaker_protection_gate` (changed: one more site,
+record `system-virtualaudio-cfw-speaker_protection_gate.playback_and_record`),
+same binary, same verb `cfw patch-virtualaudio-sp-gate`, which now runs the
+patch once per handler in `CustomFirmwareVirtualAudio.SPGateHandler`.
+
+**Fault.** The guest's virtio sound plugin now publishes a microphone
+(`Digital Mic`, port `pmbi`; `Research/Guest/virtio_sound_microphone.md`).
+A recording app asks for a route that plays and records (`cpar`), which
+`RoutingHandler_PlaybackAndRecord_GenericConfig1` builds in full —
+aggregate of `Digital Mic` and `PuffinOutput`, a virtual stream on each
+port — and then declines at `:368` with the same "HAL Speaker Protection is
+missing. Failing route %s" the playback handler declined the ringtone route
+with. Before the microphone existed the route never got that far.
+
+**The site.** The decline's format is shared by three handlers; this one
+is the handler whose function also references
+`RoutingHandler_PlaybackAndRecord_GenericConfig1.cpp`
+(`locatePlaybackHandler(in:file:)`, the same resolution with the other file
+name; neither file name contains the other). The gate and its block have
+the playback handler's shape on both builds: a `tbz w9, #0x0` into a log
+block that opens `mov w0, #0x14; bl`, with an unconditional branch above
+the block's head, and a fall-through that reloads what it reads from the
+stack and is also the join of the handler's raw-mode log path.
+
+**The write.** As for the first site: the log block's head becomes a `b`
+to the gate's fall-through; the gate's own branch stays. Verified on the
+real iPadOS 26.6.2 and iOS 27 binaries: gate 0xea274 → head 0xea588,
+fall-through 0xea278; gate 0x10e468 → head 0x10e6f0, fall-through 0x10e46c;
+both sites written in one run, a second run reporting both already patched.
+The handler's volume-mode test (`and x28, x0, #0x1ffffffff` at 0xea3fc) is
+a branch between two builds of the route, not a precondition, and is not
+touched.

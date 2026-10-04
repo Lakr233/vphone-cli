@@ -216,6 +216,42 @@ struct VPhoneCustomFirmwarePatchBuildVersionCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-virtualaudio-graph-configurations
+
+struct VPhoneCustomFirmwarePatchVirtualAudioGraphConfigurationsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-virtualaudio-graph-configurations",
+        abstract: "Move VirtualAudio's speaker chains onto the generic graph path",
+        discussion: """
+        graph_configurations.plist gives every route configuration a
+        chainType, and the DSP chain factory switches on it: `clhs` builds the
+        HAL SpeakerProtection chain, which looks the physical "Speaker" device
+        up in the device registry and throws when a VM has none — the throw
+        RoutingManager answers by abandoning every speaker route. `dflt`
+        builds the generic graph chain the mic configurations already use,
+        which needs no device.
+
+        Every speaker_* entry's chainType is flipped `clhs` -> `dflt`; the
+        entries' graph and austrip tunings are left alone. The plist sits on
+        the sealed system volume, so the install stages a copy and this
+        patches the copy.
+
+        Idempotent — a re-run on an already-patched plist reports and exits
+        without rewriting.
+        """,
+    )
+
+    @Argument(help: "Path to graph_configurations.plist", transform: URL.init(fileURLWithPath:))
+    var plist: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwareVirtualAudioGraphConfigurations.patch(at: plist, dryRun: dryRun, verbose: true)
+    }
+}
+
 // MARK: - patch-campo-entitlements
 
 struct VPhoneCustomFirmwarePatchCampoEntitlementsCommand: ParsableCommand {
@@ -276,5 +312,74 @@ struct VPhoneCustomFirmwarePatchPostRestoreDeviceTreeCommand: ParsableCommand {
 
     func run() throws {
         try CustomFirmwarePostRestoreDeviceTree.patch(at: deviceTree, dryRun: dryRun, verbose: true)
+    }
+}
+
+// MARK: - patch-dt-board-audio
+
+struct VPhoneCustomFirmwarePatchBoardAudioCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-board-audio",
+        abstract: "Give an iPad guest's device tree the iPad's own audio node",
+        discussion: """
+        Replaces /product/audio in a restored device tree with the audio node of
+        the iPad's own tree (DeviceTree.<board>.im4p from its IPSW), in place,
+        preserving the container's compression, manifest and restore info. The
+        node earlier device tree patches added is the D47 iPhone's, whose
+        acoustic ID names tunings an iPad image does not ship; iOS's VirtualAudio
+        then fails to initialize and the guest has no audio device. A tree that
+        already matches is left as it is.
+
+        Takes a devicetree.img4 (preferred) or a bare .im4p, and the board's
+        DeviceTree .im4p.
+        """,
+    )
+
+    @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))
+    var deviceTree: URL
+
+    @Argument(help: "Path to the iPad's DeviceTree.<board>.im4p", transform: URL.init(fileURLWithPath:))
+    var board: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.presentBoardAudio(
+            at: deviceTree,
+            board: board,
+            dryRun: dryRun,
+            verbose: true,
+        )
+    }
+}
+
+// MARK: - patch-dt-haptics
+
+struct VPhoneCustomFirmwarePatchHapticsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-haptics",
+        abstract: "Remove the haptics node from a guest's device tree",
+        discussion: """
+        Removes /product/haptics from a restored device tree, in place,
+        preserving the container's compression, manifest and restore info. No
+        VM has a haptic actuator or the haptic server behind it: with the node,
+        iOS believes the guest has a Taptic Engine, plays every tone with its
+        haptic track, and drops the tone when the haptic engine fails to start.
+        That holds for an iPhone guest and an iPad guest alike. A tree without
+        the node is left as it is.
+
+        Takes a devicetree.img4 (preferred) or a bare .im4p.
+        """,
+    )
+
+    @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))
+    var deviceTree: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.removeHaptics(at: deviceTree, dryRun: dryRun, verbose: true)
     }
 }

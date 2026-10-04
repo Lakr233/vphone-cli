@@ -1,0 +1,13 @@
+--- !tapi-tbd
+# The AudioServerDriver classes VPhoneVirtIOSound subclasses or instantiates.
+# The framework is private and the iPhoneOS SDK ships no stub for it; this one
+# lets the linker bind these symbols two-level to the guest's copy, which
+# lives in the dyld shared cache.
+tbd-version:     4
+targets:         [ arm64e-ios ]
+install-name:    '/System/Library/PrivateFrameworks/AudioServerDriver.framework/AudioServerDriver'
+current-version: 1
+exports:
+  - targets:         [ arm64e-ios ]
+    objc-classes:    [ ASDAudioDevice, ASDBooleanControl, ASDLevelControl, ASDObject, ASDPlugin, ASDSelectorControl, ASDSelectorValue, ASDStream, ASDStreamFormat ]
+...

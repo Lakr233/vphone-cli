@@ -3,6 +3,7 @@ import Darwin
 import FirmwarePatcher
 import Foundation
 import VPhoneCoreKit
+import VPhonePatchKit
 import VPhoneSign
 
 /// Host-side JB system installation. The VM must be off: all writes go to its
@@ -28,8 +29,10 @@ struct VPhoneCustomFirmwareInstaller {
         /// prepared restore tree.
         case full
         /// Only the files this bundle ships into the guest — vphoned, its
-        /// launch daemon, the guest dylibs and the libmisfix defaults — put
-        /// back where a full install already placed them.
+        /// launch daemon, the guest dylibs, the libmisfix defaults and the
+        /// virtio sound driver — put back where a full install already placed
+        /// them, plus the audio repair that driver needs on an older VM (see
+        /// `updateEnvironmentMounted`).
         ///
         /// No patch runs, nothing is injected, no cryptex or GPU work happens
         /// and no restore tree is needed. That last part is the point: the
@@ -120,7 +123,7 @@ struct VPhoneCustomFirmwareInstaller {
         let bundlePath = try bundleDirectory.path
         // Which guest patches to apply, as `fw patch` resolved them. Read through
         // the pinned descriptor so root never follows a link out of the bundle.
-        let plan = readPatchPlan(in: bundleDirectory)
+        let plan = withLateGuestPatches(readPatchPlan(in: bundleDirectory), in: bundleDirectory)
         let disk = try openDiskImage(in: bundleDirectory, path: bundlePath, owner: callerUID)
         let diskPath = (bundlePath as NSString).appendingPathComponent("Disk.img")
         let busy = try VPhoneProcessRunner.runCapturing(
@@ -224,17 +227,20 @@ struct VPhoneCustomFirmwareInstaller {
             physicalStore: "\(baseDisk.dropFirst("/dev/".count))s1",
         )
 
+        // s3 is the xART volume, which holds the gigalocker. The guest's Data
+        // and User volumes are FileVault volumes locked to its SEP; the host
+        // cannot mount them, so nothing here writes to them.
         let system = work.file("system")
-        let data = work.file("data")
+        let xart = work.file("xart")
         _ = try work.directory.directory("system", create: true, mode: 0o700)
-        _ = try work.directory.directory("data", create: true, mode: 0o700)
+        _ = try work.directory.directory("xart", create: true, mode: 0o700)
         var systemMounted = false
-        var dataMounted = false
+        var xartMounted = false
         defer {
-            if dataMounted,
-               (try? tool("/sbin/umount", [data.path], quiet: true)) == nil
+            if xartMounted,
+               (try? tool("/sbin/umount", [xart.path], quiet: true)) == nil
             {
-                _ = try? tool("/sbin/umount", ["-f", data.path], quiet: true)
+                _ = try? tool("/sbin/umount", ["-f", xart.path], quiet: true)
             }
             if systemMounted,
                (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
@@ -244,14 +250,14 @@ struct VPhoneCustomFirmwareInstaller {
         }
         systemMounted = true
         try mountGuestVolume("\(container)s1", at: system)
-        dataMounted = true
-        try mountGuestVolume("\(container)s3", at: data)
+        xartMounted = true
+        try mountGuestVolume("\(container)s3", at: xart)
         print("[*] \(mode.summary.capitalized): \(bundle.lastPathComponent)")
         do {
             // Every descriptor on a guest volume lives in this scope, so none
             // is left open to hold the volume busy when it is unmounted.
             let systemRoot = try openGuestVolume("system", device: "\(container)s1", in: work)
-            let dataRoot = try openGuestVolume("data", device: "\(container)s3", in: work)
+            let xartRoot = try openGuestVolume("xart", device: "\(container)s3", in: work)
             switch mode {
             case .full:
                 guard let restore else {
@@ -259,25 +265,37 @@ struct VPhoneCustomFirmwareInstaller {
                 }
                 try installMounted(
                     system: systemRoot,
-                    data: dataRoot,
+                    xart: xartRoot,
                     restore: restore,
                     work: work,
                     owner: callerUID,
                     plan: plan,
                 )
             case .environmentOnly:
-                try updateEnvironmentMounted(system: systemRoot, work: work)
+                try updateEnvironmentMounted(system: systemRoot, work: work, plan: plan)
             }
         }
-        // Both of these belong to a full install only. The Preboot patches go
-        // with the boot chain, and the snapshot has already been renamed on any
-        // VM an environment update is allowed to run against — this run creates
-        // no new snapshot to flip.
-        if mode == .full {
-            try patchPreboot(volumes: volumes, work: work, plan: plan, guestDevice: guestDevice(of: restore))
-        }
-        _ = try tool("/sbin/umount", [data.path])
-        dataMounted = false
+        // The Preboot identity patches go with the boot chain and belong to a
+        // full install only. The device tree repairs are the exception: a VM
+        // restored before the board audio repair or the haptics removal has no
+        // other way to get them, since `fw patch` does not run again.
+        // A guest that has booted keeps the MobileGestalt answers it cached from
+        // the old tree on its Data volume, which the host cannot reach. vphoned
+        // drops that cache at startup when it is older than the tree; see
+        // VPhoneDaemon/Daemon/GuestMobileGestaltCache.swift.
+        try patchPreboot(
+            volumes: volumes,
+            work: work,
+            plan: plan,
+            guestDevice: guestDevice(of: restore),
+            includeIdentity: mode == .full,
+            boardDeviceTree: stageBoardDeviceTree(in: bundleDirectory, work: work),
+        )
+        // The snapshot rename is a full install's alone: it has already been
+        // done on any VM an environment update is allowed to run against, and
+        // this run creates no new snapshot to flip.
+        _ = try tool("/sbin/umount", [xart.path])
+        xartMounted = false
         _ = try tool("/sbin/umount", [system.path])
         systemMounted = false
         _ = try tool("/usr/bin/hdiutil", ["detach", baseDisk], quiet: true)
@@ -324,7 +342,16 @@ struct VPhoneCustomFirmwareInstaller {
     /// A missing target is left missing. The libraries are not all
     /// unconditional — a VM whose plan left a patch out never received the
     /// library that goes with it — and an update is not the place to add one.
-    private func updateEnvironmentMounted(system: VPhoneConfinedDirectory, work: WorkDirectory) throws {
+    ///
+    /// The virtio sound driver is the exception, and follows the plan instead:
+    /// it came after most VMs were installed, and this is the only route by
+    /// which a VM in use can receive it. The board audio repair that goes
+    /// with it touches the Preboot device tree, outside this function.
+    private func updateEnvironmentMounted(
+        system: VPhoneConfinedDirectory,
+        work: WorkDirectory,
+        plan: VPhoneVirtualMachinePatchPlan?,
+    ) throws {
         // Evidence that a full install ran. `launchd.plist.bak` is written by
         // the first `installVphoned` and by nothing else, so its absence means
         // this guest has never been installed and there is nothing to update.
@@ -352,6 +379,55 @@ struct VPhoneCustomFirmwareInstaller {
         // file carries a per-machine UDID choice and is not the bundle's to
         // overwrite.
         try installMISFixDefaults(system: system)
+
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtioSoundDriver) ?? true {
+            try installVirtioSoundDriver(system: system)
+        }
+        // Both patches ride one staged copy — `patchMachO` stages from the
+        // pristine backup, so two calls would not compose. The restore below
+        // fires only when every VirtualAudio patch is off.
+        var virtualAudioVerbs: [String] = []
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtualAudioSpeakerRouteThrows) ?? true {
+            virtualAudioVerbs.append("patch-virtualaudio")
+        }
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtualAudioMuteSetThrow) ?? true {
+            virtualAudioVerbs.append("patch-virtualaudio-mute")
+        }
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtualAudioSpeakerProtectionGate) ?? true {
+            virtualAudioVerbs.append("patch-virtualaudio-sp-gate")
+        }
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtualAudioVolumeModePrecondition) ?? true {
+            virtualAudioVerbs.append("patch-virtualaudio-volume-gate")
+        }
+        if !virtualAudioVerbs.isEmpty {
+            try patchMachO(
+                system: system,
+                work: work,
+                path: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio",
+                verbs: virtualAudioVerbs,
+                preserveEntitlements: true,
+            )
+            try sealGuestBundle(system: system, bundle: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin")
+            print("  [+] VirtualAudio: \(virtualAudioVerbs.joined(separator: ", "))")
+        } else if try system.exists("Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio.bak") {
+            // The patch is off but a previous install left it applied; stage
+            // the backup the same way `patchMachO` does and put the original
+            // back, so the gate means what it says.
+            let name = "VirtualAudio"
+            try work.directory.removeItem(name)
+            try system.copyFile(from: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio.bak", to: name, in: work.directory)
+            try system.replaceFile(
+                "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio",
+                fromFileAt: work.file(name),
+                mode: 0o755,
+                owner: Self.guestOwner,
+            )
+            try sealGuestBundle(system: system, bundle: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin")
+            print("  [+] VirtualAudio restored from backup (patch off)")
+        }
+        if plan?.isEnabled(FirmwareGuestSystemPatchSet.virtualAudioGraphConfigurations) ?? true {
+            try patchVirtualAudioGraphConfigurations(system: system, work: work)
+        }
     }
 
     /// Host bookkeeping in the caller's folder, written with the caller's
@@ -522,7 +598,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     private func installMounted(
         system: VPhoneConfinedDirectory,
-        data: VPhoneConfinedDirectory,
+        xart: VPhoneConfinedDirectory,
         restore: VPhoneConfinedDirectory,
         work: WorkDirectory,
         owner: uid_t?,
@@ -600,7 +676,7 @@ struct VPhoneCustomFirmwareInstaller {
                 system: system,
                 work: work,
                 path: "usr/libexec/seputil",
-                verb: "patch-seputil",
+                verbs: ["patch-seputil"],
                 identifier: "com.apple.seputil",
             )
         }
@@ -609,12 +685,12 @@ struct VPhoneCustomFirmwareInstaller {
                 system: system,
                 work: work,
                 path: "usr/libexec/diskimagesiod",
-                verb: "patch-diskimagesiod",
+                verbs: ["patch-diskimagesiod"],
                 preserveEntitlements: true,
             )
         }
         if on("system-gigalocker-boot-rename") {
-            try renameGigalocker(data: data)
+            try renameGigalocker(xart: xart)
         }
         if on("system-extensions-boot-gpu_bundle") {
             try installGPUBundle(restore: restore, system: system, owner: owner)
@@ -624,7 +700,7 @@ struct VPhoneCustomFirmwareInstaller {
                 system: system,
                 work: work,
                 path: "usr/libexec/launchd_cache_loader",
-                verb: "patch-launchd-cache-loader",
+                verbs: ["patch-launchd-cache-loader"],
                 identifier: "com.apple.launchd_cache_loader",
             )
         }
@@ -633,7 +709,7 @@ struct VPhoneCustomFirmwareInstaller {
                 system: system,
                 work: work,
                 path: "usr/libexec/mobileactivationd",
-                verb: "patch-mobileactivationd",
+                verbs: ["patch-mobileactivationd"],
             )
         }
         if on("system-watchdogd-exp-hv_vmm_cache") {
@@ -645,12 +721,43 @@ struct VPhoneCustomFirmwareInstaller {
         if on("system-launchdaemons-boot-environment") {
             try installEnvironment(system: system)
         }
+        if on(FirmwareGuestSystemPatchSet.virtioSoundDriver) {
+            try installVirtioSoundDriver(system: system)
+        }
+        // Both patches ride one staged copy — `patchMachO` stages from the
+        // pristine backup, so two calls would not compose.
+        var virtualAudioVerbs: [String] = []
+        if on(FirmwareGuestSystemPatchSet.virtualAudioSpeakerRouteThrows) {
+            virtualAudioVerbs.append("patch-virtualaudio")
+        }
+        if on(FirmwareGuestSystemPatchSet.virtualAudioMuteSetThrow) {
+            virtualAudioVerbs.append("patch-virtualaudio-mute")
+        }
+        if on(FirmwareGuestSystemPatchSet.virtualAudioSpeakerProtectionGate) {
+            virtualAudioVerbs.append("patch-virtualaudio-sp-gate")
+        }
+        if on(FirmwareGuestSystemPatchSet.virtualAudioVolumeModePrecondition) {
+            virtualAudioVerbs.append("patch-virtualaudio-volume-gate")
+        }
+        if !virtualAudioVerbs.isEmpty {
+            try patchMachO(
+                system: system,
+                work: work,
+                path: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio",
+                verbs: virtualAudioVerbs,
+                preserveEntitlements: true,
+            )
+            try sealGuestBundle(system: system, bundle: "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin")
+        }
+        if on(FirmwareGuestSystemPatchSet.virtualAudioGraphConfigurations) {
+            try patchVirtualAudioGraphConfigurations(system: system, work: work)
+        }
         if on("system-launchd-boot-jetsam_panic_guard_bypass") {
             try patchMachO(
                 system: system,
                 work: work,
                 path: "sbin/launchd",
-                verb: "patch-launchd-jetsam",
+                verbs: ["patch-launchd-jetsam"],
                 preserveEntitlements: true,
                 injectedDylibPath: "/vh",
             )
@@ -662,6 +769,55 @@ struct VPhoneCustomFirmwareInstaller {
         if version.hasPrefix("27."), on("system-campo-cfw-entitlements") {
             try patchCampo(system: system, work: work)
         }
+    }
+
+    /// Guest patches declared after most VMs' plans were written. A plan is the
+    /// list of what was on when `fw patch` ran, so it reads these as off on any
+    /// VM patched before them. They need no firmware change, so they follow the
+    /// VM's selection as it resolves now instead.
+    private static let lateGuestPatches = [
+        FirmwareGuestSystemPatchSet.virtioSoundDriver,
+        FirmwareGuestSystemPatchSet.prebootBoardAudio,
+        FirmwareGuestSystemPatchSet.prebootHaptics,
+        FirmwareGuestSystemPatchSet.virtualAudioSpeakerRouteThrows,
+        FirmwareGuestSystemPatchSet.virtualAudioMuteSetThrow,
+        FirmwareGuestSystemPatchSet.virtualAudioSpeakerProtectionGate,
+        FirmwareGuestSystemPatchSet.virtualAudioVolumeModePrecondition,
+        FirmwareGuestSystemPatchSet.virtualAudioGraphConfigurations,
+    ]
+
+    /// `plan`, with each late guest patch it leaves out turned on when the
+    /// VM's preset and its own block and allow choices select it today. A
+    /// preset that cannot be resolved from the bundled sets (one naming an
+    /// external set) leaves the plan as it is: root loads no external set.
+    private func withLateGuestPatches(
+        _ plan: VPhoneVirtualMachinePatchPlan?,
+        in bundleDirectory: VPhoneConfinedDirectory,
+    ) -> VPhoneVirtualMachinePatchPlan? {
+        guard var plan else { return nil }
+        let missing = Self.lateGuestPatches.filter { !plan.isEnabled($0) }
+        guard !missing.isEmpty else { return plan }
+        let selection = (try? bundleDirectory.readData(VPhonePatchPresetStore.selectionFileName))
+            .flatMap { try? PropertyListDecoder().decode(VPhoneVirtualMachinePatchSelection.self, from: $0) }
+            ?? VPhoneVirtualMachinePatchSelection()
+        guard
+            let preset = VPhonePatchPresetStore.preset(named: plan.presetIdentifier),
+            let resolved = try? VPhonePatchPlan.resolve(
+                preset: preset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(plan.iOSBaseVersion),
+                cloudOS: VPhoneVersion(plan.cloudOSVersion),
+                blocked: Set(selection.blockedPatches),
+                allowed: Set(selection.allowedPatches),
+            )
+        else {
+            return plan
+        }
+        for identifier in missing where resolved.enabled.contains(identifier) {
+            plan.enabledPatches.append(identifier)
+            print("[*] \(identifier): newer than this VM's patch plan, on in preset \(plan.presetIdentifier)")
+        }
+        return plan
     }
 
     /// The plan `fw patch` wrote into the VM, or nil when it never ran with one.
@@ -904,6 +1060,26 @@ struct VPhoneCustomFirmwareInstaller {
         try installMISFixDefaults(system: system)
     }
 
+    /// The CoreAudio HAL plugin for the VM's virtio sound device. iOS ships
+    /// the kernel driver, AppleVirtIOSound, but no plugin for it, so audiomxd
+    /// has nothing to play through. The bundle is replaced whole; its
+    /// signature seals the binary and Info.plist together.
+    private func installVirtioSoundDriver(system: VPhoneConfinedDirectory) throws {
+        let name = "VPhoneVirtIOSound.driver"
+        let source = try VPhoneConfinedDirectory(root: VPhoneGuestBinaries.resolve(name).path)
+        let target = "System/Library/Audio/Plug-Ins/HAL/\(name)"
+        try system.removeItem(target)
+        try system.copyTree(from: source, to: target, owner: Self.guestOwner)
+        for directory in [target, "\(target)/_CodeSignature"] {
+            try system.setMode(directory, 0o755)
+        }
+        try system.setMode("\(target)/VPhoneVirtIOSound", 0o755)
+        for file in ["\(target)/Info.plist", "\(target)/_CodeSignature/CodeResources"] {
+            try system.setMode(file, 0o644)
+        }
+        print("  [+] /\(target)")
+    }
+
     /// A symlink at the volume root, so a load command in a binary with little
     /// header space can name a library in seven bytes or fewer.
     private func installLibraryAlias(system: VPhoneConfinedDirectory, alias: String, target: String) throws {
@@ -981,23 +1157,49 @@ struct VPhoneCustomFirmwareInstaller {
         return VPhoneGuestDevice.detect(buildManifest: manifest) ?? .default
     }
 
+    /// `includeIdentity` is false for an environment update, which carries
+    /// only the device tree repairs: the board audio repair, which needs
+    /// `boardDeviceTree`, and the haptics removal, which every guest gets.
+    /// `boardDeviceTree` is the iPad's own device tree, staged from the VM's
+    /// `FirmwareOriginals`, or nil for an iPhone guest or a VM patched before
+    /// `fw patch` kept it.
     private func patchPreboot(
         volumes: [[String: Any]],
         work: WorkDirectory,
         plan: VPhoneVirtualMachinePatchPlan?,
         guestDevice: VPhoneGuestDevice,
+        includeIdentity: Bool,
+        boardDeviceTree: URL?,
     ) throws {
-        // Like every guest patch, a VM with no plan still gets it — except on an
-        // iPad guest, whose installed tree already carries its own identity
-        // from `fw patch`; the rewrite would turn it back into an iPhone17,3.
-        let identity = FirmwareGuestIdentityPatchSet.prebootDeviceTreeIdentity
-        let rewriteIdentity = !guestDevice.isPad && (plan?.isEnabled(identity) ?? true)
-        if guestDevice.isPad {
-            print("  [·] \(identity): skipped, the device tree already presents \(guestDevice.productType)")
-        } else if let plan, !rewriteIdentity {
-            print("  [·] \(identity): off in preset \(plan.presetIdentifier)")
+        // Like every guest patch, a VM with no plan still gets it — except the
+        // identity rewrite on an iPad guest, whose installed tree already
+        // carries its own identity from `fw patch`; the rewrite would turn it
+        // back into an iPhone17,3.
+        func on(_ identifier: String) -> Bool {
+            let enabled = plan?.isEnabled(identifier) ?? true
+            if let plan, !enabled {
+                print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
+            }
+            return enabled
         }
-        guard rewriteIdentity || !(spoofBuild ?? "").isEmpty else { return }
+        let identity = FirmwareGuestIdentityPatchSet.prebootDeviceTreeIdentity
+        var rewriteIdentity = false
+        if includeIdentity {
+            if guestDevice.isPad {
+                print("  [·] \(identity): skipped, the device tree already presents \(guestDevice.productType)")
+            } else {
+                rewriteIdentity = on(identity)
+            }
+        }
+        let spoofBuild = includeIdentity ? self.spoofBuild : nil
+        var repairs: [(verb: String, arguments: [String])] = []
+        if let boardDeviceTree, on(FirmwareGuestSystemPatchSet.prebootBoardAudio) {
+            repairs.append(("patch-dt-board-audio", [boardDeviceTree.path]))
+        }
+        if on(FirmwareGuestSystemPatchSet.prebootHaptics) {
+            repairs.append(("patch-dt-haptics", []))
+        }
+        guard rewriteIdentity || !repairs.isEmpty || !(spoofBuild ?? "").isEmpty else { return }
         guard
             let preboot = volumes.first(where: { ($0["Roles"] as? [String])?.contains("Preboot") == true }),
             let device = preboot["DeviceIdentifier"] as? String
@@ -1025,6 +1227,9 @@ struct VPhoneCustomFirmwareInstaller {
             if rewriteIdentity {
                 try patchCopy(of: deviceTree, in: root, work: work, verb: "patch-post-restore-dt")
             }
+            for repair in repairs {
+                try patchCopy(of: deviceTree, in: root, work: work, verb: repair.verb, arguments: repair.arguments)
+            }
             if let build = spoofBuild {
                 let version = "Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist"
                 if try root.isRegularFile(version) {
@@ -1034,12 +1239,55 @@ struct VPhoneCustomFirmwareInstaller {
         }
     }
 
+    /// The iPad's own device tree, `DeviceTree.<board>.im4p`, which `fw patch`
+    /// keeps in the VM's `FirmwareOriginals` beside the vphone600 trees,
+    /// copied into the work folder by descriptor. Nil when there is none: an
+    /// iPhone guest, or a VM patched by a build that did not keep it.
+    ///
+    /// The folder is the caller's, so the copy goes through the pinned bundle
+    /// descriptor like every other read here, and more than one candidate is
+    /// refused rather than guessed between.
+    private func stageBoardDeviceTree(
+        in bundleDirectory: VPhoneConfinedDirectory,
+        work: WorkDirectory,
+    ) throws -> URL? {
+        let originals = VPhoneBundleOperations.firmwareOriginalsDirectoryName
+        guard try bundleDirectory.isDirectory(originals) else { return nil }
+        let stash = try bundleDirectory.directory(originals)
+        var found: [(directory: VPhoneConfinedDirectory, name: String, path: String)] = []
+        for tree in try stash.entries() where try stash.isDirectory(tree) {
+            let flash = "\(tree)/Firmware/all_flash"
+            guard try stash.isDirectory(flash) else { continue }
+            let directory = try stash.directory(flash)
+            for name in try directory.entries()
+                where name.hasPrefix("DeviceTree.") && name.hasSuffix(".im4p")
+                && !name.hasPrefix("DeviceTree.vphone600") && (try? directory.isRegularFile(name)) == true
+            {
+                found.append((directory, name, "\(originals)/\(flash)/\(name)"))
+            }
+        }
+        guard !found.isEmpty else { return nil }
+        guard found.count == 1, let board = found.first else {
+            throw ValidationError(
+                "Found \(found.count) board device trees in \(originals): \(found.map(\.path).joined(separator: ", ")). Keep one.",
+            )
+        }
+        try board.directory.copyFile(from: board.name, to: board.name, in: work.directory)
+        print("[*] Board device tree: \(board.path)")
+        return work.file(board.name)
+    }
+
     // MARK: - Guest file patches
 
     /// Run a patch verb that edits a guest file in place, on a private copy
     /// instead: copy it out by descriptor, patch the copy in the work folder,
     /// and install the result with its original owner and mode. The verb
     /// never sees a guest path, so it cannot be steered by a link in one.
+    ///
+    /// A verb that found the file already as it should be leaves the guest's
+    /// copy untouched, modification time included: vphoned drops the guest's
+    /// MobileGestalt cache when the Preboot device tree is newer than it, so a
+    /// repeated environment update must not make an unchanged tree look new.
     private func patchCopy(
         of relative: String,
         in root: VPhoneConfinedDirectory,
@@ -1057,7 +1305,9 @@ struct VPhoneCustomFirmwareInstaller {
         let leaf = (relative as NSString).lastPathComponent
         try root.copyFile(from: relative, to: leaf, in: stage)
         let staged = work.file(folder).appendingPathComponent(leaf)
+        let before = try Data(contentsOf: staged)
         try patch(verb, [staged.path] + arguments)
+        guard try Data(contentsOf: staged) != before else { return }
         try root.replaceFile(
             relative,
             fromFileAt: staged,
@@ -1066,15 +1316,44 @@ struct VPhoneCustomFirmwareInstaller {
         )
     }
 
+    /// Flip the speaker chains in every tuning set's graph_configurations.plist
+    /// onto the generic graph path. The plist lives under the acoustic ID the
+    /// image ships for (`Library/Audio/Tunings/<AID>/VAD/`), which varies by
+    /// board, so the directory is walked rather than named. An image with no
+    /// tuning sets — iOS 27's VirtualAudio reads no such plist — is left
+    /// alone, quietly: there is nothing this patch could act on.
+    private func patchVirtualAudioGraphConfigurations(
+        system: VPhoneConfinedDirectory,
+        work: WorkDirectory,
+    ) throws {
+        let tunings = "Library/Audio/Tunings"
+        guard try system.exists(tunings), try system.isDirectory(tunings) else {
+            print("  [·] \(tunings): not on this VM, left out")
+            return
+        }
+        var patched = 0
+        for acousticID in try system.directory(tunings).entries().sorted() {
+            let plist = "\(tunings)/\(acousticID)/VAD/graph_configurations.plist"
+            guard try system.isRegularFile(plist) else { continue }
+            try patchCopy(of: plist, in: system, work: work, verb: "patch-virtualaudio-graph-configurations")
+            patched += 1
+        }
+        if patched == 0 {
+            print("  [·] \(tunings): no graph_configurations.plist under any tuning set, left out")
+        }
+    }
+
     /// Stage a guest Mach-O, patch it, re-sign it and put it back.
     ///
-    /// `verb` is optional: a binary that only needs a library injected — as
-    /// installd does for libmisfix — has no bytes of its own to change.
+    /// `verbs` runs in order against the one staged copy — the staging starts
+    /// from the pristine backup, so two calls would not compose. Empty: a
+    /// binary that only needs a library injected — as installd does for
+    /// libmisfix — has no bytes of its own to change.
     private func patchMachO(
         system: VPhoneConfinedDirectory,
         work: WorkDirectory,
         path: String,
-        verb: String? = nil,
+        verbs: [String] = [],
         identifier: String? = nil,
         preserveEntitlements: Bool = false,
         injectedDylibPath: String? = nil,
@@ -1091,7 +1370,7 @@ struct VPhoneCustomFirmwareInstaller {
             preserveEntitlements
                 ? try VPhoneSigner.entitlements(ofFileAt: staged).first(where: { !$0.isEmpty })
                 : nil
-        if let verb {
+        for verb in verbs {
             try patch(verb, [staged.path])
         }
         if let injectedDylibPath {
@@ -1102,6 +1381,22 @@ struct VPhoneCustomFirmwareInstaller {
             options: .init(identifier: identifier, entitlements: entitlements, mergesExisting: true),
         )
         try system.replaceFile(path, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
+    }
+
+    /// Re-seal a code-signed bundle on the mounted guest system volume.
+    ///
+    /// `patchMachO` re-signs the Mach-O it replaces, but a bundle's outer
+    /// `_CodeSignature/CodeResources` seals the whole directory, and a guest
+    /// built with the code-signing monitor kills the process that loads a
+    /// bundle whose seal no longer matches its contents. Ad hoc, like every
+    /// other guest binary this pipeline writes; the identifier is kept so the
+    /// plugin still answers to the name it always had.
+    private func sealGuestBundle(system: VPhoneConfinedDirectory, bundle: String) throws {
+        // No --identifier: codesign keeps the one the bundle already carries.
+        _ = try tool("/usr/bin/codesign", [
+            "-f", "-s", "-", "--timestamp=none",
+            try system.directory(bundle).path,
+        ])
     }
 
     /// Copy an optional guest binary into the work folder, or nil (with a
@@ -1175,16 +1470,18 @@ struct VPhoneCustomFirmwareInstaller {
         try system.replaceFile(target, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
     }
 
-    // MARK: - Data volume
+    // MARK: - xART volume
 
-    private func renameGigalocker(data: VPhoneConfinedDirectory) throws {
+    /// The patched seputil looks for the gigalocker as `AA.gl` rather than
+    /// under a UUID, so the one the restore wrote takes that name.
+    private func renameGigalocker(xart: VPhoneConfinedDirectory) throws {
         let destination = "AA.gl"
-        for source in try data.entries() where (source as NSString).pathExtension == "gl" {
+        for source in try xart.entries() where (source as NSString).pathExtension == "gl" {
             if source == destination {
                 continue
             }
-            try data.removeItem(destination)
-            try data.rename(source, to: destination)
+            try xart.removeItem(destination)
+            try xart.rename(source, to: destination)
         }
     }
 

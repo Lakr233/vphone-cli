@@ -2,6 +2,7 @@
 import Foundation
 import Testing
 import VPhoneCoreKit
+import VPhonePatchKit
 
 /// The iPad presentation of the vphone600 device tree, against a small tree
 /// shaped like the shipped one: the root identity, a `/product` node with
@@ -91,6 +92,30 @@ struct DeviceTreeGuestDeviceTests {
             ),
         ],
     )
+
+    /// vphone600's `/product/haptics`, which no VM can back.
+    static let haptics = Node(
+        properties: [
+            .string("name", "haptics"),
+            .integer("closed-loop", 1),
+            .integer("supports-3rd-party-haptics", 1),
+            .integer("AAPL,phandle", 100),
+        ],
+        children: [],
+    )
+
+    /// `tree` with `/product` children `maps`, then `haptics` when given, then
+    /// `util`: the node sits between siblings, as it does on vphone600.
+    static func guestTree(haptics: Node?) -> Node {
+        let product = tree.children[0]
+        let children = [Node(properties: [.string("name", "maps"), .integer("regulatory", 1)], children: [])]
+            + (haptics.map { [$0] } ?? [])
+            + [Node(properties: [.string("name", "util"), .integer("ramdisk", 0)], children: [])]
+        return Node(
+            properties: tree.properties,
+            children: [Node(properties: product.properties, children: children)] + tree.children.dropFirst(),
+        )
+    }
 
     /// A board tree shaped like `DeviceTree.j410ap.im4p`: iPad mini (A17 Pro).
     static func board(
@@ -191,6 +216,55 @@ struct DeviceTreeGuestDeviceTests {
         return read(patcher.patchedData)
     }
 
+    /// The trees a guest is patched in: an iPhone guest's one shared tree, and
+    /// an iPad guest's installed tree and restore tree.
+    enum Guest: CaseIterable, Sendable {
+        case iPhone
+        case iPad
+        case iPadRestore
+
+        var device: VPhoneGuestDevice {
+            self == .iPhone ? .default : .iPad16_1
+        }
+
+        var role: DeviceTreePatcher.TreeRole {
+            switch self {
+            case .iPhone: .shared
+            case .iPad: .installed
+            case .iPadRestore: .restore
+            }
+        }
+    }
+
+    /// Run the patcher on `guest`'s tree, returning the tree it writes and its
+    /// records.
+    static func patched(
+        _ tree: Data,
+        as guest: Guest,
+        gate: VPhonePatchGate = .unrestricted,
+    ) throws -> (data: Data, records: [PatchRecord]) {
+        let patcher = DeviceTreePatcher(
+            data: tree, verbose: false, device: guest.device, role: guest.role,
+            sourceTree: board().serialized(),
+        )
+        patcher.gate = gate
+        let records = try patcher.findAll()
+        return (patcher.patchedData, records)
+    }
+
+    /// The `name` of each child of the node at `path` in a parsed tree.
+    static func childNames(_ node: DeviceTreePatcher.DTNode, at path: [String] = []) -> [String] {
+        func name(_ node: DeviceTreePatcher.DTNode) -> String {
+            node.properties.first { $0.name == "name" }.map { String(decoding: $0.value.prefix { $0 != 0 }, as: UTF8.self) } ?? ""
+        }
+        var current = node
+        for component in path {
+            guard let child = current.children.first(where: { name($0) == component }) else { return [] }
+            current = child
+        }
+        return current.children.map(name)
+    }
+
     // MARK: - Tests
 
     @Test func `an iPad's installed tree presents the iPad`() throws {
@@ -286,6 +360,53 @@ struct DeviceTreeGuestDeviceTests {
         )
         _ = try twice.findAll()
         #expect(twice.patchedData == once.patchedData)
+    }
+
+    // MARK: - Haptics
+
+    @Test(arguments: Guest.allCases)
+    func `every guest's tree loses the haptics node`(guest: Guest) throws {
+        let tree = Self.guestTree(haptics: Self.haptics).serialized()
+        let (patched, records) = try Self.patched(tree, as: guest)
+
+        #expect(Self.read(patched)["device-tree/product/haptics"] == nil)
+        let parser = DeviceTreePatcher(data: Data(), verbose: false)
+        let root = try parser.parsePayload(patched)
+        #expect(Self.childNames(root) == ["product", "buttons"])
+        #expect(Self.childNames(root, at: ["product"]) == ["maps", "util"])
+
+        // The same tree without the node patches to the same bytes: nothing
+        // around it moved, and the length is the node's shorter.
+        let (without, _) = try Self.patched(Self.guestTree(haptics: nil).serialized(), as: guest)
+        #expect(patched == without)
+        #expect(tree.count - Self.guestTree(haptics: nil).serialized().count == Self.haptics.serialized().count)
+
+        let haptics = records.filter { $0.patchID == "devicetree-cfw-product_haptics_node" }
+        #expect(haptics.count == 1)
+        #expect(haptics.first?.originalBytes == Self.haptics.serialized())
+        #expect(haptics.first?.patchedBytes.isEmpty == true)
+    }
+
+    @Test(arguments: Guest.allCases)
+    func `the haptics node stays when its patch is off`(guest: Guest) throws {
+        let declared = Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier))
+        #expect(declared.contains("devicetree-cfw-product_haptics_node"))
+        let gate = VPhonePatchGate(declared: declared, enabled: declared.subtracting(["devicetree-cfw-product_haptics_node"]))
+        let (patched, records) = try Self.patched(Self.guestTree(haptics: Self.haptics).serialized(), as: guest, gate: gate)
+
+        #expect(!records.contains { $0.patchID == "devicetree-cfw-product_haptics_node" })
+        #expect(!records.isEmpty, "the other edits still apply")
+        let root = try DeviceTreePatcher(data: Data(), verbose: false).parsePayload(patched)
+        #expect(Self.childNames(root, at: ["product"]) == ["maps", "haptics", "util"])
+        #expect(Self.integer(Self.read(patched)["device-tree/product/haptics"]?["closed-loop"]) == 1)
+    }
+
+    @Test(arguments: Guest.allCases)
+    func `removing the haptics node a second time changes nothing`(guest: Guest) throws {
+        let (once, _) = try Self.patched(Self.guestTree(haptics: Self.haptics).serialized(), as: guest)
+        let (twice, records) = try Self.patched(once, as: guest)
+        #expect(twice == once)
+        #expect(!records.contains { $0.patchID == "devicetree-cfw-product_haptics_node" })
     }
 }
 

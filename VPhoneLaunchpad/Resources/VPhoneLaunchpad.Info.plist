@@ -36,6 +36,10 @@
 	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Shares your location with the virtual iPhone so apps running inside it see the same location.</string>
+	<!-- The guest's microphone is this Mac's, opened by vphone-vm while the
+	     guest records. Same arrangement as the location descriptions above. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Shares this Mac's microphone with the virtual iPhone so apps running inside it can record.</string>
 	<key>SMPrivilegedExecutables</key>
 	<dict>
 		<key>com.vphone.launchpad.helper</key>
