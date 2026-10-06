@@ -27,6 +27,35 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         reply(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0")
     }
 
+    func unattendedVMManagementEnabled(reply: @escaping @Sendable (Bool) -> Void) {
+        reply(VPhoneLaunchpadHelperUnattendedGrant.enabled(for: callerUID))
+    }
+
+    func enableUnattendedVMManagement(authorization: Data, reply: @escaping @Sendable (String?) -> Void) {
+        let callerUID = callerUID
+        work.async {
+            do {
+                try VPhoneLaunchpadHelperAuthorization.require(authorization)
+                try VPhoneLaunchpadHelperUnattendedGrant.enable(for: callerUID)
+                reply(nil)
+            } catch {
+                reply(error.localizedDescription)
+            }
+        }
+    }
+
+    func disableUnattendedVMManagement(reply: @escaping @Sendable (String?) -> Void) {
+        let callerUID = callerUID
+        work.async {
+            do {
+                try VPhoneLaunchpadHelperUnattendedGrant.disable(for: callerUID)
+                reply(nil)
+            } catch {
+                reply(error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Bundles
 
     func installBundle(
@@ -60,9 +89,10 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
     }
 
     func allowVirtualMachine(authorization: Data, bundleVersion: String, reply: @escaping @Sendable (String?) -> Void) {
+        let callerUID = callerUID
         work.async {
             do {
-                try VPhoneLaunchpadHelperAuthorization.require(authorization)
+                try VPhoneLaunchpadHelperAuthorization.requireVMManagement(authorization, callerUID: callerUID)
                 try VPhoneLaunchpadHelperAMFI.allow(bundleVersion: bundleVersion)
                 reply(nil)
             } catch {
@@ -141,7 +171,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         DispatchQueue.global(qos: .userInitiated).async { [self] in
             let request: VPhoneLaunchpadHelperFirmwareRequest
             do {
-                try VPhoneLaunchpadHelperAuthorization.require(authorization)
+                try VPhoneLaunchpadHelperAuthorization.requireVMManagement(authorization, callerUID: callerUID)
                 request = try VPhoneLaunchpadHelperFirmwareRequest(
                     operation: operation,
                     bundleVersion: bundleVersion,
@@ -210,7 +240,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         DispatchQueue.global(qos: .userInitiated).async {
             let request: VPhoneLaunchpadHelperLeasesRequest
             do {
-                try VPhoneLaunchpadHelperAuthorization.require(authorization)
+                try VPhoneLaunchpadHelperAuthorization.requireVMManagement(authorization, callerUID: callerUID)
                 request = try VPhoneLaunchpadHelperLeasesRequest(
                     bundleVersion: bundleVersion,
                     libraryRoots: libraryRoots,
@@ -282,6 +312,7 @@ final class VPhoneLaunchpadHelperService: NSObject, VPhoneLaunchpadHelperProtoco
         work.async { [self] in
             do {
                 try VPhoneLaunchpadHelperAuthorization.require(authorization)
+                try VPhoneLaunchpadHelperUnattendedGrant.removeAllForHelperUninstall()
             } catch {
                 reply(error.localizedDescription)
                 return

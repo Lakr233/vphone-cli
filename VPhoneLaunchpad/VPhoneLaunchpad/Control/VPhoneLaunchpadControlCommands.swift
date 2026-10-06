@@ -42,7 +42,10 @@ struct VPhoneLaunchpadControlCommands {
             throw VPhoneLaunchpadError("Usage: \(command.usage)")
         }
         switch command.name {
-        case "status": return status()
+        case "status": return await status()
+        case "access.status": return await accessStatus()
+        case "access.allow-vms": return try await allowVMAccess()
+        case "access.revoke-vms": return try await revokeVMAccess()
         case "bundle.list": return await listBundles()
         case "bundle.install-local": return try await installLocal(request, emit: emit)
         case "bundle.install-release": return try await installRelease(request, emit: emit)
@@ -71,9 +74,10 @@ struct VPhoneLaunchpadControlCommands {
 
     // MARK: - Status
 
-    private func status() -> [String: Any] {
+    private func status() async -> [String: Any] {
         // A grant made in Settings while the app stayed in the background.
         model.host.refreshDeveloperTools()
+        await model.helper.refreshUnattendedVMManagement()
         let helper = switch model.helper.state {
         case .unknown: "unknown"
         case .notInstalled: "not installed"
@@ -83,6 +87,7 @@ struct VPhoneLaunchpadControlCommands {
         }
         return [
             "helper": helper,
+            "unattendedVMManagement": model.helper.unattendedVMManagementEnabled,
             "hostReady": model.host.requiredPassed,
             "developerTools": model.host.isDeveloperToolAuthorized,
             "canInstallBundles": model.canInstallBundles,
@@ -95,6 +100,21 @@ struct VPhoneLaunchpadControlCommands {
             "running": library.runningCount,
             "libraries": library.roots,
         ]
+    }
+
+    private func accessStatus() async -> [String: Any] {
+        await model.helper.refreshUnattendedVMManagement()
+        return ["unattendedVMManagement": model.helper.unattendedVMManagementEnabled]
+    }
+
+    private func allowVMAccess() async throws -> [String: Any] {
+        try await model.helper.enableUnattendedVMManagement()
+        return ["unattendedVMManagement": model.helper.unattendedVMManagementEnabled]
+    }
+
+    private func revokeVMAccess() async throws -> [String: Any] {
+        try await model.helper.disableUnattendedVMManagement()
+        return ["unattendedVMManagement": model.helper.unattendedVMManagementEnabled]
     }
 
     // MARK: - Bundles

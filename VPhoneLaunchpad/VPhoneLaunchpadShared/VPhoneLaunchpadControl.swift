@@ -138,6 +138,12 @@ nonisolated struct VPhoneLaunchpadControlCommand: Sendable {
     static let all: [Self] = [
         Self(name: "status", arguments: [], options: [], flags: [],
              summary: "Host checks, helper, default bundle and machine counts."),
+        Self(name: "access.status", arguments: [], options: [], flags: [],
+             summary: "Show whether this Mac user has unattended VM management access."),
+        Self(name: "access.allow-vms", arguments: [], options: [], flags: [],
+             summary: "With one administrator approval, allow this Mac user to manage VMs from installed Core Bundles without later prompts. Bundle installs and helper updates still ask."),
+        Self(name: "access.revoke-vms", arguments: [], options: [], flags: [],
+             summary: "Revoke this Mac user's unattended VM management access."),
 
         Self(name: "bundle.list", arguments: [], options: [], flags: [],
              summary: "Installed VPhone.bundle versions, their checks, and the machines bound to each."),

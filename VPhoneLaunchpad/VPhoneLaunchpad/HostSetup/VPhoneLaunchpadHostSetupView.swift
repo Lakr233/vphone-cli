@@ -6,6 +6,7 @@ struct VPhoneLaunchpadHostSetupView: View {
     @AppStorage(VPhoneLaunchpadMenuBar.key) private var showsInMenuBar = false
     @State private var showsSkillInstall = false
     @State private var confirmsRelease = false
+    @State private var confirmsUnattendedVMManagement = false
 
     private var host: VPhoneLaunchpadHostSetup {
         model.host
@@ -50,6 +51,16 @@ struct VPhoneLaunchpadHostSetupView: View {
             }
         } message: {
             Text("Their leases have run out and no machine in your libraries has their MAC. A guest that comes back with one of these MACs gets a new address.")
+        }
+        .confirmationDialog(
+            "Allow Unattended VM Management?",
+            isPresented: $confirmsUnattendedVMManagement,
+        ) {
+            Button("Allow with Administrator Approval") {
+                Task { await host.setUnattendedVMManagement(true) }
+            }
+        } message: {
+            Text("After one administrator approval, this Mac user can create and update virtual iPhones from installed Core Bundles without another Touch ID prompt. These operations run the installed bundle’s vphone-cli as root. Installing or removing bundles and updating the helper still require administrator approval. You can revoke this access here.")
         }
     }
 
@@ -99,6 +110,27 @@ struct VPhoneLaunchpadHostSetupView: View {
             }
 
             Section {
+                HStack(spacing: 8) {
+                    VPhoneLaunchpadStatusIcon(status: model.helper.unattendedVMManagementEnabled ? .passed : .pending)
+                    Text("Unattended VM Management")
+                    Spacer(minLength: 16)
+                    Text(model.helper.unattendedVMManagementEnabled ? "Allowed for this Mac user" : "Administrator approval for VM operations")
+                        .foregroundStyle(.secondary)
+                    if model.helper.unattendedVMManagementEnabled {
+                        Button("Revoke") {
+                            Task { await host.setUnattendedVMManagement(false) }
+                        }
+                    } else {
+                        Button("Allow…") { confirmsUnattendedVMManagement = true }
+                    }
+                }
+                .disabled(host.isChangingUnattendedVMManagement || !helperReady)
+            } footer: {
+                Text("Applies to VM operations using installed Core Bundles. Bundle installs, removals, and helper updates still require administrator approval.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Keep in Menu Bar", isOn: $showsInMenuBar)
             } footer: {
                 Text("Closing the window keeps Launchpad in the menu bar, where you can start and stop machines. The Dock icon appears only while a window or the menu is open.")
@@ -106,6 +138,11 @@ struct VPhoneLaunchpadHostSetupView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var helperReady: Bool {
+        if case .ready = model.helper.state { return true }
+        return false
     }
 
     /// Icon, title, then detail and any action pinned to the trailing edge.

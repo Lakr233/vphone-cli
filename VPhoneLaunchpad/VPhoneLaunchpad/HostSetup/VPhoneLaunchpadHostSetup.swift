@@ -49,6 +49,7 @@ final class VPhoneLaunchpadHostSetup {
         .init(kind: .network, title: String(localized: "Network"), isRequired: false),
     ]
     private(set) var isChecking = false
+    private(set) var isChangingUnattendedVMManagement = false
     var actionError: VPhoneLaunchpadError?
     /// Set once Settings was opened for Developer Tools, so a refusal then
     /// reads "Not allowed" rather than "Not requested".
@@ -198,6 +199,24 @@ final class VPhoneLaunchpadHostSetup {
             actionError = VPhoneLaunchpadError(String(localized: "Unable to Install Helper"), detail: String(localized: "Try again."))
         }
         update(.helper, helperStatus())
+    }
+
+    func setUnattendedVMManagement(_ enabled: Bool) async {
+        guard !isChangingUnattendedVMManagement else { return }
+        isChangingUnattendedVMManagement = true
+        defer { isChangingUnattendedVMManagement = false }
+        do {
+            if enabled {
+                try await helper.enableUnattendedVMManagement()
+            } else {
+                try await helper.disableUnattendedVMManagement()
+            }
+        } catch is CancellationError {
+        } catch let error as VPhoneLaunchpadError {
+            actionError = error
+        } catch {
+            actionError = VPhoneLaunchpadError(String(localized: "Unable to Change Unattended VM Management"), detail: error.localizedDescription)
+        }
     }
 
     /// `EPDeveloperTool.authorizationStatus` keeps the answer this process

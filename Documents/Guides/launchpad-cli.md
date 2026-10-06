@@ -72,9 +72,27 @@ vphone-launchpad-cli vm log research-01 --lines 100
 vphone-launchpad-cli vm stop research-01
 ```
 
-The exact version is in the install result and in `bundle list`. The first
-step that needs the helper after its five-minute authorization expires asks
-for an administrator password on the Mac, as the window does.
+The exact version is in the install result and in `bundle list`. By default,
+the first privileged step after the helper's five-minute authorization expires
+asks for an administrator password on the Mac. To create and update any number
+of machines from already installed Core Bundles without repeated approval,
+choose **Host Setup → Unattended VM Management → Allow** or run:
+
+```sh
+vphone-launchpad-cli access allow-vms
+vphone-launchpad-cli access status
+```
+
+Enabling asks for an administrator once and stores a root-owned grant for the
+current macOS user. It contains no password or bearer token. The signed
+Launchpad app may then run only the helper's existing VM operations under this
+grant: allow a receipt-pinned `vphone-vm`, install or update guest firmware from
+an installed Core Bundle, and release orphaned DHCP leases. These operations
+may execute the installed bundle's `vphone-cli` as root. Bundle installation,
+bundle removal, and helper installation or removal still require their normal
+administrator approval. Revoke the VM grant in Host Setup or with
+`vphone-launchpad-cli access revoke-vms`; revocation prevents new operations
+but does not interrupt a running one.
 
 ## Comparing two builds
 
@@ -105,6 +123,7 @@ version while a machine is bound to it; rebind or delete those machines first.
 | Command | Does |
 | --- | --- |
 | `status` | Host checks, helper, default bundle, machine counts |
+| `access status` / `access allow-vms` / `access revoke-vms` | Inspect, enable with one administrator approval, or revoke this user's unattended VM operations |
 | `bundle list` | Installed versions, receipts, cdhashes, check results, bound machines |
 | `bundle install-local <path> [--keep-default]` | Install a local `VPhone.bundle` folder or `.zip` |
 | `bundle install-release <version\|latest> [--keep-default]` | Download and install a GitHub release |

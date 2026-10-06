@@ -1,11 +1,10 @@
 import Foundation
 import Security
 
-/// Per-user authorization for every privileged verb. The XPC code-signing
-/// requirement only proves the caller is vphone-launchpad; it says nothing
-/// about which user runs it. Each verb therefore also needs the caller's
-/// AuthorizationRef to hold `VPhoneLaunchpadHelperIdentity.privilegedRight`,
-/// which only an administrator can obtain.
+/// Per-user authorization for bundle changes, helper removal, and enrollment
+/// in unattended VM management. The XPC code-signing requirement only proves
+/// the caller is vphone-launchpad; its connection also supplies the caller's
+/// UID so a durable VM grant cannot be used from another macOS account.
 enum VPhoneLaunchpadHelperAuthorization {
     private static let right = VPhoneLaunchpadHelperIdentity.privilegedRight
 
@@ -63,6 +62,16 @@ enum VPhoneLaunchpadHelperAuthorization {
     }
 
     // MARK: - Check
+
+    /// The only operations eligible for the durable grant are the helper's
+    /// four fixed VM verbs. Missing, malformed, symlinked, or foreign-owned
+    /// grants fall back to the administrator right.
+    static func requireVMManagement(_ external: Data, callerUID: uid_t) throws {
+        if VPhoneLaunchpadHelperUnattendedGrant.enabled(for: callerUID) {
+            return
+        }
+        try require(external)
+    }
 
     /// Throws unless `external` is an AuthorizationExternalForm whose
     /// authorization holds the privileged right, prompting through the

@@ -17,14 +17,26 @@ nonisolated enum VPhoneLaunchpadHelperIdentity {
 
 /// The whole root surface of vphone-launchpad. Every call is a fixed verb with
 /// validated arguments; there is deliberately no "run this command" entry.
-/// Every verb but `helperVersion` takes `authorization`, the caller's
-/// AuthorizationExternalForm, and fails unless it holds
-/// `VPhoneLaunchpadHelperIdentity.privilegedRight`.
+/// Bundle changes and helper removal require the caller's administrator
+/// AuthorizationExternalForm. The four fixed VM verbs also accept an empty
+/// authorization after this macOS user explicitly enables unattended VM
+/// management. The helper binds that grant to the signed XPC peer's UID.
 @objc(VPhoneLaunchpadHelperProtocol)
 nonisolated protocol VPhoneLaunchpadHelperProtocol {
     /// CFBundleVersion of the running helper, compared against the copy
     /// embedded in the app to decide whether to bless it again.
     func helperVersion(reply: @escaping @Sendable (String) -> Void)
+
+    /// Whether the signed caller's macOS user has a durable grant for the
+    /// four fixed VM verbs. A missing or unsafe grant reports false.
+    func unattendedVMManagementEnabled(reply: @escaping @Sendable (Bool) -> Void)
+
+    /// Persists a grant for the signed caller's UID after a fresh administrator
+    /// authorization. The grant contains no password or bearer credential.
+    func enableUnattendedVMManagement(authorization: Data, reply: @escaping @Sendable (String?) -> Void)
+
+    /// Revokes the signed caller's own grant. Already running work continues.
+    func disableUnattendedVMManagement(reply: @escaping @Sendable (String?) -> Void)
 
     /// Copies the archive from `archive` into a root-owned staging directory,
     /// checks it against `sha256`, verifies the bundle's signature, and moves

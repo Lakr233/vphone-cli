@@ -22,6 +22,7 @@ final class VPhoneLaunchpadHelperClient {
     private var connection: NSXPCConnection?
     private let receiver = VPhoneLaunchpadHelperReceiver()
     private let authorizationSession = VPhoneLaunchpadHelperAuthorizationSession()
+    private(set) var unattendedVMManagementEnabled = false
 
     private nonisolated static let label = VPhoneLaunchpadHelperIdentity.label
 
@@ -89,6 +90,7 @@ final class VPhoneLaunchpadHelperClient {
         switch installed {
         case .unconfigured, .notInstalled, .outdated:
             state = installed
+            unattendedVMManagementEnabled = false
             return
         case .unknown, .ready:
             break
@@ -102,6 +104,53 @@ final class VPhoneLaunchpadHelperClient {
         } catch {
             state = .outdated(installed: "unknown", bundled: bundled)
         }
+        await refreshUnattendedVMManagement()
+    }
+
+    /// A durable, per-user grant is checked by the helper on every VM verb.
+    /// The app caches this only for display; authorization decisions stay in
+    /// the root helper and are bound to the signed XPC client's effective UID.
+    func refreshUnattendedVMManagement() async {
+        guard case .ready = state else {
+            unattendedVMManagementEnabled = false
+            return
+        }
+        unattendedVMManagementEnabled = (try? await request { proxy, done in
+            proxy.unattendedVMManagementEnabled { done(.success($0)) }
+        }) ?? false
+    }
+
+    func enableUnattendedVMManagement() async throws {
+        guard case .ready = state else {
+            throw VPhoneLaunchpadError(String(localized: "Install the privileged helper in Host Setup first."))
+        }
+        let authorization = try await authorizationSession.externalForm()
+        try await call { proxy, done in
+            proxy.enableUnattendedVMManagement(authorization: authorization) { message in
+                done(message.map { VPhoneLaunchpadError($0) })
+            }
+        }
+        await refreshUnattendedVMManagement()
+        guard unattendedVMManagementEnabled else {
+            throw VPhoneLaunchpadError(String(localized: "Unattended VM management was not enabled."))
+        }
+    }
+
+    func disableUnattendedVMManagement() async throws {
+        guard case .ready = state else {
+            throw VPhoneLaunchpadError(String(localized: "Install the privileged helper in Host Setup first."))
+        }
+        try await call { proxy, done in
+            proxy.disableUnattendedVMManagement { message in
+                done(message.map { VPhoneLaunchpadError($0) })
+            }
+        }
+        await refreshUnattendedVMManagement()
+    }
+
+    private func vmAuthorization() async throws -> Data {
+        await refreshUnattendedVMManagement()
+        return unattendedVMManagementEnabled ? Data() : try await authorizationSession.externalForm()
     }
 
     // MARK: - Install
@@ -236,7 +285,7 @@ final class VPhoneLaunchpadHelperClient {
                 String(localized: "Update the privileged helper in Host Setup, then run preflight again."),
             )
         }
-        let authorization = try await authorizationSession.externalForm()
+        let authorization = try await vmAuthorization()
         try await call { proxy, done in
             proxy.allowVirtualMachine(authorization: authorization, bundleVersion: bundleVersion) { message in
                 done(message.map { VPhoneLaunchpadError($0) })
@@ -253,7 +302,7 @@ final class VPhoneLaunchpadHelperClient {
         keepArtifacts: Bool,
         onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
-        let authorization = try await authorizationSession.externalForm()
+        let authorization = try await vmAuthorization()
         guard receiver.claim(onLine) else {
             throw Self.firmwareBusy
         }
@@ -287,7 +336,7 @@ final class VPhoneLaunchpadHelperClient {
         libraryRoot: String,
         onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
-        let authorization = try await authorizationSession.externalForm()
+        let authorization = try await vmAuthorization()
         guard receiver.claim(onLine) else {
             throw Self.firmwareBusy
         }
@@ -355,7 +404,7 @@ final class VPhoneLaunchpadHelperClient {
         guard case .ready = state else {
             throw VPhoneLaunchpadError(String(localized: "Update the privileged helper in Host Setup, then try again."))
         }
-        let authorization = try await authorizationSession.externalForm()
+        let authorization = try await vmAuthorization()
         return try await request { proxy, done in
             proxy.releaseOrphanedLeases(
                 authorization: authorization,
