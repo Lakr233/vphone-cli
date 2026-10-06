@@ -18,7 +18,7 @@ nonisolated enum VPhoneLaunchpadHelperIdentity {
 /// The whole root surface of vphone-launchpad. Every call is a fixed verb with
 /// validated arguments; there is deliberately no "run this command" entry.
 /// Bundle changes and helper removal require the caller's administrator
-/// AuthorizationExternalForm. The four fixed VM verbs also accept an empty
+/// AuthorizationExternalForm. The five fixed VM verbs also accept an empty
 /// authorization after this macOS user explicitly enables unattended VM
 /// management. The helper binds that grant to the signed XPC peer's UID.
 @objc(VPhoneLaunchpadHelperProtocol)
@@ -28,7 +28,7 @@ nonisolated protocol VPhoneLaunchpadHelperProtocol {
     func helperVersion(reply: @escaping @Sendable (String) -> Void)
 
     /// Whether the signed caller's macOS user has a durable grant for the
-    /// four fixed VM verbs. A missing or unsafe grant reports false.
+    /// five fixed VM verbs. A missing or unsafe grant reports false.
     func unattendedVMManagementEnabled(reply: @escaping @Sendable (Bool) -> Void)
 
     /// Persists a grant for the signed caller's UID after a fresh administrator

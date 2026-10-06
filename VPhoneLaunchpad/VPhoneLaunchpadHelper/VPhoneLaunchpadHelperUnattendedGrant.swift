@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// A durable, per-macOS-user opt-in for the helper's four fixed VM verbs.
+/// A durable, per-macOS-user opt-in for the helper's five fixed VM verbs.
 /// The helper's XPC listener authenticates the signed Launchpad app; the UID
 /// comes from that connection, never from a caller-supplied argument. No
 /// AuthorizationExternalForm, password, or bearer token is stored here.

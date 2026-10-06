@@ -86,8 +86,9 @@ vphone-launchpad-cli access status
 Enabling asks for an administrator once and stores a root-owned grant for the
 current macOS user. It contains no password or bearer token. The signed
 Launchpad app may then run only the helper's existing VM operations under this
-grant: allow a receipt-pinned `vphone-vm`, install or update guest firmware from
-an installed Core Bundle, and release orphaned DHCP leases. These operations
+grant: allow a receipt-pinned `vphone-vm`, install or update guest firmware or
+the guest kernel from an installed Core Bundle, and release orphaned DHCP
+leases. These operations
 may execute the installed bundle's `vphone-cli` as root. Bundle installation,
 bundle removal, and helper installation or removal still require their normal
 administrator approval. Revoke the VM grant in Host Setup or with

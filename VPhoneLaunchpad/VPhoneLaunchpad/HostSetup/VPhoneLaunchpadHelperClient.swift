@@ -369,7 +369,7 @@ final class VPhoneLaunchpadHelperClient {
         libraryRoot: String,
         onLine: @escaping @Sendable (String) -> Void,
     ) async throws -> Int32 {
-        let authorization = try await authorizationSession.externalForm()
+        let authorization = try await vmAuthorization()
         guard receiver.claim(onLine) else {
             throw Self.firmwareBusy
         }

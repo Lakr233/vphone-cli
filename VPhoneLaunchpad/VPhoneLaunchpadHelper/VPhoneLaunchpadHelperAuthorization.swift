@@ -64,7 +64,7 @@ enum VPhoneLaunchpadHelperAuthorization {
     // MARK: - Check
 
     /// The only operations eligible for the durable grant are the helper's
-    /// four fixed VM verbs. Missing, malformed, symlinked, or foreign-owned
+    /// five fixed VM verbs. Missing, malformed, symlinked, or foreign-owned
     /// grants fall back to the administrator right.
     static func requireVMManagement(_ external: Data, callerUID: uid_t) throws {
         if VPhoneLaunchpadHelperUnattendedGrant.enabled(for: callerUID) {
