@@ -179,8 +179,8 @@ enum VPhonePCCGPURecovery {
         mountToClean = mount
         var mounted = false
         defer {
-            if mounted, (try? run("/sbin/umount", [mount.path])) == nil {
-                _ = try? run("/sbin/umount", ["-f", mount.path])
+            if mounted {
+                _ = try? run("/usr/sbin/diskutil", ["unmount", "force", mount.path])
             }
         }
         mounted = true
@@ -194,11 +194,7 @@ enum VPhonePCCGPURecovery {
             into: restoreDirectory,
             expectedPlatformVersion: expectedPlatformVersion,
         )
-        do {
-            try run("/sbin/umount", [mount.path])
-        } catch {
-            try run("/sbin/umount", ["-f", mount.path])
-        }
+        try run("/usr/sbin/diskutil", ["unmount", "force", mount.path])
         mounted = false
         do {
             try run("/usr/sbin/diskutil", ["eject", baseDisk])

@@ -302,15 +302,11 @@ struct VPhoneCustomFirmwareInstaller {
         var systemMounted = false
         var xartMounted = false
         defer {
-            if xartMounted,
-               (try? tool("/sbin/umount", [xart.path], quiet: true)) == nil
-            {
-                _ = try? tool("/sbin/umount", ["-f", xart.path], quiet: true)
+            if xartMounted {
+                _ = try? tool("/usr/sbin/diskutil", ["unmount", "force", xart.path], quiet: true)
             }
-            if systemMounted,
-               (try? tool("/sbin/umount", [system.path], quiet: true)) == nil
-            {
-                _ = try? tool("/sbin/umount", ["-f", system.path], quiet: true)
+            if systemMounted {
+                _ = try? tool("/usr/sbin/diskutil", ["unmount", "force", system.path], quiet: true)
             }
         }
         systemMounted = true
@@ -417,9 +413,9 @@ struct VPhoneCustomFirmwareInstaller {
         // The snapshot rename is a full install's alone: it has already been
         // done on any VM an environment update is allowed to run against, and
         // this run creates no new snapshot to flip.
-        _ = try tool("/sbin/umount", [xart.path])
+        _ = try tool("/usr/sbin/diskutil", ["unmount", "force", xart.path])
         xartMounted = false
-        _ = try tool("/sbin/umount", [system.path])
+        _ = try tool("/usr/sbin/diskutil", ["unmount", "force", system.path])
         systemMounted = false
         _ = try tool("/usr/sbin/diskutil", ["eject", baseDisk], quiet: true)
         diskAttached = false
@@ -578,10 +574,8 @@ struct VPhoneCustomFirmwareInstaller {
         _ = try work.directory.directory("preboot", create: true, mode: 0o700)
         var prebootMounted = false
         defer {
-            if prebootMounted,
-               (try? tool("/sbin/umount", [mount.path], quiet: true)) == nil
-            {
-                _ = try? tool("/sbin/umount", ["-f", mount.path], quiet: true)
+            if prebootMounted {
+                _ = try? tool("/usr/sbin/diskutil", ["unmount", "force", mount.path], quiet: true)
             }
         }
         prebootMounted = true
@@ -616,7 +610,7 @@ struct VPhoneCustomFirmwareInstaller {
             return true
         }()
 
-        _ = try tool("/sbin/umount", [mount.path])
+        _ = try tool("/usr/sbin/diskutil", ["unmount", "force", mount.path])
         prebootMounted = false
         _ = try tool("/usr/sbin/diskutil", ["eject", baseDisk], quiet: true)
         diskAttached = false
@@ -2044,7 +2038,7 @@ struct VPhoneCustomFirmwareInstaller {
         let mount = work.file("preboot")
         _ = try work.directory.directory("preboot", create: true, mode: 0o700)
         try mountGuestVolume(device, at: mount)
-        defer { _ = try? tool("/sbin/umount", [mount.path], quiet: true) }
+        defer { _ = try? tool("/usr/sbin/diskutil", ["unmount", "force", mount.path], quiet: true) }
         // Every descriptor on the Preboot volume lives in this scope, so none
         // is left open to hold it busy when the deferred unmount runs.
         do {
