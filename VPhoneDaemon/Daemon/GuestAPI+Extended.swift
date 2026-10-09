@@ -13,6 +13,7 @@ extension GuestAPI {
             executeLog,
             executeAppDetail,
             executeSystemApps,
+            executePhotos,
             executeFileTool,
             executeStorage,
             executeEnvironment,

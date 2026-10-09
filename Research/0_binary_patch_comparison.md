@@ -1,5 +1,11 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Photos import migration (2026-10-09):** the former Fleet media-import hook
+> is implemented as `photos.import` / `photos.status` on the guest HTTP RPC
+> service. It reuses file uploads and runs PhotoKit in isolated mobile workers
+> with durable transaction receipts. No firmware binary patch is added. See
+> [contract and validation](Guest/photos_import.md).
+
 > **iOS 27 locationd startup (2026-10-08):**
 > `system-locationd-cfw-disable_auto_cohort` disables only `CLAutoCohort` in
 > `System/Library/FeatureFlags/Domain/CoreLocation.plist`. The guest system set

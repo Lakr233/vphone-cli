@@ -259,7 +259,7 @@
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
-				OTHER_LDFLAGS = "-lVPhoneSign";
+				OTHER_LDFLAGS = "-lVPhoneSign -framework Photos";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
@@ -276,7 +276,7 @@
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";
-				OTHER_LDFLAGS = "-lVPhoneSign";
+				OTHER_LDFLAGS = "-lVPhoneSign -framework Photos";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)-iphoneos";

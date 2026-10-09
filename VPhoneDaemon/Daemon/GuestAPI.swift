@@ -132,6 +132,7 @@ enum GuestAPI {
                 "file_tools",
                 "apfs_snapshots",
                 "files_app_drop",
+                "photos_import",
                 "packages",
                 "environment_update",
                 "udid_override",

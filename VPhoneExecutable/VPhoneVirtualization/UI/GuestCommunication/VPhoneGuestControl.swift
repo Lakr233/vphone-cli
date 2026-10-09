@@ -482,13 +482,17 @@ final class VPhoneGuestControl {
         return response.body
     }
 
-    func uploadFile(path: String, data: Data, permissions: String = "644") async throws {
+    func uploadFile(
+        path: String, data: Data, permissions: String = "644",
+        progress: (@Sendable (Int, Int) -> Void)? = nil,
+    ) async throws {
         let response = try await http(
             method: "PUT",
             path: filePath(path, mode: permissions),
             body: data,
             contentType: "application/octet-stream",
             limits: .upload,
+            uploadProgress: progress,
         )
         guard response.status == 200 else { throw try httpError(response) }
     }
@@ -743,6 +747,7 @@ final class VPhoneGuestControl {
         body: Data = Data(),
         contentType: String = "application/json",
         limits: VPhoneHTTPLimits = .rpc,
+        uploadProgress: (@Sendable (Int, Int) -> Void)? = nil,
     ) async throws -> VPhoneHTTPResponse {
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
@@ -757,6 +762,7 @@ final class VPhoneGuestControl {
             body: body,
             contentType: contentType,
             limits: limits,
+            uploadProgress: uploadProgress,
         )
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -807,6 +813,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     let body: Data
     let contentType: String
     let limits: VPhoneHTTPLimits
+    let uploadProgress: (@Sendable (Int, Int) -> Void)?
     private let deadline: ContinuousClock.Instant
 
     /// Per-read and per-write socket timeout.
@@ -819,6 +826,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         body: Data,
         contentType: String,
         limits: VPhoneHTTPLimits,
+        uploadProgress: (@Sendable (Int, Int) -> Void)?,
     ) {
         self.connection = connection
         self.method = method
@@ -826,6 +834,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         self.body = body
         self.contentType = contentType
         self.limits = limits
+        self.uploadProgress = uploadProgress
         deadline = ContinuousClock.now + limits.deadline
     }
 
@@ -854,7 +863,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
             "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n\r\n"
         try write(fd, data: Data(headers.utf8))
         if !body.isEmpty {
-            try write(fd, data: body)
+            try write(fd, data: body, progress: uploadProgress)
         }
 
         var received = Data()
@@ -908,7 +917,9 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         return length
     }
 
-    private func write(_ fd: Int32, data: Data) throws {
+    private func write(
+        _ fd: Int32, data: Data, progress: (@Sendable (Int, Int) -> Void)? = nil,
+    ) throws {
         try data.withUnsafeBytes { bytes in
             guard let base = bytes.baseAddress else { return }
             var offset = 0
@@ -916,7 +927,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
                 guard ContinuousClock.now < deadline else {
                     throw VPhoneGuestControl.ControlError.protocolError("HTTP request timed out")
                 }
-                let sent = Darwin.write(fd, base + offset, bytes.count - offset)
+                let sent = Darwin.write(fd, base + offset, min(bytes.count - offset, 1024 * 1024))
                 if sent < 0, errno == EINTR {
                     continue
                 }
@@ -924,6 +935,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
                     throw VPhoneGuestControl.ControlError.notConnected
                 }
                 offset += sent
+                progress?(offset, bytes.count)
             }
         }
     }

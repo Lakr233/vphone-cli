@@ -10,6 +10,9 @@
 char *vp_sign_app_for_install(const char *appPath, const char *certificatePath);
 void vp_native_bootstrap_cached_binary(void);
 void vp_native_confirm_cached_binary(void);
+/// Returns -1 outside worker mode. Call before normal daemon bootstrap.
+int vp_photos_worker_main(void);
+void vp_photos_start(void);
 /// 0 = launchd proxy, 1 = --io worker, -1 = invalid arguments.
 int vp_native_process_mode(void);
 int vp_native_run_proxy(void);
@@ -79,6 +82,10 @@ int vp_apfs_snapshot_delete(const char *mount, const char *name);
 char *vp_ls_register_system_app(const char *app_path, const char *container_path, char **method);
 
 #ifdef __OBJC__
+/// Start an idempotent import of an uploaded image/video, or read its receipt.
+NSDictionary *vp_photos_import(NSString *job, NSString *source, NSString *name);
+NSDictionary *vp_photos_status(NSString *job);
+
 /// The configured radians/second and the injected HID provider's heartbeat.
 NSDictionary *vp_gyro_get(void);
 BOOL vp_gyro_set(double x, double y, double z, bool enabled);

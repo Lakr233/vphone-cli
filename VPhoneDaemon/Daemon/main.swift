@@ -5,6 +5,9 @@ import NIOPosix
 import NIOWebSocket
 import VphonedNative
 
+let photosWorker = vp_photos_worker_main()
+if photosWorker >= 0 { exit(photosWorker) }
+
 let mode = vp_native_process_mode()
 if mode != 1 {
     guard mode == 0 else { exit(64) }
@@ -20,6 +23,7 @@ GuestMobileGestaltCache.dropIfStaleOnStartup()
 // Before audiomxd is asked for sound again; see the type for what it cannot cover.
 GuestVirtualAudioProduct.storeOnStartup()
 vp_vcam_start()
+vp_photos_start()
 // Multi-finger injection is resolved here so the first pinch is not the call
 // that pays for `dlopen`; a base without the symbols logs and stays a no-op.
 _ = vp_hid_load()
