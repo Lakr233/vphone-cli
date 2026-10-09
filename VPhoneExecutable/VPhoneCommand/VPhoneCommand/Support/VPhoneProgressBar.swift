@@ -60,7 +60,7 @@ final class VPhoneProgressBar: @unchecked Sendable {
             return
         case .bar:
             render(done: total, now: Date())
-            FileHandle.standardError.write(Data("\n".utf8))
+            write("\n")
         case .lines:
             render(done: total, now: Date())
         }
@@ -68,7 +68,7 @@ final class VPhoneProgressBar: @unchecked Sendable {
 
     private func render(done: Int64, now: Date) {
         if mode == .lines {
-            FileHandle.standardError.write(Data("progress \(done) \(total)\n".utf8))
+            write("progress \(done) \(total)\n")
             return
         }
         let frac = total > 0 ? min(1.0, Double(done) / Double(total)) : 0
@@ -88,7 +88,14 @@ final class VPhoneProgressBar: @unchecked Sendable {
             line += "  eta \(Self.clock(Double(total - done) / rate))"
         }
         line += "\u{1B}[K" // clear to end of line
-        FileHandle.standardError.write(Data(line.utf8))
+        write(line)
+    }
+
+    /// Progress is best effort. A reader that went away, such as a quit
+    /// vphone-launchpad, leaves stderr a broken pipe; `write(_:)` raises an
+    /// Objective-C exception for that and aborts the transfer under way.
+    private func write(_ text: String) {
+        try? FileHandle.standardError.write(contentsOf: Data(text.utf8))
     }
 
     static func bytes(_ n: Int64) -> String {

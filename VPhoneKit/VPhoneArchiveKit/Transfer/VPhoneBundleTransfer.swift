@@ -192,6 +192,7 @@ public enum VPhoneBundleTransfer {
         name: String?,
         in library: VPhoneLibrary,
         progress: ((Int64, Int64) -> Void)? = nil,
+        isCancelled: (() -> Bool)? = nil,
     ) throws -> VPhoneBundle {
         let fm = FileManager.default
         // Fail fast when the destination name is already known (explicit rename).
@@ -222,6 +223,7 @@ public enum VPhoneBundleTransfer {
             into: staging,
             options: .intoHostDirectory,
             bytesRead: progress.map { report in { done in report(done, total) } },
+            isCancelled: isCancelled,
         )
         // A tar reader stops at the end-of-archive marker, which in a
         // compressed file can sit short of the last byte, so the read position

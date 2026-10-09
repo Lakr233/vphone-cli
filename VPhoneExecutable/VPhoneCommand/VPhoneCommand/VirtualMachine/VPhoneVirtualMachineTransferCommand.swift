@@ -90,16 +90,49 @@ struct VPhoneVirtualMachineImportCommand: ParsableCommand {
 
     func run() throws {
         let bar = VPhoneProgressBar(label: "importing")
+        // SIGINT (Ctrl-C, or vphone-launchpad stopping the import) and SIGTERM
+        // stop the extraction between blocks, so the staging folder is removed
+        // rather than left in the library at the size it had reached.
+        let stop = VPhoneImportInterruption()
         let bundle = try VPhoneBundleTransfer.importArchive(
             from: URL(fileURLWithPath: input),
             name: name,
             in: lib.library,
             progress: { done, total in bar.update(done: done, total: total) },
+            isCancelled: { stop.isRequested },
         )
         try VPhoneHostFilePermissions.makeAccessible(at: bundle.url)
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: lib.library.root)
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: VPhoneResources.userDataRoot())
         bar.finish()
         print("imported → \(bundle.name)")
+    }
+}
+
+// MARK: - Interruption
+
+/// Turns SIGINT and SIGTERM into a flag the import polls. The signals are
+/// ignored for the rest of the process: once the extraction has returned, the
+/// remaining steps are a rename and permission changes, quicker to finish
+/// than to undo.
+private final class VPhoneImportInterruption: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requested = false
+    private var sources: [DispatchSourceSignal] = []
+
+    init() {
+        for signalNumber in [SIGINT, SIGTERM] {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global())
+            source.setEventHandler { [self] in
+                lock.withLock { requested = true }
+            }
+            source.resume()
+            sources.append(source)
+        }
+    }
+
+    var isRequested: Bool {
+        lock.withLock { requested }
     }
 }
