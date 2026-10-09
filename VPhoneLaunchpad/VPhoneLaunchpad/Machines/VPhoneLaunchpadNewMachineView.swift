@@ -422,8 +422,8 @@ struct VPhoneLaunchpadNewMachineView: View {
     }
 
     private var advancedSummary: String {
-        let network = VPhoneLaunchpadNewMachineAdvancedView.networkModes.first { $0.tag == network }?.title ?? network
-        return String(localized: "\(cpu) cores · \(memoryMB / 1024) GB memory · \(diskSizeGB) GB disk") + " · " + network
+        let networkTitle = VPhoneLaunchpadNewMachineAdvancedView.networkModes.first { $0.tag == network }?.title ?? network
+        return String(localized: "\(cpu) cores · \(memoryMB / 1024) GB memory · \(diskSizeGB) GB disk") + " · " + networkTitle
     }
 
     /// The advanced settings that differ from what the sheet opened with.
