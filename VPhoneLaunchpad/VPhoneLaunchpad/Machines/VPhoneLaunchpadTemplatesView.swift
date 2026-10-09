@@ -37,13 +37,13 @@ struct VPhoneLaunchpadTemplatesView: View {
     }
 
     var body: some View {
-        VPhoneLaunchpadSheet(Text("Templates")) {
+        VPhoneLaunchpadSheet(Text("Templates"), width: VPhoneLaunchpadSheetSize.wide) {
             VStack(spacing: 0) {
                 list
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if selected.count == 1 {
+                if selected.count == 1, selected[0].stale {
                     Divider()
-                    detail(selected[0])
+                    outdatedNote(selected[0])
                 }
                 ForEach(leftovers, id: \.build.path) { leftover in
                     Divider()
@@ -132,44 +132,50 @@ struct VPhoneLaunchpadTemplatesView: View {
         }
     }
 
+    /// One line per template. Machines do not depend on their template, so
+    /// no column looks them up.
     private var table: some View {
         Table(templates, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("Template", value: \.key.device) { template in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: template.key.device)
-                    Text(verbatim: template.id)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                .help(template.path)
+            TableColumn("Device", value: \.key.device) { template in
+                Text(verbatim: template.key.device)
             }
-            .width(min: 70, ideal: 84)
+            .width(min: 70, ideal: 90)
+            TableColumn("Template", value: \.id) { template in
+                Text(verbatim: template.id)
+                    .font(.body.monospaced())
+                    .foregroundStyle(.secondary)
+                    .help(origin(template))
+            }
+            .width(min: 90, ideal: 110)
             TableColumn("OS", value: \.key.iOSVersion) { template in
                 Text(verbatim: "\(template.key.osName) \(template.key.iOSVersion) (\(template.key.iOSBuild))")
                     .help(Text(verbatim: "cloudOS \(template.key.cloudOSVersion) (\(template.key.cloudOSBuild))"))
             }
-            .width(min: 100, ideal: 110)
+            .width(min: 110, ideal: 140)
             TableColumn("Preset", value: \.key.patchPreset) { template in
-                Text(verbatim: "\(template.key.patchPreset), \(template.key.diskSizeGB) GB")
+                Text(verbatim: template.key.patchPreset)
             }
-            .width(min: 70, ideal: 84)
+            .width(min: 60, ideal: 70)
+            TableColumn("Disk", value: \.key.diskSizeGB) { template in
+                Text(verbatim: "\(template.key.diskSizeGB) GB")
+                    .monospacedDigit()
+            }
+            .width(min: 50, ideal: 56)
+            .alignment(.numeric)
+            TableColumn("Slimming", value: \.key.slimming.summary) { template in
+                Text(verbatim: template.key.slimming.summary)
+                    .help(slimmingHelp(template.key.slimming))
+            }
+            .width(min: 100, ideal: 170)
             TableColumn("Size", value: \.allocatedBytes) { template in
                 Text(verbatim: VPhoneLaunchpadDiskUsage.format(template.allocatedBytes))
                     .monospacedDigit()
                     .help(sizeHelp(template))
             }
-            .width(min: 50, ideal: 56)
-            .alignment(.numeric)
-            TableColumn("Machines", value: \.machinesOrder) { template in
-                Text(verbatim: template.machines.isEmpty ? "—" : template.machines.joined(separator: ", "))
-                    .foregroundStyle(template.machines.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help(template.machines.joined(separator: ", "))
-            }
             .width(min: 50, ideal: 60)
+            .alignment(.numeric)
             TableColumn("State", value: \.staleOrder) { template in
-                // The icon alone: the detail below says what is outdated.
+                // The icon alone: the line below the table says what is outdated.
                 if template.stale {
                     VPhoneLaunchpadStatusIcon(status: .warning)
                         .help(String(localized: "Outdated") + "\n" + template.staleReasons.joined(separator: "\n"))
@@ -197,24 +203,26 @@ struct VPhoneLaunchpadTemplatesView: View {
         .vphoneFocusedOnAppear()
     }
 
-    /// The selected template's details that do not fit a column.
-    private func detail(_ template: VPhoneLaunchpadTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if template.stale {
-                Label {
-                    Text("Outdated: \(template.staleReasons.joined(separator: "; ")). New machines get a new template; this one only takes space.")
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-                }
-            }
-            // Slimming and the date are here rather than in columns, which the
-            // sheet has no room for.
-            Text(verbatim: [template.key.slimming.summary, String(localized: "Created \(template.created.formatted(date: .abbreviated, time: .shortened))")].filter { !$0.isEmpty }.joined(separator: " · "))
-                .help(slimmingHelp(template.key.slimming))
-            if let sources = template.sources {
-                Text("Built from \(URL(string: sources.iPhone)?.lastPathComponent ?? sources.iPhone) and cloudOS \(template.key.cloudOSVersion) (\(template.key.cloudOSBuild)).")
-            }
-            Text("Built with Core Bundle \(template.builtWithBundleVersion ?? "—"); every machine from it shares its SEP root secret and Data volume keys.")
+    /// What the identifier's tooltip says: when, from what and with which
+    /// bundle the template was built.
+    private func origin(_ template: VPhoneLaunchpadTemplate) -> String {
+        var lines = [String(localized: "Created \(template.created.formatted(date: .abbreviated, time: .shortened))")]
+        if let sources = template.sources {
+            lines.append(String(localized: "Built from \(URL(string: sources.iPhone)?.lastPathComponent ?? sources.iPhone) and cloudOS \(template.key.cloudOSVersion) (\(template.key.cloudOSBuild))."))
+        }
+        lines.append(String(localized: "Built with Core Bundle \(template.builtWithBundleVersion ?? "—"); every machine from it shares its SEP root secret and Data volume keys."))
+        lines.append(template.path)
+        return lines.joined(separator: "\n")
+    }
+
+    /// The one line under the table, for a selected outdated template.
+    private func outdatedNote(_ template: VPhoneLaunchpadTemplate) -> some View {
+        Label {
+            Text("Outdated: \(template.staleReasons.joined(separator: "; ")). New machines get a new template; this one only takes space.")
+                .lineLimit(1)
+                .truncationMode(.tail)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
         }
         .font(.callout)
         .foregroundStyle(.secondary)
@@ -246,11 +254,7 @@ struct VPhoneLaunchpadTemplatesView: View {
 
     private func deletionMessage(_ template: VPhoneLaunchpadTemplate) -> String {
         var parts: [String] = []
-        if template.machines.isEmpty {
-            parts.append(String(localized: "No machine was created from it."))
-        } else {
-            parts.append(String(localized: "\(template.machines.joined(separator: ", ")) keep working: they share its blocks but do not need it."))
-        }
+        parts.append(String(localized: "Machines created from it keep working: they share its blocks but do not need it."))
         if let exclusive = library.usage(of: template)?.exclusive {
             parts.append(String(localized: "Deleting it frees about \(VPhoneLaunchpadDiskUsage.format(exclusive)), once no local Time Machine snapshot keeps those blocks; the blocks its machines share are freed once they change or are deleted."))
         }
@@ -297,11 +301,6 @@ struct VPhoneLaunchpadTemplatesView: View {
 }
 
 extension VPhoneLaunchpadTemplate {
-    /// The Machines column's order: unused templates first, then by the names.
-    var machinesOrder: String {
-        machines.joined(separator: ", ")
-    }
-
     /// The State column's order: current, then outdated.
     var staleOrder: Int {
         stale ? 1 : 0

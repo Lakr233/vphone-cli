@@ -700,7 +700,8 @@ struct VPhoneLaunchpadControlCommands {
             }
             slimming.trimsServices = profile == "trimmed"
         }
-        slimming.removesApps = try onOff("remove-apps") ?? true
+        // Off by default as in New Machine; --keep-apps alone implies on.
+        slimming.removesApps = try onOff("remove-apps") ?? (request.option("keep-apps") != nil)
         if let kept = request.option("keep-apps") {
             let identifiers = Set(VPhoneLaunchpadSlimming.languageList(kept))
             let known = Set(VPhoneLaunchpadSlimming.removableApps.map(\.id))

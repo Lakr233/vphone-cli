@@ -14,7 +14,7 @@ struct VPhoneLaunchpadCommandHistoryView: View {
     }
 
     var body: some View {
-        VPhoneLaunchpadSheet(Text("Recent Commands")) {
+        VPhoneLaunchpadSheet(Text("Recent Commands"), width: VPhoneLaunchpadSheetSize.wide) {
             if entries.isEmpty {
                 ContentUnavailableView("Commands that Launchpad runs appear here.", systemImage: "terminal")
             } else {

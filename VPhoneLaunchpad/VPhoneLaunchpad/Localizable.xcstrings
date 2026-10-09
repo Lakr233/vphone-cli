@@ -1803,6 +1803,40 @@
         }
       }
     },
+    "Machines created from it keep working: they share its blocks but do not need it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Machines created from it keep working: they share its blocks but do not need it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これから作成した仮想マシンは引き続き動作します。ブロックを共有していますが、テンプレートは不要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 템플릿으로 만든 가상 머신은 계속 동작합니다. 블록을 공유하지만 템플릿이 필요하지는 않습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các máy ảo tạo từ mẫu này vẫn hoạt động: chúng dùng chung khối dữ liệu nhưng không cần đến mẫu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从它创建的虚拟机仍可正常使用：它们共享其数据块，但并不依赖它。"
+          }
+        }
+      }
+    },
     "Machines from one template share its SEP root secret and Data volume keys. Turn this off for a machine that needs keys of its own." : {
       "localizations" : {
         "en" : {
@@ -3057,6 +3091,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "视频"
+          }
+        }
+      }
+    },
+    "Terminate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強制終了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "강제 종료"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buộc dừng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终止"
           }
         }
       }
@@ -9579,6 +9647,40 @@
         }
       }
     },
+    "Logs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhật ký"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日志"
+          }
+        }
+      }
+    },
     "Machines" : {
       "localizations" : {
         "en" : {
@@ -9745,6 +9847,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS 15 或更高版本"
+          }
+        }
+      }
+    },
+    "Maintenance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メンテナンス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유지 관리"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bảo trì"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "维护"
           }
         }
       }
@@ -16789,6 +16925,40 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "如果在设置中授予的权限没有在这里显示，退出并重新打开 Launchpad" } }
       }
     },
+    "Refresh" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로 고침"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Làm mới"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新"
+          }
+        }
+      }
+    },
     "Relaunch" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Relaunch" } },
@@ -17138,6 +17308,40 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "생성일 %@" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo lúc %@" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建于 %@" } }
+      }
+    },
+    "Use Specified Firmware" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Specified Firmware"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定したファームウェアを使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지정한 펌웨어 사용"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng firmware chỉ định"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用指定固件"
+          }
+        }
       }
     },
     "Use Template" : {

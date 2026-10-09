@@ -123,10 +123,11 @@ struct VPhoneLaunchpadSheetPages<Page: Hashable, Labels: View>: View {
 extension VPhoneLaunchpadSheet where Accessory == EmptyView {
     init(
         _ title: Text,
+        width: CGFloat = VPhoneLaunchpadSheetSize.width,
         @ViewBuilder content: () -> Content,
         @ViewBuilder actions: () -> Actions,
     ) {
-        self.init(title, content: content, accessory: { EmptyView() }, actions: actions)
+        self.init(title, width: width, content: content, accessory: { EmptyView() }, actions: actions)
     }
 }
 

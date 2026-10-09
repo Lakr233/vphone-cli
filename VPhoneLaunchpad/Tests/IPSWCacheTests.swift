@@ -301,8 +301,9 @@ struct IPSWCacheTests {
 
     // MARK: - Deletion rules
 
-    /// A restored machine does not hold its IPSW; a creation that has not
-    /// finished does, and a partial file waits while any creation runs.
+    /// A restored machine does not need its IPSW; a creation that has not
+    /// finished does, and a partial file is in use while any creation runs.
+    /// Neither refuses the deletion: the confirmation says what it breaks.
     static func deletion() {
         let url = "https://updates.cdn-apple.com/x/iPhone17,3_27.0_24A435_Restore.ipsw"
         let cached = VPhoneLaunchpadIPSW.cacheName(for: URL(string: url)!)
@@ -314,16 +315,16 @@ struct IPSWCacheTests {
         let finished = VPhoneLaunchpadIPSWUse(machine: "made", sources: [url])
         let otherSource = VPhoneLaunchpadIPSWUse(machine: "other", sources: [rcSource], isCreating: true, needsSources: true)
         typealias Rows = VPhoneLaunchpadIPSWRows
-        expect(restored.uses(phone) && Rows.deletionBlock(phone, uses: [restored, finished], isCreating: false) == nil, "restored and finished do not hold it")
-        expect(Rows.deletionBlock(phone, uses: [otherSource], isCreating: true) == nil, "a creation from another IPSW does not hold it")
-        let held = Rows.deletionBlock(phone, uses: [running], isCreating: true)
+        expect(restored.uses(phone) && Rows.deletionWarning(phone, uses: [restored, finished], isCreating: false) == nil, "restored and finished need nothing")
+        expect(Rows.deletionWarning(phone, uses: [otherSource], isCreating: true) == nil, "a creation from another IPSW needs nothing")
+        let held = Rows.deletionWarning(phone, uses: [running], isCreating: true)
         expect(held == "Creating new reads this IPSW until the creation finishes.", String(describing: held))
-        expect(Rows.deletionBlock(phone, uses: [failed], isCreating: false)?.contains("retry") == true, "an unfinished creation holds it")
-        expect(Rows.deletionBlock(phone, uses: [running, failed], isCreating: true)?.contains("new, retry") == true, "both creations named")
-        expect(Rows.deletionBlock(partial, uses: [], isCreating: true) == "This IPSW is still downloading.", "a partial file waits while a creation runs")
-        expect(Rows.deletionBlock(partial, uses: [], isCreating: false) == nil, "a stale partial file can go")
+        expect(Rows.deletionWarning(phone, uses: [failed], isCreating: false)?.contains("retry") == true, "an unfinished creation is warned about")
+        expect(Rows.deletionWarning(phone, uses: [running, failed], isCreating: true)?.contains("new, retry") == true, "both creations named")
+        expect(Rows.deletionWarning(partial, uses: [], isCreating: true) == "This IPSW is still downloading.", "a partial file warns while a creation runs")
+        expect(Rows.deletionWarning(partial, uses: [], isCreating: false) == nil, "a stale partial file can go")
         let rows = Rows.rows([phone], catalog: nil, uses: [restored, failed])
-        expect(rows[0].blockedReason != nil && rows[0].usedBy == ["done", "retry"], "\(rows[0])")
+        expect(rows[0].deletionWarning != nil && rows[0].usedBy == ["done", "retry"], "\(rows[0])")
 
         // The confirmation names the file, the machines that keep working and
         // what brings it back.
@@ -333,6 +334,8 @@ struct IPSWCacheTests {
         expect(Rows.deletionMessage(row) == "\(cached) is deleted from the IPSW cache. Creating a machine from this release downloads it again.", Rows.deletionMessage(row))
         let partialRow = Rows.rows([partial], catalog: nil, uses: [])[0]
         expect(Rows.deletionMessage(partialRow) == "The partial download of \(cached) is deleted.", Rows.deletionMessage(partialRow))
+        let heldRow = Rows.rows([phone], catalog: nil, uses: [running], isCreating: true)[0]
+        expect(Rows.deletionMessage(heldRow).hasSuffix(" Creating new reads this IPSW until the creation finishes."), Rows.deletionMessage(heldRow))
     }
 
     // MARK: - Rows
@@ -352,8 +355,9 @@ struct IPSWCacheTests {
         let rows = VPhoneLaunchpadIPSWRows.rows([unknownFile, cloudFile, padFile, phoneFile], catalog: catalog, uses: [pad, otherPad, creating])
         expect(rows.map(\.kind) == [.iPhone, .iPad, .cloudOS, .unknown], "\(rows.map(\.kind))")
         expect(rows[0].title == "iOS 27.0 RC (24A435)" && rows[0].usedBy == ["phone (creating)"], "\(rows[0])")
-        expect(rows[0].kindLabel == "iPhone" && rows[0].blockedReason != nil, "\(rows[0])")
-        expect(rows[1].title == "iPadOS 26.6.2 (23G90)" && rows[1].usedBy == ["ipad-mini-01"] && rows[1].blockedReason == nil, "\(rows[1])")
+        expect(rows[0].kindLabel == "iPhone" && rows[0].deletionWarning != nil, "\(rows[0])")
+        expect(rows[1].title == "iPadOS 26.6.2 (23G90)" && rows[1].usedBy == ["ipad-mini-01"] && rows[1].deletionWarning == nil, "\(rows[1])")
+        expect(rows[0].devices == "iPhone17,3" && rows[1].devices == "iPad16,1, iPad16,2" && rows[2].devices.isEmpty, "\(rows.map(\.devices))")
         expect(rows[2].kindLabel == "cloudOS" && rows[2].title == "cloudOS 26.4 (23E5207q)", "\(rows[2])")
         expect(rows[2].usedBy == ["ipad-mini-01", "ipad-pro-13"], "\(rows[2].usedBy)")
         expect(rows[3].title == "mystery.ipsw" && rows[3].kindLabel == "Unknown", "\(rows[3])")

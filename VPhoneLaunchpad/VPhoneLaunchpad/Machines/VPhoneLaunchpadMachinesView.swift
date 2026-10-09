@@ -36,6 +36,9 @@ struct VPhoneLaunchpadMachinesView: View {
 
     @Environment(VPhoneLaunchpadModel.self) private var model
     @State private var sheet: Sheet?
+    /// The sheet to open once the current one has closed: New Machine's
+    /// creation progress, after New Machine itself is gone.
+    @State private var nextSheet: Sheet?
     /// The machines the delete confirmation is for; empty when it is closed.
     @State private var deletion: [MachinePath] = []
     /// Empty keeps the order `vm list` returns; a header click replaces it.
@@ -128,7 +131,12 @@ struct VPhoneLaunchpadMachinesView: View {
             sheet = note.object as? Sheet
         }
         #endif
-        .sheet(item: $sheet) { sheet in
+        .sheet(item: $sheet, onDismiss: {
+            if let next = nextSheet {
+                nextSheet = nil
+                sheet = next
+            }
+        }) { sheet in
             sheetContent(sheet)
                 .environment(model)
         }
@@ -383,7 +391,8 @@ struct VPhoneLaunchpadMachinesView: View {
         switch sheet {
         case .newMachine:
             VPhoneLaunchpadNewMachineView { path in
-                self.sheet = .creation(path)
+                nextSheet = .creation(path)
+                self.sheet = nil
             }
         case let .creation(path):
             if let creation = library.creation(for: path) {

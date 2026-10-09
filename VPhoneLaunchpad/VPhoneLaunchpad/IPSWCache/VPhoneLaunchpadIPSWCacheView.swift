@@ -39,19 +39,19 @@ struct VPhoneLaunchpadIPSWCacheView: View {
         rows.filter { selection.contains($0.id) }
     }
 
-    /// Why the selection cannot be deleted, for the first row that cannot.
-    private var blockedReason: String? {
-        selected.lazy.compactMap(\.blockedReason).first
+    /// What deleting the selection would break, for the first row it would.
+    private var deletionWarning: String? {
+        selected.lazy.compactMap(\.deletionWarning).first
     }
 
     var body: some View {
-        VPhoneLaunchpadSheet(Text("Downloaded Firmware")) {
+        VPhoneLaunchpadSheet(Text("Downloaded Firmware"), width: VPhoneLaunchpadSheetSize.wide) {
             VStack(spacing: 0) {
                 list
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if let reason = blockedReason {
+                if let warning = deletionWarning {
                     Divider()
-                    Label(reason, systemImage: "info.circle")
+                    Label(warning, systemImage: "exclamationmark.triangle")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,8 +61,8 @@ struct VPhoneLaunchpadIPSWCacheView: View {
             }
         } accessory: {
             Button("Delete…") { confirmDeletion() }
-                .disabled(selected.isEmpty || blockedReason != nil || isDeleting)
-                .help(blockedReason ?? String(localized: "Delete the selected IPSWs from the IPSW cache."))
+                .disabled(selected.isEmpty || isDeleting)
+                .help("Delete the selected IPSWs from the IPSW cache.")
         } actions: {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
@@ -127,6 +127,13 @@ struct VPhoneLaunchpadIPSWCacheView: View {
                 Text(verbatim: row.kindLabel)
             }
             .width(min: 60, ideal: 80)
+            TableColumn("Device", value: \.devices) { row in
+                Text(verbatim: row.devices)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(row.devices)
+            }
+            .width(min: 70, ideal: 110)
             TableColumn("Size", value: \.size) { row in
                 Text(verbatim: Self.size(row.size))
                     .monospacedDigit()
@@ -271,22 +278,16 @@ struct VPhoneLaunchpadIPSWCacheView: View {
 
     // MARK: - Deleting
 
-    /// A selection with a row that cannot go says why at once; any other
-    /// asks first.
+    /// Always asks first; the confirmation says what the deletion breaks.
     private func confirmDeletion() {
         let rows = selected
         guard !rows.isEmpty, !isDeleting else {
             return
         }
-        if let row = rows.first(where: { $0.blockedReason != nil }), let reason = row.blockedReason {
-            actionError = VPhoneLaunchpadError(String(localized: "Unable to Delete \(row.title)"), detail: reason)
-        } else {
-            deletion = rows
-        }
+        deletion = rows
     }
 
-    /// Checks each IPSW again at the moment of deletion: a creation may have
-    /// started since the list was read. Stops at the first that fails.
+    /// Stops at the first IPSW that cannot be removed.
     private func delete(_ rows: [VPhoneLaunchpadIPSWRow]) async {
         guard !isDeleting, let scan else {
             return
@@ -298,10 +299,6 @@ struct VPhoneLaunchpadIPSWCacheView: View {
                 continue
             }
             let failure = String(localized: "Unable to Delete \(row.title)")
-            if let reason = VPhoneLaunchpadIPSWRows.deletionBlock(file, uses: uses(scan), isCreating: library.hasActiveCreation) {
-                actionError = VPhoneLaunchpadError(failure, detail: reason)
-                break
-            }
             do {
                 try await VPhoneLaunchpadIPSWCache.removeIPSW(file.url, cacheDirectories: scan.cacheDirectories)
             } catch {

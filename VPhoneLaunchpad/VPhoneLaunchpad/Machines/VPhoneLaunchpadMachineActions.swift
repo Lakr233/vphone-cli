@@ -34,30 +34,47 @@ struct VPhoneLaunchpadMachineActions: View {
             let stopped = machines.filter { library.state(of: $0.path) == .stopped }
             let running = machines.filter { library.state(of: $0.path) == .running }
             let allStopped = stopped.count == machines.count
-            Button("Settings…") { request(.settings(machines)) }
-                .disabled(!allStopped)
-            changeBundleButton
-            Button("Export…") { request(.export(machines.map(\.path))) }
-                .disabled(!allStopped)
-            Button("Delete…", role: .destructive) { requestDeletion(machines.map(\.path)) }
-                .disabled(!allStopped)
-            Divider()
+            // The order of one machine's menu, with what applies to several.
             Button("Start") { library.start(stopped) }
                 .disabled(stopped.isEmpty)
             Button("Start Headless") { library.start(stopped, headless: true) }
                 .disabled(stopped.isEmpty)
             Button("Stop") { library.stop(running) }
                 .disabled(running.isEmpty)
+            Button("Terminate") {
+                Task {
+                    await withTaskGroup(of: Void.self) { group in
+                        for machine in running {
+                            group.addTask { await library.forceStop(machine.path) }
+                        }
+                    }
+                }
+            }
+            .disabled(running.isEmpty)
+            Divider()
+            Button("Settings…") { request(.settings(machines)) }
+                .disabled(!allStopped)
+            changeBundleButton
+            Divider()
+            Button("Export…") { request(.export(machines.map(\.path))) }
+                .disabled(!allStopped)
             Divider()
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting(machines.map(\.path.url))
             }
+            Divider()
+            Button("Delete…", role: .destructive) { requestDeletion(machines.map(\.path)) }
+                .disabled(!allStopped)
         } else if let machine = machines.first {
             let state = library.state(of: machine.path)
             let isStopped = state == .stopped
+            // Run, configure, the machine's files, maintenance and logs,
+            // then Delete.
             switch state {
             case .running:
                 Button("Stop") { library.stop([machine]) }
+                // For a guest that hangs or ignores Stop.
+                Button("Terminate") { Task { await library.forceStop(machine.path) } }
             case .stopped:
                 Button("Start") { library.start([machine]) }
                 Button("Start Headless") { library.start([machine], headless: true) }
@@ -71,41 +88,45 @@ struct VPhoneLaunchpadMachineActions: View {
             Button("Guest System…") { request(.guestSystem(machine.path)) }
                 .disabled(library.creation(for: machine.path)?.isRunning == true)
             changeBundleButton
+            Divider()
             Button("Rename…") { request(.rename(machine.path)) }
                 .disabled(!isStopped)
             Button("Clone…") { request(.clone(machine.path)) }
-                .disabled(!isStopped)
-            Button("Export…") { request(.export([machine.path])) }
                 .disabled(!isStopped)
             // Open while the machine runs too, to read the list; taking,
             // reverting and deleting wait for it to stop.
             Button("Snapshots…") { request(.snapshots(machine.path)) }
                 .disabled(library.creation(for: machine.path)?.isRunning == true)
-            Button("Install Custom Firmware") {
-                Task { await library.installCustomFirmware(machine.path) }
-            }
-            // Only for an unfinished install: that is when the restore tree it
-            // reads is still there. A finished one removes it.
-            .disabled(!isStopped || machine.customFirmwareInstalled != false)
-            // The finished-install counterpart: redeploys the machine's own
-            // bundle's guest resources without the restore tree.
-            Button("Update Guest Environment") {
-                Task { await library.updateGuestEnvironment(machine.path) }
-            }
-            .disabled(!isStopped || machine.restoreInfo == nil || machine.customFirmwareInstalled == false)
+            Button("Export…") { request(.export([machine.path])) }
+                .disabled(!isStopped)
             Divider()
+            Menu("Maintenance") {
+                Button("Install Custom Firmware") {
+                    Task { await library.installCustomFirmware(machine.path) }
+                }
+                // Only for an unfinished install: that is when the restore tree it
+                // reads is still there. A finished one removes it.
+                .disabled(!isStopped || machine.customFirmwareInstalled != false)
+                // The finished-install counterpart: redeploys the machine's own
+                // bundle's guest resources without the restore tree.
+                Button("Update Guest Environment") {
+                    Task { await library.updateGuestEnvironment(machine.path) }
+                }
+                .disabled(!isStopped || machine.restoreInfo == nil || machine.customFirmwareInstalled == false)
+            }
+            Menu("Logs") {
+                Button("Open Console") { request(.console(machine.path)) }
+                Button("Show Console Log") {
+                    NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path))
+                }
+                Button("Show Patch Log") {
+                    NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path, suffix: "-patch"))
+                }
+                .disabled(!FileManager.default.fileExists(atPath: VPhoneLaunchpadMachineLibrary.consoleLog(machine.path, suffix: "-patch").path))
+            }
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([machine.path.url])
             }
-            Button("Open Console") { request(.console(machine.path)) }
-            Button("Recent Commands") { request(.commands) }
-            Button("Show Console Log") {
-                NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path))
-            }
-            Button("Show Patch Log") {
-                NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path, suffix: "-patch"))
-            }
-            .disabled(!FileManager.default.fileExists(atPath: VPhoneLaunchpadMachineLibrary.consoleLog(machine.path, suffix: "-patch").path))
             Divider()
             Button("Delete…", role: .destructive) { requestDeletion([machine.path]) }
                 .disabled(!isStopped)

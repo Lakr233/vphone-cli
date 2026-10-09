@@ -44,7 +44,8 @@ nonisolated struct VPhoneLaunchpadSlimming: Hashable, Sendable {
     var keptLanguages = ""
     /// The trimmed service profile; off is `--service-profile none`.
     var trimsServices = true
-    var removesApps = true
+    /// Off by default: the system apps stay unless New Machine picks them.
+    var removesApps = false
     /// Apps of ``removableApps`` to keep.
     var keptApps: Set<String> = []
     /// Also turns off the Apple Account daemons, which counts only with the

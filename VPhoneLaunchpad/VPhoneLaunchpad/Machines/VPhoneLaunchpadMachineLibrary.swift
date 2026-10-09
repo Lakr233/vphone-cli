@@ -101,13 +101,12 @@ final class VPhoneLaunchpadMachineLibrary {
         exports[machine]?.fraction ?? creation(for: machine)?.downloadFraction
     }
 
+    /// A creation shows only its current step: the spinner says it is busy,
+    /// and the inspector says what is being created.
     func state(of machine: Path) -> RunState {
-        if let creation = creations[machine], creation.isRunning, let step = creation.current {
-            return .busy(String(localized: "Creating: \(step.title)"))
-        }
-        // The temporary machine a template is built in.
+        // The machine, or the temporary machine a template is built in.
         if let creation = creation(for: machine), creation.isRunning, let step = creation.current {
-            return .busy(String(localized: "Building template: \(step.title)"))
+            return .busy(step.title)
         }
         if let activity = activities[machine] {
             return .busy(activity)
@@ -833,6 +832,9 @@ final class VPhoneLaunchpadMachineLibrary {
                 ["vm", "delete", machine.name, "--force"] + machine.libraryArguments,
                 anyBundle: true,
             )
+            // A creation that stopped short goes with its machine; kept, it
+            // would still claim its IPSWs in Downloaded Firmware.
+            discardCreation(machine)
             if let notice = VPhoneLaunchpadTemplateNotice.parse(result.lines, libraryRoot: machine.libraryRoot) {
                 templateNotice = notice
             }

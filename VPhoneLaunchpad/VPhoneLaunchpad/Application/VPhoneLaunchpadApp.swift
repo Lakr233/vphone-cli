@@ -39,6 +39,22 @@ struct VPhoneLaunchpadApp: App {
                     Button("Templates…") { model.present(.templates) }
                 }
             }
+            // Now rather than on the next five-second tick: the machine list,
+            // then the templates, which also measures disk use again.
+            CommandGroup(before: .toolbar) {
+                Button("Refresh") {
+                    Task {
+                        await model.machines.refresh()
+                        await model.machines.refreshTemplates()
+                    }
+                }
+                .keyboardShortcut("r")
+                // Every command Launchpad ran, not one machine's: here rather
+                // than in a machine's menu.
+                Button("Recent Commands") { model.machineSheetRequest = .commands }
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+                Divider()
+            }
             CommandGroup(after: .appSettings) {
                 Button("Host Setup…") { model.present(.hostSetup) }
                 Button("Core Bundle…") { model.present(.coreBundle) }

@@ -534,11 +534,7 @@ struct VPhoneLaunchpadNewMachineView: View {
 
     private var firmwareSourceSection: some View {
         Section {
-            Picker("Source", selection: $usesCustomSources) {
-                Text("Catalog").tag(false)
-                Text("Custom IPSWs").tag(true)
-            }
-            .pickerStyle(.segmented)
+            Toggle("Use Specified Firmware", isOn: $usesCustomSources)
 
             if usesCustomSources {
                 sourceField("iPhone IPSW", $iphoneSource)
@@ -785,7 +781,9 @@ struct VPhoneLaunchpadCreationView: View {
                     } header: {
                         Text("Template")
                     } footer: {
-                        Text(templateNote).foregroundStyle(.secondary)
+                        if let templateNote {
+                            Text(templateNote).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Section {
@@ -842,15 +840,15 @@ struct VPhoneLaunchpadCreationView: View {
         }
     }
 
-    private var templateNote: String {
+    /// Which template the machine came from, once that is known.
+    private var templateNote: String? {
         if let id = creation.templateID, creation.plan.foundTemplate == true {
             return String(localized: "Cloned from template \(id), which machines with these options share.")
         }
         if let id = creation.templateID, creation.builtTemplate {
             return String(localized: "Saved as template \(id). The next machine with these options is cloned from it in seconds.")
         }
-        let build = creation.plan.buildName ?? ""
-        return String(localized: "A missing template is built in \(build), set up once without a window, and saved under Templates.")
+        return nil
     }
 
     private func stepRow(_ step: Step) -> some View {

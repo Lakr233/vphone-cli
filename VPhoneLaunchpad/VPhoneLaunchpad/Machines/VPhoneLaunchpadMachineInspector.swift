@@ -107,19 +107,29 @@ struct VPhoneLaunchpadMachineInspector: View {
     var body: some View {
         Form {
             Section {
-                if let creation = library.creation(for: machine.path) {
+                let creation = library.creation(for: machine.path)
+                if let creation {
                     creationSummary(creation)
                 }
-                LabeledContent("State") {
-                    VPhoneLaunchpadMachineStateLabel(
-                        state: library.state(of: machine.path),
-                        progress: library.progress(of: machine.path),
-                        isDamaged: library.isDamaged(machine.path),
-                    )
+                // A running creation's summary already says what is going on.
+                if creation?.isRunning != true {
+                    LabeledContent("State") {
+                        VPhoneLaunchpadMachineStateLabel(
+                            state: library.state(of: machine.path),
+                            progress: library.progress(of: machine.path),
+                            isDamaged: library.isDamaged(machine.path),
+                        )
+                    }
                 }
                 if let started = library.startedAt[machine.path] {
                     LabeledContent("Started", value: started.formatted(date: .omitted, time: .shortened))
                 }
+            } header: {
+                Text(machine.name)
+                    .font(.headline)
+            } footer: {
+                // Under the card rather than in it: they act on the whole
+                // inspector, not on a row.
                 HStack {
                     Picker("Page", selection: $page) {
                         Text("General").tag(Page.general)
@@ -128,13 +138,13 @@ struct VPhoneLaunchpadMachineInspector: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .fixedSize()
                     Spacer()
                     Button("Open Console") { onOpenConsole(machine.path) }
                         .fixedSize()
                 }
-            } header: {
-                Text(machine.name)
-                    .font(.headline)
+                .foregroundStyle(.primary)
+                .padding(.top, 4)
             }
 
             switch page {
@@ -144,6 +154,9 @@ struct VPhoneLaunchpadMachineInspector: View {
             }
         }
         .formStyle(.grouped)
+        // The machine name sits under the toolbar, level with the table's
+        // header, without the grouped form's top margin above it.
+        .contentMargins(.top, 0, for: .scrollContent)
         .task(id: patchReadKey) {
             await loadPatches()
         }
@@ -553,7 +566,7 @@ struct VPhoneLaunchpadMachineInspector: View {
             }
         } label: {
             if creation.isRunning {
-                Label { Text("Creating: \(creation.current?.title ?? "")") } icon: { VPhoneLaunchpadStatusIcon(status: .running) }
+                Label { Text(verbatim: creation.current?.title ?? "") } icon: { VPhoneLaunchpadStatusIcon(status: .running) }
             } else if creation.isFinished {
                 Label { Text("Created") } icon: { VPhoneLaunchpadStatusIcon(status: .passed) }
             } else {

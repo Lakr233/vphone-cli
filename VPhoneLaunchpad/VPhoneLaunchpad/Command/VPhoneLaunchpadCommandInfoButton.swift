@@ -17,7 +17,9 @@ struct VPhoneLaunchpadCommandInfoButton: View {
         .buttonStyle(.borderless)
         .help("Show the command")
         .accessibilityLabel(Text("Show the command"))
-        .popover(isPresented: $isShown, arrowEdge: .trailing) {
+        // Below the button, or above it near the bottom of the screen: a
+        // side popover covers the rows next to it.
+        .popover(isPresented: $isShown, arrowEdge: .bottom) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(verbatim: command)
                     .font(.system(.callout, design: .monospaced))
