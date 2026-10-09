@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// New Machine's Template page: whether the machine is cloned from a
+/// New Machine's System page: whether the machine is cloned from a
 /// template, and how that template is slimmed. The switches are part of the
 /// template's key: other switches make another template, and both stay.
+/// Slim System itself is on the basic page.
 struct VPhoneLaunchpadSlimmingSections: View {
     @Binding var usesTemplate: Bool
     @Binding var slimming: VPhoneLaunchpadSlimming
+    @State private var choosesApps = false
 
     var body: some View {
         Section {
@@ -13,16 +15,20 @@ struct VPhoneLaunchpadSlimmingSections: View {
         } header: {
             Text("Template")
         } footer: {
-            Text(usesTemplate
-                ? "Machines from one template share its SEP root secret and Data volume keys. Turn this off for a machine that needs keys of its own."
-                : "The machine is restored on its own, with keys of its own. It is not slimmed, and starts at Setup Assistant.")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(usesTemplate
+                    ? "Machines from one template share its SEP root secret and Data volume keys. Turn this off for a machine that needs keys of its own."
+                    : "The machine is restored on its own, with keys of its own. It is not slimmed, and starts at Setup Assistant.")
+                if usesTemplate, !slimming.slim {
+                    Text("Slim System is off, so the template keeps every file, service and app.")
+                }
+            }
+            .foregroundStyle(.secondary)
         }
 
         if usesTemplate {
             filesSection
             servicesSection
-            appsSection
         }
     }
 
@@ -62,44 +68,61 @@ struct VPhoneLaunchpadSlimmingSections: View {
         }
     }
 
-    // MARK: - Services
+    // MARK: - Services and apps
 
+    /// Apple Account is not offered: the guest refuses its sign-in either
+    /// way, so the trimmed profile always turns its daemons off.
     private var servicesSection: some View {
         Section {
             Toggle("Turn off unneeded services", isOn: $slimming.trimsServices)
-            Toggle("Turn off Apple Account", isOn: $slimming.accountsOff)
-                .disabled(!slimming.trimsServices)
+            LabeledContent("Remove system apps") {
+                HStack {
+                    Button("Choose…") { choosesApps = true }
+                        .disabled(!slimming.removesApps)
+                        .popover(isPresented: $choosesApps, arrowEdge: .trailing) {
+                            appsPopover
+                        }
+                    Toggle("Remove system apps", isOn: $slimming.removesApps)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
+            }
         } header: {
-            Text("Services")
+            Text("Services and Apps")
         } footer: {
-            Text("About 140 launch daemons a research machine rarely needs. Each machine can switch them back on in Guest System. Without Apple Account the guest cannot sign in.")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("About 140 launch daemons a research machine rarely needs, Apple Account's among them.")
+                if slimming.removesApps {
+                    Text("^[\(slimming.removedApps.count) system app](inflect: true) removed; Camera and Phone are never removed.")
+                } else {
+                    Text("No system app is removed.")
+                }
+                Text("Each machine can turn services back on and restore apps in Guest System.")
+            }
+            .foregroundStyle(.secondary)
         }
         .disabled(!slimming.slim)
     }
 
-    // MARK: - Apps
-
-    private var appsSection: some View {
-        Section {
-            Toggle("Remove system apps", isOn: $slimming.removesApps)
-            if slimming.removesApps {
-                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 6) {
-                    ForEach(VPhoneLaunchpadSlimming.removableApps) { app in
-                        Toggle(isOn: removes(app.id)) {
-                            Text(verbatim: app.name)
+    private var appsPopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Checked apps are removed.")
+                .foregroundStyle(.secondary)
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                let apps = VPhoneLaunchpadSlimming.removableApps
+                ForEach(Array(stride(from: 0, to: apps.count, by: 2)), id: \.self) { index in
+                    GridRow {
+                        ForEach(apps[index ..< min(index + 2, apps.count)]) { app in
+                            Toggle(isOn: removes(app.id)) {
+                                Text(verbatim: app.name)
+                            }
+                            .toggleStyle(.checkbox)
                         }
-                        .toggleStyle(.checkbox)
                     }
                 }
             }
-        } header: {
-            Text("System Apps")
-        } footer: {
-            Text("Checked apps are removed. Camera and Phone are never removed. Each machine can restore removed apps in Guest System.")
-                .foregroundStyle(.secondary)
         }
-        .disabled(!slimming.slim)
+        .padding(14)
     }
 
     private func removes(_ bundleID: String) -> Binding<Bool> {

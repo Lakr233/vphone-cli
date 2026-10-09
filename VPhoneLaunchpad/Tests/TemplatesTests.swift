@@ -21,8 +21,9 @@ struct TemplatesTests {
 
     static func slimmingArguments() {
         let standard = VPhoneLaunchpadSlimming()
-        precondition(standard.arguments.isEmpty, "The defaults pass nothing: \(standard.arguments)")
-        precondition(standard.setupArguments.isEmpty, "Setup takes the defaults too")
+        // Apple Account is always off; every other default is the CLI's own.
+        precondition(standard.arguments == ["--accounts-off"], "The defaults pass only --accounts-off: \(standard.arguments)")
+        precondition(standard.setupArguments == ["--accounts-off"], "Setup takes the defaults too")
         precondition(standard.trimArguments == ["--tier", "standard"], "Standard trim: \(standard.trimArguments ?? [])")
         precondition(standard.removedApps.count == 10, "Ten apps go by default")
         precondition(!standard.removedApps.contains("com.apple.camera") && !standard.removedApps.contains("com.apple.mobilephone"),
@@ -57,8 +58,7 @@ struct TemplatesTests {
 
         var languages = VPhoneLaunchpadSlimming()
         languages.keptLanguages = " en , ja ,"
-        languages.accountsOff = true
-        precondition(languages.arguments == ["--keep-languages", "en,ja", "--accounts-off"], "Languages: \(languages.arguments)")
+                precondition(languages.arguments == ["--keep-languages", "en,ja", "--accounts-off"], "Languages: \(languages.arguments)")
         precondition(languages.setupArguments == ["--accounts-off"], "Setup leaves the languages to the trim")
         precondition(languages.trimArguments == ["--tier", "standard", "--keep-languages", "en,ja"], "Trim with languages")
         languages.keptLanguages = "en,zh-Hans,zh"
@@ -71,11 +71,11 @@ struct TemplatesTests {
         var noApps = VPhoneLaunchpadSlimming()
         noApps.removesApps = false
         noApps.keptApps = ["com.apple.news"]
-        precondition(noApps.arguments == ["--remove-apps", "off"], "Remove apps off ignores the kept list")
+        precondition(noApps.arguments == ["--accounts-off", "--remove-apps", "off"], "Remove apps off ignores the kept list")
 
         var none = VPhoneLaunchpadSlimming()
         none.trim = .none
-        precondition(none.arguments == ["--trim", "none"] && none.trimArguments == nil, "No trim step for tier none")
+        precondition(none.arguments == ["--trim", "none", "--accounts-off"] && none.trimArguments == nil, "No trim step for tier none")
         print("Slimming switch tests passed")
     }
 
@@ -112,7 +112,7 @@ struct TemplatesTests {
         // Strict: an app the setup boot cannot remove fails the step.
         precondition(VPhoneLaunchpadTemplateCommands.setup("template-1a2b3c4d", slimming)
             == ["vm", "template", "setup", "template-1a2b3c4d", "--strict", "--service-profile", "none"], "setup")
-        precondition(VPhoneLaunchpadTemplateCommands.setup("t", VPhoneLaunchpadSlimming()) == ["vm", "template", "setup", "t", "--strict"],
+        precondition(VPhoneLaunchpadTemplateCommands.setup("t", VPhoneLaunchpadSlimming()) == ["vm", "template", "setup", "t", "--strict", "--accounts-off"],
                      "setup with the defaults")
         // The adopt expects the id Find Template computed.
         precondition(VPhoneLaunchpadTemplateCommands.adopt("template-1a2b3c4d", iphoneSource: "i", cloudOSSource: "c", expect: "2847ec2a3e3e")

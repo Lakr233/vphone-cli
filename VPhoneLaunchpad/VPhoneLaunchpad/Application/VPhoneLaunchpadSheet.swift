@@ -53,6 +53,43 @@ struct VPhoneLaunchpadSheet<Content: View, Accessory: View, Actions: View>: View
     }
 }
 
+// MARK: - Height
+
+enum VPhoneLaunchpadSheetHeight {
+    /// The tallest a form sheet grows, title and buttons included: a
+    /// 1440×900 screen keeps the buttons in reach below the menu bar, the
+    /// window's toolbar and the Dock.
+    static let maximum: CGFloat = 600
+    /// The sheet's title and button rows, which stay put while its form scrolls.
+    static let chrome: CGFloat = 96
+    /// A page control over the form.
+    static let pages: CGFloat = 38
+}
+
+extension View {
+    /// Gives a sheet's form the height of its content, up to `limit`, past
+    /// which the form scrolls. Unlike `fixedSize`, a tall page cannot push
+    /// the sheet's buttons off the screen.
+    func vphoneFittedHeight(limit: CGFloat) -> some View {
+        modifier(VPhoneLaunchpadFittedHeight(limit: limit))
+    }
+}
+
+private struct VPhoneLaunchpadFittedHeight: ViewModifier {
+    let limit: CGFloat
+    @State private var contentHeight: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom
+            } action: { _, height in
+                contentHeight = height
+            }
+            .frame(height: min(contentHeight ?? limit, limit))
+    }
+}
+
 /// A segmented control over a sheet's form that shows one page of it at a
 /// time, so a sheet with several groups of settings stays short instead of
 /// growing past the screen. The sheet resizes to the page, as a settings

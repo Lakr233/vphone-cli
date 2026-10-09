@@ -375,40 +375,6 @@
         }
       }
     },
-    "About 140 launch daemons a research machine rarely needs. Each machine can switch them back on in Guest System. Without Apple Account the guest cannot sign in." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "About 140 launch daemons a research machine rarely needs. Each machine can switch them back on in Guest System. Without Apple Account the guest cannot sign in."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "研究用マシンではほとんど使わない約 140 の launch デーモンです。各マシンは「ゲストシステム」で元に戻せます。Apple アカウントをオフにすると、ゲストはサインインできません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "연구용 머신에 거의 필요 없는 약 140개의 launch 데몬입니다. 각 머신은 게스트 시스템에서 다시 켤 수 있습니다. Apple 계정을 끄면 게스트가 로그인할 수 없습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Khoảng 140 launch daemon mà máy nghiên cứu hiếm khi cần. Mỗi máy ảo có thể bật lại chúng trong Hệ thống máy khách. Khi tắt Tài khoản Apple, máy khách không thể đăng nhập."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "研究用虚拟机很少用到的约 140 个 launch 守护进程。每台虚拟机都可以在“客户机系统”中重新开启。关闭 Apple 账户后，客户机无法登录。"
-          }
-        }
-      }
-    },
     "Allocated" : {
       "localizations" : {
         "en" : {
@@ -779,40 +745,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Core Bundle %@ 构建；从它创建的每台虚拟机都共享其 SEP 根密钥和 Data 卷密钥。"
-          }
-        }
-      }
-    },
-    "Checked apps are removed. Camera and Phone are never removed. Each machine can restore removed apps in Guest System." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checked apps are removed. Camera and Phone are never removed. Each machine can restore removed apps in Guest System."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "チェックした App を削除します。カメラと電話は削除しません。削除した App は各マシンの「ゲストシステム」で復元できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 앱이 제거됩니다. 카메라와 전화는 제거되지 않습니다. 각 머신은 게스트 시스템에서 제거된 앱을 복원할 수 있습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Các ứng dụng được đánh dấu sẽ bị gỡ. Camera và Điện thoại không bao giờ bị gỡ. Mỗi máy ảo có thể khôi phục ứng dụng đã gỡ trong Hệ thống máy khách."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "勾选的 App 会被移除。相机和电话不会被移除。每台虚拟机都可以在“客户机系统”中恢复已移除的 App。"
           }
         }
       }
@@ -3163,40 +3095,6 @@
         }
       }
     },
-    "System Apps" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "System Apps"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "システム App"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시스템 앱"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ứng dụng hệ thống"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "系统 App"
-          }
-        }
-      }
-    },
     "System Files" : {
       "localizations" : {
         "en" : {
@@ -3911,74 +3809,6 @@
         }
       }
     },
-    "Trims system files, unneeded services and system apps once, in the template the machine is cloned from. Choose what goes in Template." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trims system files, unneeded services and system apps once, in the template the machine is cloned from. Choose what goes in Template."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "システムファイル、不要なサービス、システム App を、マシンの複製元のテンプレートで一度だけ削減します。対象は「テンプレート」で選択します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "머신을 복제하는 원본 템플릿에서 시스템 파일, 불필요한 서비스, 시스템 앱을 한 번 정리합니다. 정리할 항목은 템플릿에서 선택하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cắt giảm tệp hệ thống, dịch vụ không cần và ứng dụng hệ thống một lần, trong mẫu mà máy ảo được nhân bản từ đó. Chọn mục cắt giảm trong Mẫu."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在虚拟机克隆所用的模板中一次性裁剪系统文件、不需要的服务和系统 App。在“模板”中选择要裁剪的内容。"
-          }
-        }
-      }
-    },
-    "Turn off Apple Account" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn off Apple Account"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple アカウントをオフ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple 계정 끄기"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tắt Tài khoản Apple"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭 Apple 账户"
-          }
-        }
-      }
-    },
     "Turn off unneeded services" : {
       "localizations" : {
         "en" : {
@@ -4281,40 +4111,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "钱包"
-          }
-        }
-      }
-    },
-    "Without a template the machine is not slimmed. Turn templates on in Template." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Without a template the machine is not slimmed. Turn templates on in Template."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンプレートを使わない場合、マシンは軽量化されません。「テンプレート」でテンプレートをオンにしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "템플릿 없이 만든 머신은 간소화되지 않습니다. 템플릿에서 템플릿을 켜십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không có mẫu thì máy ảo không được tinh gọn. Hãy bật mẫu trong Mẫu."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不使用模板时，虚拟机不会精简。请在“模板”中开启模板。"
           }
         }
       }
@@ -5810,40 +5606,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加 GitHub 令牌即可从 GitHub Actions 下载构建版本。"
-          }
-        }
-      }
-    },
-    "Advanced" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Advanced"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "詳細"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "고급"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nâng cao"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "高级"
           }
         }
       }
@@ -13119,40 +12881,6 @@
         }
       }
     },
-    "Recommended firmware pairings for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recommended firmware pairings for %@."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ の推奨ファームウェアの組み合わせです。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@의 권장 펌웨어 조합입니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Các cặp firmware khuyến nghị cho %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 的推荐固件组合。"
-          }
-        }
-      }
-    },
     "Releases" : {
       "localizations" : {
         "en" : {
@@ -18425,6 +18153,720 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@은(는) IPSW 캐시에 있는 IPSW가 아닙니다." } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ không phải là IPSW trong bộ nhớ đệm IPSW." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 不是 IPSW 缓存中的 IPSW。" } }
+      }
+    },
+    "Advanced Options" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced Options"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細オプション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고급 옵션"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tùy chọn nâng cao"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级选项"
+          }
+        }
+      }
+    },
+    "Basic Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basic Settings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基本設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 설정"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt cơ bản"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基本设置"
+          }
+        }
+      }
+    },
+    "System" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hệ thống"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统"
+          }
+        }
+      }
+    },
+    "Firmware & Patches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmware & Patches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファームウェアとパッチ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "펌웨어 및 패치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmware và bản vá"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固件与补丁"
+          }
+        }
+      }
+    },
+    "Storage & Network" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage & Network"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存先とネットワーク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장 위치 및 네트워크"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu trữ và mạng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储与网络"
+          }
+        }
+      }
+    },
+    "^[%lld setting](inflect: true) changed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "^[%lld setting](inflect: true) changed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項目を変更"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 항목 변경됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã thay đổi %lld mục"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已更改 %lld 项"
+          }
+        }
+      }
+    },
+    "%lld cores · %lld GB memory · %lld GB disk" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld cores · %2$lld GB memory · %3$lld GB disk"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld コア · メモリ %2$lld GB · ディスク %3$lld GB"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld코어 · 메모리 %2$lld GB · 디스크 %3$lld GB"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld lõi · %2$lld GB bộ nhớ · %3$lld GB ổ đĩa"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 核 · %2$lld GB 内存 · %3$lld GB 磁盘"
+          }
+        }
+      }
+    },
+    "Recommended firmware pairings for %@, with %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended firmware pairings for %1$@, with %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の推奨ファームウェアの組み合わせです。%2$@ と組み合わせます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@의 권장 펌웨어 조합이며 %2$@와 함께 사용합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các cặp firmware khuyến nghị cho %1$@, đi kèm %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 的推荐固件组合，搭配 %2$@。"
+          }
+        }
+      }
+    },
+    "Choose an iPhone IPSW and a cloudOS IPSW in Advanced Options." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an iPhone IPSW and a cloudOS IPSW in Advanced Options."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「詳細オプション」で iPhone IPSW と cloudOS IPSW を選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고급 옵션에서 iPhone IPSW와 cloudOS IPSW를 선택하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn IPSW iPhone và IPSW cloudOS trong Tùy chọn nâng cao."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“高级选项”中选择 iPhone IPSW 和 cloudOS IPSW。"
+          }
+        }
+      }
+    },
+    "Without a template the machine is not slimmed. Turn templates on in Advanced Options." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without a template the machine is not slimmed. Turn templates on in Advanced Options."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンプレートを使わない場合、マシンは軽量化されません。「詳細オプション」でテンプレートをオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "템플릿 없이 만든 머신은 간소화되지 않습니다. 고급 옵션에서 템플릿을 켜십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có mẫu thì máy ảo không được tinh gọn. Hãy bật mẫu trong Tùy chọn nâng cao."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用模板时，虚拟机不会精简。请在“高级选项”中开启模板。"
+          }
+        }
+      }
+    },
+    "Cloned from a shared template that trims system files, unneeded services and system apps once. Setup Assistant is skipped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloned from a shared template that trims system files, unneeded services and system apps once. Setup Assistant is skipped."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムファイル、不要なサービス、システム App を一度だけ削減した共有テンプレートから複製します。設定アシスタントはスキップされます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 파일, 불필요한 서비스, 시스템 앱을 한 번 정리한 공유 템플릿에서 복제합니다. 설정 지원은 건너뜁니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhân bản từ một mẫu dùng chung đã cắt giảm tệp hệ thống, dịch vụ không cần và ứng dụng hệ thống một lần. Trợ lý thiết lập được bỏ qua."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从共享模板克隆，模板只裁剪一次系统文件、不需要的服务和系统 App。会跳过设置助理。"
+          }
+        }
+      }
+    },
+    "The machine is created in a folder named after it inside this location." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The machine is created in a folder named after it inside this location."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マシンは、この場所の中にマシン名のフォルダとして作成されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "머신은 이 위치 안에 머신 이름으로 된 폴더로 생성됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy ảo được tạo trong một thư mục mang tên của nó, bên trong vị trí này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机会创建在此位置下以其名称命名的文件夹里。"
+          }
+        }
+      }
+    },
+    "These two files replace the device and version chosen on the basic page." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These two files replace the device and version chosen on the basic page."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この 2 つのファイルが、基本設定で選んだデバイスとバージョンの代わりに使われます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 두 파일이 기본 설정에서 선택한 기기와 버전을 대신합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hai tệp này thay cho thiết bị và phiên bản đã chọn trong cài đặt cơ bản."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这两个文件会取代基本设置中选择的设备和版本。"
+          }
+        }
+      }
+    },
+    "The device and version are chosen on the basic page; cloudOS goes with them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device and version are chosen on the basic page; cloudOS goes with them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デバイスとバージョンは基本設定で選択し、cloudOS はそれに合わせて決まります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기기와 버전은 기본 설정에서 선택하며, cloudOS는 그에 맞춰 정해집니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiết bị và phiên bản được chọn trong cài đặt cơ bản; cloudOS đi kèm theo đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备和版本在基本设置中选择，cloudOS 随之匹配。"
+          }
+        }
+      }
+    },
+    "Slim System is off, so the template keeps every file, service and app." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slim System is off, so the template keeps every file, service and app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「システムを軽量化」がオフのため、テンプレートはすべてのファイル、サービス、App を保持します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 간소화가 꺼져 있으므로 템플릿은 모든 파일, 서비스, 앱을 유지합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tinh gọn hệ thống đang tắt, nên mẫu giữ lại mọi tệp, dịch vụ và ứng dụng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“精简系统”已关闭，模板会保留所有文件、服务和 App。"
+          }
+        }
+      }
+    },
+    "Services and Apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Services and Apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービスと App"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서비스 및 앱"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dịch vụ và ứng dụng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务与 App"
+          }
+        }
+      }
+    },
+    "About 140 launch daemons a research machine rarely needs, Apple Account's among them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 140 launch daemons a research machine rarely needs, Apple Account's among them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "研究用マシンではほとんど使わない約 140 の launch デーモンで、Apple アカウント関連のものも含みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연구용 머신에 거의 필요 없는 약 140개의 launch 데몬이며, Apple 계정 관련 데몬도 포함됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khoảng 140 launch daemon mà máy nghiên cứu hiếm khi cần, gồm cả các daemon của Tài khoản Apple."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "研究用虚拟机很少用到的约 140 个 launch 守护进程，包括 Apple 账户相关的服务。"
+          }
+        }
+      }
+    },
+    "^[%lld system app](inflect: true) removed; Camera and Phone are never removed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "^[%lld system app](inflect: true) removed; Camera and Phone are never removed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個のシステム App を削除します。カメラと電話は削除しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 앱 %lld개가 제거되며, 카메라와 전화는 제거되지 않습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gỡ %lld ứng dụng hệ thống; Camera và Điện thoại không bao giờ bị gỡ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 %lld 个系统 App；相机和电话不会被移除。"
+          }
+        }
+      }
+    },
+    "No system app is removed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No system app is removed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム App は削除しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 앱을 제거하지 않습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không gỡ ứng dụng hệ thống nào."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不移除系统 App。"
+          }
+        }
+      }
+    },
+    "Each machine can turn services back on and restore apps in Guest System." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each machine can turn services back on and restore apps in Guest System."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各マシンは「ゲストシステム」でサービスをオンに戻し、App を復元できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 머신은 게스트 시스템에서 서비스를 다시 켜고 앱을 복원할 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mỗi máy ảo có thể bật lại dịch vụ và khôi phục ứng dụng trong Hệ thống máy khách."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每台虚拟机都可以在“客户机系统”中重新开启服务、恢复 App。"
+          }
+        }
+      }
+    },
+    "Checked apps are removed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checked apps are removed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックした App を削除します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 앱이 제거됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các ứng dụng được đánh dấu sẽ bị gỡ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾选的 App 会被移除。"
+          }
+        }
       }
     }
   },

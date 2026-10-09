@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// New Machine's Advanced page: network, patches and restore options, as
-/// sections of New Machine's form. It edits New Machine's own state.
+/// The patch sections of New Machine's Firmware & Patches page, and the
+/// network and restore options of its Storage & Network page, as sections
+/// of New Machine's form. It edits New Machine's own state.
 struct VPhoneLaunchpadNewMachineAdvancedView: View {
+    var page: VPhoneLaunchpadNewMachineView.Page
     /// A template never keeps the restore files.
     var usesTemplate: Bool
     @Binding var network: String
@@ -19,31 +21,45 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
     @State private var showsPatchSettings = false
 
+    /// The network modes `vm create --network` takes, with their titles.
+    static var networkModes: [(tag: String, title: String)] {
+        [
+            ("nat", String(localized: "NAT")),
+            ("bridged", String(localized: "Bridged")),
+            ("tunnel", String(localized: "Tunnel")),
+            ("none", String(localized: "None")),
+        ]
+    }
+
     var body: some View {
-        Section("Network") {
-            Picker("Mode", selection: $network) {
-                Text("NAT").tag("nat")
-                Text("Bridged").tag("bridged")
-                Text("Tunnel").tag("tunnel")
-                Text("None").tag("none")
+        switch page {
+        case .firmware:
+            patchSection
+        case .storage:
+            Section("Network") {
+                Picker("Mode", selection: $network) {
+                    ForEach(Self.networkModes, id: \.tag) { mode in
+                        Text(verbatim: mode.title).tag(mode.tag)
+                    }
+                }
+                if network == "tunnel" {
+                    Text("Traffic leaves through this Mac's own connections, so it follows the Mac's VPN.")
+                        .foregroundStyle(.secondary)
+                }
             }
-            if network == "tunnel" {
-                Text("Traffic leaves through this Mac's own connections, so it follows the Mac's VPN.")
-                    .foregroundStyle(.secondary)
-            }
-        }
 
-        patchSection
-
-        Section {
-            Toggle("Keep prepared restore files", isOn: $keepArtifacts)
-                .disabled(usesTemplate)
-        } header: {
-            Text("Options")
-        } footer: {
-            if usesTemplate {
-                Text("A template never keeps them.").foregroundStyle(.secondary)
+            Section {
+                Toggle("Keep prepared restore files", isOn: $keepArtifacts)
+                    .disabled(usesTemplate)
+            } header: {
+                Text("Options")
+            } footer: {
+                if usesTemplate {
+                    Text("A template never keeps them.").foregroundStyle(.secondary)
+                }
             }
+        default:
+            EmptyView()
         }
     }
 

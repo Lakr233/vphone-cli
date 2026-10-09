@@ -18,7 +18,7 @@
         /// The source a Core Bundle sheet opens on.
         static var coreBundleSource = VPhoneLaunchpadCoreBundleView.Source.releases
         /// The pages New Machine and machine settings open on.
-        static var newMachinePage = VPhoneLaunchpadNewMachineView.Page.general
+        static var newMachinePage = VPhoneLaunchpadNewMachineView.Page.basic
         static var machineSettingsPage = VPhoneLaunchpadMachineSettingsView.Page.general
         /// The patch choice New Machine opens with.
         static var newMachinePatches = VPhoneLaunchpadPatchSelection()
@@ -100,16 +100,22 @@
                 await sheet(.newMachine, "07-new-machine", suffix)
                 newMachinePage = .hardware
                 await sheet(.newMachine, "07-new-machine-hardware", suffix)
-                newMachinePage = .advanced
-                await sheet(.newMachine, "07-new-machine-advanced", suffix)
+                newMachinePage = .firmware
+                await sheet(.newMachine, "07-new-machine-firmware", suffix)
+                newMachinePage = .storage
+                await sheet(.newMachine, "07-new-machine-storage", suffix)
+                newMachinePage = .firmware
                 // One boot-chain and one guest patch off: the guest one is
                 // applied to the clone, not built into the template.
                 newMachinePatches = VPhoneLaunchpadPatchSelection(blocked: ["ibss-cfw-serial_label", "dyld-cfw-camera"])
                 await sheet(.newMachine, "07c-new-machine-guest-patches", suffix)
+                // The basic page counts the patch change under Advanced Options.
+                newMachinePage = .basic
+                await sheet(.newMachine, "07d-new-machine-changed", suffix)
                 newMachinePatches = VPhoneLaunchpadPatchSelection()
-                newMachinePage = .template
-                await sheet(.newMachine, "07b-new-machine-template", suffix)
-                newMachinePage = .general
+                newMachinePage = .system
+                await sheet(.newMachine, "07b-new-machine-system", suffix)
+                newMachinePage = .basic
                 await sheet(.creation(path("ios27-rc")), "08-creation-progress", suffix)
                 creation.applyPreview(.downloading(0.42))
                 await sheet(.creation(path("ios27-rc")), "08a-creation-downloading", suffix)

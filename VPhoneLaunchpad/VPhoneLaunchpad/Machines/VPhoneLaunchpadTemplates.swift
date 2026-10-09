@@ -47,8 +47,10 @@ nonisolated struct VPhoneLaunchpadSlimming: Hashable, Sendable {
     var removesApps = true
     /// Apps of ``removableApps`` to keep.
     var keptApps: Set<String> = []
-    /// Also turns off the Apple Account daemons. Needs the trimmed profile.
-    var accountsOff = false
+    /// Also turns off the Apple Account daemons, which counts only with the
+    /// trimmed profile. On by default and not offered in New Machine: the
+    /// guest refuses Apple Account sign-in and its services either way.
+    var accountsOff = true
 
     static let defaultLanguages = "en,zh-Hans,zh"
 
