@@ -6,9 +6,11 @@ import SwiftUI
 /// A machine's run state as the table and the inspector show it.
 struct VPhoneLaunchpadMachineStateLabel: View {
     let state: VPhoneLaunchpadMachineLibrary.RunState
-    /// An export's or a creation's IPSW download progress, shown as a bar in
-    /// place of the activity text, which becomes its help tag.
+    /// An export's or a creation's IPSW download progress, shown as a bar.
     var progress: Double?
+    /// The activity beside the bar, as the inspector has room for (Exporting…
+    /// 6%); the table's column keeps only the bar, with the text as help.
+    var namesActivity = false
     /// A stopped machine whose Core Bundle is not installed.
     var isDamaged = false
 
@@ -21,6 +23,9 @@ struct VPhoneLaunchpadMachineStateLabel: View {
         }
         if let progress {
             HStack(spacing: 6) {
+                if namesActivity {
+                    Text(text).lineLimit(1).fixedSize()
+                }
                 ProgressView(value: progress)
                     .controlSize(.small)
                 Text(progress, format: .percent.precision(.fractionLength(0)))
@@ -116,6 +121,7 @@ struct VPhoneLaunchpadMachineInspector: View {
                         VPhoneLaunchpadMachineStateLabel(
                             state: library.state(of: machine.path),
                             progress: library.progress(of: machine.path),
+                            namesActivity: true,
                             isDamaged: library.isDamaged(machine.path),
                         )
                     }
@@ -124,12 +130,13 @@ struct VPhoneLaunchpadMachineInspector: View {
                     LabeledContent("Started", value: started.formatted(date: .omitted, time: .shortened))
                 }
             } header: {
-                Text(machine.name)
-                    .font(.headline)
-            } footer: {
-                // Under the card rather than in it: it switches the whole
+                // The page picker beside the name: it switches the whole
                 // inspector, not a row. The console is in the Logs menu.
                 HStack {
+                    Text(machine.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     Spacer()
                     Picker("Page", selection: $page) {
                         Text("General").tag(Page.general)
@@ -139,10 +146,9 @@ struct VPhoneLaunchpadMachineInspector: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    Spacer()
+                    .controlSize(.small)
                 }
                 .foregroundStyle(.primary)
-                .padding(.top, 4)
             }
 
             switch page {
@@ -345,7 +351,7 @@ struct VPhoneLaunchpadMachineInspector: View {
                         .help(patchCatalogError)
                 } else {
                     ProgressView()
-                        .controlSize(.small)
+                    .controlSize(.small)
                         .frame(maxWidth: .infinity)
                 }
             } header: {

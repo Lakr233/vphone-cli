@@ -257,6 +257,9 @@ extension VPhoneLaunchpadMachineLibrary {
             panel.title = String(localized: "Export \(machine.name)")
             panel.allowedContentTypes = [.vphoneExportedArchive]
             panel.nameFieldStringValue = Self.exportFileName(machine)
+            // Saving as Mulberry.vpea, not Mulberry: the archive type is
+            // what Import… and a double-click recognize.
+            panel.isExtensionHidden = false
             panel.present { url in
                 Task { await self.export([(machine, url)]) }
             }
