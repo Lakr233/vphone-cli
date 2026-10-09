@@ -62,5 +62,14 @@ Validation (2026-10-09):
 - ASan on this host (macOS 26.6.2, selected Xcode 26.0) stalls before `main`.
   A process sample shows `AsanInitInternal` recursively entering malloc via
   `dyld_shared_cache_iterate_text_swift`; ASan coverage is not claimed.
-- Live guest image/video import and host integration remain pending. The fake
-  library does not prove PhotoKit authorization or actual asset creation.
+- Live guest integration passes 31 assertions on the complete integration
+  bundle: PNG/MP4 PhotoKit assets, receipt replay/conflict, source cleanup,
+  missing/relative/corrupt media, and Files destination/collision/content.
+  Ten further assertions after VM/daemon restart confirm unchanged asset IDs
+  and cleanup receipts. The actual sim-controller upload adapter also imports
+  image/video with correlated progress and final asset IDs.
+  Reproduce with the integration branch's
+  `VPhoneExecutable/VPhoneVirtualization/Tests/Integration/media-receipts.cjs`;
+  receipt evidence is `/tmp/vphone-live-full-receipts.json` and
+  `/tmp/vphone-live-receipts.json`. Crash-during-commit injection remains a
+  native harness check, separate from the successful real PhotoKit checks.
