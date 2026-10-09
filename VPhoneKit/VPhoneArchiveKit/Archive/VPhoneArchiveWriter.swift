@@ -187,6 +187,14 @@ public enum VPhoneArchiveWriter {
             }
             archive_read_disk_descend(disk)
 
+            // No tar format stores a socket, and gnutar fails the whole
+            // archive on one: a stopped machine's folder still holds the
+            // `vphone.sock` its last run bound. A socket means nothing once
+            // unpacked, so it is left out wherever it is.
+            if mode_t(archive_entry_filetype(entry)) == S_IFSOCK {
+                continue
+            }
+
             // Without a top-level name the root entry itself is skipped: an
             // archive of a directory's contents should not carry the directory.
             guard let stored = storedPath(relative, under: topLevel) else { continue }

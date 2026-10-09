@@ -483,4 +483,47 @@ struct RoundTripTests {
 
         try Data(bytes).write(to: archive)
     }
+
+    /// A stopped machine keeps the `vphone.sock` its last run bound, and
+    /// gnutar refused the whole export on it. The socket is left out; the
+    /// rest of the tree goes in.
+    @Test
+    func `a socket in the tree is left out of the archive`() throws {
+        // Short: sun_path holds 104 bytes, more than the temporary
+        // directory leaves for a UUID-named tree.
+        let source = URL(fileURLWithPath: "/tmp/vrt-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        let archive = Self.scratch("sock").appendingPathExtension("tar")
+        let destination = Self.scratch("sock-out")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        defer {
+            for url in [source, archive, destination] {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        try Data("config\n".utf8).write(to: source.appendingPathComponent("config.plist"))
+
+        let socketPath = source.appendingPathComponent("vphone.sock").path
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        #expect(fd >= 0)
+        defer { close(fd) }
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            buffer.copyBytes(from: socketPath.utf8.prefix(buffer.count - 1))
+        }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        #expect(bound == 0)
+
+        try VPhoneArchiveWriter.create(archive: archive, from: source, topLevel: "Mulberry", format: .gnutar)
+        try VPhoneArchiveExtractor.extract(archive, into: destination, options: .intoHostDirectory)
+
+        let unpacked = destination.appendingPathComponent("Mulberry")
+        #expect(FileManager.default.fileExists(atPath: unpacked.appendingPathComponent("config.plist").path))
+        #expect(!FileManager.default.fileExists(atPath: unpacked.appendingPathComponent("vphone.sock").path))
+    }
 }
