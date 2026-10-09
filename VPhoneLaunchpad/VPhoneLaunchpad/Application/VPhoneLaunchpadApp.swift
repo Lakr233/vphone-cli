@@ -32,7 +32,6 @@ struct VPhoneLaunchpadApp: App {
                     .disabled(model.bundles.defaultVersion == nil)
                 Button("Import…") { model.machines.chooseImport() }
                     .keyboardShortcut("o")
-                    .disabled(model.machines.globalActivity != nil)
                 Divider()
                 Button("Downloaded Firmware…") { model.present(.ipswCache) }
                 if model.machines.hasTemplates {
@@ -86,8 +85,8 @@ struct VPhoneLaunchpadApp: App {
 }
 
 /// Guests keep running when Launchpad quits (their output goes to a log
-/// file, not a pipe). A machine being created does not survive, so quitting
-/// then asks first.
+/// file, not a pipe). A machine being created, an import and an export do
+/// not survive, so quitting then asks first.
 @MainActor
 final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: VPhoneLaunchpadModel? {
@@ -140,13 +139,22 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
                 return .terminateNow
             }
         #endif
-        if confirmedClose {
+        guard let model else {
             return .terminateNow
         }
-        guard let model, model.machines.hasActiveCreation else {
+        if !confirmedClose, model.machines.hasActiveCreation || model.machines.hasActiveTransfer, !confirmStopWork() {
+            return .terminateCancel
+        }
+        guard model.machines.hasActiveTransfer else {
             return .terminateNow
         }
-        return confirmStopCreation() ? .terminateNow : .terminateCancel
+        // A `vm import` or `vm export` left behind would go on writing with
+        // nobody reading its output. Stopped, each removes what it wrote.
+        Task {
+            await model.machines.stopTransfers()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     /// The close button, Close menu item and ⌘W all ask here, while the
@@ -154,22 +162,31 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
     /// quits, so the alert says Quit. Cancel refuses the close. In menu bar
     /// mode closing only hides the window, so no confirmation is needed.
     func windowShouldClose(_: NSWindow) -> Bool {
-        guard !VPhoneLaunchpadMenuBar.isEnabled, let model, model.machines.hasActiveCreation else {
+        guard !VPhoneLaunchpadMenuBar.isEnabled, let model,
+              model.machines.hasActiveCreation || model.machines.hasActiveTransfer
+        else {
             return true
         }
-        guard confirmStopCreation() else {
+        guard confirmStopWork() else {
             return false
         }
         confirmedClose = true
         return true
     }
 
-    private func confirmStopCreation() -> Bool {
+    private func confirmStopWork() -> Bool {
         let alert = NSAlert()
-        alert.messageText = String(localized: "Stop Creating Machine?")
-        alert.informativeText = String(
-            localized: "Quitting stops creating this machine. You can retry later from the step where it stopped.",
-        )
+        if model?.machines.hasActiveCreation == true {
+            alert.messageText = String(localized: "Stop Creating Machine?")
+            alert.informativeText = String(
+                localized: "Quitting stops creating this machine. You can retry later from the step where it stopped.",
+            )
+        } else {
+            alert.messageText = String(localized: "Stop Importing and Exporting?")
+            alert.informativeText = String(
+                localized: "Quitting stops every import and export under way and removes what they had written.",
+            )
+        }
         alert.addButton(withTitle: String(localized: "Quit"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn

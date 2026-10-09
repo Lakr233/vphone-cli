@@ -31,7 +31,6 @@ final class VPhoneLaunchpadMachineLibrary {
     private(set) var creations: [Path: VPhoneLaunchpadCreationPipeline] = [:]
     /// Each listed machine's Core Bundle, read from its `launchpad.json`.
     private(set) var bindings: [Path: VPhoneLaunchpadMachineBinding] = [:]
-    private(set) var globalActivity: String?
     /// Folders chosen in New Machine, in the order they were added. The
     /// default library is not among them.
     private(set) var addedRoots: [String]
@@ -233,7 +232,7 @@ final class VPhoneLaunchpadMachineLibrary {
         listError = errors.first
         hasListed = true
         forgetEmptyLocations(listed: listed)
-        selection.formIntersection(machines.map(\.id))
+        selection.formIntersection(machines.map(\.id) + imports.map(\.row))
         if selection.isEmpty, let first = machines.first {
             selection = [first.id]
         }
@@ -922,7 +921,7 @@ final class VPhoneLaunchpadMachineLibrary {
             isLaunched: launched[machine] != nil,
             isHeld: diskHolders[machine]?.isEmpty == false,
             isBusy: isBusy || creation(for: machine)?.isRunning == true || exports[machine] != nil,
-            isLibraryBusy: globalActivity != nil,
+            isLibraryBusy: isImporting,
         )
     }
 
@@ -932,7 +931,7 @@ final class VPhoneLaunchpadMachineLibrary {
     /// refuses while another process holds the template open.
     private var templatesMayOpen: Bool {
         VPhoneLaunchpadDiskAccess.templatesMayOpen(
-            isLibraryBusy: globalActivity != nil,
+            isLibraryBusy: isImporting,
             creationSteps: creations.values.filter(\.isRunning).compactMap(\.current),
         )
     }
@@ -1162,12 +1161,131 @@ final class VPhoneLaunchpadMachineLibrary {
         [.vphoneExportedArchive] + ["tzst", "txz"].compactMap { UTType(filenameExtension: $0) }
     }
 
+    // MARK: - Import
+
+    /// An import queued or under way, listed as a row of its own until the
+    /// machine it brings appears. `fraction` is nil until the command reports
+    /// progress; `task` is nil while the import waits its turn.
+    struct Import: Identifiable {
+        let id = UUID()
+        let archive: URL
+        /// The default library, which every import writes to.
+        let libraryRoot: String
+        var fraction: Double?
+        fileprivate var task: Task<Void, Never>?
+
+        var isWaiting: Bool {
+            task == nil
+        }
+
+        /// The archive's name without its extension, which is the machine's
+        /// name unless the export was renamed.
+        var name: String {
+            archive.deletingPathExtension().lastPathComponent
+        }
+
+        /// The row's identity in the machine table. No machine has it: a
+        /// machine name cannot start with a dot.
+        var row: Path {
+            Path(libraryRoot: libraryRoot, name: ".import-\(id.uuidString)")
+        }
+    }
+
+    private(set) var imports: [Import] = []
+    /// The last import queued; each one waits for the one before.
+    private var lastImport: Task<Void, Never>?
+
+    /// True while an import unpacks into the library.
+    var isImporting: Bool {
+        imports.contains { !$0.isWaiting }
+    }
+
+    func importItem(_ row: Path) -> Import? {
+        imports.first { $0.row == row }
+    }
+
+    /// Imports one archive after those already queued: each import writes a
+    /// whole disk image.
     func importArchive(_ archive: URL) async {
-        await perform(
-            String(localized: "Importing \(archive.lastPathComponent)"),
-            on: nil,
-            ["vm", "import", archive.path, "--library-root", libraryRoot],
-        )
+        let item = Import(archive: archive, libraryRoot: libraryRoot)
+        imports.append(item)
+        // So the inspector shows the import as it runs.
+        selection = [item.row]
+        let previous = lastImport
+        let queued = Task {
+            await previous?.value
+            await runImport(item.id)
+        }
+        lastImport = queued
+        await queued.value
+    }
+
+    private func runImport(_ id: UUID) async {
+        // Cancelled while it waited.
+        guard let index = imports.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let item = imports[index]
+        let arguments = ["vm", "import", item.archive.path, "--library-root", libraryRoot]
+        let task = Task {
+            do {
+                let result = try await performChecked(String(localized: "Importing…"), on: nil, arguments) { fraction in
+                    Task { @MainActor in
+                        guard let index = self.imports.firstIndex(where: { $0.id == id }) else {
+                            return
+                        }
+                        self.imports[index].fraction = fraction
+                    }
+                }
+                // `imported → <name>`: the import's row gives way to the
+                // machine, selected in its place.
+                if let name = result.lines.last(where: { $0.hasPrefix("imported → ") })?.dropFirst("imported → ".count),
+                   selection == [item.row]
+                {
+                    selection = [Path(libraryRoot: libraryRoot, name: String(name))]
+                }
+            } catch {
+                if !(error is CancellationError) {
+                    actionError = VPhoneLaunchpadError(actionFailure: error)
+                }
+            }
+        }
+        imports[index].task = task
+        await task.value
+        imports.removeAll { $0.id == id }
+        selection.remove(item.row)
+    }
+
+    /// Stops an import under way, or takes a waiting one out of the queue.
+    /// `vm import` removes what it had unpacked.
+    func cancelImport(_ id: UUID) {
+        guard let item = imports.first(where: { $0.id == id }) else {
+            return
+        }
+        if let task = item.task {
+            task.cancel()
+        } else {
+            imports.removeAll { $0.id == id }
+        }
+    }
+
+    /// True while an import or an export is queued or under way.
+    var hasActiveTransfer: Bool {
+        !imports.isEmpty || !exports.isEmpty
+    }
+
+    /// Stops every import and export and waits for their commands to exit,
+    /// so none is left running, or half written, when Launchpad quits.
+    func stopTransfers() async {
+        let running = imports.compactMap(\.task) + exports.values.compactMap(\.task)
+        imports.removeAll { $0.isWaiting }
+        exports = exports.filter { !$0.value.isWaiting }
+        for task in running {
+            task.cancel()
+        }
+        for task in running {
+            await task.value
+        }
     }
 
     /// Runs one command with `activity` shown as the machine's state. False
@@ -1214,16 +1332,14 @@ final class VPhoneLaunchpadMachineLibrary {
             }
             throw CancellationError()
         }
+        // Without a machine, the caller shows the activity itself: Import
+        // shows a row of its own.
         if let machine {
             activities[machine] = activity
-        } else {
-            globalActivity = activity
         }
         defer {
             if let machine {
                 activities[machine] = nil
-            } else {
-                globalActivity = nil
             }
         }
         do {

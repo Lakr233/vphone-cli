@@ -51,9 +51,10 @@ struct VPhoneLaunchpadMachinesView: View {
         model.machines
     }
 
-    /// The machines in the header's order.
+    /// The machines in the header's order, then the imports, which have no
+    /// machine yet, in the order they were queued.
     private var rows: [VPhoneLaunchpadMachineRow] {
-        library.machines.map { machine in
+        let machines = library.machines.map { machine in
             let state = switch library.state(of: machine.path) {
             case .running: 0
             case .busy: 1
@@ -67,6 +68,7 @@ struct VPhoneLaunchpadMachinesView: View {
             )
         }
         .sorted(using: sortOrder)
+        return machines + library.imports.map(VPhoneLaunchpadMachineRow.init(importing:))
     }
 
     var body: some View {
@@ -74,7 +76,7 @@ struct VPhoneLaunchpadMachinesView: View {
         @Bindable var model = model
         HStack(spacing: 0) {
             Group {
-                if library.machines.isEmpty {
+                if library.machines.isEmpty, library.imports.isEmpty {
                     emptyState
                 } else {
                     table(selection: $library.selection)
@@ -85,7 +87,9 @@ struct VPhoneLaunchpadMachinesView: View {
             Divider()
                 .ignoresSafeArea(.container, edges: .top)
             Group {
-                if let machine = library.selected {
+                if library.selection.count == 1, let item = library.selection.first.flatMap(library.importItem) {
+                    VPhoneLaunchpadImportInspector(item: item)
+                } else if let machine = library.selected {
                     VPhoneLaunchpadMachineInspector(
                         machine: machine,
                         onShowProgress: { path in sheet = .creation(path) },
@@ -296,47 +300,56 @@ struct VPhoneLaunchpadMachinesView: View {
 
     private func table(selection: Binding<Set<MachinePath>>) -> some View {
         Table(rows, selection: selection, sortOrder: $sortOrder) {
-            TableColumn("Name", value: \.machine.name)
-                .width(min: 90, ideal: 140)
+            TableColumn("Name", value: \.name) { row in
+                Text(verbatim: row.name)
+                    .foregroundStyle(row.machine == nil ? .secondary : .primary)
+            }
+            .width(min: 90, ideal: 140)
             if library.spansLibraries {
-                TableColumn("Location", value: \.machine.libraryRoot) { row in
-                    let machine = row.machine
-                    Text(verbatim: VPhoneLaunchpadMachineLocations.volumeName(machine.libraryRoot))
+                TableColumn("Location", value: \.libraryRoot) { row in
+                    Text(verbatim: VPhoneLaunchpadMachineLocations.volumeName(row.libraryRoot))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .help(VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: machine.libraryRoot, isDirectory: true)))
+                        .help(VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: row.libraryRoot, isDirectory: true)))
                 }
                 .width(min: 80, ideal: 110)
             }
             // Standard comparison orders 18.10 after 18.9.
-            TableColumn("OS", value: \.machine.iosVersion) { row in
-                let machine = row.machine
-                Text(verbatim: machine.restoreInfo.map { "\(machine.osName) \($0.ios.version) (\($0.ios.build))" } ?? "—")
+            TableColumn("OS", value: \.iosVersion) { row in
+                let restore = row.machine.flatMap { machine in
+                    machine.restoreInfo.map { "\(machine.osName) \($0.ios.version) (\($0.ios.build))" }
+                }
+                Text(verbatim: restore ?? "—")
             }
             .width(min: 130, ideal: 150)
             TableColumn("Core Bundle", value: \.bundle) { row in
-                let machine = row.machine
-                // Each cell is a hosting view of its own. When its row leaves
-                // the table, the cell is updated once more with an empty
-                // environment, where reading the model is a fatal error.
-                VPhoneLaunchpadMachineBundleLabel(machine: machine.path)
-                    .environment(model)
+                if let machine = row.machine {
+                    // Each cell is a hosting view of its own. When its row leaves
+                    // the table, the cell is updated once more with an empty
+                    // environment, where reading the model is a fatal error.
+                    VPhoneLaunchpadMachineBundleLabel(machine: machine.path)
+                        .environment(model)
+                } else {
+                    Text(verbatim: "—")
+                }
             }
             .width(min: 60, ideal: 70)
             TableColumn("State", value: \.state) { row in
-                let machine = row.machine
-                VPhoneLaunchpadMachineStateLabel(
-                    state: library.state(of: machine.path),
-                    progress: library.progress(of: machine.path),
-                    isDamaged: library.isDamaged(machine.path),
-                )
+                if let machine = row.machine {
+                    VPhoneLaunchpadMachineStateLabel(
+                        state: library.state(of: machine.path),
+                        progress: library.progress(of: machine.path),
+                        isDamaged: library.isDamaged(machine.path),
+                    )
+                } else if let item = library.importItem(row.id) {
+                    VPhoneLaunchpadImportStateLabel(item: item)
+                }
             }
             .width(min: 100, ideal: 120)
             // What deleting the machine frees: a clone of a template
             // shares the rest.
             TableColumn("Exclusive", value: \.exclusive) { row in
-                let machine = row.machine
-                let usage = library.diskUsage[machine.path]
+                let usage = row.machine.flatMap { library.diskUsage[$0.path] }
                 Text(verbatim: usage?.exclusive.map { VPhoneLaunchpadDiskUsage.format($0) } ?? "—")
                     .monospacedDigit()
                     .foregroundStyle(usage?.exclusive == nil ? .secondary : .primary)
@@ -345,7 +358,16 @@ struct VPhoneLaunchpadMachinesView: View {
             .width(min: 70, ideal: 80)
         }
         .contextMenu(forSelectionType: MachinePath.self) { paths in
-            VPhoneLaunchpadMachineActions(machines: library.machines.filter { paths.contains($0.path) })
+            let importing = library.imports.filter { paths.contains($0.row) }
+            if importing.isEmpty {
+                VPhoneLaunchpadMachineActions(machines: library.machines.filter { paths.contains($0.path) })
+            } else {
+                Button(importing.count == 1 ? LocalizedStringKey("Stop Importing") : LocalizedStringKey("Stop \(importing.count) Imports")) {
+                    for item in importing {
+                        library.cancelImport(item.id)
+                    }
+                }
+            }
         } primaryAction: { paths in
             library.start(library.machines.filter { paths.contains($0.path) && library.state(of: $0.path) == .stopped })
         }
@@ -437,10 +459,16 @@ struct VPhoneLaunchpadMachinesView: View {
     }
 }
 
-/// One row of the machine table: the machine, with the values its other
-/// columns show, so every column sorts.
+/// One row of the machine table: a machine, or an import that has none yet,
+/// with the values its columns show, so every column sorts.
 struct VPhoneLaunchpadMachineRow: Identifiable {
-    let machine: VPhoneLaunchpadMachine
+    let id: VPhoneLaunchpadMachinePath
+    /// Nil for an import.
+    let machine: VPhoneLaunchpadMachine?
+    let name: String
+    let libraryRoot: String
+    /// The iOS sort key; empty for a machine not yet restored, or an import.
+    let iosVersion: String
     /// The Core Bundle version it runs with.
     let bundle: String
     /// Running, then busy, then stopped.
@@ -448,7 +476,85 @@ struct VPhoneLaunchpadMachineRow: Identifiable {
     /// Bytes only it holds; -1 while unknown.
     let exclusive: Int64
 
-    var id: VPhoneLaunchpadMachinePath {
-        machine.path
+    init(machine: VPhoneLaunchpadMachine, bundle: String, state: Int, exclusive: Int64) {
+        id = machine.path
+        self.machine = machine
+        name = machine.name
+        libraryRoot = machine.libraryRoot
+        iosVersion = machine.iosVersion
+        self.bundle = bundle
+        self.state = state
+        self.exclusive = exclusive
+    }
+
+    init(importing item: VPhoneLaunchpadMachineLibrary.Import) {
+        id = item.row
+        machine = nil
+        name = item.name
+        libraryRoot = item.libraryRoot
+        iosVersion = ""
+        bundle = ""
+        state = 1
+        exclusive = -1
+    }
+}
+
+// MARK: - Import
+
+/// An import's state: its progress once `vm import` reports it.
+struct VPhoneLaunchpadImportStateLabel: View {
+    let item: VPhoneLaunchpadMachineLibrary.Import
+    var namesActivity = false
+
+    var body: some View {
+        VPhoneLaunchpadMachineStateLabel(
+            state: .busy(item.isWaiting ? String(localized: "Waiting to import…") : String(localized: "Importing…")),
+            progress: item.isWaiting ? nil : item.fraction ?? 0,
+            namesActivity: namesActivity,
+        )
+    }
+}
+
+/// The inspector for an import's row: what is being imported, how far it has
+/// got, and a way to stop it.
+struct VPhoneLaunchpadImportInspector: View {
+    let item: VPhoneLaunchpadMachineLibrary.Import
+    @Environment(VPhoneLaunchpadModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("State") {
+                    VPhoneLaunchpadImportStateLabel(item: item, namesActivity: true)
+                }
+                LabeledContent("Archive") {
+                    Text(verbatim: item.archive.lastPathComponent)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(VPhoneLaunchpadHostSetup.abbreviated(item.archive))
+                }
+                LabeledContent("Location") {
+                    Text(verbatim: VPhoneLaunchpadHostSetup.abbreviated(URL(fileURLWithPath: item.libraryRoot, isDirectory: true)))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            } header: {
+                Text(verbatim: item.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.primary)
+            }
+            Section {
+                Button(item.isWaiting ? LocalizedStringKey("Remove from Queue") : LocalizedStringKey("Stop Importing"), role: .destructive) {
+                    model.machines.cancelImport(item.id)
+                }
+            } footer: {
+                Text("The machine appears in the list once its files are unpacked and checked. Stopping removes what was unpacked.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .contentMargins(.top, 0, for: .scrollContent)
     }
 }

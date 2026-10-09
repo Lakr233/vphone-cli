@@ -306,7 +306,7 @@ extension VPhoneLaunchpadMachineLibrary {
                 UTType(filenameExtension: url.pathExtension)?.conforms(to: type) == true
             }
         }
-        guard !archives.isEmpty, globalActivity == nil else {
+        guard !archives.isEmpty else {
             return false
         }
         Task {
