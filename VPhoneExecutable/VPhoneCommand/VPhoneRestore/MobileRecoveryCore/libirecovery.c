@@ -4092,73 +4092,11 @@ const struct irecv_device_info* irecv_get_device_info(irecv_client_t client)
 #endif
 }
 
-#ifndef USE_DUMMY
-#ifdef HAVE_IOKIT
-static void *iokit_limera1n_usb_submit_request(void *argv)
+/* PCC virtual devices do not use the legacy physical-device limera1n path.
+ * Keep the vendored API symbol, without shipping its USB exploit payload. */
+irecv_error_t irecv_trigger_limera1n_exploit(irecv_client_t client __attribute__((unused)))
 {
-	void **args = argv;
-	IOUSBDeviceInterface320 **dev = args[0];
-	IOUSBDevRequest *req = args[1];
-
-	IOReturn result = (*dev)->DeviceRequest(dev, req);
-	if (result != kIOReturnSuccess)
-		debug("%s result: %#x\n", __func__, result);
-
-	return NULL;
-}
-#endif
-#endif
-
-irecv_error_t irecv_trigger_limera1n_exploit(irecv_client_t client)
-{
-#ifdef USE_DUMMY
 	return IRECV_E_UNSUPPORTED;
-#else
-	if (check_context(client) != IRECV_E_SUCCESS)
-		return IRECV_E_NO_DEVICE;
-
-#ifdef HAVE_IOKIT
-	IOReturn result;
-	IOUSBDevRequestTO req;
-	memset(&req, 0, sizeof(req));
-
-	req.bmRequestType     = 0x21;
-	req.bRequest          = 2;
-	req.wValue            = 0;
-	req.wIndex            = 0;
-	req.wLength           = 0;
-	req.pData             = NULL;
-	req.noDataTimeout     = USB_TIMEOUT;
-	req.completionTimeout = USB_TIMEOUT;
-
-	// The original version uses an async request, but we don't have an async event
-	// source set up. The hack relies on aborting the transaction before it times out,
-	// which can be accomplished by sending on another thread.
-
-	void *args[2] = { client->handle, &req };
-	THREAD_T thread;
-	thread_new(&thread, iokit_limera1n_usb_submit_request, args);
-
-	usleep(5 * 1000);
-	result = (*client->handle)->USBDeviceAbortPipeZero(client->handle);
-	if (result != kIOReturnSuccess)
-		debug("USBDeviceAbortPipeZero returned %#x\n", result);
-
-	switch (result) {
-		case kIOReturnSuccess:         return req.wLenDone;
-		case kIOReturnTimeout:         return IRECV_E_TIMEOUT;
-		case kIOUSBTransactionTimeout: return IRECV_E_TIMEOUT;
-		case kIOReturnNotResponding:   return IRECV_E_NO_DEVICE;
-		case kIOReturnNoDevice:	       return IRECV_E_NO_DEVICE;
-		default:
-			return IRECV_E_UNKNOWN_ERROR;
-	}
-#else
-	irecv_usb_control_transfer(client, 0x21, 2, 0, 0, NULL, 0, USB_TIMEOUT);
-#endif
-
-	return IRECV_E_SUCCESS;
-#endif
 }
 
 irecv_error_t irecv_execute_script(irecv_client_t client, const char* script)

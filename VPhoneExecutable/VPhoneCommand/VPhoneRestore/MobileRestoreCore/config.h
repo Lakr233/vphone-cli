@@ -84,8 +84,8 @@
 #define HAVE_ENUM_IDEVICE_CONNECTION_TYPE 1
 #define HAVE_REVERSE_PROXY 1
 
-/* AC_ARG_WITH([limera1n]) defaults to yes. */
-#define HAVE_LIMERA1N 1
+/* Virtual-device restores do not use the legacy limera1n exploit. */
+/* #undef HAVE_LIMERA1N */
 
 /* Headers: the set autoheader always emits, all of which exist on macOS. */
 #define STDC_HEADERS 1
