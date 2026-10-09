@@ -3,15 +3,28 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The actions for one or more machines, shared by the toolbar's Actions
-/// menu, the table's context menu and each machine's menu in the menu bar.
-/// Several machines get the batch actions: one settings edit, export and
-/// delete, which need every machine stopped, then start and stop.
+/// menu, the table's context menu, each machine's menu in the menu bar and
+/// the main menu, where they carry keyboard shortcuts: Machine holds most,
+/// Edit holds Rename and Clone (Delete is Edit's own, from the table).
+/// Several machines get the batch actions: start and stop, one settings
+/// edit, export and delete, which need every machine stopped.
 ///
 /// Sheets and the delete confirmation belong to the machine list, so those
 /// items leave a request on the model that the list presents. The menu bar
 /// passes `willRequest` to open the window first.
 struct VPhoneLaunchpadMachineActions: View {
+    enum Placement {
+        /// Every action, without shortcuts: the Actions menu, the context
+        /// menu and the menu bar.
+        case full
+        /// The main menu's Machine menu: all but Rename, Clone and Delete.
+        case machineMenu
+        /// The main menu's Edit menu: Rename and Clone.
+        case editMenu
+    }
+
     let machines: [VPhoneLaunchpadMachine]
+    var placement = Placement.full
     var willRequest: () -> Void = {}
     @Environment(VPhoneLaunchpadModel.self) private var model
 
@@ -19,10 +32,21 @@ struct VPhoneLaunchpadMachineActions: View {
         model.machines
     }
 
+    private var showsRunItems: Bool {
+        placement != .editMenu
+    }
+
+    private var showsEditItems: Bool {
+        placement != .machineMenu
+    }
+
     var body: some View {
+        if machines.isEmpty, placement == .machineMenu {
+            Text("No Machine Selected")
+        }
         // Only while one of them is exporting or waiting to.
         let exporting = machines.filter { library.exports[$0.path] != nil }
-        if !exporting.isEmpty {
+        if !exporting.isEmpty, showsRunItems {
             Button("Cancel Export") {
                 for machine in exporting {
                     library.cancelExport(machine.path)
@@ -31,74 +55,111 @@ struct VPhoneLaunchpadMachineActions: View {
             Divider()
         }
         if machines.count > 1 {
-            let stopped = machines.filter { library.state(of: $0.path) == .stopped }
-            let running = machines.filter { library.state(of: $0.path) == .running }
-            let allStopped = stopped.count == machines.count
-            // The order of one machine's menu, with what applies to several.
-            Button("Start") { library.start(stopped) }
-                .disabled(stopped.isEmpty)
-            Button("Start Headless") { library.start(stopped, headless: true) }
-                .disabled(stopped.isEmpty)
-            Button("Stop") { library.stop(running) }
-                .disabled(running.isEmpty)
-            Button("Terminate") {
-                Task {
-                    await withTaskGroup(of: Void.self) { group in
-                        for machine in running {
-                            group.addTask { await library.forceStop(machine.path) }
-                        }
+            if showsRunItems {
+                multipleActions
+            }
+        } else if let machine = machines.first {
+            singleActions(machine)
+        }
+    }
+
+    // MARK: - Several machines
+
+    @ViewBuilder
+    private var multipleActions: some View {
+        let stopped = machines.filter { library.state(of: $0.path) == .stopped }
+        let running = machines.filter { library.state(of: $0.path) == .running }
+        let allStopped = stopped.count == machines.count
+        // The order of one machine's menu, with what applies to several.
+        Button("Start") { library.start(stopped) }
+            .disabled(stopped.isEmpty)
+            .menuShortcut(.return, in: placement)
+        Button("Start Headless") { library.start(stopped, headless: true) }
+            .disabled(stopped.isEmpty)
+            .menuShortcut(.return, [.command, .option], in: placement)
+        Button("Stop") { library.stop(running) }
+            .disabled(running.isEmpty)
+            .menuShortcut(".", [.command, .shift], in: placement)
+        Button("Terminate") {
+            Task {
+                await withTaskGroup(of: Void.self) { group in
+                    for machine in running {
+                        group.addTask { await library.forceStop(machine.path) }
                     }
                 }
             }
-            .disabled(running.isEmpty)
-            Divider()
-            Button("Settings…") { request(.settings(machines)) }
-                .disabled(!allStopped)
-            changeBundleButton
-            Divider()
-            Button("Export…") { request(.export(machines.map(\.path))) }
-                .disabled(!allStopped)
-            Divider()
-            Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting(machines.map(\.path.url))
-            }
+        }
+        .disabled(running.isEmpty)
+        Divider()
+        Button("Settings…") { request(.settings(machines)) }
+            .disabled(!allStopped)
+            .menuShortcut("i", in: placement)
+        changeBundleButton
+        Divider()
+        Button("Export…") { library.chooseExport(machines.map(\.path)) }
+            .disabled(!allStopped)
+            .menuShortcut("e", in: placement)
+        Divider()
+        Button("Show in Finder") {
+            NSWorkspace.shared.activateFileViewerSelecting(machines.map(\.path.url))
+        }
+        .menuShortcut("r", [.command, .shift], in: placement)
+        if placement == .full {
             Divider()
             Button("Delete…", role: .destructive) { requestDeletion(machines.map(\.path)) }
                 .disabled(!allStopped)
-        } else if let machine = machines.first {
-            let state = library.state(of: machine.path)
-            let isStopped = state == .stopped
-            // Run, configure, the machine's files, maintenance and logs,
-            // then Delete.
+        }
+    }
+
+    // MARK: - One machine
+
+    /// Run, configure, the machine's files, maintenance and logs, then
+    /// Delete.
+    @ViewBuilder
+    private func singleActions(_ machine: VPhoneLaunchpadMachine) -> some View {
+        let state = library.state(of: machine.path)
+        let isStopped = state == .stopped
+        if showsRunItems {
             switch state {
             case .running:
                 Button("Stop") { library.stop([machine]) }
+                    .menuShortcut(".", [.command, .shift], in: placement)
                 // For a guest that hangs or ignores Stop.
                 Button("Terminate") { Task { await library.forceStop(machine.path) } }
             case .stopped:
                 Button("Start") { library.start([machine]) }
+                    .menuShortcut(.return, in: placement)
                 Button("Start Headless") { library.start([machine], headless: true) }
+                    .menuShortcut(.return, [.command, .option], in: placement)
             case let .busy(activity):
                 Text(activity)
             }
             Divider()
             Button("Settings…") { request(.settings([machine])) }
                 .disabled(!isStopped)
+                .menuShortcut("i", in: placement)
             // It works on the running guest, and says so when it is not.
             Button("Guest System…") { request(.guestSystem(machine.path)) }
                 .disabled(library.creation(for: machine.path)?.isRunning == true)
             changeBundleButton
             Divider()
+        }
+        if showsEditItems {
             Button("Rename…") { request(.rename(machine.path)) }
                 .disabled(!isStopped)
             Button("Clone…") { request(.clone(machine.path)) }
                 .disabled(!isStopped)
+                .menuShortcut("d", in: placement)
+        }
+        if showsRunItems {
             // Open while the machine runs too, to read the list; taking,
             // reverting and deleting wait for it to stop.
             Button("Snapshots…") { request(.snapshots(machine.path)) }
                 .disabled(library.creation(for: machine.path)?.isRunning == true)
-            Button("Export…") { request(.export([machine.path])) }
+                .menuShortcut("s", [.command, .shift], in: placement)
+            Button("Export…") { library.chooseExport([machine.path]) }
                 .disabled(!isStopped)
+                .menuShortcut("e", in: placement)
             Divider()
             Menu("Maintenance") {
                 Button("Install Custom Firmware") {
@@ -116,6 +177,7 @@ struct VPhoneLaunchpadMachineActions: View {
             }
             Menu("Logs") {
                 Button("Open Console") { request(.console(machine.path)) }
+                    .menuShortcut("l", [.command, .option], in: placement)
                 Button("Show Console Log") {
                     NSWorkspace.shared.open(VPhoneLaunchpadMachineLibrary.consoleLog(machine.path))
                 }
@@ -127,6 +189,9 @@ struct VPhoneLaunchpadMachineActions: View {
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([machine.path.url])
             }
+            .menuShortcut("r", [.command, .shift], in: placement)
+        }
+        if placement == .full {
             Divider()
             Button("Delete…", role: .destructive) { requestDeletion([machine.path]) }
                 .disabled(!isStopped)
@@ -178,6 +243,42 @@ extension VPhoneLaunchpadMachineLibrary {
     }
 }
 
+// MARK: - Export
+
+extension VPhoneLaunchpadMachineLibrary {
+    /// Export…: straight to the save panel, `<name>.vpea`; several machines
+    /// go into one folder, one archive each. The restore IPSWs are never
+    /// included: they belong to the IPSW cache, and a machine runs without
+    /// them.
+    func chooseExport(_ machines: [VPhoneLaunchpadMachinePath]) {
+        if machines.count == 1 {
+            let machine = machines[0]
+            let panel = NSSavePanel()
+            panel.title = String(localized: "Export \(machine.name)")
+            panel.allowedContentTypes = [.vphoneExportedArchive]
+            panel.nameFieldStringValue = Self.exportFileName(machine)
+            panel.present { url in
+                Task { await self.export([(machine, url)]) }
+            }
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Export \(machines.count) Machines")
+        panel.prompt = String(localized: "Export")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.present { folder in
+            let items = machines.map { ($0, folder.appendingPathComponent(Self.exportFileName($0))) }
+            Task { await self.export(items) }
+        }
+    }
+
+    private static func exportFileName(_ machine: VPhoneLaunchpadMachinePath) -> String {
+        "\(machine.name).vpea"
+    }
+}
+
 // MARK: - Import
 
 extension VPhoneLaunchpadMachineLibrary {
@@ -211,5 +312,24 @@ extension VPhoneLaunchpadMachineLibrary {
             }
         }
         return true
+    }
+}
+
+// MARK: - Shortcuts
+
+private extension View {
+    /// A keyboard shortcut only in the main menu: the same items in the
+    /// context menu and the menu bar would claim it twice.
+    @ViewBuilder
+    func menuShortcut(
+        _ key: KeyEquivalent,
+        _ modifiers: EventModifiers = .command,
+        in placement: VPhoneLaunchpadMachineActions.Placement,
+    ) -> some View {
+        if placement == .full {
+            self
+        } else {
+            keyboardShortcut(key, modifiers: modifiers)
+        }
     }
 }

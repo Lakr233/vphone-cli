@@ -79,7 +79,6 @@ struct VPhoneLaunchpadMachineBundleLabel: View {
 struct VPhoneLaunchpadMachineInspector: View {
     let machine: VPhoneLaunchpadMachine
     let onShowProgress: (VPhoneLaunchpadMachinePath) -> Void
-    let onOpenConsole: (VPhoneLaunchpadMachinePath) -> Void
     @Environment(VPhoneLaunchpadModel.self) private var model
     @State private var patchCatalog: VPhoneLaunchpadPatchCatalog?
     @State private var patchCatalogError: String?
@@ -128,9 +127,10 @@ struct VPhoneLaunchpadMachineInspector: View {
                 Text(machine.name)
                     .font(.headline)
             } footer: {
-                // Under the card rather than in it: they act on the whole
-                // inspector, not on a row.
+                // Under the card rather than in it: it switches the whole
+                // inspector, not a row. The console is in the Logs menu.
                 HStack {
+                    Spacer()
                     Picker("Page", selection: $page) {
                         Text("General").tag(Page.general)
                         Text("Hardware").tag(Page.hardware)
@@ -140,8 +140,6 @@ struct VPhoneLaunchpadMachineInspector: View {
                     .labelsHidden()
                     .fixedSize()
                     Spacer()
-                    Button("Open Console") { onOpenConsole(machine.path) }
-                        .fixedSize()
                 }
                 .foregroundStyle(.primary)
                 .padding(.top, 4)
@@ -166,12 +164,8 @@ struct VPhoneLaunchpadMachineInspector: View {
                 initial: initial,
                 bundleVersion: library.bundleVersion(for: path),
                 machine: path,
-            ) { selection in
-                Task {
-                    await library.setPatches(selection, for: path)
-                    patchRevision += 1
-                }
-            }
+                isReadOnly: true,
+            ) { _ in }
             .environment(model)
         }
     }
@@ -308,7 +302,7 @@ struct VPhoneLaunchpadMachineInspector: View {
     @ViewBuilder
     private var patchesPage: some View {
         if library.creation(for: machine.path)?.isRunning != true {
-            Section("Patches") {
+            Section {
                 if let catalog = patchCatalog, patchCatalogMachine == machine.path {
                     LabeledContent(
                         "Preset",
@@ -345,6 +339,20 @@ struct VPhoneLaunchpadMachineInspector: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                } else if let patchCatalogError {
+                    Text("Unavailable")
+                        .foregroundStyle(.secondary)
+                        .help(patchCatalogError)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                }
+            } header: {
+                Text("Patches")
+            } footer: {
+                // Under the card rather than in it, as the page picker is.
+                if let catalog = patchCatalog, patchCatalogMachine == machine.path {
                     HStack {
                         Spacer()
                         if catalog.installed == true, catalog.pendingKernelPatches > 0 {
@@ -371,16 +379,11 @@ struct VPhoneLaunchpadMachineInspector: View {
                                 ? String(localized: "Updates the guest environment, which turns guest patches on or off to match this machine’s choice.")
                                 : String(localized: "Stop the machine to apply its patch choice to the guest."))
                         }
-                        Button("Edit…") { editedPatches = catalog.selection }
+                        // A created machine's patches are shown, not changed.
+                        Button("View…") { editedPatches = catalog.selection }
                     }
-                } else if let patchCatalogError {
-                    Text("Unavailable")
-                        .foregroundStyle(.secondary)
-                        .help(patchCatalogError)
-                } else {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity)
+                    .foregroundStyle(.primary)
+                    .padding(.top, 4)
                 }
             }
         } else {

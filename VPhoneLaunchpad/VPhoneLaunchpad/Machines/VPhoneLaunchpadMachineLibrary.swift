@@ -1112,7 +1112,7 @@ final class VPhoneLaunchpadMachineLibrary {
 
     /// Exports each machine to its destination file, one at a time: each
     /// export reads a whole disk image.
-    func export(_ items: [(machine: Path, destination: URL)], includeIPSW: Bool) async {
+    func export(_ items: [(machine: Path, destination: URL)]) async {
         for item in items {
             exports[item.machine] = Export()
         }
@@ -1122,7 +1122,7 @@ final class VPhoneLaunchpadMachineLibrary {
                 continue
             }
             let task = Task {
-                await runExport(item.machine, to: item.destination, includeIPSW: includeIPSW)
+                await runExport(item.machine, to: item.destination)
             }
             exports[item.machine]?.task = task
             await task.value
@@ -1142,12 +1142,10 @@ final class VPhoneLaunchpadMachineLibrary {
         }
     }
 
-    private func runExport(_ machine: Path, to destination: URL, includeIPSW: Bool) async {
-        // zstd, the default: Launchpad does not offer xz.
-        var arguments = ["vm", "export", machine.name, "--out", destination.path] + machine.libraryArguments
-        if includeIPSW {
-            arguments.append("--include-ipsw")
-        }
+    private func runExport(_ machine: Path, to destination: URL) async {
+        // zstd, the default: Launchpad does not offer xz. Never
+        // --include-ipsw: the restore IPSWs stay in the IPSW cache.
+        let arguments = ["vm", "export", machine.name, "--out", destination.path] + machine.libraryArguments
         await perform(String(localized: "Exporting…"), on: machine, arguments) { [weak self] fraction in
             Task { @MainActor in self?.exports[machine]?.fraction = fraction }
         }

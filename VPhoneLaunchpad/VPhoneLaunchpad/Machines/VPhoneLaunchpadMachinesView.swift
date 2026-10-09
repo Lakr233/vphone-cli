@@ -11,7 +11,6 @@ struct VPhoneLaunchpadMachinesView: View {
         case changeBundle([VPhoneLaunchpadMachine])
         case rename(MachinePath)
         case clone(MachinePath)
-        case export([MachinePath])
         case snapshots(MachinePath)
         case console(MachinePath)
         case guestSystem(MachinePath)
@@ -25,7 +24,6 @@ struct VPhoneLaunchpadMachinesView: View {
             case let .changeBundle(machines): "bundle-\(machines.map(\.path.url.path).joined(separator: "|"))"
             case let .rename(machine): "rename-\(machine.url.path)"
             case let .clone(machine): "clone-\(machine.url.path)"
-            case let .export(machines): "export-\(machines.map(\.url.path).joined(separator: "|"))"
             case let .snapshots(machine): "snapshots-\(machine.url.path)"
             case let .console(machine): "console-\(machine.url.path)"
             case let .guestSystem(machine): "guest-system-\(machine.url.path)"
@@ -91,7 +89,6 @@ struct VPhoneLaunchpadMachinesView: View {
                     VPhoneLaunchpadMachineInspector(
                         machine: machine,
                         onShowProgress: { path in sheet = .creation(path) },
-                        onOpenConsole: { path in sheet = .console(path) },
                     )
                 } else if library.selection.count > 1 {
                     ContentUnavailableView("\(library.selection.count) Machines Selected", systemImage: "iphone")
@@ -352,6 +349,13 @@ struct VPhoneLaunchpadMachinesView: View {
         } primaryAction: { paths in
             library.start(library.machines.filter { paths.contains($0.path) && library.state(of: $0.path) == .stopped })
         }
+        // Edit > Delete and the Delete key, for the stopped selection.
+        .onDeleteCommand {
+            let paths = library.selectedMachines.map(\.path)
+            if !paths.isEmpty, paths.allSatisfy({ library.state(of: $0) == .stopped }) {
+                deletion = paths
+            }
+        }
         .focused($tableIsFocused)
         .onAppear {
             tableIsFocused = true
@@ -410,8 +414,6 @@ struct VPhoneLaunchpadMachinesView: View {
             VPhoneLaunchpadCloneSheet(machine: path) { newName, newIdentity in
                 Task { await library.clone(path, as: newName, newIdentity: newIdentity) }
             }
-        case let .export(paths):
-            VPhoneLaunchpadExportView(machines: paths)
         case let .snapshots(path):
             VPhoneLaunchpadSnapshotsView(machine: path)
         case let .console(path):

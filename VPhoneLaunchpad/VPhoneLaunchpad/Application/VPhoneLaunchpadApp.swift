@@ -55,6 +55,17 @@ struct VPhoneLaunchpadApp: App {
                     .keyboardShortcut("l", modifiers: [.command, .shift])
                 Divider()
             }
+            // The selected machines' actions, as the toolbar's Actions menu
+            // has them, with shortcuts.
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                VPhoneLaunchpadMachineActions(machines: model.machines.selectedMachines, placement: .editMenu)
+                    .environment(model)
+            }
+            CommandMenu("Machine") {
+                VPhoneLaunchpadMachineActions(machines: model.machines.selectedMachines, placement: .machineMenu)
+                    .environment(model)
+            }
             CommandGroup(after: .appSettings) {
                 Button("Host Setup…") { model.present(.hostSetup) }
                 Button("Core Bundle…") { model.present(.coreBundle) }

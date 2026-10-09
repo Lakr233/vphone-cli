@@ -27,6 +27,9 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     /// Hands the edited choice back; New Machine holds it until the VM exists,
     /// the inspector saves it to the machine.
     let onSave: (VPhoneLaunchpadPatchSelection) -> Void
+    /// The inspector shows a created machine's choice without changing it:
+    /// its boot chain was patched when it was restored.
+    let isReadOnly: Bool
 
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -50,11 +53,13 @@ struct VPhoneLaunchpadPatchSettingsView: View {
         initial: VPhoneLaunchpadPatchSelection,
         bundleVersion: String? = nil,
         machine: VPhoneLaunchpadMachinePath? = nil,
+        isReadOnly: Bool = false,
         onSave: @escaping (VPhoneLaunchpadPatchSelection) -> Void,
     ) {
         self.initial = initial
         self.bundleVersion = bundleVersion
         self.machine = machine
+        self.isReadOnly = isReadOnly
         self.onSave = onSave
         _selection = State(initialValue: initial)
     }
@@ -82,11 +87,16 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         } actions: {
-            Button("Cancel") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-            Button("Done") { commit() }
-                .keyboardShortcut(.defaultAction)
-                .disabled(catalog == nil)
+            if isReadOnly {
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Done") { commit() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(catalog == nil)
+            }
         }
         .frame(height: 680)
         // A hidden patch leaves the selection, so the detail pane reads only
@@ -119,7 +129,7 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                     }
                 }
                 .fixedSize()
-                .disabled(catalog == nil || isLoading)
+                .disabled(catalog == nil || isLoading || isReadOnly)
                 if isLoading {
                     ProgressView().controlSize(.small)
                 }
@@ -187,6 +197,7 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                     set: { selection.set(patch, on: $0) },
                 ))
                 .labelsHidden()
+                .disabled(isReadOnly)
             }
             .width(36)
 
@@ -246,7 +257,9 @@ struct VPhoneLaunchpadPatchSettingsView: View {
         }
         .contextMenu(forSelectionType: String.self) { ids in
             Button("Turn On") { set(ids, on: true) }
+                .disabled(isReadOnly)
             Button("Turn Off") { set(ids, on: false) }
+                .disabled(isReadOnly)
         }
         .vphoneFocusedOnAppear()
     }

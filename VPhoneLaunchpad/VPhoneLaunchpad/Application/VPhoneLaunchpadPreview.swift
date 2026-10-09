@@ -81,7 +81,7 @@
                 model.machines.applyPreview(creation: creation)
                 if let machine = model.machines.selected {
                     await standalone("05b-machine-inspector", suffix, size: NSSize(width: 380, height: 1500)) {
-                        VPhoneLaunchpadMachineInspector(machine: machine, onShowProgress: { _ in }, onOpenConsole: { _ in })
+                        VPhoneLaunchpadMachineInspector(machine: machine, onShowProgress: { _ in })
                             .environment(model)
                     }
                 }
@@ -156,7 +156,6 @@
                 await standalone("10d-take-snapshot", suffix, size: NSSize(width: 420, height: 330)) {
                     VPhoneLaunchpadTakeSnapshotSheet(machine: labMachine, taken: Set(sampleSnapshots.map(\.name))) { _, _ in }
                 }
-                await sheet(.export([labMachine]), "11-export", suffix)
                 await sheet(.console(path("research-01")), "12-console", suffix)
                 ipswSelection = ipswScan.ipsws[1].id
                 await panel(model, .ipswCache, "13-downloaded-ipsws", suffix)
