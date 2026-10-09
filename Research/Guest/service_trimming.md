@@ -306,3 +306,23 @@ frames, because the iPhone 27.0 guest publishes no synthetic camera
 (`libvcamcaptured` logs `_sSourceList not located` on every boot, before and
 after), so no client can reach the drive; and the microphone, whose code did
 not change.
+
+## Open items
+
+- **iPadOS.** vphoned picks the list by major version only, so iPad guests on
+  26 and 27 get the iPhone lists. No iPad guest has been measured with them.
+- **WidgetKit control extensions on iOS 26.** The `ControlAction.init(_:)`
+  crashes on 2 of 16 trimmed 26.6.2 boots ([iOS 26](#ios-26)) point at a
+  disabled job an App Intent reference needs; which one was not found.
+- **Location on iOS 27.** Location simulation under the profile is verified
+  on 26.6.2 only; on 27.0 it waits for locationd itself to work
+  ([locationd startup deadlock](locationd_startup_deadlock.md)).
+- **Host memory.** The VM has no balloon device, so the guest's freed memory
+  stays with the VM process (8.67 → 7.26 GB on 27.0). Returning it would take
+  `VZVirtioTraditionalMemoryBalloonDevice` and a guest that drives it, which
+  was not evaluated; giving trimmed machines less memory is the simple way to
+  use the headroom.
+- **Sample size.** Each configuration's idle figures come from one or two
+  15-minute windows, and bursts of maintenance work that `dasd` schedules
+  (mediaanalysisd, cloudd, searchd) dominated some of them. They show the
+  direction, not a precise rate.

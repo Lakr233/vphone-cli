@@ -127,8 +127,10 @@ and a clone's disk image:
 `nvram.bin` and `SEPStorage` are cloned too and diverge by a few blocks.
 A clone therefore costs about 0.35 GB after its first boots and grows with
 use, where a restore writes about 20 GB plus an 11 GB temporary restore tree.
-`du` and Launchpad's size column report the full 20 GB for every clone, and
-deleting the source frees no shared blocks while a clone remains.
+`du` reports the full 20 GB for every clone (Launchpad's Exclusive column
+compares extents instead), and deleting the source frees no shared blocks
+while a clone remains. How this compares with the other ways of saving disk
+space is in [disk space](disk_space.md).
 
 ## Shared state and caveats
 
@@ -141,7 +143,12 @@ deleting the source frees no shared blocks while a clone remains.
   keys, was not tested.
 - The host trusts each guest by UDID, so lockdown tools need the guest's
   "Trust This Computer" prompt again after a new identity. Tapping Trust and
-  then `idevicepair pair` worked.
+  then `idevicepair pair` worked. Copying the host's pair record
+  (`/var/db/lockdown/<old UDID>.plist`) to the new UDID might skip the
+  prompt; it needs root, so a Launchpad helper verb, and was not tried.
+- A plain clone keeps the source's ECID and MAC, so it has the same UDID and
+  competes for the same DHCP lease if both run: it is a backup, not a second
+  machine.
 - A clone that later runs `restore` is personalized for its new ECID, as
   usual. `cfw update-kernel` and `--update-environment` write through a host
   mount and do not involve the ECID.

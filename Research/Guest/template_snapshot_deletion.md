@@ -121,8 +121,26 @@ still writing about 2 GB while the snapshot went. The day before, the same call
 from a vphoned with only `com.apple.developer.vfs.snapshot` answered
 `not_permitted`.
 
-## Not yet verified
+## Reclaim in a template build
 
-- The reclaim of a deletion made by vphoned inside a template build has not
-  been read off the host image; the 1.19 GB above comes from the prototype run
-  after an offline trim.
+Measured on 2026-10-08 in a template build (iPhone17,3 iOS 27.0 24A435,
+standard trim, then the setup boot with vphoned deleting the snapshot). The
+host image cannot isolate it, because the setup boot writes first-boot state
+at the same time, so the System volume's Capacity Consumed was read from the
+stopped image (`diskutil apfs list` on a read-only attach) at each stage:
+
+| Stage | System volume | Data | User |
+| --- | --- | --- | --- |
+| After `cfw install` and Launchpad's first boot | 16,209,444,864 B | 1.17 GB | 0.46 GB |
+| After `vm template trim --tier standard` (1.166 GB of files) | 16,209,846,272 B | | |
+| After the setup boot | 15,022,374,912 B | 1.67 GB | 0.69 GB |
+
+The System volume shrank by 1,187,471,360 B (1.19 GB): the 1.166 GB trimmed
+plus about 21.6 MB held only by the snapshot, the same split as the prototype
+run. On the host, `Disk.img` (sampled every 2 s) went from 17.948 GB to
+16.620 GB within about 10 s of the snapshot step, then grew back with the setup
+boot's writes to 17.545 GB at shutdown. The 1.33 GB drop is 0.14 GB more
+than the System volume's, probably discards from the other volumes in the
+same seconds. The frozen template was 17.58 GB, against 18.92 GB for a
+template with neither trim nor setup boot and 19.3 GB for one with a setup
+boot and no trim.

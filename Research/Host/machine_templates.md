@@ -6,7 +6,9 @@ from it with `clonefile(2)` and a new identity (see
 [machine identity and clone](machine_identity_and_clone.md)), so a second
 machine for the same firmware costs a clone and a few hundred MB of first-boot
 writes instead of a 20 GB restore. User-facing behavior is in
-[Create and run](../../Documents/Guides/create-and-run.md#templates).
+[Create and run](../../Documents/Guides/create-and-run.md#templates). What
+templates save against the alternatives that were measured, and the build and
+clone timings, are in [disk space](disk_space.md).
 
 Code: `VPhoneKit/VPhoneCoreKit/Bundle/VPhoneMachineTemplateKey.swift` (the key,
 pure), `VPhoneMachineTemplates.swift` (storage, freeze, adopt, clone, boot
@@ -496,7 +498,10 @@ conservative trim afterwards and `aggressive` were refused, and so was
 booted through Launchpad to the Setup greeting with vphoned answering and 258
 apps registered, no panic. With P4's snapshot deletion the 2026-10-07
 prototype returned 1.19 GB for the same deletions
-(`Research/Guest/template_snapshot_deletion.md`).
+(`Research/Guest/template_snapshot_deletion.md`), and so did a full build's
+setup boot, read off the System volume (that note's "Reclaim in a template
+build"). Where these paths sit among the System volume's 16 GB, and why the
+other large items are never trimmed, is in [disk space](disk_space.md).
 
 `vm delete` of the second of two machines cloned from a template printed
 `note: template 2246f982776c (~18.92 GB) is no longer used by any machine; …`;
@@ -603,6 +608,12 @@ the profile is applied, that nothing fell short of the plan
 (`VPhoneTemplateSetupOutcome.deviations(from:)`) and fails before the reboot
 if anything did.
 
+After the reboot the verify step sometimes finds a removed app listed again
+for a few seconds (`removed apps are installed again: com.apple.tv` three
+times in one 27.0 build; News and TV for about 6 s on 26.6.2), and the next
+poll finds it gone. The step's retries absorb it; a reappearance that lasted
+past the 120 s deadline would fail the build.
+
 An app left behind was seen once in two setup boots on 27.0 (2026-10-08,
 Find My): "LaunchServices still lists the app after unregistration". icli's
 `unregisterApp` looks at the record straight after `icli_unregister_app`, and
@@ -664,6 +675,15 @@ deletes each one with `files.remove`; the report says `crash reports
 cleared: 13 crash report(s): duetexpertd ×11, SiriSearchFeedback ×1,
 panic-full ×1` (2026-10-09 build). A report it cannot delete is a warning, as
 the device name is.
+
+The report could be avoided at the source by stopping the DFU VM when iBoot
+prints its banner after the restore, instead of waiting for the panic. That
+would remove the panic and its report for every machine, `--no-template`
+included, and save a few seconds. It is not done: it changes the stop
+condition in both `vm create` and Launchpad (which must keep working with
+older bundles of its series), and one full creation has to confirm that
+nothing required happens in that boot; the logs show only Preboot mounted
+before launchd.
 
 The reboot step's 33 s: `system.reboot` is answered at once, and the first
 `ping` a moment later can still reach the old vphoned; the `processes.list`

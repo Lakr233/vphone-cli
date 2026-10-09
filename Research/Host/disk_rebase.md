@@ -16,6 +16,11 @@ restored from iOS 27.0 (24A435) on cloudOS 26.4 (23E5207q): of about 20 GB
 of data in each 64 GB sparse `Disk.img`, 8.6 GB is byte-identical at the same
 offset, mostly the ASR-restored system volume between roughly 1 GB and 9.7 GB
 into the image. Physical sharing between them, by `F_LOG2PHYS_EXT`, was 0.
+Most of the rest is identical too, but at other offsets: chiefly the cryptexes
+`cfw install` copies on the host, which a few blocks of difference in the
+restore's end state move as a whole (see
+[deterministic disk layout](deterministic_disk_layout.md)). A rebase cannot
+share those.
 
 ## Method
 
@@ -213,3 +218,25 @@ note: the rebase would free almost nothing: rb-c already shares its identical bl
 2,097,212 KiB (2.15 GB); a dry run of it afterwards reported 0.00 GB newly
 and 2.15 GB already shared. Mapping both images took well under a second.
 
+
+A separately restored machine onto a template, 2026-10-09: a `--no-template`
+machine (no trim, no setup boot) and a trimmed template, both built from iOS
+27.0 (24A435) / cloudOS 26.4 by the same bundle build, the machine stopped.
+`vm rebase <machine> --onto <template id> --dry-run` took 4 s and reported
+13.70 GB newly shared, 0.03 GB already shared, 4.46 GB written and 0.11 GB
+punched; the rebase itself took 10 s and printed the same figures. `df` rose
+by 13,445,384 KiB (13.77 GB); the newest Time Machine local snapshot predated
+the machine, so none held the old blocks. The template's `Template.plist`,
+`Disk.img` size and modification times and its `vm template show` output were
+unchanged, and it listed only its own clones as users. The machine got no
+`TemplateSource.plist`, kept its `SEPStorage`, `nvram.bin` and `config.plist`
+untouched, booted with its own UDID with vphoned answering in 5 s and no
+panic. A dry run afterwards reported 0.00 GB newly and 13.72 GB already
+shared, with the "free almost nothing" note; so did one onto a clone of the
+template.
+
+13.70 GB is well above the 8.7 GB two separately restored machines shared:
+in this pair the host's cryptex copy probably landed at the same offsets
+too, which the layout study found depends on the two restores ending in the
+same allocation state ([deterministic disk layout](deterministic_disk_layout.md)).
+Why it did here was not analysed, so expect anything between the two figures.

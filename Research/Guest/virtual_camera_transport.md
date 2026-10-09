@@ -138,3 +138,8 @@ the life of their process:
 After both changes `cameracaptured` took about one wakeup a second in the same
 window, and AccessibilityUIServer and InputUI dropped from about 900 each to
 under 10. The numbers are in [`service_trimming.md`](service_trimming.md#idle-cost-of-vphones-own-components).
+Camera frames were not checked live after the change: an iPhone 27.0 guest
+publishes no synthetic camera at all (`libvcamcaptured` logs `_sSourceList not
+located` on every boot), so nothing can start the drive there. That is a
+separate open item ([iOS 27 capture sources](ios27_capture_microphone_source.md#4-the-virtual-camera-does-not-change-this)).
+On 26.6.2 the synthetic source is published and the Camera app starts.
