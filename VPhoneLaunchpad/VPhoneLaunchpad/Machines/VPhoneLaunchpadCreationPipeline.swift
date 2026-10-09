@@ -529,6 +529,12 @@ final class VPhoneLaunchpadCreationPipeline {
             }
             defer { setupStage = nil }
             _ = try await runReporting(VPhoneLaunchpadTemplateCommands.setup(name, options.slimming) + library, onLine: stage)
+            // Slimmed without a template: the record the setup boot wrote is
+            // for adopting, which this machine is not, so it goes and the
+            // machine is an ordinary one, as a clone is.
+            if !plan.usesTemplate {
+                try? FileManager.default.removeItem(at: target.url.appendingPathComponent("Template.plist"))
+            }
 
         case .adoptTemplate:
             try await adoptTemplate(target, runReporting, commandLine: commandLine)

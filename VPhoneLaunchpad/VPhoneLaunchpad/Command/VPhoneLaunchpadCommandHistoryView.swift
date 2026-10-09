@@ -6,9 +6,11 @@ struct VPhoneLaunchpadCommandHistoryView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var selection: Set<UUID> = []
+    /// Newest first until a header click replaces it.
+    @State private var sortOrder = [KeyPathComparator(\VPhoneLaunchpadCommandHistory.Entry.date, order: .reverse)]
 
     private var entries: [VPhoneLaunchpadCommandHistory.Entry] {
-        model.history.entries.reversed()
+        model.history.entries.sorted(using: sortOrder)
     }
 
     var body: some View {
@@ -25,23 +27,23 @@ struct VPhoneLaunchpadCommandHistoryView: View {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 760, height: 460)
+        .frame(height: 460)
     }
 
     /// The icon and time keep fixed widths, so the command gets the rest.
     private var table: some View {
-        Table(entries, selection: $selection) {
-            TableColumn("") { entry in
+        Table(entries, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("", value: \.statusOrder) { entry in
                 VPhoneLaunchpadStatusIcon(status: entry.status.map { $0 == 0 ? .passed : .failed } ?? .running)
                     .help(entry.status.map { String(localized: "Exit status \($0)") } ?? "")
             }
             .width(16)
-            TableColumn("Started") { entry in
+            TableColumn("Started", value: \.date) { entry in
                 Text(entry.date.formatted(date: .omitted, time: .standard))
                     .monospacedDigit()
             }
             .width(64)
-            TableColumn("Command") { entry in
+            TableColumn("Command", value: \.text) { entry in
                 Text(verbatim: entry.text)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
@@ -57,6 +59,7 @@ struct VPhoneLaunchpadCommandHistoryView: View {
             let text = commands(selection)
             return text.isEmpty ? [] : [NSItemProvider(object: text as NSString)]
         }
+        .vphoneFocusedOnAppear()
     }
 
     /// The selected commands, one per line, in the order the table shows them.
@@ -67,5 +70,13 @@ struct VPhoneLaunchpadCommandHistoryView: View {
     private func copy(_ ids: Set<UUID>) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(commands(ids), forType: .string)
+    }
+}
+
+extension VPhoneLaunchpadCommandHistory.Entry {
+    /// The status column's order: running, then succeeded, then failed by
+    /// exit status.
+    var statusOrder: Int {
+        status.map { Int($0) } ?? -1
     }
 }

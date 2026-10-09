@@ -55,7 +55,6 @@ final class VPhoneLaunchpadCoreBundle {
     /// relaunch, when the downloaded files are gone.
     enum InstallSource: Codable {
         case release(VPhoneLaunchpadRelease)
-        case artifact(VPhoneLaunchpadArtifact)
         case local(path: String)
     }
 
@@ -95,14 +94,6 @@ final class VPhoneLaunchpadCoreBundle {
             plan = [.prepare, .install, .policy, .preflight]
         }
 
-        /// The version is read from the bundle once the artifact is unpacked.
-        init(artifact: VPhoneLaunchpadArtifact) {
-            source = .artifact(artifact)
-            name = artifact.name
-            size = artifact.size
-            plan = [.download, .verify, .prepare, .install, .policy, .preflight]
-        }
-
         func status(_ step: InstallStep) -> VPhoneLaunchpadStatus {
             steps[step] ?? .pending
         }
@@ -140,9 +131,7 @@ final class VPhoneLaunchpadCoreBundle {
     private(set) var installed: [Installed] = []
     private(set) var releases: [VPhoneLaunchpadRelease] = []
     private(set) var releasesError: String?
-    private(set) var artifacts: [VPhoneLaunchpadArtifact] = []
-    private(set) var artifactsError: String?
-    private(set) var hasGitHubToken = VPhoneLaunchpadGitHubToken.load() != nil
+    private(set) var isFetchingReleases = false
     private(set) var progress: InstallProgress? {
         didSet { Self.saveProgress(progress) }
     }
@@ -355,7 +344,6 @@ final class VPhoneLaunchpadCoreBundle {
     func refresh() async {
         await checkDefault()
         await fetchReleases()
-        await fetchArtifacts()
     }
 
     /// Rereads the store and checks the default bundle again. A bundle that
@@ -382,37 +370,14 @@ final class VPhoneLaunchpadCoreBundle {
     }
 
     func fetchReleases() async {
+        isFetchingReleases = true
+        defer { isFetchingReleases = false }
         do {
             releases = try await VPhoneLaunchpadRelease.fetch()
             releasesError = nil
         } catch {
             releasesError = error.localizedDescription
         }
-    }
-
-    func fetchArtifacts() async {
-        do {
-            artifacts = try await VPhoneLaunchpadArtifact.fetch(token: VPhoneLaunchpadGitHubToken.load())
-            artifactsError = nil
-        } catch {
-            artifactsError = error.localizedDescription
-        }
-    }
-
-    /// An empty token removes the saved one.
-    func setGitHubToken(_ token: String) {
-        let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        do {
-            if token.isEmpty {
-                VPhoneLaunchpadGitHubToken.delete()
-            } else {
-                try VPhoneLaunchpadGitHubToken.save(token)
-            }
-        } catch {
-            actionError = error as? VPhoneLaunchpadError
-                ?? VPhoneLaunchpadError(String(localized: "Unable to save the token in the keychain."), detail: error.localizedDescription)
-        }
-        hasGitHubToken = VPhoneLaunchpadGitHubToken.load() != nil
     }
 
     private func loadInstalled() {
@@ -561,58 +526,6 @@ final class VPhoneLaunchpadCoreBundle {
         }
     }
 
-    /// Installs the bundle inside a GitHub Actions artifact as
-    /// `<version>-ci.<commit>`. The artifact is checked against the digest
-    /// GitHub published; the bundle zip inside it is then handed over like a
-    /// local build.
-    func installArtifact(_ artifact: VPhoneLaunchpadArtifact, keepsDefault: Bool = false) async {
-        progress = InstallProgress(artifact: artifact)
-        progress?.keepsDefault = keepsDefault
-        var archive: URL?
-        var work: URL?
-        defer {
-            if let archive {
-                try? FileManager.default.removeItem(at: archive.deletingLastPathComponent())
-            }
-            if let work {
-                try? FileManager.default.removeItem(at: work)
-            }
-        }
-        do {
-            guard let token = VPhoneLaunchpadGitHubToken.load() else {
-                throw VPhoneLaunchpadError(String(localized: "Add a GitHub token to download builds from GitHub Actions."))
-            }
-            set(.download, .running)
-            let (file, digest) = try await artifact.download(token: token) { received in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated { self.progress?.received = received }
-                }
-            }
-            archive = file
-            set(.download, .passed)
-
-            set(.verify, .running)
-            guard digest == artifact.sha256.lowercased() else {
-                throw VPhoneLaunchpadError(
-                    String(localized: "The download could not be verified. Try again."),
-                    detail: String(localized: "Expected \(artifact.sha256)\nReceived \(digest)"),
-                )
-            }
-            set(.verify, .passed)
-
-            set(.prepare, .running)
-            let bundleArchive = try await VPhoneLaunchpadArtifact.bundleArchive(in: file)
-            let local = try await VPhoneLaunchpadLocalBundle.prepare(bundleArchive, suffix: artifact.versionSuffix)
-            work = local.workDirectory
-            progress?.version = local.version
-            set(.prepare, .passed)
-
-            try await installAndVerify(version: local.version, archive: local.archive, sha256: local.sha256)
-        } catch {
-            fail(error)
-        }
-    }
-
     /// The steps every source shares: the helper installs the archive as
     /// root, then the new version becomes the default, unless the install
     /// keeps it, and is checked. Machines bound to other versions stay on
@@ -693,8 +606,6 @@ final class VPhoneLaunchpadCoreBundle {
         switch progress.source {
         case let .release(release):
             await install(release, keepsDefault: keepsDefault)
-        case let .artifact(artifact):
-            await installArtifact(artifact, keepsDefault: keepsDefault)
         case let .local(path):
             await installLocal(URL(fileURLWithPath: path), keepsDefault: keepsDefault)
         }
@@ -772,18 +683,19 @@ final class VPhoneLaunchpadCoreBundle {
         await verify(version)
     }
 
-    /// The machines bound to a version, by name. The model connects this to
-    /// the machine library, which knows the bindings.
-    var boundMachines: @MainActor (String) -> [String] = { _ in [] }
+    /// The machines bound to a version that are running or busy, by name. The
+    /// model connects this to the machine library, which knows the bindings.
+    var activeMachines: @MainActor (String) -> [String] = { _ in [] }
 
-    /// Refuses a version a machine is bound to: removing it would leave the
-    /// machine with no `vphone-vm` to start it.
+    /// Refuses a version a running or busy machine uses, since its files are
+    /// in use. Stopped machines bound to it are left damaged until they are
+    /// given another Core Bundle.
     func remove(_ version: String) async {
-        let bound = boundMachines(version)
-        guard bound.isEmpty else {
+        let active = activeMachines(version)
+        guard active.isEmpty else {
             actionError = VPhoneLaunchpadError(
                 String(localized: "Unable to Remove VPhone.bundle \(version)"),
-                detail: String(localized: "These machines use it: \(bound.joined(separator: ", ")). Choose another Core Bundle for them first."),
+                detail: String(localized: "These machines are running from it: \(active.joined(separator: ", ")). Stop them first."),
             )
             return
         }
@@ -803,8 +715,6 @@ final class VPhoneLaunchpadCoreBundle {
     extension VPhoneLaunchpadCoreBundle {
         func applyPreview(installing: Bool) {
             releases = VPhoneLaunchpadPreview.releases
-            artifacts = VPhoneLaunchpadPreview.artifacts
-            hasGitHubToken = false
             if installing {
                 installed = []
                 var progress = InstallProgress(release: releases[0])

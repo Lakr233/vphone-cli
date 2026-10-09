@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UniformTypeIdentifiers
 
 /// The third stage: the VM library, driven entirely through `vphone-cli vm`.
 ///
@@ -331,6 +332,17 @@ final class VPhoneLaunchpadMachineLibrary {
     /// Names of the listed machines bound to `version`.
     func machineNames(boundTo version: String) -> [String] {
         machines.filter { bundleVersion(for: $0.path) == version }.map(\.name)
+    }
+
+    /// Names of the machines bound to `version` that are not stopped.
+    func activeMachineNames(boundTo version: String) -> [String] {
+        machines.filter { bundleVersion(for: $0.path) == version && state(of: $0.path) != .stopped }.map(\.name)
+    }
+
+    /// True when the machine's Core Bundle is not installed, so it cannot
+    /// run until it is given another one.
+    func isDamaged(_ machine: Path) -> Bool {
+        bundleVersion(for: machine).map { !bundles.selectableVersions.contains($0) } ?? false
     }
 
     /// The binding on disk, or the listed copy when the file cannot be read.
@@ -678,6 +690,31 @@ final class VPhoneLaunchpadMachineLibrary {
         launched[machine]?.interrupt()
     }
 
+    /// Kills the machine's VM processes, `vphone-vm` and Virtualization's VM
+    /// service, without asking the guest or `vphone-cli`: for a guest that
+    /// hangs or ignores a stop. They run as this user, so no helper is
+    /// needed. The `vphone-cli` that launched it exits once they are gone.
+    func forceStop(_ machine: Path) async {
+        activities[machine] = String(localized: "Force stopping…")
+        defer { activities[machine] = nil }
+        let holders = await Task.detached {
+            Self.diskHolders([machine])[machine, default: []].filter(\.runsMachine)
+        }.value
+        let refused = holders.filter { kill($0.pid, SIGKILL) != 0 && errno != ESRCH }
+        if !refused.isEmpty {
+            actionError = VPhoneLaunchpadError(
+                String(localized: "Unable to Force Stop \(machine.name)"),
+                detail: refused.map(\.description).joined(separator: "\n"),
+            )
+        }
+        launched[machine]?.terminate()
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, await isMachineRunning(machine) {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        await refresh()
+    }
+
     /// How long a guest gets to shut down before `vm stop` takes over.
     private static let guestShutdownTimeout: TimeInterval = 30
 
@@ -844,7 +881,7 @@ final class VPhoneLaunchpadMachineLibrary {
         }
         let libraryRoots = roots.filter { $0 == libraryRoot || VPhoneLaunchpadMachineLocations.isAvailable($0) }
         let meter = diskMeter
-        let templatesMayOpen = self.templatesMayOpen
+        let templatesMayOpen = templatesMayOpen
         let mayOpenNow: @Sendable (String) async -> Bool = { [weak self] folder in
             await self?.mayOpenDisk(inFolder: folder) ?? false
         }
@@ -859,6 +896,7 @@ final class VPhoneLaunchpadMachineLibrary {
             )
             diskUsage = measured.usage
             templateUsage = measured.templates
+            hasTemplates = measured.hasTemplates
             diskUsageMeasured = Date()
             isMeasuringDiskUsage = false
             if isDiskUsageRequested {
@@ -917,13 +955,15 @@ final class VPhoneLaunchpadMachineLibrary {
         templatesMayOpen: Bool,
         meter: VPhoneLaunchpadDiskMeter,
         mayOpenNow: @escaping @Sendable (String) async -> Bool,
-    ) async -> (usage: [Path: VPhoneLaunchpadDiskUsage], templates: [String: VPhoneLaunchpadDiskUsage]) {
+    ) async -> (usage: [Path: VPhoneLaunchpadDiskUsage], templates: [String: VPhoneLaunchpadDiskUsage], hasTemplates: Bool) {
         // Templates are keyed as `usage(of:)` looks them up.
         var templateKeys: [String: String] = [:]
+        var hasBuilds = false
         for root in libraryRoots {
             for folder in VPhoneLaunchpadDiskMeter.templateFolders(in: root) {
                 templateKeys[folder] = URL(fileURLWithPath: folder).lastPathComponent + "@" + root
             }
+            hasBuilds = hasBuilds || VPhoneLaunchpadDiskMeter.hasTemplateBuilds(in: root)
         }
         let folders = machineFolders + templateKeys.keys.sorted().map { VPhoneLaunchpadDiskMeter.Folder(path: $0, mayOpen: templatesMayOpen) }
         let measured = await meter.measure(folders, mayOpenNow: mayOpenNow)
@@ -935,7 +975,7 @@ final class VPhoneLaunchpadMachineLibrary {
         for (folder, key) in templateKeys {
             templates[key] = measured[folder]
         }
-        return (usage, templates)
+        return (usage, templates, !templateKeys.isEmpty || hasBuilds)
     }
 
     // MARK: - Templates
@@ -949,6 +989,11 @@ final class VPhoneLaunchpadMachineLibrary {
     /// Each template's disk use, by `<identifier>@<library root>`, measured
     /// with the machines.
     private(set) var templateUsage: [String: VPhoneLaunchpadDiskUsage] = [:]
+
+    /// Whether any library holds a template or a left-over build, from the
+    /// disk meter's scan of `.templates` and from `refreshTemplates`. The
+    /// Templates menu item is shown only then.
+    private(set) var hasTemplates = false
 
     func refreshTemplates() async {
         guard let commandLine = bundles.commandLine() else {
@@ -975,6 +1020,9 @@ final class VPhoneLaunchpadMachineLibrary {
         templates = found.sorted { $0.created > $1.created }
         templateBuilds = builds
         templatesError = errors.first
+        if errors.isEmpty {
+            hasTemplates = !found.isEmpty || !builds.isEmpty
+        }
         refreshDiskUsage(force: true)
     }
 
@@ -1062,7 +1110,7 @@ final class VPhoneLaunchpadMachineLibrary {
 
     /// Exports each machine to its destination file, one at a time: each
     /// export reads a whole disk image.
-    func export(_ items: [(machine: Path, destination: URL)], densest: Bool, includeIPSW: Bool) async {
+    func export(_ items: [(machine: Path, destination: URL)], includeIPSW: Bool) async {
         for item in items {
             exports[item.machine] = Export()
         }
@@ -1072,7 +1120,7 @@ final class VPhoneLaunchpadMachineLibrary {
                 continue
             }
             let task = Task {
-                await runExport(item.machine, to: item.destination, densest: densest, includeIPSW: includeIPSW)
+                await runExport(item.machine, to: item.destination, includeIPSW: includeIPSW)
             }
             exports[item.machine]?.task = task
             await task.value
@@ -1092,11 +1140,9 @@ final class VPhoneLaunchpadMachineLibrary {
         }
     }
 
-    private func runExport(_ machine: Path, to destination: URL, densest: Bool, includeIPSW: Bool) async {
+    private func runExport(_ machine: Path, to destination: URL, includeIPSW: Bool) async {
+        // zstd, the default: Launchpad does not offer xz.
         var arguments = ["vm", "export", machine.name, "--out", destination.path] + machine.libraryArguments
-        if densest {
-            arguments.append("--max")
-        }
         if includeIPSW {
             arguments.append("--include-ipsw")
         }
@@ -1108,6 +1154,12 @@ final class VPhoneLaunchpadMachineLibrary {
         if Task.isCancelled {
             try? FileManager.default.removeItem(at: destination)
         }
+    }
+
+    /// What Import accepts: `.vpea`, and the `.tzst` and `.txz` names exports
+    /// had before it. `vm import` detects the compressor, not the name.
+    static var importableTypes: [UTType] {
+        [.vphoneExportedArchive] + ["tzst", "txz"].compactMap { UTType(filenameExtension: $0) }
     }
 
     func importArchive(_ archive: URL) async {

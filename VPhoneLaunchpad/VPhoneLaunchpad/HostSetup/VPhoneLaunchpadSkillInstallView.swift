@@ -75,6 +75,6 @@ struct VPhoneLaunchpadSkillInstallView: View {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 520, height: 460)
+        .frame(height: 460)
     }
 }

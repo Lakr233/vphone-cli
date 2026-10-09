@@ -5,6 +5,7 @@ import SwiftUI
 /// buttons along the bottom and shows no title, so the sheet had no head.
 struct VPhoneLaunchpadSheet<Content: View, Accessory: View, Actions: View>: View {
     let title: Text
+    let width: CGFloat
     @ViewBuilder let content: Content
     /// Secondary buttons or status, on the leading side of the footer.
     @ViewBuilder let accessory: Accessory
@@ -13,11 +14,13 @@ struct VPhoneLaunchpadSheet<Content: View, Accessory: View, Actions: View>: View
 
     init(
         _ title: Text,
+        width: CGFloat = VPhoneLaunchpadSheetSize.width,
         @ViewBuilder content: () -> Content,
         @ViewBuilder accessory: () -> Accessory,
         @ViewBuilder actions: () -> Actions,
     ) {
         self.title = title
+        self.width = width
         self.content = content()
         self.accessory = accessory()
         self.actions = actions()
@@ -50,12 +53,18 @@ struct VPhoneLaunchpadSheet<Content: View, Accessory: View, Actions: View>: View
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+        .frame(width: width)
     }
 }
 
-// MARK: - Height
+// MARK: - Size
 
-enum VPhoneLaunchpadSheetHeight {
+enum VPhoneLaunchpadSheetSize {
+    /// Every sheet is this wide, so moving from one to the next keeps its
+    /// edges. Tables in a sheet size their columns to fit it.
+    static let width: CGFloat = 520
+    /// The one exception: the patch table, whose columns need the room.
+    static let wide: CGFloat = 800
     /// The tallest a form sheet grows, title and buttons included: a
     /// 1440×900 screen keeps the buttons in reach below the menu bar, the
     /// window's toolbar and the Dock.
@@ -118,5 +127,26 @@ extension VPhoneLaunchpadSheet where Accessory == EmptyView {
         @ViewBuilder actions: () -> Actions,
     ) {
         self.init(title, content: content, accessory: { EmptyView() }, actions: actions)
+    }
+}
+
+// MARK: - Table focus
+
+extension View {
+    /// Gives a table the keyboard when it appears. Unfocused, AppKit draws
+    /// its selection in gray rather than in the accent color, and the arrow
+    /// keys and ⌘A do nothing until it is clicked.
+    func vphoneFocusedOnAppear() -> some View {
+        modifier(VPhoneLaunchpadFocusOnAppear())
+    }
+}
+
+private struct VPhoneLaunchpadFocusOnAppear: ViewModifier {
+    @FocusState private var isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .focused($isFocused)
+            .onAppear { isFocused = true }
     }
 }

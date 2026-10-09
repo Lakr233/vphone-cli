@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Rows
 
-/// One IPSW in the Downloaded IPSWs table.
+/// One IPSW in the Downloaded Firmware table.
 nonisolated struct VPhoneLaunchpadIPSWRow: Identifiable, Hashable, Sendable {
     var id: String
     var title: String
@@ -111,7 +111,7 @@ nonisolated enum VPhoneLaunchpadIPSWRows {
                 title: title(file, catalogName: catalogName),
                 fileName: file.name,
                 kind: kind,
-                kindLabel: kindLabel(kind, beta: facts?.isBeta == true || catalogName?.localizedCaseInsensitiveContains("beta") == true),
+                kindLabel: kindLabel(kind),
                 size: file.size,
                 usedBy: uses.filter { $0.uses(file) }.map { use in
                     use.isCreating ? String(localized: "\(use.machine) (creating)") : use.machine
@@ -148,14 +148,13 @@ nonisolated enum VPhoneLaunchpadIPSWRows {
         return file.facts?.title ?? file.name
     }
 
-    static func kindLabel(_ kind: VPhoneLaunchpadIPSW.Kind, beta: Bool) -> String {
-        let name = switch kind {
+    static func kindLabel(_ kind: VPhoneLaunchpadIPSW.Kind) -> String {
+        switch kind {
         case .iPhone: String(localized: "iPhone")
         case .iPad: String(localized: "iPad")
         case .cloudOS: String(localized: "cloudOS")
         case .unknown: String(localized: "Unknown")
         }
-        return beta ? String(localized: "\(name) · beta") : name
     }
 
     // MARK: Deleting

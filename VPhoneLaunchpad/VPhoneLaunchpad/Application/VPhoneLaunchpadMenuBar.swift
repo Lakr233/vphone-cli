@@ -20,11 +20,7 @@ struct VPhoneLaunchpadMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Open Launchpad") {
-            NSApp.setActivationPolicy(.regular)
-            openWindow(id: "main")
-            NSApp.activate()
-        }
+        Button("Open Launchpad", action: openLaunchpad)
         Divider()
         if model.machines.machines.isEmpty {
             Text("No Machines")
@@ -32,17 +28,7 @@ struct VPhoneLaunchpadMenuBarMenu: View {
         ForEach(model.machines.machines) { machine in
             let state = model.machines.state(of: machine.path)
             Menu {
-                switch state {
-                case .running:
-                    Button("Stop") {
-                        Task { await model.machines.stop(machine.path) }
-                    }
-                case .stopped:
-                    Button("Start") { Task { await model.machines.start(machine.path) } }
-                    Button("Start Headless") { Task { await model.machines.start(machine.path, headless: true) } }
-                case let .busy(activity):
-                    Text(activity)
-                }
+                VPhoneLaunchpadMachineActions(machines: [machine], willRequest: openLaunchpad)
             } label: {
                 Label(machine.name, systemImage: state == .running ? "circle.fill" : "circle")
             }
@@ -52,6 +38,12 @@ struct VPhoneLaunchpadMenuBarMenu: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+
+    private func openLaunchpad() {
+        NSApp.setActivationPolicy(.regular)
+        openWindow(id: "main")
+        NSApp.activate()
     }
 }
 

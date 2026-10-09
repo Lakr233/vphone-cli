@@ -64,7 +64,6 @@ struct VPhoneLaunchpadChangeBundleView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canApply)
         }
-        .frame(width: 460)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             // The machines' own version when they share one, else the default.

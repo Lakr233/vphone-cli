@@ -38,9 +38,9 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     @State private var filter = ""
     /// Empty keeps the order the bundle applies the patches in; a header click
     /// replaces it.
-    @State private var sortOrder: [KeyPathComparator<Catalog.Patch>] = []
-    /// The row whose summary the detail pane reads.
-    @State private var highlighted: String?
+    @State private var sortOrder: [KeyPathComparator<VPhoneLaunchpadPatchRow>] = []
+    /// The selected rows; the detail pane reads the summary of one.
+    @State private var highlighted: Set<String> = []
     @State private var confirmsBootEssential = false
     /// What was on when the editor opened, so the status line can count what
     /// an edit to an existing machine changes. Taken from the first read.
@@ -64,7 +64,7 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     }
 
     var body: some View {
-        VPhoneLaunchpadSheet(Text("Patches")) {
+        VPhoneLaunchpadSheet(Text("Patches"), width: VPhoneLaunchpadSheetSize.wide) {
             VStack(spacing: 0) {
                 header
                 Divider()
@@ -88,14 +88,12 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(catalog == nil)
         }
-        .frame(width: 920, height: 680)
+        .frame(height: 680)
         // A hidden patch leaves the selection, so the detail pane reads only
         // a row the table shows.
         .onChange(of: filter) {
-            if let catalog, let highlighted,
-               !catalog.patches(matching: filter).contains(where: { $0.identifier == highlighted })
-            {
-                self.highlighted = nil
+            if let catalog {
+                highlighted.formIntersection(catalog.patches(matching: filter).map(\.identifier))
             }
         }
         .confirmationDialog(
@@ -114,8 +112,7 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                // Sized to its content, so the label sits against the menu
-                // and lines up with the summary under it.
+                // Sized to its content, so the label sits against the menu.
                 Picker("Preset", selection: presetBinding) {
                     ForEach(catalog?.presets ?? []) { preset in
                         Text(verbatim: preset.displayTitle).tag(preset.identifier)
@@ -129,12 +126,6 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 Spacer()
                 VPhoneLaunchpadSearchField(text: $filter, prompt: String(localized: "Filter patches"))
                     .frame(width: 220)
-            }
-            if let summary = catalog?.preset(selection.preset)?.displaySummary, !summary.isEmpty {
-                Text(verbatim: summary)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 16)
@@ -162,7 +153,9 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     @ViewBuilder
     private var list: some View {
         if let catalog {
-            let rows = catalog.patches(matching: filter).sorted(using: sortOrder)
+            let rows = catalog.patches(matching: filter)
+                .map { VPhoneLaunchpadPatchRow(patch: $0, on: selection.isOn($0) ? 1 : 0) }
+                .sorted(using: sortOrder)
             if rows.isEmpty {
                 ContentUnavailableView.search(text: filter)
             } else {
@@ -185,9 +178,10 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     /// A flat table sorted by the order the bundle applies the patches, which
     /// already runs one set after another. A header click regroups it; sections
     /// were tried first and make AppKit report a reentrant table delegate.
-    private func table(_ rows: [Catalog.Patch]) -> some View {
+    private func table(_ rows: [VPhoneLaunchpadPatchRow]) -> some View {
         Table(rows, selection: $highlighted, sortOrder: $sortOrder) {
-            TableColumn("On") { patch in
+            TableColumn("On", value: \.on) { row in
+                let patch = row.patch
                 Toggle("On", isOn: Binding(
                     get: { selection.isOn(patch) },
                     set: { selection.set(patch, on: $0) },
@@ -196,14 +190,16 @@ struct VPhoneLaunchpadPatchSettingsView: View {
             }
             .width(36)
 
-            TableColumn("Component", value: \.component) { patch in
+            TableColumn("Component", value: \.patch.component) { row in
+                let patch = row.patch
                 Text(verbatim: patch.component)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(1)
             }
             .width(min: 80, ideal: 130)
 
-            TableColumn("Effect", value: \.effect) { patch in
+            TableColumn("Effect", value: \.patch.effect) { row in
+                let patch = row.patch
                 Text(verbatim: patch.effect)
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -211,18 +207,20 @@ struct VPhoneLaunchpadPatchSettingsView: View {
             }
             .width(min: 40, ideal: 50)
 
-            TableColumn("Name", value: \.name) { patch in
+            TableColumn("Name", value: \.patch.name) { row in
+                let patch = row.patch
                 Text(verbatim: patch.name)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(patch.identifier)
             }
-            .width(min: 140, ideal: 240)
+            .width(min: 140, ideal: 220)
 
             // Most patches are boot-essential, so a mark on each would say
             // nothing. It shows only on one that is off.
-            TableColumn("Patch", value: \.title) { patch in
+            TableColumn("Patch", value: \.patch.title) { row in
+                let patch = row.patch
                 HStack(spacing: 4) {
                     Text(verbatim: patch.title)
                         .lineLimit(1)
@@ -236,7 +234,8 @@ struct VPhoneLaunchpadPatchSettingsView: View {
             }
             .width(min: 140, ideal: 200)
 
-            TableColumn("Applies To", value: \.applicability) { patch in
+            TableColumn("Applies To", value: \.patch.applicability) { row in
+                let patch = row.patch
                 if patch.isVersionGated {
                     Text(verbatim: patch.applicability).lineLimit(1)
                 } else {
@@ -244,6 +243,18 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 }
             }
             .width(min: 80, ideal: 110)
+        }
+        .contextMenu(forSelectionType: String.self) { ids in
+            Button("Turn On") { set(ids, on: true) }
+            Button("Turn Off") { set(ids, on: false) }
+        }
+        .vphoneFocusedOnAppear()
+    }
+
+    /// Turns each of the patches with these identifiers on or off.
+    private func set(_ ids: Set<String>, on: Bool) {
+        for patch in catalog?.patches ?? [] where ids.contains(patch.identifier) {
+            selection.set(patch, on: on)
         }
     }
 
@@ -259,10 +270,14 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                 }
                 .foregroundStyle(.orange)
-                .font(.callout)
             }
             detail
+                .foregroundStyle(.secondary)
         }
+        // The footer's font and edges. As tall as the text: the table gives
+        // up the room.
+        .font(.caption)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -270,35 +285,13 @@ struct VPhoneLaunchpadPatchSettingsView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let patch = catalog?.patch(highlighted) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: patch.title).font(.headline)
-                Text(verbatim: patch.summary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(verbatim: facts(patch).joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(height: 62, alignment: .topLeading)
+        if highlighted.count == 1, let patch = catalog?.patch(highlighted.first) {
+            Text(verbatim: patch.summary)
+        } else if highlighted.count > 1 {
+            Text("^[\(highlighted.count) patch](inflect: true) selected. Control-click to turn them on or off together.")
         } else {
             Text("Select a patch to see what it changes.")
-                .foregroundStyle(.secondary)
-                .frame(height: 62, alignment: .topLeading)
         }
-    }
-
-    /// The line under a patch's summary: where it comes from, what it
-    /// applies to, and whether the machine boots without it.
-    private func facts(_ patch: Catalog.Patch) -> [String] {
-        var facts = [patch.patchSetName, patch.target]
-        if patch.isVersionGated {
-            facts.append(patch.applicability)
-        }
-        if patch.bootEssential {
-            facts.append(String(localized: "Required to boot"))
-        }
-        return facts
     }
 
     /// What is on, what differs from the preset, and when the choice takes effect.
@@ -353,7 +346,9 @@ struct VPhoneLaunchpadPatchSettingsView: View {
             self.catalog = catalog
             // The detail pane reserves its space either way, so it starts with
             // something to read rather than a gap.
-            highlighted = highlighted ?? catalog.patches.first?.identifier
+            if highlighted.isEmpty, let first = catalog.patches.first {
+                highlighted = [first.identifier]
+            }
             loadError = nil
         } catch {
             loadError = VPhoneLaunchpadError.message(for: error)
@@ -371,5 +366,17 @@ struct VPhoneLaunchpadPatchSettingsView: View {
     private func finish() {
         onSave(selection)
         dismiss()
+    }
+}
+
+/// One row of the patch table: the patch, with whether it is on, so the On
+/// column sorts like the others.
+struct VPhoneLaunchpadPatchRow: Identifiable {
+    let patch: VPhoneLaunchpadPatchCatalog.Patch
+    /// 1 when on.
+    let on: Int
+
+    var id: String {
+        patch.identifier
     }
 }

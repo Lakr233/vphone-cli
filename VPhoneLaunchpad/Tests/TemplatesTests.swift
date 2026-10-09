@@ -58,7 +58,7 @@ struct TemplatesTests {
 
         var languages = VPhoneLaunchpadSlimming()
         languages.keptLanguages = " en , ja ,"
-                precondition(languages.arguments == ["--keep-languages", "en,ja", "--accounts-off"], "Languages: \(languages.arguments)")
+        precondition(languages.arguments == ["--keep-languages", "en,ja", "--accounts-off"], "Languages: \(languages.arguments)")
         precondition(languages.setupArguments == ["--accounts-off"], "Setup leaves the languages to the trim")
         precondition(languages.trimArguments == ["--tier", "standard", "--keep-languages", "en,ja"], "Trim with languages")
         languages.keptLanguages = "en,zh-Hans,zh"
@@ -212,9 +212,17 @@ struct TemplatesTests {
     // MARK: - Plan
 
     static func creationPlan() {
-        let alone = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: nil, slimming: VPhoneLaunchpadSlimming())
+        var unslimmed = VPhoneLaunchpadSlimming()
+        unslimmed.slim = false
+        let alone = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: nil, slimming: unslimmed)
         precondition(alone.steps == [.create, .prepare, .patch, .bootDFU, .waitDFU, .restore, .stopDFU, .installCFW, .firstBoot],
                      "Without a template: \(alone.steps)")
+        // Slimmed without a template: trimmed and set up on the machine itself.
+        let slimmedAlone = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: nil, slimming: VPhoneLaunchpadSlimming())
+        let expected: [VPhoneLaunchpadCreationStep] = [.create, .prepare, .patch, .bootDFU, .waitDFU, .restore, .stopDFU, .installCFW]
+            + (VPhoneLaunchpadSlimming().trimArguments != nil ? [.trimTemplate] : []) + [.setUpTemplate, .firstBoot]
+        precondition(slimmedAlone.steps == expected, "Slimmed without a template: \(slimmedAlone.steps)")
+        precondition(slimmedAlone.machineName(for: .setUpTemplate) == "lab-01", "Set up on the machine itself")
         precondition(alone.machineName(for: .create) == "lab-01" && alone.machineName(for: .installCFW) == "lab-01", "One machine")
 
         let build = VPhoneLaunchpadCreationPlan.newBuildName()

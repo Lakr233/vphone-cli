@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Templates
@@ -9,8 +10,11 @@ import SwiftUI
 struct VPhoneLaunchpadTemplatesView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var selection: VPhoneLaunchpadTemplate.ID?
-    @State private var deletion: VPhoneLaunchpadTemplate?
+    @State private var selection: Set<VPhoneLaunchpadTemplate.ID> = []
+    /// Empty keeps the order `vm template list` returns; a header click replaces it.
+    @State private var sortOrder: [KeyPathComparator<VPhoneLaunchpadTemplate>] = []
+    /// The templates the delete confirmation is for; empty when it is closed.
+    @State private var deletion: [VPhoneLaunchpadTemplate] = []
     @State private var buildDeletion: (libraryRoot: String, name: String)?
     @State private var isDeleting = false
     @State private var actionError: VPhoneLaunchpadError?
@@ -20,11 +24,11 @@ struct VPhoneLaunchpadTemplatesView: View {
     }
 
     private var templates: [VPhoneLaunchpadTemplate] {
-        library.templates ?? []
+        (library.templates ?? []).sorted(using: sortOrder)
     }
 
-    private var selected: VPhoneLaunchpadTemplate? {
-        templates.first { $0.id == selection }
+    private var selected: [VPhoneLaunchpadTemplate] {
+        templates.filter { selection.contains($0.id) }
     }
 
     /// Builds no create holds any more.
@@ -37,9 +41,9 @@ struct VPhoneLaunchpadTemplatesView: View {
             VStack(spacing: 0) {
                 list
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if let selected {
+                if selected.count == 1 {
                     Divider()
-                    detail(selected)
+                    detail(selected[0])
                 }
                 ForEach(leftovers, id: \.build.path) { leftover in
                     Divider()
@@ -59,28 +63,34 @@ struct VPhoneLaunchpadTemplatesView: View {
             }
         } accessory: {
             Button("Delete…") { deletion = selected }
-                .disabled(selected == nil || isDeleting)
-                .help(String(localized: "Delete the selected template. Machines created from it keep working."))
+                .disabled(selected.isEmpty || isDeleting)
+                .help(String(localized: "Delete the selected templates. Machines created from them keep working."))
         } actions: {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 980, height: 480)
+        .frame(height: 480)
         .task { await reload() }
         .confirmationDialog(
-            deletion.map { String(localized: "Delete template \($0.id)?") } ?? "",
-            isPresented: Binding(get: { deletion != nil }, set: {
+            deletion.count == 1 ? String(localized: "Delete template \(deletion[0].id)?") : String(localized: "Delete \(deletion.count) Templates?"),
+            isPresented: Binding(get: { !deletion.isEmpty }, set: {
                 if !$0 {
-                    deletion = nil
+                    deletion = []
                 }
             }),
             presenting: deletion,
-        ) { template in
+        ) { templates in
             Button("Delete", role: .destructive) {
-                Task { await delete(template.id, in: template.libraryRoot) }
+                Task {
+                    for template in templates {
+                        guard await delete(template.id, in: template.libraryRoot) else {
+                            break
+                        }
+                    }
+                }
             }
-        } message: { template in
-            Text(deletionMessage(template))
+        } message: { templates in
+            Text(templates.map(deletionMessage).joined(separator: "\n\n"))
         }
         .confirmationDialog(
             String(localized: "Delete the unfinished template build?"),
@@ -123,8 +133,8 @@ struct VPhoneLaunchpadTemplatesView: View {
     }
 
     private var table: some View {
-        Table(templates, selection: $selection) {
-            TableColumn("Template") { template in
+        Table(templates, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Template", value: \.key.device) { template in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: template.key.device)
                     Text(verbatim: template.id)
@@ -133,61 +143,58 @@ struct VPhoneLaunchpadTemplatesView: View {
                 }
                 .help(template.path)
             }
-            .width(min: 84, ideal: 96)
-            TableColumn("OS") { template in
+            .width(min: 70, ideal: 84)
+            TableColumn("OS", value: \.key.iOSVersion) { template in
                 Text(verbatim: "\(template.key.osName) \(template.key.iOSVersion) (\(template.key.iOSBuild))")
                     .help(Text(verbatim: "cloudOS \(template.key.cloudOSVersion) (\(template.key.cloudOSBuild))"))
             }
-            .width(min: 130, ideal: 150)
-            TableColumn("Preset") { template in
+            .width(min: 100, ideal: 110)
+            TableColumn("Preset", value: \.key.patchPreset) { template in
                 Text(verbatim: "\(template.key.patchPreset), \(template.key.diskSizeGB) GB")
             }
-            .width(min: 110, ideal: 120)
-            TableColumn("Slimming") { template in
-                Text(template.key.slimming.summary)
-                    .lineLimit(1)
-                    .help(slimmingHelp(template.key.slimming))
-            }
-            .width(min: 120, ideal: 150)
-            TableColumn("Size") { template in
+            .width(min: 70, ideal: 84)
+            TableColumn("Size", value: \.allocatedBytes) { template in
                 Text(verbatim: VPhoneLaunchpadDiskUsage.format(template.allocatedBytes))
                     .monospacedDigit()
                     .help(sizeHelp(template))
             }
-            .width(min: 60, ideal: 70)
+            .width(min: 50, ideal: 56)
             .alignment(.numeric)
-            TableColumn("Machines") { template in
+            TableColumn("Machines", value: \.machinesOrder) { template in
                 Text(verbatim: template.machines.isEmpty ? "—" : template.machines.joined(separator: ", "))
                     .foregroundStyle(template.machines.isEmpty ? .secondary : .primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .help(template.machines.joined(separator: ", "))
             }
-            .width(min: 64, ideal: 86)
-            TableColumn("State") { template in
+            .width(min: 50, ideal: 60)
+            TableColumn("State", value: \.staleOrder) { template in
+                // The icon alone: the detail below says what is outdated.
                 if template.stale {
-                    Label {
-                        Text("Outdated")
-                    } icon: {
-                        VPhoneLaunchpadStatusIcon(status: .warning)
-                    }
-                    .help(template.staleReasons.joined(separator: "\n"))
+                    VPhoneLaunchpadStatusIcon(status: .warning)
+                        .help(String(localized: "Outdated") + "\n" + template.staleReasons.joined(separator: "\n"))
                 } else {
-                    Label {
-                        Text("Current")
-                    } icon: {
-                        VPhoneLaunchpadStatusIcon(status: .passed)
-                    }
+                    VPhoneLaunchpadStatusIcon(status: .passed)
+                        .help(String(localized: "Current"))
                 }
             }
-            .width(min: 76, ideal: 84)
-            TableColumn("Created") { template in
-                Text(template.created, format: .dateTime.year().month(.defaultDigits).day())
-                    .help(template.created.formatted(date: .long, time: .shortened))
-            }
-            .width(min: 70, ideal: 84)
+            .width(40)
         }
-        .onDeleteCommand { deletion = selected }
+        .contextMenu(forSelectionType: VPhoneLaunchpadTemplate.ID.self) { ids in
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting(templates.filter { ids.contains($0.id) }.map(\.url))
+            }
+            .disabled(ids.isEmpty)
+            Divider()
+            Button("Delete…", role: .destructive) { deletion = templates.filter { ids.contains($0.id) } }
+                .disabled(ids.isEmpty || isDeleting)
+        }
+        .onDeleteCommand {
+            if !isDeleting {
+                deletion = selected
+            }
+        }
+        .vphoneFocusedOnAppear()
     }
 
     /// The selected template's details that do not fit a column.
@@ -200,6 +207,10 @@ struct VPhoneLaunchpadTemplatesView: View {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
                 }
             }
+            // Slimming and the date are here rather than in columns, which the
+            // sheet has no room for.
+            Text(verbatim: [template.key.slimming.summary, String(localized: "Created \(template.created.formatted(date: .abbreviated, time: .shortened))")].filter { !$0.isEmpty }.joined(separator: " · "))
+                .help(slimmingHelp(template.key.slimming))
             if let sources = template.sources {
                 Text("Built from \(URL(string: sources.iPhone)?.lastPathComponent ?? sources.iPhone) and cloudOS \(template.key.cloudOSVersion) (\(template.key.cloudOSBuild)).")
             }
@@ -253,29 +264,46 @@ struct VPhoneLaunchpadTemplatesView: View {
         #if DEBUG
             if VPhoneLaunchpadPreview.isActive {
                 library.applyPreviewTemplates()
-                selection = selection ?? VPhoneLaunchpadPreview.templates.first?.id
+                if selection.isEmpty, let first = VPhoneLaunchpadPreview.templates.first {
+                    selection = [first.id]
+                }
                 return
             }
         #endif
         await library.refreshTemplates()
-        if let selection, !templates.contains(where: { $0.id == selection }) {
-            self.selection = nil
-        }
+        selection.formIntersection(templates.map(\.id))
     }
 
-    private func delete(_ name: String, in root: String) async {
+    /// False when it failed, so a batch stops there.
+    @discardableResult
+    private func delete(_ name: String, in root: String) async -> Bool {
         guard !isDeleting else {
-            return
+            return false
         }
         isDeleting = true
         defer { isDeleting = false }
         do {
             try await library.deleteTemplate(name, in: root)
         } catch is CancellationError {
-            return
+            return false
         } catch {
             actionError = VPhoneLaunchpadError(actionFailure: error)
+            await reload()
+            return false
         }
         await reload()
+        return true
+    }
+}
+
+extension VPhoneLaunchpadTemplate {
+    /// The Machines column's order: unused templates first, then by the names.
+    var machinesOrder: String {
+        machines.joined(separator: ", ")
+    }
+
+    /// The State column's order: current, then outdated.
+    var staleOrder: Int {
+        stale ? 1 : 0
     }
 }

@@ -27,8 +27,17 @@ struct VPhoneLaunchpadApp: App {
         .restorationBehavior(.disabled)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Downloaded IPSWs…") { model.present(.ipswCache) }
-                Button("Templates…") { model.present(.templates) }
+                Button("New…") { model.machineSheetRequest = .newMachine }
+                    .keyboardShortcut("n")
+                    .disabled(model.bundles.defaultVersion == nil)
+                Button("Import…") { model.machines.chooseImport() }
+                    .keyboardShortcut("o")
+                    .disabled(model.machines.globalActivity != nil)
+                Divider()
+                Button("Downloaded Firmware…") { model.present(.ipswCache) }
+                if model.machines.hasTemplates {
+                    Button("Templates…") { model.present(.templates) }
+                }
             }
             CommandGroup(after: .appSettings) {
                 Button("Host Setup…") { model.present(.hostSetup) }
@@ -54,7 +63,12 @@ struct VPhoneLaunchpadApp: App {
 /// then asks first.
 @MainActor
 final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
-    weak var model: VPhoneLaunchpadModel?
+    weak var model: VPhoneLaunchpadModel? {
+        didSet { importOpened() }
+    }
+
+    /// Archives opened from Finder before the window gave us the model.
+    private var opened: [URL] = []
     private let dockPolicy = VPhoneLaunchpadDockPolicy()
     /// Set once the user confirms closing the last window while a machine is
     /// being created, so the terminate path that follows does not ask again.
@@ -62,6 +76,28 @@ final class VPhoneLaunchpadAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         dockPolicy.start()
+    }
+
+    /// A `.vpea` opened in Finder, or dropped on the Dock icon, is imported
+    /// into the default library, as Import… would; an IPSW is added to the
+    /// IPSW cache.
+    func application(_: NSApplication, open urls: [URL]) {
+        opened += urls.filter(\.isFileURL)
+        importOpened()
+    }
+
+    private func importOpened() {
+        guard let model, !opened.isEmpty else {
+            return
+        }
+        let archives = opened.filter { !VPhoneLaunchpadIPSWImport.isIPSW($0) }
+        model.ipswImport.register(opened, model: model)
+        opened = []
+        Task {
+            for archive in archives {
+                await model.machines.importArchive(archive)
+            }
+        }
     }
 
     /// In menu bar mode the app stays behind in the menu bar. Closing the

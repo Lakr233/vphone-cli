@@ -9,7 +9,7 @@ struct VPhoneLaunchpadConsoleView: View {
     var body: some View {
         VPhoneLaunchpadSheet(Text(title)) {
             VPhoneLaunchpadLogTerminal(url: url)
-                .frame(minWidth: 900, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
         } actions: {

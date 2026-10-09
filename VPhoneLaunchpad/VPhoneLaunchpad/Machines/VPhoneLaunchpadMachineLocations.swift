@@ -3,21 +3,64 @@ import Darwin
 import Foundation
 
 /// The folders machines live in. The default library (`VPHONE_LIBRARY_ROOT`,
-/// else ~/.vphone/machines) is always one; New Machine can add others. Each
-/// is passed to vphone-cli as `--library-root`.
+/// else the folder chosen in Host Setup, else ~/.vphone/machines) is always
+/// one; New Machine can add others. Each is passed to vphone-cli as
+/// `--library-root`.
 ///
 /// Roots are canonical: the helper refuses a library path with a symbolic
 /// link in it, and comparing canonical paths keeps one folder from being
 /// listed twice under two spellings.
 nonisolated enum VPhoneLaunchpadMachineLocations {
     static let defaultRoot: String = {
-        let environment = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"].flatMap { $0.isEmpty ? nil : $0 }
+        let environment = environmentRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         return canonical(
-            environment.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            environment ?? chosenLibrary()
                 ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".vphone/machines", isDirectory: true),
         )
     }()
+
+    /// `VPHONE_LIBRARY_ROOT`, which Host Setup cannot change.
+    static let environmentRoot = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"].flatMap { $0.isEmpty ? nil : $0 }
+
+    // MARK: Chosen library
+
+    private static let libraryBookmarkKey = "VPhoneLaunchpadLibraryBookmark"
+
+    /// The folder chosen in Host Setup, kept as a bookmark: it is found
+    /// again after it is moved or renamed, and access to it survives a
+    /// relaunch. A stale bookmark is written again.
+    private static func chosenLibrary() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: libraryBookmarkKey) else {
+            return nil
+        }
+        var isStale = false
+        guard let url = (try? URL(resolvingBookmarkData: data, options: [.withSecurityScope], bookmarkDataIsStale: &isStale))
+            ?? (try? URL(resolvingBookmarkData: data, options: [], bookmarkDataIsStale: &isStale))
+        else {
+            return nil
+        }
+        _ = url.startAccessingSecurityScopedResource()
+        if isStale {
+            try? rememberLibrary(url)
+        }
+        return url
+    }
+
+    /// Makes `url` the default library from the next launch. Nothing is
+    /// moved: the machines stay in the folder they are in.
+    static func rememberLibrary(_ url: URL) throws {
+        let data = try (try? url.bookmarkData(options: [.withSecurityScope]))
+            ?? url.bookmarkData()
+        UserDefaults.standard.set(data, forKey: libraryBookmarkKey)
+    }
+
+    /// Whether the volume holding `root` makes copy-on-write clones, which
+    /// templates, clones and snapshots rely on to share a disk image.
+    static func supportsCloning(_ root: String) -> Bool {
+        let url = VPhoneLaunchpadHostSetup.existingAncestor(of: URL(fileURLWithPath: root, isDirectory: true))
+        return (try? url.resourceValues(forKeys: [.volumeSupportsFileCloningKey]))?.volumeSupportsFileCloning ?? false
+    }
 
     /// The resolved path of an existing folder, else the standardized path.
     static func canonical(_ url: URL) -> String {

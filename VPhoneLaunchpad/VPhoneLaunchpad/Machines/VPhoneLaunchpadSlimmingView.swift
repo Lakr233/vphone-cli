@@ -1,34 +1,60 @@
 import SwiftUI
 
-/// New Machine's System page: whether the machine is cloned from a
-/// template, and how that template is slimmed. The switches are part of the
-/// template's key: other switches make another template, and both stay.
-/// Slim System itself is on the basic page.
+/// New Machine's Template and Slimming pages: whether the machine is cloned
+/// from a template, and how that template is slimmed. The switches are part
+/// of the template's key: other switches make another template, and both
+/// stay.
 struct VPhoneLaunchpadSlimmingSections: View {
+    enum Part {
+        case template, slimming
+    }
+
+    let part: Part
     @Binding var usesTemplate: Bool
+    /// Whether a template exists for the chosen firmware; nil for custom
+    /// IPSWs, which the list cannot be matched against.
+    var templateAvailable: Bool?
     @Binding var slimming: VPhoneLaunchpadSlimming
     @State private var choosesApps = false
 
     var body: some View {
+        switch part {
+        case .template:
+            templateSection
+        case .slimming:
+            Section {
+                Toggle("Slim System", isOn: $slimming.slim)
+            } footer: {
+                if !usesTemplate, slimming.slim {
+                    Text("Without a template the machine is slimmed on its own, with a setup boot of its own. Setup Assistant is skipped.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            filesSection
+            servicesSection
+        }
+    }
+
+    private var templateSection: some View {
         Section {
-            Toggle("Create from a template", isOn: $usesTemplate)
+            Toggle("Use Template", isOn: $usesTemplate)
         } header: {
             Text("Template")
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
+                if templateAvailable == false {
+                    Text("No template is available for this firmware. Turning this on saves a sample of the machine in the template library.")
+                }
                 Text(usesTemplate
                     ? "Machines from one template share its SEP root secret and Data volume keys. Turn this off for a machine that needs keys of its own."
-                    : "The machine is restored on its own, with keys of its own. It is not slimmed, and starts at Setup Assistant.")
+                    : slimming.slim
+                    ? "The machine is restored on its own, with keys of its own."
+                    : "The machine is restored on its own, with keys of its own. It starts at Setup Assistant.")
                 if usesTemplate, !slimming.slim {
                     Text("Slim System is off, so the template keeps every file, service and app.")
                 }
             }
             .foregroundStyle(.secondary)
-        }
-
-        if usesTemplate {
-            filesSection
-            servicesSection
         }
     }
 

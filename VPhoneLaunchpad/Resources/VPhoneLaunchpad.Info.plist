@@ -49,6 +49,59 @@
 	     guest records. Same arrangement as the location descriptions above. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Shares this Mac's microphone with the virtual iPhone so apps running inside it can record.</string>
+	<!-- A machine exported by Launchpad: a gnutar of the machine folder,
+	     zstd compressed, the same archive `vphone-cli vm export` writes.
+	     Launchpad owns the type, so opening one in Finder imports it. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.vphone.exported-archive</string>
+			<key>UTTypeDescription</key>
+			<string>VPhone Exported Archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>vpea</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>VPhone Exported Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.vphone.exported-archive</string>
+			</array>
+		</dict>
+		<!-- An IPSW opened with Launchpad is copied into the IPSW cache.
+		     Alternate: Launchpad is offered in Open With, not made the default. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>IPSW</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.itunes.ipsw</string>
+			</array>
+		</dict>
+	</array>
 	<key>SMPrivilegedExecutables</key>
 	<dict>
 		<key>com.vphone.launchpad.helper</key>

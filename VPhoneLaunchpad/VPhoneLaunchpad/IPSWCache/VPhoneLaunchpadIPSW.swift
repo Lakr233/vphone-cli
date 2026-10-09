@@ -49,11 +49,6 @@ nonisolated struct VPhoneLaunchpadIPSW: Hashable, Sendable {
         return .unknown
     }
 
-    /// Apple's beta and seed builds end in a lowercase letter (`23E5207q`).
-    var isBeta: Bool {
-        build.last.map(\.isLowercase) ?? false
-    }
-
     /// `iOS 26.6.2 (23G90)`; nil for a kind it cannot name.
     var title: String? {
         kind.systemName.map { "\($0) \(version) (\(build))" }

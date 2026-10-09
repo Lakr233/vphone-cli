@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct VPhoneLaunchpadHostSetupView: View {
@@ -5,7 +6,6 @@ struct VPhoneLaunchpadHostSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(VPhoneLaunchpadMenuBar.key) private var showsInMenuBar = false
     @State private var showsSkillInstall = false
-    @State private var confirmsRelease = false
 
     private var host: VPhoneLaunchpadHostSetup {
         model.host
@@ -13,7 +13,6 @@ struct VPhoneLaunchpadHostSetupView: View {
 
     var body: some View {
         @Bindable var host = host
-        @Bindable var leases = model.leases
         VPhoneLaunchpadSheet(Text("Host Setup")) {
             form
         } accessory: {
@@ -34,78 +33,39 @@ struct VPhoneLaunchpadHostSetupView: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .frame(width: 600, height: 600)
+        .fixedSize(horizontal: false, vertical: true)
         .sheet(isPresented: $showsSkillInstall) {
             VPhoneLaunchpadSkillInstallView()
         }
         .errorAlert($host.actionError)
-        .errorAlert($leases.actionError)
-        .task { await model.leases.refresh() }
-        .confirmationDialog(
-            "Release \(model.leases.orphans.count) Addresses?",
-            isPresented: $confirmsRelease,
-        ) {
-            Button("Release") {
-                Task { await model.leases.releaseFromUI() }
-            }
-        } message: {
-            Text("Their leases have run out and no machine in your libraries has their MAC. A guest that comes back with one of these MACs gets a new address.")
-        }
     }
 
     private var form: some View {
         Form {
             Section {
-                ForEach(host.required) { check in
+                ForEach(host.checks) { check in
                     row(check)
                 }
             } header: {
                 HStack {
-                    Text("Required")
+                    Text("Checks")
                     Spacer()
-                    Text("\(host.passedRequiredCount) of \(host.required.count) passed")
+                    Text("\(host.passedCount) of \(host.checks.count) passed")
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                if !host.requiredPassed {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if host.checks.contains(where: { $0.kind == .developerTools && $0.status != .passed }) {
-                            Text("Allow vphone-launchpad in Privacy & Security → Developer Tools, then come back to Launchpad.")
-                        }
-                        Text("A Core Bundle can be installed once every required check passes.")
-                    }
-                    .foregroundStyle(.secondary)
+                if host.checks.contains(where: { $0.kind == .developerTools && $0.status != .passed }) {
+                    Text("Allow vphone-launchpad in Privacy & Security → Developer Tools.")
+                        .foregroundStyle(.secondary)
                 }
-            }
-
-            Section {
-                ForEach(host.advisory) { check in
-                    row(check)
-                }
-            } header: {
-                Text("Advisory")
-            } footer: {
-                Text("Advisory checks do not block setup.")
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                leasesRow
-            } header: {
-                Text("NAT Network")
-            } footer: {
-                Text("The Mac’s DHCP server keeps an address for every guest MAC it has seen, even after the lease runs out. Release frees the addresses of iOS guests no machine uses any more, such as deleted machines. It needs an administrator.")
-                    .foregroundStyle(.secondary)
             }
 
             Section {
                 Toggle("Keep in Menu Bar", isOn: $showsInMenuBar)
-            } footer: {
-                Text("Closing the window keeps Launchpad in the menu bar, where you can start and stop machines. The Dock icon appears only while a window or the menu is open.")
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .vphoneFittedHeight(limit: VPhoneLaunchpadSheetSize.maximum - VPhoneLaunchpadSheetSize.chrome)
     }
 
     /// Icon, title, then detail and any action pinned to the trailing edge.
@@ -132,10 +92,20 @@ struct VPhoneLaunchpadHostSetupView: View {
     @ViewBuilder
     private func action(for check: VPhoneLaunchpadHostCheck) -> some View {
         switch check.kind {
+        case .libraryVolume where VPhoneLaunchpadMachineLocations.environmentRoot == nil:
+            HStack {
+                skipButton(check)
+                Button("Change…") { chooseLibrary() }
+                    .help("Choose the folder new machines are created in")
+            }
         case .developerTools where check.status != .passed:
             if host.canRequestDeveloperTools {
-                Button("Open Settings") {
-                    Task { await host.requestDeveloperTools() }
+                HStack {
+                    Button("Open Settings") {
+                        Task { await host.requestDeveloperTools() }
+                    }
+                    Button("Relaunch") { VPhoneLaunchpadHostSetup.relaunch() }
+                        .help("Quit and open Launchpad again, if access granted in Settings does not show here")
                 }
             }
         case .helper where check.status == .pending:
@@ -146,55 +116,80 @@ struct VPhoneLaunchpadHostSetupView: View {
                 }
             }
         default:
-            if host.isSkipped(check) {
-                Button("Don’t Skip") { host.setSkipped(check.kind, false) }
-            } else if host.canSkip(check) {
-                Button("Skip") { host.setSkipped(check.kind, true) }
-                    .help("Continue without this check. The Core Bundle still runs its own checks.")
-            }
+            skipButton(check)
         }
     }
 
-    // MARK: - NAT leases
-
-    private var leasesRow: some View {
-        let leases = model.leases
-        let (status, detail) = leasesStatus
-        return HStack(spacing: 8) {
-            VPhoneLaunchpadStatusIcon(status: status)
-            Text("Addresses held by old guests")
-                .layoutPriority(1)
-            Spacer(minLength: 16)
-            Text(detail)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(detail)
-            if !leases.orphans.isEmpty {
-                Button("Release…") { confirmsRelease = true }
-                    .disabled(leases.isReleasing || !model.canReleaseLeases)
-                    .fixedSize()
-            }
+    @ViewBuilder
+    private func skipButton(_ check: VPhoneLaunchpadHostCheck) -> some View {
+        if host.isSkipped(check) {
+            Button("Don’t Skip") { host.setSkipped(check.kind, false) }
+        } else if host.canSkip(check) {
+            Button("Skip") { host.setSkipped(check.kind, true) }
+                .help("Continue without this check. The Core Bundle still runs its own checks.")
         }
     }
 
-    private var leasesStatus: (VPhoneLaunchpadStatus, String) {
-        let leases = model.leases
-        if leases.isReleasing {
-            return (.running, String(localized: "Waiting for administrator approval…"))
+    // MARK: - Library
+
+    /// Makes another folder the default library from the next launch. The
+    /// machines are not moved: the alert says to move them, and Launchpad
+    /// relaunches to list the new library.
+    private func chooseLibrary() {
+        let current = host.libraryRoot
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Choose a Library")
+        panel.message = String(localized: "New machines are created in this folder. Machines already in the current library are not moved.")
+        panel.prompt = String(localized: "Use as Library")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = current
+        panel.present { url in
+            let root = VPhoneLaunchpadMachineLocations.canonical(url)
+            guard root != VPhoneLaunchpadMachineLocations.canonical(current) else {
+                return
+            }
+            let failure = String(localized: "Unable to Use \(VPhoneLaunchpadHostSetup.abbreviated(url))")
+            if let problem = VPhoneLaunchpadMachineLocations.problem(with: root) {
+                host.actionError = VPhoneLaunchpadError(failure, detail: problem)
+                return
+            }
+            guard VPhoneLaunchpadMachineLocations.supportsCloning(root) || confirmWithoutCloning(url) else {
+                return
+            }
+            do {
+                try VPhoneLaunchpadMachineLocations.rememberLibrary(url)
+            } catch {
+                host.actionError = VPhoneLaunchpadError(failure, detail: error.localizedDescription)
+                return
+            }
+            announceChange(from: current, to: url)
         }
-        switch leases.state {
-        case .unknown, .checking:
-            return (.running, String(localized: "Checking…"))
-        case let .unavailable(reason):
-            return (.pending, reason)
-        case let .failed(reason):
-            return (.warning, reason)
-        case .listed:
-            let count = leases.orphans.count
-            return count == 0
-                ? (.passed, String(localized: "None"))
-                : (.warning, String(localized: "\(count) addresses no machine uses"))
+    }
+
+    /// Templates, clones and snapshots are APFS clones: without them every
+    /// one is a full copy.
+    private func confirmWithoutCloning(_ url: URL) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "This Volume Cannot Clone Files")
+        alert.informativeText = String(localized: "Machines in \(VPhoneLaunchpadHostSetup.abbreviated(url)) are slower to create from templates, clone and snapshot, because each copy writes the whole disk instead of sharing it, and they take much more space.")
+        alert.addButton(withTitle: String(localized: "Use Anyway"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func announceChange(from old: URL, to new: URL) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Library Changed")
+        alert.informativeText = String(localized: "New machines are created in \(VPhoneLaunchpadHostSetup.abbreviated(new)). Launchpad does not move machines: to keep using the ones in \(VPhoneLaunchpadHostSetup.abbreviated(old)), quit Launchpad and move their folders into the new library yourself. Launchpad relaunches to use the new library.")
+        alert.addButton(withTitle: String(localized: "Relaunch"))
+        alert.addButton(withTitle: String(localized: "Show Current Library"))
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([old])
         }
+        VPhoneLaunchpadHostSetup.relaunch()
     }
 }

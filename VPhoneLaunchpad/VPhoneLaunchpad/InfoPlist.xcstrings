@@ -210,6 +210,15 @@
           }
         }
       }
+    },
+    "VPhone Exported Archive" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "VPhone Exported Archive" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 書き出しアーカイブ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 내보낸 아카이브" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bản lưu trữ xuất VPhone" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 导出归档" } }
+      }
     }
   },
   "version" : "1.3"

@@ -1,6 +1,7 @@
+import AppKit
 import SwiftUI
 
-// MARK: - Downloaded IPSWs
+// MARK: - Downloaded Firmware
 
 /// The IPSWs `fw prepare` has downloaded, with Delete. The files are those in
 /// the shared IPSW cache and in the `ipsws` folder beside each library,
@@ -14,8 +15,11 @@ struct VPhoneLaunchpadIPSWCacheView: View {
     /// Nil until the first scan answers.
     @State private var scan: VPhoneLaunchpadIPSWCache.Scan?
     @State private var catalog: VPhoneLaunchpadIPSWCatalogNames?
-    @State private var selection: VPhoneLaunchpadIPSWRow.ID?
-    @State private var deletion: VPhoneLaunchpadIPSWRow?
+    @State private var selection: Set<VPhoneLaunchpadIPSWRow.ID> = []
+    /// Empty keeps the order the rows are built in; a header click replaces it.
+    @State private var sortOrder: [KeyPathComparator<VPhoneLaunchpadIPSWRow>] = []
+    /// The rows the delete confirmation is for; empty when it is closed.
+    @State private var deletion: [VPhoneLaunchpadIPSWRow] = []
     @State private var isDeleting = false
     @State private var actionError: VPhoneLaunchpadError?
 
@@ -28,18 +32,24 @@ struct VPhoneLaunchpadIPSWCacheView: View {
             return []
         }
         return VPhoneLaunchpadIPSWRows.rows(scan.ipsws, catalog: catalog, uses: uses(scan), isCreating: library.hasActiveCreation)
+            .sorted(using: sortOrder)
     }
 
-    private var selected: VPhoneLaunchpadIPSWRow? {
-        rows.first { $0.id == selection }
+    private var selected: [VPhoneLaunchpadIPSWRow] {
+        rows.filter { selection.contains($0.id) }
+    }
+
+    /// Why the selection cannot be deleted, for the first row that cannot.
+    private var blockedReason: String? {
+        selected.lazy.compactMap(\.blockedReason).first
     }
 
     var body: some View {
-        VPhoneLaunchpadSheet(Text("Downloaded IPSWs")) {
+        VPhoneLaunchpadSheet(Text("Downloaded Firmware")) {
             VStack(spacing: 0) {
                 list
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if let reason = selected?.blockedReason {
+                if let reason = blockedReason {
                     Divider()
                     Label(reason, systemImage: "info.circle")
                         .font(.callout)
@@ -51,13 +61,13 @@ struct VPhoneLaunchpadIPSWCacheView: View {
             }
         } accessory: {
             Button("Delete…") { confirmDeletion() }
-                .disabled(selected == nil || selected?.blockedReason != nil || isDeleting)
-                .help(selected?.blockedReason ?? String(localized: "Delete the selected IPSW from the IPSW cache."))
+                .disabled(selected.isEmpty || blockedReason != nil || isDeleting)
+                .help(blockedReason ?? String(localized: "Delete the selected IPSWs from the IPSW cache."))
         } actions: {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 760, height: 440)
+        .frame(height: 440)
         // Again whenever the machines or creations change, and every few
         // seconds while a creation runs, since its download grows.
         .task(id: scanKey) {
@@ -69,19 +79,19 @@ struct VPhoneLaunchpadIPSWCacheView: View {
         }
         .task(id: model.bundles.defaultVersion) { await loadCatalog() }
         .confirmationDialog(
-            deletion.map { String(localized: "Delete \($0.title)?") } ?? "",
-            isPresented: Binding(get: { deletion != nil }, set: {
+            deletion.count == 1 ? String(localized: "Delete \(deletion[0].title)?") : String(localized: "Delete \(deletion.count) IPSWs?"),
+            isPresented: Binding(get: { !deletion.isEmpty }, set: {
                 if !$0 {
-                    deletion = nil
+                    deletion = []
                 }
             }),
             presenting: deletion,
-        ) { row in
-            Button(String(localized: "Delete \(Self.size(row.size))"), role: .destructive) {
-                Task { await delete(row) }
+        ) { rows in
+            Button(String(localized: "Delete \(Self.size(rows.reduce(0) { $0 + $1.size }))"), role: .destructive) {
+                Task { await delete(rows) }
             }
-        } message: { row in
-            Text(VPhoneLaunchpadIPSWRows.deletionMessage(row))
+        } message: { rows in
+            Text(rows.map(VPhoneLaunchpadIPSWRows.deletionMessage).joined(separator: "\n\n"))
         }
         .errorAlert($actionError)
     }
@@ -95,7 +105,7 @@ struct VPhoneLaunchpadIPSWCacheView: View {
                 .controlSize(.small)
         } else if rows.isEmpty {
             ContentUnavailableView {
-                Label("No Downloaded IPSWs", systemImage: "externaldrive")
+                Label("No Downloaded Firmware", systemImage: "briefcase")
             } description: {
                 Text("The IPSWs a machine is created from are downloaded into the IPSW cache and listed here.")
             }
@@ -105,41 +115,59 @@ struct VPhoneLaunchpadIPSWCacheView: View {
     }
 
     private var table: some View {
-        Table(rows, selection: $selection) {
-            TableColumn("Image") { row in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: row.title)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(row.isDownloading ? String(localized: "\(row.fileName) (partial download)") : row.fileName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .help(row.fileName)
+        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Image", value: \.title) { row in
+                Text(row.isDownloading ? String(localized: "\(row.title) (partial download)") : row.title)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(row.fileName)
             }
-            .width(min: 200, ideal: 320)
-            TableColumn("Kind") { row in
+            .width(min: 140, ideal: 230)
+            TableColumn("Kind", value: \.kindLabel) { row in
                 Text(verbatim: row.kindLabel)
             }
-            .width(min: 60, ideal: 80, max: 120)
-            TableColumn("Size") { row in
+            .width(min: 60, ideal: 80)
+            TableColumn("Size", value: \.size) { row in
                 Text(verbatim: Self.size(row.size))
                     .monospacedDigit()
             }
-            .width(min: 60, ideal: 80, max: 100)
+            .width(min: 56, ideal: 64)
             .alignment(.numeric)
-            TableColumn("Used By") { row in
-                let names = row.usedBy.joined(separator: ", ")
-                Text(verbatim: names.isEmpty ? "—" : names)
-                    .foregroundStyle(names.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help(names)
+            TableColumn(Text(verbatim: "")) { row in
+                Button {
+                    showInFinder(row)
+                } label: {
+                    Image(systemName: "arrow.up.right.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Show in Finder")
             }
+            .width(20)
+        }
+        .contextMenu(forSelectionType: VPhoneLaunchpadIPSWRow.ID.self) { ids in
+            Button("Show in Finder") { showInFinder(ids) }
+                .disabled(ids.isEmpty)
+            Divider()
+            Button("Delete…", role: .destructive) {
+                selection = ids
+                confirmDeletion()
+            }
+            .disabled(ids.isEmpty || isDeleting)
         }
         .onDeleteCommand { confirmDeletion() }
+        .vphoneFocusedOnAppear()
+    }
+
+    private func showInFinder(_ row: VPhoneLaunchpadIPSWRow) {
+        showInFinder([row.id])
+    }
+
+    private func showInFinder(_ ids: Set<VPhoneLaunchpadIPSWRow.ID>) {
+        let urls = (scan?.ipsws ?? []).filter { ids.contains($0.id) }.map(\.url)
+        if !urls.isEmpty {
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        }
     }
 
     static func size(_ bytes: Int64) -> String {
@@ -163,7 +191,9 @@ struct VPhoneLaunchpadIPSWCacheView: View {
         #if DEBUG
             if VPhoneLaunchpadPreview.isActive {
                 scan = VPhoneLaunchpadPreview.ipswScan
-                selection = selection ?? VPhoneLaunchpadPreview.ipswSelection
+                if selection.isEmpty, let preview = VPhoneLaunchpadPreview.ipswSelection {
+                    selection = [preview]
+                }
                 return
             }
         #endif
@@ -173,9 +203,7 @@ struct VPhoneLaunchpadIPSWCacheView: View {
                 machineFolders: library.machines.map(\.path.url),
             )
             self.scan = scan
-            if let selection, !scan.ipsws.contains(where: { $0.id == selection }) {
-                self.selection = nil
-            }
+            selection.formIntersection(scan.ipsws.map(\.id))
         } catch {
             // Cancelled: the sheet closed or the machines changed again.
         }
@@ -243,35 +271,43 @@ struct VPhoneLaunchpadIPSWCacheView: View {
 
     // MARK: - Deleting
 
-    /// A row that cannot go says why at once; any other asks first.
+    /// A selection with a row that cannot go says why at once; any other
+    /// asks first.
     private func confirmDeletion() {
-        guard let row = selected, !isDeleting else {
+        let rows = selected
+        guard !rows.isEmpty, !isDeleting else {
             return
         }
-        if let reason = row.blockedReason {
+        if let row = rows.first(where: { $0.blockedReason != nil }), let reason = row.blockedReason {
             actionError = VPhoneLaunchpadError(String(localized: "Unable to Delete \(row.title)"), detail: reason)
         } else {
-            deletion = row
+            deletion = rows
         }
     }
 
-    /// Checks the IPSW again at the moment of deletion: a creation may have
-    /// started since the list was read.
-    private func delete(_ row: VPhoneLaunchpadIPSWRow) async {
-        guard !isDeleting, let scan, let file = scan.ipsws.first(where: { $0.id == row.id }) else {
-            return
-        }
-        let failure = String(localized: "Unable to Delete \(row.title)")
-        if let reason = VPhoneLaunchpadIPSWRows.deletionBlock(file, uses: uses(scan), isCreating: library.hasActiveCreation) {
-            actionError = VPhoneLaunchpadError(failure, detail: reason)
+    /// Checks each IPSW again at the moment of deletion: a creation may have
+    /// started since the list was read. Stops at the first that fails.
+    private func delete(_ rows: [VPhoneLaunchpadIPSWRow]) async {
+        guard !isDeleting, let scan else {
             return
         }
         isDeleting = true
         defer { isDeleting = false }
-        do {
-            try await VPhoneLaunchpadIPSWCache.removeIPSW(file.url, cacheDirectories: scan.cacheDirectories)
-        } catch {
-            actionError = VPhoneLaunchpadError(failure, detail: error.localizedDescription)
+        for row in rows {
+            guard let file = scan.ipsws.first(where: { $0.id == row.id }) else {
+                continue
+            }
+            let failure = String(localized: "Unable to Delete \(row.title)")
+            if let reason = VPhoneLaunchpadIPSWRows.deletionBlock(file, uses: uses(scan), isCreating: library.hasActiveCreation) {
+                actionError = VPhoneLaunchpadError(failure, detail: reason)
+                break
+            }
+            do {
+                try await VPhoneLaunchpadIPSWCache.removeIPSW(file.url, cacheDirectories: scan.cacheDirectories)
+            } catch {
+                actionError = VPhoneLaunchpadError(failure, detail: error.localizedDescription)
+                break
+            }
         }
         await rescan()
     }

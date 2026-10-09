@@ -14,14 +14,10 @@ struct VPhoneLaunchpadHostCheck: Identifiable, Equatable {
         case libraryVolume
         case developerTools
         case helper
-        case diskSpace
-        case resources
-        case network
     }
 
     let kind: Kind
     let title: String
-    let isRequired: Bool
     var status: VPhoneLaunchpadStatus = .pending
     var detail = ""
 
@@ -32,21 +28,18 @@ struct VPhoneLaunchpadHostCheck: Identifiable, Equatable {
 
 // MARK: - Host setup
 
-/// The first stage. Required checks gate the Core Bundle section; advisory
-/// ones only warn.
+/// The first stage. Every check must pass, or be skipped, before a Core
+/// Bundle can be installed.
 @MainActor
 @Observable
 final class VPhoneLaunchpadHostSetup {
     private(set) var checks: [VPhoneLaunchpadHostCheck] = [
-        .init(kind: .appleSilicon, title: String(localized: "Apple silicon"), isRequired: true),
-        .init(kind: .macOS, title: String(localized: "macOS 15 or later"), isRequired: true),
-        .init(kind: .physicalMac, title: String(localized: "Physical Mac"), isRequired: true),
-        .init(kind: .libraryVolume, title: String(localized: "Library on APFS"), isRequired: true),
-        .init(kind: .developerTools, title: String(localized: "Developer Tools access"), isRequired: true),
-        .init(kind: .helper, title: String(localized: "Privileged helper"), isRequired: true),
-        .init(kind: .diskSpace, title: String(localized: "Free disk space"), isRequired: false),
-        .init(kind: .resources, title: String(localized: "CPU and memory"), isRequired: false),
-        .init(kind: .network, title: String(localized: "Network"), isRequired: false),
+        .init(kind: .appleSilicon, title: String(localized: "Apple silicon")),
+        .init(kind: .macOS, title: String(localized: "macOS 15 or later")),
+        .init(kind: .physicalMac, title: String(localized: "Physical Mac")),
+        .init(kind: .libraryVolume, title: String(localized: "Library on APFS")),
+        .init(kind: .developerTools, title: String(localized: "Developer Tools access")),
+        .init(kind: .helper, title: String(localized: "Privileged helper")),
     ]
     private(set) var isChecking = false
     var actionError: VPhoneLaunchpadError?
@@ -63,20 +56,12 @@ final class VPhoneLaunchpadHostSetup {
         checkLocally()
     }
 
-    var required: [VPhoneLaunchpadHostCheck] {
-        checks.filter(\.isRequired)
-    }
-
-    var advisory: [VPhoneLaunchpadHostCheck] {
-        checks.filter { !$0.isRequired }
-    }
-
     var requiredPassed: Bool {
-        required.allSatisfy(isSatisfied)
+        checks.allSatisfy(isSatisfied)
     }
 
-    var passedRequiredCount: Int {
-        required.count(where: isSatisfied)
+    var passedCount: Int {
+        checks.count(where: isSatisfied)
     }
 
     func isSatisfied(_ check: VPhoneLaunchpadHostCheck) -> Bool {
@@ -134,17 +119,13 @@ final class VPhoneLaunchpadHostSetup {
         defer { isChecking = false }
 
         checkLocally()
-        if checks.first(where: { $0.kind == .network })?.status == .pending {
-            update(.network, (.running, String(localized: "Checking…")))
-        }
-        // The helper and network rows keep their last result until these
-        // answer, so a recheck does not blank them.
+        // The helper row keeps its last result until the helper answers, so a
+        // recheck does not blank it.
         await helper.refresh()
         update(.helper, helperStatus())
-        await update(.network, Self.network())
     }
 
-    /// The checks that need no helper or network. They run at init, so the
+    /// The checks that need no helper. They run at init, so the
     /// first frame already shows them.
     private func checkLocally() {
         update(.appleSilicon, Self.appleSilicon())
@@ -153,21 +134,6 @@ final class VPhoneLaunchpadHostSetup {
         update(.libraryVolume, Self.libraryVolume(libraryRoot))
         update(.developerTools, developerTools())
         update(.helper, helperStatus())
-        update(.diskSpace, Self.diskSpace(libraryRoot))
-        update(.resources, Self.resources())
-    }
-
-    /// Re-reads the free space alone. The window does so every few seconds,
-    /// so a restore or a download filling the volume shows without a recheck.
-    /// An unchanged amount leaves the row alone.
-    func refreshDiskSpace() {
-        let result = Self.diskSpace(libraryRoot)
-        guard let check = checks.first(where: { $0.kind == .diskSpace }),
-              check.status != result.0 || check.detail != result.1
-        else {
-            return
-        }
-        update(.diskSpace, result)
     }
 
     /// Re-reads Developer Tools access alone, for when the app comes back
@@ -199,6 +165,32 @@ final class VPhoneLaunchpadHostSetup {
     private static let developerToolsSettings = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_DevTools",
     )!
+
+    /// Quits and opens this copy of Launchpad again. A shell waits for this
+    /// process to exit first, so the new one can take the control socket, and
+    /// gives up after 10 seconds in case the quit was cancelled. An open sheet
+    /// makes AppKit refuse to terminate, so sheets are ended first.
+    static func relaunch() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c", "i=0; while kill -0 \"$1\" 2>/dev/null; do i=$((i+1)); [ $i -gt 50 ] && exit 0; sleep 0.2; done; exec /usr/bin/open \"$2\"",
+            "relaunch", String(getpid()), Bundle.main.bundlePath,
+        ]
+        do {
+            try process.run()
+        } catch {
+            return
+        }
+        for window in NSApp.windows {
+            if let sheet = window.attachedSheet {
+                window.endSheet(sheet)
+            }
+        }
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
+    }
 
     func installHelper() async {
         update(.helper, (.running, String(localized: "Waiting for administrator approval…")))
@@ -313,43 +305,6 @@ final class VPhoneLaunchpadHostSetup {
             : (.failed, String(localized: "\(abbreviated(root)) is on \(type), not APFS"))
     }
 
-    private nonisolated static func diskSpace(_ root: URL) -> (VPhoneLaunchpadStatus, String) {
-        var url = existingAncestor(of: root)
-        // The URL may be the library root itself, which keeps what it read.
-        url.removeAllCachedResourceValues()
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        guard let available = values?.volumeAvailableCapacityForImportantUsage else {
-            return (.warning, String(localized: "Unknown"))
-        }
-        let gigabytes = available / 1_000_000_000
-        return gigabytes >= 100
-            ? (.passed, String(localized: "\(gigabytes) GB free"))
-            : (.warning, String(localized: "\(gigabytes) GB free, 100 GB recommended"))
-    }
-
-    private nonisolated static func resources() -> (VPhoneLaunchpadStatus, String) {
-        let cores = ProcessInfo.processInfo.activeProcessorCount
-        let memory = ProcessInfo.processInfo.physicalMemory / (1 << 30)
-        let text = String(localized: "\(cores) cores, \(memory) GB")
-        return cores >= 8 && memory >= 16 ? (.passed, text) : (.warning, String(localized: "\(text); 8 cores, 16 GB recommended"))
-    }
-
-    private nonisolated static func network() async -> (VPhoneLaunchpadStatus, String) {
-        let hosts = ["updates.cdn-apple.com", "api.github.com"]
-        var unreachable: [String] = []
-        for host in hosts {
-            var request = URLRequest(url: URL(string: "https://\(host)/")!)
-            request.httpMethod = "HEAD"
-            request.timeoutInterval = 6
-            if await (try? URLSession.shared.data(for: request)) == nil {
-                unreachable.append(host)
-            }
-        }
-        return unreachable.isEmpty
-            ? (.passed, hosts.joined(separator: ", "))
-            : (.warning, String(localized: "Cannot reach \(unreachable.joined(separator: ", "))"))
-    }
-
     nonisolated static func existingAncestor(of url: URL) -> URL {
         var candidate = url
         while !FileManager.default.fileExists(atPath: candidate.path), candidate.path != "/" {
@@ -372,9 +327,6 @@ final class VPhoneLaunchpadHostSetup {
             update(.libraryVolume, (.passed, "~/.vphone/machines"))
             update(.developerTools, blocked ? (.pending, String(localized: "Not requested")) : (.passed, String(localized: "Allowed")))
             update(.helper, blocked ? (.pending, String(localized: "Not installed")) : (.passed, String(localized: "Version \("1")")))
-            update(.diskSpace, (.warning, String(localized: "\(84) GB free, 100 GB recommended")))
-            update(.resources, (.passed, String(localized: "\(12) cores, \(UInt64(36)) GB")))
-            update(.network, (.passed, "updates.cdn-apple.com, api.github.com"))
         }
     }
 #endif

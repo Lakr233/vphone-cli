@@ -14,9 +14,11 @@ nonisolated enum VPhoneLaunchpadCreationStep: Int, CaseIterable, Identifiable, C
     case restore
     case stopDFU
     case installCFW
-    /// `vm template trim` on the stopped template build.
+    /// `vm template trim` on the stopped template build, or on the machine
+    /// itself when it is slimmed without a template.
     case trimTemplate
-    /// `vm template setup`: the template's one boot, headless.
+    /// `vm template setup`: the template's one boot, headless; or the
+    /// machine's, slimming it without a template.
     case setUpTemplate
     /// `vm template adopt`: the build becomes the frozen template.
     case adoptTemplate
@@ -47,7 +49,7 @@ nonisolated enum VPhoneLaunchpadCreationStep: Int, CaseIterable, Identifiable, C
         case .stopDFU: String(localized: "Stop machine")
         case .installCFW: String(localized: "Install custom firmware")
         case .trimTemplate: String(localized: "Trim system files")
-        case .setUpTemplate: String(localized: "Set up template")
+        case .setUpTemplate: String(localized: "Set up and slim system")
         case .adoptTemplate: String(localized: "Save template")
         case .cloneTemplate: String(localized: "Create machine from template")
         case .applyGuestPatches: String(localized: "Apply guest patches")
@@ -111,7 +113,12 @@ nonisolated struct VPhoneLaunchpadCreationPlan: Hashable, Sendable {
     var steps: [VPhoneLaunchpadCreationStep] {
         let restore: [VPhoneLaunchpadCreationStep] = [.create, .prepare, .patch, .bootDFU, .waitDFU, .restore, .stopDFU, .installCFW]
         guard usesTemplate else {
-            return restore + [.firstBoot]
+            // Slimmed on its own: the same trim and setup boot a template
+            // build runs, on the machine itself, which is then not adopted.
+            guard slimming.slim else {
+                return restore + [.firstBoot]
+            }
+            return restore + (slimming.trimArguments != nil ? [.trimTemplate] : []) + [.setUpTemplate, .firstBoot]
         }
         let machine: [VPhoneLaunchpadCreationStep] = [.cloneTemplate] + (appliesGuestPatches ? [.applyGuestPatches] : []) + [.firstBoot]
         if foundTemplate == true {

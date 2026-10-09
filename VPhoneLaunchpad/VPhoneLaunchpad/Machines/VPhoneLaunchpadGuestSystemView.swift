@@ -89,7 +89,6 @@ struct VPhoneLaunchpadGuestSystemView: View {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
         .task(id: isRunning) {
             if isRunning {

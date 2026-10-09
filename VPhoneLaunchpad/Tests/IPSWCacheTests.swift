@@ -47,7 +47,7 @@ struct IPSWCacheTests {
         expect(VPhoneLaunchpadIPSW.productTypes(in: "iPhoneOS_iPad16,1") == ["iPad16,1"], "tree name products")
 
         let beta = VPhoneLaunchpadIPSW(version: "26.4", build: "23E5207q", productTypes: [], deviceClasses: ["vresearch101ap"], fromManifest: true)
-        expect(beta.isBeta && beta.kind == .cloudOS, "cloudOS beta")
+        expect(beta.kind == .cloudOS, "cloudOS beta")
 
         // The names `fw prepare` gave two real downloads (`VPhoneIPSWCache.cacheName`).
         let rc = URL(string: "https://updates.cdn-apple.com/2026FallFCS/2d0cd01d-b4f9-4a20-a1e8-f3be54570da7/iPhone17,3_27.0_24A435_Restore.ipsw")!
@@ -354,7 +354,7 @@ struct IPSWCacheTests {
         expect(rows[0].title == "iOS 27.0 RC (24A435)" && rows[0].usedBy == ["phone (creating)"], "\(rows[0])")
         expect(rows[0].kindLabel == "iPhone" && rows[0].blockedReason != nil, "\(rows[0])")
         expect(rows[1].title == "iPadOS 26.6.2 (23G90)" && rows[1].usedBy == ["ipad-mini-01"] && rows[1].blockedReason == nil, "\(rows[1])")
-        expect(rows[2].kindLabel == "cloudOS · beta" && rows[2].title == "cloudOS 26.4 (23E5207q)", "\(rows[2])")
+        expect(rows[2].kindLabel == "cloudOS" && rows[2].title == "cloudOS 26.4 (23E5207q)", "\(rows[2])")
         expect(rows[2].usedBy == ["ipad-mini-01", "ipad-pro-13"], "\(rows[2].usedBy)")
         expect(rows[3].title == "mystery.ipsw" && rows[3].kindLabel == "Unknown", "\(rows[3])")
 

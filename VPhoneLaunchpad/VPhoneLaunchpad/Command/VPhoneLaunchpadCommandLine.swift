@@ -72,7 +72,7 @@ nonisolated struct VPhoneLaunchpadCommandResult: Sendable {
 @MainActor
 @Observable
 final class VPhoneLaunchpadCommandHistory {
-    struct Entry: Identifiable {
+    nonisolated struct Entry: Identifiable, Sendable {
         let id = UUID()
         let date = Date()
         let text: String

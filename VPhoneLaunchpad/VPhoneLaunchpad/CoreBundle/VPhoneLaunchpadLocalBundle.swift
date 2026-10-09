@@ -33,12 +33,8 @@ nonisolated struct VPhoneLaunchpadLocalBundle: Sendable {
     // MARK: - Prepare
 
     /// Reads the version from the bundle's Info.plist and produces the zip
-    /// and digest the helper expects. A GitHub Actions build passes its own
-    /// suffix in place of `-local.<build>`.
-    @concurrent static func prepare(
-        _ source: URL,
-        suffix: String? = nil,
-    ) async throws -> VPhoneLaunchpadLocalBundle {
+    /// and digest the helper expects.
+    @concurrent static func prepare(_ source: URL) async throws -> VPhoneLaunchpadLocalBundle {
         let values = try? source.resourceValues(forKeys: [.isDirectoryKey])
         let isDirectory = values?.isDirectory ?? false
         let fileManager = FileManager.default
@@ -89,7 +85,7 @@ nonisolated struct VPhoneLaunchpadLocalBundle: Sendable {
             let version = try version(
                 from: infoPlist,
                 source: source,
-                suffix: suffix ?? localSuffix(seal: seal, archiveDigest: digest),
+                suffix: localSuffix(seal: seal, archiveDigest: digest),
             )
             return VPhoneLaunchpadLocalBundle(
                 version: version,

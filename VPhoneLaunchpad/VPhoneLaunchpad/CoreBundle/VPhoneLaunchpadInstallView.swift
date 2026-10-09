@@ -37,6 +37,7 @@ struct VPhoneLaunchpadInstallView: View {
                 }
             }
             .formStyle(.grouped)
+            .vphoneFittedHeight(limit: VPhoneLaunchpadSheetSize.maximum - VPhoneLaunchpadSheetSize.chrome)
         } accessory: {
             if let progress = bundles.progress, !bundles.isInstalling {
                 if progress.canSkip {
@@ -63,7 +64,7 @@ struct VPhoneLaunchpadInstallView: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .frame(width: 480, height: 420)
+        .fixedSize(horizontal: false, vertical: true)
         .interactiveDismissDisabled(bundles.isInstalling)
     }
 

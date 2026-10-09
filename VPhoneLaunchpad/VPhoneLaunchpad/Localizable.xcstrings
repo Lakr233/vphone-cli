@@ -851,40 +851,6 @@
         }
       }
     },
-    "Create from a template" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Create from a template"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンプレートから作成"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "템플릿에서 생성"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tạo từ mẫu"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从模板创建"
-          }
-        }
-      }
-    },
     "Create machine from template" : {
       "localizations" : {
         "en" : {
@@ -1221,40 +1187,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除构建此模板所用的 IPSW？"
-          }
-        }
-      }
-    },
-    "Delete the selected template. Machines created from it keep working." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete the selected template. Machines created from it keep working."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したテンプレートを削除します。そこから作成したマシンは引き続き動作します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 템플릿을 삭제합니다. 이 템플릿에서 만든 머신은 계속 동작합니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xóa mẫu đã chọn. Các máy ảo tạo từ mẫu vẫn hoạt động."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除所选模板。从它创建的虚拟机仍可正常使用。"
           }
         }
       }
@@ -2721,40 +2653,6 @@
         }
       }
     },
-    "Service profile and removed system apps" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Service profile and removed system apps"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サービスプロファイルと削除したシステム App"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "서비스 프로필 및 제거된 시스템 앱"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cấu hình dịch vụ và ứng dụng hệ thống đã gỡ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服务配置和已移除的系统 App"
-          }
-        }
-      }
-    },
     "Service profile: %@" : {
       "localizations" : {
         "en" : {
@@ -2887,40 +2785,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已精简服务"
-          }
-        }
-      }
-    },
-    "Set up template" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set up template"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンプレートをセットアップ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "템플릿 설정"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thiết lập mẫu"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置模板"
           }
         }
       }
@@ -3435,40 +3299,6 @@
         }
       }
     },
-    "The machine is restored on its own, with keys of its own. It is not slimmed, and starts at Setup Assistant." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The machine is restored on its own, with keys of its own. It is not slimmed, and starts at Setup Assistant."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "マシンは単独で復元され、独自の鍵を持ちます。軽量化されず、設定アシスタントから始まります。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "머신이 단독으로 복원되며 고유한 키를 가집니다. 간소화되지 않으며 설정 지원에서 시작합니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máy ảo được khôi phục riêng, với khóa riêng. Máy ảo không được tinh gọn và bắt đầu ở Trợ lý thiết lập."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "虚拟机将单独恢复，拥有独立的密钥。不会精简，并从设置助理开始。"
-          }
-        }
-      }
-    },
     "The next machine with its options builds a new template, which takes a restore." : {
       "localizations" : {
         "en" : {
@@ -3533,40 +3363,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "路径过长。请使用路径更短的位置。"
-          }
-        }
-      }
-    },
-    "The template keeps every file, service and app. Setup Assistant is still skipped." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The template keeps every file, service and app. Setup Assistant is still skipped."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンプレートはすべてのファイル、サービス、App を保持します。設定アシスタントはスキップされます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "템플릿은 모든 파일, 서비스, 앱을 유지합니다. 설정 지원은 계속 건너뜁니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mẫu giữ lại mọi tệp, dịch vụ và ứng dụng. Trợ lý thiết lập vẫn được bỏ qua."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模板保留所有文件、服务和 App。仍会跳过设置助理。"
           }
         }
       }
@@ -4353,78 +4149,6 @@
         }
       }
     },
-    "NAT Network" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "NAT Network" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "NAT ネットワーク" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "NAT 네트워크" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mạng NAT" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "NAT 网络" } }
-      }
-    },
-    "The Mac’s DHCP server keeps an address for every guest MAC it has seen, even after the lease runs out. Release frees the addresses of iOS guests no machine uses any more, such as deleted machines. It needs an administrator." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The Mac’s DHCP server keeps an address for every guest MAC it has seen, even after the lease runs out. Release frees the addresses of iOS guests no machine uses any more, such as deleted machines. It needs an administrator." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Mac の DHCP サーバーは、一度見たゲストの MAC ごとにアドレスを確保し、リースが切れても手放しません。「解放」は、削除したマシンなど、どのマシンも使っていない iOS ゲストのアドレスを解放します。管理者の承認が必要です。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Mac의 DHCP 서버는 한 번 본 게스트 MAC마다 주소를 잡아 두며, 임대가 만료된 뒤에도 놓지 않습니다. 해제는 삭제한 머신처럼 더 이상 어떤 머신도 쓰지 않는 iOS 게스트의 주소를 풀어 줍니다. 관리자 승인이 필요합니다." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy chủ DHCP của Mac giữ một địa chỉ cho mỗi MAC máy khách từng thấy, kể cả khi hợp đồng thuê đã hết hạn. Giải phóng sẽ thu hồi địa chỉ của các máy khách iOS không còn máy nào dùng, chẳng hạn máy đã xoá. Cần quyền quản trị viên." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 的 DHCP 服务器会为见过的每个客户机 MAC 保留一个地址，租约到期后也不放手。“释放”会收回已经没有机器使用的 iOS 客户机的地址，例如已删除的机器。需要管理员权限。" } }
-      }
-    },
-    "Addresses held by old guests" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Addresses held by old guests" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "古いゲストが保持しているアドレス" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이전 게스트가 점유한 주소" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Địa chỉ do máy khách cũ giữ" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "旧客户机占用的地址" } }
-      }
-    },
-    "Release…" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Release…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "解放…" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "해제…" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giải phóng…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "释放…" } }
-      }
-    },
-    "Release %lld Addresses?" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Release %lld Addresses?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のアドレスを解放しますか?" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "주소 %lld개를 해제하시겠습니까?" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giải phóng %lld địa chỉ?" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "释放 %lld 个地址？" } }
-      }
-    },
-    "Release" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Release" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "解放" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "해제" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giải phóng" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "释放" } }
-      }
-    },
-    "Their leases have run out and no machine in your libraries has their MAC. A guest that comes back with one of these MACs gets a new address." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Their leases have run out and no machine in your libraries has their MAC. A guest that comes back with one of these MACs gets a new address." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これらのリースは期限切れで、ライブラリのどのマシンもその MAC を使っていません。これらの MAC で戻ってきたゲストには新しいアドレスが割り当てられます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 임대는 만료되었고 라이브러리의 어떤 머신도 해당 MAC을 쓰지 않습니다. 이 MAC으로 다시 나타나는 게스트는 새 주소를 받습니다." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Các hợp đồng thuê này đã hết hạn và không máy nào trong thư viện dùng MAC của chúng. Máy khách quay lại với một trong các MAC này sẽ nhận địa chỉ mới." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些租约已经到期，资料库中也没有机器使用对应的 MAC。之后若有客户机以这些 MAC 回来，会分配到新地址。" } }
-      }
-    },
-    "%lld addresses no machine uses" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld addresses no machine uses" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "どのマシンも使っていないアドレス %lld 個" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "어떤 머신도 쓰지 않는 주소 %lld개" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%lld địa chỉ không máy nào dùng" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个地址无机器使用" } }
-      }
-    },
     "Needs a Core Bundle" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Needs a Core Bundle" } },
@@ -4508,40 +4232,6 @@
     },
     "" : {
 
-    },
-    "%@ · %@ · Expires %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %@ · Expires %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · %3$@に期限切れ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · %3$@ 만료"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · Hết hạn %3$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · 将于 %3$@ 过期"
-          }
-        }
-      }
     },
     "%@ Console" : {
       "localizations" : {
@@ -5088,40 +4778,6 @@
         }
       }
     },
-    "%@; 8 cores, 16 GB recommended" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@; 8 cores, 16 GB recommended"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@、8 コア・16 GB を推奨"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, 8코어·16GB 권장"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@; khuyến nghị 8 lõi, 16 GB"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@；建议 8 核、16 GB"
-          }
-        }
-      }
-    },
     "%lld cores" : {
       "localizations" : {
         "en" : {
@@ -5164,108 +4820,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 核"
-          }
-        }
-      }
-    },
-    "%lld cores, %llu GB" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cores, %llu GB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld コア、%2$llu GB"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld코어, %2$lluGB"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld lõi, %2$llu GB"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld 核，%2$llu GB"
-          }
-        }
-      }
-    },
-    "%lld GB free" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld GB free"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空き %lld GB"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lldGB 사용 가능"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Còn trống %lld GB"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可用 %lld GB"
-          }
-        }
-      }
-    },
-    "%lld GB free, 100 GB recommended" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld GB free, 100 GB recommended"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空き %lld GB、100 GB を推奨"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lldGB 사용 가능, 100GB 권장"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Còn trống %lld GB, khuyến nghị 100 GB"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可用 %lld GB，建议 100 GB"
           }
         }
       }
@@ -5440,40 +4994,6 @@
         }
       }
     },
-    "A Core Bundle can be installed once every required check passes." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A Core Bundle can be installed once every required check passes."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "必須項目がすべて合格すると、コアバンドルをインストールできます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "모든 필수 검사를 통과하면 코어 번들을 설치할 수 있습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Có thể cài đặt Bundle lõi khi mọi mục kiểm tra bắt buộc đều đạt."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有必需检查通过后，即可安装核心 Bundle。"
-          }
-        }
-      }
-    },
     "A folder with this name already exists in this location." : {
       "localizations" : {
         "en" : {
@@ -5576,108 +5096,6 @@
         }
       }
     },
-    "Add a GitHub token to download builds from GitHub Actions." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add a GitHub token to download builds from GitHub Actions."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions からビルドをダウンロードするには、GitHub トークンを追加してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions에서 빌드를 다운로드하려면 GitHub 토큰을 추가하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thêm token GitHub để tải bản dựng từ GitHub Actions."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加 GitHub 令牌即可从 GitHub Actions 下载构建版本。"
-          }
-        }
-      }
-    },
-    "Advisory" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Advisory"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推奨"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "권장 사항"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Khuyến nghị"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建议"
-          }
-        }
-      }
-    },
-    "Advisory checks do not block setup." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Advisory checks do not block setup."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推奨項目はセットアップを妨げません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "권장 사항 검사는 설정을 막지 않습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Các mục khuyến nghị không chặn quá trình thiết lập."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建议项不会阻止设置。"
-          }
-        }
-      }
-    },
     "All" : {
       "localizations" : {
         "en" : {
@@ -5742,40 +5160,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允许 Bundle 运行"
-          }
-        }
-      }
-    },
-    "Allow vphone-launchpad in Privacy & Security → Developer Tools, then come back to Launchpad." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow vphone-launchpad in Privacy & Security → Developer Tools, then come back to Launchpad."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「プライバシーとセキュリティ」→「デベロッパツール」で vphone-launchpad を許可してから、Launchpad に戻ってください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인정보 보호 및 보안 → 개발자 도구에서 vphone-launchpad를 허용한 후 Launchpad로 돌아오십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hãy cho phép vphone-launchpad trong Quyền riêng tư & Bảo mật → Công cụ dành cho nhà phát triển, rồi quay lại Launchpad."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在“隐私与安全性”→“开发者工具”中允许 vphone-launchpad，然后回到 Launchpad。"
           }
         }
       }
@@ -6052,40 +5436,6 @@
         }
       }
     },
-    "Builds from GitHub Actions, kept for 7 days. To download them, add a token that can read Actions for Lakr233/vphone-cli. The token is stored in your keychain." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Builds from GitHub Actions, kept for 7 days. To download them, add a token that can read Actions for Lakr233/vphone-cli. The token is stored in your keychain."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions のビルドで、7 日間保持されます。ダウンロードするには、Lakr233/vphone-cli の Actions を読み取れるトークンを追加してください。トークンはキーチェーンに保存されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions의 빌드로, 7일간 보관됩니다. 다운로드하려면 Lakr233/vphone-cli의 Actions를 읽을 수 있는 토큰을 추가하십시오. 토큰은 키체인에 저장됩니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Các bản dựng từ GitHub Actions, được lưu giữ trong 7 ngày. Để tải xuống, hãy thêm token có quyền đọc Actions của Lakr233/vphone-cli. Token được lưu trong chuỗi khóa của bạn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "来自 GitHub Actions 的构建版本，保留 7 天。如需下载，请添加一个可读取 Lakr233/vphone-cli 的 Actions 的令牌。令牌存储在你的钥匙串中。"
-          }
-        }
-      }
-    },
     "Cancel" : {
       "localizations" : {
         "en" : {
@@ -6150,40 +5500,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消导出"
-          }
-        }
-      }
-    },
-    "Cannot reach %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cannot reach %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ に接続できません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@에 연결할 수 없습니다"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể kết nối tới %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法访问 %@"
           }
         }
       }
@@ -6489,74 +5805,6 @@
         }
       }
     },
-    "Choose" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chọn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选取"
-          }
-        }
-      }
-    },
-    "Choose a Location" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a Location"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "場所を選択"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "위치 선택"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chọn vị trí"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选取位置"
-          }
-        }
-      }
-    },
     "Choose a VPhone.bundle folder or a .zip that contains one." : {
       "localizations" : {
         "en" : {
@@ -6587,40 +5835,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择 VPhone.bundle 文件夹或包含它的 .zip。"
-          }
-        }
-      }
-    },
-    "Choose an exported machine archive (.tzst or .txz)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose an exported machine archive (.tzst or .txz)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き出したマシンのアーカイブ（.tzst または .txz）を選択してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "내보낸 머신 아카이브(.tzst 또는 .txz)를 선택하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chọn tệp lưu trữ máy đã xuất (.tzst hoặc .txz)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择导出的虚拟机归档（.tzst 或 .txz）。"
           }
         }
       }
@@ -6927,40 +6141,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关闭"
-          }
-        }
-      }
-    },
-    "Closing the window keeps Launchpad in the menu bar, where you can start and stop machines. The Dock icon appears only while a window or the menu is open." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Closing the window keeps Launchpad in the menu bar, where you can start and stop machines. The Dock icon appears only while a window or the menu is open."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ウインドウを閉じても Launchpad はメニューバーに残り、メニューバーからマシンを開始・停止できます。Dock アイコンは、ウインドウかメニューが開いているときだけ表示されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "윈도우를 닫아도 Launchpad가 메뉴 막대에 남아 있으며, 메뉴 막대에서 머신을 시작하고 중지할 수 있습니다. Dock 아이콘은 윈도우나 메뉴가 열려 있을 때만 표시됩니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Khi đóng cửa sổ, Launchpad vẫn nằm trên thanh menu, nơi bạn có thể khởi động và dừng máy. Biểu tượng trong Dock chỉ hiện khi có cửa sổ hoặc menu đang mở."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭窗口后，Launchpad 会保留在菜单栏中，你可以从菜单栏启动和停止虚拟机。只有在窗口或菜单打开时，Dock 中才会显示图标。"
           }
         }
       }
@@ -7441,40 +6621,6 @@
         }
       }
     },
-    "CPU and memory" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU and memory"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU とメモリ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU 및 메모리"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU và bộ nhớ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU 和内存"
-          }
-        }
-      }
-    },
     "CPU: %lld cores" : {
       "localizations" : {
         "en" : {
@@ -7657,108 +6803,6 @@
         }
       }
     },
-    "Creates a .tzst archive for each machine in the folder you choose." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Creates a .tzst archive for each machine in the folder you choose."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したフォルダに、マシンごとの .tzst アーカイブを作成します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 폴더에 머신마다 .tzst 아카이브를 만듭니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tạo một bản lưu trữ .tzst cho mỗi máy trong thư mục bạn chọn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在你选择的文件夹中为每台虚拟机创建一个 .tzst 归档。"
-          }
-        }
-      }
-    },
-    "Creates a .tzst archive." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Creates a .tzst archive."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ".tzst アーカイブを作成します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ".tzst 아카이브를 만듭니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tạo tệp lưu trữ .tzst."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "生成 .tzst 归档。"
-          }
-        }
-      }
-    },
-    "Creates a smaller .txz archive. Export takes much longer." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Creates a smaller .txz archive. Export takes much longer."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "より小さい .txz アーカイブを作成します。書き出しにかなり時間がかかります。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "더 작은 .txz 아카이브를 만듭니다. 내보내기에 훨씬 오래 걸립니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tạo tệp lưu trữ .txz nhỏ hơn. Quá trình xuất sẽ lâu hơn nhiều."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "生成更小的 .txz 归档。导出耗时会长得多。"
-          }
-        }
-      }
-    },
     "Creating %@" : {
       "localizations" : {
         "en" : {
@@ -7925,40 +6969,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台虚拟机的自定义固件没有安装完成，无法启动。请在虚拟机菜单中选择“安装自定义固件”，然后再启动。"
-          }
-        }
-      }
-    },
-    "Custom Firmware Not Installed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom Firmware Not Installed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "カスタムファームウェア未インストール"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "커스텀 펌웨어 미설치"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chưa cài firmware tùy chỉnh"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自定义固件未安装"
           }
         }
       }
@@ -8712,40 +7722,6 @@
         }
       }
     },
-    "Experimental Custom Firmware" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Experimental Custom Firmware"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実験的カスタムファームウェア"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "실험적 커스텀 펌웨어"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Firmware tùy chỉnh thử nghiệm"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "实验性自定义固件"
-          }
-        }
-      }
-    },
     "Export" : {
       "localizations" : {
         "en" : {
@@ -9061,74 +8037,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在安装虚拟机时应用" } }
       }
     },
-    "Free disk space" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Free disk space"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ディスクの空き容量"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "여유 디스크 공간"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dung lượng trống"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可用磁盘空间"
-          }
-        }
-      }
-    },
-    "GitHub Actions" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions"
-          }
-        }
-      }
-    },
     "GitHub Actions build · Installed %@ · SHA-256 %@" : {
       "localizations" : {
         "en" : {
@@ -9159,74 +8067,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "GitHub Actions 构建版本 · 安装于 %1$@ · SHA-256 %2$@"
-          }
-        }
-      }
-    },
-    "GitHub refused the token. Check that it can read Actions for Lakr233/vphone-cli." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub refused the token. Check that it can read Actions for Lakr233/vphone-cli."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub がトークンを拒否しました。Lakr233/vphone-cli の Actions を読み取れるか確認してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub가 토큰을 거부했습니다. Lakr233/vphone-cli의 Actions를 읽을 수 있는지 확인하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub đã từ chối token. Hãy kiểm tra token có quyền đọc Actions của Lakr233/vphone-cli."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub 拒绝了此令牌。请确认它可以读取 Lakr233/vphone-cli 的 Actions。"
-          }
-        }
-      }
-    },
-    "GitHub Token" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Token"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Token"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Token"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Token"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Token"
           }
         }
       }
@@ -9295,40 +8135,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隐藏"
-          }
-        }
-      }
-    },
-    "Hide the inspector" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hide the inspector"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インスペクタを隠す"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "속성 패널 가리기"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ẩn bảng kiểm tra"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隐藏检查器"
           }
         }
       }
@@ -9703,40 +8509,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "包含恢复用的 IPSW 目录"
-          }
-        }
-      }
-    },
-    "Inspector" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inspector"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インスペクタ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "속성 패널"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bảng kiểm tra"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "检查器"
           }
         }
       }
@@ -10977,40 +9749,6 @@
         }
       }
     },
-    "Maximum compression" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Maximum compression"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最大圧縮"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "최대 압축"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nén tối đa"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最高压缩率"
-          }
-        }
-      }
-    },
     "Memory" : {
       "localizations" : {
         "en" : {
@@ -11381,40 +10119,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未使用任何核心 Bundle 版本。请在“核心 Bundle”中选择一个版本。"
-          }
-        }
-      }
-    },
-    "No GitHub Actions builds are available." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No GitHub Actions builds are available."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "利用可能な GitHub Actions ビルドがありません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "사용 가능한 GitHub Actions 빌드가 없습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không có bản dựng GitHub Actions nào."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可用的 GitHub Actions 构建版本。"
           }
         }
       }
@@ -12167,40 +10871,6 @@
         }
       }
     },
-    "Open the workflow run on GitHub" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open the workflow run on GitHub"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub でワークフローの実行を開く"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub에서 워크플로 실행 열기"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mở lần chạy quy trình trên GitHub"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 GitHub 上打开工作流程运行"
-          }
-        }
-      }
-    },
     "Options" : {
       "localizations" : {
         "en" : {
@@ -12231,40 +10901,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选项"
-          }
-        }
-      }
-    },
-    "Other…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Other…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "その他…"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기타…"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Khác…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他…"
           }
         }
       }
@@ -12881,40 +11517,6 @@
         }
       }
     },
-    "Releases" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Releases"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リリース"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "릴리스"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bản phát hành"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发行版"
-          }
-        }
-      }
-    },
     "Reload releases and builds, and run host preflight again." : {
       "localizations" : {
         "en" : {
@@ -13217,74 +11819,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要求预检"
-          }
-        }
-      }
-    },
-    "Required" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Required"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "必須"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "필수"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bắt buộc"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "必需"
-          }
-        }
-      }
-    },
-    "Required to boot" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Required to boot"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "起動に必須"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "부팅에 필수"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bắt buộc để khởi động"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启动必需"
           }
         }
       }
@@ -13663,40 +12197,6 @@
         }
       }
     },
-    "Saved in the keychain" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved in the keychain"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キーチェーンに保存済み"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키체인에 저장됨"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã lưu trong chuỗi khóa"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已存储在钥匙串中"
-          }
-        }
-      }
-    },
     "Saving settings…" : {
       "localizations" : {
         "en" : {
@@ -13727,40 +12227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在存储设置…"
-          }
-        }
-      }
-    },
-    "Search machines" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search machines"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "マシンを検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "머신 검색"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tìm máy ảo"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索虚拟机"
           }
         }
       }
@@ -14105,40 +12571,6 @@
         }
       }
     },
-    "Show the inspector" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show the inspector"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インスペクタを表示"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "속성 패널 보기"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hiện bảng kiểm tra"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示检查器"
-          }
-        }
-      }
-    },
     "Skip" : {
       "localizations" : {
         "en" : {
@@ -14306,40 +12738,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "标准"
-          }
-        }
-      }
-    },
-    "Standard Custom Firmware" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard Custom Firmware"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "標準カスタムファームウェア"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "표준 커스텀 펌웨어"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Firmware tùy chỉnh tiêu chuẩn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标准自定义固件"
           }
         }
       }
@@ -14578,40 +12976,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停止"
-          }
-        }
-      }
-    },
-    "Stop %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ を停止"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 중지"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dừng %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止 %@"
           }
         }
       }
@@ -15161,40 +13525,6 @@
         }
       }
     },
-    "The machine is created in a folder with its name inside the folder you choose." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The machine is created in a folder with its name inside the folder you choose."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "マシンは、選択したフォルダの中にマシン名のフォルダとして作成されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "머신은 선택한 폴더 안에 머신 이름으로 된 폴더로 생성됩니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máy ảo được tạo trong một thư mục mang tên của nó, bên trong thư mục bạn chọn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "虚拟机会创建在你所选文件夹中以其名称命名的子文件夹里。"
-          }
-        }
-      }
-    },
     "The machine may not boot without %@." : {
       "localizations" : {
         "en" : {
@@ -15463,40 +13793,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此构建版本不包含 VPhone.bundle。请选择其他构建版本。"
-          }
-        }
-      }
-    },
-    "This build has expired on GitHub. Choose a newer one." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This build has expired on GitHub. Choose a newer one."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このビルドは GitHub 上で期限切れです。より新しいビルドを選択してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 빌드는 GitHub에서 만료되었습니다. 더 최신 빌드를 선택하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bản dựng này đã hết hạn trên GitHub. Hãy chọn bản mới hơn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此构建版本已在 GitHub 上过期。请选择更新的构建版本。"
           }
         }
       }
@@ -15875,40 +14171,6 @@
         }
       }
     },
-    "Unable to load GitHub Actions builds. Try again later." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unable to load GitHub Actions builds. Try again later."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions のビルドを読み込めません。しばらくしてからもう一度お試しください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub Actions 빌드를 불러올 수 없습니다. 나중에 다시 시도하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể tải các bản dựng GitHub Actions. Hãy thử lại sau."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法载入 GitHub Actions 构建版本。请稍后重试。"
-          }
-        }
-      }
-    },
     "Unable to load releases from GitHub. Try again later." : {
       "localizations" : {
         "en" : {
@@ -16045,40 +14307,6 @@
         }
       }
     },
-    "Unable to save the token in the keychain." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unable to save the token in the keychain."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トークンをキーチェーンに保存できません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "토큰을 키체인에 저장할 수 없습니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể lưu token vào chuỗi khóa."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法将令牌存储到钥匙串中。"
-          }
-        }
-      }
-    },
     "Unable to Start %@" : {
       "localizations" : {
         "en" : {
@@ -16143,40 +14371,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未知"
-          }
-        }
-      }
-    },
-    "Unknown Firmware" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown Firmware"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不明なファームウェア"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "알 수 없는 펌웨어"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Firmware không xác định"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未知固件"
           }
         }
       }
@@ -17182,15 +15376,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查核心 Bundle…" } }
       }
     },
-    "Choose another Core Bundle for its machines first." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose another Core Bundle for its machines first." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "先に、このバージョンを使うマシンに別のコアバンドルを選択してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "먼저 이 버전을 사용하는 머신에 다른 코어 번들을 선택하세요." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hãy chọn Bundle lõi khác cho các máy đang dùng phiên bản này trước." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先为使用此版本的机器选择其他核心 Bundle。" } }
-      }
-    },
     "Current" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Current" } },
@@ -17579,15 +15764,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主机程序与客户机环境来自不同的核心 Bundle。请更新客户机环境以保持一致。" } }
       }
     },
-    "These machines use it: %@. Choose another Core Bundle for them first." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "These machines use it: %@. Choose another Core Bundle for them first." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のマシンが使用しています：%@。先に別のコアバンドルを選択してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 머신이 사용 중입니다: %@. 먼저 다른 코어 번들을 선택하세요." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Các máy sau đang dùng: %@. Hãy chọn Bundle lõi khác cho chúng trước." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以下机器正在使用：%@。请先为它们选择其他核心 Bundle。" } }
-      }
-    },
     "Unable to Change the Core Bundle of %@" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Change the Core Bundle of %@" } },
@@ -17948,33 +16124,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统" } }
       }
     },
-    "Downloaded IPSWs…" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloaded IPSWs…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みの IPSW…" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 IPSW…" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "IPSW đã tải xuống…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已下载的 IPSW…" } }
-      }
-    },
-    "Downloaded IPSWs" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloaded IPSWs" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みの IPSW" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 IPSW" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "IPSW đã tải xuống" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已下载的 IPSW" } }
-      }
-    },
-    "No Downloaded IPSWs" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Downloaded IPSWs" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みの IPSW はありません" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 IPSW 없음" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa có IPSW nào được tải xuống" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有已下载的 IPSW" } }
-      }
-    },
     "The IPSWs a machine is created from are downloaded into the IPSW cache and listed here." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The IPSWs a machine is created from are downloaded into the IPSW cache and listed here." } },
@@ -18011,15 +16160,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "大小" } }
       }
     },
-    "Used By" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used By" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "使用しているマシン" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용 중인 머신" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy ảo sử dụng" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用它的虚拟机" } }
-      }
-    },
     "iPhone" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "iPhone" } },
@@ -18038,15 +16178,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iPad" } }
       }
     },
-    "%@ · beta" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ · beta" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ · ベータ" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@ · 베타" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ · beta" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ · 测试版" } }
-      }
-    },
     "%@ (creating)" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ (creating)" } },
@@ -18063,15 +16194,6 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@(완료되지 않은 다운로드)" } },
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ (tải xuống dở dang)" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@（未完成的下载）" } }
-      }
-    },
-    "Delete the selected IPSW from the IPSW cache." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete the selected IPSW from the IPSW cache." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した IPSW を IPSW キャッシュから削除します。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 IPSW를 IPSW 캐시에서 삭제합니다." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa IPSW đã chọn khỏi bộ nhớ đệm IPSW." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从 IPSW 缓存中删除所选的 IPSW。" } }
       }
     },
     "Delete %@" : {
@@ -18185,142 +16307,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "高级选项"
-          }
-        }
-      }
-    },
-    "Basic Settings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basic Settings"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "基本設定"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기본 설정"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cài đặt cơ bản"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "基本设置"
-          }
-        }
-      }
-    },
-    "System" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "System"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "システム"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시스템"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hệ thống"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "系统"
-          }
-        }
-      }
-    },
-    "Firmware & Patches" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Firmware & Patches"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファームウェアとパッチ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "펌웨어 및 패치"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Firmware và bản vá"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "固件与补丁"
-          }
-        }
-      }
-    },
-    "Storage & Network" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Storage & Network"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存先とネットワーク"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장 위치 및 네트워크"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lưu trữ và mạng"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存储与网络"
           }
         }
       }
@@ -18457,108 +16443,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请在“高级选项”中选择 iPhone IPSW 和 cloudOS IPSW。"
-          }
-        }
-      }
-    },
-    "Without a template the machine is not slimmed. Turn templates on in Advanced Options." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Without a template the machine is not slimmed. Turn templates on in Advanced Options."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンプレートを使わない場合、マシンは軽量化されません。「詳細オプション」でテンプレートをオンにしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "템플릿 없이 만든 머신은 간소화되지 않습니다. 고급 옵션에서 템플릿을 켜십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không có mẫu thì máy ảo không được tinh gọn. Hãy bật mẫu trong Tùy chọn nâng cao."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不使用模板时，虚拟机不会精简。请在“高级选项”中开启模板。"
-          }
-        }
-      }
-    },
-    "Cloned from a shared template that trims system files, unneeded services and system apps once. Setup Assistant is skipped." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cloned from a shared template that trims system files, unneeded services and system apps once. Setup Assistant is skipped."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "システムファイル、不要なサービス、システム App を一度だけ削減した共有テンプレートから複製します。設定アシスタントはスキップされます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시스템 파일, 불필요한 서비스, 시스템 앱을 한 번 정리한 공유 템플릿에서 복제합니다. 설정 지원은 건너뜁니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhân bản từ một mẫu dùng chung đã cắt giảm tệp hệ thống, dịch vụ không cần và ứng dụng hệ thống một lần. Trợ lý thiết lập được bỏ qua."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从共享模板克隆，模板只裁剪一次系统文件、不需要的服务和系统 App。会跳过设置助理。"
-          }
-        }
-      }
-    },
-    "The machine is created in a folder named after it inside this location." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The machine is created in a folder named after it inside this location."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "マシンは、この場所の中にマシン名のフォルダとして作成されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "머신은 이 위치 안에 머신 이름으로 된 폴더로 생성됩니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máy ảo được tạo trong một thư mục mang tên của nó, bên trong vị trí này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "虚拟机会创建在此位置下以其名称命名的文件夹里。"
           }
         }
       }
@@ -18867,6 +16751,582 @@
             "value" : "勾选的 App 会被移除。"
           }
         }
+      }
+    },
+    "Allow vphone-launchpad in Privacy & Security → Developer Tools." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Allow vphone-launchpad in Privacy & Security → Developer Tools." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "「プライバシーとセキュリティ」→「デベロッパツール」で vphone-launchpad を許可してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "개인정보 보호 및 보안 → 개발자 도구에서 vphone-launchpad를 허용하십시오." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hãy cho phép vphone-launchpad trong Quyền riêng tư & Bảo mật → Công cụ dành cho nhà phát triển." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在“隐私与安全性”→“开发者工具”中允许 vphone-launchpad。" } }
+      }
+    },
+    "Checks" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Checks" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "チェック" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "확인 항목" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kiểm tra" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查项" } }
+      }
+    },
+    "No versions available." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No versions available." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "利用可能なバージョンはありません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용 가능한 버전이 없습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không có phiên bản nào." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无可用版本。" } }
+      }
+    },
+    "Quit and open Launchpad again, if access granted in Settings does not show here" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit and open Launchpad again, if access granted in Settings does not show here" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定で許可しても反映されない場合は、Launchpad を終了して開き直します" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "설정에서 허용한 접근이 여기에 표시되지 않으면 Launchpad를 종료하고 다시 엽니다" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thoát và mở lại Launchpad nếu quyền đã cấp trong Cài đặt chưa hiển thị ở đây" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "如果在设置中授予的权限没有在这里显示，退出并重新打开 Launchpad" } }
+      }
+    },
+    "Relaunch" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Relaunch" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再起動" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다시 실행" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Khởi chạy lại" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新启动" } }
+      }
+    },
+    "%@ use this version and will be marked Damaged until you choose another Core Bundle for them or install it again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ use this version and will be marked Damaged until you choose another Core Bundle for them or install it again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ はこのバージョンを使用しています。別の Core Bundle を選ぶか再インストールするまで「破損」と表示されます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@에서 이 버전을 사용합니다. 다른 Core Bundle을 선택하거나 다시 설치할 때까지 '손상됨'으로 표시됩니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ đang dùng phiên bản này và sẽ bị đánh dấu Hỏng cho đến khi bạn chọn Core Bundle khác hoặc cài lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 正在使用此版本。在为它们选择其他核心 Bundle 或重新安装之前，它们将标记为“已损坏”。" } }
+      }
+    },
+    "Damaged" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Damaged" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "破損" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "손상됨" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hỏng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已损坏" } }
+      }
+    },
+    "Its Core Bundle is not installed. Choose Change Core Bundle… to run it with another version." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Its Core Bundle is not installed. Choose Change Core Bundle… to run it with another version." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この Core Bundle はインストールされていません。「Core Bundle を変更…」で別のバージョンを選ぶと実行できます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "해당 Core Bundle이 설치되어 있지 않습니다. 'Core Bundle 변경…'에서 다른 버전을 선택하면 실행할 수 있습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Core Bundle của máy chưa được cài đặt. Chọn Thay đổi Core Bundle… để chạy bằng phiên bản khác." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它的核心 Bundle 未安装。选择“更改核心 Bundle…”以使用其他版本运行。" } }
+      }
+    },
+    "These machines are running from it: %@. Stop them first." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "These machines are running from it: %@. Stop them first." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のマシンがこのバージョンで動作中です: %@。先に停止してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 머신이 이 버전으로 실행 중입니다: %@. 먼저 중지하십시오." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Các máy sau đang chạy từ phiên bản này: %@. Hãy dừng chúng trước." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以下机器正在使用此版本运行：%@。请先停止它们。" } }
+      }
+    },
+    "Available once the machine is created." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available once the machine is created." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マシンの作成後に利用できます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "머신이 생성된 후 사용할 수 있습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Có sẵn sau khi máy được tạo." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "机器创建完成后可用。" } }
+      }
+    },
+    "Page" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ページ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "페이지" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trang" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "页面" } }
+      }
+    },
+    "Force stopping…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Force stopping…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "強制停止中…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "강제 중지 중…" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang buộc dừng…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在强制停止…" } }
+      }
+    },
+    "Stop %@. Hold Option to force stop." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop %@. Hold Option to force stop." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を停止します。Option キーを押しながらクリックすると強制停止します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@을(를) 중지합니다. Option 키를 누른 채 클릭하면 강제 중지합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dừng %@. Giữ Option để buộc dừng." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止“%@”。按住 Option 键点按可强制停止。" } }
+      }
+    },
+    "Unable to Force Stop %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Force Stop %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を強制停止できません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@을(를) 강제 중지할 수 없음" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể buộc dừng %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法强制停止“%@”" } }
+      }
+    },
+    "Update the guest environment to match the host programs" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update the guest environment to match the host programs" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ゲスト環境をホストプログラムに合わせて更新します" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 프로그램에 맞게 게스트 환경을 업데이트합니다" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cập nhật môi trường máy khách cho khớp với chương trình máy chủ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新客户机环境，使其与主机程序一致" } }
+      }
+    },
+    "New…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新規…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새로 만들기…" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mới…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建…" } }
+      }
+    },
+    "Loading…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "読み込み中…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "로드 중…" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang tải…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在载入…" } }
+      }
+    },
+    "Downloaded Firmware" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloaded Firmware" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みのファームウェア" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 펌웨어" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Firmware đã tải về" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已下载的固件" } }
+      }
+    },
+    "Downloaded Firmware…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloaded Firmware…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みのファームウェア…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 펌웨어…" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Firmware đã tải về…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已下载的固件…" } }
+      }
+    },
+    "No Downloaded Firmware" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Downloaded Firmware" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダウンロード済みのファームウェアはありません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다운로드한 펌웨어 없음" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không có firmware đã tải về" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有已下载的固件" } }
+      }
+    },
+    "Choose an exported machine archive (.vpea)." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose an exported machine archive (.vpea)." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "書き出したマシンのアーカイブ（.vpea）を選択してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내보낸 머신 아카이브(.vpea)를 선택하세요." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chọn một bản lưu trữ máy đã xuất (.vpea)." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择导出的虚拟机归档（.vpea）。" } }
+      }
+    },
+    "Creates a .vpea archive for each machine in the folder you choose." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Creates a .vpea archive for each machine in the folder you choose." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択したフォルダに、マシンごとの .vpea アーカイブを作成します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 폴더에 머신마다 .vpea 아카이브를 만듭니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo một bản lưu trữ .vpea cho mỗi máy trong thư mục bạn chọn." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在你选择的文件夹中为每台虚拟机创建一个 .vpea 归档。" } }
+      }
+    },
+    "Creates a .vpea archive." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Creates a .vpea archive." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : ".vpea アーカイブを作成します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : ".vpea 아카이브를 만듭니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo một bản lưu trữ .vpea." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建一个 .vpea 归档。" } }
+      }
+    },
+    "Delete %lld IPSWs?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete %lld IPSWs?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個の IPSW を削除しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "IPSW %lld개를 삭제하겠습니까?" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa %lld IPSW?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 %lld 个 IPSW？" } }
+      }
+    },
+    "Delete %lld Snapshots?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete %lld Snapshots?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のスナップショットを削除しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스냅샷 %lld개를 삭제하겠습니까?" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa %lld bản chụp nhanh?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 %lld 个快照？" } }
+      }
+    },
+    "Delete %lld Templates?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete %lld Templates?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のテンプレートを削除しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "템플릿 %lld개를 삭제하겠습니까?" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa %lld mẫu?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 %lld 个模板？" } }
+      }
+    },
+    "Delete the selected IPSWs from the IPSW cache." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete the selected IPSWs from the IPSW cache." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した IPSW を IPSW キャッシュから削除します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 IPSW를 IPSW 캐시에서 삭제합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa các IPSW đã chọn khỏi bộ nhớ đệm IPSW." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从 IPSW 缓存中删除所选的 IPSW。" } }
+      }
+    },
+    "Delete the selected templates. Machines created from them keep working." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete the selected templates. Machines created from them keep working." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択したテンプレートを削除します。そこから作成したマシンは引き続き動作します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 템플릿을 삭제합니다. 이 템플릿으로 만든 머신은 계속 작동합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xóa các mẫu đã chọn. Các máy tạo từ chúng vẫn hoạt động." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除所选模板。从它们创建的虚拟机仍可正常使用。" } }
+      }
+    },
+    "Their files are removed. The machine itself is not changed. This cannot be undone." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Their files are removed. The machine itself is not changed. This cannot be undone." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "それらのファイルは削除されます。マシン自体は変更されません。この操作は取り消せません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "해당 파일이 제거됩니다. 머신 자체는 변경되지 않습니다. 이 작업은 실행 취소할 수 없습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Các tệp của chúng sẽ bị xóa. Bản thân máy không thay đổi. Không thể hoàn tác." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它们的文件会被移除，虚拟机本身不受影响。此操作无法撤销。" } }
+      }
+    },
+    "Turn Off" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turn Off" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "オフにする" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "끄기" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tắt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } }
+      }
+    },
+    "Turn On" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turn On" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "オンにする" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "켜기" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bật" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
+      }
+    },
+    "^[%lld patch](inflect: true) selected. Control-click to turn them on or off together." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "^[%lld patch](inflect: true) selected. Control-click to turn them on or off together." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のパッチを選択中。Control キーを押しながらクリックすると、まとめてオン／オフできます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "패치 %lld개 선택됨. Control-클릭하여 한꺼번에 켜거나 끌 수 있습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã chọn %lld bản vá. Control-click để bật hoặc tắt cùng lúc." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择 %lld 个补丁。按住 Control 点按可一起打开或关闭。" } }
+      }
+    },
+    "%@ Added" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ Added" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を追加しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@ 추가됨" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã thêm %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加 %@" } }
+      }
+    },
+    "%@ Is Already Downloaded" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ Is Already Downloaded" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ はダウンロード済みです" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@은(는) 이미 다운로드되었습니다" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ đã được tải về" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 已下载" } }
+      }
+    },
+    "%@ is not in the firmware catalog, so New Machine cannot use it from the IPSW cache. Choose it as a custom IPSW in New Machine instead." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ is not in the firmware catalog, so New Machine cannot use it from the IPSW cache. Choose it as a custom IPSW in New Machine instead." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ はファームウェアカタログにないため、新規マシンは IPSW キャッシュから使用できません。代わりに新規マシンでカスタム IPSW として選択してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@은(는) 펌웨어 카탈로그에 없으므로 새 머신이 IPSW 캐시에서 사용할 수 없습니다. 대신 새 머신에서 사용자 지정 IPSW로 선택하세요." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "%@ không có trong danh mục firmware, nên Máy mới không thể dùng nó từ bộ nhớ đệm IPSW. Hãy chọn nó làm IPSW tùy chỉnh trong Máy mới." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 不在固件目录中，新建虚拟机无法从 IPSW 缓存使用它。请在新建虚拟机中将它选为自定 IPSW。" } }
+      }
+    },
+    "Adding IPSW" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adding IPSW" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "IPSW を追加中" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "IPSW 추가 중" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang thêm IPSW" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在添加 IPSW" } }
+      }
+    },
+    "Copying %@ into the IPSW cache…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copying %@ into the IPSW cache…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を IPSW キャッシュにコピーしています…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@을(를) IPSW 캐시로 복사하는 중…" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang sao chép %@ vào bộ nhớ đệm IPSW…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在将 %@ 拷贝到 IPSW 缓存…" } }
+      }
+    },
+    "It is not an IPSW, or its BuildManifest cannot be read." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "It is not an IPSW, or its BuildManifest cannot be read." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "IPSW ではないか、BuildManifest を読み取れません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "IPSW가 아니거나 BuildManifest를 읽을 수 없습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đây không phải IPSW, hoặc không đọc được BuildManifest của nó." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它不是 IPSW，或无法读取其 BuildManifest。" } }
+      }
+    },
+    "New Machine uses it from the IPSW cache without downloading it." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New Machine uses it from the IPSW cache without downloading it." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新規マシンはダウンロードせずに IPSW キャッシュから使用します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 머신은 다운로드하지 않고 IPSW 캐시에서 사용합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy mới dùng nó từ bộ nhớ đệm IPSW mà không cần tải về." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建虚拟机将直接从 IPSW 缓存使用它，无需下载。" } }
+      }
+    },
+    "New Machine uses the copy in the IPSW cache." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New Machine uses the copy in the IPSW cache." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新規マシンは IPSW キャッシュ内のコピーを使用します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 머신은 IPSW 캐시에 있는 사본을 사용합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy mới dùng bản sao trong bộ nhớ đệm IPSW." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建虚拟机会使用 IPSW 缓存中的副本。" } }
+      }
+    },
+    "The firmware catalog could not be read. Install a Core Bundle in Core Bundle, then try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The firmware catalog could not be read. Install a Core Bundle in Core Bundle, then try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファームウェアカタログを読み取れませんでした。「Core Bundle」で Core Bundle をインストールしてから、もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "펌웨어 카탈로그를 읽을 수 없습니다. Core Bundle에서 Core Bundle을 설치한 후 다시 시도하세요." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không đọc được danh mục firmware. Hãy cài Core Bundle trong Core Bundle rồi thử lại." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取固件目录。请先在“Core Bundle”中安装 Core Bundle，然后重试。" } }
+      }
+    },
+    "Unable to Add %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Add %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を追加できません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@을(를) 추가할 수 없음" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể thêm %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法添加 %@" } }
+      }
+    },
+    "Created %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Created %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "作成日 %@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "생성일 %@" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tạo lúc %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建于 %@" } }
+      }
+    },
+    "Use Template" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Template" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テンプレートを使用" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "템플릿 사용" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dùng mẫu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用模板" } }
+      }
+    },
+    "Storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ストレージ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장 공간" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Lưu trữ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存储" } }
+      }
+    },
+    "The guest has no network device and stays offline." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The guest has no network device and stays offline." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ゲストにはネットワークデバイスがなく、オフラインのままです。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "게스트에 네트워크 장치가 없어 오프라인 상태로 유지됩니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy khách không có thiết bị mạng và luôn ngoại tuyến." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "客户机没有网络设备，始终离线。" } }
+      }
+    },
+    "The guest joins the network of one of this Mac's interfaces with an address of its own, so other devices on that network can reach it." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The guest joins the network of one of this Mac's interfaces with an address of its own, so other devices on that network can reach it." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ゲストはこの Mac のいずれかのインターフェイスのネットワークに独自のアドレスで参加するため、そのネットワーク上の他のデバイスからアクセスできます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "게스트는 이 Mac의 인터페이스 중 하나의 네트워크에 자체 주소로 참여하므로 해당 네트워크의 다른 기기가 접근할 수 있습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy khách tham gia mạng của một giao diện trên Mac này với địa chỉ riêng, nên các thiết bị khác trên mạng đó có thể truy cập nó." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "客户机以自己的地址加入这台 Mac 某个网络接口所在的网络，该网络上的其他设备可以访问它。" } }
+      }
+    },
+    "The guest shares this Mac's connection through Virtualization's built-in NAT. Its traffic skips a VPN on the Mac." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The guest shares this Mac's connection through Virtualization's built-in NAT. Its traffic skips a VPN on the Mac." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ゲストは Virtualization の内蔵 NAT を通じてこの Mac の接続を共有します。そのトラフィックは Mac の VPN を経由しません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "게스트는 Virtualization의 내장 NAT를 통해 이 Mac의 연결을 공유합니다. 트래픽은 Mac의 VPN을 거치지 않습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy khách dùng chung kết nối của Mac này qua NAT tích hợp của Virtualization. Lưu lượng của nó không đi qua VPN trên Mac." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "客户机通过 Virtualization 内建的 NAT 共享这台 Mac 的网络连接，其流量不经过 Mac 上的 VPN。" } }
+      }
+    },
+    "No template is available for this firmware. Turning this on saves a sample of the machine in the template library." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No template is available for this firmware. Turning this on saves a sample of the machine in the template library." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このファームウェアに使えるテンプレートはありません。オンにすると、仮想マシンのサンプルがテンプレートライブラリに保存されます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 펌웨어에 사용할 수 있는 템플릿이 없습니다. 켜면 가상 머신의 샘플이 템플릿 라이브러리에 저장됩니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không có mẫu nào cho firmware này. Bật tùy chọn này sẽ lưu một bản mẫu của máy ảo vào thư viện mẫu." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此固件没有可用的模板。打开此项会将虚拟机的样本存入模板库。" } }
+      }
+    },
+    "Set up and slim system" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set up and slim system" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "システムをセットアップして精簡" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시스템 설정 및 슬림화" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thiết lập và tinh gọn hệ thống" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置并精简系统" } }
+      }
+    },
+    "The machine is restored on its own, with keys of its own." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The machine is restored on its own, with keys of its own." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マシンは独自のキーで個別に復元されます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "머신은 자체 키로 개별 복원됩니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy được khôi phục riêng, với khóa của riêng nó." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟机单独恢复，使用自己的密钥。" } }
+      }
+    },
+    "The machine is restored on its own, with keys of its own. It starts at Setup Assistant." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The machine is restored on its own, with keys of its own. It starts at Setup Assistant." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マシンは独自のキーで個別に復元され、設定アシスタントから始まります。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "머신은 자체 키로 개별 복원되며 설정 지원에서 시작합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy được khôi phục riêng, với khóa của riêng nó, và bắt đầu ở Trợ lý thiết lập." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟机单独恢复，使用自己的密钥，并从设置助理开始。" } }
+      }
+    },
+    "Without a template the machine is slimmed on its own, with a setup boot of its own. Setup Assistant is skipped." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Without a template the machine is slimmed on its own, with a setup boot of its own. Setup Assistant is skipped." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テンプレートを使わない場合、マシンは自身のセットアップ起動で個別に精簡されます。設定アシスタントはスキップされます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "템플릿 없이 머신은 자체 설정 부팅으로 개별적으로 슬림화됩니다. 설정 지원은 건너뜁니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không dùng mẫu, máy được tinh gọn riêng với một lần khởi động thiết lập của chính nó. Trợ lý thiết lập được bỏ qua." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不使用模板时，虚拟机会通过自己的一次设置启动单独精简，并跳过设置助理。" } }
+      }
+    },
+    "Choose a Library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a Library" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライブラリを選択" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "보관함 선택" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chọn thư viện" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择资料库" } }
+      }
+    },
+    "Choose the folder new machines are created in" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the folder new machines are created in" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいマシンを作成するフォルダを選択します" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 머신을 만들 폴더를 선택합니다" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chọn thư mục để tạo máy mới" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择新虚拟机的创建位置" } }
+      }
+    },
+    "Library Changed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Library Changed" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライブラリを変更しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "보관함이 변경됨" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã đổi thư viện" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "资料库已更改" } }
+      }
+    },
+    "Machines in %@ are slower to create from templates, clone and snapshot, because each copy writes the whole disk instead of sharing it, and they take much more space." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Machines in %@ are slower to create from templates, clone and snapshot, because each copy writes the whole disk instead of sharing it, and they take much more space." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ のマシンは、コピーのたびにディスク全体を書き込むため、テンプレートからの作成、複製、スナップショットが遅くなり、必要な容量も大幅に増えます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@의 머신은 복사할 때마다 디스크 전체를 기록하므로 템플릿에서 만들기, 복제, 스냅샷이 느려지고 훨씬 많은 공간을 차지합니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Các máy trong %@ sẽ tạo từ mẫu, nhân bản và chụp nhanh chậm hơn, vì mỗi bản sao ghi toàn bộ ổ đĩa thay vì dùng chung, và chiếm nhiều dung lượng hơn." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 中的虚拟机从模板创建、克隆和快照都会更慢，因为每次复制都会写入整个磁盘而不是共享，占用的空间也会多得多。" } }
+      }
+    },
+    "New machines are created in %@. Launchpad does not move machines: to keep using the ones in %@, quit Launchpad and move their folders into the new library yourself. Launchpad relaunches to use the new library." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New machines are created in %1$@. Launchpad does not move machines: to keep using the ones in %2$@, quit Launchpad and move their folders into the new library yourself. Launchpad relaunches to use the new library." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいマシンは %1$@ に作成されます。Launchpad はマシンを移動しません。%2$@ にあるマシンを引き続き使うには、Launchpad を終了し、そのフォルダを自分で新しいライブラリに移動してください。Launchpad は新しいライブラリを使うために再起動します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 머신은 %1$@에 만들어집니다. Launchpad는 머신을 이동하지 않습니다. %2$@에 있는 머신을 계속 사용하려면 Launchpad를 종료하고 해당 폴더를 직접 새 보관함으로 옮기세요. Launchpad는 새 보관함을 사용하기 위해 다시 실행됩니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy mới sẽ được tạo trong %1$@. Launchpad không di chuyển máy: để tiếp tục dùng các máy trong %2$@, hãy thoát Launchpad và tự chuyển thư mục của chúng vào thư viện mới. Launchpad sẽ khởi chạy lại để dùng thư viện mới." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新虚拟机将创建在 %1$@。Launchpad 不会移动虚拟机：如需继续使用 %2$@ 中的虚拟机，请退出 Launchpad，自行将它们的文件夹移到新资料库中。Launchpad 将重新启动以使用新资料库。" } }
+      }
+    },
+    "New machines are created in this folder. Machines already in the current library are not moved." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New machines are created in this folder. Machines already in the current library are not moved." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいマシンはこのフォルダに作成されます。現在のライブラリにあるマシンは移動されません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 머신은 이 폴더에 만들어집니다. 현재 보관함에 있는 머신은 이동되지 않습니다." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Máy mới sẽ được tạo trong thư mục này. Các máy đã có trong thư viện hiện tại không bị di chuyển." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新虚拟机会创建在此文件夹中。当前资料库中的虚拟机不会被移动。" } }
+      }
+    },
+    "Show Current Library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Current Library" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のライブラリを表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 보관함 보기" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hiện thư viện hiện tại" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示当前资料库" } }
+      }
+    },
+    "This Volume Cannot Clone Files" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This Volume Cannot Clone Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このボリュームはファイルを複製（クローン）できません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 볼륨은 파일을 복제할 수 없습니다" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ổ đĩa này không thể nhân bản tệp" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此宗卷不支持文件克隆" } }
+      }
+    },
+    "Unable to Use %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Use %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を使用できません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@을(를) 사용할 수 없음" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể dùng %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法使用 %@" } }
+      }
+    },
+    "Use Anyway" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Anyway" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このまま使用" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "그래도 사용" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Vẫn dùng" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仍然使用" } }
+      }
+    },
+    "Use as Library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use as Library" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライブラリとして使用" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "보관함으로 사용" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Dùng làm thư viện" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用作资料库" } }
       }
     }
   },

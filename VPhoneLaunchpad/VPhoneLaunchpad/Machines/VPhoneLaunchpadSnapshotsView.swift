@@ -13,10 +13,13 @@ struct VPhoneLaunchpadSnapshotsView: View {
     /// Nil until the first list answers.
     @State private var snapshots: [VPhoneLaunchpadMachineSnapshot]?
     @State private var listError: String?
-    @State private var selection: VPhoneLaunchpadMachineSnapshot.ID?
+    @State private var selection: Set<VPhoneLaunchpadMachineSnapshot.ID> = []
+    /// Empty keeps the order `vm snapshot list` returns; a header click replaces it.
+    @State private var sortOrder: [KeyPathComparator<VPhoneLaunchpadMachineSnapshot>] = []
     @State private var takesSnapshot = false
     @State private var reversion: VPhoneLaunchpadMachineSnapshot?
-    @State private var deletion: VPhoneLaunchpadMachineSnapshot?
+    /// The snapshots the delete confirmation is for; empty when it is closed.
+    @State private var deletion: [VPhoneLaunchpadMachineSnapshot] = []
     @State private var actionError: VPhoneLaunchpadError?
 
     private var library: VPhoneLaunchpadMachineLibrary {
@@ -31,8 +34,13 @@ struct VPhoneLaunchpadSnapshotsView: View {
         state == .stopped
     }
 
-    private var selected: VPhoneLaunchpadMachineSnapshot? {
-        snapshots?.first { $0.id == selection }
+    private var selected: [VPhoneLaunchpadMachineSnapshot] {
+        (snapshots ?? []).filter { selection.contains($0.id) }
+    }
+
+    /// Revert takes exactly one.
+    private var single: VPhoneLaunchpadMachineSnapshot? {
+        selected.count == 1 ? selected[0] : nil
     }
 
     var body: some View {
@@ -54,15 +62,15 @@ struct VPhoneLaunchpadSnapshotsView: View {
             Button("Take Snapshot…") { takesSnapshot = true }
                 .disabled(!isStopped || snapshots == nil)
                 .help("Save the machine's disk, SEP storage and NVRAM as they are now.")
-            Button("Revert…") { reversion = selected }
-                .disabled(!isStopped || selected == nil)
+            Button("Revert…") { reversion = single }
+                .disabled(!isStopped || single == nil)
             Button("Delete…") { deletion = selected }
-                .disabled(!isStopped || selected == nil)
+                .disabled(!isStopped || selected.isEmpty)
         } actions: {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 640, height: 420)
+        .frame(height: 420)
         .task { await reload() }
         .sheet(isPresented: $takesSnapshot) {
             VPhoneLaunchpadTakeSnapshotSheet(
@@ -70,7 +78,7 @@ struct VPhoneLaunchpadSnapshotsView: View {
                 taken: Set((snapshots ?? []).map(\.name)),
             ) { name, note in
                 run { try await library.createSnapshot(of: machine, name: name, note: note) }
-                selection = name
+                selection = [name]
             }
         }
         .confirmationDialog(
@@ -89,19 +97,27 @@ struct VPhoneLaunchpadSnapshotsView: View {
             Text("The machine's current disk, SEP storage and NVRAM are replaced with the snapshot's. Anything changed since then is lost unless you take a snapshot first.")
         }
         .confirmationDialog(
-            "Delete Snapshot “\(deletion?.name ?? "")”?",
-            isPresented: Binding(get: { deletion != nil }, set: {
+            deletion.count == 1 ? Text("Delete Snapshot “\(deletion[0].name)”?") : Text("Delete \(deletion.count) Snapshots?"),
+            isPresented: Binding(get: { !deletion.isEmpty }, set: {
                 if !$0 {
-                    deletion = nil
+                    deletion = []
                 }
             }),
             presenting: deletion,
-        ) { snapshot in
+        ) { snapshots in
             Button("Delete", role: .destructive) {
-                run { try await library.deleteSnapshot(of: machine, name: snapshot.name) }
+                run {
+                    for snapshot in snapshots {
+                        try await library.deleteSnapshot(of: machine, name: snapshot.name)
+                    }
+                }
             }
-        } message: { _ in
-            Text("The snapshot's files are removed. The machine itself is not changed. This cannot be undone.")
+        } message: { snapshots in
+            if snapshots.count == 1 {
+                Text("The snapshot's files are removed. The machine itself is not changed. This cannot be undone.")
+            } else {
+                Text("Their files are removed. The machine itself is not changed. This cannot be undone.")
+            }
         }
         .errorAlert($actionError)
     }
@@ -135,20 +151,20 @@ struct VPhoneLaunchpadSnapshotsView: View {
     }
 
     private func table(_ snapshots: [VPhoneLaunchpadMachineSnapshot]) -> some View {
-        Table(snapshots, selection: $selection) {
-            TableColumn("Name") { snapshot in
+        Table(snapshots.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Name", value: \.name) { snapshot in
                 Text(verbatim: snapshot.name)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(snapshot.name)
             }
-            .width(min: 100, ideal: 140, max: 180)
-            TableColumn("Date Created") { snapshot in
+            .width(min: 90, ideal: 120, max: 160)
+            TableColumn("Date Created", value: \.created) { snapshot in
                 Text(snapshot.created.formatted(date: .abbreviated, time: .shortened))
                     .monospacedDigit()
             }
-            .width(min: 140, ideal: 170, max: 190)
-            TableColumn("Note") { snapshot in
+            .width(min: 120, ideal: 150, max: 170)
+            TableColumn("Note", value: \.noteOrder) { snapshot in
                 Text(verbatim: snapshot.note ?? "")
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -156,12 +172,18 @@ struct VPhoneLaunchpadSnapshotsView: View {
             }
         }
         .contextMenu(forSelectionType: VPhoneLaunchpadMachineSnapshot.ID.self) { names in
-            let snapshot = names.count == 1 ? snapshots.first { names.contains($0.id) } : nil
-            Button("Revert…") { reversion = snapshot }
-                .disabled(!isStopped || snapshot == nil)
-            Button("Delete…", role: .destructive) { deletion = snapshot }
-                .disabled(!isStopped || snapshot == nil)
+            let chosen = snapshots.filter { names.contains($0.id) }
+            Button("Revert…") { reversion = chosen.first }
+                .disabled(!isStopped || chosen.count != 1)
+            Button("Delete…", role: .destructive) { deletion = chosen }
+                .disabled(!isStopped || chosen.isEmpty)
         }
+        .onDeleteCommand {
+            if isStopped, !selected.isEmpty {
+                deletion = selected
+            }
+        }
+        .vphoneFocusedOnAppear()
     }
 
     /// What the actions are waiting for: the command under way, or the
@@ -188,7 +210,7 @@ struct VPhoneLaunchpadSnapshotsView: View {
         #if DEBUG
             if VPhoneLaunchpadPreview.isActive {
                 snapshots = VPhoneLaunchpadPreview.snapshots
-                selection = snapshots?.last?.id
+                selection = Set(snapshots?.last.map { [$0.id] } ?? [])
                 return
             }
         #endif
@@ -196,9 +218,7 @@ struct VPhoneLaunchpadSnapshotsView: View {
             let loaded = try await library.snapshots(of: machine)
             snapshots = loaded
             listError = nil
-            if let selection, !loaded.contains(where: { $0.id == selection }) {
-                self.selection = nil
-            }
+            selection.formIntersection(loaded.map(\.id))
         } catch {
             listError = VPhoneLaunchpadError.message(for: error)
         }
@@ -272,8 +292,14 @@ struct VPhoneLaunchpadTakeSnapshotSheet: View {
             .keyboardShortcut(.defaultAction)
             .disabled(!isValid)
         }
-        .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { name = VPhoneLaunchpadMachineSnapshot.defaultName(at: Date(), taken: taken) }
+    }
+}
+
+extension VPhoneLaunchpadMachineSnapshot {
+    /// The Note column's order: snapshots without one first.
+    var noteOrder: String {
+        note ?? ""
     }
 }

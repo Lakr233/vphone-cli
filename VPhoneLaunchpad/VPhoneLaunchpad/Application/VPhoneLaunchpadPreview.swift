@@ -15,8 +15,6 @@
         }
 
         static let sheetNotification = Notification.Name("VPhoneLaunchpadPreviewSheet")
-        /// The source a Core Bundle sheet opens on.
-        static var coreBundleSource = VPhoneLaunchpadCoreBundleView.Source.releases
         /// The pages New Machine and machine settings open on.
         static var newMachinePage = VPhoneLaunchpadNewMachineView.Page.basic
         static var machineSettingsPage = VPhoneLaunchpadMachineSettingsView.Page.general
@@ -66,9 +64,6 @@
 
                 model.bundles.applyPreview(installing: false)
                 await panel(model, .coreBundle, "03-core-bundle", suffix)
-                coreBundleSource = .actions
-                await panel(model, .coreBundle, "03b-core-bundle-actions", suffix)
-                coreBundleSource = .releases
 
                 model.leases.applyPreview(orphans: 119)
                 await panel(model, .hostSetup, "04-host-setup-passed", suffix)
@@ -84,9 +79,6 @@
                 model.machines.applyPreview(removing: labMachine)
                 await shot("05c-machines-after-delete", suffix)
                 model.machines.applyPreview(creation: creation)
-                model.showsInspector = false
-                await shot("05a-machines-no-inspector", suffix)
-                model.showsInspector = true
                 if let machine = model.machines.selected {
                     await standalone("05b-machine-inspector", suffix, size: NSSize(width: 380, height: 1500)) {
                         VPhoneLaunchpadMachineInspector(machine: machine, onShowProgress: { _ in }, onOpenConsole: { _ in })
@@ -104,7 +96,7 @@
                 await sheet(.newMachine, "07-new-machine-firmware", suffix)
                 newMachinePage = .storage
                 await sheet(.newMachine, "07-new-machine-storage", suffix)
-                newMachinePage = .firmware
+                newMachinePage = .patches
                 // One boot-chain and one guest patch off: the guest one is
                 // applied to the clone, not built into the template.
                 newMachinePatches = VPhoneLaunchpadPatchSelection(blocked: ["ibss-cfw-serial_label", "dyld-cfw-camera"])
@@ -113,8 +105,8 @@
                 newMachinePage = .basic
                 await sheet(.newMachine, "07d-new-machine-changed", suffix)
                 newMachinePatches = VPhoneLaunchpadPatchSelection()
-                newMachinePage = .system
-                await sheet(.newMachine, "07b-new-machine-system", suffix)
+                newMachinePage = .slimming
+                await sheet(.newMachine, "07b-new-machine-slimming", suffix)
                 newMachinePage = .basic
                 await sheet(.creation(path("ios27-rc")), "08-creation-progress", suffix)
                 creation.applyPreview(.downloading(0.42))
@@ -289,27 +281,6 @@
             return (try? VPhoneLaunchpadMachineSnapshot.list(from: Data(json.utf8))) ?? []
         }()
 
-        static let artifacts: [VPhoneLaunchpadArtifact] = [
-            artifact(1, "cd013c2a5e8f41b7d09c3e6a2f14b85d7c90e3a1", "2026-09-28T02:14:00Z"),
-            artifact(2, "374a2c5f0b1e9d8c7a6b5d4e3f2a1b0c9d8e7f6a", "2026-09-27T16:40:00Z"),
-        ]
-
-        private static func artifact(_ id: Int64, _ commit: String, _ date: String) -> VPhoneLaunchpadArtifact {
-            let created = ISO8601DateFormatter().date(from: date) ?? Date()
-            return VPhoneLaunchpadArtifact(
-                id: id,
-                name: "vphone-release-\(commit)",
-                commit: commit,
-                branch: "main",
-                runID: id,
-                createdAt: created,
-                expiresAt: created.addingTimeInterval(7 * 86400),
-                size: 20_564_139,
-                sha256: String(repeating: "0", count: 64),
-                downloadURL: URL(string: "https://example.invalid/\(id).zip")!,
-            )
-        }
-
         static let machines: [VPhoneLaunchpadMachine] = {
             let json = """
             [
@@ -403,7 +374,7 @@
             return scan
         }()
 
-        /// The row the Downloaded IPSWs sheet opens with selected.
+        /// The row the Downloaded Firmware sheet opens with selected.
         static var ipswSelection: String?
 
         static let creationOptions = VPhoneLaunchpadCreationPipeline.Options(

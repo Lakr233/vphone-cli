@@ -9,26 +9,11 @@ struct VPhoneLaunchpadRootView: View {
         @Bindable var bundles = model.bundles
         VPhoneLaunchpadMachinesView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
-                    panelButton(.hostSetup, systemImage: "checklist", needsAttention: model.hostNeedsAttention)
-                    panelButton(.coreBundle, systemImage: "shippingbox", needsAttention: model.bundleNeedsAttention)
-                }
-            }
             .navigationTitle("Machines")
             .task { await model.start() }
-            // Free space changes as machines restore and IPSWs download; the
-            // Host Setup row follows it.
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(5))
-                    host.refreshDiskSpace()
-                }
-            }
             // Coming back from Settings, with or without Host Setup open.
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 host.refreshDeveloperTools()
-                host.refreshDiskSpace()
             }
             .sheet(item: $model.panel, onDismiss: model.panelDidDismiss) { panel in
                 Group {
@@ -47,28 +32,28 @@ struct VPhoneLaunchpadRootView: View {
                 }
                 .environment(model)
             }
+            // Over whatever sheet is open: the copy can start from Finder.
+            .sheet(isPresented: Binding(get: { model.ipswImport.copy != nil }, set: { _ in })) {
+                VPhoneLaunchpadIPSWImportView()
+                    .environment(model)
+            }
+            .alert(
+                model.ipswImport.outcome?.title ?? "",
+                isPresented: Binding(get: { model.ipswImport.outcome != nil }, set: {
+                    if !$0 {
+                        model.ipswImport.outcome = nil
+                    }
+                }),
+                presenting: model.ipswImport.outcome,
+            ) { _ in
+                Button("OK") {}
+            } message: { outcome in
+                Text(verbatim: outcome.message)
+            }
             // A sheet shows its own errors; these cover work done with none
             // open, such as the helper update on launch.
             .errorAlert($host.actionError, isEnabled: model.panel == nil)
             .errorAlert($bundles.actionError, isEnabled: model.panel == nil)
-    }
-
-    private func panelButton(_ panel: VPhoneLaunchpadModel.Panel, systemImage: String, needsAttention: Bool) -> some View {
-        Button {
-            model.present(panel)
-        } label: {
-            Label {
-                Text(panel.title)
-            } icon: {
-                if needsAttention {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.yellow)
-                } else {
-                    Image(systemName: systemImage)
-                }
-            }
-        }
-        .help(needsAttention ? "\(panel.title) needs attention" : panel.title)
     }
 }
 

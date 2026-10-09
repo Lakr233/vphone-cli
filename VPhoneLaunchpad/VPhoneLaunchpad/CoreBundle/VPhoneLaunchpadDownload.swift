@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 /// Streams one file from GitHub into a fresh temporary directory, hashing as
-/// it goes. Release assets and Actions artifacts both redirect to storage on
+/// it goes. Release assets redirect to storage on
 /// another host, which gets the request without the token.
 nonisolated enum VPhoneLaunchpadDownload {
     /// Returns the file and its hex SHA-256. The caller removes the file's

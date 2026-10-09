@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Settings
 
@@ -148,7 +149,6 @@ struct VPhoneLaunchpadMachineSettingsView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSave)
         }
-        .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: cpu) { edited.insert(.cpu) }
         .onChange(of: memoryMB) { edited.insert(.memory) }
@@ -215,23 +215,21 @@ struct VPhoneLaunchpadMachineSettingsView: View {
             if network == "bridged" {
                 TextField("Interface", text: $bridgeInterface, prompt: Text("First available"))
             }
-            if network == "tunnel" {
-                Text("Traffic leaves through this Mac's own connections, so it follows the Mac's VPN.")
-                    .foregroundStyle(.secondary)
-            }
-            if dropsForwards {
-                Text("This mode cannot forward ports, so saving removes the port forwards.")
-                    .foregroundStyle(.secondary)
-            }
         } header: {
             if !single {
                 Text("Network")
             }
         } footer: {
-            if machines.count > 1 {
-                Text("Only the settings you change are applied to each machine.")
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(VPhoneLaunchpadNewMachineAdvancedView.networkDescription(network))
+                if dropsForwards {
+                    Text("This mode cannot forward ports, so saving removes the port forwards.")
+                }
+                if machines.count > 1 {
+                    Text("Only the settings you change are applied to each machine.")
+                }
             }
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -473,7 +471,6 @@ struct VPhoneLaunchpadNameSheet<Options: View>: View {
             .keyboardShortcut(.defaultAction)
             .disabled(!isValid)
         }
-        .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { name = initial }
     }
@@ -522,13 +519,18 @@ struct VPhoneLaunchpadCloneSheet: View {
 
 // MARK: - Export
 
+extension UTType {
+    /// `<name>.vpea`: a machine as `vm export` writes it, a gnutar of its
+    /// folder compressed with zstd. Declared in Info.plist.
+    static let vphoneExportedArchive = UTType(exportedAs: "com.vphone.exported-archive")
+}
+
 /// One machine offers the archive options. Several are written with the
-/// defaults, one `<name>.tzst` each, into a folder chosen once.
+/// defaults, one `<name>.vpea` each, into a folder chosen once.
 struct VPhoneLaunchpadExportView: View {
     let machines: [VPhoneLaunchpadMachinePath]
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var densest = false
     @State private var includeIPSW = false
 
     private var title: Text {
@@ -540,21 +542,18 @@ struct VPhoneLaunchpadExportView: View {
             Form {
                 if machines.count == 1 {
                     Section {
-                        Toggle("Maximum compression", isOn: $densest)
                         Toggle("Include the restore IPSW directory", isOn: $includeIPSW)
                     } footer: {
-                        Text(densest
-                            ? "Creates a smaller .txz archive. Export takes much longer."
-                            : "Creates a .tzst archive.")
+                        Text("Creates a .vpea archive.")
                             .foregroundStyle(.secondary)
                     }
                 } else {
                     Section {
                         ForEach(machines, id: \.self) { machine in
-                            Text(verbatim: "\(machine.name).tzst")
+                            Text(verbatim: Self.fileName(machine))
                         }
                     } footer: {
-                        Text("Creates a .tzst archive for each machine in the folder you choose.")
+                        Text("Creates a .vpea archive for each machine in the folder you choose.")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -566,8 +565,11 @@ struct VPhoneLaunchpadExportView: View {
             Button("Choose Location…") { choose() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private static func fileName(_ machine: VPhoneLaunchpadMachinePath) -> String {
+        "\(machine.name).vpea"
     }
 
     private func choose() {
@@ -576,11 +578,11 @@ struct VPhoneLaunchpadExportView: View {
             let machine = machines[0]
             let panel = NSSavePanel()
             panel.title = String(localized: "Export \(machine.name)")
-            panel.nameFieldStringValue = "\(machine.name).\(densest ? "txz" : "tzst")"
-            let densest = densest
+            panel.allowedContentTypes = [.vphoneExportedArchive]
+            panel.nameFieldStringValue = Self.fileName(machine)
             let includeIPSW = includeIPSW
             panel.present { url in
-                Task { await library.export([(machine, url)], densest: densest, includeIPSW: includeIPSW) }
+                Task { await library.export([(machine, url)], includeIPSW: includeIPSW) }
                 dismiss()
             }
             return
@@ -593,8 +595,8 @@ struct VPhoneLaunchpadExportView: View {
         panel.canCreateDirectories = true
         let machines = machines
         panel.present { folder in
-            let items = machines.map { ($0, folder.appendingPathComponent("\($0.name).tzst")) }
-            Task { await library.export(items, densest: false, includeIPSW: false) }
+            let items = machines.map { ($0, folder.appendingPathComponent(Self.fileName($0))) }
+            Task { await library.export(items, includeIPSW: false) }
             dismiss()
         }
     }

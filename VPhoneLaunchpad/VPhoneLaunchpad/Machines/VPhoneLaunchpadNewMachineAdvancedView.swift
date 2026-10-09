@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The patch sections of New Machine's Firmware & Patches page, and the
-/// network and restore options of its Storage & Network page, as sections
+/// The patch sections of New Machine's Patches tab, the network section of
+/// its Hardware tab and the restore options of its Storage tab, as sections
 /// of New Machine's form. It edits New Machine's own state.
 struct VPhoneLaunchpadNewMachineAdvancedView: View {
     var page: VPhoneLaunchpadNewMachineView.Page
@@ -31,23 +31,35 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
         ]
     }
 
+    /// What `mode` does, for the footer under its picker.
+    static func networkDescription(_ mode: String) -> String {
+        switch mode {
+        case "nat": String(localized: "The guest shares this Mac's connection through Virtualization's built-in NAT. Its traffic skips a VPN on the Mac.")
+        case "bridged": String(localized: "The guest joins the network of one of this Mac's interfaces with an address of its own, so other devices on that network can reach it.")
+        case "tunnel": String(localized: "Traffic leaves through this Mac's own connections, so it follows the Mac's VPN.")
+        case "none": String(localized: "The guest has no network device and stays offline.")
+        default: ""
+        }
+    }
+
     var body: some View {
         switch page {
-        case .firmware:
+        case .patches:
             patchSection
-        case .storage:
-            Section("Network") {
+        case .hardware:
+            Section {
                 Picker("Mode", selection: $network) {
                     ForEach(Self.networkModes, id: \.tag) { mode in
                         Text(verbatim: mode.title).tag(mode.tag)
                     }
                 }
-                if network == "tunnel" {
-                    Text("Traffic leaves through this Mac's own connections, so it follows the Mac's VPN.")
-                        .foregroundStyle(.secondary)
-                }
+            } header: {
+                Text("Network")
+            } footer: {
+                Text(Self.networkDescription(network))
+                    .foregroundStyle(.secondary)
             }
-
+        case .storage:
             Section {
                 Toggle("Keep prepared restore files", isOn: $keepArtifacts)
                     .disabled(usesTemplate)

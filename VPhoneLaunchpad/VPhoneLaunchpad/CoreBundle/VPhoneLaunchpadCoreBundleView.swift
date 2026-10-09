@@ -2,16 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct VPhoneLaunchpadCoreBundleView: View {
-    enum Source: Hashable {
-        case releases
-        case actions
-    }
-
     @Environment(VPhoneLaunchpadModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var removal: String?
-    @State private var source = Source.releases
-    @State private var token = ""
 
     private var bundles: VPhoneLaunchpadCoreBundle {
         model.bundles
@@ -48,7 +41,7 @@ struct VPhoneLaunchpadCoreBundleView: View {
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 640, height: 520)
+        .frame(height: 520)
         .errorAlert($bundles.actionError)
         .confirmationDialog(
             "Remove VPhone.bundle \(removal ?? "")?",
@@ -64,15 +57,13 @@ struct VPhoneLaunchpadCoreBundleView: View {
                 }
             }
         } message: {
-            Text("Machines are not affected. You can install this version again later.")
-        }
-        #if DEBUG
-        .onAppear {
-            if VPhoneLaunchpadPreview.isActive {
-                source = VPhoneLaunchpadPreview.coreBundleSource
+            let users = removal.map(model.machines.machineNames(boundTo:)) ?? []
+            if users.isEmpty {
+                Text("Machines are not affected. You can install this version again later.")
+            } else {
+                Text("\(users.formatted(.list(type: .and))) use this version and will be marked Damaged until you choose another Core Bundle for them or install it again.")
             }
         }
-        #endif
     }
 
     // MARK: - Installed
@@ -147,10 +138,8 @@ struct VPhoneLaunchpadCoreBundleView: View {
                     NSWorkspace.shared.activateFileViewerSelecting([VPhoneLaunchpadBundleStore.bundle(version: bundle.version)])
                 }
                 Divider()
-                // The store refuses too; saying so here spares a failed attempt.
                 Button("Remove…", role: .destructive) { removal = bundle.version }
-                    .disabled(bundles.isInstalling || !users.isEmpty)
-                    .help(users.isEmpty ? "" : "Choose another Core Bundle for its machines first.")
+                    .disabled(bundles.isInstalling)
             } label: {
                 Image(systemName: "ellipsis")
             }
@@ -216,47 +205,24 @@ struct VPhoneLaunchpadCoreBundleView: View {
 
     private var availableSection: some View {
         Section {
-            Picker("Source", selection: $source) {
-                Text("Releases").tag(Source.releases)
-                Text("GitHub Actions").tag(Source.actions)
-            }
-            .pickerStyle(.segmented)
-            switch source {
-            case .releases:
-                if let error = bundles.releasesError, bundles.releases.isEmpty {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.secondary)
-                } else if bundles.releases.isEmpty {
-                    loadingRow("Loading releases…")
-                } else if notInstalled.isEmpty {
-                    Text("Every release is installed.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(notInstalled) { release in
-                        releaseRow(release, prominent: release == bundles.availableUpdate)
-                    }
-                }
-            case .actions:
-                tokenRow
-                if let error = bundles.artifactsError, bundles.artifacts.isEmpty {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.secondary)
-                } else if bundles.artifacts.isEmpty {
-                    Text("No GitHub Actions builds are available.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(bundles.artifacts) { artifact in
-                        artifactRow(artifact)
-                    }
+            if let error = bundles.releasesError, bundles.releases.isEmpty {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+            } else if bundles.releases.isEmpty, bundles.isFetchingReleases {
+                loadingRow("Loading releases…")
+            } else if bundles.releases.isEmpty {
+                Text("No versions available.")
+                    .foregroundStyle(.secondary)
+            } else if notInstalled.isEmpty {
+                Text("Every release is installed.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(notInstalled) { release in
+                    releaseRow(release, prominent: release == bundles.availableUpdate)
                 }
             }
         } header: {
             Text("Available")
-        } footer: {
-            if source == .actions {
-                Text("Builds from GitHub Actions, kept for 7 days. To download them, add a token that can read Actions for Lakr233/vphone-cli. The token is stored in your keychain.")
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -265,70 +231,6 @@ struct VPhoneLaunchpadCoreBundleView: View {
             ProgressView().controlSize(.small)
             Text(title).foregroundStyle(.secondary)
         }
-    }
-
-    // MARK: - GitHub Actions
-
-    @ViewBuilder
-    private var tokenRow: some View {
-        if bundles.hasGitHubToken {
-            LabeledContent("GitHub Token") {
-                HStack {
-                    Text("Saved in the keychain")
-                        .foregroundStyle(.secondary)
-                    Button("Remove") {
-                        bundles.setGitHubToken("")
-                    }
-                }
-            }
-        } else {
-            LabeledContent("GitHub Token") {
-                HStack {
-                    SecureField("GitHub Token", text: $token, prompt: Text(verbatim: "github_pat_…"))
-                        .labelsHidden()
-                        .onSubmit(saveToken)
-                    Button("Save", action: saveToken)
-                        .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-    }
-
-    private func saveToken() {
-        bundles.setGitHubToken(token)
-        token = ""
-        Task { await bundles.fetchArtifacts() }
-    }
-
-    private func artifactRow(_ artifact: VPhoneLaunchpadArtifact) -> some View {
-        let isInstalled = bundles.installed.contains { $0.version.hasSuffix(artifact.versionSuffix) }
-        let canInstall = model.canInstallBundles && bundles.hasGitHubToken
-        return HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(verbatim: "VPhone.bundle")
-                    Link(destination: artifact.runURL) {
-                        Text(verbatim: artifact.branch.isEmpty ? artifact.shortCommit : "\(artifact.branch) @ \(artifact.shortCommit)")
-                            .monospaced()
-                    }
-                    .help("Open the workflow run on GitHub")
-                }
-                Text("\(artifact.createdAt.formatted(date: .abbreviated, time: .shortened)) · \(Self.size(artifact.size)) · Expires \(artifact.expiresAt.formatted(.relative(presentation: .named)))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if isInstalled {
-                Text("Installed")
-                    .foregroundStyle(.secondary)
-            } else {
-                Button("Download and Install") { Task { await model.installArtifact(artifact) } }
-                    .disabled(!canInstall)
-            }
-        }
-        .help(canInstall || isInstalled ? ""
-            : model.canInstallBundles ? "Add a GitHub token to download builds from GitHub Actions."
-            : "Installing needs the privileged helper and Developer Tools access.")
     }
 
     private func releaseRow(_ release: VPhoneLaunchpadRelease, prominent: Bool) -> some View {

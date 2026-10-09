@@ -262,6 +262,14 @@ actor VPhoneLaunchpadDiskMeter {
         return files
     }
 
+    /// Whether a library's `.templates` holds a `.building-…` folder: a
+    /// template build under way, or one that stopped before it finished.
+    nonisolated static func hasTemplateBuilds(in libraryRoot: String) -> Bool {
+        let templates = URL(fileURLWithPath: libraryRoot, isDirectory: true).appendingPathComponent(".templates", isDirectory: true)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: templates.path)) ?? []
+        return names.contains { $0.hasPrefix(".building-") }
+    }
+
     /// The template folders of a library: `.templates/<12 hex>`. Builds
     /// (`.building-…`) are left out; they are written while they exist.
     nonisolated static func templateFolders(in libraryRoot: String) -> [String] {
