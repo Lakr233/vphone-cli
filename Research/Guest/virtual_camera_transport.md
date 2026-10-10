@@ -143,3 +143,46 @@ publishes no synthetic camera at all (`libvcamcaptured` logs `_sSourceList not
 located` on every boot), so nothing can start the drive there. That is a
 separate open item ([iOS 27 capture sources](ios27_capture_microphone_source.md#4-the-virtual-camera-does-not-change-this)).
 On 26.6.2 the synthetic source is published and the Camera app starts.
+
+## Front-camera clients and data-output frames (2026-10-10)
+
+The synthetic source is published once, as a back camera
+(`kFigCaptureSourceAttributeKey_Position = 1`). Checked on a 26.6.2 guest with
+an app that asks for the front camera, records its
+`AVCaptureVideoDataOutput` frames with `AVAssetWriter`, and serializes the
+device's exposure numbers to JSON:
+
+| Symptom | Cause |
+| --- | --- |
+| Preview shows frames, the sample buffer delegate gets none | The front lookup returned no device, so the session had no input; `cfx_session_is_for_vcam()` never matched and delivery skipped it. The preview layer pump draws every adopted layer regardless of its session, which hides this. `camfix.log` shows `forVcam=0` and no `[video delivery] tracking session`. |
+| Delivered frames are 1280x720 landscape BGRA whatever the client asked for | Delivery ignored the connection's rotation and mirroring, the output's pixel format and the session preset. |
+| `AVAssetWriter` fails with `-11800` (`-19642`) on the first frame | `-recommendedVideoSettingsForAssetWriterWithOutputFileType:` answers width, height and bit rate 0 because the graph never negotiated a format, and the delivered buffers were not IOSurface-backed. |
+| `Invalid number value (infinite) in JSON write` | `lensAperture`, `ISO` and `exposureDuration` are 0 on the vcam device, so EV = log2(N²/t) − log2(ISO/100) is −inf. |
+
+`libcamfix` now:
+
+- answers an empty front or back lookup (`+defaultDeviceWithDeviceType:mediaType:position:`,
+  `AVCaptureDeviceDiscoverySession.devices`) with the vcam device and reports
+  its `position` as the side the process asked for last. A client that
+  enumerates `+devicesWithMediaType:` and filters on position never says which
+  side it wants; the `position` key of `SimulatedCamera/camfix-video.plist`
+  (`front` / `back`) decides for it.
+- delivers data-output frames the way a real camera would for that session:
+  the preset's size (`AVCaptureSessionPreset640x480` → 640x480, 480x640 for a
+  portrait connection), a centre crop of the upright shm frame, turned for
+  180 / 270 and mirrored when the connection is, in the output's pixel format
+  (BGRA, or 420v for 420v / 420f), in IOSurface-backed buffers carrying an
+  `{Exif}` attachment. The crop and size plan is
+  `CamFix/Frame/CamFixFrameGeometry.c`, covered by
+  `make -C VPhoneGuestComponents test-camfix-geometry`.
+- answers the recommended writer settings with H.264 at that size.
+- reports aperture 2.2, ISO 100, exposure 1/30 s and 1/30 s frame durations,
+  and stamps the same numbers, with a brightness value that follows the
+  frame's mean luma, into each delivered frame's `{Exif}`.
+
+With these, the app's front-camera session received frames, recorded and
+uploaded its clip, and its back-camera photo capture still worked in the same
+process. Limits: a 420f request gets 420v; delivery does not consult camera
+authorization (the fallback calls the delegate directly, as before), so a
+denied-permission path cannot be exercised; an iPhone 27.0 guest still
+publishes no synthetic source.

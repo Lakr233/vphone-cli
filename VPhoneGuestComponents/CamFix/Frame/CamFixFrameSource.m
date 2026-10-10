@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <Accelerate/Accelerate.h>
+#include "CamFixFrameGeometry.h"
 
 // MARK: - shm reader
 
@@ -121,6 +123,163 @@ CMSampleBufferRef cfx_build_cmsb(void) {
   pthread_mutex_unlock(&cfx_cmsb_lock);
   free(pixels);
   if (!sb) cfxlog(@"build_cmsb: shared data plane returned NULL");
+  return sb;
+}
+
+// MARK: - data-output sample buffers
+
+// The size of the current shm frame, from its header alone.
+BOOL cfx_shm_frame_size(uint32_t *w, uint32_t *h) {
+  vcc_frame_desc_t frame;
+  if (!cfx_shm_frame(&frame)) return NO;
+  *w = frame.width;
+  *h = frame.height;
+  return YES;
+}
+
+// Same format, size and attachments, in an IOSurface-backed buffer: camera
+// buffers are IOSurfaces, and video encoders expect that, while the data
+// plane's buffers are plain memory.
+static CVPixelBufferRef cfx_iosurface_copy(CVPixelBufferRef src) {
+  size_t w = CVPixelBufferGetWidth(src), h = CVPixelBufferGetHeight(src);
+  OSType fmt = CVPixelBufferGetPixelFormatType(src);
+  NSDictionary *attrs = @{(NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}};
+  CVPixelBufferRef dst = NULL;
+  if (CVPixelBufferCreate(kCFAllocatorDefault, w, h, fmt, (__bridge CFDictionaryRef)attrs,
+                          &dst) != kCVReturnSuccess || !dst) {
+    return NULL;
+  }
+  CVPixelBufferLockBaseAddress(src, kCVPixelBufferLock_ReadOnly);
+  CVPixelBufferLockBaseAddress(dst, 0);
+  BOOL planar = CVPixelBufferIsPlanar(src);
+  size_t planes = planar ? CVPixelBufferGetPlaneCount(src) : 1;
+  for (size_t p = 0; p < planes; p++) {
+    const uint8_t *s = planar ? CVPixelBufferGetBaseAddressOfPlane(src, p)
+                              : CVPixelBufferGetBaseAddress(src);
+    uint8_t *d = planar ? CVPixelBufferGetBaseAddressOfPlane(dst, p)
+                        : CVPixelBufferGetBaseAddress(dst);
+    size_t sbpr = planar ? CVPixelBufferGetBytesPerRowOfPlane(src, p)
+                         : CVPixelBufferGetBytesPerRow(src);
+    size_t dbpr = planar ? CVPixelBufferGetBytesPerRowOfPlane(dst, p)
+                         : CVPixelBufferGetBytesPerRow(dst);
+    size_t rows = planar ? CVPixelBufferGetHeightOfPlane(src, p) : h;
+    size_t n = MIN(sbpr, dbpr);
+    for (size_t y = 0; y < rows; y++) memcpy(d + y * dbpr, s + y * sbpr, n);
+  }
+  CVPixelBufferUnlockBaseAddress(dst, 0);
+  CVPixelBufferUnlockBaseAddress(src, kCVPixelBufferLock_ReadOnly);
+  CVBufferPropagateAttachments(src, dst);
+  return dst;
+}
+
+// Crop, scale, turn and mirror packed BGRA with vImage; returns a malloc'd
+// buffer of *w x *h, or NULL. extra_turns adds clockwise quarter turns.
+static uint8_t *cfx_bgra_shape(const uint8_t *src, uint32_t sw, const cfx_frame_plan_t *p,
+                               int extra_turns, BOOL mirror, uint32_t *w, uint32_t *h) {
+  uint32_t ow = p->out_w, oh = p->out_h;
+  uint8_t *scaled = malloc((size_t)ow * 4 * oh);
+  if (!scaled) return NULL;
+  vImage_Buffer in = {(void *)(src + ((size_t)p->crop_y * sw + p->crop_x) * 4), p->crop_h,
+                      p->crop_w, (size_t)sw * 4};
+  vImage_Buffer out = {scaled, oh, ow, (size_t)ow * 4};
+  if (vImageScale_ARGB8888(&in, &out, NULL, kvImageHighQualityResampling) != kvImageNoError) {
+    free(scaled);
+    return NULL;
+  }
+  int turns = ((p->turns + extra_turns) % 4 + 4) % 4;
+  if (turns) {
+    BOOL swap = turns & 1;
+    uint32_t rw = swap ? oh : ow, rh = swap ? ow : oh;
+    uint8_t *rotated = malloc((size_t)rw * 4 * rh);
+    static const uint8_t clockwise[4] = {kRotate0DegreesClockwise, kRotate90DegreesClockwise,
+                                         kRotate180DegreesClockwise,
+                                         kRotate270DegreesClockwise};
+    vImage_Buffer r = {rotated, rh, rw, (size_t)rw * 4};
+    const Pixel_8888 black = {0, 0, 0, 0xff};
+    if (!rotated ||
+        vImageRotate90_ARGB8888(&out, &r, clockwise[turns], black, kvImageNoFlags) !=
+            kvImageNoError) {
+      free(rotated);
+      free(scaled);
+      return NULL;
+    }
+    free(scaled);
+    scaled = rotated;
+    out = r;
+    ow = rw;
+    oh = rh;
+  }
+  if (mirror) vImageHorizontalReflect_ARGB8888(&out, &out, kvImageNoFlags);
+  *w = ow;
+  *h = oh;
+  return scaled;
+}
+
+// Mean luma over a sparse grid, for the {Exif} brightness value.
+static double cfx_bgra_mean_luma(const uint8_t *px, uint32_t w, uint32_t h) {
+  double sum = 0;
+  uint32_t n = 0;
+  for (uint32_t y = 0; y < h; y += 8) {
+    for (uint32_t x = 0; x < w; x += 8) {
+      const uint8_t *p = px + ((size_t)y * w + x) * 4;  // B, G, R, A
+      sum += 0.0722 * p[0] + 0.7152 * p[1] + 0.2126 * p[2];
+      n++;
+    }
+  }
+  return n ? sum / n : 118;
+}
+
+CMSampleBufferRef cfx_build_oriented_cmsb(uint32_t fmt_out, uint32_t preset_w,
+                                          uint32_t preset_h, int angle, double zoom,
+                                          int extra_turns, BOOL mirror, uint32_t *outW,
+                                          uint32_t *outH) {
+  uint32_t fw = 0, fh = 0;
+  uint8_t *frame_px = cfx_bgra_from_shm(&fw, &fh);
+  if (!frame_px) return NULL;
+  cfx_frame_plan_t plan;
+  uint32_t w = 0, h = 0;
+  uint8_t *px = NULL;
+  if (cfx_frame_plan(fw, fh, preset_w, preset_h, angle, zoom, &plan) == 0) {
+    px = cfx_bgra_shape(frame_px, fw, &plan, extra_turns, mirror, &w, &h);
+  }
+  free(frame_px);
+  if (!px) return NULL;
+  double luma = cfx_bgra_mean_luma(px, w, h);
+
+  vcc_frame_desc_t frame;
+  memset(&frame, 0, sizeof(frame));
+  frame.width = w;
+  frame.height = h;
+  frame.bytes_per_row = w * 4;
+  frame.pixel_format = VCC_FMT_BGRA;
+  frame.timestamp_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+  frame.pixels = px;
+  frame.pixels_length = (size_t)w * 4 * h;
+  CVPixelBufferRef plain = vcc_pixel_buffer_from_frame(&frame, fmt_out);
+  free(px);
+  if (!plain) return NULL;
+  CVPixelBufferRef pb = cfx_iosurface_copy(plain);
+  CVPixelBufferRelease(plain);
+  if (!pb) return NULL;
+  CMVideoFormatDescriptionRef desc = NULL;
+  if (vcc_format_description_create_for_pb(pb, &desc) != noErr || !desc) {
+    CVPixelBufferRelease(pb);
+    return NULL;
+  }
+  pthread_mutex_lock(&cfx_cmsb_lock);
+  if (!cfx_cmsb_timing_ready) {
+    vcc_timing_init(&cfx_cmsb_timing);
+    cfx_cmsb_timing_ready = YES;
+  }
+  CMTime pts, dur;
+  vcc_timing_advance(&cfx_cmsb_timing, frame.timestamp_ns, &pts, &dur);
+  pthread_mutex_unlock(&cfx_cmsb_lock);
+  CMSampleBufferRef sb = vcc_cmsb_create(pb, desc, pts, dur, w, h);
+  if (sb) cfx_stamp_exif(sb, luma);
+  CFRelease(desc);
+  CVPixelBufferRelease(pb);
+  if (outW) *outW = w;
+  if (outH) *outH = h;
   return sb;
 }
 
