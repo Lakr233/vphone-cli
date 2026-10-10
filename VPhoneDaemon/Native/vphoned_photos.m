@@ -105,9 +105,9 @@ NSDictionary *vp_photos_import(NSString *job, NSString *source, NSString *name) 
         if (pending >= 8) return @{@"ok": @NO, @"code": @"busy", @"error": @"Photos import queue is full"};
         struct stat st;
         if (lstat(source.fileSystemRepresentation, &st) || !S_ISREG(st.st_mode) ||
-            st.st_size <= 0 || st.st_size > 256LL * 1024 * 1024) {
+            st.st_size <= 0) {
             return @{@"ok": @NO, @"code": @"invalid_media",
-                @"error": @"Expected a regular media file from 1 byte to 256 MiB"};
+                @"error": @"Expected a non-empty regular media file"};
         }
         // Publish the whole job atomically. A daemon restart never sees half
         // a manifest. Copy first: staging failure leaves the uploaded source.

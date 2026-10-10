@@ -22,7 +22,7 @@ and `error`. Treat `complete: false` as pending, not success. The host helper
 `VPhoneGuestControl.importMedia` handles upload progress and receipt polling.
 
 Images: jpg/jpeg/png/heic/heif/gif/tif/tiff/bmp. Videos: mov/mp4/m4v.
-Files must be regular files from 1 byte to 256 MiB; symlinks are refused.
+Files must be non-empty regular files; symlinks are refused.
 At most eight unfinished jobs are accepted. PhotoKit runs serially in
 separately executed mobile (uid 501) workers, each bounded to 150 seconds.
 HTTP request handling never waits for PhotoKit. A startup timer reconciles

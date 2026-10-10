@@ -230,8 +230,6 @@ int main(int argc, char **argv) {
         int fd = open(source.fileSystemRepresentation, O_WRONLY | O_TRUNC);
         check(fd >= 0, @"size fixture");
         check([vp_photos_import(job, source, @"a.png")[@"code"] isEqual:@"invalid_media"], @"empty file refused");
-        check(ftruncate(fd, 256LL * 1024 * 1024 + 1) == 0, @"oversize fixture");
-        check([vp_photos_import(job, source, @"a.png")[@"code"] isEqual:@"invalid_media"], @"oversized file refused");
         close(fd);
 
         fresh(@"success");

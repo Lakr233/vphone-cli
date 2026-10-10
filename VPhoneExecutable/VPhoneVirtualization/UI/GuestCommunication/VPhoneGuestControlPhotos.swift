@@ -15,9 +15,9 @@ extension VPhoneGuestControl {
         let extensions = ["jpg", "jpeg", "png", "heic", "heif", "gif", "tif", "tiff", "bmp", "mov", "mp4", "m4v"]
         let values = try localURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .isSymbolicLinkKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true,
-              let size = values.fileSize, size > 0, size <= 256 * 1024 * 1024,
+              let size = values.fileSize, size > 0,
               extensions.contains(localURL.pathExtension.lowercased())
-        else { throw ControlError.guestError("Choose an image or video from 1 byte to 256 MiB.") }
+        else { throw ControlError.guestError("Choose a non-empty image or video file.") }
 
         let id = job.uuidString
         let path = "/var/mobile/Media/vphone-photo-uploads/\(id)"
