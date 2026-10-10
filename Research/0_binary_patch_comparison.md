@@ -246,6 +246,13 @@
 > `cameracaptured`, `vphone-systemhook.log` records `camera-hook=... result=loaded`
 > for its PID, and `vcamcaptured.log` shows the hook installing its source.
 
+> **Camera hook: front lookups and data-output frames (2026-10-10):** no new
+> patch and no new library; `libcamfix.dylib` changes behaviour only. It
+> answers front-camera lookups with the single vcam device and delivers
+> data-output frames at the session preset's size, orientation and pixel
+> format with device exposure values. Details and validation:
+> [`Guest/virtual_camera_transport.md`](Guest/virtual_camera_transport.md#front-camera-clients-and-data-output-frames-2026-10-10).
+
 > **3D gyroscope core (2026-10-08; guest acceptance pending):**
 > `system-backboardd-cfw-gyroscope`, declared in the Guest System set and
 > selected by both presets on iOS 18+, installs `/usr/lib/libvphonegyro.dylib`.

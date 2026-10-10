@@ -206,7 +206,7 @@ $(CAMFIX): $(CAMFIX_SOURCES) $(CAMFIX_INPUTS) | $(STAGE)/camfix
 		-o $@ $(CAMFIX_SOURCES) \
 		-framework Foundation -framework AVFoundation -framework ImageIO \
 		-framework IOSurface -framework CoreMedia -framework CoreVideo \
-		-framework CoreGraphics -framework QuartzCore
+		-framework CoreGraphics -framework QuartzCore -framework Accelerate
 	@codesign --force --sign - $@
 
 $(VCAMCAPTURED): $(VCAMCAPTURED_SOURCES) $(VCAMCAPTURED_INPUTS) | $(STAGE)/vcamcaptured
@@ -383,6 +383,16 @@ test-vcam-drive-gate:
 		-o $(OUT)/VCamDriveGateTests \
 		Tests/VCamDriveGateTests.c VCamCaptured/Frames/VCamDriveGate.c
 	@$(OUT)/VCamDriveGateTests
+
+# Host proof harness for the crop, size and turn plan libcamfix uses for
+# AVCaptureVideoDataOutput frames.
+.PHONY: test-camfix-geometry
+test-camfix-geometry:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -O1 -Wall -Wextra -Werror -ICamFix/Frame \
+		-o $(OUT)/CamFixFrameGeometryTests \
+		Tests/CamFixFrameGeometryTests.c CamFix/Frame/CamFixFrameGeometry.c
+	@$(OUT)/CamFixFrameGeometryTests
 
 .PHONY: test-installcoordination-persona
 test-installcoordination-persona:

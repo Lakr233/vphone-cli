@@ -62,3 +62,4 @@ jobs:
           make -C VPhoneGuestComponents test-vcam-dataplane
           make -C VPhoneGuestComponents test-vcam-prewarm
           make -C VPhoneGuestComponents test-vcam-drive-gate
+          make -C VPhoneGuestComponents test-camfix-geometry

@@ -18,6 +18,37 @@ void cfxlog(NSString *fmt, ...) {
   }
 }
 
+// MARK: - runtime overrides
+
+// Optional knobs, read at most once a second from
+// VPHONE_VCAM_DIRECTORY/camfix-video.plist so a guest can be tuned without
+// redeploying the dylib (vphoned files.write can put it there). Absent keys
+// keep the default behaviour.
+//   position  (string) "front" / "back": the side the vcam device reports
+//   zoom      (number) >= 1, crops data-output frames further into the centre
+//   turns     (int)    extra clockwise quarter turns for data-output frames
+//   mirror    (bool)   replaces the connection's videoMirrored
+//   dumpFrame (bool)   every 3 s, saves a delivered frame as delivered.jpg
+NSDictionary *cfx_overrides(void) {
+  static NSDictionary *cached = nil;
+  static CFAbsoluteTime readAt = 0;
+  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_lock(&lock);
+  CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+  if (now - readAt > 1.0) {
+    readAt = now;
+    NSDictionary *d = [NSDictionary
+        dictionaryWithContentsOfFile:@VPHONE_VCAM_DIRECTORY "/camfix-video.plist"];
+    if (!(d == cached || [d isEqual:cached])) {
+      cfxlog(@"[overrides] %@", d ?: @"(none)");
+    }
+    cached = d;
+  }
+  NSDictionary *d = cached;
+  pthread_mutex_unlock(&lock);
+  return d;
+}
+
 // MARK: - vcam binding probes
 
 BOOL cfx_session_is_for_vcam(AVCaptureSession *session) {
