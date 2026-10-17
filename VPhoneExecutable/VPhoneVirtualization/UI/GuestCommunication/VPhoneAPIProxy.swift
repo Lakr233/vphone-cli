@@ -13,6 +13,9 @@ import VPhoneCoreKit
 /// vphoned runs as root and cannot tell a proxied connection from the VM's
 /// own client, so the proxy admits a connection only after its first request
 /// head carries the per-launch token (see `VPhoneAPIRequestGate`).
+///
+/// One admitted route is answered here instead of in the guest:
+/// `/v1/host/screen` (`VPhoneHostScreenService`).
 @MainActor
 public final class VPhoneAPIProxy {
     public enum ProxyError: Error, CustomStringConvertible {
@@ -36,9 +39,10 @@ public final class VPhoneAPIProxy {
     private let port: Int
     private let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
     private let provider: GuestSocketProvider
+    private let hostScreen: VPhoneHostScreenService?
     private var server: Channel?
 
-    public init(device: VZVirtioSocketDevice, listen: String) throws {
+    init(device: VZVirtioSocketDevice, listen: String, hostScreen: VPhoneHostScreenService? = nil) throws {
         guard let components = URLComponents(string: "tcp://\(listen)"),
               let host = components.host, !host.isEmpty,
               let port = components.port, (0 ... 65535).contains(port),
@@ -47,6 +51,7 @@ public final class VPhoneAPIProxy {
         self.host = host
         self.port = port
         provider = GuestSocketProvider(device: device, group: group)
+        self.hostScreen = hostScreen
         if !Self.isLoopback(host) {
             print("[api] warning: \(host) is not a loopback address; other machines can reach the guest API with the token")
         }
@@ -65,11 +70,14 @@ public final class VPhoneAPIProxy {
         // with `Host: localhost`.
         let forwardedHost = "localhost"
         let provider = provider
+        let hostScreen = hostScreen
         let channel = try await ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 128)
             .childChannelOption(ChannelOptions.autoRead, value: false)
             .childChannelInitializer { channel in
-                channel.pipeline.addHandler(APIAdmission(token: token, host: forwardedHost, provider: provider))
+                channel.pipeline.addHandler(APIAdmission(
+                    token: token, host: forwardedHost, provider: provider, hostScreen: hostScreen,
+                ))
             }
             .bind(host: host, port: port)
             .get()
@@ -145,15 +153,17 @@ private final class APIAdmission: ChannelInboundHandler, @unchecked Sendable {
     private let token: String
     private let host: String?
     private let provider: GuestSocketProvider
+    private let hostScreen: VPhoneHostScreenService?
     private var state = State.reading
     private var received = Data()
     private var pending = Data()
     private var timeout: Scheduled<Void>?
 
-    init(token: String, host: String?, provider: GuestSocketProvider) {
+    init(token: String, host: String?, provider: GuestSocketProvider, hostScreen: VPhoneHostScreenService?) {
         self.token = token
         self.host = host
         self.provider = provider
+        self.hostScreen = hostScreen
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -190,6 +200,23 @@ private final class APIAdmission: ChannelInboundHandler, @unchecked Sendable {
                 }
             case let .accept(bytes):
                 finish()
+                if let hostScreen, VPhoneAPIRequestGate.hostRoute(of: bytes) == .screen {
+                    // Answered in this process; later reads go to the handlers
+                    // the service adds behind this one.
+                    state = .relaying
+                    let channel = context.channel
+                    do {
+                        try hostScreen.attach(context, admitted: bytes)
+                        channel.setOption(ChannelOptions.autoRead, value: true).whenFailure { _ in
+                            channel.close(promise: nil)
+                        }
+                    } catch {
+                        print("[api] host screen: \(error)")
+                        state = .closed
+                        channel.close(promise: nil)
+                    }
+                    return
+                }
                 state = .connecting
                 pending = bytes
                 provider.attach(context.channel, admission: self)

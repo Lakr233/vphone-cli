@@ -7,7 +7,9 @@ upgrade at `/v1/events` uses the same port. `vphone-vm` can expose that byte
 stream on a host TCP address. After it admits a connection's first request
 head with the API token (see [Access control](#access-control)), it opens one
 VSOCK connection for that TCP connection and forwards bytes in both
-directions; it does not translate HTTP or WebSocket messages. The host
+directions; it does not translate HTTP or WebSocket messages. The one
+exception is `GET /v1/host/screen`, which `vphone-vm` answers itself (see
+[Host screen](#host-screen)). The host
 listener is absent unless boot receives `--api-listen host:port`. Port `0`
 asks the OS for an available host port and the actual address is printed
 after the VM starts. The API is also usable from guest and host code that
@@ -201,6 +203,52 @@ Option on the Apps menu's uninstall item selects this mode. If cleanup fails, th
 installed record remains so the operation can be retried. Irisin's mobile
 Documents data outside the bootstrap is retained. Apps > Uninstall Bootstrap…
 shows every path in a destructive confirmation alert before sending the request.
+
+## Host screen
+
+`GET /v1/host/screen` on the host proxy is a WebSocket that `vphone-vm`
+serves itself; it never reaches vphoned. It is admitted with the same token
+as every other request, and a `vphone-token.<token>` subprotocol is selected
+in the 101 reply as vphoned does. A plain GET gets `426 Upgrade Required`.
+
+Frames come from the VM display that Virtualization keeps for its window
+(`_takeScreenshotWithCompletionHandler:`), with or without a window, so the
+guest does no work for them: no screenshot, no JPEG, no base64. The guest is
+asked only for `display.orientation`, at most once a second while a client is
+connected; the first frame waits up to 0.5 s for that answer. `vphone-vm`
+turns the frame upright, fits it into the requested box (the screen helper's
+own rule: no enlarging, short side at least 240, even sides) and encodes it
+with the hardware encoder in its own process: real time, low-latency rate
+control, no frame reordering, key frames only on request, Display P3
+primaries with the sRGB transfer and the BT.709 matrix in video range.
+
+The client pulls one frame per text message:
+
+```json
+{"id":7,"codec":"hevc","box":[1280,1280],"fps":60,"bitrate":4000000,"key":false}
+```
+
+`codec` is `hevc` or `h264`; `box` is 1 to 8192 on each side, `fps` 1 to
+240, `bitrate` 1 to 100 000 000. Each request gets one binary answer, in the
+order the requests came: a 4-byte little-endian header length, the JSON
+header, then the payload. The header always has `id` and then either
+`error` (`{code, message}`, no payload) or `status`:
+
+| `status` | Payload | Meaning |
+| --- | --- | --- |
+| `frame` | one access unit, 4-byte length-prefixed NAL units, no parameter sets | `key`, and on a key frame `record`: the `hvcC` / `avcC`, base64 |
+| `unchanged` | none | every pixel is what the last frame encoded showed, and no key frame was asked for |
+| `dropped` | none | the rate controller skipped the frame |
+
+Every header with a `status` also has `session` (it changes with the codec,
+the output size or the orientation, and the first frame of a session is a
+key frame), `width` and `height` (the encoded size), `sourceWidth`,
+`sourceHeight` and `scale` (the upright display in pixels and its pixels per
+interface point, the VM's screen scale), and `captureUs` and `encodeUs`.
+Each connection has its own encoder; a new connection starts at session 1.
+Error codes: `bad_request`, `codec_unavailable` (no hardware encoder for that
+codec or size), `display_unavailable`, `encoder_failed` (the next request
+starts a new session) and `too_many_requests` (more than 16 waiting).
 
 ## HTTP and WebSocket contract
 

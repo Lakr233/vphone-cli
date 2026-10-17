@@ -136,7 +136,17 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 control.connect(device: device)
                 camServer.connect(device: device)
                 if let listen = command.apiListen {
-                    let proxy = try VPhoneAPIProxy(device: device, listen: listen)
+                    let hostScreen = VPhoneHostScreenService(
+                        scale: options.screenScale,
+                        display: { [weak vm] in vm?.virtualMachine.graphicsDevices.first?.displays.first },
+                        interfaceDegrees: { [weak control] in
+                            guard let control, control.isConnected,
+                                  let result = try? await control.call("display.orientation")
+                            else { return nil }
+                            return (result["degrees"] as? NSNumber)?.intValue
+                        },
+                    )
+                    let proxy = try VPhoneAPIProxy(device: device, listen: listen, hostScreen: hostScreen)
                     let (url, token) = try await proxy.start()
                     apiProxy = proxy
                     print("[api] HTTP/WebSocket API: \(url.absoluteString)")

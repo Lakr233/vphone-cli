@@ -2,7 +2,6 @@ import AppKit
 import AVFoundation
 import CoreVideo
 import ImageIO
-import ObjectiveC.runtime
 import Virtualization
 
 // MARK: - Screen Recorder
@@ -26,8 +25,6 @@ class VPhoneScreenRecorder {
         }
     }
 
-    private typealias ScreenshotCompletionBlock = @convention(block) (AnyObject?) -> Void
-    private typealias ScreenshotIMP = @convention(c) (AnyObject, Selector, AnyObject) -> Void
 
     private var writer: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
@@ -247,47 +244,11 @@ class VPhoneScreenRecorder {
         from graphicsDisplay: VZGraphicsDisplay,
         completion: @escaping (CGImage?) -> Void,
     ) {
-        let selector = NSSelectorFromString("_takeScreenshotWithCompletionHandler:")
-        guard graphicsDisplay.responds(to: selector),
-              let cls = object_getClass(graphicsDisplay),
-              let method = class_getInstanceMethod(cls, selector)
-        else {
-            completion(nil)
-            return
-        }
-
-        let implementation = method_getImplementation(method)
-        let function = unsafeBitCast(implementation, to: ScreenshotIMP.self)
-
-        let block: ScreenshotCompletionBlock = { [weak self] imageObject in
-            completion(self?.convertScreenshotObject(imageObject))
-        }
-        let blockObject = unsafeBitCast(block, to: AnyObject.self)
-        function(graphicsDisplay, selector, blockObject)
+        VPhoneGraphicsDisplayCapture.capture(graphicsDisplay, completion: completion)
     }
 
     private func takeGraphicsScreenshot(from graphicsDisplay: VZGraphicsDisplay) async -> CGImage? {
-        await withCheckedContinuation { continuation in
-            takeGraphicsScreenshot(from: graphicsDisplay) { cgImage in
-                continuation.resume(returning: cgImage)
-            }
-        }
-    }
-
-    private func convertScreenshotObject(_ imageObject: AnyObject?) -> CGImage? {
-        guard let imageObject else { return nil }
-
-        if let nsImage = imageObject as? NSImage {
-            return nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        }
-
-        let cfObject = imageObject as CFTypeRef
-        if CFGetTypeID(cfObject) == CGImage.typeID {
-            // CGImage is a CF type, not a Swift class - unsafeDowncast cannot be used here.
-            return (cfObject as! CGImage) // swiftlint:disable:this force_cast
-        }
-
-        return nil
+        await VPhoneGraphicsDisplayCapture.capture(graphicsDisplay)
     }
 
     private func recordingOutputURL() -> URL {

@@ -11,6 +11,8 @@
 		DD0000000000000000000102 /* Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000202 /* Dynamic */; };
 		DD0000000000000000000103 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000203 /* NIOCore */; };
 		DD0000000000000000000104 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000204 /* NIOPosix */; };
+		DD0000000000000000000107 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000205 /* NIOHTTP1 */; };
+		DD0000000000000000000108 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000206 /* NIOWebSocket */; };
 		DD0000000000000000000105 /* libVPhoneVirtualMachineKit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000032 /* libVPhoneVirtualMachineKit.a */; };
 		DD0000000000000000000106 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000000000000000000201 /* ArgumentParser */; };
 /* End PBXBuildFile section */
@@ -72,6 +74,8 @@
 				DD0000000000000000000102 /* Dynamic in Frameworks */,
 				DD0000000000000000000103 /* NIOCore in Frameworks */,
 				DD0000000000000000000104 /* NIOPosix in Frameworks */,
+				DD0000000000000000000107 /* NIOHTTP1 in Frameworks */,
+				DD0000000000000000000108 /* NIOWebSocket in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,6 +148,8 @@
 				DD0000000000000000000202 /* Dynamic */,
 				DD0000000000000000000203 /* NIOCore */,
 				DD0000000000000000000204 /* NIOPosix */,
+				DD0000000000000000000205 /* NIOHTTP1 */,
+				DD0000000000000000000206 /* NIOWebSocket */,
 			);
 			productName = VPhoneVirtualMachineKit;
 			productReference = DD0000000000000000000032 /* libVPhoneVirtualMachineKit.a */;
@@ -574,6 +580,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DD0000000000000000000173 /* XCRemoteSwiftPackageReference "swift-nio" */;
 			productName = NIOPosix;
+		};
+		DD0000000000000000000205 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DD0000000000000000000173 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
+		DD0000000000000000000206 /* NIOWebSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DD0000000000000000000173 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOWebSocket;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -96,6 +96,26 @@ public enum VPhoneAPIRequestGate {
         return .accept(forwarded)
     }
 
+    // MARK: - Host Routes
+
+    /// Paths the proxy answers itself instead of relaying them to vphoned.
+    public enum HostRoute: Equatable, Sendable {
+        /// `GET /v1/host/screen`: frames from the VM's own display.
+        case screen
+    }
+
+    /// The host route an admitted head asks for, or nil to relay it to the
+    /// guest. Only the path decides; a query is ignored.
+    public static func hostRoute(of admitted: Data) -> HostRoute? {
+        guard let end = admitted.range(of: Data("\r\n".utf8)),
+              let line = String(data: admitted[admitted.startIndex ..< end.lowerBound], encoding: .ascii)
+        else { return nil }
+        let parts = line.split(separator: " ", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0] == "GET" else { return nil }
+        let path = parts[1].split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0]
+        return path == "/v1/host/screen" ? .screen : nil
+    }
+
     // MARK: - Request Head
 
     struct Head {

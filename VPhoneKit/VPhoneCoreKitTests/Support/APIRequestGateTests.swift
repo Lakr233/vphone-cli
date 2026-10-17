@@ -133,6 +133,44 @@ struct APIRequestGateTests {
         }
     }
 
+    // MARK: - Host Routes
+
+    @Test func `the screen path is answered on the host`() {
+        let admitted = request("""
+        GET /v1/host/screen HTTP/1.1
+        Host: localhost
+        Upgrade: websocket
+
+        """)
+        #expect(Gate.hostRoute(of: admitted) == .screen)
+        #expect(Gate.hostRoute(of: Data("GET /v1/host/screen?fps=60 HTTP/1.1\r\n\r\n".utf8)) == .screen)
+    }
+
+    @Test func `every other request is relayed to the guest`() {
+        for head in [
+            "GET /v1/events HTTP/1.1\r\n\r\n",
+            "POST /v1/host/screen HTTP/1.1\r\n\r\n",
+            "GET /v1/host/screen/extra HTTP/1.1\r\n\r\n",
+            "GET /v1/host/screens HTTP/1.1\r\n\r\n",
+            "GET /v1/host/screen",
+        ] {
+            #expect(Gate.hostRoute(of: Data(head.utf8)) == nil, "\(head.debugDescription)")
+        }
+    }
+
+    @Test func `the route is read from the head the gate admitted`() {
+        let data = request("""
+        GET /v1/host/screen?token=\(token) HTTP/1.1
+        Host: 127.0.0.1:18700
+
+        """)
+        guard case let .accept(admitted) = Gate.evaluate(data, token: token, host: "localhost") else {
+            Issue.record("the head was not admitted")
+            return
+        }
+        #expect(Gate.hostRoute(of: admitted) == .screen)
+    }
+
     // MARK: - Tokens
 
     @Test func `token validation and constant time comparison`() {
