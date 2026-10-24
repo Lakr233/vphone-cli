@@ -85,10 +85,15 @@ extension KernelCustomFirmwarePatcher {
             }
         }
 
-        // Success cave: 8 instructions = 32 bytes
-        guard let successCaveOff = findCodeCave(size: 32),
-              successCaveOff != denyCaveOff
-        else {
+        // Success cave: 8 instructions = 32 bytes. `findCodeCave` reserves
+        // nothing, so where the first free run is long enough for both (the
+        // iOS 18 kernels) it hands out the deny cave again: the two then share
+        // one 40-byte run, deny first.
+        var successCave = findCodeCave(size: 32)
+        if let dCaveOff = denyCaveOff, successCave == dCaveOff {
+            successCave = findCodeCave(size: 40) == dCaveOff ? dCaveOff + 8 : nil
+        }
+        guard let successCaveOff = successCave else {
             log("  [-] no code cave for C21-v3 success trampoline")
             return
         }

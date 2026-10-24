@@ -251,12 +251,46 @@ public class KernelCustomFirmwarePatcherBase: KernelPatcherBase {
             }
         }
 
+        // A kext may make the same privilege check: the iOS 18 AppleSEPKeyStore
+        // passes PRIV_GLOBAL_PROC_INFO to a helper of its own. When the whole
+        // collection is ambiguous, keep the functions in the kernel proper.
+        if funcs.count > 1, let kernelText = filesetEntryTextRange("com.apple.kernel") {
+            funcs = funcs.filter { $0 >= kernelText.start && $0 < kernelText.end }
+        }
+
         let result = funcs.count == 1 ? funcs.first! : -1
         procSecurityPolicyOff = result
         if verbose, result >= 0 {
             print("  [+] _proc_security_policy at 0x\(String(format: "%X", result)) (PRIV_GLOBAL_PROC_INFO anchor)")
         }
         return result >= 0 ? result : nil
+    }
+
+    /// File-offset range of the `__TEXT_EXEC.__text` section of the fileset
+    /// entry named `entryID` (`com.apple.kernel` for the kernel proper), or nil.
+    func filesetEntryTextRange(_ entryID: String) -> (start: Int, end: Int)? {
+        let raw = buffer.original
+        guard raw.count > 32 else { return nil }
+        let ncmds = raw.loadLE(UInt32.self, at: 16)
+        var off = 32
+        for _ in 0 ..< ncmds {
+            guard off + 8 <= raw.count else { break }
+            let cmd = raw.loadLE(UInt32.self, at: off)
+            let cmdsize = Int(raw.loadLE(UInt32.self, at: off + 4))
+            guard cmdsize >= 8, off + cmdsize <= raw.count else { break }
+            // LC_FILESET_ENTRY: vmaddr +8, fileoff +16, entry_id name offset +24.
+            if cmd == 0x8000_0035, cmdsize >= 28 {
+                let nameOff = Int(raw.loadLE(UInt32.self, at: off + 24))
+                if nameOff < cmdsize {
+                    let nameBytes = raw[(off + nameOff) ..< (off + cmdsize)].prefix { $0 != 0 }
+                    if String(decoding: nameBytes, as: UTF8.self) == entryID {
+                        return parseKextTextExecRange(at: Int(raw.loadLE(UInt64.self, at: off + 16)))
+                    }
+                }
+            }
+            off += cmdsize
+        }
+        return nil
     }
 
     // MARK: - Convenience Properties

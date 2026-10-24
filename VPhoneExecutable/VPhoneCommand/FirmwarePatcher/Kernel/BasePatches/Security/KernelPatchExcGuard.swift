@@ -53,6 +53,44 @@ extension KernelPatcher {
         // Scan a wide window around the string ref (the function may be ~600 bytes)
         let scanStart = max(0, addOff - 200)
         let scanEnd = min(buffer.count - 4, addOff + 400)
+
+        // Precise shape first: set_exception_behavior_violation raises the
+        // guard on the current thread, `thread_guard_violation(current_thread(),
+        // code, subcode, fatal)`, so its callee is the BL that follows
+        // `mrs x0, tpidr_el1`. The iOS 18 kernels test thid_should_crash with
+        // `ldrb ; cmp #1 ; b.ne`, not a TBZ, and the shape below then settles on
+        // a zone allocator called from the same window; turning that into RET
+        // made vm_map_enter fail in kmem_init.
+        var currentThreadCallees = Set<Int>()
+        for off in stride(from: scanStart, to: scanEnd, by: 4) {
+            guard let target = decodeBL(at: off), target > 0, target + 0x80 <= buffer.count,
+                  buffer.readU32(at: target) == ARM64.pacibspU32
+            else { continue }
+            let insns = disasm.disassemble(in: buffer.data, at: target, count: 0x20)
+            for (index, insn) in insns.enumerated() where insn.mnemonic == "mrs" {
+                // A system register has no register-operand identity to compare.
+                guard insn.operandString.lowercased() == "x0, tpidr_el1" else { continue }
+                if let call = insns.dropFirst(index + 1).prefix(6).first(where: { $0.mnemonic == "bl" }),
+                   let callee = decodeBL(at: Int(call.address)),
+                   callee > 0, callee + 4 <= buffer.count,
+                   buffer.readU32(at: callee) == ARM64.pacibspU32
+                {
+                    currentThreadCallees.insert(callee)
+                }
+            }
+        }
+        if currentThreadCallees.count == 1, let inner = currentThreadCallees.first {
+            log("  [*] thread_guard_violation at foff 0x\(String(format: "%X", inner)) (called on the current thread)")
+            emit(
+                inner,
+                ARM64.ret,
+                patchID: "kernel-boot-thread_guard_violation",
+                virtualAddress: fileOffsetToVA(inner),
+                description: "PACIBSP→RET (disable guard violation delivery)",
+            )
+            return true
+        }
+
         for off in stride(from: scanStart, to: scanEnd, by: 4) {
             guard let target = decodeBL(at: off) else { continue }
             guard target > 0, target + 40 <= buffer.count else { continue }

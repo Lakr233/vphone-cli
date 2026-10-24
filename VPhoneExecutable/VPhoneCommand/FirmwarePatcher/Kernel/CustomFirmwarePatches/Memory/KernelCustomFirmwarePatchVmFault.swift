@@ -39,7 +39,9 @@ extension KernelCustomFirmwarePatcher {
         var candidateSites = Set<Int>()
         for funcStart in Set(candidateFuncs) {
             let funcEnd = findFuncEnd(funcStart, maxSize: 0x4000)
-            if let site = findCsBypassGate(start: funcStart, end: funcEnd) {
+            if let site = findCsBypassGate(start: funcStart, end: funcEnd, stackReloads: 0)
+                ?? findCsBypassGate(start: funcStart, end: funcEnd, stackReloads: 4)
+            {
                 candidateSites.insert(site)
             }
         }
@@ -70,7 +72,12 @@ extension KernelCustomFirmwarePatcher {
     /// Find the unique `tbz Wflags, #3 / mov Wt, #0 / b ...` gate inside
     /// a function, where Wflags is the register loaded from [base, #0x28]
     /// in the function prologue.
-    private func findCsBypassGate(start: Int, end: Int) -> Int? {
+    ///
+    /// `stackReloads` is how many loads from the frame (`[x29, …]` or
+    /// `[sp, …]`) may sit between the `mov` and the `b`: the iOS 18 kernels
+    /// reload three spilled registers there. The strict shape is tried first,
+    /// so a kernel it already matches patches the same site as before.
+    private func findCsBypassGate(start: Int, end: Int, stackReloads: Int) -> Int? {
         // Pass 1: collect registers loaded from [*, #0x28] in first 0x120 bytes
         var flagRegs = Set<UInt32>()
         let prologueEnd = min(end, start + 0x120)
@@ -119,8 +126,19 @@ extension KernelCustomFirmwarePatcher {
             else { off += 4; continue }
             guard disasm.firstRegisterName(movInsn)?.hasPrefix("w") ?? false else { off += 4; continue }
 
-            // Check unconditional B
-            let bInsns = disasm.disassemble(in: buffer.data, at: off + 8, count: 1)
+            // Skip frame reloads, then check unconditional B
+            var bOff = off + 8
+            while bOff - (off + 8) < stackReloads * 4, bOff + 4 <= end,
+                  let reload = disasm.disassemble(in: buffer.data, at: bOff, count: 1).first,
+                  reload.mnemonic == "ldr" || reload.mnemonic == "ldur",
+                  let reloadOps = reload.detail?.operands, reloadOps.count == 2,
+                  reloadOps[1].type == .memory,
+                  reloadOps[1].mem.base == .x(29) || reloadOps[1].mem.base == .sp,
+                  reloadOps[1].mem.index == .invalid
+            {
+                bOff += 4
+            }
+            let bInsns = disasm.disassemble(in: buffer.data, at: bOff, count: 1)
             guard let bInsn = bInsns.first,
                   bInsn.mnemonic == "b",
                   let bOps = bInsn.detail?.operands, bOps.count == 1,
