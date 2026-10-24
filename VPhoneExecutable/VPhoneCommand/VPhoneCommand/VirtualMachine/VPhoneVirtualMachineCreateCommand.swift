@@ -133,8 +133,8 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
 
     /// An Apple TV takes the TV preset; one whose userland comes from an OTA
     /// takes the arm64e one, with the GPU driver and the userland swap. An
-    /// Apple Watch takes the watch preset, an iPhone XS Max `minimal`: its iOS 18
-    /// research board kernel boots no other.
+    /// Apple Watch takes the watch preset, an iPhone XS Max `minimal`, the preset
+    /// checked on every iOS 18 release (`standard` is checked on 18.6).
     private var defaultPreset: String {
         switch selectedGuest {
         case let guest? where guest.family == .appleTV:
