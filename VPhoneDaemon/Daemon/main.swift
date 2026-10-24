@@ -23,6 +23,8 @@ guard vp_native_watch_proxy() == 0 else { exit(1) }
 GuestLockScreenIdle.startOnStartup()
 // Before the server, so `/v1/health` reports a drop from its first answer.
 GuestMobileGestaltCache.dropIfStaleOnStartup()
+// An iOS 18 screen stays black until backboardd runs without surface compression.
+GuestCoreAnimationCompression.applyOnStartup()
 // Before audiomxd is asked for sound again; see the type for what it cannot cover.
 GuestVirtualAudioProduct.storeOnStartup()
 // After SpringBoard has had time to come up, so the inner panel's layout
