@@ -97,10 +97,12 @@
 			<string>dyld-boot-arm64e_x1_bootstrap</string>
 			<string>dyld-boot-iomfb_swapend</string>
 			<string>dyld-cfw-camera</string>
+			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>kernel-boot-arm64e_x1</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
 			<string>preboot-cfw-devicetree_haptics</string>
 			<string>preboot-cfw-devicetree_iphone_product</string>
+			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
 			<string>preboot-homepod-exp-audio_product</string>
 			<string>restoreramdisk-boot-apfs_sha3_hash</string>
@@ -134,6 +136,7 @@
 			<string>system-virtualaudio-cfw-speaker_raw_chains</string>
 			<string>system-virtualaudio-cfw-speaker_route_throws</string>
 			<string>system-virtualaudio-cfw-volume_mode_precondition</string>
+			<string>system-virtualaudio-cfw-device_state_null_gate</string>
 			<string>system-dyld-exp-tv_tpro</string>
 			<string>kernel-exp-tv_tpro_pagers</string>
 		</array>

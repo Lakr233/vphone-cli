@@ -371,7 +371,7 @@ request carries `"force": true`.
 | Area | Methods |
 | --- | --- |
 | Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode, agent, `device_name` `{name, own_name}`: the pinned name and the guest's own ComputerName), `device.screen`, `device.network`, `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
-| Display, audio | `display.brightness {value?}`, `display.rotation {orientation?}`, `display.orientation` (`{degrees, source}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
+| Display, audio | `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (`{degrees, source}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
 | UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot` |
 | Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
@@ -1062,3 +1062,26 @@ The listener accepts the address specified by the user. For local-only use,
 pass `127.0.0.1` or `[::1]`. Any other address prints a warning: every machine
 that can reach it needs only the token, which travels in clear text over
 plain HTTP, so use it only on a trusted network.
+
+## Device pose
+
+`display.posture` sets a foldable guest's pose (iPhone Duo). A VM has no
+hinge, and SpringBoard consumes CoreMotion's hinge angle and magic pose only
+when CoreMotion recognizes the board's `product-id` and the device has two
+always-connected displays, so a virtual hinge HID service would not be read
+on today's single-display guest. vphoned instead calls
+`-[SBSTestAutomationService setDevicePoseOverride:]`, which SpringBoard
+accepts from a client entitled `com.apple.springboard.testautomation`; the
+server builds a synthetic magic pose and derives the hinge angle from the
+hinge state (0, 0, 90, 180 and 180 degrees for states 0–4).
+
+| Param | Values |
+| --- | --- |
+| `hinge` (required) | `ambiguous` 0, `closed` 1, `partially-open` 2, `open-flat` 3, `open` 4 |
+| `orientation` | `ambiguous` 0, `portrait` 1 (default), `upside-down` 2, `landscape-left` 3, `landscape-right` 4, `face-up` 5, `face-down` 6 |
+| `tabletop` | 0–10 (default 0, ambiguous) |
+
+The reply echoes the numeric values. The override does not survive a
+SpringBoard restart unless the guest also reports Apple's VM sub-type
+(`preboot-cfw-devicetree_foldable_vm_subtype`), with which SpringBoard
+persists the pose after display-mode transitions and restores it at launch.

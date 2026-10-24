@@ -48,6 +48,7 @@ void vp_hid_touch_edge(int phase, double x, double y, int edge);
 /// Turn the display on without pressing a button. False when
 /// SpringBoardServices has no SBSUndimScreen.
 bool vp_screen_undim(void);
+bool vp_device_pose_set(int deviceOrientation, int hingeState, int tabletopPose);
 
 /// Ask launchd to shut the guest down and halt. Returns 0 once the request is
 /// accepted, otherwise an errno value. Needs root.

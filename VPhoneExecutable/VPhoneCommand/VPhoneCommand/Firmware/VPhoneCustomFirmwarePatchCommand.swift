@@ -611,6 +611,34 @@ struct VPhoneCustomFirmwarePatchIPhoneProductCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-dt-foldable-vm-subtype
+
+struct VPhoneCustomFirmwarePatchFoldableVMSubtypeCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-foldable-vm-subtype",
+        abstract: "Give a foldable guest's device tree Apple's VM sub-type",
+        discussion: """
+        Replaces the root target-sub-type of a foldable board (V68AP, iPhone
+        Duo) with Apple's own VM sub-type (V68VM2025), in place, preserving the
+        container's compression, manifest and restore info. SpringBoard's
+        device-pose code keys its virtual-machine path on that value. Any other
+        tree, or one that already has it, is left as it is.
+
+        Takes a devicetree.img4 (preferred) or a bare .im4p.
+        """,
+    )
+
+    @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))
+    var deviceTree: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.presentFoldableVMSubtype(at: deviceTree, dryRun: dryRun, verbose: true)
+    }
+}
+
 // MARK: - patch-dt-haptics
 
 struct VPhoneCustomFirmwarePatchHapticsCommand: ParsableCommand {

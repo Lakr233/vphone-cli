@@ -43,6 +43,13 @@
 // guard-checked pop sequence ending in `retab`, and its shape is verified
 // instruction by instruction before the branch is encoded.
 //
+// An arm64e.x1 userland (iOS 27.1 on iPhone19,4) is built with FEAT_PAuth_LR:
+// functions open with `pacibsppc` and return with `retabsppc <label>`, whose
+// label names the `pacibsppc` that signed. The plugin is patched in that
+// native form, so a prologue is either signing instruction and an epilogue
+// ends in either return, and a `retabsppc` must name the prologue of the
+// function the patch walked — the epilogue is the function's own.
+//
 // The mute-set throw
 // ------------------
 // Establishing the route also asks the HAL device itself to unmute:
@@ -64,7 +71,8 @@
 // the "Unable to set property data." EXCEPTION log a few instructions above
 // it; iOS 27's wrapper holds a second, unrelated CAException (the
 // deactivated-device throw), and that log window is what tells them apart.
-// The epilogue is the wrapper's single `retab`, walked back to its entry.
+// The epilogue is the wrapper's single `retab` (`retabsppc` on X1), walked
+// back to its entry.
 //
 // The speaker-protection gate
 // ---------------------------
@@ -125,6 +133,51 @@
 // branch back to the comparison's fall-through, which reloads everything
 // it reads from memory and never re-reads the value the test examined, on
 // either supported build.
+//
+// The device-state null gate
+// --------------------------
+// With the route quieted end to end, one ordering fault is left, and it
+// belongs to the arm64e.x1 build alone. Publishing the route wakes
+// VirtualAudio_Device's update, which asks DeviceStateManager for its
+// singleton twice — each ask behind its own capability gate — and pushes
+// the route's state into the manager. On a guest the singleton never
+// exists: deferred initialization is dispatched at plugin init, but on a
+// machine with no haptic hardware it leaves without constructing the
+// manager (no "Ending Deferred Initialization" is ever logged, and no
+// thread is parked inside it when the fault lands — it exits early),
+// because the manager is a haptics-domain object whose construction the
+// actuator the wait loop polls for belongs to. Asked for an instance
+// nobody published, TheInstance() logs "TheInstance() called before
+// SetInstance()" and returns null, and the update dereferences that null
+// — the audiomxd crash on an iPhone Duo guest, whenever a push arrives
+// after the gates answer true (observed from ~10 s to ~130 s in).
+//
+// The patch makes each update wait for the manager to exist: the
+// gate-check call above each `cbz w0, <skip>` is redirected to
+// TheInstance itself, so the branch the function already carries — the
+// one that skips the update when its check answers false — now tests the
+// singleton. Null manager: the update is skipped through the function's
+// own path, exactly as on any build whose gates answer false. Manager
+// present: the fall-through re-calls TheInstance and the whole update —
+// the save, the dereference, the lock, the push — runs untouched, as
+// designed. Nothing is removed: the update happens whenever there is a
+// manager to receive it, which is the most this code can do on a machine
+// whose manager cannot be constructed, and everything it does on one
+// whose manager can.
+//
+// Anchoring: the singleton is found from its own diagnostic — the
+// "TheInstance() called before SetInstance()" log format, referenced once
+// in __text; the prologue above that reference is TheInstance's entry.
+// Every direct `bl` to that entry is filtered to the gated shape both
+// device-state updates share: a call at −8, the `cbz w0` at −4 skipping
+// forward past the whole update, the singleton's return moved aside at +4
+// (`mov xN, x0`), and that return dereferenced unchecked at +8 (`ldr xM,
+// [x0]`) — the instruction that faults. Exactly two callers carry the
+// shape; both gate-check calls are redirected. A build with a different
+// count is refused, not half-patched. The plugin is touched only where
+// iOS 27.1's arm64e.x1 build carries the fault: a header check (cputype
+// arm64, cpusubtype 12 — 26.x and 27.0 are cpusubtype 2) reports
+// "nothing to do" on every other build, so their bytes never move.
 
 import Foundation
 import VPhonePatchKit
@@ -212,6 +265,14 @@ public enum CustomFirmwareVirtualAudio {
     /// Record identity for the volume-gate patch.
     public static let volumeGatePatchID = "system-virtualaudio-cfw-volume_mode_precondition"
 
+    /// The singleton's own diagnostic, and the anchor of the null-gate
+    /// patch: the log DeviceStateManager's accessor prints when it is
+    /// asked for an instance nobody published yet.
+    public static let deviceStateInstanceMissing = "TheInstance() called before SetInstance()"
+
+    /// Record identity for the null-gate patch.
+    public static let deviceStateNullGatePatchID = "system-virtualaudio-cfw-device_state_null_gate"
+
     /// Where progress goes when the caller does not say.
     public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
 
@@ -224,6 +285,9 @@ public enum CustomFirmwareVirtualAudio {
         case wouldPatch
         /// The branch was written and its page re-attested.
         case patched
+        /// The plugin is not an arm64e.x1 image: the device-state guard
+        /// applies to nothing, and nothing was written.
+        case notArm64EX1
     }
 
     /// The resolved pair the patch writes between.
@@ -298,7 +362,36 @@ public enum CustomFirmwareVirtualAudio {
         public let slotRehashes: [CustomFirmwareSlotRehash]
     }
 
-    // MARK: - Patching
+    /// One gated device-state update: the gate-check call the patch
+    /// redirects, the branch that tests its answer, and the singleton call
+    /// the update stands on.
+    public struct DeviceStateNullGateAnchor: Sendable, Equatable {
+        /// The `bl <gate check>` — the instruction the patch rewrites into
+        /// a `bl` to TheInstance.
+        public let gateCallFileOffset: Int
+        public let gateCallVMA: UInt64
+        /// The `cbz w0, <skip>` that now tests the singleton.
+        public let branchVMA: UInt64
+        /// Where the branch skips to when the singleton is null.
+        public let skipTargetVMA: UInt64
+    }
+
+    public struct DeviceStateNullGateReport: Sendable {
+        public let outcome: Outcome
+        /// TheInstance's entry, resolved from its own diagnostic.
+        public let theInstanceVMA: UInt64
+        public let sites: [DeviceStateNullGateAnchor]
+        public let records: [PatchRecord]
+        public let slotRehashes: [CustomFirmwareSlotRehash]
+    }
+
+    private static func wordAt(_ data: Data, _ offset: Int) -> UInt32? {
+        guard offset + 4 <= data.count else { return nil }
+        return UInt32(data[offset])
+            | UInt32(data[offset + 1]) << 8
+            | UInt32(data[offset + 2]) << 16
+            | UInt32(data[offset + 3]) << 24
+    }
 
     /// Patch the VirtualAudio Mach-O at `url` in place.
     ///
@@ -415,14 +508,6 @@ public enum CustomFirmwareVirtualAudio {
             records: records,
             slotRehashes: rehashes,
         )
-    }
-
-    private static func wordAt(_ data: Data, _ offset: Int) -> UInt32? {
-        guard offset + 4 <= data.count else { return nil }
-        return UInt32(data[offset])
-            | UInt32(data[offset + 1]) << 8
-            | UInt32(data[offset + 2]) << 16
-            | UInt32(data[offset + 3]) << 24
     }
 
     // MARK: - Mute-set patching
@@ -544,10 +629,10 @@ public enum CustomFirmwareVirtualAudio {
     /// log block: its entry — the `mov w0, #<size>` that opens the os_log —
     /// is rewritten into a branch back to the gate's fall-through, so a
     /// taken gate lands straight on the success path the handler already
-    /// built. The block is reachable only by the gate's jump (its
-    /// predecessor is an unconditional branch, verified before writing) and
-    /// that success path never reads the verdict the gate tested, on either
-    /// supported build.
+    /// built. That path never reads the verdict the gate tested, on either
+    /// supported build, and the block is reached only by the gate's jump —
+    /// the instruction above it is an unconditional branch, checked before
+    /// anything is written.
     ///
     /// Idempotent: a second run finds the log block's entry holding its own
     /// unconditional branch, reports ``Outcome/alreadyPatched`` and leaves
@@ -806,6 +891,150 @@ public enum CustomFirmwareVirtualAudio {
         )
     }
 
+    // MARK: - Device-state null-gate patching
+
+    /// Patch the VirtualAudio Mach-O at `url` in place, making the two
+    /// device-state updates wait for the DeviceStateManager singleton
+    /// instead of dereferencing it when it does not exist.
+    ///
+    /// Each gate-check call — the `bl` whose answer the following
+    /// `cbz w0, <skip>` tests — is redirected to TheInstance, so that
+    /// branch now tests the singleton itself: null manager, the update is
+    /// skipped through the function's own path; manager present, the
+    /// fall-through re-calls TheInstance and the update runs untouched,
+    /// as designed. Applies only to an arm64e.x1 (cpusubtype 12) plugin:
+    /// every other build reports ``Outcome/notArm64EX1`` and keeps its
+    /// bytes.
+    ///
+    /// Idempotent: a second run finds the gate slot already calling
+    /// TheInstance, reports ``Outcome/alreadyPatched`` and leaves the file
+    /// byte-identical.
+    ///
+    /// - Parameters:
+    ///   - url: the `VirtualAudio` plugin binary.
+    ///   - reattest: recompute the code-directory slot hash of the touched
+    ///     page. `false` when the caller re-signs the whole binary right
+    ///     after, which is what both install paths do.
+    ///   - dryRun: locate and report, write nothing.
+    @discardableResult
+    public static func patchDeviceStateNullGate(
+        fileAt url: URL,
+        reattest: Bool = true,
+        dryRun: Bool = false,
+        log: ((String) -> Void)? = stdoutLog,
+    ) throws -> DeviceStateNullGateReport {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw PatcherError.fileNotFound(url.path)
+        }
+        var data = try Data(contentsOfFileToRewrite: url)
+        let before = data
+        let report = try patchDeviceStateNullGate(&data, reattest: reattest, dryRun: dryRun, log: log)
+        if data != before {
+            try data.write(to: url)
+        }
+        return report
+    }
+
+    /// In-memory form of ``patchDeviceStateNullGate(fileAt:reattest:dryRun:log:)``.
+    @discardableResult
+    public static func patchDeviceStateNullGate(
+        _ data: inout Data,
+        reattest: Bool = true,
+        dryRun: Bool = false,
+        log: ((String) -> Void)? = stdoutLog,
+    ) throws -> DeviceStateNullGateReport {
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
+
+        switch arm64Subtype(of: data) {
+        case .x1:
+            break
+        case .other:
+            log?("  [·] VirtualAudio: not an arm64e.x1 plugin — the device-state null gate has nothing to do")
+            return DeviceStateNullGateReport(
+                outcome: .notArm64EX1,
+                theInstanceVMA: 0,
+                sites: [],
+                records: [],
+                slotRehashes: [],
+            )
+        case .notArm64:
+            break // not a thin arm64 image; the anchor below refuses it
+        }
+
+        let located = try locateDeviceStateNullGate(in: data)
+        log?("  [.] TheInstance 0x\(hex(located.theInstanceVMA)); \(located.sites.count) gated device-state update(s)")
+        let anchors = located.sites.map { site in
+            DeviceStateNullGateAnchor(
+                gateCallFileOffset: site.gateCall,
+                gateCallVMA: located.vma(site.gateCall),
+                branchVMA: located.vma(site.branch),
+                skipTargetVMA: site.target,
+            )
+        }
+
+        var records: [PatchRecord] = []
+        var written: [Int] = []
+        var alreadyPatched = 0
+        for site in located.sites {
+            let call = site.gateCall
+            let callVMA = located.vma(call)
+            let callInstruction = located.disasm.disassembleOne(in: data, at: call, address: callVMA)
+            if site.alreadyGated {
+                alreadyPatched += 1
+                log?("      [=] 0x\(hex(callVMA)): the gate already asks TheInstance")
+                continue
+            }
+            guard let redirect = ARM64Encoder.encodeBL(from: Int(callVMA), to: Int(located.theInstanceVMA)) else {
+                throw PatcherError.patchSiteNotFound(
+                    "\(component): TheInstance at 0x\(hex(located.theInstanceVMA)) is out of "
+                        + "branch range of the gate call at 0x\(hex(callVMA))",
+                )
+            }
+            let original = Data(data[call ..< call + 4])
+            if dryRun {
+                log?("      [.] dry-run — would call TheInstance from 0x\(hex(callVMA))")
+                continue
+            }
+            data.replaceSubrange(call ..< call + 4, with: redirect)
+            written.append(call)
+            records.append(PatchRecord(
+                patchID: deviceStateNullGatePatchID,
+                component: component,
+                fileOffset: call,
+                virtualAddress: callVMA,
+                originalBytes: original,
+                patchedBytes: redirect,
+                beforeDisasm: callInstruction?.description ?? "",
+                afterDisasm: redirect.map { String(format: "%02x", $0) }.joined(separator: " "),
+                description: "device-state gate check -> TheInstance",
+            ))
+            log?("      [+] 0x\(hex(callVMA)): \(callInstruction?.description ?? "") -> bl 0x\(hex(located.theInstanceVMA))")
+        }
+
+        if records.isEmpty, !dryRun {
+            log?("      [=] all \(alreadyPatched) gate(s) already ask TheInstance")
+        }
+
+        var rehashes: [CustomFirmwareSlotRehash] = []
+        if reattest, !written.isEmpty {
+            rehashes = try CustomFirmwareMachOCodeSignature.reattest(&data, modifiedOffsets: written)
+            if !rehashes.isEmpty {
+                log?("      [+] re-attested \(rehashes.count) stale slot(s)")
+            }
+        }
+        let outcome: Outcome = dryRun ? .wouldPatch : (records.isEmpty ? .alreadyPatched : .patched)
+        return DeviceStateNullGateReport(
+            outcome: outcome,
+            theInstanceVMA: located.theInstanceVMA,
+            sites: anchors,
+            records: records,
+            slotRehashes: rehashes,
+        )
+    }
+
+
     // MARK: - Anchoring
 
     /// Resolve the throw block and the epilogue, or say why not.
@@ -876,7 +1105,9 @@ public enum CustomFirmwareVirtualAudio {
                 "\(component): no terminator branch after the exception constructor",
             )
         }
-        let epilogueOffset = try locateEpilogue(in: data, disasm: disasm, after: terminator, textEnd: walkerEnd)
+        let epilogueOffset = try locateEpilogue(
+            in: data, disasm: disasm, after: terminator, prologue: walkerStart, textEnd: walkerEnd,
+        )
 
         // Every throw block in the walker: a `mov w0, #<size>` whose next
         // instruction calls the exception allocator, followed within a short
@@ -1030,24 +1261,32 @@ public enum CustomFirmwareVirtualAudio {
             )
         }
 
-        // The epilogue: the wrapper's only `retab`, walked back to its entry.
-        // The mute-set throw sits *below* the epilogue, so the forward search
-        // the walker patch uses cannot apply — the retab must be enumerated
-        // within the function's own bounds.
-        var retabs: [Int] = []
+        // The epilogue: the wrapper's only authenticated return (`retab`, or
+        // `retabsppc` on an arm64e.x1 build), walked back to its entry. The
+        // mute-set throw sits *below* the epilogue, so the forward search the
+        // walker patch uses cannot apply — the return must be enumerated
+        // within the function's own bounds, and a `retabsppc` must name the
+        // wrapper's own prologue.
+        var returns: [Int] = []
         offset = functionStart
         while offset + 4 <= functionEnd {
-            if let insn = disasm.disassembleOne(in: data, at: offset), insn.mnemonic == "retab" {
-                retabs.append(offset)
+            if let insn = disasm.disassembleOne(in: data, at: offset), isAuthenticatedReturn(insn) {
+                guard returnCloses(insn, at: offset, prologue: functionStart) else {
+                    throw PatcherError.patchSiteNotFound(
+                        "\(component): `\(insn.mnemonic)` at 0x\(hex(text.address + UInt64(offset - textStart))) "
+                            + "in the mute-set wrapper does not close the wrapper's own prologue",
+                    )
+                }
+                returns.append(offset)
             }
             offset += 4
         }
-        guard retabs.count == 1, let retab = retabs.first else {
+        guard returns.count == 1, let ret = returns.first else {
             throw PatcherError.patchSiteNotFound(
-                "\(component): expected exactly 1 `retab` in the mute-set wrapper, found \(retabs.count)",
+                "\(component): expected exactly 1 `retab`/`retabsppc` in the mute-set wrapper, found \(returns.count)",
             )
         }
-        let epilogueOffset = try epilogueEntry(in: data, disasm: disasm, retab: retab)
+        let epilogueOffset = try epilogueEntry(in: data, disasm: disasm, retab: ret)
 
         return MuteSetPlan(
             disasm: disasm,
@@ -1272,7 +1511,7 @@ public enum CustomFirmwareVirtualAudio {
         // the head safe — nothing else arrives at the block expecting the
         // os_log the head used to open.
         guard let above = handler.disasm.disassembleOne(in: data, at: gate.head - 4),
-              above.mnemonic == "brk" || ["ret", "retab"].contains(above.mnemonic)
+              above.mnemonic == "brk" || returnMnemonics.contains(above.mnemonic)
               || (above.isJump && !above.isCall && above.detail?.conditionCode == nil)
         else {
             throw PatcherError.invalidFormat(
@@ -1421,7 +1660,7 @@ public enum CustomFirmwareVirtualAudio {
         // makes rewriting the head safe — nothing else arrives at the block
         // expecting the os_log the head used to open.
         guard let above = handler.disasm.disassembleOne(in: data, at: gate.head - 4),
-              above.mnemonic == "brk" || ["ret", "retab"].contains(above.mnemonic)
+              above.mnemonic == "brk" || returnMnemonics.contains(above.mnemonic)
               || (above.isJump && !above.isCall && above.detail?.conditionCode == nil)
         else {
             throw PatcherError.invalidFormat(
@@ -1473,6 +1712,199 @@ public enum CustomFirmwareVirtualAudio {
             return sawCompare
         }
         return false
+    }
+
+    // MARK: - Device-state null-gate anchoring
+
+    /// One gated device-state update, in file-offset terms.
+    struct DeviceStateNullGateSite: Sendable {
+        /// The gate-check `bl` — the instruction the patch redirects.
+        let gateCall: Int
+        /// The `cbz w0, <skip>` that tests the call's answer.
+        let branch: Int
+        /// Where the branch skips to — past the whole update.
+        let target: UInt64
+        /// The gate slot already calls TheInstance: this patch's own
+        /// earlier write, recognised rather than repeated.
+        let alreadyGated: Bool
+    }
+
+    /// Everything the null-gate patch needs: TheInstance's own entry and
+    /// the gated callers whose gate-check calls it redirects.
+    struct DeviceStateNullGatePlan: Sendable {
+        let disasm: ARM64Disassembler
+        let textStart: Int
+        let textAddress: UInt64
+        let theInstanceOffset: Int
+        let sites: [DeviceStateNullGateSite]
+
+        var theInstanceVMA: UInt64 {
+            vma(theInstanceOffset)
+        }
+
+        func vma(_ offset: Int) -> UInt64 {
+            textAddress + UInt64(offset - textStart)
+        }
+    }
+
+    /// How many direct callers of TheInstance must carry the gated shape —
+    /// one per device-state update VirtualAudio_Device pushes at the
+    /// manager. A build with a different count is refused, not half-patched.
+    private static let deviceStateNullGateSiteCount = 2
+
+    /// Resolve TheInstance and its gated device-state callers, or say why
+    /// not. The singleton is found from its own diagnostic — the log it
+    /// prints when asked for an instance nobody published — and the
+    /// callers from the shape every device-state update shares around its
+    /// `bl`.
+    static func locateDeviceStateNullGate(in data: Data) throws -> DeviceStateNullGatePlan {
+        let sections = MachOParser.parseSections(from: data)
+        guard let text = sections["__TEXT,__text"] else {
+            throw PatcherError.invalidFormat("\(component): no __TEXT,__text section")
+        }
+        let textStart = Int(text.fileOffset)
+        let textEnd = textStart + Int(text.size)
+        let disasm = ARM64Disassembler()
+        func vma(_ offset: Int) -> UInt64 {
+            text.address + UInt64(offset - textStart)
+        }
+
+        // TheInstance, from its own diagnostic: the null-answer log is
+        // referenced exactly once in __text, by the singleton's accessor.
+        let anchors = cStringVMAs(containing: deviceStateInstanceMissing, in: data, sections: sections)
+        guard !anchors.isEmpty else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): the string \"\(deviceStateInstanceMissing)\" is nowhere in the binary's sections",
+            )
+        }
+        let references = adrpAddReferences(
+            to: 0,
+            formingAnyOf: anchors,
+            in: data,
+            textStart: textStart,
+            textEnd: textEnd,
+        )
+        guard references.count == 1 else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): expected exactly 1 reference to \"\(deviceStateInstanceMissing)\", "
+                    + "found \(references.count)",
+            )
+        }
+        guard let theInstance = nearestPrologue(
+            in: data, disasm: disasm, below: references[0].adrp, floor: textStart,
+        ) else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): no function prologue above the \"\(deviceStateInstanceMissing)\" reference",
+            )
+        }
+
+        // Every direct caller, kept where the gated device-state shape
+        // holds around the call.
+        var sites: [DeviceStateNullGateSite] = []
+        var offset = textStart
+        while offset + 4 <= textEnd {
+            defer { offset += 4 }
+            guard let insn = disasm.disassembleOne(in: data, at: offset), insn.isCall,
+                  let word = wordAt(data, offset),
+                  let target = ARM64Encoder.decodeBranchTarget(insn: word, pc: vma(offset)),
+                  target == vma(theInstance)
+            else { continue }
+            if let site = gatedDeviceStateSite(
+                in: data, disasm: disasm, call: offset, vma: vma, theInstance: vma(theInstance),
+            ) {
+                sites.append(site)
+            }
+        }
+        guard sites.count == deviceStateNullGateSiteCount else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): expected exactly \(deviceStateNullGateSiteCount) gated device-state "
+                    + "updates around TheInstance at 0x\(hex(vma(theInstance))), found \(sites.count)",
+            )
+        }
+
+        return DeviceStateNullGatePlan(
+            disasm: disasm,
+            textStart: textStart,
+            textAddress: text.address,
+            theInstanceOffset: theInstance,
+            sites: sites.sorted { $0.gateCall < $1.gateCall },
+        )
+    }
+
+    /// Whether a direct `bl` to TheInstance sits in the gated device-state
+    /// shape: a gate-check call at −8 (pristine, any callee — or
+    /// TheInstance again once this patch has redirected it), the `cbz w0`
+    /// at −4 skipping forward past the whole update, the singleton's
+    /// return moved aside at +4 (`mov xN, x0`), and that return
+    /// dereferenced unchecked at +8 (`ldr xM, [x0]`) — the read that
+    /// faults when nobody published. The singleton's other callers either
+    /// test its answer or live behind the haptic attenuation delegate's
+    /// own capability flag, and match nothing here.
+    static func gatedDeviceStateSite(
+        in data: Data,
+        disasm: ARM64Disassembler,
+        call: Int,
+        vma: (Int) -> UInt64,
+        theInstance: UInt64,
+    ) -> DeviceStateNullGateSite? {
+        guard call >= 8 else { return nil }
+
+        // The singleton's answer, moved aside and then read unchecked:
+        // `mov xN, x0` directly above `ldr xM, [x0]`.
+        guard let saved = disasm.disassembleOne(in: data, at: call + 4),
+              saved.mnemonic == "mov",
+              let savedOps = saved.detail?.operands, savedOps.count == 2,
+              savedOps[0].type == .register, savedOps[1].type == .register,
+              savedOps[1].reg.rawValue == ARM64Register.x(0).rawValue,
+              let deref = disasm.disassembleOne(in: data, at: call + 8),
+              deref.mnemonic == "ldr",
+              let derefOps = deref.detail?.operands, derefOps.count == 2,
+              derefOps[0].type == .register,
+              derefOps[1].type == .memory, derefOps[1].mem.base == ARM64Register.x(0)
+        else { return nil }
+
+        // The gate: the call whose answer the branch below it tests.
+        guard let gateCall = disasm.disassembleOne(in: data, at: call - 8), gateCall.isCall,
+              let gateWord = wordAt(data, call - 8),
+              let gateCallee = ARM64Encoder.decodeBranchTarget(insn: gateWord, pc: vma(call - 8))
+        else { return nil }
+        // Pristine, the gate slot calls anything but TheInstance; once
+        // redirected, it calls TheInstance and the shape is our own work.
+        let alreadyGated = gateCallee == theInstance
+
+        guard let gateInsn = disasm.disassembleOne(in: data, at: call - 4),
+              gateInsn.mnemonic == "cbz",
+              let operands = gateInsn.detail?.operands, operands.count == 2,
+              operands[0].type == .register, operands[0].reg.rawValue == ARM64Register.w(0).rawValue,
+              let gateBranchWord = wordAt(data, call - 4),
+              let target = decodeConditionalBranchTarget(insn: gateBranchWord, pc: vma(call - 4))
+        else { return nil }
+        // The skip must clear the dereference: the branch and its target
+        // bracket the whole device-state update the patch gates.
+        guard target > vma(call + 8) else { return nil }
+        return DeviceStateNullGateSite(
+            gateCall: call - 8, branch: call - 4, target: target, alreadyGated: alreadyGated,
+        )
+    }
+
+    /// The arm64 ABI a thin plugin is built for: arm64e.x1 (the X1
+    /// extension, iOS 27.1's iPhone19,4 userland), any other arm64 subtype
+    /// (plain arm64e covers 26.x and 27.0), or not an arm64 image at all —
+    /// in which case the caller's own anchoring refuses the file. The
+    /// subtype is masked the way the X1 bootstrap patcher masks fat slices:
+    /// the LIB64 bit is not part of the ABI number.
+    enum PluginArm64Subtype {
+        case x1
+        case other
+        case notArm64
+    }
+
+    static func arm64Subtype(of data: Data) -> PluginArm64Subtype {
+        guard let magic = wordAt(data, 0), magic == 0xFEED_FACF,
+              let cpuType = wordAt(data, 4), cpuType == 0x0100_000C,
+              let cpuSubtype = wordAt(data, 8)
+        else { return .notArm64 }
+        return cpuSubtype & 0x00FF_FFFF == 12 ? .x1 : .other
     }
 
     /// The target of a jump word, whichever immediate family encodes it:
@@ -1720,11 +2152,76 @@ public enum CustomFirmwareVirtualAudio {
         return UInt32(bytes[0]) | UInt32(bytes[1]) << 8 | UInt32(bytes[2]) << 16 | UInt32(bytes[3]) << 24
     }
 
-    /// The nearest function prologue (`pacibsp`) at or before `below`.
-    private static func nearestPrologue(in data: Data, disasm: ARM64Disassembler, below: Int, floor: Int) -> Int? {
+    // MARK: - Frame signing
+
+    /// The instructions that sign LR with the B key against SP as a function
+    /// opens. arm64e builds use `pacibsp`; an arm64e.x1 userland (iOS 27.1's
+    /// iPhone19,4) is built with FEAT_PAuth_LR and opens every function with
+    /// `pacibsppc`, which adds the signing instruction's own address to the
+    /// modifier. VirtualAudio is patched before any X1 lowering, so it is
+    /// read in its native form.
+    static let prologueMnemonics: Set<String> = ["pacibsp", "pacibsppc", "pacnbibsppc"]
+
+    /// The returns that authenticate an LR signed by one of
+    /// `prologueMnemonics`: `retab`, or its PAuth_LR forms — `retabsppc
+    /// <label>`, whose label is the `pacibsppc` that signed, and the register
+    /// form, which Capstone also names `retabsppc` (`retabsppcr` is LLVM's
+    /// name, kept for a decoder that uses it). A plain `ret`, a `retaa*` or
+    /// an `autib*` + `ret` pair closes something else, and is not an
+    /// epilogue these patches branch to.
+    static let authenticatedReturnMnemonics: Set<String> = ["retab", "retabsppc", "retabsppcr"]
+
+    /// Every return, of either key and either PAuth form: an instruction
+    /// that never falls through to the one after it.
+    static let returnMnemonics: Set<String> = [
+        "ret", "retaa", "retab", "retaasppc", "retabsppc", "retaasppcr", "retabsppcr",
+    ]
+
+    static func isPrologue(_ insn: ARM64Instruction?) -> Bool {
+        guard let insn else { return false }
+        return prologueMnemonics.contains(insn.mnemonic)
+    }
+
+    static func isAuthenticatedReturn(_ insn: ARM64Instruction?) -> Bool {
+        guard let insn else { return false }
+        return authenticatedReturnMnemonics.contains(insn.mnemonic)
+    }
+
+    /// Whether the return at `offset` closes the function whose prologue is
+    /// at `prologue`. The label form of `retabsppc` names its signing
+    /// instruction, and it must be that prologue — a return that
+    /// authenticates against another frame is refused. `retab` and the
+    /// register form (`retabsppc xN`) carry no label and are taken as they
+    /// are, bounded by the function the caller already walked.
+    static func returnCloses(_ insn: ARM64Instruction, at offset: Int, prologue: Int) -> Bool {
+        guard insn.mnemonic == "retabsppc",
+              insn.detail?.operands.first?.type != .register
+        else { return true }
+        return retabsppcLabel(insn, at: offset) == prologue
+    }
+
+    /// Where the label form of `retabsppc` at `offset` points: the
+    /// `pacibsppc` whose address entered the LR's signature. The label is
+    /// `imm16` words *back* from the return (bits 20-5, unsigned), which
+    /// Capstone decodes as `#0` whatever the field holds — its PAuth_LR
+    /// support stops at the mnemonic — so the field is read off the word
+    /// Capstone already identified. Analysis only: this assembles nothing.
+    static func retabsppcLabel(_ insn: ARM64Instruction, at offset: Int) -> Int? {
+        guard insn.mnemonic == "retabsppc", insn.bytes.count == 4 else { return nil }
+        let word = UInt32(insn.bytes[0]) | UInt32(insn.bytes[1]) << 8
+            | UInt32(insn.bytes[2]) << 16 | UInt32(insn.bytes[3]) << 24
+        // RETABSPPC <label>: 0101_0101_0010_0000 | imm16 << 5 | 11111 — the
+        // B-key form (bit 21) of the PC-relative return; anything else is
+        // the register form or not this instruction.
+        guard word & 0xFFE0_001F == 0x5520_001F else { return nil }
+        return offset - Int((word >> 5) & 0xFFFF) * 4
+    }
+
+    /// The nearest function prologue at or before `below`.
+    static func nearestPrologue(in data: Data, disasm: ARM64Disassembler, below: Int, floor: Int) -> Int? {
         var offset = min(below, floor + ((below - floor) & ~3))
         while offset >= floor {
-            if let insn = disasm.disassembleOne(in: data, at: offset), insn.mnemonic == "pacibsp" {
+            if isPrologue(disasm.disassembleOne(in: data, at: offset)) {
                 return offset
             }
             offset -= 4
@@ -1733,10 +2230,10 @@ public enum CustomFirmwareVirtualAudio {
     }
 
     /// The nearest function prologue at or after `atOrAfter`.
-    private static func nearestPrologue(in data: Data, disasm: ARM64Disassembler, atOrAfter: Int, ceiling: Int) -> Int? {
+    static func nearestPrologue(in data: Data, disasm: ARM64Disassembler, atOrAfter: Int, ceiling: Int) -> Int? {
         var offset = atOrAfter
         while offset + 4 <= ceiling {
-            if let insn = disasm.disassembleOne(in: data, at: offset), insn.mnemonic == "pacibsp" {
+            if isPrologue(disasm.disassembleOne(in: data, at: offset)) {
                 return offset
             }
             offset += 4
@@ -1931,39 +2428,47 @@ public enum CustomFirmwareVirtualAudio {
     /// The function epilogue's entry, found after the throw: the stack-guard
     /// load when the function is built with the protector (iOS 26), or the
     /// first frame restore when it is not (iOS 27).
-    private static func locateEpilogue(
+    static func locateEpilogue(
         in data: Data,
         disasm: ARM64Disassembler,
         after offset: Int,
+        prologue: Int,
         textEnd: Int,
     ) throws -> Int {
-        // The first `retab` after the throw ends the epilogue.
-        var retabOffset: Int?
+        // The first authenticated return after the throw ends the epilogue —
+        // `retab`, or `retabsppc` on an arm64e.x1 build — and it must be the
+        // function's own: a `retabsppc` names the prologue that signed.
+        var returnOffset: Int?
         var cursor = offset + 4
         while cursor + 4 <= textEnd {
             defer { cursor += 4 }
-            if let insn = disasm.disassembleOne(in: data, at: cursor),
-               insn.mnemonic == "retab"
-            {
-                retabOffset = cursor
+            if let insn = disasm.disassembleOne(in: data, at: cursor), isAuthenticatedReturn(insn) {
+                guard returnCloses(insn, at: cursor, prologue: prologue) else {
+                    throw PatcherError.patchSiteNotFound(
+                        "\(component): the first return after the throw at 0x\(hex(UInt64(offset))), "
+                            + "`\(insn.mnemonic)` at 0x\(hex(UInt64(cursor))), does not close the function "
+                            + "at 0x\(hex(UInt64(prologue)))",
+                    )
+                }
+                returnOffset = cursor
                 break
             }
         }
-        guard let retab = retabOffset else {
+        guard let ret = returnOffset else {
             throw PatcherError.patchSiteNotFound(
-                "\(component): no `retab` after the throw at 0x\(hex(UInt64(offset)))",
+                "\(component): no `retab` or `retabsppc` after the throw at 0x\(hex(UInt64(offset)))",
             )
         }
-        return try epilogueEntry(in: data, disasm: disasm, retab: retab)
+        return try epilogueEntry(in: data, disasm: disasm, retab: ret)
     }
 
-    /// The entry of the epilogue a known `retab` closes: the stack-guard load
-    /// when the function is built with the protector, or the first frame
-    /// restore when it is not. Shared by both VirtualAudio patches — the
-    /// walker patch reaches the retab forwards from its throw, the mute-set
-    /// patch enumerates the wrapper's own retab because its throw sits below
-    /// the epilogue.
-    private static func epilogueEntry(
+    /// The entry of the epilogue a known authenticated return (`retab` or
+    /// `retabsppc`) closes: the stack-guard load when the function is built
+    /// with the protector, or the first frame restore when it is not. Shared
+    /// by both VirtualAudio patches — the walker patch reaches the return
+    /// forwards from its throw, the mute-set patch enumerates the wrapper's
+    /// own return because its throw sits below the epilogue.
+    static func epilogueEntry(
         in data: Data,
         disasm: ARM64Disassembler,
         retab: Int,
@@ -1980,7 +2485,7 @@ public enum CustomFirmwareVirtualAudio {
               addOps[0].reg == addOps[1].reg
         else {
             throw PatcherError.invalidFormat(
-                "\(component): no `add sp` directly before the epilogue's `retab`",
+                "\(component): no `add sp` directly before the epilogue's return",
             )
         }
 

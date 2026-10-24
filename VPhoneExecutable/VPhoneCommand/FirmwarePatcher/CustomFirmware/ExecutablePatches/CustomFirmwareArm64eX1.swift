@@ -1,11 +1,12 @@
 // Static ARM64E_X1 lowering for the pre-handler and fork-sensitive boot closure.
 
 import Foundation
+import os
 import MachO
 import VPhonePatchKit
 
 public enum CustomFirmwareArm64eX1 {
-    public struct Result {
+    public struct Result: Sendable {
         public let records: [PatchRecord]
         public let unvisitedCandidates: Int
         public let unvisitedExamples: [Int]
@@ -21,6 +22,135 @@ public enum CustomFirmwareArm64eX1 {
         "retabsppc", "retaasppc", "retabsppcr", "retaasppcr", "addpt", "subpt", "maddpt", "msubpt",
         "autia171615", "autib171615",
     ]
+
+    /// Top bytes of every word `VPhoneArm64eX1Lowering` lowers or refuses.
+    static let loweredTopBytes = topByteTable([0x44, 0x55, 0x9A, 0x9B, 0xD6, 0xDA, 0xF3])
+
+    /// Top bytes of every word the walk follows or stops at: B, BL, B.cond,
+    /// CBZ/CBNZ/TBZ/TBNZ, BR and its authenticated forms, the RET family,
+    /// BRK, HLT and UDF.
+    static let flowTopBytes = topByteTable([
+        0x00, 0x14, 0x15, 0x16, 0x17, 0x34, 0x35, 0x36, 0x37, 0x54, 0x55,
+        0x94, 0x95, 0x96, 0x97, 0xB4, 0xB5, 0xB6, 0xB7, 0xD4, 0xD6, 0xD7,
+    ])
+
+    private static func topByteTable(_ bytes: Set<UInt8>) -> [Bool] {
+        (0 ... 255).map { bytes.contains(UInt8($0)) }
+    }
+
+    /// Encodings whose operands depend on the instruction's address: immediate
+    /// branches, compare-and-branch, ADR/ADRP, literal loads, and the labelled
+    /// PAuth_LR return and authenticate forms (top bytes 0x55 and 0xF3).
+    static func isPCRelative(_ word: UInt32) -> Bool {
+        word & 0x7C00_0000 == 0x1400_0000 || // B, BL
+            word >> 24 == 0x54 || // B.cond, BC.cond
+            word & 0x7C00_0000 == 0x3400_0000 || // CBZ, CBNZ, TBZ, TBNZ
+            word & 0x7E00_0000 == 0x7400_0000 || // CB<cc>
+            word & 0x1F00_0000 == 0x1000_0000 || // ADR, ADRP
+            word & 0x3B00_0000 == 0x1800_0000 || // LDR, LDRSW, PRFM (literal)
+            word >> 24 == 0x55 || word >> 24 == 0xF3
+    }
+
+    /// How a PC-relative decode follows its word to another address: not at
+    /// all, its target operand by the address delta, or by the page delta.
+    enum Move: CaseIterable { case none, address, page }
+
+    /// The PC-relative families whose target the encoding states outright:
+    /// the word with its offset field cleared, and the target it names at
+    /// `address`. Two words of one family decode alike but for that target.
+    static func targetFamily(_ word: UInt32, at address: Int) -> (key: UInt32, target: Int64)? {
+        func signed(_ value: UInt32, bits: Int) -> Int64 {
+            Int64(Int32(bitPattern: value << UInt32(32 - bits)) >> Int32(32 - bits))
+        }
+        let pc = Int64(address)
+        if word & 0x7C00_0000 == 0x1400_0000 { // B, BL
+            return (word & 0xFC00_0000, pc + signed(word & 0x03FF_FFFF, bits: 26) * 4)
+        }
+        if word >> 24 == 0x54 || word & 0x7E00_0000 == 0x3400_0000 || word & 0x3B00_0000 == 0x1800_0000 {
+            // B.cond, BC.cond, CBZ, CBNZ, LDR/LDRSW/PRFM (literal): imm19.
+            return (word & 0xFF00_001F, pc + signed((word >> 5) & 0x7FFFF, bits: 19) * 4)
+        }
+        if word & 0x7E00_0000 == 0x3600_0000 { // TBZ, TBNZ: imm14
+            return (word & 0xFFF8_001F, pc + signed((word >> 5) & 0x3FFF, bits: 14) * 4)
+        }
+        if word & 0x1F00_0000 == 0x1000_0000 { // ADR, ADRP
+            let immediate = signed(((word >> 5) & 0x7FFFF) << 2 | (word >> 29) & 3, bits: 21)
+            return word >> 31 == 0
+                ? (word & 0x9F00_001F, pc + immediate)
+                : (word & 0x9F00_001F, (pc & ~0xFFF) + immediate << 12)
+        }
+        return nil
+    }
+
+    /// `item` as Capstone would decode it at `address` under `move`, or nil
+    /// when its shape is not one a move can rebuild exactly: a last immediate
+    /// operand that ends the operand text, and no flags a rebuild would drop.
+    static func moved(_ item: ARM64Instruction, by move: Move, to address: Int) -> ARM64Instruction? {
+        guard move != .none else {
+            return ARM64Instruction(isDecoded: item.isDecoded, address: UInt64(address), size: item.size,
+                bytes: item.bytes, mnemonic: item.mnemonic, operandString: item.operandString,
+                detail: item.detail, isJump: item.isJump, isCall: item.isCall, isReturn: item.isReturn)
+        }
+        let from = Int64(item.address), to = Int64(address)
+        let delta = move == .page ? (to & ~0xFFF) - (from & ~0xFFF) : to - from
+        return retargeted(item, bytes: item.bytes, to: address, delta: delta)
+    }
+
+    /// `String(value, radix: 16)` for a non-negative value, without the generic
+    /// formatting path that showed in profiles of a whole-cache run.
+    static func hex(_ value: Int64) -> String {
+        let digits = Array("0123456789abcdef".utf8)
+        var number = UInt64(value), buffer = [UInt8](repeating: 0, count: 16), index = 16
+        repeat {
+            index -= 1
+            buffer[index] = digits[Int(number & 15)]
+            number >>= 4
+        } while number != 0
+        return String(decoding: buffer[index...], as: UTF8.self)
+    }
+
+    /// `item` at `address` with `bytes`, its target operand shifted by `delta`;
+    /// nil unless the target is a last immediate operand that ends the operand
+    /// text and no flag a rebuild would drop is set.
+    static func retargeted(_ item: ARM64Instruction, bytes: [UInt8], to address: Int, delta: Int64) -> ARM64Instruction? {
+        guard let detail = item.detail, !detail.writeback, let last = detail.operands.last,
+              last.type == .immediate, !last.writesRegister, last.imm >= 0,
+              case let old = hex(last.imm), item.operandString.hasSuffix("0x" + old)
+        else { return nil }
+        let (target, overflow) = last.imm.addingReportingOverflow(delta)
+        guard !overflow, target >= 0 else { return nil }
+        let text = item.operandString.dropLast(old.utf8.count) + hex(target)
+        // Capstone's operand is a union: an immediate's register and memory
+        // views alias its low and high words, and the decode copies them all.
+        let low = ARM64Register(rawValue: UInt32(truncatingIfNeeded: target))
+        let high = ARM64Register(rawValue: UInt32(truncatingIfNeeded: target >> 32))
+        let operands = detail.operands.dropLast() + [ARM64Operand(
+            type: .immediate, reg: low, imm: target,
+            mem: ARM64MemoryOperand(base: low, index: high, disp: last.mem.disp), shift: last.shift,
+        )]
+        return ARM64Instruction(isDecoded: item.isDecoded, address: UInt64(address), size: item.size,
+            bytes: bytes, mnemonic: item.mnemonic, operandString: String(text),
+            detail: ARM64InstructionDetail(conditionCode: detail.conditionCode, updatesFlags: detail.updatesFlags,
+                                           postIndex: detail.postIndex, operands: Array(operands)),
+            isJump: item.isJump, isCall: item.isCall, isReturn: item.isReturn)
+    }
+
+    /// Every field the planner and its callers read, compared exactly.
+    static func sameDecode(_ lhs: ARM64Instruction, _ rhs: ARM64Instruction) -> Bool {
+        guard lhs.isDecoded == rhs.isDecoded, lhs.address == rhs.address, lhs.size == rhs.size,
+              lhs.bytes == rhs.bytes, lhs.mnemonic == rhs.mnemonic, lhs.operandString == rhs.operandString,
+              lhs.isJump == rhs.isJump, lhs.isCall == rhs.isCall, lhs.isReturn == rhs.isReturn
+        else { return false }
+        guard let left = lhs.detail, let right = rhs.detail else { return lhs.detail == nil && rhs.detail == nil }
+        return left.conditionCode == right.conditionCode && left.updatesFlags == right.updatesFlags &&
+            left.postIndex == right.postIndex && left.writeback == right.writeback &&
+            left.operands.count == right.operands.count &&
+            zip(left.operands, right.operands).allSatisfy { a, b in
+                a.type == b.type && a.reg == b.reg && a.imm == b.imm && a.writesRegister == b.writesRegister &&
+                    a.mem.base == b.mem.base && a.mem.index == b.mem.index && a.mem.disp == b.mem.disp &&
+                    a.shift.type == b.shift.type && a.shift.amount == b.shift.amount
+            }
+    }
 
     public static func lower(_ data: inout Data) throws -> Result {
         try lower(&data, identifier: FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap)
@@ -83,58 +213,61 @@ public enum CustomFirmwareArm64eX1 {
 
     static func planCode(ranges: [(address: Int, data: Data)], seeds: [Int], excluded: [Range<Int>], identifier: String,
                          readMemory: ((Int, Int) throws -> Data)? = nil,
-                         authenticatedPointer: ((UInt64, UInt16) throws -> UInt64?)? = nil) throws -> Result {
-        let decoder = ARM64Disassembler()
-        var dataRanges = excluded
+                         authenticatedPointer: ((UInt64, UInt16) throws -> UInt64?)? = nil,
+                         decoder words: Decoder = Decoder()) throws -> Result {
+        let decoder = words.capstone
+        func decode(_ word: UInt32, at address: Int) -> ARM64Instruction? { words.decode(word, at: address) }
+        // Unpacked once: a generic load per word crosses PatchKit's resilient
+        // boundary and costs a metadata lookup on every call.
+        let rangeWords: [[UInt32]] = ranges.map { range in
+            range.data.withUnsafeBytes { raw in
+                (0 ..< raw.count / 4).map { UInt32(littleEndian: raw.loadUnaligned(fromByteOffset: $0 * 4, as: UInt32.self)) }
+            }
+        }
+        // Data inside the code, as one bit per word: a linear scan of the ranges
+        // on every step went quadratic in images with many switch tables.
+        var dataWords = AddressSet(ranges: ranges.map { ($0.address, $0.data.count) })
+        for span in excluded { dataWords.insertWords(in: span) }
         var candidates: [Int] = [], frameEntries: [Int] = []
         // Recover coalesced entries from return-PAC plus an SP frame setup.
-        for range in ranges {
-            for block in stride(from: 0, to: range.data.count, by: 0x4000) {
-                let end = min(range.data.count, block + 0x4004)
-                let decoded = decoder.disassemble(range.data.subdata(in: block ..< end), at: UInt64(range.address + block))
-                for (index, item) in decoded.enumerated() where item.address < UInt64(range.address + block + 0x4000) {
-                    let address = Int(item.address)
-                    guard !excluded.contains(where: { $0.contains(address) }) else { continue }
-                    if loweredMnemonics.contains(item.mnemonic) { candidates.append(address) }
-                    if ["pacibsppc", "paciasppc", "pacnbibsppc", "pacnbiasppc", "pacibsp", "paciasp"].contains(item.mnemonic), index + 1 < decoded.count {
-                        let next = decoded[index + 1], ops = next.detail?.operands ?? []
-                        let savesFrame = ["stp", "str"].contains(next.mnemonic) && ops.last?.type == .memory && ops.last?.mem.base == .sp
-                        let allocatesFrame = next.mnemonic == "sub" && ops.count == 3 && ops[0].reg == .sp && ops[1].reg == .sp && ops[2].type == .immediate
-                        if savesFrame || allocatesFrame { frameEntries.append(address) }
-                    }
+        for (range, words) in zip(ranges, rangeWords) {
+            for index in 0 ..< words.count {
+                // Every lowered form and PAC prologue has one of these top
+                // bytes; Capstone still decides, but only for words that could
+                // match, which keeps a whole-cache scan affordable.
+                switch words[index] >> 24 {
+                case 0x55, 0x9A, 0x9B, 0xD5, 0xD6, 0xDA, 0xF3: break
+                default: continue
+                }
+                let address = range.address + index * 4
+                guard !excluded.contains(where: { $0.contains(address) }),
+                      let item = decode(words[index], at: address)
+                else { continue }
+                if loweredMnemonics.contains(item.mnemonic) { candidates.append(address) }
+                if ["pacibsppc", "paciasppc", "pacnbibsppc", "pacnbiasppc", "pacibsp", "paciasp"].contains(item.mnemonic), index + 1 < words.count,
+                   let next = decode(words[index + 1], at: address + 4) {
+                    let ops = next.detail?.operands ?? []
+                    let savesFrame = ["stp", "str"].contains(next.mnemonic) && ops.last?.type == .memory && ops.last?.mem.base == .sp
+                    let allocatesFrame = next.mnemonic == "sub" && ops.count == 3 && ops[0].reg == .sp && ops[1].reg == .sp && ops[2].type == .immediate
+                    if savesFrame || allocatesFrame { frameEntries.append(address) }
                 }
             }
         }
-        var decodedPage: [ARM64Instruction] = [], pageAddress = -1
-        var pages: [Int: [ARM64Instruction]] = [:], pageUses: [Int: Int] = [:], tick = 0
+        // SKIPDATA gives every word its own 4-byte entry, so one word decodes
+        // exactly as it would inside its page. Decoding whole pages behind a
+        // small cache thrashed on large cache images, whose traversal jumps
+        // between distant pages.
+        func word(at address: Int) -> UInt32? {
+            guard address & 3 == 0, !dataWords.contains(address),
+                  let index = ranges.firstIndex(where: { address >= $0.address && address + 4 <= $0.address + $0.data.count }) else { return nil }
+            return rangeWords[index][(address - ranges[index].address) / 4]
+        }
         func decodedInstruction(at address: Int) -> ARM64Instruction? {
-            guard !dataRanges.contains(where: { $0.contains(address) }),
-                  let range = ranges.first(where: { address >= $0.address && address < $0.address + $0.data.count }) else { return nil }
-            let relative = address - range.address
-            let block = relative / 0x4000 * 0x4000
-            if pageAddress != range.address + block {
-                pageAddress = range.address + block
-                tick += 1
-                pageUses[pageAddress] = tick
-                if let cached = pages[pageAddress] {
-                    decodedPage = cached
-                } else {
-                    let end = min(range.data.count, block + 0x4000)
-                    decodedPage = decoder.disassemble(range.data.subdata(in: block ..< end), at: UInt64(pageAddress))
-                    if pages.count >= 16, let oldest = pageUses.filter({ $0.key != pageAddress }).min(by: { $0.value < $1.value })?.key {
-                        pages.removeValue(forKey: oldest)
-                        pageUses.removeValue(forKey: oldest)
-                    }
-                    pages[pageAddress] = decodedPage
-                }
-            }
-            let index = (address - pageAddress) / 4
-            guard address & 3 == 0, index < decodedPage.count,
-                  decodedPage[index].address == UInt64(address) else { return nil }
-            return decodedPage[index]
+            word(at: address).flatMap { decode($0, at: address) }
         }
-        var scheduled = Set(seeds + frameEntries)
-        var pending = scheduled.sorted(by: >), visited = Set<Int>()
+        var scheduled = AddressSet(ranges: ranges.map { ($0.address, $0.data.count) }), visited = scheduled
+        var pending = Set(seeds + frameEntries).sorted(by: >)
+        for entry in pending { _ = scheduled.insert(entry) }
         func schedule(_ address: Int) {
             if !visited.contains(address), scheduled.insert(address).inserted {
                 pending.append(address)
@@ -143,25 +276,44 @@ public enum CustomFirmwareArm64eX1 {
         var records: [PatchRecord] = []
         while let entry = pending.popLast() {
             var offset = entry
-            while visited.insert(offset).inserted, let instruction = decodedInstruction(at: offset), instruction.isDecoded, instruction.size == 4 {
-                if let replacement = try replacement(for: instruction) {
-                    let after = decoder.disassembleOne(replacement, at: instruction.address)
+            while visited.insert(offset).inserted, let word = word(at: offset) {
+                // The top byte rules out most words before any mnemonic is
+                // compared: only these can be lowered or refused, or end or
+                // redirect the walk. Any other word only has to decode.
+                let top = Int(word >> 24)
+                guard Self.loweredTopBytes[top] || Self.flowTopBytes[top] else {
+                    guard words.decodes(word) else { break }
+                    offset += 4
+                    continue
+                }
+                guard let instruction = decode(word, at: offset), instruction.isDecoded, instruction.size == 4 else { break }
+                if Self.loweredTopBytes[top], let replacement = try replacement(for: instruction) {
+                    // A few dozen replacement words recur millions of times
+                    // across a cache; the word cache answers for them.
+                    let after = replacement.count == 4
+                        ? decode(replacement.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)) },
+                                 at: offset)
+                        : decoder.disassembleOne(replacement, at: instruction.address)
                     records.append(PatchRecord(patchID: identifier + ".\(offset)", component: "Mach-O", fileOffset: offset,
                         originalBytes: Data(instruction.bytes), patchedBytes: replacement,
                         beforeDisasm: "\(instruction.mnemonic) \(instruction.operandString)",
                         afterDisasm: "\(after?.mnemonic ?? "?") \(after?.operandString ?? "")",
                         description: "X1 compatibility lowering; PC PAC/CPA checks reduced"))
                 }
+                guard Self.flowTopBytes[top] else {
+                    offset += 4
+                    continue
+                }
                 let mnemonic = instruction.mnemonic
                 if mnemonic == "br", let readMemory,
                    let table = try switchTable(at: offset, instructionAt: decodedInstruction(at:), readMemory: readMemory) {
-                    dataRanges.append(table.data)
+                    dataWords.insertWords(in: table.data)
                     for target in table.targets { schedule(target) }
                 }
                 if mnemonic == "braa", let authenticatedPointer,
                    let table = try authenticatedDispatch(at: offset, instructionAt: decodedInstruction(at:),
                                                          pointer: authenticatedPointer) {
-                    dataRanges.append(table.data)
+                    dataWords.insertWords(in: table.data)
                     for target in table.targets {
                         guard decodedInstruction(at: target)?.isDecoded == true else {
                             throw PatcherError.invalidFormat("authenticated X1 dispatch target outside executable code")
@@ -181,8 +333,8 @@ public enum CustomFirmwareArm64eX1 {
                 offset += 4
             }
         }
-        records.removeAll { record in dataRanges.contains(where: { $0.contains(record.fileOffset) }) }
-        let unvisited = candidates.filter { address in !visited.contains(address) && !dataRanges.contains(where: { $0.contains(address) }) }
+        records.removeAll { dataWords.contains($0.fileOffset) }
+        let unvisited = candidates.filter { address in !visited.contains(address) && !dataWords.contains(address) }
         records.sort { $0.fileOffset < $1.fileOffset }
         return Result(records: records, unvisitedCandidates: unvisited.count, unvisitedExamples: Array(unvisited.prefix(16)))
     }
@@ -537,5 +689,168 @@ public enum CustomFirmwareArm64eX1 {
             position += size
         }
         return (seeds, excluded)
+    }
+}
+
+// MARK: - Address Set
+
+/// A set of instruction addresses: one bit per word inside the planned code
+/// ranges, and a plain set for anything else. A whole-cache traversal inserts
+/// hundreds of millions of addresses, where hashing each one dominated.
+struct AddressSet {
+    private let ranges: [(address: Int, count: Int)]
+    private var bits: [[UInt64]]
+    private var others = Set<Int>()
+
+    init(ranges: [(address: Int, count: Int)]) {
+        self.ranges = ranges
+        bits = ranges.map { [UInt64](repeating: 0, count: ($0.count / 4 + 63) / 64) }
+    }
+
+    private func slot(_ address: Int) -> (range: Int, word: Int, mask: UInt64)? {
+        guard address & 3 == 0,
+              let range = ranges.firstIndex(where: { address >= $0.address && address - $0.address < $0.count / 4 * 4 })
+        else { return nil }
+        let index = (address - ranges[range].address) / 4
+        return (range, index / 64, 1 << UInt64(index % 64))
+    }
+
+    func contains(_ address: Int) -> Bool {
+        guard let slot = slot(address) else { return others.contains(address) }
+        return bits[slot.range][slot.word] & slot.mask != 0
+    }
+
+    @discardableResult
+    mutating func insert(_ address: Int) -> (inserted: Bool, memberAfterInsert: Int) {
+        guard let slot = slot(address) else { return others.insert(address) }
+        let inserted = bits[slot.range][slot.word] & slot.mask == 0
+        bits[slot.range][slot.word] |= slot.mask
+        return (inserted, address)
+    }
+
+    /// Every word address of `span` that lies in the ranges. A set of data
+    /// words is only ever asked about addresses inside them.
+    mutating func insertWords(in span: Range<Int>) {
+        var address = (span.lowerBound + 3) & ~3
+        while address < span.upperBound {
+            if slot(address) != nil { insert(address) }
+            address += 4
+        }
+    }
+}
+
+// MARK: - Decoder
+
+extension CustomFirmwareArm64eX1 {
+    /// Decodability answers shared by every worker of one run: an answer
+    /// belongs to the word, not to the image or worker that asked. Striped so
+    /// that workers rarely wait on one another.
+    final class SharedDecodability: Sendable {
+        private let stripes = (0 ..< 64).map { _ in OSAllocatedUnfairLock(initialState: [UInt32: Bool]()) }
+
+        private func stripe(_ word: UInt32) -> OSAllocatedUnfairLock<[UInt32: Bool]> {
+            stripes[Int((word &* 0x9E37_79B1) >> 26)]
+        }
+
+        func answer(_ word: UInt32) -> Bool? {
+            stripe(word).withLock { $0[word] }
+        }
+
+        func record(_ word: UInt32, _ decodes: Bool) {
+            stripe(word).withLock { $0[word] = decodes }
+        }
+    }
+
+    /// Capstone behind two word-keyed caches, kept for as long as its owner
+    /// plans: one worker reuses it across every image it takes.
+    ///
+    /// Most words decode the same at any address, and a few prologue,
+    /// epilogue and move words make up much of every image. A PC-relative
+    /// word is reused only once Capstone, decoding it at a second address,
+    /// agrees field for field with one of the moves; a word no move reproduces
+    /// always goes back to Capstone. The caps bound memory; the plain cache
+    /// starts over when full, so a long run keeps the current image's words.
+    final class Decoder {
+        let capstone = ARM64Disassembler()
+        private var plain: [UInt32: ARM64Instruction] = [:]
+        private var relative: [UInt32: (item: ARM64Instruction, move: Move?, settled: Bool)] = [:]
+        private var families: [UInt32: (item: ARM64Instruction, target: Int64, settled: Bool, agrees: Bool)] = [:]
+        private var decodable: [UInt32: Bool] = [:]
+        private let shared: SharedDecodability?
+
+        init(shared: SharedDecodability? = nil) {
+            self.shared = shared
+        }
+
+        /// Whether Capstone decodes `word` as one 4-byte instruction. That does
+        /// not depend on the address, and costs far less to keep than a decode.
+        /// A miss here asks the workers' shared answers before Capstone.
+        func decodes(_ word: UInt32) -> Bool {
+            if let known = decodable[word] { return known }
+            let decodes: Bool
+            if let known = shared?.answer(word) {
+                decodes = known
+            } else {
+                let item = plain[word] ?? capstone.disassembleOne(ARM64.encodeU32(word), at: 0)
+                decodes = item.map { $0.isDecoded && $0.size == 4 } ?? false
+                shared?.record(word, decodes)
+            }
+            if decodable.count >= 1 << 22 { decodable.removeAll(keepingCapacity: true) }
+            decodable[word] = decodes
+            return decodes
+        }
+
+        func decode(_ word: UInt32, at address: Int) -> ARM64Instruction? {
+            if let known = plain[word] { return moved(known, by: .none, to: address) }
+            // A family template moves to any word of its family once Capstone,
+            // at a second instance naming another target, agreed with the move.
+            if let family = targetFamily(word, at: address) {
+                let bytes = [UInt8](ARM64.encodeU32(word))
+                if let known = families[family.key], known.settled {
+                    if known.agrees, let item = retargeted(known.item, bytes: bytes, to: address,
+                                                           delta: family.target - known.target)
+                    {
+                        return item
+                    }
+                }
+                guard let item = capstone.disassembleOne(ARM64.encodeU32(word), at: UInt64(address)) else { return nil }
+                if let known = families[family.key] {
+                    if !known.settled, family.target != known.target {
+                        let agrees = retargeted(known.item, bytes: bytes, to: address,
+                                                delta: family.target - known.target).map { sameDecode($0, item) } ?? false
+                        families[family.key] = (known.item, known.target, true, agrees)
+                    }
+                } else if families.count < 1 << 19 {
+                    families[family.key] = (item, family.target, false, false)
+                }
+                return item
+            }
+            let isRelative = isPCRelative(word)
+            if isRelative, let known = relative[word], known.settled,
+               let move = known.move, let item = moved(known.item, by: move, to: address)
+            {
+                return item
+            }
+            guard let item = capstone.disassembleOne(ARM64.encodeU32(word), at: UInt64(address)) else { return nil }
+            if !isRelative {
+                if plain.count >= 1 << 19 { plain.removeAll(keepingCapacity: true) }
+                plain[word] = item
+            } else if let known = relative[word] {
+                // Only a pair differing in both page and page offset tells the
+                // three moves apart; a move that cannot be rebuilt then counts
+                // as a mismatch, and a single match settles the word.
+                if !known.settled, known.item.address >> 12 != item.address >> 12,
+                   known.item.address & 0xFFF != item.address & 0xFFF
+                {
+                    let matches = Move.allCases.filter { move in
+                        moved(known.item, by: move, to: address).map { sameDecode($0, item) } ?? false
+                    }
+                    if matches.count <= 1 { relative[word] = (known.item, matches.first, true) }
+                }
+            } else if relative.count < 1 << 19 {
+                relative[word] = (item, nil, false)
+            }
+            return item
+        }
     }
 }

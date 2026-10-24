@@ -108,3 +108,36 @@ struct CustomFirmwareIPhoneProductTests {
         #expect(patched == presented)
     }
 }
+
+@Suite("Foldable VM sub-type")
+struct CustomFirmwareFoldableVMSubtypeTests {
+    private typealias Node = FlatDeviceTreeNode
+
+    private static func tree(subtype: String) -> Data {
+        Node("device-tree", [
+            ("model", Data("iPhone19,4\0".utf8)),
+            ("target-sub-type", Data("\(subtype)\0".utf8)),
+            ("target-type", Data("V68\0".utf8)),
+        ], children: [Node("product", [("product-name", Data("iPhone\0".utf8))])]).serialized
+    }
+
+    @Test func `a foldable board takes Apple's VM sub-type`() throws {
+        let original = Self.tree(subtype: "V68AP")
+        let (patched, changes, delta) = try CustomFirmwarePostRestoreDeviceTree.withFoldableVMSubtype(original)
+        #expect(changes.map(\.property) == ["target-sub-type"])
+        #expect(changes.first?.before == "V68AP")
+        #expect(changes.first?.after == "V68VM2025")
+        #expect(patched.count == original.count + delta)
+        #expect(patched == Self.tree(subtype: "V68VM2025"))
+    }
+
+    @Test func `other boards and a second run are left alone`() throws {
+        for subtype in ["D47AP", "V63AP", "V68VM2025"] {
+            let original = Self.tree(subtype: subtype)
+            let (patched, changes, delta) = try CustomFirmwarePostRestoreDeviceTree.withFoldableVMSubtype(original)
+            #expect(changes.isEmpty)
+            #expect(delta == 0)
+            #expect(patched == original)
+        }
+    }
+}

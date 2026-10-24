@@ -103,6 +103,14 @@ struct DyldSharedCacheArm64eX1BootstrapTests {
         #expect(plan.records.first?.fileOffset == Int(imageAddress + 0x200))
         #expect(plan.records.first?.patchedBytes == ARM64.pacibsp)
         #expect(plan.records.last?.patchedBytes == ARM64.retab)
+        #expect(plan.records.allSatisfy { $0.patchID.hasPrefix(FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap + ".") })
+        let remaining = try DyldSharedCacheArm64eX1BootstrapPatcher.planImage(
+            at: imageAddress,
+            in: chunks,
+            identifier: FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining,
+        )
+        #expect(remaining.records.map(\.patchedBytes) == plan.records.map(\.patchedBytes))
+        #expect(remaining.records.allSatisfy { $0.patchID.hasPrefix(FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining + ".") })
         #expect(try Data(contentsOf: url) == cache)
 
         put32(0x9000, 0x1000 + 192)

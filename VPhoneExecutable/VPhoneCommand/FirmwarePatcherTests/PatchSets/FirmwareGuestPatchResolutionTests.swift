@@ -305,6 +305,7 @@ struct FirmwareGuestPatchResolutionTests {
         #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: tv4K27.enabled, arm64eUserland: true).isEmpty)
         let x1Patches: Set<String> = [
             FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
+            FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining,
             FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap,
             FirmwareGuestSystemPatchSet.arm64eX1FsckBootstrap,
             FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap,

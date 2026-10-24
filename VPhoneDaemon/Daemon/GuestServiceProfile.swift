@@ -21,7 +21,7 @@ import Foundation
 enum GuestServiceProfile {
     /// Raised whenever a label list changes, and kept in the record, so a
     /// guest shows which list its overrides came from.
-    static let listVersion = 2
+    static let listVersion = 3
     static let recordPath = "/var/db/vphoned/service-profile.plist"
     static let trimmed = "trimmed"
     static let none = "none"
@@ -82,7 +82,8 @@ enum GuestServiceProfile {
     /// Appendix A of the 2026-10-07 measurement on `svctest-a` (iPhone, 27.0
     /// 24A435): the LaunchDaemons that were loaded at boot and stayed unloaded
     /// after the override, with the four traps below already taken out: 137,
-    /// less siriactionsd since list version 2 (see `neverDisable`).
+    /// less siriactionsd since list version 2 and passd and financed since
+    /// list version 3 (see `neverDisable`).
     static let base27: [String] = [
         "com.apple.CallHistorySyncHelper",
         "com.apple.Maps.mapspushd",
@@ -129,7 +130,6 @@ enum GuestServiceProfile {
         "com.apple.email.maild",
         "com.apple.eyereliefd",
         "com.apple.familycircled",
-        "com.apple.financed",
         "com.apple.findmy.findmybeaconingd",
         "com.apple.findmy.findmylocated",
         "com.apple.finhealthd",
@@ -174,7 +174,6 @@ enum GuestServiceProfile {
         "com.apple.nfcd",
         "com.apple.ospredictiond",
         "com.apple.parsec-fbf",
-        "com.apple.passd",
         "com.apple.peopled",
         "com.apple.perfpowermetricd",
         "com.apple.photoanalysisd",
@@ -285,6 +284,10 @@ enum GuestServiceProfile {
         // without it WidgetKit traps in each extension and the controls draw
         // blank.
         "com.apple.siriactionsd",
+        // Wallet: its first screen asks passd synchronously for the pass groups,
+        // and passd waits on financed's Core Data store; with either disabled
+        // FrontBoard kills Wallet at the scene-create watchdog.
+        "com.apple.passd", "com.apple.financed",
     ]
 
     // MARK: - Selection

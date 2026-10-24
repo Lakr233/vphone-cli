@@ -487,6 +487,44 @@ public enum CustomFirmwarePostRestoreDeviceTree {
         return (serializeNode(root), records, delta)
     }
 
+    /// Apple's own VM sub-types for foldable boards, by the board's
+    /// `target-sub-type`. SpringBoardFoundation's `SBFDevicePoseProvider`
+    /// marks the device a VM when MobileGestalt's `TargetSubType` is the VM
+    /// value, and `SBFDisplayContentModeResolver` then restores the fold pose
+    /// ("Restore pose on VM") instead of waiting for hinge hardware.
+    public static let foldableVMSubtypes = ["V68AP": "V68VM2025"]
+
+    /// `blob` with its root `target-sub-type` replaced by the board's VM
+    /// sub-type. A tree whose sub-type has none, or already has it, comes back
+    /// unchanged.
+    public static func withFoldableVMSubtype(_ blob: Data) throws -> (Data, [Change], Int) {
+        let root = try parseTree(blob, label: "DT")
+        guard let property = root.properties.first(where: { $0.name == "target-sub-type" }) else {
+            return (blob, [], 0)
+        }
+        let before = String(decoding: property.value.prefix { $0 != 0 }, as: UTF8.self)
+        guard let vm = foldableVMSubtypes[before] else { return (blob, [], 0) }
+        let value = Data(vm.utf8) + [0]
+        let delta = align4(value.count) - align4(property.value.count)
+        property.value = value
+        property.flags = 0
+        return (serializeNode(root), [Change(property: "target-sub-type", before: before, after: vm)], delta)
+    }
+
+    /// Give a foldable guest's `devicetree.img4` (or bare `.im4p`) the board's
+    /// VM sub-type, in place. See `withFoldableVMSubtype`.
+    @discardableResult
+    public static func presentFoldableVMSubtype(
+        at url: URL,
+        dryRun: Bool = false,
+        verbose: Bool = true,
+    ) throws -> Outcome {
+        try rewrite(at: url, dryRun: dryRun, verbose: verbose) { blob in
+            let (newBlob, changes, delta) = try withFoldableVMSubtype(blob)
+            return (newBlob, changes, blob.count + delta)
+        }
+    }
+
     /// The root of a flat tree that must fill `blob` exactly.
     private static func parseTree(_ blob: Data, label: String) throws -> DeviceTreePatcher.DTNode {
         let (root, end) = try parseNode(blob, at: 0)

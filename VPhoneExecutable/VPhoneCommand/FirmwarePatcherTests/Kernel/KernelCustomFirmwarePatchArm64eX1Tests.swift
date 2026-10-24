@@ -96,6 +96,7 @@ struct KernelCustomFirmwarePatchArm64eX1Tests {
             "kernel-boot-arm64e_x1",
             FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap,
             FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
+            FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining,
             FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap,
             FirmwareGuestSystemPatchSet.arm64eX1FsckBootstrap,
             FirmwareGuestSystemPatchSet.arm64eX1MountBootstrap,

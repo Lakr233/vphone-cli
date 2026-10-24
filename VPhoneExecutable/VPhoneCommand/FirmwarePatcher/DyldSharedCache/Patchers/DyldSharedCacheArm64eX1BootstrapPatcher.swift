@@ -1,12 +1,20 @@
 import CryptoKit
 import Foundation
 import MachOKit
+import Synchronization
 import VPhonePatchKit
 
 public enum DyldSharedCacheArm64eX1BootstrapPatcher {
-    struct Write {
+    struct Write: Sendable {
         let address: UInt64
         let word: UInt32
+    }
+
+    /// One image's plan, reduced to its writes: a full cache holds tens of
+    /// millions of rewrites, too many to keep as patch records.
+    struct ImagePlan: Sendable {
+        let writes: [Write]
+        let unvisitedCandidates: Int
     }
 
     /// Cold-boot evidence for this closure is recorded in Research/0_binary_patch_comparison.md.
@@ -58,12 +66,62 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
         log: @escaping (String) -> Void = { print($0) },
     ) throws {
+        try lower(
+            directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,
+            patchID: FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap, label: "X1 bootstrap cache",
+        ) { paths in
+            let missing = bootstrapImages.subtracting(paths)
+            guard missing.isEmpty else {
+                throw PatcherError.invalidFormat(
+                    "required X1 bootstrap cache images are missing: \(missing.sorted().joined(separator: ", "))",
+                )
+            }
+            return bootstrapImages
+        } finish: { chunks, selected in
+            let coreCrypto = selected.first { $0.path == "/usr/lib/system/libcorecrypto.dylib" }!
+            try refreshCoreCryptoIntegrity(at: coreCrypto.address, in: chunks, log: log)
+        }
+    }
+
+    /// Lowers every X1 image the bootstrap closure leaves to launchd's
+    /// on-demand handler. That handler is one thread in PID 1 and patches a
+    /// private page copy per process, so each process re-faults every site it
+    /// runs; SwiftUI-heavy extensions then exhaust FrontBoard's watchdog. An
+    /// image this planner cannot lower stays on the on-demand path.
+    public static func patchRemaining(
+        directory: URL,
+        dryRun: Bool = false,
+        captureUndo: Bool = false,
+        onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
+        log: @escaping (String) -> Void = { print($0) },
+    ) throws {
+        try lower(
+            directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,
+            patchID: FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining, label: "X1 cache",
+            skipsUnplannable: true,
+        ) { paths in
+            paths.subtracting(bootstrapImages)
+        } finish: { _, _ in }
+    }
+
+    private static func lower(
+        directory: URL,
+        dryRun: Bool,
+        captureUndo: Bool,
+        onUndo: (DyldSharedCacheUndoLog) -> Void,
+        log: @escaping (String) -> Void,
+        patchID: String,
+        label: String,
+        skipsUnplannable: Bool = false,
+        select: (Set<String>) throws -> Set<String>,
+        finish: (DyldSharedCacheChunkSet, [(address: UInt64, path: String)]) throws -> Void,
+    ) throws {
         let chunks = try DyldSharedCacheChunkSet(
             directory: directory,
             captureUndo: captureUndo || !dryRun,
         )
         guard chunks.mainCacheURL.lastPathComponent.hasSuffix("arm64e_x1") else {
-            log("  [·] X1 bootstrap cache: not an X1 cache")
+            log("  [·] \(label): not an X1 cache")
             return
         }
 
@@ -71,35 +129,89 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         guard let infos = cache.imageInfos else {
             throw PatcherError.invalidFormat("X1 cache has no images")
         }
-        var selected: [(address: UInt64, path: String)] = []
+        var images: [(address: UInt64, path: String)] = []
         var seen = Set<UInt64>()
         for info in infos where seen.insert(info.address).inserted {
-            guard let path = info.path(in: cache), bootstrapImages.contains(path) else { continue }
-            selected.append((info.address, path))
+            guard let path = info.path(in: cache) else { continue }
+            images.append((info.address, path))
         }
-        guard Set(selected.map(\.path)) == bootstrapImages else {
-            let missing = bootstrapImages.subtracting(selected.map(\.path)).sorted()
-            throw PatcherError.invalidFormat(
-                "required X1 bootstrap cache images are missing: \(missing.joined(separator: ", "))",
-            )
+        let wanted = try select(Set(images.map(\.path)))
+        let selected = images.filter { wanted.contains($0.path) }
+
+        // Planning only reads; each worker gets its own chunk set and Capstone
+        // handle, and results keep image order so the writes are deterministic.
+        let workers = max(1, min(ProcessInfo.processInfo.activeProcessorCount, selected.count))
+        // Largest first, sized by the gap to the next image, so the last few
+        // workers are not left with UIKitCore while the rest sit idle.
+        let starts = images.map(\.address).sorted()
+        var spans: [UInt64: UInt64] = [:]
+        for (start, next) in zip(starts, starts.dropFirst()) { spans[start] = next - start }
+        let order = selected.indices.sorted { spans[selected[$0].address, default: 0] > spans[selected[$1].address, default: 0] }
+        let readers = try (0 ..< workers).map { _ in try DyldSharedCacheChunkSet(directory: directory, mappedReads: true) }
+        // One decoder per worker, reused across its images: cached decodes
+        // belong to the word, not to the image.
+        let decodability = CustomFirmwareArm64eX1.SharedDecodability()
+        let decoders = (0 ..< workers).map { _ in CustomFirmwareArm64eX1.Decoder(shared: decodability) }
+        let queue = Mutex((
+            next: 0,
+            plans: [Result<ImagePlan, any Error>?](repeating: nil, count: selected.count),
+        ))
+        DispatchQueue.concurrentPerform(iterations: workers) { worker in
+            // Capstone formats operands with vsnprintf, which serializes every
+            // worker on the global locale's lock; a thread locale avoids it.
+            let locale = newlocale(LC_NUMERIC_MASK, "C", nil)
+            let previous = uselocale(locale)
+            defer {
+                uselocale(previous)
+                freelocale(locale)
+            }
+            while true {
+                let next = queue.withLock { state in
+                    defer { state.next += 1 }
+                    return state.next
+                }
+                guard next < order.count else { return }
+                let index = order[next]
+                let plan = Result {
+                    let result = try planImage(at: selected[index].address, in: readers[worker], identifier: patchID,
+                                               decoder: decoders[worker])
+                    return ImagePlan(
+                        writes: result.records.map {
+                            Write(
+                                address: UInt64($0.fileOffset),
+                                word: $0.patchedBytes.loadLE(UInt32.self, at: 0),
+                            )
+                        },
+                        unvisitedCandidates: result.unvisitedCandidates,
+                    )
+                }
+                queue.withLock { $0.plans[index] = plan }
+            }
         }
-        let coreCrypto = selected.first { $0.path == "/usr/lib/system/libcorecrypto.dylib" }!
+        let plans = queue.withLock { $0.plans }
 
         var writes: [Write] = []
         var unvisited = 0
-        for image in selected {
-            let result = try planImage(at: image.address, in: chunks)
-            unvisited += result.unvisitedCandidates
-            writes += result.records.map {
-                Write(
-                    address: UInt64($0.fileOffset),
-                    word: $0.patchedBytes.loadLE(UInt32.self, at: 0),
-                )
+        var lowered = 0
+        var skipped: [String] = []
+        for (image, plan) in zip(selected, plans) {
+            let result: ImagePlan
+            do {
+                result = try plan!.get()
+            } catch where skipsUnplannable {
+                skipped.append(image.path)
+                log("  [!] \(label): \(image.path): left to the on-demand handler: \(error)")
+                continue
             }
-            log("  [.] X1 bootstrap cache: \(image.path): \(result.records.count) instructions, \(result.unvisitedCandidates) unvisited")
+            unvisited += result.unvisitedCandidates
+            if !result.writes.isEmpty { lowered += 1 }
+            writes += result.writes
+            if !skipsUnplannable || !result.writes.isEmpty {
+                log("  [.] \(label): \(image.path): \(result.writes.count) instructions, \(result.unvisitedCandidates) unvisited")
+            }
         }
         writes.sort { $0.address < $1.address }
-        log("  [*] X1 bootstrap cache: \(selected.count) image(s), \(writes.count) rewrites, \(unvisited) unvisited candidates")
+        log("  [*] \(label): \(selected.count) image(s), \(lowered) with X1 code, \(skipped.count) skipped, \(writes.count) rewrites, \(unvisited) unvisited candidates")
         guard !dryRun else { return }
 
         do {
@@ -115,7 +227,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                     pageSize = known
                 } else {
                     guard let directory = try DyldSharedCacheCodeSignature.readCodeDirectory(ofChunk: firstChunk) else {
-                        throw PatcherError.invalidFormat("X1 bootstrap code chunk has no supported signature")
+                        throw PatcherError.invalidFormat("\(label) code chunk has no supported signature")
                     }
                     pageSize = directory.pageSize
                     pageSizes[firstChunk] = pageSize
@@ -126,7 +238,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                     let next = writes[index]
                     if next.address == previous.address {
                         guard next.word == previous.word else {
-                            throw PatcherError.invalidFormat("conflicting X1 bootstrap rewrites")
+                            throw PatcherError.invalidFormat("conflicting \(label) rewrites")
                         }
                         index += 1
                         continue
@@ -153,22 +265,24 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                 if before != after {
                     try chunks.write(at: start, after)
                     groups += 1
-                    log("  0x\(String(start, radix: 16)): \(changed) instruction(s) [\(FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap)]")
+                    if !skipsUnplannable {
+                        log("  0x\(String(start, radix: 16)): \(changed) instruction(s) [\(patchID)]")
+                    }
                 }
             }
-            try refreshCoreCryptoIntegrity(at: coreCrypto.address, in: chunks, log: log)
+            try finish(chunks, selected)
             let attestation = try DyldSharedCacheCodeSignature.reattestRecordedWrites(in: chunks, log: log)
             guard attestation.isFullyAttested else {
                 throw PatcherError.invalidFormat(
-                    "X1 bootstrap re-attestation skipped \(attestation.skipped.count) pages",
+                    "\(label) re-attestation skipped \(attestation.skipped.count) pages",
                 )
             }
             onUndo(chunks.takeUndoLog()!)
-            log("  [+] X1 bootstrap cache: \(writes.count) instruction rewrites in \(groups) page run(s)")
+            log("  [+] \(label): \(writes.count) instruction rewrites in \(groups) page run(s)")
         } catch {
             var undo = chunks.takeUndoLog()!
             if !undo.records.isEmpty {
-                undo.stamp(patchID: FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap)
+                undo.stamp(patchID: patchID)
                 let spans = try undo.restore(patchIDs: undo.patchIDs, in: directory, log: log)
                 _ = try DyldSharedCacheCodeSignature.reattest(
                     in: chunks,
@@ -216,6 +330,8 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
     static func planImage(
         at address: UInt64,
         in chunks: DyldSharedCacheChunkSet,
+        identifier: String = FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
+        decoder: CustomFirmwareArm64eX1.Decoder = .init(),
     ) throws -> CustomFirmwareArm64eX1.Result {
         let prefix = try chunks.bytesAtVMA(address, length: 32)
         guard prefix.loadLE(UInt32.self, at: 0) == 0xFEED_FACF else {
@@ -338,7 +454,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
             ranges: ranges,
             seeds: seeds,
             excluded: excluded,
-            identifier: FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
+            identifier: identifier,
             readMemory: { address, length in
                 return try chunks.bytesAtVMA(UInt64(address), length: length)
             },
@@ -369,6 +485,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                     diversity: diversity,
                 )
             },
+            decoder: decoder,
         )
     }
 

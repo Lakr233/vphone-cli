@@ -685,3 +685,124 @@ its I/O context is `PuffinOutput (VAD [vdef] AggDev N)`. Volume adjusts
 (`Setting hardware volume to -11.97 dB` on device `PuffinOutput`). What still
 kept the tone silent after that was not routing: see `virtio_sound.md` §6 for
 the plugin faults and §7 for the haptic track.
+
+## Layer 5 — the singleton a guest never gets, and the null gate (2026-10-24; third cut, after a guard and an early publish)
+
+On iPhone19,4 iOS 27.1 (24A94425) — the arm64e.x1 userland — all four
+patches above apply cleanly (the reveal now reads `pacibsppc` /
+`retabsppc <label>` frames) and the route goes through, and audiomxd
+then segfaults on queue AudioControl at plugin offset 0xa16b0, reached
+`HALS_AHPPlugIn::ObjectSetPropertyData` ←
+`__vaemVADSerializationListener_block_invoke`.
+
+The faulting function is `VirtualAudio_Device`'s update (0xa08bc; its
+`retabsppc` names it). After the route is published it pushes the
+route's state at `DeviceStateManager` **twice**, each push gated by a
+capability check:
+
+```
+a169c  ldr  x0, [x19, #0x368]        ; the HAL device
+a16a0  bl   0xfe810                  ; gate 1: DSP-graph property check
+a16a4  cbz  w0, 0xa16d8              ; skip the update when false
+a16a8  bl   0x2b2988                 ; DeviceStateManager::TheInstance()
+a16ac  mov  x20, x0
+a16b0  ldr  x21, [x0]                ; <-- faults: singleton is null
+   …    lock / ldr w20,[vtable+0x150] / unlock / bl 0x225748 …
+a16d8  ldr  x0, [x19, #0x368]
+a16dc  bl   0x225b88                 ; gate 2: capability check
+a16e0  cbz  w0, 0xa1720
+a16e4  bl   0x2b2988                 ; TheInstance again
+a16ec  ldr  x21, [x0]                ; same unchecked read
+   …    lock / read / unlock / ldarb global / bl 0x2259b4 …
+a1720  add  x0, sp, #0xf             ; past both gates
+```
+
+`TheInstance()` (0x2b2988) loads the global at 0x74ff28 and returns it;
+when it is null it logs "TheInstance() called before SetInstance()" and
+returns the null it reloaded. The global is stored exactly once, at
+0x3ad0a8 inside "Deferred Initialization" (0x3ab344).
+
+**What live runs taught about that initialization.** It *runs* — its
+"Beginning Deferred Initialization" log appears within a second of
+launch, right after "Get on queue to get initialization state". But on
+this guest it never finishes: a whole-life syslog capture of an
+audiomxd run contains no "Ending Deferred Initialization", and when the
+fault lands, no thread is parked anywhere inside 0x3ab344…0x3ae2cc —
+deferred init has *exited*, early, without constructing the manager.
+The manager is a haptics-domain object; the actuator-port wait inside
+deferred init (loop head 0x3ac024, 100 ms polls, 8-second deadline
+`movz`/`movk`/`movk` at 0x3abed8 → `add x25, x23, x9`, "Beginning loop
+to wait for actuator port" at 0x3abfd0, "Could not find actuator port
+after 8 seconds of waiting" at 0x3ac5d4) is the same dependency in
+another form, and a VM has no actuator at all. Crash times across runs
+varied from ~10 s to ~130 s into a life: the fault is any push that
+arrives after the gates answer true, not a fixed post-launch window.
+
+**The fix** is the fifth binary patch,
+`system-virtualaudio-cfw-device_state_null_gate` (verb
+`cfw patch-virtualaudio-device-state-null-gate`, declared in
+FirmwareGuestSystemPatchSet, on in `standard` for iOS 27, blocked for
+tvOS; see `Research/0_binary_patch_comparison.md`). One word per site:
+the gate-check call is redirected to the accessor —
+
+```
+a16a0: bl 0xfe810  ->  bl 0x2b2988   (0x9401745c -> 0x940844ba)
+a16dc: bl 0x225b88 ->  bl 0x2b2988   (0x9406112b -> 0x940844ab)
+```
+
+— so the `cbz w0, <skip>` the function already carries now tests the
+singleton. Null manager: the update is skipped through the function's
+own path, exactly what every build does when its gate answers false.
+Manager present: the fall-through re-calls TheInstance (0xa16a8/0xa16e4,
+untouched) and the whole update — the save, the dereference, the lock,
+the push — runs as designed. Nothing is deleted, nothing is permanently
+disabled: the update happens whenever there is a manager to receive it.
+
+**Why the first two cuts were replaced.** The guard
+(`…-device_state_guard`, first night) made each `cbz w0` unconditional —
+permanently skipping both pushes. It stopped the crash (live-validated:
+stable audiomxd, crash reports frozen at the 28 baseline, the
+system-sound stream routed on `PuffinOutput` (`rout: 1`, PreDSP/PostDSP
+running) — the doc's in-guest proof standard) but it wins by discarding
+the feature: on a foldable those pushes are how the audio graph learns
+the posture. The early publish (`…-device_state_early_publish`) left
+the actuator wait at once so SetInstance would land immediately — a
+clean idea that live logging proved vacuous here: the wait loop's
+"Beginning loop" log never appears on this guest (the product-flag
+routing at 0x3abf28 branches around it) and deferred init bails before
+SetInstance regardless, so the singleton never lands and that run
+produced one more crash, 31 s in. That run's evidence — no "Ending
+Deferred Initialization", no parked thread — is what fixed the model:
+the manager is not late on a guest, it is absent, and no consumer-side
+patch can conjure it. The null gate is the honest cut.
+
+**Anchoring** follows the file's rules: nothing is a literal address.
+TheInstance is found from its own diagnostic string (unique in
+`__text`); the prologue above its reference is the entry. Every direct
+`bl` to it is filtered to the gated shape — call at −8, `cbz w0` at −4
+skipping past the whole update, `mov xN, x0` at +4, `ldr xM, [x0]` at
++8 — and exactly two callers match; any other count refuses. The
+redirect is `ARM64Encoder.encodeBL`, and a re-run recognises its own
+work (the gate slot already calling TheInstance). The plugin header
+gates the whole patch to arm64e.x1 (cputype arm64, cpusubtype masked of
+the LIB64 bit == 12): the 26.6.2 and 27.0 plugins (cpusubtype 2) report
+"not an arm64e.x1 plugin", exit 0 and keep their SHA-256s.
+
+**The other five TheInstance callers, examined and left alone.** All
+are in `HapticAttenuationIODelegate.mm`: 0x4f7dec dereferences
+unguarded (`mov x20,x0; ldr x21,[x0]`, field 0x170) but sits behind a
+capability flag (`tbz w8,#0` at 0x4f7d0c) that reads false without a
+Taptic Engine; 0x4f7b94, 0x4f9114 and 0x5013ac pass the singleton into
+0x2b30b4 (which derefs unchecked at 0x2b30d8) but are reached only
+through the coordinator's activation ("Coordinator active"), which
+needs an actuator port. None ever faulted across every observed run.
+
+**Status — verified in the guest (2026-10-24 morning).** Bundle
+`2.12.0-local.6a386de6` (built from this tree) deployed through
+`vm set-bundle duotest-m5 … --update-environment`: the update log
+records both redirects (0xa16a0 and 0xa16dc -> bl 0x2b2988) and the
+receipt lists the patch live. After boot, audiomxd holds one pid from
+t+30 s past t+5 min — the early-publish run died at 10-130 s in — the
+audiomxd crash count stays at the 30 the earlier variants left, with
+zero new reports, and RTAID telemetry still shows the SystemSounds
+stream routed on `PuffinOutput` (`rout: 1`, PreDSP/PostDSP running).

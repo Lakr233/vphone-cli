@@ -108,7 +108,7 @@ public final class DyldSharedCacheChunkSet {
 
     private let architecture: String
 
-    /// Guards the three pieces of mutable state below.
+    /// Guards the mutable state below.
     private let stateLock = NSLock()
     private var writeLog: [DyldSharedCacheWriteSpan] = []
     private var loadedLocalSymbols: DyldSharedCacheLocalSymbolTable?
@@ -119,6 +119,10 @@ public final class DyldSharedCacheChunkSet {
     /// default and what every read-only or throwaway use of this type wants.
     private var undoCaptureLog: DyldSharedCacheUndoLog?
 
+    /// Chunk files mapped once, for a read-only set opened with `mappedReads`.
+    /// Nil keeps the default: every read opens, seeks and closes the file.
+    private var mappedChunks: [URL: Data]?
+
     // MARK: - Construction
 
     /// Open the cache under `directory`.
@@ -128,7 +132,11 @@ public final class DyldSharedCacheChunkSet {
     ///   - architecture: explicit suffix, or nil to discover the cache.
     ///   - captureUndo: start capturing the original bytes of every write into
     ///     an undo log, retrievable with ``takeUndoLog()``. Off by default.
-    public init(directory: URL, architecture: String? = nil, captureUndo: Bool = false) throws {
+    ///   - mappedReads: serve reads from chunk files mapped once, for a set that
+    ///     only reads, such as a planner's; its reads do not see later writes
+    ///     made through another set. Off by default.
+    public init(directory: URL, architecture: String? = nil, captureUndo: Bool = false, mappedReads: Bool = false) throws {
+        mappedChunks = mappedReads ? [:] : nil
         self.directory = directory
         let architecture = String(Self.mainCacheURL(in: directory, architecture: architecture).lastPathComponent
             .dropFirst("dyld_shared_cache_".count))
@@ -272,7 +280,7 @@ public final class DyldSharedCacheChunkSet {
     public func bytesAtVMA(_ vma: UInt64, length: Int) throws -> Data {
         guard length > 0 else { return Data() }
         let (chunkURL, range) = try fileRange(of: DyldSharedCacheWriteSpan(vma: vma, length: length))
-        let data = try Self.read(url: chunkURL, offset: UInt64(range.lowerBound), length: length)
+        let data = try readBytes(url: chunkURL, offset: UInt64(range.lowerBound), length: length)
         guard data.count == length else {
             throw DyldSharedCacheError.shortRead(vma: vma, wanted: length, got: data.count)
         }
@@ -298,7 +306,7 @@ public final class DyldSharedCacheChunkSet {
         } else {
             throw DyldSharedCacheError.addressSpanCrossesChunk(vma: vma, length: length)
         }
-        return try Self.read(url: run.chunkURL, offset: run.fileOffset, length: wanted)
+        return try readBytes(url: run.chunkURL, offset: run.fileOffset, length: wanted)
     }
 
     // MARK: - Writing
@@ -585,6 +593,23 @@ public final class DyldSharedCacheChunkSet {
                 chunkURL: url,
             )
         }
+    }
+
+    /// `read(url:offset:length:)`, or a copy out of the chunk mapped once when
+    /// this set was opened with `mappedReads`.
+    private func readBytes(url: URL, offset: UInt64, length: Int) throws -> Data {
+        guard length > 0 else { return Data() }
+        let mapped: Data? = try stateLock.withLock {
+            guard mappedChunks != nil else { return nil }
+            if let file = mappedChunks?[url] { return file }
+            let file = try Data(contentsOf: url, options: .alwaysMapped)
+            mappedChunks?[url] = file
+            return file
+        }
+        guard let file = mapped else { return try Self.read(url: url, offset: offset, length: length) }
+        let lower = file.startIndex + Int(clamping: offset)
+        guard lower < file.endIndex else { return Data() }
+        return Data(file[lower ..< min(file.endIndex, lower + length)])
     }
 
     /// A bounded read: a seek and a copy of `length` bytes.

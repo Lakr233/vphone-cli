@@ -550,6 +550,8 @@
 	<true/>
 	<key>com.apple.springboard.openurlswhenlocked</key>
 	<true/>
+	<key>com.apple.springboard.testautomation</key>
+	<true/>
 	<key>com.apple.timed</key>
 	<true/>
 	<key>com.apple.timed.sources</key>

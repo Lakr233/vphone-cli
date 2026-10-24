@@ -108,6 +108,8 @@ extension GuestAPI {
             return rotation
         case "display.orientation":
             return interfaceOrientation()
+        case "display.posture":
+            return try setDevicePose(params)
         case "display.rotation_lock":
             guard let locked = params["locked"] as? Bool else {
                 throw GuestAPIError.invalidRequest("locked must be true or false")
@@ -160,6 +162,46 @@ extension GuestAPI {
             "degrees": interfaceRotationDegrees().map { $0 as Any } ?? NSNull(),
             "source": "springboard",
         ]
+    }
+
+    // MARK: Device pose
+
+    /// CoreMotion's magic-pose values, by name. SpringBoard derives the hinge
+    /// angle from the hinge state with a five-entry table, so the hinge stops
+    /// at "open" (open, ambiguous); "transitioning" is not accepted.
+    static let poseHingeStates = ["ambiguous": 0, "closed": 1, "partially-open": 2, "open-flat": 3, "open": 4]
+    static let poseOrientations = [
+        "ambiguous": 0, "portrait": 1, "upside-down": 2, "landscape-left": 3,
+        "landscape-right": 4, "face-up": 5, "face-down": 6,
+    ]
+
+    /// Set a foldable guest's pose through SpringBoard's test-automation
+    /// override: `hinge` (a name or 0–4), `orientation` (a name or 0–6,
+    /// default portrait) and `tabletop` (0–10, default 0, ambiguous).
+    private static func setDevicePose(_ params: [String: Any]) throws -> [String: Any] {
+        func value(_ key: String, names: [String: Int], range: ClosedRange<Int>, default fallback: Int?) throws -> Int {
+            if let name = params[key] as? String {
+                guard let value = names[name.lowercased()] else {
+                    throw GuestAPIError.invalidRequest("\(key) must be one of \(names.keys.sorted().joined(separator: ", "))")
+                }
+                return value
+            }
+            if let number = params[key] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+                guard range.contains(number.intValue), Double(number.intValue) == number.doubleValue else {
+                    throw GuestAPIError.invalidRequest("\(key) must be an integer in \(range.lowerBound)...\(range.upperBound)")
+                }
+                return number.intValue
+            }
+            guard params[key] == nil, let fallback else { throw GuestAPIError.invalidRequest("\(key) is required") }
+            return fallback
+        }
+        let hinge = try value("hinge", names: poseHingeStates, range: 0 ... 4, default: nil)
+        let orientation = try value("orientation", names: poseOrientations, range: 0 ... 6, default: 1)
+        let tabletop = try value("tabletop", names: [:], range: 0 ... 10, default: 0)
+        guard vp_device_pose_set(Int32(orientation), Int32(hinge), Int32(tabletop)) else {
+            throw GuestAPIError.operationFailed("SpringBoardServices has no device pose override on this guest")
+        }
+        return ["hinge": hinge, "orientation": orientation, "tabletop": tabletop]
     }
 
     private static func brightnessState() -> [String: Any] {

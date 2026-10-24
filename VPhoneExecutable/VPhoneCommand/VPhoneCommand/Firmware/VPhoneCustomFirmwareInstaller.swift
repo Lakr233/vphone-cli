@@ -574,6 +574,9 @@ struct VPhoneCustomFirmwareInstaller {
         if device.family != .homePod {
             notApplicableGuest.insert(FirmwareGuestSystemPatchSet.homePodAudioProduct)
         }
+        if !Self.isFoldable(device) {
+            notApplicableGuest.insert(FirmwareGuestSystemPatchSet.prebootFoldableVMSubtype)
+        }
         if !device.usesTVOS {
             notApplicableGuest.insert(FirmwareGuestSystemPatchSet.tvTPRO)
         }
@@ -1579,6 +1582,7 @@ struct VPhoneCustomFirmwareInstaller {
         if version.hasPrefix("27.") {
             dyld += [
                 (FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap, "patch-arm64e-x1-bootstrap-cache", [dsc]),
+                (FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining, "patch-arm64e-x1-cache", [dsc]),
                 ("dyld-boot-iomfb_force_kern", "patch-iomfb-force-kern", [dsc]),
                 ("dyld-boot-maxslide", "patch-dsc-maxslide", [dsc]),
                 ("dyld-boot-lsd_embedded_reg", "patch-lsd-embedded-reg", [dsc]),
@@ -1801,14 +1805,17 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
-        // The VirtualAudio HAL plugin: four sub-patches ride one staged copy
+        // The VirtualAudio HAL plugin: five sub-patches ride one staged copy
         // (`patchMachO` stages from the pristine backup, so two calls would not
         // compose). On when any is on; reverted from `.bak` when all are off.
+        // The device-state early publish reports "nothing to do" on the non-X1
+        // plugins, so sharing the stage costs them nothing.
         let virtualAudio: [(id: String, verb: String)] = [
             (FirmwareGuestSystemPatchSet.virtualAudioSpeakerRouteThrows, "patch-virtualaudio"),
             (FirmwareGuestSystemPatchSet.virtualAudioMuteSetThrow, "patch-virtualaudio-mute"),
             (FirmwareGuestSystemPatchSet.virtualAudioSpeakerProtectionGate, "patch-virtualaudio-sp-gate"),
             (FirmwareGuestSystemPatchSet.virtualAudioVolumeModePrecondition, "patch-virtualaudio-volume-gate"),
+            (FirmwareGuestSystemPatchSet.virtualAudioDeviceStateNullGate, "patch-virtualaudio-device-state-null-gate"),
         ]
         let virtualAudioBundle = "Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin"
         let virtualAudioBinary = "\(virtualAudioBundle)/VirtualAudio"
@@ -2064,6 +2071,11 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
         return live
+    }
+
+    /// A guest whose board has an Apple VM sub-type for its fold pose.
+    static func isFoldable(_ device: VPhoneGuestDevice) -> Bool {
+        CustomFirmwarePostRestoreDeviceTree.foldableVMSubtypes.keys.contains(device.deviceClass.uppercased())
     }
 
     /// Idempotent dyld patches whose receipts cannot identify stale implementations.
@@ -3079,6 +3091,9 @@ struct VPhoneCustomFirmwareInstaller {
             }
             repairGroup.append((FirmwareGuestSystemPatchSet.homePodAudioProduct, "patch-dt-homepod-audio-product",
                                 boardDeviceTree.map { [$0.path] } ?? []))
+        }
+        if Self.isFoldable(guestDevice) {
+            repairGroup.append((FirmwareGuestSystemPatchSet.prebootFoldableVMSubtype, "patch-dt-foldable-vm-subtype", []))
         }
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootHaptics, "patch-dt-haptics", []))
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootMicrophoneArray, "patch-dt-microphone-array", []))

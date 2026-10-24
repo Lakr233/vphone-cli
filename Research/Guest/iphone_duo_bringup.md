@@ -108,3 +108,158 @@ The original manifests and device tree were extracted by HTTP ranges with
 the repository's `VPhoneRemoteZip`. Raw logs and scratch artifacts remain
 local; host paths, per-machine identifiers and runtime addresses are not
 included in this research record.
+
+## Boot on a host with CSSC (2026-10-23)
+
+**Result: boots to SpringBoard.** On a Mac17,9 (M5 Pro), macOS 27.0.1
+(26A434), `hw.optional.arm.FEAT_CSSC` is 1; `FEAT_CPA`, `FEAT_CPA2` and
+`FEAT_PAuth_LR` are 0. Scalar `UMIN`/`UMAX`/`CTZ` execute on the host. The
+same IPSW, the same standard preset and a Core Bundle containing this
+document's first commit (no CSSC lowering) completed every `vm create
+--device iPhone19,4 --no-template` step, including template setup, which
+waits for vphoned. The home screen rendered at 1398 x 2034. Its side dock and
+status column on the right are the Duo's outer-display design, not a fault.
+CSSC is therefore the blocker on hosts without it; PAuth_LR and CPA remain
+covered by X1 lowering.
+
+### On-demand X1 handling stalled the userland
+
+That boot was barely usable: windows took seconds to draw, widgets stayed
+blank, and FrontBoard killed extensions. 18 minutes after boot, launchd
+(PID 1) had used 685 CPU-seconds. Crash reports showed `MercuryPosterExtension`
+(43 reports), `WidgetRenderer_Default`, `DockFolderViewService` and others
+ending in `scene-create watchdog transgression … 10.00 seconds`, many with a
+pending `EXC_BAD_INSTRUCTION` whose code is the X1 word itself:
+`0xdac1a7fe` (`PACIBSPPC`) in SwiftUI and `/usr/lib/usd/libusd_ms.dylib`,
+`0x5520031f` (`RETABSPPC`) in `libusd_ms.dylib`.
+
+The cause is the design of the X1 path, not a missing instruction form.
+`dyld-boot-arm64e_x1_bootstrap` lowers only the 38 cache images needed
+before launchd installs its exception service; every other image faults
+into that service, which runs on one thread in PID 1, suspends the task,
+makes a private copy of the page and lowers one instruction. A private copy
+means each process re-faults every site it executes, so SwiftUI-heavy
+extensions queue on launchd until the 10-second scene watchdog fires, and
+the poster extension's restarts keep the queue full.
+
+### Lowering the rest of the cache ahead of time
+
+`dyld-cfw-arm64e_x1_cache` (guest system set, iOS 27, on in `standard`,
+blocked in both tvOS presets; verb `vphone-cli cfw patch-arm64e-x1-cache`)
+runs the bootstrap patch's planner over every X1 image outside the
+bootstrap closure, writes through the undo-capturing chunk set and
+re-attests every modified page. An image the planner cannot plan is left to
+the on-demand handler and logged; none were on 24A94425.
+
+| 24A94425 cache | Value |
+| --- | --- |
+| Images | 4,664 (4,508 with X1 code, 0 skipped) |
+| Instruction rewrites | 24,606,083 in 212,573 page runs |
+| Left to the on-demand handler (unvisited candidates) | 250,443 |
+| Examples | UIKitCore 235,776; `libusd_ms.dylib` 353,431; SwiftUI 134,497; SwiftUICore 116,029 |
+
+The installed guest receives 24,606,071 rewrites, 12 fewer: other dyld
+patches already occupy those sites.
+
+The planner needed changes to be affordable at this size; each was checked
+by patching a stock copy of the cache and comparing all 81 cache files with
+the previous version's output (and, for the bootstrap patch, with the bytes
+HEAD wrote), and every comparison was identical:
+
+| Change | Full pass on M5 Pro |
+| --- | --- |
+| Serial, page-decoding planner | about 26 min (dry run) |
+| Parallel images, thread-local C locale (Capstone's `vsnprintf` serialized every thread on the global locale), one-word decodes instead of a 16-page cache that thrashed | 8.5 min |
+| Decode cache keyed by instruction word; code ranges unpacked to `[UInt32]` once (a generic `loadLE` across PatchKit's resilient boundary cost a metadata lookup per word) | 200 s |
+| Bitmap visited/scheduled sets, largest images first, PC-relative words cached once Capstone confirms a single address/page/no move at a second address, top-byte gates before mnemonic comparisons | 95 s |
+| One decoder per worker reused across images; branch, literal and ADR/ADRP words keyed by family (offset field cleared, target computed from the encoding, the operand's aliased register/memory views rebuilt), each family trusted only after Capstone agrees at a second target; planning readers map each chunk once | 1,241 → 914 user CPU-s (wall time not comparable: load average 24–31) |
+| Words outside the lowered and flow top bytes checked for decodability only (a word-keyed answer shared by all workers); data-in-code and dispatch tables as a bitmap instead of a scanned range list; replacement text through the word cache | 914 → 291 user CPU-s, 41 s wall at load 5–8 |
+
+The planning core, `CustomFirmwareArm64eX1.planCode`, is shared with the
+standalone-executable patches; its output is unchanged by these edits.
+
+After `vm set-bundle … --update-environment` applied the patch to the
+existing guest, launchd had used 14.8 CPU-seconds two minutes after boot,
+no poster or widget-renderer watchdog kills recurred, and Settings drew its
+first screen within seconds of launch. Standalone X1 binaries outside the
+cache (app executables, plug-ins such as `VirtualAudio.plugin`, daemons)
+still use the on-demand handler.
+
+### VirtualAudio on 27.1
+
+The four VirtualAudio CFW patches failed on 24A94425 because every function
+there starts with `PACIBSPPC` and returns with `RETABSPPC <label>`; the
+reveal knew only `PACIBSP`/`RETAB`. The patcher now accepts both families
+and requires a labelled return to name the function being walked. Capstone
+reports that label as `#0`, so it is read from the decoded word's field.
+All nine sites patch on 27.1 and the 26.6.2 and 27.0 sites are unchanged.
+With them live, audiomxd crash-looped on this guest (a null read in
+`VirtualAudio.plugin` reached from `SetPropertyData`): the device update
+reads the DeviceStateManager singleton before deferred initialization
+publishes it. Root-caused and fixed by
+`system-virtualaudio-cfw-device_state_null_gate` (make the two gated
+device-state updates wait for the DeviceStateManager singleton — on a
+guest with no haptic hardware it is never constructed — instead of
+dereferencing null; arm64e.x1 plugins only, earlier builds
+byte-identical) — see
+`Research/Guest/virtualaudio_speaker_route_throws.md` § "Layer 5" and
+`Research/0_binary_patch_comparison.md`. Verified on this VM
+(2026-10-24 morning, bundle `2.12.0-local.6a386de6`): both gate calls
+redirected as designed, audiomxd holds one pid past five minutes — the
+window the two earlier variants died in — with zero new crash reports
+and the system-sound stream still routed on `PuffinOutput`.
+
+## Fold posture (2026-10-23)
+
+Static analysis of the 24A94425 cache, then a live run on `duotest-m5`
+(M5 Pro) with `preboot-cfw-devicetree_foldable_vm_subtype` and
+`display.posture` installed:
+
+- The repair logged `target-sub-type: 'V68AP' -> 'V68VM2025'`, and after boot
+  SpringBoard had created `SBFDevicePoseLastKnownCMAngle` and
+  `SBFDevicePoseLastKnownCMMagicPose` in `com.apple.springboard` (still all
+  zero: it persists after display-mode transitions, which a single display
+  never makes).
+- `display.posture {hinge: "partially-open"}` was accepted: SpringBoard
+  logged `[SBTestAutomationService] Received client request to set device pose
+  override`, `Ambient magic pose event detected [ … hingeState : PO ;
+  deviceOrientation : Po … ]`, and `hinge MOTION STARTED` … `hinge SETTLED
+  after 1.03s`, with the home and lock screens deferring and resuming
+  snapshots around it. Closed, partially open and open flat produced the same
+  home screen: with only the outer panel there is no inner surface to move
+  content to. StandBy reported `isMagicPoseSupported : NO`.
+
+**Where the pose comes from.** `SBFDevicePoseProvider` (SpringBoardFoundation)
+reads `BKSAccelerometer`, `CMAngleManager` and `CMMagicPoseManager`.
+SpringBoard's own CoreMotion hosts `CLAngleNotifier` (HID event type 0x2C,
+`IOHIDEventCreateHingeAngleEvent`, virtual service 0xFF0C/0x21) and
+`CLDeviceStateNotifier` (8-byte vendor event `{2, orientation ×3, hinge
+state, tabletop pose, stable state, simulated}`, virtual service 0xFF0C/0x22).
+CoreMotion skips physical sensors when MobileGestalt reports a virtual device.
+
+**Why a virtual hinge HID service is not enough today.** SpringBoard starts
+CoreMotion pose updates only when the angle and magic-pose managers are
+available *and* `FBDisplayManager.alwaysConnectedIdentities.count >= 2`.
+Availability comes from CoreMotion's motion-capability bits, selected by the
+device tree's `/product/product-id`; the guest keeps vphone600's id, which
+CoreMotion does not know, so both are false. One display fails the second
+gate. The HID route belongs with dual-display work, together with V68's
+`product-id` (which also turns on the Duo checks in UIKit, Photos,
+Accessibility and other frameworks).
+
+**What works now.** `-[SBSTestAutomationService setDevicePoseOverride:]`
+bypasses both gates: SpringBoard (`SBTestAutomationService`, client
+entitlement `com.apple.springboard.testautomation`) builds an
+`SBFSyntheticMagicPoseEvent` from the device orientation, hinge state and
+tabletop pose and derives the angle from the hinge state. vphoned exposes it
+as `display.posture` (see `Research/vphoned_http_api.md`).
+
+**Apple's VM sub-type.** SpringBoard treats a device whose `TargetSubType` is
+`V68VM2025` as a VM: at launch it restores the angle and magic pose from
+`com.apple.springboard` defaults `SBFDevicePoseLastKnownCMAngle` and
+`SBFDevicePoseLastKnownCMMagicPose`, and `_persistDevicePoseIfNeeded` writes
+them back after display-mode transitions. `preboot-cfw-devicetree_foldable_vm_subtype`
+rewrites the installed Preboot tree's `target-sub-type` from `V68AP` to
+`V68VM2025` after restore (restore keeps the board's value). The only other
+reader of `V68AP` in the cache is Sharing's `SFDeviceHasFaceIDProxy`; the
+framework `isV68` checks key on `product-id` and are unaffected.

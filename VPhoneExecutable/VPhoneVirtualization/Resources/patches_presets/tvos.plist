@@ -111,10 +111,12 @@
 			<string>dyld-boot-maxslide</string>
 			<string>dyld-boot-xpc_lwcr</string>
 			<string>dyld-cfw-camera</string>
+			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>kernel-boot-arm64e_x1</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
 			<string>preboot-cfw-devicetree_haptics</string>
 			<string>preboot-cfw-devicetree_iphone_product</string>
+			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
 			<string>restoreramdisk-boot-apfs_sha3_hash</string>
 			<string>system-apps-cfw-attitude</string>
@@ -139,6 +141,7 @@
 			<string>system-systemhook-cfw-metal_cache_reuse</string>
 			<string>system-systemversion-cfw-build_version</string>
 			<string>system-virtiosound-cfw-hal_plugin</string>
+			<string>system-virtualaudio-cfw-device_state_null_gate</string>
 			<string>system-virtualaudio-cfw-microphone_graph_chains</string>
 			<string>system-virtualaudio-cfw-mute_set_throw</string>
 			<string>system-virtualaudio-cfw-speaker_graph_chains</string>
