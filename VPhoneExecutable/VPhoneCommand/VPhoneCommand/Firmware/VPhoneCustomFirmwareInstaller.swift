@@ -725,13 +725,6 @@ struct VPhoneCustomFirmwareInstaller {
         if Self.restoredCustomisedSystem(recordedPlan) {
             throw Self.restoreImageRefusal(mode)
         }
-        // Its originals hold the research board's kernel, not the mix.
-        if recordedPlan?.isEnabled(FirmwareResearchBoardPatchSet.kernelMix) == true {
-            throw ValidationError(
-                "This VM boots a kernelcache rebuilt from the research board's (its cloudOS has no vphone600 components), "
-                    + "which a kernel update cannot rebuild. Change its kernel patches with `fw patch` and a restore instead.",
-            )
-        }
 
         let disk = try openDiskImage(in: bundleDirectory, path: bundlePath, owner: callerUID)
         let diskPath = (bundlePath as NSString).appendingPathComponent("Disk.img")
@@ -889,10 +882,35 @@ struct VPhoneCustomFirmwareInstaller {
         owner: uid_t?,
         work: WorkDirectory,
     ) throws -> (payload: Data, enabledKernelPatches: Set<String>) {
+        // Its originals hold the research board's kernel, not the mix, and
+        // rebuilding the mix needs the user's cache and kmutil. `fw patch`,
+        // run as the user, re-mixes and re-patches it into the restore tree
+        // with the current selection; the update installs that one.
+        let plan = readPatchPlan(in: bundleDirectory)
+        if plan?.isEnabled(FirmwareResearchBoardPatchSet.kernelMix) == true {
+            guard let restore = try? restoreTree(in: bundleDirectory, path: bundlePath, owner: owner),
+                  let manifestData = try? restore.readData("BuildManifest.plist"),
+                  let manifest = try? PropertyListSerialization.propertyList(from: manifestData, format: nil) as? [String: Any],
+                  let identities = manifest["BuildIdentities"] as? [[String: Any]],
+                  case let paths = Set(identities.compactMap {
+                      (($0["Manifest"] as? [String: Any])?["KernelCache"] as? [String: Any])
+                          .flatMap { $0["Info"] as? [String: Any] }?["Path"] as? String
+                  }),
+                  paths.count == 1, let path = paths.first,
+                  !path.hasPrefix("/"), !path.split(separator: "/").contains(".."),
+                  let data = try? restore.readData(path)
+            else {
+                throw ValidationError(
+                    "This VM boots a kernelcache rebuilt from the research board's, and its restore tree holds none to install. "
+                        + "Run `fw patch` with the restore tree in place, then update the kernel again.",
+                )
+            }
+            print("  [*] kernelcache mix taken from the restore tree (as `fw patch` last patched it)")
+            return (data, Set(plan?.enabledPatches ?? []))
+        }
         let selection = (try? bundleDirectory.readData(VPhonePatchPresetStore.selectionFileName))
             .flatMap { try? PropertyListDecoder().decode(VPhoneVirtualMachinePatchSelection.self, from: $0) }
             ?? VPhoneVirtualMachinePatchSelection()
-        let plan = readPatchPlan(in: bundleDirectory)
         if let pristine = try firmwareOriginalsKernelcache(in: bundleDirectory),
            let preset = VPhonePatchPresetStore.preset(
                named: selection.presetIdentifier,
