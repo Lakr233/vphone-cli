@@ -73,6 +73,9 @@ public enum ARM64 {
     /// STRB W0, [X20, #0x30]
     public static let strbW0X20_30 = encodeU32(0x3900_C280)
 
+    /// STRB W0, [X20, #0x20]
+    public static let strbW0X20_20 = encodeU32(0x3900_8280)
+
     /// STRB W8, [X19]
     public static let strbW8X19 = encodeU32(0x3900_0268)
 

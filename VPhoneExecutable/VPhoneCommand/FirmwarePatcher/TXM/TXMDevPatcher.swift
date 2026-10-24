@@ -69,6 +69,24 @@ public final class TXMDevPatcher: TXMPatcher {
             }
             off += 4
         }
+        guard refs.isEmpty else { return refs }
+
+        // The iOS 18 TXMs reach their strings with a lone `adr` (the linker
+        // relaxed `adrp` + `add` into `adr` + `nop`). Such a reference is its
+        // own ADD: both offsets are the `adr`.
+        off = 0
+        while off + 4 <= size {
+            let raw = buffer.readU32(at: off)
+            // ADR: bit[31]=0, bits[28:24]=10000
+            if raw & 0x9F00_0000 == 0x1000_0000 {
+                let imm21 = (((raw >> 5) & 0x7FFFF) << 2) | ((raw >> 29) & 0x3)
+                let signedImm21 = Int(Int32(bitPattern: imm21 << 11) >> 11)
+                if off + signedImm21 == targetOff {
+                    refs.append((off, off))
+                }
+            }
+            off += 4
+        }
         return refs
     }
 
@@ -201,6 +219,35 @@ public final class TXMDevPatcher: TXMPatcher {
 
         guard starts.count == 1 else { return nil }
         return starts.first
+    }
+
+    /// The `strb w0, [x20, #flag]` for the flag byte the debugger gate at `fn`
+    /// tests with `add xT, xObj, #flag ; ldarb wF, [xT]`.
+    private func debuggerGateFlagStore(_ fn: Int) -> (bytes: Data, label: String)? {
+        var flags = Set<Int64>()
+        var scan = fn
+        let end = min(fn + 0x400, buffer.count - 8)
+        while scan < end {
+            if scan > fn, buffer.readU32(at: scan) == ARM64.pacibspU32 { break }
+            if let add = disasm.disassembleOne(in: buffer.data, at: scan),
+               add.mnemonic == "add",
+               let ops = add.detail?.operands, ops.count == 3,
+               ops[0].type == .register, ops[1].type == .register, ops[2].type == .immediate,
+               let load = disasm.disassembleOne(in: buffer.data, at: scan + 4),
+               load.mnemonic == "ldarb",
+               let loadOps = load.detail?.operands, loadOps.count == 2,
+               loadOps[1].type == .memory, loadOps[1].mem.base == ops[0].reg
+            {
+                flags.insert(ops[2].imm)
+            }
+            scan += 4
+        }
+        guard flags.count == 1 else { return nil }
+        switch flags.first! {
+        case 0x30: return (ARM64.strbW0X20_30, "0x30")
+        case 0x20: return (ARM64.strbW0X20_20, "0x20")
+        default: return nil
+        }
     }
 
     // MARK: - Dev Patches
@@ -545,6 +592,14 @@ public final class TXMDevPatcher: TXMPatcher {
         }
         let stubOff = stubs[0]
 
+        // The flag the shellcode raises is the byte the gate itself tests
+        // (`add xT, xObj, #flag ; ldarb wF, [xT] ; tbnz wF, #0`): +0x30 in the
+        // 26.x TXMs, +0x20 in the iOS 18 ones, where +0x30 holds a pointer.
+        guard let flagStore = debuggerGateFlagStore(fn) else {
+            log("  [-] TXM: selector42|29 flag offset not recognised in the debugger gate")
+            return
+        }
+
         guard let cave = findUdfCave(minInsns: 6, nearOff: stubOff) else {
             log("  [-] TXM: no UDF cave found for selector42|29 shellcode")
             return
@@ -577,9 +632,9 @@ public final class TXMDevPatcher: TXMPatcher {
         )
         emit(
             cave + 8,
-            ARM64.strbW0X20_30,
+            flagStore.bytes,
             patchID: "txm-boot-sel42_29.shell_strb",
-            description: "selector42|29 shellcode: strb w0,[x20,#0x30]",
+            description: "selector42|29 shellcode: strb w0,[x20,#\(flagStore.label)]",
         )
         emit(
             cave + 12,
@@ -682,16 +737,46 @@ public final class TXMDevPatcher: TXMPatcher {
             }
         }
 
-        guard cands.count == 1 else {
-            log("  [-] TXM: expected 1 developer mode guard, found \(cands.count)")
+        if cands.count == 1 {
+            emit(
+                cands[0],
+                ARM64.nop,
+                patchID: "txm-boot-developer_mode_bypass",
+                description: "developer mode bypass",
+            )
             return
         }
 
-        emit(
-            cands[0],
-            ARM64.nop,
-            patchID: "txm-boot-developer_mode_bypass",
-            description: "developer mode bypass",
-        )
+        // iOS 18 compiles the same decision the other way round: the block
+        // that enables developer mode by system policy (`mov w, #1` then the
+        // string) sits out of line, and `cbz/tbz w9` earlier in the function
+        // jumps to it. Making that jump unconditional enables it the same way.
+        if cands.isEmpty, let ref = refs.first.map({ $0.addOff }), let fn = findFuncStart(ref) {
+            var jumps: [(off: Int, target: Int)] = []
+            var scan = fn
+            while scan < ref {
+                if let ins = disasm.disassembleOne(in: buffer.data, at: scan),
+                   ins.mnemonic == "cbz" || ins.mnemonic == "tbz",
+                   ins.operandString.hasPrefix("w9,"),
+                   let last = ins.detail?.operands.last, last.type == .immediate,
+                   case let target = Int(last.imm),
+                   target >= ref - 8, target <= ref
+                {
+                    jumps.append((scan, target))
+                }
+                scan += 4
+            }
+            if jumps.count == 1, let b = ARM64Encoder.encodeB(from: jumps[0].off, to: jumps[0].target) {
+                emit(
+                    jumps[0].off,
+                    b,
+                    patchID: "txm-boot-developer_mode_bypass",
+                    description: "developer mode bypass: always take the system-policy enable",
+                )
+                return
+            }
+        }
+
+        log("  [-] TXM: expected 1 developer mode guard, found \(cands.count)")
     }
 }
