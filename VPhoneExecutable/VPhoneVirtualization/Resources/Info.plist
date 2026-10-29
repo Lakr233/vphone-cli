@@ -14,5 +14,9 @@
 	<string>2.14.0</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Shares this Mac's microphone with the virtual iPhone so apps running inside it can record.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Shares this Mac's camera with the virtual iPhone while System Camera streaming is enabled.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
 </dict>
 </plist>

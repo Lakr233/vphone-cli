@@ -121,6 +121,21 @@ extension VPhoneMenuController {
         trackpadItem.state = VPhoneTrackpadGestures.isEnabled ? .on : .off
         trackpadGesturesItem = trackpadItem
         menu.addItem(trackpadItem)
+        let captureItem = makeItem("Capture Mouse", action: #selector(toggleMouseCapture), symbol: "computermouse")
+        captureItem.toolTip = "Forward mouse movement and buttons to the guest. Control–Option–M releases capture."
+        captureItem.state = .off
+        mouseCaptureItem = captureItem
+        menu.addItem(captureItem)
+        menu.addItem(makeItem("Release Mouse", action: #selector(releaseMouseCapture),
+            keyEquivalent: "m", modifiers: [.control, .option]))
+        let externalItem = NSMenuItem(title: "External Display", action: nil, keyEquivalent: "")
+        let externalMenu = NSMenu(title: "External Display")
+        externalMenu.autoenablesItems = false
+        externalMenu.addItem(makeItem("Connect 1080p (1920 × 1080)", action: #selector(connectExternal1080p)))
+        externalMenu.addItem(makeItem("Connect 4K (3840 × 2160)", action: #selector(connectExternal4K)))
+        externalMenu.addItem(makeItem("Disconnect", action: #selector(disconnectExternalDisplay)))
+        externalItem.submenu = externalMenu
+        menu.addItem(externalItem)
         // Off unless asked for: the window subtitle then carries the frames the
         // guest presented in the last second.
         let frameRateItem = makeItem("Show Frame Rate", action: #selector(toggleFrameRateDisplay))
@@ -363,6 +378,34 @@ extension VPhoneMenuController {
         VPhoneTrackpadGestures.isEnabled = enabled
         trackpadGesturesItem?.state = enabled ? .on : .off
         captureView?.trackpadGesturesEnabled = enabled
+    }
+
+    @objc func toggleMouseCapture() {
+        guard let captureView else { return }
+        captureView.setMouseCaptured(!captureView.isMouseCaptured)
+    }
+
+    @objc func releaseMouseCapture() {
+        captureView?.setMouseCaptured(false)
+    }
+
+    @objc func connectExternal1080p() { connectExternalDisplay(width: 1920, height: 1080) }
+    @objc func connectExternal4K() { connectExternalDisplay(width: 3840, height: 2160) }
+    private func connectExternalDisplay(width: Int, height: Int) {
+        guard !externalDisplayWindow.isConfiguring else { return }
+        Task {
+            do { try await externalDisplayWindow.connect(width: width, height: height) }
+            catch {
+                let alert = NSAlert()
+                alert.messageText = "Could Not Connect External Display"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
+    }
+    @objc func disconnectExternalDisplay() {
+        if externalDisplayWindow.window?.isVisible == true { externalDisplayWindow.close() }
+        else { externalDisplayWindow.disconnect() }
     }
 
     /// Saved to this machine's config.plist; it takes effect from the next

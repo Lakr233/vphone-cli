@@ -233,3 +233,43 @@ Requires a VM with the paired base and a physical trackpad.
 6. Photos/Maps: pinch out zooms in, pinch in zooms out.
 7. Resting the pointer over text and swiping must not start a text selection.
 8. Toggle the menu item off — trackpad gestures stop, mouse drag still works.
+
+## Explicit mouse capture (local extension, 2026-10-29)
+
+Pointer capability advertising and host capture are independent. The local
+`iPhonePointerEnabled` preference makes iPhone guests advertise the same
+transport as iPads, without promising guest-side pointer handling. Each VM
+window starts with `isMouseCaptured = false`. Normal clicks never enable it.
+Device → Capture Mouse explicitly captures; Device → Release Mouse or
+Control–Option–M releases. A local key-event monitor reserves the release
+shortcut before VZ keyboard forwarding. Focus loss and window close also
+release capture.
+
+Capture disassociates hardware movement from the Mac cursor and accumulates
+relative event deltas in view coordinates, clamped to the view bounds. The
+existing interface-point conversion supplies normalized guest coordinates.
+Click, drag, release and native scrolling all use the same accumulated point.
+Release sends buttons=0 if any were held, ends native scrolling, re-associates
+the Mac cursor and restores the arrow. The opt-in preference persists, but
+actual capture is deliberately never persisted. Existing trackpad-to-touch
+behavior applies outside capture.
+
+Hardware keyboard attachment remains a boot configuration: `config.keyboards`
+is either `[VZUSBKeyboardConfiguration()]` or empty. The SDK's runtime USB
+controller API takes `VZUSBDevice`; its keyboard configuration is not that
+protocol. This does not rule out future research on private runtime keyboard
+attachment; no such experiment was performed here.
+
+Deployment: Release VPhone build passed; installed host bundle
+`2.14.0-local.54db0340` and restarted iPhone-Duo (guest connected in four
+seconds). Guest resources remain at `2.14.0-local.cc9b04bc`, which contains
+the identical guest opt-in code; the final capture change is host-only.
+The boolean opt-in was read back true after restart, and an unpressed
+`input.pointer` request had previously succeeded. The native UI-control tool
+encountered stale-bundle checks and then timed out opening the updated menu;
+manual capture/release verification was requested from the user. Do not treat
+build success or pointer RPC success as proof of the release shortcut.
+
+The user then tested Device → Capture Mouse and Control–Option–M and
+confirmed “Capture and release work.” The final build remains installed;
+capture defaults off and the persistent iPhone capability opt-in remains on.

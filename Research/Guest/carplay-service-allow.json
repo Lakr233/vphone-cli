@@ -1,0 +1,13 @@
+[
+  "com.apple.carkitd",
+  "com.apple.SiriTTSTrainingAgent",
+  "com.apple.assistant_cdmd",
+  "com.apple.assistant_service",
+  "com.apple.assistantd",
+  "com.apple.corespeechd",
+  "com.apple.siri.sirireaderd",
+  "com.apple.siriinferenced",
+  "com.apple.siriknowledged",
+  "com.apple.speechmaintenanced",
+  "com.apple.systemvoiceassistant"
+]

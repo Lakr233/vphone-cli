@@ -14,7 +14,7 @@ static id vpInnerRenderDisplay;
 // Tags a render display with the BKS bit the guest itself describes as
 // `unknown`. FrontBoard drops an untagged source unless it is always
 // connected; this tag is what makes it publish one.
-static void vpTagUnknownDisplay(id display) {
+void vpTagRenderDisplay(id display, NSString *tagName) {
     NSString *(*describe)(NSUInteger) = dlsym(RTLD_DEFAULT, "NSStringFromBKSDisplayTags");
     SEL setter = sel_registerName("setTag:");
     Method method = class_getInstanceMethod(object_getClass(display), setter);
@@ -26,7 +26,7 @@ static void vpTagUnknownDisplay(id display) {
     for (unsigned int bit = 0; bit < 24; bit++) {
         NSUInteger candidate = (NSUInteger)1 << bit;
         NSString *label = describe(candidate);
-        if (!label || [label rangeOfString:@"unknown" options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
+        if (!label || [label rangeOfString:tagName options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
         if (unknown) { vpFoldDisplayLog(@"inner display: ambiguous unknown tag bit"); return; }
         unknown = candidate;
     }
@@ -81,8 +81,9 @@ static BOOL vpAddInnerRenderDisplayToServer(id server) {
         Method enable = class_getInstanceMethod(object_getClass(display), setEnabled);
         if (enable && strcmp(method_getTypeEncoding(enable), "v20@0:8B16") == 0)
             ((void (*)(id, SEL, BOOL))objc_msgSend)(display, setEnabled, YES);
-        vpTagUnknownDisplay(display);
+        vpTagRenderDisplay(display, @"unknown");
         vpInnerRenderDisplay = display;
+        vpPrepareExternalRenderDisplays(server);
         vpFoldDisplayLog([NSString stringWithFormat:@"inner display: render display added %@ uniqueId=%@", display,
             [display respondsToSelector:sel_registerName("uniqueId")] ? [display valueForKey:@"uniqueId"] : @"-"]);
         return YES;
@@ -217,7 +218,14 @@ static void vpTurnDigitizerPosition(VPHIDEventRef event) {
 }
 
 static void vpInnerHandleDirectTouch(id self, SEL selector, void *event, id service) {
-    if (event && vpInnerPanelLit()) vpTurnDigitizerPosition((VPHIDEventRef)event);
+    // Only the built-in digitizer is repurposed for the inner panel. CarPlay
+    // and other external displays already supply their own display UUID and
+    // coordinate space. Ask the original resolver, before our routing hook
+    // replaces the built-in digitizer's empty UUID with the inner display's.
+    id originalDisplayUUID = ((id (*)(id, SEL, id))vpOriginalDigitizerDisplayUUID)(self,
+        sel_registerName("_queue_displayUUIDForDigitizerService:"), service);
+    if (event && ![originalDisplayUUID length] && vpInnerPanelLit())
+        vpTurnDigitizerPosition((VPHIDEventRef)event);
     ((void (*)(id, SEL, void *, id))vpOriginalHandleDirectTouch)(self, selector, event, service);
 }
 

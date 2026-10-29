@@ -7,9 +7,9 @@
 #   zsh VPhoneLaunchpad/Build/SignLaunchpad.sh <path/to/vphone-launchpad.app> "Developer ID Application: …"
 #
 # The helper, the command line tool and the VM launcher are signed before the
-# app that seals them, without entitlements. The app gets the two hardened
+# app that seals them, without entitlements. The app gets the hardened
 # runtime resource entitlements in Resources/VPhoneLaunchpad.entitlements
-# (microphone and location) and no private ones. They are applied only here:
+# (microphone, camera and location) and no private ones. They are applied only here:
 # CODE_SIGNING_ALLOWED is NO at build time, so no xcconfig sets
 # CODE_SIGN_ENTITLEMENTS. The launcher is the process macOS holds responsible
 # for each VM Launchpad starts; as a tool in the app's Contents/MacOS it is
@@ -42,7 +42,7 @@ codesign --force --options runtime --timestamp --entitlements "$entitlements" \
 
 codesign --verify --strict --deep "$app"
 signed=$(codesign -d --entitlements - --xml "$app" 2>/dev/null)
-for key in com.apple.security.device.audio-input com.apple.security.personal-information.location; do
+for key in com.apple.security.device.audio-input com.apple.security.device.camera com.apple.security.personal-information.location; do
   if [[ $signed != *"<key>$key</key><true/>"* ]]; then
     print -u2 "error: $app is not signed with $key."
     exit 1

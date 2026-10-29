@@ -49,6 +49,27 @@ struct DisplayGeometryTests {
         #expect(geometry.displayRect == Self.fullScreen)
     }
 
+    @Test func `resized Duo cover maps visible edges and centre`() {
+        let pixels = CGSize(width: 1398, height: 2034)
+        for scale in [0.5, 1.0, 717.0 / 678.0, 1.5] {
+            let view = CGRect(x: 0, y: 0, width: 466 * scale, height: 678 * scale)
+            let viewport = VPhoneDisplayGeometry.activeViewportBounds(
+                viewBounds: view, activePixels: pixels, backingPixels: pixels
+            )
+            let geometry = VPhoneDisplayGeometry(viewBounds: viewport, displaySize: pixels, isFlipped: false)
+            #expect(Self.close(geometry.normalizedPoint(CGPoint(x: view.minX, y: view.maxY)), .zero))
+            #expect(Self.close(geometry.normalizedPoint(CGPoint(x: view.maxX, y: view.minY)), CGPoint(x: 1, y: 1)))
+            #expect(Self.close(geometry.normalizedPoint(CGPoint(x: view.midX, y: view.midY)), CGPoint(x: 0.5, y: 0.5)))
+        }
+    }
+
+    @Test func `cropped viewport scales with the backing window`() {
+        #expect(VPhoneDisplayGeometry.activeViewportBounds(
+            viewBounds: CGRect(x: 0, y: 0, width: 800, height: 1200),
+            activePixels: CGSize(width: 400, height: 600), backingPixels: CGSize(width: 800, height: 1200)
+        ) == CGRect(x: 0, y: 600, width: 400, height: 600))
+    }
+
     // MARK: - Normalizing
 
     @Test func `full screen display edges normalize to 0 and 1`() {

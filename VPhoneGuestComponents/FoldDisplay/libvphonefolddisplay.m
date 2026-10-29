@@ -15,8 +15,10 @@ __attribute__((constructor)) static void vpInstallFoldDisplay(void) {
     if (sysctlbyname("hw.machine", product, &productLength, NULL, 0) != 0 || strcmp(product, "iPhone19,4") != 0)
         return;
     if (strcmp(getprogname(), "backboardd") == 0) {
+        vpInstallExternalDisplay(YES);
         vpInstallInnerRenderDisplay();
     } else if (strcmp(getprogname(), "SpringBoard") == 0) {
+        vpInstallExternalDisplay(NO);
         vpInstallSharedPanel();
         vpInstallInnerDisplayAdapter();
         vpInstallDualStatusLookup();

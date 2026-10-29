@@ -60,7 +60,8 @@ static Class vpDualStatusClassLookup(id screen, id info) {
     if (![NSThread isMainThread]) return original(screen, info);
     id identity = vpReadObject(vpReadObject(screen, "displayConfiguration"), "identity");
     if (!identity) return original(screen, info);
-    BOOL inner = ![[identity description] isEqual:@"Main"];
+    BOOL inner = vpIsInnerDisplayIdentity(identity);
+    if (!inner && ![[identity description] isEqual:@"Main"]) return original(screen, info);
     Class selected = vpDuoPanelStatusClass(screen, info, inner);
     if (vpStatusLookupLogCount++ < 8)
         vpFoldDisplayLog([NSString stringWithFormat:@"status bar: %@ screen takes %@", inner ? @"inner" : @"cover",

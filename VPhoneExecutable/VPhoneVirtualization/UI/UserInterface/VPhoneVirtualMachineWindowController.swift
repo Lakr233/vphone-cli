@@ -357,8 +357,11 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
             }
         })
         for name in [NSWindow.didResignKeyNotification, NSWindow.willCloseNotification] {
-            keyStateObservers.append(center.addObserver(forName: name, object: window, queue: .main) { _ in
-                MainActor.assumeIsolated { VPhoneHostHotKeys.shared.resume() }
+            keyStateObservers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.captureView?.setMouseCaptured(false)
+                    VPhoneHostHotKeys.shared.resume()
+                }
             })
         }
         if window.isKeyWindow, !homePodGuest, captureView?.hardwareKeyboardEnabled == true {
