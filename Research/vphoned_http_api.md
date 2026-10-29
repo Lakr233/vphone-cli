@@ -1285,3 +1285,51 @@ properties, plus up to4096 bytes per available report descriptor as base64.
 No HID event is dispatched. `available=false` reports missing native APIs or
 failure to create the read client. Absent properties are omitted; their absence
 does not establish a zero range. Service metadata is not a touch-hit receipt.
+
+### iPhone pointer forwarding opt-in (local extension, 2026-10-29)
+
+An iPhone guest can explicitly advertise `pointer_scroll` and `pointer_buttons`
+by setting the mobile-user preference through RPC:
+
+```text
+settings.set {"domain":"com.vphone.vphoned","key":"iPhonePointerEnabled","type":"bool","value":true}
+```
+
+The preference is read by each health response; the VM window picks up the
+capabilities on its next health probe without a restart. It persists across
+boots. False, deletion, or a non-boolean value restores the default iPhone
+behavior. iPads remain enabled by default; other products do not opt in.
+Advertising support does not capture the mouse. Device → Capture Mouse is
+off for every new window, is never enabled by clicking the display, and is
+not persisted. It forwards relative mouse movement, buttons and native scroll
+only after explicit menu activation. Control–Option–M or Device → Release
+Mouse releases it, as does losing window focus or closing the window. The
+Mac cursor is re-associated on release and any held guest pointer buttons are
+released. Trackpad-to-touch replay remains a separate setting.
+This only advertises/forwards input; it does not enable AssistiveTouch or
+promise iOS will show a pointer. The inner Duo display's pointer mapping is
+not established by this opt-in.
+
+### Optional Duo external display (local extension, 2026-10-29)
+
+The existing Duo display component supports one connected external monitor,
+disabled at boot. Only these pixel dimensions are accepted: 1920x1080 and
+3840x2160. Other dimensions fail before changing the active configuration.
+
+| Method | Parameters and result |
+| --- | --- |
+| `display.external.status` | No parameters; returns `enabled` and, when available, the selected display's name and geometry. |
+| `display.external.configure` | `enabled: Bool`; enabling also requires supported integer `width` and `height`. Waits up to five seconds for a matching acknowledgement. |
+| `display.external.frame` | No parameters; returns a JPEG as base64 `data` with `mime_type: image/jpeg`, captured from the selected external display. Requires a connected monitor. |
+| `display.external.diagnostics` | No parameters; read-only SpringBoard display-source, root-scene and policy snapshot, with up to five seconds for generation. |
+
+Example: `display.external.configure {"enabled":true,"width":3840,"height":2160}`.
+Disconnect with `display.external.configure {"enabled":false}`. This component
+is currently installed only on Duo guests. Native guest policy and each app
+control external scene or mirroring behavior; the frame is not a phone screenshot.
+
+Device → External Display offers the same two modes and Disconnect. Closing
+the preview disconnects it. The output-only host window requests one JPEG at a
+time, targeting 60 Hz with actual throughput dependent on rendering, encoding,
+transfer and decoding. Resolution switching and reconnecting work at runtime;
+neither requires a VM reboot.

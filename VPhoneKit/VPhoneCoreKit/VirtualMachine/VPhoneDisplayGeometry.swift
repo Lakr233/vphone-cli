@@ -47,6 +47,18 @@ public struct VPhoneDisplayGeometry: Equatable, Sendable {
         )
     }
 
+    /// The visible panel inside a scaled backing view. Pixel dimensions are
+    /// ratios: guest points differ from AppKit points after a window resize.
+    public static func activeViewportBounds(
+        viewBounds: CGRect, activePixels: CGSize, backingPixels: CGSize
+    ) -> CGRect {
+        guard activePixels.width > 0, activePixels.height > 0,
+              backingPixels.width > 0, backingPixels.height > 0 else { return viewBounds }
+        let width = viewBounds.width * min(1, activePixels.width / backingPixels.width)
+        let height = viewBounds.height * min(1, activePixels.height / backingPixels.height)
+        return CGRect(x: viewBounds.minX, y: viewBounds.maxY - height, width: width, height: height)
+    }
+
     /// A view point as a 0...1 display position with y down. Points on the
     /// letterbox bars clamp to the nearest display edge.
     ///

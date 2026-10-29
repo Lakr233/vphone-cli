@@ -16,6 +16,63 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// guest's points for a native scroll.
     var screenScale: CGFloat = 3
 
+    private(set) var isMouseCaptured = false
+    var onMouseCaptureChange: ((Bool) -> Void)?
+    private var capturedMousePoint = NSPoint.zero
+    private var mouseReleaseMonitor: Any?
+
+    /// Explicit per-window capture, never persisted or activated by a click.
+    func setMouseCaptured(_ captured: Bool) {
+        guard captured != isMouseCaptured else { return }
+        if captured {
+            guard window?.isKeyWindow == true, control?.supportsPointerScroll == true else { return }
+            finishScrollTouch()
+            releaseSecondaryPress()
+            endNativeScroll()
+            endPinch()
+            guard CGAssociateMouseAndMouseCursorPosition(0) == .success else { return }
+            capturedMousePoint = NSPoint(x: bounds.midX, y: bounds.midY)
+            if let screenPoint = window?.convertPoint(toScreen: convert(capturedMousePoint, to: nil)),
+               let top = NSScreen.screens.first?.frame.maxY {
+                CGWarpMouseCursorPosition(CGPoint(x: screenPoint.x, y: top - screenPoint.y))
+            }
+            isMouseCaptured = true
+            Self.hiddenCursor.set()
+            control?.movePointer(to: interfacePoint(capturedMousePoint))
+            mouseReleaseMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                if event.keyCode == 46,
+                   event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.control, .option],
+                   self?.isMouseCaptured == true {
+                    self?.setMouseCaptured(false)
+                    return nil
+                }
+                return event
+            }
+        } else {
+            if pointerButtons != 0 {
+                pointerButtons = 0
+                control?.setPointer(interfacePoint(capturedMousePoint), buttons: 0)
+            }
+            endNativeScroll()
+            isMouseCaptured = false
+            CGAssociateMouseAndMouseCursorPosition(1)
+            NSCursor.arrow.set()
+            if let monitor = mouseReleaseMonitor { NSEvent.removeMonitor(monitor) }
+            mouseReleaseMonitor = nil
+        }
+        onMouseCaptureChange?(isMouseCaptured)
+    }
+
+    private func advanceCapturedMouse(_ event: NSEvent) {
+        capturedMousePoint.x = min(bounds.maxX, max(bounds.minX, capturedMousePoint.x + event.deltaX))
+        capturedMousePoint.y = min(bounds.maxY, max(bounds.minY,
+            capturedMousePoint.y + (isFlipped ? event.deltaY : -event.deltaY)))
+    }
+
+    private func pointerPoint(_ localPoint: NSPoint) -> CGPoint {
+        interfacePoint(isMouseCaptured ? capturedMousePoint : localPoint)
+    }
+
     /// Whether trackpad scroll/pinch gestures are replayed as guest touches.
     var trackpadGesturesEnabled = VPhoneTrackpadGestures.isEnabled {
         didSet {
@@ -179,12 +236,15 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// it follows the mouse, so the guest sees hover as an iPad with a
     /// trackpad does.
     override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
-        guard guestPointerFollowsMouse, let control else { return }
+        guard guestPointerFollowsMouse, let control else {
+            super.mouseMoved(with: event)
+            return
+        }
+        advanceCapturedMouse(event)
         if hidesHostCursor {
             Self.hiddenCursor.set()
         }
-        control.movePointer(to: interfacePoint(convert(event.locationInWindow, from: nil)))
+        control.movePointer(to: interfacePoint(capturedMousePoint))
     }
 
     /// The guest's pointer stands in for the Mac's over the display, so the
@@ -198,7 +258,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     private var guestPointerFollowsMouse: Bool {
-        trackpadGesturesEnabled && control?.supportsPointerScroll == true
+        isMouseCaptured && control?.supportsPointerScroll == true
     }
 
     /// Only in the key window: over a window in the background the Mac's
@@ -230,6 +290,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if isMouseCaptured { advanceCapturedMouse(event) }
         let localPoint = convert(event.locationInWindow, from: nil)
         if dragPointer(to: localPoint) || sendTouchEvent(phase: 1, localPoint: localPoint, timestamp: event.timestamp) {
             return
@@ -253,7 +314,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
             if hidesHostCursor {
                 Self.hiddenCursor.set()
             }
-            control.movePointer(to: interfacePoint(localPoint))
+            control.movePointer(to: pointerPoint(localPoint))
         }
     }
 
@@ -285,6 +346,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     override func rightMouseDragged(with event: NSEvent) {
+        if isMouseCaptured { advanceCapturedMouse(event) }
         if dragPointer(to: convert(event.locationInWindow, from: nil)) {
             return
         }
@@ -356,14 +418,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
         releaseSecondaryPress()
         pointerButtons |= button
-        control.setPointer(interfacePoint(localPoint), buttons: pointerButtons)
+        control.setPointer(pointerPoint(localPoint), buttons: pointerButtons)
         return true
     }
 
     /// Moves the guest's pointer with its buttons held. False when none is.
     private func dragPointer(to localPoint: NSPoint) -> Bool {
         guard pointerButtons != 0, let control else { return false }
-        control.setPointer(interfacePoint(localPoint), buttons: pointerButtons)
+        control.setPointer(pointerPoint(localPoint), buttons: pointerButtons)
         return true
     }
 
@@ -372,7 +434,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     private func releasePointer(_ button: Int, at localPoint: NSPoint) -> Bool {
         guard pointerButtons & button != 0, let control else { return false }
         pointerButtons &= ~button
-        control.setPointer(interfacePoint(localPoint), buttons: pointerButtons)
+        control.setPointer(pointerPoint(localPoint), buttons: pointerButtons)
         return true
     }
 
@@ -403,7 +465,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// Replay a trackpad scroll as a guest finger that presses under the pointer
     /// and follows the physical direction of the gesture.
     override func scrollWheel(with event: NSEvent) {
-        if trackpadGesturesEnabled, let control, control.supportsPointerScroll {
+        if guestPointerFollowsMouse, let control {
             scrollNatively(event, control: control)
             return
         }
@@ -485,7 +547,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
         if !nativeScrollActive, delta != .zero {
             nativeScrollActive = true
-            control.sendScroll(phase: "began", pointer: interfacePoint(convert(event.locationInWindow, from: nil)))
+            control.sendScroll(phase: "began", pointer: pointerPoint(convert(event.locationInWindow, from: nil)))
         }
         if nativeScrollActive, delta != .zero {
             control.sendScroll(phase: "changed", delta: delta)
@@ -1208,25 +1270,13 @@ var panel = normalizeCoordinate(localPoint)
     /// outer or inner viewport. Input must be measured against that clipped
     /// rectangle; using the full backing bounds makes outer-screen touches
     /// land in the hidden part of the framebuffer.
-    private var touchViewportSize: CGSize {
-        if let active = activePanelPixels, active.width > 0, active.height > 0,
-           screenScale > 0 {
-            return CGSize(width: active.width / screenScale, height: active.height / screenScale)
-        }
-        return bounds.size
-    }
+    private var touchViewportSize: CGSize { touchViewportBounds.size }
 
     private var touchViewportBounds: CGRect {
-        let size = touchViewportSize
-        guard size.width > 0, size.height > 0 else { return bounds }
-        // VPhoneDisplayContainerView bottom-aligns the full backing view inside
-        // the clipped viewport, so the active surface occupies the bottom-left
-        // portion of the VM view's local coordinates.
-        return CGRect(
-            x: 0,
-            y: max(0, bounds.height - size.height),
-            width: min(bounds.width, size.width),
-            height: min(bounds.height, size.height),
+        guard let active = activePanelPixels,
+              let backing = recordingGraphicsDisplay?.sizeInPixels else { return bounds }
+        return VPhoneDisplayGeometry.activeViewportBounds(
+            viewBounds: bounds, activePixels: active, backingPixels: backing
         )
     }
 

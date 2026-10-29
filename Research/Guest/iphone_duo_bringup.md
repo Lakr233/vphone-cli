@@ -4836,3 +4836,33 @@ Window captures (ScreenCaptureKit) cannot judge 120 Hz here: the cover, which
 is natively 120, measures the same 40-55 changes per second as the inner
 display, because the host composites the window at its own rate. Use guest
 display links, or the host's `lastSubmittedTime` poller from the vGPU notes.
+### Expanded Now Playing corners (local diagnostic, 2026-10-29)
+
+On iPhone-Duo (27.1 24A94425), the unfolded expanded Now Playing panel
+provided by Broadcasts has a rectangular outer black background while its
+artwork remains rounded. A read-only UIKit probe reports 59 points for the
+cover's `_displayCornerRadius` and `_displayCornerRadiusIgnoringZoom`.
+Constructing a private, unregistered UIScreen from the inner CADisplay's
+FBSDisplayConfiguration reports zero for both getters and `_isEmbeddedScreen`
+false. This daemon-side object does not include SpringBoard's display adapter,
+so it establishes the native virtual-display default, not the exact live
+SpringBoard screen state.
+
+A local FoldDisplayAdapter experiment intercepts those two getter selectors
+(ABI checked as d16@0:8), matches only the recorded inner display identity,
+and substitutes the main screen's original native value only when the inner
+value is zero. A nonzero native inner value and every other display pass
+through. Limited logging records native/main/effective values in SpringBoard.
+No device-tree, MobileGestalt, firmware or host security setting is changed.
+The original source is saved outside the source tree as
+`.vphone-setup/FoldDisplayAdapter.before-corners.m`; previous environment
+bundle 2.14.0-local.e1ece920 remains available for rollback.
+Validation and visual outcome are recorded below after deployment.
+
+**Validated:** Release VPhone build passed without warnings/errors. Installed
+local bundle `2.14.0-local.232df3b7`, updated the existing guest environment,
+and cleanly restarted (vphoned connected in four seconds). Actual SpringBoard
+logs now confirm `_displayCornerRadius native=0.00 main=59.00 effective=59.00`
+for the inner screen, so the earlier daemon probe matches the live symptom.
+The user reproduced the Broadcasts panel and confirmed “that's fixed now.”
+Previous bundle retained for rollback; no additional change is pending.

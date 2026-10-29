@@ -4,14 +4,17 @@
      applied only by Build/SignLaunchpad.sh: the Xcode build does not sign.
      Guests are started through Contents/MacOS/vphone-launchpad-launcher, so
      macOS attributes their privacy requests to this app. Under the hardened
-     runtime it refuses the microphone or location to an app without the
+     runtime it refuses microphone, camera or location access to an app without the
      matching entitlement, without asking. The microphone is used by guest
-     audio input; location by VPhoneLocation.app, which vphone-vm starts as a
+     audio input; camera by the optional System Camera frame source;
+     location by VPhoneLocation.app, which vphone-vm starts as a
      child when Sync Host Location is on. The helper, the command line tool
      and the launcher get no entitlements. -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
 	<true/>
 	<key>com.apple.security.personal-information.location</key>
 	<true/>

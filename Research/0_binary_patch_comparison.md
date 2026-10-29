@@ -5612,3 +5612,23 @@ The host VM view now derives its input geometry from the active Duo viewport (`a
 > **Duo display: two displays only (2026-10-29):** `system-springboard-cfw-fold_display` (now titled "Foldable inner display") keeps only the two-display path, and it is always on for iPhone19,4: `libvphonefolddisplay.dylib` checks `hw.machine` in backboardd and SpringBoard instead of the `vphone-duo-inner-display` marker. backboardd: the 2853x2007 `CAWindowServerVirtualDisplay` added from `-[CAWindowServer _detectDisplays]` (server-ready fallback), tagged `unknown`; `DeviceSurfaceType` 1 for the primary and 2 for the inner display through `-[CAWindowServerDisplay extendedProperties]`; `BKHIDDirectTouchEventProcessor` digitizer routing and the 270° position turn while the inner display is lit. SpringBoard: the CADisplay type/pointScale/isExternal adapter with the FrontBoard classification scope, `mainLike` in the inner identity's XPC encoding, the inner screen's idiom, the shared scanout (`-[CADisplayStateControl transitionToDisplayState:withCompletion:]`), the compositor, the content mode resolver hand-over (the resolver is now recorded by a pass-through `-[SBFDisplayContentModeResolver _startResolvingContentModeOfDisplay:]`), and the per-screen `STUIStatusBarGetVisualProviderClassForScreen` detour. Removed hooks: the Main configuration transformer, monitor and identity observers, `SBWindowScene surfaceType`/`sbhScreenType`, `SBWindow _shouldResizeWithScene`, the scene geometry callback, the clock and time-item adapters, the scene status policy, the Main status lookup and status profile factories, `SBHScreenTypeFor*`, `_os_feature_enabled_impl` (`TraitsArbiterWallpaperTokyoDrift`), `PF_IS_PAD_DEVICE`, `_SBWallpaperSecureWindow setHidden:`, the quick-action glyph subclass, the `UIWindow` target-window fallback, the `SBSDeviceDeterminedConfiguration`/`CSProminentLayoutController` loggers, and every `com.vphone.display.*` notification. `libvphoneposterprobe.dylib` (the poster orientation follower) is no longer built, staged, listed in the guest environment, or loaded by SystemHook. Details in `Research/Guest/iphone_duo_bringup.md`.
 
 > **Duo display: flicker, capture and rotation (2026-10-29):** in `system-springboard-cfw-fold_display`, the compositor is now a layer at the top of Main's `UIRootSceneWindow` (points) instead of a display-level `CAContext` (pixels), its hosts sync from a main run loop observer before Core Animation's commit and change only when a value changes, and its per-frame damage alternates two clear colors. New SpringBoard hook: `+[CMMagicPoseManager orientationForMagicPose:deviceSurface:]` answers with `+[CMDeviceStateEvent propertyAForConfigType:propertyA:propertyB:propertyC:]` directly, because the guest has no `CMMagicPoseManager` shared manager and every panel read ambiguous, so neither panel rotated. vphoned's `display.rotation` on a foldable sets the pose orientation for the lit panel. Details in `Research/Guest/iphone_duo_bringup.md`.
+
+> **Local Duo inner-screen corner diagnostic (2026-10-29):** The existing
+> FoldDisplay guest component checks UIScreen corner getter ABIs and, only
+> for its recorded inner display identity, fills a zero radius from the main
+> screen's native metric. Nonzero native radii and other displays pass through.
+> This is a source-level experiment in the existing component, with no new
+> firmware patch or preset. See the expanded Now Playing entry in
+> `Research/Guest/iphone_duo_bringup.md` for evidence and deployment outcome.
+
+> **Local optional external monitor prototype (2026-10-29):** Existing Duo
+> FoldDisplay injection gains an explicit, off-at-boot 1080p/4K virtual monitor
+> and a named external-display adapter. Existing inner-only policies now match
+> the recorded inner identity. Guest RPC captures the external display itself
+> for a separate host window. No new binary patch, preset or hardware graphics
+> port is introduced. See `Research/Guest/virtual_external_display.md` for
+> implementation boundaries and runtime results.
+> Final implementation prepares two disabled render slots before SpringBoard
+> discovery and refreshes their existing CADisplay objects after configuration.
+> Native Broadcasts output, live 1080p-to-4K switching, and disconnect/reconnect
+> passed on `2.14.0-local.b0297e92`; boot remains disconnected by default.

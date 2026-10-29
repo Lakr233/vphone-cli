@@ -1,5 +1,32 @@
 # Guest Display Refresh Rate
 
+## Duo inner display: local investigation, 2026-10-29
+
+Historical observation from a release-based local build. The main-based review
+candidate keeps upstream's explicit 120 Hz digital-mode setup instead of this
+update-rate-only experiment. Exceeding 60 in the window counter did not prove
+that ordinary apps saw a 120 Hz inner UIScreen. See the later digital-mode
+investigation in iphone_duo_bringup.md for the stronger measurements.
+
+On the iPhone19,4 27.1 (24A94425) guest with cloudOS 26.4
+(23E5207q), the cover display reached 119 fps while scrolling Settings,
+but the unfolded inner display stayed at 59–60 fps, as counted by the
+VM window's framebuffer callback counter. Low Power Mode was off.
+`UIScreen.mainScreen.maximumFramesPerSecond` returned 120 from a guest
+daemon session, which described the cover and did not establish the inner
+display's frame rate.
+
+`FoldDisplayBackboard.m` creates the separate `CAWindowServerVirtualDisplay`
+for the inner panel with `kCAVirtualDisplayUpdateRate = 60`. The local fix
+sets that option to 120 to match the cover's ProMotion timing. This changes
+a guest component, requiring an environment redeployment and reboot rather
+than a kernel update or firmware restore.
+
+After deployment as `2.14.0-local.77724db8`, the unfolded Settings scroll
+test produced window-counter samples of 82 and 111 fps (previously 59–60).
+The release build and bundle admission passed. The previous installer/PAC
+and scaled touch-coordinate repairs were retained in the same build.
+
 A vphone guest renders at 60 Hz whatever the host display does. This note
 records where the 60 comes from, why no Virtualization setting changes it, and
 the kernel patch `kernel-cfw-display_promotion` (titled ProMotion) that makes the

@@ -67,6 +67,27 @@ extension GuestAPI {
             return ["displays": vp_display_probe()]
         case "display.modes":
             return vp_display_modes()
+        case "display.external.status":
+            return vp_external_display_status()
+        case "display.external.diagnostics":
+            return vp_external_display_diagnostics()
+        case "display.external.configure":
+            guard let enabled = params["enabled"] as? Bool else {
+                throw GuestAPIError.invalidRequest("enabled must be a boolean")
+            }
+            let width = params["width"] as? Int ?? 1920
+            let height = params["height"] as? Int ?? 1080
+            let result = vp_external_display_configure(enabled, width, height)
+            guard result["ok"] as? Bool == true else {
+                throw GuestAPIError.operationFailed(result["error"] as? String ?? "External display configuration failed")
+            }
+            return result
+        case "display.external.frame":
+            var error: NSString?
+            guard let data = vp_external_display_frame(&error) else {
+                throw GuestAPIError.operationFailed(error as String? ?? "External display capture failed")
+            }
+            return ["mime_type": "image/jpeg", "data": data.base64EncodedString()]
         case "device.environment":
             return try environmentReport()
         case "device.basebin":

@@ -24,6 +24,7 @@ final class VPhoneCameraServer {
         case off
         case testPattern
         case videoFile // .mov / .mp4 / .m4v via AVAssetReader
+        case systemCamera
     }
 
     nonisolated static let vsockPort: UInt32 = 1338
@@ -33,6 +34,7 @@ final class VPhoneCameraServer {
     nonisolated static let pixelFormat: UInt32 = 0x4247_5241 // 'BGRA' — kCMPixelFormat_32BGRA
 
     private(set) var sourceKind: SourceKind = .off
+    private(set) var cameraDeviceID: String?
     private(set) var isConnected = false
 
     private var device: VZVirtioSocketDevice?
@@ -72,16 +74,23 @@ final class VPhoneCameraServer {
 
     // MARK: - Source selection
 
-    func setSource(_ kind: SourceKind, videoURL: URL? = nil) {
-        if sourceKind == kind, kind != .videoFile {
+    func setSource(_ kind: SourceKind, videoURL: URL? = nil, cameraDeviceID: String? = nil) throws {
+        if sourceKind == kind, kind != .videoFile,
+           kind != .systemCamera || self.cameraDeviceID == cameraDeviceID {
             return
         }
+        // Construct first so a failed camera setup preserves the old source.
+        let camera = kind == .systemCamera ? try VPhoneSystemCameraProducer(
+            width: Self.defaultWidth, height: Self.defaultHeight, deviceID: cameraDeviceID) : nil
         let wasStreaming = (timer != nil)
         if wasStreaming {
             stopStreaming()
         }
         sourceKind = kind
+        self.cameraDeviceID = kind == .systemCamera ? cameraDeviceID : nil
         switch kind {
+        case .systemCamera:
+            producer = camera
         case .off:
             producer = nil
         case .testPattern:
@@ -121,6 +130,7 @@ final class VPhoneCameraServer {
         if timer != nil {
             return
         }
+        producer?.start()
         let interval = 1.0 / Self.defaultFPS
         // Timer fires on the main queue so MainActor-isolated state
         // (producer, connectionFD) can be read directly without tripping
@@ -167,8 +177,8 @@ final class VPhoneCameraServer {
     }
 
     func stopStreaming() {
-        guard let t = timer else { return }
-        t.cancel()
+        producer?.stop()
+        timer?.cancel()
         timer = nil
         print("[camera] streaming stopped")
     }
@@ -207,9 +217,8 @@ final class VPhoneCameraServer {
                     self.isConnected = true
                     print("[camera] connected on vsock port \(Self.vsockPort)")
                     self.onConnectionStateChange?(true)
-                    if self.sourceKind != .off {
-                        self.startStreaming()
-                    }
+                    // An existing streaming timer resumes sending on this
+                    // connection. Do not reopen a source the user stopped.
                 case let .failure(error):
                     print("[camera] connect failed: \(error). Retrying in 3s.")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in

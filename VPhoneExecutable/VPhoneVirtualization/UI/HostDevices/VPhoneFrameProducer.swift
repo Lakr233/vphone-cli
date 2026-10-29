@@ -19,7 +19,14 @@ struct VPhoneCameraFrame: Sendable {
 /// see the queue isolation, so we opt out of the strict-concurrency
 /// check.
 protocol VPhoneFrameProducer: AnyObject, Sendable {
+    func start()
+    func stop()
     func nextFrame() -> VPhoneCameraFrame?
+}
+
+extension VPhoneFrameProducer {
+    func start() {}
+    func stop() {}
 }
 
 // MARK: - Test pattern
