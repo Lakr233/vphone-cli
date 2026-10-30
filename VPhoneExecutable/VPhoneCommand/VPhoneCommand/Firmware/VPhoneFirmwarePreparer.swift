@@ -48,7 +48,7 @@ enum VPhoneFirmwarePreparer {
         // A source naming a catalog OTA, such as a tvOS the Apple TV HD never
         // got, restores the OTA's base IPSW and stages that OTA.
         var iPhoneSource = iPhoneSource, otaSource = otaSource, productType = productType
-        let requestedOTA = VPhoneFirmwareCatalog.otaRelease(source: iPhoneSource)
+        let requestedOTA = VPhoneFirmwareCatalog.otaRelease(source: iPhoneSource, preferring: productType)
         // An OTA this Mac cannot unpack is refused before any IPSW is
         // downloaded for it, whether it comes as the iPhone source or on its own.
         try (requestedOTA ?? otaSource.flatMap(VPhoneFirmwareCatalog.otaRelease(source:)))?.checkHost()
@@ -261,7 +261,7 @@ enum VPhoneFirmwarePreparer {
         device productType: String? = nil,
         downloadConnections: Int = VPhoneIPSWCache.defaultDownloadConnections,
     ) throws -> (phone: VPhoneIPSWCache.Archive, cloud: VPhoneIPSWCache.Archive, device: VPhoneGuestDevice) {
-        let ota = VPhoneFirmwareCatalog.otaRelease(source: iPhoneSource)
+        let ota = VPhoneFirmwareCatalog.otaRelease(source: iPhoneSource, preferring: productType)
         if let ota, let productType, ota.productType != productType {
             throw Error.deviceNotInSource(productType, available: [ota.productType])
         }
@@ -313,7 +313,7 @@ enum VPhoneFirmwarePreparer {
     ) throws -> (file: URL, key: String?, version: String, build: String) {
         // A catalog OTA is of its own build, which differs from the IPSW's
         // when it is restored over its base's last release.
-        let release = source.flatMap(VPhoneFirmwareCatalog.otaRelease(source:))
+        let release = source.flatMap { VPhoneFirmwareCatalog.otaRelease(source: $0, preferring: device.productType) }
             ?? VPhoneFirmwareCatalog.otaRelease(for: device.productType, build: build)
         try release?.checkHost()
         let build = release?.build ?? build

@@ -155,7 +155,7 @@ struct FirmwarePatchSetCatalogTests {
                     // Nothing a shipped iOS preset does should drop a boot-essential
                     // patch: these are the combinations we claim boot. The tvOS
                     // presets drop exactly the iOS ones an Apple TV has no port of.
-                    let tvPresets = [VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homePodMiniIdentifier]
+                    let tvPresets = [VPhonePatchPreset.homeViewIdentifier, VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homePodMiniIdentifier]
                     // `minimal` drops every boot chain patch but iBEC's and LLB's:
                     // its system is customised before the restore instead.
                     let restoreImagePresets = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
@@ -255,6 +255,7 @@ struct FirmwarePatchSetCatalogTests {
             )
             let applicableManual = Set(FirmwarePatchSetCatalog.allDeclarations.filter {
                 FirmwarePatchSetCatalog.manualOnlyPatches.contains($0.identifier)
+                    && $0.identifier != FirmwareGuestSystemPatchSet.homeViewSetupBypass
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodTopCap
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodSetupBypass
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodWelcome

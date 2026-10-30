@@ -87,6 +87,8 @@ public struct VPhonePatchPreset: Sendable, Hashable, Codable, Identifiable {
     public static let tvOS4KIdentifier = "tvos-4k"
 
     /// HomePod mini's own arm64e TVOS IPSW, without an OTA userland swap.
+    public static let homeViewIdentifier = "homeview"
+
     public static let homePodMiniIdentifier = "homepod-mini"
     /// The identifier an Apple Watch guest gets: ``minimalIdentifier`` for a
     /// watch, which presents its own board.

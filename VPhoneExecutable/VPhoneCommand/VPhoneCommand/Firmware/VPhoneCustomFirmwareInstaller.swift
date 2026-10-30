@@ -223,6 +223,9 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.tvSetupFocus), device.family != .appleTV {
             throw ValidationError("The TV setup focus adapter is supported only for an Apple TV guest.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homeViewSetupBypass), device.family != .homeView {
+            throw ValidationError("The HomeView setup bypass is supported only for a HomeView guest.")
+        }
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homePodTopCap), device.family != .homePod {
             throw ValidationError("The HomePod top-cap patch is supported only for a HomePod guest.")
         }
@@ -262,9 +265,9 @@ struct VPhoneCustomFirmwareInstaller {
         // Research: an Apple TV 4K userland staged from its OTA, which
         // `system-tv-exp-ota_userland` puts in place of the restored one.
         let hasOTAUserland = (try? bundleDirectory.isDirectory(VPhoneOTAArchive.userlandDirectoryName)) == true
-        let isOTAUpdate = device.family != .appleTV && device.family != .homePod && mode == .full && hasOTAUserland
+        let isOTAUpdate = !device.usesTVOS && mode == .full && hasOTAUserland
             && effectiveEnabled.contains(FirmwareGuestSystemPatchSet.otaUserland)
-        let otaUserland = (device.family == .appleTV || device.family == .homePod || isOTAUpdate) && hasOTAUserland
+        let otaUserland = (device.usesTVOS || isOTAUpdate) && hasOTAUserland
             ? try bundleDirectory.directory(VPhoneOTAArchive.userlandDirectoryName)
             : nil
         if isOTAUpdate {
@@ -291,7 +294,9 @@ struct VPhoneCustomFirmwareInstaller {
             guard let plan else {
                 throw ValidationError("tvOS installation needs an explicit patch plan. Resolve a TV selection with `fw set-patches` and `fw patch` first.")
             }
-            let unvalidated = device.family == .homePod
+            let unvalidated = device.family == .homeView
+                ? FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: Set(plan.enabledPatches))
+                : device.family == .homePod
                 ? FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: Set(plan.enabledPatches))
                 : FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(
                     enabled: Set(plan.enabledPatches),
@@ -1370,7 +1375,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
 
         // First, so every later step patches the userland that will boot.
-        if guestDevice.family == .appleTV || guestDevice.family == .homePod {
+        if guestDevice.usesTVOS {
             let identifier = guestDevice.family == .homePod
                 ? FirmwareGuestSystemPatchSet.homePodOTAUserland : FirmwareGuestSystemPatchSet.tvOTAUserland
             if on(identifier) {
@@ -1586,6 +1591,23 @@ struct VPhoneCustomFirmwareInstaller {
             live.insert(setup)
         } else {
             try system.removeItem(setupPath)
+        }
+        let homeViewSetup = FirmwareGuestSystemPatchSet.homeViewSetupBypass
+        let homeViewSetupPath = String(FirmwareGuestSystemPatchSet.homeViewSetupPath.dropFirst())
+        if guestDevice.family == .homeView {
+            // Keep the runtime when off so the next boot can restore the saved key.
+            try installHomePodSetupRuntime(system: system, work: work, homeView: true)
+        }
+        if plan?.isEnabled(homeViewSetup) == true {
+            guard guestDevice.family == .homeView else {
+                throw ValidationError("HomeView setup bypass requires a HomeView guest.")
+            }
+            _ = try system.directory("usr/share/vphone", create: true, mode: 0o755)
+            let policy = try PropertyListSerialization.data(fromPropertyList: ["Enabled": true], format: .binary, options: 0)
+            try system.writeFile(homeViewSetupPath, contents: policy, mode: 0o644, owner: Self.guestOwner)
+            live.insert(homeViewSetup)
+        } else {
+            try system.removeItem(homeViewSetupPath)
         }
         let speech = FirmwareGuestSystemPatchSet.homePodSiriSpeech
         let speechPath = String(FirmwareGuestSystemPatchSet.homePodSiriSpeechPath.dropFirst())
@@ -2968,18 +2990,31 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Keep rollback available even when the owner also deselects vphoned.
     /// This helper is inert when no setup marker or original-key journal exists.
-    private func installHomePodSetupRuntime(system: VPhoneConfinedDirectory, work: WorkDirectory) throws {
+    private func installHomePodSetupRuntime(system: VPhoneConfinedDirectory, work: WorkDirectory, homeView: Bool = false) throws {
         let helper = try VPhoneGuestBinaries.resolve("vphone-homepod-setup")
         _ = try system.directory("usr/local/libexec", create: true, mode: 0o755)
         try system.replaceFile("usr/local/libexec/vphone-homepod-setup", fromFileAt: helper,
                                mode: 0o755, owner: Self.guestOwner)
-        let daemon = resources.guestResources.appendingPathComponent("com.vphone.homepod-setup.plist")
-        try system.replaceFile("System/Library/LaunchDaemons/com.vphone.homepod-setup.plist", fromFileAt: daemon,
+        let originalDaemon = resources.guestResources.appendingPathComponent("com.vphone.homepod-setup.plist")
+        let name = homeView ? "com.vphone.homeview-setup" : "com.vphone.homepod-setup"
+        let daemon: URL
+        if homeView {
+            guard var plist = try PropertyListSerialization.propertyList(from: Data(contentsOf: originalDaemon), format: nil) as? [String: Any] else {
+                throw ValidationError("The bundled setup maintenance launch daemon is not a dictionary.")
+            }
+            plist["Label"] = name
+            plist["ProgramArguments"] = ["/usr/local/libexec/vphone-homepod-setup", "--homeview"]
+            daemon = work.file("homeview-setup-daemon.plist")
+            try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0).write(to: daemon)
+        } else {
+            daemon = originalDaemon
+        }
+        try system.replaceFile("System/Library/LaunchDaemons/\(name).plist", fromFileAt: daemon,
                                mode: 0o644, owner: Self.guestOwner)
         let cache = "System/Library/xpc/launchd.plist"
         let staged = "homepod-setup-launchd.plist"
         try system.copyFile(from: cache, to: staged, in: work.directory)
-        try CustomFirmwareDaemons.injectDaemon(into: work.file(staged), name: "com.vphone.homepod-setup", from: daemon)
+        try CustomFirmwareDaemons.injectDaemon(into: work.file(staged), name: name, from: daemon)
         try system.replaceFile(cache, fromFileAt: work.file(staged), mode: 0o644, owner: Self.guestOwner)
     }
 
@@ -3014,7 +3049,7 @@ struct VPhoneCustomFirmwareInstaller {
         guestDevice: VPhoneGuestDevice,
         environmentOnly: Bool = false,
     ) throws {
-        let tvOS = guestDevice.family == .appleTV
+        let tvOS = guestDevice.usesTVOS
         let narrow = environmentOnly && !tvOS
         for name in tvOS ? VPhoneGuestEnvironment.tvLibraries : VPhoneGuestEnvironment.libraries {
             if VPhoneGuestEnvironment.selectedLibraries.contains(name) {

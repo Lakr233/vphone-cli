@@ -310,6 +310,18 @@ struct DeviceTreeGuestDeviceTests {
 
     // MARK: - Tests
 
+    @Test(arguments: ["HomeAccessory17,1", "HomeAccessory17,2"])
+    func `HomeView copies the home idiom and enables the virtual USB touch driver`(model: String) throws {
+        let board = Self.board(model: model, unique: model.hasSuffix("1") ? "J490AP" : "J491AP", subtype: 1088,
+                               disablesStageManager: false, idiom: "home", scale: 2,
+                               appArchitecture: .string("app-macho-architecture", "arm64"))
+        let parser = DeviceTreePatcher(data: board.serialized(), verbose: false)
+        let edits = try DeviceTreePatcher.guestEdits(from: parser.parsePayload(board.serialized()))
+        #expect(edits.contains { $0.property == "app-macho-architecture" && $0.patchID == DeviceTreePatcher.tvAppArchitecturePatch })
+        #expect(edits.contains { $0.property == "supports-driverkit" && $0.patchID == DeviceTreePatcher.homeViewTouchPatch })
+        #expect(Set(edits.map(\.patchID)).isSubset(of: Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier))))
+    }
+
     @Test func `HomePod installed identity copies accessory capabilities and removes placeholder artwork`() throws {
         let originalToken = Data(0..<20)
         let originalProduct = Self.tree.children[0]

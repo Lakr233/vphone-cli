@@ -73,6 +73,7 @@
 		<string>Block</string>
 		<key>Patches</key>
 		<array>
+			<string>system-homeview-exp-setup_bypass</string>
 			<string>system-tv-exp-legacy_setup</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-setup_bypass</string>

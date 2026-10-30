@@ -17,15 +17,15 @@ struct BundleNamesTests {
         // `-local` (legacy), `-local.<8+ lowercase hex>` or `-ci.<7+ hex>`.
         // Anything else is kept whole, so it never parses as a version.
         let expectations: [Expectation] = [
-            Expectation(name: "2.14.0", bundleVersion: "2.14.0", isLocalBuild: false, isCompatible: true, isValid: true),
-            Expectation(name: "2.14.0-local", bundleVersion: "2.14.0", isLocalBuild: true, isCompatible: true, isValid: true),
-            Expectation(name: "2.14.0-local.ab12cd34", bundleVersion: "2.14.0", isLocalBuild: true, isCompatible: true, isValid: true),
+            Expectation(name: "2.15.0", bundleVersion: "2.15.0", isLocalBuild: false, isCompatible: true, isValid: true),
+            Expectation(name: "2.15.0-local", bundleVersion: "2.15.0", isLocalBuild: true, isCompatible: true, isValid: true),
+            Expectation(name: "2.15.0-local.ab12cd34", bundleVersion: "2.15.0", isLocalBuild: true, isCompatible: true, isValid: true),
             // The build identifier is lowercase hex; uppercase is no build.
-            Expectation(name: "2.14.0-local.AB12CD34", bundleVersion: "2.14.0-local.AB12CD34", isLocalBuild: false, isCompatible: false, isValid: true),
-            Expectation(name: "2.14.0-local.ab12", bundleVersion: "2.14.0-local.ab12", isLocalBuild: false, isCompatible: false, isValid: true),
-            Expectation(name: "2.14.0-ci.abcdef1", bundleVersion: "2.14.0", isLocalBuild: false, isCompatible: true, isValid: true),
-            Expectation(name: "2.14.1", bundleVersion: "2.14.1", isLocalBuild: false, isCompatible: true, isValid: true),
-            Expectation(name: "2.13.99", bundleVersion: "2.13.99", isLocalBuild: false, isCompatible: false, isValid: true),
+            Expectation(name: "2.15.0-local.AB12CD34", bundleVersion: "2.15.0-local.AB12CD34", isLocalBuild: false, isCompatible: false, isValid: true),
+            Expectation(name: "2.15.0-local.ab12", bundleVersion: "2.15.0-local.ab12", isLocalBuild: false, isCompatible: false, isValid: true),
+            Expectation(name: "2.15.0-ci.abcdef1", bundleVersion: "2.15.0", isLocalBuild: false, isCompatible: true, isValid: true),
+            Expectation(name: "2.15.1", bundleVersion: "2.15.1", isLocalBuild: false, isCompatible: true, isValid: true),
+            Expectation(name: "2.14.99", bundleVersion: "2.14.99", isLocalBuild: false, isCompatible: false, isValid: true),
             Expectation(name: "2.10.1", bundleVersion: "2.10.1", isLocalBuild: false, isCompatible: false, isValid: true),
             Expectation(name: "2.10.1-local.ab12cd34", bundleVersion: "2.10.1", isLocalBuild: true, isCompatible: false, isValid: true),
             Expectation(name: "2.9.5", bundleVersion: "2.9.5", isLocalBuild: false, isCompatible: false, isValid: true),

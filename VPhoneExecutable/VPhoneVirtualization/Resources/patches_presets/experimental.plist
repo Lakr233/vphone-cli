@@ -93,6 +93,7 @@
 		<string>Block</string>
 		<key>Patches</key>
 		<array>
+			<string>system-homeview-exp-setup_bypass</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-setupbackground-exp-pineboard_lookup</string>
 			<string>system-setup-exp-deferred_focus</string>

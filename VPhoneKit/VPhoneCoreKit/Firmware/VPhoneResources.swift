@@ -122,7 +122,7 @@ public struct VPhoneResources: Sendable {
 
     public static func vphonedName(for family: VPhoneGuestDevice.Family) -> String {
         switch family {
-        case .appleTV, .homePod: "vphoned-tvos"
+        case .appleTV, .homePod, .homeView: "vphoned-tvos"
         case .watch: "vphoned-watchos"
         case .iPhone, .iPad: "vphoned"
         }

@@ -117,7 +117,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         self.control = control
         if !command.dfu {
             control.unlocksAtStartup = vm.unlocksAtStartup
-            control.syncsGuestEnvironment = !options.isTVGuest && !options.isHomePodGuest
+            control.syncsGuestEnvironment = !options.usesTVOS
             control.syncsHostLocation = vm.syncsHostLocation
             control.guestDeviceName = Self.guestDeviceName(forConfig: options.configURL)
             startNetworkServices(vm: vm, control: control)

@@ -51,6 +51,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let locationdCohorting = "system-locationd-cfw-disable_auto_cohort"
     public static let virtualBluetooth = "system-bluetoothd-cfw-btvc_le_connection"
     public static let jetsamDisableAllowed = "system-jetsamproperties-cfw-disable_allowed"
+    public static let homeViewSetupBypass = "system-homeview-exp-setup_bypass"
+    public static let homeViewSetupPath = "/usr/share/vphone/HomeViewSetup.plist"
     public static let tvTPRO = "system-dyld-exp-tv_tpro"
     public static let tvSetupDisplayLookup = "system-setupbackground-exp-pineboard_lookup"
     public static let tvLegacySetup = "system-tv-exp-legacy_setup"
@@ -96,6 +98,13 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "HomePod Cryptex product class",
                 summary: "Sets the research kernel's Cryptex product class to the native tvOS/HomePod value so signed tvOS developer images pass Image4 equality validation. Changes only /product/cryptex1-product-class; preserves the global product token.",
                 target: .prebootDeviceTree,
+                applicability: ios27,
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewSetupBypass,
+                title: "HomeView setup bypass",
+                summary: "Sets the native SetupAssistant ForceNoBuddy preference as mobile, with a key-level journal restored when disabled. Account, activation and HomeKit state remain native. Off by default; takes effect at boot.",
+                target: .guestFile(path: homeViewSetupPath),
                 applicability: ios27,
             ),
             VPhonePatchDeclaration(

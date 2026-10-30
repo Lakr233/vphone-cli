@@ -7,16 +7,36 @@
 #import <notify.h>
 #import <signal.h>
 #import <unistd.h>
+#import <sys/sysctl.h>
+#import <string.h>
 
-int main(void) {
+int main(int argc, const char *argv[]) {
     @autoreleasepool {
+        BOOL homeView = argc == 2 && strcmp(argv[1], "--homeview") == 0;
+        if (argc != 1 && !homeView) return 1;
         if (getuid() != 501 || geteuid() != 501) {
             NSLog(@"HomePod setup maintenance must run as mobile (501).");
             return 1;
         }
+        if (homeView) {
+            char machine[128] = {0}, model[128] = {0};
+            size_t machineSize = sizeof(machine), modelSize = sizeof(model);
+            sysctlbyname("hw.machine", machine, &machineSize, NULL, 0);
+            sysctlbyname("hw.model", model, &modelSize, NULL, 0);
+            if (strncmp(machine, "HomeAccessory17,", 16) != 0
+                && strcmp(model, "J490AP") != 0 && strcmp(model, "J491AP") != 0) {
+                NSLog(@"HomeView setup maintenance requires a HomeAccessory17 guest.");
+                return 1;
+            }
+        }
+        NSString *name = homeView ? @"HomeView" : @"HomePod";
+        // HomeView's SetupAssistant checks this override before its normal
+        // SetupDone gate, in both NeedsToRun and HasCompletedInitialRun.
+        // Keep actual setup choices intact; deselection restores only this key.
+        NSArray<NSString *> *keys = homeView ? @[@"ForceNoBuddy"] : VPHomePodSetupKeys();
         NSString *directory = @"/var/mobile/Library/Application Support/vphone";
-        NSURL *journal = [NSURL fileURLWithPath:[directory stringByAppendingPathComponent:@"HomePodSetupOriginal.plist"]];
-        NSDictionary *policy = [NSDictionary dictionaryWithContentsOfFile:@"/usr/share/vphone/HomePodSetup.plist"];
+        NSURL *journal = [NSURL fileURLWithPath:[directory stringByAppendingPathComponent:[name stringByAppendingString:@"SetupOriginal.plist"]]];
+        NSDictionary *policy = [NSDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"/usr/share/vphone/%@Setup.plist", name]];
         BOOL enabled = [policy[@"Enabled"] isEqual:@YES];
         BOOL hadJournal = [NSFileManager.defaultManager fileExistsAtPath:journal.path];
         if (!enabled && !hadJournal) return 0;
@@ -35,12 +55,12 @@ int main(void) {
             CFStringRef domain = CFSTR("com.apple.purplebuddy");
             CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
             NSMutableDictionary *current = [NSMutableDictionary dictionary];
-            for (NSString *key in VPHomePodSetupKeys()) {
+            for (NSString *key in keys) {
                 id value = CFBridgingRelease(CFPreferencesCopyValue((__bridge CFStringRef)key, domain,
                     kCFPreferencesCurrentUser, kCFPreferencesAnyHost));
                 if (value) current[key] = value;
             }
-            success = VPHomePodSetupUpdate(enabled, journal, current, ^(NSString *key, id value) {
+            success = VPSetupUpdateKeys(keys, enabled, journal, current, ^(NSString *key, id value) {
                 CFPreferencesSetValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, domain,
                     kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
             }, ^BOOL {
@@ -65,7 +85,7 @@ int main(void) {
                         && notify_post(name) == NOTIFY_STATUS_OK;
                 }, &error);
                 if (success) {
-                    if (enabled) {
+                    if (enabled && !homeView) {
                         // A pending HPSetup session owns separate assistant/
                         // voice-trigger assertions; native _setupFinished does
                         // not tear that process down, so finish it gracefully.
@@ -81,7 +101,7 @@ int main(void) {
                             NSTimeInterval remaining = until.timeIntervalSinceNow;
                             if (remaining > 0) [NSThread sleepForTimeInterval:remaining];
                         }, &error);
-                    } else {
+                    } else if (!enabled) {
                         // Keep the inverse through the native sentinel transition,
                         // including failures that need a later launchd retry.
                         success = [NSFileManager.defaultManager removeItemAtURL:journal error:&error];
@@ -95,8 +115,8 @@ int main(void) {
         if (needsSetup) status[@"NeedsSetup"] = @(needsSetup());
         if (completed) status[@"CompletedInitialRun"] = @(completed());
         if (error) status[@"Error"] = error.localizedDescription;
-        [status writeToFile:[directory stringByAppendingPathComponent:@"HomePodSetupStatus.plist"] atomically:YES];
-        NSLog(@"HomePod setup maintenance: %@", status);
+        [status writeToFile:[directory stringByAppendingPathComponent:[name stringByAppendingString:@"SetupStatus.plist"]] atomically:YES];
+        NSLog(@"%@ setup maintenance: %@", name, status);
         return success ? 0 : 1;
     }
 }

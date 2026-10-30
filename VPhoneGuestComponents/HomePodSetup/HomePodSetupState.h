@@ -3,6 +3,9 @@
 // Only these local completion flags belong to the bypass. Account, activation,
 // HomeKit and Wi-Fi state remain owned by their native services.
 NSArray<NSString *> *VPHomePodSetupKeys(void);
+BOOL VPSetupUpdateKeys(NSArray<NSString *> *keys, BOOL enabled, NSURL *journalURL,
+                       NSDictionary<NSString *, id> *current, void (^setValue)(NSString *, id),
+                       BOOL (^synchronize)(void), NSError **error);
 BOOL VPHomePodSetupUpdate(BOOL enabled, NSURL *journalURL, NSDictionary<NSString *, id> *current,
                          void (^setValue)(NSString *, id), BOOL (^synchronize)(void), NSError **error);
 

@@ -843,9 +843,10 @@ struct VPhoneLaunchpadNewMachineView: View {
         usesCustomSources ? customGuestProductType : selectedGuest?.productType
     }
 
-    /// Apple TV and HomePod are restored without iOS templates or slimming.
+    /// Apple TV, HomePod and HomeView are restored without iOS templates or slimming.
     private var requiresStandaloneRestore: Bool {
         guestProductType?.hasPrefix("AppleTV") == true || guestProductType?.hasPrefix("AudioAccessory") == true
+            || guestProductType?.hasPrefix("HomeAccessory") == true
     }
 
     private func applyGuestDefaults(previousProductType: String?) {

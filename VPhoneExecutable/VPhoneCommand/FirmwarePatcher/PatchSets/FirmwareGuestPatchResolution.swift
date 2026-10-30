@@ -75,6 +75,19 @@ public enum FirmwareGuestPatchResolution {
         enabled.intersection(guestTargetIdentifiers).subtracting(homePodSupportedGuestPatches).sorted()
     }
 
+    /// HomeView uses its own shell and setup. Sharing the tvOS ABI does not
+    /// admit Apple TV setup/focus/activation adapters or HomePod capabilities.
+    public static let homeViewSupportedGuestPatches = tvSupportedGuestPatches
+        .union(tvArm64eGuestPatches)
+        .subtracting([FirmwareGuestSystemPatchSet.tvTPRO, FirmwareGuestSystemPatchSet.tvLegacySetup,
+                     FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus,
+                     FirmwareGuestSystemPatchSet.tvLocalActivation])
+        .union([FirmwareGuestSystemPatchSet.homeViewSetupBypass])
+
+    public static func unvalidatedHomeViewGuestPatches(enabled: Set<String>) -> [String] {
+        enabled.intersection(guestTargetIdentifiers).subtracting(homeViewSupportedGuestPatches).sorted()
+    }
+
     public static let homePodWelcomeDependencies: Set<String> = [
         "system-vphoned-boot-install",
         FirmwareGuestSystemPatchSet.homePodTopCap,

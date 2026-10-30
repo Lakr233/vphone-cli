@@ -304,6 +304,7 @@ nonisolated struct VPhoneLaunchpadPatchSelection: Hashable, Sendable {
     /// The preset a new machine of `productType` starts from.
     static func defaultPreset(forDevice productType: String?) -> String {
         switch productType {
+        case "HomeAccessory17,1", "HomeAccessory17,2": "homeview"
         case "AudioAccessory5,1": homePodMiniPreset
         case "AppleTV14,1", "AppleTV18,1": tvOS4KPreset
         case let type? where type.hasPrefix("AppleTV"): tvOSPreset

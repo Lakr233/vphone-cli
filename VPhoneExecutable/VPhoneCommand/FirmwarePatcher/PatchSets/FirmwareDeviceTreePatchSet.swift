@@ -221,12 +221,18 @@ public enum FirmwareDeviceTreePatchSet {
                 "Copies the HomePod mini's horseman, siri-hub and app architecture properties from its own board tree, retaining the VM's product-id token. Audio routing uses an audio-only preference. Other boards and the restore tree are unchanged.",
             ),
 
+            property(
+                "devicetree-cfw-homeview_touch",
+                "HomeView USB touch",
+                "Enables DriverKit on the installed HomeView tree for the VM's USB HID touch driver. The donor's physical SPI touch hardware is not emulated. Other guests and the restore tree are unchanged.",
+            ),
+
             // MARK: TV Guest
 
             property(
                 "devicetree-cfw-tv_app_architecture",
                 "TV app architecture",
-                "Copies app-macho-architecture from a TV board's own device tree into the installed tree, so its userland sees the donor's architecture. Restore, iPhone and iPad trees are unchanged.",
+                "Copies app-macho-architecture from an Apple TV or HomeView board's own device tree into the installed tree, so its userland sees the donor's architecture. Restore, iPhone and iPad trees are unchanged.",
             ),
             property(
                 "devicetree-cfw-watch_companion",

@@ -63,6 +63,7 @@ extension DeviceTreePatcher {
     static let iPadIdentityPatch = "devicetree-cfw-ipad_identity"
     static let iPadAudioPatch = "devicetree-cfw-ipad_audio"
     static let tvAppArchitecturePatch = "devicetree-cfw-tv_app_architecture"
+    static let homeViewTouchPatch = "devicetree-cfw-homeview_touch"
     static let homePodProductPatch = "devicetree-cfw-homepod_product"
     static let watchPresentationPatch = "devicetree-cfw-watch_presentation"
     static let watchDriverKitPatch = "devicetree-cfw-watch_driverkit"
@@ -168,13 +169,21 @@ extension DeviceTreePatcher {
         // value rather than the virtual phone's architecture; this edit is TV
         // presentation only and must not change existing phone or pad output.
         if let idiom = value(sourceProduct, "artwork-device-idiom"),
-           String(decoding: idiom.prefix { $0 != 0 }, as: UTF8.self) == "tv"
+           ["tv", "home"].contains(String(decoding: idiom.prefix { $0 != 0 }, as: UTF8.self))
         {
             guard let architecture = value(sourceProduct, "app-macho-architecture"), !architecture.isEmpty else {
                 throw PatcherError.patchSiteNotFound("DeviceTree: the TV board's tree has no concrete app-macho-architecture")
             }
             edits.append(GuestEdit(nodePath: product, property: "app-macho-architecture",
                                    action: .set(architecture), patchID: tvAppArchitecturePatch))
+        }
+
+        // HomeView's physical SPI touch controller is not present in the VM.
+        // Keep USB touch and start driverkitd for its HID dext, as on watchOS.
+        if let model = value(source, "model"),
+           ["HomeAccessory17,1", "HomeAccessory17,2"].contains(String(decoding: model.prefix { $0 != 0 }, as: UTF8.self)) {
+            edits.append(GuestEdit(nodePath: product, property: "supports-driverkit",
+                                   action: .set(Data([1, 0, 0, 0])), patchID: homeViewTouchPatch))
         }
 
         // B520's accessory identity is independent of its artwork idiom,

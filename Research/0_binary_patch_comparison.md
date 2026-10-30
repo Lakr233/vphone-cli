@@ -1,5 +1,20 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **HomeView bringup (2026-10-30).** Adds the opt-in
+> `system-homeview-exp-setup_bypass`, off in every shipped preset, including
+> the new `homeview` preset. The existing mobile setup helper runs in an
+> isolated HomeView mode, journals only `com.apple.purplebuddy/ForceNoBuddy`,
+> verifies the native SetupAssistant gates, and restores the exact original
+> key on deselection. No completion, activation or HomeKit state is fabricated.
+> `devicetree-cfw-homeview_touch` enables DriverKit for the VM's USB HID touch
+> screen on J490/J491 installed trees only. The existing
+> `devicetree-cfw-tv_app_architecture` also copies the `home` donor's app
+> architecture. `system-tv-exp-ota_userland` is reused for HomeView's own
+> arm64e full OTA over the HD restore base; Apple TV remote/setup adapters
+> remain off. No new instruction replacement or kernel patch. Static/native
+> validation is separate from the still-pending VM boot and touch test; see
+> [HomeView bringup](Firmware/homeview_bringup.md).
+
 > **Apple TV RootHide bootstrap and environment hooks (2026-10-26).** No new
 > declaration or instruction patch. An arm64e Apple TV now admits
 > `system-launchdaemons-boot-environment` and

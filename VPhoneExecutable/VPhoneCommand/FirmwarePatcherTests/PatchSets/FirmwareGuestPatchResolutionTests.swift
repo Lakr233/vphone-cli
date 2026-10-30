@@ -12,6 +12,22 @@ import VPhonePatchKit
 
 @Suite("Guest patch resolution")
 struct FirmwareGuestPatchResolutionTests {
+    @Test func `HomeView keeps native setup and its bypass is an explicit reversible selection`() throws {
+        let plan = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.homeViewPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("27.2"), cloudOS: VPhoneVersion("26.4")
+        )
+        #expect(plan.isEnabled(FirmwareGuestSystemPatchSet.tvOTAUserland))
+        #expect(plan.isEnabled("system-extensions-boot-gpu_bundle"))
+        #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.homeViewSetupBypass))
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: plan.enabled).isEmpty)
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: [FirmwareGuestSystemPatchSet.homeViewSetupBypass]).isEmpty)
+        #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [FirmwareGuestSystemPatchSet.homeViewSetupBypass], arm64eUserland: true) == [FirmwareGuestSystemPatchSet.homeViewSetupBypass])
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: [FirmwareGuestSystemPatchSet.homeViewSetupBypass]) == [FirmwareGuestSystemPatchSet.homeViewSetupBypass])
+        #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.tvSetupFocus))
+        #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.tvLocalActivation))
+    }
+
     @Test func `native TV setup adapters are limited to the 27 point 2 4K preset`() throws {
         for identifier in [FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation] {
             for version in ["26.6", "27.0", "27.1", "27.2", "27.3"] {
