@@ -1,5 +1,33 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **HomeView guest-profile backend lookup (2026-10-30).** The BreadBoard
+> display exception clears its first assertion, but its native guest-profile
+> fetch still fails with an NSError chain ending in sandbox restriction 159
+> for `com.apple.mobile.keybagd.UserManager.xpc`. A mobile native probe with
+> BreadBoard's relevant client entitlements reproduces it. Userprofilesd's
+> donor sandbox lacks that lookup. New `system-userprofilesd-exp-keybag_lookup`
+> adds exactly that one exception to userprofilesd, preserving the native
+> profile/persona APIs and authorizations; it never fabricates a profile.
+> Selected only in `homeview`, gated to 27.2, reversible from executable backup.
+> Native setup bypass verification passed independently (`NeedsSetup=false`,
+> `CompletedInitialRun=true`, with `SetupDone` untouched). Validated on the
+> clean HomeView VM: native guest-profile retrieval succeeds, BreadBoard
+> stays up, and Setup.app renders. Touch navigation works from the bypassed
+> dashboard into World Clock and its city chooser.
+
+> **HomeView native shell display startup (2026-10-30).** The clean guest
+> reaches vphoned and backboardd, but BreadBoard traps in
+> `BKSDisplayServicesStart+436`, at the nonzero display-service query status
+> assertion, before drawing its UI. Its donor entitlements use
+> `temporary-sandbox` and lack `com.apple.backboard.display.services` and the
+> backboard HID/render lookups already repaired for Campo on the 26.4 kernel.
+> New `system-breadboard-exp-mach_lookup` reuses that scoped exception merger,
+> preserves the rest of BreadBoard's entitlements, and keeps an executable
+> backup for deselection. On only in `homeview`, gated to 27.2; native setup
+> still stays on. Validated: the display-service assertion is gone. Native
+> startup also needs the userprofilesd lookup repair above. No new kernel or
+> instruction patch.
+
 > **HomeView bringup (2026-10-30).** Adds the opt-in
 > `system-homeview-exp-setup_bypass`, off in every shipped preset, including
 > the new `homeview` preset. The existing mobile setup helper runs in an
@@ -11,8 +39,8 @@
 > `devicetree-cfw-tv_app_architecture` also copies the `home` donor's app
 > architecture. `system-tv-exp-ota_userland` is reused for HomeView's own
 > arm64e full OTA over the HD restore base; Apple TV remote/setup adapters
-> remain off. No new instruction replacement or kernel patch. Static/native
-> validation is separate from the still-pending VM boot and touch test; see
+> remain off. No new instruction replacement or kernel patch. Restore,
+> native setup, bypass enable/disable, framebuffer and touch are now tested; see
 > [HomeView bringup](Firmware/homeview_bringup.md).
 
 > **Apple TV RootHide bootstrap and environment hooks (2026-10-26).** No new

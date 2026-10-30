@@ -255,6 +255,8 @@ struct FirmwarePatchSetCatalogTests {
             )
             let applicableManual = Set(FirmwarePatchSetCatalog.allDeclarations.filter {
                 FirmwarePatchSetCatalog.manualOnlyPatches.contains($0.identifier)
+                    && $0.identifier != FirmwareGuestSystemPatchSet.homeViewProfileLookup
+                    && $0.identifier != FirmwareGuestSystemPatchSet.homeViewDisplayLookups
                     && $0.identifier != FirmwareGuestSystemPatchSet.homeViewSetupBypass
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodTopCap
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodSetupBypass

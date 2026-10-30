@@ -180,6 +180,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                     .resolvingSymlinksInPath()
                     .path,
                 homePodGuest: options.isHomePodGuest,
+                usesTVOS: options.usesTVOS,
                 foldableGuest: options.isFoldableGuest,
             )
             wc.captureView?.escapeIsBackGesture = !options.isPadGuest && !options.isTVGuest

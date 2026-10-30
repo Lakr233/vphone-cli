@@ -38,6 +38,7 @@ extension GuestAPI {
     /// read independently; this correction never writes TV completion state.
     static let setupAssistantCurrentVersion = setupAssistantVersion(symbol: "BYBuddyIOSCurrentVersion")
     private static let tvSetupAssistantCurrentVersion = setupAssistantVersion(symbol: "BYBuddyTVOSCurrentVersion")
+    private static let usesHomeViewSetupState = GuestSetupAssistantState.usesHomeViewPolicy(machine: GuestVirtualAudioProduct.machine())
     private static let usesTVSetupState = GuestSetupAssistantState.usesTVPolicy(machine: GuestVirtualAudioProduct.machine())
 
     private static func setupAssistantVersion(symbol name: String) -> Int? {
@@ -59,10 +60,12 @@ extension GuestAPI {
     private static var setupAssistantState: GuestSetupAssistantState {
         GuestSetupAssistantState(
             setupDone: buddyValue("SetupDone") as? Bool ?? false,
-            version: usesTVSetupState ? (buddyValue("TVSetupVersion") as? NSNumber)?.intValue : buddySetupVersion,
-            currentVersion: usesTVSetupState ? tvSetupAssistantCurrentVersion : setupAssistantCurrentVersion,
+            version: usesHomeViewSetupState ? nil : usesTVSetupState ? (buddyValue("TVSetupVersion") as? NSNumber)?.intValue : buddySetupVersion,
+            currentVersion: usesHomeViewSetupState ? nil : usesTVSetupState ? tvSetupAssistantCurrentVersion : setupAssistantCurrentVersion,
             requiresTVCompletion: usesTVSetupState,
             tvCompleted: usesTVSetupState && (buddyValue("TVBuddyCompletedSuccessfully") as? Bool == true),
+            requiresHomeViewCompletion: usesHomeViewSetupState,
+            forceNoBuddy: usesHomeViewSetupState && (buddyValue("ForceNoBuddy") as? Bool == true),
         )
     }
 

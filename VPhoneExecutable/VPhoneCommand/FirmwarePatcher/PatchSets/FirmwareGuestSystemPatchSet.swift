@@ -51,6 +51,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let locationdCohorting = "system-locationd-cfw-disable_auto_cohort"
     public static let virtualBluetooth = "system-bluetoothd-cfw-btvc_le_connection"
     public static let jetsamDisableAllowed = "system-jetsamproperties-cfw-disable_allowed"
+    public static let homeViewProfileLookup = "system-userprofilesd-exp-keybag_lookup"
+    public static let homeViewDisplayLookups = "system-breadboard-exp-mach_lookup"
     public static let homeViewSetupBypass = "system-homeview-exp-setup_bypass"
     public static let homeViewSetupPath = "/usr/share/vphone/HomeViewSetup.plist"
     public static let tvTPRO = "system-dyld-exp-tv_tpro"
@@ -99,6 +101,20 @@ public enum FirmwareGuestSystemPatchSet {
                 summary: "Sets the research kernel's Cryptex product class to the native tvOS/HomePod value so signed tvOS developer images pass Image4 equality validation. Changes only /product/cryptex1-product-class; preserves the global product token.",
                 target: .prebootDeviceTree,
                 applicability: ios27,
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewProfileLookup,
+                title: "HomeView guest profile keybag access",
+                summary: "Adds only the native Keybag/UserManager Mach service lookup to userprofilesd's temporary sandbox so its guest-profile request can reach the service on the older research kernel. Preserves authorization checks and original entitlements; reversible from backup.",
+                target: .guestExecutable(path: "/System/Library/PrivateFrameworks/UserProfilesDaemon.framework/Support/userprofilesd"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewDisplayLookups,
+                title: "HomeView shell display access",
+                summary: "Adds backboard/frontboard Mach service lookup exceptions to BreadBoard's temporary sandbox for the older research kernel, preserving its existing entitlements. Keeps an executable backup for deselection.",
+                target: .guestExecutable(path: "/System/Library/CoreServices/BreadBoard.app/BreadBoard"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
             ),
             VPhonePatchDeclaration(
                 identifier: homeViewSetupBypass,

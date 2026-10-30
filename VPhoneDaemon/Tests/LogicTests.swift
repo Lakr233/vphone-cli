@@ -64,6 +64,16 @@ enum LogicTests {
         for machine in ["iPhone17,3", "iPad16,1", "AudioAccessory5,1", ""] {
             expect(!GuestSetupAssistantState.usesTVPolicy(machine: machine), "existing policy for \(machine)")
         }
+        expect(GuestSetupAssistantState.usesHomeViewPolicy(machine: "HomeAccessory17,1"), "HomeView native setup policy")
+        expect(!GuestSetupAssistantState.usesHomeViewPolicy(machine: "AudioAccessory5,1"), "HomePod keeps its policy")
+        for done in [false, true] {
+            for bypass in [false, true] {
+                let home = GuestSetupAssistantState(setupDone: done, version: nil, currentVersion: nil,
+                    requiresTVCompletion: false, tvCompleted: false,
+                    requiresHomeViewCompletion: true, forceNoBuddy: bypass)
+                expect(home.pending == (!done && !bypass), "HomeView reads native completion or ForceNoBuddy without an iOS version")
+            }
+        }
         func state(_ done: Bool, _ version: Int?, _ current: Int?, tv: Bool = true, completed: Bool = true) -> GuestSetupAssistantState {
             GuestSetupAssistantState(setupDone: done, version: version, currentVersion: current, requiresTVCompletion: tv, tvCompleted: completed)
         }

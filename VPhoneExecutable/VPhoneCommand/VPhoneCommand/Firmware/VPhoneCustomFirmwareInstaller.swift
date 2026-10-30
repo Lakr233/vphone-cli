@@ -223,6 +223,12 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.tvSetupFocus), device.family != .appleTV {
             throw ValidationError("The TV setup focus adapter is supported only for an Apple TV guest.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homeViewProfileLookup), device.family != .homeView {
+            throw ValidationError("HomeView guest-profile keybag access requires a HomeView guest.")
+        }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homeViewDisplayLookups), device.family != .homeView {
+            throw ValidationError("BreadBoard display access is supported only for a HomeView guest.")
+        }
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homeViewSetupBypass), device.family != .homeView {
             throw ValidationError("The HomeView setup bypass is supported only for a HomeView guest.")
         }
@@ -2122,6 +2128,40 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
+        let homeViewDisplay = FirmwareGuestSystemPatchSet.homeViewDisplayLookups
+        isolate([homeViewDisplay]) {
+            let bundle = "System/Library/CoreServices/BreadBoard.app"
+            let executable = "\(bundle)/BreadBoard"
+            if on(homeViewDisplay), guestDevice.family == .homeView {
+                try patchHomeViewMachLookups(system: system, work: work, target: executable,
+                    services: CustomFirmwareMachLookupExceptions.services, backupSafe: backupSafe(homeViewDisplay))
+                try sealGuestBundle(system: system, bundle: bundle, preserveEntitlements: true)
+                live.insert(homeViewDisplay)
+            } else if priorGuest.contains(homeViewDisplay) {
+                guard try revertMachO(system: system, work: work, path: executable, bundle: bundle, preserveEntitlements: true) else {
+                    live.insert(homeViewDisplay)
+                    throw ValidationError("BreadBoard has no executable backup; cannot restore its original entitlements.")
+                }
+                print("  [+] \(homeViewDisplay): restored BreadBoard from backup")
+            }
+        }
+
+        let homeViewProfile = FirmwareGuestSystemPatchSet.homeViewProfileLookup
+        isolate([homeViewProfile]) {
+            let executable = "System/Library/PrivateFrameworks/UserProfilesDaemon.framework/Support/userprofilesd"
+            if on(homeViewProfile), guestDevice.family == .homeView {
+                try patchHomeViewMachLookups(system: system, work: work, target: executable,
+                    services: ["com.apple.mobile.keybagd.UserManager.xpc"], backupSafe: backupSafe(homeViewProfile))
+                live.insert(homeViewProfile)
+            } else if priorGuest.contains(homeViewProfile) {
+                guard try revertMachO(system: system, work: work, path: executable) else {
+                    live.insert(homeViewProfile)
+                    throw ValidationError("userprofilesd has no executable backup; cannot restore its original entitlements.")
+                }
+                print("  [+] \(homeViewProfile): restored userprofilesd from backup")
+            }
+        }
+
         let tvLegacySetup = FirmwareGuestSystemPatchSet.tvLegacySetup
         let tvSetupFlags = CustomFirmwareTVSetup.relativePath
         isolate([tvLegacySetup]) {
@@ -3987,6 +4027,23 @@ struct VPhoneCustomFirmwareInstaller {
     /// Returns whether the patch was applied (false when Campo or its
     /// entitlements are absent, so the caller does not record it live).
     @discardableResult
+    /// BreadBoard 27.2 traps in BKSDisplayServicesStart under the 26.4
+    /// temporary-sandbox profile; userprofilesd also lacks its keybag lookup.
+    /// Merge only the selected service names and retain donor entitlements.
+    private func patchHomeViewMachLookups(system: VPhoneConfinedDirectory, work: WorkDirectory, target: String, services: [String], backupSafe: Bool) throws {
+        let name = (target as NSString).lastPathComponent
+        guard let staged = try stageOptional(target, from: system, work: work, label: name),
+              let source = try VPhoneSigner.entitlements(ofFileAt: staged).first(where: { !$0.isEmpty }) else {
+            throw ValidationError("HomeView service access requires \(name) and its original entitlements.")
+        }
+        let entitlements = work.file("\(name).entitlements")
+        try source.write(to: entitlements)
+        try CustomFirmwareMachLookupExceptions.merge(at: entitlements, services: services)
+        try backupEntitlementTarget(target, in: system, backupSafe: backupSafe)
+        try VPhoneSigner.sign(fileAt: staged, options: .init(entitlements: Data(contentsOf: entitlements), style: .appleAdHoc))
+        try system.replaceFile(target, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
+    }
+
     private func patchCampo(system: VPhoneConfinedDirectory, work: WorkDirectory, backupSafe: Bool) throws -> Bool {
         let target = "Applications/Campo.app/Campo"
         guard let staged = try stageOptional(target, from: system, work: work, label: "Campo") else { return false }

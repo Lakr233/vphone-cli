@@ -17,6 +17,8 @@ struct FirmwareGuestPatchResolutionTests {
             preset: FirmwarePatchSetCatalog.homeViewPreset, patchSets: FirmwarePatchSetCatalog.bundled,
             iOSBase: VPhoneVersion("27.2"), cloudOS: VPhoneVersion("26.4")
         )
+        #expect(plan.isEnabled(FirmwareGuestSystemPatchSet.homeViewProfileLookup))
+        #expect(plan.isEnabled(FirmwareGuestSystemPatchSet.homeViewDisplayLookups))
         #expect(plan.isEnabled(FirmwareGuestSystemPatchSet.tvOTAUserland))
         #expect(plan.isEnabled("system-extensions-boot-gpu_bundle"))
         #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.homeViewSetupBypass))
