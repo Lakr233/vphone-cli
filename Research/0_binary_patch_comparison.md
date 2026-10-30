@@ -1,5 +1,28 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **HomeView distance simulation (2026-10-30, runtime validation pending).**
+> `dyld-exp-homeview_environment_service` opens only BreadBoardServices'
+> environment-service internal-install branch on the reviewed 27.2 userland.
+> The preceding client entitlement check remains intact; no global internal
+> build identity is changed. The reveal follows the native Platform getter's
+> call and validates the service's separate rejection paths with Capstone.
+> Writes use cache-page re-attestation and the existing undo log. The patch is
+> off in every shipped preset and is admitted only for HomeView installs.
+> The guest RPC uses the native environment request, near/increased detail and
+> far/decreased detail. Native reset clears all environment overrides and
+> requires explicit acknowledgement. Retail runtime probes confirmed the
+> internal-build gate; no live distance override or patch deployment has been
+> performed. See [distance investigation](Firmware/homeview_distance.md).
+> Offline validation passes against an APFS cache clone: unique reviewed gate,
+> one instruction and one page hash changed, repeat is a no-op, and undo restores
+> every cache file byte-identically. Finished bundle build/admission and 94
+> focused Xcode tests pass; the live Near/Far UI effect is still unverified.
+> After user authorization, HomeView received this patch and guest environment
+> `2.15.0-local.b1ed0817`. Native ABI validation was corrected to accept the
+> protocol's `Vv` (oneway void) qualifier, with a focused regression test. The
+> installed daemon now activates the service and fetches native detail as root.
+> No distance override was written by the agent; the user will test Near/Far/reset.
+
 > **HomeView guest-profile backend lookup (2026-10-30).** The BreadBoard
 > display exception clears its first assertion, but its native guest-profile
 > fetch still fails with an NSError chain ending in sandbox restriction 159

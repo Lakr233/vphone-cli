@@ -74,6 +74,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
     static var all: [ParsableCommand.Type] {
         [
+            VPhoneCustomFirmwarePatchHomeViewEnvironmentCommand.self,
             VPhoneCustomFirmwarePatchSettingsSoftwareUpdateCommand.self,
             VPhoneCustomFirmwarePatchArm64eX1BootstrapCacheCommand.self,
             VPhoneCustomFirmwarePatchArm64eX1CacheCommand.self,

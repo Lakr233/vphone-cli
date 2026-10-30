@@ -82,7 +82,7 @@ public enum FirmwareGuestPatchResolution {
         .subtracting([FirmwareGuestSystemPatchSet.tvTPRO, FirmwareGuestSystemPatchSet.tvLegacySetup,
                      FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus,
                      FirmwareGuestSystemPatchSet.tvLocalActivation])
-        .union([FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass])
+        .union([FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass, FirmwareGuestSystemPatchSet.homeViewEnvironmentService])
 
     public static func unvalidatedHomeViewGuestPatches(enabled: Set<String>) -> [String] {
         enabled.intersection(guestTargetIdentifiers).subtracting(homeViewSupportedGuestPatches).sorted()

@@ -35,6 +35,7 @@ extension VPhoneBootCommand {
             usesTVOS: manifest.guestDevice.usesTVOS,
             isTVGuest: manifest.guestDevice.family == .appleTV,
             isHomePodGuest: manifest.guestDevice.family == .homePod,
+            isHomeViewGuest: manifest.guestDevice.family == .homeView,
             isWatchGuest: manifest.guestDevice.family == .watch,
             isFoldableGuest: manifest.guestDevice == .iPhone19_4
         )

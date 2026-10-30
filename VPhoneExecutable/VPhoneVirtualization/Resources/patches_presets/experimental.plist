@@ -96,6 +96,7 @@
 			<string>system-userprofilesd-exp-keybag_lookup</string>
 			<string>system-breadboard-exp-mach_lookup</string>
 			<string>system-homeview-exp-setup_bypass</string>
+			<string>dyld-exp-homeview_environment_service</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-setupbackground-exp-pineboard_lookup</string>
 			<string>system-setup-exp-deferred_focus</string>

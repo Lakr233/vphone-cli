@@ -114,6 +114,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
 
         let control = VPhoneGuestControl()
         control.isHomePodGuest = options.isHomePodGuest
+        control.isHomeViewGuest = options.isHomeViewGuest
         self.control = control
         if !command.dfu {
             control.unlocksAtStartup = vm.unlocksAtStartup

@@ -26,6 +26,7 @@ extension GuestAPI {
             executeAttitude,
             executeHomePodDisplay,
             executeHomePodDebug,
+            executeHomeViewDistance,
             executeScript,
         ]
         for area in areas {

@@ -128,6 +128,7 @@
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-welcome</string>
 			<string>system-homeview-exp-setup_bypass</string>
+			<string>dyld-exp-homeview_environment_service</string>
 			<string>system-installcoordination_proxy-cfw-persona_lookup</string>
 			<string>system-installd-exp-homepod_adhoc</string>
 			<string>system-jetsamproperties-cfw-disable_allowed</string>

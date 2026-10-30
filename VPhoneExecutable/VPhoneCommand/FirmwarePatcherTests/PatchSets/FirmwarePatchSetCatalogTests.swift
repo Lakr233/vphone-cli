@@ -258,6 +258,7 @@ struct FirmwarePatchSetCatalogTests {
                     && $0.identifier != FirmwareGuestSystemPatchSet.homeViewProfileLookup
                     && $0.identifier != FirmwareGuestSystemPatchSet.homeViewDisplayLookups
                     && $0.identifier != FirmwareGuestSystemPatchSet.homeViewSetupBypass
+                    && $0.identifier != FirmwareGuestSystemPatchSet.homeViewEnvironmentService
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodTopCap
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodSetupBypass
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodWelcome

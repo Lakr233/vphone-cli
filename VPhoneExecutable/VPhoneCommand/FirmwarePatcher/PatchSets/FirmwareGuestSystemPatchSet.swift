@@ -54,6 +54,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let homeViewProfileLookup = "system-userprofilesd-exp-keybag_lookup"
     public static let homeViewDisplayLookups = "system-breadboard-exp-mach_lookup"
     public static let homeViewSetupBypass = "system-homeview-exp-setup_bypass"
+    public static let homeViewEnvironmentService = "dyld-exp-homeview_environment_service"
     public static let homeViewSetupPath = "/usr/share/vphone/HomeViewSetup.plist"
     public static let tvTPRO = "system-dyld-exp-tv_tpro"
     public static let tvSetupDisplayLookup = "system-setupbackground-exp-pineboard_lookup"
@@ -95,6 +96,13 @@ public enum FirmwareGuestSystemPatchSet {
         name: "Guest System",
         summary: "Shared-cache policy gates, patched system daemons and the vphone guest payload",
         patches: [
+            VPhonePatchDeclaration(
+                identifier: homeViewEnvironmentService,
+                title: "HomeView distance simulation service",
+                summary: "Enables BreadBoard's native environment simulation service on retail HomeView 27.2 by opening only its internal-install gate. Preserves the service's client entitlement check and global build identity. Experimental, off by default; native near/far runtime validation is pending.",
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
             VPhonePatchDeclaration(
                 identifier: homePodCryptexClass,
                 title: "HomePod Cryptex product class",

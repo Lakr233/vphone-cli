@@ -76,6 +76,7 @@
 			<string>system-userprofilesd-exp-keybag_lookup</string>
 			<string>system-breadboard-exp-mach_lookup</string>
 			<string>system-homeview-exp-setup_bypass</string>
+			<string>dyld-exp-homeview_environment_service</string>
 			<string>system-exp-ota_userland</string>
 			<string>kernel-exp-frida_thread_set_state_entitlement_flag</string>
 			<string>kernel-exp-frida_tpro_off</string>

@@ -93,6 +93,14 @@ bool vp_homepod_debug_available(void);
 /// Validated operation result or error, returned as malloc-owned JSON.
 char * _Null_unspecified vp_homepod_debug_copy_json(const char * _Null_unspecified operation, const char * _Null_unspecified arguments_json);
 
+/// HomeView's native distance-derived level-of-detail override. A NULL mode
+/// reads the current environment; otherwise automatic, near, standard or far.
+/// Automatic clears all native environment simulation overrides. Its RPC caller
+/// must require explicit reset_environment acknowledgement before invoking it.
+/// Availability here is an artifact/ABI capability, not a live service verdict.
+bool vp_homeview_distance_available(void);
+char * _Null_unspecified vp_homeview_distance_copy_json(const char * _Null_unspecified mode);
+
 /// Load the IOKit digitizer symbols used for multi-finger injection. Idempotent,
 /// safe to call more than once; returns false (injection then stays a no-op)
 /// on bases that do not expose the private symbols.

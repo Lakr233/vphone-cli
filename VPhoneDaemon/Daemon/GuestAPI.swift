@@ -153,7 +153,7 @@ enum GuestAPI {
                 "motion_gyroscope_toggle",
                 "motion_attitude",
             ] + pointerCapabilities() + scriptCapabilities() + GuestHomePodDisplay.capabilities
-                + GuestHomePodDebug.capabilities,
+                + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities,
         ]
     }
 

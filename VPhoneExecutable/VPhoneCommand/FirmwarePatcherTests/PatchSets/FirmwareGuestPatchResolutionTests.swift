@@ -12,6 +12,25 @@ import VPhonePatchKit
 
 @Suite("Guest patch resolution")
 struct FirmwareGuestPatchResolutionTests {
+    @Test func `HomeView environment simulation is explicit and limited to its reviewed base`() throws {
+        let id = FirmwareGuestSystemPatchSet.homeViewEnvironmentService
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("27.2"), cloudOS: VPhoneVersion("26.4")
+            )
+            #expect(!plan.isEnabled(id))
+        }
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: [id]).isEmpty)
+        #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [id], arm64eUserland: true) == [id])
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: [id]) == [id])
+        let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == id })
+        #expect(declaration.applicability.matches(iOSBase: VPhoneVersion("27.2"), cloudOS: VPhoneVersion("26.4")))
+        for version in ["26.4", "27.0", "27.1", "27.3"] {
+            #expect(!declaration.applicability.matches(iOSBase: VPhoneVersion(version), cloudOS: VPhoneVersion("26.4")))
+        }
+    }
+
     @Test func `HomeView keeps native setup and its bypass is an explicit reversible selection`() throws {
         let plan = try VPhonePatchPlan.resolve(
             preset: FirmwarePatchSetCatalog.homeViewPreset, patchSets: FirmwarePatchSetCatalog.bundled,

@@ -40,8 +40,24 @@ enum LogicTests {
         processSpawnPolicy()
         bootstrapPlatform()
         setupAssistantState()
+        homeViewDistancePolicy()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func homeViewDistancePolicy() {
+        expect(GuestHomeViewDistancePolicy.rejection(mode: "automatic", resetEnvironment: false) != nil,
+            "environment-wide reset requires explicit acknowledgement before native transport")
+        expect(GuestHomeViewDistancePolicy.rejection(mode: "automatic", resetEnvironment: true) == nil,
+            "acknowledged environment-wide reset is admitted")
+        for mode in ["near", "standard", "far"] {
+            expect(GuestHomeViewDistancePolicy.rejection(mode: mode, resetEnvironment: false) == nil,
+                "detail-only override preserves unrelated fields without a reset acknowledgement")
+        }
+        for mode in ["", "Near", "middle", "3", "automatic "] {
+            expect(GuestHomeViewDistancePolicy.rejection(mode: mode, resetEnvironment: true) != nil,
+                "strict native enum mapping rejects unsupported mode \(mode)")
+        }
     }
 
     static func processSpawnPolicy() {
