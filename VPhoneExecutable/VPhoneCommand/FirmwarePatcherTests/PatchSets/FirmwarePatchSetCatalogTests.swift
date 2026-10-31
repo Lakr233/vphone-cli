@@ -222,6 +222,44 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
+    func `The presets naming the restore image set include the audio payload`() throws {
+        func enabled(_ preset: VPhonePatchPreset) throws -> Set<String> {
+            try VPhonePatchPlan.resolve(
+                preset: preset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.4"),
+                cloudOS: VPhoneVersion("26.4"),
+            ).enabled
+        }
+
+        let namesRestoreImage: Set<String> = [
+            VPhonePatchPreset.minimalIdentifier,
+            VPhonePatchPreset.watchOSIdentifier,
+        ]
+        
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            let resolved = try enabled(preset)
+            #expect(
+                resolved.contains(FirmwareRestoreImagePatchSet.watchAudio)
+                    == namesRestoreImage.contains(preset.identifier),
+                "\(preset.identifier)",
+            )
+        }
+    }
+
+    @Test
+    func `The watch audio payload stays selected across supported bases`() throws {
+        for base in ["26.4", "26.5", "27.0"] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.watchOSPreset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion("26.4"),
+            )
+            #expect(plan.enabled.contains(FirmwareRestoreImagePatchSet.watchAudio))
+        }
+    }
+
+    @Test
     func `Standard leaves every manual-only patch off, on every base`() throws {
         for base in ["18.6.2", "26.4", "27.0"] {
             let plan = try VPhonePatchPlan.resolve(
