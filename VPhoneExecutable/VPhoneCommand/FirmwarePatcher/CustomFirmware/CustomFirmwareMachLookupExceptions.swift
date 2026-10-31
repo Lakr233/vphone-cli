@@ -47,6 +47,11 @@ public enum CustomFirmwareMachLookupExceptions {
         "com.apple.frontboard.watchdog",
     ]
 
+    /// HomeView's shell also compiles RenderBox shaders. The older kernel's
+    /// temporary sandbox denies its compiler lookup, stalling UI transitions.
+    /// Keep this exception out of Campo's entitlement set.
+    public static let homeViewServices = services + ["com.apple.MTLCompilerService"]
+
     /// What the merge did.
     public struct Outcome: Sendable, Equatable {
         /// Size of the exception array after the merge.

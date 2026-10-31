@@ -55,6 +55,8 @@ bool vp_homeview_distance_available(void) {
 - (id)remoteTarget;
 - (id)initWithActivePersonaUniqueIdentifier:(id)persona displayStyle:(id)style levelOfDetail:(id)detail backlightState:(id)backlight;
 - (NSInteger)levelOfDetail;
+- (NSInteger)displayStyle;
+- (NSInteger)backlightState;
 @end
 
 static id vpDistanceConnection;
@@ -199,7 +201,9 @@ static NSDictionary *vpDistanceReply(const char *mode) {
         if (![requested isEqual:@"automatic"] && level != expected) return @{@"ok":@NO,@"error":@"HomeView detail override readback did not match"};
         vpDistanceMode = requested;
     }
-    return @{@"ok":@YES,@"result":@{@"available":@YES,@"mode":vpDistanceMode ?: @"unknown",@"level_of_detail":@(level),@"override_active":vpDistanceMode ? @(![vpDistanceMode isEqual:@"automatic"]) : NSNull.null,@"applied":@(requested != nil),@"reset_scope":@"environment"}};
+    id displayStyle = vpDistanceIntegerGetter([environment class], @selector(displayStyle)) ? @([environment displayStyle]) : NSNull.null;
+    id backlightState = vpDistanceIntegerGetter([environment class], @selector(backlightState)) ? @([environment backlightState]) : NSNull.null;
+    return @{@"ok":@YES,@"result":@{@"available":@YES,@"mode":vpDistanceMode ?: @"unknown",@"level_of_detail":@(level),@"display_style":displayStyle,@"backlight_state":backlightState,@"override_active":vpDistanceMode ? @(![vpDistanceMode isEqual:@"automatic"]) : NSNull.null,@"applied":@(requested != nil),@"reset_scope":@"environment"}};
 }
 
 char *vp_homeview_distance_copy_json(const char *mode) {

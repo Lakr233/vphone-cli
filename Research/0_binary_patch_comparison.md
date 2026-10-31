@@ -5573,3 +5573,47 @@ The host VM view now derives its input geometry from the active Duo viewport (`a
 > **Duo display: two displays only (2026-10-29):** `system-springboard-cfw-fold_display` (now titled "Foldable inner display") keeps only the two-display path, and it is always on for iPhone19,4: `libvphonefolddisplay.dylib` checks `hw.machine` in backboardd and SpringBoard instead of the `vphone-duo-inner-display` marker. backboardd: the 2853x2007 `CAWindowServerVirtualDisplay` added from `-[CAWindowServer _detectDisplays]` (server-ready fallback), tagged `unknown`; `DeviceSurfaceType` 1 for the primary and 2 for the inner display through `-[CAWindowServerDisplay extendedProperties]`; `BKHIDDirectTouchEventProcessor` digitizer routing and the 270° position turn while the inner display is lit. SpringBoard: the CADisplay type/pointScale/isExternal adapter with the FrontBoard classification scope, `mainLike` in the inner identity's XPC encoding, the inner screen's idiom, the shared scanout (`-[CADisplayStateControl transitionToDisplayState:withCompletion:]`), the compositor, the content mode resolver hand-over (the resolver is now recorded by a pass-through `-[SBFDisplayContentModeResolver _startResolvingContentModeOfDisplay:]`), and the per-screen `STUIStatusBarGetVisualProviderClassForScreen` detour. Removed hooks: the Main configuration transformer, monitor and identity observers, `SBWindowScene surfaceType`/`sbhScreenType`, `SBWindow _shouldResizeWithScene`, the scene geometry callback, the clock and time-item adapters, the scene status policy, the Main status lookup and status profile factories, `SBHScreenTypeFor*`, `_os_feature_enabled_impl` (`TraitsArbiterWallpaperTokyoDrift`), `PF_IS_PAD_DEVICE`, `_SBWallpaperSecureWindow setHidden:`, the quick-action glyph subclass, the `UIWindow` target-window fallback, the `SBSDeviceDeterminedConfiguration`/`CSProminentLayoutController` loggers, and every `com.vphone.display.*` notification. `libvphoneposterprobe.dylib` (the poster orientation follower) is no longer built, staged, listed in the guest environment, or loaded by SystemHook. Details in `Research/Guest/iphone_duo_bringup.md`.
 
 > **Duo display: flicker, capture and rotation (2026-10-29):** in `system-springboard-cfw-fold_display`, the compositor is now a layer at the top of Main's `UIRootSceneWindow` (points) instead of a display-level `CAContext` (pixels), its hosts sync from a main run loop observer before Core Animation's commit and change only when a value changes, and its per-frame damage alternates two clear colors. New SpringBoard hook: `+[CMMagicPoseManager orientationForMagicPose:deviceSurface:]` answers with `+[CMDeviceStateEvent propertyAForConfigType:propertyA:propertyB:propertyC:]` directly, because the guest has no `CMMagicPoseManager` shared manager and every panel read ambiguous, so neither panel rotated. vphoned's `display.rotation` on a foldable sets the pose orientation for the lit panel. Details in `Research/Guest/iphone_duo_bringup.md`.
+
+## HomeView shell Metal compiler lookup (2026-10-30)
+
+The existing `system-breadboard-exp-mach_lookup` patch now also appends exactly
+`com.apple.MTLCompilerService` to BreadBoard's global Mach lookup exception list.
+Campo's shared backboard/frontboard list is unchanged. This retains the native
+`temporary-sandbox` profile, every donor entitlement, and the existing executable
+backup/deselection path; no kernel or shader binary is changed.
+
+Live HomeView 27.2 / 24V514 on cloudOS 26.4 repeatedly stalled BreadBoard during
+app/Home gestures in RenderBox → Metal function specialization → compiler queue
+wait. A unique-source public Metal probe, signed with the installed BreadBoard's
+exact entitlements and run as mobile501, failed with MTLLibraryErrorDomain3,
+lookup error159, `Sandbox restriction`. Earlier identical-source probes hit
+cached libraries and concealed this denial. Adding only the compiler lookup to
+that probe's entitlements made a fresh unique library compile in 0.05217s and
+specialize in 0.001099s. Cache-path sandbox-extension warnings remained nonfatal;
+no file permission exceptions were added. Raw evidence and variant entitlements
+are in `.build/homeview-distance-runtime/public-metal-*`; native consumer tracing
+is in `Research/Firmware/homeview_distance_consumers.md`. Full shell retest after
+deployment remains pending at this entry's creation.
+
+Deployment retest: Xcode built `VPhone` successfully (60.743s,
+`BuildProject-Log-20261030-211312.txt`); Launchpad installed
+`2.15.0-local.0cfd6bd1` with policy/preflight passing and updated HomeView's host
+and guest environment bindings. The installed BreadBoard entitlements differ
+from b53c29c8 only by the compiler lookup. The formerly hanging bottom Home
+gesture now renders the glass app drawer, native environment fetch stays fast,
+and Timers visibly launches to its native preset grid. Screenshot evidence is
+`0cfd-after-home.jpg` and `0cfd-timers-settled.jpg` under the runtime directory.
+The entitlement merge suite passed all7 tests, including the new HomeView
+sandbox-preservation/Campo-isolation regression. Native distance ABI checks
+also passed. No extra patch selection or boot-chain update was needed.
+
+Final rollout: **2.15.0-local.e2850909** adds the native app-latching explanation
+to Controls, preserving the same validated compiler lookup repair. Host and
+guest environment bindings updated successfully, vphoned answered in6seconds,
+and an acknowledged environment reset plus independent fetch returned
+Automatic/detail2/override=false/style0/backlight2. The native clock is visibly
+awake. Far/Near/Far actual FrontBoard settings and UIKit scene/view traits were
+verified0→2→0 in the temporary observer; the Far reduction flushes when the app
+backgrounds, matching Charcuterie's explicit latching policy. No ActivityKit
+permission expansion is part of this patch or the installed bundle. All guest
+test timers, activities, apps, helpers and overrides were cleaned up.

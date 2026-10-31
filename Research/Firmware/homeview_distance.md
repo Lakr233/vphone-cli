@@ -2,10 +2,13 @@
 
 Investigation: tvOS 27.2 HomeView 24V514, HomeAccessory17,1 / J490AP. This ledger distinguishes shipped-code observations from runtime proof. Initial research and implementation left installed bundles unchanged; the user subsequently authorized deployment, recorded below.
 
-Current deployment: HomeView is running with host and guest environment
-`2.15.0-local.b1ed0817`. The scoped service patch is applied and the installed
-daemon's read-only `homeview.distance.get` succeeds. Near/Far/reset input and
-visual behavior are left for the user's requested manual test.
+Current result: live native propagation is verified through FrontBoard scene
+settings, UIWindowScene traits and UIViewController traits (Far0 → Near2 →
+Far0). Ordinary app scenes deliberately latch reductions until backgrounded;
+Settings additionally pins its content to Near. The native clock poster alone
+is not an established adaptive consumer. A separate shell Metal compiler lookup
+denial was fixed and deployed. See the final runtime section below and
+`homeview_distance_consumers.md` for exact consumers, policy and limitations.
 
 ## Native model and distance mapping
 
@@ -35,7 +38,7 @@ Transport construction follows native `BBSEnvironment.Controller`: endpoint mach
 
 The server gate checks client entitlement `com.apple.private.breadboard.environment.read-write`, then a separate availability predicate; rejection logs distinguish “Client is not entitled” and “Service is unavailable” (`ev_059065e22f243acd69c0b1b41c4e3fc3adb2bf12c04c47ff8725d6337a101ae7`). That availability predicate remains under investigation.
 
-## Current runtime boundary
+## Initial retail-gate runtime boundary (historical)
 
 A temporary native arm64e helper, signed with platform-application, the exact read/write entitlement and the mach-lookup exception, was uploaded to `/var/tmp/homeview-distance-probe` through the existing guest control socket. Read-only fetch under both root and mobile UID501 returned BSServiceConnectionErrorDomain code 3, “XPC error received on message reply handler.” Waiting for the activation handler instead times out after five seconds. BreadBoard remains running PID39 with last exit 0. No environment mutation, reset, pairing or bundle installation has been performed; no near/far screenshot proof exists yet. The helper must be removed after diagnostics.
 
@@ -47,7 +50,7 @@ Extract BreadBoardFramework, BreadBoardServices, BreadBoardUIServices and Entity
 
 Before any mutation, resolve service activation/gate failure. Then establish a test-owned baseline, capture native environment and screenshot, apply far and near while keeping the helper/connection alive, verify native completion plus independent readback and visual layout changes, reset with explicit environment-wide acknowledgement, and confirm restored automatic state. Do not complete setup, provision HomeKit, pair or sign in for this test. No claim of runtime success should be made until these steps pass.
 
-## Host controls and deployment boundary
+## Initial host controls and deployment boundary
 
 The HomeView Controls panel has a Viewing Distance section. Near, Standard
 Detail and Far send the native detail overrides; Standard Detail is not a
@@ -72,8 +75,8 @@ internal-install branch, retaining the client entitlement check. Global
 `os_variant_has_internal_content` remains unchanged. The added vphoned
 entitlement is `com.apple.private.breadboard.environment.read-write`.
 
-RPC examples for the future installed environment (not executed as live writes
-during this investigation):
+RPC examples recorded before deployment (live cycles are documented in the
+authorized runtime sections below):
 
 ```zsh
 vphone-launchpad-cli guest rpc HomeView homeview.distance.get '{}'
@@ -185,7 +188,7 @@ The already-recorded publisher commit paths store the merged/nil `_overrides`, u
 
 Additional reproducible disassembly: `/tmp/homeview-transport/BreadBoardServices.asm`, SHA-256 `e8c1eec5e35eecee6826d37fbbb753302ae115a3a06ef915e30f6d013b48a52a`; the BreadBoardFramework disassembly and binary hashes are recorded above. This audit performed no guest calls, environment writes, bundle updates or source-code changes. REA sessions were closed after inspection.
 
-## Prepared rollout input, not applied
+## Prepared rollout input before authorization (historical)
 
 The VM remains bound to host/guest environment `2.15.0-local.176e4e80`
 (`launchpad.json` read back on 2026-10-30). Its recorded selection is `homeview`
@@ -213,7 +216,7 @@ Re-export if the VM's choices change before deployment. Applying this preset,
 installing the updated bundle/environment and booting its native service
 remain pending user availability.
 
-## Completion audit
+## Completion audit before the autonomous retest (historical)
 
 | Requirement | Current authoritative evidence | Status |
 | --- | --- | --- |
@@ -225,7 +228,7 @@ remain pending user availability.
 | Prove Near/Far adapt the actual native UI and reset restores native behavior | Requires an activated guest service, native readbacks, and before/after screenshots through the actual host controls | Missing; cannot claim end-to-end success |
 | Honor the no-update constraint | No installation preceded the user's explicit authorization; subsequent deployment uses Launchpad's helper | Honored; authorization now provided |
 
-The goal is not complete. The user will test Near/Far/reset on the updated VM.
+The goal is not complete. Autonomous live verification is now authorized.
 No additional phone VM, account provisioning or global internal-build change is
 justified by the available evidence.
 
@@ -291,3 +294,153 @@ returns the expected native state. Unknown ownership remains intentional;
 an effective detail value does not reveal another client's override mask.
 No Near/Far/standard/automatic mutation was sent by the agent. HomeView is
 left running for the user's test under **Device → Controls → Viewing Distance**.
+
+## User-reported no-op: consumer tracing and shell stall
+
+After the user's controls test showed no visual response, agent-controlled
+Far/Near/reset cycles on installed b1ed0817 returned applied=true and separate
+fetches of 0/2/2. Screenshots retained the same purple native analog clock
+poster. BreadBoard logs independently recorded applying 0, applying 2, clearing
+and FrontBoard scene-setting propagation. This proves more than a daemon-local
+mode change, but does not prove an application trait or rendered layout.
+
+The supplied binaries show why arbitrary screens are poor tests. Settings pins
+its navigation content to Near. Music's loaded product detail hides More and
+Back/Close at Far. Timers' full-screen running analog activity changes clock
+maximum width230→320, label font22→32, and Near-only Cancel/Pause/Resume toolbar
+content. The empty Timers screen is not that consumer. The complete typed
+publisher → FBSScene primary detail → UIKit trait → SwiftUI environment trace,
+functions and evidence IDs are in `homeview_distance_consumers.md`. No second
+internal-install gate was found in the bounded traced scene-component path.
+
+Diagnostic bundle b53c29c8 adds runtime-ABI-checked `display_style` and
+`backlight_state` readbacks, plus subsystem/category/message substring syslog
+filters before the line cap. Native values show displayStyle0=standard,
+1=nightMode, backlight0=Off, backlight2=ActiveOn. A Timers launch succeeded but
+the display went Off; a temporary native backlight-only ActiveOn override lit
+the clock poster without revealing Timers. No timer was created. The test
+backlight override was cleared by a coordinated reboot and an acknowledged
+explicit environment reset. A temporary LevelOfDetail logging preference was
+saved and restored exactly (enabled1/persisted1, effective3/2); even at enabled4,
+only notice-level Aggregator messages reached the existing stream. Missing
+info/debug records are not evidence that scene publication failed.
+
+App/Home gestures reproducibly stall BreadBoard. Two passive main-thread
+samples100ms apart show the same dispatch queue wait beneath Metal compiler
+request, function specialization and RenderBox RootTexture rendering. A worker
+waits in MTLXPCCompilerConnection::checkConnectionAlive. The independent clock
+poster continues ticking while environment/FrontBoard requests time out.
+Guest touch automation also wrongly rejects this touch-capable tvOS product;
+host VZ touch delivery reaches the shell and reproduces the rendering stall.
+No automation-library workaround is needed to establish that native stall.
+
+A public Metal probe initially appeared healthy but reused cached source. A
+unique-kernel probe signed with the installed BreadBoard's exact entitlements,
+run as mobile501, instead fails with MTLLibraryErrorDomain3 and compiler lookup
+error159, `Sandbox restriction`. Adding only the global Mach lookup exception
+`com.apple.MTLCompilerService` makes a fresh unique library compile in0.05217s
+and function-constant specialization complete in0.001099s. Cache-path extension
+warnings remain nonfatal. This supports extending the existing reversible
+HomeView shell Mach-lookup patch with that one service, preserving the sandbox
+and every donor entitlement. No file permissions, kernel patch or global
+internal-build identity is changed. The seven entitlement-merge tests pass,
+including preservation of the sandbox and Campo's unchanged service list.
+Full shell/Timers retest follows deployment; native readback alone remains
+insufficient to claim the distance feature complete.
+
+## Final live result: scene and UIKit delivery, native app latching
+
+A temporary UIKit observer with the native Timers app's `BBUsePebbleUI=true`
+and device families3,8 was installed as `com.vphone.research.trait-probe`.
+It did not override any trait. It read the actual `_FBSScene.settings`
+`bbsui_levelOfDetail`, plus UIWindowScene and UIViewController trait collections
+using public `valueForNSIntegerTrait:` with native `BBSUILevelOfDetailTrait`.
+The class's identifier was checked against
+`com.apple.breadboard.level-of-detail`. This is the Objective-C bridge to the
+same trait read by the native Swift convenience getter and PebbleUI. The first
+observer incorrectly tried the Swift-only convenience names as Objective-C
+selectors; its null fields were unavailable selectors, not native zero values.
+
+The corrected observer recorded actual settings/scene/view values **0 → 2 → 0**
+alongside independent native Far/Near/Far service readbacks. Near2 appeared in
+the foreground. The final decrease to0 appeared as the app moved into the
+background; the initial post-Far frame could still show2. Raw JSONL and native
+screenshots are `trait-probe-v2-*` under `.build/homeview-distance-runtime`.
+An offscreen/suspended observer's unchanged JSONL or a black/off display is not
+proof of a lost update. A temporary backlight-only ActiveOn override kept the
+observer visible for the conclusive cycle; final reset cleared that override.
+
+The delayed reduction is explicit native policy, not an arbitrary IPC delay.
+Charcuterie's SceneDefinitionResolver (`0x2519a1adc`) selects:
+
+| Presentation | Native distance update behavior |
+| --- | --- |
+| Ordinary app | latching |
+| System scene | primaryOnly |
+| Live Activity modifier | primaryWithPrecedingSecondary |
+
+ScenePresentation's native field metadata proves the app/system/placeholder
+tag ordering. The resolver places the selected behavior in its scene modifier,
+which writes the actual host component's updateBehavior at `0x2519a34a0`.
+The latching handler keeps the previous scene detail for a foreground decrease
+and stores the proposed value as staged. On foreground→background it applies
+that staged value and clears the optional. Increases apply immediately. Exact
+branches, types and artifact hashes are recorded in the consumer document.
+To observe Far in an ordinary app, apply it, switch away, then reopen the app.
+A screen with its own Near override can still remain unchanged.
+
+The Controls caption now explains deferred lower detail and fixed-level
+screens, while reset continues to disclose its full environment scope. The new
+caption localizes through the framework's existing bundle and renders without
+clipping at the460-point Controls minimum width (`self-policy-layout.png`).
+This is a host layout check with a mocked transport; the native trait observer
+above is the live guest delivery evidence.
+
+### Native application consumer limits
+
+Settings' explicit Near override and Music product-page More/Close gates are
+established statically. Timers' normal configuration list is distinct from its
+adaptive full-screen analog Live Activity. Row taps do not establish a route
+to that scene. Native timer inventories found no activity for the test timers;
+resuming updates an existing activity rather than creating a missing one.
+Temporary direct creation clients encountered native source/authorization
+gates. The Timers frontend is not the privileged native activity creator:
+mobiletimerd carries separate multiple-process-input, ephemeral and unbounded
+request authority. These harness rejections do not prove the installed daemon
+is missing those entitlements: its binary SHA-256 matches the supplied original
+HomeView mobiletimerd exactly. No ActivityKit entitlement change was shipped.
+The public Music product URL also did not yield a verified loaded product page.
+Therefore this investigation claims live scene/UIKit delivery and the native
+policy, not rendered Apple Music or Timer geometry comparisons. Exact static
+adaptive geometry remains documented separately.
+
+Both test timers were removed by exact recorded identity, fresh native inventory
+confirmed zero timers/activities, the probe app and its containers were
+uninstalled, and temporary helpers/wrappers were removed. An acknowledged
+explicit automatic reset cleared the test environment overrides. No account,
+HomeKit or pairing provisioning was needed. The final bundle rollout and boot
+readiness are recorded immediately below.
+
+## Final deployed bundle and readiness
+
+Launchpad installed **2.15.0-local.e2850909**, with execution policy and host
+preflight passing. HomeView's host and guest environment bindings both name
+this version; its boot chain remains2.15.0-local.0f803fd7. The final VPhone
+Xcode build succeeded in50.428s (`BuildProject-Log-20261030-213727.txt`). The
+seven entitlement-merge tests and native bridge ABI checks passed earlier in
+this same implementation; the subsequent change adds only localized Controls
+help. Xcode's unrelated catalog sorting was removed after confirming its only
+semantic change was the new help key.
+
+After the coordinated final update, vphoned answered in6seconds. An explicit
+native reset and independent get returned Automatic, detail2, override_active
+false, displayStyle0 and backlightState2. The fresh boot's native clock poster
+is visible in `final-boot.jpg`; the display is awake under automatic native
+policy, with no forced backlight override. The temporary logging category's
+original enabled/persisted levels were restored and recorded before cleanup;
+no logging override remains. Both test timers/activities, the UIKit observer
+and all known guest test helpers were removed before this final boot.
+
+This closes implementation and live native delivery verification. The bounded
+Apple application layout limitations above remain explicit; no successful
+Music product-page or fullscreen Timer geometry comparison is claimed.

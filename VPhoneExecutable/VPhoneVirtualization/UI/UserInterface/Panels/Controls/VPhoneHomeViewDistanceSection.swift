@@ -36,8 +36,10 @@ struct VPhoneHomeViewDistanceSection: View {
                     .disabled(model.isBusy)
             }
             Text(model.selection == .automatic
-                ? String(localized: "Resets all native environment simulation overrides, including persona, display style, detail, and backlight.", bundle: VPhoneLocalization.bundle)
-                : String(localized: "Near and Far simulate HomeView’s distance-driven detail levels without changing other environment overrides.", bundle: VPhoneLocalization.bundle))
+                ? "Resets all native environment simulation overrides, including persona, display style, detail, and backlight."
+                : "Changes HomeView’s detail level. Apps can defer lower detail until you switch away. Some screens use a fixed detail level.",
+                 bundle: VPhoneLocalization.bundle,
+                 comment: "Explains HomeView distance simulation and the native app policy that defers lower detail until the app moves into the background.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let error = model.error {

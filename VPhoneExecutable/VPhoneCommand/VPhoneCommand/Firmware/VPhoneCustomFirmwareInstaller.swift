@@ -2138,7 +2138,7 @@ struct VPhoneCustomFirmwareInstaller {
             let executable = "\(bundle)/BreadBoard"
             if on(homeViewDisplay), guestDevice.family == .homeView {
                 try patchHomeViewMachLookups(system: system, work: work, target: executable,
-                    services: CustomFirmwareMachLookupExceptions.services, backupSafe: backupSafe(homeViewDisplay))
+                    services: CustomFirmwareMachLookupExceptions.homeViewServices, backupSafe: backupSafe(homeViewDisplay))
                 try sealGuestBundle(system: system, bundle: bundle, preserveEntitlements: true)
                 live.insert(homeViewDisplay)
             } else if priorGuest.contains(homeViewDisplay) {
