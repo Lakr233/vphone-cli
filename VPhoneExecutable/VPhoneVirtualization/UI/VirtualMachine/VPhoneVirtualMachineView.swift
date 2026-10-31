@@ -1207,11 +1207,17 @@ var panel = normalizeCoordinate(localPoint)
     /// Duo keeps one physical Main/backing surface and clips it to the current
     /// outer or inner viewport. Input must be measured against that clipped
     /// rectangle; using the full backing bounds makes outer-screen touches
-    /// land in the hidden part of the framebuffer.
+    /// land in the hidden part of the framebuffer. The view is the backing
+    /// scaled to the window, so the active surface is its share of the view,
+    /// not its size at 100%: a resized window, or one a fold reshaped, would
+    /// otherwise measure clicks against a rectangle the panel no longer fills.
     private var touchViewportSize: CGSize {
         if let active = activePanelPixels, active.width > 0, active.height > 0,
-           screenScale > 0 {
-            return CGSize(width: active.width / screenScale, height: active.height / screenScale)
+           let backing = recordingGraphicsDisplay?.sizeInPixels, backing.width > 0, backing.height > 0 {
+            return CGSize(
+                width: bounds.width * min(active.width / backing.width, 1),
+                height: bounds.height * min(active.height / backing.height, 1),
+            )
         }
         return bounds.size
     }
