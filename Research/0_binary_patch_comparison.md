@@ -1,5 +1,23 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Watch audio validated on a fresh restore (2026-10-31).** A new VM restored
+> from the latest bundle with the shipped `watchos` payload produces audible
+> system sounds (the charging chime and ringtones). A paired control restore
+> with `filesystem-exp-watch_audio` blocked produced no audio: the live HAL
+> directory had no virtio sound plugin, AVAudioSession reported no output routes
+> and zero rate/channels, and AVAudioPlayer of the built-in NanoRingtone3.caf
+> failed to prepare or play. Together these attribute the speaker route to the
+> payload. Playback-category media (music, text and notification tones) still
+> depends on the unimplemented MediaExperience power-budget fix. No code change.
+> See [watch audio](Guest/watch_audio.md).
+
+> **Watch preset audio (2026-10-30).** The standard `watchos` preset now includes
+> the validated watch audio payload, owned by the single `filesystem-exp-watch_audio`
+> declaration. The separate experimental speaker preset has been removed. Local-speaker
+> Playback sessions still fail MediaExperience's power budget, which this does not
+> address. Existing guests need a restore; other presets and the remaining broad
+> audio patches are unchanged. See [watch audio](Guest/watch_audio.md).
+
 > **HomeView distance simulation (2026-10-30, runtime validation pending).**
 > `dyld-exp-homeview_environment_service` opens only BreadBoardServices'
 > environment-service internal-install branch on the reviewed 27.2 userland.
@@ -72,6 +90,31 @@
 > No firmware patch or preset changes. A small camera app reproduces the
 > original abort on iOS 27.0.1 (24A446). See
 > [reproduction and crash stack](Guest/virtual_camera_transport.md#session-registration-during-teardown-2026-10-29).
+
+> **Watch speaker audio (2026-10-28).** `filesystem-exp-watch_audio`, selected
+> only by `watchos`, installs the watchOS-retargeted virtio sound HAL plugin
+> before the system image is sealed; native product 4017 for Watch7,18 selects
+> the existing HALSPP tunings and PuffinOutput publishes the speaker port. The
+> installer also rewrites the eight `speaker_*` chainTypes from `clhs` to `dflt`
+> in `Library/Audio/Tunings/AID*/VAD/graph_configurations_halspp.plist` through
+> the confined file-edit path, retaining all graphs, AU tunings, volume commands
+> and microphone entries. Native product selection and the graph rewrite alone
+> were not enough (the generic playback handler still declined the route), so
+> the payload also applies three playback-only VirtualAudio bypasses:
+> `patchSpeakerProtectionGate(handler: .playback)`, `patchVolumeModePrecondition`,
+> and the fault-logged inactive-protection terminating call, each matched by
+> source/log/mask or walker/epilogue control-flow anchors and each one four
+> bytes. Mute, play-and-record, the other walker exceptions, raw tunings and
+> microphone patches stay disabled. Verified on WatchAudioGraphTest: live
+> executable text differs from stock only in the three intended instructions
+> (twelve bytes total) and graph data only in the eight speaker chainTypes.
+> Ringtone playback selects Speaker / PuffinOutput, starts HAL I/O, survives
+> repeated stop/start, and keeps audiomxd at PID 110; the owner confirmed
+> audible output after unmuting the Mac. Local-speaker Playback sessions still
+> fail MediaExperience's power budget, which this does not address, and other
+> session categories and long-duration playback are not covered. All 103 focused
+> tests and full bundle build/admission passed. See
+> [watch audio](Guest/watch_audio.md).
 
 > **Apple TV RootHide bootstrap and environment hooks (2026-10-26).** No new
 > declaration or instruction patch. An arm64e Apple TV now admits
@@ -4236,6 +4279,7 @@ gone. The preset names three sets:
 | `filesystem-boot-mobileactivationd_should_hactivate` | The `should_hactivate` patch, in the image |
 | `filesystem-boot-vphoned` | vphoned and its launch daemon, in the image |
 | `filesystem-boot-launchd_cache_loader_unsecure_cache_gate` | Lets launchd read the launch daemons from the volume |
+| `filesystem-exp-watch_audio` | Watch images only, and selected by `watchos` alone: installs the virtio sound HAL plugin retargeted to watchOS, rewrites the speaker chain to the generic DSP type, and bypasses VirtualAudio's playback missing-speaker-protection and volume-mode declines and the fault-logged inactive-protection termination. Local-speaker Playback sessions still fail MediaExperience's power budget, which this does not address. Cannot be turned on or off without another restore |
 | `manifest-boot-digest_rehash` | Rewrites every BuildManifest digest to the files the restore now sends; for an AEA archive, the digest of its decrypted image, which is what Apple's manifests hold and what an 18.x restore checks the written image against |
 
 The kernel and TXM stay stock, and the restore installs a system whose seal

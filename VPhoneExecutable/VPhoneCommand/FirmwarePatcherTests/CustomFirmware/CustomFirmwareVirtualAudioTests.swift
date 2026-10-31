@@ -18,6 +18,27 @@ import VPhonePatchKit
 
 @Suite("CustomFirmwareVirtualAudio")
 struct CustomFirmwareVirtualAudioTests {
+    @Test(arguments: [Self.junk, Data()])
+    func `inactive protection bypass refuses an invalid binary`(_ input: Data) {
+        var data = input
+        #expect(throws: PatcherError.self) {
+            try CustomFirmwareVirtualAudio.patchInactiveSpeakerProtection(
+                &data, reattest: false, log: nil,
+            )
+        }
+        #expect(data == input)
+    }
+
+    @Test
+    func `the inactive-protection anchor strings and record identity are stable`() {
+        #expect(CustomFirmwareVirtualAudio.terminateFault == "Speaker Protection is not active on speaker route")
+        #expect(
+            CustomFirmwareVirtualAudio.patchID + ".inactive_protection"
+                == "system-virtualaudio-cfw-speaker_route_throws.inactive_protection",
+        )
+        #expect(CustomFirmwareVirtualAudio.component == "virtualaudio")
+    }
+
     /// Not a Mach-O at all.
     static let junk = Data(repeating: 0x41, count: 4096)
 

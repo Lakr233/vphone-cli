@@ -56,19 +56,6 @@ struct CryptexFileOpsTests {
     }
 
     /// A patcher is only needed for the methods; nothing here reads a manifest.
-    private func makePatcher(_ scratch: URL) -> CryptexFilesystemPatcher {
-        CryptexFilesystemPatcher(buildManiest: Data(), restoreDir: scratch, verbose: false)
-    }
-
-    private func makeScratch() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vphone-fileops-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        guard let path = realpath(url.path, nil) else { throw POSIXError(.ENOENT) }
-        defer { free(path) }
-        return URL(fileURLWithPath: String(cString: path))
-    }
-
     private func mode(of url: URL) throws -> Int {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         return (attributes[.posixPermissions] as? NSNumber)?.intValue ?? -1

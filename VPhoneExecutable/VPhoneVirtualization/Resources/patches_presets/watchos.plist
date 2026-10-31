@@ -55,6 +55,7 @@
 			<string>filesystem-boot-mobileactivationd_should_hactivate</string>
 			<string>filesystem-boot-vphoned</string>
 			<string>filesystem-exp-btvc_le_connection</string>
+			<string>filesystem-exp-watch_audio</string>
 			<string>ibec-boot-boot_args</string>
 			<string>ibec-boot-bootx_precondition</string>
 			<string>ibec-boot-image4_callback</string>
@@ -71,7 +72,7 @@
 		</array>
 	</dict>
 	<key>Summary</key>
-	<string>Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver and activation restored onto a stock kernel and TXM.</string>
+	<string>Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver, speaker audio and activation restored onto a stock kernel and TXM.</string>
 	<key>Title</key>
 	<string>Apple Watch</string>
 </dict>
