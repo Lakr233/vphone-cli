@@ -1,5 +1,23 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Watch audio budget runtime check (2026-10-31).** A fresh Watch7,18 VM on
+> 26.4 (23T240): native Resonate text-message
+> alert completed with `BudgetNotAvailable = 0`; explicit Playback-category
+> AVAudioPlayer prepared, started and advanced on Speaker/PuffinOutput. HAL I/O
+> ran on both paths. Untruncated live audiomxd captures show PID 110 throughout
+> and none of the previous budget failures. The owner confirmed audible
+> output. See [budget runtime check](Guest/watch_audio.md#mediaexperience-budget-fresh-restore-runtime-check-2026-10-31).
+
+> **Watch audio budget patch (2026-10-31).** The `filesystem-exp-watch_audio`
+> payload includes a MediaExperience budget patch: `patchWatchAudioBudget`
+> NOPs the `CMSMDeviceState_UpdateDeviceClass` token-mismatch branch in the arm64e
+> cache so a watch VM takes MediaExperience's virtual-device budget exit,
+> version-gated to watchOS 26.4 and reported as the
+> `filesystem-exp-watch_audio.budget_device_class` sub-record. Covered by an
+> always-on synthetic discovery test plus fixture-gated real-image tests; its
+> runtime effect on Playback media is confirmed on a 26.4 restore (host
+> audibility confirmed; see the budget runtime check above). See [watch audio](Guest/watch_audio.md).
+
 > **Watch audio validated on a fresh restore (2026-10-31).** A new VM restored
 > from the latest bundle with the shipped `watchos` payload produces audible
 > system sounds (the charging chime and ringtones). A paired control restore
@@ -8,7 +26,7 @@
 > and zero rate/channels, and AVAudioPlayer of the built-in NanoRingtone3.caf
 > failed to prepare or play. Together these attribute the speaker route to the
 > payload. Playback-category media (music, text and notification tones) still
-> depends on the unimplemented MediaExperience power-budget fix. No code change.
+> depends on the MediaExperience power-budget fix. No code change.
 > See [watch audio](Guest/watch_audio.md).
 
 > **Watch preset audio (2026-10-30).** The standard `watchos` preset now includes
@@ -4279,7 +4297,7 @@ gone. The preset names three sets:
 | `filesystem-boot-mobileactivationd_should_hactivate` | The `should_hactivate` patch, in the image |
 | `filesystem-boot-vphoned` | vphoned and its launch daemon, in the image |
 | `filesystem-boot-launchd_cache_loader_unsecure_cache_gate` | Lets launchd read the launch daemons from the volume |
-| `filesystem-exp-watch_audio` | Watch images only, and selected by `watchos` alone: installs the virtio sound HAL plugin retargeted to watchOS, rewrites the speaker chain to the generic DSP type, and bypasses VirtualAudio's playback missing-speaker-protection and volume-mode declines and the fault-logged inactive-protection termination. Local-speaker Playback sessions still fail MediaExperience's power budget, which this does not address. Cannot be turned on or off without another restore |
+| `filesystem-exp-watch_audio` | Watch images only, via `watchos`: the watchOS-marked virtio sound HAL plugin, a generic-DSP speaker chain, the three VirtualAudio playback routing-gate bypasses, and on watchOS 26.4 the MediaExperience device-class NOP for the virtual-device audio budget. Cannot be toggled without another restore |
 | `manifest-boot-digest_rehash` | Rewrites every BuildManifest digest to the files the restore now sends; for an AEA archive, the digest of its decrypted image, which is what Apple's manifests hold and what an 18.x restore checks the written image against |
 
 The kernel and TXM stay stock, and the restore installs a system whose seal

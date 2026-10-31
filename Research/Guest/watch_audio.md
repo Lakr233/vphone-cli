@@ -1,5 +1,38 @@
 # Apple Watch audio through virtio-snd
 
+## MediaExperience budget fresh-restore runtime check (2026-10-31)
+
+A fresh Watch7,18 VM was restored without a template on watchOS 26.4 / 23T240.
+The full Debug bundle passed build/admission and Launchpad host preflight.
+Restore-image preparation applied the three routing gates and the MediaExperience
+classifier patch at unslid `0x189a34710`; `.03` page slot 3053 was rehashed
+successfully, with no skipped pages.
+
+Two isolated vphoned script sessions exercised distinct paths:
+
+- **Native system sound:** ToneLibrary `TLAlertConfiguration` type 2 (text
+  message), tone `texttone:Resonate`, played through `TLAlert.play()`. The
+  audiomxd capture shows `Alert_Messages_1_Haptic`, `suppressesAudio = NO`,
+  `Audio = 1` and `BudgetNotAvailable = 0`. PuffinOutput HAL I/O entered Running,
+  and SystemSoundServer reported sound completion after 4929 ms. This tests
+  the native alert path, beyond direct AVAudioPlayer ringtone playback.
+- **Playback category:** AVAudioSession accepted
+  `AVAudioSessionCategoryPlayback` and activation; AVAudioPlayer of
+  `/System/Library/Audio/UISounds/nano/NanoRingtone3.caf` returned true from
+  preparation and play. Playback remained active after five seconds, with
+  `currentTime = 4.809520833333333`, on Speaker / PuffinOutput. MediaExperience
+  logged a `[MediaPlayback/Default]` session starting and stopping output on
+  `VirtualAudioDevice_Default`, and HAL I/O entered Running.
+
+The 15-second system-sound capture contained 690 entries and the 18-second
+Playback capture 1138; neither was truncated. Both show only audiomxd PID 110.
+Neither contains `unable to take power budget`, `budget request failed`,
+`suppressing audio and haptics`, -16982 or AudioQueue 2003329396. Thus the
+previous budget failure did not recur in either tested path. These are runtime
+route/playback and log checks, and the owner confirmed audible output on the
+host. Long-duration playback, other categories and other releases remain
+separate validation.
+
 ## Scope
 
 This puts the existing virtio-snd output transport on an Apple Watch guest
@@ -91,8 +124,8 @@ payload, not the bring-up test image) produced audible system sounds: the
 charging chime and ringtones. A paired control restore with
 `filesystem-exp-watch_audio` blocked was silent (recorded under Testing below),
 which attributes the speaker route to the payload. Playback-category media
-(music, text tones and notification tones) still depends on the unimplemented
-MediaExperience power-budget fix described below.
+(music, text tones and notification tones) still depends on the MediaExperience
+power-budget fix described below.
 
 ## Speaker graph construction
 
@@ -228,8 +261,12 @@ Not established here:
   and notification tones. The 2026-10-30 Settings text-tone capture establishes
   that budget failure; direct AVAudioPlayer ringtone playback does not exercise
   it, and the system sounds that do work (the charging chime and ringtones)
-  take a path that needs no media budget. No MediaExperience patch is currently
-  included.
+  take a path that needs no media budget. The payload now applies the budget
+  patch on watchOS 26.4 (`patchWatchAudioBudget`, which NOPs the
+  `CMSMDeviceState_UpdateDeviceClass` token-mismatch branch so MediaExperience
+  takes its virtual-device budget exit) and skips it on every other version;
+  its runtime effect on Playback media is confirmed on a 26.4 restore (see the
+  budget runtime check, audible to the owner).
 - Long-duration clock accuracy, every session category, watch microphone
   routing and AirPlay lifetime are untested.
 
@@ -250,9 +287,9 @@ on watchOS 26.4; this is not a claim about every model or release.
 | Device identity | `PuffinOutput`; input retains a virtual UID | Same, restricted to the supported watch model |
 | Processing mode | Driver implements the native `mode/glob/0` property required by B238 routing | No additional mode property; the watch route has not required it |
 | Physical rate | Output restricted to 48 kHz to avoid native DSP buffer overruns; 44.1 kHz sources are converted | Keeps the existing alternate-rate support; the observed watch speaker route is 44.1 kHz, mono |
-| Apple audio code | Native product route; iPhone VirtualAudio instruction/tuning fixes disabled | Native product route; generic DSP speaker chain and three VirtualAudio routing-gate bypasses; no MediaExperience patch |
+| Apple audio code | Native product route; iPhone VirtualAudio instruction/tuning fixes disabled | Native product route; generic DSP speaker chain, three VirtualAudio routing-gate bypasses, and the MediaExperience device-class budget patch on watchOS 26.4 |
 | Global identity | Original VM MobileGestalt token retained | Same; only VirtualAudio's product preference changes |
-| Playback evidence | Ordinary AVAudioPlayer playback of 48/44.1 kHz sources, repeated cold boots, nonzero host PCM and listening confirmation | Native-product initialization and audible system sounds/ringtones reported; local-speaker Playback sessions still fail the MediaExperience power-budget path |
+| Playback evidence | Ordinary AVAudioPlayer playback of 48/44.1 kHz sources, repeated cold boots, nonzero host PCM and listening confirmation | Native-product initialization and audible system sounds/ringtones reported; local-speaker Playback sessions need the MediaExperience budget patch, which the payload now applies on watchOS 26.4, its runtime effect confirmed on a 26.4 restore (audible to the owner) |
 | Coverage limits | Microphone, Siri, AirPlay and long-duration timing not validated | Microphone and long-duration timing not validated; an earlier AirPlay output was observed, but lifetime is untested; a 2026-10-31 fresh restore of the shipped payload produced audible system sounds (charging, ringtone) |
 
 The watch addition reuses the HomePod approach to native routing and driver

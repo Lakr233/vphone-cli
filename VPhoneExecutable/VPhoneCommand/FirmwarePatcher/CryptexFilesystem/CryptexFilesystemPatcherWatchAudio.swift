@@ -120,4 +120,19 @@ extension CryptexFilesystemPatcher {
             )
         }
     }
+
+    func patchWatchAudioBudget(targetMount: String) throws {
+        let version = try getProductVersion()
+        guard CustomFirmwareWatchAudioBudget.supports(VPhoneVersion(version)) else {
+            print("  [!] Watch audio budget: Playback audio class fix not verified on \(version), so not applied")
+            print("      Local-speaker Playback sessions will fail the MediaExperience power budget")
+            return
+        }
+        
+        let cache = try DyldSharedCacheChunkSet(
+            directory: URL(filePath: targetMount).appending(path: "System/Library/Caches/com.apple.dyld"),
+            architecture: "arm64e",
+        )
+        try CustomFirmwareWatchAudioBudget.patchCache(in: cache)
+    }
 }

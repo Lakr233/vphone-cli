@@ -218,6 +218,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             if gate.isEnabled(FirmwareRestoreImagePatchSet.watchAudio), applies(FirmwareRestoreImagePatchSet.watchAudio) {
                 print("- Adding the watch speaker…")
                 try addWatchAudio(targetMount: targetMount)
+                try patchWatchAudioBudget(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }
