@@ -429,6 +429,22 @@ struct CustomFirmwareMachLookupExceptionTests {
             .write(to: url)
     }
 
+    @Test func `HomeView adds compiler access without widening Campo or removing its sandbox`() throws {
+        let directory = try CustomFirmwarePatchFixtures.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "BreadBoard.entitlements")
+        let profile = "com.apple.private.sandbox.profile:embedded"
+        try write([profile: "temporary-sandbox",
+                   CustomFirmwareMachLookupExceptions.exceptionKey: CustomFirmwareMachLookupExceptions.services], to: url)
+        let result = try CustomFirmwareMachLookupExceptions.merge(at: url, services: CustomFirmwareMachLookupExceptions.homeViewServices, verbose: false)
+        let patched = try #require(PlistComparison.load(url) as? [String: Any])
+        #expect(result.added == 1)
+        #expect(patched.count == 2)
+        #expect(patched[profile] as? String == "temporary-sandbox")
+        #expect(patched[CustomFirmwareMachLookupExceptions.exceptionKey] as? [String] == CustomFirmwareMachLookupExceptions.services + ["com.apple.MTLCompilerService"])
+        #expect(!CustomFirmwareMachLookupExceptions.services.contains("com.apple.MTLCompilerService"))
+    }
+
     @Test func `TV setup adds only PineBoard lookup and preserves its sandbox`() throws {
         let directory = try CustomFirmwarePatchFixtures.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

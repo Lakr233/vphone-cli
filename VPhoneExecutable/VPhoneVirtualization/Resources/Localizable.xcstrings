@@ -1,6 +1,45 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Changes HomeView’s detail level. Apps can defer lower detail until you switch away. Some screens use a fixed detail level." : {
+
+    },
+    "Apply" : {
+
+    },
+    "Automatic" : {
+
+    },
+    "Current" : {
+
+    },
+    "Far" : {
+
+    },
+    "Near" : {
+
+    },
+    "Near and Far simulate HomeView’s distance-driven detail levels without changing other environment overrides." : {
+
+    },
+    "Reset Environment Simulation" : {
+
+    },
+    "Resets all native environment simulation overrides, including persona, display style, detail, and backlight." : {
+
+    },
+    "Simulated Distance" : {
+
+    },
+    "Standard Detail" : {
+
+    },
+    "This guest environment does not support distance simulation." : {
+
+    },
+    "Viewing Distance" : {
+
+    },
     "Angle" : {
 
     },

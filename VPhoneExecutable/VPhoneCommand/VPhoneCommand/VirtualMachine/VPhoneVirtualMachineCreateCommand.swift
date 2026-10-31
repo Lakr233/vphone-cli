@@ -134,6 +134,8 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
         switch selectedGuest {
         case let guest? where guest.family == .appleTV:
             guest.restoreBase == nil ? VPhonePatchPreset.tvOSIdentifier : VPhonePatchPreset.tvOS4KIdentifier
+        case let guest? where guest.family == .homeView:
+            VPhonePatchPreset.homeViewIdentifier
         case let guest? where guest.family == .homePod:
             VPhonePatchPreset.homePodMiniIdentifier
         case let guest? where guest.family == .watch:

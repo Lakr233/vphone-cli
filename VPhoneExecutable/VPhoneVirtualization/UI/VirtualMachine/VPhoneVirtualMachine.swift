@@ -47,8 +47,10 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         var kernelDebugPort: Int?
         /// The guest runs iPadOS: Esc is a key there, not the back gesture.
         var isPadGuest = false
+        var usesTVOS = false
         var isTVGuest = false
         var isHomePodGuest = false
+        var isHomeViewGuest = false
         /// The guest runs watchOS: its side button is a key of its own (consumer
         /// Help), apart from the crown (Home) and the power key.
         var isWatchGuest = false

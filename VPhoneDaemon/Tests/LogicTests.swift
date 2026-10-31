@@ -40,8 +40,24 @@ enum LogicTests {
         processSpawnPolicy()
         bootstrapPlatform()
         setupAssistantState()
+        homeViewDistancePolicy()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func homeViewDistancePolicy() {
+        expect(GuestHomeViewDistancePolicy.rejection(mode: "automatic", resetEnvironment: false) != nil,
+            "environment-wide reset requires explicit acknowledgement before native transport")
+        expect(GuestHomeViewDistancePolicy.rejection(mode: "automatic", resetEnvironment: true) == nil,
+            "acknowledged environment-wide reset is admitted")
+        for mode in ["near", "standard", "far"] {
+            expect(GuestHomeViewDistancePolicy.rejection(mode: mode, resetEnvironment: false) == nil,
+                "detail-only override preserves unrelated fields without a reset acknowledgement")
+        }
+        for mode in ["", "Near", "middle", "3", "automatic "] {
+            expect(GuestHomeViewDistancePolicy.rejection(mode: mode, resetEnvironment: true) != nil,
+                "strict native enum mapping rejects unsupported mode \(mode)")
+        }
     }
 
     static func processSpawnPolicy() {
@@ -63,6 +79,16 @@ enum LogicTests {
         }
         for machine in ["iPhone17,3", "iPad16,1", "AudioAccessory5,1", ""] {
             expect(!GuestSetupAssistantState.usesTVPolicy(machine: machine), "existing policy for \(machine)")
+        }
+        expect(GuestSetupAssistantState.usesHomeViewPolicy(machine: "HomeAccessory17,1"), "HomeView native setup policy")
+        expect(!GuestSetupAssistantState.usesHomeViewPolicy(machine: "AudioAccessory5,1"), "HomePod keeps its policy")
+        for done in [false, true] {
+            for bypass in [false, true] {
+                let home = GuestSetupAssistantState(setupDone: done, version: nil, currentVersion: nil,
+                    requiresTVCompletion: false, tvCompleted: false,
+                    requiresHomeViewCompletion: true, forceNoBuddy: bypass)
+                expect(home.pending == (!done && !bypass), "HomeView reads native completion or ForceNoBuddy without an iOS version")
+            }
         }
         func state(_ done: Bool, _ version: Int?, _ current: Int?, tv: Bool = true, completed: Bool = true) -> GuestSetupAssistantState {
             GuestSetupAssistantState(setupDone: done, version: version, currentVersion: current, requiresTVCompletion: tv, tvCompleted: completed)

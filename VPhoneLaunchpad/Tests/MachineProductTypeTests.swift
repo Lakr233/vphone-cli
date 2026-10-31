@@ -58,6 +58,12 @@ struct MachineProductTypeTests {
         expect(homePodDevice.isHomePod && !homePodDevice.isAppleTV && homePodDevice.requiresStandaloneRestore, "HomePod catalog family")
         expect(homePodDevice.osName == "HomePod Software", "HomePod catalog OS label")
 
+        machine.guestProductType = "HomeAccessory17,1"
+        expect(machine.isHomeView && !machine.isAppleTV && !machine.isHomePod && machine.osName == "HomeView Software", "HomeView touch guest")
+        let homeViewDevice = VPhoneLaunchpadFirmwareCatalog.Device(productType: "HomeAccessory17,1", name: "HomeView", family: "homeView", pairings: [])
+        expect(homeViewDevice.isHomeView && homeViewDevice.requiresStandaloneRestore, "HomeView standalone restore")
+        expect(homeViewDevice.osName == "HomeView Software", "HomeView OS label")
+
         // An OTA pairing's build comes from the bundle; an IPSW's from its name.
 
         let catalog = #"""

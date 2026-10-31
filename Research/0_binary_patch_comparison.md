@@ -1,5 +1,71 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **HomeView distance simulation (2026-10-30, runtime validation pending).**
+> `dyld-exp-homeview_environment_service` opens only BreadBoardServices'
+> environment-service internal-install branch on the reviewed 27.2 userland.
+> The preceding client entitlement check remains intact; no global internal
+> build identity is changed. The reveal follows the native Platform getter's
+> call and validates the service's separate rejection paths with Capstone.
+> Writes use cache-page re-attestation and the existing undo log. The patch is
+> off in every shipped preset and is admitted only for HomeView installs.
+> The guest RPC uses the native environment request, near/increased detail and
+> far/decreased detail. Native reset clears all environment overrides and
+> requires explicit acknowledgement. Retail runtime probes confirmed the
+> internal-build gate; no live distance override or patch deployment has been
+> performed. See [distance investigation](Firmware/homeview_distance.md).
+> Offline validation passes against an APFS cache clone: unique reviewed gate,
+> one instruction and one page hash changed, repeat is a no-op, and undo restores
+> every cache file byte-identically. Finished bundle build/admission and 94
+> focused Xcode tests pass; the live Near/Far UI effect is still unverified.
+> After user authorization, HomeView received this patch and guest environment
+> `2.15.0-local.b1ed0817`. Native ABI validation was corrected to accept the
+> protocol's `Vv` (oneway void) qualifier, with a focused regression test. The
+> installed daemon now activates the service and fetches native detail as root.
+> No distance override was written by the agent; the user will test Near/Far/reset.
+
+> **HomeView guest-profile backend lookup (2026-10-30).** The BreadBoard
+> display exception clears its first assertion, but its native guest-profile
+> fetch still fails with an NSError chain ending in sandbox restriction 159
+> for `com.apple.mobile.keybagd.UserManager.xpc`. A mobile native probe with
+> BreadBoard's relevant client entitlements reproduces it. Userprofilesd's
+> donor sandbox lacks that lookup. New `system-userprofilesd-exp-keybag_lookup`
+> adds exactly that one exception to userprofilesd, preserving the native
+> profile/persona APIs and authorizations; it never fabricates a profile.
+> Selected only in `homeview`, gated to 27.2, reversible from executable backup.
+> Native setup bypass verification passed independently (`NeedsSetup=false`,
+> `CompletedInitialRun=true`, with `SetupDone` untouched). Validated on the
+> clean HomeView VM: native guest-profile retrieval succeeds, BreadBoard
+> stays up, and Setup.app renders. Touch navigation works from the bypassed
+> dashboard into World Clock and its city chooser.
+
+> **HomeView native shell display startup (2026-10-30).** The clean guest
+> reaches vphoned and backboardd, but BreadBoard traps in
+> `BKSDisplayServicesStart+436`, at the nonzero display-service query status
+> assertion, before drawing its UI. Its donor entitlements use
+> `temporary-sandbox` and lack `com.apple.backboard.display.services` and the
+> backboard HID/render lookups already repaired for Campo on the 26.4 kernel.
+> New `system-breadboard-exp-mach_lookup` reuses that scoped exception merger,
+> preserves the rest of BreadBoard's entitlements, and keeps an executable
+> backup for deselection. On only in `homeview`, gated to 27.2; native setup
+> still stays on. Validated: the display-service assertion is gone. Native
+> startup also needs the userprofilesd lookup repair above. No new kernel or
+> instruction patch.
+
+> **HomeView bringup (2026-10-30).** Adds the opt-in
+> `system-homeview-exp-setup_bypass`, off in every shipped preset, including
+> the new `homeview` preset. The existing mobile setup helper runs in an
+> isolated HomeView mode, journals only `com.apple.purplebuddy/ForceNoBuddy`,
+> verifies the native SetupAssistant gates, and restores the exact original
+> key on deselection. No completion, activation or HomeKit state is fabricated.
+> `devicetree-cfw-homeview_touch` enables DriverKit for the VM's USB HID touch
+> screen on J490/J491 installed trees only. The existing
+> `devicetree-cfw-tv_app_architecture` also copies the `home` donor's app
+> architecture. `system-tv-exp-ota_userland` is reused for HomeView's own
+> arm64e full OTA over the HD restore base; Apple TV remote/setup adapters
+> remain off. No new instruction replacement or kernel patch. Restore,
+> native setup, bypass enable/disable, framebuffer and touch are now tested; see
+> [HomeView bringup](Firmware/homeview_bringup.md).
+
 > **Camera session teardown (2026-10-29).** Source-only change in libcamfix.
 > Session tracking uses `objc_storeWeakOrNil` and a strong weak-load before
 > weak-table insertion. It skips sessions already in deallocation.
@@ -5689,3 +5755,47 @@ The host VM view now derives its input geometry from the active Duo viewport (`a
 > **Duo: folds through SpringBoard, and DeviceHub follows them (2026-10-29 night, PR Lakr233/vphone-cli#774):** no binary change. vphoned's `display.posture` `position` asks SpringBoard to fold itself through `SBSDisplayToolService` (entitlement `com.apple.springboard.sbdisplay.service`) and then sets only the virtual hinge (`Research/vphoned_http_api.md`, "Device pose"). In `system-springboard-cfw-fold_display`, `libvphonefolddisplay.dylib` (1) re-reads the shared panel's owner on `-[SpringBoard displayContentModeCoordinator:handleSwapTransitionFromPrimaryWindowScene:toPrimaryWindowScene:withContinuationLockProvider:]` as well, because a continuous close swaps the primary content as it finishes and the panel kept showing the (black) inner display for 3 s; and (2) in backboardd keeps every clone on the panel: `-[CAWindowServerDisplay addClone:options:]` on the inner render display attaches the clone to display 1 instead, and `removeClone:` removes a clone from its real `cloneMaster` (CoreAnimation aborts otherwise). backboardd moves a mirror (DeviceHub's capture display, AirPlay, recording) to the display with the primary content, so open it carried the inner display upright, while DeviceHub draws an open Duo's stream as the inner panel's native portrait framebuffer and turned it a quarter more; the panel is that framebuffer. Row 26's `libdevicehubfix` gains a `CMDeviceStateManager` stand-in in dtdeviceinfod (`VPCMAngleManager.m`: `isAvailable`, `startUpdatesToQueue:withHandler:`, `stopUpdates`, real `CMDeviceStateEvent`s with A device orientation 1, B the hinge state from `VPhoneHingeLatest`, C 0, delivered at start and on change): Xcode 27.1's DeviceHub (CoreDevicePop plugins) draws a foldable from CoreDevice's device motion state (`streamdevicemotionstate`), which a guest's CoreMotion could not answer ("Pose monitoring failed … 1001"), so the device was always drawn closed. **Validated on iPhone19,4 27.1 (24A94425):** closed shows the folded device with the cover screen, open the opened device with the inner screen upright and filling the panel, following live folds; the VM window is unchanged. **Open:** at book DeviceHub draws the cover (it names the inner panel only from DisplayInfo's `active` integrated display, and reporting the inner display as integrated makes DeviceHub want a per-display stream the guest cannot supply); DeviceHub's own pose controls (vendor-defined HID) are not wired to the guest.
 
 > **Duo: a hardware-shaped inner display, and DeviceHub's controls (2026-10-29 late, PR Lakr233/vphone-cli#774):** supersedes the clone redirect above and closes both of its open items. In `system-springboard-cfw-fold_display`, backboardd's inner `CAWindowServerVirtualDisplay` is now a portrait 2007×2853 framebuffer at 3× (the simulator's inner `CADisplay`), its `extendedProperties` adding `DisplayRotation` 270, `DisplayScale` 3, `ChromeIdentifier` `com.apple.dt.devicekit.chrome.phone14` and `DeviceCornerRadius` 55 beside `DeviceSurfaceType` 2; its one 120 Hz timing is 2007×2853; the digitizer's 270° position turn and both clone hooks (`addClone:options:`, `removeClone:`) are removed; SpringBoard's compositor draws the inner display's frames onto the panel without a turn. SpringBoard lays the inner UI out at interface orientation 90 into that framebuffer. Row 26's `libdevicehubfix`: `dtremotedisplayd` answers `0x184` (adds `0x100`, drops system audio `0x8`, video output by display ID: DeviceHub draws each integrated panel from its own stream and shows its pose controls only then); in `dtdeviceinfod`, `CADisplay` `displayType` answers 0 (integrated) and `pointScale` 3 for the display named `VPhone Duo Inner`; the `CMAngleManager` stand-in skips `-[CMAngleManagerInternal stopAngleUpdatesPrivate]` (reached from `-[CMAngleManager dealloc]`, it asserts the real hinge notifier is available and aborted `dtdeviceinfod` whenever DeviceHub reconnected), its `minAngleDegrees`/`maxAngleDegrees` return floats, and its `angleDegrees`, `mechanicalAngleDegrees` and `velocityDegreesPerSeconds` return floats, as `dtdeviceinfod`'s `CMAngle_Bridge` declares them (`Tf`, read from `s0`): doubles read as 0° for every whole angle, which in book (where DeviceHub takes the angle from this stream) drew the device nearly shut and focused the cover; `CMDeviceStateManager`'s A is the device orientation vphoned publishes (`VPhoneDeviceOrientation`). vphoned (no binary change) decodes DeviceHub's vendor-defined HID controls (usage page `0xFF61`, usage `0x5B`, an IOKit binary-serialized dictionary from the DDI's `dtuhidd`) and folds or turns through `display.posture`'s paths. **Validated on iPhone19,4 27.1 (24A94425), sbdisplay-duo:** open and closed from DeviceHub's buttons follow and settle; book at 130° (DeviceHub's preset) draws the inner face upright with a vertical crease, as DeviceHub draws a simulator Duo; open and book fill the panel without black bars; 48 scripted folds over every path came back in the expected orientation; `display.rotation` 0/90/180/270 on the open inner panel turns it and DeviceHub's model with it. **Open:** DeviceHub's orientation picker and its book button were not pressed since the float fix (both run the paths measured above). **With the foldable product-id** (on in standard since Lakr233/vphone-cli#778) both `dtdeviceinfod` stand-ins (`CMAngleManager`, `CMDeviceStateManager`) step aside for CoreMotion's own managers, and locationd's relay takes DeviceHub's controls itself (dtuhidd's avpCustom service has the host controls' usage) while vphoned keeps the virtual hinge on each slider value and lights a sleeping cover before an opening run; measured on sbdisplay-duo, one guest fold per DeviceHub click. **2026-10-30:** in `system-springboard-cfw-fold_display` FoldDisplay turns SpringBoard's fold fade to black off for folds made awake (`SBDeviceContinuousFoldInteractionSettings.fadeToBlackEnabled`, via `+[SBDeviceContinuousFoldInteractionDomain rootSettings]`; kept for a fold that starts with the panel off or just lit, where it hides the inner content the effect carries over) and hands the shared panel to the inner display inside the primary-swap callback, so opening out of closed shows a few dark frames instead of 0.12 to 0.2 s of black (`Research/Guest/iphone_duo_bringup.md`, "the fold's fade to black on one panel").
+
+## HomeView shell Metal compiler lookup (2026-10-30)
+
+The existing `system-breadboard-exp-mach_lookup` patch now also appends exactly
+`com.apple.MTLCompilerService` to BreadBoard's global Mach lookup exception list.
+Campo's shared backboard/frontboard list is unchanged. This retains the native
+`temporary-sandbox` profile, every donor entitlement, and the existing executable
+backup/deselection path; no kernel or shader binary is changed.
+
+Live HomeView 27.2 / 24V514 on cloudOS 26.4 repeatedly stalled BreadBoard during
+app/Home gestures in RenderBox → Metal function specialization → compiler queue
+wait. A unique-source public Metal probe, signed with the installed BreadBoard's
+exact entitlements and run as mobile501, failed with MTLLibraryErrorDomain3,
+lookup error159, `Sandbox restriction`. Earlier identical-source probes hit
+cached libraries and concealed this denial. Adding only the compiler lookup to
+that probe's entitlements made a fresh unique library compile in 0.05217s and
+specialize in 0.001099s. Cache-path sandbox-extension warnings remained nonfatal;
+no file permission exceptions were added. Raw evidence and variant entitlements
+are in `.build/homeview-distance-runtime/public-metal-*`; native consumer tracing
+is in `Research/Firmware/homeview_distance_consumers.md`. Full shell retest after
+deployment remains pending at this entry's creation.
+
+Deployment retest: Xcode built `VPhone` successfully (60.743s,
+`BuildProject-Log-20261030-211312.txt`); Launchpad installed
+`2.15.0-local.0cfd6bd1` with policy/preflight passing and updated HomeView's host
+and guest environment bindings. The installed BreadBoard entitlements differ
+from b53c29c8 only by the compiler lookup. The formerly hanging bottom Home
+gesture now renders the glass app drawer, native environment fetch stays fast,
+and Timers visibly launches to its native preset grid. Screenshot evidence is
+`0cfd-after-home.jpg` and `0cfd-timers-settled.jpg` under the runtime directory.
+The entitlement merge suite passed all7 tests, including the new HomeView
+sandbox-preservation/Campo-isolation regression. Native distance ABI checks
+also passed. No extra patch selection or boot-chain update was needed.
+
+Final rollout: **2.15.0-local.e2850909** adds the native app-latching explanation
+to Controls, preserving the same validated compiler lookup repair. Host and
+guest environment bindings updated successfully, vphoned answered in6seconds,
+and an acknowledged environment reset plus independent fetch returned
+Automatic/detail2/override=false/style0/backlight2. The native clock is visibly
+awake. Far/Near/Far actual FrontBoard settings and UIKit scene/view traits were
+verified0→2→0 in the temporary observer; the Far reduction flushes when the app
+backgrounds, matching Charcuterie's explicit latching policy. No ActivityKit
+permission expansion is part of this patch or the installed bundle. All guest
+test timers, activities, apps, helpers and overrides were cleaned up.

@@ -7,6 +7,9 @@ struct VPhoneControlsView: View {
         VStack(spacing: 0) {
             Form {
                 displaySection
+                if model.control.isHomeViewGuest {
+                    VPhoneHomeViewDistanceSection(control: model.control)
+                }
                 audioSection
                 if model.control.isHomePodGuest {
                     VPhoneHomePodDebugSection(control: model.control)

@@ -19,6 +19,7 @@ trap '/bin/rm -rf "$temporary"' EXIT
     "$daemon/Daemon/GuestProcessSpawnPolicy.swift" \
     "$daemon/Daemon/Bootstrap/GuestBootstrapPlatform.swift" \
     "$daemon/Daemon/GuestSetupAssistantState.swift" \
+    "$daemon/Daemon/GuestHomeViewDistancePolicy.swift" \
     "$daemon/Tests/LogicTests.swift" \
     -o "$temporary/logic-tests"
 

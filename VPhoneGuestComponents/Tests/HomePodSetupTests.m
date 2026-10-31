@@ -92,6 +92,27 @@ int main(void) {
         prepareFails = NO; sentinel = YES;
         CHECK(!VPHomePodSetupPrepare(YES, NO, YES, needs, completed, prepare, ^BOOL { return NO; }, &error));
         CHECK(error != nil); // Existing-state publication failure must remain retryable.
+        // HomeView uses the native ForceNoBuddy override only. Preserve the
+        // distinction between an absent preference and an explicit false/true,
+        // and never overwrite setup choices or snapshot our own override.
+        for (id original in @[NSNull.null, @NO, @YES]) {
+            NSURL *homeJournal = [NSURL fileURLWithPath:[path stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
+            NSMutableDictionary *homePreferences = [@{@"SetupDone": @NO, @"SetupFinishedAllSteps": @NO} mutableCopy];
+            if (original != NSNull.null) homePreferences[@"ForceNoBuddy"] = original;
+            void (^homeSet)(NSString *, id) = ^(NSString *key, id value) {
+                CHECK([key isEqual:@"ForceNoBuddy"]);
+                if (value) homePreferences[key] = value;
+                else [homePreferences removeObjectForKey:key];
+            };
+            CHECK(VPSetupUpdateKeys(@[@"ForceNoBuddy"], YES, homeJournal, homePreferences, homeSet, ^BOOL { return YES; }, &error));
+            CHECK([homePreferences[@"ForceNoBuddy"] isEqual:@YES]);
+            CHECK(VPSetupUpdateKeys(@[@"ForceNoBuddy"], YES, homeJournal, homePreferences, homeSet, ^BOOL { return YES; }, &error));
+            CHECK(VPSetupUpdateKeys(@[@"ForceNoBuddy"], NO, homeJournal, homePreferences, homeSet, ^BOOL { return YES; }, &error));
+            CHECK(original == NSNull.null ? homePreferences[@"ForceNoBuddy"] == nil : [homePreferences[@"ForceNoBuddy"] isEqual:original]);
+            CHECK([homePreferences[@"SetupDone"] isEqual:@NO] && [homePreferences[@"SetupFinishedAllSteps"] isEqual:@NO]);
+            CHECK(!VPHomePodSetupUpdate(NO, homeJournal, homePreferences, homeSet, ^BOOL { return YES; }, &error));
+        }
+        [NSFileManager.defaultManager removeItemAtPath:path error:NULL];
         NSLog(@"HomePod setup journal and native transition tests passed");
     }
     return 0;

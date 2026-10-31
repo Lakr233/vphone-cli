@@ -12,6 +12,9 @@ extension GuestAPI {
                 process: optionalString(params, "process"),
                 level: optionalString(params, "level") ?? "all",
                 maxLines: (params["max_lines"] as? NSNumber)?.intValue ?? 500,
+                subsystem: optionalString(params, "subsystem"),
+                category: optionalString(params, "category"),
+                messageContains: optionalString(params, "message_contains"),
             )
         case "logs.crashes":
             let paths = try crashLogs(bundleID: optionalString(params, "bundle_id"))["crashes"] as? [String] ?? []

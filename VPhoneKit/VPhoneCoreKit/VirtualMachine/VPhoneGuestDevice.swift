@@ -20,6 +20,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         case iPad
         case appleTV
         case homePod
+        case homeView
         case watch
 
         public var osName: String {
@@ -28,14 +29,15 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
             case .iPad: "iPadOS"
             case .appleTV: "tvOS"
             case .homePod: "HomePod Software"
+            case .homeView: "HomeView Software"
             case .watch: "watchOS"
             }
         }
 
-        /// Apple TV and HomePod share the tvOS executable platform and
+        /// Apple TV, HomePod and HomeView share the tvOS executable platform and
         /// filesystem layout. Their user interfaces and device idioms differ.
         public var usesTVOS: Bool {
-            self == .appleTV || self == .homePod
+            self == .appleTV || self == .homePod || self == .homeView
         }
     }
 
@@ -223,6 +225,24 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         screen: .init(width: 3840, height: 2160, pixelsPerInch: 144, scale: 2.0),
     )
 
+    /// HomeView's two OTA board identities. The square 1088-pixel canvas is
+    /// provisional; the donor tree supplies the home idiom and 2x artwork scale.
+    public static let homeAccessory17_1 = VPhoneGuestDevice(
+        family: .homeView,
+        productType: "HomeAccessory17,1",
+        deviceClass: "j490ap",
+        productName: "HomeView (J490)",
+        screen: .init(width: 1088, height: 1088, pixelsPerInch: 264, scale: 2.0),
+    )
+
+    public static let homeAccessory17_2 = VPhoneGuestDevice(
+        family: .homeView,
+        productType: "HomeAccessory17,2",
+        deviceClass: "j491ap",
+        productName: "HomeView (J491)",
+        screen: .init(width: 1088, height: 1088, pixelsPerInch: 264, scale: 2.0),
+    )
+
     /// HomePod mini (B520AP). It has no physical display; this small virtual
     /// canvas satisfies the VM graphics configuration and is not a panel
     /// specification or a promise of a graphical HomePod interface.
@@ -256,10 +276,11 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
 
     /// The device whose IPSW is restored under this one, for a device Apple
     /// ships no IPSW for: the Apple TV HD under the Apple TV 4K, whose own
-    /// device tree and userland `fw prepare` takes from its OTA. Nil for every
+    /// device tree and userland `fw prepare` takes from its OTA. HomeView uses
+    /// the same restore base with its own board tree and full OTA. Nil for every
     /// device restored from its own IPSW.
     public var restoreBase: VPhoneGuestDevice? {
-        self == .appleTV14_1 || self == .appleTV18_1 ? .appleTV5_3 : nil
+        self == .appleTV14_1 || self == .appleTV18_1 || family == .homeView ? .appleTV5_3 : nil
     }
 
     public static let known: [VPhoneGuestDevice] = [
@@ -274,7 +295,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         iPad16_3, iPad16_5,
         iPad17_1, iPad17_3,
         appleTV5_3, appleTV14_1, appleTV18_1,
-        audioAccessory5_1,
+        audioAccessory5_1, homeAccessory17_1, homeAccessory17_2,
         watch7_18,
     ]
 
@@ -311,7 +332,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
     public func restoreTreeName(version: String, build: String) -> String {
         switch family {
         case .iPhone: "\(productType)_\(version)_\(build)_Restore"
-        case .iPad, .appleTV, .homePod, .watch: "iPhoneOS_\(productType)_\(version)_\(build)_Restore"
+        case .iPad, .appleTV, .homePod, .homeView, .watch: "iPhoneOS_\(productType)_\(version)_\(build)_Restore"
         }
     }
 

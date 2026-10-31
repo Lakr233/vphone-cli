@@ -51,6 +51,11 @@ public enum FirmwareGuestSystemPatchSet {
     public static let locationdCohorting = "system-locationd-cfw-disable_auto_cohort"
     public static let virtualBluetooth = "system-bluetoothd-cfw-btvc_le_connection"
     public static let jetsamDisableAllowed = "system-jetsamproperties-cfw-disable_allowed"
+    public static let homeViewProfileLookup = "system-userprofilesd-exp-keybag_lookup"
+    public static let homeViewDisplayLookups = "system-breadboard-exp-mach_lookup"
+    public static let homeViewSetupBypass = "system-homeview-exp-setup_bypass"
+    public static let homeViewEnvironmentService = "dyld-exp-homeview_environment_service"
+    public static let homeViewSetupPath = "/usr/share/vphone/HomeViewSetup.plist"
     public static let tvTPRO = "system-dyld-exp-tv_tpro"
     public static let tvSetupDisplayLookup = "system-setupbackground-exp-pineboard_lookup"
     public static let tvLegacySetup = "system-tv-exp-legacy_setup"
@@ -92,10 +97,38 @@ public enum FirmwareGuestSystemPatchSet {
         summary: "Shared-cache policy gates, patched system daemons and the vphone guest payload",
         patches: [
             VPhonePatchDeclaration(
+                identifier: homeViewEnvironmentService,
+                title: "HomeView distance simulation service",
+                summary: "Enables BreadBoard's native environment simulation service on retail HomeView 27.2 by opening only its internal-install gate. Preserves the service's client entitlement check and global build identity. Experimental, off by default; native near/far runtime validation is pending.",
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: homePodCryptexClass,
                 title: "HomePod Cryptex product class",
                 summary: "Sets the research kernel's Cryptex product class to the native tvOS/HomePod value so signed tvOS developer images pass Image4 equality validation. Changes only /product/cryptex1-product-class; preserves the global product token.",
                 target: .prebootDeviceTree,
+                applicability: ios27,
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewProfileLookup,
+                title: "HomeView guest profile keybag access",
+                summary: "Adds only the native Keybag/UserManager Mach service lookup to userprofilesd's temporary sandbox so its guest-profile request can reach the service on the older research kernel. Preserves authorization checks and original entitlements; reversible from backup.",
+                target: .guestExecutable(path: "/System/Library/PrivateFrameworks/UserProfilesDaemon.framework/Support/userprofilesd"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewDisplayLookups,
+                title: "HomeView shell display access",
+                summary: "Adds backboard/frontboard and Metal compiler Mach service lookups to BreadBoard's temporary sandbox for the older research kernel. Preserves its existing entitlements and keeps an executable backup for deselection.",
+                target: .guestExecutable(path: "/System/Library/CoreServices/BreadBoard.app/BreadBoard"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: homeViewSetupBypass,
+                title: "HomeView setup bypass",
+                summary: "Sets the native SetupAssistant ForceNoBuddy preference as mobile, with a key-level journal restored when disabled. Account, activation and HomeKit state remain native. Off by default; takes effect at boot.",
+                target: .guestFile(path: homeViewSetupPath),
                 applicability: ios27,
             ),
             VPhonePatchDeclaration(

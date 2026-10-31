@@ -16,9 +16,15 @@ static BOOL VPSetupError(NSError **error, NSString *description) {
 
 BOOL VPHomePodSetupUpdate(BOOL enabled, NSURL *journalURL, NSDictionary<NSString *, id> *current,
                          void (^setValue)(NSString *, id), BOOL (^synchronize)(void), NSError **error) {
+    return VPSetupUpdateKeys(VPHomePodSetupKeys(), enabled, journalURL, current, setValue, synchronize, error);
+}
+
+BOOL VPSetupUpdateKeys(NSArray<NSString *> *keys, BOOL enabled, NSURL *journalURL,
+                       NSDictionary<NSString *, id> *current, void (^setValue)(NSString *, id),
+                       BOOL (^synchronize)(void), NSError **error) {
     NSMutableDictionary *values = [NSMutableDictionary dictionary];
-    for (NSString *key in VPHomePodSetupKeys()) values[key] = @YES;
-    return VPHomePodPreferenceUpdate(VPHomePodSetupKeys(), values, enabled, journalURL, current, setValue, synchronize, error);
+    for (NSString *key in keys) values[key] = @YES;
+    return VPHomePodPreferenceUpdate(keys, values, enabled, journalURL, current, setValue, synchronize, error);
 }
 
 BOOL VPHomePodPreferenceUpdate(NSArray<NSString *> *keys, NSDictionary<NSString *, id> *enabledValues,
