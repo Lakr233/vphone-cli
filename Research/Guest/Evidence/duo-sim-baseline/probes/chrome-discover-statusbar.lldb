@@ -1,0 +1,23 @@
+expr -l objc -O --
+NSMutableArray *vpOut = [NSMutableArray array];
+NSMutableArray *vpStack = [NSMutableArray array];
+for (UIScene *vpSc in [[UIApplication sharedApplication] connectedScenes]) {
+  if (![vpSc isKindOfClass:NSClassFromString(@"SBWindowScene")]) continue;
+  for (UIWindow *vpW in [(UIWindowScene *)vpSc windows]) {
+    if (![NSStringFromClass([vpW class]) isEqualToString:@"SBStatusBarWindow"]) continue;
+    [vpOut addObject:[NSString stringWithFormat:@"== %@ window %@ frame=%@ bounds=%@ transform=%@", vpSc.session.persistentIdentifier, NSStringFromClass([vpW class]), NSStringFromCGRect(vpW.frame), NSStringFromCGRect(vpW.bounds), NSStringFromCGAffineTransform(vpW.transform)]];
+    [vpStack removeAllObjects];
+    [vpStack addObject:@[vpW, @0]];
+    while (vpStack.count) {
+      NSArray *vpTop = [vpStack lastObject]; [vpStack removeLastObject];
+      UIView *vpV = vpTop[0]; long vpD = [(NSNumber *)vpTop[1] longValue];
+      CGRect vpF = [vpV convertRect:vpV.bounds toView:vpW];
+      NSString *vpExtra = @"";
+      if ([vpV respondsToSelector:@selector(text)]) vpExtra = [NSString stringWithFormat:@" text=%@", [(NSObject *)[vpV valueForKey:@"text"] description]];
+      if (!CGAffineTransformIsIdentity(vpV.transform)) vpExtra = [vpExtra stringByAppendingFormat:@" xf=%@", NSStringFromCGAffineTransform(vpV.transform)];
+      [vpOut addObject:[NSString stringWithFormat:@"%@%@ %p win=%@ frame=%@ h=%d a=%.2f%@", [@"" stringByPaddingToLength:vpD*2 withString:@" " startingAtIndex:0], NSStringFromClass([vpV class]), vpV, NSStringFromCGRect(vpF), NSStringFromCGRect(vpV.frame), vpV.hidden, vpV.alpha, vpExtra]];
+      if (vpD < 14) { NSArray *vpSubs = vpV.subviews; for (NSInteger vk = (NSInteger)vpSubs.count - 1; vk >= 0; vk--) [vpStack addObject:@[vpSubs[vk], @(vpD + 1)]]; }
+    }
+  }
+}
+[vpOut componentsJoinedByString:[NSString stringWithFormat:@"%c", 10]]

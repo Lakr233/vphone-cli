@@ -1,0 +1,51 @@
+expr -l objc -O --
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+NSDictionary *(^vpRect)(CGRect) = ^NSDictionary *(CGRect r) {
+  return @{@"x": @(r.origin.x), @"y": @(r.origin.y), @"width": @(r.size.width), @"height": @(r.size.height)};
+};
+NSArray *vpScreens = [UIScreen screens];
+vpAdd(@"UIScreen.screens", @"public", @"[UIScreen screens].count", @(vpScreens.count), nil);
+for (NSUInteger vi = 0; vi < vpScreens.count; vi++) {
+  UIScreen *vpS = vpScreens[vi];
+  NSString *vpCall = [NSString stringWithFormat:@"[UIScreen screens][%lu]", (unsigned long)vi];
+  vpAdd(@"UIScreen.bounds", @"public", [vpCall stringByAppendingString:@".bounds"], vpRect(vpS.bounds), nil);
+  vpAdd(@"UIScreen.nativeBounds", @"public", [vpCall stringByAppendingString:@".nativeBounds"], vpRect(vpS.nativeBounds), nil);
+  vpAdd(@"UIScreen.scale", @"public", [vpCall stringByAppendingString:@".scale"], @(vpS.scale), nil);
+  vpAdd(@"UIScreen.nativeScale", @"public", [vpCall stringByAppendingString:@".nativeScale"], @(vpS.nativeScale), nil);
+  vpAdd(@"UIScreen.isMainScreen", @"public", [vpCall stringByAppendingString:@" == [UIScreen mainScreen]"], @(vpS == [UIScreen mainScreen]), nil);
+  vpAdd(@"UIScreen.displayIdentity", @"private", [vpCall stringByAppendingString:@" valueForKey:@\"displayIdentity\""], [(NSObject *)[vpS valueForKey:@"displayIdentity"] description], nil);
+  if ([vpS respondsToSelector:@selector(_name)]) {
+    vpAdd(@"UIScreen._name", @"private", [vpCall stringByAppendingString:@"._name"], [(NSObject *)[vpS performSelector:@selector(_name)] description], nil);
+  } else {
+    vpAdd(@"UIScreen._name", @"private", [vpCall stringByAppendingString:@"._name"], nil, @"does not respond to _name");
+  }
+}
+NSObject *vpSvc = [[UIApplication sharedApplication] valueForKey:@"_displayToolService"];
+NSObject *vpDCM = [vpSvc valueForKey:@"_displayContentModeCoordinator"];
+NSDictionary *(^vpScene)(UIWindowScene *) = ^NSDictionary *(UIWindowScene *ws) {
+  if (!ws) return (NSDictionary *)nil;
+  return @{@"persistentIdentifier": ws.session.persistentIdentifier ?: @"",
+           @"displayIdentity": [(NSObject *)[ws.screen valueForKey:@"displayIdentity"] description] ?: @"",
+           @"screenBounds": vpRect(ws.screen.bounds),
+           @"interfaceOrientation": @(ws.interfaceOrientation)};
+};
+UIWindowScene *vpPrimary = (UIWindowScene *)[vpDCM valueForKey:@"primaryWindowScene"];
+UIWindowScene *vpActive = (UIWindowScene *)[vpDCM valueForKey:@"activeWindowScene"];
+vpAdd(@"SBDisplayContentModeCoordinator.primaryWindowScene", @"private", @"[SBDisplayContentModeCoordinator primaryWindowScene]", vpScene(vpPrimary), nil);
+vpAdd(@"SBDisplayContentModeCoordinator.activeWindowScene", @"private", @"[SBDisplayContentModeCoordinator activeWindowScene]", vpScene(vpActive), nil);
+for (UIWindowScene *vpWS in (NSArray *)[vpDCM valueForKey:@"_connectedWindowScenes"]) {
+  long vpMode = ((long (*)(id, SEL, id))objc_msgSend)(vpDCM, @selector(displayContentModeForWindowScene:), vpWS);
+  BOOL vpUser = ((BOOL (*)(id, SEL, id))objc_msgSend)(vpDCM, @selector(isAppliedDisplayContentModeUserInitiatedForWindowScene:), vpWS);
+  NSString *vpCall = [NSString stringWithFormat:@"[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<%@>]", vpWS.session.persistentIdentifier];
+  vpAdd(@"SBDisplayContentModeCoordinator.displayContentModeForWindowScene", @"private", vpCall,
+        @{@"scene": vpScene(vpWS), @"displayContentMode": @(vpMode), @"userInitiated": @(vpUser)}, nil);
+}
+vpAdd(@"SBFDisplayContentModeResolver.description", @"private", @"[[SBDisplayContentModeCoordinator valueForKey:@\"_resolver\"] description]", [(NSObject *)[vpDCM valueForKey:@"_resolver"] description], nil);
+NSDictionary *vpOut = @{@"orientation": @(vpPrimary.interfaceOrientation), @"records": vpRecs};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpOut options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

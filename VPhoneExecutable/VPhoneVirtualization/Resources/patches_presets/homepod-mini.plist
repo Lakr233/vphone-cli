@@ -111,7 +111,8 @@
 			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
 			<string>preboot-homepod-exp-audio_product</string>
-			<string>preboot-exp-devicetree_foldable_product_id</string>
+			<string>preboot-cfw-devicetree_foldable_product_id</string>
+			<string>preboot-cfw-devicetree_foldable_displays</string>
 			<string>restoreramdisk-boot-apfs_sha3_hash</string>
 			<string>system-apps-cfw-attitude</string>
 			<string>system-apps-cfw-signin_sheets</string>
@@ -155,7 +156,7 @@
 		</array>
 	</dict>
 	<key>Summary</key>
-	<string>Research: HomePod mini's own arm64e TVOS IPSW with vphoned, its donor-driven top cap, local setup completion and virtio audio using an audio-only B520 route, without changing the VM product token or adding Apple TV OTA replacement or iPhone display, camera and routing hooks.</string>
+	<string>Research: HomePod mini's own arm64e TVOS IPSW with vphoned, its donor-driven top cap, local setup completion, AirPlay's own VM override and virtio audio using an audio-only B520 route, without changing the VM product token or adding Apple TV OTA replacement or iPhone display, camera and routing hooks.</string>
 	<key>Title</key>
 	<string>HomePod mini</string>
 </dict>

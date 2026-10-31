@@ -1,0 +1,25 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+unsigned int vpCount = 0;
+Class *vpAll = objc_copyClassList(&vpCount);
+NSMutableArray *vpNames = [NSMutableArray array];
+for (unsigned int vi = 0; vi < vpCount; vi++) {
+  NSString *vpN = @(class_getName(vpAll[vi]));
+  NSString *vpL = [vpN lowercaseString];
+  if ([vpL containsString:@"hinge"] || [vpL containsString:@"fold"] || [vpL containsString:@"posture"] || [vpL containsString:@"devicedetermined"] || [vpL containsString:@"magicpose"] || [vpL containsString:@"surfacetype"] || [vpL containsString:@"displaycontentmode"]) [vpNames addObject:vpN];
+}
+free(vpAll);
+[vpNames sortUsingSelector:@selector(compare:)];
+for (NSString *vpN in vpNames) {
+  Class vpC = NSClassFromString(vpN);
+  const char *vpImg = class_getImageName(vpC);
+  [vpOut appendFormat:@"== CLASS %@ super=%s image=%s\n", vpN, class_getName(class_getSuperclass(vpC)), vpImg ?: "?"];
+  unsigned int vpMN = 0; Method *vpML = class_copyMethodList(vpC, &vpMN);
+  for (unsigned int vj = 0; vj < vpMN; vj++) { char vpRT[128]; method_getReturnType(vpML[vj], vpRT, sizeof(vpRT)); [vpOut appendFormat:@"  M %@ (%s)\n", NSStringFromSelector(method_getName(vpML[vj])), vpRT]; }
+  free(vpML);
+  vpMN = 0; vpML = class_copyMethodList(object_getClass((id)vpC), &vpMN);
+  for (unsigned int vj = 0; vj < vpMN; vj++) { char vpRT[128]; method_getReturnType(vpML[vj], vpRT, sizeof(vpRT)); [vpOut appendFormat:@"  + %@ (%s)\n", NSStringFromSelector(method_getName(vpML[vj])), vpRT]; }
+  free(vpML);
+}
+vpOut
+

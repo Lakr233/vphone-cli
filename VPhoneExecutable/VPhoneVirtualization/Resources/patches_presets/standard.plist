@@ -79,6 +79,7 @@
 			<string>dyld-exp-homeview_environment_service</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-setup_bypass</string>
+			<string>system-homepod-exp-airplay_vm</string>
 			<string>system-homepod-exp-welcome</string>
 			<string>system-homepod-exp-siri_speech</string>
 			<string>system-homepod-exp-ota_userland</string>
@@ -104,7 +105,6 @@
 			<string>devicetree-exp-arm_io_soc_generation</string>
 			<string>preboot-exp-devicetree_identity</string>
 			<string>dyld-exp-mis_trust_auth</string>
-			<string>preboot-exp-devicetree_foldable_product_id</string>
 			<string>system-preferences-exp-root_rows</string>
 			<string>dyld-exp-settings_software_update_row</string>
 			<string>system-dyld-exp-tv_tpro</string>

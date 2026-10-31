@@ -63,13 +63,19 @@ enum KernelCacheKDK {
     }
 
     /// Copy `base` to `output` and keep the bundles listed in `wanted`, each from
-    /// the first of `sources` (which includes `base`) that has it; the kernel's
-    /// KPI bundles (System.kext) always stay the base's. Nested bundles keep
-    /// their parents' directories. Returns the base bundles dropped and the
-    /// bundles added from each other source.
-    static func mix(base: URL, sources: [URL], wanted: [String], output: URL) throws -> (removed: [String], added: [URL: [String]]) {
+    /// the first of `sources` (which includes `base`) that has it, or from the
+    /// source `pinned` names for it; the kernel's KPI bundles (System.kext)
+    /// always stay the base's. Nested bundles keep their parents' directories.
+    /// Returns the base bundles dropped and the bundles added from each other
+    /// source.
+    static func mix(
+        base: URL, sources: [URL], wanted: [String], output: URL, pinned: [String: Int] = [:],
+    ) throws -> (removed: [String], added: [URL: [String]]) {
         let fm = FileManager.default
         let wantedSet = Set(wanted)
+        if let stray = pinned.keys.sorted().first(where: { !wantedSet.contains($0) }) {
+            throw PatcherError.invalidFormat("\(stray) is pinned but not among the wanted bundles")
+        }
         if fm.fileExists(atPath: output.path) { try fm.removeItem(at: output) }
         try fm.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fm.copyItem(at: base, to: output)
@@ -84,6 +90,11 @@ enum KernelCacheKDK {
         for id in wantedSet {
             if let relative = have[id], isKPI(relative) {
                 owner[id] = sources.firstIndex(of: base)
+            } else if let index = pinned[id] {
+                guard available.indices.contains(index), available[index][id] != nil else {
+                    throw PatcherError.fileNotFound("\(id) is pinned to a source that does not have it")
+                }
+                owner[id] = index
             } else {
                 owner[id] = available.indices.first { index in
                     available[index][id].map { sources[index] == base || !isKPI($0) } ?? false

@@ -1,0 +1,37 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+UIWindowScene *vpWS = nil;
+for (UIScene *vpSc in [[UIApplication sharedApplication] connectedScenes]) { if ([vpSc isKindOfClass:[UIWindowScene class]]) { vpWS = (UIWindowScene *)vpSc; break; } }
+id (^vpGet)(id, NSString *) = ^id(id o, NSString *s) { SEL vs = NSSelectorFromString(s); return (o && [(NSObject *)o respondsToSelector:vs]) ? ((id (*)(id, SEL))objc_msgSend)(o, vs) : nil; };
+NSObject *vpFBS = vpGet(vpWS, @"_FBSScene");
+NSObject *vpSet = vpGet(vpFBS, @"settings");
+NSObject *vpCS = vpGet(vpFBS, @"clientSettings");
+NSMutableArray *vpObjs = [NSMutableArray array];
+for (id vpO in @[vpWS ?: [NSNull null], vpWS.effectiveGeometry ?: [NSNull null], vpWS.traitCollection ?: [NSNull null], vpWS.screen ?: [NSNull null], vpWS.session ?: [NSNull null], vpWS.sizeRestrictions ?: [NSNull null], vpWS.statusBarManager ?: [NSNull null], vpFBS ?: [NSNull null], vpSet ?: [NSNull null], vpCS ?: [NSNull null], vpWS.windows.firstObject ?: [NSNull null], vpGet(vpSet, @"displayConfiguration") ?: [NSNull null], (id)vpWS.screen.coordinateSpace ?: [NSNull null], (id)vpWS.screen.fixedCoordinateSpace ?: [NSNull null], [UIApplication sharedApplication]]) [vpObjs addObject:vpO];
+NSMutableSet *vpSeen = [NSMutableSet set];
+for (NSObject *vpO in vpObjs) {
+  if (vpO == (NSObject *)[NSNull null]) { [vpOut appendString:@"== <null>\n"]; continue; }
+  [vpOut appendFormat:@"== OBJECT %s\n", class_getName(object_getClass(vpO))];
+  for (Class vpC = object_getClass(vpO); vpC && vpC != [NSObject class]; vpC = class_getSuperclass(vpC)) {
+    NSString *vpCN = @(class_getName(vpC));
+    if ([vpSeen containsObject:vpCN]) continue;
+    [vpSeen addObject:vpCN];
+    [vpOut appendFormat:@"== CLASS %@\n", vpCN];
+    unsigned int vpN = 0; Method *vpML = class_copyMethodList(vpC, &vpN);
+    for (unsigned int vj = 0; vj < vpN; vj++) {
+      NSString *vpSel = NSStringFromSelector(method_getName(vpML[vj]));
+      if ([vpSel containsString:@":"]) continue;
+      char vpRT[256]; method_getReturnType(vpML[vj], vpRT, sizeof(vpRT));
+      [vpOut appendFormat:@"M %@ %@ %s\n", vpCN, vpSel, vpRT];
+    }
+    free(vpML);
+    unsigned int vpPN = 0; objc_property_t *vpPL = class_copyPropertyList(vpC, &vpPN);
+    for (unsigned int vj = 0; vj < vpPN; vj++) [vpOut appendFormat:@"P %@ %s %s\n", vpCN, property_getName(vpPL[vj]), property_getAttributes(vpPL[vj])];
+    free(vpPL);
+    unsigned int vpIN = 0; Ivar *vpIL = class_copyIvarList(vpC, &vpIN);
+    for (unsigned int vj = 0; vj < vpIN; vj++) [vpOut appendFormat:@"I %@ %s %s\n", vpCN, ivar_getName(vpIL[vj]), ivar_getTypeEncoding(vpIL[vj]) ?: ""];
+    free(vpIL);
+  }
+}
+vpOut
+

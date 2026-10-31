@@ -1,0 +1,14 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+NSArray *vpPrefixes = @[@"ResolutionPolicy", @"SBFResolved", @"TRAArbit", @"TRAParticipant", @"TRASettings", @"TRAPreferences", @"IdleTimer", @"SBLockScreenManager", @"SBLockState", @"Yoink", @"SBScreenSleep", @"SBDisplayContentMode", @"DeviceOrientation", @"OrientationLock", @"SBFDisplayTool", @"SBDisplayLayout", @"SBSwitcherController", @"SBAutoLock", @"SBUserAgent"];
+unsigned int vpCount = 0;
+Class *vpClasses = objc_copyClassList(&vpCount);
+NSMutableArray *vpNames = [NSMutableArray array];
+for (unsigned int vi = 0; vi < vpCount; vi++) {
+  NSString *vpN = [NSString stringWithUTF8String:class_getName(vpClasses[vi])];
+  for (NSString *vpP in vpPrefixes) { if ([vpN rangeOfString:vpP].location != NSNotFound) { [vpNames addObject:vpN]; break; } }
+}
+free(vpClasses);
+[vpNames sortUsingSelector:@selector(compare:)];
+[vpNames componentsJoinedByString:@"\n"]
+

@@ -1,0 +1,25 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+NSArray *vpNames = @[@"CMMagicPoseManager", @"CMDeviceStateEvent", @"CMAngleManager", @"CMHingeAngleManager", @"CMMagicPose", @"CMDeviceState", @"CMDeviceStateManager", @"SBFDevicePoseProvider", @"SBFDevicePose", @"SBFHingeState", @"UIDevice", @"UIHingeInteraction", @"_UISceneHingeStateClientComponent", @"_UIHingeState", @"SBFDisplayContentModeResolver", @"SBFHingeStateMachine", @"CMMotionManager", @"CMDeviceMotion", @"CMAngleData", @"CMHingeAngle"];
+for (NSString *vpN in vpNames) {
+  Class vpC = NSClassFromString(vpN);
+  if (!vpC) { [vpOut appendFormat:@"=== %@: MISSING\n", vpN]; continue; }
+  Dl_info vpInfo; dladdr((__bridge void *)vpC, &vpInfo);
+  [vpOut appendFormat:@"=== %@ super=%@ image=%s\n", vpN, NSStringFromClass(class_getSuperclass(vpC)), vpInfo.dli_fname];
+  for (int vk = 0; vk < 2; vk++) {
+    Class vpT = vk ? object_getClass(vpC) : vpC;
+    unsigned int vpCount = 0; Method *vpM = class_copyMethodList(vpT, &vpCount);
+    for (unsigned int vj = 0; vj < vpCount; vj++) {
+      [vpOut appendFormat:@"  %s%s %s\n", vk ? "+" : "-", sel_getName(method_getName(vpM[vj])), method_getTypeEncoding(vpM[vj])];
+    }
+    free(vpM);
+  }
+  unsigned int vpIC = 0; Ivar *vpIv = class_copyIvarList(vpC, &vpIC);
+  for (unsigned int vj = 0; vj < vpIC; vj++) [vpOut appendFormat:@"  ivar %s %s\n", ivar_getName(vpIv[vj]), ivar_getTypeEncoding(vpIv[vj])];
+  free(vpIv);
+  unsigned int vpPC = 0; objc_property_t *vpPr = class_copyPropertyList(vpC, &vpPC);
+  for (unsigned int vj = 0; vj < vpPC; vj++) [vpOut appendFormat:@"  prop %s %s\n", property_getName(vpPr[vj]), property_getAttributes(vpPr[vj])];
+  free(vpPr);
+}
+vpOut
+

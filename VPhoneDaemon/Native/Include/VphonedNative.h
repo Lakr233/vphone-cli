@@ -123,7 +123,29 @@ void vp_hid_touch_edge(int phase, double x, double y, int edge);
 /// Turn the display on without pressing a button. False when
 /// SpringBoardServices has no SBSUndimScreen.
 bool vp_screen_undim(void);
+/// Call `touched` on a private queue when a finger lands on the screen while
+/// SpringBoard has it blanked, at most every half second: the tap a phone's
+/// touch controller reports as a wake gesture.
+void vp_tap_to_wake_start(void (* _Nonnull touched)(void));
 bool vp_device_pose_set(int deviceOrientation, int hingeState, int tabletopPose);
+/// Fold a foldable guest through SpringBoard's display tool service: sweep
+/// its hinge pose to `position` (0 closed, 1 open flat) and swap displays on
+/// the way. `durationSeconds` < 0 is the per-direction default, 0 an instant
+/// swap; `deviceOrientation` 0 keeps the current one; `profileOverride` 0
+/// keeps SpringBoard's profile, 1 fade, 2 continuous. Returns 1 once
+/// SpringBoard reports the swap finished, 0 when no reply came within
+/// `timeoutSeconds` (an unentitled client is never answered), -1 when this
+/// guest has no such service.
+int vp_display_swap(double position, double durationSeconds, int deviceOrientation, int profileOverride,
+                    double timeoutSeconds);
+/// Publish the device orientation (1 portrait … 4 landscape-right) for the
+/// device state DeviceHub reads (libdevicehubfix in dtdeviceinfod).
+void vp_device_orientation_publish(int deviceOrientation);
+/// Whether this guest's CoreMotion has a foldable's angle and device-state
+/// capabilities (the foldable product-id). Then locationd relays the virtual
+/// hinge's host controls into CoreMotion and SpringBoard reads its pose from
+/// there; otherwise only the test-automation pose override reaches it.
+bool vp_core_motion_hinge(void);
 
 /// Ask launchd to shut the guest down and halt. Returns 0 once the request is
 /// accepted, otherwise an errno value. Needs root.
@@ -204,18 +226,34 @@ BOOL vp_accelerometer_set_orientation(NSString * _Nonnull spec);
 /// (degrees, closed 0) and whether the provider in backboardd is enumerated
 /// and current.
 NSDictionary * _Nonnull vp_hinge_get(void);
+/// On an iPhone Duo, hand every control Xcode's DeviceHub sends (a decoded
+/// dictionary with `source`, `type` and `value`) to `handler`, on a serial
+/// queue of its own. False on any other device or without the HID API.
+bool vp_devicehub_controls_start(void (^_Nonnull handler)(NSDictionary * _Nonnull control));
+/// Publish a hinge reading (degrees, and the hinge state it names) where the
+/// hinge stand-ins in dtdeviceinfod read the virtual hinge's newest sample,
+/// without moving the hinge.
+void vp_hinge_reading_publish(double angleDegrees, int hingeState);
 /// Every display-ish IOService object the guest published, with its small
 /// properties: what the display stack bound, for the foldable display work.
 NSArray * _Nonnull vp_display_probe(void);
 /// Read-only CoreAnimation display modes and capability surface.
 NSDictionary<NSString *, id> * _Nonnull vp_display_modes(void);
 NSDictionary<NSString *, id> * _Nonnull vp_device_pose_get(void);
-BOOL vp_hinge_set(double angleDegrees);
+/// Set the hinge to `angleDegrees` at once. `orientation` is CoreMotion's
+/// device orientation for the host controls (1 portrait … 6 face down), or 0
+/// to keep the stored one.
+BOOL vp_hinge_set(double angleDegrees, int orientation);
+/// Store `angleDegrees` as the hinge's angle, keeping its orientation, without
+/// a host-control event or waiting for the provider: the relay already has the
+/// angle, and the hinge keeps it for its periodic resend.
+bool vp_hinge_note(double angleDegrees);
 /// Sweep the hinge to `targetDegrees` the way Apple's Duo tooling does: over
 /// a profiled transition (0 continuous fold, 1 fade-in-out), `durationMs` < 0
 /// the per-direction default (opening faster than closing), 0 an instant
-/// swap. Returns false on an out-of-range request.
-BOOL vp_hinge_sweep(double targetDegrees, double durationMs, int profile);
+/// swap. `orientation` as for `vp_hinge_set`. Returns false on an
+/// out-of-range request.
+BOOL vp_hinge_sweep(double targetDegrees, double durationMs, int profile, int orientation);
 NSDictionary * _Null_unspecified vp_attitude_get(void);
 BOOL vp_attitude_set(double roll, double pitch, double yaw, bool enabled);
 

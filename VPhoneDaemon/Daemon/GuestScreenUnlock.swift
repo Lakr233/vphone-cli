@@ -62,6 +62,61 @@ enum GuestScreenUnlock {
         ]
     }
 
+    // MARK: - Tap to Wake
+
+    /// How long SpringBoard gets to light the screen for `SBSUndimScreen`
+    /// before the side button is pressed instead.
+    private static let undimWait = 0.5
+    /// Two side-button presses this close together open Wallet.
+    private static let sidePressInterval = 1.5
+    private static let tapToWakeQueue = DispatchQueue(label: "vphoned.tap-to-wake", qos: .userInteractive)
+    /// Owned by `tapToWakeQueue`.
+    private nonisolated(unsafe) static var lastSidePress = Date.distantPast
+
+    /// Lights the Lock Screen when a finger lands on a dark screen, and
+    /// leaves it locked. `SBSUndimScreen` is tried first; SpringBoard refuses
+    /// it on iOS 27.1 (`_SBXXDimScreen Authentication failed`), so a screen
+    /// still dark half a second later gets one side-button press, which on a
+    /// dark screen only wakes it. Home is never pressed: on a lit Lock Screen
+    /// without a passcode it unlocks.
+    static func startTapToWake() {
+        vp_tap_to_wake_start {
+            GuestScreenUnlock.tapToWakeQueue.async { GuestScreenUnlock.wakeForTap() }
+        }
+    }
+
+    /// Lights a dark screen and waits for it, leaving it locked, as opening a
+    /// closed foldable does: `SBSUndimScreen` first, one side-button press
+    /// when SpringBoard refuses that. Returns whether the screen is lit.
+    @discardableResult
+    static func wakeDisplay(timeout: Double = 2) -> Bool {
+        guard state().screenOff else { return true }
+        let deadline = Date().addingTimeInterval(timeout)
+        _ = vp_screen_undim()
+        if wait(until: Date().addingTimeInterval(undimWait), for: { !$0.screenOff }) { return true }
+        _ = try? pressButton("power")
+        return wait(until: deadline, for: { !$0.screenOff })
+    }
+
+    /// The log messages are literals: arguments come back `<private>` in the
+    /// guest log.
+    private static func wakeForTap() {
+        _ = vp_screen_undim()
+        tapToWakeQueue.asyncAfter(deadline: .now() + undimWait) {
+            guard state().screenOff else {
+                NSLog("vphoned: tap to wake: SBSUndimScreen lit the screen")
+                return
+            }
+            guard Date().timeIntervalSince(lastSidePress) >= sidePressInterval else { return }
+            lastSidePress = Date()
+            if (try? pressButton("power")) != nil {
+                NSLog("vphoned: tap to wake: still dark after SBSUndimScreen, pressed the side button")
+            } else {
+                NSLog("vphoned: tap to wake: still dark after SBSUndimScreen, the side button press failed")
+            }
+        }
+    }
+
     // MARK: - Lock Screen
 
     private static func unlock(hasPasscode: Bool, passcode: String?, deadline: Date) throws {
@@ -117,6 +172,9 @@ enum GuestScreenUnlock {
     }
 
     // MARK: - State
+
+    /// Whether SpringBoard has the screen off.
+    static var screenIsOff: Bool { state().screenOff }
 
     private struct State {
         let locked: Bool

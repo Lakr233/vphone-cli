@@ -262,9 +262,7 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
 
     func run() throws {
         let resources = projectRoot.map { VPhoneResources(base: URL(fileURLWithPath: $0)) } ?? .resolve()
-        let sourceGuide = resources.base.appendingPathComponent("Documents/Guides/compatibility.md")
-        let bundleGuide = resources.base.appendingPathComponent("docs/guides/compatibility.md")
-        let readme = FileManager.default.fileExists(atPath: sourceGuide.path) ? sourceGuide.path : bundleGuide.path
+        let readme = VPhoneFirmwareSourceSelection.compatibilityGuide(resources)
         let needsCatalog = list || iphoneVersion != nil || iphoneBuild != nil
         if let device, VPhoneGuestDevice.named(device) == nil {
             throw ValidationError("vphone runs \(VPhoneGuestDevice.known.map(\.productType).joined(separator: ", ")) guests, not \(device).")
@@ -278,15 +276,8 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
             throw ValidationError("--download-connections takes 1 to 16, not \(downloadConnections).")
         }
         let chosenDevice = device
-        // A device without an IPSW lists and resolves its restore base's.
-        let device = VPhoneGuestDevice.named(device)?.restoreBase?.productType ?? device ?? VPhoneFirmwareCatalog.device
-        let urls = if needsCatalog {
-            try vphoneRunBlocking {
-                try await VPhoneFirmwareIndex.restoreURLs(forDevice: device)
-            }.joined(separator: "\n")
-        } else {
-            ""
-        }
+        let device = VPhoneFirmwareSourceSelection.lookupDevice(device)
+        let urls = needsCatalog ? try VPhoneFirmwareSourceSelection.restoreURLs(forDevice: device) : ""
 
         if list {
             let code = VPhoneFirmwareMatrixCommandLine.list(
@@ -305,19 +296,13 @@ struct VPhoneFirmwarePrepareCommand: ParsableCommand {
             guard source == nil else {
                 throw ValidationError("Use either --iphone-source or --iphone-version/--iphone-build.")
             }
-            let selection = VPhoneFirmwareMatrix.selection(
+            source = try VPhoneFirmwareSourceSelection.release(
                 device: device,
-                version: iphoneVersion ?? "",
-                build: iphoneBuild ?? "",
-                readme: try? String(contentsOfFile: readme, encoding: .utf8),
+                version: iphoneVersion,
+                build: iphoneBuild,
+                readme: readme,
                 downloadURLs: urls,
-                style: .forStream(FileHandle.standardError.fileDescriptor),
-            )
-            switch selection {
-            case let .selected(release, _): source = release.url
-            case let .ambiguous(message), let .unmatched(message):
-                throw ValidationError(message.trimmingCharacters(in: .whitespacesAndNewlines))
-            }
+            ).url
         }
 
         let selected = try VPhoneFirmwareSourceSelection.resolve(iphone: source, cloudos: cloudosSource, device: chosenDevice)

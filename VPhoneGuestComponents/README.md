@@ -86,17 +86,19 @@ sensor. See `Research/Guest/springboard_orientation_stuck.md` for evidence and
 the language-change regression boundary.
 
 `system-backboardd-cfw-hinge` installs `libvphonehinge.dylib`, also selected
-independently and loaded only in backboardd. It publishes the foldable's
-virtual hinge HID service (usage page 0xFF0C, usage 0x21) and reports the
-angle configured by `display.posture`, using HID.framework's C factory
-`IOHIDEventCreateHingeAngleEvent` — the only hinge entry point; HIDEvent
-exposes just `-hingeAngle*` accessors. CoreMotion's angle manager, and through
-it CoreDevice's hingeAngle stream, reads it; CoreMotion only looks when the
-device tree carries the foldable board's own product-id
-(`preboot-cfw-devicetree_foldable_product_id`), so on any other guest the
-service sits unread. Foldable guests only; `make test-hinge` checks the
-configuration transport and, on a Mac with Apple's HID.framework, a real
-factory call whose fields read back from the event's own description.
+independently and loaded only in backboardd. It publishes Apple's VM host
+controls (primary usage page 0xFF61, usage 0x5B) and sends the angle and
+device orientation configured by `display.posture` and `display.rotation` as
+vendor-defined events carrying `IOCFSerialize`d `hinge-slider-control` and
+`orientation-picker-control` dictionaries. locationd's device-state relay
+turns them into the hinge-angle and device-state services CoreMotion reads
+(`CoreMotion_DeviceStateRelay_Crane` 0xFF0C/0x21 and `_DeviceState`
+0xFF0C/0x22), and SpringBoard and CoreDevice's hingeAngle stream read
+CoreMotion. The relay only runs when the device tree carries the foldable
+board's own product-id (`preboot-cfw-devicetree_foldable_product_id`), so on
+any other guest the service sits unread. Foldable guests only; `make
+test-hinge` checks the configuration transport and, on a Mac, the
+dictionaries' serialization round trip, size and vendor-defined event.
 
 `system-apps-cfw-attitude` installs `libvphoneattitude.dylib`, loaded by
 SystemHook into apps. It supplies a stationary Core Motion pose through

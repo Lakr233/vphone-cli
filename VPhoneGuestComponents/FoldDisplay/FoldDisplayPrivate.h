@@ -23,6 +23,8 @@
 // MARK: - FoldDisplaySupport.m
 
 extern NSString *const vpInnerDisplayName;
+/// Its state is the context id backboardd shows the inner display's pages in, 0 for none.
+extern const char *const vpInnerPagesNotification;
 void vpFoldDisplayLog(NSString *line);
 id vpReadObject(id object, const char *name);
 id vpReadObjectIvar(id object, const char *name);
@@ -30,6 +32,10 @@ id vpReadObjectIvar(id object, const char *name);
 // MARK: - FoldDisplayBackboard.m
 
 void vpInstallInnerRenderDisplay(void);
+
+// MARK: - FoldDisplayInnerPages.m
+
+void vpShareInnerDisplayPages(id display);
 
 // MARK: - FoldDisplayAdapter.m
 

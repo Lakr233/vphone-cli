@@ -329,3 +329,29 @@ No Camera, cameracaptured or assetsd crash reports on either. Not done: the
 movie is landscape with no rotation metadata, like the photos; pause/resume,
 slo-mo, time-lapse and cinematic modes; `-startRecordingMovieWithSettings:`
 (the moment-capture movie path), which Camera.app did not call here.
+
+## Session registration during teardown (2026-10-29)
+
+AVFoundation calls the virtual-camera `isRunning` getter while removing inputs
+in `AVCaptureSession dealloc`. Registering that dying session in the weak table
+aborts in `objc_storeWeak` → `weak_register_no_lock`.
+
+Keep tracking in the getter: some clients skip `startRunning` when it returns
+`YES`. `cfx_load_live_session` uses `objc_storeWeakOrNil` and an ARC weak load to
+skip dying sessions and hold live ones through insertion. Its argument remains
+`__unsafe_unretained` so entry does not retain an object already in deallocation.
+
+Reproduce with `make -C VPhoneGuestComponents build-camfix-session-reproducer`.
+Install `.build/siblings/camera-session-reproducer/SessionProbe.ipa` and run
+`org.example.vphone.SessionProbe`. It creates and releases 100 camera sessions,
+observing `running` on alternate cycles, without starting capture.
+
+On iOS 27.0.1 (24A446), the stock 2.13.4 camera libraries abort; changing only
+libcamfix completes all 100 cycles. Camera.app also saved photos and an 8.32 s
+1280×720 H.264 movie with 251 distinct decoded frames, then reopened and saved
+another photo without a crash report. These checks cover one firmware pairing.
+The VPhone Debug build and bundle admission passed with Xcode 27.2.
+
+`make -C VPhoneGuestComponents test-camfix-session-reference` checks nil, live
+and deallocating sessions, plus release after weak-table insertion. CI runs it
+with the other guest-component tests.

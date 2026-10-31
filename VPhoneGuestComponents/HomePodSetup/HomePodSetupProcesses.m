@@ -15,7 +15,15 @@ static BOOL VPProcessError(NSError **error, NSString *description) {
     return NO;
 }
 
-static NSArray<NSNumber *> *VPSetupProcesses(VPHomePodSetupProcessAPI api, uid_t user, NSError **error) {
+static BOOL VPPathMatches(const char *path, NSArray<NSString *> *executables) {
+    for (NSString *executable in executables) {
+        if (strcmp(path, executable.fileSystemRepresentation) == 0) return YES;
+    }
+    return NO;
+}
+
+static NSArray<NSNumber *> *VPOwnedProcesses(VPHomePodSetupProcessAPI api, uid_t user, NSArray<NSString *> *executables,
+                                             NSError **error) {
     int needed = api.listPIDs(VPProcUIDOnly, user, NULL, 0);
     if (needed <= 0) { VPProcessError(error, @"Could not enumerate mobile's processes."); return nil; }
     NSUInteger capacity = (NSUInteger)needed + 128 * sizeof(pid_t);
@@ -39,7 +47,7 @@ static NSArray<NSNumber *> *VPSetupProcesses(VPHomePodSetupProcessAPI api, uid_t
                 }
                 continue; // Exited during enumeration, or no executable remains.
             }
-            if ((size_t)length < sizeof(path) && strcmp(path, VPSetupExecutable) == 0) [found addObject:@(pids[index])];
+            if ((size_t)length < sizeof(path) && VPPathMatches(path, executables)) [found addObject:@(pids[index])];
         }
         return found;
     }
@@ -55,7 +63,7 @@ BOOL VPHomePodSetupStopProcesses(VPHomePodSetupProcessAPI api, uid_t user,
     NSMutableSet *signaled = [NSMutableSet set];
     NSUInteger quietPolls = 0;
     for (NSUInteger poll = 0; poll <= maximumPolls; poll++) {
-        NSArray<NSNumber *> *pids = VPSetupProcesses(api, user, error);
+        NSArray<NSNumber *> *pids = VPOwnedProcesses(api, user, @[@(VPSetupExecutable)], error);
         if (!pids) return NO;
         // Observe a short quiet interval too: an app launch requested before
         // completion may still have been in flight when the first scan ran.
@@ -75,4 +83,31 @@ BOOL VPHomePodSetupStopProcesses(VPHomePodSetupProcessAPI api, uid_t user,
         if (poll < maximumPolls) wait();
     }
     return VPProcessError(error, @"HomePod setup is still running after its graceful completion deadline; journal retained.");
+}
+
+NSArray<NSString *> *VPHomePodAirPlayExecutables(void) {
+    return @[@"/usr/libexec/airplayd", @"/usr/libexec/tvairplayd",
+             @"/System/Library/PrivateFrameworks/MediaRemote.framework/Support/mediaremoted"];
+}
+
+BOOL VPHomePodRestartProcesses(VPHomePodSetupProcessAPI api, uid_t user, NSArray<NSString *> *executables,
+                               NSUInteger *signaled, NSError **error) {
+    if (signaled) *signaled = 0;
+    if (user != 501 || !api.listPIDs || !api.processPath || !api.signalProcess || !executables.count) {
+        return VPProcessError(error, @"Restarting AirPlay requires mobile and the native process APIs.");
+    }
+    NSArray<NSNumber *> *pids = VPOwnedProcesses(api, user, executables, error);
+    if (!pids) return NO;
+    for (NSNumber *pid in pids) {
+        // The identity is checked again right before the signal, as for setup.
+        char path[PATH_MAX] = {0};
+        int length = api.processPath(pid.intValue, path, sizeof(path));
+        if (length <= 0 || (size_t)length >= sizeof(path) || !VPPathMatches(path, executables)) continue;
+        if (api.signalProcess(pid.intValue, SIGTERM) != 0) {
+            if (errno == ESRCH) continue;
+            return VPProcessError(error, @"Could not restart an AirPlay daemon.");
+        }
+        if (signaled) *signaled += 1;
+    }
+    return YES;
 }

@@ -1,0 +1,26 @@
+{
+  "builderLayout": "kernel-last",
+  "guest": "homePod",
+  "id": "homepod_26.5_23L471",
+  "kernel": {
+    "decompressedSHA256": "622ce55b4363ac9723124f9c627af30d893707820c9ad094589a66ec5fc66dad",
+    "file": "kernelcache.release.vresearch101",
+    "kdk": "KDK_26.5_23F68.kdk",
+    "sha256": "7f656f3cd194b3564dd374161ba10b9af94a20ad41c289f96f1af79b9a1e91ac"
+  },
+  "kextOverrides": {
+    "com.apple.driver.AppleMobileFileIntegrity": "base",
+    "com.apple.iokit.IOTimeSyncFamily": "base",
+    "com.apple.kec.corecrypto": "base",
+    "com.apple.plugin.IOgPTPPlugin": "vphone600_26.4_23E5207q",
+    "com.apple.security.AppleImage4": "base"
+  },
+  "kexts": "kexts.txt",
+  "productVersion": "26.5",
+  "sources": [
+    "b520_26.5_23L471",
+    "base",
+    "vphone600_26.4_23E5207q"
+  ],
+  "symbols": "symbols.json.gz"
+}

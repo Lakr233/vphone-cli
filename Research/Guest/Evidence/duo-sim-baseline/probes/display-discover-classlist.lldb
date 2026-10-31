@@ -1,0 +1,19 @@
+expr -l objc -O --
+unsigned int vpN = 0;
+Class *vpAll = objc_copyClassList(&vpN);
+NSMutableArray *vpHits = [NSMutableArray array];
+for (unsigned int vi = 0; vi < vpN; vi++) {
+  NSString *vpName = [NSString stringWithUTF8String:class_getName(vpAll[vi])];
+  BOOL vpPref = [vpName hasPrefix:@"BK"] || [vpName hasPrefix:@"CADisplay"] || [vpName hasPrefix:@"CAWindowServer"] || [vpName hasPrefix:@"FBS"] || [vpName hasPrefix:@"FBDisplay"] || [vpName hasPrefix:@"UISDisplay"] || [vpName hasPrefix:@"_UIScreen"] || [vpName hasPrefix:@"UIScreen"] || [vpName hasPrefix:@"SBDisplay"] || [vpName hasPrefix:@"SBFDisplay"] || [vpName hasPrefix:@"FBDisplay"];
+  if (!vpPref) continue;
+  NSRange vpR1 = [vpName rangeOfString:@"Display" options:NSCaseInsensitiveSearch];
+  NSRange vpR2 = [vpName rangeOfString:@"Digitizer"];
+  NSRange vpR3 = [vpName rangeOfString:@"Screen"];
+  NSRange vpR4 = [vpName rangeOfString:@"Touch"];
+  NSRange vpR5 = [vpName rangeOfString:@"Brightness"];
+  NSRange vpR6 = [vpName rangeOfString:@"Backlight"];
+  if (vpR1.location != NSNotFound || vpR2.location != NSNotFound || vpR3.location != NSNotFound || vpR4.location != NSNotFound || vpR5.location != NSNotFound || vpR6.location != NSNotFound) [vpHits addObject:vpName];
+}
+free(vpAll);
+[[vpHits sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@"\n"]
+

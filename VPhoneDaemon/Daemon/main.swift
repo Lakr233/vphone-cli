@@ -28,11 +28,14 @@ GuestVirtualAudioProduct.storeOnStartup()
 // After SpringBoard has had time to come up, so the inner panel's layout
 // matches the posture it was booted with.
 GuestFoldPose.startOnStartup()
+GuestDeviceHubControl.startOnStartup()
 vp_vcam_start()
 GuestHomePodDisplay.startOnStartup()
 // Multi-finger injection is resolved here so the first pinch is not the call
 // that pays for `dlopen`; a base without the symbols logs and stays a no-op.
 _ = vp_hid_load()
+// The VM's touchscreen has no wake gesture; a tap on a dark screen lights it.
+GuestScreenUnlock.startTapToWake()
 GuestIrisinInstaller.refreshBootstrapOnStartup()
 GuestAPI.restoreUSBSerialOnStartup()
 GuestStaticNames.shared.restoreOnStartup()

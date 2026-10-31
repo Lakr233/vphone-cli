@@ -1,0 +1,120 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+NSObject *vpApp = ((id (*)(id, SEL))vpMsg)(NSClassFromString(@"UIApplication"), @selector(sharedApplication));
+long vpOrient = 0;
+if ([vpApp respondsToSelector:NSSelectorFromString(@"devicePoseProvider")]) {
+  vpOrient = ((long (*)(id, SEL))vpMsg)([(NSObject *)[(NSObject *)[vpApp valueForKey:@"_displayToolService"] valueForKey:@"_displayContentModeCoordinator"] valueForKey:@"primaryWindowScene"], @selector(interfaceOrientation));
+} else if (vpApp) {
+  for (NSObject *vpS in (NSSet *)[vpApp valueForKey:@"connectedScenes"]) if ([vpS respondsToSelector:@selector(interfaceOrientation)]) { vpOrient = ((long (*)(id, SEL))vpMsg)(vpS, @selector(interfaceOrientation)); break; }
+}
+NSObject *(^vpIv)(NSObject *, NSString *) = ^NSObject *(NSObject *o, NSString *name) {
+  if (!o) return (NSObject *)nil;
+  Ivar vpX = class_getInstanceVariable(object_getClass(o), name.UTF8String);
+  if (!vpX) return (NSObject *)@"<no such ivar>";
+  const char *vpT = ivar_getTypeEncoding(vpX);
+  char *vpB = (char *)(__bridge void *)o + ivar_getOffset(vpX);
+  switch (vpT[0]) {
+    case 'q': return (NSObject *)@(*(long long *)vpB);
+    case 'd': return (NSObject *)@(*(double *)vpB);
+    case 'f': return (NSObject *)@(*(float *)vpB);
+    case 'B': return (NSObject *)@(*(BOOL *)vpB);
+    case 'i': return (NSObject *)@(*(int *)vpB);
+    case '@': if (vpT[1] == '?') return (NSObject *)@(*(void **)vpB != NULL); return (NSObject *)object_getIvar(o, vpX);
+    default: return (NSObject *)[NSString stringWithFormat:@"<unsupported ivar type %s>", vpT];
+  }
+};
+NSDictionary *(^vpEvt)(NSObject *) = ^NSDictionary *(NSObject *e) {
+  if (!e) return (NSDictionary *)nil;
+  return @{@"class": NSStringFromClass(object_getClass(e)),
+           @"propertyA": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyA))), @"propertyA0": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyA0))),
+           @"propertyA1": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyA1))), @"propertyB": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyB))),
+           @"propertyC": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyC))), @"propertyD": @(((long long (*)(id, SEL))vpMsg)(e, @selector(propertyD))),
+           @"progressValid": @(((BOOL (*)(id, SEL))vpMsg)(e, @selector(progressValid))), @"fromPropertyB": @(((long long (*)(id, SEL))vpMsg)(e, @selector(fromPropertyB))),
+           @"toPropertyB": @(((long long (*)(id, SEL))vpMsg)(e, @selector(toPropertyB))), @"progressValue": @(((double (*)(id, SEL))vpMsg)(e, @selector(progressValue))),
+           @"timestamp": @(((double (*)(id, SEL))vpMsg)(e, @selector(timestamp))), @"description": [(NSObject *)e description] ?: @""};
+};
+NSDictionary *(^vpDSM)(NSObject *) = ^NSDictionary *(NSObject *m) {
+  if (!m) return (NSDictionary *)nil;
+  NSObject *vpI = vpIv(m, @"_internal");
+  if (!vpI) return @{@"class": NSStringFromClass(object_getClass(m)), @"_internal": [NSNull null]};
+  NSMutableDictionary *vpR = [NSMutableDictionary dictionaryWithDictionary:@{@"class": NSStringFromClass(object_getClass(m)), @"internalClass": NSStringFromClass(object_getClass(vpI))}];
+  for (NSString *vpK in @[@"fPropertyA", @"fPropertyA0", @"fPropertyA1", @"fPropertyB", @"fPropertyC", @"fPropertyD", @"fContinuousTimestamp", @"fAPArrivalTimestampSecs", @"fTimestamp", @"fNotifyAllClients", @"fRegisteredForNotifications", @"fClientID"]) {
+    NSObject *vpV = vpIv(vpI, vpK);
+    vpR[vpK] = vpV ?: [NSNull null];
+  }
+  vpR[@"fEventHandlerSet"] = vpIv(vpI, @"fEventHandler");
+  return vpR;
+};
+Class vpMPM = NSClassFromString(@"CMMagicPoseManager");
+Class vpDSMC = NSClassFromString(@"CMDeviceStateManager");
+Class vpAMC = NSClassFromString(@"CMAngleManager");
+vpAdd(@"CMMagicPoseManager.isAvailable", @"private", @"+[CMMagicPoseManager isAvailable]", vpMPM ? @(((BOOL (*)(id, SEL))vpMsg)(vpMPM, @selector(isAvailable))) : nil, vpMPM ? nil : @"class missing");
+NSObject *vpShared = vpMPM ? ((id (*)(id, SEL))vpMsg)(vpMPM, @selector(sharedManager)) : nil;
+vpAdd(@"CMMagicPoseManager.sharedManager", @"private", @"+[CMMagicPoseManager sharedManager] class", vpShared ? NSStringFromClass(object_getClass(vpShared)) : nil, vpShared ? nil : @"nil");
+if (vpShared) {
+  vpAdd(@"CMMagicPoseManager.sharedManager._manager", @"private", @"[[CMMagicPoseManager sharedManager] valueForKey:@\"_manager\"] (CMDeviceStateManager and its _internal ivars)", vpDSM(vpIv(vpShared, @"_manager")), nil);
+  vpAdd(@"CMMagicPoseManager.sharedManager.handlers", @"private", @"[[CMMagicPoseManager sharedManager] valueForKey:@\"fClientHandler\"/@\"fInternalHandler\"] != nil",
+        @{@"fClientHandlerSet": vpIv(vpShared, @"fClientHandler") ?: [NSNull null], @"fInternalHandlerSet": vpIv(vpShared, @"fInternalHandler") ?: [NSNull null]}, nil);
+}
+if ([vpApp respondsToSelector:NSSelectorFromString(@"devicePoseProvider")]) {
+  NSObject *vpProv = [vpApp valueForKey:@"_devicePoseProvider"];
+  NSObject *vpPM = [vpProv valueForKey:@"_cmMagicPoseManager"];
+  vpAdd(@"SBFDevicePoseProvider._cmMagicPoseManager._manager", @"private", @"[[provider valueForKey:@\"_cmMagicPoseManager\"] valueForKey:@\"_manager\"] (CMDeviceStateManager and its _internal ivars)", vpDSM(vpIv(vpPM, @"_manager")), nil);
+  vpAdd(@"SBFDevicePoseProvider._cmMagicPoseManager.handlers", @"private", @"[provider._cmMagicPoseManager valueForKey:@\"fClientHandler\"/@\"fInternalHandler\"] != nil",
+        @{@"fClientHandlerSet": vpIv(vpPM, @"fClientHandler") ?: [NSNull null], @"fInternalHandlerSet": vpIv(vpPM, @"fInternalHandler") ?: [NSNull null]}, nil);
+  NSObject *vpAM = [vpProv valueForKey:@"_cmAngleManager"];
+  vpAdd(@"SBFDevicePoseProvider._cmAngleManager.isAngleActive", @"private", @"[provider._cmAngleManager isAngleActive]", @(((BOOL (*)(id, SEL))vpMsg)(vpAM, @selector(isAngleActive))), nil);
+  vpAdd(@"SBFDevicePoseProvider._cmAngleManager.angleUpdateInterval", @"private", @"[provider._cmAngleManager angleUpdateInterval]", @(((double (*)(id, SEL))vpMsg)(vpAM, @selector(angleUpdateInterval))), nil);
+  NSObject *vpAI = vpIv(vpAM, @"_internal");
+  vpAdd(@"SBFDevicePoseProvider._cmAngleManager._internal", @"private", @"[provider._cmAngleManager valueForKey:@\"_internal\"] (_angleUpdateInterval, fHandler set)",
+        vpAI ? @{@"class": NSStringFromClass(object_getClass(vpAI)), @"_angleUpdateInterval": vpIv(vpAI, @"_angleUpdateInterval") ?: [NSNull null]} : nil, vpAI ? nil : @"nil");
+}
+vpAdd(@"CMDeviceStateManager.isAvailable", @"private", @"+[CMDeviceStateManager isAvailable]", vpDSMC ? @(((BOOL (*)(id, SEL))vpMsg)(vpDSMC, @selector(isAvailable))) : nil, vpDSMC ? nil : @"class missing");
+NSObject *vpDSShared = vpDSMC ? ((id (*)(id, SEL))vpMsg)(vpDSMC, @selector(sharedManager)) : nil;
+vpAdd(@"CMDeviceStateManager.sharedManager", @"private", @"+[CMDeviceStateManager sharedManager] (and its _internal ivars)", vpDSM(vpDSShared), vpDSShared ? nil : @"nil");
+if (vpDSShared) {
+  NSObject *vpCur = ((id (*)(id, SEL))vpMsg)(vpDSShared, @selector(currentDeviceState));
+  vpAdd(@"CMDeviceStateManager.currentDeviceState", @"private", @"-[[CMDeviceStateManager sharedManager] currentDeviceState]", vpEvt(vpCur), vpCur ? nil : @"nil");
+  if (vpCur) {
+    NSMutableDictionary *vpPA = [NSMutableDictionary dictionary];
+    for (long long vc = 0; vc <= 4; vc++) vpPA[[NSString stringWithFormat:@"%lld", vc]] = @(((long long (*)(id, SEL, id, long long))vpMsg)(vpDSMC, @selector(propertyAForDeviceState:configType:), vpCur, vc));
+    vpAdd(@"CMDeviceStateManager.propertyAForDeviceState:configType:", @"private", @"+[CMDeviceStateManager propertyAForDeviceState:<currentDeviceState> configType:0..4]", vpPA, nil);
+  }
+}
+vpAdd(@"CMAngleManager.isAvailable", @"private", @"+[CMAngleManager isAvailable]", vpAMC ? @(((BOOL (*)(id, SEL))vpMsg)(vpAMC, @selector(isAvailable))) : nil, vpAMC ? nil : @"class missing");
+if (vpAMC) {
+  vpAdd(@"CMAngleManager.minAngleDegrees", @"private", @"+[CMAngleManager minAngleDegrees]", @(((float (*)(id, SEL))vpMsg)(vpAMC, @selector(minAngleDegrees))), nil);
+  vpAdd(@"CMAngleManager.maxAngleDegrees", @"private", @"+[CMAngleManager maxAngleDegrees]", @(((float (*)(id, SEL))vpMsg)(vpAMC, @selector(maxAngleDegrees))), nil);
+  vpAdd(@"CMAngleManager.shouldEmitWakeLatencySignpostsOnStateChangeForTesting", @"private", @"+[CMAngleManager shouldEmitWakeLatencySignpostsOnStateChangeForTesting]", nil, @"VM: EXC_BAD_ACCESS at 0x4c in SpringBoard; not called");
+  NSObject *vpAMNew = nil; /* VM: a fresh CMAngleManager blocked SpringBoard until lldb stopped the expression (SIGSTOP); not created */
+  vpAdd(@"CMAngleManager.isAngleActive", @"private", @"[[CMAngleManager alloc] init].isAngleActive (fresh instance, no updates started)", @(((BOOL (*)(id, SEL))vpMsg)(vpAMNew, @selector(isAngleActive))), nil);
+  vpAdd(@"CMAngleManager.angleUpdateInterval", @"private", @"[[CMAngleManager alloc] init].angleUpdateInterval (fresh instance)", @(((double (*)(id, SEL))vpMsg)(vpAMNew, @selector(angleUpdateInterval))), nil);
+}
+Class vpFAM = NSClassFromString(@"CMFactoryAngleManager");
+vpAdd(@"CMFactoryAngleManager.isAvailable", @"private", @"+[CMFactoryAngleManager isAvailable]", nil, vpFAM ? @"not called: raised SIGABRT in SpringBoard when probed (raw/sensors/test/bisect.txt)" : @"class missing");
+Class vpMMC = NSClassFromString(@"CMMotionManager");
+NSObject *vpMM = vpMMC ? ((id (*)(id, SEL))vpMsg)(((id (*)(id, SEL))vpMsg)(vpMMC, @selector(alloc)), @selector(init)) : nil;
+for (NSString *vpK in @[@"isAccelerometerAvailable", @"isGyroAvailable", @"isMagnetometerAvailable", @"isDeviceMotionAvailable"]) {
+  vpAdd([@"CMMotionManager." stringByAppendingString:vpK], @"public", [NSString stringWithFormat:@"[[CMMotionManager alloc] init].%@", vpK], vpMM ? @(((BOOL (*)(id, SEL))vpMsg)(vpMM, NSSelectorFromString(vpK))) : nil, vpMM ? nil : @"nil");
+}
+vpAdd(@"CMMotionManager.availableAttitudeReferenceFrames", @"public", @"+[CMMotionManager availableAttitudeReferenceFrames]", vpMMC ? @(((unsigned long (*)(id, SEL))vpMsg)(vpMMC, @selector(availableAttitudeReferenceFrames))) : nil, nil);
+NSDictionary *vpOut = @{@"group": @"coremotion", @"orientation": @(vpOrient), @"records": vpRecs};
+__block id (^vpSan)(id) = nil;
+vpSan = ^id(id o) {
+  if (!o) return [NSNull null];
+  if ([(NSObject *)o isKindOfClass:[NSString class]] || [(NSObject *)o isKindOfClass:[NSNull class]]) return o;
+  if ([(NSObject *)o isKindOfClass:[NSNumber class]]) { double vpF = [(NSNumber *)o doubleValue]; if (vpF != vpF || vpF > 1.0e308 || vpF < -1.0e308) return [NSString stringWithFormat:@"%f", vpF]; return o; }
+  if ([(NSObject *)o isKindOfClass:[NSArray class]]) { NSMutableArray *vpA = [NSMutableArray array]; for (id vpY in (NSArray *)o) [vpA addObject:vpSan(vpY)]; return vpA; }
+  if ([(NSObject *)o isKindOfClass:[NSDictionary class]]) { NSMutableDictionary *vpM = [NSMutableDictionary dictionary]; for (id vpK in (NSDictionary *)o) vpM[[(NSObject *)vpK description]] = vpSan(((NSDictionary *)o)[vpK]); return vpM; }
+  if ([(NSObject *)o isKindOfClass:[NSData class]]) return @{@"data_base64": [(NSData *)o base64EncodedStringWithOptions:0]};
+  if ([(NSObject *)o isKindOfClass:[NSDate class]]) return @{@"date": [(NSObject *)o description]};
+  return [(NSObject *)o description] ?: @"";
+};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpSan(vpOut) options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

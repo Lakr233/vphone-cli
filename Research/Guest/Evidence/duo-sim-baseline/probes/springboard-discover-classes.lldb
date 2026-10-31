@@ -1,0 +1,14 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+NSArray *vpPrefixes = @[@"SBDisplayContentMode", @"SBFDisplayContentMode", @"SBWindowScene", @"SBTraits", @"ContinuousFold", @"SBHinge", @"Hinge", @"SBFDevicePose", @"DevicePose", @"SBWallpaperHinge", @"SBBacklight", @"Backlight", @"FoldDevice", @"SBDisplayTool", @"SBFDisplay", @"SBFold", @"Fold"];
+unsigned int vpCount = 0;
+Class *vpClasses = objc_copyClassList(&vpCount);
+NSMutableArray *vpNames = [NSMutableArray array];
+for (unsigned int vi = 0; vi < vpCount; vi++) {
+  NSString *vpN = [NSString stringWithUTF8String:class_getName(vpClasses[vi])];
+  for (NSString *vpP in vpPrefixes) { if ([vpN rangeOfString:vpP].location != NSNotFound) { [vpNames addObject:vpN]; break; } }
+}
+free(vpClasses);
+[vpNames sortUsingSelector:@selector(compare:)];
+[vpNames componentsJoinedByString:@"\n"]
+

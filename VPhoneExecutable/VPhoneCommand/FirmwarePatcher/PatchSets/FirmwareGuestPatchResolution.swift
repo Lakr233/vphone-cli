@@ -61,7 +61,7 @@ public enum FirmwareGuestPatchResolution {
     /// Apple TV OTA swap, GPU injection, or plain-arm64 dyld workarounds.
     public static let homePodSupportedGuestPatches = tvSupportedGuestPatches
         .subtracting([FirmwareGuestSystemPatchSet.tvTPRO])
-        .union([FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass,
+        .union([FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM,
                 FirmwareGuestSystemPatchSet.homePodAudioProduct, FirmwareGuestSystemPatchSet.homePodWelcome,
                 FirmwareGuestSystemPatchSet.homePodSiriSpeech,
                 FirmwareGuestSystemPatchSet.homePodOTAUserland, FirmwareGuestSystemPatchSet.homePodSoundGlow,

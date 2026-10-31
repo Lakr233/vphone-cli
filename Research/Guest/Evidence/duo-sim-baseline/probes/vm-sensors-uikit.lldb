@@ -1,0 +1,118 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+NSObject *vpApp = (NSObject *)[UIApplication sharedApplication];
+long vpOrient = 0;
+BOOL vpIsSB = [vpApp respondsToSelector:NSSelectorFromString(@"devicePoseProvider")];
+if (vpIsSB) vpOrient = ((long (*)(id, SEL))vpMsg)([(NSObject *)[(NSObject *)[vpApp valueForKey:@"_displayToolService"] valueForKey:@"_displayContentModeCoordinator"] valueForKey:@"primaryWindowScene"], @selector(interfaceOrientation));
+else for (UIScene *vpS in [UIApplication sharedApplication].connectedScenes) if ([vpS isKindOfClass:[UIWindowScene class]]) { vpOrient = ((UIWindowScene *)vpS).interfaceOrientation; break; }
+NSDictionary *(^vpCall)(NSObject *, SEL) = ^NSDictionary *(NSObject *o, SEL s) {
+  Method vpM = class_getInstanceMethod(object_getClass(o), s);
+  if (!vpM || ![o respondsToSelector:s]) return @{@"error": [NSString stringWithFormat:@"does not respond to %@", NSStringFromSelector(s)]};
+  char vpR[64]; method_getReturnType(vpM, vpR, sizeof(vpR));
+  if (method_getNumberOfArguments(vpM) != 2) return @{@"error": @"takes arguments"};
+  switch (vpR[0]) {
+    case 'q': case 'l': return @{@"value": @(((long long (*)(id, SEL))vpMsg)(o, s))};
+    case 'Q': case 'L': return @{@"value": @(((unsigned long long (*)(id, SEL))vpMsg)(o, s))};
+    case 'i': return @{@"value": @(((int (*)(id, SEL))vpMsg)(o, s))};
+    case 'I': return @{@"value": @(((unsigned int (*)(id, SEL))vpMsg)(o, s))};
+    case 'B': return @{@"value": @(((BOOL (*)(id, SEL))vpMsg)(o, s))};
+    case 'c': case 'C': return @{@"value": @(((char (*)(id, SEL))vpMsg)(o, s))};
+    case 'd': return @{@"value": @(((double (*)(id, SEL))vpMsg)(o, s))};
+    case 'f': return @{@"value": @(((float (*)(id, SEL))vpMsg)(o, s))};
+    case '#': { Class vpC = ((Class (*)(id, SEL))vpMsg)(o, s); return vpC ? @{@"value": NSStringFromClass(vpC)} : @{@"error": @"nil"}; }
+    case '@': { id vpV = ((id (*)(id, SEL))vpMsg)(o, s); return vpV ? @{@"value": vpV} : @{@"error": @"nil"}; }
+    default: return @{@"error": [NSString stringWithFormat:@"unsupported return type %s", vpR]};
+  }
+};
+NSSet *vpDeny = [NSSet setWithArray:@[@"init", @"dealloc", @".cxx_destruct", @"currentDevice", @"sf_serialNumberQRImage", @"sf_serialNumber", @"sf_colorCodedSerialNumber", @"sf_udidString", @"identifierForVendor", @"new", @"alloc", @"class", @"copy", @"mutableCopy", @"_tapticEngine"]];
+UIDevice *vpDev = [UIDevice currentDevice];
+for (int vk = 0; vk < 2; vk++) {
+  Class vpT = vk ? object_getClass([UIDevice class]) : [UIDevice class];
+  NSObject *vpRecv = vk ? (NSObject *)[UIDevice class] : (NSObject *)vpDev;
+  unsigned int vpCount = 0; Method *vpM = class_copyMethodList(vpT, &vpCount);
+  NSMutableArray *vpSels = [NSMutableArray array];
+  for (unsigned int vj = 0; vj < vpCount; vj++) if (method_getNumberOfArguments(vpM[vj]) == 2) [vpSels addObject:NSStringFromSelector(method_getName(vpM[vj]))];
+  free(vpM);
+  [vpSels sortUsingSelector:@selector(compare:)];
+  for (NSString *vpS in vpSels) {
+    if ([vpDeny containsObject:vpS]) { vpAdd([NSString stringWithFormat:@"UIDevice.%@%@", vk ? @"+" : @"", vpS], @"private", [NSString stringWithFormat:@"%@[UIDevice %@%@]", vk ? @"+" : @"-", vk ? @"" : @"currentDevice] ", vpS], nil, @"skipped: serial/identifier, allocator or side effect"); continue; }
+    char vpR[64]; method_getReturnType(class_getInstanceMethod(vpT, NSSelectorFromString(vpS)), vpR, sizeof(vpR));
+    if (vpR[0] == 'v') continue;
+    NSDictionary *vpRes = vpCall(vpRecv, NSSelectorFromString(vpS));
+    BOOL vpPublic = [@[@"name", @"model", @"localizedModel", @"systemName", @"systemVersion", @"orientation", @"userInterfaceIdiom", @"isMultitaskingSupported", @"batteryLevel", @"batteryState", @"isBatteryMonitoringEnabled", @"isProximityMonitoringEnabled", @"proximityState", @"isGeneratingDeviceOrientationNotifications"] containsObject:vpS] && !vk;
+    vpAdd([NSString stringWithFormat:@"UIDevice.%@%@", vk ? @"+" : @"", vpS], vpPublic ? @"public" : @"private", vk ? [NSString stringWithFormat:@"+[UIDevice %@]", vpS] : [NSString stringWithFormat:@"[[UIDevice currentDevice] %@]", vpS], vpRes[@"value"], vpRes[@"error"]);
+  }
+}
+for (NSString *vpS in @[@"hingeState", @"tabletopPose", @"_userInterfaceIdiom", @"_hingeState", @"hingeAngle", @"isFoldable", @"_isFoldable", @"foldState", @"posture", @"_deviceOrientation"]) {
+  NSDictionary *vpRes = vpCall(vpDev, NSSelectorFromString(vpS));
+  vpAdd([@"UIDevice." stringByAppendingString:vpS], @"private", [NSString stringWithFormat:@"[[UIDevice currentDevice] %@] (requested name; checked with respondsToSelector:)", vpS], vpRes[@"value"], vpRes[@"error"]);
+}
+vpAdd(@"UIDevice.currentDeviceOrientationAllowingAmbiguous:", @"private", @"+[UIDevice currentDeviceOrientationAllowingAmbiguous:YES]", @(((long long (*)(id, SEL, BOOL))vpMsg)([UIDevice class], @selector(currentDeviceOrientationAllowingAmbiguous:), YES)), nil);
+struct VPHPS { char a; char b; char c; char d; };
+struct VPHPS vpHPS = ((struct VPHPS (*)(id, SEL))vpMsg)(vpApp, @selector(currentHingePoseStateForTesting));
+vpAdd(@"UIApplication.currentHingePoseStateForTesting", @"private", @"-[UIApplication currentHingePoseStateForTesting] {orientation, magicPoseDeviceOrientation, magicPoseHingeState, magicPoseTabletopPose}",
+      @{@"orientation": @(vpHPS.a), @"magicPoseDeviceOrientation": @(vpHPS.b), @"magicPoseHingeState": @(vpHPS.c), @"magicPoseTabletopPose": @(vpHPS.d)}, nil);
+NSDictionary *(^vpHS)(NSObject *) = ^NSDictionary *(NSObject *h) {
+  if (!h) return (NSDictionary *)nil;
+  NSMutableDictionary *vpR = [NSMutableDictionary dictionaryWithDictionary:@{@"class": NSStringFromClass(object_getClass(h)), @"description": [h description] ?: @""}];
+  for (NSString *vpK in @[@"status", @"magicPose", @"hingeAngle", @"angleDegrees", @"nextStatus", @"progress", @"identifier", @"sceneRegionIdentifier"]) { NSDictionary *vpRes = vpCall(h, NSSelectorFromString(vpK)); if (vpRes[@"value"]) vpR[vpK] = vpRes[@"value"]; }
+  return vpR;
+};
+NSMutableArray *vpScenes = [[[UIApplication sharedApplication].connectedScenes allObjects] mutableCopy];
+for (UIScene *vpS in vpScenes) {
+  NSString *vpPid = vpS.session.persistentIdentifier ?: @"?";
+  NSObject *vpF = ((id (*)(id, SEL))vpMsg)(vpS, @selector(_FBSScene));
+  NSObject *vpSet = vpF ? ((id (*)(id, SEL))vpMsg)(vpF, @selector(settings)) : nil;
+  NSString *vpDisp = vpSet ? ([(NSObject *)vpCall(vpSet, @selector(displayIdentity))[@"value"] description] ?: @"?") : @"?";
+  NSMutableDictionary *vpSD = [NSMutableDictionary dictionary];
+  for (NSString *vpK in @[@"hingeAngle", @"hingeStatus", @"nextHingeStatus", @"nextHingeStatusProgress", @"magicPose", @"interfaceOrientation", @"deviceOrientation", @"ssk_surfaceType", @"pui_deviceOrientation"]) { NSDictionary *vpRes = vpSet ? vpCall(vpSet, NSSelectorFromString(vpK)) : @{@"error": @"no settings"}; vpSD[vpK] = vpRes[@"value"] ?: [@"error: " stringByAppendingString:vpRes[@"error"]]; }
+  NSObject *vpSHS = vpSet ? (NSObject *)vpCall(vpSet, @selector(sceneHingeState))[@"value"] : nil;
+  vpSD[@"sceneHingeState"] = vpHS(vpSHS) ?: (id)[NSNull null];
+  vpSD[@"displayIdentity"] = vpSet ? [(NSObject *)vpCall(vpSet, @selector(displayIdentity))[@"value"] description] ?: @"" : @"";
+  vpAdd(@"FBSSceneSettings.hinge", @"private", [NSString stringWithFormat:@"[<scene %@ on %@>._FBSScene.settings hingeAngle/hingeStatus/nextHingeStatus/nextHingeStatusProgress/magicPose/interfaceOrientation/deviceOrientation/sceneHingeState]", vpPid, vpDisp], vpSD, vpSet ? nil : @"no FBSScene settings");
+  NSObject *vpUH = vpF ? (NSObject *)vpCall(vpF, @selector(ui_hingeState))[@"value"] : nil;
+  vpAdd(@"FBSScene.ui_hingeState", @"private", [NSString stringWithFormat:@"[<scene %@ on %@>._FBSScene ui_hingeState]", vpPid, vpDisp], vpHS(vpUH), vpUH ? nil : @"nil");
+  NSObject *vpComp = vpF ? (NSObject *)vpCall(vpF, @selector(ui_hingeStateClientComponent))[@"value"] : nil;
+  NSObject *vpCHS = vpComp ? (NSObject *)vpCall(vpComp, @selector(hingeState))[@"value"] : nil;
+  NSObject *vpCSHS = vpComp ? (NSObject *)vpCall(vpComp, @selector(sceneHingeState))[@"value"] : nil;
+  vpAdd(@"_UISceneHingeStateClientComponent.hingeState", @"private", [NSString stringWithFormat:@"[[<scene %@ on %@>._FBSScene ui_hingeStateClientComponent] hingeState]", vpPid, vpDisp], vpComp ? (vpHS(vpCHS) ?: (id)[NSNull null]) : nil, vpComp ? (vpCHS ? nil : @"nil") : @"no client component");
+  vpAdd(@"_UISceneHingeStateClientComponent.sceneHingeState", @"private", [NSString stringWithFormat:@"[[<scene %@ on %@>._FBSScene ui_hingeStateClientComponent] sceneHingeState]", vpPid, vpDisp], vpComp ? (vpHS(vpCSHS) ?: (id)[NSNull null]) : nil, vpComp ? (vpCSHS ? nil : @"nil") : @"no client component");
+  if ([vpS isKindOfClass:[UIWindowScene class]]) {
+    UIWindowScene *vpWS = (UIWindowScene *)vpS;
+    vpAdd(@"UIWindowScene.interfaceOrientation", @"public", [NSString stringWithFormat:@"[<scene %@ on %@> interfaceOrientation]", vpPid, vpDisp], @(vpWS.interfaceOrientation), nil);
+    vpAdd(@"UIWindowScene.traitCollection.horizontalSizeClass", @"public", [NSString stringWithFormat:@"[<scene %@ on %@> traitCollection].horizontalSizeClass/verticalSizeClass/userInterfaceIdiom", vpPid, vpDisp], @{@"horizontalSizeClass": @(vpWS.traitCollection.horizontalSizeClass), @"verticalSizeClass": @(vpWS.traitCollection.verticalSizeClass), @"userInterfaceIdiom": @(vpWS.traitCollection.userInterfaceIdiom)}, nil);
+  }
+}
+if (vpIsSB) {
+  NSObject *vpW = [(NSObject *)((id (*)(id, SEL))vpMsg)(NSClassFromString(@"FBSceneManager"), @selector(sharedInstance)) valueForKey:@"_workspace"];
+  NSMutableArray *vpAll = [NSMutableArray array];
+  for (NSObject *vpF in (NSArray *)[[(NSObject *)((id (*)(id, SEL))vpMsg)(vpW, @selector(allScenes)) valueForKey:@"self"] allObjects]) {
+    NSObject *vpSet = ((id (*)(id, SEL))vpMsg)(vpF, @selector(settings));
+    NSMutableDictionary *vpSD = [NSMutableDictionary dictionaryWithDictionary:@{@"identifier": [(NSObject *)[vpF valueForKey:@"identifier"] description] ?: @""}];
+    for (NSString *vpK in @[@"hingeAngle", @"hingeStatus", @"nextHingeStatus", @"nextHingeStatusProgress", @"magicPose", @"interfaceOrientation", @"deviceOrientation"]) { NSDictionary *vpRes = vpCall(vpSet, NSSelectorFromString(vpK)); vpSD[vpK] = vpRes[@"value"] ?: [@"error: " stringByAppendingString:vpRes[@"error"]]; }
+    vpSD[@"displayIdentity"] = [(NSObject *)vpCall(vpSet, @selector(displayIdentity))[@"value"] description] ?: @"";
+    [vpAll addObject:vpSD];
+  }
+  [vpAll sortUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"identifier" ascending:YES]]];
+  vpAdd(@"FBSceneWorkspace.allScenes.settings.hinge", @"private", @"[[FBSceneManager sharedInstance]._workspace allScenes] -> each FBScene.settings hinge fields (host side, what SpringBoard sends to clients)", vpAll, nil);
+}
+__block id (^vpSan)(id) = nil;
+vpSan = ^id(id o) {
+  if (!o) return [NSNull null];
+  if ([(NSObject *)o isKindOfClass:[NSString class]] || [(NSObject *)o isKindOfClass:[NSNull class]]) return o;
+  if ([(NSObject *)o isKindOfClass:[NSNumber class]]) { double vpF = [(NSNumber *)o doubleValue]; if (vpF != vpF || vpF > 1.0e308 || vpF < -1.0e308) return [NSString stringWithFormat:@"%f", vpF]; return o; }
+  if ([(NSObject *)o isKindOfClass:[NSArray class]]) { NSMutableArray *vpA = [NSMutableArray array]; for (id vpY in (NSArray *)o) [vpA addObject:vpSan(vpY)]; return vpA; }
+  if ([(NSObject *)o isKindOfClass:[NSDictionary class]]) { NSMutableDictionary *vpM = [NSMutableDictionary dictionary]; for (id vpK in (NSDictionary *)o) vpM[[(NSObject *)vpK description]] = vpSan(((NSDictionary *)o)[vpK]); return vpM; }
+  if ([(NSObject *)o isKindOfClass:[NSData class]]) return @{@"data_base64": [(NSData *)o base64EncodedStringWithOptions:0]};
+  if ([(NSObject *)o isKindOfClass:[NSDate class]]) return @{@"date": [(NSObject *)o description]};
+  return [(NSObject *)o description] ?: @"";
+};
+NSDictionary *vpOut = @{@"group": @"uikit", @"orientation": @(vpOrient), @"records": vpRecs};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpSan(vpOut) options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

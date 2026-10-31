@@ -674,6 +674,42 @@ struct VPhoneCustomFirmwarePatchFoldableProductIdCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-dt-foldable-displays
+
+struct VPhoneCustomFirmwarePatchFoldableDisplaysCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-foldable-displays",
+        abstract: "Give a foldable guest's device tree the board's panel nodes",
+        discussion: """
+        Copies the /product children that carry surface-type (display0, the
+        cover, and display1, the inner panel, on V68AP) from the foldable
+        board's tree into a foldable guest's, in place, preserving the
+        container's compression, manifest and restore info. MobileGestalt
+        counts them for MGGetLogicalDeviceDisplayCount and reads their
+        rotation, scale, corner radii and chrome identifiers into
+        DisplayExtendedProperties. Any other tree, or one that already has
+        panel nodes, is left as it is.
+
+        Takes a devicetree.img4 (preferred) or bare .im4p, and the foldable
+        board's DeviceTree.<board>.im4p.
+        """,
+    )
+
+    @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))
+    var deviceTree: URL
+
+    @Argument(help: "Path to the foldable board's DeviceTree.<board>.im4p", transform: URL.init(fileURLWithPath:))
+    var board: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.presentFoldableDisplays(
+            at: deviceTree, board: board, dryRun: dryRun, verbose: true)
+    }
+}
+
 // MARK: - patch-dt-haptics
 
 struct VPhoneCustomFirmwarePatchHapticsCommand: ParsableCommand {

@@ -1,0 +1,28 @@
+expr -l objc -O --
+NSMutableString *vpLog = [NSMutableString string];
+Class vpObsC = objc_getClass("VPSensorsHingeObserver");
+if (!vpObsC) {
+  vpObsC = objc_allocateClassPair([NSObject class], "VPSensorsHingeObserver", 0);
+  IMP vpNoop = method_getImplementation(class_getInstanceMethod([NSObject class], @selector(self)));
+  class_addMethod(vpObsC, NSSelectorFromString(@"sceneHingeStateClientComponent:didUpdateFromHingeState:toHingeState:"), vpNoop, "v40@0:8@16@24@32");
+  Protocol *vpP = objc_getProtocol("_UISceneHingeStateClientObserver");
+  if (vpP) class_addProtocol(vpObsC, vpP);
+  objc_registerClassPair(vpObsC);
+  [vpLog appendFormat:@"created class VPSensorsHingeObserver (protocol %@)\n", vpP ? @"added" : @"missing"];
+}
+NSObject *vpApp = (NSObject *)[UIApplication sharedApplication];
+NSMutableArray *vpKeep = objc_getAssociatedObject(vpApp, (void *)0x5650484e);
+if (!vpKeep) { vpKeep = [NSMutableArray array]; objc_setAssociatedObject(vpApp, (void *)0x5650484e, vpKeep, OBJC_ASSOCIATION_RETAIN); }
+for (UIScene *vpS in [UIApplication sharedApplication].connectedScenes) {
+  NSObject *vpF = ((id (*)(id, SEL))objc_msgSend)(vpS, @selector(_FBSScene));
+  NSObject *vpComp = vpF ? ((id (*)(id, SEL))objc_msgSend)(vpF, @selector(ui_hingeStateClientComponent)) : nil;
+  if (!vpComp) { [vpLog appendFormat:@"%@: no component\n", vpS.session.persistentIdentifier]; continue; }
+  NSHashTable *vpRegs = (NSHashTable *)object_getIvar(vpComp, class_getInstanceVariable(object_getClass(vpComp), "_observerRegistrations"));
+  if (vpRegs.count > 0) { [vpLog appendFormat:@"%@: already has %lu observer registrations, not registering\n", vpS.session.persistentIdentifier, (unsigned long)vpRegs.count]; continue; }
+  NSObject *vpObs = ((id (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(vpObsC, @selector(alloc)), @selector(init));
+  NSObject *vpTok = ((id (*)(id, SEL, id))objc_msgSend)(vpComp, @selector(registerObserver:), vpObs);
+  [vpKeep addObject:vpObs]; if (vpTok) [vpKeep addObject:vpTok];
+  [vpLog appendFormat:@"%@: registered observer, token %@\n%@\n", vpS.session.persistentIdentifier, vpTok ? NSStringFromClass(object_getClass(vpTok)) : @"nil", [vpComp description]];
+}
+vpLog
+

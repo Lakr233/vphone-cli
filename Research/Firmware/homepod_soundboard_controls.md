@@ -174,7 +174,9 @@ The full VPhone bundle build passed.
 ## Setup completion and inverse
 
 `system-homepod-exp-setup_bypass` is a declared optional patch, gated to HomePod
-27.x and enabled only in the `homepod-mini` preset. Other presets explicitly
+26.5 and later and enabled only in the `homepod-mini` preset. HomePod Software
+26.5 (23L471) has the same four SetupAssistant exports; the helper succeeded on
+it on 2026-10-26 (see the binary patch comparison). Other presets explicitly
 disable it, and explicit selection for another family is rejected. Its System
 marker is `/usr/share/vphone/HomePodSetup.plist`, with `Enabled=true`.
 

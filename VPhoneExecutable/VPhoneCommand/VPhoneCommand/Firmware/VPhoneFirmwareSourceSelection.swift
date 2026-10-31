@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import VPhoneCoreKit
 
@@ -23,5 +24,49 @@ enum VPhoneFirmwareSourceSelection {
             read: { readLine(strippingNewline: true) },
             write: { err($0) },
         )
+    }
+
+    // MARK: Version Selectors
+
+    /// The compatibility guide whose Tested Environments table rates each build.
+    static func compatibilityGuide(_ resources: VPhoneResources) -> String {
+        let source = resources.base.appendingPathComponent("Documents/Guides/compatibility.md")
+        let bundle = resources.base.appendingPathComponent("docs/guides/compatibility.md")
+        return FileManager.default.fileExists(atPath: source.path) ? source.path : bundle.path
+    }
+
+    /// The device whose IPSWs a version selector looks up: a device without an
+    /// IPSW lists and resolves its restore base's.
+    static func lookupDevice(_ device: String?) -> String {
+        VPhoneGuestDevice.named(device)?.restoreBase?.productType ?? device ?? VPhoneFirmwareCatalog.device
+    }
+
+    static func restoreURLs(forDevice device: String) throws -> String {
+        try vphoneRunBlocking {
+            try await VPhoneFirmwareIndex.restoreURLs(forDevice: device)
+        }.joined(separator: "\n")
+    }
+
+    /// The downloadable IPSW `--iphone-version`/`--iphone-build` select.
+    static func release(
+        device: String,
+        version: String?,
+        build: String?,
+        readme: String,
+        downloadURLs: String,
+    ) throws -> VPhoneFirmwareRelease {
+        let selection = VPhoneFirmwareMatrix.selection(
+            device: device,
+            version: version ?? "",
+            build: build ?? "",
+            readme: try? String(contentsOfFile: readme, encoding: .utf8),
+            downloadURLs: downloadURLs,
+            style: .forStream(FileHandle.standardError.fileDescriptor),
+        )
+        switch selection {
+        case let .selected(release, _): return release
+        case let .ambiguous(message), let .unmatched(message):
+            throw ValidationError(message.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
     }
 }

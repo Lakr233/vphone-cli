@@ -63,8 +63,9 @@ BATTERYHEALTHFIX_INCLUDES := $(wildcard BatteryHealthFix/*.h)
 # the image is mounted only after the host enables developer services. The two
 # interposed Swift getters are weak flat-namespace imports. CoreVideo, IOSurface
 # and libobjc are for the avconferenced band reads it waits on the scaler for;
-# Foundation and the ObjC runtime are for the CMAngleManager stand-in
-# (VPCMAngleManager.m) dtdeviceinfod answers the hinge stream from.
+# Foundation and the ObjC runtime are for the CMAngleManager and
+# CMDeviceStateManager stand-ins (VPCMAngleManager.m) dtdeviceinfod answers
+# the hinge and device motion state streams from.
 DEVICEHUBFIX := $(STAGE)/devicehubfix/libdevicehubfix.dylib
 DEVICEHUBFIX_SOURCES := $(sort $(wildcard DeviceHubFix/*.c) $(wildcard DeviceHubFix/*.m))
 DEVICEHUBFIX_INCLUDES := $(wildcard DeviceHubFix/*.h)
@@ -408,9 +409,9 @@ test-accelerometer:
 		-o $(OUT)/AccelerometerTests Tests/AccelerometerTests.m Accelerometer/VPhoneOrientationSink.m -framework Foundation
 	@$(OUT)/AccelerometerTests
 
-# The hinge's transport and, on a Mac with Apple's HID.framework, a real
-# IOHIDEventCreateHingeAngleEvent call whose fields read back from the event's
-# own description.
+# The hinge's transport and, on a Mac whose IOKit has them, the host-control
+# dictionaries serialized, read back and wrapped in a vendor-defined event as
+# the guest library does.
 test-hinge:
 	@mkdir -p $(OUT)
 	xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror -IHinge \
@@ -485,6 +486,9 @@ test-homepod-setup:
 	xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror -IHomePodSetup \
 		-o $(OUT)/HomePodSetupProcessTests Tests/HomePodSetupProcessTests.m HomePodSetup/HomePodSetupProcesses.m -framework Foundation
 	@$(OUT)/HomePodSetupProcessTests
+	xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror -IHomePodSetup \
+		-o $(OUT)/HomePodAirPlayTests Tests/HomePodAirPlayTests.m HomePodSetup/HomePodSetupState.m HomePodSetup/HomePodSetupProcesses.m -framework Foundation
+	@$(OUT)/HomePodAirPlayTests
 
 .PHONY: test-attitude
 test-attitude:
@@ -570,6 +574,19 @@ test-vcam-drive-gate:
 		-o $(OUT)/VCamDriveGateTests \
 		Tests/VCamDriveGateTests.c VCamCaptured/Frames/VCamDriveGate.c
 	@$(OUT)/VCamDriveGateTests
+
+# Host proof harness for camera-session weak registration during teardown.
+.PHONY: test-camfix-session-reference
+test-camfix-session-reference:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -fobjc-arc -O1 -Wall -Wextra -Werror \
+		-ICamFix/Session -framework Foundation \
+		-o $(OUT)/CamFixSessionReferenceTests Tests/CamFixSessionReferenceTests.m
+	@$(OUT)/CamFixSessionReferenceTests
+
+.PHONY: build-camfix-session-reproducer
+build-camfix-session-reproducer:
+	zsh Tests/CameraSessionReproducer/build.zsh "$(OUT)/camera-session-reproducer"
 
 # Host proof harness for the crop, size and turn plan libcamfix uses for
 # AVCaptureVideoDataOutput frames.

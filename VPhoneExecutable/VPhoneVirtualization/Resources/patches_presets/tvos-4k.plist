@@ -80,6 +80,7 @@
 			<string>system-tv-exp-legacy_setup</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-setup_bypass</string>
+			<string>system-homepod-exp-airplay_vm</string>
 			<string>system-homepod-exp-welcome</string>
 			<string>system-homepod-exp-siri_speech</string>
 			<string>system-homepod-exp-ota_userland</string>
@@ -121,7 +122,8 @@
 			<string>preboot-cfw-devicetree_iphone_product</string>
 			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
-			<string>preboot-exp-devicetree_foldable_product_id</string>
+			<string>preboot-cfw-devicetree_foldable_product_id</string>
+			<string>preboot-cfw-devicetree_foldable_displays</string>
 			<string>restoreramdisk-boot-apfs_sha3_hash</string>
 			<string>system-apps-cfw-attitude</string>
 			<string>system-apps-cfw-signin_sheets</string>

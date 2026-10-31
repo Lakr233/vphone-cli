@@ -1,0 +1,19 @@
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+unsigned int vpCount = 0;
+Class *vpAll = objc_copyClassList(&vpCount);
+NSMutableArray *vpHits = [NSMutableArray array];
+for (unsigned int vi = 0; vi < vpCount; vi++) {
+  const char *vpN = class_getName(vpAll[vi]);
+  NSString *vpS = [NSString stringWithUTF8String:vpN];
+  NSString *vpL = [vpS lowercaseString];
+  if ([vpL containsString:@"hinge"] || [vpL containsString:@"magicpose"] || [vpL containsString:@"devicepose"] || [vpL containsString:@"devicestate"] || [vpL containsString:@"posture"] || [vpL containsString:@"tabletop"] || [vpL containsString:@"foldab"] || [vpL containsString:@"cmangle"] || [vpL containsString:@"flipstate"] || ([vpL containsString:@"fold"] && ![vpL containsString:@"folder"])) {
+    Dl_info vpInfo; dladdr((__bridge void *)vpAll[vi], &vpInfo);
+    NSString *vpB = [[NSString stringWithUTF8String:vpInfo.dli_fname] lastPathComponent];
+    [vpHits addObject:[NSString stringWithFormat:@"%@ (%@)", vpS, vpB]];
+  }
+}
+free(vpAll);
+[vpHits sortUsingSelector:@selector(compare:)];
+[vpHits componentsJoinedByString:@"\n"]
+

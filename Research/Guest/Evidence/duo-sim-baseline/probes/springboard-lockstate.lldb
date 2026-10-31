@@ -1,0 +1,1 @@
+expr -l objc -O -- NSObject *vpL = (NSObject *)((id (*)(id, SEL))objc_msgSend)((id)NSClassFromString(@"SBLockScreenManager"), @selector(sharedInstance)); [NSString stringWithFormat:@"locked=%d screenOn=%d", ((BOOL (*)(id, SEL))objc_msgSend)(vpL, @selector(isUILocked)), ((BOOL (*)(id, SEL))objc_msgSend)(vpL, NSSelectorFromString(@"isScreenOn"))]

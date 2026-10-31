@@ -25,6 +25,7 @@ struct VPhoneVirtualMachineCommand: ParsableCommand {
             VPhoneVirtualMachineLaunchCommand.self,
             VPhoneVirtualMachineStopCommand.self,
             VPhoneVirtualMachineCreateCommand.self,
+            VPhoneVirtualMachineCreateBulkCommand.self,
             VPhoneVirtualMachineTemplateCommand.self,
             VPhoneVirtualMachineWriteManifestCommand.self,
         ],

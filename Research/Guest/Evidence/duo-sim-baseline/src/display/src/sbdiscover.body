@@ -1,0 +1,18 @@
+id vpOrientation = nil;
+NSMutableString *vpS = [NSMutableString string];
+for (NSString *vpName in @[@"UIScreen", @"FBSDisplayMonitor", @"FBDisplayManager", @"FBSDisplayConfiguration", @"FBSDisplayIdentity", @"FBSDisplayMode", @"UISDisplayContext", @"UITraitCollection", @"_UIScreenDisplayConfiguration", @"UIScreenMode"]) {
+  Class vc = NSClassFromString(vpName);
+  [vpS appendFormat:@"=== %@ %p\n", vpName, vc];
+  if (!vc) continue;
+  unsigned int vn = 0;
+  Method *vm = class_copyMethodList(vc, &vn);
+  NSMutableArray *vz = [NSMutableArray array];
+  for (unsigned int vi = 0; vi < vn; vi++) if (method_getNumberOfArguments(vm[vi]) == 2) { char vt[64]; method_getReturnType(vm[vi], vt, sizeof(vt)); [vz addObject:[NSString stringWithFormat:@"%@ %s %@", NSStringFromSelector(method_getName(vm[vi])), vt, vpAllowed(NSStringFromSelector(method_getName(vm[vi]))) ? @"" : @"DENY"]]; }
+  free(vm);
+  [vpS appendString:[[vz sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@"\n"]];
+  [vpS appendString:@"\n"];
+  vm = class_copyMethodList(object_getClass(vc), &vn);
+  for (unsigned int vi = 0; vi < vn; vi++) if (method_getNumberOfArguments(vm[vi]) == 2) [vpS appendFormat:@"+ %@\n", NSStringFromSelector(method_getName(vm[vi]))];
+  free(vm);
+}
+vpAdd(@"x", @"x", @"x", vpS, nil);

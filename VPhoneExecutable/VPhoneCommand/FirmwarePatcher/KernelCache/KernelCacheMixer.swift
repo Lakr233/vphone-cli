@@ -198,7 +198,10 @@ public final class KernelCacheMixer {
         let sources = base.kextSources.map { source in
             base.donors.firstIndex(of: source).map { donorKDKs[$0] } ?? baseKDK
         }
-        let (removed, added) = try KernelCacheKDK.mix(base: baseKDK, sources: sources, wanted: identifiers, output: mixKDK)
+        let pinned = try base.pinnedSources()
+        let (removed, added) = try KernelCacheKDK.mix(
+            base: baseKDK, sources: sources, wanted: identifiers, output: mixKDK, pinned: pinned,
+        )
         let addedText = zip(donors, donorKDKs).map { "\(added[$1]?.count ?? 0) from \($0.id)" }.joined(separator: ", ")
         log("  [kc] mix: \(identifiers.count) kexts, \(removed.count) research board kexts removed, \(addedText)")
         try KernelCacheKDK.makeVolume(kdk: mixKDK, identifiers: identifiers, output: paths.staged.appending(path: "volume"))
@@ -536,6 +539,9 @@ public final class KernelCacheMixer {
         // A recipe with its own source order is keyed on it too.
         if base.sources != nil {
             material += Data("|\(base.kextSources.joined(separator: ","))".utf8)
+        }
+        if let overrides = base.kextOverrides {
+            material += Data("|\(overrides.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ","))".utf8)
         }
         return String(KernelCacheRecipes.sha256(material).prefix(16))
     }

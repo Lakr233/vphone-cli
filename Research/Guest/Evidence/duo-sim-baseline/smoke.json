@@ -1,0 +1,941 @@
+{
+  "meta": {
+    "domain": "smoke",
+    "runtime": {
+      "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+      "version": "27.1",
+      "buildversion": "24A94425"
+    },
+    "device": {
+      "name": "duo-baseline-harness",
+      "udid": "D13582ED-1932-4E12-800F-A44CFE16EA8E",
+      "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo"
+    },
+    "xcode": "Xcode 27.1 Build version 27A9275",
+    "host": "27.0.1 Apple M5 Pro",
+    "date": "2026-10-29T05:45:22Z",
+    "posture_mechanism": "SBDisplayToolServiceCoordinator performDisplaySwapWithSettings: (tools/posture.zsh)",
+    "postures": [
+      {
+        "udid": "D13582ED-1932-4E12-800F-A44CFE16EA8E",
+        "posture": "closed",
+        "label": "closed",
+        "anchor": "none",
+        "requested_position": "closed",
+        "swap_options": "",
+        "swap_result": "parsed=1 started=1 targetMode=1 targetHingePosition=0.000000 duration=-1.000 profileOverride=0 deviceOrientation=0 error=(null)",
+        "settled": true,
+        "springboard": {
+          "hinge_state": "closed",
+          "position": "0.000 (0.000°)",
+          "prevailing_policy": "FullyClosed",
+          "primary_on": "cover",
+          "displays": [
+            {
+              "identifier": "38BD3D83-F64C-44DD-B9C3-5280CBD05F98",
+              "surface": "inner",
+              "applied": "disabled",
+              "target": "disabled"
+            },
+            {
+              "identifier": "5303539D-9680-4714-B2B1-C9E576109B16",
+              "surface": "cover",
+              "applied": "primaryContent",
+              "target": "primaryContent"
+            }
+          ]
+        },
+        "screenshots": {
+          "display1_cover": "lit",
+          "display3_inner": "dark",
+          "lit_panel": "cover"
+        },
+        "expected_lit_panel": "cover",
+        "ok": true,
+        "artifacts": "raw/smoke/20261029-134407-closed"
+      },
+      {
+        "udid": "D13582ED-1932-4E12-800F-A44CFE16EA8E",
+        "posture": "book",
+        "label": "book",
+        "anchor": "closed",
+        "requested_position": "book",
+        "swap_options": "",
+        "swap_result": "parsed=1 started=1 targetMode=1 targetHingePosition=0.555556 duration=-1.000 profileOverride=0 deviceOrientation=0 error=(null)",
+        "settled": true,
+        "springboard": {
+          "hinge_state": "partiallyOpen",
+          "position": "0.556 (100.000°)",
+          "prevailing_policy": "FoldingDual",
+          "primary_on": "inner",
+          "displays": [
+            {
+              "identifier": "38BD3D83-F64C-44DD-B9C3-5280CBD05F98",
+              "surface": "inner",
+              "applied": "primaryContent",
+              "target": "primaryContent"
+            },
+            {
+              "identifier": "5303539D-9680-4714-B2B1-C9E576109B16",
+              "surface": "cover",
+              "applied": "auxiliaryContent",
+              "target": "auxiliaryContent"
+            }
+          ]
+        },
+        "screenshots": {
+          "display1_cover": "dark",
+          "display3_inner": "lit",
+          "lit_panel": "inner"
+        },
+        "expected_lit_panel": "inner",
+        "ok": true,
+        "artifacts": "raw/smoke/20261029-134427-book"
+      },
+      {
+        "udid": "D13582ED-1932-4E12-800F-A44CFE16EA8E",
+        "posture": "open",
+        "label": "open",
+        "anchor": "none",
+        "requested_position": "open",
+        "swap_options": "",
+        "swap_result": "parsed=1 started=1 targetMode=1 targetHingePosition=1.000000 duration=-1.000 profileOverride=0 deviceOrientation=0 error=(null)",
+        "settled": true,
+        "springboard": {
+          "hinge_state": "openFlat",
+          "position": "1.000 (180.000°)",
+          "prevailing_policy": "FoldingDual",
+          "primary_on": "inner",
+          "displays": [
+            {
+              "identifier": "38BD3D83-F64C-44DD-B9C3-5280CBD05F98",
+              "surface": "inner",
+              "applied": "primaryContent",
+              "target": "primaryContent"
+            },
+            {
+              "identifier": "5303539D-9680-4714-B2B1-C9E576109B16",
+              "surface": "cover",
+              "applied": "auxiliaryContent",
+              "target": "auxiliaryContent"
+            }
+          ]
+        },
+        "screenshots": {
+          "display1_cover": "dark",
+          "display3_inner": "lit",
+          "lit_panel": "inner"
+        },
+        "expected_lit_panel": "inner",
+        "ok": true,
+        "artifacts": "raw/smoke/20261029-134502-open"
+      }
+    ]
+  },
+  "records": [
+    {
+      "api": "UIScreen.screens",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens].count",
+      "value": 2,
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 466,
+        "height": 678
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 1398,
+        "height": 2034
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] == [UIScreen mainScreen]",
+      "value": true,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] valueForKey:@\"displayIdentity\"",
+      "value": "Main",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0]._name",
+      "value": "LCD",
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 951,
+        "height": 669
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 2007,
+        "height": 2853
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] == [UIScreen mainScreen]",
+      "value": false,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] valueForKey:@\"displayIdentity\"",
+      "value": "Unknown.main[3]",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1]._name",
+      "value": "LCD-1",
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.primaryWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator primaryWindowScene]",
+      "value": {
+        "displayIdentity": "Main",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 466,
+          "height": 678
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "SB-main"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.activeWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator activeWindowScene]",
+      "value": {
+        "displayIdentity": "Main",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 466,
+          "height": 678
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "SB-main"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<SB-main>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Main",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 466,
+            "height": 678
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "SB-main"
+        },
+        "userInitiated": false,
+        "displayContentMode": 2
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<com.apple.springboard.bringup>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Unknown.main[3]",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 951,
+            "height": 669
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "com.apple.springboard.bringup"
+        },
+        "userInitiated": false,
+        "displayContentMode": 1
+      },
+      "error": null
+    },
+    {
+      "api": "SBFDisplayContentModeResolver.description",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "closed",
+      "orientation": "portrait",
+      "call": "[[SBDisplayContentModeCoordinator valueForKey:@\"_resolver\"] description]",
+      "value": "<SBFDisplayContentModeResolver: 0x10f16df80> {\n    Prevailing Policy: FullyClosed;\n    Preferred Transition Style: .continuousSnapshot;\n    Ready To Resolve: YES;\n    Policies: {\n        Single: —;\n        FoldingDual: —, primary on .cover;\n        Yoink(none): —, primary on .default, 0 persistent, 0 transient;\n        Tent: —, primary on .cover;\n        FullyClosed: prevailing, primary on .cover;\n        ForceCoverDisplayEnabledOnly: —, primary on .cover;\n    };\n    Device Pose Provider: <SBFDevicePoseProvider 0x10caa9500>\nContinuous Fold Position: 0.000\n\nSBFHingeState: .closed\n     Position: 0.000 (0.000°)\n     Progress: 1.000\n      To Swap: 1.000\n    From Swap: 1.000\n\n  fullyClosed: 0.00→0.03 Active\n       closed: 0.00→0.11 Active\npartiallyOpen: 0.11→0.97 Possible\n     openFlat: 0.97→1.00 Disabled\nfoldAvoidance: 0.11→0.97 Disabled\n       toOpen: 0.03→0.97 Possible\n     toClosed: 0.97→0.03 Disabled\n\n     Opens at: 5.0° or below\n    Closes at: 175.0° or above\n      Flat at: 175.0° or above\n\n       Device: portrait (1);\n    Displays: [\n        <SBFDisplayProxy: 0x128a444b0; identifier: 38BD3D83-F64C-44DD-B9C3-5280CBD05F98> {\n            surfaceType: .inner;\n            applied: .disabled;\n            target: .disabled;\n        },\n        <SBFDisplayProxy: 0x1267c5560; identifier: 5303539D-9680-4714-B2B1-C9E576109B16> {\n            surfaceType: .cover;\n            applied: .primaryContent;\n            target: .primaryContent;\n        }\n    ];\n}",
+      "error": null
+    },
+    {
+      "api": "UIScreen.screens",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens].count",
+      "value": 2,
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 466,
+        "height": 678
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 1398,
+        "height": 2034
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] == [UIScreen mainScreen]",
+      "value": true,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] valueForKey:@\"displayIdentity\"",
+      "value": "Main",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0]._name",
+      "value": "LCD",
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 951,
+        "height": 669
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 2007,
+        "height": 2853
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] == [UIScreen mainScreen]",
+      "value": false,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] valueForKey:@\"displayIdentity\"",
+      "value": "Unknown.main[3]",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1]._name",
+      "value": "LCD-1",
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.primaryWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator primaryWindowScene]",
+      "value": {
+        "displayIdentity": "Unknown.main[3]",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 951,
+          "height": 669
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "com.apple.springboard.bringup"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.activeWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator activeWindowScene]",
+      "value": {
+        "displayIdentity": "Unknown.main[3]",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 951,
+          "height": 669
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "com.apple.springboard.bringup"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<SB-main>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Main",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 466,
+            "height": 678
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "SB-main"
+        },
+        "userInitiated": false,
+        "displayContentMode": 3
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<com.apple.springboard.bringup>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Unknown.main[3]",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 951,
+            "height": 669
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "com.apple.springboard.bringup"
+        },
+        "userInitiated": false,
+        "displayContentMode": 2
+      },
+      "error": null
+    },
+    {
+      "api": "SBFDisplayContentModeResolver.description",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "book",
+      "orientation": "portrait",
+      "call": "[[SBDisplayContentModeCoordinator valueForKey:@\"_resolver\"] description]",
+      "value": "<SBFDisplayContentModeResolver: 0x10f16df80> {\n    Prevailing Policy: FoldingDual;\n    Preferred Transition Style: .continuousSnapshot;\n    Ready To Resolve: YES;\n    Policies: {\n        Single: —;\n        FoldingDual: prevailing, primary on .inner;\n        Yoink(none): —, primary on .default, 0 persistent, 0 transient;\n        Tent: —, primary on .cover;\n        FullyClosed: —, primary on .cover;\n        ForceCoverDisplayEnabledOnly: —, primary on .cover;\n    };\n    Device Pose Provider: <SBFDevicePoseProvider 0x10caa9500>\nContinuous Fold Position: 1.000\n\nSBFHingeState: .partiallyOpen\n     Position: 0.556 (100.000°)\n     Progress: 1.000\n      To Swap: 1.000\n    From Swap: 1.000\n\n  fullyClosed: 0.00→0.03 Disabled\n       closed: 0.00→0.28 Possible\npartiallyOpen: 0.28→0.97 Active\n     openFlat: 0.97→1.00 Possible\nfoldAvoidance: 0.28→0.97 Active\n       toOpen: 0.03→0.56 Disabled\n     toClosed: 0.56→0.03 Possible\n\n     Opens at: 5.0° or below\n    Closes at: 175.0° or above\n      Flat at: 175.0° or above\n\n       Device: portrait (1);\n    Displays: [\n        <SBFDisplayProxy: 0x128a444b0; identifier: 38BD3D83-F64C-44DD-B9C3-5280CBD05F98> {\n            surfaceType: .inner;\n            applied: .primaryContent;\n            target: .primaryContent;\n        },\n        <SBFDisplayProxy: 0x1267c5560; identifier: 5303539D-9680-4714-B2B1-C9E576109B16> {\n            surfaceType: .cover;\n            applied: .auxiliaryContent;\n            target: .auxiliaryContent;\n        }\n    ];\n}",
+      "error": null
+    },
+    {
+      "api": "UIScreen.screens",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens].count",
+      "value": 2,
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 466,
+        "height": 678
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 1398,
+        "height": 2034
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] == [UIScreen mainScreen]",
+      "value": true,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0] valueForKey:@\"displayIdentity\"",
+      "value": "Main",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][0]._name",
+      "value": "LCD",
+      "error": null
+    },
+    {
+      "api": "UIScreen.bounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].bounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 951,
+        "height": 669
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeBounds",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeBounds",
+      "value": {
+        "y": 0,
+        "x": 0,
+        "width": 2007,
+        "height": 2853
+      },
+      "error": null
+    },
+    {
+      "api": "UIScreen.scale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].scale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.nativeScale",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1].nativeScale",
+      "value": 3,
+      "error": null
+    },
+    {
+      "api": "UIScreen.isMainScreen",
+      "kind": "public",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] == [UIScreen mainScreen]",
+      "value": false,
+      "error": null
+    },
+    {
+      "api": "UIScreen.displayIdentity",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1] valueForKey:@\"displayIdentity\"",
+      "value": "Unknown.main[3]",
+      "error": null
+    },
+    {
+      "api": "UIScreen._name",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[UIScreen screens][1]._name",
+      "value": "LCD-1",
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.primaryWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator primaryWindowScene]",
+      "value": {
+        "displayIdentity": "Unknown.main[3]",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 951,
+          "height": 669
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "com.apple.springboard.bringup"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.activeWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator activeWindowScene]",
+      "value": {
+        "displayIdentity": "Unknown.main[3]",
+        "screenBounds": {
+          "y": 0,
+          "x": 0,
+          "width": 951,
+          "height": 669
+        },
+        "interfaceOrientation": 1,
+        "persistentIdentifier": "com.apple.springboard.bringup"
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<SB-main>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Main",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 466,
+            "height": 678
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "SB-main"
+        },
+        "userInitiated": false,
+        "displayContentMode": 3
+      },
+      "error": null
+    },
+    {
+      "api": "SBDisplayContentModeCoordinator.displayContentModeForWindowScene",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[SBDisplayContentModeCoordinator displayContentModeForWindowScene:<com.apple.springboard.bringup>]",
+      "value": {
+        "scene": {
+          "displayIdentity": "Unknown.main[3]",
+          "screenBounds": {
+            "y": 0,
+            "x": 0,
+            "width": 951,
+            "height": 669
+          },
+          "interfaceOrientation": 1,
+          "persistentIdentifier": "com.apple.springboard.bringup"
+        },
+        "userInitiated": false,
+        "displayContentMode": 2
+      },
+      "error": null
+    },
+    {
+      "api": "SBFDisplayContentModeResolver.description",
+      "kind": "private",
+      "process": "SpringBoard",
+      "posture": "open",
+      "orientation": "portrait",
+      "call": "[[SBDisplayContentModeCoordinator valueForKey:@\"_resolver\"] description]",
+      "value": "<SBFDisplayContentModeResolver: 0x10f16df80> {\n    Prevailing Policy: FoldingDual;\n    Preferred Transition Style: .continuousSnapshot;\n    Ready To Resolve: YES;\n    Policies: {\n        Single: —;\n        FoldingDual: prevailing, primary on .inner;\n        Yoink(none): —, primary on .default, 0 persistent, 0 transient;\n        Tent: —, primary on .cover;\n        FullyClosed: —, primary on .cover;\n        ForceCoverDisplayEnabledOnly: —, primary on .cover;\n    };\n    Device Pose Provider: <SBFDevicePoseProvider 0x10caa9500>\nContinuous Fold Position: 1.000\n\nSBFHingeState: .openFlat\n     Position: 1.000 (180.000°)\n     Progress: 1.000\n      To Swap: 1.000\n    From Swap: 1.000\n\n  fullyClosed: 0.00→0.03 Disabled\n       closed: 0.00→0.47 Disabled\npartiallyOpen: 0.47→0.97 Possible\n     openFlat: 0.97→1.00 Active\nfoldAvoidance: 0.47→0.97 Disabled\n       toOpen: 0.03→0.97 Disabled\n     toClosed: 0.97→0.03 Possible\n\n     Opens at: 5.0° or below\n    Closes at: 175.0° or above\n      Flat at: 175.0° or above\n\n       Device: portrait (1);\n    Displays: [\n        <SBFDisplayProxy: 0x128a444b0; identifier: 38BD3D83-F64C-44DD-B9C3-5280CBD05F98> {\n            surfaceType: .inner;\n            applied: .primaryContent;\n            target: .primaryContent;\n        },\n        <SBFDisplayProxy: 0x1267c5560; identifier: 5303539D-9680-4714-B2B1-C9E576109B16> {\n            surfaceType: .cover;\n            applied: .auxiliaryContent;\n            target: .auxiliaryContent;\n        }\n    ];\n}",
+      "error": null
+    }
+  ]
+}

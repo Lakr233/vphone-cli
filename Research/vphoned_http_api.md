@@ -497,7 +497,7 @@ request carries `"force": true`.
 | Area | Methods |
 | --- | --- |
 | Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode, agent, `device_name` `{name, own_name}`: the pinned name and the guest's own ComputerName), `device.screen`, `device.network`, `device.displays` (a flat IOService probe of every display-ish object with its small properties — what the display stack bound; built for the foldable display work: `AppleParavirtGPU` `DisplayPortCount`, and each `AppleParavirtDisplay` width/height/`primary`), `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
-| Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (`{degrees, source}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
+| Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (`{degrees, source, fold_angle?, screen_off?}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether SpringBoard has the screen off, so a host can keep the panel's frame from before off its window as it comes on; capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
 | UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot` |
 | Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `process.spawn {executable, arguments?, timeout_seconds?}`, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
@@ -1213,57 +1213,120 @@ plain HTTP, so use it only on a trusted network.
 
 ## Device pose
 
-`display.posture` sets a foldable guest's pose (iPhone Duo), driving both
-halves of the fold state from one request. SpringBoard's half is the
-test-automation override: vphoned calls
-`-[SBSTestAutomationService setDevicePoseOverride:]`, which SpringBoard
-accepts from a client entitled `com.apple.springboard.testautomation`; the
-server builds a synthetic magic pose and derives a hinge angle from the
-hinge state (0, 0, 90, 180 and 180 degrees for states 0–4). CoreMotion's
-half is the virtual hinge HID service (`system-backboardd-cfw-hinge`,
-`libvphonehinge.dylib` in backboardd, usage page `0xFF0C` / usage `0x21`),
-which needs the foldable's own `product-id` in the device tree
-(`preboot-exp-devicetree_foldable_product_id`) before CoreMotion looks for
-it; that is the half CoreDevice's `hingeAngle` stream reads, because
-CoreDevice does not go through SpringBoard.
+`display.posture` sets a foldable guest's pose (iPhone Duo). The virtual
+hinge (`system-backboardd-cfw-hinge`, `libvphonehinge.dylib` in backboardd)
+publishes Apple's VM host controls, primary usage `0xFF61` / `0x5B`, and sends
+the angle and device orientation as `hinge-slider-control` and
+`orientation-picker-control` dictionaries. With the foldable's own
+`product-id` in the device tree (`preboot-cfw-devicetree_foldable_product_id`)
+CoreMotion has the foldable's capabilities, locationd's device-state relay
+turns those dictionaries into the hinge-angle and device-state services
+(`CoreMotion_DeviceStateRelay_Crane` `0xFF0C/0x21`, `_DeviceState`
+`0xFF0C/0x22`), and SpringBoard reads its pose — angle, hinge state, each
+panel's orientation — from CoreMotion as on a device; CoreDevice's
+`hingeAngle` stream reads the same manager. Opening a closed guest lights the
+screen first (`SBSUndimScreen`, the side button when SpringBoard refuses it):
+SpringBoard's pose provider publishes a moving pose only on display frames.
+
+On a guest whose CoreMotion lacks the capability, vphoned instead sets
+SpringBoard's test-automation override
+(`-[SBSTestAutomationService setDevicePoseOverride:]`, entitlement
+`com.apple.springboard.testautomation`), whose server builds a synthetic
+magic pose and derives the angle from the hinge state (0, 0, 90, 180 and 180
+degrees for states 0–4). The reply's `source` says which: `coremotion` or
+`test-automation`. `display.pose` reads the test-automation snapshot and is
+only current in the second case.
 
 On the iPhone Duo (iPhone19,4) the fold display patch
 (`system-springboard-cfw-fold_display`) publishes the inner panel as a second
 display, and SpringBoard picks the posture policy from the pose itself:
-`FoldingDual` open, `FullyClosed` closed. vphoned publishes the pose and the
-hinge and does nothing further. `display.rotation` turns a foldable guest
-(one with the virtual hinge enabled) through the same pose: it sets the pose
-orientation that gives the lit panel the requested interface orientation
-(cover: 0 portrait, 90 landscape-right, 180 upside-down, 270 landscape-left;
-inner panel, mounted a quarter turn from the cover: 0 landscape-left, 90
-portrait, 180 landscape-right, 270 upside-down) and reads the interface back.
-The accelerometer and the AssistiveTouch rotation other iPhones use do not
-turn a foldable's panels.
+`FoldingDual` open, `FullyClosed` closed. `display.rotation` turns a
+foldable guest (one with the virtual hinge enabled) through the same channel:
+it sends the device orientation that gives the lit panel the requested
+interface orientation (cover: 0 portrait, 90 landscape-right, 180
+upside-down, 270 landscape-left; inner panel, mounted a quarter turn from the
+cover: 0 landscape-left, 90 portrait, 180 landscape-right, 270 upside-down)
+and reads the interface back. The host controls' orientation picker has no
+upside-down, so with CoreMotion the cover's 180 and the inner panel's 270 are
+refused. With the override, a turn that does not land gets the old pose
+orientation back, since SpringBoard keeps a refused one and later folds carry
+it, and partially open the request is refused, because the override means 90°
+there and slides the fold toward the cover. The accelerometer and the
+AssistiveTouch rotation other iPhones use do not turn a foldable's panels.
+
+Without CoreMotion's relay a `position` request is a fold that SpringBoard
+runs the way Apple's `suiatool swap` does (with the relay the virtual hinge
+sweeps and SpringBoard folds from the hinge): vphoned calls
+`-[SBSDisplayToolService swapDisplayWithSettings:completion:]` with the
+position as an absolute hinge target (0 closed, 1 open flat), the duration
+(−1 the per-direction default, measured 0.391 s opening and 0.420 s
+closing) and the profile (none, fade 1, continuous 2), and waits for the
+reply that comes once the swap has finished. SpringBoard
+(`SBDisplayToolServiceCoordinator`) takes a 10 s test lock that ignores the
+hinge, sweeps its own hinge pose from the current angle, and swaps displays
+when the sweep crosses the boundary, with the transition style, lock screen
+and backlight handling of a real fold (`book` from closed swaps to the inner
+panel; `book` from open does not). The swap keeps the device orientation
+unless `orientation` is given. vphoned then sets only the virtual hinge to
+the end angle and leaves the override alone: the override reaches
+SpringBoard even under the test lock and stands for 0, 90 or 180 degrees
+only, so setting it after a `book` sweep (100 degrees) slid the pose to 90
+and started a transition toward the cover. SpringBoard does not return to
+the old override when the lock ends, and applies the next override against
+its current pose, so a later `hinge` request lands even when its value
+equals the old one. `display.pose` does not follow SpringBoard's own sweeps
+(it kept reading `open-flat` after a sweep to closed), so the posture
+replayed after a SpringBoard restart takes its hinge state from a completed
+sweep's request. The server checks for
+`com.apple.springboard.sbdisplay.service`, which vphoned carries; a client
+without it is logged as having insufficient authorization and never
+answered. On a guest without the service (or one that does not answer
+within 10 s plus the duration) the virtual hinge sweeps and the override
+jumps, as before. Verified 2026-10-29 on iPhone19,4 27.1 (24A94425).
+
+Posture requests run one at a time. SpringBoard answers a swap it refuses
+("system is not idle") at once and exactly like a finished one, so a reply
+under 0.3 s for a sweep that had to move is treated as a refusal and retried
+every 0.25 s until 10 s plus the duration have passed; then the request
+fails with "SpringBoard kept refusing the fold". The virtual hinge takes the
+target angle as SpringBoard's sweep starts, and the old angle again if the
+fold does not run: Xcode's DeviceHub reads it and, with the old angle
+lingering through the sweep, sent its slider back there. DeviceHub's own fold
+and orientation controls arrive in the guest as vendor-defined HID events,
+and vphoned runs them through this request on an iPhone Duo; with the relay
+locationd takes them itself and the virtual hinge follows each slider value (see
+`Guest/devicehub_screen_viewing.md`, "iPhone Duo: the fold").
 
 | Param | Values |
 | --- | --- |
 | `hinge` (required) | `ambiguous` 0, `closed` 1, `partially-open` 2, `open-flat` 3, `open` 4 |
 | `orientation` | `ambiguous` 0, `portrait` 1 (default), `upside-down` 2, `landscape-left` 3, `landscape-right` 4, `face-up` 5, `face-down` 6 |
 | `tabletop` | 0–10 (default 0, ambiguous) |
-| `angle` | 0–180 (default: the hinge state's angle from SpringBoard's table) |
+| `angle` | 0–180 (default: the hinge state's angle; partially open is book, 100°) |
 | `position` | `closed` 0°, `book` ~100°, `open` 180°, or a fraction 0–1 — Apple's three screen states; requests a sweep |
 | `duration` | sweep seconds; default the per-direction hand-fold time (opening faster), 0 instant |
-| `profile` | `continuous` (default) or `fade`, the two profiles suiatool names |
+| `profile` | `continuous` or `fade`, the two profiles suiatool names; default SpringBoard's own |
 
-The reply echoes the numeric values, the published `angle`, and `hinge_hid`
-(`applied`, `provider_running`, `provider`) describing the virtual hinge
-service, so a host can tell a live sensor from an absent one. A refused pose
-override fails the request; a missing hinge provider does not — the pose is
-the primary, the service may be off, and the angle then reaches CoreMotion
-after the guest reboots with the provider installed. The override is state
-of the running SpringBoard, gone with it at shutdown. The VM sub-type's own
+The reply echoes the numeric values, the published `angle`, `source`, and
+`hinge_hid` (`applied`, `provider_running`, `provider`) describing the
+virtual hinge service, so a host can tell a live sensor from an absent one.
+For a `position` it carries `sweep` (`duration_ms` as requested, −1 the
+default; `profile`; `completed`, true when SpringBoard ran the fold and has
+finished it, so the host settles its chrome at once). With CoreMotion the
+hinge is the pose, so a hinge that did not take the request fails it;
+`tabletop` is CoreMotion's to compute and comes back null. With the override,
+a refused override fails the request and a missing hinge provider does not.
+The hinge's stored angle and orientation survive a reboot and the provider
+hands them to the relay when it enumerates; the override is state of the
+running SpringBoard, gone with it at shutdown. The VM sub-type's own
 restore path (`preboot-cfw-devicetree_foldable_vm_subtype`) does not stand
 in on a single display: its `SBFDevicePoseLastKnown*` defaults are written
 on display-mode transitions, which one display never makes (measured
-2026-10-25: they stay zero), so vphoned re-applies the saved posture over
-the boot itself (`GuestFoldPose` in the daemon: a bounded ladder of pose
-and hinge applications across SpringBoard's first 90 s; only a guest whose
-hinge was configured is touched).
+2026-10-25: they stay zero), so on a guest without CoreMotion's capability
+vphoned re-applies the saved posture over the boot itself (`GuestFoldPose`
+in the daemon: a bounded ladder of pose and hinge applications across
+SpringBoard's first 90 s; only a guest whose hinge was configured is
+touched).
 
 The VM window's Motion Sensors › Fold Posture panel (capability
 `device_pose`) is the host-side driver: a Closed / Book / Open picker with a

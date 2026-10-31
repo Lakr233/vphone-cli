@@ -15,7 +15,8 @@ Measured with Xcode 27.0 (27A266a) and CoreDevice 642.16 on macOS 27.0.1,
 against `iPad16,1` 26.6.2 (23G90) and 27.0.1 (24A446) and `iPhone17,3` 26.6.2
 and 27.0.1 guests over cloudOS 26.4, 2026-10-06 and 2026-10-07.
 
-Status: the live view works on iPadOS 26, iOS 26 and iOS 27; iPadOS 27 refuses
+Status: the live view works on iPadOS 26, iOS 26 and iOS 27 (an iPhone Duo
+follows its fold, see [iPhone Duo: the fold](#iphone-duo-the-fold)); iPadOS 27 refuses
 pairing and is untested. Known issue: under load (several VMs streaming, or the
 Mac busy restoring or downloading) the view can stall for seconds or fall
 seconds behind and stay there until the stream restarts. A single stream on a
@@ -184,8 +185,12 @@ processes only (`vpIsDeviceHubFixTarget` in `Shared/InjectionEnvironment.h`):
   filesystem without protection classes. Every other call and failure is
   untouched.
 - **`dtremotedisplayd`**: interposes `MediaStreamSupportedFeatures.current`,
-  which answers `0x8c` (what a Mac host reports for itself; the host
-  intersects it with its own), and `CurrentDevice.isCustomerRestricted`, which
+  which answers `0x184`: `0x8c`, what a Mac host reports for itself (the host
+  intersects it with its own), without system audio `0x8` (the VM window
+  plays the guest's audio already, and DeviceHub played it a second time),
+  plus video output by display ID `0x100`, which an iPhone Duo's inner panel
+  streams through (see
+  [iPhone Duo](#iphone-duo-the-fold)); and `CurrentDevice.isCustomerRestricted`, which
   answers false. The struct is resilient (the framework is built for library
   evolution), so the getter returns it indirectly through `x8`; the
   replacement is three instructions of assembly.
@@ -194,6 +199,9 @@ processes only (`vpIsDeviceHubFixTarget` in `Shared/InjectionEnvironment.h`):
   `phone11`, it answers with Xcode's matching mask `4E5532ED-…`, retained under
   the Copy ownership rule. Existing answers and other chromes are unchanged.
   This is display metadata, not a change to the guest's hardware identity.
+  On an iPhone Duo it also stands in for CoreMotion's hinge angle and device
+  state managers and reports the inner display as integrated (see
+  [iPhone Duo](#iphone-duo-the-fold)).
 - **`avconferenced`**: replaces `VCPSideCarMetal`'s two band reads and runs
   one synchronous scaler transform before the first read of each frame (see
   [Banded streams](#banded-streams-deadlock-the-host-gpu)).
@@ -543,6 +551,208 @@ when the two interleave a real frame can land 1–28 ms behind an idle one and
 is dropped. The offsets do not accumulate, so this costs single frames, not
 seconds.
 
+## iPhone Duo: the fold
+
+Measured 2026-10-29 with Xcode 27.1 against `iPhone19,4` 27.1 (24A94425).
+
+Xcode 27.1 draws a foldable as a 3D V68 model
+(`DeviceKit.framework/PlugIns/CoreDevicePopDeviceKitExtension.devicekitplugin`,
+log subsystem `com.apple.dt.coredevicepop`, with the host CoreDevice plugin
+`CoreDevicePopCoreDeviceExtension.coredeviceplugin`). It picks the fold and
+the lit panel from the device's pose, which is CoreDevice's device motion
+state stream (`com.apple.coredevice.action.streamdevicemotionstate`). The
+DDI's `dtdeviceinfod` (`DeviceMotionStateManager`) answers it from
+CoreMotion's `CMDeviceStateManager`, reading each `CMDeviceStateEvent`'s
+`propertyA` (device orientation), `propertyB` (hinge state 1 closed, 2
+partially open, 3 open flat) and `propertyC`. On a guest the manager is
+unavailable, DeviceHub logs `Pose monitoring failed … Code=1001` every second,
+and draws the device closed whatever the hinge angle stream says.
+
+`libdevicehubfix` answers it in `dtdeviceinfod` (`VPCMAngleManager.m`, beside
+the hinge angle stand-in): `isAvailable` follows the hinge provider, and
+updates are real `CMDeviceStateEvent`s built from the provider's newest
+sample, sent at start and on every change. `propertyA` is the device
+orientation vphoned publishes (`VPhoneDeviceOrientation` in
+`com.apple.backboardd`, portrait until a rotation or DeviceHub's orientation
+picker sets one), `propertyB` the provider's hinge state.
+
+DeviceHub's model (decompiled, `CoreDevicePopDeviceKitExtension`):
+
+- `PhysicalState.update` reads only `propertyA`, `propertyB` and `propertyC`
+  (each a `CodableValue.int`). Closed pins the angle at 0°, open flat at
+  180°; partially open keeps the angle from the hinge angle stream
+  (`streamhingeangle`, samples with `isAngleValid`, a `Measurement` in
+  degrees).
+- The focused panel (the face the model shows, and whose stream it draws) is,
+  in order: the panel a command is heading for, cover when closed, the active
+  display DisplayInfo reports (accepted only fully open or closed), then the
+  hinge: partially open at 55° or more is the inner panel, 45° or less the
+  cover.
+- The model's rotation comes from the pose orientation and the focused panel,
+  not the hinge state; `DisplayInfo.orientation.currentDeviceOrientation`
+  stands in only while the device lies face up or down. The pose buttons'
+  icons turn with `propertyA`.
+- The presets are closed 0°, partially open **130°** and open 180°.
+
+The hinge angle stand-in's three angles are **floats**: `dtdeviceinfod`'s
+`CMAngle_Bridge` declares `angleDegrees`, `mechanicalAngleDegrees` and
+`velocityDegreesPerSeconds` as `Tf` and reads `s0`. The first stand-in
+returned doubles, whose low half is zero for every whole angle, so DeviceHub
+read 0° throughout. Open and closed hid it (their hinge states pin the
+angle); in book DeviceHub drew the device nearly shut and focused the cover,
+whose stream is the composited portrait output, so the inner picture looked a
+quarter turned. Reporting landscape right made that picture upright only by
+rolling the whole model.
+
+Each panel streams on its own. DeviceHub shows its pose controls only when
+DisplayInfo lists the inner display as `integrated` with its own ID, and then
+draws that panel from that display's stream (feature `0x100`) and geometry.
+FoldDisplay publishes the inner display with the hardware's shape: a portrait
+2007×2853 framebuffer at 3×, mounted at 270° (`DisplayRotation`, as the
+simulator's inner `CADisplay`), into which SpringBoard lays the inner UI out
+at interface orientation 90. In `dtdeviceinfod` the library reports that
+display as integrated at point scale 3 (`displayType`, `pointScale` on the
+`CADisplay` named `VPhone Duo Inner`). An earlier landscape inner display
+streamed pillarboxed with black bars, and with the mirror of display 1 the
+picture came out turned a quarter.
+
+DeviceHub's controls reach the guest as vendor-defined HID events (usage
+page `0xFF61`, usage `0x5B`) from the DDI's `dtuhidd` virtual service
+`CoreDevice avpCustom`. The payload is an IOKit binary-serialized dictionary
+(`IOCFUnserializeBinary`): `provider` `com.apple.Virtualization.VirtualMachines`,
+`source` `hinge-slider-control` (`type` range, `value` degrees, sent every
+frame of DeviceHub's own animation) or `orientation-picker-control` (`type`
+enum, `value` `portrait`, `portraitUpsideDown`, `landscapeLeft` or
+`landscapeRight`). vphoned watches for them on an iPhone Duo
+(`vphoned_devicehub.m`, an unmatched HID event monitor; matching by usage
+missed them) and acts through the `display.posture` paths
+(`GuestDeviceHubControl`): a run of slider values is folded once it has been
+quiet for 200 ms, to where it ended, and a picker value sets the pose
+orientation with the hinge where it is, as `display.rotation` does. The
+orientation DeviceHub reads back changes only once SpringBoard's interface
+has turned, and a refused turn gets the old pose orientation back (SpringBoard
+keeps a refused one, and later folds carry it). Book is left alone: the
+override means 90° there and slides the fold toward the cover. Measured with
+`display.rotation` on the open inner panel: 0, 90, 180 and 270 all turn, and
+DeviceHub turns its model with each, picture upright. The picker itself was
+not pressed.
+DeviceHub then waits for its hinge
+reading to agree; vphoned moves the virtual hinge to the target as
+SpringBoard's sweep starts, since a stale angle through the sweep made
+DeviceHub's slider send the old angle back and fold the guest again.
+
+
+`dtdeviceinfod` aborted whenever it let a `CMAngleManager` go, as when
+DeviceHub quit or reconnected: `-[CMAngleManager dealloc]` stops
+CoreMotion's own manager, and `-[CMAngleManagerInternal
+stopAngleUpdatesPrivate]` asserts `CLAngleNotifier::isAvailable()`
+(`CMAngleManager.mm` line 214), which is false on a guest without the
+foldable product-id. The relaunched `dtdeviceinfod` left DeviceHub without
+the device state, and its fold controls stopped working until DeviceHub was
+restarted. The stand-in now skips that internal stop, since under it the
+real manager never started. Its `minAngleDegrees` and `maxAngleDegrees` also
+return floats, as declared. Six crash reports with the same stack were
+collected on 2026-10-29 and 2026-10-30. With the fix, `dtdeviceinfod` kept
+running through a DeviceHub quit and relaunch, and DeviceHub followed the
+guest to book and closed afterwards.
+
+Restarting backboardd breaks `dtuhidd`'s HID connection and DeviceHub keeps
+the dead one: restart DeviceHub after a respring.
+
+Measured on the same guest, portrait: closed and open from DeviceHub's
+buttons settle without bouncing and the guest follows; book at 130° (folded
+by `display.posture`) draws the inner face upright with the crease vertical,
+as DeviceHub draws a simulator Duo in book. Not yet repeated from DeviceHub's
+own book button since the float fix. Once, after DeviceHub's close from book,
+the cover came up in landscape (interface 90°); it did not recur in 48
+scripted folds over every path, and the guest's device orientation had been
+left non-portrait by rotation experiments just before, which the swap keeps.
+
+With the foldable's product-id (`preboot-cfw-devicetree_foldable_product_id`,
+on in standard since Lakr233/vphone-cli#778) CoreMotion has its own angle and
+device-state managers, and locationd's device-state relay reads the host
+controls (`0xFF61/0x5B`). Both `dtdeviceinfod` stand-ins then step aside, and
+DeviceHub reads the real managers. dtuhidd's "CoreDevice avpCustom" service
+carries the same usage, so the relay takes DeviceHub's controls itself, as on
+Apple's VM host, and the guest follows the slider as it moves. The virtual
+hinge, which resends its stored values every 5 s for a restarted locationd,
+stores each slider value quietly (a `quiet` configuration: no host-control
+event): while it kept the old angle until a debounced fold, a resend landing
+inside a run sent the fold back, and sending each value again reached the
+relay late, behind DeviceHub's own, and swung the hinge back and forth across
+the swap (the panel changed hands eight times on three clicks). An opening run from
+closed lights the screen first, as `display.posture` does; with a sleeping
+cover SpringBoard's pose provider commits no moving pose and the inner
+display stayed black. The picker sets the hinge's orientation. The provider
+check keeps vphoned from following the hinge's own dictionaries, which carry
+none. The SpringBoard display-swap path above is for guests without the
+relay; there vphoned also writes each slider value as the hinge sample the
+stand-ins read, without moving the hinge, because a reading left at the old
+pose until the fold pulled DeviceHub's model back there (closed, open,
+closed).
+
+Measured on sbdisplay-duo after the product-id patch (2026-10-30): every
+DeviceHub click folds the guest once, following the slider. The black on
+opening out of closed is SpringBoard's fold effect on one shared panel; see
+`iphone_duo_bringup.md`, "2026-10-30: the fold's fade to black on one
+panel". DeviceHub no longer gets the guest's system audio (`0x184`): the VM
+window plays it, and DeviceHub played it again.
+
+## Encoding only when the screen draws
+
+An open DeviceHub viewer cost the host about a core while the guest sat on
+its Home Screen (iPhone19,4, iOS 27.1 24A94425, macOS 27.0.1 on an M5 Pro):
+the VM process at 91%, against 14% with DeviceHub closed. The guest itself
+used about a third of a core (`avconferenced` 17%).
+
+The encoder runs on the host. `avconferenced` calls VideoProcessing's
+`VCPCompressionSessionCreate` directly (AVConference `EncCreateHandle`), and
+that real-time encoder wraps
+`paravirtualized:com.apple.videotoolbox.videoencoder.ave.hevc`, the host's AVE
+hardware. The real-time encoder runs AVE in user-DPB mode
+(`VCPCompressionAllocateDPB`, `kVTEncodeFrameOptionKey_DPB_ReferenceFrames_*`),
+so each encoded frame carries nested reference-frame dictionaries. A host
+`sample` of the VM process showed, per stream, an `AVE_UCRecv` thread at
+about 36% in `VTParavirtualizationHostEncoderSessionEmitEncodedFrame →
+VTParavirtualizationCreateSerializedAtomDataBlockBufferForSampleBuffer →
+CFPropertyListCreateData` and about 22% more in a synchronous wait for the
+guest's reply, plus the `AppleM2ScalerDevice` queue at about 39%. No guest
+setting leaves user-DPB mode: it is how the real-time encoder controls its
+rate. The Mac decodes with `VCPDec`, about 1.2 ms a frame.
+
+The cost scales with the frame rate, and the rate did not follow the screen.
+The Mac's `avconferenced` logs each stream's input rate
+(`[VCPDecStatsMonitor] … Input_fps=`): the idle Home Screen streamed about
+42 fps on each of the Duo's two displays. The capture is FigVirtualDisplay's
+writeback clone of each lit display in backboardd
+(`IOMFBDisplay::clone_update`); after the screen draws it keeps writing frames
+back at the capture rate for about a second, and a still screen sends nothing
+(Settings left alone dropped to 0 fps, with or without the change below). The
+live Clock icon on the Home Screen draws about ten times a second
+(`CARenderServerGetFrameCounterByIndex(0, 0)`, the main display), so that
+second never ends.
+
+`libdevicehubfix` (`VPScreenCaptureIdle.c`) replaces
+`-[VCScreenCaptureFigCaptureController
+screenCaptureController:didReceiveSampleBuffer:transformFlags:]` in
+`avconferenced`: a frame passes when the main display's frame counter moved
+since the stream's last frame, and otherwise once every 250 ms. A frame that
+carries a change can arrive after the counter moved; the 250 ms frame bounds
+that delay and lets the encoder refine a still image. On the Duo the main
+display is the panel the inner display is shown on, so one counter covers both
+streams.
+
+| sbdisplay-duo, DeviceHub open | before | after |
+|---|---|---|
+| idle Home Screen, input rate per display | 41–45 fps | 10 fps |
+| idle Home Screen, host VM process | 91% | 46–50% |
+| idle Home Screen, guest `avconferenced` | 17% | 7% |
+| scrolling Settings, input rate per display | 58–60 fps | 54–60 fps |
+| Settings left alone | 0 fps after ~1 s | 4 fps for ~1 s, then 0 |
+
+A first version also passed eight frames after each change; with the Clock
+icon changing every 100 ms that never ran out (30 fps with two frames).
+
 ## Other open items
 
 - iPadOS 27 refuses pairing (see Validation), so DeviceHub is untested there.
@@ -552,6 +762,10 @@ seconds.
 - The band-read barrier was tested on the 27.0.1 iPhone only. It depends on
   two private `VCPSideCarMetal` method names; if they change, the library logs
   that they were not found and banded streams can deadlock again.
+- The idle-frame filter depends on the private
+  `VCScreenCaptureFigCaptureController` callback and
+  `CARenderServerGetFrameCounterByIndex`; if either is missing, the library
+  logs it and every captured frame is encoded, as before.
 
 ## Measuring
 

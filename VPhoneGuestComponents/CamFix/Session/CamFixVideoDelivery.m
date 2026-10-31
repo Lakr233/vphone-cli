@@ -3,6 +3,7 @@
 
 #import "CamFixPrivate.h"
 #include "CamFixFrameGeometry.h"
+#include "CamFixSessionReference.h"
 
 // MARK: - client-side video delivery for vcam sessions
 //
@@ -21,7 +22,8 @@ static _Atomic int cfx_video_deliver_logged = 0;
 
 // Also arms the 30 Hz pump: a session with a data output and no preview
 // layer would otherwise never start it.
-void cfx_track_vcam_session(id session) {
+void cfx_track_vcam_session(id __unsafe_unretained candidate) {
+  id session = cfx_load_live_session(candidate);
   if (!session) return;
   BOOL added = NO;
   pthread_mutex_lock(&cfx_vcam_sessions_lock);

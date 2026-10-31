@@ -468,6 +468,51 @@ extension DeviceTreePatcher {
         return (nil, value)
     }
 
+    /// Give a foldable guest's `/product` the board's panel nodes.
+    ///
+    /// A foldable board describes each panel in a `/product` child carrying
+    /// `surface-type` (V68AP: `display0` the cover, `display1` the inner
+    /// panel): rotation, scale, corner radii, chrome and framebuffer
+    /// identifiers, camera and button geometry. MobileGestalt counts those
+    /// children for `MGGetLogicalDeviceDisplayCount` and reads them into
+    /// `DisplayExtendedProperties`, which QuartzCore hands each hardware
+    /// display as its `extendedProperties`. vphone600 has no such child, so
+    /// the guest reports one display and no properties. Each node is copied
+    /// with every property, `AAPL,phandle` renumbered above the tree's
+    /// highest, and they go first under `/product` in the board's order. Like
+    /// the product token, they reach only a foldable guest. Returns the added
+    /// nodes serialized, empty when the tree already has panel nodes or is
+    /// not a foldable guest.
+    static func presentFoldableDisplays(in root: DTNode, from source: DTNode) throws -> [Data] {
+        let subtypes = rootSubtypes(of: root)
+        guard subtypes.count == 1,
+              CustomFirmwarePostRestoreDeviceTree.foldableSubtypes.contains(subtypes[0])
+        else { return [] }
+        func isPanel(_ node: DTNode) -> Bool {
+            node.properties.contains { $0.name == "surface-type" }
+        }
+        let panels = try child(of: source, named: "product").children.filter(isPanel)
+        guard panels.count >= 2 else {
+            throw PatcherError.invalidFormat("Foldable displays: the board's /product has \(panels.count) panel nodes, not two")
+        }
+        let product = try child(of: root, named: "product")
+        guard !product.children.contains(where: isPanel) else { return [] }
+        var phandle = maximumPhandle(in: root)
+        let nodes = panels.map { panel in
+            phandle += 1
+            let number = phandle
+            let node = DTNode()
+            node.properties = panel.properties.map { property in
+                let value = property.name == "AAPL,phandle"
+                    ? withUnsafeBytes(of: number.littleEndian) { Data($0) } : property.value
+                return DTProperty(name: property.name, flags: property.flags, value: value, valueOffset: 0)
+            }
+            return node
+        }
+        product.children.insert(contentsOf: nodes, at: 0)
+        return nodes.map(serialize)
+    }
+
     private static func rootSubtypes(of node: DTNode) -> [String] {
         node.properties
             .filter { $0.name == "target-sub-type" }

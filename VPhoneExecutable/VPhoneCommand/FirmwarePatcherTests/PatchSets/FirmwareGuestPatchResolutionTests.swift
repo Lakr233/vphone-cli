@@ -182,16 +182,20 @@ struct FirmwareGuestPatchResolutionTests {
         #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [identifier], arm64eUserland: true) == [identifier])
     }
 
-    @Test(arguments: [FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAudioProduct,
+    @Test(arguments: [FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM, FirmwareGuestSystemPatchSet.homePodAudioProduct,
                       FirmwareGuestSystemPatchSet.homePodWelcome, FirmwareGuestSystemPatchSet.homePodSiriSpeech])
     func `HomePod optional guest repairs are version gated and never selected for other devices`(identifier: String) throws {
-        for base in ["26.4", "27.0", "27.1"] {
+        for base in ["26.4", "26.5", "27.0", "27.1"] {
+            // The setup completion also applies to 26.5, the AirPlay override
+            // only there; the others need 27.
+            let applies = identifier == FirmwareGuestSystemPatchSet.homePodAirPlayVM ? base == "26.5"
+                : base.hasPrefix("27.") || (base == "26.5" && identifier == FirmwareGuestSystemPatchSet.homePodSetupBypass)
             for preset in FirmwarePatchSetCatalog.builtInPresets {
                 let plan = try VPhonePatchPlan.resolve(
                     preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
                     iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion("26.4"),
                 )
-                #expect(plan.isEnabled(identifier) == (base.hasPrefix("27.")
+                #expect(plan.isEnabled(identifier) == (applies
                     && identifier != FirmwareGuestSystemPatchSet.homePodAudioProduct
                     && preset.identifier == VPhonePatchPreset.homePodMiniIdentifier))
             }
@@ -200,6 +204,14 @@ struct FirmwareGuestPatchResolutionTests {
         #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [identifier]) == [identifier])
         #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [identifier], arm64eUserland: true) == [identifier])
         #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: []).contains(identifier))
+    }
+
+    @Test func `HomePod AirPlay override is a guest marker for the setup helper`() throws {
+        let airPlay = FirmwareGuestSystemPatchSet.homePodAirPlayVM
+        let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == airPlay })
+        #expect(declaration.target == .guestFile(path: "/usr/share/vphone/HomePodAirPlay.plist"))
+        #expect(!declaration.bootEssential)
+        #expect(FirmwarePatchSetCatalog.manualOnlyPatches.contains(airPlay))
     }
 
     @Test func `HomePod welcome requires every selected runtime prerequisite but opt out is independent`() throws {

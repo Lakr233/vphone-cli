@@ -1,0 +1,4 @@
+NSError *vpJErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:@{@"orientation": vpOrientation ?: [NSNull null], @"records": vpRecs} options:0 error:&vpJErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpJErr description]
+

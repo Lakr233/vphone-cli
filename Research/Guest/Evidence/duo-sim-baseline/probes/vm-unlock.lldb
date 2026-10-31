@@ -1,0 +1,6 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSObject *vpL = (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBLockScreenManager"), @selector(sharedInstance));
+((void (*)(id, SEL, id, BOOL, id))vpMsg)(vpL, @selector(attemptUnlockWithPasscode:finishUIUnlock:completion:), nil, YES, nil);
+@"attemptUnlockWithPasscode:nil finishUIUnlock:YES"
+

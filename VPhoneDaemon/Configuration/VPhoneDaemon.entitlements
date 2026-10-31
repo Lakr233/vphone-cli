@@ -552,6 +552,8 @@
 	<true/>
 	<key>com.apple.springboard.openurlswhenlocked</key>
 	<true/>
+	<key>com.apple.springboard.sbdisplay.service</key>
+	<true/>
 	<key>com.apple.springboard.testautomation</key>
 	<true/>
 	<key>com.apple.timed</key>

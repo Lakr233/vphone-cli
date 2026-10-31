@@ -474,7 +474,16 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "HomePod setup completion",
                 summary: "Completes the donor's local AudioAccessory setup state as mobile, prepares SetupAssistant's native launch sentinel and lets SoundBoard initialize its post-setup services. Turning it off restores the prior completion flags at the next boot. Does not provision accounts, activation or a HomeKit home.",
                 target: .guestFile(path: homePodSetupPath),
-                applicability: VPhonePatchApplicability(iOSBase: .major(27)),
+                // 26.5 has the same AudioAccessory gate and SetupAssistant
+                // exports; the helper refuses if one is missing.
+                applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 26, minor: 5)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: homePodAirPlayVM,
+                title: "HomePod AirPlay on a VM",
+                summary: "Sets AirPlay's own virtual-machine override (useWiFiAndAWDLOnVirtualMachine in mobile's com.apple.airplay) through the HomePod helper, so AirPlay keeps discovery and its own endpoint and a Mac or iPhone can play to the guest. Turning it off restores the prior value at the next boot.",
+                target: .guestFile(path: homePodAirPlayVMPath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 5)),
             ),
             VPhonePatchDeclaration(
                 identifier: homePodSiriSpeech,
@@ -771,14 +780,27 @@ public enum FirmwareGuestSystemPatchSet {
                 identifier: prebootFoldableProductId,
                 title: "Foldable product identity",
                 summary: """
-                Research only, off in every preset. Replaces /product/product-id in a foldable \
-                guest's restored Preboot device tree with the board's own token, taken from the \
-                Duo's DeviceTree.v68ap. Measured on duotest-m5 (27.1, 24A94425): with the Duo \
-                token and one display, SpringBoard crash-loops and launchd reboots the guest into \
-                device-recovery — the Duo branches the token opens expect the second panel. \
-                CoreMotion's hinge capability therefore needs a narrower route than the device-tree \
-                token; Apple's Duo simulator satisfies it by registering two displays in its device \
-                type, not by the token alone.
+                Replaces /product/product-id in a foldable guest's restored Preboot device tree \
+                with the board's own token, taken from the Duo's DeviceTree.v68ap. CoreMotion \
+                picks its motion capabilities from that token: without it the guest is a generic \
+                virtual device with none, so the angle, device-state and magic-pose managers are \
+                unavailable and locationd starts no device-state relay for the virtual hinge. The \
+                Duo branches the token opens expect the second panel the fold display patch \
+                publishes; with one display SpringBoard crash-loops. Introduced, off, as \
+                preboot-exp-devicetree_foldable_product_id.
+                """,
+                target: .prebootDeviceTree,
+            ),
+            VPhonePatchDeclaration(
+                identifier: prebootFoldableDisplays,
+                title: "Foldable panel nodes",
+                summary: """
+                Copies a foldable board's panel nodes (/product/display0 and display1 on the \
+                Duo's V68AP) into the guest's restored Preboot device tree. MobileGestalt counts \
+                them for the logical display count and reads their rotation, scale, corner radii \
+                and chrome identifiers into DisplayExtendedProperties, which QuartzCore gives each \
+                display; without them the guest reports one display and no properties, where \
+                Apple's Duo simulator reports two.
                 """,
                 target: .prebootDeviceTree,
             ),
@@ -869,6 +891,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let homePodDisplayPath = "/usr/share/vphone/HomePodDisplay.plist"
     public static let homePodSetupBypass = "system-homepod-exp-setup_bypass"
     public static let homePodSetupPath = "/usr/share/vphone/HomePodSetup.plist"
+    public static let homePodAirPlayVM = "system-homepod-exp-airplay_vm"
+    public static let homePodAirPlayVMPath = "/usr/share/vphone/HomePodAirPlay.plist"
     public static let homePodWelcome = "system-homepod-exp-welcome"
     public static let homePodWelcomePath = "/usr/share/vphone/HomePodWelcome.plist"
     public static let homePodSiriSpeech = "system-homepod-exp-siri_speech"
@@ -884,7 +908,9 @@ public enum FirmwareGuestSystemPatchSet {
     /// Apple's VM sub-type for a foldable board in the restored Preboot
     /// device tree.
     public static let prebootFoldableVMSubtype = "preboot-cfw-devicetree_foldable_vm_subtype"
-    public static let prebootFoldableProductId = "preboot-exp-devicetree_foldable_product_id"
+    public static let prebootFoldableProductId = "preboot-cfw-devicetree_foldable_product_id"
+    /// The foldable board's panel nodes under `/product`.
+    public static let prebootFoldableDisplays = "preboot-cfw-devicetree_foldable_displays"
 
     /// The haptics node removal in the restored Preboot device tree, for any
     /// VM patched before `fw patch` removed it from every guest's tree.

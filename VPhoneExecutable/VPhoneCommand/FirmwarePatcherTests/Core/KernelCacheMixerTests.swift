@@ -101,7 +101,7 @@ struct KernelCacheMixerTests {
         let bases = try Self.recipes.bases()
         #expect(bases.map(\.id) == [
             "18.1_22B83", "18.2.1_22C161", "18.3.1_22D72", "18.5_22F76", "18.6_22G86", "18.7.2_22H124", "18.7_22H20",
-            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "watch_26.4_23T240",
+            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "homepod_26.5_23L471", "watch_26.4_23T240",
         ])
         for base in bases {
             #expect(FileManager.default.fileExists(atPath: base.symbolsURL.path), "\(base.id)")
@@ -125,6 +125,24 @@ struct KernelCacheMixerTests {
         #expect(Set(shared.map(\.id)) == ["26.4_23E246", "watch_26.4_23T240"])
         #expect(watch.kextSources == ["watch7c_26.4_23T240", "base", "vphone600_26.4_23E5207q"])
         #expect(try Self.recipes.donor(id: "watch7c_26.4_23T240").cloudOSSource == nil)
+    }
+
+    @Test("A HomePod links its own kexts against the 26.5 research kernel, with the security-monitor kexts of the base and the virtual machine's gPTP")
+    func homePodRecipe() throws {
+        let homePod = try #require(try Self.recipes.bases().first { $0.guest == "homePod" })
+        let shared = try Self.recipes.bases().filter { $0.kernel.matches(sha: homePod.kernel.sha256) }
+        #expect(Set(shared.map(\.id)) == ["26.5_23F77", "homepod_26.5_23L471"])
+        #expect(homePod.kextSources == ["b520_26.5_23L471", "base", "vphone600_26.4_23E5207q"])
+        #expect(try homePod.pinnedSources() == [
+            "com.apple.driver.AppleMobileFileIntegrity": 1, "com.apple.kec.corecrypto": 1, "com.apple.security.AppleImage4": 1,
+            "com.apple.iokit.IOTimeSyncFamily": 1, "com.apple.plugin.IOgPTPPlugin": 2,
+        ])
+        #expect(try Self.recipes.donor(id: "b520_26.5_23L471").cloudOSSource == nil)
+        #expect(try Self.recipes.donor(id: "b520_26.5_23L471").kernel.file == "kernelcache.release.b520")
+        for base in try Self.recipes.bases() {
+            // A pin outside the bundle list would be ignored, so mix refuses it.
+            #expect(try Set(base.pinnedSources().keys).isSubset(of: base.kextIdentifiers()), "\(base.id)")
+        }
     }
 
     @Test("iOS 18 bases link kernel-first against the kexts of the cloudOS 26.1 vphone600 kernelcache")
@@ -285,6 +303,26 @@ struct KernelCacheMixerTests {
         #expect(try String(contentsOf: kept, encoding: .utf8) == "first")
         #expect(throws: PatcherError.self) {
             try KernelCacheKDK.mix(base: base, sources: [first, base], wanted: ["com.apple.kpi.bsd"], output: ordered)
+        }
+
+        // A pinned kext comes from its source although an earlier one has it.
+        let pinned = root.appending(path: "pinned/KDK_26.6_23G71.kdk")
+        let (_, addedPinned) = try KernelCacheKDK.mix(
+            base: base, sources: [first, base, donor], wanted: ["com.apple.kept"], output: pinned, pinned: ["com.apple.kept": 1],
+        )
+        #expect(addedPinned[first] == nil)
+        let keptPinned = pinned.appending(path: "System/Library/Extensions/Kept.kext/Kept")
+        #expect(try String(contentsOf: keptPinned, encoding: .utf8) == "com.apple.kept")
+        #expect(throws: PatcherError.self) {
+            try KernelCacheKDK.mix(
+                base: base, sources: [first, base, donor], wanted: ["com.apple.research.only"], output: pinned,
+                pinned: ["com.apple.research.only": 0],
+            )
+        }
+        #expect(throws: PatcherError.self) {
+            try KernelCacheKDK.mix(
+                base: base, sources: [first, base, donor], wanted: ["com.apple.kept"], output: pinned, pinned: ["com.apple.unknown": 1],
+            )
         }
 
         // The staged volume root links holds no link but the KDK's own.

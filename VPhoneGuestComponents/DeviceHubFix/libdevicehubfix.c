@@ -4,7 +4,8 @@
 // dtremotedisplayd. On a vphone guest it needs four fixes, one per process:
 // cryptexd mounts the DDI, dtremotedisplayd reports media stream features,
 // dtdeviceinfod supplies the framebuffer mask, and avconferenced keeps a
-// banded stream from deadlocking the host GPU.
+// banded stream from deadlocking the host GPU. avconferenced also encodes a
+// frame only when the screen drew (VPScreenCaptureIdle.c in this folder).
 //
 // ## cryptexd: the DDI does not mount on iOS 27
 //
@@ -50,10 +51,9 @@
 // capture inside the guest, which does not ask either of them.
 //
 // The getter is interposed to answer with the features a Mac host offers
-// (primary display mirrored video, system audio and display information), and
-// `isCustomerRestricted`, which dtremotedisplayd also reads, answers no. The
-// host still intersects the answer with its own features, so asking for more
-// than the Mac can take changes nothing.
+// (primary display mirrored video and display information, without system
+// audio, which the VM window already plays) plus video by display ID, which an iPhone Duo's inner panel is streamed through,
+// and `isCustomerRestricted`, which dtremotedisplayd also reads, answers no.
 //
 // ## dtdeviceinfod: missing framebuffer mask
 //
@@ -118,10 +118,11 @@
 // ones: dyld binds their imports through the interposing table.
 // CoreDeviceUtilities is on the DDI and not in the SDK, so its two symbols are
 // weak flat-namespace imports; outside dtremotedisplayd they resolve to nothing
-// and dyld skips those entries. VideoProcessing is in the shared cache, so the
-// band reads are replaced through the Objective-C runtime instead. The spawn
-// hooks insert this into those four processes only — `vpIsDeviceHubFixTarget`
-// in Shared/InjectionEnvironment.h.
+// and dyld skips those entries. VideoProcessing and AVConference are in the
+// shared cache, so the band reads and the capture callback are replaced
+// through the Objective-C runtime instead. The spawn hooks insert this into
+// those four processes only — `vpIsDeviceHubFixTarget` in
+// Shared/InjectionEnvironment.h.
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -141,9 +142,14 @@
 
 extern CFTypeRef MGCopyAnswer(CFStringRef key, CFDictionaryRef options);
 
-// The features a Mac host reports for itself (raw 0x8c): primary display
-// mirrored output 0x4, system audio output 0x8, display information 0x80.
-#define VP_DEVICEHUB_FEATURES 0x8c
+// The features a Mac host reports for itself (raw 0x8c) but system audio
+// output 0x8: primary display mirrored output 0x4 and display information
+// 0x80; and video output by display ID 0x100, which an iPhone Duo's inner
+// panel streams through (DeviceHub draws each integrated panel from its own
+// display). The VM window plays the guest's audio already, and DeviceHub
+// played it a second time, late. A video-only stream works (measured with
+// 0x84).
+#define VP_DEVICEHUB_FEATURES 0x184
 
 #define VP_STRINGIFY_(value) #value
 #define VP_STRINGIFY(value) VP_STRINGIFY_(value)
@@ -355,7 +361,7 @@ __attribute__((constructor)) static void vpInstallScalerBarrier(void) {
     vpLog("VCPSideCarMetal band reads %s, %s", "found", "they wait for the scaler");
 }
 
-int vphone_devicehubfix_version(void) { return 6; }
+int vphone_devicehubfix_version(void) { return 7; }
 
 // The CMAngleManager stand-in for dtdeviceinfod lives in VPCMAngleManager.m
 // (same dylib): it swaps the manager's whole ObjC surface and feeds the

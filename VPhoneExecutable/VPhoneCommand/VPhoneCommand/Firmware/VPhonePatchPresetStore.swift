@@ -362,31 +362,10 @@ public enum VPhonePatchPresetStore {
         return (found, nil)
     }
 
-    /// Reads a preset file. Under root only a single-link regular file owned by
-    /// the sudo user is opened, never a link, so root opens nothing the
-    /// invoking user could not.
+    /// Reads a preset file, as ``VPhoneInvokingUserFile`` allows under root.
     static func readPresetFile(_ path: String) throws -> VPhonePatchPreset {
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-        let data: Data
-        if geteuid() == 0 {
-            guard let user = VPhoneInvokingUser.current else {
-                throw ValidationError("Root reads a preset file only under sudo; name a preset instead.")
-            }
-            let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-            guard descriptor >= 0 else {
-                throw ValidationError("Cannot open preset file \(url.path): \(String(cString: strerror(errno)))")
-            }
-            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-            var info = stat()
-            guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
-                  info.st_nlink == 1, info.st_uid == user.uid
-            else {
-                throw ValidationError("Preset file \(url.path) must be a regular file owned by the invoking user.")
-            }
-            data = try handle.readToEnd() ?? Data()
-        } else {
-            data = try Data(contentsOf: url)
-        }
+        let data = try VPhoneInvokingUserFile.read(url, kind: "preset file")
         let preset: VPhonePatchPreset
         do {
             preset = try VPhonePatchPreset.decode(data)

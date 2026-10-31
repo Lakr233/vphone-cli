@@ -4786,3 +4786,376 @@ Measured on the test VM (bundle built from this change):
 - Guest screenshots match the VM window at offset (0, 0) in all four inner and
   three cover orientations (cover tested with Safari, which rotates on iPhone).
 - Three launch-sequence captures: no black frames, 2-5 transient tiles.
+
+## 2026-10-29 night: the inner display at 120 Hz
+
+Open, the VM window counted 60 fps while the cover (the paravirtual panel,
+with the ProMotion patch) runs at 120. Two caps, one in each process:
+
+- **backboardd.** A `CAWindowServerVirtualDisplay` gets one 60 Hz mode whatever
+  `kCAVirtualDisplayUpdateRate` says. `VirtualDisplay::refresh_rate()` uses the
+  update rate only while the display has no current mode; with one, it takes
+  the mode's 16.16 rate. `heartbeat_rate()` is that mode's period divided by
+  the integer `kCAVirtualDisplayMinimumFrameDuration` (default 1). Clients read
+  `CADisplay.refreshRate` (the mode), and `UIScreen.maximumFramesPerSecond`
+  is its inverse, so every app on the inner display was capped at 60
+  (UpdateRate 120: the display ticked faster, apps still saw 60; UpdateRate
+  60 + MinimumFrameDuration 2: heartbeat 1/120, refresh still 1/60).
+  The display's modes can be replaced with `-[CAWindowServerDisplay
+  setDigitalModes:withTimings:]` (`VirtualDisplay::set_digital_modes`), which
+  takes the framebuffer timing format: timings with `HorizontalAttributes` /
+  `VerticalAttributes` `{Active}` and `VerticalAttributes.PreciseSyncRate`
+  (16.16, default `0x3c0000` = 60), optional `Score`, and color modes
+  (`PixelEncoding` 0, `Depth` ≤ 8, `Colorimetry` 1/10/16, `EOTF` 0,
+  `DynamicRange` 0). A mode is preferred only when its score is above 0
+  (Colorimetry 16 adds 2, plain RGB nothing); with no preferred mode the
+  display comes up 0×0 and SpringBoard aborts in
+  `-[SBMainDisplayConfigurationTransformer transformDisplayConfiguration:]`.
+  FoldDisplay now sets one timing at 120 (2853×2007 when this was measured,
+  2007×2853 since the inner display took the hardware's shape, below), with
+  Colorimetry 1 and Score 1: the inner mode reads `RGB_8bit` like the
+  panel's.
+- **SpringBoard.** The compositor's display link asks for the panel's
+  `maximumFramesPerSecond` (120 with the ProMotion patch, else 60).
+
+backboardd cannot read the panel's rate while it adds the inner display: the
+primary's rate is not set yet during display detection, and asking
+`CADisplay` there blocks backboardd (the inner display never appeared).
+
+Measured on duospike-inner (iOS 27.1, Settings open, 3 s windows):
+
+| | panel (LCD) | inner |
+|---|---|---|
+| `UIScreen.maximumFramesPerSecond` | 120 | 120 (was 60) |
+| `CADisplay.refreshRate` / heartbeat | 1/120 / 1/120 | 1/120 / 1/120 (was 1/60) |
+| default `CADisplayLink`, ticks in 3 s | 377 | 377 |
+| compositor renders in 3 s | | 375-378 |
+
+Idle CPU on the home screen, three 10 s samples each: 60 Hz build SpringBoard
+6.9-7.9%, backboardd 37.8-45.6%; 120 Hz build 9.3-10.4% and 50.3-51.3%.
+
+Window captures (ScreenCaptureKit) cannot judge 120 Hz here: the cover, which
+is natively 120, measures the same 40-55 changes per second as the inner
+display, because the host composites the window at its own rate. Use guest
+display links, or the host's `lastSubmittedTime` poller from the vGPU notes.
+
+## 2026-10-29 night: folds go through SpringBoard's display tool service
+
+Xcode 27's iPhone Duo simulator has no hinge: CoreSimulator gives it two real
+displays (screenID 1 cover, 3 inner), and SpringBoard folds itself through
+its display tool service, the one Apple's internal `sbdisplaytool` / `suiatool
+swap` drives. The device SpringBoard has the same service
+(`com.apple.springboard.sbdisplay` in `BSServiceDomains` under
+`com.apple.frontboard`), so `display.posture`'s `position` now uses it instead
+of the test-automation override plus a virtual hinge sweep. Measured on a
+test VM (iPhone19,4 27.1, 24A94425) with the two-display path:
+
+- `-[SBSDisplayToolService swapDisplayWithSettings:completion:]` takes
+  `{q; d duration; q deviceOrientation; q profileOverride; B wait; q
+  targetMode; d targetHingePosition; d}` (`v88@0:8{?=qdqqBqdd}16@?80`).
+  Target mode 1 sweeps to an absolute position (0 closed, 1 open flat);
+  duration < 0 is the per-direction default (0.391 s open, 0.420 s close);
+  profile 1 fade, 2 continuous (`.continuousLive`), 0 SpringBoard's own.
+  The server checks `com.apple.springboard.sbdisplay.service` (read from
+  the simulator SpringBoard's swap handler); without it SpringBoard logs
+  "Insufficient authorization" and never answers. The completion block's
+  arguments are not objects: the client forwards a raw register, and
+  retaining it as an `NSError` PAC-faults.
+- SpringBoard takes a 10 s test lock, sweeps its own pose (`absoluteSweeping
+  0.0 -> 180.0 over 0.39s`), resolves `FullyClosed→FoldingDual` (or back) as
+  the sweep crosses the boundary, and answers after `completed` / `idle`,
+  about 1.2–1.6 s after the request. Book (100°) from closed swaps to the
+  inner panel; book from open does not.
+- After the lock SpringBoard does not return to the override; it applies the
+  next override against its current pose, so a later `hinge` request equal
+  to the old override still lands. The override does reach SpringBoard under
+  the lock, and it only means 0, 90 or 180°: setting it after a book sweep
+  slid the pose from 100° to 90° and started a transition toward the cover,
+  so vphoned leaves it alone after a SpringBoard sweep.
+- `-[SBSTestAutomationService getDevicePose]` does not follow these sweeps
+  (it kept reading open-flat after a sweep to closed); the replayed posture
+  takes the hinge state from the completed request.
+- Closing with the continuous profile is an interactive transition: it is
+  performed while the inner display still holds the primary content and
+  swaps it as it finishes. FoldDisplay re-read the panel's owner only when a
+  transition was performed, so the panel kept showing the inner display,
+  which SpringBoard keeps lit (and black) for 3 s after a swap. Ownership is
+  now re-read on `-[SpringBoard displayContentModeCoordinator:
+  handleSwapTransitionFromPrimaryWindowScene:toPrimaryWindowScene:
+  withContinuationLockProvider:]` too.
+- Folding from the lock screen or sleep lights the arriving panel's lock
+  screen, which sleeps again after the lock screen's short idle time (about
+  7 s), as on hardware.
+- DeviceHub (Xcode 27.1) draws a Duo guest as a 3D V68 model from CoreDevice's
+  device motion state, which needed a `CMDeviceStateManager` stand-in in
+  `dtdeviceinfod`. Details: `Research/Guest/devicehub_screen_viewing.md`,
+  "iPhone Duo: the fold".
+- One posture request runs at a time. SpringBoard answers a swap it refuses
+  ("rejecting swap request — system is not idle") at once and the same way
+  as a finished one, so a reply under 0.3 s for a sweep that had to move
+  counts as a refusal and is retried every 0.25 s for 10 s plus the
+  duration.
+
+## 2026-10-29 late: the inner display takes the hardware's shape
+
+DeviceHub shows its pose controls only for an integrated inner display with
+its own stream, and draws that stream on the inner panel as the panel's
+native framebuffer. The landscape 2853×2007 inner render display therefore
+came out pillarboxed through the mirror and sideways through a per-display
+stream. FoldDisplay now publishes it the way the simulator's inner
+`CADisplay` is: a portrait 2007×2853 framebuffer at 3×, with
+`DisplayRotation` 270, `DeviceSurfaceType` 2, chrome `phone14` and corner
+radius 55 in its extended properties. SpringBoard lays the inner UI out at
+interface orientation 90 and rotates it into the framebuffer, the
+compositor draws the inner display's frames onto the panel without a turn,
+and the 120 Hz timing is 2007×2853. The digitizer needs no turn either. The
+clone redirect from the first DeviceHub fix is gone.
+
+`display.rotation`'s inner map (0 landscape-left, 90 portrait, 180
+landscape-right, from pose orientations 3, 1, 4) still holds on the portrait
+framebuffer: measured on sbdisplay-duo, pose orientation 1 gives interface
+90, 3 gives 0 and 4 gives 180.
+
+The host window follows folds it did not ask for (DeviceHub's, another
+client's): `display.orientation` carries `fold_angle`, the virtual hinge's
+settled angle, and the window's once-a-second orientation poll moves its
+fold chrome to the nearest of closed, book and open while none of its own
+fold requests is in flight.
+
+## 2026-10-30: CoreMotion, MobileGestalt displays and the book angle, against Apple's simulator
+
+Apple's iPhone Duo simulator (Xcode 27.1, iOS 27.1 24A94425, device type
+`iPhone-Duo`, two integrated displays: `LCD` 1398×2034 surface type 1 and
+`LCD-1` 2007×2853 rotation 270 surface type 2) was probed over lldb in every
+posture, through SpringBoard's own display-swap coordinator (the internal
+suiatool path), and the same calls were run on a two-display guest
+(`duobase-01`) through the guest's debugserver. The harness and the table are
+in `Research/Guest/Evidence/duo-sim-baseline/` (`BASELINE.md`). The
+simulator's fold tuning settings and MobileGestalt answers are in
+`iphone_duo_simulator_reference.md`. Three of the differences had one cause each:
+
+- **MobileGestalt saw one display.** libMobileGestalt computes
+  `MGGetLogicalDeviceDisplayCount` and `DisplayExtendedProperties` live from
+  the children of `IODeviceTree:/product` that carry `surface-type`
+  (`display0`, `display1` in DeviceTree.v68ap); vphone600's tree has none, so
+  the count fell back to 1 and the answer to nil (its fallback needs
+  `MainScreenScale`, also nil). `preboot-cfw-devicetree_foldable_displays`
+  copies the board's two nodes. QuartzCore gives a hardware display its entry
+  when it builds it; the inner virtual display gets its own from FoldDisplay,
+  with a physical size (`kCAVirtualDisplayPhysicalWidth/Height`, 460 ppi) so
+  `pixelsPerInch` is no longer 0.
+- **CoreMotion had no pose managers.** CoreMotion picks its motion
+  capabilities from the product-id token (`MGIsDeviceOfType` in
+  `CLPlatformInfo::queryEmbeddedSystemHardware`; V68 → hardware 0xC6, angle
+  bit 38 and device-state bit 13). vphone600's token is no known product, and
+  with `IsVirtualDevice` the guest became hardware 1 with no capabilities.
+  SpringBoard's `SBFDevicePoseProvider` creates `_cmAngleManager` and
+  `_cmMagicPoseManager` only when both report available and FrontBoard has
+  two always-connected displays — the second condition the two-display path
+  already met. The product-id patch, kept off since the single-display crash
+  loop, is now on.
+- **Book read 90°.** The test-automation override derives the angle from the
+  hinge state. With the token, locationd starts `CLDeviceStateRelay`, Apple's
+  VM path: it subscribes to host controls (primary usage `0xFF61/0x5B`) and
+  turns `hinge-slider-control` / `orientation-picker-control` dictionaries
+  (vendor-defined events, `IOCFUnserializeWithSize`, at most 256 bytes) into
+  `CoreMotion_DeviceStateRelay_Crane` angle events (phase 2, private-data
+  progress) and `_DeviceState` reports. libvphonehinge now publishes those
+  host controls instead of its own `0xFF0C/0x21` service (whose phase-0 events
+  CoreMotion drops), and vphoned stops setting the override when CoreMotion
+  has the capability. SpringBoard then reads book at 99.444° (position
+  0.552; the simulator's synthetic 100° is 0.556).
+
+One trap on the way: after the cover had gone dark in closed, a closed→book
+sweep left the pose provider at 0° although CoreMotion delivered every angle
+(breakpoints: `CLAngleNotifier::onIoHidEvent` 21 hits, `_handleAngle:` 19).
+The provider commits a pose in motion only on ticks of its `UIUpdateLink`,
+bound to `SB-main`, and a dark display produces none. On hardware the hinge
+sensor's wake flag lights the screen on an unfold; the relay always sends 0
+there. vphoned lights the screen before a sweep out of closed
+(`SBSUndimScreen`, the side button when SpringBoard refuses it), 3/3 after.
+
+Limits: the host controls' orientation picker has no upside-down, so the
+cover's 180 and the inner panel's 270 are refused through CoreMotion. The
+cover's corner radii are Apple's tree value [5, 5, 59, 59]; the simulator's
+device type says [8, 8, 59, 59].
+
+Reveal and validation on a new guest: `device.input_devices` lists
+`VPhone Host Controls` and both `CoreMotion_DeviceStateRelay_*` services;
+`display.posture` replies `source: coremotion`; in SpringBoard,
+`MGGetLogicalDeviceDisplayCount()` is 2, `+[CMAngleManager isAvailable]` is
+YES and `SBFDevicePoseProvider`'s description reads `.partiallyOpen` at
+~99.4° six seconds after `{"hinge":"partially-open","position":"book"}`.
+
+## 2026-10-30: the panel hosts the inner display's own pages
+
+Open, the guest lagged badly. A spindump of backboardd on an idle Home Screen
+(iOS 27.1, M5 Pro host, no DeviceHub viewer) had the render server thread in
+`_XRenderDisplaySurface → VirtualServer::render_surface → ShadowNode::apply →
+blur_surface → … -[MTLCommandBuffer waitUntilCompleted]` in 116 of 125
+samples, SpringBoard's inner-panel queue inside `CARenderServerRenderDisplay`
+in 118 of 126, and the inner display's own `VirtualServer` thread waiting on
+the render server's lock. The compositor above re-rendered the whole inner
+display, blurs included, for every panel frame, while the inner display was
+rendering itself as well: `VirtualDisplay::begin_update` /
+`finish_update_` draw only damage, into three pages in turn
+(`displayed_surface` returns the last finished one).
+
+Ruled out as a "did the inner display change" signal:
+`CARenderServerGetDirtyFrameCountByIndex` and `GetFrameCounterByIndex` count
+only the LCD (index 0); every other display, the inner one included, reads 0,
+so gating the copy on it froze the panel on its first frame.
+`updateRequestCallback` is a bare `ret` for non-IOMFB displays,
+`frameInfoCallback` is IOMFB-only, `CADisplay.seed` is configuration, and
+`-acquireFrozenSurface` is `Display::acquire_frozen_surface`, which returns
+NULL unless an `IOMFBDisplay` overrides it.
+
+**The fix** (`FoldDisplayInnerPages.m`): backboardd shows the inner display's
+last finished page in a layer of a context of its own (`remoteContextWithOptions:`
+with `displayable` NO and `ignoresHitTest` YES) and publishes the context id
+as the state of the Darwin notification `com.vphone.folddisplay.inner-pages`;
+SpringBoard's compositor layer is a `CALayerHost` of that context. A 120 Hz
+timer on a backboardd queue reads the shown page under the two mutexes
+`acquireFrozenSurface` takes and commits only when it changed. Nothing in
+QuartzCore hands out the pages, so the path is read from QuartzCore itself and
+checked at each step: the `_impl` type encoding (Server after the 64-byte
+mutex); the instructions of `-acquireFrozenSurface` (server lock at +0x18,
+C++ display at +0x60 on 27.1); the one vtable function with
+`displayed_surface`'s body (slot 63); and the one pair of
+`CA::WindowServer::IOSurface` getters for an object and the 32-bit value after
+it (`iosurface()` +0x128 and `id()` +0x130, slots 21 and 24), checked against
+`IOSurfaceGetID` before first use. The page is 2853×2007 BGRA. If a step does
+not match, backboardd publishes 0 and SpringBoard keeps the
+`CARenderServerRenderDisplay` path; it switches when the state changes while
+the panel is shown (tested both ways with vphoned `notify.post`).
+
+Measured on a clone of duospike-inner (duopanel-perf), the same session, CPU
+from `processes.list` over 8–10 s, panel rate from
+`CARenderServerGetFrameCounterByIndex(0, 0)` every 2 s:
+
+| | upstream compositor | hosted pages |
+|---|---|---|
+| idle Home Screen: backboardd / SpringBoard | 60–77% / 10–18% | 5–8% / 2–3% |
+| idle Home Screen: panel frames per second | 37–46 (nothing changed) | 10 (what changed) |
+| Home Screen page swipes: panel fps | 7.5–13.5 | 34–44 |
+| scrolling Settings: panel fps, backboardd | 45–79, 91% | 111–117, 51% |
+| folded closed: backboardd / SpringBoard | | 3% / 1% |
+
+Without SpringBoard's 120 Hz display link the panel still reaches the inner
+display's rate: the render server composites the LCD on each commit of the
+hosted context. Checked on the same VM: Settings launch and taps, Home,
+unlock, fold closed (cover shows natively) and open again, backboardd
+restarts (a new context id each time, SpringBoard restarts with it); no
+backboardd or SpringBoard crash reports.
+
+Trap seen while probing: the CA `IOSurface` object in a page is a C++ object,
+not an `IOSurfaceRef`; `CFRetain` on it is a PAC failure that crash-loops
+backboardd.
+
+## 2026-10-30: the fold's fade to black on one panel
+
+Opening out of closed showed 7 to 13 frames of black (about 0.12 to 0.2 s)
+on the shared panel, measured on sbdisplay-duo (iPhone19,4 27.1, CoreMotion
+relay path) from a ScreenCaptureKit stream of the VM window at 60 fps
+(`screencapture -l` manages about 8 fps, and a screen-region recording misses
+a covered window). The frames show SpringBoard's continuous fold effect: the
+cover blurs, then fades to black, and after the swap the inner display fades
+in from black. On hardware those are two screens. The panel itself never goes
+off: the inner display is lit, then takes the panel, then the cover is turned
+off. It is the same with SpringBoard drawing the inner display itself
+(`com.vphone.folddisplay.inner-pages` state 0), so the pages path is not the
+cause.
+
+The effect is tuned by `SBDeviceContinuousFoldInteractionSettings`
+(SpringBoard.framework, `+[SBDeviceContinuousFoldInteractionDomain
+rootSettings]`): `fadeToBlackEnabled` with `outerFadeToBlackStart/End` and
+`innerFadeToBlackStart/End`, `dimmingEnabled`, cone, cylinder and seam dims,
+blur radii. FoldDisplay turns `fadeToBlackEnabled` off in SpringBoard, so the
+cover dims and blurs but does not go black. The panel also changes hands
+inside SpringBoard's primary-swap callback, with the inner display's layer
+added in the same transaction, instead of two main-queue hops later, when
+SpringBoard had already hidden the cover's content. Opening now shows 0 to 9
+dark frames, usually 2 to 6; closing shows none, as before.
+
+Tried and dropped: handing the panel to the inner display when a fold toward
+it starts (`SBFDisplayContentModeTransitionContext`'s
+`initial/finalContentModeOfDisplayForWindowScene:`), lighting it early: it
+then showed its own fade in from black, 0.2 s; holding the inner layer back
+until backboardd shows a new page: no change.
+
+Two related host-window effects: the window follows a fold it did not ask for
+(DeviceHub, a guest-side request) from `display.orientation`'s `fold_angle`,
+which it now reads four times a second on a foldable guest (once before),
+taking a fold once two reads agree: through the relay the hinge follows
+DeviceHub's slider as it animates, and taking every read reshaped the window
+at each step of a sweep. The cover drawn in the window's open shape,
+sideways, now lasts a fraction of the half second it did. A fold while the screen sleeps lights it, and the
+panel's first 0.2 s are its last frame from before sleep.
+
+The fade to black stays for a fold that starts with the panel off or lit
+less than a second ago. A fold made while the screen sleeps (DeviceHub, a
+guest-side request) runs only as the screen comes on, since SpringBoard's
+pose provider commits on display frames; without the fade, the effect's
+carried-over inner content (its Home Screen, sideways on the cover) showed
+for about half a second after the wake. And coming on, the panel first shows
+its last frame from before it went off (the unlocked Home Screen on a plain
+wake), which nothing in the guest replaces: SpringBoard stops compositing
+before it turns the panel off, and neither `-[CAWindowServerDisplay
+presentSurface:withOptions:]` nor `acquireFrozenSurface` reached the shown
+surface (`willUnblank` never runs: the panel goes off by display state). So
+`display.orientation` reports `screen_off`, and the VM window covers the
+panel with black while it is off and for 0.3 s after it comes on. Both wakes
+now go from black to the lock screen (60 fps capture).
+
+## 2026-10-31: the inner display's point scale, for every process
+
+Issue #784: WebDriverAgent saw the inner display at scale 2 (logical
+1426.5×1003.5) and captured it at 1x in a corner, and vphoned's
+`display.modes` said `pointScale` 1. Only SpringBoard saw 3, through the
+adapter's `-[CADisplay pointScale]` answer; applications took 3 from
+SpringBoard's display configuration. Every other process (XCTest's, vphoned)
+read the render display itself, which a virtual display creates at 1. The
+raw scale also showed in SpringBoard's own mode:
+`FBSDisplayMode 669x951@3x (2007x2853/2(3.0))`.
+
+Where the value lives (iOS 27.1 QuartzCore, 24A94425):
+
+- A client's `-[CADisplay pointScale]` is the published display info's field
+  0x310 (`CA::Display::Display::update`), which
+  `CA::WindowServer::Display::build_display_info_data` copies from the server
+  display's field 0x94. `Display`'s constructor sets 1, `AppleDisplay`'s takes
+  the panel's; `kCAVirtualDisplay*` options have no scale.
+- The only other writer is `Server::set_display_properties`, reached by
+  `-[CADisplay setDisplayProperties:]` with `-[CADisplayProperties
+  setPointScale:]` (update mask 0x20, 1 to 4), which republishes the info.
+  `_CASSetDisplayProperties` clears mask bits 0x10 and 0x20 unless the
+  caller's audit flags have bit 1, `com.apple.QuartzCore.displayable-context`
+  in `entitlements_for_audit_token`'s table. Sent from SpringBoard it changed
+  nothing; from backboardd it took.
+- A client keeps the scale it first read: a running Settings and vphoned
+  still said 1 after the change, a relaunched Settings 3.
+
+So backboardd sends `pointScale` 3 for the inner display as soon as its
+render server answers (`vpSetInnerDisplayPointScale`, on the main queue after
+`_detectDisplays`, since a CADisplay call from inside that never returns), a
+second after the display is added and before applications start. SpringBoard
+is already running by then (its adapter logs a second before the display is
+added) and reads the inner display at 1, so the adapter's answer stays. A
+build without it came up after a cold boot on the Trust alert over a bare
+backdrop with the status column on its side and no Home Screen, twice; the
+same machine on the previous bundle reached the Home Screen (seen on
+duoscale-784).
+
+Measured on sbdisplay-duo after a backboardd restart and after a cold boot
+with the new bundle: vphoned's `display.modes` gives the inner display
+`pointScale` 3 (display type still 3, virtual: no property sets it); a fresh
+Settings has `CADisplay.pointScale` 3, `UIScreen` 951×669 at scale 3 and
+`FBSDisplayMode 669x951@3x (2007x2853/3)`, and the inner `CADisplayMode`'s
+`preferredScale` is 3 (the empty `Wireless` displays' is 2). testmanagerd
+reports that value as `XCUIScreen.scale` (found on duoscale-784). The Home
+Screen on both panels draws as before and taps open apps on both. An
+application started while the device is closed lists only the cover's
+`UIScreen`, and one started while open lists both, in the same boot. Not
+run: WebDriverAgent itself, and #784's secondary points (`hingeAngle` POST,
+and the empty `Wireless` displays, type 2 at 0×0, that WDA lists at
+1408×2048 @2).

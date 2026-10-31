@@ -195,7 +195,9 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
                 guard let self, let window else { return }
                 applyOrientation(orientation ?? .portrait, to: window)
             }
-            timers.append(Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            // A foldable guest also folds by itself (Xcode DeviceHub), and its
+            // panel shows sideways in the window until the poll catches up.
+            timers.append(Timer.scheduledTimer(withTimeInterval: foldableGuest ? 0.25 : 1, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.pollOrientation() }
             })
             // A Duo guest shows its lit panel itself, so it takes no fold
@@ -287,10 +289,34 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
     /// minimum larger than this compact physical-size baseline.
     private var minimumDuoPanelSize: CGSize?
     private var orientationPollInFlight = false
+    private var lastPolledFoldAngle: Double?
+    private var screenRevealWork: DispatchWorkItem?
 
-    /// Asks vphoned for the interface orientation once a second. Guests
-    /// without `display.orientation` stay portrait. A read that overlaps a
-    /// rotation the menu started is dropped: it may predate the turn.
+    /// Covers a foldable guest's panel while its screen is off, and for a
+    /// moment after it comes on: its display first shows the frame it showed
+    /// before going off (after a fold made asleep, the other panel's picture,
+    /// sideways), until the guest draws again.
+    private func followGuestScreen(off: Bool) {
+        guard let container = displayContainer else { return }
+        if off {
+            screenRevealWork?.cancel()
+            screenRevealWork = nil
+            container.isScreenDark = true
+            return
+        }
+        guard container.isScreenDark, screenRevealWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            self?.displayContainer?.isScreenDark = false
+            self?.screenRevealWork = nil
+        }
+        screenRevealWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    /// Asks vphoned for the interface orientation once a second (a foldable
+    /// guest four times a second). Guests without `display.orientation` stay
+    /// portrait. A read that overlaps a rotation the menu started is dropped:
+    /// it may predate the turn.
     private func pollOrientation() {
         guard !orientationPollInFlight,
               let control, control.isConnected, !control.isChangingOrientation,
@@ -299,8 +325,18 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
         orientationPollInFlight = true
         Task {
             defer { orientationPollInFlight = false }
-            guard let result = try? await control.call("display.orientation"),
-                  !control.isChangingOrientation,
+            guard let result = try? await control.call("display.orientation") else { return }
+            // A foldable guest reports where its hinge is. DeviceHub's slider
+            // moves it as it animates, so the window takes a fold once two
+            // reads agree, rather than reshaping at each step of a sweep.
+            if let foldAngle = (result["fold_angle"] as? NSNumber)?.doubleValue {
+                if foldAngle == lastPolledFoldAngle { control.followGuestFold(angle: foldAngle) }
+                lastPolledFoldAngle = foldAngle
+            }
+            if let screenOff = result["screen_off"] as? Bool {
+                followGuestScreen(off: screenOff)
+            }
+            guard !control.isChangingOrientation,
                   let degrees = (result["degrees"] as? NSNumber)?.intValue,
                   let orientation = VPhoneDisplayOrientation(degrees: degrees)
             else { return }

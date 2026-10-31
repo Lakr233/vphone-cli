@@ -1,0 +1,20 @@
+expr -l objc -O --
+NSArray *vpTypes = @[@"SBHingeMotion", @"SBWallpaperHinge", @"SBBacklightCoordinator", @"SBDisplayContentModeLockScreen", @"SBDisplayContentModeTransitionStyle", @"SBIdleTimerGlobalCoordinator", @"SBDisplayYoinkingCoordinator", @"SBContinuousFoldCoordinator", @"SBFDevicePoseProvider", @"SBWindowSceneManager", @"SBScreenSleepCoordinator", @"BLSHBacklight", @"SBLockScreenManager", @"PRUISHingeProgress"];
+NSMutableString *vpOut = [NSMutableString string];
+unsigned int vpCount = 0;
+Class *vpClasses = objc_copyClassList(&vpCount);
+for (unsigned int vi = 0; vi < vpCount; vi++) {
+  const char *vpImg = class_getImageName(vpClasses[vi]);
+  NSString *vpImgS = vpImg ? [NSString stringWithUTF8String:vpImg] : @""; if (!([vpImgS containsString:@"SpringBoard"] || [vpImgS containsString:@"Poster"])) continue;
+  unsigned int vpN = 0;
+  Ivar *vpIv = class_copyIvarList(vpClasses[vi], &vpN);
+  for (unsigned int vj = 0; vj < vpN; vj++) {
+    const char *vpT = ivar_getTypeEncoding(vpIv[vj]);
+    if (!vpT) continue;
+    for (NSString *vpTy in vpTypes) if ([[NSString stringWithUTF8String:vpT] containsString:vpTy]) { [vpOut appendFormat:@"%s.%s %s\n", class_getName(vpClasses[vi]), ivar_getName(vpIv[vj]), vpT]; break; }
+  }
+  free(vpIv);
+}
+free(vpClasses);
+vpOut
+

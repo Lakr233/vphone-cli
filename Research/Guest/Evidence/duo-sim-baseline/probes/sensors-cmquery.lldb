@@ -1,0 +1,34 @@
+expr -l objc -O --
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+NSObject *vpMgr = (NSObject *)((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"CMDeviceStateManager"), @selector(sharedManager));
+double vpT0 = CFAbsoluteTimeGetCurrent();
+NSObject *vpE = vpMgr ? (NSObject *)((id (*)(id, SEL))objc_msgSend)(vpMgr, @selector(queryDeviceStateBlocking)) : nil;
+double vpDT = CFAbsoluteTimeGetCurrent() - vpT0;
+NSDictionary *vpEv = vpE ? @{@"class": NSStringFromClass(object_getClass(vpE)),
+  @"propertyA": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyA))), @"propertyA0": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyA0))),
+  @"propertyA1": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyA1))), @"propertyB": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyB))),
+  @"propertyC": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyC))), @"propertyD": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(propertyD))),
+  @"progressValid": @(((BOOL (*)(id, SEL))objc_msgSend)(vpE, @selector(progressValid))), @"fromPropertyB": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(fromPropertyB))),
+  @"toPropertyB": @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(toPropertyB))), @"progressValue": @(((double (*)(id, SEL))objc_msgSend)(vpE, @selector(progressValue))),
+  @"timestamp": @(((double (*)(id, SEL))objc_msgSend)(vpE, @selector(timestamp))), @"description": [vpE description] ?: @""} : nil;
+vpAdd(@"CMDeviceStateManager.queryDeviceStateBlocking", @"private", @"[[CMDeviceStateManager sharedManager] queryDeviceStateBlocking] (synchronous query to locationd)", vpEv, vpE ? nil : [NSString stringWithFormat:@"nil after %.3f s", vpDT]);
+vpAdd(@"CMDeviceStateManager.queryDeviceStateBlocking.seconds", @"private", @"wall time of the blocking query", @(vpDT), nil);
+__block id (^vpSan)(id) = nil;
+vpSan = ^id(id o) {
+  if (!o) return [NSNull null];
+  if ([(NSObject *)o isKindOfClass:[NSString class]] || [(NSObject *)o isKindOfClass:[NSNull class]]) return o;
+  if ([(NSObject *)o isKindOfClass:[NSNumber class]]) { double vpF = [(NSNumber *)o doubleValue]; if (vpF != vpF || vpF > 1.0e308 || vpF < -1.0e308) return [NSString stringWithFormat:@"%f", vpF]; return o; }
+  if ([(NSObject *)o isKindOfClass:[NSArray class]]) { NSMutableArray *vpA = [NSMutableArray array]; for (id vpY in (NSArray *)o) [vpA addObject:vpSan(vpY)]; return vpA; }
+  if ([(NSObject *)o isKindOfClass:[NSDictionary class]]) { NSMutableDictionary *vpM = [NSMutableDictionary dictionary]; for (id vpK in (NSDictionary *)o) vpM[[(NSObject *)vpK description]] = vpSan(((NSDictionary *)o)[vpK]); return vpM; }
+  if ([(NSObject *)o isKindOfClass:[NSData class]]) return @{@"data_base64": [(NSData *)o base64EncodedStringWithOptions:0]};
+  if ([(NSObject *)o isKindOfClass:[NSDate class]]) return @{@"date": [(NSObject *)o description]};
+  return [(NSObject *)o description] ?: @"";
+};
+NSDictionary *vpOut = @{@"group": @"cmquery", @"records": vpRecs};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpSan(vpOut) options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

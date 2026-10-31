@@ -51,13 +51,20 @@ public struct KernelCacheBase: Decodable, Sendable {
     /// taken from the first that has it; the kernel and its KPI bundles
     /// (System.kext) always from the base. Default: the base, then `donor`.
     let sources: [String]?
+    /// Kexts taken from a named source although an earlier one has them too:
+    /// bundle identifier to `base` or a donor id among `sources`. A HomePod
+    /// mix takes AMFI, corecrypto and AppleImage4 from the base, which they
+    /// fit: the guest's own builds call into the PPL of its kernel. It also
+    /// takes IOTimeSyncFamily from the base and IOgPTPPlugin from the VM
+    /// build, whose gPTP manager needs no PMU temperature sensor.
+    let kextOverrides: [String: String]?
     let donor: String?
     public let builderLayout: BuilderLayout
 
     public internal(set) var directory = URL(fileURLWithPath: "/")
 
     enum CodingKeys: String, CodingKey {
-        case id, productVersion, kernel, symbols, kexts, guest, sources, donor, builderLayout
+        case id, productVersion, kernel, symbols, kexts, guest, sources, kextOverrides, donor, builderLayout
     }
 
     static let baseSource = "base"
@@ -65,6 +72,16 @@ public struct KernelCacheBase: Decodable, Sendable {
     /// `sources`, or the base and its one donor.
     public var kextSources: [String] {
         sources ?? [Self.baseSource] + (donor.map { [$0] } ?? [])
+    }
+
+    /// `kextOverrides` as indices into `kextSources`.
+    func pinnedSources() throws -> [String: Int] {
+        try (kextOverrides ?? [:]).mapValues { source in
+            guard let index = kextSources.firstIndex(of: source) else {
+                throw PatcherError.invalidFormat("\(id): kextOverrides names \(source), which is not among its sources")
+            }
+            return index
+        }
     }
 
     /// The donor ids among `kextSources`.
@@ -159,8 +176,8 @@ public struct KernelCacheRecipes: Sendable {
     }
 
     /// Guest families that need a recipe of their own; the others share the
-    /// iPhone's.
-    static let ownRecipeGuests: Set<String> = ["watch"]
+    /// iPhone's. A watch and a HomePod link their own kexts.
+    static let ownRecipeGuests: Set<String> = ["watch", "homePod"]
 
     private func manifests(in subdirectory: String) throws -> [URL] {
         let directory = root.appending(path: subdirectory)

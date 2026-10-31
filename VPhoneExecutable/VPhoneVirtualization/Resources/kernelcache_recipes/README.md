@@ -27,6 +27,8 @@ Base `manifest.json`:
 | `kernel.kdk` | the KDK its extraction makes; a kernelcache whose kexts carry no `DTPlatformBuild` (26.6, 26.7) takes the build from here |
 | `donor` | `donors/<id>`, which supplies the virtualisation kexts |
 | `builderLayout` | `kernel-last` (iOS 26.4+, kmutil of macOS 26.4+) or `kernel-first` |
+| `guest`, `sources` | the guest family of a recipe of its own (`watch`, `homePod`), and its kext sources in order: each kext from the first that has it |
+| `kextOverrides` | bundle identifier to the source it is taken from although an earlier one has it (`homepod_26.5_23L471`: AMFI, corecrypto, AppleImage4 and IOTimeSyncFamily from the base, IOgPTPPlugin from `vphone600_26.4_23E5207q`) |
 
 The bundle list is the base's kexts without the research-board-only ones
 (CIOMesh, MLX5, Thunderbolt, RDMA, ...), plus the donor kexts that link against

@@ -516,10 +516,14 @@ public enum VPhoneFirmwareCatalog {
         ]),
     ]
 
-    /// HomePod mini's native IPSW. The boot chain still comes from cloudOS;
-    /// this is a research pairing, not a claim about Siri or Home pairing.
+    /// HomePod mini's native IPSWs. The boot chain still comes from cloudOS:
+    /// the research board's for 26.5, whose kernelcache recipe
+    /// (`homepod_26.5_23L471`) rebuilds that kernel with the HomePod's kexts,
+    /// and cloudOS 26.4 for 27. These are research pairings, not a claim about
+    /// Siri or Home pairing.
     static let homePodReleases: [(devices: [String], releases: [(version: String, url: String)])] = [
         (devices: ["AudioAccessory5,1"], releases: [
+            ("26.5", "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-40034/C2B2422A-6010-46B6-AF80-6D766EABA8D2/AudioAccessory5,1_26.5_23L471_Restore.ipsw"),
             ("27.0", "https://updates.cdn-apple.com/2026SFallFCS/a595a3b2-2c42-470a-9417-a705aaafa05c/AudioAccessory5,1_27.0_24J361_Restore.ipsw"),
         ]),
     ]
@@ -660,7 +664,8 @@ public enum VPhoneFirmwareCatalog {
     /// or another model's releases with the cloudOS an iPhone17,3 of that
     /// release uses. A cellular iPad gets its Wi-Fi model's; an Apple TV gets
     /// cloudOS 26.4, the only kernel its TPRO compatibility patch covers; a
-    /// watch gets the research board cloudOS its kernelcache recipe covers; a
+    /// watch, and a HomePod of a release with one, gets the research board
+    /// cloudOS its kernelcache recipe covers, a HomePod otherwise cloudOS 26.4; a
     /// device without an IPSW gets one per OTA for it, named for the OTA: the
     /// base's IPSW when the OTA is of the same version, else the OTA itself,
     /// which `fw prepare` restores over its base's IPSW; an unknown device
@@ -696,11 +701,7 @@ public enum VPhoneFirmwareCatalog {
             }
         }
         return releases.map { release in
-            let cloudOS = switch guest.family {
-            case .appleTV, .homePod, .homeView: VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
-            case .watch: researchBoardCloudOS(forVersion: release.version) ?? recommendedCloudOS(forVersion: release.version)
-            case .iPhone, .iPad: recommendedCloudOS(forVersion: release.version)
-            }
+            let cloudOS = recommendedCloudOS(for: guest.family, version: release.version)
             return VPhoneFirmwarePairing(
                 device: guest.productType,
                 iosName: "\(guest.family.osName) \(release.version)",
@@ -708,6 +709,27 @@ public enum VPhoneFirmwareCatalog {
                 cloudosName: cloudOS.name,
                 cloudosURL: cloudOS.url,
             )
+        }
+    }
+
+    /// The cloudOS for `device`'s release at `url`, of `version`: its pairing's,
+    /// else the one the pairings give that version on its family.
+    public static func recommendedCloudOS(forDevice device: String, version: String, url: String) -> VPhoneCloudOSOption {
+        let guest = VPhoneGuestDevice.named(device)
+        let pairings = pairings(for: device)
+        let name = "\((guest?.family ?? .iPhone).osName) \(version)"
+        if let pairing = pairings.first(where: { $0.iosURL == url }) ?? pairings.first(where: { $0.iosName == name }) {
+            return VPhoneCloudOSOption(name: pairing.cloudosName, url: pairing.cloudosURL)
+        }
+        return recommendedCloudOS(for: guest?.family ?? .iPhone, version: version)
+    }
+
+    static func recommendedCloudOS(for family: VPhoneGuestDevice.Family, version: String) -> VPhoneCloudOSOption {
+        switch family {
+        case .appleTV, .homeView: VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
+        case .homePod: researchBoardCloudOS(forVersion: version) ?? VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
+        case .watch: researchBoardCloudOS(forVersion: version) ?? recommendedCloudOS(forVersion: version)
+        case .iPhone, .iPad: recommendedCloudOS(forVersion: version)
         }
     }
 

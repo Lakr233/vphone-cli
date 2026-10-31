@@ -569,6 +569,50 @@ public enum CustomFirmwarePostRestoreDeviceTree {
         }
     }
 
+    /// `blob` with the foldable board's panel nodes under `/product`, taken
+    /// from its flat tree `board` through
+    /// `DeviceTreePatcher.presentFoldableDisplays`. Returns the size change
+    /// with the changes: each added node's serialized bytes. A tree that is
+    /// not a foldable guest, or already has panel nodes, comes back unchanged.
+    public static func withFoldableDisplays(_ blob: Data, board: Data) throws -> (Data, [Change], Int) {
+        let root = try parseTree(blob, label: "DT")
+        let source = try parseTree(board, label: "foldable board DT")
+        let nodes = try DeviceTreePatcher.presentFoldableDisplays(in: root, from: source)
+        guard !nodes.isEmpty else { return (blob, [], 0) }
+        let records = nodes.map { node in
+            var name = "?"
+            if let (parsed, _) = try? parseNode(node, at: 0),
+               let property = parsed.properties.first(where: { $0.name == "name" })
+            {
+                name = String(decoding: property.value.prefix { $0 != 0 }, as: UTF8.self)
+            }
+            return Change(property: "product/\(name)", before: "absent", after: "\(node.count)B")
+        }
+        return (serializeNode(root), records, nodes.reduce(0) { $0 + $1.count })
+    }
+
+    /// Give a foldable guest's `devicetree.img4` (or bare `.im4p`) the board's
+    /// panel nodes, in place. See `withFoldableDisplays`.
+    @discardableResult
+    public static func presentFoldableDisplays(
+        at url: URL,
+        board boardURL: URL,
+        dryRun: Bool = false,
+        verbose: Bool = true,
+    ) throws -> Outcome {
+        let boardData: Data
+        do {
+            boardData = try Data(contentsOf: boardURL)
+        } catch {
+            throw PatcherError.fileNotFound(boardURL.path)
+        }
+        let board = try openDeviceTree(boardData, path: boardURL.path).blob
+        return try rewrite(at: url, dryRun: dryRun, verbose: verbose) { blob in
+            let (newBlob, changes, delta) = try withFoldableDisplays(blob, board: board)
+            return (newBlob, changes, blob.count + delta)
+        }
+    }
+
     /// The root of a flat tree that must fill `blob` exactly.
     private static func parseTree(_ blob: Data, label: String) throws -> DeviceTreePatcher.DTNode {
         let (root, end) = try parseNode(blob, at: 0)

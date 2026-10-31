@@ -85,7 +85,7 @@ CFX_HIDDEN void cfx_install_remote_queue_tap(void);
 
 // MARK: - sessions (Session/)
 
-CFX_HIDDEN void cfx_track_vcam_session(id session);
+CFX_HIDDEN void cfx_track_vcam_session(id __unsafe_unretained session);
 CFX_HIDDEN void cfx_deliver_video_frames_once(void);
 CFX_HIDDEN void cfx_install_session_guards(void);
 CFX_HIDDEN void cfx_install_input_diagnostics(void);

@@ -4,6 +4,7 @@
 #import "FoldDisplayPrivate.h"
 
 NSString *const vpInnerDisplayName = @"VPhone Duo Inner";
+const char *const vpInnerPagesNotification = "com.vphone.folddisplay.inner-pages";
 
 void vpFoldDisplayLog(NSString *line) {
     int fd = open("/var/mobile/Library/Caches/vphone-folddisplay.log", O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0666);

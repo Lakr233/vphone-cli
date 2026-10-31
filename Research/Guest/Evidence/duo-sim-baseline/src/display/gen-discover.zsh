@@ -1,0 +1,31 @@
+#!/bin/zsh
+# gen-discover.zsh <outfile.lldb> Class1 Class2 ... : emits an lldb probe dumping methods, ivars, props of each class.
+set -euo pipefail
+out=$1; shift
+list=""
+for c in "$@"; do list+="@\"$c\", "; done
+cat > $out <<LL
+expr -l objc -O --
+NSMutableString *vpOut = [NSMutableString string];
+NSArray *vpClasses = @[${list%, }];
+for (NSString *vpName in vpClasses) {
+  Class vpC = NSClassFromString(vpName);
+  [vpOut appendFormat:@"=== %@ %p super=%s\n", vpName, vpC, vpC ? class_getName(class_getSuperclass(vpC)) : "-"];
+  if (!vpC) continue;
+  unsigned int vpN = 0;
+  Method *vpM = class_copyMethodList(object_getClass(vpC), &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"+ %s %.80s\n", sel_getName(method_getName(vpM[vi])), method_getTypeEncoding(vpM[vi])];
+  free(vpM);
+  vpM = class_copyMethodList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"- %s %.80s\n", sel_getName(method_getName(vpM[vi])), method_getTypeEncoding(vpM[vi])];
+  free(vpM);
+  Ivar *vpI = class_copyIvarList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"ivar %s %.120s\n", ivar_getName(vpI[vi]), ivar_getTypeEncoding(vpI[vi])];
+  free(vpI);
+  objc_property_t *vpP = class_copyPropertyList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"prop %s %.100s\n", property_getName(vpP[vi]), property_getAttributes(vpP[vi])];
+  free(vpP);
+}
+vpOut
+
+LL

@@ -1208,10 +1208,17 @@ var panel = normalizeCoordinate(localPoint)
     /// outer or inner viewport. Input must be measured against that clipped
     /// rectangle; using the full backing bounds makes outer-screen touches
     /// land in the hidden part of the framebuffer.
+    /// Use the panel's fraction of the backing framebuffer in view coordinates
+    /// to account for window scaling.
     private var touchViewportSize: CGSize {
-        if let active = activePanelPixels, active.width > 0, active.height > 0,
-           screenScale > 0 {
-            return CGSize(width: active.width / screenScale, height: active.height / screenScale)
+        if let active = activePanelPixels,
+           let backing = recordingGraphicsDisplay?.sizeInPixels,
+           active.width > 0, active.height > 0,
+           backing.width > 0, backing.height > 0 {
+            return CGSize(
+                width: bounds.width * active.width / backing.width,
+                height: bounds.height * active.height / backing.height,
+            )
         }
         return bounds.size
     }

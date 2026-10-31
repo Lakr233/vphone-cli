@@ -1,0 +1,137 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+NSString *(^vpD)(id) = ^NSString *(id o) { return o ? [(NSObject *)o description] : (NSString *)nil; };
+NSObject *vpDCM = [[[UIApplication sharedApplication] valueForKey:@"_displayToolService"] valueForKey:@"_displayContentModeCoordinator"];
+long vpOrient = ((UIWindowScene *)[vpDCM valueForKey:@"primaryWindowScene"]).interfaceOrientation;
+struct VPRegion { double start; double end; BOOL isActive; BOOL canBecomeActive; };
+struct VPHinge { BOOL isAvailable; double position; long long state; struct VPRegion fullyClosed, closed, partiallyOpen, openFlat, foldAvoidance, toOpen, toClosed; BOOL isTransitioning; double transitionProgress, progressToSwap, progressFromSwap, continuousFoldPosition, velocity, acceleration; };
+struct VPUIHinge { BOOL isAvailable; long long status; long long magicPose; double hingeAngle; long long nextStatus; double progress; double timestamp; };
+struct VPCMAngle { float minAngleDegrees, maxAngleDegrees, angleDegrees, velocityDegreesPerSeconds; BOOL isAvailable; double timestamp; };
+struct VPCMMagic { long long deviceOrientation, deviceOrientationForCover, deviceOrientationForInner, tabletopPose, hingeState; BOOL progressValid; long long fromHingeState, toHingeState; double progressValue; BOOL isAvailable; double timestamp; };
+struct VPFlip { BOOL isAvailable, showYoinkingAffordance; };
+struct VPSettings { BOOL showDebugHUD, showDisplaySupport3Required, usesStrictCoreMotion, invertHingeAngles, continuousFoldEnabled; double closedToPartiallyOpenBoundary, partiallyOpenToOpenFlatBoundary, openTransitionBeginBoundary, closeTransitionBeginBoundary, transitionAutoCompleteDuration, velocitySmoothingFactor, enterFoldAvoidancePredictionWindow, sustainFoldAvoidancePredictionWindow; };
+struct VPInternal { BOOL isInitialized, forceStrictCoreMotion, invertHingeAngles, isOnVM, isDisplaySupport3Set, hingeRegionsAreDefault, needsTransitionAutocompletion; double transitionAutocompletionProgress, autocompleteStartTime, timestampOfLastTransitionProgressChange, transitionProgressWhenAutocompletionBegan, transitionSwapProgressWhenAutocompletionBegan, hingePositionWhenAutocompletionBegan; };
+struct VPDisplayTool { long long state; double duration; long long deviceOrientation, profileOverride; BOOL waitForCompletion; long long targetMode; double targetHingePosition, lockedForTestingUntil; };
+struct VPPose { long long orientation, coverOrientation, innerOrientation; struct VPHinge hinge; struct VPUIHinge uiHingeStatus; struct VPCMAngle cmAngle; struct VPCMMagic cmMagicPose; struct VPFlip flipState; struct VPSettings settings; struct VPInternal internal; struct VPDisplayTool displayTool; };
+struct VPBox { struct VPPose devicePose; double mechanicalAngleDegrees, autocompletionMinDelay, autocompletionMaxDelay, likelyToOpenVelocityDegreesPerSecond, swapDegreesForContinuousLiveStyle, swapDegreesForContinuousSnapshotStyleWhenOpening, swapDegreesForContinuousSnapshotStyleWhenClosing, swapDegreesForFadeInFadeOutStyle; long long transitionStyle; double autocompletionDelay, continuousFoldEffectProgress, continuousFoldEffectSettlingTarget; BOOL continuousFoldEffectIsSettling; };
+NSDictionary *(^vpRegion)(struct VPRegion) = ^NSDictionary *(struct VPRegion r) { return @{@"start": @(r.start), @"end": @(r.end), @"isActive": @(r.isActive), @"canBecomeActive": @(r.canBecomeActive)}; };
+NSDictionary *(^vpPoseDict)(struct VPPose) = ^NSDictionary *(struct VPPose p) {
+  return @{
+    @"orientation": @(p.orientation), @"coverOrientation": @(p.coverOrientation), @"innerOrientation": @(p.innerOrientation),
+    @"hinge": @{@"isAvailable": @(p.hinge.isAvailable), @"position": @(p.hinge.position), @"state": @(p.hinge.state),
+                @"fullyClosedRegion": vpRegion(p.hinge.fullyClosed), @"closedRegion": vpRegion(p.hinge.closed), @"partiallyOpenRegion": vpRegion(p.hinge.partiallyOpen),
+                @"openFlatRegion": vpRegion(p.hinge.openFlat), @"activateFoldAvoidanceRegion": vpRegion(p.hinge.foldAvoidance),
+                @"transitionToOpenRegion": vpRegion(p.hinge.toOpen), @"transitionToClosedRegion": vpRegion(p.hinge.toClosed),
+                @"isTransitioning": @(p.hinge.isTransitioning), @"transitionProgress": @(p.hinge.transitionProgress), @"progressToSwap": @(p.hinge.progressToSwap),
+                @"progressFromSwap": @(p.hinge.progressFromSwap), @"continuousFoldPosition": @(p.hinge.continuousFoldPosition), @"velocity": @(p.hinge.velocity), @"acceleration": @(p.hinge.acceleration)},
+    @"uiHingeStatus": @{@"isAvailable": @(p.uiHingeStatus.isAvailable), @"status": @(p.uiHingeStatus.status), @"magicPose": @(p.uiHingeStatus.magicPose), @"hingeAngle": @(p.uiHingeStatus.hingeAngle),
+                        @"nextStatus": @(p.uiHingeStatus.nextStatus), @"progress": @(p.uiHingeStatus.progress), @"timestamp": @(p.uiHingeStatus.timestamp)},
+    @"cmAngle": @{@"minAngleDegrees": @(p.cmAngle.minAngleDegrees), @"maxAngleDegrees": @(p.cmAngle.maxAngleDegrees), @"angleDegrees": @(p.cmAngle.angleDegrees),
+                  @"velocityDegreesPerSeconds": @(p.cmAngle.velocityDegreesPerSeconds), @"isAvailable": @(p.cmAngle.isAvailable), @"timestamp": @(p.cmAngle.timestamp)},
+    @"cmMagicPose": @{@"deviceOrientation": @(p.cmMagicPose.deviceOrientation), @"deviceOrientationForCover": @(p.cmMagicPose.deviceOrientationForCover),
+                      @"deviceOrientationForInner": @(p.cmMagicPose.deviceOrientationForInner), @"tabletopPose": @(p.cmMagicPose.tabletopPose), @"hingeState": @(p.cmMagicPose.hingeState),
+                      @"progressValid": @(p.cmMagicPose.progressValid), @"fromHingeState": @(p.cmMagicPose.fromHingeState), @"toHingeState": @(p.cmMagicPose.toHingeState),
+                      @"progressValue": @(p.cmMagicPose.progressValue), @"isAvailable": @(p.cmMagicPose.isAvailable), @"timestamp": @(p.cmMagicPose.timestamp)},
+    @"flipState": @{@"isAvailable": @(p.flipState.isAvailable), @"showYoinkingAffordance": @(p.flipState.showYoinkingAffordance)},
+    @"settings": @{@"showDebugHUD": @(p.settings.showDebugHUD), @"showDisplaySupport3Required": @(p.settings.showDisplaySupport3Required), @"usesStrictCoreMotion": @(p.settings.usesStrictCoreMotion),
+                   @"invertHingeAngles": @(p.settings.invertHingeAngles), @"continuousFoldEnabled": @(p.settings.continuousFoldEnabled),
+                   @"closedToPartiallyOpenBoundary": @(p.settings.closedToPartiallyOpenBoundary), @"partiallyOpenToOpenFlatBoundary": @(p.settings.partiallyOpenToOpenFlatBoundary),
+                   @"openTransitionBeginBoundary": @(p.settings.openTransitionBeginBoundary), @"closeTransitionBeginBoundary": @(p.settings.closeTransitionBeginBoundary),
+                   @"transitionAutoCompleteDuration": @(p.settings.transitionAutoCompleteDuration), @"velocitySmoothingFactor": @(p.settings.velocitySmoothingFactor),
+                   @"enterFoldAvoidancePredictionWindow": @(p.settings.enterFoldAvoidancePredictionWindow), @"sustainFoldAvoidancePredictionWindow": @(p.settings.sustainFoldAvoidancePredictionWindow)},
+    @"internal": @{@"isInitialized": @(p.internal.isInitialized), @"forceStrictCoreMotion": @(p.internal.forceStrictCoreMotion), @"invertHingeAngles": @(p.internal.invertHingeAngles),
+                   @"isOnVM": @(p.internal.isOnVM), @"isDisplaySupport3Set": @(p.internal.isDisplaySupport3Set), @"hingeRegionsAreDefault": @(p.internal.hingeRegionsAreDefault),
+                   @"needsTransitionAutocompletion": @(p.internal.needsTransitionAutocompletion), @"transitionAutocompletionProgress": @(p.internal.transitionAutocompletionProgress),
+                   @"autocompleteStartTime": @(p.internal.autocompleteStartTime), @"timestampOfLastTransitionProgressChange": @(p.internal.timestampOfLastTransitionProgressChange),
+                   @"transitionProgressWhenAutocompletionBegan": @(p.internal.transitionProgressWhenAutocompletionBegan),
+                   @"transitionSwapProgressWhenAutocompletionBegan": @(p.internal.transitionSwapProgressWhenAutocompletionBegan), @"hingePositionWhenAutocompletionBegan": @(p.internal.hingePositionWhenAutocompletionBegan)},
+    @"displayTool": @{@"state": @(p.displayTool.state), @"duration": @(p.displayTool.duration), @"deviceOrientation": @(p.displayTool.deviceOrientation), @"profileOverride": @(p.displayTool.profileOverride),
+                      @"waitForCompletion": @(p.displayTool.waitForCompletion), @"targetMode": @(p.displayTool.targetMode), @"targetHingePosition": @(p.displayTool.targetHingePosition),
+                      @"lockedForTestingUntil": @(p.displayTool.lockedForTestingUntil)}
+  };
+};
+NSObject *vpProv = [[UIApplication sharedApplication] valueForKey:@"_devicePoseProvider"];
+vpAdd(@"SpringBoard.devicePoseProvider", @"private", @"[[UIApplication sharedApplication] devicePoseProvider] class", NSStringFromClass(object_getClass(vpProv)), nil);
+Method vpPoseM = class_getInstanceMethod(object_getClass(vpProv), @selector(currentPose));
+char *vpRet = method_copyReturnType(vpPoseM); NSUInteger vpSize = 0, vpAlign = 0; NSGetSizeAndAlignment(vpRet, &vpSize, &vpAlign); free(vpRet);
+Method vpBoxM = class_getInstanceMethod(object_getClass(vpProv), @selector(currentBox));
+char *vpRet2 = method_copyReturnType(vpBoxM); NSUInteger vpSize2 = 0; NSGetSizeAndAlignment(vpRet2, &vpSize2, &vpAlign); free(vpRet2);
+if (vpSize == sizeof(struct VPPose)) {
+  struct VPPose vpPose = ((struct VPPose (*)(id, SEL))vpMsg)(vpProv, @selector(currentPose));
+  vpAdd(@"SBFDevicePoseProvider.currentPose", @"private", @"-[SBFDevicePoseProvider currentPose] (struct decoded field by field)", vpPoseDict(vpPose), nil);
+} else {
+  vpAdd(@"SBFDevicePoseProvider.currentPose", @"private", @"-[SBFDevicePoseProvider currentPose]", nil, [NSString stringWithFormat:@"struct size mismatch: runtime %lu, probe %lu", (unsigned long)vpSize, sizeof(struct VPPose)]);
+}
+if (vpSize2 == sizeof(struct VPBox)) {
+  struct VPBox vpBox = ((struct VPBox (*)(id, SEL))vpMsg)(vpProv, @selector(currentBox));
+  vpAdd(@"SBFDevicePoseProvider.currentBox", @"private", @"-[SBFDevicePoseProvider currentBox] (fields beyond devicePose)",
+        @{@"mechanicalAngleDegrees": @(vpBox.mechanicalAngleDegrees), @"autocompletionMinDelay": @(vpBox.autocompletionMinDelay), @"autocompletionMaxDelay": @(vpBox.autocompletionMaxDelay),
+          @"likelyToOpenVelocityDegreesPerSecond": @(vpBox.likelyToOpenVelocityDegreesPerSecond), @"swapDegreesForContinuousLiveStyle": @(vpBox.swapDegreesForContinuousLiveStyle),
+          @"swapDegreesForContinuousSnapshotStyleWhenOpening": @(vpBox.swapDegreesForContinuousSnapshotStyleWhenOpening),
+          @"swapDegreesForContinuousSnapshotStyleWhenClosing": @(vpBox.swapDegreesForContinuousSnapshotStyleWhenClosing),
+          @"swapDegreesForFadeInFadeOutStyle": @(vpBox.swapDegreesForFadeInFadeOutStyle), @"transitionStyle": @(vpBox.transitionStyle), @"autocompletionDelay": @(vpBox.autocompletionDelay),
+          @"continuousFoldEffectProgress": @(vpBox.continuousFoldEffectProgress), @"continuousFoldEffectSettlingTarget": @(vpBox.continuousFoldEffectSettlingTarget),
+          @"continuousFoldEffectIsSettling": @(vpBox.continuousFoldEffectIsSettling)}, nil);
+} else {
+  vpAdd(@"SBFDevicePoseProvider.currentBox", @"private", @"-[SBFDevicePoseProvider currentBox]", nil, [NSString stringWithFormat:@"struct size mismatch: runtime %lu, probe %lu", (unsigned long)vpSize2, sizeof(struct VPBox)]);
+}
+vpAdd(@"SBFDevicePoseProvider.description", @"private", @"[(NSObject *)provider description]", vpD(vpProv), nil);
+vpAdd(@"SBFDevicePoseProvider.isContinuousFoldEnabled", @"private", @"-[SBFDevicePoseProvider isContinuousFoldEnabled]", @(((BOOL (*)(id, SEL))vpMsg)(vpProv, @selector(isContinuousFoldEnabled))), nil);
+vpAdd(@"SBFDevicePoseProvider.continuousFoldEffectProgress", @"private", @"-[SBFDevicePoseProvider continuousFoldEffectProgress]", @(((double (*)(id, SEL))vpMsg)(vpProv, @selector(continuousFoldEffectProgress))), nil);
+vpAdd(@"SBFDevicePoseProvider._lastNotificationTimestamp", @"private", @"[provider valueForKey:@\"_lastNotificationTimestamp\"]", [vpProv valueForKey:@"_lastNotificationTimestamp"], nil);
+vpAdd(@"SBFDevicePoseProvider._cmAngleManager", @"private", @"[provider valueForKey:@\"_cmAngleManager\"] class", NSStringFromClass(object_getClass([vpProv valueForKey:@"_cmAngleManager"])), nil);
+vpAdd(@"SBFDevicePoseProvider._cmMagicPoseManager", @"private", @"[provider valueForKey:@\"_cmMagicPoseManager\"] class", NSStringFromClass(object_getClass([vpProv valueForKey:@"_cmMagicPoseManager"])), nil);
+vpAdd(@"SBFDevicePoseProvider._cmMagicPoseManager.isSharedManager", @"private", @"[provider valueForKey:@\"_cmMagicPoseManager\"] == [CMMagicPoseManager sharedManager]",
+      @([vpProv valueForKey:@"_cmMagicPoseManager"] == ((id (*)(id, SEL))vpMsg)(NSClassFromString(@"CMMagicPoseManager"), @selector(sharedManager))), nil);
+NSObject *vpAccel = [vpProv valueForKey:@"_accelerometer"];
+vpAdd(@"SBFDevicePoseProvider._accelerometer", @"private", @"[provider valueForKey:@\"_accelerometer\"] class", vpAccel ? NSStringFromClass(object_getClass(vpAccel)) : nil, vpAccel ? nil : @"nil");
+if (vpAccel) {
+  vpAdd(@"BKSAccelerometer.currentDeviceOrientation", @"private", @"[provider._accelerometer currentDeviceOrientation]", @(((long long (*)(id, SEL))vpMsg)(vpAccel, @selector(currentDeviceOrientation))), nil);
+  vpAdd(@"BKSAccelerometer.orientationEventsEnabled", @"private", @"[provider._accelerometer orientationEventsEnabled]", @(((BOOL (*)(id, SEL))vpMsg)(vpAccel, @selector(orientationEventsEnabled))), nil);
+  vpAdd(@"BKSAccelerometer.passiveOrientationEvents", @"private", @"[provider._accelerometer passiveOrientationEvents]", @(((BOOL (*)(id, SEL))vpMsg)(vpAccel, @selector(passiveOrientationEvents))), nil);
+  vpAdd(@"BKSAccelerometer.accelerometerEventsEnabled", @"private", @"[provider._accelerometer accelerometerEventsEnabled]", @(((BOOL (*)(id, SEL))vpMsg)(vpAccel, @selector(accelerometerEventsEnabled))), nil);
+  vpAdd(@"BKSAccelerometer.updateInterval", @"private", @"[provider._accelerometer updateInterval]", @(((double (*)(id, SEL))vpMsg)(vpAccel, @selector(updateInterval))), nil);
+}
+NSObject *vpPT = [vpProv valueForKey:@"_settings"];
+NSMutableDictionary *vpPTD = [NSMutableDictionary dictionary];
+for (NSString *vpK in @[@"continuousFoldTransitionEnabled", @"partiallyOpenToOpenFlatBoundary", @"openTransitionBeginBoundary", @"closeTransitionBeginBoundary", @"transitionAutoCompleteDuration", @"swapDegreesForContinuousLiveStyle", @"swapDegreesForContinuousSnapshotStyleWhenOpening", @"swapDegreesForContinuousSnapshotStyleWhenClosing", @"swapDegreesForFadeInFadeOutStyle", @"autocompleteMinDelay", @"autocompleteMaxDelay", @"displayPrewarmDuration", @"velocitySmoothingFactor", @"likelyToOpenVelocityDegreesPerSecond", @"enterFoldAvoidancePredictionWindow", @"sustainFoldAvoidancePredictionWindow"]) {
+  vpPTD[vpK] = [vpPT valueForKey:vpK] ?: [NSNull null];
+}
+vpAdd(@"SBFDevicePosePTSettings", @"private", @"[provider valueForKey:@\"_settings\"] valueForKey:<each property>", vpPTD, nil);
+Class vpDefC = NSClassFromString(@"SBFDevicePoseDefaults");
+NSObject *vpDef = vpDefC ? ((id (*)(id, SEL))vpMsg)(((id (*)(id, SEL))vpMsg)(vpDefC, @selector(alloc)), @selector(init)) : nil;
+vpAdd(@"SBFDevicePoseDefaults.lastKnownCMAngleDictionary", @"private", @"[[SBFDevicePoseDefaults alloc] init].lastKnownCMAngleDictionary", [vpDef valueForKey:@"lastKnownCMAngleDictionary"], vpDef ? nil : @"SBFDevicePoseDefaults missing");
+vpAdd(@"SBFDevicePoseDefaults.lastKnownCMMagicPoseDictionary", @"private", @"[[SBFDevicePoseDefaults alloc] init].lastKnownCMMagicPoseDictionary", [vpDef valueForKey:@"lastKnownCMMagicPoseDictionary"], vpDef ? nil : @"SBFDevicePoseDefaults missing");
+NSMutableArray *vpObs = [NSMutableArray array];
+for (id vpO in [(NSHashTable *)[vpProv valueForKey:@"_observers"] allObjects]) [vpObs addObject:NSStringFromClass(object_getClass(vpO))];
+[vpObs sortUsingSelector:@selector(compare:)];
+vpAdd(@"SBFDevicePoseProvider._observers", @"private", @"[[provider valueForKey:@\"_observers\"] allObjects] (class names, sorted)", vpObs, nil);
+vpAdd(@"SBFDevicePoseProvider.likelyTransitionDelegate", @"private", @"[provider likelyTransitionDelegate] class", NSStringFromClass(object_getClass([vpProv valueForKey:@"_likelyTransitionDelegate"])), nil);
+UIWindowScene *vpHB = (UIWindowScene *)[vpProv valueForKey:@"_heartbeatSource"];
+vpAdd(@"SBFDevicePoseProvider._heartbeatSource", @"private", @"[provider valueForKey:@\"_heartbeatSource\"].session.persistentIdentifier", vpHB ? vpHB.session.persistentIdentifier : nil, vpHB ? nil : @"nil");
+NSObject *vpCoord = [[[UIApplication sharedApplication] valueForKey:@"_displayToolService"] valueForKey:@"_swapCoordinator"];
+vpAdd(@"SBDisplayToolServiceCoordinator._devicePoseProvider.isSpringBoardProvider", @"private", @"[coordinator valueForKey:@\"_devicePoseProvider\"] == [SpringBoard devicePoseProvider]", @([vpCoord valueForKey:@"_devicePoseProvider"] == vpProv), nil);
+struct VPHPS { char a; char b; char c; char d; };
+struct VPHPS vpHPS = ((struct VPHPS (*)(id, SEL))vpMsg)([UIApplication sharedApplication], @selector(currentHingePoseStateForTesting));
+vpAdd(@"UIApplication.currentHingePoseStateForTesting", @"private", @"-[UIApplication currentHingePoseStateForTesting] {orientation, magicPoseDeviceOrientation, magicPoseHingeState, magicPoseTabletopPose}",
+      @{@"orientation": @(vpHPS.a), @"magicPoseDeviceOrientation": @(vpHPS.b), @"magicPoseHingeState": @(vpHPS.c), @"magicPoseTabletopPose": @(vpHPS.d)}, nil);
+NSDictionary *vpOut = @{@"group": @"pose", @"orientation": @(vpOrient), @"records": vpRecs};
+__block id (^vpSan)(id) = nil;
+vpSan = ^id(id o) {
+  if (!o) return [NSNull null];
+  if ([(NSObject *)o isKindOfClass:[NSString class]] || [(NSObject *)o isKindOfClass:[NSNull class]]) return o;
+  if ([(NSObject *)o isKindOfClass:[NSNumber class]]) { double vpF = [(NSNumber *)o doubleValue]; if (vpF != vpF || vpF > 1.0e308 || vpF < -1.0e308) return [NSString stringWithFormat:@"%f", vpF]; return o; }
+  if ([(NSObject *)o isKindOfClass:[NSArray class]]) { NSMutableArray *vpA = [NSMutableArray array]; for (id vpY in (NSArray *)o) [vpA addObject:vpSan(vpY)]; return vpA; }
+  if ([(NSObject *)o isKindOfClass:[NSDictionary class]]) { NSMutableDictionary *vpM = [NSMutableDictionary dictionary]; for (id vpK in (NSDictionary *)o) vpM[[(NSObject *)vpK description]] = vpSan(((NSDictionary *)o)[vpK]); return vpM; }
+  if ([(NSObject *)o isKindOfClass:[NSData class]]) return @{@"data_base64": [(NSData *)o base64EncodedStringWithOptions:0]};
+  if ([(NSObject *)o isKindOfClass:[NSDate class]]) return @{@"date": [(NSObject *)o description]};
+  return [(NSObject *)o description] ?: @"";
+};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpSan(vpOut) options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

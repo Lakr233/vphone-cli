@@ -1,0 +1,11 @@
+{
+  "description": "HomePod mini kernelcache of the AudioAccessory5,1 26.5 (23L471) IPSW: the HomePod kexts, read from the guest restore tree",
+  "id": "b520_26.5_23L471",
+  "kernel": {
+    "decompressedSHA256": "968ffd0ac71ea1f2cf349704b887f6e31a9c9106a81e9964bee9328323a3b23f",
+    "file": "kernelcache.release.b520",
+    "kdk": "KDK_26.5_23L468.kdk",
+    "sha256": "7b1e31f91800798beb39870e8e1f8b124aa9836356a9d4c8a0219eaff0324bec"
+  },
+  "symbols": "symbols.json.gz"
+}

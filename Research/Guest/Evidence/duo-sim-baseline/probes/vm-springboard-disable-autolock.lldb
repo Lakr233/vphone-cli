@@ -1,0 +1,6 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSObject *vpIdle = [(NSObject *)[UIApplication sharedApplication] valueForKey:@"_idleTimerGlobalCoordinator"];
+NSObject *vpA = (NSObject *)((id (*)(id, SEL, id))vpMsg)(vpIdle, @selector(acquireIdleTimerDisableAssertionForReason:), @"vphone baseline: auto-lock off again");
+[NSString stringWithFormat:@"assertion=%@ disabled=%d timer=%@ dict=%@", [vpA description], ((BOOL (*)(id, SEL))vpMsg)(vpIdle, @selector(isIdleTimerDisabled)), [(NSObject *)((id (*)(id, SEL))vpMsg)(vpIdle, @selector(idleTimer)) description], [(NSObject *)[vpIdle valueForKey:@"_idleTimerDisableAssertions"] description]]
+

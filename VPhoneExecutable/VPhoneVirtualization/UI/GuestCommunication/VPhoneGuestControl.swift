@@ -154,6 +154,9 @@ final class VPhoneGuestControl {
         }
     }
 
+    /// Folds this window asked for that have not answered yet.
+    @ObservationIgnored var foldRequestsInFlight = 0
+
     @ObservationIgnored private var foldObservers: [(Double?, Double) -> Void] = []
     @ObservationIgnored private var foldPositionObservers: [(VPhoneFoldPosition?) -> Void] = []
 

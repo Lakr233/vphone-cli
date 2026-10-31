@@ -1,0 +1,120 @@
+id vpOrientation = nil;
+Class vpCADisplay = NSClassFromString(@"CADisplay");
+Class vpCADisplayMode = NSClassFromString(@"CADisplayMode");
+NSString *(^vpCStr)(char *) = ^NSString *(char *s) { if (!s) return (NSString *)nil; NSString *vs = [NSString stringWithUTF8String:s]; free(s); return vs; };
+NSArray *vpDisplays = ((id (*)(id, SEL))objc_msgSend)(vpCADisplay, @selector(displays));
+NSObject *vpMain = ((id (*)(id, SEL))objc_msgSend)(vpCADisplay, @selector(mainDisplay));
+vpAdd(@"CADisplay.displays", @"private", @"[CADisplay displays].count", @(vpDisplays.count), nil);
+vpAdd(@"CADisplay.displays.names", @"private", @"[[CADisplay displays] valueForKey:@\"name\"]", [vpDisplays valueForKey:@"name"], nil);
+vpAdd(@"CADisplay.mainDisplay.indexInDisplays", @"private", @"[[CADisplay displays] indexOfObjectIdenticalTo:[CADisplay mainDisplay]]", @((long)[vpDisplays indexOfObjectIdenticalTo:vpMain]), nil);
+NSObject *vpTV = ((id (*)(id, SEL))objc_msgSend)(vpCADisplay, NSSelectorFromString(@"TVOutDisplay"));
+vpAdd(@"CADisplay.TVOutDisplay", @"private", @"[CADisplay TVOutDisplay]", vpTV ? [(NSObject *)vpTV description] : nil, vpTV ? nil : @"nil");
+NSMutableArray *vpDispList = [NSMutableArray arrayWithArray:vpDisplays];
+NSMutableArray *vpDispCalls = [NSMutableArray array];
+for (NSUInteger vi = 0; vi < vpDisplays.count; vi++) [vpDispCalls addObject:[NSString stringWithFormat:@"[CADisplay displays][%lu]<%@>", (unsigned long)vi, [(NSObject *)vpDisplays[vi] valueForKey:@"name"]]];
+if (vpMain) { [vpDispList addObject:vpMain]; [vpDispCalls addObject:[NSString stringWithFormat:@"[CADisplay mainDisplay]<%@>", [vpMain valueForKey:@"name"]]]; }
+for (NSUInteger vi = 0; vi < vpDispList.count; vi++) {
+  NSObject *vpD = vpDispList[vi];
+  NSString *vpC = vpDispCalls[vi];
+  vpDump(vpD, @"CADisplay", @"private", vpC, nil);
+  NSObject *vpCur = [vpD valueForKey:@"currentMode"];
+  vpAdd(@"CADisplay.currentMode.getters", @"private", [vpC stringByAppendingString:@".currentMode.*"], vpCur ? vpObjDict(vpCur) : nil, vpCur ? nil : @"nil");
+  NSObject *vpPref = [vpD valueForKey:@"preferredMode"];
+  vpAdd(@"CADisplay.preferredMode.getters", @"private", [vpC stringByAppendingString:@".preferredMode.*"], vpPref ? vpObjDict(vpPref) : nil, vpPref ? nil : @"nil");
+  NSMutableArray *vpModes = [NSMutableArray array];
+  for (id vpM in (NSArray *)[vpD valueForKey:@"availableModes"]) [vpModes addObject:vpObjDict(vpM)];
+  vpAdd(@"CADisplay.availableModes.getters", @"private", [vpC stringByAppendingString:@".availableModes[*].*"], vpModes, nil);
+  NSObject *vpPrefs = [vpD valueForKey:@"preferences"];
+  vpAdd(@"CADisplay.preferences.getters", @"private", [vpC stringByAppendingString:@".preferences.*"], vpPrefs ? vpObjDict(vpPrefs) : nil, vpPrefs ? nil : @"nil");
+  NSObject *vpExt = [vpD valueForKey:@"externalDisplayAttributes"];
+  vpAdd(@"CADisplay.externalDisplayAttributes.getters", @"private", [vpC stringByAppendingString:@".externalDisplayAttributes.*"], vpExt ? vpObjDict(vpExt) : nil, vpExt ? nil : @"nil");
+  NSObject *vpSC = [vpD valueForKey:@"stateControl"];
+  vpDump(vpSC, @"CADisplayStateControl", @"private", [vpC stringByAppendingString:@".stateControl"], nil);
+  if (vpSC) {
+    vpAdd(@"CADisplayStateControl._copyStateInfo", @"private", [vpC stringByAppendingString:@".stateControl._copyStateInfo"], vpCStr(((char *(*)(id, SEL))objc_msgSend)(vpSC, NSSelectorFromString(@"_copyStateInfo"))), nil);
+    vpAdd(@"CADisplayStateControl._copyAllPowerAssertionInfo", @"private", [vpC stringByAppendingString:@".stateControl._copyAllPowerAssertionInfo"], vpCStr(((char *(*)(id, SEL))objc_msgSend)(vpSC, NSSelectorFromString(@"_copyAllPowerAssertionInfo"))), nil);
+    vpAdd(@"CADisplayStateControl._copyAllFrameRateAssertionInfo", @"private", [vpC stringByAppendingString:@".stateControl._copyAllFrameRateAssertionInfo"], vpCStr(((char *(*)(id, SEL))objc_msgSend)(vpSC, NSSelectorFromString(@"_copyAllFrameRateAssertionInfo"))), nil);
+  }
+  CFDictionaryRef vpDbg = ((CFDictionaryRef (*)(id, SEL))objc_msgSend)(vpD, NSSelectorFromString(@"_copyDebugProperties"));
+  vpAdd(@"CADisplay._copyDebugProperties", @"private", [vpC stringByAppendingString:@"._copyDebugProperties"], vpDbg ? (__bridge id)vpDbg : nil, vpDbg ? nil : @"NULL");
+}
+NSObject *vpWS = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"CAWindowServer"), NSSelectorFromString(@"serverIfRunning"));
+vpDump(vpWS, @"CAWindowServer", @"private", @"[CAWindowServer serverIfRunning]", nil);
+NSArray *vpWSD = vpWS ? [vpWS valueForKey:@"displays"] : @[];
+NSMutableDictionary *vpUUIDs = [NSMutableDictionary dictionary];
+for (NSUInteger vi = 0; vi < vpWSD.count; vi++) {
+  NSObject *vpD = vpWSD[vi];
+  NSString *vpC = [NSString stringWithFormat:@"[CAWindowServer serverIfRunning].displays[%lu]<%@>", (unsigned long)vi, [vpD valueForKey:@"name"]];
+  vpDump(vpD, @"CAWindowServerDisplay", @"private", vpC, nil);
+  CGRect vpB = ((CGRect (*)(id, SEL))objc_msgSend)(vpD, @selector(bounds));
+  unsigned int vpCtx = ((unsigned int (*)(id, SEL, CGPoint))objc_msgSend)(vpD, NSSelectorFromString(@"contextIdAtPosition:"), CGPointMake(CGRectGetMidX(vpB), CGRectGetMidY(vpB)));
+  vpAdd(@"CAWindowServerDisplay.contextIdAtPosition:center", @"private", [vpC stringByAppendingString:@" contextIdAtPosition:(center of bounds)"], @(vpCtx), nil);
+  NSString *vpU = [(NSObject *)[vpD valueForKey:@"uniqueId"] description];
+  NSObject *vpUU = [vpD valueForKey:@"uuid"];
+  vpUUIDs[[vpD valueForKey:@"name"]] = @{@"uniqueId": vpU ?: [NSNull null], @"uuid": vpUU ? [(NSUUID *)vpUU UUIDString] : [NSNull null]};
+}
+vpAdd(@"CAWindowServerDisplay.nameToIds", @"private", @"{name: {uniqueId, uuid}} over [CAWindowServer serverIfRunning].displays", vpUUIDs, nil);
+NSObject *vpOrientCtl = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKDisplayOrientationController"), @selector(sharedInstance));
+NSDictionary *vpOBU = [vpOrientCtl valueForKey:@"_orientationByDisplayUUID"];
+vpAdd(@"BKDisplayOrientationController._orientationByDisplayUUID", @"private", @"[[BKDisplayOrientationController sharedInstance] valueForKey:@\"_orientationByDisplayUUID\"]", vpOBU, nil);
+NSMutableOrderedSet *vpAllUUIDs = [NSMutableOrderedSet orderedSetWithArray:[vpOBU allKeys]];
+for (NSObject *vpD in vpDisplays) { NSObject *vu = [vpD valueForKey:@"uniqueId"]; if (vu) [vpAllUUIDs addObject:vu]; NSObject *vuu = [vpD valueForKey:@"UUID"]; if (vuu) [vpAllUUIDs addObject:[(NSUUID *)vuu UUIDString]]; }
+vpAdd(@"backboardd.displayUUIDsProbed", @"private", @"union of _orientationByDisplayUUID keys, CADisplay.uniqueId, CADisplay.UUID", [vpAllUUIDs array], nil);
+NSObject *vpDC = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKDisplayController"), @selector(sharedInstance));
+struct VPGeom { CGSize size; double scale; unsigned char orientation; CGRect rect; };
+for (NSString *vpU in vpAllUUIDs) {
+  long long vpIO = ((long long (*)(id, SEL, id))objc_msgSend)(vpOrientCtl, NSSelectorFromString(@"interfaceOrientationForDisplayUUID:"), vpU);
+  vpAdd(@"BKDisplayOrientationController.interfaceOrientationForDisplayUUID:", @"private", [NSString stringWithFormat:@"[[BKDisplayOrientationController sharedInstance] interfaceOrientationForDisplayUUID:@\"%@\"]", vpU], @(vpIO), nil);
+  NSObject *vpDD = ((id (*)(id, SEL, id))objc_msgSend)(vpDC, NSSelectorFromString(@"displayForUUID:"), vpU);
+  vpAdd(@"BKDisplayController.displayForUUID:", @"private", [NSString stringWithFormat:@"[[BKDisplayController sharedInstance] displayForUUID:@\"%@\"]", vpU], vpDD ? [(NSObject *)vpDD description] : nil, vpDD ? nil : @"nil");
+  struct VPGeom vpG = ((struct VPGeom (*)(id, SEL, id))objc_msgSend)(vpDC, NSSelectorFromString(@"geometryForDisplayUUID:"), vpU);
+  vpAdd(@"BKDisplayController.geometryForDisplayUUID:", @"private", [NSString stringWithFormat:@"[[BKDisplayController sharedInstance] geometryForDisplayUUID:@\"%@\"] as {CGSize; double; uchar; CGRect}", vpU], @{@"size": vpSize(vpG.size), @"double": @(vpG.scale), @"uchar": @(vpG.orientation), @"rect": vpRect(vpG.rect)}, nil);
+  BOOL vpBl = ((BOOL (*)(id, SEL, id))objc_msgSend)(vpDC, NSSelectorFromString(@"displayIsBlanked:"), vpU);
+  vpAdd(@"BKDisplayController.displayIsBlanked:", @"private", [NSString stringWithFormat:@"[[BKDisplayController sharedInstance] displayIsBlanked:@\"%@\"]", vpU], @(vpBl), nil);
+}
+NSObject *vpProv = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKSharedCADisplayProvider"), @selector(sharedInstance));
+vpAdd(@"BKSharedCADisplayProvider.displays", @"private", @"[[BKSharedCADisplayProvider sharedInstance] displays]", [vpProv valueForKey:@"displays"], nil);
+vpAdd(@"BKSharedCADisplayProvider.mainDisplay", @"private", @"[[BKSharedCADisplayProvider sharedInstance] mainDisplay]", [(NSObject *)[vpProv valueForKey:@"mainDisplay"] description], nil);
+NSObject *vpOM = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKOrientationManager"), @selector(sharedInstance));
+vpDump(vpOM, @"BKOrientationManager", @"private", @"[BKOrientationManager sharedInstance]", nil);
+NSObject *vpBC = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKDisplayBrightnessController"), @selector(sharedInstance));
+vpDump(vpBC, @"BKDisplayBrightnessController", @"private", @"[BKDisplayBrightnessController sharedInstance]", nil);
+NSObject *vpOvM = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKDisplayRenderOverlayManager"), @selector(sharedInstance));
+vpDump(vpOvM, @"BKDisplayRenderOverlayManager", @"private", @"[BKDisplayRenderOverlayManager sharedInstance]", nil);
+vpAdd(@"BKDisplayRenderOverlayManager._frozenDisplayIDs", @"private", @"[[BKDisplayRenderOverlayManager sharedInstance] valueForKey:@\"_frozenDisplayIDs\"]", [(NSObject *)[vpOvM valueForKey:@"_frozenDisplayIDs"] description], nil);
+NSArray *vpOverlays = [[(NSSet *)[vpOvM valueForKey:@"activeOverlays"] allObjects] copy];
+for (NSUInteger vi = 0; vi < vpOverlays.count; vi++) vpDump(vpOverlays[vi], @"BKDisplayRenderOverlay", @"private", [NSString stringWithFormat:@"[[BKDisplayRenderOverlayManager sharedInstance] activeOverlays][%lu]", (unsigned long)vi], nil);
+NSObject *vpReg = ((id (*)(id, SEL))objc_msgSend)(NSClassFromString(@"BKHIDEventProcessorRegistry"), @selector(sharedInstance));
+NSDictionary *vpProcs = [vpReg valueForKey:@"_eventProcessorsByClassName"];
+vpAdd(@"BKHIDEventProcessorRegistry._eventProcessorsByClassName.keys", @"private", @"[[[BKHIDEventProcessorRegistry sharedInstance] valueForKey:@\"_eventProcessorsByClassName\"] allKeys]", [[vpProcs allKeys] sortedArrayUsingSelector:@selector(compare:)], nil);
+NSObject *vpDT = vpProcs[@"BKHIDDirectTouchEventProcessor"];
+NSString *vpDTC = @"[[BKHIDEventProcessorRegistry sharedInstance] valueForKey:@\"_eventProcessorsByClassName\"][@\"BKHIDDirectTouchEventProcessor\"]";
+vpAdd(@"BKHIDDirectTouchEventProcessor.description", @"private", [vpDTC stringByAppendingString:@".description"], vpDT ? [(NSObject *)vpDT description] : nil, vpDT ? nil : @"nil");
+if (vpDT) {
+  for (NSString *vpK in @[@"mainDisplayDigitizerService", @"mainDisplayAOPDigitizerService", @"mainDisplayPencilDigitizerService", @"chamoisDisplayUUID", @"shouldIgnoreTouchesWhileObjectInProximity", @"_queue_interfaceOrientation", @"_queue_chamoisDisplayUUID", @"_queue_serviceSenderIDToChamoisDisplayUUID", @"_queue_accessoryTouchscreenServices"]) {
+    id vv = [vpDT valueForKey:vpK];
+    vpAdd([@"BKHIDDirectTouchEventProcessor." stringByAppendingString:vpK], @"private", [NSString stringWithFormat:@"%@ valueForKey:@\"%@\"", vpDTC, vpK], vv, vv ? nil : @"nil");
+  }
+  NSDictionary *vpPDI = [vpDT valueForKey:@"_queue_perDisplayInfo"];
+  vpAdd(@"BKHIDDirectTouchEventProcessor._queue_perDisplayInfo.keys", @"private", [vpDTC stringByAppendingString:@" valueForKey:@\"_queue_perDisplayInfo\"].allKeys"], [vpPDI allKeys], nil);
+  for (id vpKey in vpPDI) {
+    NSObject *vpInfo = vpPDI[vpKey];
+    NSString *vpIC = [NSString stringWithFormat:@"%@._queue_perDisplayInfo[%@]", vpDTC, vpKey];
+    vpAdd(@"BKDirectTouchPerDisplayInfo.description", @"private", [vpIC stringByAppendingString:@".description"], [(NSObject *)vpInfo description], nil);
+    vpAdd(@"BKDirectTouchPerDisplayInfo._display", @"private", [vpIC stringByAppendingString:@"._display"], [(NSObject *)[vpInfo valueForKey:@"_display"] description], nil);
+    vpAdd(@"BKDirectTouchPerDisplayInfo._touchStreams", @"private", [vpIC stringByAppendingString:@"._touchStreams"], [(NSObject *)[vpInfo valueForKey:@"_touchStreams"] description], nil);
+    vpAdd(@"BKDirectTouchPerDisplayInfo._hitTestRegions", @"private", [vpIC stringByAppendingString:@"._hitTestRegions"], [vpInfo valueForKey:@"_hitTestRegions"], nil);
+    NSDictionary *vpS2D = [vpInfo valueForKey:@"_serviceToDigitizer"];
+    for (NSObject *vpSvc in vpS2D) {
+      NSObject *vpState = vpS2D[vpSvc];
+      NSString *vpSC = [NSString stringWithFormat:@"%@._serviceToDigitizer[%@]", vpIC, [vpSvc valueForKey:@"senderID"]];
+      NSObject *vpMapped = ((id (*)(id, SEL, id))objc_msgSend)(vpDT, NSSelectorFromString(@"_queue_displayUUIDForDigitizerService:"), vpSvc);
+      vpAdd(@"BKHIDDirectTouchEventProcessor._queue_displayUUIDForDigitizerService:", @"private", [NSString stringWithFormat:@"[%@ _queue_displayUUIDForDigitizerService:<service senderID %@>]", vpDTC, [vpSvc valueForKey:@"senderID"]], vpMapped, vpMapped ? nil : @"nil");
+      vpAdd(@"BKIOHIDService.getters", @"private", [vpSC stringByAppendingString:@".(service).*"], vpObjDict(vpSvc), nil);
+      vpAdd(@"BKDirectTouchState.description", @"private", [vpSC stringByAppendingString:@".description"], [(NSObject *)vpState description], nil);
+      NSMutableDictionary *vpSt = [NSMutableDictionary dictionary];
+      for (NSString *vpK in @[@"_displayUUID", @"_interfaceOrientation", @"_maximumPositionZ", @"_maxForce", @"_determinedMaxForce", @"_supportsPreciseLocations", @"_displayIntegrated", @"_builtIn", @"_hoverDisabled", @"_waitingForAllTouchesUp", @"_hitTestRegions"]) { id vv = [vpState valueForKey:vpK]; vpSt[vpK] = vv ? vpJSON(vv) : [NSNull null]; }
+      vpAdd(@"BKDirectTouchState.ivars", @"private", [vpSC stringByAppendingString:@" valueForKey:<ivar>"], vpSt, nil);
+    }
+  }
+}

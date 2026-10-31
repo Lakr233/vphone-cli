@@ -168,11 +168,29 @@ extension GuestAPI {
     }
 
     /// Reads SpringBoard directly; the UIScreen path can abort before display registration.
+    /// A foldable guest adds the angle its last fold settled at, so a host
+    /// polling the orientation also follows folds it did not ask for (Xcode's
+    /// DeviceHub).
     private static func interfaceOrientation() -> [String: Any] {
-        [
+        var reply: [String: Any] = [
             "degrees": interfaceRotationDegrees().map { $0 as Any } ?? NSNull(),
             "source": "springboard",
         ]
+        if let angle = settledFoldAngle() {
+            reply["fold_angle"] = angle
+            // The window covers the panel while it is off: coming on, it
+            // shows its last frame from before until the guest draws again.
+            reply["screen_off"] = GuestScreenUnlock.screenIsOff
+        }
+        return reply
+    }
+
+    /// The angle the virtual hinge holds, which every fold leaves it at; nil
+    /// on a guest whose hinge was never configured.
+    private static func settledFoldAngle() -> Double? {
+        let hinge = vp_hinge_get()
+        guard hinge["enabled"] as? Bool == true else { return nil }
+        return (hinge["angle"] as? NSNumber)?.doubleValue
     }
 
     // MARK: Device pose
@@ -186,23 +204,28 @@ extension GuestAPI {
         "landscape-right": 4, "face-up": 5, "face-down": 6,
     ]
 
-    /// SpringBoard's own hinge-angle table, one angle per hinge state, so the
-    /// virtual hinge reports what the pose override implies.
-    static let poseHingeAngles: [Double] = [0, 0, 90, 180, 180]
+    /// The angle a hinge state names, as Apple's screen states have it:
+    /// partially open is book (~100°). SpringBoard's own table for the pose
+    /// override says 90°, but with CoreMotion's relay it reads the hinge.
+    static let poseHingeAngles: [Double] = [0, 0, 100, 180, 180]
 
     /// Apple's screen-state positions, from suiatool's help text shipped in
     /// SpringBoardFoundation: closed, book (~100°) and open (a fraction of
     /// the 180° range, or a name).
     static let posePositions: [String: Double] = ["closed": 0, "book": 100, "open": 180]
 
-    /// Set a foldable guest's pose the way Apple's Duo tooling does, driving
-    /// SpringBoard's test-automation override and the virtual hinge HID
-    /// service from one request. The official model is three screen states —
+    /// Set a foldable guest's pose the way Apple's Duo tooling does. On a
+    /// guest whose CoreMotion has the foldable's capabilities the virtual
+    /// hinge's host controls carry the angle and orientation, locationd
+    /// relays them into CoreMotion, and SpringBoard reads its pose from there
+    /// as on a device; elsewhere SpringBoard's test-automation override sets
+    /// the pose beside the hinge. The official model is three screen states —
     /// `position` `closed`, `book` (~100°) or `open`, or a fraction 0–1 of
-    /// the hinge's 180° — changed by a sweep from the current angle
-    /// (`duration` seconds; default the per-direction hand-fold time, opening
-    /// faster than closing; 0 an instant swap; `profile` `continuous` or
-    /// `fade`). The older `hinge` names still work and set the pose at once.
+    /// the hinge's 180° — changed by a sweep from the current angle, which
+    /// SpringBoard's display tool service runs (`duration` seconds; default
+    /// the per-direction hand-fold time, opening faster than closing; 0 an
+    /// instant swap; `profile` `continuous` or `fade`, default SpringBoard's
+    /// own). The older `hinge` names still work and set the pose at once.
     private static func setDevicePose(_ params: [String: Any]) throws -> [String: Any] {
         func value(_ key: String, names: [String: Int], range: ClosedRange<Int>, default fallback: Int?) throws -> Int {
             if let name = params[key] as? String {
@@ -224,7 +247,7 @@ extension GuestAPI {
         var angle: Double?
         var sweep = false
         var durationMs = -1.0
-        var profile = 0
+        var profile: String?
         if let position = params["position"] {
             let target: Double
             switch position {
@@ -252,10 +275,8 @@ extension GuestAPI {
                 durationMs = seconds * 1000
             }
             if let name = params["profile"] as? String {
-                switch name.lowercased() {
-                case "continuous": profile = 0
-                case "fade": profile = 1
-                default:
+                profile = name.lowercased()
+                guard profile == "continuous" || profile == "fade" else {
                     throw GuestAPIError.invalidRequest("profile must be continuous or fade")
                 }
             }
@@ -273,30 +294,115 @@ extension GuestAPI {
                 angle = requested.doubleValue
             }
         }
-        GuestFoldPose.cancelStartupRestore()
-        defer { GuestFoldPose.finishExplicitRequest() }
-        guard vp_device_pose_set(Int32(orientation), Int32(hinge), Int32(tabletop)) else {
-            throw GuestAPIError.operationFailed("SpringBoardServices has no device pose override on this guest")
+        let relayed = vp_core_motion_hinge()
+        if relayed, orientation == 2 {
+            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation")
         }
-        // The pose override has landed; the hinge half is published beside it,
-        // and its absence (no virtual hinge service on this guest) does not
-        // undo the pose.
-        let published = sweep
-            ? vp_hinge_sweep(angle!, durationMs, Int32(profile))
-            : vp_hinge_set(angle!)
+        foldLock.lock()
+        defer { foldLock.unlock() }
+        GuestFoldPose.cancelStartupRestore()
+        var springBoardSwept = false
+        defer { GuestFoldPose.finishExplicitRequest(settledHinge: springBoardSwept ? Int32(hinge) : nil) }
+        let published: Bool
+        if relayed {
+            if let current = vp_hinge_get()["angle"] as? Double, hingeState(for: current) == 1, hingeState(for: angle!) != 1 {
+                // Opening a closed device wakes it; the hinge sensor's own wake
+                // flag does that on hardware, and the host controls cannot set
+                // it. SpringBoard's pose provider publishes a pose in motion only
+                // on display frames, so with the cover asleep the new angle would
+                // sit unpublished until the next wake. The screen is lit before
+                // the sweep starts.
+                GuestScreenUnlock.wakeDisplay()
+            }
+            // With the relay, the hinge is the pose.
+            published = sweep
+                ? vp_hinge_sweep(angle!, durationMs, profile == "fade" ? 1 : 0, Int32(orientation))
+                : vp_hinge_set(angle!, Int32(orientation))
+            guard published else {
+                throw GuestAPIError.operationFailed("The virtual hinge did not take the pose")
+            }
+        } else {
+            // A sweep is SpringBoard's own, as Apple's tooling runs it: the
+            // display tool service moves SpringBoard's hinge pose and swaps
+            // displays on the way, keeping the device orientation unless one
+            // was asked for, and replies once the swap is done. The override is
+            // then left alone: it reaches SpringBoard even under the sweep's
+            // test lock and stands for 0, 90 or 180 degrees only, so book (100)
+            // would slide back to 90 and start a transition toward the cover.
+            // SpringBoard applies the next override against its current pose,
+            // so a later one still lands. The virtual hinge takes the end
+            // angle. Without the service the virtual hinge sweeps and the
+            // override jumps, as before.
+            if sweep {
+                springBoardSwept = try springBoardFold(
+                    to: angle!, seconds: durationMs < 0 ? -1 : durationMs / 1000,
+                    orientation: params["orientation"] == nil ? 0 : Int32(orientation),
+                    profile: profile == "fade" ? 1 : profile == "continuous" ? 2 : 0,
+                )
+            }
+            guard springBoardSwept || vp_device_pose_set(Int32(orientation), Int32(hinge), Int32(tabletop)) else {
+                throw GuestAPIError.operationFailed("SpringBoardServices has no device pose override on this guest")
+            }
+            if params["orientation"] != nil { vp_device_orientation_publish(Int32(orientation)) }
+            // The pose has landed; the hinge half is published beside it, and
+            // its absence (no virtual hinge service on this guest) does not
+            // undo the pose.
+            published = sweep && !springBoardSwept
+                ? vp_hinge_sweep(angle!, durationMs, profile == "fade" ? 1 : 0, 0)
+                : vp_hinge_set(angle!, 0)
+        }
         var hingeHID = vp_hinge_get()
         hingeHID["applied"] = published
         var reply: [String: Any] = [
-            "hinge": hinge, "orientation": orientation, "tabletop": tabletop,
-            "angle": angle!, "hinge_hid": hingeHID,
+            "hinge": hinge, "orientation": orientation, "tabletop": relayed ? NSNull() : tabletop,
+            "angle": angle!, "hinge_hid": hingeHID, "source": relayed ? "coremotion" : "test-automation",
         ]
         if sweep {
             reply["sweep"] = [
                 "duration_ms": durationMs,
-                "profile": profile == 1 ? "fade" : "continuous",
+                "profile": profile ?? (springBoardSwept ? "springboard" : "continuous"),
+                "completed": springBoardSwept,
             ]
         }
         return reply
+    }
+
+    /// One posture request at a time: SpringBoard refuses a swap while another
+    /// is running, and the next request reads the hinge this one leaves.
+    private static let foldLock = NSLock()
+
+    /// Fold through SpringBoard's display tool service, waiting for it to
+    /// finish. True once SpringBoard ran the fold, false without the service
+    /// or a reply (the caller falls back to the override). SpringBoard answers
+    /// a swap it refuses (another one is running) at once and the same way as
+    /// a finished one, so a reply faster than any sweep that had to move is a
+    /// refusal, retried until SpringBoard is idle. The virtual hinge holds the
+    /// angle the last fold ended at, and takes the target as the fold starts:
+    /// DeviceHub reads it (through dtdeviceinfod) while its own model animates
+    /// to the target, and an old angle lingering through the sweep sent its
+    /// slider back there, folding the guest again. A fold that does not run
+    /// puts the old angle back.
+    private static func springBoardFold(to angle: Double, seconds: Double, orientation: Int32, profile: Int32) throws -> Bool {
+        let current = (vp_hinge_get()["angle"] as? NSNumber)?.doubleValue
+        let moves = current.map { abs($0 - angle) >= 1 } ?? true
+        var ran = false
+        if moves { _ = vp_hinge_set(angle, 0) }
+        defer { if moves, !ran, let current { _ = vp_hinge_set(current, 0) } }
+        let deadline = Date().addingTimeInterval(10 + max(seconds, 0))
+        while true {
+            let started = Date()
+            switch vp_display_swap(angle / 180, seconds, orientation, profile, max(1, deadline.timeIntervalSinceNow)) {
+            case -1, 0:
+                return false
+            default:
+                ran = !moves || seconds == 0 || Date().timeIntervalSince(started) >= 0.3
+                if ran { return true }
+            }
+            guard Date() < deadline else {
+                throw GuestAPIError.operationFailed("SpringBoard kept refusing the fold; another fold is still running")
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
     }
 
     /// A foldable guest turns with SpringBoard's device pose: each panel's
@@ -314,27 +420,97 @@ extension GuestAPI {
             throw GuestAPIError.invalidRequest("unknown rotation: \(spec)")
         }
         let pose = vp_device_pose_get()
-        guard pose["available"] as? Bool == true, let hinge = (pose["hinge"] as? NSNumber)?.int32Value,
+        guard pose["available"] as? Bool == true, let readHinge = (pose["hinge"] as? NSNumber)?.int32Value,
               let tabletop = (pose["tabletop"] as? NSNumber)?.int32Value
         else { throw GuestAPIError.operationFailed("SpringBoard's device pose is unavailable") }
+        // The pose readback does not follow SpringBoard's own folds; the
+        // virtual hinge holds where the last one ended.
+        let hinge = settledFoldAngle().map { Int32(hingeState(for: $0)) } ?? readHinge
         // Pose orientations (poseOrientations) by interface degrees, measured
         // on the cover (hinge closed) and on the inner panel (open).
         let cover: [Int: Int32] = [0: 1, 90: 4, 180: 2, 270: 3]
         let inner: [Int: Int32] = [0: 3, 90: 1, 180: 4, 270: 2]
+        let deviceOrientation = (hinge == 1 ? cover : inner)[degrees]!
+        // Partially open the override stands for 90° and slides the fold
+        // toward the cover; CoreMotion's relay reads the hinge instead.
+        guard hinge != 2 || vp_core_motion_hinge() else {
+            throw GuestAPIError.operationFailed("A partially open fold does not turn through the device pose.")
+        }
         GuestFoldPose.cancelStartupRestore()
         defer { GuestFoldPose.finishExplicitRequest() }
-        guard vp_device_pose_set((hinge == 1 ? cover : inner)[degrees]!, hinge, tabletop) else {
-            throw GuestAPIError.operationFailed("SpringBoard refused the device pose")
-        }
-        for _ in 0 ..< 20 where interfaceRotationDegrees() != degrees {
-            usleep(100_000)
-        }
-        guard interfaceRotationDegrees() == degrees else {
+        guard try turn(to: deviceOrientation, hinge: hinge, tabletop: tabletop, reaching: { $0 == degrees }) else {
             throw GuestAPIError.operationFailed("The device did not apply the requested rotation.")
         }
         var info = rotationInfo()
         info["requested"] = degrees
         return info
+    }
+
+    /// A fold Xcode's DeviceHub asked for (GuestDeviceHubControl): the sweep
+    /// `display.posture` runs for a position, to `angle` degrees. With
+    /// CoreMotion's relay the hinge follows DeviceHub's values instead.
+    static func foldFromDeviceHub(angle: Double) throws {
+        _ = try setDevicePose(["position": NSNumber(value: min(max(angle, 0), 180) / 180)])
+    }
+
+    /// A device orientation DeviceHub's picker chose (1 portrait … 6 face
+    /// down): the pose override takes it with the hinge where it is. The
+    /// orientation DeviceHub reads back is published only once the interface
+    /// has turned, so a refused turn leaves its model where the guest is: an
+    /// iPhone19,4 scene refuses programmatic orientation (see
+    /// `display.rotation`), and in book the override, which means 90°, slides
+    /// the fold toward the cover, so book is left alone. With CoreMotion's
+    /// relay the host controls carry the orientation at any fold.
+    static func orientFromDeviceHub(_ deviceOrientation: Int32) throws {
+        foldLock.lock()
+        defer { foldLock.unlock() }
+        GuestFoldPose.cancelStartupRestore()
+        defer { GuestFoldPose.finishExplicitRequest() }
+        let hinge = settledFoldAngle().map { Int32(hingeState(for: $0)) } ??
+            (vp_device_pose_get()["hinge"] as? NSNumber)?.int32Value ?? 1
+        guard hinge != 2 || vp_core_motion_hinge() else {
+            throw GuestAPIError.operationFailed("a partially open fold does not turn through the pose override")
+        }
+        let before = interfaceRotationDegrees()
+        guard try turn(to: deviceOrientation, hinge: hinge, tabletop: 0, reaching: { $0 != before }) else {
+            throw GuestAPIError.operationFailed("SpringBoard did not turn the interface")
+        }
+    }
+
+    /// Set the device orientation and wait up to 3 s for the interface to
+    /// reach `turned`. With CoreMotion's relay the host controls carry it
+    /// with the angle the hinge holds, and CoreMotion turns it into each
+    /// panel's. Otherwise the pose override takes it; only once the interface
+    /// has turned is it published (DeviceHub's stand-in reads it), and a
+    /// refused one is put back, since SpringBoard keeps it and later folds
+    /// carry it.
+    private static func turn(to deviceOrientation: Int32, hinge: Int32, tabletop: Int32,
+                             reaching turned: (Int?) -> Bool) throws -> Bool {
+        let relayed = vp_core_motion_hinge()
+        if relayed, deviceOrientation == 2 {
+            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation")
+        }
+        let previous = (vp_device_pose_get()["device_orientation"] as? NSNumber)?.int32Value
+        if relayed {
+            guard let angle = settledFoldAngle(), vp_hinge_set(angle, deviceOrientation) else {
+                throw GuestAPIError.operationFailed("The virtual hinge did not take the orientation")
+            }
+        } else {
+            guard vp_device_pose_set(deviceOrientation, hinge, tabletop) else {
+                throw GuestAPIError.operationFailed("SpringBoard refused the device pose")
+            }
+        }
+        for _ in 0 ..< 30 where !turned(interfaceRotationDegrees()) {
+            usleep(100_000)
+        }
+        guard turned(interfaceRotationDegrees()) else {
+            if !relayed, let previous, (1 ... 6).contains(previous), previous != deviceOrientation {
+                _ = vp_device_pose_set(previous, hinge, tabletop)
+            }
+            return false
+        }
+        if !relayed { vp_device_orientation_publish(deviceOrientation) }
+        return true
     }
 
     /// The hinge state a settled angle reports: closed under 5°, open flat

@@ -1,0 +1,24 @@
+expr -l objc -O --
+NSArray *vpClassNames = @[@"SBDisplayContentModeCoordinator", @"SBDisplayContentModeLockScreenActiveDisplayPolicy", @"SBDisplayContentModeTransitionStyleCoordinator", @"_SBDisplayContentModeTransitionObserverProxy", @"SBFDisplayContentModeResolver", @"SBFDisplayContentModeResolutionPolicy", @"SBFFoldingDualDisplayContentModeResolutionPolicy", @"SBFDisplayContentModeTransitionContext", @"SBFDisplayContentModeTransitionCoordinator", @"SBFDisplayContentModeTransitionLockProvider", @"SBFDisplayProxy", @"SBWindowScene", @"SBWindowSceneManager", @"SBWindowSceneDisplayContentModeContext", @"SBWindowSceneOrientationLockManager", @"SBWindowSceneStatusBarManager", @"SBWindowSceneAuxiliaryContentController", @"SBTraitsPipelineManager", @"SBTraitsEmbeddedDisplayPipelineManager", @"SBTraitsResizableDisplayPipelineManager", @"SBTraitsContinuousFoldDeviceOrientationLockAssertion", @"SBTraitsOrientationStageComponent", @"SBTraitsSceneParticipantDelegate", @"SBTraitsEmbeddedDisplayRolesAndDefaultPoliciesProvider", @"SBContinuousFoldController", @"SBContinuousFoldCoordinator", @"SBDeviceContinuousFoldInteractionDomain", @"SBDeviceContinuousFoldInteractionSettings", @"SBHingeMotionDetectionSettings", @"SBHingeMotionUnintendedInteractionMonitor", @"SBWallpaperHingeProgressController", @"PRUISHingeProgressController", @"SBFDevicePoseProvider", @"SBFDevicePosePTSettings", @"SBFDevicePosePTSettingsDomain", @"SBFDevicePoseDefaults", @"SBBacklightController", @"SBBacklightCoordinator", @"SBBacklightPlatformProvider", @"SBBacklightServicesPlatformProvider", @"SBBacklightIdleTimer", @"BLSHBacklightHost", @"BLSHAggregateBacklightHost", @"BLSHBacklightDisplayStateMachine", @"BLSHBacklightAggregateState", @"SBFoldingDualDisplayPhoneSceneSnapshotRequestStrategy", @"SBDisplayToolServiceCoordinator", @"SBDisplayToolService"];
+NSMutableString *vpOut = [NSMutableString string];
+for (NSString *vpCN in vpClassNames) {
+  Class vpC = NSClassFromString(vpCN);
+  if (!vpC) { [vpOut appendFormat:@"=== %@: MISSING\n", vpCN]; continue; }
+  [vpOut appendFormat:@"=== %@ : %s\n", vpCN, class_getName(class_getSuperclass(vpC))];
+  unsigned int vpN = 0;
+  objc_property_t *vpProps = class_copyPropertyList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"  @property %s  [%s]\n", property_getName(vpProps[vi]), property_getAttributes(vpProps[vi])];
+  free(vpProps);
+  Ivar *vpIvars = class_copyIvarList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"  ivar %s %s\n", ivar_getName(vpIvars[vi]), ivar_getTypeEncoding(vpIvars[vi]) ?: ""];
+  free(vpIvars);
+  Method *vpMs = class_copyMethodList(vpC, &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"  - %s %s\n", sel_getName(method_getName(vpMs[vi])), method_getTypeEncoding(vpMs[vi]) ?: ""];
+  free(vpMs);
+  vpMs = class_copyMethodList(object_getClass(vpC), &vpN);
+  for (unsigned int vi = 0; vi < vpN; vi++) [vpOut appendFormat:@"  + %s %s\n", sel_getName(method_getName(vpMs[vi])), method_getTypeEncoding(vpMs[vi]) ?: ""];
+  free(vpMs);
+}
+BOOL vpOK = [vpOut writeToFile:@"/tmp/duo-sim-baseline-classdump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+[NSString stringWithFormat:@"wrote=%d len=%lu", vpOK, (unsigned long)vpOut.length]
+

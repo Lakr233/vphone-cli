@@ -1,4 +1,6 @@
-// VPCMAngleManager.m — the hinge-angle manager stand-in for dtdeviceinfod.
+// VPCMAngleManager.m — the hinge-angle manager stand-in for dtdeviceinfod,
+// and beside it the device state manager stand-in (see "The device state
+// stand-in" below).
 //
 // CoreDevice's hinge-angle stream (DeviceHub) ends, on the device, in the
 // DDI's dtdeviceinfod: CMAngleManager_Bridge resolves CoreMotion's
@@ -28,6 +30,7 @@
 // addOperationWithBlock:.
 
 #import <Foundation/Foundation.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
 #include <string.h>
@@ -106,10 +109,15 @@ static BOOL vpProviderIsRunning(void) {
 
 // MARK: - The sample object
 
+// The angles are floats, as dtdeviceinfod's CMAngle_Bridge declares them
+// (Tf,R,N,V_angleDegrees): it reads s0, the low half of a double's d0, so a
+// double getter handed it 0° for every whole angle. Open and closed hid that
+// (their hinge states pin 180° and 0°); in book DeviceHub took the stream's
+// 0°, drew the device nearly closed and focused the cover.
 typedef struct {
-    double angle;
-    double mechanical;
-    double velocity;
+    float angle;
+    float mechanical;
+    float velocity;
     double timestamp;
     BOOL angleValid;
     BOOL velocityValid;
@@ -144,9 +152,9 @@ static void vpRegisterAngleDataClass(void) {
     VPAngleDataOffset = ivar_getOffset(class_getInstanceVariable(VPAngleDataClass, "fields"));
     // The fields CMAngleManager_Bridge maps into DeviceHingeAngleSnapshot,
     // with both spellings of the two flags.
-    VP_SAMPLE_GETTER("angleDegrees", angle, "d16@0:8");
-    VP_SAMPLE_GETTER("mechanicalAngleDegrees", mechanical, "d16@0:8");
-    VP_SAMPLE_GETTER("velocityDegreesPerSeconds", velocity, "d16@0:8");
+    VP_SAMPLE_GETTER("angleDegrees", angle, "f16@0:8");
+    VP_SAMPLE_GETTER("mechanicalAngleDegrees", mechanical, "f16@0:8");
+    VP_SAMPLE_GETTER("velocityDegreesPerSeconds", velocity, "f16@0:8");
     VP_SAMPLE_GETTER("timestamp", timestamp, "d16@0:8");
     VP_SAMPLE_GETTER("isAngleValid", angleValid, "B16@0:8");
     VP_SAMPLE_GETTER("angleValid", angleValid, "B16@0:8");
@@ -161,9 +169,9 @@ static id vpAngleDataFromSample(NSDictionary *latest) {
         return nil;
     id data = [VPAngleDataClass new];
     VPAngleSampleFields *fields = (VPAngleSampleFields *)((char *)(__bridge void *)data + VPAngleDataOffset);
-    fields->angle = [latest[@"angle"] doubleValue];
-    fields->mechanical = [latest[@"mechanical_angle"] doubleValue];
-    fields->velocity = [latest[@"velocity"] doubleValue];
+    fields->angle = [latest[@"angle"] floatValue];
+    fields->mechanical = [latest[@"mechanical_angle"] floatValue];
+    fields->velocity = [latest[@"velocity"] floatValue];
     fields->timestamp = [latest[@"timestamp"] doubleValue];
     fields->angleValid = latest[@"angle"] != nil;
     fields->velocityValid = latest[@"velocity"] != nil;
@@ -272,8 +280,18 @@ static BOOL vpSwizzledIsAvailable(id self, SEL selector) {
     return ((BOOL (*)(id, SEL))vpOriginalIsAvailableIMP)(self, selector);
 }
 
-static double vpSwizzledMinAngle(id self, SEL selector) { return 0.0; }
-static double vpSwizzledMaxAngle(id self, SEL selector) { return 180.0; }
+// Floats, as CoreMotion declares them (`+ (float)minAngleDegrees`): a
+// double in d0 reads back as 0 from s0, the trap the sample fields hit.
+static float vpSwizzledMinAngle(id self, SEL selector) { return 0.0f; }
+static float vpSwizzledMaxAngle(id self, SEL selector) { return 180.0f; }
+
+// -[CMAngleManager dealloc] stops CoreMotion's own manager, and
+// -[CMAngleManagerInternal stopAngleUpdatesPrivate] asserts that the real
+// hinge notifier is available (CMAngleManager.mm line 214). Under the
+// stand-in that manager never started, so its stop is skipped: dtdeviceinfod
+// aborted every time it let a manager go, as when DeviceHub reconnected, and
+// DeviceHub lost the device state until it was restarted.
+static void vpSkippedInternalStop(id self, SEL selector) {}
 
 static void vpSwizzledStartUpdates(id self, SEL selector, id queue, id handler) {
     VPAngleSession *session = vpSession(self);
@@ -316,15 +334,212 @@ static void vpSwizzledSetAngleUpdateInterval(id self, SEL selector, double inter
         vpArmTimer(session);
 }
 
+// MARK: - The device state stand-in
+//
+// DeviceHub (Xcode 27.1's CoreDevicePop plugin) draws a foldable from its
+// device pose: which panel is active, the hinge state, the orientation and
+// the tabletop pose. Without it the model stays closed on the cover whatever
+// the hinge angle says. The pose is CoreDevice's device motion state stream,
+// which dtdeviceinfod's DeviceMotionStateManager answers from CoreMotion's
+// CMDeviceStateManager (isAvailable, startUpdatesToQueue:withHandler:,
+// stopUpdates), reading each CMDeviceStateEvent's propertyA, propertyB and
+// propertyC. Those are SpringBoard's magic pose: A the device orientation, B
+// the hinge state (1 closed, 2 partially open, 3 open flat, as
+// +propertyAForConfigType:… partitions them), C the tabletop pose. A guest's
+// CoreMotion reads them from a hardware HID device it skips on a VM, so the
+// manager answers unavailable. Here it answers from the provider's newest
+// sample instead, like the angle stand-in, with real CMDeviceStateEvents,
+// delivered once at start and then on every change.
+
+static IMP vpOriginalStateIsAvailableIMP;
+
+typedef struct {
+    long long orientation, hinge, tabletop;
+} VPDeviceState;
+
+static VPDeviceState vpDeviceStateFromSample(NSDictionary *latest) {
+    long long hinge = [latest[@"state"] longLongValue];
+    // vphoned publishes the device orientation beside the sample (portrait
+    // until a rotation or DeviceHub's orientation picker sets one); the
+    // domain was just synchronized by vpLatestSample.
+    id published = CFBridgingRelease(CFPreferencesCopyValue(CFSTR("VPhoneDeviceOrientation"),
+        CFSTR("com.apple.backboardd"), CFSTR("mobile"), kCFPreferencesAnyHost));
+    long long orientation = [published isKindOfClass:NSNumber.class] ? [published longLongValue] : 1;
+    // The provider's state follows SpringBoard's table; open (4) is open
+    // flat to CoreMotion, which has no wider state.
+    return (VPDeviceState){MIN(MAX(orientation, 1), 6), MIN(MAX(hinge, 0), 3), 0};
+}
+
+static id vpDeviceStateEvent(VPDeviceState state) {
+    Class event = objc_getClass("CMDeviceStateEvent");
+    SEL init = sel_registerName(
+        "initWithDeviceStatePropertyAType:deviceStatePropertyBType:deviceStatePropertyCType:timestamp:continuousTimestamp:");
+    if (![event instancesRespondToSelector:init])
+        return nil;
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    return ((id (*)(id, SEL, long long, long long, long long, double, double))objc_msgSend)(
+        [event alloc], init, state.orientation, state.hinge, state.tabletop, now, now);
+}
+
+@interface VPDeviceStateSession : NSObject
+@property (nonatomic, strong) id deliveryQueue;
+@property (nonatomic, copy) void (^handler)(id event, NSError *error);
+@property (nonatomic, strong) dispatch_source_t timer;
+@property (nonatomic) VPDeviceState delivered;
+@property (nonatomic) BOOL hasDelivered;
+@end
+
+@implementation VPDeviceStateSession
+- (void)dealloc {
+    if (_timer)
+        dispatch_source_cancel(_timer);
+}
+@end
+
+static char vpStateSessionKey;
+
+static void vpDeliverDeviceState(VPDeviceStateSession *session) {
+    NSDictionary *latest = vpLatestSample();
+    if (!session.handler || !latest)
+        return;
+    VPDeviceState state = vpDeviceStateFromSample(latest);
+    VPDeviceState last = session.delivered;
+    if (session.hasDelivered && state.orientation == last.orientation && state.hinge == last.hinge &&
+        state.tabletop == last.tabletop)
+        return;
+    id event = vpDeviceStateEvent(state);
+    if (!event)
+        return;
+    session.delivered = state;
+    session.hasDelivered = YES;
+    vpMotionLog(@"device state: hinge %lld orientation %lld tabletop %lld", state.hinge, state.orientation,
+                state.tabletop);
+    void (^handler)(id, NSError *) = session.handler;
+    id queue = session.deliveryQueue;
+    if ([queue isKindOfClass:[NSOperationQueue class]])
+        [(NSOperationQueue *)queue addOperationWithBlock:^{ handler(event, nil); }];
+    else if (queue)
+        dispatch_async((dispatch_queue_t)queue, ^{ handler(event, nil); });
+    else
+        handler(event, nil);
+}
+
+static BOOL vpSwizzledStateIsAvailable(id self, SEL selector) {
+    if (vpProviderIsRunning())
+        return YES;
+    return ((BOOL (*)(id, SEL))vpOriginalStateIsAvailableIMP)(self, selector);
+}
+
+static void vpSwizzledStartStateUpdates(id self, SEL selector, id queue, id handler) {
+    VPDeviceStateSession *session = objc_getAssociatedObject(self, &vpStateSessionKey);
+    if (!session) {
+        session = [VPDeviceStateSession new];
+        objc_setAssociatedObject(self, &vpStateSessionKey, session, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (session.timer)
+        dispatch_source_cancel(session.timer);
+    session.deliveryQueue = queue;
+    session.handler = handler;
+    session.hasDelivered = NO;
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, vpTimerQueue());
+    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC, 10 * NSEC_PER_MSEC);
+    __weak VPDeviceStateSession *weakSession = session;
+    dispatch_source_set_event_handler(timer, ^{
+        @autoreleasepool {
+            VPDeviceStateSession *alive = weakSession;
+            if (alive)
+                vpDeliverDeviceState(alive);
+        }
+    });
+    dispatch_resume(timer);
+    session.timer = timer;
+}
+
+static void vpSwizzledStopStateUpdates(id self, SEL selector) {
+    VPDeviceStateSession *session = objc_getAssociatedObject(self, &vpStateSessionKey);
+    session.handler = nil;
+    if (session.timer) {
+        dispatch_source_cancel(session.timer);
+        session.timer = nil;
+    }
+}
+
+static void vpInstallDeviceStateManagerStandIn(void) {
+    Class manager = objc_getClass("CMDeviceStateManager");
+    Method available = class_getClassMethod(manager, sel_registerName("isAvailable"));
+    Method start = class_getInstanceMethod(manager, sel_registerName("startUpdatesToQueue:withHandler:"));
+    Method stop = class_getInstanceMethod(manager, sel_registerName("stopUpdates"));
+    if (!available || !start || !stop || !vpDeviceStateEvent((VPDeviceState){1, 1, 0})) {
+        vpMotionLog(@"device state: CMDeviceStateManager surface not found, CoreDevice deviceMotionState stays off");
+        return;
+    }
+    // As for the angle manager: with the foldable's product-id locationd
+    // relays the virtual hinge into the real one.
+    if (((BOOL (*)(id, SEL))objc_msgSend)(manager, sel_registerName("isAvailable"))) {
+        vpMotionLog(@"device state: CoreMotion's own CMDeviceStateManager is available, no stand-in");
+        return;
+    }
+    vpOriginalStateIsAvailableIMP = method_setImplementation(available, (IMP)vpSwizzledStateIsAvailable);
+    method_setImplementation(start, (IMP)vpSwizzledStartStateUpdates);
+    method_setImplementation(stop, (IMP)vpSwizzledStopStateUpdates);
+    vpMotionLog(@"device state: stand-in installed");
+}
+
+// MARK: - The inner display, as DeviceHub sees it
+//
+// DeviceHub draws a Duo's inner panel, and offers its pose controls, only for
+// an integrated display in DisplayInfo, which dtdeviceinfod builds from
+// CADisplay. The Duo's inner render display (libvphonefolddisplay) is a
+// virtual display at point scale 1 to every process but backboardd and
+// SpringBoard, where FoldDisplay presents it as the built-in 3x panel it
+// stands for; here it is presented the same way. DeviceHub then streams it
+// by display ID (libdevicehubfix.c answers that feature).
+static IMP vpOriginalDisplayType, vpOriginalPointScale;
+
+static BOOL vpIsInnerDisplay(id display) {
+    return [[display valueForKey:@"name"] isEqual:@"VPhone Duo Inner"];
+}
+
+static long long vpInnerDisplayType(id self, SEL selector) {
+    return vpIsInnerDisplay(self) ? 0 : ((long long (*)(id, SEL))vpOriginalDisplayType)(self, selector);
+}
+
+static unsigned long vpInnerPointScale(id self, SEL selector) {
+    return vpIsInnerDisplay(self) ? 3 : ((unsigned long (*)(id, SEL))vpOriginalPointScale)(self, selector);
+}
+
+static void vpInstallInnerDisplayPresentation(void) {
+    dlopen("/System/Library/Frameworks/QuartzCore.framework/QuartzCore", RTLD_LAZY | RTLD_LOCAL);
+    Class display = objc_getClass("CADisplay");
+    Method type = class_getInstanceMethod(display, sel_registerName("displayType"));
+    Method scale = class_getInstanceMethod(display, sel_registerName("pointScale"));
+    if (!type || !scale || strcmp(method_getTypeEncoding(type), "q16@0:8") != 0 ||
+        strcmp(method_getTypeEncoding(scale), "Q16@0:8") != 0) {
+        vpMotionLog(@"inner display: CADisplay ABI unavailable, DeviceHub sees it as virtual");
+        return;
+    }
+    vpOriginalDisplayType = method_setImplementation(type, (IMP)vpInnerDisplayType);
+    vpOriginalPointScale = method_setImplementation(scale, (IMP)vpInnerPointScale);
+}
+
 // MARK: - Install
 
 __attribute__((constructor)) static void vpInstallAngleManagerStandIn(void) {
     if (strcmp(getprogname(), "dtdeviceinfod") != 0)
         return;
     dlopen("/System/Library/Frameworks/CoreMotion.framework/CoreMotion", RTLD_LAZY | RTLD_LOCAL);
+    vpInstallDeviceStateManagerStandIn();
+    vpInstallInnerDisplayPresentation();
     Class manager = objc_getClass("CMAngleManager");
     if (!manager) {
         vpMotionLog(@"hinge manager: CMAngleManager not found, CoreDevice hingeAngle stays off");
+        return;
+    }
+    // A guest with the foldable's product-id has CoreMotion's own capability
+    // bits, and locationd relays the virtual hinge into the real manager.
+    // The stand-in is only for a guest without them.
+    if (((BOOL (*)(id, SEL))objc_msgSend)(manager, sel_registerName("isAvailable"))) {
+        vpMotionLog(@"hinge manager: CoreMotion's own CMAngleManager is available, no stand-in");
         return;
     }
     vpRegisterAngleDataClass();
@@ -358,6 +573,10 @@ __attribute__((constructor)) static void vpInstallAngleManagerStandIn(void) {
         vpOriginalStopIMP = method_getImplementation(stop);
         method_setImplementation(stop, (IMP)vpSwizzledStopUpdates);
     }
+    Method internalStop = class_getInstanceMethod(objc_getClass("CMAngleManagerInternal"),
+                                                  sel_registerName("stopAngleUpdatesPrivate"));
+    if (internalStop && strcmp(method_getTypeEncoding(internalStop), "v16@0:8") == 0)
+        method_setImplementation(internalStop, (IMP)vpSkippedInternalStop);
     Method active = class_getInstanceMethod(manager, sel_registerName("isAngleActive"));
     if (active) {
         vpOriginalActiveIMP = method_getImplementation(active);
@@ -375,8 +594,9 @@ __attribute__((constructor)) static void vpInstallAngleManagerStandIn(void) {
     }
 
     BOOL sampleReady = VPAngleDataClass != NULL;
-    vpMotionLog(@"hinge manager: stand-in v6 installed (start=%@ setHandler=%@ stop=%@ active=%@ interval=%@ sample=%@ base=%@)",
+    vpMotionLog(@"hinge manager: stand-in v7 installed (start=%@ setHandler=%@ stop=%@ internalStop=%@ active=%@ interval=%@ sample=%@ base=%@)",
                 start ? @"yes" : @"MISSING", setHandler ? @"yes" : @"missing", stop ? @"yes" : @"missing",
+                internalStop ? @"yes" : @"MISSING",
                 active ? @"yes" : @"missing", getInterval ? @"yes" : @"missing",
                 sampleReady ? @"ready" : @"MISSING",
                 VPAngleDataClass ? class_getSuperclass(VPAngleDataClass) : nil);

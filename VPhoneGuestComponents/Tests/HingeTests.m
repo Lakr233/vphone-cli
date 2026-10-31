@@ -1,11 +1,11 @@
-// HingeTests.m — the hinge angle transport, and the real HID factory.
+// HingeTests.m — the hinge angle transport, and the host-control events.
 //
-// On a Mac, Apple's own HID.framework answers IOHIDEventCreateHingeAngleEvent,
-// so the argument order the guest library calls with is checked against the
-// event's own field description: the third argument must read back as
-// AngleDegrees, the fourth as MechanicalAngleDegrees, the fifth as the
-// velocity. Where the framework is absent (a CI runner without the private
-// framework) the factory check is skipped; the transport checks always run.
+// On a Mac, IOKit answers IOCFSerialize, IOCFUnserializeWithSize and
+// IOHIDEventCreateVendorDefinedEvent as the guest's does, so a host-control
+// dictionary is checked to fit locationd's 256-byte limit, to read back the
+// way locationd parses it, and to land in a vendor-defined event on the
+// host-control usage. Where a function is absent the event checks are
+// skipped; the transport checks always run.
 #import "../Hinge/VPhoneHingeHID.h"
 #import "../Hinge/VPhoneHingeState.h"
 #include <assert.h>
@@ -75,6 +75,29 @@ int main(void) {
             bad[@"duration_ms"] = invalid;
             assert(!VPhoneHingeDecode(bad, &state));
         }
+        // The host controls' orientation: 1–6, 0 leaving it, absent as 0;
+        // encoded only when given, so an angle-only request round-trips.
+        NSMutableDictionary *oriented = [sample mutableCopy];
+        oriented[@"orientation"] = @3;
+        assert(VPhoneHingeDecode(oriented, &state) && state.orientation == 3);
+        assert([VPhoneHingeEncode(state) isEqual:oriented]);
+        assert(VPhoneHingeDecode(sample, &state) && state.orientation == 0);
+        for (id invalid in @[@7, @-1, @1.5, @YES, @"portrait"]) {
+            NSMutableDictionary *bad = [sample mutableCopy];
+            bad[@"orientation"] = invalid;
+            assert(!VPhoneHingeDecode(bad, &state));
+        }
+        // A quiet update: a boolean, absent as no, encoded only when set.
+        NSMutableDictionary *quiet = [sample mutableCopy];
+        quiet[@"quiet"] = @YES;
+        assert(VPhoneHingeDecode(quiet, &state) && state.quiet);
+        assert([VPhoneHingeEncode(state) isEqual:quiet]);
+        assert(VPhoneHingeDecode(sample, &state) && !state.quiet);
+        for (id invalid in @[@1, @"yes"]) {
+            NSMutableDictionary *bad = [sample mutableCopy];
+            bad[@"quiet"] = invalid;
+            assert(!VPhoneHingeDecode(bad, &state));
+        }
         assert(!VPhoneHingeDecode(@"flat", &state));
         assert(VPhoneHingeInterval(nil) == 0);
         assert(VPhoneHingeInterval(@YES) == 0);
@@ -84,24 +107,38 @@ int main(void) {
         assert(VPhoneHingeInterval(@(16000)) == 16000);
         assert(VPhoneHingeInterval(@(2e9)) == 1000000);
 
-        void *hid = dlopen("/System/Library/PrivateFrameworks/HID.framework/HID", RTLD_NOW | RTLD_LOCAL);
-        VPhoneHingeEventFactory factory = (VPhoneHingeEventFactory)dlsym(hid, "IOHIDEventCreateHingeAngleEvent");
-        if (!factory) {
-            printf("HID.framework hinge factory unavailable here; transport checks only\n");
+        void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW | RTLD_LOCAL);
+        VPhoneHingeSerializer serialize = (VPhoneHingeSerializer)dlsym(iokit, "IOCFSerialize");
+        CFTypeRef (*unserialize)(const char *, size_t, CFAllocatorRef, uint32_t, CFStringRef *) =
+            dlsym(iokit, "IOCFUnserializeWithSize");
+        VPhoneHingeVendorEventFactory factory =
+            (VPhoneHingeVendorEventFactory)dlsym(iokit, "IOHIDEventCreateVendorDefinedEvent");
+        if (!serialize || !unserialize || !factory) {
+            printf("IOKit host-control functions unavailable here; transport checks only\n");
             printf("hinge tests passed\n");
             return 0;
         }
-        id event = (__bridge id)factory(NULL, mach_absolute_time(), 42.0, 43.0, 1.0, 0);
-        assert(event);
-        // The description is column-formatted; collapse the runs of spaces
-        // before matching, so a wider label column still passes.
-        NSArray *fields = [[event description] componentsSeparatedByCharactersInSet:
-                           [NSCharacterSet whitespaceCharacterSet]];
-        NSString *flat = [[fields filteredArrayUsingPredicate:
-                           [NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
-        assert([flat containsString:@"AngleDegrees: 42.000000"]);
-        assert([flat containsString:@"MechanicalAngleDegre 43.000000"]);
-        assert([flat containsString:@"velocityDegreesPerSe 1.000000"]);
+        // The longest dictionaries the provider sends.
+        NSArray *controls = @[
+            @{@"source": @"hinge-slider-control", @"type": @"range", @"value": @180L},
+            @{@"source": @"orientation-picker-control", @"type": @"enum", @"value": @"landscape-right"},
+        ];
+        for (NSDictionary *control in controls) {
+            NSData *data = CFBridgingRelease(serialize((__bridge CFTypeRef)control, 0));
+            assert(data.length > 0 && data.length <= VP_HOST_CONTROLS_MAX_DATA);
+            id read = CFBridgingRelease(unserialize(data.bytes, data.length, NULL, 0, NULL));
+            assert([read isEqual:control]);
+            id event = CFBridgingRelease(factory(NULL, mach_absolute_time(), VP_HOST_CONTROLS_USAGE_PAGE,
+                                                 VP_HOST_CONTROLS_USAGE, 0, data.bytes, (long)data.length, 0));
+            assert(event);
+            // The description is column-formatted; collapse the runs of
+            // spaces before matching, so a wider label column still passes.
+            NSArray *fields = [[event description] componentsSeparatedByCharactersInSet:
+                               [NSCharacterSet whitespaceCharacterSet]];
+            NSString *flat = [[fields filteredArrayUsingPredicate:
+                               [NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
+            assert([flat localizedCaseInsensitiveContainsString:@"VendorDefined"]);
+        }
         printf("hinge tests passed\n");
         return 0;
     }

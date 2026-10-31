@@ -14,10 +14,13 @@
 @property (nonatomic, strong) dispatch_source_t sweepTimer;
 @property (nonatomic, strong) dispatch_source_t heartbeat;
 @property (nonatomic, strong) id<VPhoneHingeHIDService> service;
-@property (nonatomic) VPhoneHingeEventFactory factory;
+@property (nonatomic) VPhoneHingeVendorEventFactory factory;
+@property (nonatomic) VPhoneHingeSerializer serialize;
 @property (nonatomic, strong) NSMutableDictionary *properties;
 @property (nonatomic) VPhoneHingeState state;
 @property (nonatomic) double currentAngle;
+// The orientation the relay was last given; 0 before any.
+@property (nonatomic) int32_t orientation;
 // The sweep in flight: from currentAngle to state.angle over its duration.
 @property (nonatomic) double sweepElapsed;
 @property (nonatomic) double sweepDuration;
@@ -70,8 +73,13 @@
             // HID service enumerates and on the rare tick it is down.
             [self publishLatestAngle:self.currentAngle velocity:0
                                state:VPhoneHingeStateForAngle(self.currentAngle) phase:0];
-            if (self.enumerated)
+            if (self.enumerated && !state.quiet)
                 [self dispatchSample];
+        }
+        if (state.orientation && state.orientation != self.orientation) {
+            self.orientation = state.orientation;
+            if (self.enumerated)
+                [self dispatchOrientation];
         }
     } else {
         self.lastError = @"Stored hinge angle is malformed; keeping the last one";
@@ -80,7 +88,10 @@
 }
 
 - (void)updateTimer {
-    uint64_t period = self.enumerated && self.interval ? self.interval * NSEC_PER_USEC : DISPATCH_TIME_FOREVER;
+    // locationd's relay keeps the last value it was sent and never asks for
+    // one; when locationd restarts it reseeds 0° and portrait. Stationary
+    // values are therefore sent again every few seconds.
+    uint64_t period = self.enumerated ? VP_HINGE_REPUSH_SECONDS * NSEC_PER_SEC : DISPATCH_TIME_FOREVER;
     dispatch_source_set_timer(self.timer, period == DISPATCH_TIME_FOREVER ? DISPATCH_TIME_FOREVER : DISPATCH_TIME_NOW,
                               period, NSEC_PER_MSEC);
     // The status is republished every two seconds only while samples flow, as
@@ -209,31 +220,41 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
                           CFSTR(VP_HINGE_DOMAIN), CFSTR("mobile"), kCFPreferencesAnyHost);
 }
 
-- (void)dispatchAngle:(double)angle velocity:(double)velocity state:(int32_t)state phase:(int32_t)phase {
-    // The factory's angle and mechanical angle both take the fold angle: no
-    // mechanical detent distinguishes them on a virtual hinge. The state
-    // field carries the hinge state, as Apple's recorded samples do.
-    id event = (__bridge id)self.factory(NULL, mach_absolute_time(), angle, angle, velocity, 0);
-    if (event && [event respondsToSelector:NSSelectorFromString(@"setHingeAngleState:")])
-        ((void (*)(id, SEL, int32_t))objc_msgSend)(event, sel_registerName("setHingeAngleState:"), state);
+/// One host-control dictionary as a vendor-defined event on the service.
+- (BOOL)dispatchControl:(NSDictionary *)control {
+    NSData *data = CFBridgingRelease(self.serialize((__bridge CFTypeRef)control, 0));
+    if (!data.length || data.length > VP_HOST_CONTROLS_MAX_DATA) {
+        self.failures++;
+        self.lastError = @"Host-control dictionary did not serialize within 256 bytes";
+        return NO;
+    }
+    id event = CFBridgingRelease(self.factory(NULL, mach_absolute_time(), VP_HOST_CONTROLS_USAGE_PAGE,
+                                              VP_HOST_CONTROLS_USAGE, 0, data.bytes, (long)data.length, 0));
     if (event && [self.service dispatchEvent:event]) {
         self.dispatched++;
         self.lastError = nil;
-    } else {
-        self.failures++;
-        self.lastError = @"HID event dispatch failed";
+        return YES;
     }
+    self.failures++;
+    self.lastError = @"HID event dispatch failed";
+    return NO;
+}
+
+- (void)dispatchAngle:(double)angle velocity:(double)velocity state:(int32_t)state phase:(int32_t)phase {
+    // The relay reads the slider's value as whole degrees and derives the
+    // velocity, hinge state and event phase CoreMotion reports itself.
+    [self dispatchControl:@{@"source": @"hinge-slider-control", @"type": @"range", @"value": @((long)lround(angle))}];
     [self publishLatestAngle:angle velocity:velocity state:state phase:phase];
 }
 
-- (id)sample {
-    id event = (__bridge id)self.factory(NULL, mach_absolute_time(), self.currentAngle,
-                                         self.currentAngle, 0, 0);
-    if (event && [event respondsToSelector:NSSelectorFromString(@"setHingeAngleState:")])
-        ((void (*)(id, SEL, int32_t))objc_msgSend)(
-            event, sel_registerName("setHingeAngleState:"),
-            VPhoneHingeStateForAngle(self.currentAngle));
-    return event;
+- (void)dispatchOrientation {
+    // The picker has no upside-down entry; that orientation stays with the
+    // test-automation pose.
+    NSDictionary *names = @{@1: @"portrait", @3: @"landscape-left", @4: @"landscape-right",
+                            @5: @"faceup", @6: @"facedown"};
+    NSString *name = names[@(self.orientation)];
+    if (name)
+        [self dispatchControl:@{@"source": @"orientation-picker-control", @"type": @"enum", @"value": name}];
 }
 
 - (void)createService {
@@ -275,29 +296,29 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
 }
 
 - (void)start {
-    void *hid = dlopen("/System/Library/PrivateFrameworks/HID.framework/HID", RTLD_NOW | RTLD_LOCAL);
-    self.factory = (VPhoneHingeEventFactory)dlsym(hid, "IOHIDEventCreateHingeAngleEvent");
+    void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW | RTLD_LOCAL);
+    self.factory = (VPhoneHingeVendorEventFactory)dlsym(iokit, "IOHIDEventCreateVendorDefinedEvent");
+    self.serialize = (VPhoneHingeSerializer)dlsym(iokit, "IOCFSerialize");
+    dlopen("/System/Library/PrivateFrameworks/HID.framework/HID", RTLD_NOW | RTLD_LOCAL);
     Class serviceClass = NSClassFromString(@"HIDVirtualEventService");
-    if (!hid || !self.factory || !serviceClass ||
+    if (!iokit || !self.factory || !self.serialize || !serviceClass ||
         ![serviceClass instancesRespondToSelector:@selector(dispatchEvent:)]) {
         self.lastError = @"Required HID virtual-service API unavailable";
         NSLog(@"[vphone-hinge] %@", self.lastError);
         [self publishStatus];
         return;
     }
-    // CoreMotion's CLAngleNotifier subscribes to this virtual service: usage
-    // page 0xFF0C (Apple vendor), usage 0x21 (hinge angle). The capability is
-    // only selected on a product-id CoreMotion knows — the foldable product
-    // identity patch — so on any other guest the service sits unread.
+    // locationd's device-state relay subscribes to the host controls by
+    // primary usage alone. It runs only when CoreMotion selects a foldable's
+    // capabilities from the product-id — the foldable product identity
+    // patch — so on any other guest the service sits unread.
     self.properties = [@{
-        @"PrimaryUsagePage": @0xff0c, @"PrimaryUsage": @0x21,
-        @"DeviceUsagePairs": @[@{@"DeviceUsagePage": @0xff0c, @"DeviceUsage": @0x21}],
-        @"Product": @"VPhone Hinge Angle Sensor", @"Manufacturer": @"vphone",
+        @"PrimaryUsagePage": @VP_HOST_CONTROLS_USAGE_PAGE, @"PrimaryUsage": @VP_HOST_CONTROLS_USAGE,
+        @"DeviceUsagePairs": @[@{@"DeviceUsagePage": @VP_HOST_CONTROLS_USAGE_PAGE,
+                                 @"DeviceUsage": @VP_HOST_CONTROLS_USAGE}],
+        @"Product": @"VPhone Host Controls", @"Manufacturer": @"vphone",
         @"Transport": @"Virtual", @"Built-In": @YES,
         @"ReportInterval": @0, @"BatchInterval": @0,
-        // Aggregate subscriptions before forwarding the requested interval to
-        // this delegate, so one client's stop cannot stop other subscribers.
-        @"HIDDefaultSensorControlOptions": @7, @"SensorPropertySupported": @3,
     } mutableCopy];
     [self readConfiguration];
     int status = notify_register_dispatch(VP_HINGE_NOTIFICATION, &_notificationToken, self.queue,
@@ -333,7 +354,6 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
     if ([key isEqualToString:@"ReportInterval"]) {
         self.interval = VPhoneHingeInterval(value);
         self.properties[key] = @(self.interval);
-        [self updateTimer];
         [self publishStatus];
         return YES;
     }
@@ -343,9 +363,7 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
 }
 
 - (id)copyEventMatching:(NSDictionary *)matching forService:(id)service {
-    NSNumber *type = matching[@"EventType"];
-    // 0x2c is the hinge-angle event type CLAngleNotifier asks for.
-    return service == self.service && self.enumerated && (!type || type.unsignedIntValue == 0x2c) ? [self sample] : nil;
+    return nil; // The relay only consumes events as they are dispatched.
 }
 
 - (BOOL)setOutputEvent:(id)event forService:(id)service {
@@ -360,6 +378,7 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
         self.lastError = nil;
         NSLog(@"[vphone-hinge] HID service enumerated: %llu", self.service.serviceID);
         [self dispatchSample];
+        [self dispatchOrientation];
     } else if (type == 11 && !self.cancelling) { // Terminated or reset
         self.enumerated = NO;
         self.cancelling = YES;

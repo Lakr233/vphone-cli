@@ -28,6 +28,23 @@ final class VPhoneDisplayContainerView: NSView {
 
     private static let turnDuration: CFTimeInterval = 0.35
 
+    /// Black over the panel, above the VM view's layer rather than in its
+    /// place, so clicks still reach the VM view (a tap wakes the guest).
+    private let darkLayer = CALayer()
+
+    /// Covers the panel while the guest's screen is off: coming on, the
+    /// guest's display shows its last frame from before until it draws again,
+    /// which after a fold made asleep was the other panel's picture.
+    var isScreenDark = false {
+        didSet {
+            guard isScreenDark != oldValue else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            darkLayer.opacity = isScreenDark ? 1 : 0
+            CATransaction.commit()
+        }
+    }
+
     /// One animated turn: the panel's angle and the window frame move
     /// together, so the window reshapes as the panel turns.
     private struct Turn {
@@ -48,6 +65,10 @@ final class VPhoneDisplayContainerView: NSView {
         viewportView.layer?.masksToBounds = true
         addSubview(viewportView)
         viewportView.addSubview(displayView)
+        darkLayer.backgroundColor = NSColor.black.cgColor
+        darkLayer.opacity = 0
+        darkLayer.zPosition = 1000
+        viewportView.layer?.addSublayer(darkLayer)
         installFoldChrome()
     }
 
@@ -249,6 +270,10 @@ let backing = backingPanelSize.width > 0 ? backingPanelSize : panelSize
         let full = NSSize(width: backing.width * scale, height: backing.height * scale)
         displayView.frameCenterRotation = 0
         displayView.frame = NSRect(x: 0, y: size.height - full.height, width: full.width, height: full.height)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        darkLayer.frame = viewportView.bounds
+        CATransaction.commit()
         viewportView.frameCenterRotation = angle
         if let vmView = displayView as? VPhoneVirtualMachineView {
             vmView.enclosingDisplayRotation = angle

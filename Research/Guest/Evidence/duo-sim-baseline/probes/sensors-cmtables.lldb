@@ -1,0 +1,62 @@
+expr -l objc -O --
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ?: [NSNull null], @"error": error ?: [NSNull null]}];
+};
+Class vpDSE = NSClassFromString(@"CMDeviceStateEvent");
+Class vpMPE = NSClassFromString(@"CMMagicPoseEvent");
+Class vpMPM = NSClassFromString(@"CMMagicPoseManager");
+NSString *(^vpStr)(Class, SEL, long long) = ^NSString *(Class c, SEL s, long long n) { NSObject *vpV = ((id (*)(id, SEL, long long))objc_msgSend)(c, s, n); return vpV ? [(NSObject *)vpV description] : @"(nil)"; };
+NSArray *vpStrSels = @[@"stringForDeviceStatePropertyAType:", @"stringForDeviceStatePropertyBType:", @"stringForDeviceStatePropertyCType:", @"stringForDeviceStatePropertyDType:"];
+for (NSString *vpSel in vpStrSels) {
+  NSMutableDictionary *vpT = [NSMutableDictionary dictionary];
+  for (long long vn = -1; vn <= 12; vn++) vpT[[NSString stringWithFormat:@"%lld", vn]] = vpStr(vpDSE, NSSelectorFromString(vpSel), vn);
+  vpAdd([@"CMDeviceStateEvent." stringByAppendingString:vpSel], @"private", [NSString stringWithFormat:@"+[CMDeviceStateEvent %@-1..12]", vpSel], vpT, nil);
+}
+for (NSString *vpSel in @[@"stringForDeviceOrientation:", @"stringForHingeState:", @"stringForTabletopPose:", @"stringForStableOrientationState:"]) {
+  NSMutableDictionary *vpT = [NSMutableDictionary dictionary];
+  for (long long vn = -1; vn <= 12; vn++) vpT[[NSString stringWithFormat:@"%lld", vn]] = vpStr(vpMPE, NSSelectorFromString(vpSel), vn);
+  vpAdd([@"CMMagicPoseEvent." stringByAppendingString:vpSel], @"private", [NSString stringWithFormat:@"+[CMMagicPoseEvent %@-1..12]", vpSel], vpT, nil);
+}
+NSMutableArray *vpPA = [NSMutableArray array];
+for (long long vc = 0; vc <= 4; vc++) for (long long va = 0; va <= 7; va++) for (long long vb = 0; vb <= 6; vb++) for (long long vt = 0; vt <= 11; vt++) {
+  long long vr = ((long long (*)(id, SEL, long long, long long, long long, long long))objc_msgSend)(vpDSE, @selector(propertyAForConfigType:propertyA:propertyB:propertyC:), vc, va, vb, vt);
+  [vpPA addObject:@[@(vc), @(va), @(vb), @(vt), @(vr)]];
+}
+vpAdd(@"CMDeviceStateEvent.propertyAForConfigType:propertyA:propertyB:propertyC:", @"private", @"+[CMDeviceStateEvent propertyAForConfigType:c propertyA:a propertyB:b propertyC:t] for c 0..4, a 0..7, b 0..6, t 0..11; rows [c, a, b, t, result]", vpPA, nil);
+NSObject *vpShared = ((id (*)(id, SEL))objc_msgSend)(vpMPM, @selector(sharedManager));
+NSMutableArray *vpOM = [NSMutableArray array];
+NSMutableArray *vpMap = [NSMutableArray array];
+for (long long vo = 0; vo <= 7; vo++) for (long long vh = 0; vh <= 6; vh++) for (long long vt = 0; vt <= 11; vt++) {
+  NSObject *vpE = ((id (*)(id, SEL, long long, long long, long long, double, double))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(vpMPE, @selector(alloc)), @selector(initWithDeviceOrientation:hingeState:tabletopPose:timestamp:continuousTimestamp:), vo, vh, vt, 0.0, 0.0);
+  for (long long vs = 0; vs <= 3; vs++) {
+    long long vr = ((long long (*)(id, SEL, id, long long))objc_msgSend)(vpMPM, @selector(orientationForMagicPose:deviceSurface:), vpE, vs);
+    [vpOM addObject:@[@(vo), @(vh), @(vt), @(vs), @(vr)]];
+  }
+  if (vpShared) {
+    NSObject *vpDS = ((id (*)(id, SEL, id))objc_msgSend)(vpShared, @selector(createDeviceStateEventFromMagicPoseEvent:), vpE);
+    [vpMap addObject:@[@(vo), @(vh), @(vt),
+      vpDS ? @(((long long (*)(id, SEL))objc_msgSend)(vpDS, @selector(propertyA))) : [NSNull null],
+      vpDS ? @(((long long (*)(id, SEL))objc_msgSend)(vpDS, @selector(propertyB))) : [NSNull null],
+      vpDS ? @(((long long (*)(id, SEL))objc_msgSend)(vpDS, @selector(propertyC))) : [NSNull null],
+      @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(deviceOrientation))), @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(hingeState))), @(((long long (*)(id, SEL))objc_msgSend)(vpE, @selector(tabletopPose)))]];
+  }
+}
+vpAdd(@"CMMagicPoseManager.orientationForMagicPose:deviceSurface:", @"private", @"+[CMMagicPoseManager orientationForMagicPose:[[CMMagicPoseEvent alloc] initWithDeviceOrientation:o hingeState:h tabletopPose:t timestamp:0 continuousTimestamp:0] deviceSurface:s] for o 0..7, h 0..6, t 0..11, s 0..3; rows [o, h, t, s, result]", vpOM, nil);
+vpAdd(@"CMMagicPoseManager.createDeviceStateEventFromMagicPoseEvent:", @"private", @"-[[CMMagicPoseManager sharedManager] createDeviceStateEventFromMagicPoseEvent:<o,h,t>] for o 0..7, h 0..6, t 0..11; rows [o, h, t, event.propertyA, event.propertyB, event.propertyC, pose.deviceOrientation, pose.hingeState, pose.tabletopPose]", vpShared ? vpMap : nil, vpShared ? nil : @"sharedManager nil");
+NSDictionary *vpOut = @{@"group": @"cmtables", @"records": vpRecs};
+__block id (^vpSan)(id) = nil;
+vpSan = ^id(id o) {
+  if (!o) return [NSNull null];
+  if ([(NSObject *)o isKindOfClass:[NSString class]] || [(NSObject *)o isKindOfClass:[NSNull class]]) return o;
+  if ([(NSObject *)o isKindOfClass:[NSNumber class]]) { double vpF = [(NSNumber *)o doubleValue]; if (vpF != vpF || vpF > 1.0e308 || vpF < -1.0e308) return [NSString stringWithFormat:@"%f", vpF]; return o; }
+  if ([(NSObject *)o isKindOfClass:[NSArray class]]) { NSMutableArray *vpA = [NSMutableArray array]; for (id vpY in (NSArray *)o) [vpA addObject:vpSan(vpY)]; return vpA; }
+  if ([(NSObject *)o isKindOfClass:[NSDictionary class]]) { NSMutableDictionary *vpM = [NSMutableDictionary dictionary]; for (id vpK in (NSDictionary *)o) vpM[[(NSObject *)vpK description]] = vpSan(((NSDictionary *)o)[vpK]); return vpM; }
+  if ([(NSObject *)o isKindOfClass:[NSData class]]) return @{@"data_base64": [(NSData *)o base64EncodedStringWithOptions:0]};
+  if ([(NSObject *)o isKindOfClass:[NSDate class]]) return @{@"date": [(NSObject *)o description]};
+  return [(NSObject *)o description] ?: @"";
+};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpSan(vpOut) options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

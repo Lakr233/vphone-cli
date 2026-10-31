@@ -1,0 +1,374 @@
+expr -l objc -O --
+void *vpMsg = (void *)objc_msgSend;
+NSMutableArray *vpRecs = [NSMutableArray array];
+NSArray *vpSkip = @[@"SBWindowScene.liftToWakeController"];
+NSString *(^vpLabel)(NSObject *) = ^NSString *(NSObject *vs) {
+  if (!vs || ![vs isKindOfClass:NSClassFromString(@"SBWindowScene")]) return (NSString *)nil;
+  long long vst = ((long long (*)(id, SEL))vpMsg)(vs, @selector(surfaceType));
+  NSString *vsid = [[(UIScene *)vs session] persistentIdentifier] ?: @"?";
+  NSString *vsurf = vst == 1 ? @"cover" : (vst == 2 ? @"inner" : [NSString stringWithFormat:@"surface%lld", vst]);
+  return [NSString stringWithFormat:@"%@:%@", vsurf, vsid];
+};
+NSDictionary *(^vpRect)(CGRect) = ^NSDictionary *(CGRect r) {
+  return @{@"x": @(r.origin.x), @"y": @(r.origin.y), @"width": @(r.size.width), @"height": @(r.size.height)};
+};
+id (^vpJ)(NSObject *) = ^id(NSObject *vo) {
+  if (!vo) return (id)[NSNull null];
+  if ([vo isKindOfClass:[NSString class]] || [vo isKindOfClass:[NSNumber class]] || [vo isKindOfClass:[NSNull class]]) return (id)vo;
+  if ([vo isKindOfClass:NSClassFromString(@"SBWindowScene")]) return (id)vpLabel(vo);
+  if ([vo isKindOfClass:[NSValue class]]) {
+    NSString *vt = [NSString stringWithUTF8String:[(NSValue *)vo objCType]];
+    if ([vt hasPrefix:@"{CGRect="]) return (id)vpRect([(NSValue *)vo CGRectValue]);
+    if ([vt hasPrefix:@"{CGSize="]) { CGSize vz = [(NSValue *)vo CGSizeValue]; return (id)@{@"width": @(vz.width), @"height": @(vz.height)}; }
+    if ([vt hasPrefix:@"{CGPoint="]) { CGPoint vp = [(NSValue *)vo CGPointValue]; return (id)@{@"x": @(vp.x), @"y": @(vp.y)}; }
+  }
+  return (id)[vo description];
+};
+id (^vpBox)(NSString *, void *) = ^id(NSString *vt, void *vb) {
+  while (vt.length && [@"rnNoORVA" containsString:[vt substringToIndex:1]]) vt = [vt substringFromIndex:1];
+  unichar vc = vt.length ? [vt characterAtIndex:0] : 'v';
+  switch (vc) {
+    case 'B': return (id)(*(BOOL *)vb ? @YES : @NO);
+    case 'c': return (id)@(*(signed char *)vb);
+    case 'C': return (id)@(*(unsigned char *)vb);
+    case 's': return (id)@(*(short *)vb);
+    case 'S': return (id)@(*(unsigned short *)vb);
+    case 'i': return (id)@(*(int *)vb);
+    case 'I': return (id)@(*(unsigned int *)vb);
+    case 'l': case 'q': return (id)@(*(long long *)vb);
+    case 'L': case 'Q': return (id)@(*(unsigned long long *)vb);
+    case 'f': return (id)@(*(float *)vb);
+    case 'd': return (id)@(*(double *)vb);
+    case '#': return (id)NSStringFromClass(*(Class *)vb);
+    case '{': return vpJ([NSValue valueWithBytes:vb objCType:vt.UTF8String]);
+    default: return (id)[NSString stringWithFormat:@"<unboxed type %@>", vt];
+  }
+};
+NSDictionary *(^vpCall)(NSObject *, NSString *) = ^NSDictionary *(NSObject *vo, NSString *vsn) {
+  if (!vo) return (NSDictionary *)@{@"e": @"receiver is nil"};
+  SEL vs = NSSelectorFromString(vsn);
+  if (![vo respondsToSelector:vs]) return (NSDictionary *)@{@"e": [NSString stringWithFormat:@"%s does not respond to %@", class_getName(object_getClass(vo)), vsn]};
+  NSMethodSignature *vsig = [vo methodSignatureForSelector:vs];
+  if (vsig.numberOfArguments != 2) return (NSDictionary *)@{@"e": @"takes arguments"};
+  NSInvocation *vinv = [NSInvocation invocationWithMethodSignature:vsig];
+  [vinv setTarget:vo]; [vinv setSelector:vs]; [vinv invoke];
+  NSString *vt = [NSString stringWithUTF8String:vsig.methodReturnType];
+  while (vt.length && [@"rnNoORVA" containsString:[vt substringToIndex:1]]) vt = [vt substringFromIndex:1];
+  if ([vt hasPrefix:@"v"]) return (NSDictionary *)@{@"v": [NSNull null]};
+  if ([vt hasPrefix:@"@"]) { void *vp = NULL; [vinv getReturnValue:&vp]; return (NSDictionary *)@{@"v": vpJ((__bridge NSObject *)vp)}; }
+  NSUInteger vlen = vsig.methodReturnLength;
+  void *vbuf = calloc(1, vlen < 16 ? 16 : vlen);
+  [vinv getReturnValue:vbuf];
+  id vr = vpBox(vt, vbuf);
+  free(vbuf);
+  return (NSDictionary *)@{@"v": vr ?: [NSNull null]};
+};
+NSObject *(^vpObj)(NSObject *, NSString *) = ^NSObject *(NSObject *vo, NSString *vsn) {
+  if (!vo || ![vo respondsToSelector:NSSelectorFromString(vsn)]) return (NSObject *)nil;
+  return (NSObject *)((id (*)(id, SEL))vpMsg)(vo, NSSelectorFromString(vsn));
+};
+NSObject *(^vpIvObj)(NSObject *, NSString *) = ^NSObject *(NSObject *vo, NSString *vn) {
+  if (!vo) return (NSObject *)nil;
+  Ivar viv = class_getInstanceVariable(object_getClass(vo), vn.UTF8String);
+  if (!viv) return (NSObject *)nil;
+  return (NSObject *)object_getIvar(vo, viv);
+};
+NSDictionary *(^vpIvar)(NSObject *, NSString *) = ^NSDictionary *(NSObject *vo, NSString *vn) {
+  if (!vo) return (NSDictionary *)@{@"e": @"receiver is nil"};
+  Ivar viv = class_getInstanceVariable(object_getClass(vo), vn.UTF8String);
+  if (!viv) return (NSDictionary *)@{@"e": [NSString stringWithFormat:@"%s has no ivar %@", class_getName(object_getClass(vo)), vn]};
+  NSString *vt = [NSString stringWithUTF8String:ivar_getTypeEncoding(viv) ?: ""];
+  if ([vt hasPrefix:@"@?"]) return (NSDictionary *)@{@"v": object_getIvar(vo, viv) ? @"<block>" : [NSNull null]};
+  if ([vt hasPrefix:@"@"]) return (NSDictionary *)@{@"v": vpJ((NSObject *)object_getIvar(vo, viv))};
+  if ([vt hasPrefix:@"{"]) return (NSDictionary *)@{@"e": [NSString stringWithFormat:@"struct ivar %@ not boxed", vn]};
+  return (NSDictionary *)@{@"v": vpBox(vt, (char *)(__bridge void *)vo + ivar_getOffset(viv)) ?: [NSNull null]};
+};
+void (^vpAdd)(NSString *, NSString *, NSString *, NSDictionary *) = ^(NSString *api, NSString *kind, NSString *call, NSDictionary *res) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": res[@"v"] ?: [NSNull null], @"error": res[@"e"] ?: [NSNull null]}];
+};
+NSDictionary *(^vpV)(id) = ^NSDictionary *(id vx) { return (NSDictionary *)@{@"v": vx ?: [NSNull null]}; };
+void (^vpGetters)(NSObject *, NSString *, NSString *, NSArray *) = ^(NSObject *vo, NSString *vapi, NSString *vrecv, NSArray *vsels) {
+  for (NSString *vsn in vsels) vpAdd([NSString stringWithFormat:@"%@.%@", vapi, vsn], @"private", [NSString stringWithFormat:@"[%@ %@]", vrecv, vsn], vpCall(vo, vsn));
+};
+void (^vpIvars)(NSObject *, NSString *, NSString *, NSArray *) = ^(NSObject *vo, NSString *vapi, NSString *vrecv, NSArray *vnames) {
+  for (NSString *vn in vnames) vpAdd([NSString stringWithFormat:@"%@.%@", vapi, vn], @"private", [NSString stringWithFormat:@"%@->%@", vrecv, vn], vpIvar(vo, vn));
+};
+void (^vpProps)(NSObject *, NSString *, NSString *, Class) = ^(NSObject *vo, NSString *vapi, NSString *vrecv, Class vcls) {
+  unsigned int vn = 0;
+  objc_property_t *vps = class_copyPropertyList(vcls, &vn);
+  NSMutableArray *vnames = [NSMutableArray array];
+  for (unsigned int vi = 0; vi < vn; vi++) {
+    NSString *vpn = [NSString stringWithUTF8String:property_getName(vps[vi])];
+    if ([@[@"hash", @"superclass", @"description", @"debugDescription"] containsObject:vpn]) continue;
+    if ([vpSkip containsObject:[NSString stringWithFormat:@"%s.%@", class_getName(vcls), vpn]]) { [vpRecs addObject:@{@"api": [NSString stringWithFormat:@"%@.%@", vapi, vpn], @"kind": @"private", @"call": [NSString stringWithFormat:@"[%@ %@]", vrecv, vpn], @"value": [NSNull null], @"error": @"not called: getter crashed SpringBoard's probe expression (EXC_BAD_ACCESS on the stack) in this sim"}]; continue; }
+    NSString *vattr = [NSString stringWithUTF8String:property_getAttributes(vps[vi])];
+    NSString *vget = vpn;
+    for (NSString *va in [vattr componentsSeparatedByString:@","]) if ([va hasPrefix:@"G"]) vget = [va substringFromIndex:1];
+    [vnames addObject:@[vpn, vget, vattr]];
+  }
+  free(vps);
+  [vnames sortUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) { return [(NSString *)a[0] compare:(NSString *)b[0]]; }];
+  for (NSArray *ve in vnames) { NSString *ve0 = (NSString *)ve[0]; NSString *ve1 = (NSString *)ve[1]; NSString *ve2 = (NSString *)ve[2];
+    NSDictionary *vres = vpCall(vo, ve1);
+    if ([ve2 hasPrefix:@"T@"] && ![ve2 hasPrefix:@"T@\"NSString\""] && ![ve2 hasPrefix:@"T@\"NSNumber\""] && vres[@"v"] && ![(NSObject *)vres[@"v"] isKindOfClass:[NSNull class]]) {
+      NSObject *vobj = vpObj(vo, ve1);
+      if ([vobj isKindOfClass:NSClassFromString(@"PTSettings")] || [vobj isKindOfClass:NSClassFromString(@"SBWindowScene")]) { }
+      else if (vobj) vres = @{@"v": [NSString stringWithFormat:@"<%s>", class_getName(object_getClass(vobj))]};
+    }
+    vpAdd([NSString stringWithFormat:@"%@.%@", vapi, ve0], @"private", [NSString stringWithFormat:@"[%@ %@]", vrecv, ve1], vres);
+  }
+};
+NSObject *vpApp = (NSObject *)[UIApplication sharedApplication];
+NSObject *vpSvc = vpIvObj(vpApp, @"_displayToolService");
+NSObject *vpDCM = vpIvObj(vpSvc, @"_displayContentModeCoordinator");
+NSObject *vpWSM = vpIvObj(vpSvc, @"_windowSceneManager");
+NSObject *vpPose = vpIvObj(vpSvc, @"_devicePoseProvider");
+NSObject *vpSwap = vpIvObj(vpSvc, @"_swapCoordinator");
+NSObject *vpRes = vpIvObj(vpDCM, @"_resolver");
+NSArray *vpScenes = [[(NSSet *)vpObj(vpWSM, @"connectedWindowScenes") allObjects] sortedArrayUsingComparator:^NSComparisonResult(NSObject *a, NSObject *b) { return [vpLabel(a) compare:vpLabel(b)]; }];
+NSObject *vpPrimary = vpObj(vpDCM, @"primaryWindowScene");
+// ---- SBWindowSceneManager
+vpAdd(@"SBWindowSceneManager.connectedWindowScenes", @"private", @"[SBWindowSceneManager connectedWindowScenes]", vpV(({ NSMutableArray *vl = [NSMutableArray array]; for (NSObject *vs in vpScenes) [vl addObject:vpLabel(vs) ?: [(NSObject *)vs description]]; vl; })));
+vpGetters(vpWSM, @"SBWindowSceneManager", @"SBWindowSceneManager", @[@"activeDisplayWindowScene", @"embeddedDisplayWindowScene", @"_embeddedDisplayWindowScene", @"_bringupDisplayWindowScene", @"_continuityDisplayWindowScene", @"_extendedDisplayWindowScene", @"windowSceneForAlertItems", @"windowSceneForKeyboardFocus", @"windowSceneForDisplayConfigurationForClassicApps", @"lastInteractedScene", @"restartSnapshotDisplays", @"activeRestartSnapshotDisplay"]);
+// ---- SBDisplayContentModeCoordinator
+vpGetters(vpDCM, @"SBDisplayContentModeCoordinator", @"SBDisplayContentModeCoordinator", @[@"primaryWindowScene", @"activeWindowScene", @"currentTransitionContext", @"updateLinkProvider"]);
+vpAdd(@"SBDisplayContentModeCoordinator.preferredTransitionStyleForDisplayContentModeResolver", @"private", @"[SBDisplayContentModeCoordinator preferredTransitionStyleForDisplayContentModeResolver:_resolver]", vpV(@(((long long (*)(id, SEL, id))vpMsg)(vpDCM, @selector(preferredTransitionStyleForDisplayContentModeResolver:), vpRes))));
+vpIvars(vpDCM, @"SBDisplayContentModeCoordinator", @"SBDisplayContentModeCoordinator", @[@"_lastHingeMotionIdleTimerResetTime", @"_lastInteractiveProgressIdleTimerResetTime", @"_prewarmStartTime", @"_prewarmAssertionsBySurfaceType", @"_prewarmAttemptsBySurfaceType"]);
+vpAdd(@"SBDisplayContentModeCoordinator._connectedWindowScenes", @"private", @"SBDisplayContentModeCoordinator->_connectedWindowScenes", vpV(({ NSMutableArray *vl = [NSMutableArray array]; for (NSObject *vs in (NSArray *)vpIvObj(vpDCM, @"_connectedWindowScenes")) [vl addObject:vpLabel(vs) ?: [vs description]]; vl; })));
+vpAdd(@"SBDisplayContentModeCoordinator._preventBacklightActivationAssertions.count", @"private", @"SBDisplayContentModeCoordinator->_preventBacklightActivationAssertions.count", vpV(@([(NSArray *)vpIvObj(vpDCM, @"_preventBacklightActivationAssertions") count])));
+vpAdd(@"SBDisplayContentModeCoordinator._windowScenesToContexts.count", @"private", @"SBDisplayContentModeCoordinator->_windowScenesToContexts.count", vpV(@([(NSMapTable *)vpIvObj(vpDCM, @"_windowScenesToContexts") count])));
+NSMapTable *vpObsMap = (NSMapTable *)vpIvObj(vpDCM, @"_observersToProxies");
+NSMutableArray *vpObsNames = [NSMutableArray array];
+NSObject *vpLSPolicy = nil;
+for (NSObject *vk in [[vpObsMap keyEnumerator] allObjects]) {
+  NSObject *vprox = [vpObsMap objectForKey:vk];
+  NSHashTable *vint = (NSHashTable *)vpIvObj(vprox, @"_windowScenesOfInterest");
+  NSMutableArray *vil = [NSMutableArray array];
+  for (NSObject *vs in [vint allObjects]) [vil addObject:vpLabel(vs) ?: @"?"];
+  [vil sortUsingSelector:@selector(compare:)];
+  BOOL vall = ((BOOL (*)(id, SEL))vpMsg)(vprox, @selector(wantsAllTransitions));
+  [vpObsNames addObject:[NSString stringWithFormat:@"%s all=%d scenes=%@", class_getName(object_getClass(vk)), vall, [vil componentsJoinedByString:@"|"]]];
+  if ([vk isKindOfClass:NSClassFromString(@"SBDisplayContentModeLockScreenActiveDisplayPolicy")]) vpLSPolicy = vk;
+}
+[vpObsNames sortUsingSelector:@selector(compare:)];
+vpAdd(@"SBDisplayContentModeCoordinator.observers.count", @"private", @"[SBDisplayContentModeCoordinator->_observersToProxies count]", vpV(@(vpObsMap.count)));
+vpAdd(@"SBDisplayContentModeCoordinator.observers", @"private", @"SBDisplayContentModeCoordinator->_observersToProxies keys (class, wantsAllTransitions, windowScenesOfInterest)", vpV(vpObsNames));
+for (long long vm = 0; vm <= 3; vm++) {
+  NSMutableArray *vl = [NSMutableArray array];
+  for (NSObject *vs in (NSArray *)((id (*)(id, SEL, long long))vpMsg)(vpDCM, @selector(windowScenesWithDisplayContentMode:), vm)) [vl addObject:vpLabel(vs) ?: [vs description]];
+  vpAdd(@"SBDisplayContentModeCoordinator.windowScenesWithDisplayContentMode", @"private", [NSString stringWithFormat:@"[SBDisplayContentModeCoordinator windowScenesWithDisplayContentMode:%lld]", vm], vpV(vl));
+}
+// ---- resolver
+vpAdd(@"SBFDisplayContentModeResolver.description", @"private", @"[SBDisplayContentModeCoordinator->_resolver description]", vpV([vpRes description]));
+vpGetters(vpRes, @"SBFDisplayContentModeResolver", @"_resolver", @[@"succinctDescription", @"delegate", @"currentTransitionContext", @"_continuousFoldEffectProgress", @"_mechanicalHingeAngleDegrees"]);
+vpIvars(vpRes, @"SBFDisplayContentModeResolver", @"_resolver", @[@"_isReadyToResolve", @"_isInvalidated", @"_delegateCalloutDepth", @"_preferredTransitionStyle", @"_currentTransitionCoordinator"]);
+NSObject *vpResolution = vpIvObj(vpRes, @"_resolution");
+vpAdd(@"SBFResolvedDisplayContentMode.description", @"private", @"_resolver->_resolution", vpV([vpResolution description]));
+vpAdd(@"SBFResolvedDisplayContentMode.prevailingPolicy", @"private", @"[_resolver->_resolution prevailingPolicy].name", vpCall(vpObj(vpResolution, @"prevailingPolicy"), @"name"));
+vpIvars(vpResolution, @"SBFResolvedDisplayContentMode", @"_resolver->_resolution", @[@"_targetModesByIdentifier", @"_resolvedModesByIdentifier", @"_swapsContentModeByIdentifier"]);
+NSMutableArray *vpPolicies = [NSMutableArray arrayWithArray:(NSArray *)vpIvObj(vpRes, @"_policies") ?: @[]];
+if (vpIvObj(vpRes, @"_yoinkPolicy")) [vpPolicies addObject:vpIvObj(vpRes, @"_yoinkPolicy")];
+if (vpIvObj(vpRes, @"_forceCoverDisplayOnlyPolicy")) [vpPolicies addObject:vpIvObj(vpRes, @"_forceCoverDisplayOnlyPolicy")];
+NSMutableArray *vpPolList = [NSMutableArray array];
+for (NSObject *vpol in vpPolicies) {
+  NSMutableDictionary *vd = [NSMutableDictionary dictionary];
+  vd[@"class"] = NSStringFromClass(object_getClass(vpol));
+  vd[@"name"] = vpCall(vpol, @"name")[@"v"];
+  vd[@"swapsContentMode"] = vpCall(vpol, @"swapsContentMode")[@"v"];
+  vd[@"isUserInitiated"] = vpCall(vpol, @"isUserInitiated")[@"v"];
+  if ([vpol respondsToSelector:@selector(preferredSurfaceType)]) vd[@"preferredSurfaceType"] = vpCall(vpol, @"preferredSurfaceType")[@"v"];
+  if ([vpol respondsToSelector:NSSelectorFromString(@"assertionSummary")]) vd[@"assertionSummary"] = vpCall(vpol, @"assertionSummary")[@"v"];
+  if (vpIvObj(vpol, @"_activationAssertions")) vd[@"activationAssertions.count"] = @([(NSSet *)vpIvObj(vpol, @"_activationAssertions") count]);
+  [vpPolList addObject:vd];
+}
+vpAdd(@"SBFDisplayContentModeResolver.policies", @"private", @"_resolver->_policies + _yoinkPolicy + _forceCoverDisplayOnlyPolicy: class/name/swapsContentMode/isUserInitiated", vpV(vpPolList));
+NSDictionary *vpProxies = (NSDictionary *)vpIvObj(vpRes, @"_displayProxies");
+for (NSString *vk in [[vpProxies allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
+  NSObject *vpx = vpProxies[vk];
+  NSMutableDictionary *vd = [NSMutableDictionary dictionary];
+  for (NSString *vsn in @[@"identifier", @"surfaceType", @"isExternal", @"appliedContentMode", @"targetContentMode"]) vd[vsn] = vpCall(vpx, vsn)[@"v"];
+  vd[@"resolver._resolvedModeForDisplay"] = @(((long long (*)(id, SEL, id))vpMsg)(vpRes, NSSelectorFromString(@"_resolvedModeForDisplay:"), vpx));
+  vd[@"resolver._targetModeForDisplay"] = @(((long long (*)(id, SEL, id))vpMsg)(vpRes, NSSelectorFromString(@"_targetModeForDisplay:"), vpx));
+  long long vpxs = ((long long (*)(id, SEL))vpMsg)(vpx, @selector(surfaceType)); vpAdd([NSString stringWithFormat:@"SBFDisplayProxy[%@]", vpxs == 1 ? @"cover" : (vpxs == 2 ? @"inner" : [NSString stringWithFormat:@"surface%lld", vpxs])], @"private", [NSString stringWithFormat:@"_resolver->_displayProxies[@\"%@\"] identifier/surfaceType/isExternal/appliedContentMode/targetContentMode", vk], vpV(vd));
+}
+// ---- window scenes
+for (NSObject *vws in vpScenes) {
+  NSString *vl = vpLabel(vws);
+  NSString *vsurf = [vl componentsSeparatedByString:@":"][0];
+  NSString *vapi = [NSString stringWithFormat:@"SBWindowScene[%@]", vsurf];
+  NSString *vrecv = [NSString stringWithFormat:@"<SBWindowScene %@>", vl];
+  UIWindowScene *vu = (UIWindowScene *)vws;
+  vpAdd([vapi stringByAppendingString:@".label"], @"private", [vrecv stringByAppendingString:@" surfaceType + session.persistentIdentifier"], vpV(vl));
+  vpAdd([vapi stringByAppendingString:@".interfaceOrientation"], @"public", [vrecv stringByAppendingString:@".interfaceOrientation"], vpV(@(vu.interfaceOrientation)));
+  vpAdd([vapi stringByAppendingString:@".coordinateSpace.bounds"], @"public", [vrecv stringByAppendingString:@".coordinateSpace.bounds"], vpV(vpRect(((CGRect (*)(id, SEL))vpMsg)(vu.coordinateSpace, @selector(bounds)))));
+  vpAdd([vapi stringByAppendingString:@".screen.bounds"], @"public", [vrecv stringByAppendingString:@".screen.bounds"], vpV(vpRect(vu.screen.bounds)));
+  vpAdd([vapi stringByAppendingString:@".screen.isMainScreen"], @"public", [vrecv stringByAppendingString:@".screen == [UIScreen mainScreen]"], vpV(@(vu.screen == [UIScreen mainScreen])));
+  vpAdd([vapi stringByAppendingString:@".screen.displayIdentity"], @"private", [vrecv stringByAppendingString:@".screen.displayIdentity"], vpCall(vu.screen, @"displayIdentity"));
+  vpAdd([vapi stringByAppendingString:@".activationState"], @"public", [vrecv stringByAppendingString:@".activationState"], vpV(@(vu.activationState)));
+  vpAdd([vapi stringByAppendingString:@".effectiveGeometry.interfaceOrientation"], @"public", [vrecv stringByAppendingString:@".effectiveGeometry.interfaceOrientation"], vpV(@(vu.effectiveGeometry.interfaceOrientation)));
+  vpAdd([vapi stringByAppendingString:@".effectiveGeometry.coordinateSpace.bounds"], @"public", [vrecv stringByAppendingString:@".effectiveGeometry.coordinateSpace.bounds"], vpV(vpRect(((CGRect (*)(id, SEL))vpMsg)(vu.effectiveGeometry.coordinateSpace, @selector(bounds)))));
+  vpAdd([vapi stringByAppendingString:@".traitCollection"], @"public", [vrecv stringByAppendingString:@".traitCollection h/v sizeClass, displayScale, userInterfaceIdiom"], vpV((@{@"horizontalSizeClass": @(vu.traitCollection.horizontalSizeClass), @"verticalSizeClass": @(vu.traitCollection.verticalSizeClass), @"displayScale": @(vu.traitCollection.displayScale), @"userInterfaceIdiom": @(vu.traitCollection.userInterfaceIdiom)})));
+  vpGetters(vws, vapi, vrecv, @[@"_sceneIdentifier", @"displayIdentity", @"isMainDisplayWindowScene", @"isExternalDisplayWindowScene", @"isIntegratedDisplayWindowScene", @"isContinuityDisplayWindowScene", @"isExtendedDisplayWindowScene", @"isResizableAppHostingWindowScene", @"isLegacyMainEmbeddedScene", @"isEmbeddedScene", @"isContinuityScene", @"isExternalDisplayScene", @"supportsMultitasking", @"supportsAdvancedMultitasking", @"supportsSplitPIP", @"sbhScreenType", @"surfaceType", @"keyboardFocusCoalitionAffinity", @"sbui_systemArbitratedInterfaceOrientation", @"_displayWindowingMode", @"_hasTollFreeDeviceAndInterfaceOrientationConversion", @"_windowsIgnoreSceneClientOrientation", @"isInvalidated", @"isInvalidating", @"lastInteractedScene"]);
+  for (long long vo = 1; vo <= 4; vo++) {
+    vpAdd([vapi stringByAppendingString:@".systemSpaceOrientationForDeviceOrientation"], @"private", [NSString stringWithFormat:@"[%@ systemSpaceOrientationForDeviceOrientation:%lld]", vrecv, vo], vpV(@(((long long (*)(id, SEL, long long))vpMsg)(vws, @selector(systemSpaceOrientationForDeviceOrientation:), vo))));
+    vpAdd([vapi stringByAppendingString:@".deviceOrientationForSystemSpaceOrientation"], @"private", [NSString stringWithFormat:@"[%@ deviceOrientationForSystemSpaceOrientation:%lld]", vrecv, vo], vpV(@(((long long (*)(id, SEL, long long))vpMsg)(vws, @selector(deviceOrientationForSystemSpaceOrientation:), vo))));
+  }
+  vpProps(vws, vapi, vrecv, NSClassFromString(@"SBWindowScene"));
+  long long vmode = ((long long (*)(id, SEL, id))vpMsg)(vpDCM, @selector(displayContentModeForWindowScene:), vws);
+  vpAdd(@"SBDisplayContentModeCoordinator.displayContentModeForWindowScene", @"private", [NSString stringWithFormat:@"[SBDisplayContentModeCoordinator displayContentModeForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": @(vmode)})));
+  vpAdd(@"SBDisplayContentModeCoordinator.isAppliedDisplayContentModeUserInitiatedForWindowScene", @"private", [NSString stringWithFormat:@"[SBDisplayContentModeCoordinator isAppliedDisplayContentModeUserInitiatedForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": @(((BOOL (*)(id, SEL, id))vpMsg)(vpDCM, @selector(isAppliedDisplayContentModeUserInitiatedForWindowScene:), vws) ? YES : NO)})));
+  vpAdd(@"SBDisplayContentModeCoordinator.isContinuousFoldCloakInstalledForWindowScene", @"private", [NSString stringWithFormat:@"[SBDisplayContentModeCoordinator isContinuousFoldCloakInstalledForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": @(((BOOL (*)(id, SEL, id))vpMsg)(vpDCM, @selector(isContinuousFoldCloakInstalledForWindowScene:), vws) ? YES : NO)})));
+  vpAdd(@"SBFDisplayContentModeResolver.appliedContentModeOfDisplayForWindowScene", @"private", [NSString stringWithFormat:@"[_resolver appliedContentModeOfDisplayForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": @(((long long (*)(id, SEL, id))vpMsg)(vpRes, @selector(appliedContentModeOfDisplayForWindowScene:), vws))})));
+  vpAdd(@"SBFDisplayContentModeResolver._surfaceTypeForWindowScene", @"private", [NSString stringWithFormat:@"[_resolver _surfaceTypeForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": @(((long long (*)(id, SEL, id))vpMsg)(vpRes, NSSelectorFromString(@"_surfaceTypeForWindowScene:"), vws))})));
+  vpAdd(@"SBFDisplayContentModeResolver._identifierForWindowScene", @"private", [NSString stringWithFormat:@"[_resolver _identifierForWindowScene:%@]", vrecv], vpV((@{@"scene": vl, @"value": vpJ((NSObject *)((id (*)(id, SEL, id))vpMsg)(vpRes, NSSelectorFromString(@"_identifierForWindowScene:"), vws))})));
+  NSObject *vctx = vpObj(vws, @"displayContentModeContext");
+  vpGetters(vctx, [vapi stringByAppendingString:@".displayContentModeContext"], [vrecv stringByAppendingString:@".displayContentModeContext"], @[@"currentContentMode", @"isAppliedDisplayContentModeUserInitiated", @"isTransitioning", @"isInvolvedInTransition", @"phase", @"swapTarget", @"isInteractive", @"interactiveProgress", @"progressToSwap", @"progressFromSwap", @"continuousFoldPosition", @"continuousFoldVelocity", @"_currentContext"]);
+  NSObject *vlock = vpObj(vws, @"orientationLockManager");
+  vpGetters(vlock, [vapi stringByAppendingString:@".orientationLockManager"], [vrecv stringByAppendingString:@".orientationLockManager"], @[@"isUserLocked", @"lockedDeviceOrientation", @"lockedInterfaceOrientation", @"isLandscapeOverrideEnabled", @"_isPerDisplayLockEnabled", @"_surfaceType", @"description"]);
+  NSObject *vtpm = vpObj(vws, @"traitsPipelineManager");
+  NSString *vtapi = [vapi stringByAppendingString:@".traitsPipelineManager"];
+  NSString *vtrecv = [vrecv stringByAppendingString:@".traitsPipelineManager"];
+  vpAdd([vtapi stringByAppendingString:@".class"], @"private", [vtrecv stringByAppendingString:@" class"], vpV(vtpm ? NSStringFromClass(object_getClass(vtpm)) : nil));
+  vpGetters(vtpm, vtapi, vtrecv, @[@"systemArbitratedDeviceOrientation", @"systemArbitratedInterfaceOrientation", @"lastNonFlatDeviceOrientation", @"supportsLiveDeviceRotation", @"continuousFoldPinnedInterfaceOrientation", @"_continuousFoldPinNeedsPoseSettleWindow", @"_isBacklightOn", @"_bootOrientation", @"_orientationStateDescription", @"inputs", @"orientationStageRoles"]);
+  vpIvars(vtpm, vtapi, vtrecv, @[@"_surfaceType", @"_lastNonFlatOrientation", @"_isDevicePoseOverridingOrientationLock", @"_isSceneAccessoryIgnoringOrientationLock", @"_continuousFoldPinnedDeviceOrientation", @"_continuousFoldHolderCount", @"_isContinuousFoldSettleWindowActive", @"_isCoversheetPresented", @"_suppressingOrientationUpdateAnimation", @"_backlightOffDeferralHeldInAlwaysOn", @"_arbiterRunningUpdatesCount", @"_settingUpPipeline", @"_continuousFoldLockValidator", @"_continuousFoldDeviceOrientationDeferralAssertion", @"_orientationLockInputsValidator", @"_lastNonFlatOverrideInputsValidator", @"_activeOrientationParticipant", @"_deviceOrientationUpdateDeferralAssertionsByReason"]);
+  NSObject *varb = vpObj(vws, @"traitsArbiter");
+  vpIvars(varb, [vapi stringByAppendingString:@".traitsArbiter"], [vrecv stringByAppendingString:@".traitsArbiter"], @[@"_lastRawInputs", @"_lastValidatedInputs"]);
+  NSDictionary *vparts = (NSDictionary *)vpIvObj(varb, @"_acquiredParticipantsByUniqueIdentifier");
+  vpAdd([vapi stringByAppendingString:@".traitsArbiter.participants.count"], @"private", [vrecv stringByAppendingString:@".traitsArbiter->_acquiredParticipantsByUniqueIdentifier.count"], vpV(@(vparts.count)));
+  for (NSString *vk in [[vparts allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
+    NSObject *vp = vparts[vk];
+    NSMutableDictionary *vd = [NSMutableDictionary dictionary];
+    for (NSString *vsn in @[@"role", @"uniqueIdentifier", @"currentOrientation", @"previousOrientation", @"currentDeviceOrientation", @"previousDeviceOrientation", @"currentZOrderLevel", @"_debugLastOrientationValidationFailureReason", @"orientationResolutionPolicyInfo"]) vd[vsn] = vpCall(vp, vsn)[@"v"];
+    NSObject *vpref = vpObj(vp, @"orientationPreferences");
+    if (vpref) vd[@"orientationPreferences"] = @{@"supportedOrientations": vpCall(vpref, @"supportedOrientations")[@"v"], @"preferredOrientation": vpCall(vpref, @"preferredOrientation")[@"v"], @"canDetermineActiveOrientation": vpCall(vpref, @"canDetermineActiveOrientation")[@"v"]};
+    else vd[@"orientationPreferences"] = [NSNull null];
+    NSObject *vdel = vpObj(vp, @"delegate");
+    vd[@"delegate"] = vdel ? NSStringFromClass(object_getClass(vdel)) : [NSNull null];
+    if ([vdel isKindOfClass:NSClassFromString(@"SBTraitsSceneParticipantDelegate")]) {
+      vd[@"scene"] = [(NSObject *)vpCall(vpObj(vdel, @"scene"), @"identifier")[@"v"] description] ?: [NSNull null];
+      for (NSString *vsn in @[@"sceneCurrentOrientation", @"_supportedOrientations", @"scenePrefersOrientationLocked", @"orientationModeOverride", @"supportedOrientationsOverride", @"orientationResolutionWindowScene", @"canDetermineActiveOrientation", @"isOrientationActuationEnabled"]) vd[[@"delegate." stringByAppendingString:vsn]] = vpCall(vdel, vsn)[@"v"];
+    }
+    vpAdd([vapi stringByAppendingString:@".traitsArbiter.participant"], @"private", [NSString stringWithFormat:@"%@.traitsArbiter->_acquiredParticipantsByUniqueIdentifier[@\"%@\"]", vrecv, vk], vpV(vd));
+  }
+  NSObject *vsbm = vpObj(vws, @"statusBarManager");
+  NSString *vsapi = [vapi stringByAppendingString:@".statusBarManager"];
+  NSString *vsrecv = [vrecv stringByAppendingString:@".statusBarManager"];
+  vpAdd([vsapi stringByAppendingString:@".class"], @"public", [vsrecv stringByAppendingString:@" class"], vpV(vsbm ? NSStringFromClass(object_getClass(vsbm)) : nil));
+  vpGetters(vsbm, vsapi, vsrecv, @[@"statusBarOrientation", @"statusBarFrame", @"defaultStatusBarFrame", @"isStatusBarHidden", @"isStatusBarEffectivelyHidden", @"statusBarWindowFrame", @"_isEmbeddedDisplay", @"statusBarStyle"]);
+  NSObject *vsbw = vpObj(vsbm, @"statusBarWindow");
+  vpAdd([vsapi stringByAppendingString:@".statusBarWindow.windowScene"], @"private", [vsrecv stringByAppendingString:@".statusBarWindow.windowScene"], vpCall(vsbw, @"windowScene"));
+  vpAdd([vsapi stringByAppendingString:@".statusBarWindow.isHidden"], @"private", [vsrecv stringByAppendingString:@".statusBarWindow.isHidden"], vpCall(vsbw, @"isHidden"));
+  NSObject *vbl = vpObj(vws, @"backlightController");
+  NSString *vbapi = [vapi stringByAppendingString:@".backlightController"];
+  NSString *vbrecv = [vrecv stringByAppendingString:@".backlightController"];
+  vpGetters(vbl, vbapi, vbrecv, @[@"windowScene", @"screenIsOn", @"screenIsDim", @"backlightState", @"lastBacklightChangeSource", @"isDigitizerDisabled", @"isTapToWakeEnabled", @"tapToWakeRequiresHitTestSuppression", @"isPrewarmingDisplayContentMode", @"blsDisplay"]);
+  vpAdd([vbapi stringByAppendingString:@".isSharedInstanceForMainDisplay"], @"private", [vbrecv stringByAppendingString:@" == [SBBacklightController sharedInstanceForMainDisplay]"], vpV(@(vbl && vbl == (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBBacklightController"), NSSelectorFromString(@"sharedInstanceForMainDisplayIfExists")))));
+  NSObject *vblsb = vpObj(vbl, @"blsBacklight");
+  vpAdd([vbapi stringByAppendingString:@".blsBacklight.class"], @"private", [vbrecv stringByAppendingString:@".blsBacklight class"], vpV(vblsb ? NSStringFromClass(object_getClass(vblsb)) : nil));
+  vpGetters(vblsb, [vbapi stringByAppendingString:@".blsBacklight"], [vbrecv stringByAppendingString:@".blsBacklight"], @[@"backlightState", @"isTransitioning", @"isAlwaysOnEnabled", @"display"]);
+  NSObject *vcfc = vpObj(vws, @"continuousFoldController");
+  vpGetters(vcfc, [vapi stringByAppendingString:@".continuousFoldController"], [vrecv stringByAppendingString:@".continuousFoldController"], @[@"isEnabled", @"isSuppressed"]);
+  vpIvars(vcfc, [vapi stringByAppendingString:@".continuousFoldController"], [vrecv stringByAppendingString:@".continuousFoldController"], @[@"_lastContinuousFoldPosition", @"_lastHingeAngleDegrees", @"_lastEffectMode", @"_awaitingCloakReveal", @"_settleOrientationLock", @"_window", @"_effectViewController"]);
+  NSObject *vaux = vpObj(vws, @"auxiliaryContentController");
+  vpGetters(vaux, [vapi stringByAppendingString:@".auxiliaryContentController"], [vrecv stringByAppendingString:@".auxiliaryContentController"], @[@"isAvailable", @"isYoinkingSliderVisible", @"isHostingCompanionScene", @"_auxiliaryContentType", @"disabledSystemGestureTypes", @"continuousFoldSuppressionAssertion", @"systemGestureDisabledAssertion"]);
+  vpIvars(vaux, [vapi stringByAppendingString:@".auxiliaryContentController"], [vrecv stringByAppendingString:@".auxiliaryContentController"], @[@"_windowVisible", @"_lastActivationPolicyForParticipantsBelow"]);
+  NSObject *vyc = vpObj(vaux, @"displayYoinkingController");
+  vpGetters(vyc, [vapi stringByAppendingString:@".displayYoinkingController"], [vrecv stringByAppendingString:@".auxiliaryContentController.displayYoinkingController"], @[@"canRevealYoinkingSlider", @"shouldRevealYoinkingSlider", @"isYoinkingSliderVisible", @"isYoinkingSliderInteractionInProgress", @"isEligible", @"isVisibleOnScreen", @"_canYoinkToThisDisplay", @"currentDisplayIdentity"]);
+  NSObject *vlsm = vpObj(vws, @"lockScreenManager");
+  vpGetters(vlsm, [vapi stringByAppendingString:@".lockScreenManager"], [vrecv stringByAppendingString:@".lockScreenManager"], @[@"isUILocked", @"isLockScreenActive", @"isLockScreenVisible", @"hasUIEverBeenLocked", @"isScreenOn", @"isWaitingToLockUI", @"hasWakeToContentForInactiveDisplay", @"shouldTapToWake"]);
+  vpAdd([vapi stringByAppendingString:@".lockScreenManager.isSharedInstance"], @"private", [vrecv stringByAppendingString:@".lockScreenManager == [SBLockScreenManager sharedInstance]"], vpV(@(vlsm && vlsm == (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBLockScreenManager"), @selector(sharedInstance)))));
+  vpAdd([vapi stringByAppendingString:@".lockScreenManager.isActiveDisplayLockScreenManager"], @"private", [vrecv stringByAppendingString:@".lockScreenManager == [SBDisplayContentModeLockScreenActiveDisplayPolicy activeDisplayLockScreenManager]"], vpV(@(vlsm && vpLSPolicy && vlsm == vpObj(vpLSPolicy, @"activeDisplayLockScreenManager"))));
+  NSObject *vcs = vpObj(vws, @"coverSheetViewController");
+  NSObject *vcsp = vpObj(vws, @"coverSheetPresentationManager");
+  NSObject *vcsw = vpObj(vcsp, @"coverSheetWindowIfLoaded");
+  vpAdd([vapi stringByAppendingString:@".coverSheetPresentationManager.coverSheetWindowIfLoaded.windowScene"], @"private", [vrecv stringByAppendingString:@".coverSheetPresentationManager.coverSheetWindowIfLoaded.windowScene"], vcsw ? vpCall(vcsw, @"windowScene") : vpV(@"<no coverSheetWindow loaded>"));
+  vpAdd([vapi stringByAppendingString:@".coverSheetPresentationManager.coverSheetWindowIfLoaded.isHidden"], @"private", [vrecv stringByAppendingString:@".coverSheetPresentationManager.coverSheetWindowIfLoaded.isHidden"], vcsw ? vpCall(vcsw, @"isHidden") : vpV(@"<no coverSheetWindow loaded>"));
+  vpGetters(vcsp, [vapi stringByAppendingString:@".coverSheetPresentationManager"], [vrecv stringByAppendingString:@".coverSheetPresentationManager"], @[@"windowScene", @"isActiveInterfaceOrientationLocked", @"idleTimerDuration", @"idleTimerMode", @"idleWarnMode", @"isCoverSheetHostingUnlockedEnvironmentWindows"]);
+  NSObject *vic = vpObj(vws, @"iconController");
+  vpAdd([vapi stringByAppendingString:@".iconController.isSharedInstance"], @"private", [vrecv stringByAppendingString:@".iconController == [SBIconController sharedInstance]"], vpV(@(vic && vic == (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBIconController"), @selector(sharedInstance)))));
+  NSObject *vhsc = vpObj(vws, @"homeScreenController");
+  vpAdd([vapi stringByAppendingString:@".homeScreenController.windowScene"], @"private", [vrecv stringByAppendingString:@".homeScreenController.windowScene"], vpCall(vhsc, @"windowScene"));
+  vpAdd([vapi stringByAppendingString:@".homeScreenController.iconManager.rootFolderController.view.window.windowScene"], @"private", [vrecv stringByAppendingString:@".homeScreenController.iconManager.rootFolderController.view.window.windowScene"], vpCall(vpObj(vpObj(vpObj(vpObj(vhsc, @"iconManager"), @"rootFolderController"), @"viewIfLoaded"), @"window"), @"windowScene"));
+  NSObject *vswc = vpObj(vws, @"switcherController");
+  vpAdd([vapi stringByAppendingString:@".switcherController.windowScene"], @"private", [vrecv stringByAppendingString:@".switcherController.windowScene"], vpCall(vswc, @"windowScene"));
+  NSObject *vwpc = vpObj(vws, @"wallpaperController");
+  NSObject *vhpc = vpIvObj(vwpc, @"_hingeProgressController");
+  vpAdd([vapi stringByAppendingString:@".wallpaperController._hingeProgressController.class"], @"private", [vrecv stringByAppendingString:@".wallpaperController->_hingeProgressController class"], vpV(vhpc ? NSStringFromClass(object_getClass(vhpc)) : nil));
+  vpGetters(vhpc, @"SBWallpaperHingeProgressController", [vrecv stringByAppendingString:@".wallpaperController->_hingeProgressController"], @[@"isHomeScreenWallpaperVisible"]);
+  vpIvars(vhpc, @"SBWallpaperHingeProgressController", [vrecv stringByAppendingString:@".wallpaperController->_hingeProgressController"], @[@"_backlightOn", @"_lockScreenIsTopElement", @"_enabled"]);
+}
+// ---- lock screen active display policy, transition style, yoinking, fold coordinator, display tool
+vpAdd(@"SBDisplayContentModeLockScreenActiveDisplayPolicy.class", @"private", @"DCM observer of class SBDisplayContentModeLockScreenActiveDisplayPolicy", vpV(vpLSPolicy ? NSStringFromClass(object_getClass(vpLSPolicy)) : nil));
+NSObject *vpActiveLSM = vpObj(vpLSPolicy, @"activeDisplayLockScreenManager");
+NSString *vpActiveLSMScene = nil;
+for (NSObject *vws in vpScenes) if (vpActiveLSM && vpObj(vws, @"lockScreenManager") == vpActiveLSM) vpActiveLSMScene = vpLabel(vws);
+vpAdd(@"SBDisplayContentModeLockScreenActiveDisplayPolicy.activeDisplayLockScreenManager", @"private", @"[policy activeDisplayLockScreenManager] -> owning SBWindowScene.lockScreenManager", vpLSPolicy ? vpV(vpActiveLSMScene ?: (vpActiveLSM ? [vpActiveLSM description] : nil)) : @{@"e": @"no SBDisplayContentModeLockScreenActiveDisplayPolicy among DCM observers"});
+vpAdd(@"SBDisplayContentModeLockScreenActiveDisplayPolicy.overrideActiveLockScreenManager", @"private", @"[policy overrideActiveLockScreenManager]", vpCall(vpLSPolicy, @"overrideActiveLockScreenManager"));
+vpAdd(@"SBDisplayContentModeLockScreenActiveDisplayPolicy._lock_lockScreenManagers.count", @"private", @"policy->_lock_lockScreenManagers.count", vpLSPolicy ? vpV(@([(NSHashTable *)vpIvObj(vpLSPolicy, @"_lock_lockScreenManagers") count])) : @{@"e": @"no policy"});
+NSObject *vpTSC = vpIvObj(vpApp, @"_displayContentModeTransitionStyleCoordinator");
+vpIvars(vpTSC, @"SBDisplayContentModeTransitionStyleCoordinator", @"SpringBoard->_displayContentModeTransitionStyleCoordinator", @[@"_continuousFoldTransitionEnabled", @"_continuousFoldTransitionDisablingAssertions"]);
+vpAdd(@"SBDisplayContentModeTransitionStyleCoordinator._windowScenes", @"private", @"SpringBoard->_displayContentModeTransitionStyleCoordinator->_windowScenes", vpV(({ NSMutableArray *vl = [NSMutableArray array]; for (NSObject *vs in [(NSHashTable *)vpIvObj(vpTSC, @"_windowScenes") allObjects]) [vl addObject:vpLabel(vs) ?: @"?"]; [vl sortUsingSelector:@selector(compare:)]; vl; })));
+NSObject *vpYC = vpIvObj(vpApp, @"_displayYoinkingCoordinator");
+vpGetters(vpYC, @"SBDisplayYoinkingCoordinator", @"SpringBoard->_displayYoinkingCoordinator", @[@"isDisplayToolFlipOverridden", @"_anyCameraSessionCurrentlyActive"]);
+vpIvars(vpYC, @"SBDisplayYoinkingCoordinator", @"SpringBoard->_displayYoinkingCoordinator", @[@"_cameraSessionActive", @"_listeningToFlip", @"_flipActive", @"_persistentFlipOverride"]);
+NSObject *vpCFC = vpIvObj(vpApp, @"_continuousFoldCoordinator");
+vpAdd(@"SBContinuousFoldCoordinator._activeControllerAssertions.count", @"private", @"SpringBoard->_continuousFoldCoordinator->_activeControllerAssertions.count", vpV(vpCFC ? @([(NSMapTable *)vpIvObj(vpCFC, @"_activeControllerAssertions") count]) : nil));
+vpAdd(@"SBContinuousFoldCoordinator._foldControllers.count", @"private", @"SpringBoard->_continuousFoldCoordinator->_foldControllers.count", vpV(vpCFC ? @([(NSHashTable *)vpIvObj(vpCFC, @"_foldControllers") count]) : nil));
+vpIvars(vpCFC, @"SBContinuousFoldCoordinator", @"SpringBoard->_continuousFoldCoordinator", @[@"_suppressionAssertion"]);
+Ivar vpSwIv = class_getInstanceVariable(object_getClass(vpSwap), "_currentSettings");
+long long *vpSwP = (long long *)((char *)(__bridge void *)vpSwap + ivar_getOffset(vpSwIv));
+vpAdd(@"SBDisplayToolServiceCoordinator._currentSettings.state", @"private", @"SBDisplayToolServiceCoordinator->_currentSettings.state", vpV(@(vpSwP[0])));
+vpIvars(vpSwap, @"SBDisplayToolServiceCoordinator", @"SBDisplayToolServiceCoordinator", @[@"_currentDirection", @"_replayIsRunning", @"_instantSwapIsRunning", @"_testLockExpiryTimer"]);
+// ---- device pose provider
+vpAdd(@"SBFDevicePoseProvider.description", @"private", @"[SBFDevicePoseProvider description]", vpV([vpPose description]));
+vpGetters(vpPose, @"SBFDevicePoseProvider", @"SBFDevicePoseProvider", @[@"isContinuousFoldEnabled", @"continuousFoldEffectProgress", @"likelyTransitionDelegate"]);
+for (NSString *vbox in @[@"_lock_currentDevicePoseBox", @"_lock_devicePoseBox"]) {
+  Ivar vbiv = class_getInstanceVariable(object_getClass(vpPose), vbox.UTF8String);
+  char *vbp = (char *)(__bridge void *)vpPose + ivar_getOffset(vbiv);
+  vpAdd([NSString stringWithFormat:@"SBFDevicePoseProvider.%@", vbox], @"private", [NSString stringWithFormat:@"SBFDevicePoseProvider->%@.devicePose {orientation@0, coverOrientation@8, innerOrientation@16, hinge.isAvailable@24, hinge.position@32, hinge.state@40}", vbox], vpV((@{@"orientation": @(*(long long *)vbp), @"coverOrientation": @(*(long long *)(vbp + 8)), @"innerOrientation": @(*(long long *)(vbp + 16)), @"hinge.isAvailable": (*(BOOL *)(vbp + 24) ? @YES : @NO), @"hinge.position": @(*(double *)(vbp + 32)), @"hinge.state": @(*(long long *)(vbp + 40))})));
+}
+NSObject *vpAccel = vpIvObj(vpPose, @"_accelerometer");
+vpGetters(vpAccel, @"BKSAccelerometer", @"SBFDevicePoseProvider->_accelerometer", @[@"currentDeviceOrientation", @"orientationEventsEnabled", @"passiveOrientationEvents"]);
+vpAdd(@"UIDevice.orientation", @"public", @"[[UIDevice currentDevice] orientation]", vpV(@([[UIDevice currentDevice] orientation])));
+vpAdd(@"UIApplication.activeInterfaceOrientation", @"private", @"[[UIApplication sharedApplication] activeInterfaceOrientation]", vpCall(vpApp, @"activeInterfaceOrientation"));
+// ---- settings domains
+vpProps(vpIvObj(vpPose, @"_settings"), @"SBFDevicePosePTSettings", @"SBFDevicePoseProvider->_settings", NSClassFromString(@"SBFDevicePosePTSettings"));
+NSObject *vpCFS = (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBDeviceContinuousFoldInteractionDomain"), @selector(rootSettings));
+vpAdd(@"SBDeviceContinuousFoldInteractionDomain.rootSettings.isDCMInstance", @"private", @"[SBDeviceContinuousFoldInteractionDomain rootSettings] == SBDisplayContentModeCoordinator->_continuousFoldSettings", vpV(@(vpCFS == vpIvObj(vpDCM, @"_continuousFoldSettings"))));
+vpProps(vpCFS, @"SBDeviceContinuousFoldInteractionSettings", @"[SBDeviceContinuousFoldInteractionDomain rootSettings]", NSClassFromString(@"SBDeviceContinuousFoldInteractionSettings"));
+NSObject *vpHMon = vpIvObj(vpApp, @"_hingeMotionUnintendedInteractionMonitor");
+vpProps(vpIvObj(vpHMon, @"_detectionSettings"), @"SBHingeMotionDetectionSettings", @"SpringBoard->_hingeMotionUnintendedInteractionMonitor->_detectionSettings", NSClassFromString(@"SBHingeMotionDetectionSettings"));
+vpIvars(vpHMon, @"SBHingeMotionUnintendedInteractionMonitor", @"SpringBoard->_hingeMotionUnintendedInteractionMonitor", @[@"_hingeMotionPastThreshold", @"_interactionSuppressionAssertion", @"_strictTouchCoverageAssertion", @"_detectionWindowBeganTimestamp", @"_motionBeganTimestamp", @"_motionEndedTimestamp"]);
+if (vpHMon) {
+  Ivar vriv = class_getInstanceVariable(object_getClass(vpHMon), "_referenceAngle");
+  char *vrp = (char *)(__bridge void *)vpHMon + ivar_getOffset(vriv);
+  vpAdd(@"SBHingeMotionUnintendedInteractionMonitor._referenceAngle", @"private", @"SpringBoard->_hingeMotionUnintendedInteractionMonitor->_referenceAngle {f min, f max, f angle, f velocity, B isAvailable, d timestamp}", vpV((@{@"minAngleDegrees": @(*(float *)vrp), @"maxAngleDegrees": @(*(float *)(vrp + 4)), @"angleDegrees": @(*(float *)(vrp + 8)), @"velocityDegreesPerSeconds": @(*(float *)(vrp + 12)), @"isAvailable": (*(BOOL *)(vrp + 16) ? @YES : @NO), @"timestamp": @(*(double *)(vrp + 24))})));
+}
+NSObject *vpYS = (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBDisplayYoinkingPTSettingsDomain"), @selector(rootSettings));
+vpProps(vpYS, @"SBDisplayYoinkingPTSettings", @"[SBDisplayYoinkingPTSettingsDomain rootSettings]", NSClassFromString(@"SBDisplayYoinkingPTSettings"));
+// ---- backlight
+NSObject *vpBLC = vpIvObj(vpApp, @"_backlightCoordinator");
+vpGetters(vpBLC, @"SBBacklightCoordinator", @"SpringBoard->_backlightCoordinator", @[@"aggregateBacklightState", @"pendingAggregateBacklightState", @"isAnyBacklightOn", @"aggregateBacklightStateExcludingPrewarms", @"pendingAggregateBacklightStateExcludingPrewarms", @"lastBacklightChangeSource", @"idleSleepPreventionInterval", @"_mostActiveBacklightState", @"_mostActivePendingBacklightState"]);
+vpAdd(@"SBBacklightCoordinator.backlightControllers", @"private", @"SpringBoard->_backlightCoordinator->_backlightControllers: windowScene/backlightState/screenIsOn", vpV(({ NSMutableArray *vl = [NSMutableArray array]; for (NSObject *vc in [(NSHashTable *)vpIvObj(vpBLC, @"_backlightControllers") allObjects]) [vl addObject:[NSString stringWithFormat:@"%@ state=%@ on=%@", vpLabel(vpObj(vc, @"windowScene")) ?: @"nil", vpCall(vc, @"backlightState")[@"v"], vpCall(vc, @"screenIsOn")[@"v"]]]; [vl sortUsingSelector:@selector(compare:)]; vl; })));
+vpAdd(@"SBBacklightCoordinator.targetBacklightControllersForActiveDim", @"private", @"[SpringBoard->_backlightCoordinator targetBacklightControllersForActiveDim]", vpV(({ NSMutableArray *vl = [NSMutableArray array]; for (NSObject *vc in (NSArray *)vpObj(vpBLC, @"targetBacklightControllersForActiveDim")) [vl addObject:vpLabel(vpObj(vc, @"windowScene")) ?: @"nil"]; [vl sortUsingSelector:@selector(compare:)]; vl; })));
+NSObject *vpBLHost = (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"BLSHBacklightHost"), NSSelectorFromString(@"sharedBacklightHost"));
+vpAdd(@"BLSHBacklightHost.sharedBacklightHost.class", @"private", @"[BLSHBacklightHost sharedBacklightHost] class", vpV(vpBLHost ? NSStringFromClass(object_getClass(vpBLHost)) : nil));
+vpGetters(vpBLHost, @"BLSHBacklightHost.sharedBacklightHost", @"[BLSHBacklightHost sharedBacklightHost]", @[@"backlightState", @"settledBacklightState", @"backlightDisplayMode", @"targetBacklightDisplayMode", @"flipbookState", @"isTransitioning", @"isAlwaysOnEnabled", @"deviceSupportsAlwaysOn", @"backlightStateDescription", @"display"]);
+NSArray *vpHosts = (NSArray *)vpIvObj(vpBLHost, @"_backlightHosts");
+for (NSUInteger vi = 0; vi < vpHosts.count; vi++) {
+  NSObject *vh = vpHosts[vi];
+  NSMutableDictionary *vd = [NSMutableDictionary dictionary];
+  vd[@"class"] = NSStringFromClass(object_getClass(vh));
+  for (NSString *vsn in @[@"backlightState", @"settledBacklightState", @"backlightDisplayMode", @"targetBacklightDisplayMode", @"isTransitioning", @"isAlwaysOnEnabled", @"display"]) vd[vsn] = vpCall(vh, vsn)[@"v"] ?: [NSNull null];
+  vpAdd(@"BLSHBacklightHost.sharedBacklightHost._backlightHosts", @"private", [NSString stringWithFormat:@"[BLSHBacklightHost sharedBacklightHost]->_backlightHosts[%lu]", (unsigned long)vi], vpV(vd));
+}
+NSObject *vpIdle = vpIvObj(vpApp, @"_idleTimerGlobalCoordinator");
+vpGetters(vpIdle, @"SBIdleTimerGlobalCoordinator", @"SpringBoard->_idleTimerGlobalCoordinator", @[@"isIdleTimerDisabled", @"idleTimer"]);
+vpIvars(vpIdle, @"SBIdleTimerGlobalCoordinator", @"SpringBoard->_idleTimerGlobalCoordinator", @[@"_enabledIdleTimerDescriptor", @"_idleTimerSourceEnabled", @"_currentDisablingClientBundleIdentifier"]);
+NSObject *vpLSM = (NSObject *)((id (*)(id, SEL))vpMsg)((id)NSClassFromString(@"SBLockScreenManager"), @selector(sharedInstance));
+vpGetters(vpLSM, @"SBLockScreenManager.sharedInstance", @"[SBLockScreenManager sharedInstance]", @[@"isUILocked", @"isLockScreenActive", @"isLockScreenVisible", @"isScreenOn", @"isWaitingToLockUI"]);
+NSDictionary *vpOut = @{@"orientation": @(((UIWindowScene *)vpPrimary).interfaceOrientation), @"records": vpRecs};
+NSError *vpErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:vpOut options:0 error:&vpErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpErr description]
+

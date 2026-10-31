@@ -1,0 +1,152 @@
+expr -l objc -O --
+NSMutableArray *vpRecs = [NSMutableArray array];
+void (^vpTrace)(NSString *) = ^(NSString *s) { [s writeToFile:@"/private/tmp/claude-501/-Users-Jacky--claude-spares-spare-SBbPAl/57b50db2-159e-4729-b15b-b24d84c6e854/scratchpad/vptrace.txt" atomically:NO encoding:NSUTF8StringEncoding error:nil]; };
+NSDictionary *(^vpRect)(CGRect) = ^NSDictionary *(CGRect r) { return @{@"x": @(r.origin.x), @"y": @(r.origin.y), @"width": @(r.size.width), @"height": @(r.size.height)}; };
+NSDictionary *(^vpSize)(CGSize) = ^NSDictionary *(CGSize s) { return @{@"width": @(s.width), @"height": @(s.height)}; };
+NSDictionary *(^vpPoint)(CGPoint) = ^NSDictionary *(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; };
+__block id (^vpJSON)(id);
+vpJSON = ^id(id vIn) { NSObject *v = (NSObject *)vIn;
+  if (!v) return [NSNull null];
+  if ([v isKindOfClass:[NSString class]]) return v;
+  if ([v isKindOfClass:[NSNumber class]]) {
+    double vd = [(NSNumber *)v doubleValue];
+    if (vd != vd || vd == INFINITY || vd == -INFINITY) return [(NSObject *)v description];
+    return v;
+  }
+  if ([v isKindOfClass:[NSValue class]]) {
+    const char *vt = [(NSValue *)v objCType];
+    if (strncmp(vt, "{CGRect=", 8) == 0) { CGRect r; [(NSValue *)v getValue:&r]; return vpRect(r); }
+    if (strncmp(vt, "{CGSize=", 8) == 0) { CGSize s; [(NSValue *)v getValue:&s]; return vpSize(s); }
+    if (strncmp(vt, "{CGPoint=", 9) == 0) { CGPoint p; [(NSValue *)v getValue:&p]; return vpPoint(p); }
+    return [(NSObject *)v description];
+  }
+  if ([v isKindOfClass:[NSArray class]] || [v isKindOfClass:[NSSet class]] || [v isKindOfClass:[NSOrderedSet class]]) {
+    NSMutableArray *va = [NSMutableArray array];
+    for (id vx in (NSArray *)v) [va addObject:vpJSON(vx)];
+    return va;
+  }
+  if ([v isKindOfClass:[NSDictionary class]]) {
+    NSMutableDictionary *vm = [NSMutableDictionary dictionary];
+    for (id vk in (NSDictionary *)v) vm[[(NSObject *)vk description]] = vpJSON([(NSDictionary *)v objectForKey:vk]);
+    return vm;
+  }
+  if ([v isKindOfClass:[NSUUID class]]) return [(NSUUID *)v UUIDString];
+  return [(NSObject *)v description];
+};
+void (^vpAdd)(NSString *, NSString *, NSString *, id, NSString *) = ^(NSString *api, NSString *kind, NSString *call, id value, NSString *error) {
+  [vpRecs addObject:@{@"api": api, @"kind": kind, @"call": call, @"value": value ? vpJSON(value) : [NSNull null], @"error": error ?: (value ? (id)[NSNull null] : (id)@"nil")}];
+};
+NSArray *vpDenyExact = @[@"dealloc", @"invalidate", @"update", @"updateDisplays", @"_finalize", @"_invalidate", @"init", @"_init", @".cxx_destruct", @".cxx_construct", @"copy", @"mutableCopy", @"immutableCopy", @"freeze", @"acquireFrozenSurface", @"activateReplay", @"rebuildModeList", @"removeAllClones", @"resetConfiguration", @"disableDICOM", @"willUnblank", @"commitPreset", @"unregisterNotificationBlocks", @"unregisterSyncNotificationBlocks", @"clearUpdateMask", @"initializeClientPort", @"acquireWirelessDisplayStateControl", @"_detectDisplays", @"_detectSimDisplays", @"removeAllDisplays", @"enableOutOfProcessDisplayObservation", @"updateBandWidthInfoForAllDisplays", @"stopServer", @"new", @"alloc", @"class", @"self", @"retain", @"release", @"autorelease", @"retainCount", @"zone", @"hash", @"superclass", @"debugDescription", @"description", @"succinctDescription", @"succinctDescriptionBuilder", @"descriptionBuilder", @"_availableModesInternal", @"copyForSecureRendering", @"cancelTouchesOnMainDisplay", @"cancelTouchesOnAllDisplays", @"prepareForRestart", @"updateTransformsWithCompletion", @"_postInitialBookendObserverConnections", @"_cleanup", @"_freeze", @"_startAnimating", @"_stopAnimating", @"copyPrivateRepresentation", @"initForProtobufDecoding", @"_queue_resetTouchAuthenticationInitialSampleEvent", @"layoutIfNeeded", @"setNeedsLayout", @"_copyDebugProperties", @"_dragManager", @"_focusSystem", @"_interactiveHighlightEnvironment", @"focusItemContainer", @"focusedItem", @"focusedView", @"parentFocusEnvironment", @"preferredFocusEnvironments", @"preferredFocusedView", @"_preferredFocusedWindow", @"_preferredFocusedWindowScene", @"_boundingPathUtilities", @"_carSession", @"supportsFocus", @"_SwiftUITesting_currentScreenScale", @"_SwiftUITesting_wantsWideContentMargins", @"__ck_isFullscreen", @"pu_workImageSize", @"px_currentEDRHeadroom", @"px_potentialEDRHeadroom", @"ck_screenSizeCategory", @"_mapkit_display", @"postBookendConnections", @"bookendObserver", @"observers"];
+NSArray *vpDenyPrefix = @[@"set", @"_set", @"remove", @"_remove", @"add", @"cancel", @"invalidate", @"_lock_", @"_workQueue_", @"_queue_", @"_post", @"_present", @"_dismiss", @"_update", @"_wrap", @"reevaluate", @"_begin", @"_end", @"begin", @"end", @"_prepare", @"_reset", @"reset", @"_flush", @"flush", @"_notify", @"_handle", @"_init", @"init", @"_copy", @"copy", @"_create", @"create", @"_install", @"_uninstall", @"_register", @"_unregister", @"register", @"unregister", @"_perform", @"perform", @"_apply", @"apply", @"_enable", @"_disable", @"_invalidate", @"_teardown", @"_start", @"_stop", @"start", @"stop", @"_send", @"send", @"_snapshot", @"snapshot", @"_dump", @"dump", @"_run", @"_schedule", @"_will", @"_did", @"_reload", @"reload", @"_force", @"_clear", @"clear", @"_release", @"_acquire", @"acquire", @"_take", @"_capture", @"_trigger", @"_request", @"request", @"_animate", @"_show", @"_hide", @"_attach", @"_detach", @"_connect", @"_disconnect", @"_present", @"_activate", @"_deactivate", @"_destroy", @"_purge", @"_close", @"_open", @"_save", @"_load", @"_make", @"make", @"_print", @"_log", @"_toggle", @"_test", @"_simulate", @"_fake", @"_debug"];
+NSArray *vpThrowSels = @[@"secureIndicatorsEnabled"];
+BOOL (^vpAllowed)(NSString *) = ^BOOL(NSString *sel) {
+  if ([vpThrowSels containsObject:sel]) return NO;
+  if ([sel rangeOfString:@":"].location != NSNotFound) return NO;
+  if ([vpDenyExact containsObject:sel]) return NO;
+  for (NSString *vp in vpDenyPrefix) if ([sel hasPrefix:vp]) return NO;
+  return YES;
+};
+id (^vpCall)(id, NSString *, NSString **) = ^id(id obj, NSString *sel, NSString **err) {
+  SEL vs = NSSelectorFromString(sel);
+  if (![(NSObject *)obj respondsToSelector:vs]) { *err = @"does not respond"; return (id)nil; }
+  Method vm = class_getInstanceMethod(object_getClass(obj), vs);
+  if (!vm) { *err = @"no method"; return (id)nil; }
+  if (method_getNumberOfArguments(vm) != 2) { *err = @"takes arguments"; return (id)nil; }
+  char vt[256]; method_getReturnType(vm, vt, sizeof(vt));
+  const char *vr = vt; while (*vr == 'r' || *vr == 'n' || *vr == 'N' || *vr == 'o' || *vr == 'O' || *vr == 'R' || *vr == 'V') vr++;
+  switch (vr[0]) {
+    case '@': if (vr[1] == '?') { *err = @"block"; return (id)nil; }
+      { id vo = ((id (*)(id, SEL))objc_msgSend)(obj, vs); if (!vo) *err = @"nil"; return vo; }
+    case '#': { Class vc = ((Class (*)(id, SEL))objc_msgSend)(obj, vs); return vc ? NSStringFromClass(vc) : (id)nil; }
+    case 'B': return @(((BOOL (*)(id, SEL))objc_msgSend)(obj, vs) ? YES : NO);
+    case 'c': return @(((signed char (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'C': return @(((unsigned char (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 's': return @(((short (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'S': return @(((unsigned short (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'i': return @(((int (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'I': return @(((unsigned int (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'l': return @(((long (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'L': return @(((unsigned long (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'q': return @(((long long (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'Q': return @(((unsigned long long (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'f': return @(((float (*)(id, SEL))objc_msgSend)(obj, vs));
+    case 'd': return @(((double (*)(id, SEL))objc_msgSend)(obj, vs));
+    case '{':
+      if (strncmp(vr, "{CGRect=", 8) == 0) return vpRect(((CGRect (*)(id, SEL))objc_msgSend)(obj, vs));
+      if (strncmp(vr, "{CGSize=", 8) == 0) return vpSize(((CGSize (*)(id, SEL))objc_msgSend)(obj, vs));
+      if (strncmp(vr, "{CGPoint=", 9) == 0) return vpPoint(((CGPoint (*)(id, SEL))objc_msgSend)(obj, vs));
+      if (strncmp(vr, "{UIEdgeInsets=", 14) == 0 || strncmp(vr, "{NSDirectionalEdgeInsets=", 25) == 0) { struct VPInsets { double a, b, c, d; } vi4 = ((struct VPInsets (*)(id, SEL))objc_msgSend)(obj, vs); return @{@"top": @(vi4.a), @"left": @(vi4.b), @"bottom": @(vi4.c), @"right": @(vi4.d)}; }
+      if (strncmp(vr, "{CGAffineTransform=", 19) == 0) { CGAffineTransform vx = ((CGAffineTransform (*)(id, SEL))objc_msgSend)(obj, vs); return @[@(vx.a), @(vx.b), @(vx.c), @(vx.d), @(vx.tx), @(vx.ty)]; }
+      if (strcmp(vr, "{?=ff}") == 0) { struct VPff { float a, b; } vf = ((struct VPff (*)(id, SEL))objc_msgSend)(obj, vs); return @[@(vf.a), @(vf.b)]; }
+      if (strcmp(vr, "{?={?=ff}{?=ff}{?=ff}{?=ff}}") == 0) { struct VPf8 { float a[8]; } vf8 = ((struct VPf8 (*)(id, SEL))objc_msgSend)(obj, vs); return @[@(vf8.a[0]), @(vf8.a[1]), @(vf8.a[2]), @(vf8.a[3]), @(vf8.a[4]), @(vf8.a[5]), @(vf8.a[6]), @(vf8.a[7])]; }
+      if (strncmp(vr, "{CAFrameRateRange=", 18) == 0) { struct VPfff { float a, b, c; } vf3 = ((struct VPfff (*)(id, SEL))objc_msgSend)(obj, vs); return @{@"minimum": @(vf3.a), @"maximum": @(vf3.b), @"preferred": @(vf3.c)}; }
+      *err = [NSString stringWithFormat:@"unsupported struct return %.60s", vr]; return (id)nil;
+    default: *err = [NSString stringWithFormat:@"unsupported return type %.60s", vr]; return (id)nil;
+  }
+};
+NSArray *(^vpGetters)(Class, Class) = ^NSArray *(Class cls, Class stop) {
+  char vrt[8];
+  NSMutableOrderedSet *vs = [NSMutableOrderedSet orderedSet];
+  for (Class vc = cls; vc && vc != stop && vc != [NSObject class]; vc = class_getSuperclass(vc)) {
+    unsigned int vn = 0;
+    objc_property_t *vp = class_copyPropertyList(vc, &vn);
+    for (unsigned int vi = 0; vi < vn; vi++) {
+      char *vg = property_copyAttributeValue(vp[vi], "G");
+      NSString *vgs = vg ? [NSString stringWithUTF8String:vg] : [NSString stringWithUTF8String:property_getName(vp[vi])];
+      if (vg) free(vg);
+      if (vpAllowed(vgs)) [vs addObject:vgs];
+    }
+    free(vp);
+    Method *vm = class_copyMethodList(vc, &vn);
+    for (unsigned int vi = 0; vi < vn; vi++) {
+      NSString *vsel = NSStringFromSelector(method_getName(vm[vi]));
+      method_getReturnType(vm[vi], vrt, sizeof(vrt)); if (vrt[0] == 'v') continue;
+      if (method_getNumberOfArguments(vm[vi]) == 2 && vpAllowed(vsel)) [vs addObject:vsel];
+    }
+    free(vm);
+  }
+  return [[vs array] sortedArrayUsingSelector:@selector(compare:)];
+};
+void (^vpDump)(id, NSString *, NSString *, NSString *, Class) = ^(id obj, NSString *apiClass, NSString *kind, NSString *callPrefix, Class stop) {
+  if (!obj) { vpAdd([apiClass stringByAppendingString:@".(object)"], kind, callPrefix, nil, @"object is nil"); return; }
+  vpAdd([apiClass stringByAppendingString:@".description"], kind, [callPrefix stringByAppendingString:@".description"], [(NSObject *)obj description], nil);
+  vpAdd([apiClass stringByAppendingString:@".class"], kind, [callPrefix stringByAppendingString:@".class"], NSStringFromClass([(NSObject *)obj class]), nil);
+  for (NSString *vsel in vpGetters([(NSObject *)obj class], stop)) {
+    vpTrace([NSString stringWithFormat:@"%@ %@", callPrefix, vsel]);
+    NSString *verr = nil;
+    id vv = vpCall(obj, vsel, &verr);
+    vpAdd([NSString stringWithFormat:@"%@.%@", apiClass, vsel], kind, [NSString stringWithFormat:@"%@.%@", callPrefix, vsel], vv, vv ? nil : verr);
+  }
+  for (NSString *vsel in vpThrowSels) if ([(NSObject *)obj respondsToSelector:NSSelectorFromString(vsel)]) vpAdd([NSString stringWithFormat:@"%@.%@", apiClass, vsel], kind, [NSString stringWithFormat:@"%@.%@", callPrefix, vsel], nil, @"raises an Objective-C exception in this process (not called)");
+};
+NSDictionary *(^vpObjDict)(id) = ^NSDictionary *(id objIn) {
+  NSMutableDictionary *vd = [NSMutableDictionary dictionary];
+  if (!objIn) return vd;
+  for (NSString *vsel in vpGetters([(NSObject *)objIn class], nil)) { vpTrace([NSString stringWithFormat:@"objdict %@ %@", NSStringFromClass([(NSObject *)objIn class]), vsel]); NSString *verr = nil; id vv = vpCall(objIn, vsel, &verr); vd[vsel] = vv ? vpJSON(vv) : [NSString stringWithFormat:@"<error: %@>", verr]; }
+  return vd;
+};
+void (^vpDumpSel)(id, NSString *, NSString *, NSString *, NSArray *) = ^(id obj, NSString *apiClass, NSString *kind, NSString *callPrefix, NSArray *sels) {
+  if (!obj) { vpAdd([apiClass stringByAppendingString:@".(object)"], kind, callPrefix, nil, @"object is nil"); return; }
+  for (NSString *vsel in sels) {
+    NSString *verr = nil;
+    id vv = vpCall(obj, vsel, &verr);
+    vpAdd([NSString stringWithFormat:@"%@.%@", apiClass, vsel], kind, [NSString stringWithFormat:@"%@.%@", callPrefix, vsel], vv, vv ? nil : verr);
+  }
+};
+id vpOrientation = nil;
+vpAdd(@"UIDevice.orientation", @"public", @"[[UIDevice currentDevice] orientation]", @((long)[[UIDevice currentDevice] orientation]), nil);
+NSMutableArray *vpSceneList = [NSMutableArray array];
+for (UIScene *vpSc in [[UIApplication sharedApplication] connectedScenes]) {
+  UIWindowScene *vpW = (UIWindowScene *)vpSc;
+  vpOrientation = @((long)vpW.interfaceOrientation);
+  [vpSceneList addObject:@{@"class": NSStringFromClass([vpSc class]), @"interfaceOrientation": @((long)vpW.interfaceOrientation), @"screenName": [(NSObject *)[vpW.screen valueForKey:@"_name"] description] ?: @"", @"displayIdentity": [(NSObject *)[vpW.screen valueForKey:@"displayIdentity"] description] ?: @"", @"coordinateSpaceBounds": vpRect(((CGRect (*)(id, SEL))objc_msgSend)((id)vpW.coordinateSpace, @selector(bounds))), @"screenBounds": vpRect(vpW.screen.bounds), @"screenNativeBounds": vpRect(vpW.screen.nativeBounds)}];
+}
+vpAdd(@"UIApplication.connectedScenes.summary", @"private", @"MobileSafari [[UIApplication sharedApplication] connectedScenes] -> {class, interfaceOrientation, screen._name, displayIdentity, coordinateSpace.bounds, screen.bounds, screen.nativeBounds}", vpSceneList, nil);
+NSArray *vpScreens = [UIScreen screens];
+NSMutableArray *vpSL = [NSMutableArray array];
+for (UIScreen *vpS in vpScreens) [vpSL addObject:@{@"name": [(NSObject *)[vpS valueForKey:@"_name"] description] ?: @"", @"bounds": vpRect(vpS.bounds), @"nativeBounds": vpRect(vpS.nativeBounds), @"scale": @(vpS.scale), @"displayIdentity": [(NSObject *)[vpS valueForKey:@"displayIdentity"] description] ?: @"", @"_interfaceOrientation": [vpS valueForKey:@"_interfaceOrientation"]}];
+vpAdd(@"UIScreen.screens.summary", @"public", @"MobileSafari [UIScreen screens] -> {_name, bounds, nativeBounds, scale, displayIdentity, _interfaceOrientation}", vpSL, nil);
+NSError *vpJErr = nil;
+NSData *vpData = [NSJSONSerialization dataWithJSONObject:@{@"orientation": vpOrientation ?: [NSNull null], @"records": vpRecs} options:0 error:&vpJErr];
+vpData ? [[NSString alloc] initWithData:vpData encoding:NSUTF8StringEncoding] : [vpJErr description]
+

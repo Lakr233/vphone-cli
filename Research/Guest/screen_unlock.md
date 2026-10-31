@@ -170,6 +170,41 @@ work would mean changing how the guest's keystore is provisioned at restore
 and boot, which this note does not attempt. Until then a passcode guest
 cannot be made, and `screen.unlock`'s passcode path cannot be run.
 
+## Tap to wake
+
+A phone's touch controller reports a tap on a dark screen as a wake gesture,
+and SpringBoard lights the Lock Screen for it. The VM's touchscreen has no
+such gesture, so a click in the window on a dark guest did nothing.
+
+vphoned (`vp_tap_to_wake_start` in `vphoned_unlock.m`,
+`GuestScreenUnlock.startTapToWake`) watches
+`com.apple.springboard.hasBlankedScreen`. While it is set, an
+`IOHIDEventSystemClient` of the monitor type (vphoned has
+`com.apple.private.hid.client.event-monitor`) sees every HID event, and a
+digitizer event with `kIOHIDEventFieldDigitizerTouch` set (at most one every
+half second) wakes the screen:
+
+1. `SBSUndimScreen`.
+2. If the screen is still dark 0.5 s later, one side-button press
+   (consumer `0x30`), at most one every 1.5 s so two never make a Wallet
+   double-click. On a dark screen the side button only wakes it.
+
+Home is never pressed, so the guest stays on its Lock Screen. The client is
+released when the notify state clears. It works for every touch source the
+guest's HID system sees: the VM window, a Launchpad viewer, `input.tap`.
+backboardd itself drops the waking touch (`ignoring touch event ((backlight
+dim/off))`), so the tap never reaches what is under it.
+
+On iOS 27.1 (24A94425, `waketest-iphone`, 2026-10-29) SpringBoard refuses
+`SBSUndimScreen` from vphoned: `_SBXXDimScreen Authentication failed:
+Process lacks credentials to access this resource.` So step 2 is what lights
+the screen there, and on that build `screen.unlock` and icli's `wake` light
+it only through their Home-press fallback. Which entitlement the MIG
+handler checks has not been looked up.
+
+The Controls panel's Wake button is different: it is icli's `wake`, which
+presses Home after `SBSUndimScreen` until a passcode-free guest is unlocked.
+
 ## Not yet measured
 
 - **Passcode guests.** vphone does not support a passcode (see "Why a

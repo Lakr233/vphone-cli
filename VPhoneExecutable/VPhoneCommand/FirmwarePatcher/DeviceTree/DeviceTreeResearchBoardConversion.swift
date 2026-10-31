@@ -300,7 +300,7 @@ extension DeviceTreePatcher {
         return String(decoding: property.value.prefix { $0 != 0 }, as: UTF8.self)
     }
 
-    private static func maximumPhandle(in node: DTNode) -> UInt32 {
+    static func maximumPhandle(in node: DTNode) -> UInt32 {
         let own = node.properties.first { $0.name == "AAPL,phandle" && $0.value.count == 4 }
             .map { $0.value.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)) } } ?? 0
         return node.children.map(maximumPhandle(in:)).reduce(own, max)

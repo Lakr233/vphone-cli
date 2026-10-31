@@ -1,0 +1,13 @@
+id vpOrientation = nil;
+vpAdd(@"UIDevice.orientation", @"public", @"[[UIDevice currentDevice] orientation]", @((long)[[UIDevice currentDevice] orientation]), nil);
+NSMutableArray *vpSceneList = [NSMutableArray array];
+for (UIScene *vpSc in [[UIApplication sharedApplication] connectedScenes]) {
+  UIWindowScene *vpW = (UIWindowScene *)vpSc;
+  vpOrientation = @((long)vpW.interfaceOrientation);
+  [vpSceneList addObject:@{@"class": NSStringFromClass([vpSc class]), @"interfaceOrientation": @((long)vpW.interfaceOrientation), @"screenName": [(NSObject *)[vpW.screen valueForKey:@"_name"] description] ?: @"", @"displayIdentity": [(NSObject *)[vpW.screen valueForKey:@"displayIdentity"] description] ?: @"", @"coordinateSpaceBounds": vpRect(((CGRect (*)(id, SEL))objc_msgSend)((id)vpW.coordinateSpace, @selector(bounds))), @"screenBounds": vpRect(vpW.screen.bounds), @"screenNativeBounds": vpRect(vpW.screen.nativeBounds)}];
+}
+vpAdd(@"UIApplication.connectedScenes.summary", @"private", @"MobileSafari [[UIApplication sharedApplication] connectedScenes] -> {class, interfaceOrientation, screen._name, displayIdentity, coordinateSpace.bounds, screen.bounds, screen.nativeBounds}", vpSceneList, nil);
+NSArray *vpScreens = [UIScreen screens];
+NSMutableArray *vpSL = [NSMutableArray array];
+for (UIScreen *vpS in vpScreens) [vpSL addObject:@{@"name": [(NSObject *)[vpS valueForKey:@"_name"] description] ?: @"", @"bounds": vpRect(vpS.bounds), @"nativeBounds": vpRect(vpS.nativeBounds), @"scale": @(vpS.scale), @"displayIdentity": [(NSObject *)[vpS valueForKey:@"displayIdentity"] description] ?: @"", @"_interfaceOrientation": [vpS valueForKey:@"_interfaceOrientation"]}];
+vpAdd(@"UIScreen.screens.summary", @"public", @"MobileSafari [UIScreen screens] -> {_name, bounds, nativeBounds, scale, displayIdentity, _interfaceOrientation}", vpSL, nil);

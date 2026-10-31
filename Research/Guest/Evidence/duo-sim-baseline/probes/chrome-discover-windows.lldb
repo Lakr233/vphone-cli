@@ -1,0 +1,12 @@
+expr -l objc -O --
+NSMutableArray *vpOut = [NSMutableArray array];
+for (UIScene *vpSc in [[UIApplication sharedApplication] connectedScenes]) {
+  [vpOut addObject:[NSString stringWithFormat:@"SCENE %@ %@ id=%@", NSStringFromClass([vpSc class]), vpSc.session.persistentIdentifier, [(NSObject *)[[(UIWindowScene *)vpSc screen] valueForKey:@"displayIdentity"] description]]];
+  if (![vpSc isKindOfClass:[UIWindowScene class]]) continue;
+  UIWindowScene *vpWS = (UIWindowScene *)vpSc;
+  [vpOut addObject:[NSString stringWithFormat:@"  orient=%ld screenBounds=%@", (long)vpWS.interfaceOrientation, NSStringFromCGRect(vpWS.screen.bounds)]];
+  for (UIWindow *vpW in vpWS.windows) {
+    [vpOut addObject:[NSString stringWithFormat:@"  WIN %@ %p frame=%@ level=%.0f hidden=%d alpha=%.2f key=%d subviews=%lu root=%@", NSStringFromClass([vpW class]), vpW, NSStringFromCGRect(vpW.frame), vpW.windowLevel, vpW.hidden, vpW.alpha, vpW.isKeyWindow, (unsigned long)vpW.subviews.count, vpW.rootViewController ? NSStringFromClass([vpW.rootViewController class]) : @"-"]];
+  }
+}
+[vpOut componentsJoinedByString:[NSString stringWithFormat:@"%c", 10]]

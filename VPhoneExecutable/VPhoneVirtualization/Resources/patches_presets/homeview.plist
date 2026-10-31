@@ -98,11 +98,12 @@
 			<string>kernel-exp-hv_vmm</string>
 			<string>kernel-exp-tv_tpro_pagers</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
+			<string>preboot-cfw-devicetree_foldable_displays</string>
+			<string>preboot-cfw-devicetree_foldable_product_id</string>
 			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_haptics</string>
 			<string>preboot-cfw-devicetree_iphone_product</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
-			<string>preboot-exp-devicetree_foldable_product_id</string>
 			<string>preboot-exp-devicetree_identity</string>
 			<string>preboot-homepod-exp-audio_product</string>
 			<string>preboot-homepod-exp-cryptex_class</string>
@@ -121,6 +122,7 @@
 			<string>system-dyld-exp-tv_tpro</string>
 			<string>system-exp-ota_userland</string>
 			<string>system-fsck-boot-arm64e_x1_bootstrap</string>
+			<string>system-homepod-exp-airplay_vm</string>
 			<string>system-homepod-exp-ota_userland</string>
 			<string>system-homepod-exp-setup_bypass</string>
 			<string>system-homepod-exp-siri_speech</string>

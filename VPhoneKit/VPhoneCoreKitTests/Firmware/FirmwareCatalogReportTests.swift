@@ -149,8 +149,8 @@ struct FirmwareCatalogReportTests {
 
     @Test func `HomePod mini pairs its native 27 IPSW with cloudOS without an OTA base`() throws {
         let pairings = VPhoneFirmwareCatalog.pairings(for: "AudioAccessory5,1", hostMacOS: 27)
-        #expect(pairings.count == 2)
-        let pairing = try #require(pairings.first)
+        #expect(pairings.map(\.iosName) == ["HomePod Software 26.5", "HomePod Software 27.0", "HomePod Software 27.2"])
+        let pairing = pairings[1]
         #expect(pairing.device == "AudioAccessory5,1")
         #expect(pairing.iosName == "HomePod Software 27.0")
         #expect(pairing.iosURL == "https://updates.cdn-apple.com/2026SFallFCS/a595a3b2-2c42-470a-9417-a705aaafa05c/AudioAccessory5,1_27.0_24J361_Restore.ipsw")
@@ -163,10 +163,19 @@ struct FirmwareCatalogReportTests {
 
         let device = try #require(VPhoneFirmwareCatalog.report.devices.first { $0.productType == "AudioAccessory5,1" })
         #expect(device.family == "homePod" && device.name == "HomePod mini")
-        let entry = try #require(device.pairings.first)
+        let entry = device.pairings[1]
         #expect(entry.ios.name == pairing.iosName && entry.ios.url == pairing.iosURL)
         #expect(entry.ios.build == nil && entry.ios.files == nil)
         #expect(entry.recommendedCloudOS.url == VPhoneFirmwareCatalog.cloud264)
+    }
+
+    @Test func `HomePod mini 26 point 5 pairs with the research board cloudOS its kernelcache recipe covers`() throws {
+        let pairing = try #require(VPhoneFirmwareCatalog.pairings(for: "AudioAccessory5,1").first)
+        #expect(pairing.iosName == "HomePod Software 26.5")
+        #expect(pairing.iosURL.hasSuffix("/AudioAccessory5,1_26.5_23L471_Restore.ipsw"))
+        #expect(pairing.cloudosName == "cloudOS 26.5 (23F75)")
+        #expect(pairing.cloudosURL == VPhoneFirmwareCatalog.researchBoardCloudOS(forVersion: "26.5")?.url)
+        #expect(VPhoneFirmwareCatalog.otaRelease(source: pairing.iosURL) == nil)
     }
 
     @Test func `HomePod 27 point 2 takes its full ZIP OTA over its own 27 IPSW`() throws {
@@ -175,12 +184,15 @@ struct FirmwareCatalogReportTests {
         #expect(release.key == nil && release.size == 3_051_441_612)
         #expect(release.fileName == "AudioAccessory5,1_27.2_24K120_OTA.zip")
         let pairings = VPhoneFirmwareCatalog.pairings(for: release.productType, hostMacOS: 27)
-        #expect(VPhoneFirmwareCatalog.restoreBaseURL(for: release) == pairings[0].iosURL)
-        #expect(pairings[1].iosURL == release.url)
+        let base = try #require(pairings.first { $0.iosName == "HomePod Software 27.0" })
+        let ota = try #require(pairings.first { $0.iosName == "HomePod Software 27.2" })
+        #expect(VPhoneFirmwareCatalog.restoreBaseURL(for: release) == base.iosURL)
+        #expect(ota.iosURL == release.url && ota.cloudosURL == VPhoneFirmwareCatalog.cloud264)
         #expect(VPhoneFirmwareCatalog.otaRelease(source: "/cache/ota/\(release.fileName)") == release)
         let device = try #require(VPhoneFirmwareCatalog.report(hostMacOS: 27).devices.first { $0.productType == release.productType })
-        #expect(device.pairings[1].ios.build == "24K120")
-        #expect(device.pairings[1].ios.files == ["ota/\(release.fileName)", (pairings[0].iosURL as NSString).lastPathComponent])
+        let entry = try #require(device.pairings.first { $0.ios.url == release.url })
+        #expect(entry.ios.build == "24K120")
+        #expect(entry.ios.files == ["ota/\(release.fileName)", (base.iosURL as NSString).lastPathComponent])
     }
 
     @Test func `a Mac before macOS 27 is offered no OTA it cannot unpack`() throws {
@@ -196,7 +208,7 @@ struct FirmwareCatalogReportTests {
             #expect(!release.unpacks(onMacOS: 26) && release.unpacks(onMacOS: 27))
         }
         #expect(VPhoneFirmwareCatalog.pairings(for: "AppleTV14,1", hostMacOS: 26).map(\.iosName) == ["tvOS 26.6"])
-        #expect(VPhoneFirmwareCatalog.pairings(for: "AudioAccessory5,1", hostMacOS: 26).map(\.iosName) == ["HomePod Software 27.0"])
+        #expect(VPhoneFirmwareCatalog.pairings(for: "AudioAccessory5,1", hostMacOS: 26).map(\.iosName) == ["HomePod Software 26.5", "HomePod Software 27.0"])
         let report = VPhoneFirmwareCatalog.report(hostMacOS: 26)
         let tv4K = try #require(report.devices.first { $0.productType == "AppleTV14,1" })
         #expect(tv4K.pairings.map(\.ios.name) == ["tvOS 26.6"])
@@ -278,6 +290,17 @@ struct FirmwareCatalogReportTests {
             let version = p.iosName.replacingOccurrences(of: "iPadOS ", with: "")
             #expect(iPhone[version] == p.cloudosURL, "\(version)")
         }
+    }
+
+    @Test func `a resolved release gets its pairing's cloud OS, else its version's`() {
+        for p in VPhoneFirmwareCatalog.pairings {
+            let version = String(p.iosName.dropFirst("iOS ".count))
+            #expect(VPhoneFirmwareCatalog.recommendedCloudOS(forDevice: "iPhone17,3", version: version, url: p.iosURL).url == p.cloudosURL)
+        }
+        // A curated pairing wins over the version rule, by URL or by name.
+        #expect(VPhoneFirmwareCatalog.recommendedCloudOS(forDevice: "iPhone17,3", version: "18.6.2", url: "").url == VPhoneFirmwareCatalog.cloud261)
+        #expect(VPhoneFirmwareCatalog.recommendedCloudOS(forDevice: "iPhone17,3", version: "26.2.9", url: "").url == VPhoneFirmwareCatalog.cloud262)
+        #expect(VPhoneFirmwareCatalog.recommendedCloudOS(forDevice: "AppleTV5,3", version: "26.1", url: "").url == VPhoneFirmwareCatalog.cloud264)
     }
 
     @Test func `round trips JSON`() throws {
