@@ -58,6 +58,40 @@ static void vpSetInnerDisplayProMotionMode(id display) {
     vpFoldDisplayLog([NSString stringWithFormat:@"inner display: 120 Hz mode %@", set ? @"set" : @"refused"]);
 }
 
+// A render display's point scale is what every client's CADisplay.pointScale,
+// FBSDisplayMode and UIScreen.scale start from. A hardware display takes it
+// from its panel; a virtual display is created at 1, and a process outside
+// SpringBoard (XCTest, so WebDriverAgent; vphoned) saw the inner panel at 1x.
+// Only a client holding com.apple.QuartzCore.displayable-context may change
+// it, which backboardd does, through the render server once that runs: from
+// inside _detectDisplays a CADisplay call never returns. A client keeps the
+// scale it first read, so this runs as soon as the server answers, before
+// SpringBoard or any application starts.
+static void vpSetInnerDisplayPointScale(unsigned int attempt) {
+    Method set = class_getInstanceMethod(objc_getClass("CADisplay"), sel_registerName("setDisplayProperties:"));
+    Method scale = class_getInstanceMethod(objc_getClass("CADisplayProperties"), sel_registerName("setPointScale:"));
+    if (!set || !scale || strcmp(method_getTypeEncoding(set), "B24@0:8@16") != 0 ||
+        strcmp(method_getTypeEncoding(scale), "v24@0:8Q16") != 0) {
+        vpFoldDisplayLog(@"inner display: point scale ABI unavailable, staying at 1x");
+        return;
+    }
+    id inner = nil;
+    for (id display in vpReadObject(objc_getClass("CADisplay"), "displays") ?: @[])
+        if ([vpReadObject(display, "name") isEqual:vpInnerDisplayName]) inner = display;
+    if (!inner) {
+        if (attempt < 20)
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 4), dispatch_get_main_queue(),
+                ^{ vpSetInnerDisplayPointScale(attempt + 1); });
+        else
+            vpFoldDisplayLog(@"inner display: not among the render server's displays, staying at 1x");
+        return;
+    }
+    id properties = [objc_getClass("CADisplayProperties") new];
+    ((void (*)(id, SEL, unsigned long long))objc_msgSend)(properties, sel_registerName("setPointScale:"), 3);
+    BOOL accepted = ((BOOL (*)(id, SEL, id))objc_msgSend)(inner, sel_registerName("setDisplayProperties:"), properties);
+    vpFoldDisplayLog([NSString stringWithFormat:@"inner display: point scale 3 %@", accepted ? @"sent" : @"refused"]);
+}
+
 // Adds the inner panel's render display to a render server, once. It is
 // never removed: FrontBoard keeps identities for the life of the monitor.
 static BOOL vpAddInnerRenderDisplayToServer(id server) {
@@ -89,7 +123,10 @@ static BOOL vpAddInnerRenderDisplayToServer(id server) {
             ((void (*)(id, SEL, BOOL))objc_msgSend)(display, setEnabled, YES);
         vpTagUnknownDisplay(display);
         vpInnerRenderDisplay = display;
-        dispatch_async(dispatch_get_main_queue(), ^{ vpShareInnerDisplayPages(display); });
+        dispatch_async(dispatch_get_main_queue(), ^{
+            vpSetInnerDisplayPointScale(0);
+            vpShareInnerDisplayPages(display);
+        });
         vpFoldDisplayLog([NSString stringWithFormat:@"inner display: render display added %@ uniqueId=%@", display,
             [display respondsToSelector:sel_registerName("uniqueId")] ? [display valueForKey:@"uniqueId"] : @"-"]);
         return YES;

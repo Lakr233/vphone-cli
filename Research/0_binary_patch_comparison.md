@@ -620,6 +620,18 @@
 >   `libdevicehubfix`'s CMAngleManager stand-in steps aside when CoreMotion's
 >   own manager is available.
 
+> **Inner display point scale (2026-10-31, issue #784):**
+> `system-springboard-cfw-fold_display`'s `libvphonefolddisplay` now has
+> backboardd send `-[CADisplay setDisplayProperties:]` with `pointScale` 3
+> for the inner virtual display as soon as the render server answers. A
+> virtual display is created at point scale 1 and only SpringBoard's adapter
+> answered 3, so a process outside SpringBoard (XCTest under WebDriverAgent,
+> vphoned) saw the inner panel at 1x or 2x. The server takes the scale only
+> from a caller with `com.apple.QuartzCore.displayable-context`: backboardd's
+> request took, SpringBoard's changed nothing. No patch was added or
+> changed; see `Research/Guest/iphone_duo_bringup.md`, "the inner display's
+> point scale, for every process".
+
 > **SpringBoard fold-guard (2026-10-25):** `system-springboard-cfw-fold_guard`
 > (guest system set, on in `standard`, blocked in `tvos`, `tvos-4k` and
 > `homepod-mini`, foldable guests only, iOS 27+; installs
