@@ -66,7 +66,8 @@ static void vpSetInnerDisplayProMotionMode(id display) {
 // it, which backboardd does, through the render server once that runs: from
 // inside _detectDisplays a CADisplay call never returns. A client keeps the
 // scale it first read, so this runs as soon as the server answers, before
-// SpringBoard or any application starts.
+// any application starts. SpringBoard runs by then and has read 1, which is
+// why its adapter still answers 3 for the inner display.
 static void vpSetInnerDisplayPointScale(unsigned int attempt) {
     Method set = class_getInstanceMethod(objc_getClass("CADisplay"), sel_registerName("setDisplayProperties:"));
     Method scale = class_getInstanceMethod(objc_getClass("CADisplayProperties"), sel_registerName("setPointScale:"));

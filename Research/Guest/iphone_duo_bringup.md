@@ -5138,17 +5138,24 @@ Where the value lives (iOS 27.1 QuartzCore, 24A94425):
 So backboardd sends `pointScale` 3 for the inner display as soon as its
 render server answers (`vpSetInnerDisplayPointScale`, on the main queue after
 `_detectDisplays`, since a CADisplay call from inside that never returns), a
-second after the display is added and before SpringBoard and applications
-start. The SpringBoard adapter's answer stays: it changes nothing now, and
-covers a SpringBoard that read first.
+second after the display is added and before applications start. SpringBoard
+is already running by then (its adapter logs a second before the display is
+added) and reads the inner display at 1, so the adapter's answer stays. A
+build without it came up after a cold boot on the Trust alert over a bare
+backdrop with the status column on its side and no Home Screen, twice; the
+same machine on the previous bundle reached the Home Screen (seen on
+duoscale-784).
 
 Measured on sbdisplay-duo after a backboardd restart and after a cold boot
 with the new bundle: vphoned's `display.modes` gives the inner display
 `pointScale` 3 (display type still 3, virtual: no property sets it); a fresh
 Settings has `CADisplay.pointScale` 3, `UIScreen` 951×669 at scale 3 and
-`FBSDisplayMode 669x951@3x (2007x2853/3)`, so SpringBoard too read 3 first;
-the Home Screen on both panels draws as before and taps open apps on both.
-An application started while the device is closed lists only the cover's
-`UIScreen`, and one started while open lists both, in the same boot. Not run: WebDriverAgent itself,
-and #784's secondary points (`hingeAngle` POST, and the empty `Wireless`
-displays, type 2 at 0×0, that WDA lists at 1408×2048 @2).
+`FBSDisplayMode 669x951@3x (2007x2853/3)`, and the inner `CADisplayMode`'s
+`preferredScale` is 3 (the empty `Wireless` displays' is 2). testmanagerd
+reports that value as `XCUIScreen.scale` (found on duoscale-784). The Home
+Screen on both panels draws as before and taps open apps on both. An
+application started while the device is closed lists only the cover's
+`UIScreen`, and one started while open lists both, in the same boot. Not
+run: WebDriverAgent itself, and #784's secondary points (`hingeAngle` POST,
+and the empty `Wireless` displays, type 2 at 0×0, that WDA lists at
+1408×2048 @2).
