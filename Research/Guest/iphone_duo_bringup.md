@@ -5106,3 +5106,56 @@ surface (`willUnblank` never runs: the panel goes off by display state). So
 `display.orientation` reports `screen_off`, and the VM window covers the
 panel with black while it is off and for 0.3 s after it comes on. Both wakes
 now go from black to the lock screen (60 fps capture).
+
+## 2026-10-31: the inner display's point scale, for every process
+
+Issue #784: WebDriverAgent saw the inner display at scale 2 (logical
+1426.5×1003.5) and captured it at 1x in a corner, and vphoned's
+`display.modes` said `pointScale` 1. Only SpringBoard saw 3, through the
+adapter's `-[CADisplay pointScale]` answer; applications took 3 from
+SpringBoard's display configuration. Every other process (XCTest's, vphoned)
+read the render display itself, which a virtual display creates at 1. The
+raw scale also showed in SpringBoard's own mode:
+`FBSDisplayMode 669x951@3x (2007x2853/2(3.0))`.
+
+Where the value lives (iOS 27.1 QuartzCore, 24A94425):
+
+- A client's `-[CADisplay pointScale]` is the published display info's field
+  0x310 (`CA::Display::Display::update`), which
+  `CA::WindowServer::Display::build_display_info_data` copies from the server
+  display's field 0x94. `Display`'s constructor sets 1, `AppleDisplay`'s takes
+  the panel's; `kCAVirtualDisplay*` options have no scale.
+- The only other writer is `Server::set_display_properties`, reached by
+  `-[CADisplay setDisplayProperties:]` with `-[CADisplayProperties
+  setPointScale:]` (update mask 0x20, 1 to 4), which republishes the info.
+  `_CASSetDisplayProperties` clears mask bits 0x10 and 0x20 unless the
+  caller's audit flags have bit 1, `com.apple.QuartzCore.displayable-context`
+  in `entitlements_for_audit_token`'s table. Sent from SpringBoard it changed
+  nothing; from backboardd it took.
+- A client keeps the scale it first read: a running Settings and vphoned
+  still said 1 after the change, a relaunched Settings 3.
+
+So backboardd sends `pointScale` 3 for the inner display as soon as its
+render server answers (`vpSetInnerDisplayPointScale`, on the main queue after
+`_detectDisplays`, since a CADisplay call from inside that never returns), a
+second after the display is added and before applications start. SpringBoard
+is already running by then (its adapter logs a second before the display is
+added) and reads the inner display at 1, so the adapter's answer stays. A
+build without it came up after a cold boot on the Trust alert over a bare
+backdrop with the status column on its side and no Home Screen, twice; the
+same machine on the previous bundle reached the Home Screen (seen on
+duoscale-784).
+
+Measured on sbdisplay-duo after a backboardd restart and after a cold boot
+with the new bundle: vphoned's `display.modes` gives the inner display
+`pointScale` 3 (display type still 3, virtual: no property sets it); a fresh
+Settings has `CADisplay.pointScale` 3, `UIScreen` 951×669 at scale 3 and
+`FBSDisplayMode 669x951@3x (2007x2853/3)`, and the inner `CADisplayMode`'s
+`preferredScale` is 3 (the empty `Wireless` displays' is 2). testmanagerd
+reports that value as `XCUIScreen.scale` (found on duoscale-784). The Home
+Screen on both panels draws as before and taps open apps on both. An
+application started while the device is closed lists only the cover's
+`UIScreen`, and one started while open lists both, in the same boot. Not
+run: WebDriverAgent itself, and #784's secondary points (`hingeAngle` POST,
+and the empty `Wireless` displays, type 2 at 0×0, that WDA lists at
+1408×2048 @2).
