@@ -116,6 +116,11 @@
 			<string>system-tv-exp-legacy_setup</string>
 			<string>system-exp-ota_userland</string>
 			<string>system-springboard-exp-ios17_desktop</string>
+			<string>system-launchd-exp-ios16_mach_ports</string>
+			<string>dyld-exp-ios16_mach_ports_lookup</string>
+			<string>system-backboard-exp-ios16_migration</string>
+			<string>system-keybag-exp-ios16_ephemeral</string>
+			<string>system-springboard-exp-ios16_desktop</string>
 		</array>
 	</dict>
 	<key>Summary</key>

@@ -94,6 +94,11 @@
 		<key>Patches</key>
 		<array>
 			<string>system-springboard-exp-ios17_desktop</string>
+			<string>system-launchd-exp-ios16_mach_ports</string>
+			<string>dyld-exp-ios16_mach_ports_lookup</string>
+			<string>system-backboard-exp-ios16_migration</string>
+			<string>system-keybag-exp-ios16_ephemeral</string>
+			<string>system-springboard-exp-ios16_desktop</string>
 			<string>system-userprofilesd-exp-keybag_lookup</string>
 			<string>system-breadboard-exp-mach_lookup</string>
 			<string>system-homeview-exp-setup_bypass</string>

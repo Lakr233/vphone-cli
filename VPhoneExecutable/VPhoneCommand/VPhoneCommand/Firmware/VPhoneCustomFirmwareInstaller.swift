@@ -1324,6 +1324,10 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.hinge
                     && identifier != FirmwareGuestSystemPatchSet.foldGuard
                     && identifier != FirmwareGuestSystemPatchSet.ios17Desktop
+                    && identifier != FirmwareGuestSystemPatchSet.ios16MachPorts
+                    && identifier != FirmwareGuestSystemPatchSet.ios16Migration
+                    && identifier != FirmwareGuestSystemPatchSet.ios16Desktop
+                    && identifier != FirmwareGuestSystemPatchSet.ios16Keybag
             }
             guard plan.isEnabled(identifier) else {
                 print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
@@ -1719,10 +1723,12 @@ struct VPhoneCustomFirmwareInstaller {
         // iOS 17 does not reliably propagate the spawn hook to SpringBoard.
         // Keep the weak load owned by this selection, with the original binary
         // backed up by the same mechanism as the other executable patches.
-        let desktop = FirmwareGuestSystemPatchSet.ios17Desktop
+        for (desktop, path, library) in [
+            (FirmwareGuestSystemPatchSet.ios17Desktop, "System/Library/CoreServices/SpringBoard.app/SpringBoard", "libvphoneios17desktop.dylib"),
+            (FirmwareGuestSystemPatchSet.ios16Migration, "usr/libexec/backboardd", "libvphoneios16migration.dylib"),
+            (FirmwareGuestSystemPatchSet.ios16Desktop, "System/Library/CoreServices/SpringBoard.app/SpringBoard", "libvphoneios16desktop.dylib"),
+        ] {
         isolate([desktop]) {
-            let path = "System/Library/CoreServices/SpringBoard.app/SpringBoard"
-            let library = "libvphoneios17desktop.dylib"
             if on(desktop) {
                 try system.replaceFile("usr/lib/" + library, fromFileAt: VPhoneGuestBinaries.resolve(library), mode: 0o755, owner: Self.guestOwner)
                 try patchMachO(system: system, work: work, path: path,
@@ -1732,11 +1738,12 @@ struct VPhoneCustomFirmwareInstaller {
                 if priorGuest.contains(desktop) {
                     guard try revertMachO(system: system, work: work, path: path) else {
                         live.insert(desktop)
-                        throw ValidationError("iOS 17 desktop workaround has no SpringBoard backup; cannot safely remove its library.")
+                        throw ValidationError("\(desktop) has no \(path) backup; cannot safely remove its library.")
                     }
                 }
                 try system.removeItem("usr/lib/" + library)
             }
+        }
         }
 
         // 2. The dyld shared cache. The version branches and the declarations'
@@ -1757,6 +1764,7 @@ struct VPhoneCustomFirmwareInstaller {
             dyld.append(("dyld-boot-iomfb_swapend", "patch-iomfb-swapend", [dsc, "--target-size", "0x560"]))
         }
         dyld += [
+            (FirmwareGuestSystemPatchSet.ios16PortsLookup, "patch-ios16-mach-ports", [dsc]),
             (FirmwareGuestSystemPatchSet.homeViewEnvironmentService, "patch-homeview-environment", [dsc]),
             (FirmwareGuestSystemPatchSet.settingsSoftwareUpdate, "patch-settings-software-update", [dsc]),
             (FirmwarePatchSetCatalog.misTrustAuthPatch, "patch-mis-trust-auth", [dsc]),
@@ -1873,6 +1881,17 @@ struct VPhoneCustomFirmwareInstaller {
         }
 
         machO("system-seputil-boot-gigalocker_uuid", path: "usr/libexec/seputil", verbs: ["patch-seputil"], codeIdentifier: "com.apple.seputil")
+        let keybag = FirmwareGuestSystemPatchSet.ios16Keybag
+        let keybagMarker = String(FirmwareGuestSystemPatchSet.ios16KeybagMarker.dropFirst())
+        machO(keybag, path: "usr/libexec/keybagd", preserveEntitlements: true,
+              injectedDylibPath: "/usr/lib/SystemHook-vphone.dylib")
+        isolate([keybag]) {
+            if on(keybag), live.contains(keybag) {
+                try system.writeFile(keybagMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+            } else {
+                try system.removeItem(keybagMarker)
+            }
+        }
         machO(
             FirmwareGuestSystemPatchSet.settingsRootRows,
             path: "Applications/Preferences.app/Preferences",
@@ -2063,10 +2082,12 @@ struct VPhoneCustomFirmwareInstaller {
 
         let launchdJetsam = "system-launchd-boot-jetsam_panic_guard_bypass"
         let launchdX1 = FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap
+        let launchdPorts = FirmwareGuestSystemPatchSet.ios16MachPorts
+        let portsMarker = String(FirmwareGuestSystemPatchSet.ios16MachPortsMarker.dropFirst())
         let personaPatch = FirmwareGuestSystemPatchSet.installCoordinationPersona
         let personaMarker = String(FirmwareGuestSystemPatchSet.installCoordinationPersonaMarker.dropFirst())
         let isHomePod = guestDevice.family == .homePod
-        isolate([launchdJetsam, launchdX1] + (isHomePod ? [personaPatch] : [])) {
+        isolate([launchdJetsam, launchdX1] + (isHomePod ? [personaPatch] : [launchdPorts])) {
             if isHomePod {
                 let library = FirmwareGuestSystemPatchSet.homePodInstallPersonaLibrary
                 let path = String(library.dropFirst())
@@ -2099,7 +2120,7 @@ struct VPhoneCustomFirmwareInstaller {
                 }
                 return
             }
-            let enabled = [launchdJetsam, launchdX1].filter(on)
+            let enabled = [launchdJetsam, launchdX1, launchdPorts].filter(on)
             if !enabled.isEmpty {
                 var verbs: [String] = []
                 if enabled.contains(launchdJetsam) { verbs.append("patch-launchd-jetsam") }
@@ -2112,20 +2133,45 @@ struct VPhoneCustomFirmwareInstaller {
                     preserveEntitlements: true,
                     injectedDylibPath: "/vh",
                 )
+                if enabled.contains(launchdPorts) {
+                    try installLibraryAlias(system: system, alias: "vp16", target: "/usr/lib/SystemHook-vphone.dylib")
+                    try patchMachO(system: system, work: work, path: "usr/libexec/xpcproxy",
+                                   preserveEntitlements: true, injectedDylibPath: "/vp16")
+                    try system.writeFile(portsMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                } else {
+                    if priorGuest.contains(launchdPorts) {
+                        _ = try revertMachO(system: system, work: work, path: "usr/libexec/xpcproxy")
+                        if try system.isSymlink("vp16"), try system.readLink("vp16") == "/usr/lib/SystemHook-vphone.dylib" {
+                            try system.removeItem("vp16")
+                        }
+                    }
+                    try system.removeItem(portsMarker)
+                }
                 live.formUnion(enabled)
             } else if try revertMachO(system: system, work: work, path: "sbin/launchd") {
+                if priorGuest.contains(launchdPorts) {
+                    _ = try revertMachO(system: system, work: work, path: "usr/libexec/xpcproxy")
+                    if try system.isSymlink("vp16"), try system.readLink("vp16") == "/usr/lib/SystemHook-vphone.dylib" {
+                        try system.removeItem("vp16")
+                    }
+                }
+                try system.removeItem(portsMarker)
                 print("  [+] launchd patches: restored sbin/launchd from backup")
             } else {
-                for identifier in [launchdJetsam, launchdX1] where priorGuest.contains(identifier) {
+                for identifier in [launchdJetsam, launchdX1, launchdPorts] where priorGuest.contains(identifier) {
                     print("  [!] \(identifier): off now but no backup to revert; leaving launchd patched (not revertible)")
                     live.insert(identifier)
                 }
+                if !priorGuest.contains(launchdPorts) { try system.removeItem(portsMarker) }
             }
         }
 
         try requireX1Bootstrap()
         if !isHomePod {
-            isolate([]) { try restoreMISFixTargets(system: system, preserveSpringBoard: on(FirmwareGuestSystemPatchSet.ios17Desktop)) }
+            isolate([]) {
+                try restoreMISFixTargets(system: system, preserveSpringBoard:
+                    on(FirmwareGuestSystemPatchSet.ios17Desktop) || on(FirmwareGuestSystemPatchSet.ios16Desktop))
+            }
         }
 
         // HomePod has no misagent/provisioning service. Its research SDK signs
@@ -2355,6 +2401,7 @@ struct VPhoneCustomFirmwareInstaller {
         failures: inout [String],
     ) throws {
         func enabled(_ id: String) -> Bool {
+            if id == FirmwareGuestSystemPatchSet.ios16PortsLookup { return plan?.isEnabled(id) == true }
             if id == FirmwareGuestSystemPatchSet.homeViewEnvironmentService { return plan?.isEnabled(id) == true }
             return plan?.isEnabled(id) ?? !FirmwareGuestSystemPatchSet.settingsRowPatches.contains(id)
         }

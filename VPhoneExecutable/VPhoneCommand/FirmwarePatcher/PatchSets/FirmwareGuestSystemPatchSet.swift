@@ -25,6 +25,13 @@ public enum FirmwareGuestSystemPatchSet {
     public static let homePodAdHocInstall = "system-installd-exp-homepod_adhoc"
     public static let homePodMISFixLibrary = "/usr/lib/libvphonehomepodmisfix.dylib"
     public static let ios17Desktop = "system-springboard-exp-ios17_desktop"
+    public static let ios16MachPorts = "system-launchd-exp-ios16_mach_ports"
+    public static let ios16PortsLookup = "dyld-exp-ios16_mach_ports_lookup"
+    public static let ios16Migration = "system-backboard-exp-ios16_migration"
+    public static let ios16Desktop = "system-springboard-exp-ios16_desktop"
+    public static let ios16Keybag = "system-keybag-exp-ios16_ephemeral"
+    public static let ios16KeybagMarker = "/usr/lib/vphone-ios16-keybag-ephemeral"
+    public static let ios16MachPortsMarker = "/usr/lib/vphone-ios16-mach-ports"
     public static let metalCacheReuse = "system-systemhook-cfw-metal_cache_reuse"
     public static let metalCacheReuseMarker = "/usr/lib/vphone-metal-cache-reuse"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
@@ -98,6 +105,41 @@ public enum FirmwareGuestSystemPatchSet {
         name: "Guest System",
         summary: "Shared-cache policy gates, patched system daemons and the vphone guest payload",
         patches: [
+            VPhonePatchDeclaration(
+                identifier: ios16Desktop,
+                title: "iOS 16 lab desktop startup",
+                summary: "Skips SpringBoard's unavailable audio controller, widget descriptor fetch and virtual flashlight startup waits. Audio, widget content and flashlight remain unavailable. Experimental, off by default.",
+                target: .guestExecutable(path: "/System/Library/CoreServices/SpringBoard.app/SpringBoard"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Keybag,
+                title: "iOS 16 lab keybag init",
+                summary: "Uses keybagd --init's native ephemeral-storage exit on the keybag-less cloudOS platform. Does not provision a keybag or enable passcodes. Experimental, off by default.",
+                target: .guestExecutable(path: "/usr/libexec/keybagd"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Migration,
+                title: "iOS 16 lab startup migration wait",
+                summary: "Skips backboardd's blocking first-boot migration call on a fresh iOS 16 lab guest. Does not complete data migration or unlock the keybag. Experimental, off by default.",
+                target: .guestExecutable(path: "/usr/libexec/backboardd"),
+                applicability: VPhonePatchApplicability(iOSBase: .major(16)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16PortsLookup,
+                title: "iOS 16 early Mach ports lookup",
+                summary: "Adapts libsystem_kernel's registered-port lookup to cloudOS 26.1's three-descriptor reply before libxpc initializes. Pairs with the launchd registered-port bridge. Experimental, off by default.",
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(iOSBase: .major(16), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16MachPorts,
+                title: "iOS 16 registered Mach ports",
+                summary: "Translates legacy registered-port array RPCs to the fixed three-port protocol used by cloudOS 26.1. Experimental, off by default; restart after changing.",
+                target: .guestExecutable(path: "/sbin/launchd"),
+                applicability: VPhonePatchApplicability(iOSBase: .major(16)),
+            ),
             VPhonePatchDeclaration(
                 identifier: ios17Desktop,
                 title: "iOS 17 desktop bring-up",

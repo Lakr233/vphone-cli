@@ -81,6 +81,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             VPhoneCustomFirmwareDyldSharedCacheRevertCommand.self,
             VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand.self,
             VPhoneCustomFirmwarePatchIOMFBSwapEndCommand.self,
+            VPhoneCustomFirmwarePatchIOS16MachPortsCommand.self,
             VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
             VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand.self,
             VPhoneCustomFirmwarePatchLSDEmbeddedRegCommand.self,
@@ -325,6 +326,24 @@ struct VPhoneCustomFirmwarePatchIOMFBForceKernCommand: ParsableCommand {
             captureUndo: undo.captures,
             onUndo: { captured.merge($0) },
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+        )
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+struct VPhoneCustomFirmwarePatchIOS16MachPortsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-ios16-mach-ports",
+        abstract: "Adapt iOS 16's early registered-port lookup to the cloudOS 26.1 protocol"
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var chunksDirectory: URL
+    @Flag(name: .customLong("dry-run")) var dryRun = false
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        try DyldSharedCacheMachPortsPatcher.apply(
+            directory: chunksDirectory, dryRun: dryRun, captureUndo: undo.captures,
+            onUndo: { captured.merge($0) }, log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout
         )
         try undo.persist(captured, dryRun: dryRun)
     }

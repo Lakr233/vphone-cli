@@ -17,6 +17,22 @@ import VPhonePatchKit
 
 @Suite("Bundled patch set catalogue")
 struct FirmwarePatchSetCatalogTests {
+    @Test func `Legacy startup compatibility is opt in and scoped to iOS 16`() throws {
+        for id in [FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration] {
+            for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
+                for selected in [false, true] {
+                    var preset = FirmwarePatchSetCatalog.standardPreset
+                    if selected { preset.selection = preset.selection.allowing([id]) }
+                    let plan = try VPhonePatchPlan.resolve(
+                        preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                        iOSBase: VPhoneVersion(version), cloudOS: VPhoneVersion("26.1")
+                    )
+                    #expect(plan.isEnabled(id) == (selected && version == "16.6.1"))
+                }
+            }
+        }
+    }
+
     @Test func `iOS 17 desktop workaround is opt in and unavailable on other bases`() throws {
         let id = FirmwareGuestSystemPatchSet.ios17Desktop
         for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
@@ -518,7 +534,7 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `The Frida relaxations need cloudOS 26.4`() throws {
+    func `Frida gates retain the measured cloudOS 26.1 syscall filter exception`() throws {
         for cloud in ["26.1", "26.4"] {
             let plan = try VPhonePatchPlan.resolve(
                 preset: FirmwarePatchSetCatalog.experimentalPreset,
@@ -530,6 +546,12 @@ struct FirmwarePatchSetCatalogTests {
                 plan.isEnabled($0.identifier)
             }
             #expect(on == (cloud == "26.4"))
+            #expect(plan.isEnabled("kernel-exp-frida_syscall_filter_off"))
+            let standard = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("16.6.1"), cloudOS: VPhoneVersion(cloud)
+            )
+            #expect(!standard.isEnabled("kernel-exp-frida_syscall_filter_off"))
         }
     }
 
