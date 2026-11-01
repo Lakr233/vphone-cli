@@ -17,7 +17,7 @@
 // inside `__TEXT,__cstring`, so no instruction is assembled here and the ARM64
 // encoder has nothing to contribute. Capstone is used for the *anchor*: the
 // literal has to be the one seputil actually formats with, which is proven by
-// finding the `adrp`/`add` pair in `__TEXT,__text` that materialises its
+// finding the `adr` or `adrp`/`add` reference in `__TEXT,__text` that materialises its
 // address.
 //
 // Anchoring, in order, none of it positional:
@@ -28,7 +28,7 @@
 //      `<dir>/<2-byte field>.gl`, where the field reads `%s` (pristine) or `AA`
 //      (already patched). Whole-literal equality, so the tail of a longer
 //      string cannot match.
-//   3. An `adrp`+`add` in `__TEXT,__text` computing that literal's VA, matched
+//   3. An `adr` or `adrp`+`add` in `__TEXT,__text` computing that literal's VA, matched
 //      on decoded operands.
 //   4. The field to rewrite is the one after the literal's own last `/`.
 //
@@ -217,7 +217,7 @@ public enum CustomFirmwareSeputil {
         let references = references(to: site.literalVMA, in: data, text: text)
         guard !references.isEmpty else {
             throw PatcherError.patchSiteNotFound(
-                "seputil: \"\(site.literal)\" @ 0x\(hex(site.literalVMA)) has no adrp+add "
+                "seputil: \"\(site.literal)\" @ 0x\(hex(site.literalVMA)) has no adr or adrp+add "
                     + "reference in \(textSection.segment),\(textSection.section); "
                     + "it is not the literal the gigalocker path is built from",
             )
@@ -411,6 +411,13 @@ public enum CustomFirmwareSeputil {
 
         var sites: [UInt64] = []
         for (index, insn) in instructions.enumerated() {
+            // iOS 17 uses ADR for the same whole format literal.
+            if insn.mnemonic == "adr", let operands = insn.detail?.operands,
+               operands.count == 2, operands[0].type == .register,
+               operands[1].type == .immediate, UInt64(bitPattern: operands[1].imm) == vma {
+                sites.append(insn.address)
+                continue
+            }
             guard insn.mnemonic == "adrp",
                   let operands = insn.detail?.operands,
                   operands.count == 2,

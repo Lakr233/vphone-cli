@@ -558,6 +558,16 @@ struct CustomFirmwareSeputilShapeTests {
         )
     }
 
+    @Test func `accepts the iOS 17 ADR format literal reference`() {
+        // ADR x2 in the pristine iPhone15,4 21H16 seputil. This is an input
+        // specimen, not an instruction emitted by the patcher.
+        let pc: UInt64 = 0x1_0000_B85C
+        let target: UInt64 = 0x1_0001_D3B3
+        let code = Data([0xA2, 0xDA, 0x08, 0x70])
+        #expect(CustomFirmwareSeputil.references(to: target, in: code, text: text(size: 4, address: pc)) == [pc])
+        #expect(CustomFirmwareSeputil.references(to: target + 1, in: code, text: text(size: 4, address: pc)).isEmpty)
+    }
+
     @Test func `pairs an adrp with its add`() throws {
         let pc: UInt64 = 0x1_0000_0000
         let target: UInt64 = 0x1_0001_BDCF
