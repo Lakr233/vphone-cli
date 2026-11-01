@@ -224,6 +224,10 @@ extension CryptexFilesystemPatcher {
         let file = try createTmpDir().appending(path: "payload")
         try data.write(to: file)
         try edit(file)
+        let original = TrustCache.cdHashes(ofMachO: data)
+        for cdHash in try TrustCache.cdHashes(ofMachO: Data(contentsOf: file)) where !original.contains(cdHash) {
+            resignedCDHashes[cdHash] = original
+        }
         try target.replaceFile(relative, fromFileAt: file, mode: mode, owner: (0, 0))
     }
 
