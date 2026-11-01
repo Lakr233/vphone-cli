@@ -168,6 +168,7 @@
 			<string>system-mobileactivationd-exp-tv_activation</string>
 			<string>system-tv-exp-legacy_setup</string>
 			<string>system-exp-ota_userland</string>
+			<string>system-springboard-exp-ios17_desktop</string>
 		</array>
 	</dict>
 	<key>Summary</key>
