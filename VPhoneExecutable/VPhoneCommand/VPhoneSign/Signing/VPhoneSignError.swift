@@ -10,9 +10,9 @@ public enum VPhoneSignError: Error, Equatable, CustomStringConvertible {
     /// A header, an architecture, a load command or the old signature points
     /// outside the file.
     case malformed(String)
-    /// A slice that is not 64-bit little-endian. ldid signs 32-bit slices
-    /// too; nothing this project signs has one, so it is refused rather
-    /// than written wrong.
+    /// A slice this signer cannot sign. Legacy 32-bit ARM slices are only
+    /// preserved in fat files that also contain a supported 64-bit slice;
+    /// thin 32-bit files and fat files containing only 32-bit ARM are refused.
     case unsupportedSlice(String)
     /// The longer load commands do not fit in front of the first section,
     /// which happens when a file that never had a signature has no room for
