@@ -629,7 +629,7 @@ struct FirmwarePipelineTests {
         #expect(components.first { $0.name == "Manifest" }?.patcherFactories.isEmpty == true)
     }
 
-    @Test func `the minimal preset builds no kernel or TXM patcher`() throws {
+    @Test func `the minimal preset builds no boot chain, kernel or TXM patcher`() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
         func patched(_ preset: VPhonePatchPreset) throws -> [String] {
             let plan = try VPhonePatchPlan.resolve(
@@ -646,7 +646,8 @@ struct FirmwarePipelineTests {
         let minimal = try patched(FirmwarePatchSetCatalog.minimalPreset)
         #expect(!minimal.contains("kernelcache"))
         #expect(!minimal.contains("TXM"))
-        #expect(Set(["iBEC", "LLB", "DeviceTree", "Filesystem", "Manifest"]).isSubset(of: Set(minimal)))
+        #expect(Set(minimal).isDisjoint(with: ["AVPBooter", "iBSS", "iBEC", "LLB"]))
+        #expect(Set(["DeviceTree", "Filesystem", "Manifest"]).isSubset(of: Set(minimal)))
         let standard = try patched(FirmwarePatchSetCatalog.standardPreset)
         #expect(!standard.contains("Filesystem"))
         #expect(!standard.contains("Manifest"))
