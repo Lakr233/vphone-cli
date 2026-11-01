@@ -108,7 +108,8 @@ public enum VPhoneSigner {
     }
 
     /// Signs `data`. `options.identifier` must be set; the file-based entry
-    /// point fills it in from the name.
+    /// point fills it in from the name. In mixed ARM fat files, signing
+    /// options apply only to supported slices; 32-bit ARM slices are preserved.
     public static func sign(_ data: Data, options: VPhoneSignOptions) throws -> Data {
         guard let identifier = options.identifier else {
             throw VPhoneSignError.signingFailed("no identifier, and no file name to take one from")
@@ -117,12 +118,14 @@ public enum VPhoneSigner {
 
         // ldid works out the hashes once, from the first slice it reads, and
         // keeps them for the rest of the run. Every other slice inherits
-        // that decision however new its own deployment target is.
+        // that decision however new its own deployment target is. Preserved
+        // legacy ARM slices do not participate in signing or digest choice.
         let digests = options.style == .appleAdHoc ? [.sha256] : file.slices[0].digests
+        let architectures = file.architectures?.filter { $0.preservedImage == nil }
 
         var images: [Data] = []
         for (index, slice) in file.slices.enumerated() {
-            let alignment = file.architectures.map { Int($0[index].alignment) } ?? slice.linkeditAlignment
+            let alignment = architectures.map { Int($0[index].alignment) } ?? slice.linkeditAlignment
             let signature = try signature(
                 for: slice,
                 identifier: identifier,
@@ -210,8 +213,8 @@ public enum VPhoneSigner {
         return identifier
     }
 
-    /// What `ldid -e` prints: the entitlements of each slice that carries
-    /// any, in slice order, exactly as the signature stores them. A slice
+    /// The entitlements of each supported slice that carries any, in slice
+    /// order, exactly as the signature stores them. A slice
     /// with none contributes nothing, so a file with no entitlements at all
     /// gives an empty array.
     public static func entitlements(ofFileAt url: URL) throws -> [Data] {
