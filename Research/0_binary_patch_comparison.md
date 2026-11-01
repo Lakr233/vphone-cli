@@ -6214,3 +6214,32 @@ been archived outside the source tree and removed from the final declarations,
 presets and installer after successful opt-out restoration. Their unrelated
 encoder/parser additions are also reverted. Only measured startup compatibility
 remains in the source tree. No iOS 16 desktop display success is claimed yet.
+
+After host unlock, the running window is still black/0 fps. A native notify probe
+reports SpringBoard finishedstartup=31. Terminating the hung PreBoard temporarily
+allows SBSUndimScreen to change hasBlankedScreen from 1 to 0, but no frame appears.
+A native framebuffer probe successfully opens the real main display, reads
+1179x2556 and a nonzero IOConnect port. On 20G81 the public SwapEnd dispatch pointer
+is at connection+0x730 (not the later layout's +0x7C8); its value resolves exactly
+to _kern_SwapEnd at unslid 0x1B21CED04. Therefore a force-kern patch is not indicated.
+Temporary IOConnectCallStructMethod return tracing in the selected backboard
+library will measure method-5 submission rather than assuming a routing failure.
+
+No method-5 trace was observed through the temporary interposer; it is removed,
+since this alone cannot distinguish absent swaps from cached binding behavior.
+Backboard's native BKSystemShellSentinel has a separate in-memory completion gate.
+The earlier no-wait check-in did not set it. Static 20G81 analysis identifies
+-dataMigratorDidComplete (0x100066834, v16@0:8), which notifies local observers,
+sets _lock_migratorDidComplete at +0x50 and updates shell state; -unblockSystemApp
+(0x1000665E0, B16@0:8) locks and clears the separate +0x51 block through the native
+helper at 0x100065134. The selected lab check-in now invokes these native methods
+once, before entering its original non-waiting check-in, with both signatures
+checked. No keybag is unlocked and no migration is actually performed. This is
+an explicit fresh-lab shell-state bypass, not evidence of data migration success.
+
+Result of the local completion/unblock experiment: still black/0 fps. The native
+main IOMFB connection and mode enumeration work, but no visible desktop or guest
+screenshot is obtained. The completion/unblock code has therefore been reverted;
+no such fake completion is retained in the final source. The missing first frame
+is unresolved. iOS 16 remains an unsuccessful desktop bring-up, despite a running
+SpringBoard, and no minimum-version compatibility claim is added.

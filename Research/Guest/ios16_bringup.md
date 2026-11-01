@@ -5,8 +5,8 @@ libxpc, backboardd and vphoned run. SpringBoard now reaches its main run loop;
 its unavailable media controllers, widget fetch, flashlight and three media
 Control Center modules have been bypassed. The latest main-thread sample is
 idle in CFRunLoopRunSpecific/UIApplicationMain. Desktop display has not been
-verified: the computer-use tool reports the host Mac is locked, and the user
-has been asked to unlock it. The actual Preboot kernel contains the measured
+verified successfully: after the user unlocked the host, the VZ window remains
+black at 0 fps, and guest screenshot capture fails. The actual Preboot kernel contains the measured
 syscall-filter relaxation. The original media executable is restored, and both
 temporary dyld close patches are undone and removed from the final source.
 
@@ -89,7 +89,7 @@ The native EXC_CRASH observer captured the media failure before inserted-library
 constructors execute: abort <- cc_abort <- ccrng_getentropy_generate <-
 ccrng_process_init <- arc4random_buf <- libobjc initialization. Independent
 getentropy/arc4random probes pass as root and mobile, including a probe signed
-with the media service's retained entitlements. The current investigation reads
+with the media service's retained entitlements. The investigation read
 the faulting thread's errno through THREAD_IDENTIFIER_INFO and the measured
 20G81 __error TLS layout. No random bytes are replaced or fabricated.
 
@@ -98,9 +98,10 @@ the faulting thread's errno through THREAD_IDENTIFIER_INFO and the measured
 The active lab is `/Users/Shared/VPhoneLab16/iPhone-14-Pro-iOS16-Lab`.
 The untouched external restore copy was moved out of the machine list to
 `/Volumes/ZHITAI/Data/VPhone/Library/lab-backups/iPhone-14-Pro-iOS16-Lab-restored-original`.
-Use the internal library root explicitly. The current running bundle is
-2.15.0-local.eda73803; the cleaned build has not yet been deployed because
-visual verification of the running guest awaits host unlock.
+Use the internal library root explicitly. After the unsuccessful visual tests,
+the lab is stopped and bound to the cleaned 2.15.0-local.cb7e2dff bundle, with
+the speculative sentinel-completion change reverted. Its six selected startup
+patches and firmware inputs are retained for further diagnosis.
 
 The standard preset has six explicit allows: registered Mach-port bridge,
 early cache lookup, existing syscall-filter relaxation, ephemeral keybag init,
@@ -114,3 +115,29 @@ tests pass after removing discarded experiments; the native Mach-port test
 passes register/lookup round-trip, empty slots and count bounds. Earlier
 full-cache apply/idempotence/undo reproduced the pristine affected chunk.
 The iOS 17 PR branch remains unchanged and clean. No iOS 16 work was pushed.
+
+## Result after host unlock
+
+The iOS 16.6.1 desktop has NOT been brought up. The main SpringBoard thread is
+idle in its normal event loop and finishedstartup reports its PID, but the VZ
+view stays black/0 fps, including after Home and Power events. A native screen
+wake call initially leaves hasBlankedScreen=1. Ending the hung PreBoard process
+once lets that state become 0, still without a visible frame; PreBoard respawns.
+
+The main IOMFB connection opens successfully, reports 1179x2556, has a real kernel
+port and selects _kern_SwapEnd. CoreAnimation reports a 120 Hz main display,
+which proves mode enumeration only. The driver logs IOMFB_SWAP_SUBMIT_LOST with
+zero swap IDs. The actual cause of missing presentation is not established.
+The temporary IOConnect return trace observed no calls and was removed; shared
+cache binding behavior makes that negative observation inconclusive.
+
+A further local sentinel-completion/unblock experiment did not produce a frame
+and has been reverted. No permanent keybag, passcode or migration-complete
+changes were applied. The final source retains the earlier measured startup
+work, with no temporary diagnostics or speculative media/dyld patches.
+
+Next research should measure the render-server display activation state and
+actual method-5 submission/16-to-26.1 payload semantics before proposing another
+patch. iOS 17.7 remains the lowest version verified to display a desktop in this
+session; iOS 15 was not tested. This result does not establish that iOS 16 can
+never work.
