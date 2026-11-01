@@ -5993,3 +5993,10 @@ vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
+## Local iPhone 14 Pro / iOS 16.6.1 experiment
+
+The isolated experiment uses iPhone15,2 16.6.1 (20G81) with cloudOS 26.1 (23B85).
+Existing older-userland SwapEnd, thread-guard and paravirtual-user-client patch
+gates and the BSD-only Skywalk boot argument are enabled for this experiment.
+The iOS 17 SpringBoard workaround remains gated to 17 until 16's own startup
+blockers are measured. No boot or display success is claimed at this stage.

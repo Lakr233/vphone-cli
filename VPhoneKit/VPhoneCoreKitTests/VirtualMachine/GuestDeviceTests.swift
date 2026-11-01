@@ -6,6 +6,15 @@ import Testing
 /// VM's `config.plist` keeps it.
 @Suite("Guest device")
 struct GuestDeviceTests {
+    @Test func `local iOS 16 device preserves iPhone 14 Pro board and screen`() throws {
+        let device = try #require(VPhoneGuestDevice.named("iPhone15,2"))
+        #expect(device.deviceClass == "d73ap")
+        #expect(device.screen.width == 1179 && device.screen.height == 2556)
+        #expect(device.screen.scale == 3)
+        #expect(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": ["iPhone15,2"]]) == device)
+        #expect(VPhoneGuestDevice.default == .iPhone17_3)
+    }
+
     @Test func `experimental iPhone 15 keeps its board and display through manifest encoding`() throws {
         let device = try #require(VPhoneGuestDevice.named("iPhone15,4"))
         #expect(device.deviceClass == "d37ap")

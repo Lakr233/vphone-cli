@@ -158,7 +158,7 @@ public enum FirmwareKernelBasePatchSet {
                 the UI.
                 """,
                 target: .firmware(.kernelcache),
-                applicability: VPhonePatchApplicability(iOSBase: .oneOf([.major(18), .major(17)])),
+                applicability: VPhonePatchApplicability(iOSBase: .oneOf([.major(18), .major(17), .major(16)])),
                 bootEssential: true,
             ),
         ],

@@ -19,7 +19,7 @@ import VPhonePatchKit
 struct FirmwarePatchSetCatalogTests {
     @Test func `iOS 17 desktop workaround is opt in and unavailable on other bases`() throws {
         let id = FirmwareGuestSystemPatchSet.ios17Desktop
-        for version in ["17.7", "18.6.2", "26.1", "27.1"] {
+        for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
             for enabled in [false, true] {
                 var preset = FirmwarePatchSetCatalog.standardPreset
                 if enabled { preset.selection = preset.selection.allowing([id]) }
@@ -30,6 +30,18 @@ struct FirmwarePatchSetCatalogTests {
                 #expect(plan.isEnabled(id) == (enabled && version == "17.7"))
             }
         }
+    }
+
+    @Test func `Local iOS 16 experiment selects older userland boot compatibility without the iOS 17 hook`() throws {
+        let plan = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("16.6.1"), cloudOS: VPhoneVersion("26.1")
+        )
+        #expect(plan.isEnabled("dyld-boot-iomfb_swapend"))
+        #expect(plan.isEnabled("kernel-boot-thread_guard_violation"))
+        #expect(plan.isEnabled(FirmwarePatchSetCatalog.paravirtUserClientsPatch))
+        #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.ios17Desktop))
     }
 
     @Test func `Experimental iOS 17 selects the older userland boot compatibility patches`() throws {

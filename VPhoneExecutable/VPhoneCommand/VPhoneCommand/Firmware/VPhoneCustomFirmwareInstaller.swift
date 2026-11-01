@@ -1753,7 +1753,7 @@ struct VPhoneCustomFirmwareInstaller {
                 ("dyld-boot-xpc_lwcr", "patch-xpc-lwcr", [dsc]),
                 ("dyld-boot-lockdown_mode", "patch-lockdown-mode", [dsc]),
             ]
-        } else if version.hasPrefix("26.0") || version.hasPrefix("18.") || version.hasPrefix("17.") {
+        } else if version.hasPrefix("26.0") || version.hasPrefix("18.") || version.hasPrefix("17.") || version.hasPrefix("16.") {
             dyld.append(("dyld-boot-iomfb_swapend", "patch-iomfb-swapend", [dsc, "--target-size", "0x560"]))
         }
         dyld += [
