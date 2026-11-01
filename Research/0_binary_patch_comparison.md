@@ -5799,3 +5799,20 @@ verified0→2→0 in the temporary observer; the Far reduction flushes when the 
 backgrounds, matching Charcuterie's explicit latching policy. No ActivityKit
 permission expansion is part of this patch or the installed bundle. All guest
 test timers, activities, apps, helpers and overrides were cleaned up.
+
+
+## Experimental iPhone 15 / iOS 17.7 desktop bring-up
+
+See `Research/Guest/ios17_bringup.md`. The existing seputil data patch now
+accepts a Capstone-decoded ADR reference as well as ADRP+ADD. The measured
+21H16 input has ADR x2 at 0x10000B85C referencing the complete format literal
+at 0x10001D3B3; no UUID or instruction replacement is hardcoded. The existing
+SwapEnd patch resolves size 0x508 and emits the cloudOS 26.1 size 0x560.
+Existing thread-guard and paravirtual-user-client gates include 17. The iOS 18
+BSD-only skywalk boot argument also covers 17. New opt-in declaration
+`system-springboard-exp-ios17_desktop` installs a SpringBoard-only, iOS-17-only
+library. It skips synchronous initial widget discovery and unavailable
+AVFlashlight construction; no shared-cache code is modified for these hooks.
+Selection restores SpringBoard and removes the library on opt-out; a restart
+restores native methods.
+No native iOS 17 kernel, Metal driver, camera or networking support is claimed.

@@ -153,6 +153,7 @@
 			<string>system-virtualaudio-cfw-device_state_null_gate</string>
 			<string>system-dyld-exp-tv_tpro</string>
 			<string>kernel-exp-tv_tpro_pagers</string>
+			<string>system-springboard-exp-ios17_desktop</string>
 		</array>
 	</dict>
 	<key>Summary</key>

@@ -6,6 +6,18 @@ import Testing
 /// VM's `config.plist` keeps it.
 @Suite("Guest device")
 struct GuestDeviceTests {
+    @Test func `experimental iPhone 15 keeps its board and display through manifest encoding`() throws {
+        let device = try #require(VPhoneGuestDevice.named("iPhone15,4"))
+        #expect(device.deviceClass == "d37ap")
+        #expect(device.screen.width == 1179 && device.screen.height == 2556)
+        #expect(device.screen.scale == 3)
+        #expect(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": ["iPhone15,4"]]) == device)
+        let manifest = VPhoneVirtualMachineManifest.newVM().updating(guestDevice: device)
+        let decoded = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: PropertyListEncoder().encode(manifest))
+        #expect(decoded.guestDevice == device)
+        #expect(VPhoneGuestDevice.default == .iPhone17_3)
+    }
+
     @Test(arguments: ["HomeAccessory17,1", "HomeAccessory17,2"])
     func `HomeView keeps distinct board identities and the tvOS executable platform`(type: String) throws {
         let device = try #require(VPhoneGuestDevice.named(type))

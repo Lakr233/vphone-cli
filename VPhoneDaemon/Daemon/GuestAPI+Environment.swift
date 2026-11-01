@@ -21,7 +21,7 @@ extension GuestAPI {
         "libdevicehubfix.dylib",
         "libdevicename.dylib",
         "libprefsfix.dylib",
-        "libsigninfix.dylib",
+        "libsigninfix.dylib", "libvphoneios17desktop.dylib",
         "libvphonefolddisplay.dylib",
         "libvphonefoldguard.dylib",
         "libvphonehinge.dylib",
@@ -31,7 +31,7 @@ extension GuestAPI {
     ]
     /// Must match `VPhoneGuestEnvironment.selectedLibraries`: the VM's patch selection owns these.
     static let environmentSelectedLibraries: Set = [
-        "libprefsfix.dylib", "libsigninfix.dylib",
+        "libprefsfix.dylib", "libsigninfix.dylib", "libvphoneios17desktop.dylib",
         "libvphonegyro.dylib", "libvphoneaccelerometer.dylib", "libvphoneattitude.dylib",
         "libvphonehinge.dylib", "libvphonefoldguard.dylib", "libvphonefolddisplay.dylib",
     ]

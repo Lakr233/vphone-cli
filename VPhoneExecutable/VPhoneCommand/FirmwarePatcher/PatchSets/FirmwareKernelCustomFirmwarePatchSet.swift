@@ -322,7 +322,7 @@ public enum FirmwareKernelCustomFirmwarePatchSet {
                 prewarm its shaders and crash-loops at every boot.
                 """,
                 target: .firmware(.kernelcache),
-                applicability: VPhonePatchApplicability(iOSBase: .oneOf([.major(26), .major(18)])),
+                applicability: VPhonePatchApplicability(iOSBase: .oneOf([.major(26), .major(18), .major(17)])),
             ),
 
             // MARK: Display
