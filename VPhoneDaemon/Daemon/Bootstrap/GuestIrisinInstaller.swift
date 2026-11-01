@@ -230,7 +230,7 @@ enum GuestIrisinInstaller {
 
     // MARK: - Progress
 
-    private static func setProgress(_ value: [String: Any]) {
+    static func setProgress(_ value: [String: Any]) {
         progressLock.lock()
         progress = value
         progressLock.unlock()
