@@ -258,5 +258,9 @@ extension CryptexFilesystemPatcher {
             .data.write(to: trustCache)
         let categorized = cache.entries.filter { $0.constraintCategory != 0 }.count
         print("  [+] Constraint categories for \(categorized) of \(cache.entries.count) trust cache entries")
+        for entry in cache.entries where resignedCDHashes[entry.cdHash] != nil {
+            let hex = entry.cdHash.map { String(format: "%02x", $0) }.joined()
+            print("  [+] Re-signed cdhash \(hex) (hash type \(entry.hashType)): category \(entry.constraintCategory)")
+        }
     }
 }

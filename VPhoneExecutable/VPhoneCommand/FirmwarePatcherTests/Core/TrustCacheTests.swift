@@ -81,6 +81,32 @@ struct TrustCacheTests {
         #expect(cache.entries.map(\.constraintCategory) == [0])
     }
 
+    /// The detached launchd.plist signature's cdhashes reach the static cache
+    /// through a raw version 1 base trust cache. Read back, they take the
+    /// category Apple's signature had (2 in 22G86's static trust cache), as
+    /// `resignLaunchdCache` maps them.
+    @Test
+    func `a re-signed launchd.plist signature keeps the category of Apple's`() throws {
+        let apple = try CustomFirmwareDetachedSignature.codeDirectoryHashes(
+            in: CustomFirmwareDetachedSignature.sign(Data("Apple's launchd.plist".utf8), identifierStem: "launchd"),
+        ).map(\.cdhash)
+        let resigned = try CustomFirmwareDetachedSignature.codeDirectoryHashes(
+            in: CustomFirmwareDetachedSignature.sign(Data("launchd.plist with vphoned".utf8), identifierStem: "launchd"),
+        )
+        let detached = try TrustCache(payload: CustomFirmwareDetachedSignature.trustCache(resigned))
+        #expect(detached.version == 1)
+        #expect(Set(detached.entries.map(\.cdHash)) == Set(resigned.map(\.cdhash)))
+
+        let os = TrustCache(version: 2, uuid: Data(count: 16), entries: apple.map {
+            .init(cdHash: $0, hashType: 2, flags: 0, constraintCategory: 2)
+        })
+        let inherited = Dictionary(uniqueKeysWithValues: resigned.map { ($0.cdhash, apple) })
+        let cache = detached.withConstraintCategories(from: [os], inherited: inherited)
+        #expect(cache.version == 2)
+        #expect(cache.entries.map(\.constraintCategory) == [2, 2])
+        #expect(detached.withConstraintCategories(from: [os]).entries.map(\.constraintCategory) == [0, 0])
+    }
+
     /// Checked against codesign, which prints the CDHash of the slice it
     /// is asked for. /bin/ls is universal, so both slices are reached.
     @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/usr/bin/codesign")))

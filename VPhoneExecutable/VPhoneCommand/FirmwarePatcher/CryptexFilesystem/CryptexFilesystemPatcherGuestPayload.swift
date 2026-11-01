@@ -64,8 +64,18 @@ extension CryptexFilesystemPatcher {
     /// `launchd_cache_loader` takes it as the secure cache. `createTrustcache`
     /// adds the new cdhashes to the static trust cache, which is what the loader
     /// asks AMFI about. See `CustomFirmwareDetachedSignature`.
+    ///
+    /// The new cdhashes take the launch-constraint category of Apple's
+    /// signature, as a re-signed binary does (`resignedCDHashes`): Apple's
+    /// static trust cache gives both cdhashes of its `launchd.plist.sig`
+    /// category 2 (iOS 18.6 22G86).
     func resignLaunchdCache(targetMount: String) throws {
         let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        let original = try target.exists(CustomFirmwareDetachedSignature.launchdCacheSignaturePath)
+            ? CustomFirmwareDetachedSignature.codeDirectoryHashes(
+                in: target.readData(CustomFirmwareDetachedSignature.launchdCacheSignaturePath),
+            ).map(\.cdhash)
+            : []
         let cache = try target.readData(CustomFirmwareDetachedSignature.launchdCachePath)
         let signature = CustomFirmwareDetachedSignature.sign(cache, identifierStem: "launchd")
         let file = try createTmpDir().appending(path: "launchd.plist.sig")
@@ -73,7 +83,13 @@ extension CryptexFilesystemPatcher {
         // root:admin 0644, as Apple installs it.
         try target.replaceFile(CustomFirmwareDetachedSignature.launchdCacheSignaturePath,
                                fromFileAt: file, mode: 0o644, owner: (0, 80))
+        for cdHash in original {
+            print("  [+] Apple's launchd.plist.sig: cdhash \(cdHash.map { String(format: "%02x", $0) }.joined())")
+        }
         for hash in try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature) {
+            if !original.isEmpty, !original.contains(hash.cdhash) {
+                resignedCDHashes[hash.cdhash] = original
+            }
             print("  [+] Signed launchd.plist: cdhash \(hash.cdhash.map { String(format: "%02x", $0) }.joined()) (hash type \(hash.hashType))")
         }
     }
