@@ -480,5 +480,17 @@ enum LogicTests {
         expect(!GuestBootstrapPlatform.packageRequiresApp(architecture: "appletvos-arm64e"), "the Apple TV package has none")
         expectEqual(GuestBootstrapPlatform.mainExecutablePlatform(), UInt32(PLATFORM_MACOS), "this test runs as macOS")
         expect(!GuestBootstrapPlatform.isTVOS, "the Mac is not tvOS")
+
+        // Irisin 5.1.4's roothide list
+        let roothide: [[String: Any]] = [
+            ["source": "deb https://roothide.github.io/procursus iphoneos-arm64e/1800 main", "maximumSystemVersion": 15],
+            ["source": "deb https://stripe.owngoal.dev 1900 main", "minimumSystemVersion": 16],
+            ["source": "https://apt.owngoal.dev"],
+        ]
+        let sources = GuestBootstrapPlatform.recommendedSources
+        expectEqual(sources([], roothide, 27), ["deb https://stripe.owngoal.dev 1900 main", "https://apt.owngoal.dev"])
+        expectEqual(sources(nil, roothide, 15), ["deb https://roothide.github.io/procursus iphoneos-arm64e/1800 main", "https://apt.owngoal.dev"])
+        expectEqual(sources([["source": "https://repo.example"]], roothide, 27), ["https://repo.example"], "a managed list with entries wins")
+        expectEqual(sources(nil, nil, 27), [], "no list recommends nothing")
     }
 }

@@ -83,6 +83,8 @@ extension GuestIrisinInstaller {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 180
+        // A guest that has just booted may not have a route yet.
+        configuration.waitsForConnectivity = true
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
         var request = URLRequest(url: url)
