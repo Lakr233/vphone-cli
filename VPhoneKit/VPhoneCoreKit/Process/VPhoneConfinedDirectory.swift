@@ -396,6 +396,11 @@ public final class VPhoneConfinedDirectory: Sendable {
         guard fstat(input, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFREG else {
             throw VPhoneConfinedDirectoryError.notRegularFile(source.path)
         }
+        // A multi-gigabyte restore image published back from the firmware
+        // workspace is a clone on the same APFS volume, so it takes no room.
+        if try installClone(relative, of: input, mode: mode, owner: owner) {
+            return
+        }
         try install(relative, mode: mode, owner: owner) { file in
             try Self.copyContents(from: input, to: file, path: relative)
         }
@@ -649,6 +654,47 @@ public final class VPhoneConfinedDirectory: Sendable {
             throw VPhoneConfinedDirectoryError.from(errno, relative)
         }
         installed = true
+    }
+
+    /// `install` with an APFS clone of the open file `input` in place of a
+    /// copy. Returns false, leaving nothing behind, where the volume cannot
+    /// clone it (another volume, or a file system without clones).
+    private func installClone(
+        _ relative: String,
+        of input: Int32,
+        mode: mode_t,
+        owner: (uid: uid_t, gid: gid_t)?,
+    ) throws -> Bool {
+        let (directory, leaf) = try parent(of: relative)
+        let temporary = ".\(leaf).tmp-\(UUID().uuidString)"
+        guard fclonefileat(input, directory.descriptor, temporary, UInt32(CLONE_NOOWNERCOPY)) == 0 else {
+            switch errno {
+            case EXDEV, ENOTSUP, ENOTTY:
+                return false
+            default:
+                throw VPhoneConfinedDirectoryError.from(errno, relative)
+            }
+        }
+        var installed = false
+        defer {
+            if !installed {
+                unlinkat(directory.descriptor, temporary, 0)
+            }
+        }
+        let file = openat(directory.descriptor, temporary, O_WRONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard file >= 0 else {
+            throw VPhoneConfinedDirectoryError.from(errno, relative)
+        }
+        defer { close(file) }
+        try Self.applyAttributes(to: file, owner: owner, mode: mode, path: relative)
+        guard fsync(file) == 0 else {
+            throw VPhoneConfinedDirectoryError.system(relative, errno)
+        }
+        guard renameat(directory.descriptor, temporary, directory.descriptor, leaf) == 0 else {
+            throw VPhoneConfinedDirectoryError.from(errno, relative)
+        }
+        installed = true
+        return true
     }
 
     /// Owner first: chown clears set-ID bits, so the mode has to come after.
