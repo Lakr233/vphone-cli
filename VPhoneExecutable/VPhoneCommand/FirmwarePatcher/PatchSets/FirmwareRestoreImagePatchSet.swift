@@ -8,10 +8,11 @@
 // chain, kernel and TXM stay stock, and nothing writes the System volume after the
 // restore, because that would break the seal.
 //
-// Only the `minimal` preset and its watch form, `watchos`, name this set, and both
-// allow all of it. Every patch in it but the two experiments is boot-essential for
-// them, and naming it nowhere else keeps `standard` from counting them as dropped.
-// A watchOS image has no cryptexes: for a watch the merge only reseals the image
+// Only the `minimal` preset and its watch form, `watchos`, name this set.
+// `watchos` allows all of it, `minimal` all but the launchd_cache_loader gate.
+// Every patch in it but the three experiments is boot-essential for them, and
+// naming it nowhere else keeps `standard` from counting them as dropped. A
+// watchOS image has no cryptexes: for a watch the merge only reseals the image
 // with the guest payload.
 
 import Foundation
@@ -28,7 +29,10 @@ public enum FirmwareRestoreImagePatchSet {
     public static let surfaceCompression = "filesystem-boot-ios18_surface_compression"
     public static let mobileActivation = "filesystem-boot-mobileactivationd_should_hactivate"
     public static let vphoned = "filesystem-boot-vphoned"
-    public static let launchdCacheLoader = "filesystem-boot-launchd_cache_loader_unsecure_cache_gate"
+    /// No longer needed by `minimal`: the vphoned step re-signs the edited
+    /// launchd.plist and the trust cache takes its cdhashes. `watchos` keeps it
+    /// until a watch guest has booted without it.
+    public static let launchdCacheLoader = "filesystem-exp-launchd_cache_loader_unsecure_cache_gate"
     public static let virtualBluetooth = "filesystem-exp-btvc_le_connection"
     public static let watchAudio = "filesystem-exp-watch_audio"
     public static let digestRehash = "manifest-boot-digest_rehash"
@@ -71,12 +75,13 @@ public enum FirmwareRestoreImagePatchSet {
             filesystem(
                 vphoned,
                 "vphoned",
-                "Installs the guest daemon and its launch daemon, which the host talks to.",
+                "Installs the guest daemon and its launch daemon, which the host talks to, and signs the edited launchd.plist so the stock launchd_cache_loader accepts it.",
             ),
-            filesystem(
-                launchdCacheLoader,
-                "Launch daemon cache",
-                "Lets launchd load the launch daemons from the system volume instead of the signed cache, so vphoned starts.",
+            VPhonePatchDeclaration(
+                identifier: launchdCacheLoader,
+                title: "Unsigned launch daemon cache",
+                summary: "NOPs launchd_cache_loader's launchd_unsecure_cache= gate, so launchd takes launchd.plist without checking its detached signature against the trust cache. Not needed: the vphoned step signs the edited launchd.plist and the rebuilt trust cache holds its cdhashes.",
+                target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(
                 identifier: virtualBluetooth,

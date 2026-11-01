@@ -4311,7 +4311,7 @@ gone. The preset names three sets:
 | `filesystem-boot-gpu_driver` | Installs the PCC paravirtual GPU driver `fw prepare` staged |
 | `filesystem-boot-mobileactivationd_should_hactivate` | The `should_hactivate` patch, in the image |
 | `filesystem-boot-vphoned` | vphoned and its launch daemon, in the image |
-| `filesystem-boot-launchd_cache_loader_unsecure_cache_gate` | Lets launchd read the launch daemons from the volume |
+| `filesystem-exp-launchd_cache_loader_unsecure_cache_gate` (was `filesystem-boot-…`) | NOPs launchd_cache_loader's `launchd_unsecure_cache=` gate. `minimal` no longer selects it: `filesystem-boot-vphoned` signs the edited `launchd.plist` instead; see "The stock launchd_cache_loader takes a re-signed launchd.plist" below |
 | `filesystem-exp-watch_audio` | Watch images only, via `watchos`: the watchOS-marked virtio sound HAL plugin, a generic-DSP speaker chain, the three VirtualAudio playback routing-gate bypasses, and on watchOS 26.4 the MediaExperience device-class NOP for the virtual-device audio budget. Cannot be toggled without another restore |
 | `manifest-boot-digest_rehash` | Rewrites every BuildManifest digest to the files the restore now sends; for an AEA archive, the digest of its decrypted image, which is what Apple's manifests hold and what an 18.x restore checks the written image against |
 
@@ -4628,7 +4628,7 @@ copies and dyld symlinks and only reseals the image with the guest payload.
 `filesystem-boot-gpu_driver` marks the iOS driver and its compiler plugin
 watchOS (`MachOBuildPlatform.watchOS`, re-signed, bundle resealed), as the
 tvOS installer does; all its imports are in the watchOS 26.4 arm64e cache.
-`filesystem-boot-launchd_cache_loader_unsecure_cache_gate` thins the universal
+`filesystem-exp-launchd_cache_loader_unsecure_cache_gate` thins the universal
 binary to its arm64e slice first (`MachOFatSlice`). vphoned is the arm64 daemon
 marked watchOS (`vphoned-watchos`); its HID presses reach the crown as Home
 (consumer 0x40). The side button is consumer Help (0x0C/0x95), not Power:
@@ -5970,3 +5970,76 @@ vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
+
+## The stock launchd_cache_loader takes a re-signed launchd.plist (2026-11-01)
+
+`minimal` used to keep one userland security patch,
+`filesystem-boot-launchd_cache_loader_unsecure_cache_gate`, because vphoned's
+entry in `/System/Library/xpc/launchd.plist` made the stock loader refuse the
+file. It no longer needs it: `filesystem-boot-vphoned` signs the edited file
+the way Apple signs it, and the static trust cache the restore image already
+rebuilds (and TSS signs) carries the new cdhashes. The patch is now
+`filesystem-exp-launchd_cache_loader_unsecure_cache_gate`, not boot-essential,
+left out of `minimal`; `renamedPatches` migrates a VM's old record. `watchos`
+still selects it: its loader shows the same `Code: … Sig: …` path in the
+watch boot logs, but no watch guest has booted without it yet.
+
+What the loader checks (`/usr/libexec/launchd_cache_loader`, libxpc-2894.140.12,
+iOS 18.6 22G86, read from the disassembly):
+
+1. `0x100000a44`: the default paths, `/System/Library/xpc/launchd.plist` and
+   `/System/Library/xpc/launchd.plist.sig` ("Code: %s Sig: %s").
+2. `0x100000b2c`: `kern.bootargs`; with `launchd_unsecure_cache=` the
+   `cbz x0` at `0x100000b58` falls into "Using unsecure cache" and skips 3-6.
+   That `cbz` is what the old patch NOPs.
+3. `SecStaticCodeCreateWithPath(plist)`, `SecCodeSetDetachedSignature(sig)`,
+   `SecStaticCodeCheckValidity(code, 6)` (no executable or resource
+   validation; errSecCSSignatureNotVerifiable, -67060, is let through).
+4. `SecCodeCopySigningInformation` → `kSecCodeInfoUnique` (the cdhash) →
+   `IOConnectCallMethod` selector 6 on `AppleMobileFileIntegrity`
+   (`AppleMobileFileIntegrityUserClient::isCdhashInTrustCache` in the kernel
+   log). Not found (`0xe00002f0`) logs "cdhash: %s is not in trust cache" and
+   aborts (`abort_with_reason`).
+5. `SecCodeMapMemory` attaches the signature to the vnode ("Failed to push
+   signature to kernel" otherwise), so the pages read next are checked against
+   the code directory.
+6. `open`/`mmap` the plist, copy it into memory mapped into launchd ("Sending
+   validated cache to launchd").
+
+`launchd.plist.sig` is a detached ad hoc signature: a SuperBlob with a SHA-1
+code directory, empty requirements, a SHA-256 alternate code directory, an
+empty CMS wrapper and an identification wrapper (slot 0x10001) holding the
+file's SHA-1. Both directories are version 0x20500, flags 0x10002 (ad hoc,
+runtime), runtime version 11.0.0, 4 KiB pages, identifier
+`launchd-<sha1 of the file>`. The stock static trust cache
+(`043-19071-100.dmg.aea.trustcache`) lists both cdhashes of Apple's file
+(`72c3cf9a…` SHA-256, `2e45eca3…` SHA-1), as it does those of
+`extensions.plist.sig`. `cryptexctl generate-trust-cache` hashes Mach-O code
+directories only, so the edited plist's new signature has to be added by hand.
+
+`CustomFirmwareDetachedSignature` writes that signature: for 22G86's
+`extensions.plist` it reproduces Apple's `extensions.plist.sig` byte for byte
+(`codesign -s - -o runtime --pagesize 4096 --detached` differs only in its
+0x20100 header). `resignLaunchdCache` replaces `launchd.plist.sig` (root:admin
+0644) after vphoned's entry is merged; `createTrustcache` reads it back from the
+image and hands `cryptexctl` a second `--base-trust-cache`, a raw version 1
+trust cache with its two cdhashes. Apple's stale entries stay; nothing has
+their bytes any more.
+
+Checked on 2026-11-01: `vm create lcl-186 --preset minimal --device iPhone11,6`
+(18.6 22G86 on cloudOS 22G86, bundle 2.12.2-local.442efa84) signed the plist
+(`c6a34260…` SHA-1, `b4ace6ca…` SHA-256), the rebuilt `new.trustcache` held
+both, the patch log listed the gate under "Turned off", and the boot log shows
+the secure path:
+
+```
+Code: /System/Library/xpc/launchd.plist Sig: /System/Library/xpc/launchd.plist.sig
+…isCdhashInTrustCache…: Returning IOReturn 0x0 to process 28
+cdhash: {length = 20, bytes = 0xb4ace6cacd1e77cf9b8546e7c9bed89a0914462e} is trusted
+Attached signature to file, checking ...
+Sending validated cache to launchd
+Cache sent to launchd successfully
+```
+
+with no "Using unsecure cache". SpringBoard came up and `guest rpc
+processes.list` answered from `/usr/bin/vphoned`.

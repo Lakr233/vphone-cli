@@ -110,6 +110,8 @@ public enum FirmwarePatchSetCatalog {
         "kernel-exp-display_refresh_120hz": proMotionPatch,
         "kernel-exp-paravirt_gpu_task3": paravirtTask3Patch,
         "preboot-exp-devicetree_foldable_product_id": FirmwareGuestSystemPatchSet.prebootFoldableProductId,
+        // Boot-essential until the vphoned step signed launchd.plist itself.
+        "filesystem-boot-launchd_cache_loader_unsecure_cache_gate": FirmwareRestoreImagePatchSet.launchdCacheLoader,
     ]
 
     /// The identifiers this bundle declares for ones a VM recorded, in order, each
@@ -423,7 +425,8 @@ public enum FirmwarePatchSetCatalog {
             minimalBootChainPatches
                 .union(minimalDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier)),
+                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )
 

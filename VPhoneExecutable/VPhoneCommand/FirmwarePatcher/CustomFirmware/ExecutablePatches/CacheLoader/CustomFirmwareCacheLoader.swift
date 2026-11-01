@@ -3,10 +3,12 @@
 // Swift port of `scripts/patchers/cfw_patch_cache_loader.py`, driven today by
 // `cfw.py patch-launchd-cache-loader <binary>`.
 //
-// What the binary does. `/usr/libexec/launchd_cache_loader` builds the XPC
-// service cache launchd loads at boot. Before it will accept a cache that did
-// not come from the sealed system volume it looks for the boot-arg
-// `launchd_unsecure_cache=` in `kern.bootargs`:
+// What the binary does. `/usr/libexec/launchd_cache_loader` hands launchd the
+// XPC service cache, `/System/Library/xpc/launchd.plist`, at boot. Normally it
+// checks the file against its detached signature `launchd.plist.sig` and asks
+// AMFI whether that signature's cdhash is in a trust cache (see
+// `CustomFirmwareDetachedSignature`). The boot-arg `launchd_unsecure_cache=` in
+// `kern.bootargs` skips that check:
 //
 //     adrp x0, "kern.bootargs" ; add x0, x0, #… ; add x1, sp, #…
 //     bl   <sysctl-by-name helper>
@@ -19,12 +21,14 @@
 //     …                                                     <- "Using unsecure cache: %s"
 //
 // On a VM there is no way to set that boot-arg, so the gate always takes the
-// skip and the loader refuses anything but the stock cache. NOP'ing the one
-// `cbz` makes the unsecure path unconditional, which is what lets a MODIFIED
-// `/System/Library/xpc/launchd.plist` be loaded — the only reason this patch
-// exists (`Research/0_binary_patch_comparison.md`, "Allow modified
+// skip and the loader refuses a cache whose signature is not trusted. NOP'ing
+// the one `cbz` makes the unsecure path unconditional, which is what lets a
+// MODIFIED `/System/Library/xpc/launchd.plist` be loaded — the only reason this
+// patch exists (`Research/0_binary_patch_comparison.md`, "Allow modified
 // launchd.plist"). A flavour that does not rewrite `launchd.plist` does not
-// need it; see `cfw-kit/lib/base_stages.sh:stage_launchd_cache_loader`.
+// need it (see `cfw-kit/lib/base_stages.sh:stage_launchd_cache_loader`), and
+// neither does one that re-signs it and puts the new cdhashes in the static
+// trust cache, which is what the restore image (`minimal`) does.
 //
 // Nothing is hardcoded. The boot-arg string is found by content in the Mach-O's
 // own string sections, its ADRP+ADD xref is recovered from Capstone-decoded

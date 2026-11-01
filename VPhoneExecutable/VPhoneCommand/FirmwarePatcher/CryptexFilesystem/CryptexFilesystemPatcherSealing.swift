@@ -203,10 +203,23 @@ extension CryptexFilesystemPatcher {
         let newTrustcachePath = restoreDir.appending(path: "Firmware/new.trustcache")
         let tmpDir = try createTmpDir()
 
+        // cryptexctl hashes Mach-O code directories only. launchd.plist's
+        // detached signature is not one, so its cdhashes go in through a second
+        // base trust cache. Unedited, they are Apple's and already in the first.
+        var baseTrustcaches = [oldTrustcachePath]
+        let volume = try VPhoneConfinedDirectory.pin(absolutePath: mount)
+        if try volume.exists(CustomFirmwareDetachedSignature.launchdCacheSignaturePath) {
+            let signature = try volume.readData(CustomFirmwareDetachedSignature.launchdCacheSignaturePath)
+            let hashes = try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature)
+            let detached = tmpDir.appending(path: "detached.trustcache")
+            try CustomFirmwareDetachedSignature.trustCache(hashes).write(to: detached)
+            baseTrustcaches.append(detached)
+        }
+
         let tcContainer = tmpDir.appending(path: "new.trustcache")
         _ = try runProcess("/System/Library/SecurityResearch/usr/bin/cryptexctl", [
             "generate-trust-cache", "--type", "static",
-            "--base-trust-cache", oldTrustcachePath.path,
+        ] + baseTrustcaches.flatMap { ["--base-trust-cache", $0.path] } + [
             "--output-file", tcContainer.path,
             mount,
         ])

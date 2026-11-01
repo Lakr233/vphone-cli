@@ -53,10 +53,29 @@ extension CryptexFilesystemPatcher {
         let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
         let source = resources.guestResources.appendingPathComponent("vphoned.plist")
         try target.replaceFile("System/Library/LaunchDaemons/vphoned.plist", fromFileAt: source, mode: 0o644, owner: (0, 0))
-        try editGuestFile("System/Library/xpc/launchd.plist", targetMount: targetMount, mode: 0o644) { file in
+        try editGuestFile(CustomFirmwareDetachedSignature.launchdCachePath, targetMount: targetMount, mode: 0o644) { file in
             try CustomFirmwareDaemons.injectDaemon(into: file, name: "vphoned", from: source)
         }
         print("  [+] Injected vphoned")
+        try resignLaunchdCache(targetMount: targetMount)
+    }
+
+    /// Sign the edited `launchd.plist` as Apple signs it, so the stock
+    /// `launchd_cache_loader` takes it as the secure cache. `createTrustcache`
+    /// adds the new cdhashes to the static trust cache, which is what the loader
+    /// asks AMFI about. See `CustomFirmwareDetachedSignature`.
+    func resignLaunchdCache(targetMount: String) throws {
+        let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        let cache = try target.readData(CustomFirmwareDetachedSignature.launchdCachePath)
+        let signature = CustomFirmwareDetachedSignature.sign(cache, identifierStem: "launchd")
+        let file = try createTmpDir().appending(path: "launchd.plist.sig")
+        try signature.write(to: file)
+        // root:admin 0644, as Apple installs it.
+        try target.replaceFile(CustomFirmwareDetachedSignature.launchdCacheSignaturePath,
+                               fromFileAt: file, mode: 0o644, owner: (0, 80))
+        for hash in try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature) {
+            print("  [+] Signed launchd.plist: cdhash \(hash.cdhash.map { String(format: "%02x", $0) }.joined()) (hash type \(hash.hashType))")
+        }
     }
 
     func addVphoned(targetMount: String) throws {

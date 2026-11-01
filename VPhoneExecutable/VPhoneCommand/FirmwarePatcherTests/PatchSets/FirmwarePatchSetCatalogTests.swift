@@ -235,7 +235,11 @@ struct FirmwarePatchSetCatalogTests {
         let restoreImage = Set(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
         let bootChain = FirmwarePatchSetCatalog.minimalBootChainPatches
         let researchBoard = Set(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-        #expect(plan.enabled == restoreImage.union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(researchBoard))
+        // The unsecure-cache gate stays out: the launchd.plist minimal edits is
+        // signed and in the trust cache, so the stock launchd_cache_loader takes it.
+        #expect(!plan.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
+        #expect(plan.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
+            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(researchBoard))
         #expect(plan.droppedBootEssentials.allSatisfy { !$0.hasPrefix("ibec-") && !$0.hasPrefix("llb-") })
 
         let watch = try VPhonePatchPlan.resolve(
