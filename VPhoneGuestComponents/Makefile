@@ -86,6 +86,7 @@ PREFSFIX_SOURCES := $(wildcard PrefsFix/*.m PrefsFix/*.c)
 PREFSFIX_INCLUDES := $(wildcard PrefsFix/*.h)
 # Foundation + ObjC runtime for the sign-in presentation swizzles; AppleAccountUI
 # etc. are reached through the runtime at runtime, so nothing is needed at link.
+IOS17DESKTOP := $(STAGE)/ios17desktop/libvphoneios17desktop.dylib
 SIGNINFIX := $(STAGE)/signinfix/libsigninfix.dylib
 SIGNINFIX_SOURCES := $(wildcard SignInFix/*.m SignInFix/*.c)
 SIGNINFIX_INCLUDES := $(wildcard SignInFix/*.h)
@@ -158,7 +159,7 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 VIRTIOSOUND := $(STAGE)/virtiosound/VPhoneVirtIOSound.driver
 VIRTIOSOUND_SOURCES := $(wildcard VirtIOSound/*.m VirtIOSound/*.c)
 VIRTIOSOUND_INCLUDES := $(wildcard VirtIOSound/*.h) VirtIOSound/Info.plist VirtIOSound/AudioServerDriver.tbd
-ARTIFACTS := $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND)
+ARTIFACTS := $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist \
 	$(STAGE)/misfix/libmisfix.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
@@ -204,7 +205,7 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
 	@echo "Packaged $(ARCHIVE)"
 
 test-loader-links:
@@ -621,3 +622,17 @@ build-executable-remap-probe:
 	@mkdir -p $(OUT)
 	xcrun --sdk iphoneos swiftc -target arm64-apple-ios26.0 -O Tests/ExecutableRemapProbe.swift -module-cache-path $(OUT)/probe-module-cache -o $(OUT)/ExecutableRemapProbe
 	codesign --force --sign - --timestamp=none $(OUT)/ExecutableRemapProbe
+
+$(IOS17DESKTOP): IOS17Desktop/libvphoneios17desktop.m
+	@mkdir -p $(STAGE)/ios17desktop
+	$(CLANG) $(COMMON_FLAGS) -dynamiclib -install_name /usr/lib/libvphoneios17desktop.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
+	@codesign --force --sign - $@
+
+.PHONY: test-ios17-desktop
+test-ios17-desktop:
+	@mkdir -p ../.build/ios17-desktop-tests
+	xcrun --sdk macosx clang -fobjc-arc -framework Foundation -Wno-unused-parameter -dynamiclib IOS17Desktop/libvphoneios17desktop.m -o ../.build/ios17-desktop-tests/hook.dylib
+	xcrun --sdk macosx clang -fobjc-arc -framework Foundation Tests/IOS17DesktopTests.m -o ../.build/ios17-desktop-tests/test
+	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 17 SpringBoard
+	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 18 SpringBoard
+	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 17 OtherProcess

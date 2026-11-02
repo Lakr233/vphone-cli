@@ -1323,6 +1323,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.attitude
                     && identifier != FirmwareGuestSystemPatchSet.hinge
                     && identifier != FirmwareGuestSystemPatchSet.foldGuard
+                    && identifier != FirmwareGuestSystemPatchSet.ios17Desktop
             }
             guard plan.isEnabled(identifier) else {
                 print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
@@ -1715,6 +1716,29 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
+        // iOS 17 does not reliably propagate the spawn hook to SpringBoard.
+        // Keep the weak load owned by this selection, with the original binary
+        // backed up by the same mechanism as the other executable patches.
+        let desktop = FirmwareGuestSystemPatchSet.ios17Desktop
+        isolate([desktop]) {
+            let path = "System/Library/CoreServices/SpringBoard.app/SpringBoard"
+            let library = "libvphoneios17desktop.dylib"
+            if on(desktop) {
+                try system.replaceFile("usr/lib/" + library, fromFileAt: VPhoneGuestBinaries.resolve(library), mode: 0o755, owner: Self.guestOwner)
+                try patchMachO(system: system, work: work, path: path,
+                               preserveEntitlements: true, injectedDylibPath: "/usr/lib/" + library)
+                live.insert(desktop)
+            } else {
+                if priorGuest.contains(desktop) {
+                    guard try revertMachO(system: system, work: work, path: path) else {
+                        live.insert(desktop)
+                        throw ValidationError("iOS 17 desktop workaround has no SpringBoard backup; cannot safely remove its library.")
+                    }
+                }
+                try system.removeItem("usr/lib/" + library)
+            }
+        }
+
         // 2. The dyld shared cache. The version branches and the declarations'
         //    applicability say the same thing; this is what a VM with no plan
         //    still follows.
@@ -1729,7 +1753,7 @@ struct VPhoneCustomFirmwareInstaller {
                 ("dyld-boot-xpc_lwcr", "patch-xpc-lwcr", [dsc]),
                 ("dyld-boot-lockdown_mode", "patch-lockdown-mode", [dsc]),
             ]
-        } else if version.hasPrefix("26.0") || version.hasPrefix("18.") {
+        } else if version.hasPrefix("26.0") || version.hasPrefix("18.") || version.hasPrefix("17.") {
             dyld.append(("dyld-boot-iomfb_swapend", "patch-iomfb-swapend", [dsc, "--target-size", "0x560"]))
         }
         dyld += [
@@ -2085,7 +2109,7 @@ struct VPhoneCustomFirmwareInstaller {
 
         try requireX1Bootstrap()
         if !isHomePod {
-            isolate([]) { try restoreMISFixTargets(system: system) }
+            isolate([]) { try restoreMISFixTargets(system: system, preserveSpringBoard: on(FirmwareGuestSystemPatchSet.ios17Desktop)) }
         }
 
         // HomePod has no misagent/provisioning service. Its research SDK signs
@@ -3239,13 +3263,15 @@ struct VPhoneCustomFirmwareInstaller {
     /// A guest installed before that still carries a load command in each, and
     /// `patchMachO` left the original beside it as `.bak`. The `/mf` alias
     /// existed only for SpringBoard's.
-    private func restoreMISFixTargets(system: VPhoneConfinedDirectory) throws {
+    private func restoreMISFixTargets(system: VPhoneConfinedDirectory, preserveSpringBoard: Bool = false) throws {
         let targets = [
             "usr/libexec/installd",
             "usr/libexec/misagent",
             "System/Library/CoreServices/SpringBoard.app/SpringBoard",
         ]
         for path in targets where try system.isRegularFile("\(path).bak") {
+            // The iOS 17 desktop selection owns this executable and its backup.
+            if preserveSpringBoard && path == "System/Library/CoreServices/SpringBoard.app/SpringBoard" { continue }
             try system.rename("\(path).bak", to: path)
             print("  [+] \(path): restored the original, libmisfix is inserted at spawn")
         }

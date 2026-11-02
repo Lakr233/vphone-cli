@@ -161,6 +161,7 @@
 			<string>system-virtualaudio-cfw-speaker_route_throws</string>
 			<string>system-virtualaudio-cfw-volume_mode_precondition</string>
 			<string>system-watchdogd-exp-hv_vmm_cache</string>
+			<string>system-springboard-exp-ios17_desktop</string>
 		</array>
 	</dict>
 	<key>Summary</key>

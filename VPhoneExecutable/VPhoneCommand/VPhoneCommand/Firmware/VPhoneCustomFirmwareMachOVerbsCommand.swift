@@ -137,8 +137,8 @@ struct VPhoneCustomFirmwarePatchSeputilCommand: ParsableCommand {
         to "AA" makes the path /mnt7/AA.gl on every guest, which is what lets
         the install ship one pre-made .gl file instead of one per device.
 
-        The literal is found in __TEXT,__cstring and confirmed by an adrp+add
-        pair in __TEXT,__text that computes its address — the Python takes the
+        The literal is found in __TEXT,__cstring and confirmed by an adr or adrp+add
+        reference in __TEXT,__text that computes its address — the Python takes the
         first substring hit anywhere in the file. Both land on the same byte in
         this firmware; this one cannot land on a coincidence in the next.
 

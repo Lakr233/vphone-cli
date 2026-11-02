@@ -97,6 +97,10 @@ enum VPhoneFirmwarePreparer {
             device: productType,
             downloadConnections: downloadConnections,
         )
+        if phone.version.hasPrefix("17."),
+           !(phone.version == "17.7" && device.productType == "iPhone15,4" && cloud.version == "26.1") {
+            throw ValidationError("Experimental iOS 17 bring-up is limited to iPhone15,4 17.7 with cloudOS 26.1. Other pairings have not been validated.")
+        }
         let ota: (file: URL, key: String?, version: String, build: String)?
         if device.restoreBase != nil || (device.family == .homePod && otaSource != nil) {
             ota = try resolveOTA(

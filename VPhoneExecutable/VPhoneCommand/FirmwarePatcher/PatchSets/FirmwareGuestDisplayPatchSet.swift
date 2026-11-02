@@ -27,10 +27,10 @@ public enum FirmwareGuestDisplayPatchSet {
             VPhonePatchDeclaration(
                 identifier: "dyld-boot-iomfb_swapend",
                 title: "IOMFB swap-end size",
-                summary: "Resizes the swap-end structure a 26.0 or 18.x userland submits.",
+                summary: "Resizes the swap-end structure a 26.0, 18.x or experimental 17.7 userland submits.",
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .oneOf([.release(major: 26, minor: 0), .major(18)]),
+                    iOSBase: .oneOf([.release(major: 26, minor: 0), .major(18), .major(17)]),
                 ),
                 bootEssential: true,
             ),

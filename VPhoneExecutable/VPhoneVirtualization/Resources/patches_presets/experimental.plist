@@ -93,6 +93,7 @@
 		<string>Block</string>
 		<key>Patches</key>
 		<array>
+			<string>system-springboard-exp-ios17_desktop</string>
 			<string>system-userprofilesd-exp-keybag_lookup</string>
 			<string>system-breadboard-exp-mach_lookup</string>
 			<string>system-homeview-exp-setup_bypass</string>

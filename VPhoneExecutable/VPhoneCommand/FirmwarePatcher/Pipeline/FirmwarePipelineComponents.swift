@@ -122,7 +122,7 @@ extension FirmwarePipeline {
         // Network.framework uses the BSD path (the 26.1-kernel skywalk
         // channel-create traps in the 18.x Network.framework and crash-loops
         // mDNSResponder → no DNS). Empty on 26.x bases (stock boot-args).
-        let extraBootArgs = baseIs18 ? "if_attach_nx=0x3" : ""
+        let extraBootArgs = (baseIs18 || iOSBase?.major == 17) ? "if_attach_nx=0x3" : ""
 
         // 1. AVPBooter — Apple's ROM, in the VM root. Patched when the plan keeps
         //    the boot chain set. A machine booting OpenAVB has nothing
