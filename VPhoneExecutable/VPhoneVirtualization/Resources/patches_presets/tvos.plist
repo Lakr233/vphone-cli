@@ -90,6 +90,7 @@
 			<string>preboot-homepod-exp-audio_product</string>
 			<string>kernel-exp-frida_thread_set_state_entitlement_flag</string>
 			<string>kernel-cfw-paravirt_gpu_task3</string>
+			<string>kernel-cfw-paravirt_gles_renderer</string>
 			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
 			<string>kernel-exp-frida_tpro_off</string>
 			<string>kernel-exp-frida_syscall_filter_off</string>
@@ -151,6 +152,7 @@
 			<string>system-mobileactivationd-boot-should_hactivate</string>
 			<string>system-mount-boot-arm64e_x1_bootstrap</string>
 			<string>system-paravirt_gpu-cfw-heap_index_offset</string>
+			<string>system-paravirt_gpu-cfw-primitive_restart</string>
 			<string>system-systemhook-cfw-metal_cache_reuse</string>
 			<string>system-systemversion-cfw-build_version</string>
 			<string>system-virtiosound-cfw-hal_plugin</string>

@@ -146,6 +146,33 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 	-Wl,-U,_LLVMGetMDNodeNumOperands \
 	-Wl,-U,_LLVMGetMDNodeOperands \
 	-Wl,-U,_LLVMGetValueName2 \
+	-Wl,-U,_LLVMGetModuleContext \
+	-Wl,-U,_LLVMInt32TypeInContext \
+	-Wl,-U,_LLVMConstInt \
+	-Wl,-U,_LLVMMDNodeInContext \
+	-Wl,-U,_LLVMAddNamedMetadataOperand \
+	-Wl,-U,_LLVMABIAlignmentOfType \
+	-Wl,-U,_LLVMABISizeOfType \
+	-Wl,-U,_LLVMCountParamTypes \
+	-Wl,-U,_LLVMCountStructElementTypes \
+	-Wl,-U,_LLVMCreateMemoryBufferWithMemoryRangeCopy \
+	-Wl,-U,_LLVMDisposeMessage \
+	-Wl,-U,_LLVMGetArrayLength \
+	-Wl,-U,_LLVMGetElementType \
+	-Wl,-U,_LLVMGetIntTypeWidth \
+	-Wl,-U,_LLVMGetMDString \
+	-Wl,-U,_LLVMGetModuleDataLayout \
+	-Wl,-U,_LLVMGetParamTypes \
+	-Wl,-U,_LLVMGetPointerAddressSpace \
+	-Wl,-U,_LLVMGetReturnType \
+	-Wl,-U,_LLVMGetStructName \
+	-Wl,-U,_LLVMGetTypeKind \
+	-Wl,-U,_LLVMGetVectorSize \
+	-Wl,-U,_LLVMGlobalGetValueType \
+	-Wl,-U,_LLVMIsAMDString \
+	-Wl,-U,_LLVMParseIRInContext \
+	-Wl,-U,_LLVMPrintModuleToString \
+	-Wl,-U,_LLVMStructGetTypeAtIndex \
 	-Wl,-U,_MTLGPUCompilerCreate \
 	-Wl,-U,_MTLGPUCompilerDestroy \
 	-Wl,-U,_MTLDowngradeAIRModule \
@@ -226,6 +253,18 @@ test-x1-lowering:
 	xcrun --sdk macosx clang -Wall -Wextra -Werror -ILaunchHook \
 		-o $(OUT)/X1LoweringTests Tests/X1LoweringTests.c LaunchHook/VPhoneX1Lowering.c
 	@$(OUT)/X1LoweringTests
+
+# Host proof harness for the compiler plugin's OpenGL ES path: the AIR modules
+# AppleMetalGLRenderer hands it, through the plugin and into the host's Metal.
+# The plugin resolves libLLVM and libGPUCompiler at load, so it and the tests
+# are one dylib the runner loads after them.
+.PHONY: test-gles-air
+test-gles-air:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang++ -std=c++17 -fobjc-arc -O1 -Wall -Wextra -IGraphicLoader -dynamiclib -Wl,-undefined,dynamic_lookup \
+		-o $(OUT)/GLESAIRTests.dylib Tests/GLESAIRTests.mm $(GPU_PLUGIN_SOURCES) -framework Foundation -framework Metal
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -o $(OUT)/GLESAIRTestRunner Tests/GLESAIRTestRunner.c
+	@$(OUT)/GLESAIRTestRunner $(OUT)/GLESAIRTests.dylib Tests/GLESAIRFixtures
 
 # Host proof harness for libdevicename's name decoding, configd publication
 # rewrite and lockdownd rename decision.

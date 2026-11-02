@@ -95,6 +95,11 @@ public enum FirmwarePatchSetCatalog {
     /// `Research/Guest/gpu_acceleration.md`.
     public static let paravirtTask3Patch = "kernel-cfw-paravirt_gpu_task3"
 
+    /// OpenGL ES: the paravirtual GPU's personality names AppleMetalGLRenderer
+    /// as AGX's does, so `EAGLContext` gets a renderer. On in `standard`. See
+    /// `Research/Guest/gpu_acceleration.md`.
+    public static let paravirtGLESPatch = "kernel-cfw-paravirt_gles_renderer"
+
     /// Identifiers an installed bundle declared that a later one renamed, old to new.
     ///
     /// A VM's `PatchSelection.plist` and `PatchReceipt.plist` outlive the bundle
@@ -237,6 +242,7 @@ public enum FirmwarePatchSetCatalog {
     /// the iPhone 19 ARM64E_X1 boot path.
     public static let tvOSBlockedPatches: Set<String> = [
         paravirtTask3Patch,
+        paravirtGLESPatch,
         FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
         FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining,
         FirmwareGuestSystemPatchSet.arm64eX1CIBarcode,
@@ -280,6 +286,7 @@ public enum FirmwarePatchSetCatalog {
         "system-mobileactivationd-boot-should_hactivate",
         FirmwareGuestSystemPatchSet.arm64eX1MountBootstrap,
         "system-paravirt_gpu-cfw-heap_index_offset",
+        "system-paravirt_gpu-cfw-primitive_restart",
         "system-systemhook-cfw-metal_cache_reuse",
         "system-systemversion-cfw-build_version",
         "system-virtiosound-cfw-hal_plugin",

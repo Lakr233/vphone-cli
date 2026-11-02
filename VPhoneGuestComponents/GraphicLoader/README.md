@@ -23,3 +23,13 @@ Metal compilation, leaving the host VM window black even while vphoned connects.
 The Xcode bundle build stages it in `Contents/Resources/guest-resources`.
 `fw prepare` copies that dylib alongside the
 firmware-sourced GPU driver before exposing the complete restore tree.
+An installed guest without a restore tree gets a changed plugin from
+`cfw update-environment`, which replaces it when the bundle's differs.
+
+`GLESAIR.mm` completes the AIR modules AppleMetalGLRenderer builds for OpenGL
+ES shaders before they reach GPUCompiler: their argument metadata in the layout
+the Metal front end writes, and `air.version`. Without it every GLES shader
+crashed `MTLCompilerService`. `make -C VPhoneGuestComponents test-gles-air`
+runs the modules in `Tests/GLESAIRFixtures`, captured from an iOS 27.0.1 guest,
+through the plugin and into the host's Metal. See the "OpenGL ES" section of
+`Research/Guest/gpu_acceleration.md`.

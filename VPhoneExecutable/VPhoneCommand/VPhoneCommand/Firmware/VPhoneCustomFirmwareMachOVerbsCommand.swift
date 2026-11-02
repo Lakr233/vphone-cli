@@ -640,6 +640,36 @@ struct VPhoneCustomFirmwarePatchParavirtGPUIndexOffsetCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-paravirt-gpu-primitive-restart
+
+struct VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-paravirt-gpu-primitive-restart",
+        abstract: "Stop the paravirtual GPU driver sending the primitive restart override",
+        discussion: """
+        OpenGL ES calls setPrimitiveRestartEnabled:index: with the restart
+        index itself, 0xffffffff. The cloudOS 26.4 driver sends it as command
+        0x91, and the host checks the index against maxViewportCount, throws,
+        and fails the command buffer. The serialiser method's pacibsp becomes
+        ret, so the command is never sent and Metal's own restart behaviour
+        applies.
+
+        The method is found from the command's mov w2/mov w3 setup, which is
+        unique in __text. Idempotent: a method that already returns at entry is
+        reported and the file is not rewritten.
+        """,
+    )
+
+    @Argument(help: "Path to the AppleParavirtGPUMetalIOGPUFamily Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        // No re-attestation: the caller re-signs.
+        try CustomFirmwareParavirtGPUPrimitiveRestart.patch(fileAt: binary, log: machOVerbLog)
+    }
+}
+
 enum VPhoneCustomFirmwareMachOVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
     ///
@@ -661,6 +691,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchVirtualAudioVolumeGateCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioDeviceStateNullGateCommand.self,
             VPhoneCustomFirmwarePatchParavirtGPUIndexOffsetCommand.self,
+            VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand.self,
         ]
     }
 }

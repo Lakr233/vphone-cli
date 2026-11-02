@@ -82,6 +82,7 @@
 			<string>kernel-exp-frida_tpro_off</string>
 			<string>kernel-exp-frida_syscall_filter_off</string>
 			<string>kernel-cfw-paravirt_gpu_task3</string>
+			<string>kernel-cfw-paravirt_gles_renderer</string>
 			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
 			<string>kernel-exp-hv_vmm</string>
 			<string>dyld-exp-hv_vmm</string>
@@ -141,6 +142,7 @@
 			<string>system-mobileactivationd-boot-should_hactivate</string>
 			<string>system-mount-boot-arm64e_x1_bootstrap</string>
 			<string>system-paravirt_gpu-cfw-heap_index_offset</string>
+			<string>system-paravirt_gpu-cfw-primitive_restart</string>
 			<string>system-systemhook-cfw-metal_cache_reuse</string>
 			<string>system-systemversion-cfw-build_version</string>
 			<string>system-virtualaudio-cfw-microphone_graph_chains</string>
