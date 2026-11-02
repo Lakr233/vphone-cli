@@ -116,12 +116,22 @@ IOKit quiescence; it subsequently worked without an additional patch.
 
 ## Verification and limitations
 
-The pre-PR bundle passed complete native build and bundle admission. Selected
-catalogue/plan/parser/encoder/device-tree tests passed (50 tests in five suites).
-ASan/UBSan conversion and lease-policy tests cover field bounds, narrowing,
+The PR branch, rebased onto upstream fd1610d7, passed complete native Debug
+bundle build and bundle admission. Its selected catalogue, plan, parser, encoder,
+device-tree and guest-patch resolution run passed 102 tests in seven suites;
+20 guest-device tests also passed. The guest archive contains both iOS 16 hook
+libraries. Native Mach-port register/lookup, empty-slot and count-bound tests
+pass. ASan/UBSan conversion and lease-policy tests cover field bounds, narrowing,
 inserted slots, lease freshness, timestamps, ownership, file types and modes.
 The real guest displayed Home Screen and Settings/About with working mouse input.
 These are bounded bring-up results, not full OS or every-application validation.
+
+The unrestricted firmware test run was also attempted: it reports missing local
+reference fixtures (dyld caches, Mach-O binaries and raw firmware payloads),
+including tests that deliberately fail rather than silently pass without data.
+That full run was not green; the 102-test result above is the selected run,
+not a claim that all 818 firmware tests passed. Reference Apple binaries are not
+included in this PR. The three native compatibility test targets are wired into CI.
 
 Wallpaper stays black. Add New Wallpaper crashes its Metal preview because the
 guest has no Metal device; the cancelled software-preview prototype is excluded.
