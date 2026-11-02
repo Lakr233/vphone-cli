@@ -6372,3 +6372,13 @@ research board kernels", "Find the LLB rootfs and TXM CFW patches on cloudOS
 18"). Without them `fw patch` stops at TXM: on cloudOS 18.6 the developer-mode,
 debugger and get-task-allow sites are not found. The iOS 18 row ran with those
 two commits on top of this branch.
+
+On a stock boot chain (`minimal` and `watchos` with no iBEC or LLB patch, and
+the launchd_cache_loader gate off; 2026-11-02) the feature works the same: the
+same 22 kernelcache and 9 TXM records, `iBEC: no patches` and `LLB: no
+patches` in the patch log, the stock LLB booting the patched kernel and TXM to
+SpringBoard (iPhone17,3 26.5) and Carousel (Watch7,18 26.4) with vphoned up and
+developer mode `enabled`, and LLDB attached to configd through the re-signed
+debugserver, evaluated `(int)getpid()` and read 16 bytes at its pc. The watch
+guest needed more than 2048 MB: at 2048 MB a stock LLB, with or without the
+feature, stops the VM after `iLLB decompressed`; at 8192 MB both boot.
