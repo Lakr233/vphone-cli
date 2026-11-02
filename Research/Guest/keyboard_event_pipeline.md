@@ -307,3 +307,13 @@ Host shortcuts still apply before the guest sees anything: with
 Input Source") the Mac switches its own input source on the same fn press,
 and a ⌃Space or ⌘Space bound to Spotlight or input-source switching on the
 host is the host's unless the VM view's `capturesSystemKeys` takes it first.
+While a VM window is key, `VPhoneHostHotKeys` pushes
+`kHIHotKeyModeAllDisabledExceptUniversalAccess` so the guest gets them; that
+only takes effect when the responsible app is trusted for Accessibility, and
+lapses when vphone-vm is deactivated or exits. The mode does not cover the
+input-source hot keys: ⌃Space and ⌃⌥Space stay with the Mac, and neither the
+mode nor SkyLight's per-connection `SLSSetSymbolicHotKeyEnabledForConnection`
+lets Space reach vphone-vm (only Control's flags change arrives). Only switching
+the hot key off system-wide does, which can leave the Mac without it after a
+crash, so it is not done. Switch the guest's input source with 🌐 or Device ›
+Switch Guest Input Source.
