@@ -54,8 +54,18 @@ extension FirmwarePipeline {
             guard let plan else { return true }
             return plan.declarations.contains { $0.target == .firmware(component) && plan.isEnabled($0.identifier) }
         }
-        let includeKernelBase = includesSet(FirmwareKernelBasePatchSet.identifier)
-        let includeKernelCustomFirmware = includesSet(FirmwareKernelCustomFirmwarePatchSet.identifier)
+        // Whether the plan turns on any patch from the two kernel sets. `minimal`
+        // names them so a machine can turn some on, but selects none itself; its
+        // kernel stays stock, and the kernel patchers would only log every site
+        // they skipped. (The research board's kext mix targets the kernelcache
+        // too, so it is not enough to ask about the target.)
+        let patchesKernel = plan.map { plan in
+            plan.patchSets
+                .filter { [FirmwareKernelBasePatchSet.identifier, FirmwareKernelCustomFirmwarePatchSet.identifier].contains($0.identifier) }
+                .contains { set in set.patches.contains { plan.isEnabled($0.identifier) } }
+        } ?? true
+        let includeKernelBase = includesSet(FirmwareKernelBasePatchSet.identifier) && patchesKernel
+        let includeKernelCustomFirmware = includesSet(FirmwareKernelCustomFirmwarePatchSet.identifier) && patchesKernel
         let includeDeviceTree = includesSet(FirmwareDeviceTreePatchSet.identifier)
 
         // A guest that presents its board boots a device tree of its own (7b),

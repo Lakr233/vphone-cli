@@ -160,6 +160,18 @@ struct VPhoneLaunchpadPatchSettingsView: View {
                 if isLoading {
                     ProgressView().controlSize(.small)
                 }
+                if let catalog {
+                    ForEach(catalog.offeredFeatures) { feature in
+                        Toggle(isOn: Binding(
+                            get: { selection.isOn(feature, in: catalog) },
+                            set: { selection.set(feature, on: $0, in: catalog) },
+                        )) {
+                            Text(verbatim: feature.title)
+                        }
+                        .help(feature.summary)
+                        .disabled(isLoading || isReadOnly)
+                    }
+                }
                 Spacer()
                 VPhoneLaunchpadSearchField(text: $filter, prompt: String(localized: "Filter patches"))
                     .frame(width: 220)

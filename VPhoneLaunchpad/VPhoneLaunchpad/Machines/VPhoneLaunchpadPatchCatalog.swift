@@ -135,6 +135,23 @@ nonisolated struct VPhoneLaunchpadPatchCatalog: Decodable, Sendable {
         private static let effects: Set<String> = ["boot", "cfw", "exp"]
     }
 
+    /// A group of patches the editor turns on or off with one box, such as
+    /// "Userspace debugging". The bundle names its patches, so Launchpad still
+    /// declares none.
+    struct Feature: Decodable, Hashable, Identifiable, Sendable {
+        let identifier: String
+        let title: String
+        let summary: String
+        let patches: [String]
+        /// Whether the active preset can carry the feature: it names every
+        /// set the feature's patches belong to.
+        let available: Bool
+
+        var id: String {
+            identifier
+        }
+    }
+
     /// The preset this report was made against: the VM's own, or the one `--preset`
     /// asked for.
     let activePreset: String
@@ -142,6 +159,8 @@ nonisolated struct VPhoneLaunchpadPatchCatalog: Decodable, Sendable {
     let allowedPatches: [String]
     let presets: [Preset]
     let patches: [Patch]
+    /// Nil from a bundle that predates features; the editor then shows none.
+    let features: [Feature]?
 
     // Reported only for a named machine, and only by a bundle that compares a
     // machine's records. An older bundle leaves them out, and every reader
@@ -194,6 +213,15 @@ nonisolated struct VPhoneLaunchpadPatchCatalog: Decodable, Sendable {
     func guestOverrides(_ selection: VPhoneLaunchpadPatchSelection) -> Set<String> {
         let guest = Set(patches.filter { !$0.isBootChain }.map(\.identifier))
         return selection.blocked.union(selection.allowed).intersection(guest)
+    }
+
+    /// The features worth a box under the active preset: one it can carry and
+    /// does not already turn on whole. `standard` installs its own debugserver
+    /// and has the kernel patches, so it gets no "Userspace debugging" box.
+    var offeredFeatures: [Feature] {
+        (features ?? []).filter { feature in
+            feature.available && !feature.patches.allSatisfy { patch($0)?.inPreset == true }
+        }
     }
 
     func preset(_ identifier: String) -> Preset? {
@@ -382,6 +410,21 @@ nonisolated struct VPhoneLaunchpadPatchSelection: Hashable, Sendable {
 
     func isOn(_ patch: VPhoneLaunchpadPatchCatalog.Patch) -> Bool {
         patch.inPreset ? !blocked.contains(patch.identifier) : allowed.contains(patch.identifier)
+    }
+
+    /// Whether every patch of `feature` is on.
+    func isOn(_ feature: VPhoneLaunchpadPatchCatalog.Feature, in catalog: VPhoneLaunchpadPatchCatalog) -> Bool {
+        feature.patches.allSatisfy { catalog.patch($0).map(isOn) ?? false }
+    }
+
+    /// Turns every patch of `feature` on or off, each recorded as it differs
+    /// from the preset.
+    mutating func set(_ feature: VPhoneLaunchpadPatchCatalog.Feature, on: Bool, in catalog: VPhoneLaunchpadPatchCatalog) {
+        for identifier in feature.patches {
+            if let patch = catalog.patch(identifier) {
+                set(patch, on: on)
+            }
+        }
     }
 
     /// Records a box the way it differs from the preset, so a patch that agrees

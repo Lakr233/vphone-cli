@@ -14,6 +14,18 @@
 		</dict>
 		<dict>
 			<key>Identifier</key>
+			<string>com.vphone.patchset.kernel.base</string>
+			<key>Kind</key>
+			<string>Bundled</string>
+		</dict>
+		<dict>
+			<key>Identifier</key>
+			<string>com.vphone.patchset.kernel.cfw</string>
+			<key>Kind</key>
+			<string>Bundled</string>
+		</dict>
+		<dict>
+			<key>Identifier</key>
 			<string>com.vphone.patchset.research.board</string>
 			<key>Kind</key>
 			<string>Bundled</string>

@@ -134,6 +134,25 @@ struct FirmwarePatchDriftTests {
     }
 
     @Test
+    func `A guest restored with a customised system takes kernel patches only by restore`() {
+        // `cfw update-kernel` refuses a `minimal` guest, so a kernel patch it
+        // turns on (userspace debugging) is delivered like the rest of its boot chain.
+        let list = FirmwarePatchDrift.states(
+            declarations: declarations,
+            wanted: ["kernel-a", "dt"],
+            planned: [],
+            applied: nil,
+            restoredCustomisedSystem: true,
+            part: part,
+        )
+        let result = Dictionary(uniqueKeysWithValues: list.map { ($0.identifier, $0) })
+        #expect(result["kernel-a"]?.isPending == true)
+        #expect(result["kernel-a"]?.delivery == .restore)
+        #expect(result["dt"]?.delivery == .updateEnvironment)
+        #expect(FirmwarePatchDelivery(target: .firmware(.kernelcache)) == .updateKernel)
+    }
+
+    @Test
     func `No plan and no receipt leaves every patch unknown`() {
         let result = states(wanted: ["kernel-a"], planned: nil, applied: nil)
         #expect(result.values.allSatisfy { $0.planned == nil && $0.applied == nil && $0.isPending == nil })

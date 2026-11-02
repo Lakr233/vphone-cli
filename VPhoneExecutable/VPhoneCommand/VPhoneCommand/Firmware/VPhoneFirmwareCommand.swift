@@ -537,7 +537,9 @@ struct VPhoneFirmwareSetPatchesCommand: ParsableCommand {
                                         A machine booting OpenAVB has no
                                         AVPBooter to patch.
           kernelcache                   `cfw update-kernel` (root), which keeps the
-                                        guest's data (no restore).
+                                        guest's data (no restore). On a VM whose
+                                        system was customised before its
+                                        restore (`minimal`), only a restore.
           Guest (system, dyld cache,    `cfw update-environment` (root), which
           Preboot device tree)          applies this choice both on and off.
           LLB, TXM, DeviceTree          only a restore, which erases the guest's data.

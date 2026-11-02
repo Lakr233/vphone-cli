@@ -16,7 +16,8 @@ import VPhonePatchKit
 // MARK: - Delivery
 
 /// The step that carries a change to one patch into a guest that is already
-/// installed. Which one depends only on where the patch lands.
+/// installed. Which one depends on where the patch lands, and for the
+/// kernelcache on whether the restore installed a customised system.
 public enum FirmwarePatchDelivery: String, Sendable, Hashable, CaseIterable, Codable {
     /// AVPBooter sits in the VM folder and is read at every boot, so
     /// `fw patch` alone delivers it. `fw patch` still needs the VM's restore
@@ -33,12 +34,16 @@ public enum FirmwarePatchDelivery: String, Sendable, Hashable, CaseIterable, Cod
     /// Everything `cfw install` writes into the guest volumes.
     case updateEnvironment = "update-environment"
 
-    public init(target: VPhonePatchTarget) {
+    /// - Parameter restoredCustomisedSystem: Whether the guest's restore
+    ///   installed a system `fw patch` customised (``FirmwareRestoreImagePatchSet``).
+    ///   `cfw update-kernel` refuses such a guest, so its kernelcache, like
+    ///   the rest of its boot chain, changes only with a restore.
+    public init(target: VPhonePatchTarget, restoredCustomisedSystem: Bool = false) {
         switch target {
         case .firmware(.avpBooter):
             self = .firmwarePatch
         case .firmware(.kernelcache):
-            self = .updateKernel
+            self = restoredCustomisedSystem ? .restore : .updateKernel
         case .firmware:
             // iBSS, iBEC, LLB, TXM, DeviceTree, SEP, and the restore-only
             // Filesystem/Manifest.
@@ -114,6 +119,9 @@ public enum FirmwarePatchDrift {
         /// Whether it is live in the guest; nil when the receipt does not
         /// record its part.
         public let applied: Bool?
+        /// Whether the guest's restore installed a customised system, which
+        /// changes what delivers a kernelcache patch.
+        public let restoredCustomisedSystem: Bool
 
         /// What the guest is believed to run: the receipt where it records the
         /// part, else the plan, which is what the next restore or install
@@ -129,7 +137,7 @@ public enum FirmwarePatchDrift {
         }
 
         public var delivery: FirmwarePatchDelivery {
-            FirmwarePatchDelivery(target: target)
+            FirmwarePatchDelivery(target: target, restoredCustomisedSystem: restoredCustomisedSystem)
         }
     }
 
@@ -145,6 +153,8 @@ public enum FirmwarePatchDrift {
     ///     Preboot repair for a VM restored before it
     ///     (`FirmwareGuestSystemPatchSet.prebootRepairs`). When the stand-in is
     ///     live, the patch reads as applied, whatever its own part records.
+    ///   - restoredCustomisedSystem: Whether the guest's restore installed a
+    ///     customised system; see ``FirmwarePatchDelivery/init(target:restoredCustomisedSystem:)``.
     ///   - part: The receipt's rule for naming a target's part.
     public static func states(
         declarations: [VPhonePatchDeclaration],
@@ -153,6 +163,7 @@ public enum FirmwarePatchDrift {
         applied: [String: Set<String>]?,
         notApplicable: Set<String> = [],
         standIns: [String: String] = [:],
+        restoredCustomisedSystem: Bool = false,
         part: (VPhonePatchTarget) -> String,
     ) -> [PatchState] {
         let partOf = part
@@ -178,6 +189,7 @@ public enum FirmwarePatchDrift {
                 wanted: isWanted,
                 planned: planned.map { $0.contains(declaration.identifier) },
                 applied: isApplied,
+                restoredCustomisedSystem: restoredCustomisedSystem,
             )
         }
     }
