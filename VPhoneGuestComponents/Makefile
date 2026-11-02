@@ -239,7 +239,7 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
 	@echo "Packaged $(ARCHIVE)"
 
 test-loader-links:
