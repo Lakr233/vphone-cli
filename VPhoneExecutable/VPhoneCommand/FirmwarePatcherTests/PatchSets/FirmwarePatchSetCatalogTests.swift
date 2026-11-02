@@ -184,8 +184,8 @@ struct FirmwarePatchSetCatalogTests {
                     // presets drop exactly the iOS ones an Apple TV has no port of.
                     let tvPresets = [VPhonePatchPreset.homeViewIdentifier, VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homePodMiniIdentifier]
                     // `minimal` and `watchos` drop every boot chain patch, and
-                    // `minimal` every kernel patch of the two sets it names only
-                    // so a machine can turn some on: their system is customised
+                    // every kernel patch of the two sets they name only so a
+                    // machine can turn some on: their system is customised
                     // before the restore instead, onto a stock kernel.
                     let restoreImagePresets = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
                     let droppable = Set(
@@ -307,52 +307,67 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `Userspace debugging is offered on minimal alone, and adds exactly its own patches there`() throws {
+    func `Userspace debugging resolves on every preset but Apple TV, taking the debugserver its sets deliver`() throws {
         let feature = FirmwarePatchSetCatalog.userspaceDebugging
         let declared = Set(FirmwarePatchSetCatalog.allDeclarations.map(\.identifier))
-        #expect(feature.patches.isSubset(of: declared))
+        #expect(feature.allPatches.isSubset(of: declared))
+        let restoreImage = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
+        // cfw install refuses the debugserver and launchd patches on an Apple TV.
+        let appleTV = [VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier]
         for preset in FirmwarePatchSetCatalog.builtInPresets {
-            #expect(
-                feature.isAvailable(in: preset) == (preset.identifier == VPhonePatchPreset.minimalIdentifier),
-                "\(preset.identifier)",
+            if appleTV.contains(preset.identifier) {
+                #expect(feature.patches(in: preset) == nil, "\(preset.identifier)")
+                continue
+            }
+            let patches = try #require(feature.patches(in: preset), "\(preset.identifier)")
+            let debugserver = restoreImage.contains(preset.identifier)
+                ? FirmwareRestoreImagePatchSet.debugserver : "system-debugserver-cfw-install"
+            #expect(patches.contains(debugserver), "\(preset.identifier)")
+            #expect(patches.count == feature.parts.count, "\(preset.identifier)")
+            // Allowing them resolves.
+            _ = try VPhonePatchPlan.resolve(
+                preset: preset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.4"),
+                cloudOS: VPhoneVersion("26.4"),
+                allowed: patches,
             )
         }
 
-        for base in ["18.6.2", "26.4"] {
-            let minimal = try VPhonePatchPlan.resolve(
-                preset: FirmwarePatchSetCatalog.minimalPreset,
-                patchSets: FirmwarePatchSetCatalog.bundled,
-                iOSBase: VPhoneVersion(base),
-                cloudOS: VPhoneVersion("26.4"),
-            )
-            let debugging = try VPhonePatchPlan.resolve(
-                preset: FirmwarePatchSetCatalog.minimalPreset,
-                patchSets: FirmwarePatchSetCatalog.bundled,
-                iOSBase: VPhoneVersion(base),
-                cloudOS: VPhoneVersion("26.4"),
-                allowed: feature.patches,
-            )
-            // Plain minimal keeps a stock kernel; the feature adds only its own.
-            let kernelSets = [FirmwareKernelBasePatchSet.manifest, FirmwareKernelCustomFirmwarePatchSet.manifest]
-                .flatMap { $0.patches.map(\.identifier) }
-            #expect(minimal.enabled.isDisjoint(with: kernelSets), "\(base)")
-            #expect(debugging.enabled.subtracting(minimal.enabled).isSubset(of: feature.patches), "\(base)")
-            #expect(debugging.enabled.union(debugging.skippedByVersion).isSuperset(of: feature.patches), "\(base)")
+        for preset in [FirmwarePatchSetCatalog.minimalPreset, FirmwarePatchSetCatalog.watchOSPreset] {
+            let patches = try #require(feature.patches(in: preset))
+            for base in ["18.6.2", "26.4"] {
+                let plain = try VPhonePatchPlan.resolve(
+                    preset: preset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base),
+                    cloudOS: VPhoneVersion("26.4"),
+                )
+                let debugging = try VPhonePatchPlan.resolve(
+                    preset: preset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base),
+                    cloudOS: VPhoneVersion("26.4"),
+                    allowed: patches,
+                )
+                // The plain preset keeps a stock kernel; the feature adds only its own.
+                let kernelSets = [FirmwareKernelBasePatchSet.manifest, FirmwareKernelCustomFirmwarePatchSet.manifest]
+                    .flatMap { $0.patches.map(\.identifier) }
+                #expect(plain.enabled.isDisjoint(with: kernelSets), "\(preset.identifier) \(base)")
+                #expect(debugging.enabled.subtracting(plain.enabled).isSubset(of: patches), "\(preset.identifier) \(base)")
+                #expect(debugging.enabled.union(debugging.skippedByVersion).isSuperset(of: patches), "\(preset.identifier) \(base)")
+            }
         }
     }
 
     @Test
-    func `Standard carries the kernel and TXM half of userspace debugging`() {
-        // So `standard`, which installs its own debugserver with `cfw install`,
-        // needs no feature box.
+    func `Standard turns userspace debugging on whole, so no box is offered there`() throws {
         let preset = FirmwarePatchSetCatalog.standardPreset
         let named = Set(preset.patchSets.map(\.identifier))
         let standard = Set(FirmwarePatchSetCatalog.bundled.filter { named.contains($0.identifier) }
             .flatMap(\.patches).map(\.identifier).filter { preset.selection.includes($0) })
-        let kernelAndTXM = FirmwarePatchSetCatalog.userspaceDebugging.patches
-            .subtracting([FirmwareRestoreImagePatchSet.debugserver])
-        #expect(kernelAndTXM.isSubset(of: standard), "\(kernelAndTXM.subtracting(standard).sorted())")
-        #expect(standard.contains("system-debugserver-cfw-install"))
+        let patches = try #require(FirmwarePatchSetCatalog.userspaceDebugging.patches(in: preset))
+        #expect(patches.isSubset(of: standard), "\(patches.subtracting(standard).sorted())")
     }
 
     @Test

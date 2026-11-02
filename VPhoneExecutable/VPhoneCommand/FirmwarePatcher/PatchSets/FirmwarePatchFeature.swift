@@ -14,23 +14,48 @@ public struct FirmwarePatchFeature: Sendable, Hashable, Identifiable {
     public let identifier: String
     public let title: String
     public let summary: String
-    /// The patches the feature turns on, by identifier.
-    public let patches: Set<String>
+    /// What the feature turns on, one entry per part. Most parts are one patch;
+    /// a part that presets deliver in different ways lists each patch that does
+    /// it, and a preset takes the first one its sets declare.
+    public let parts: [[String]]
 
     public var id: String {
         identifier
     }
 
-    /// Whether `preset` can carry this feature: it names every set that
-    /// declares one of its patches, so `--allow` for each resolves. A preset
-    /// without one of those sets cannot turn the feature on at all.
-    public func isAvailable(in preset: VPhonePatchPreset) -> Bool {
+    /// Every patch any preset could take for the feature.
+    public var allPatches: Set<String> {
+        Set(parts.flatMap(\.self))
+    }
+
+    /// The patches `preset` turns on for the feature, or nil when it cannot
+    /// carry it: some part has no patch in a set the preset names, so `--allow`
+    /// would not resolve, or `cfw install` would refuse one of them on the
+    /// preset's tvOS-family guest (``FirmwareGuestPatchResolution``).
+    public func patches(in preset: VPhonePatchPreset) -> Set<String>? {
         let named = Set(preset.patchSets.map(\.identifier))
-        return patches.allSatisfy { patch in
-            FirmwarePatchSetCatalog.bundled.contains { set in
-                named.contains(set.identifier) && set.patches.contains { $0.identifier == patch }
-            }
+        let declared = Set(FirmwarePatchSetCatalog.bundled.filter { named.contains($0.identifier) }
+            .flatMap(\.patches).map(\.identifier))
+        var result: Set<String> = []
+        for part in parts {
+            guard let patch = part.first(where: declared.contains) else { return nil }
+            result.insert(patch)
         }
+        let refused: [String] = switch preset.identifier {
+        case VPhonePatchPreset.homePodMiniIdentifier:
+            FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: result)
+        case VPhonePatchPreset.tvOSIdentifier:
+            FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: result)
+        case VPhonePatchPreset.tvOS4KIdentifier:
+            FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: result, arm64eUserland: true)
+        default:
+            []
+        }
+        return refused.isEmpty ? result : nil
+    }
+
+    public func isAvailable(in preset: VPhonePatchPreset) -> Bool {
+        patches(in: preset) != nil
     }
 }
 
@@ -39,9 +64,17 @@ extension FirmwarePatchSetCatalog {
     /// guest and read its memory, and no more. `minimal` restores a resealed
     /// system onto a stock kernel and TXM; this adds:
     ///
-    /// - `filesystem-exp-debugserver`: re-signs the guest's debugserver with
-    ///   `task_for_pid-allow` and no sandbox profile, before the reseal, so its
-    ///   new hash lands in the regenerated trust cache.
+    /// - A debugserver re-signed with `task_for_pid-allow` and no sandbox
+    ///   profile: `filesystem-exp-debugserver` re-signs it before the reseal,
+    ///   so its new hash lands in the regenerated trust cache; a preset that
+    ///   installs the guest with `cfw install` takes
+    ///   `system-debugserver-cfw-install` instead (HomePod and the Apple TV
+    ///   presets leave it off).
+    /// - launchd's jetsam panic guard, bypassed (`filesystem-exp-launchd_jetsam_panic_guard`
+    ///   before the reseal, `system-launchd-boot-jetsam_panic_guard_bypass` with
+    ///   `cfw install`). With developer mode on, MobileStorageMounter mounts the
+    ///   Developer disk image, and launchd kills init over its daemons
+    ///   ("jetsam property category (Daemon) is not initialized").
     /// - `kernel-cfw-task_for_pid` returns a task port for a process the caller
     ///   does not own, and `kernel-boot-task_conversion_eval` lets that port be
     ///   converted.
@@ -53,8 +86,6 @@ extension FirmwarePatchSetCatalog {
     /// - `kernel-boot-cred_label_update_execve` grants the platform label and
     ///   `kernel-boot-hook_cred_label` retargets the MACF hook to that handler;
     ///   the handler is dead code without the hook.
-    /// - `kernel-boot-amfi_trustcache` and `kernel-boot-amfi_execve` admit the
-    ///   re-signed debugserver should it run outside the image's trust cache.
     /// - `txm-boot-developer_mode_bypass` reports developer mode on. On a TXM
     ///   device AMFI asks TXM, and kills the re-signed debugserver without it
     ///   ("Developer mode is disabled, task_for_pid-allow is disallowed");
@@ -66,28 +97,29 @@ extension FirmwarePatchSetCatalog {
     ///   debugged (Research/Firmware/txm_jb_patches.md).
     ///
     /// The rest of the kernel sets, and TXM's signature-admission patches, stay
-    /// off: the resealed image's own trust cache admits everything it runs.
-    /// `standard` and its relatives install their debugserver with
-    /// `cfw install` instead and already carry these kernel and TXM patches.
+    /// off: the resealed image's own trust cache admits everything it runs,
+    /// the re-signed debugserver included, so AMFI's trust cache and execve
+    /// patches are not needed (an iPhone17,3 26.5 guest attached without them).
+    /// `standard` and its relatives turn every part on already, so the editor
+    /// offers no box there.
     public static let userspaceDebugging = FirmwarePatchFeature(
         identifier: "userspace-debugging",
         title: "Userspace debugging",
         summary: "A re-signed debugserver, and the kernel and TXM patches it needs to attach to any process in the guest and read its memory. The kernel and TXM stay otherwise stock.",
-        patches: [
-            FirmwareRestoreImagePatchSet.debugserver,
-            "kernel-cfw-task_for_pid",
-            "kernel-boot-task_conversion_eval",
-            "kernel-cfw-debugger",
-            "kernel-boot-port_to_map",
-            "kernel-boot-proc_security_policy",
-            "kernel-boot-cred_label_update_execve",
-            "kernel-boot-hook_cred_label",
-            "kernel-boot-amfi_trustcache",
-            "kernel-boot-amfi_execve",
-            "txm-boot-developer_mode_bypass",
-            "txm-cfw-debugger_entitlement",
-            "txm-boot-sel42_29",
-            "txm-cfw-get_task_allow",
+        parts: [
+            [FirmwareRestoreImagePatchSet.debugserver, "system-debugserver-cfw-install"],
+            [FirmwareRestoreImagePatchSet.launchdJetsam, "system-launchd-boot-jetsam_panic_guard_bypass"],
+            ["kernel-cfw-task_for_pid"],
+            ["kernel-boot-task_conversion_eval"],
+            ["kernel-cfw-debugger"],
+            ["kernel-boot-port_to_map"],
+            ["kernel-boot-proc_security_policy"],
+            ["kernel-boot-cred_label_update_execve"],
+            ["kernel-boot-hook_cred_label"],
+            ["txm-boot-developer_mode_bypass"],
+            ["txm-cfw-debugger_entitlement"],
+            ["txm-boot-sel42_29"],
+            ["txm-cfw-get_task_allow"],
         ],
     )
 

@@ -2076,12 +2076,24 @@ struct VPhoneCustomFirmwareInstaller {
                     // launchd needs a short load command; this alias is owned
                     // only by HomePod's isolated installation compatibility.
                     try installLibraryAlias(system: system, alias: "vp", target: library)
+                    // HomePod's launchd carries the persona adapter, so the
+                    // jetsam guard (userspace debugging) is patched into the
+                    // same copy rather than by the iPhone path below.
+                    let jetsam = on(launchdJetsam)
                     try patchMachO(system: system, work: work, path: "sbin/launchd",
+                                   verbs: jetsam ? ["patch-launchd-jetsam"] : [],
                                    preserveEntitlements: true, injectedDylibPath: "/vp")
                     try system.writeFile(personaMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                     live.insert(personaPatch)
                     print("  [+] \(personaPatch): installed scoped HomePod UserManager adapter")
+                    if jetsam {
+                        live.insert(launchdJetsam)
+                        print("  [+] \(launchdJetsam): patched into HomePod launchd")
+                    }
                 } else {
+                    if on(launchdJetsam) {
+                        print("  [!] \(launchdJetsam): HomePod patches launchd only with \(personaPatch); skipped")
+                    }
                     if try revertMachO(system: system, work: work, path: "sbin/launchd") {
                         print("  [+] \(personaPatch): restored HomePod launchd from backup")
                     } else if priorGuest.contains(personaPatch) {

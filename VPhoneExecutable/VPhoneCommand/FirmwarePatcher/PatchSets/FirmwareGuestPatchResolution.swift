@@ -69,6 +69,8 @@ public enum FirmwareGuestPatchResolution {
                 FirmwareGuestSystemPatchSet.installCoordinationPersona,
                 FirmwareGuestSystemPatchSet.homePodAdHocInstall,
                 FirmwareGuestSystemPatchSet.virtioSoundDriver])
+        // Userspace debugging: debugserver attached on a HomePod Software 27.0 guest.
+        .union(["system-debugserver-cfw-install", "system-launchd-boot-jetsam_panic_guard_bypass"])
         .union(FirmwarePatchSetCatalog.tvOS27UserlandPatches)
 
     public static func unvalidatedHomePodGuestPatches(enabled: Set<String>) -> [String] {

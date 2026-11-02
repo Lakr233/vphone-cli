@@ -442,19 +442,13 @@ public enum FirmwarePatchSetCatalog {
     /// ``minimalPreset`` for an Apple Watch: its device tree presents the watch
     /// board. Its boot chain is stock too: a stock iBEC restores the guest and a
     /// stock LLB boots it to the pairing screen and vphoned (watchOS 26.4 23T240
-    /// on cloudOS 26.4 23E244, 2026-11-02). It does not name the kernel sets, so
-    /// ``userspaceDebugging``, untried on a watch kernel, is not offered.
-    /// The shipped `watchos.plist` must match this.
+    /// on cloudOS 26.4 23E244, 2026-11-02). The shipped `watchos.plist` must
+    /// match this.
     public static let watchOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.watchOSIdentifier,
         title: "Apple Watch",
         summary: "Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver, speaker audio and activation restored onto a stock kernel and TXM.",
-        patchSets: [
-            .bundled(FirmwareBootChainPatchSet.identifier),
-            .bundled(FirmwareResearchBoardPatchSet.identifier),
-            .bundled(FirmwareDeviceTreePatchSet.identifier),
-            .bundled(FirmwareRestoreImagePatchSet.identifier),
-        ],
+        patchSets: minimalPreset.patchSets,
         selection: .allow(
             watchOSDeviceTreePatches
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))

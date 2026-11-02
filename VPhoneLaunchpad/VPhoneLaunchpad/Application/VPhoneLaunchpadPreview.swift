@@ -147,6 +147,16 @@
                     ) { _ in }
                         .environment(model)
                 }
+                // Minimal offers the Userspace debugging box; the one turned on.
+                await standalone("09d-patch-settings-minimal", suffix, size: NSSize(width: 920, height: 680)) {
+                    VPhoneLaunchpadPatchSettingsView(
+                        initial: VPhoneLaunchpadPatchSelection(
+                            preset: VPhoneLaunchpadPatchSelection.minimalPreset,
+                            allowed: ["filesystem-exp-debugserver", "kernel-cfw-debugger"],
+                        ),
+                    ) { _ in }
+                        .environment(model)
+                }
                 await sheet(.clone(labMachine), "10-clone", suffix)
                 await sheet(.snapshots(labMachine), "10a-snapshots", suffix)
                 await sheet(.snapshots(path("research-01")), "10b-snapshots-running", suffix)
@@ -397,6 +407,8 @@
         static func patchCatalog(preset: String?, machine: Bool = false) -> VPhoneLaunchpadPatchCatalog? {
             let active = preset ?? "standard"
             let frida = active == "experimental"
+            // Minimal leaves the kernel stock and offers userspace debugging.
+            let minimal = active == "minimal"
             let blocked = machine ? #"["kernel-cfw-debugger","dyld-cfw-camera"]"# : "[]"
             let records = machine ? #""installed":true,"receiptRecorded":true,"pendingPatches":2,"# : ""
             func pending(_ part: String, _ value: Bool = false) -> String {
@@ -415,12 +427,17 @@
             {"activePreset":"\(active)","blockedPatches":\(blocked),"allowedPatches":[],\(records)
              "presets":[
                {"identifier":"standard","title":"Standard","summary":"The patches every vphone VM needs to boot custom firmware, with a working display and camera.","patchSets":[]},
-               {"identifier":"experimental","title":"Experimental","summary":"Every patch this bundle declares, including the Frida Stalker relaxations.","patchSets":[]}
+               {"identifier":"experimental","title":"Experimental","summary":"Every patch this bundle declares, including the Frida Stalker relaxations.","patchSets":[]},
+               {"identifier":"minimal","title":"Minimal","summary":"A stock boot chain, kernel and TXM.","patchSets":[]}
+             ],
+             "features":[
+               {"identifier":"userspace-debugging","title":"Userspace debugging","summary":"A re-signed debugserver, and the kernel and TXM patches it needs to attach to any process in the guest and read its memory.","patches":["filesystem-exp-debugserver","kernel-cfw-debugger"],"available":\(minimal)}
              ],
              "patches":[
                {"identifier":"avpbooter-boot-dgst_bypass","title":"AVPBooter digest bypass","summary":"Accepts the resealed boot images instead of the stock digests.","patchSet":"com.vphone.patchset.bootchain","patchSetName":"Boot Chain","target":"AVPBooter","applicability":"any","bootEssential":true,"inPreset":true,"enabled":true\(pending("AVPBooter"))},
                {"identifier":"ibss-cfw-serial_label","title":"iBSS serial label","summary":"Tags iBSS serial output so the boot log names its stage.","patchSet":"com.vphone.patchset.bootchain","patchSetName":"Boot Chain","target":"iBSS","applicability":"any","bootEssential":false,"inPreset":true,"enabled":true\(pending("iBSS"))},
-               {"identifier":"kernel-cfw-debugger","title":"Kernel debugger gate","summary":"Lets a debugger attach to any process in the guest.","patchSet":"com.vphone.patchset.kernel.base","patchSetName":"Kernel Base","target":"kernelcache","applicability":"any","bootEssential":false,"inPreset":true,"enabled":true\(pending("kernelcache", true))},
+               {"identifier":"kernel-cfw-debugger","title":"Kernel debugger gate","summary":"Lets a debugger attach to any process in the guest.","patchSet":"com.vphone.patchset.kernel.base","patchSetName":"Kernel Base","target":"kernelcache","applicability":"any","bootEssential":false,"inPreset":\(!minimal),"enabled":\(!minimal)\(pending("kernelcache", true))},
+               {"identifier":"filesystem-exp-debugserver","title":"debugserver","summary":"Re-signs the guest's debugserver before the reseal.","patchSet":"com.vphone.patchset.restore.image","patchSetName":"Restore Image","target":"Filesystem","applicability":"any","bootEssential":false,"inPreset":false,"enabled":false\(pending("Filesystem"))},
                {"identifier":"kernel-boot-thread_guard_violation","title":"Thread guard violation","summary":"Stops the guard exception the older kernels raise on first boot.","patchSet":"com.vphone.patchset.kernel.base","patchSetName":"Kernel Base","target":"kernelcache","applicability":"iOS 18.x","bootEssential":true,"inPreset":true,"enabled":true\(pending("kernelcache"))},
                {"identifier":"kernel-exp-frida_thread_set_state_entitlement_flag","title":"Frida thread state entitlement","summary":"Lets Stalker set thread state without the entitlement the kernel asks for.","patchSet":"com.vphone.patchset.kernel.frida","patchSetName":"Frida Stalker","target":"kernelcache","applicability":"cloudOS 26.4+","bootEssential":false,"inPreset":\(frida),"enabled":\(frida)\(pending("kernelcache"))},
                {"identifier":"kernel-exp-frida_vm_map_delete_immutable_code","title":"Frida immutable code unmap","summary":"Allows Stalker to unmap the immutable code it rewrote.","patchSet":"com.vphone.patchset.kernel.frida","patchSetName":"Frida Stalker","target":"kernelcache","applicability":"cloudOS 26.4+","bootEssential":false,"inPreset":\(frida),"enabled":\(frida)\(pending("kernelcache"))},

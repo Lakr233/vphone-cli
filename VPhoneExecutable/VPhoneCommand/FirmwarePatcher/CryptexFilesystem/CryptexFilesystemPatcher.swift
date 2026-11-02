@@ -108,6 +108,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         (FirmwareRestoreImagePatchSet.virtualBluetooth, "Enable LE connections over the virtual Bluetooth controller"),
         (FirmwareRestoreImagePatchSet.watchAudio, "Install the virtio sound HAL plugin for a watch"),
         (FirmwareRestoreImagePatchSet.debugserver, "Re-sign debugserver so it can attach in the guest"),
+        (FirmwareRestoreImagePatchSet.launchdJetsam, "Patch launchd's jetsam panic guard"),
     ]
 
     @discardableResult
@@ -227,6 +228,10 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             if gate.isEnabled(FirmwareRestoreImagePatchSet.debugserver) {
                 print("- Re-signing debugserver for in-guest attach…")
                 try patchDebugserver(targetMount: targetMount)
+            }
+            if gate.isEnabled(FirmwareRestoreImagePatchSet.launchdJetsam) {
+                print("- Patching launchd's jetsam panic guard…")
+                try patchLaunchdJetsam(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }

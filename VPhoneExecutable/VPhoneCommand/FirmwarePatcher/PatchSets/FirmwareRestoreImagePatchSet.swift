@@ -35,12 +35,13 @@ public enum FirmwareRestoreImagePatchSet {
     public static let virtualBluetooth = "filesystem-exp-btvc_le_connection"
     public static let watchAudio = "filesystem-exp-watch_audio"
     public static let debugserver = "filesystem-exp-debugserver"
+    public static let launchdJetsam = "filesystem-exp-launchd_jetsam_panic_guard"
     public static let digestRehash = "manifest-boot-digest_rehash"
 
     /// Patches a machine asks for by name (`--allow`, or a preset that lists them);
     /// `minimal` and `watchos` leave them off, so the plain presets stay a lifelike
     /// stock guest.
-    public static let optInPatches: Set = [debugserver]
+    public static let optInPatches: Set = [debugserver, launchdJetsam]
     /// What `minimal` and `watchos` select from this set: everything but the
     /// opt-in patches.
     public static var presetPatches: Set<String> {
@@ -109,6 +110,12 @@ public enum FirmwareRestoreImagePatchSet {
                 identifier: debugserver,
                 title: "debugserver",
                 summary: "Re-signs the guest's debugserver with task_for_pid-allow and no sandbox profile, before the reseal, so it can attach to a process in the guest. Off by default — a lifelike guest ships no debugger, and a stock userland carries debugserver only in the Developer disk image, where this is a no-op. On its own it does not run on minimal's stock kernel and TXM: turn on Userspace debugging, which adds the kernel and TXM patches it needs.",
+                target: .firmware(.filesystem),
+            ),
+            VPhonePatchDeclaration(
+                identifier: launchdJetsam,
+                title: "launchd jetsam panic guard",
+                summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(

@@ -6289,7 +6289,7 @@ with three `Launch Constraint Violation (not enforcing)` lines
 (`MobileAssetEarlyBootTask`, `init_exclavekit`, `vphoned`), no enforcing
 violation and no crash report.
 
-## Userspace debugging on `minimal` (2026-11-02)
+## Userspace debugging on `minimal`, watchOS and HomePod (2026-11-02)
 
 `system-debugserver-cfw-install` re-signs the guest's `/usr/libexec/debugserver`
 (strips `seatbelt-profiles`, sets `task_for_pid-allow`, ad hoc) in `cfw install`,
@@ -6297,49 +6297,73 @@ which `minimal` never runs. `filesystem-exp-debugserver` makes the same change i
 the restore-image merge, before the reseal, so the new hash lands in the
 regenerated static trust cache. Both stages share the entitlement transform
 (`CustomFirmwareDebugserver.attachEntitlements`) and are a logged no-op when the
-system ships no debugserver: a stock userland carries it only in the Developer
-disk image, so it is present to re-sign on a research/cloudOS build. The patch is
-opt-in (`FirmwareRestoreImagePatchSet.optInPatches`); plain `minimal` and
-`watchos` leave it off.
+system ships no debugserver. The merged iPhone17,3 26.5, Watch7,18 26.4 and
+HomePod Software 27.0 systems all ship one. A watch's debugserver also carries an
+arm64_32 slice the signer cannot rewrite, so the merge thins it to arm64e first.
 
 The entitlement alone does not let debugserver run or attach on `minimal`'s stock
 kernel and TXM: AMFI asks TXM for developer mode and kills it ("Developer mode is
 disabled, task_for_pid-allow is disallowed"), and an enrolment from the guest does
 not survive a forced reboot. The `userspace-debugging` feature
-(`FirmwarePatchSetCatalog.userspaceDebugging`) groups the re-sign with the
-smallest kernel and TXM set that lets it attach to any process and read its
-memory:
+(`FirmwarePatchSetCatalog.userspaceDebugging`) is the smallest set found to attach
+to a system daemon and read its memory:
 
-| Patch | Why |
-| --- | --- |
-| `filesystem-exp-debugserver` | The re-signed debugserver, in the image's trust cache. |
-| `kernel-cfw-task_for_pid` | Return a task port for a process the caller does not own. |
-| `kernel-boot-task_conversion_eval` | Let that task port be converted. |
-| `kernel-cfw-debugger` | Report the kernel debuggable; `task_for_pid` is gated on it. |
-| `kernel-boot-port_to_map` | No panic when debugserver converts the target's task port to a vm_map. |
-| `kernel-boot-proc_security_policy` | Let the per-process security policy check pass. |
-| `kernel-boot-cred_label_update_execve` + `kernel-boot-hook_cred_label` | Grant the platform label and retarget the MACF hook to that handler; the handler is dead code without the hook. |
-| `kernel-boot-amfi_trustcache` + `kernel-boot-amfi_execve` | Admit the re-signed debugserver should it run outside the image's trust cache. |
-| `txm-boot-developer_mode_bypass` | Report developer mode on, without enrolment. |
-| `txm-cfw-debugger_entitlement` | Pass selector 42's (debug memory mapping) debugger entitlement check. |
-| `txm-boot-sel42_29` + `txm-cfw-get_task_allow` | Set the target's get-task-allow byte where selectors 42 and 41 read it. |
+| Part | `minimal` / `watchos` | HomePod (`cfw install`) | Why |
+| --- | --- | --- | --- |
+| debugserver | `filesystem-exp-debugserver` | `system-debugserver-cfw-install` | The re-signed debugserver. |
+| launchd | `filesystem-exp-launchd_jetsam_panic_guard` | `system-launchd-boot-jetsam_panic_guard_bypass` | See below. |
+| kernel | `kernel-cfw-task_for_pid`, `kernel-boot-task_conversion_eval`, `kernel-cfw-debugger`, `kernel-boot-port_to_map`, `kernel-boot-proc_security_policy`, `kernel-boot-cred_label_update_execve` + `kernel-boot-hook_cred_label` | already in the preset | Task port for a process the caller does not own, and its conversion; the debugger gate `task_for_pid` checks; no panic converting the port to a vm_map; the per-process policy; the platform label and the MACF hook that reaches it. |
+| TXM | `txm-boot-developer_mode_bypass`, `txm-cfw-debugger_entitlement`, `txm-boot-sel42_29` + `txm-cfw-get_task_allow` | already in the preset | Developer mode on without enrolment; selector 42's debugger entitlement check; the target's get-task-allow byte where selectors 42 and 41 read it. |
 
-The rest of `kernel.base`/`kernel.cfw` and TXM's signature-admission patches stay
-off: the resealed image's trust cache admits everything it runs. `standard`
-already turns on every kernel and TXM patch above and installs its debugserver
-with `cfw install`, so the feature is not offered there.
+A part names one patch per delivery, and a preset takes the first its sets
+declare. `standard` already has every part, so Launchpad offers no box there. The
+Apple TV presets get none either: `cfw install` refuses debugserver and launchd
+patches not validated for tvOS (`FirmwareGuestPatchResolution`), and the feature
+checks that list. HomePod's list now admits the two, as validated below.
 
-To make this selectable without a preset of its own, `minimal` now names the two
-kernel sets and selects nothing from them. The pipeline builds a kernel patcher
-only when the plan turns on a patch from those sets (the research board's kext
-mix targets the kernelcache too, so the target alone does not say), so a plain
-`minimal` kernel stays stock. `watchos` does not name them: the feature is untried
-on a watch kernel. A feature is only a list of patch identifiers: turning it on is
-`--allow` for each, and `fw patches` reports it (`features` in `--json`, with
-`available` for the active preset) so Launchpad's patch sheet offers one box
-without declaring a patch itself. On an installed `minimal` VM a kernel patch is
-reported as delivered by a restore, not by `cfw update-kernel`, which refuses a
-VM whose system was customised before its restore.
+**AMFI patches are not needed.** `kernel-boot-amfi_trustcache` and
+`kernel-boot-amfi_execve` were in the first cut "should debugserver run outside
+the image's trust cache". It doesn't: the re-sign is in the resealed trust cache.
+An iPhone17,3 26.5 `minimal` guest without them launches the re-signed
+debugserver from launchd and attaches.
+
+**launchd's jetsam guard.** With developer mode on, the host's CoreDevice (a
+`minimal` guest pairs with the Mac over the NAT) mounts Xcode's personalized
+Developer disk image whenever a developer service needs it, for example
+`xcrun devicectl device info processes`. `MobileStorageMounter` mounts
+`Xcode_iOS_DDI`, launchd loads its daemons, and launchd kills init:
+`initproc exited -- ... jetsam property category (Daemon) is not initialized`.
+Observed on the first boots of an iPhone guest without the patch (and in an
+earlier `minimal-ctf` machine's log). `standard` avoids it with
+`system-launchd-boot-jetsam_panic_guard_bypass`; on `minimal` launchd is in the
+sealed system, so `filesystem-exp-launchd_jetsam_panic_guard` applies the same
+`CustomFirmwareJetsamPatcher` change in the merge. With it, the same
+`devicectl` call mounts the DDI, `dtappserviced` starts, and the guest stays up.
+On HomePod, launchd is patched for the persona adapter, which returned before
+the jetsam verb; `cfw install` now applies both to the one copy.
+
+To make the feature selectable without a preset of its own, `minimal` and
+`watchos` name the two kernel sets and select nothing from them. The pipeline
+builds a kernel patcher only when the plan turns on a patch from those sets (the
+research board's kext mix targets the kernelcache too, so the target alone does
+not say), so a plain `minimal` kernel stays stock. A feature is only a list of
+patch identifiers: turning it on is `--allow` for each, and `fw patches` reports
+it (`features` in `--json`, with `available` and the patches for the active
+preset) so Launchpad's patch sheet offers one box without declaring a patch
+itself. On an installed `minimal` VM a kernel patch is reported as delivered by
+a restore, not by `cfw update-kernel`, which refuses a VM whose system was
+customised before its restore.
+
+Validation (Launchpad `vm create` with the feature's patches allowed, then a
+launchd job running `/usr/libexec/debugserver 0.0.0.0:<port> --attach=<configd>`
+and LLDB over gdb-remote: attach, `(int)getpid()` evaluated in the target, 16
+bytes of its code read):
+
+| Guest | Preset | Kernel and TXM | Result |
+| --- | --- | --- | --- |
+| iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75) | `minimal` | 22 kernelcache (2 base + 20 cfw) and 9 TXM records | developer mode `enabled`; attach to configd in 6.8 s; DDI mounted by `devicectl`, no panic |
+| Watch7,18 26.4 (23T240) / cloudOS 26.4 (23E244) | `watchos` | 22 kernelcache (2 base + 20 cfw) and 9 TXM records on the watch mix | developer mode `enabled`; attach to configd in 10.3 s; the watch is not paired with the Mac, so no host DDI mount |
+| AudioAccessory5,1 27.0 (24J361) / cloudOS 26.4 (23E5207q) | `homepod-mini` | preset's own | attach to configd in 4.3 s; Xcode has no DDI for its board |
 
 On an iOS 18 guest several of these patches are found only by the iOS 18 kernel
-and TXM finders (`feature/ios18-standard`).
+and TXM finders (`feature/ios18-standard`); not run here.

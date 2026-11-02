@@ -49,6 +49,24 @@ extension CryptexFilesystemPatcher {
         }
     }
 
+    /// The launchd change `cfw install` makes for
+    /// `system-launchd-boot-jetsam_panic_guard_bypass` (``CustomFirmwareJetsamPatcher``),
+    /// in the pre-reseal merge. Re-signed ad hoc over its own entitlements, so
+    /// the new hash lands in the regenerated trust cache.
+    func patchLaunchdJetsam(targetMount: String) throws {
+        try editGuestFile("sbin/launchd", targetMount: targetMount, mode: 0o755) { file in
+            try thinToArm64e(file)
+            try CustomFirmwareJetsamPatcher.patch(fileAt: file, log: { print("  \($0)") })
+            try setMode(0o755, at: file)
+
+            try VPhoneSigner.sign(
+                fileAt: file,
+                options: guestSigningOptions(identifier: "com.apple.xpc.launchd"),
+            )
+        }
+        print("  [+] Patched launchd's jetsam panic guard")
+    }
+
     func injectLaunchDaemons(targetMount: String) throws {
         let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
         let source = resources.guestResources.appendingPathComponent("vphoned.plist")
@@ -266,6 +284,9 @@ extension CryptexFilesystemPatcher {
             return
         }
         try editGuestFile(relative, targetMount: targetMount, mode: 0o755) { file in
+            // A watch's debugserver also carries an arm64_32 slice, which the
+            // signer cannot rewrite; the guest runs the arm64e one.
+            try thinToArm64e(file)
             guard let source = try VPhoneSigner.entitlements(ofFileAt: file).first(where: { !$0.isEmpty }) else {
                 throw VPhonePatchKit.PatcherError.patchVerificationFailed(
                     "debugserver has no readable entitlements; cannot grant task_for_pid",

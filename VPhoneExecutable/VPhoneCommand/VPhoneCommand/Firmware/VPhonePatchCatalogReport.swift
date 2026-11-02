@@ -169,9 +169,11 @@ public struct VPhonePatchCatalogReport: Sendable {
         let identifier: String
         let title: String
         let summary: String
+        /// The patches the active preset turns on for it; empty when it is not
+        /// available.
         let patches: [String]
-        /// Whether the active preset names every set the feature draws on, so
-        /// allowing its patches resolves.
+        /// Whether the active preset names a set for every part of the
+        /// feature, so allowing its patches resolves.
         let available: Bool
     }
 
@@ -304,7 +306,7 @@ public struct VPhonePatchCatalogReport: Sendable {
                     identifier: $0.identifier,
                     title: $0.title,
                     summary: $0.summary,
-                    patches: $0.patches.sorted(),
+                    patches: ($0.patches(in: activePreset) ?? []).sorted(),
                     available: $0.isAvailable(in: activePreset),
                 )
             },
@@ -382,15 +384,17 @@ public struct VPhonePatchCatalogReport: Sendable {
         }
 
         let selected = selectedPatches()
-        let features = FirmwarePatchSetCatalog.features.filter { $0.isAvailable(in: activePreset) }
+        let features = FirmwarePatchSetCatalog.features.compactMap { feature in
+            feature.patches(in: activePreset).map { (feature, $0) }
+        }
         if !features.isEmpty {
             lines.append("")
             lines.append("Features (turn one on by allowing each of its patches with `fw set-patches`):")
-            for feature in features {
-                let on = feature.patches.intersection(selected).count
-                let state = on == feature.patches.count ? "on" : on == 0 ? "off" : "\(on) of \(feature.patches.count) on"
+            for (feature, patches) in features {
+                let on = patches.intersection(selected).count
+                let state = on == patches.count ? "on" : on == 0 ? "off" : "\(on) of \(patches.count) on"
                 lines.append("  \(feature.identifier) — \(feature.title) (\(state))")
-                lines.append("    " + feature.patches.sorted().map { "--allow \($0)" }.joined(separator: " "))
+                lines.append("    " + patches.sorted().map { "--allow \($0)" }.joined(separator: " "))
             }
         }
 
