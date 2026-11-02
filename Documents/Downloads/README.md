@@ -12,6 +12,7 @@ Each [release](https://github.com/Lakr233/vphone-cli/releases) has up to three f
 
 | Series | Notarized | Not Notarized |
 | --- | --- | --- |
+| 2.15 | 2.15.0 | — |
 | 2.14 | 2.14.0 | — |
 | 2.13 | 2.13.0 | — |
 | 2.12 | 2.12.0 | — |
@@ -38,6 +39,7 @@ Use a `VPhone.bundle` from the same series as Launchpad. The series is the first
 
 | Launchpad | VPhone.bundle |
 | --- | --- |
+| 2.15.x | 2.15.x |
 | 2.14.x | 2.14.x |
 | 2.13.x | 2.13.x |
 | 2.12.x | 2.12.x |
@@ -55,6 +57,9 @@ Use a `VPhone.bundle` from the same series as Launchpad. The series is the first
 | 2.0.x | 2.0.x |
 
 Within a series, install the newest `VPhone.bundle`. Patch releases fix problems without changing how Launchpad and the bundle work together.
+
+Series 2.15 adds HomeView. Use Launchpad 2.15 with its bundle so New Machine
+selects the `homeview` preset for `HomeAccessory17,1` and `HomeAccessory17,2`.
 
 Series 2.14 lets a machine use a patch preset from a file: Other… in the
 preset picker, or `--preset <path>`. Launchpad 2.14 needs a 2.14 bundle.
