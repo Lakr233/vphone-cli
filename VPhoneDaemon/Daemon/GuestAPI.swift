@@ -110,6 +110,7 @@ enum GuestAPI {
                 "keychain_edit",
                 "ipa_install",
                 "bootstrap_install",
+                "bootstrap_packages",
                 "bootstrap_uninstall",
                 "port_forward",
                 "camera",
@@ -299,6 +300,8 @@ enum GuestAPI {
                 layout: layout,
                 packagePath: params["package_path"] as? String,
             )
+        case "bootstrap.packages":
+            return try GuestIrisinInstaller.installPackages(GuestIrisinInstaller.initialPackages)
         case "bootstrap.status":
             return GuestIrisinInstaller.status()
         case "bootstrap.inspect":

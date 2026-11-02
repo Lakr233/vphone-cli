@@ -49,6 +49,9 @@ public extension VPhoneVirtualMachineCreator {
         /// itself). This is the clone's boot; a template boots only for its
         /// setup boot, before it is frozen.
         public var skipsFirstBoot: Bool
+        /// Install the Irisin bootstrap in this layout (`roothide` or `rootless`)
+        /// during the first boot; nil leaves the guest without one.
+        public var bootstrapLayout: String?
         /// What a template built for this create is slimmed of; part of the
         /// key it is looked up by.
         public var slimming: VPhoneMachineTemplateSlimming
@@ -74,6 +77,7 @@ public extension VPhoneVirtualMachineCreator {
             template: TemplateUse = .none,
             templateRequest: VPhoneMachineTemplateRequest = VPhoneMachineTemplateRequest(),
             skipsFirstBoot: Bool = false,
+            bootstrapLayout: String? = nil,
             slimming: VPhoneMachineTemplateSlimming = VPhoneTemplateSlimmingRequest.defaultSlimming,
         ) {
             self.name = name
@@ -96,6 +100,7 @@ public extension VPhoneVirtualMachineCreator {
             self.template = template
             self.templateRequest = templateRequest
             self.skipsFirstBoot = skipsFirstBoot
+            self.bootstrapLayout = bootstrapLayout
             self.slimming = slimming
         }
     }

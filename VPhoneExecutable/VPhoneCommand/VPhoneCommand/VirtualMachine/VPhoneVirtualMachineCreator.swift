@@ -20,6 +20,8 @@ private enum VPhoneVirtualMachineCreationError: Error, CustomStringConvertible {
     case bootAnalysisPanic
     case bootAnalysisExited(Int32)
     case bootAnalysisTimeout
+    case bootstrapFailed(String)
+    case bootstrapTimeout
 
     var description: String {
         switch self {
@@ -47,6 +49,10 @@ private enum VPhoneVirtualMachineCreationError: Error, CustomStringConvertible {
             "Boot check ended before the guest connected (exit code \(code)). Run vm create again."
         case .bootAnalysisTimeout:
             "Boot check timed out waiting for the guest. Run vm create again."
+        case let .bootstrapFailed(reason):
+            "Bootstrap installation failed: \(reason). The machine is kept."
+        case .bootstrapTimeout:
+            "Bootstrap installation did not finish in time. The machine is kept."
         }
     }
 }
@@ -148,7 +154,9 @@ public struct VPhoneVirtualMachineCreator {
         if options.skipsFirstBoot {
             print("CFW VM created; its first boot was skipped. Guest user environment is untouched.")
         } else {
-            print("CFW VM created; vphoned connected. Guest user environment is untouched.")
+            print(options.bootstrapLayout == nil
+                ? "CFW VM created; vphoned connected. Guest user environment is untouched."
+                : "CFW VM created; vphoned connected and the \(options.bootstrapLayout!) bootstrap and its packages installed.")
         }
     }
 
@@ -174,7 +182,7 @@ public struct VPhoneVirtualMachineCreator {
         try applySettings(options)
         if !options.skipsFirstBoot {
             print("\n=== First boot check ===")
-            try runBootAnalysis(bundleURL: bundle.url, verbosity: options.verbosity)
+            try runBootAnalysis(bundleURL: bundle.url, bootstrapLayout: options.bootstrapLayout, verbosity: options.verbosity)
         }
     }
 
@@ -463,7 +471,7 @@ public struct VPhoneVirtualMachineCreator {
             + "(it shares SEP and Data volume keys with every machine from this template)")
         if !options.skipsFirstBoot {
             print("\n=== First boot check ===")
-            try runBootAnalysis(bundleURL: clone.url, verbosity: options.verbosity)
+            try runBootAnalysis(bundleURL: clone.url, bootstrapLayout: options.bootstrapLayout, verbosity: options.verbosity)
         }
     }
 
@@ -723,12 +731,14 @@ public struct VPhoneVirtualMachineCreator {
 
     // MARK: - first boot check
 
-    private func runBootAnalysis(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
+    private func runBootAnalysis(bundleURL: URL, bootstrapLayout: String?, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         // A newly restored guest may need its first graphical session to
         // finish setup before vphoned accepts a connection. A headless first
         // boot timed out on 26.6.2, while the same disk reached vphoned in
         // GUI mode; later headless boots then connected normally.
+        // A clone carries the template's vphoned; boot this bundle's, as vm launch does.
+        _ = try VPhoneLaunchLayout(resources: resources).stageVphoned(into: VPhoneBundle.load(at: bundleURL))
         let (vmExe, vmArgs) = try requireLauncher().plan(["--config", configURL.path])
         trace("spawn \(vmExe.path) \(vmArgs.joined(separator: " ")) (guest serial: off)", v)
         let vm = VPhoneManagedProcess(vmExe, vmArgs, cwd: bundleURL, echo: false)
@@ -750,12 +760,77 @@ public struct VPhoneVirtualMachineCreator {
             }
             if VPhoneHostAutomationProbe.ping(socketPath: socketPath) {
                 print("[+] First boot: vphoned ping succeeded.")
+                if let bootstrapLayout {
+                    try installBootstrap(layout: bootstrapLayout, socketPath: socketPath)
+                    if !vm.interrupt(waitingUpTo: 30) {
+                        print("warning: the guest did not shut down within 30 s; stopping it")
+                    }
+                }
                 return
             }
             Thread.sleep(forTimeInterval: 1)
         }
         print("[-] Boot analysis timeout (300s); stopping VM.")
         throw VPhoneVirtualMachineCreationError.bootAnalysisTimeout
+    }
+
+    /// vphoned's `bootstrap.install`, then `bootstrap.packages`: Irisin, then
+    /// the first packages through irisin-cli's Bootstrap Install.
+    private func installBootstrap(layout: String, socketPath: String) throws {
+        print("\n=== Bootstrap (\(layout)) ===")
+        let irisin = try followBootstrap("bootstrap.install", params: ["layout": layout], socketPath: socketPath, within: 900) {
+            $0["packages"] == nil
+        }
+        print("[+] Irisin \(irisin["version"] as? String ?? "") installed in \(irisin["jbroot"] as? String ?? "")")
+        if let warning = irisin["service_start_warning"] as? String {
+            print("warning: \(warning)")
+        }
+
+        print("\n=== Bootstrap packages ===")
+        let packages = try followBootstrap("bootstrap.packages", params: [:], socketPath: socketPath, within: 1800) {
+            $0["packages"] != nil
+        }
+        if let skipped = packages["skipped"] as? String {
+            print("note: no packages installed: \(skipped)")
+        } else {
+            print("[+] Installed \((packages["packages"] as? [String] ?? []).joined(separator: ", ")) with Bootstrap Install")
+        }
+    }
+
+    /// One bootstrap call. The VM gives up relaying a request after 180 s
+    /// while the guest carries on, so a lost reply is followed by
+    /// `bootstrap.status` until a status `isThisCall` recognizes ends.
+    private func followBootstrap(
+        _ method: String,
+        params: [String: Any],
+        socketPath: String,
+        within seconds: Int,
+        isThisCall: ([String: Any]) -> Bool,
+    ) throws -> [String: Any] {
+        let deadline = Date().addingTimeInterval(TimeInterval(seconds))
+        do {
+            return try VPhoneHostAutomationProbe.rpc(method, params: params, socketPath: socketPath, timeout: seconds)
+        } catch let error as VPhoneGuestCallError where error.kind == .refused {
+            throw VPhoneVirtualMachineCreationError.bootstrapFailed(error.message)
+        } catch let error as VPhoneGuestCallError {
+            print("    \(error.message); following it")
+        }
+        while Date() < deadline {
+            if let status = try? VPhoneHostAutomationProbe.rpc("bootstrap.status", params: [:], socketPath: socketPath, timeout: 10),
+               isThisCall(status)
+            {
+                switch status["phase"] as? String {
+                case "completed":
+                    return status
+                case "failed":
+                    throw VPhoneVirtualMachineCreationError.bootstrapFailed(status["error"] as? String ?? "unknown error")
+                default:
+                    break
+                }
+            }
+            Thread.sleep(forTimeInterval: 2)
+        }
+        throw VPhoneVirtualMachineCreationError.bootstrapTimeout
     }
 }
 

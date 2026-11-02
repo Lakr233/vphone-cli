@@ -29,6 +29,20 @@ enum GuestBootstrapPlatform {
         !architecture.hasPrefix("appletvos-")
     }
 
+    /// The repositories Irisin's onboarding offers, as its
+    /// `RecommendedRepositories` picks them from the app's bundle: the
+    /// managed list when it has entries, else the one for the app's
+    /// bootstrap, each entry kept when `majorVersion` is within its bounds.
+    static func recommendedSources(managed: [[String: Any]]?, packaged: [[String: Any]]?, majorVersion: Int) -> [String] {
+        let list = [managed, packaged].lazy.compactMap(\.self).first { !$0.isEmpty } ?? []
+        return list.compactMap { entry in
+            guard let source = entry["source"] as? String else { return nil }
+            if let minimum = entry["minimumSystemVersion"] as? Int, majorVersion < minimum { return nil }
+            if let maximum = entry["maximumSystemVersion"] as? Int, majorVersion > maximum { return nil }
+            return source
+        }
+    }
+
     /// Whether dyld runs this process as tvOS.
     static let isTVOS = mainExecutablePlatform() == UInt32(PLATFORM_TVOS)
 
