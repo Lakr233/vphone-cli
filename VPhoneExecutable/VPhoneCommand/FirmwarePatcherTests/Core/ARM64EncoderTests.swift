@@ -547,7 +547,20 @@ struct ARM64EncoderKeystoneParityTests {
         .init(source: "b.hi #0x0 @0x100000", keystone: 0x5480_0008, encoded: ARM64Encoder.encodeBCond(from: 0x10_0000, to: 0, condition: .hi), origin: "B.cond max backward"),
     ]
 
-    static let allCases: [ARM64EncodingCase] = asmCallSiteCases + operandCoverageCases + x1ComparisonCases + x1LoweringCases + task3Cases + aksUnlockBagCases
+    // Frozen from Keystone 0.9.2 (Homebrew `kstool -b arm64 "<insn>" <address>`) outside the repository.
+    static let watchBudgetFixtureCases: [ARM64EncodingCase] = [
+        .init(source: "cmp x0, x8", keystone: 0xEB08_001F, encoded: ARM64Encoder.encodeCmpX(rn: 0, rm: 8), origin: "watch budget fixture"),
+        .init(source: "cmp x31, x30", keystone: 0xEB1E_03FF, encoded: ARM64Encoder.encodeCmpX(rn: 31, rm: 30), origin: "register boundary"),
+        .init(source: "movk w8, #0xfc31, lsl #16", keystone: 0x72BF_8628, encoded: ARM64Encoder.encodeMovkW(rd: 8, imm16: 0xFC31, shift: 16), origin: "first VM token"),
+        .init(source: "movk w8, #0x71c6, lsl #16", keystone: 0x72AE_38C8, encoded: ARM64Encoder.encodeMovkW(rd: 8, imm16: 0x71C6, shift: 16), origin: "second VM token"),
+        .init(source: "movk w0, #0xffff", keystone: 0x729F_FFE0, encoded: ARM64Encoder.encodeMovkW(rd: 0, imm16: 0xFFFF), origin: "unshifted lane"),
+        .init(source: "strb w8, [x9]", keystone: 0x3900_0128, encoded: ARM64Encoder.encodeStrBUnsignedOffset(rt: 8, rn: 9, offset: 0), origin: "flag store"),
+        .init(source: "ldrb w0, [x0]", keystone: 0x3940_0000, encoded: ARM64Encoder.encodeLdrBUnsignedOffset(rt: 0, rn: 0, offset: 0), origin: "flag getter"),
+        .init(source: "strb w31, [sp, #4095]", keystone: 0x393F_FFFF, encoded: ARM64Encoder.encodeStrBUnsignedOffset(rt: 31, rn: 31, offset: 4095), origin: "byte offset boundary"),
+        .init(source: "ldrb w30, [x29, #4095]", keystone: 0x397F_FFBE, encoded: ARM64Encoder.encodeLdrBUnsignedOffset(rt: 30, rn: 29, offset: 4095), origin: "byte offset boundary"),
+    ]
+
+    static let allCases: [ARM64EncodingCase] = asmCallSiteCases + operandCoverageCases + x1ComparisonCases + x1LoweringCases + task3Cases + aksUnlockBagCases + watchBudgetFixtureCases
 
     @Test func `Task3 encoders reject invalid registers and offsets`() {
         for invalid in [UInt32(32), 100] {

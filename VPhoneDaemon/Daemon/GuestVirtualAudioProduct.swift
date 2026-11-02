@@ -47,14 +47,16 @@ enum GuestVirtualAudioProduct {
     }
 
     /// The same answer as the plugin's `VPGuestProductID`: 8010 on an iPad or
-    /// iPhone guest, native B520 route 4 on HomePod mini, 0 elsewhere unless
-    /// one was chosen. This preference affects only VirtualAudio; the VM keeps
-    /// its original MobileGestalt product token for every other subsystem.
+    /// iPhone guest, native B520 route 4 on HomePod mini, native acoustic
+    /// product 4017 on a Watch7,18, 0 elsewhere unless one was chosen. This
+    /// preference affects only VirtualAudio; the VM keeps its original
+    /// MobileGestalt product token for every other subsystem.
     static func product(machine: String, chosen: Int?) -> Int {
         if let chosen, chosen >= 0 {
             return chosen
         }
         if machine == "AudioAccessory5,1" { return 4 }
+        if machine == "Watch7,18" { return 4017 }
         return machine.hasPrefix("iPad") || machine.hasPrefix("iPhone") ? 8010 : 0
     }
 

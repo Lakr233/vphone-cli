@@ -268,6 +268,10 @@ static const char *VPMachine(void) {
 /// Keep the original VM product token: its donor replacement also changes
 /// unrelated services, including HomePodDisplayService's physical gamma path.
 ///
+/// Watch7,18 uses native acoustic product 4017 to select its HALSPP graph.
+/// The VM-derived 198 asks for a graph the watch does not ship.
+/// See Research/Guest/watch_audio.md.
+///
 /// VirtualAudio derives its ProductID from a MobileGestalt class answer, and
 /// vphone600 lands on a simulator class — 196 presenting an iPad, 195 an
 /// iPhone — whose routing constructor skips the sub-port configurations the
@@ -290,6 +294,7 @@ static int VPGuestProductID(void) {
         const char *machine = VPMachine();
         product = strncmp(machine, "iPad", 4) == 0 || strncmp(machine, "iPhone", 6) == 0 ? 8010 : 0;
         if (strcmp(machine, "AudioAccessory5,1") == 0) product = 4;
+        if (strcmp(machine, "Watch7,18") == 0) product = 4017;
         id chosen = CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("VPhoneVirtIOSoundProductID"), kSettingsDomain));
         if ([chosen isKindOfClass:NSNumber.class] && [chosen intValue] >= 0) {
             product = [chosen intValue];
@@ -316,14 +321,16 @@ static NSString *VPDeviceUID(ASDStreamDirection direction, unsigned index) {
     // sub-ports for. Under any name of our own a device is claimed by nothing.
     // Only where the route is set up: a speaker route on a VirtualAudio that
     // was not deadlocked audiomxd and crash-looped it across launches.
-    // HomePod mini's native B238 routing also claims PuffinOutput. Its
-    // ProductID uses the audio-only B520 override. Leave its input unclaimed: microphone
-    // routing needs the physical array and is not part of this output port.
-    if (!input && index == 0 && strcmp(VPMachine(), "AudioAccessory5,1") == 0) {
-        return @"PuffinOutput";
-    }
-    if (index == 0 && VPGuestProductID() != 0 && strcmp(VPMachine(), "AudioAccessory5,1") != 0) {
-        return input ? @"Digital Mic" : @"PuffinOutput";
+    // Native HomePod and watch routes claim PuffinOutput; their microphone
+    // arrays are not supplied by the virtual device, so their input keeps a
+    // name of our own. A product of 0 claims nothing on any machine: it leaves
+    // VirtualAudio to itself, and the route this device would need is then the
+    // one VirtualAudio never set up.
+    const char *machine = VPMachine();
+    BOOL outputOnly = strcmp(machine, "AudioAccessory5,1") == 0 || strcmp(machine, "Watch7,18") == 0;
+    if (index == 0 && VPGuestProductID() != 0) {
+        if (!input) return @"PuffinOutput";
+        if (!outputOnly) return @"Digital Mic";
     }
     return [NSString stringWithFormat:@"VPhoneVirtIOSound%s:%u", input ? "Input" : "", index];
 }

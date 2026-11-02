@@ -510,6 +510,121 @@ public enum CustomFirmwareVirtualAudio {
         )
     }
 
+    // MARK: - Speaker Protection
+
+    /// Patch the VirtualAudio Mach-O at `url` in place, turning the speaker-route
+    /// walker's fault-logged terminating call into an unconditional branch to the
+    /// wrapper's epilogue, so a speaker whose protection is inactive returns
+    /// quietly instead of terminating.
+    ///
+    /// Idempotent: a second run finds the site already holding an unconditional
+    /// branch to the epilogue, reports ``Outcome/alreadyPatched`` and leaves the
+    /// file byte-identical.
+    ///
+    /// - Parameters:
+    ///   - url: the `VirtualAudio` plugin binary.
+    ///   - reattest: recompute the code-directory slot hash of the touched
+    ///     page. `false` when the caller re-signs the whole binary right
+    ///     after, which is what both install paths do.
+    ///   - dryRun: locate and report, write nothing.
+    @discardableResult
+    public static func patchInactiveSpeakerProtection(
+        fileAt url: URL,
+        reattest: Bool = true,
+        dryRun: Bool = false,
+        log: ((String) -> Void)? = stdoutLog,
+    ) throws -> Report {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw PatcherError.fileNotFound(url.path)
+        }
+
+        var data = try Data(contentsOfFileToRewrite: url)
+        let before = data
+
+        let report = try patchInactiveSpeakerProtection(
+            &data, reattest: reattest, dryRun: dryRun, log: log,
+        )
+
+        if data != before {
+            try data.write(to: url)
+        }
+
+        return report
+    }
+
+    /// In-memory form of ``patchInactiveSpeakerProtection(fileAt:reattest:dryRun:log:)``.
+    @discardableResult
+    public static func patchInactiveSpeakerProtection(
+        _ data: inout Data,
+        reattest: Bool = true,
+        dryRun: Bool = false,
+        log: ((String) -> Void)? = stdoutLog,
+    ) throws -> Report {
+        if data.startIndex != 0 {
+            data = Data(data)
+        }
+
+        let located = try locate(in: data)
+        guard let site = terminateSite(
+            in: data, disasm: located.disasm,
+            sections: MachOParser.parseSections(from: data),
+            textStart: located.textStart, textEnd: located.walkerEndOffset,
+            walkerStart: located.walkerStartOffset, walkerEnd: located.walkerEndOffset,
+            epilogueVMA: located.epilogueVMA, includePatched: true, requireUniqueReference: true,
+        ) else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): no fault-logged inactive speaker-protection termination in the walker",
+            )
+        }
+
+        let siteVMA = located.vma(site)
+        let anchor = Anchor(
+            throwBlockFileOffset: site, throwBlockVMA: siteVMA,
+            epilogueFileOffset: located.epilogueOffset, epilogueVMA: located.epilogueVMA,
+        )
+
+        let instruction = located.disasm.disassembleOne(in: data, at: site, address: siteVMA)
+        if let instruction, instruction.isJump,
+           !instruction.isCall,
+           let word = wordAt(data, site),
+           ARM64Encoder.decodeBranchTarget(insn: word, pc: siteVMA) == located.epilogueVMA
+        {
+            log?("      [=] inactive speaker-protection termination already bypassed")
+            return Report(outcome: .alreadyPatched, anchor: anchor, records: [], slotRehashes: [])
+        }
+
+        guard instruction?.isCall == true,
+              let branch = ARM64Encoder.encodeB(from: Int(siteVMA), to: Int(located.epilogueVMA)) else {
+            throw PatcherError.patchSiteNotFound(
+                "\(component): inactive speaker-protection termination is not a call with a reachable epilogue",
+            )
+        }
+
+        log?("  [.] inactive speaker-protection termination 0x\(hex(siteVMA)) -> epilogue 0x\(hex(located.epilogueVMA))")
+        if dryRun {
+            return Report(outcome: .wouldPatch, anchor: anchor, records: [], slotRehashes: [])
+        }
+
+        let original = Data(data[site..<site + 4])
+        data.replaceSubrange(site..<site + 4, with: branch)
+
+        let rehashes = reattest
+            ? try CustomFirmwareMachOCodeSignature.reattest(&data, modifiedOffsets: [site]) : []
+        log?("      [+] bypassed only the inactive speaker-protection termination")
+
+        return Report(
+            outcome: .patched, anchor: anchor,
+            records: [PatchRecord(
+                patchID: patchID + ".inactive_protection", component: component,
+                fileOffset: site, virtualAddress: siteVMA,
+                originalBytes: original, patchedBytes: branch,
+                beforeDisasm: instruction?.description ?? "",
+                afterDisasm: branch.map { String(format: "%02x", $0) }.joined(separator: " "),
+                description: "inactive speaker-protection termination -> epilogue",
+            )], slotRehashes: rehashes,
+        )
+    }
+
     // MARK: - Mute-set patching
 
     /// Patch the VirtualAudio Mach-O at `url` in place, turning the mute-set
@@ -2066,6 +2181,8 @@ public enum CustomFirmwareVirtualAudio {
         walkerStart: Int,
         walkerEnd: Int,
         epilogueVMA: UInt64,
+        includePatched: Bool = false,
+        requireUniqueReference: Bool = false,
     ) -> Int? {
         let needle = Array((terminateFault + "\0").utf8)
         var faultVMA: UInt64?
@@ -2087,7 +2204,8 @@ public enum CustomFirmwareVirtualAudio {
             textStart: walkerStart,
             textEnd: walkerEnd,
         )
-        guard let reference = references.first else { return nil }
+        guard !requireUniqueReference || references.count == 1,
+              let reference = references.first else { return nil }
 
         // The fault logger: the first call after the string reference,
         // following any unconditional branch its argument setup ends with.
@@ -2137,7 +2255,7 @@ public enum CustomFirmwareVirtualAudio {
            let target = ARM64Encoder.decodeBranchTarget(insn: word, pc: UInt64(site + 4)),
            target == epilogueVMA
         {
-            return nil
+            return includePatched ? site + 4 : nil
         }
         return site
     }

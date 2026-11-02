@@ -69,6 +69,13 @@ public enum ARM64Encoder {
 
     // MARK: - Comparisons
 
+    /// CMP Xn, Xm (SUBS XZR, Xn, Xm); register 31 is XZR.
+    public static func encodeCmpX(rn: UInt32, rm: UInt32) -> Data? {
+        guard rn < 32, rm < 32 else { return nil }
+        let insn: UInt32 = 0xEB00_001F | (rm << 16) | (rn << 5)
+        return ARM64.encodeU32(insn)
+    }
+
     /// CMP Wn,#imm12; register 31 is WSP.
     public static func encodeCmpWImmediate(rn: UInt32, imm12: UInt32) -> Data? {
         guard rn < 32, imm12 < 4096 else { return nil }
@@ -225,6 +232,13 @@ public enum ARM64Encoder {
         return ARM64.encodeU32(insn)
     }
 
+    /// MOVK Wd, #imm16, LSL #shift; replace one 16-bit lane.
+    public static func encodeMovkW(rd: UInt32, imm16: UInt16, shift: UInt32 = 0) -> Data? {
+        guard rd < 32, shift == 0 || shift == 16 else { return nil }
+        let insn: UInt32 = 0x7280_0000 | ((shift / 16) << 21) | (UInt32(imm16) << 5) | rd
+        return ARM64.encodeU32(insn)
+    }
+
     /// Encode MOVZ Xd, #imm16 (64-bit).
     public static func encodeMovzX(rd: UInt32, imm16: UInt16, shift: UInt32 = 0) -> Data? {
         let hw = shift / 16
@@ -301,6 +315,20 @@ public enum ARM64Encoder {
         insn |= imm12 << 10
         insn |= rn << 5
         insn |= rt
+        return ARM64.encodeU32(insn)
+    }
+
+    /// LDRB Wt, [Xn|SP, #offset], with an unsigned byte offset.
+    public static func encodeLdrBUnsignedOffset(rt: UInt32, rn: UInt32, offset: UInt32) -> Data? {
+        guard rt < 32, rn < 32, offset < 4096 else { return nil }
+        let insn: UInt32 = 0x3940_0000 | (offset << 10) | (rn << 5) | rt
+        return ARM64.encodeU32(insn)
+    }
+
+    /// STRB Wt, [Xn|SP, #offset], with an unsigned byte offset.
+    public static func encodeStrBUnsignedOffset(rt: UInt32, rn: UInt32, offset: UInt32) -> Data? {
+        guard rt < 32, rn < 32, offset < 4096 else { return nil }
+        let insn: UInt32 = 0x3900_0000 | (offset << 10) | (rn << 5) | rt
         return ARM64.encodeU32(insn)
     }
 

@@ -69,10 +69,21 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
 
     // MARK: - Patcher
 
+    /// Whether this step has anything to do on the system being merged. A step
+    /// the gate allows but this image has no use for is left out of the records
+    /// rather than reported as applied.
+    func applies(_ identifier: String) -> Bool {
+        switch identifier {
+        case FirmwareRestoreImagePatchSet.surfaceCompression: isIOS18
+        case FirmwareRestoreImagePatchSet.watchAudio: guestFamily == .watch
+        default: true
+        }
+    }
+
     /// One record per step the gate lets through. The merge itself is the
     /// patcher: the pipeline builds it only when the merge is on.
     public func findAll() throws -> [PatchRecord] {
-        Self.steps.filter { gate.isEnabled($0.identifier) && ($0.identifier != FirmwareRestoreImagePatchSet.surfaceCompression || isIOS18) }.map { step in
+        Self.steps.filter { gate.isEnabled($0.identifier) && applies($0.identifier) }.map { step in
             PatchRecord(
                 patchID: step.identifier,
                 component: "",
@@ -92,6 +103,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         (FirmwareRestoreImagePatchSet.vphoned, "Install vphoned and its launch daemon"),
         (FirmwareRestoreImagePatchSet.launchdCacheLoader, "Patch launchd_cache_loader"),
         (FirmwareRestoreImagePatchSet.virtualBluetooth, "Enable LE connections over the virtual Bluetooth controller"),
+        (FirmwareRestoreImagePatchSet.watchAudio, "Install the virtio sound HAL plugin for a watch"),
     ]
 
     @discardableResult
@@ -202,6 +214,11 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                     try CustomFirmwareBluetoothVirtualController.patch(at: file)
                 }
                 print("  [+] \(CustomFirmwareBluetoothVirtualController.feature) on")
+            }
+            if gate.isEnabled(FirmwareRestoreImagePatchSet.watchAudio), applies(FirmwareRestoreImagePatchSet.watchAudio) {
+                print("- Adding the watch speaker…")
+                try addWatchAudio(targetMount: targetMount)
+                try patchWatchAudioBudget(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }

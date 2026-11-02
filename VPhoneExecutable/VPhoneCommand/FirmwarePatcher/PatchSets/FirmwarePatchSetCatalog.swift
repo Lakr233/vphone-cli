@@ -440,7 +440,7 @@ public enum FirmwarePatchSetCatalog {
     public static let watchOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.watchOSIdentifier,
         title: "Apple Watch",
-        summary: "Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver and activation restored onto a stock kernel and TXM.",
+        summary: "Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver, speaker audio and activation restored onto a stock kernel and TXM.",
         patchSets: minimalPreset.patchSets,
         selection: .allow(
             minimalBootChainPatches
