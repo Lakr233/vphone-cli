@@ -1901,7 +1901,9 @@ struct VPhoneCustomFirmwareInstaller {
 
         // The paravirtual GPU bundle comes from the restore tree, so an
         // environment update cannot (re)install it; an installed guest already
-        // carries it, so record it live when on and skip with a note.
+        // carries it, so record it live when on and skip with a note. Its
+        // compiler plugin is this project's own build, so an update still
+        // brings that one up to date.
         var gpuBundleReinstalled = false
         if on("system-extensions-boot-gpu_bundle") {
             isolate(["system-extensions-boot-gpu_bundle"]) {
@@ -1913,33 +1915,47 @@ struct VPhoneCustomFirmwareInstaller {
                     gpuBundleReinstalled = true
                 } else {
                     print("  [·] system-extensions-boot-gpu_bundle: no restore tree; GPU bundle left as installed")
+                    if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system) {
+                        print("  [+] system-extensions-boot-gpu_bundle: compiler plugin updated from this bundle")
+                    }
                 }
                 live.insert("system-extensions-boot-gpu_bundle")
             }
         }
 
         // The driver's compact indexed-draw commands truncate a heap index
-        // buffer's offset to 16 bits. After the bundle step on purpose:
+        // buffer's offset to 16 bits, and its primitive restart override is
+        // one the host refuses. After the bundle step on purpose:
         // `installGPUBundle` replaces the whole bundle, `.bak` included, so the
         // backup taken here is always the staged driver — and a bundle it just
-        // reinstalled is already pristine, which is what "off" means.
-        let gpuIndexOffset = FirmwareGuestSystemPatchSet.paravirtGPUIndexOffset
+        // reinstalled is already pristine, which is what "off" means. Both ride
+        // one staged copy: `patchMachO` stages from the pristine backup, so two
+        // calls would not compose.
+        let gpuDriverPatches: [(id: String, verb: String)] = [
+            (FirmwareGuestSystemPatchSet.paravirtGPUIndexOffset, "patch-paravirt-gpu-index-offset"),
+            (FirmwareGuestSystemPatchSet.paravirtGPUPrimitiveRestart, "patch-paravirt-gpu-primitive-restart"),
+        ]
         let gpuDriver = FirmwareGuestSystemPatchSet.paravirtGPUDriverPath
         let gpuBundle = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
-        isolate([gpuIndexOffset]) {
-            if on(gpuIndexOffset) {
+        let gpuDriverOn = gpuDriverPatches.filter { on($0.id) }
+        isolate(gpuDriverPatches.map(\.id)) {
+            if !gpuDriverOn.isEmpty {
                 try patchMachO(
                     system: system, work: work, path: gpuDriver,
-                    verbs: ["patch-paravirt-gpu-index-offset"],
+                    verbs: gpuDriverOn.map(\.verb),
                     identifier: "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily",
                 )
                 try sealGuestBundle(system: system, bundle: gpuBundle)
-                live.insert(gpuIndexOffset)
+                for patch in gpuDriverOn {
+                    live.insert(patch.id)
+                }
             } else if try revertMachO(system: system, work: work, path: gpuDriver, bundle: gpuBundle) {
-                print("  [+] \(gpuIndexOffset): restored \(gpuDriver) from backup")
-            } else if priorGuest.contains(gpuIndexOffset), !gpuBundleReinstalled {
-                print("  [!] \(gpuIndexOffset): off now but no backup to revert; leaving the patched driver (not revertible)")
-                live.insert(gpuIndexOffset)
+                print("  [+] \(gpuDriver) restored from backup (heap index and primitive restart patches off)")
+            } else if !gpuBundleReinstalled {
+                for patch in gpuDriverPatches where priorGuest.contains(patch.id) {
+                    print("  [!] \(patch.id): off now but no backup to revert; leaving the patched driver (not revertible)")
+                    live.insert(patch.id)
+                }
             }
         }
 
@@ -2751,6 +2767,21 @@ struct VPhoneCustomFirmwareInstaller {
         for file in ["\(gpu)/Info.plist", "\(gpu)/_CodeSignature/CodeResources"] {
             try system.setMode(file, 0o644)
         }
+    }
+
+    /// Replace an installed guest's compiler plugin with this bundle's when
+    /// they differ, and seal the GPU bundle again. True when it was replaced.
+    private func refreshGPUCompilerPlugin(system: VPhoneConfinedDirectory) throws -> Bool {
+        let gpu = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
+        let plugin = "\(gpu)/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let source = resources.gpuCompilerPlugin
+        guard try system.isRegularFile(plugin),
+              FileManager.default.fileExists(atPath: source.path),
+              try system.readData(plugin) != Data(contentsOf: source)
+        else { return false }
+        try system.replaceFile(plugin, fromFileAt: source, mode: 0o755, owner: Self.guestOwner)
+        try sealGuestBundle(system: system, bundle: gpu)
+        return true
     }
 
     /// The staged OTA, the configured device and the patched target firmware

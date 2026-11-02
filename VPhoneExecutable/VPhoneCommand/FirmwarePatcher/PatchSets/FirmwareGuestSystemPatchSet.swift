@@ -46,6 +46,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let ciBarcodeExecutablePath = ciBarcodeBundlePath + "/CIBarcode"
 
     public static let paravirtGPUIndexOffset = "system-paravirt_gpu-cfw-heap_index_offset"
+    public static let paravirtGPUPrimitiveRestart = "system-paravirt_gpu-cfw-primitive_restart"
     public static let paravirtGPUDriverPath =
         "System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle/AppleParavirtGPUMetalIOGPUFamily"
 
@@ -460,6 +461,17 @@ public enum FirmwareGuestSystemPatchSet {
                 compact command keeps an index buffer's heap offset in 16 bits, so meshes whose \
                 indices sit 64 KiB or more into an MTLHeap (Unity games) draw with another \
                 mesh's indices.
+                """,
+                target: .guestExecutable(path: "/\(paravirtGPUDriverPath)"),
+                applicability: VPhonePatchApplicability(cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: paravirtGPUPrimitiveRestart,
+                title: "GPU primitive restart",
+                summary: """
+                Stops the paravirtual GPU driver sending the primitive restart override OpenGL ES \
+                sets before its draws. The host checks its restart index as if it were a viewport \
+                index and fails the whole command buffer, so nothing an OpenGL ES app draws appears.
                 """,
                 target: .guestExecutable(path: "/\(paravirtGPUDriverPath)"),
                 applicability: VPhonePatchApplicability(cloudOS: .release(major: 26, minor: 4)),

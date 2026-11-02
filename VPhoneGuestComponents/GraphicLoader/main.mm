@@ -8,6 +8,8 @@
 #include <cstring>
 #include <cstdint>
 
+#include "GLESAIR.h"
+
 // --- LLVM C API (from libLLVM.dylib) ---
 extern "C" {
     // Opaque types
@@ -29,6 +31,15 @@ extern "C" {
     unsigned LLVMGetMDNodeNumOperands(LLVMValueRef V);
     void LLVMGetMDNodeOperands(LLVMValueRef V, LLVMValueRef *Dest);
     const char *LLVMGetValueName2(LLVMValueRef Val, size_t *Length);
+
+    // LLVM metadata construction
+    typedef struct LLVMOpaqueContext *LLVMContextRef;
+    typedef struct LLVMOpaqueType *LLVMTypeRef;
+    LLVMContextRef LLVMGetModuleContext(LLVMModuleRef M);
+    LLVMTypeRef LLVMInt32TypeInContext(LLVMContextRef C);
+    LLVMValueRef LLVMConstInt(LLVMTypeRef IntTy, unsigned long long N, int SignExtend);
+    LLVMValueRef LLVMMDNodeInContext(LLVMContextRef C, LLVMValueRef *Vals, unsigned Count);
+    void LLVMAddNamedMetadataOperand(LLVMModuleRef M, const char *Name, LLVMValueRef Val);
 }
 
 // --- GPUCompiler API (from libGPUCompiler.dylib) ---
@@ -82,6 +93,27 @@ static const char *entryPointsMetadata[] = {
 };
 static const int numEntryPointsMetadata = 3;
 
+// The AIR version the guest's Metal front end writes into the modules it
+// compiles from MSL (iOS 27.0.1, metalfe-32023.921).
+static const unsigned long long glesAIRVersion[] = {2, 7, 0};
+
+// MTLDowngradeAIRModule and MTLMetalFunctionCreate both read
+// getNamedMetadata("air.version")->getOperand(0) without a null check. The
+// modules AppleMetalGLRenderer builds for OpenGL ES name only their language
+// ("OpenGL ES GLSL" 1.0) and carry no air.version, so the compiler service
+// crashed on every GLES shader. Give such a module the version the front end
+// would have written.
+static void addMissingAIRVersion(LLVMModuleRef module) {
+    if (LLVMGetNamedMetadataNumOperands(module, "air.version") > 0)
+        return;
+    LLVMContextRef context = LLVMGetModuleContext(module);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(context);
+    LLVMValueRef parts[3];
+    for (int i = 0; i < 3; i++)
+        parts[i] = LLVMConstInt(i32, glesAIRVersion[i], 0);
+    LLVMAddNamedMetadataOperand(module, "air.version", LLVMMDNodeInContext(context, parts, 3));
+}
+
 // --- Implementation ---
 
 AppleParavirtCompiler::~AppleParavirtCompiler() {
@@ -118,6 +150,17 @@ bool AppleParavirtCompiler::buildRequestWithOptions(
         *outError = "null module";
         return true; // error
     }
+
+    if (isGLESModule(module)) {
+        const char *error = nullptr;
+        if (LLVMModuleRef completed = completedGLESModule(module, &error))
+            module = completed;
+        else if (error) {
+            *outError = error;
+            return true;
+        }
+    }
+    addMissingAIRVersion(module);
 
     // Downgrade the AIR module for this target
     int result = MTLDowngradeAIRModule(module, _targetTriple, 0);

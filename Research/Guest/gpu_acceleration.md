@@ -1026,6 +1026,93 @@ Verified on the iPad guest with the patched driver in place: every heap row
 above covers 100%, the plain-buffer probe is unchanged, and Subway Surfers
 draws its menu scene and gameplay correctly.
 
+## OpenGL ES
+
+Upstream issue Lakr233/vphone-cli#793: `[[EAGLContext alloc] initWithAPI:]`
+returned nil for every API in a guest while Metal worked. OpenGL ES on Apple
+GPUs is AppleMetalGLRenderer, a renderer over Metal, and on the paravirtual GPU
+it failed at three points in turn. Measured on 2026-11-02: host macOS 27.2,
+cloudOS 26.4 (23E5207q) kernel, iPhone17,3 iOS 27.0.1 userland, test VM
+`glestest-iphone`.
+
+### No renderer
+
+`gfxInitializeLibrary` in `OpenGLES.framework/libGFXShared.dylib` walks the
+`IOAcceleratorES` services and, for each, reads `IOGLESBundleName` and
+`IOGLESMetalBundleName` from the registry; the renderer it loads is
+`/System/Library/Extensions/<name>.bundle`. With neither key there is no
+renderer and no context. The AGX personalities carry
+`IOGLESBundleName = AppleMetalGLRenderer` (`AGXG14X` in the j236c kernelcache
+of the same cloudOS IPSW); `AppleParavirtGPUARM` names only its Metal plugin.
+A personality's keys become the driver's property table, so
+`kernel-cfw-paravirt_gles_renderer` adds the AGX key to the personality in
+`__PRELINK_INFO`. With it, all three APIs return a context, `GLEngine` and
+`AppleMetalGLRenderer` load, and `glClear` with a readback works.
+
+### Shaders crash the compiler service
+
+The first draw with a shader failed with
+`GPU Hang Error (00000003:kIOGPUCommandBufferCallbackErrorHang)` and an
+unchanged framebuffer, while `MTLCompilerService` crashed in the compiler
+plugin, `libAppleParavirtCompilerPluginIOGPUFamily.dylib`, which this project
+builds (`VPhoneGuestComponents/GraphicLoader`). A copy of the plugin that wrote
+each module it received to `/private/var/tmp` showed what OpenGL ES sends it:
+
+```
+target triple = "air64-apple-ios"
+!air.language_version = !{!0}
+!air.fragment = !{!4}
+!0 = !{!"OpenGL ES GLSL", i32 1, i32 0, i32 0}
+!10 = !{i32 2, !"air.buffer", !"air.buffer_size", i32 112, !"air.location_index", i32 12, i32 1, !"air.read"}
+!12 = !{i32 4, !"air.sampler", !"air.location_index", i32 0, i32 1}
+```
+
+A module from the Metal front end has `!air.version = !{i32 2, i32 7, i32 0}`,
+a versioned triple, and argument nodes that go on to `air.address_space`,
+`air.arg_type_size`, `air.arg_type_align_size`, `air.arg_type_name` and
+`air.arg_name`. GPUCompiler reads those without bounds or null checks:
+`MTLDowngradeAIRModule` and `MetalModule::materialize` dereference
+`getNamedMetadata("air.version")`, and `air::Reflection::create` reads
+`air.address_space` at a fixed index past the end of the GL buffer node. The
+plugin now completes an OpenGL ES module before compiling it, from the entry
+point's own types, and gives it the version the front end writes, 2.7.0 — also
+the plugin's target, which `MTLCompilerService` passes as a packed version tuple
+(`0x700000002`) in the field the plugin calls `targetTriple`.
+
+The host carries the same GPUCompiler (32023), so the plugin built for macOS
+runs the guest's modules on the host: `make -C VPhoneGuestComponents
+test-gles-air` turns three captured modules into metallibs, loads each in the
+host's Metal and links the vertex and fragment functions into a pipeline.
+
+### The host refuses the primitive restart command
+
+Shaders then compiled, and the guest kernel logged an `AppleParavirtGPU
+HardwareDiagnosisReport` and a GPU restart for every GL command buffer. The
+host task (`com.apple.gpusw.ParavirtualizedGraphicsGPUTask`) logged
+`Command buffer failed: NSGenericException <redacted reason>`. A task starts
+for each guest process that opens the GPU, so a probe that pauses after creating
+its context leaves time to attach lldb to the new one and break on
+`objc_exception_throw`: the reason is `Invalid viewport index`, thrown by the
+handler that replays `setPrimitiveRestartEnabled:index:` after checking `index`
+against `[device maxViewportCount]`. OpenGL ES sends the restart index there,
+`0xffffffff`. `system-paravirt_gpu-cfw-primitive_restart` makes the guest
+driver's serialiser for that call return at entry, so Metal's own restart
+behaviour applies (on, at the index type's largest value).
+
+### Measured
+
+| Probe | Result |
+| --- | --- |
+| EAGL API 1, 2, 3 | all OK; `GL_RENDERER` "Apple Paravirtual device GPU", `GL_VERSION` "OpenGL ES 3.0 Metal - 105" |
+| ES 2 shader draw, root and mobile launchd jobs | exact readback of draw and clear |
+| ES 2 textured quad, 2x2 nearest texture, `mat4`/`float`/`vec4` uniforms, varyings | all four texels exact |
+| ES 3 uniform block, flat `int` varying, `texelFetch`, fixed-index restart strip | both quads exact, the split gap clear |
+| App drawing through `CAEAGLLayer` at 1290x2796 | 1560 frames presented, a rotating triangle on screen |
+
+No `MTLCompilerService` crash and no GPU restart in any of these.
+`Research/0_binary_patch_comparison.md` ("OpenGL ES in guests (2026-11-02)") has
+the bytes and what is not covered.
+
 ## Settings That Do Nothing Here
 
 Both are private properties of `VZMacGraphicsDeviceConfiguration`, tried on

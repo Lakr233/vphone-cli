@@ -1699,6 +1699,7 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | JB-33 | B     | `patchTproOff` (record `kernel-exp-frida_tpro_off`) | `_xprr_tpro_enabled` (`__DATA_CONST`), found via the `if (xprr_tpro_enabled)` guard of the VM_REGION_FLAG_TPRO_ENABLED store | **Frida spawn support (opt-in, Frida set; port of mowisec/frida_patches_srd `tpro-off`).** libdyld asserts on every API entry that TPRO pages are read-only and aborts (`TPRO regions should not be writable on entry to dyld`); Frida's spawn handshake re-enters libdyld inside dyld's own TPRO window, so `frida -f` and spawn-gated apps abort. Clearing the flag takes the kernel's existing no-TPRO path for every process (global). Anchor: unique `adrp/ldr/cbz/ldr/cmp/b.lo/ldrh/orr #2/strh` window, decoded with Capstone; the flag must resolve into `__DATA_CONST` and hold 1, else fail closed. 26.4 `c0ecdb4b`: flag at file-off `0x7526D4` (1 → 0). See `Research/KernelCustomFirmwarePatches/patch_tpro_off.md`. | Frida set |
 | JB-34 | B     | `patchSyscallFilterOff` (record `kernel-exp-frida_syscall_filter_off`) | `_task_get_mach_trap_filter_mask`, `_task_get_mach_kobj_filter_mask`, `_mac_proc_check_syscall_unix` | **Frida in syscall-filtered processes (opt-in, Frida set; port of mowisec/frida_patches_srd `syscall-filter-off`).** Sandbox syscall filters (`syscall-unix/-mach/-mig`) deny the agent's own calls inside the target: attaching to trustd, apsd, cfprefsd, backboardd or runningboardd kills them, and in locationd `thread_get_state` returns `KERN_DENIED` (no threads for Stalker). The two mask accessors return NULL ("no filter", XNU `bsd_arm64.c:249`, `ipc_kobject.c:563`) and the MACF BSD check returns 0 (`systemcalls.c:162`); the rest of the sandbox is untouched. JB-07 (`kernel-boot-syscallmask`, which rewrites the masks as they are installed) does not reach these processes; this is the NULL-mask alternative that row mentions. Anchors: the inlined `bitstr_test` of each check (kobject one behind `cmn #1 ; b.eq`), and `and w1,#0xffff ; mov x0 ; bl ; mov ; cbnz w0` in unix_syscall; each must match once and the three functions must open `pacibsp ; stp`, else fail closed. 26.4 `c0ecdb4b`: file-off `0x1D43090`, `0x1D43120`, `0x24CCAE8` (2 words each). See `Research/KernelCustomFirmwarePatches/patch_syscall_filter_off.md`. | Frida set |
 | JB-35 | C     | `patchAksUnlockBagCount5` (records `kernel-cfw-aks_unlock_bag.redirect` / `.cave`) | AppleSEPKeyStore keybag-unlock external-method handler (the one whose `IOExternalMethodArguments` count check is `cmp w8,#3 ; b.eq ; cmp w8,#4 ; b.ne BadArg`) | **Escrow-bag unlock / encrypted backups for an iOS 26.6-or-newer userland on the 26.4 kernel (`iOSBase: .atLeast(26, 6)`; pipeline `applyAksUnlockBag5`, not `applyIOS27`).** From iOS 26.6 on, the userland keybag unlock sends `inputScalarCount == 5` (scalars[3]=flags&1, scalars[4]=flags); the 26.4 AppleSEPKeyStore handler accepts only 3 or 4 and rejects 5 with `kIOReturnBadArgument`, so every escrow-bag unlock fails and `backup2 encryption` returns EscrowFailure. The count-4 path reads only scalars[3] (the same flag bit), so a count-5 call is handled correctly by it unchanged. Redirect the `cmp w8,#4` into a 6-word cave that accepts 4 or 5 (both → the original count-4 path) else takes the handler's own BadArgument branch. Anchor (structural): the 13-word count-dispatch block matched by its fixed words with the four branch words masked (opcode+condition kept, imm19/imm26 wildcarded); BadArgument/count-4 targets decoded from the anchor's own branches, no absolute offset. The `cset w25,ne` word is part of the fixed match and is what makes the block unique among the five keystore handlers that share this 3/4-count preamble — see caveat (2). **Self-guarding:** the anchor requires `cmp w8,#4 ; b.ne` (the 3/4-only reject shape), so on a kernel that already accepts 5 (Apple-native 26.6+, or this patch's own output) it finds no match and no-ops — hence no cloudOS bound is needed. Replacement bytes from the keystone-verified `ARM64Encoder.encodeCmpWImmediate`/`encodeBCond`/`encodeB`. Kernelcache is SPTM-content-measured, so apply at create time (not hot-swappable). **Version floor empirically pinned (2026-10-26)** by scanning native iPhone17,3 kernelcaches: the keybag handler is `cmp#3;b.eq ; cmp#4;b.ne` (3/4 only) on 18.6.2 / 26.1 / 26.4 / **26.5 (23F77)**, and becomes `cmp#3;b.eq ; cmp#4;b.eq ; cmp#5;b.ne` (accepts 5) on **26.6 (23G71)** / 26.6.1 / 27.0.1 — Apple's own 26.6+ handler is byte-identical to the shape this patch synthesizes. **Review caveats (not yet on-device validated):** (1) the dispatch-table index of the patched handler is 13, not the "selector 12" the introducing commit's comment states — cosmetic (the block, not the label, is patched), but the comment should be corrected; (2) uniqueness rests on the arbitrary `cset w25` register allocation, so a kernel rebuild that reallocates it would drop the match (fail-closed) — the robust key would be the IOExternalMethod dispatch-table entry for the real keybag-unlock selector, needing on-device confirmation of that selector number before retargeting. See `KernelCustomFirmwarePatchAksUnlockBag.swift`. | `26.6+` |
+| JB-36 | B     | `patchParavirtGLESRenderer` (record `kernel-cfw-paravirt_gles_renderer`) | The `AppleParavirtGPUARM` IOKit personality (AppleParavirtGPUIOGPUFamily) in `__PRELINK_INFO` | **OpenGL ES over Metal (upstream issue #793, on in `standard`).** `gfxInitializeLibrary` (OpenGLES `libGFXShared`) takes the renderer only from the `IOAcceleratorES` service's `IOGLESBundleName` / `IOGLESMetalBundleName` registry properties and loads `/System/Library/Extensions/<name>.bundle`; with neither, every `-[EAGLContext initWithAPI:]` returns nil although Metal works. Real AGX personalities carry `IOGLESBundleName = AppleMetalGLRenderer` (j236c `AGXG14X`, cloudOS 26.4); the paravirtual one names only its Metal plugin. A personality's keys become the matched driver's property table, so the key is added after `IOClass` in the prelink XML, indented like that line; the bytes come from the leading tabs of the lines that follow, so the record is about a hundred bytes and nothing else moves. Anchor: the one personality whose `IOClass` is `AppleParavirtGPU` and `IOMatchCategory` is `IOAcceleratorES`, flat dict; already present → no-op. The patched XML is parsed back and must equal the original plus that key. No code, no instruction bytes. Gated by `applyParavirtGLES`, set from the plan; tvOS and HomePod presets block it. Draws also need the compiler plugin's GLES metadata completion and guest row 30; see "OpenGL ES in guests (2026-11-02)" and `Research/Guest/gpu_acceleration.md`. | Y |
 
 ### EXP-Only Kernel Methods (Reference List)
 
@@ -1745,6 +1746,7 @@ do NOT execute these).
 | 27  | No binary change: both spawn hooks insert `libdevicename.dylib` into `configd` and `lockdownd` (after `libmisfix.dylib`, the first process to take two inserted libraries). In `configd` it interposes `SCDynamicStoreSetMultiple` and `SCDynamicStoreSetValue` and pins `Setup:/System`'s `ComputerName`; in `lockdownd` it interposes `SCPreferencesSetComputerName`, `SCPreferencesSetHostName` and `SCPreferencesSetLocalHostName` and refuses every rename with `kSCStatusAccessError`. Inert unless `/var/db/vphone/devicename.plist` holds a valid `DeviceName` — **all bases** | none (new guest dylib `VPhoneGuestComponents/DeviceName/libdevicename.c`, installed at `/usr/lib/libdevicename.dylib`; vphoned `device.name.get`/`device.name.set`) | **Pin the guest's device name to the VM's name.** The name is `System/System/ComputerName` in `preferences.plist`; configd's PreferencesMonitor (`updateConfiguration`, 24A435 `0x100062098`) flattens it into `Setup:/System` with one `SCDynamicStoreSetMultiple`, and every reader (`SCDynamicStoreCopyComputerName` in lockdownd's `copy_device_name`, MobileGestalt `UserAssignedDeviceName`, `UIDevice.name`) reads the store. The hook rewrites that publication, not the preferences read: the monitor's model-change path (`sub_10006155c`) writes the `kSCPrefSystem` value it reads back to disk, and the publication route leaves `preferences.plist` with the guest's own name. A publication that leaves `Setup:/System` out as unchanged gets the store's value pinned; one that removes it gets the pinned name instead. `vphone-vm` sends the VM's name to vphoned's `device.name.set` after every connect; vphoned writes the file (one rename, 0644) and applies the preferences unchanged, so configd publishes again and the new pin, or the guest's own name when the file is removed, is live within a second. The file outlives a reboot, so configd's first publication at boot carries it. The library re-reads the file when its inode, size or mtime change. lockdownd's `set_device_name` (`0x1000073b0`) is the only caller of the three setters; it logs their failure and still commits, and the `SetValue DeviceName` handler ignores the result, so a host rename reports success and the name stays. The pinned name itself is refused too: lockdownd runs `set_device_name(copy_device_name())` whenever it starts, and a lockdownd restarted after configd published would otherwise write the pinned name and derived host names into `preferences.plist` (seen once). An NVRAM variable was the first channel and never reached the guest: iBoot keeps only the variables it knows (even `vphone-vm`'s `boot-args` write is replaced). Interposing works because both daemons are standalone images. Ships with `system-launchdaemons-boot-environment` and the environment update; takes effect at the next boot. Verified on iOS 27.0 (24A435) on 2026-10-07: pin at boot and live, host rename refused, `vm rename` followed, preferences untouched. CoreDevice (`devicectl`, DeviceHub) reads the name when the device appears and can lag one boot after a rename. Details: `Research/Guest/device_name_pinning.md`. |    Y    |  Y  |  Y  |
 | 28  | `cbz`/`cbnz` -> `b` at the four compact-command choices in `-[PGSerializerRenderCommandEncoder drawIndexedPrimitives:…]` (`0x140b0`, `0x1421c`, `0x143b4`, `0x143c4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **Heap index buffer fix.** The compact command stores `parentResourceOffset + indexBufferOffset` in 16 bits but is chosen by testing `indexBufferOffset` alone, so an index buffer 64 KiB or more into an `MTLHeap` is read from the wrong address and meshes (Unity games) draw with another mesh's indices. Every indexed draw takes the 64-bit command instead. `system-paravirt_gpu-cfw-heap_index_offset`; see "Heap index buffers reach the host whole (2026-10-14)" and `Research/Guest/gpu_acceleration.md` |    Y    |  Y  |  Y  |
 | 29  | No binary change: SystemHook calls `setenv("FS_CACHE_REUSE_ON_REBOOT", "1", 0)` first thing in its constructor, in every process it is inserted into, while `/usr/lib/vphone-metal-cache-reuse` exists — **all bases** | none (`VPhoneGuestComponents/SystemHook/SystemHook-vphone.c`; marker written by `cfw install` / `cfw update-environment`) | **Keep the guest's Metal shader caches across a reboot.** `libCoreFSCache` stamps each cache with `kern.bootsessionuuid` and resets it at the next boot unless the variable is set; on the paravirtual GPU CoreAnimation's precompiled pipelines are disabled, so backboardd rebuilt every pipeline after every boot. `system-systemhook-cfw-metal_cache_reuse`; see "Guest Metal caches survive a reboot (2026-10-19)" |    Y    |  Y  |  Y  |
+| 30  | `pacibsp` -> `ret` at the entry of `-[PGSerializerRenderCommandEncoder setPrimitiveRestartEnabled:index:]` (`0x174b4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **OpenGL ES draws reach the host.** AppleMetalGLRenderer sets `NO, 0xffffffff` before its draws; the driver sends it as command 0x91 and the host's GPU task checks the index against `maxViewportCount`, throws "Invalid viewport index" and fails the command buffer (guest: `kIOGPUCommandBufferCallbackErrorHang`, GPU restart). The command is no longer sent, so Metal's own restart (on, at the index type's maximum) applies. Found by command 0x91's unique `mov w2, #0x8 ; mov w3, #0x91` and the nearest `pacibsp` before it. `system-paravirt_gpu-cfw-primitive_restart`, verb `patch-paravirt-gpu-primitive-restart`, staged with the heap index patch on one copy; see "OpenGL ES in guests (2026-11-02)" |    Y    |  Y  |  Y  |
 
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
@@ -5878,3 +5880,80 @@ AVFlashlight construction; no shared-cache code is modified for these hooks.
 Selection restores SpringBoard and removes the library on opt-out; a restart
 restores native methods.
 No native iOS 17 kernel, Metal driver, camera or networking support is claimed.
+
+## OpenGL ES in guests (2026-11-02)
+
+Upstream issue Lakr233/vphone-cli#793: every `-[EAGLContext initWithAPI:]`
+returned nil in a guest while Metal worked, so apps that need OpenGL ES refused
+to start or aborted (WeChat's `OpenGLContextManager: root_ctx_ != nullptr`).
+Three pieces make OpenGL ES render, each needed by the next.
+
+**1. Kernel: the renderer name (JB-36, `kernel-cfw-paravirt_gles_renderer`).**
+`gfxInitializeLibrary` (`libGFXShared`) loads
+`/System/Library/Extensions/<name>.bundle` from the `IOAcceleratorES` service's
+`IOGLESBundleName` / `IOGLESMetalBundleName`; `AppleParavirtGPU` had neither.
+AGX personalities carry `IOGLESBundleName = AppleMetalGLRenderer`, and the
+patch adds that key after `IOClass` in the `AppleParavirtGPUARM` personality in
+`__PRELINK_INFO`. On 23E5207q the record is 609 bytes at file offset
+`0x256824C`: the key's two lines, and the next lines' indentation shortened by
+the same 76 bytes, so nothing else in the kernelcache moves. The patched XML must
+parse to the original plus that key. Contexts are created from here on, but every
+draw failed in the next two pieces.
+
+**2. Compiler plugin: GLES modules (no binary patch; `VPhoneGuestComponents/GraphicLoader`).**
+AppleMetalGLRenderer hands the backend AIR whose `air.language_version` is
+`"OpenGL ES GLSL" 1.0.0`, with no `air.version` and with the argument metadata
+the AGX backend reads: a buffer stops after `"air.read"`, most nodes have no
+`air.arg_type_name` or `air.arg_name`. `MTLDowngradeAIRModule`,
+`MetalModule::materialize` and `air::Reflection::create` index those
+operands without checks, so `MTLCompilerService` crashed (`NamedMDNode::getOperand`,
+then `MDString::getString`) on every GLES shader. The plugin now completes such a
+module before the downgrade: every node gets the fields the Metal front end
+writes after its own, in its order (`air.address_space`, `air.arg_type_size`,
+`air.arg_type_align_size` for a buffer; `air.arg_type_name`; `air.arg_name`
+except on a render target), derived from the entry point's parameter and return
+types, and the module gets `!air.version = !{i32 2, i32 7, i32 0}`, the version
+the guest's front end (metalfe-32023.921) writes and the plugin's target
+(the value MTLCompilerService passes the plugin as `targetTriple` is a packed
+version tuple, `0x700000002`). The guest's libLLVM C API cannot replace a
+node's operand, so the module is printed, its argument lines extended, and the
+text parsed back in the same context. `make -C VPhoneGuestComponents test-gles-air`
+runs three guest-captured modules through the plugin on the host (same
+GPUCompiler 32023) and into the host's Metal.
+
+The plugin comes from the bundle (`guest-resources`), and an installed guest
+used to keep the one it was restored with. `cfw update-environment` (and `cfw
+install` without a restore tree) now replaces it when the bundle's differs and
+reseals the GPU bundle (`[+] system-extensions-boot-gpu_bundle: compiler plugin
+updated from this bundle`); tvOS guests, whose plugin is retargeted, are left alone.
+
+**3. Driver: primitive restart (guest row 30, `system-paravirt_gpu-cfw-primitive_restart`).**
+With shaders compiling, the host's `ParavirtualizedGraphicsGPUTask` threw
+`NSGenericException: Invalid viewport index` replaying each GL command buffer
+(caught with lldb on the task; Debugging Restrictions are off on this host). The
+throwing handler is command 0x91, `setPrimitiveRestartEnabled:index:`, which
+checks the index against `[device maxViewportCount]`; GL sends the restart index
+itself, `0xffffffff`. The guest saw a GPU hang and restart. The serialiser method
+now returns at entry: `0x174b4` `7f2303d5` `pacibsp` -> `c0035fd6` `ret`. Patched
+alone, 23E5207q hashes to `1992ab68…24d3dc`; with the heap index patch, as the
+installer stages both, `870ba415…3996d8`.
+
+**Verified** on `glestest-iphone` (iPhone17,3 iOS 27.0.1, cloudOS 26.4, host
+macOS 27.2, bundle built from this branch; plugin and driver delivered by
+`vm set-bundle --update-environment`, kernel by the restore): EAGL APIs 1-3 OK,
+`GL_RENDERER` "Apple Paravirtual device GPU", `GL_VERSION` "OpenGL ES 3.0 Metal -
+105"; as root and as mobile, a shader draw reads back exactly; an ES 2 program
+with a 2x2 texture, `mat4`/`float`/`vec4` uniforms and varyings reads back all four
+texels; an ES 3 program with a uniform block, a flat `int` varying, `texelFetch`
+and a `GL_PRIMITIVE_RESTART_FIXED_INDEX` strip split at `0xFFFF` reads back right
+with the gap clear; an app drawing through `CAEAGLLayer` presented 1560 frames
+with a rotating triangle on screen. No `MTLCompilerService` crash and no GPU
+restart in those runs.
+
+**Not covered.** Real apps (WeChat, the #463 game) were not run. The metadata
+completion covers the argument kinds the probes produced (buffers, the vertex
+fetch buffer, vertex id, textures, samplers, fragment inputs, position and
+vertex outputs, render targets); an argument kind the reflection reads in a
+layout the completion does not produce could still crash the compiler
+service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
+vertex 65535 is cut there.

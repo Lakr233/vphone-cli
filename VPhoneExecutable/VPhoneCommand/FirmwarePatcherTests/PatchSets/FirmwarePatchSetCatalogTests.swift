@@ -463,6 +463,29 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
+    func `Standard names the GLES renderer on every base while tvOS stays off`() throws {
+        let patch = FirmwarePatchSetCatalog.paravirtGLESPatch
+        #expect(!FirmwarePatchSetCatalog.manualOnlyPatches.contains(patch))
+        for base in ["18.6.2", "26.4", "26.6.2", "27.0.1"] {
+            for cloud in ["26.1", "26.4"] {
+                let plan = try VPhonePatchPlan.resolve(
+                    preset: FirmwarePatchSetCatalog.standardPreset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                )
+                #expect(plan.isEnabled(patch), "\(patch) on \(base)/\(cloud)")
+            }
+        }
+        for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset, FirmwarePatchSetCatalog.homePodMiniPreset] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("27.0"), cloudOS: VPhoneVersion("26.4"),
+            )
+            #expect(!plan.isEnabled(patch))
+        }
+    }
+
+    @Test
     func `A renamed patch maps to one the catalogue declares`() {
         let declared = Set(FirmwarePatchSetCatalog.allDeclarations.map(\.identifier))
         for (old, new) in FirmwarePatchSetCatalog.renamedPatches {
