@@ -6043,3 +6043,87 @@ Cache sent to launchd successfully
 
 with no "Using unsecure cache". SpringBoard came up and `guest rpc
 processes.list` answered from `/usr/bin/vphoned`.
+
+## Launch-constraint categories in the rebuilt static trust cache (2026-11-02)
+
+`filesystem-boot-cryptex_merge` rebuilds the static trust cache with
+`cryptexctl generate-trust-cache`, which writes a version 1 cache: entries of
+cdhash, hash type and flags, no launch-constraint category. Apple's iOS trust
+caches (the OS's `StaticTrustCache`, `Cryptex1,SystemTrustCache` and
+`Cryptex1,AppTrustCache`) are version 2 and give each cdhash a category, so on
+a `minimal` guest every system service ran with category 0 and the kernel
+logged `Launch Constraint Violation (not enforcing) … launched as a system
+service unexpectedly but met System Service constraints` for each: 212 lines
+(355 distinct programs) in lcl-186's serial log of one 18.6 Minimal boot,
+303 lines (898 occurrences) in `iphone-265.log`, a 26.5 Minimal boot.
+
+`createTrustcache` now rewrites cryptexctl's output as version 2
+(`TrustCache.withConstraintCategories`): each entry gets the category its
+cdhash has in Apple's three caches; a file the merge signs again gets the
+category its IPSW cdhashes had (`resignedCDHashes`: `launchd_cache_loader`
+where it is still patched, mobileactivationd, and the detached
+`launchd.plist.sig` of "The stock launchd_cache_loader takes a re-signed
+launchd.plist"); what Apple's caches do not list (vphoned, its Swift library,
+the GPU driver bundle, kexts Apple left out) keeps 0. Entries, order, flags,
+UUID and the IM4P's type and description stay as cryptexctl wrote them.
+
+The detached signature's cdhashes reach cryptexctl through the second base
+trust cache and are in none of Apple's caches. Apple's 22G86 static trust
+cache (`043-19071-100.dmg.aea.trustcache`) gives both cdhashes of its own
+`launchd.plist.sig` (`72c3cf9a…` SHA-256, `2e45eca3…` SHA-1) category 2, and
+`resignLaunchdCache` maps the new cdhashes to those. Apple's 26.5 static
+trust cache (`094-54920-099.dmg.aea.trustcache`) does the same for its
+`launchd.plist.sig` (`b2f662df…` SHA-1, `cb7da9ce…` SHA-256).
+
+Checked on 2026-11-02 with two `minimal` guests that also carried the other
+Minimal changes of that week (a stock LLB with only iBEC's image-4 callback
+patched, vphoned's paravirtual user-client entitlements, the restore tree
+published as clones). int-186 (iPhone11,6 18.6 22G86 on cloudOS 22G86, bundle
+2.12.2-local.c632b261), patch log:
+
+```
+[+] Apple's launchd.plist.sig: cdhash 2e45eca3ba25f02a7166775802481dfadaa2757c
+[+] Apple's launchd.plist.sig: cdhash 72c3cf9a1de7d4eb05fe0da99889cbb47ab41afc
+[+] Signed launchd.plist: cdhash c6a34260… (hash type 1)
+[+] Signed launchd.plist: cdhash b4ace6ca… (hash type 2)
+[+] Constraint categories for 6228 of 6693 trust cache entries
+[+] Re-signed cdhash 5c5eb26e… (hash type 2): category 3      (mobileactivationd)
+[+] Re-signed cdhash b4ace6ca… (hash type 2): category 2
+[+] Re-signed cdhash c6a34260… (hash type 1): category 2
+```
+
+The installed `new.trustcache` is version 2, 3428 CDHashes, with both new
+cdhashes at category 2. A reboot's unified log (Persist tracev3 pulled with
+`guest pull` and read with `log show` over a hand-built archive, since the
+stock LLB passes no serial boot-args) shows:
+
+- `isCdhashInTrustCache … Process 28 is checking if a cdhash is in the trust
+  cache` / `Returning IOReturn 0x0 to process 28`, the same pid and pair
+  lcl-186's serial log shows just before `cdhash: … b4ace6ca… is trusted`.
+  The loader's own lines are not in the persisted log (it runs before logd).
+- Two `Launch Constraint Violation (not enforcing) … met System Service
+  constraints` lines, for `/usr/libexec/init_exclavekit` and
+  `/usr/bin/vphoned`, both at category 0 because Apple's caches do not list
+  them.
+- No `Launch Constraint Violation (enforcing)`, no CODESIGNING exit, no crash
+  report (`idevicecrashreport -k`: only `restore_perform.txt`);
+  launchd_cache_loader, mobileactivationd and vphoned ran.
+
+int-265 (iPhone17,3 26.5 23F77 on cloudOS 23F75) was built with `minimal`
+plus `--allow llb-boot-boot_args --allow ibec-boot-boot_args`, so that the
+host serial log has the boot. Its patch log gives 6729 of 7277 entries a
+category, the new `launchd.plist.sig` cdhashes (`4230469c…`, `20f70244…`)
+category 2 and mobileactivationd's category 3, and the serial log shows the
+secure path:
+
+```
+Code: /System/Library/xpc/launchd.plist Sig: /System/Library/xpc/launchd.plist.sig
+cdhash: {length = 20, bytes = 0x20f702440c87a4d86aa49deca652100424c19381} is trusted
+Attached signature to file, checking ...
+Sending validated cache to launchd
+Cache sent to launchd successfully
+```
+
+with three `Launch Constraint Violation (not enforcing)` lines
+(`MobileAssetEarlyBootTask`, `init_exclavekit`, `vphoned`), no enforcing
+violation and no crash report.
