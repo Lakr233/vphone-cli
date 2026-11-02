@@ -312,8 +312,9 @@ struct FirmwarePatchSetCatalogTests {
         let declared = Set(FirmwarePatchSetCatalog.allDeclarations.map(\.identifier))
         #expect(feature.allPatches.isSubset(of: declared))
         let restoreImage = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
-        // cfw install refuses the debugserver and launchd patches on an Apple TV.
-        let appleTV = [VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier]
+        // cfw install refuses the debugserver and launchd patches on an Apple TV
+        // and on HomeView.
+        let appleTV = [VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homeViewIdentifier]
         for preset in FirmwarePatchSetCatalog.builtInPresets {
             if appleTV.contains(preset.identifier) {
                 #expect(feature.patches(in: preset) == nil, "\(preset.identifier)")

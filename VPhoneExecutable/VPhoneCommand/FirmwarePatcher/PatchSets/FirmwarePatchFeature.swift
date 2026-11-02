@@ -44,6 +44,8 @@ public struct FirmwarePatchFeature: Sendable, Hashable, Identifiable {
         let refused: [String] = switch preset.identifier {
         case VPhonePatchPreset.homePodMiniIdentifier:
             FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: result)
+        case VPhonePatchPreset.homeViewIdentifier:
+            FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: result)
         case VPhonePatchPreset.tvOSIdentifier:
             FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: result)
         case VPhonePatchPreset.tvOS4KIdentifier:
