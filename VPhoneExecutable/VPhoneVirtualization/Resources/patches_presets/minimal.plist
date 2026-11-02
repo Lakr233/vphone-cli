@@ -52,23 +52,13 @@
 			<string>filesystem-boot-vphoned</string>
 			<string>filesystem-exp-btvc_le_connection</string>
 			<string>filesystem-exp-watch_audio</string>
-			<string>ibec-boot-boot_args</string>
-			<string>ibec-boot-bootx_precondition</string>
-			<string>ibec-boot-image4_callback</string>
-			<string>ibec-cfw-serial_label</string>
 			<string>kernel-boot-vresearch101_kext_mix</string>
-			<string>llb-boot-boot_args</string>
-			<string>llb-boot-image4_callback</string>
-			<string>llb-boot-panic_bypass</string>
-			<string>llb-boot-rootfs</string>
-			<string>llb-cfw-display_scale</string>
-			<string>llb-cfw-serial_label</string>
 			<string>manifest-boot-digest_rehash</string>
 			<string>sep-boot-vresearch101_sepd_dispatch</string>
 		</array>
 	</dict>
 	<key>Summary</key>
-	<string>No kernel or TXM patches and only iBEC and LLB in the boot chain: the restore installs a resealed system with vphoned, the GPU driver and activation, and nothing writes it afterwards.</string>
+	<string>A stock boot chain, kernel and TXM: the restore installs a resealed system with vphoned, the GPU driver and activation, and nothing writes it afterwards.</string>
 	<key>Title</key>
 	<string>Minimal</string>
 </dict>
