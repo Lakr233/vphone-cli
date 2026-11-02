@@ -3390,6 +3390,84 @@ override after `udid.set` and after a reboot, and the guest's own after
 `udid.clear`. Details and the measurements are in
 `Research/Guest/xcode_install_signature_gate.md`, "The host sees it too".
 
+## vphoned paravirtual user-client entitlements (2026-11-01)
+
+No binary change. `VPhoneDaemon.entitlements` adds four classes to
+`com.apple.security.iokit-user-client-class`, each the research board's
+counterpart of a hardware class vphoned already lists:
+
+| Added | Counterpart already listed | An 18.6 binary that lists both |
+| --- | --- | --- |
+| `AppleParavirtDeviceUserClient` (GPU) | `AGXDeviceUserClient`, `IOGPUDeviceUserClient` | `Setup.app/Setup` |
+| `AppleVirtIONeuralEngineDeviceUserClient` | `H11ANEInDirectPathClient` | `Spotlight.app/Spotlight` and ten others |
+| `IOSurfaceAcceleratorParavirtClient` (scaler) | `IOSurfaceAcceleratorClient` | none; `backboardd` holds it as an exception |
+| `AppleVideoToolboxParavirtualizationUserClient` (image codec) | `AppleJPEGDriverUserClient` | `photosfaced`, `audiomxd`, MediaConversionService's `ImageConversionService` and `VideoConversionService` |
+
+The platform sandbox profile lets an unsandboxed process open an IOKit user
+client only when its `iokit-user-client-class` or
+`exception.iokit-user-client-class` entitlement names the class. vphoned named
+only the hardware classes, so the `minimal` preset, which has none of
+`kernel-boot-iouc_macf_gate`, `kernel-boot-iouc_sandbox_gate` and
+`kernel-cfw-paravirt_user_clients`, refused it each paravirtual class. On an
+iPhone17,3 26.5 23F77 Minimal guest created with the 2.12.2 bundle, each
+first call after a boot logged, per call:
+
+| Call | Refused (`IOUC … failed MACF in process pid …, vphoned`) |
+| --- | --- |
+| `screen.screenshot`, raw `screenshot` | `IOSurfaceAcceleratorParavirtClient` |
+| `ui.ocr`, `ui.describe` | `AppleVideoToolboxParavirtualizationUserClient`, then `AppleVirtIONeuralEngineDeviceUserClient` |
+
+The OCR calls read back the JPEG icli writes and run Vision on it. The codec
+class is refused before Vision loads its models, while the image is decoded;
+the decode falls back to software (Vision logs the 738×1600 image either way),
+so the refusal costs no output. With the first three classes a guest created
+the same way logged nothing for screenshots and only the codec class for OCR;
+with all four it logged no `IOUC` line for vphoned through screenshots,
+`ui.ocr` and `ui.describe`. The `minimal` merge copies vphoned with the
+signature the bundle build gives it and rebuilds the static trust cache over
+the result, so the new cdhash is trusted.
+The `standard` preset opens these classes in the kernel and gains nothing
+from the entries; on a real device the classes do not exist.
+
+The entries do not make OCR work on that guest. Its text detector,
+`TextRecognition.framework/cr_td_model_v3_e5.mlmodelc.bundle`, ships only as
+an H17 (Neural Engine) build; Espresso cannot plan it ("Failed to build the
+model execution plan … error code: -2", "Could not initialize V3 detector
+model"), and icli answers "System text recognition is unavailable on this
+device." It does so with and without the Neural Engine class: with it, the
+ANE client also logs "Unknown aneSubType" for the paravirtual device.
+A test build of icli that retried with `usesCPUOnly` failed the same way;
+the framework's other detector build, `cr_td_model_v3_eir`, has a
+`model.espresso.net` but no `model.espresso.weights`. An iOS 18.6 22G86
+Minimal guest with vphoned's earlier entitlements logs the same detector
+error, so OCR did not work on Minimal guests before these entries either.
+
+Not handled: Apple's own binaries. The same 26.5 boot logged `IOUC
+AppleVideoToolboxParavirtualizationUserClient failed MACF … Preferences`.
+Preferences in 18.6, like 73 of the 74 18.6 binaries that list
+`AGXDeviceUserClient`, lists no paravirtual class. Signing those again with
+the counterparts added would change Apple binaries, so the guest would no
+longer match a device's signatures. `VPhoneSigner` also leaves the
+resource-seal slot of an app's main executable empty, and the list of binaries
+would differ from one iOS version to the next. `callservicesd` and `nearbyd`,
+which are refused `AppleVirtIONeuralEngineDeviceUserClient`, run under sandbox
+profiles of their own, which an entitlement does not change.
+
+Checked again on 2026-11-02 with two `minimal` guests that also carried the
+other Minimal changes of that week (launch-constraint categories in the static
+trust cache, a signed `launchd.plist`, a stock LLB). int-265 (iPhone17,3 26.5
+23F77 on cloudOS 23F75, with `--allow llb-boot-boot_args --allow
+ibec-boot-boot_args` for a serial log): raw `screenshot`,
+`screen.screenshot`, `ui.ocr` and `ui.describe` from vphoned logged no `IOUC`
+or `failed sandbox` line for vphoned, where `iphone-265.log`, a 26.5 Minimal
+boot with the earlier entitlements, had `IOUC
+IOSurfaceAcceleratorParavirtClient failed MACF … vphoned`. Its one `IOUC` line
+is `AppleVirtIONeuralEngineDeviceUserClient failed MACF … callservicesd`, an
+Apple binary (above). `ui.ocr` still answered "System text recognition is
+unavailable on this device." int-186 (iPhone11,6 18.6 22G86) logged no `IOUC`
+or `failed sandbox` line for vphoned through the same calls; the 18.6 guests
+logged none before the change either.
+
 ## vphoned launchd service entitlements (2026-10-20)
 
 `VPhoneDaemon.entitlements` adds `com.apple.private.xpc.service-configure`
