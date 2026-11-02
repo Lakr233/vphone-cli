@@ -107,6 +107,49 @@ struct CustomFirmwareIPhoneProductTests {
         #expect(delta == 0)
         #expect(patched == presented)
     }
+
+    // MARK: - Always On display
+
+    private static func tree(product: Node, armIO: [Node]) -> Data {
+        Node("device-tree", [("model", Data("iPhone18,1\0\0".utf8))], children: [
+            Node("arm-io", children: armIO),
+            product,
+        ]).serialized
+    }
+
+    private static let guestArmIO = [Node("gfx", [("compatible", Data("paravirtualizedgraphics,gpu\0".utf8))])]
+
+    @Test func `an Always On board marks the guest's product, once`() throws {
+        let original = Self.tree(product: Node("product", [("graphics-featureset-class", Data("APPLE7\0".utf8))]),
+                                 armIO: Self.guestArmIO)
+        let board = Self.tree(product: Node("product"), armIO: [
+            Node("disp0", [("compatible", Data("disp0,t8150\0".utf8)), ("always-on-time", Node.uint32(1))]),
+        ])
+        let (patched, changes, delta) = try CustomFirmwarePostRestoreDeviceTree.withPhoneProduct(original, board: board)
+        #expect(changes.map(\.property) == ["product/vphone-always-on-display"])
+        #expect(delta == 36 + 4)
+        #expect(patched == Self.tree(product: Node("product", [
+            ("graphics-featureset-class", Data("APPLE7\0".utf8)),
+            ("vphone-always-on-display", Node.uint32(1)),
+        ]), armIO: Self.guestArmIO))
+        // The marker is all: the guest's arm-io gets no disp0.
+        #expect(!String(decoding: patched, as: UTF8.self).contains("always-on-time"))
+
+        let (twice, again, _) = try CustomFirmwarePostRestoreDeviceTree.withPhoneProduct(patched, board: board)
+        #expect(again.isEmpty)
+        #expect(twice == patched)
+    }
+
+    @Test func `a board without an Always On display leaves the product unmarked`() throws {
+        let original = Self.tree(product: Node("product", [("graphics-featureset-class", Data("APPLE7\0".utf8))]),
+                                 armIO: Self.guestArmIO)
+        let board = Self.tree(product: Node("product"), armIO: [
+            Node("disp0", [("compatible", Data("disp0,t8140\0".utf8))]),
+        ])
+        let (patched, changes, _) = try CustomFirmwarePostRestoreDeviceTree.withPhoneProduct(original, board: board)
+        #expect(changes.isEmpty)
+        #expect(patched == original)
+    }
 }
 
 @Suite("Foldable VM sub-type")

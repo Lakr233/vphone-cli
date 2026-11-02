@@ -190,6 +190,10 @@ char * _Null_unspecified vp_usb_set_serial(const char * _Null_unspecified serial
 /// `unique-chip-id`. malloc-owned, or NULL when the device tree lacks either.
 char * _Null_unspecified vp_usb_own_serial(void);
 
+/// Whether the device tree node at `path` (an `IODeviceTree:` path) has the
+/// property `name`, whatever its value.
+bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnull name);
+
 /// The names of the APFS snapshots of the volume mounted at `mount`, in
 /// `*names` (free with `vp_apfs_snapshot_names_free`). Returns 0 or an errno value.
 int vp_apfs_snapshot_list(const char * _Null_unspecified mount, char * _Null_unspecified * _Null_unspecified * _Null_unspecified names, int * _Null_unspecified count);
