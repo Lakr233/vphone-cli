@@ -54,7 +54,6 @@
 			<string>filesystem-boot-mobileactivationd_should_hactivate</string>
 			<string>filesystem-boot-vphoned</string>
 			<string>filesystem-exp-btvc_le_connection</string>
-			<string>filesystem-exp-launchd_cache_loader_unsecure_cache_gate</string>
 			<string>filesystem-exp-watch_audio</string>
 			<string>ibec-boot-boot_args</string>
 			<string>ibec-boot-bootx_precondition</string>

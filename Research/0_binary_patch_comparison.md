@@ -4311,7 +4311,7 @@ gone. The preset names three sets:
 | `filesystem-boot-gpu_driver` | Installs the PCC paravirtual GPU driver `fw prepare` staged |
 | `filesystem-boot-mobileactivationd_should_hactivate` | The `should_hactivate` patch, in the image |
 | `filesystem-boot-vphoned` | vphoned and its launch daemon, in the image |
-| `filesystem-exp-launchd_cache_loader_unsecure_cache_gate` (was `filesystem-boot-…`) | NOPs launchd_cache_loader's `launchd_unsecure_cache=` gate. `minimal` no longer selects it: `filesystem-boot-vphoned` signs the edited `launchd.plist` instead; see "The stock launchd_cache_loader takes a re-signed launchd.plist" below |
+| `filesystem-exp-launchd_cache_loader_unsecure_cache_gate` (was `filesystem-boot-…`) | NOPs launchd_cache_loader's `launchd_unsecure_cache=` gate. `minimal` and `watchos` no longer select it: `filesystem-boot-vphoned` signs the edited `launchd.plist` instead; see "The stock launchd_cache_loader takes a re-signed launchd.plist" below |
 | `filesystem-exp-watch_audio` | Watch images only, via `watchos`: the watchOS-marked virtio sound HAL plugin, a generic-DSP speaker chain, the three VirtualAudio playback routing-gate bypasses, and on watchOS 26.4 the MediaExperience device-class NOP for the virtual-device audio budget. Cannot be toggled without another restore |
 | `manifest-boot-digest_rehash` | Rewrites every BuildManifest digest to the files the restore now sends; for an AEA archive, the digest of its decrypted image, which is what Apple's manifests hold and what an 18.x restore checks the written image against |
 
@@ -5980,9 +5980,11 @@ file. It no longer needs it: `filesystem-boot-vphoned` signs the edited file
 the way Apple signs it, and the static trust cache the restore image already
 rebuilds (and TSS signs) carries the new cdhashes. The patch is now
 `filesystem-exp-launchd_cache_loader_unsecure_cache_gate`, not boot-essential,
-left out of `minimal`; `renamedPatches` migrates a VM's old record. `watchos`
-still selects it: its loader shows the same `Code: … Sig: …` path in the
-watch boot logs, but no watch guest has booted without it yet.
+left out of `minimal` and `watchos`; `renamedPatches` migrates a VM's old
+record. A Watch7,18 watchOS 26.4 (23T240) guest on cloudOS 26.4 (23E244),
+restored with the gate blocked, booted to the pairing screen with vphoned up:
+its stock loader logged "cdhash: … 0xeacd92f9… is trusted" for the re-signed
+`launchd.plist.sig` and "Cache sent to launchd successfully" (2026-11-02).
 
 What the loader checks (`/usr/libexec/launchd_cache_loader`, libxpc-2894.140.12,
 iOS 18.6 22G86, read from the disassembly):

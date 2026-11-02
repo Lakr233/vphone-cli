@@ -8,12 +8,12 @@
 // chain, kernel and TXM stay stock, and nothing writes the System volume after the
 // restore, because that would break the seal.
 //
-// Only the `minimal` preset and its watch form, `watchos`, name this set.
-// `watchos` allows all of it, `minimal` all but the launchd_cache_loader gate.
-// Every patch in it but the three experiments is boot-essential for them, and
-// naming it nowhere else keeps `standard` from counting them as dropped. A
-// watchOS image has no cryptexes: for a watch the merge only reseals the image
-// with the guest payload.
+// Only the `minimal` preset and its watch form, `watchos`, name this set,
+// and both allow all of it but the launchd_cache_loader gate. Every patch in
+// it but the three experiments is boot-essential for them, and naming it
+// nowhere else keeps `standard` from counting them as dropped. A watchOS image
+// has no cryptexes: for a watch the merge only reseals the image with the
+// guest payload.
 
 import Foundation
 import VPhonePatchKit
@@ -29,9 +29,8 @@ public enum FirmwareRestoreImagePatchSet {
     public static let surfaceCompression = "filesystem-boot-ios18_surface_compression"
     public static let mobileActivation = "filesystem-boot-mobileactivationd_should_hactivate"
     public static let vphoned = "filesystem-boot-vphoned"
-    /// No longer needed by `minimal`: the vphoned step re-signs the edited
-    /// launchd.plist and the trust cache takes its cdhashes. `watchos` keeps it
-    /// until a watch guest has booted without it.
+    /// No longer needed by `minimal` or `watchos`: the vphoned step re-signs the
+    /// edited launchd.plist and the trust cache takes its cdhashes.
     public static let launchdCacheLoader = "filesystem-exp-launchd_cache_loader_unsecure_cache_gate"
     public static let virtualBluetooth = "filesystem-exp-btvc_le_connection"
     public static let watchAudio = "filesystem-exp-watch_audio"

@@ -248,7 +248,8 @@ struct FirmwarePatchSetCatalogTests {
             iOSBase: VPhoneVersion("26.4"),
             cloudOS: VPhoneVersion("26.4"),
         )
-        #expect(watch.enabled == restoreImage
+        #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
+        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
             .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(researchBoard))
     }
 

@@ -456,7 +456,8 @@ public enum FirmwarePatchSetCatalog {
             minimalBootChainPatches
                 .union(watchOSDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier)),
+                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )
 
