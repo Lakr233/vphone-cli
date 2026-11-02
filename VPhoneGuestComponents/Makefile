@@ -97,8 +97,11 @@ ACCELEROMETER := $(STAGE)/accelerometer/libvphoneaccelerometer.dylib
 ACCELEROMETER_SOURCES := $(call find_sources,Accelerometer)
 ACCELEROMETER_INPUTS := $(call find_headers,Accelerometer) $(call find_folders,Accelerometer)
 HINGE := $(STAGE)/hinge/libvphonehinge.dylib
-HINGE_SOURCES := $(call find_sources,Hinge)
-HINGE_INPUTS := $(call find_headers,Hinge) $(call find_folders,Hinge)
+# The hinge detours backboardd's HID server to take a hinge value a client
+# dispatches (WebDriverAgent), with libmisfix's detour.
+HINGE_SOURCES := $(call find_sources,Hinge) MISFix/MISFixDetour.c MISFix/MISFixConfig.c
+HINGE_INPUTS := $(call find_headers,Hinge) $(call find_folders,Hinge) MISFix/MISFixDetour.h \
+	MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
 # The SpringBoard guard that lets the foldable product identity survive on a
 # single-display guest. See FoldGuard/libvphonefoldguard.m.
 FOLDGUARD := $(STAGE)/foldguard/libvphonefoldguard.dylib

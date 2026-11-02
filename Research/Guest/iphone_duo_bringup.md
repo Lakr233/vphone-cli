@@ -5316,4 +5316,113 @@ page 0xFF61, usage 0x5B, provider `com.apple.Virtualization.VirtualMachines`)
 and dispatches it from its runner with `IOHIDEventSystemClientDispatchEvent`;
 the guest's hinge relay follows the events DeviceHub's controls arrive in,
 from dtuhidd's HID service, and nothing takes a client-dispatched one. Its
-GET reads CMAngleManager and reports the guest's hinge (180 open).
+GET reads CMAngleManager and reports the guest's hinge (180 open). Taken
+since; see "2026-11-02: WebDriverAgent's hinge POST".
+
+## 2026-11-02: WebDriverAgent's hinge POST
+
+WDA's `POST /wda/device/hingeAngle` (appium-ios 16.17.x,
+`XCUIDevice+FBHinge.m`) builds DeviceHub's slider dictionary
+`{provider: com.apple.Virtualization.VirtualMachines, source:
+hinge-slider-control, type: range, value: <angle>}`, IOKit
+binary-serializes it, wraps it in `IOHIDEventCreateVendorDefinedEvent`
+(page `0xFF61`, usage `0x5B`) and sends it from the runner with
+`IOHIDEventSystemClientCreate` + `IOHIDEventSystemClientDispatchEvent`.
+The dispatch returns nothing, so the endpoint answers WDA's success
+(`FBResponseWithOK`, `value: null`) whatever happened; `null` is success
+here, and a refused argument comes back as an error object.
+
+**Where it went.** backboardd's HID server refused it, every time:
+
+    Error: the client with pid 1211 is missing the
+    'com.apple.private.hid.client.event-dispatch' entitlement.
+
+The MIG stub `_Xio_hideventsystem_dispatch_event` calls
+`_io_hideventsystem_dispatch_event(port, data, length)` (IOKit, exported).
+That function turns the out-of-line buffer into a CFData
+(`_IOHIDUnserializeAndVMDeallocWithTypeID`, freeing the buffer), finds the
+connection, and for any connection type but 0 requires bit 3 of
+`IOHIDEventSystemConnectionGetEntitlements` before
+`IOHIDEventCreateWithDataInternal` and `_IOHIDEventSystemDispatchEvent`.
+WDA's connection is "Rate Controlled" with entitlements `0x0`. Even
+dispatched, the event would have had no service, and locationd's relay
+reads the host controls from services matching `0xFF61/0x5B`. A runner
+signed by a developer team cannot carry a private entitlement.
+
+**The buffer's formats** (iOS 27.1 IOKit, 24A94425), all needed to read it:
+
+- the buffer is a CFData in a **binary property list**
+  (`_IOHIDCreateBinaryData`: `CFPropertyListWrite`, format 200), not an
+  IOKit serialization; `IOCFUnserializeBinary` returns nil on it;
+- the CFData is the event in `IOHIDEventCreateDataInternal`'s form, read by
+  `IOHIDEventCreateWithDataInternal`; the public pair passes format flag 1,
+  the internal one 0;
+- the vendor payload inside is IOKit binary (WDA serializes with option 1,
+  as dtuhidd's DeviceHub events are), read with `IOCFUnserializeBinary`.
+
+**What changed.** `libvphonehinge` (backboardd, iPhone19,4 only) detours
+`_io_hideventsystem_dispatch_event` from its constructor, before backboardd
+serves clients. The detour decodes the buffer; an event that is a
+host-control vendor event whose dictionary names the VM provider,
+`hinge-slider-control`, `range` and a value of 0–180 is the hinge's: the
+detour frees the buffer as the server would, answers `KERN_SUCCESS`, and
+the hinge dispatches the event unchanged on its own `0xFF61/0x5B` virtual
+service from its queue. The server never sees it, so it neither refuses nor
+logs the missing entitlement. Anything else, including the orientation
+picker, goes to the server unchanged. From the hinge's service the event takes DeviceHub's path:
+locationd's relay moves the hinge, and vphoned's unmatched monitor sees the
+provider and follows it as a DeviceHub value (`vp_hinge_note`: stored
+quietly, the screen lit when opening from closed). The hinge status
+(`VPhoneHingeStatus`) gains `client_dispatch` (`installed` or why not) and
+`client_controls` (values taken).
+
+Ways not taken:
+
+- Granting the entitlement bit to unentitled connections would let any app
+  dispatch any event (touches, buttons).
+- Swapping the routine in `_iohideventsystem_subsystem` (found by the stub
+  whose `BL` targets the exported function; `blraaz`, so a plain function
+  pointer fits): the table is in the cache's `__AUTH_CONST`, and
+  `vm_protect(VM_PROT_COPY | READ | WRITE)` there returns
+  `KERN_PROTECTION_FAILURE`. Text pages take the copy, as libmisfix's
+  detour measured.
+- libmisfix's detour (`MISFix/MISFixDetour.c`, now built into the hinge too)
+  relocates the target's first four instructions. In an X1 cache the
+  prologue is `pacibsppc`, which signs LR with its own address; moved, it
+  signs for the trampoline and the function's `retabsppc` fails. The guest
+  runs the X1-lowered cache on hosts without PAuth_LR (this M5 Pro has
+  none), where the prologue is `pacibsp`. The detour now refuses
+  `PACIASPPC`, `PACIBSPPC`, `PACNBIASPPC` and `PACNBIBSPPC` instead of
+  copying them, so on an unlowered cache the hinge reports `HID server
+  dispatch not detoured: a displaced instruction is PC-relative` and WDA's
+  POST stays a no-op.
+
+**Measured** on sbdisplay-duo (iPhone19,4, iOS 27.1 24A94425, product-id
+patch on), the hinge library pushed with `environment.install` and
+backboardd restarted, WDA 16.17.x from appium-ios:
+
+| request | WDA GET | `display.orientation` `fold_angle` | `screen_off` |
+| --- | --- | --- | --- |
+| before the change, POST 120 | 180 | 180 | |
+| POST 120 | 120 | 120 | |
+| POST 0 | 0 | 0 | false |
+| POST 180 | 180 | 180 | false (lit on opening) |
+| POST 120, 12 s later (past the 5 s resend) | 120 | 120 | |
+
+vphoned stored each value quietly (`VPhoneHingeAngle` `quiet: true`, angle
+as posted) and `client_controls` counted one per POST. DeviceHub (restarted
+after the backboardd restart) still folds the guest from its own buttons:
+Closed 0, Open 180, Partially Open 130, with `client_controls` unchanged,
+since its values come through dtuhidd's virtual service, not a client
+dispatch. After DeviceHub's, WDA's POST 0 and 180 turned DeviceHub's model
+to the cover face and to the open inner panel. `display.pose` is the
+test-automation snapshot and is not current on a relay guest; its hinge
+field is not evidence here.
+
+With the server bypassed for these events, a POST leaves only the
+connection's `Connection added` and `Connection removed` lines in
+backboardd's log, with no entitlement error; POST 120, 0 and 180 and
+DeviceHub's Closed and Open were repeated with the same results. Checked
+off-guest in `make test-hinge`: WDA's payload in the internal form inside a
+binary plist is taken, and another usage page, no provider, the orientation
+picker and values of -1, 181, a Boolean or a string are not.
