@@ -4913,6 +4913,10 @@ The 26.x kernels match neither shape, as before.
 `kernel-boot-vm_map_protect` finds no gate on 18.x, as on 26.5 and later.
 `txm-boot-precheck_admission` (the 27.0.1 fix) and `ibec-boot-bootx_precondition`
 have no 18.x site and are not needed there.
+The four VirtualAudio throw patches (`speaker_route_throws`, `mute_set_throw`,
+`speaker_protection_gate`, `volume_mode_precondition`) look for code iOS 18.6's
+VirtualAudio does not have, and are gated on iOS 26. Audio on an 18.x guest is
+not checked.
 
 The surface-compression keys `filesystem-boot-ios18_surface_compression` writes
 into a `minimal` image live on the Data volume, which `cfw install` cannot reach.
