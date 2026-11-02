@@ -46,10 +46,10 @@ static NSTimeInterval vpPanelOnAt;
 // the panel off and when it dims it to the always-on Lock Screen, which keeps
 // the panel on and drawing. The VM window covers the panel while the screen
 // is off (display.orientation's screen_off) so that, coming on, it does not
-// show the frame from before it went off; vphoned reads this state so that it
-// does not cover the always-on Lock Screen too. The panel counts as dark from
-// going off until SpringBoard lights the screen again, so a wake from off is
-// covered as before.
+// show the frame from before it went off. vphoned reports this state instead,
+// so the window leaves the always-on Lock Screen uncovered. The panel counts
+// as dark from going off until SpringBoard lights the screen again, so a wake
+// from off is covered as before.
 static int vpBlankedToken = -1, vpPanelDarkToken = -1;
 static BOOL vpPanelWentDark;
 

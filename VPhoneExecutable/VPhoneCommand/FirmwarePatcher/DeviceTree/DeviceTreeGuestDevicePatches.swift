@@ -691,7 +691,7 @@ extension DeviceTreePatcher {
     /// renders the always-on Lock Screen itself (BLSHPseudoFlipbook), which
     /// works here; so the tree only marks the board, and vphoned answers the
     /// first two questions yes in the MobileGestalt cache
-    /// (`GuestMobileGestaltCache.presentAlwaysOnDisplay`).
+    /// (`GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup`).
     static let alwaysOnDisplayMarker = "vphone-always-on-display"
 
     /// `/buttons` properties taken from the board when they are placeholders.

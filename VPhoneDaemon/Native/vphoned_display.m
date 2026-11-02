@@ -172,3 +172,14 @@ NSArray *vp_display_probe(void) {
     IOObjectRelease(iterator);
     return found;
 }
+
+bool vp_device_tree_has_property(const char *path, const char *name) {
+    io_registry_entry_t entry = IORegistryEntryFromPath(kIOMainPortDefault, path);
+    if (entry == MACH_PORT_NULL) return false;
+    CFStringRef key = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingUTF8);
+    CFTypeRef value = key ? IORegistryEntryCreateCFProperty(entry, key, kCFAllocatorDefault, 0) : NULL;
+    if (key) CFRelease(key);
+    IOObjectRelease(entry);
+    if (value) CFRelease(value);
+    return value != NULL;
+}

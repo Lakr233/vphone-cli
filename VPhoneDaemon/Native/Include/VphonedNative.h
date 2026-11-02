@@ -190,10 +190,6 @@ char * _Null_unspecified vp_usb_set_serial(const char * _Null_unspecified serial
 /// `unique-chip-id`. malloc-owned, or NULL when the device tree lacks either.
 char * _Null_unspecified vp_usb_own_serial(void);
 
-/// Whether the device tree node at `path` (an `IODeviceTree:` path) has the
-/// property `name`, whatever its value.
-bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnull name);
-
 /// The names of the APFS snapshots of the volume mounted at `mount`, in
 /// `*names` (free with `vp_apfs_snapshot_names_free`). Returns 0 or an errno value.
 int vp_apfs_snapshot_list(const char * _Null_unspecified mount, char * _Null_unspecified * _Null_unspecified * _Null_unspecified names, int * _Null_unspecified count);
@@ -238,6 +234,10 @@ bool vp_devicehub_controls_start(void (^_Nonnull handler)(NSDictionary * _Nonnul
 /// hinge stand-ins in dtdeviceinfod read the virtual hinge's newest sample,
 /// without moving the hinge.
 void vp_hinge_reading_publish(double angleDegrees, int hingeState);
+/// Whether the device tree node at `path` (an `IODeviceTree:` path) has the
+/// property `name`, whatever its value.
+bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnull name);
+
 /// Every display-ish IOService object the guest published, with its small
 /// properties: what the display stack bound, for the foldable display work.
 NSArray * _Nonnull vp_display_probe(void);

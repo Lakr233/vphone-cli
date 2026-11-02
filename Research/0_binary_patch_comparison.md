@@ -6030,7 +6030,10 @@ answering all three yes in its `CacheExtra` crashed it the same way. Without
 the flipbook, `-[BLSHBacklightOSInterfaceProvider initWithPlatformProvider:]`
 gives SpringBoard BacklightServices' own renderer (`BLSHPseudoFlipbook`), which
 works on a guest. Answering the first two in the cache leaves the flipbook
-unanswered there and so no.
+unanswered there and so no. Keeping `always-on-time` in the tree and answering
+the flipbook no in the cache would not do: the tree decides whenever the cache
+is missing, at a guest's first boot and after every drop, and one boot with the
+flipbook is enough to lose backboardd.
 
 A guest that went through that crash loop kept losing backboardd after the
 answers and the whole cache were removed; the cause was not found. Do not
