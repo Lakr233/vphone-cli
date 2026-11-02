@@ -433,8 +433,11 @@ struct VPhoneMachOFile {
         let cpuType: UInt32
         let cpuSubtype: UInt32
         let alignment: UInt32
+        /// Legacy ARM code is carried byte-for-byte, never re-signed.
+        let preservedImage: Data?
     }
 
+    /// Supported slices, in signing order; preserved ARM slices are excluded.
     let slices: [VPhoneMachOImage]
     /// nil for a thin file.
     let architectures: [Architecture]?
@@ -475,12 +478,38 @@ struct VPhoneMachOFile {
                 guard alignment <= 30 else {
                     throw VPhoneSignError.malformed("architecture \(index) is aligned to 2^\(alignment)")
                 }
+                let cpuType: UInt32 = data.bigEndianValue(at: entry)
+                let cpuSubtype: UInt32 = data.bigEndianValue(at: entry + 4)
+                var preservedImage: Data?
+                if cpuType == UInt32(CPU_TYPE_ARM) {
+                    let headerSize = MemoryLayout<mach_header>.size
+                    guard length >= headerSize,
+                          data.littleEndianValue(at: offset) as UInt32 == MH_MAGIC,
+                          data.littleEndianValue(at: offset + 4) as UInt32 == cpuType,
+                          data.littleEndianValue(at: offset + 8) as UInt32 == cpuSubtype
+                    else {
+                        throw VPhoneSignError.malformed("architecture \(index) has an inconsistent ARM header")
+                    }
+                    let commandsSize = Int(data.littleEndianValue(at: offset + 20) as UInt32)
+                    let commandCount = Int(data.littleEndianValue(at: offset + 16) as UInt32)
+                    guard commandsSize <= length - headerSize, commandCount <= commandsSize / 8 else {
+                        throw VPhoneSignError.malformed("architecture \(index) has an invalid load command area")
+                    }
+                    // Third-party IPAs can bundle armv7 alongside arm64.
+                    // Preserve the unused legacy slice and its old signature.
+                    preservedImage = data.subdata(in: offset ..< offset + length)
+                } else {
+                    try slices.append(VPhoneMachOImage(file: data, range: offset ..< offset + length))
+                }
                 architectures.append(Architecture(
-                    cpuType: data.bigEndianValue(at: entry),
-                    cpuSubtype: data.bigEndianValue(at: entry + 4),
+                    cpuType: cpuType,
+                    cpuSubtype: cpuSubtype,
                     alignment: alignment,
+                    preservedImage: preservedImage,
                 ))
-                try slices.append(VPhoneMachOImage(file: data, range: offset ..< offset + length))
+            }
+            guard !slices.isEmpty else {
+                throw VPhoneSignError.unsupportedSlice("a fat file with only 32-bit ARM slices")
             }
             self.architectures = architectures
             self.slices = slices
@@ -492,16 +521,24 @@ struct VPhoneMachOFile {
         }
     }
 
-    /// The file rebuilt from `images`, one per slice. ldid lays the slices
-    /// out again, each on its own alignment.
+    /// The file rebuilt from `images`, one per supported slice, plus the
+    /// preserved slices. Each architecture keeps its own alignment and order.
     func assembled(_ images: [Data]) throws -> Data {
         guard let architectures else { return images[0] }
         var header = Data()
         header.appendBigEndian(FAT_MAGIC)
-        header.appendBigEndian(UInt32(images.count))
+        header.appendBigEndian(UInt32(architectures.count))
         var body = Data()
-        let bodyStart = 8 + images.count * MemoryLayout<fat_arch>.size
-        for (architecture, image) in zip(architectures, images) {
+        let bodyStart = 8 + architectures.count * MemoryLayout<fat_arch>.size
+        var signedIndex = 0
+        for architecture in architectures {
+            let image: Data
+            if let preservedImage = architecture.preservedImage {
+                image = preservedImage
+            } else {
+                image = images[signedIndex]
+                signedIndex += 1
+            }
             let offset = (bodyStart + body.count).aligned(to: 1 << Int(architecture.alignment))
             body.append(Data(count: offset - bodyStart - body.count))
             body.append(image)
