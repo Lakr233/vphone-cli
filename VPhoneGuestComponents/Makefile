@@ -370,7 +370,7 @@ $(SYSTEMHOOK): $(SYSTEMHOOK_SOURCES) $(SYSTEMHOOK_INCLUDES) SystemHook Shared $(
 	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \
 		-I$(MACHPORTS_GENERATED) -ILaunchHook -include VPhoneMachMessage.h \
 		-install_name /usr/lib/SystemHook-vphone.dylib \
-		-o $@ $(SYSTEMHOOK_SOURCES) $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c -Wl,-not_for_dyld_shared_cache
+		-o $@ $(SYSTEMHOOK_SOURCES) $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c -framework IOKit -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
 
 $(MISFIX): $(MISFIX_SOURCES) $(MISFIX_INCLUDES) MISFix | $(STAGE)/misfix
@@ -695,6 +695,13 @@ test-ios17-desktop:
 	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 18 SpringBoard
 	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 17 OtherProcess
 
+.PHONY: test-ios16-surface
+test-ios16-surface:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined -ISystemHook \
+		-o $(OUT)/IOS16SurfaceReplyTest Tests/IOS16SurfaceReplyTest.c SystemHook/VPhoneIOS16SurfaceReply.c
+	@$(OUT)/IOS16SurfaceReplyTest
+
 .PHONY: test-mach-ports-compat
 test-mach-ports-compat: $(MACHPORTS_STAMP)
 	@mkdir -p ../.build/machports-test
@@ -708,7 +715,14 @@ $(IOS16MIGRATION): IOS16Migration/libvphoneios16migration.m
 	$(CLANG) $(COMMON_FLAGS) -dynamiclib -install_name /usr/lib/libvphoneios16migration.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
 
-$(IOS16DESKTOP): IOS16Desktop/libvphoneios16desktop.m
+$(IOS16DESKTOP): IOS16Desktop/libvphoneios16desktop.m ../VPhoneDaemon/Native/Include/VPhoneIOS16LabPolicy.h
 	@mkdir -p $(STAGE)/ios16desktop
-	$(CLANG) $(COMMON_FLAGS) -dynamiclib -install_name /usr/lib/libvphoneios16desktop.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
+	$(CLANG) $(COMMON_FLAGS) -I../VPhoneDaemon/Native/Include -dynamiclib -install_name /usr/lib/libvphoneios16desktop.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
+
+.PHONY: test-ios16-lab-policy
+test-ios16-lab-policy:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined \
+		-I../VPhoneDaemon/Native/Include -o $(OUT)/IOS16LabPolicyTest Tests/IOS16LabPolicyTest.c
+	@$(OUT)/IOS16LabPolicyTest

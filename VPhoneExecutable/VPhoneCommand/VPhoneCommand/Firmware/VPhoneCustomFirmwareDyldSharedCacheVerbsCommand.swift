@@ -82,6 +82,8 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand.self,
             VPhoneCustomFirmwarePatchIOMFBSwapEndCommand.self,
             VPhoneCustomFirmwarePatchIOS16MachPortsCommand.self,
+            VPhoneCustomFirmwarePrepareIOS16SurfaceCommand.self,
+            VPhoneCustomFirmwarePrepareIOS16FramebufferCommand.self,
             VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
             VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand.self,
             VPhoneCustomFirmwarePatchLSDEmbeddedRegCommand.self,
@@ -328,6 +330,32 @@ struct VPhoneCustomFirmwarePatchIOMFBForceKernCommand: ParsableCommand {
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
         )
         try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+struct VPhoneCustomFirmwarePrepareIOS16FramebufferCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "prepare-ios16-framebuffer",
+        abstract: "Prepare UUID-checked runtime metadata for the iOS 16 framebuffer adapter"
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var chunksDirectory: URL
+    @Argument(transform: URL.init(fileURLWithPath:)) var output: URL
+    func run() throws {
+        let metadata = try DyldSharedCacheIOS16SurfaceAdapter.swapMetadata(directory: chunksDirectory)
+        try metadata.write(to: output, options: .atomic)
+    }
+}
+
+struct VPhoneCustomFirmwarePrepareIOS16SurfaceCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "prepare-ios16-surface",
+        abstract: "Prepare UUID-checked runtime metadata for the iOS 16 IOSurface adapter"
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var chunksDirectory: URL
+    @Argument(transform: URL.init(fileURLWithPath:)) var output: URL
+    func run() throws {
+        let metadata = try DyldSharedCacheIOS16SurfaceAdapter.metadata(directory: chunksDirectory)
+        try metadata.write(to: output, options: .atomic)
     }
 }
 

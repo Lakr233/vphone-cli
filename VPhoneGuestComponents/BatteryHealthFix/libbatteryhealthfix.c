@@ -61,7 +61,9 @@
 // but not IOKit/ps/IOPowerSources.h.
 extern CFTypeRef IOPSCopyPowerSourcesInfo(void);
 extern CFTypeRef IOPSCopyPowerSourcesByType(int type);
-extern IOReturn IOPSCopyPowerSourcesByTypePrecise(int type, CFTypeRef *blob);
+// Older bases expose ByType but not Precise. A strong import prevents dyld
+// from starting Settings, before any optional battery UI is requested.
+extern IOReturn IOPSCopyPowerSourcesByTypePrecise(int type, CFTypeRef *blob) __attribute__((weak_import));
 extern Boolean MGGetBoolAnswer(CFStringRef question);
 
 #define VP_MITIGATION_STATE_NAME "com.apple.thermalmonitor.ageAwareMitigationState"
@@ -256,6 +258,11 @@ static CFTypeRef vpCopyPowerSourcesByType(int type) {
 }
 
 static IOReturn vpCopyPowerSourcesByTypePrecise(int type, CFTypeRef *blob) {
+    if (!IOPSCopyPowerSourcesByTypePrecise) {
+        if (!blob) return kIOReturnBadArgument;
+        *blob = vpCopyPowerSourcesByType(type);
+        return *blob ? kIOReturnSuccess : kIOReturnNoMemory;
+    }
     IOReturn status = IOPSCopyPowerSourcesByTypePrecise(type, blob);
     if (blob && *blob)
         *blob = vpBlobWithHealth(*blob);

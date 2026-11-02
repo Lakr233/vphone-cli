@@ -66,6 +66,36 @@ public enum CustomFirmwarePostRestoreDeviceTree {
 
     // MARK: - File-level patching
 
+    @discardableResult
+    public static func presentIOS16EphemeralStorage(at url: URL, dryRun: Bool = false) throws -> Outcome {
+        try rewrite(at: url, dryRun: dryRun, verbose: true) { blob in
+            let (result, changes) = try withIOS16EphemeralStorage(blob)
+            return (result, changes, blob.count)
+        }
+    }
+
+    /// Native XNU hw.ephemeral_storage and the corresponding MobileGestalt
+    /// product answer, for an explicitly selected fresh, keybag-less lab.
+    /// Existing slots only: no topology, size, root identity or disk edit.
+    public static func withIOS16EphemeralStorage(_ blob: Data) throws -> (Data, [Change]) {
+        let root = try parseTree(blob, label: "DT")
+        var changes: [Change] = []
+        for (nodeName, propertyName) in [("chosen", "ephemeral-storage"), ("product", "ephemeral-data-mode")] {
+            let nodes = root.children.filter { child in
+                child.properties.contains { $0.name == "name" && String(decoding: $0.value.prefix(while: { $0 != 0 }), as: UTF8.self) == nodeName }
+            }
+            guard nodes.count == 1, let property = nodes.first?.properties.first(where: { $0.name == propertyName }),
+                  (nodeName == "chosen" ? [4] : [4, 8]).contains(property.value.count),
+                  property.value.dropFirst().allSatisfy({ $0 == 0 }), property.value.first.map({ $0 <= 1 }) == true
+            else { throw PatcherError.patchVerificationFailed("iOS 16 ephemeral storage: unknown \(nodeName)/\(propertyName) slot") }
+            if property.value.first == 0 {
+                property.value[0] = 1
+                changes.append(Change(property: "\(nodeName)/\(propertyName)", before: "0", after: "1"))
+            }
+        }
+        return (changes.isEmpty ? blob : serializeNode(root), changes)
+    }
+
     /// Patch a `devicetree.img4` (preferred) or bare `devicetree.im4p` in place.
     @discardableResult
     public static func patch(

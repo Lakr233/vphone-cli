@@ -5993,253 +5993,56 @@ vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
-## Local iPhone 14 Pro / iOS 16.6.1 experiment
 
-The isolated experiment uses iPhone15,2 16.6.1 (20G81) with cloudOS 26.1 (23B85).
-Existing older-userland SwapEnd, thread-guard and paravirtual-user-client patch
-gates and the BSD-only Skywalk boot argument are enabled for this experiment.
-The iOS 17 SpringBoard workaround remains gated to 17 until 16's own startup
-blockers are measured. No boot or display success is claimed at this stage.
+## Experimental iOS 16.6.1 desktop bring-up
 
-First normal boot exits PID 1 with "could not set up inheritance port".
-The 20G81 launchd calls `_mach_ports_register` at 0x10001682C and branches
-on error at 0x100016830 to the fatal string block at 0x100016958.
-XNU 12377.41.6 `osfmk/mach/task.defs` uses three inline port descriptors for
-task RPCs 3403/3404; the 16.x public API still sends an OOL port array.
-Opt-in `system-launchd-exp-ios16_mach_ports` installs a marker that selects
-register/lookup translation in launchdhook and SystemHook. MIG generates the
-two modern client messages; the existing kobject Mach-message transport sends
-them. No launchd or kernel instruction is skipped. Removing the marker and
-restarting returns to the native APIs. A native self-task round-trip passes;
-guest console confirms register3 succeeds and launchd completes early boot.
+Measured pairing: iPhone15,2 (iPhone 14 Pro), iOS 16.6.1/20G81 userland,
+cloudOS 26.1/23B85 vphone600 boot chain. All additions below are manual opt-ins;
+shipped presets and the no-plan path leave them disabled. See
+`Research/Guest/ios16_bringup.md` for procedure, evidence and limitations.
 
-The next failure precedes inserted-library constructors: libxpc's initializer
-calls `_mach_ports_lookup` at 0x1E6ECBCA4 and traps in cold.6 at 0x1E6EE647C.
-New opt-in `dyld-exp-ios16_mach_ports_lookup` rewrites only the bounded
-388-byte client at 0x1C5FFC078 in libsystem_kernel. The generated ARM64 payload
-decodes the modern fixed-three-descriptor reply and allocates the old public
-port array. Existing PC-relative request instructions stay in place; saved
-registers keep their FP-relative unwind locations. Reply IDs, sizes and port
-dispositions are checked, and transport/allocation errors retain cleanup.
-Page hashes are re-attested; the normal dyld undo log restores original bytes
-on opt-out. Initial real-cache dry run resolves the site and fits exactly;
-normal-boot validation is pending.
+- `system-launchd-exp-ios16_mach_ports` bridges the old out-of-line self-task
+  Mach-port API to the newer fixed-three-port RPCs in the native launch hooks.
+  `dyld-exp-ios16_mach_ports_lookup` updates the old libxpc client's pre-constructor
+  lookup through a symbol-derived, bounded cache patch with undo capture.
+- `system-backboard-exp-ios16_migration` skips the fresh lab's measured migration
+  wait and releases its local shell sentinel/PreBoard re-block. It does not
+  migrate existing user data or persist completion. `system-springboard-exp-ios16_desktop`
+  avoids unavailable startup media, widget and flashlight services and uses the
+  native local setup-state setter. These services remain unavailable.
+- `system-systemhook-exp-ios16_surface` converts capability replies 0x28 ->
+  0x18 and allocation/lookup replies 0xC68 -> 0xA68, including narrowed fields
+  and the changed plane stride. Offline metadata derives the framework-private
+  transport stub, verifies its instruction pattern and records its Mach-O UUID.
+  The runtime detour checks UUID/expected bytes, suspends peer threads, uses
+  private COW memory without writable executable pages, and restores protection.
+- `system-systemhook-exp-ios16_framebuffer` translates the measured old 0x46C
+  SwapEnd payload into the modern 0x560 layout. It inserts the new event/port
+  slots, retaining frame token, surfaces, rectangles and measured flags. Native
+  create/lock/write/read/unlock and surface lookup probes pass; submitted color
+  bars and the real SpringBoard desktop are visible.
+- `preboot-exp-ios16_ephemeral_storage` changes only the existing chosen/product
+  ephemeral-storage fields, preserving their widths and tree size. Native
+  `hw.ephemeral_storage` and `os_variant_uses_ephemeral_storage` then report 1;
+  PreBoard no longer owns the shell. Restore pre-ephemeral snapshots to undo
+  guest data effects; restoring device-tree bits alone is insufficient.
+- `system-vphoned-exp-ios16_touchscreen` registers a built-in HID touchscreen
+  only when none exists. With desktop startup selected, native backlight-state
+  changes also publish the legacy HID factor. Real mouse swipes and clicks now
+  reach the guest rather than being dropped as missing-digitizer/display-off.
+- `system-springboard-exp-ios16_keybagless_ui` is restricted to a fresh ephemeral
+  lab. The root daemon requires explicit markers and a strict session/persona
+  keybag-directory allowlist before publishing a single-link, root-owned,
+  magic-checked lease. Three signature-checked UI getters honor that lease for
+  at most three seconds and otherwise forward to native. MKB/AKS and encrypted
+  data remain unchanged; this is not working credentials or protected storage.
+- The existing battery helper weak-imports the unavailable newer precise-power
+  API and falls back to its existing ByType API. This resolves the measured
+  Preferences pre-main dyld crash without synthesizing an IOKit export.
 
-The cache client passes a real boot: libxpc initializes, services spawn and
-vphoned answers RPC. All 70 patch-model tests pass. Offline application,
-idempotence and undo were checked against a full cache copy; the affected
-chunk matches its pristine input byte-for-byte after undo, including hashes.
-SpringBoard now waits on backboardd, whose startup queue waits in
-`_DMPerformMigration` at +300. The migrator itself waits while PreBoard runs;
-SEP keybag errors appear on serial. Opt-in
-`system-backboard-exp-ios16_migration` injects a process/version-scoped library
-into backboardd. The measured method is DMClientAPIController's
-`_migrateWithConnection:checkNecessity:lastRelevantPlugin:testMigrationInfrastructureOnly:`
-with encoding `B40@0:8@16B24@28B36`; the lab hook returns YES to release only
-this startup wait. It does not unlock the keybag or mark global migration
-complete. Removal restores the backed-up executable and removes its library.
-This is a fresh-lab desktop experiment, not general data-migration support.
-
-The non-waiting system-shell check-in releases SpringBoard's
-FBSystemShellInitialize. Its next main-thread wait is MediaExperience's system
-controller because mediaserverd repeatedly exits before main with
-OS_REASON_EXEC/EXEC_EXIT_REASON_SECURITY_POLICY (8). Two temporary copies
-isolate the failure: re-signing with the complete original entitlements still
-gets SIGKILL; removing only `seatbelt-profiles` reaches executable code and
-then aborts when its unmanaged probe cannot register the real service's XPC
-endpoints. New opt-in `system-mediaserver-exp-ios16_profile` re-signs only
-mediaserverd without this legacy profile entitlement, preserving its remaining
-entitlements and its pristine backup. This deliberately removes that guest
-service's sandbox profile in a fresh experimental VM; it is not a sandbox
-compatibility implementation. Opt-out restores the original signed binary.
-
-The managed media daemon next aborts before dyld maps images:
-LIBIGNITION (35), code 2, "failed to close filesystem [optional]: fd = 3: 1".
-The actual installed binary and original UUIDs were inspected on a stopped,
-read-only disk mount. The 20G81 standalone dyld's `_closefd_optional` at
-0x671A8 calls close at 0x671D8, branches to its fatal path at 0x67200 on any
-error, and reports exactly this message. New opt-in
-`system-dyld-exp-ios16_closefd` rewrites only that bounded 60-byte cold block:
-EPERM on FD 3 returns through the existing cleanup; all other errors and FDs
-retain ignition_halt with the original reason, errno, flags and diagnostic.
-It leaves that optional descriptor open rather than defeating its kernel guard.
-The payload uses native encoders, is byte-idempotent on the real dyld, and is
-restored from the standard executable backup on opt-out. Guest retest pending.
-
-The standalone-only guest test still reaches the same ignition abort. The
-shared cache also contains `/usr/lib/dyld`; its `_closefd_optional` resolves to
-0x1A66361A8 and the cold block to 0x1A6636200. Paired opt-in
-`dyld-exp-ios16_closefd` applies the same native payload builder there and
-records the 60 original bytes in the normal cache undo log. Real-cache apply,
-idempotence and undo pass; chunk .11 is identical to pristine after undo.
-A Capstone-driven guard check confirms only FD 3/EPERM reaches the optional
-return; FD 0/4 with EPERM and FD 3 with errno 0/2/9 retain the fatal path.
-
-The paired guest test advances past FD 3 and now reports the same EPERM while
-closing the optional OS cryptex FD 5. The compatibility guard is therefore
-expanded to optional descriptors >=3 on EPERM; stdin/stdout/stderr and every
-other errno retain the native failure. The kernel's close guard remains in
-force, and these optional boot descriptors remain open. This avoids special
-casing a series of filesystem/cryptex handles by arbitrary assigned numbers.
-
-The next real boot passes optional filesystem and OS cryptex closes, and now
-fails on the mandatory shared-cache FD 7. The same shape-checked, 60-byte cold
-handler is applied to both `_closefd_optional` (cold +0x58) and `_closefd`
-(cold +0x54), with their distinct native success returns. This remains limited
-to dyld's boot-resource helpers, EPERM and descriptors above stderr; it does not
-change the general close syscall. Both sites are validated before cache writes.
-The exact-symbol mode added to MachOParser prevents `_closefd` from matching
-`_closefd_optional` by substring. The two original runs and hashes remain
-reversible through the normal backup/undo mechanisms.
-
-With both close helpers adapted, mediaserverd reaches SIGABRT in early process
-initialization instead of LIBIGNITION. No post-initialization hook trace appears.
-An explicit weak load of SystemHook is included in the experimental media-profile
-selection. A temporary C++ throw interposer interfered with other guest services
-and was removed. A speculative platform/no-container/no-sandbox entitlement
-test was also reverted. Native exception-port tracing instead locates the
-pre-constructor failure. No iOS 16 desktop success is claimed yet.
-
-The native inherited EXC_CRASH port captures the actual early media abort:
-`abort <- cc_abort <- ccrng_getentropy_generate <- ccrng_process_init <-
-arc4random_buf <- libobjc initialization`. The 20G81 function at 0x1E6E30FF0
-calls getentropy at +0x34, branches on -1 at +0x3C, and aborts at +0x68.
-An independent native C probe successfully calls getentropy and arc4random_buf
-as both UID 0 and UID 501, so the entropy provider is present; the failure is
-specific to the service's execution policy. Existing research notes document
-that `kernel-boot-syscallmask` misses some per-process filters.
-
-The existing opt-in `kernel-exp-frida_syscall_filter_off` is now structurally
-verified on the actual 23B85/vphone600 original: trap accessor 0xB3E1D0,
-kobject accessor 0xB3E260, MACF Unix syscall check 0x12D0640. All three are unique
-and pass the native prologue checks; the offline run emits six records. Only
-this existing Frida declaration gains cloudOS 26.1 applicability; the other
-Frida relaxations retain 26.4+. Standard remains off. Guest validation pending.
-The unsuccessful temporary C++ throw interposer and speculative extra media
-entitlements have been removed; the native crash observer is diagnostic only.
-
-The crashing media thread's measured 20G81 `__error` TLS layout reports errno 1
-(EPERM). A probe signed with the same retained media entitlements still passes
-getentropy/arc4random as UID 501. The first kernel test only changed the restore
-tree and therefore did not exercise the new patch: normal boot loads Preboot.
-`cfw update-kernel` then re-patched from FirmwareOriginals and replaced the actual
-43,997,230-byte Preboot IMG4 while preserving its manifest and every data volume.
-That replacement is the kernel validation boundary for the next boot.
-
-With the filter change actually in Preboot, `keybagd --init` can execute its
-fatal-path reboot instead of merely logging it. 20G81 lacks the newer MKB
-keybag-less platform path. Its main at 0x100015864 already has an alternative:
-the call to `os_variant_uses_ephemeral_storage` at 0x100015C4C exits successfully
-before loading a system bag. The new opt-in `system-keybag-exp-ios16_ephemeral`
-weak-loads SystemHook and installs its own marker; a C interposer selects that
-native path only for keybagd, exactly `--init`, and its exact subsystem string.
-The manifest is limited to iOS 16.6/cloudOS 26.1 and the firmware preparer still
-limits this experiment to 16.6.1/20G81. All bundled presets leave it off. Opt-out
-restores the executable backup and removes the marker. It does not create keys,
-unlock a bag, or enable passcodes. Guest validation is pending.
-
-The ephemeral keybag path passes on the real guest. mediaserverd now passes
-corecrypto and reaches its constructor, confirming the live syscall-filter
-change removes its entropy EPERM. It later crashes in CFDictionaryGetValue(NULL)
-from FigNotificationListenerStartNotifications while launchd logs denied Mach
-lookups and IOUserClient sandbox failures for that service. The media-profile
-experiment now explicitly grants platform/no-container/no-sandbox booleans along
-with removing seatbelt-profiles, retaining all other original entitlements.
-Unlike the earlier reverted attempt, this test uses the patched Preboot kernel.
-The privilege expansion is isolated to the opt-in media patch, remains guest-only,
-and reverses through the executable backup. Validation pending.
-
-The added media boolean entitlements are confirmed in the pulled guest executable
-but do not change its sandbox denials or null notification dictionary crash, so
-that speculative expansion is removed again. Restoring the original executable
-with its mediaserverd seatbelt profile still produces EXEC namespace 9/code 8.
-SpringBoard's measured main-thread wait is specifically -[AVSystemController init]
--> FigSystemControllerRemoteCreate -> synchronous XPC. The new opt-in
-system-springboard-exp-ios16_desktop weak-loads a separate, process/version-scoped
-library that returns nil from the measured @16@0:8 init method. This targets a
-desktop-only experiment; it does not claim working audio. All presets leave it
-off, and the original SpringBoard is restored by deselection. Validation pending.
-
-The first desktop-library test did not load the library: remote TASK_DYLD_INFO
-shows only SystemHook, and the pulled SpringBoard has no custom weak load. The
-later MISFix cleanup restored SpringBoard from the shared backup; its exception
-only preserved the iOS 17 desktop selection. That preservation condition now
-also covers the iOS 16 desktop selection. The native probe confirms the actual
-guest reports 16.6.1 and AVSystemController init has encoding @16@0:8.
-
-With the weak load preserved, SpringBoard passes AVSystemController startup and
-blocks building home icons in CHSWidgetDescriptorProvider's
-_lock_loadContentInitiallySynchronouslyIfNecessary. This differs from the iOS 17
-class name. A native guest probe confirms its v16@0:8 method encoding; the iOS 16
-desktop library now skips only that synchronous descriptor fetch. No functioning
-widget content is claimed.
-
-The widget guard passes: SpringBoard reaches CoverSheet construction, then waits
-in FigFlashlightRemoteCreate. The guest probe confirms AVFlashlight init @16@0:8
-and +hasFlashlight B16@0:8; the iOS 16 desktop library now returns nil/NO for these
-unavailable physical-light paths. Temporary inherited exception/signal traces,
-forced launchd console/lifecycle logging and vphoned console redirection have
-been removed. The task-port bridge retains only selected API translation.
-
-After the flashlight guard, SpringBoard reaches its main run loop but the
-Control Center Now Playing module synchronously creates a media routing context.
-Its original Info.plist identifies com.apple.mediaremote.controlcenter.nowplaying.
-The desktop library now wraps CCUIModuleInstanceManager's
-_instantiateModuleWithMetadata: and returns nil only for that exact module ID,
-forwarding every other module to its original implementation. Signature checked.
-Both dyld descriptor-close patches have been deselected and their two cached
-60-byte records and standalone dyld backup restored successfully; the guest still
-boots, confirming those EPERM workarounds are unnecessary with the live filter fix.
-
-Skipping Now Playing removes that stack. The next main-queue task comes from
-MediaControlsAudioModule, which creates the same unavailable route context via
-MRAVEndpointGetLocalEndpoint. Its original bundle ID is
-com.apple.mediaremote.controlcenter.audio; the same wrapper now omits that exact
-second media module as well. Backboardd's main thread is in its normal run loop.
-
-The second guard removes that task as well; the next stack constructs the
-system mirroring context from MediaControls and CCUIContentModuleContainerViewController.
-The original AirPlayMirroringModule ID is
-com.apple.mediaremote.controlcenter.airplaymirroring. It is the third and final
-mediaremote Control Center module in this IPSW; the wrapper now omits these three
-exact IDs. All other modules still call their original factory.
-
-All three media-module guards pass: SpringBoard's main thread is now in
-CFRunLoopRunSpecific/UIApplicationMain, with no synchronous startup blocker.
-Visual verification is pending because the host Mac is locked; the user has
-been asked to unlock it. A generic guest unlock request reports passcode_enabled
-on this fresh, keybag-less lab; no user passcode was provisioned and no passcode
-is guessed. Earlier dyld-close/media-profile experiment implementations have
-been archived outside the source tree and removed from the final declarations,
-presets and installer after successful opt-out restoration. Their unrelated
-encoder/parser additions are also reverted. Only measured startup compatibility
-remains in the source tree. No iOS 16 desktop display success is claimed yet.
-
-After host unlock, the running window is still black/0 fps. A native notify probe
-reports SpringBoard finishedstartup=31. Terminating the hung PreBoard temporarily
-allows SBSUndimScreen to change hasBlankedScreen from 1 to 0, but no frame appears.
-A native framebuffer probe successfully opens the real main display, reads
-1179x2556 and a nonzero IOConnect port. On 20G81 the public SwapEnd dispatch pointer
-is at connection+0x730 (not the later layout's +0x7C8); its value resolves exactly
-to _kern_SwapEnd at unslid 0x1B21CED04. Therefore a force-kern patch is not indicated.
-Temporary IOConnectCallStructMethod return tracing in the selected backboard
-library will measure method-5 submission rather than assuming a routing failure.
-
-No method-5 trace was observed through the temporary interposer; it is removed,
-since this alone cannot distinguish absent swaps from cached binding behavior.
-Backboard's native BKSystemShellSentinel has a separate in-memory completion gate.
-The earlier no-wait check-in did not set it. Static 20G81 analysis identifies
--dataMigratorDidComplete (0x100066834, v16@0:8), which notifies local observers,
-sets _lock_migratorDidComplete at +0x50 and updates shell state; -unblockSystemApp
-(0x1000665E0, B16@0:8) locks and clears the separate +0x51 block through the native
-helper at 0x100065134. The selected lab check-in now invokes these native methods
-once, before entering its original non-waiting check-in, with both signatures
-checked. No keybag is unlocked and no migration is actually performed. This is
-an explicit fresh-lab shell-state bypass, not evidence of data migration success.
-
-Result of the local completion/unblock experiment: still black/0 fps. The native
-main IOMFB connection and mode enumeration work, but no visible desktop or guest
-screenshot is obtained. The completion/unblock code has therefore been reverted;
-no such fake completion is retained in the final source. The missing first frame
-is unresolved. iOS 16 remains an unsuccessful desktop bring-up, despite a running
-SpringBoard, and no minimum-version compatibility claim is added.
+The real guest displays Home Screen, accepts mouse input and opens Settings >
+General > About (16.6.1, iPhone 14 Pro, 64 GB). Initial About lookup can wait for
+IOKit/SystemConfiguration quiescence; a proposed fallback was never deployed and
+is excluded. Wallpaper preview fails without Metal; its cancelled, unvalidated
+prototype is excluded as well. No general iOS 16/15, Metal, full audio, camera,
+networking or persistent protected-data compatibility is claimed.

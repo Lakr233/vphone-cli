@@ -34,6 +34,8 @@ GuestHomePodDisplay.startOnStartup()
 // Multi-finger injection is resolved here so the first pinch is not the call
 // that pays for `dlopen`; a base without the symbols logs and stays a no-op.
 _ = vp_hid_load()
+vp_ios16_touchscreen_start()
+vp_ios16_keybagless_ui_start()
 // The VM's touchscreen has no wake gesture; a tap on a dark screen lights it.
 GuestScreenUnlock.startTapToWake()
 GuestIrisinInstaller.refreshBootstrapOnStartup()

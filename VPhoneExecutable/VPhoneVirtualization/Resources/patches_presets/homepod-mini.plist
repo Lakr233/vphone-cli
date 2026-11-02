@@ -161,6 +161,11 @@
 			<string>system-backboard-exp-ios16_migration</string>
 			<string>system-keybag-exp-ios16_ephemeral</string>
 			<string>system-springboard-exp-ios16_desktop</string>
+			<string>system-systemhook-exp-ios16_surface</string>
+			<string>system-systemhook-exp-ios16_framebuffer</string>
+			<string>preboot-exp-ios16_ephemeral_storage</string>
+			<string>system-vphoned-exp-ios16_touchscreen</string>
+			<string>system-springboard-exp-ios16_keybagless_ui</string>
 		</array>
 	</dict>
 	<key>Summary</key>
