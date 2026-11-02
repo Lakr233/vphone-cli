@@ -44,7 +44,7 @@ load a disabled job at the next boot. It is the same mechanism
 
 | Group | Default | Labels | Why they can go |
 | --- | --- | --- | --- |
-| `base` | on | 134 | Appendix A of the measurement below, less `siriactionsd` (list version 2), `passd` and `financed` (list version 3). Nothing in vphone, IcliKit or the guest hooks talks to them |
+| `base` | on | 133 | Appendix A of the measurement below, less `siriactionsd` (list version 2), `passd` and `financed` (list version 3), `generativeexperiencesd` (list version 4). Nothing in vphone, IcliKit or the guest hooks talks to them |
 | `app_store` | on | `com.apple.appstored`, `com.apple.itunesstored` | Off with the App Store and iTunes Store apps a template removes. `appstorecomponentsd` is already in `base` |
 | `signin_followup` | on | `com.apple.followupd`, `com.apple.appleidsetupd` | The sign-in follow-up and Apple Account setup prompts. They complement `libsigninfix`'s pane suppression. A guest that went through `setup.skip` has no follow-up items, so no orphaned badge is left |
 | `accounts` | off, `groups: ["accounts"]` | `com.apple.akd`, `com.apple.amsaccountsd`, `com.apple.appleaccountd` | Only for guests that never sign in: with these off, the guest cannot sign in to an Apple Account |
@@ -53,7 +53,7 @@ The `base` group, by area:
 
 | Area | Examples | Kind |
 | --- | --- | --- |
-| Siri and intelligence | assistantd, siriinferenced, intelligenceflowd, modelmanagerd, corespeechd | Not used. corespeechd and modelmanagerd serve dictation. siriactionsd stays: see below |
+| Siri and intelligence | assistantd, siriinferenced, intelligenceflowd, modelmanagerd, corespeechd | Not used. corespeechd and modelmanagerd serve dictation. siriactionsd and generativeexperiencesd stay: see below |
 | Photos and media analysis | mediaanalysisd, photoanalysisd, photosface | mediaanalysisd alone wrote 79 MiB in a 15-minute idle window |
 | Ads, content and recommendations | amsengagementd, promotedcontentd, tipsd, weatherd, gamed | amsengagementd was the top idle CPU and write consumer |
 | Find My | findmydeviced, searchpartyd, findmylocated, fmflocatord | No Apple Account |
@@ -89,6 +89,19 @@ killed it; with passd running but financed disabled, the synchronous call never
 returned and the same watchdog fired. With both running Wallet opens; passd
 keeps retrying nfcd, which stays disabled, at about 0.02 CPU-seconds a minute.
 
+**generativeexperiencesd stays (list version 4, 2026-11-02).** It serves
+`com.apple.generativeexperiences.ExternalProviderService`, and with it
+disabled `BackgroundShortcutRunner` reconnects to that service with no back-off
+(`EPS failed to resubscribe to provider changes`, NSCocoaErrorDomain 4099,
+after each failed bootstrap look-up), while launchd answers every look-up. On
+three idle iPhone17,3 27.0.1 guests built `trimmed+accounts`,
+BackgroundShortcutRunner used about 9 CPU-seconds and launchd about 4.5 in a
+12-second window, and each VM held the host at about 130% CPU. With the label
+enabled and the guest restarted, the whole guest used 0.3 to 0.5 CPU-seconds
+per 10 seconds, the VM 17% or less, and generativeexperiencesd stayed quiet
+([#791](https://github.com/Lakr233/vphone-cli/issues/791)). It is now in
+`neverDisable`, on 26 as well as 27.
+
 Some of these are only optional: Shortcuts, dictation, HomeKit, Maps,
 Mail, Reminders, iMessage and Safari bookmark sync. A research target that
 uses one of those frameworks needs its daemon back. Pass that label in `allow`
@@ -105,12 +118,13 @@ not measured there. Any other version gets "No trimmed service list".
 ## Never disabled
 
 `GuestServiceProfile.neverDisable` lists what the profile refuses to disable,
-whatever list or group names it. Four kinds of job were measured to make the
+whatever list or group names it. Five kinds of job were measured to make the
 guest **worse** when off, and are kept out of the lists for that reason:
 
 | Job | What happens without it | Evidence |
 | --- | --- | --- |
 | `com.apple.sleepd` | SpringBoard's and mobiletimerd's HealthKit sleep clients (`HKSPXPCConnectionProvider`) reconnect to `com.apple.sleepd.sleepserver` with no back-off | 5000 log lines in 3 s, host at about 400% CPU, launchd used 115 s of CPU and wrote 385 MiB in the first two minutes |
+| `com.apple.generativeexperiencesd` | `BackgroundShortcutRunner` reconnects to `com.apple.generativeexperiences.ExternalProviderService` with no back-off | About 9 CPU-seconds per 12 s in BackgroundShortcutRunner and 4.5 in launchd; about 130% host CPU per idle 27.0.1 VM (#791) |
 | `com.apple.CommCenter`, `CommCenterMobileHelper`, `CommCenterRootHelper` | SpringBoard's `SBTelephonyManager` reconnects to `com.apple.commcenter.xpc` every second and resets the idle timer each time (`updateIdleTimerForReason:"TelephonyManager:UpdateSB"`), so **the screen never turns off** | A 1 Hz loop in the log; backboardd grew from 99 to 160 MB; SpringBoard took 4418 wakeups in two minutes |
 | `com.apple.cloudd` | transparencyd (`Retrying CK account state fetch`) and ScreenTimeSettingsAgent keep retrying CloudKit | Each wrote 50–60 MiB per 15 idle minutes, against nothing on the untrimmed guest. Idle writes rose above the untrimmed guest's, to 337 MiB per 15 minutes |
 | `com.apple.nanoregistryd`, `nanoregistrylaunchd` | locationd waits synchronously on NanoRegistry's management queue | A spindump of a hung locationd showed `com.apple.nanoregistry.registry.managementqueue` in `dispatch_sync`. 27.0's locationd also hangs and crashes on its own, so this is kept out of caution |
@@ -215,7 +229,7 @@ How it was derived:
 
 So `trimmed` on 26 disables 131 + 2 + 2 = 135 labels (`GuestServiceProfile.base26`,
 `notLoadedOn26`). The never-disabled set needed nothing new: no job of the
-list made the guest worse when off, and the four traps of 27 are kept on 26 as
+list made the guest worse when off, and the traps of 27 are kept on 26 as
 on 27 without being measured again.
 
 | After 17 minutes idle | Untrimmed | Trimmed (131 + store + follow-up) | Change |
