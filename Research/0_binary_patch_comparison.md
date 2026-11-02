@@ -759,6 +759,19 @@
 > changed; see `Research/Guest/iphone_duo_bringup.md`, "the inner display's
 > point scale, for every process".
 
+> **Inner display type (2026-11-02, PR #788 follow-up):** the same library
+> has backboardd clear the inner virtual display's type field (bits 10–12 of
+> the server display's flags, read from `-[CAWindowServerDisplay
+> displayType]`'s instructions) just before that point-scale publish, so
+> every process started later reads `CADisplay.displayType` 0, as the real
+> Duo's and the simulator's inner panel do. With type 3 (virtual),
+> FrontBoardServices built a not-always-connected identity in testmanagerd
+> and turned the mode by `nativeOrientation − currentOrientation`, so XCTest
+> (WebDriverAgent) captured the landscape inner display into a cut-off
+> landscape buffer. The render server's own Server keeps its type-3 setup.
+> No patch was added or changed; see `Research/Guest/iphone_duo_bringup.md`,
+> "the inner display's type, and XCTest's screenshot of it".
+
 > **SpringBoard fold-guard (2026-10-25):** `system-springboard-cfw-fold_guard`
 > (guest system set, on in `standard`, blocked in `tvos`, `tvos-4k` and
 > `homepod-mini`, foldable guests only, iOS 27+; installs

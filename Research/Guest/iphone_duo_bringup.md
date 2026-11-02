@@ -5159,3 +5159,120 @@ application started while the device is closed lists only the cover's
 run: WebDriverAgent itself, and #784's secondary points (`hingeAngle` POST,
 and the empty `Wireless` displays, type 2 at 0×0, that WDA lists at
 1408×2048 @2).
+
+## 2026-11-02: the inner display's type, and XCTest's screenshot of it
+
+After #788, WebDriverAgent's screenshot of the inner display (display 7,
+`currentDisplayId=7`) still came back 2006×2852 portrait with the landscape
+Home Screen upright in the top 2006 pixels and the rest black (PR #788
+comment, WDA 16.17.6). The cover's screenshot was right.
+
+What Apple's devices return for the same XCTest request (`XCUIScreen
+screenshot` → testmanagerd's `ScreenshotProvider`, a small UI test that
+captures every `XCUIScreen` with 2007×2853 pixel bounds):
+
+| inner display, landscape | stored pixels | `UIImage.imageOrientation` (EXIF) |
+| --- | --- | --- |
+| real iPhone Duo, iOS 27.2 24B91020, held landscape | 2006×2852 portrait, UI turned, fills it | 3 (6) |
+| Xcode 27.2 iPhone Duo simulator, open | 2006×2852 portrait, UI turned, fills it | 3 (6) |
+| this guest (sbdisplay-duo), before | **2852×2006 landscape**, UI turned in the left 2006 columns, rest black | 3 (6) |
+
+WDA applies the tag, so hardware gives 2852×2006 and the guest gave
+isaac's cropped portrait image. The odd-to-even size is testmanagerd's own
+(its buffer callback rounds 2007×2853 down). On the real Duo, display 2 is
+the inner panel; set from XCTest, `XCUIDevice.orientation` never turns the
+inner panel (it stays portrait-shaped face up), so only a phone held
+landscape shows the case.
+
+How testmanagerd renders a screen (Xcode 27.2 DDI, iOS 27.1 UIKit):
+
+- `ScreenshotProvider` calls `_UIRenderDisplay` with `src-screen` =
+  `+[UIScreen _screenWithIntegerDisplayID:]`, `dst-scale` = its `scale`,
+  `src-rect` = its `bounds`, no `src-orientation`. The destination is
+  `src-rect` × scale; `_UISnapshotContainerTransform` turns only by the
+  angle between `src-orientation` (1 when absent) and portrait, so it is the
+  identity here, and the render is `CARenderServerSnapshot` of the display
+  with a 3× scale.
+- The tag is `-[XCAXManager_iOS systemUIOrientation]`: AX attribute 1503 of
+  the system app (attribute 1001 of the system-wide element), 3 → EXIF 8,
+  4 → 6, anything else 1. It was right on the guest.
+- `CARenderServerSnapshot` of the inner display from SpringBoard with those
+  options gave the hardware picture on the guest too, so the render path was
+  fine; the difference was the screen's bounds.
+
+Inside testmanagerd on the guest (lldb during a held XCTest session),
+`_screenWithIntegerDisplayID:7` had bounds and `_referenceBounds` 951×669,
+and its configuration `Unknown[7-1]; mode: "951x669@3x 120Hz"` with
+`FBSDisplayMode 951x669@3x (2007x2853/3r270)`. SpringBoard's configuration
+of the same display has no rotation (the simulator's never rotates). The
+rotation comes from FrontBoardServices (27.1):
+
+- `-[FBSDisplayConfiguration _initWithImmutableDisplay:originalDisplay:
+  isMainDisplay:assertIfInvalid:]` sets the mode's rotation to
+  `FBSDisplayRotationFromCADisplayRotation(nativeOrientation)`, and when the
+  identity is not `isAlwaysConnected`, minus that of `currentOrientation`
+  (mod 4). The inner display is native rot0 and current rot90 in landscape,
+  so a not-always-connected identity gets r270 and landscape bounds.
+- `_FBSCADisplayToDisplayTypes` derives always-connected from
+  `-[CADisplay displayType]`: 0 → always connected, UIKit-main-like,
+  connection 0; 1 → always connected only if main; 2 and 3 → not always
+  connected, connection type 2 or 3; 4 → always connected, connection 0. The
+  identity type comes from the tag (65536 → 7, `Unknown`).
+
+The guest's inner display is a `CAWindowServerVirtualDisplay`, so every
+client reads `displayType` 3; the simulator's and the real Duo's inner
+panel is type 0. SpringBoard was right only because its adapter answers 0
+(4 while FrontBoard classifies the display). testmanagerd builds its own
+configuration from `CADisplay`, and so did vphoned's `display.modes`, which
+reported type 3 (#784).
+
+Where the type lives (iOS 27.1 QuartzCore, 24A94425):
+
+- `-[CAWindowServerVirtualDisplay initWithOptions:]` sets bits 10–12 of the
+  C++ display's halfword at +0x2c0 to 3 (`and #0xffffefff; orr #0xc00`),
+  unconditionally; no `kCAVirtualDisplay*` option sets a type.
+- `-[CAWindowServerDisplay displayType]` is `ldr x8, [x0, #8]` (`_impl`);
+  `cbz`; `ldr x8, [x8, #0x40]` (server); `ldr x8, [x8, #0x60]` (display);
+  `ldrh w8, [x8, #0x2c0]`; `ubfx w8, w8, #10, #3`.
+- `Display::build_display_info_data` copies the raw bits to the info's
+  +0x358; `Display::publish_display_info_state` copies the info into the
+  display's shared memory (+0x360, a sequence counter then the data) that
+  clients map. It runs from `post_display_changed`, `set_all_modes`,
+  `set_display_properties` and `set_clone_master`, all inside QuartzCore,
+  so the published copy cannot be corrected after each publish.
+- The server itself reads the field: `Server`'s constructor (callbacks for
+  type 0 or not), `Display::allocate_surface` (surface flags for type 0),
+  `Renderer::render` and `MetalContext::begin_rendering` (type-0 branches),
+  `VirtualServer::copy_display_timings` (of a source server that is not
+  virtual), `render_for_time` and `supports_throttle` (type 1), and
+  `update_clones` (type 2).
+
+So backboardd clears the field once the render server runs, just before it
+sends the inner display's point scale (`vpMarkInnerDisplayBuiltIn`); that
+`setDisplayProperties:` publishes the type with the scale. The Server was
+built for type 3 and stays so. The offsets and the bit range are read from
+`-[CAWindowServerDisplay displayType]`'s instructions, the field is cleared
+with a compare-and-swap (other flags share the halfword), and the getter
+must answer 3 before and answers 0 after; if the getter's shape differs,
+the display stays virtual. A running client keeps the type it read, as
+with the scale.
+
+Tried live first, on sbdisplay-duo over lldb in backboardd (field 0xd01 →
+0x101, then a point-scale publish): the panel kept drawing, a fresh
+testmanagerd captured the inner display as 2006×2852 portrait with the UI
+turned and filling it, tagged EXIF 6, as on hardware, and the running
+vphoned still said type 3.
+
+Measured on sbdisplay-duo (iPhone19,4, iOS 27.1) with the new bundle,
+after `vm set-bundle --update-environment` and a cold boot: backboardd logs
+`inner display: type 0 (display +0x2c0 bits 10-12)` just before `point
+scale 3 sent`; vphoned's `display.modes` gives the inner display
+`displayType` 0 and `pointScale` 3, mode 2007×2853 at 120 Hz; the inner
+pages context is published as before. XCTest's capture of display 7 open
+and landscape is 2006×2852 portrait with the UI turned and filling it,
+`imageOrientation` 3 (EXIF 6), and with the inner panel portrait-shaped
+(`display.rotation` 0) 2006×2852 upright, `imageOrientation` 0: both as the
+real Duo. Taps open apps on the inner panel and on the cover after a close,
+and SpringBoard and backboardd kept their boot pids with no new crash
+report. Not checked: WebDriverAgent itself (the capture is the same
+testmanagerd request WDA makes) and #784's `hingeAngle` POST.

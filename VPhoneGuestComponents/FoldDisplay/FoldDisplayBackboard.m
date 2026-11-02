@@ -2,6 +2,7 @@
 // tree gives both panels, and the one digitizer routed to whichever is lit.
 
 #import "FoldDisplayPrivate.h"
+#include <ptrauth.h>
 
 static id vpInnerRenderDisplay;
 
@@ -58,6 +59,63 @@ static void vpSetInnerDisplayProMotionMode(id display) {
     vpFoldDisplayLog([NSString stringWithFormat:@"inner display: 120 Hz mode %@", set ? @"set" : @"refused"]);
 }
 
+// The inner panel is a built-in panel, CADisplay type 0 like the cover, but a
+// virtual display is type 3 (virtual) to every client. A process that builds
+// its own FrontBoard display configuration from CADisplay (XCTest's
+// testmanagerd, so WebDriverAgent) classifies a type-3 display as not always
+// connected, and -[FBSDisplayConfiguration _initWithImmutableDisplay:...]
+// then turns its mode by nativeOrientation minus currentOrientation: the
+// landscape inner display's bounds came out 951x669 instead of 669x951, and
+// XCTest captured it into a landscape buffer, cut off. SpringBoard's adapter
+// answers type 0 in its own process (FoldDisplayAdapter.m).
+//
+// The type is a 3-bit field of the server's display, which
+// CAWindowServerVirtualDisplay's initializer sets to 3 and every published
+// display info copies. -[CAWindowServerDisplay displayType] reads exactly
+// that: ldr impl; cbz; ldr server; ldr display; ldrh field; ubfx bits. The
+// offsets come from those instructions. The field is cleared only once the
+// render server runs: its Server was built for a type-3 display and keeps
+// drawing it the same way. The point scale below then publishes the type to
+// every process that starts later; a running client keeps the type it read.
+static void vpMarkInnerDisplayBuiltIn(id display) {
+    Method getter = class_getInstanceMethod(objc_getClass("CAWindowServerDisplay"), sel_registerName("displayType"));
+    Ivar implIvar = class_getInstanceVariable(objc_getClass("CAWindowServerDisplay"), "_impl");
+    if (!getter || !implIvar || strcmp(method_getTypeEncoding(getter), "q16@0:8") != 0) {
+        vpFoldDisplayLog(@"inner display: display type ABI unavailable, staying virtual");
+        return;
+    }
+    const uint32_t *code = ptrauth_strip((const uint32_t *)(void *)method_getImplementation(getter), ptrauth_key_function_pointer);
+    // ldr x8, [x0, #impl]; cbz x8; ldr x8, [x8, #server]; ldr x8, [x8, #display];
+    // ldrh w8, [x8, #field]; ubfx w8, w8, #lsb, #(msb - lsb + 1)
+    BOOL loads = YES;
+    unsigned offsets[3];
+    for (int index = 0; index < 3; index++) {
+        uint32_t word = code[index == 0 ? 0 : index + 1];
+        loads &= (word & 0xFFC003FFu) == (0xF9400008u | (index == 0 ? 0u : 8u) << 5);
+        offsets[index] = ((word >> 10) & 0xFFF) * 8;
+    }
+    unsigned field = ((code[4] >> 10) & 0xFFF) * 2, lsb = (code[5] >> 16) & 63, msb = (code[5] >> 10) & 63;
+    if (!loads || (code[1] & 0xFF00001Fu) != 0xB4000008u || (code[4] & 0xFFC003FFu) != 0x79400108u ||
+        (code[5] & 0xFFC003FFu) != 0x53000108u || msb < lsb || msb > 15 || offsets[0] != ivar_getOffset(implIvar)) {
+        vpFoldDisplayLog(@"inner display: display type getter not recognized, staying virtual");
+        return;
+    }
+    long long (*displayType)(id, SEL) = (long long (*)(id, SEL))objc_msgSend;
+    uint8_t *impl = *(uint8_t **)((uint8_t *)(__bridge void *)display + offsets[0]);
+    uint8_t *server = impl ? *(uint8_t **)(impl + offsets[1]) : NULL;
+    uint8_t *cppDisplay = server ? *(uint8_t **)(server + offsets[2]) : NULL;
+    if (!cppDisplay || displayType(display, sel_registerName("displayType")) != 3) {
+        vpFoldDisplayLog(@"inner display: not a virtual display with a server, type left alone");
+        return;
+    }
+    // Other flags share the halfword, and the render server may set one meanwhile.
+    uint16_t *bits = (uint16_t *)(cppDisplay + field), mask = (uint16_t)(((1u << (msb - lsb + 1)) - 1) << lsb);
+    uint16_t old = __atomic_load_n(bits, __ATOMIC_RELAXED);
+    while (!__atomic_compare_exchange_n(bits, &old, (uint16_t)(old & ~mask), YES, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {}
+    vpFoldDisplayLog([NSString stringWithFormat:@"inner display: type %lld (display +0x%x bits %u-%u)",
+        displayType(display, sel_registerName("displayType")), field, lsb, msb]);
+}
+
 // A render display's point scale is what every client's CADisplay.pointScale,
 // FBSDisplayMode and UIScreen.scale start from. A hardware display takes it
 // from its panel; a virtual display is created at 1, and a process outside
@@ -67,7 +125,8 @@ static void vpSetInnerDisplayProMotionMode(id display) {
 // inside _detectDisplays a CADisplay call never returns. A client keeps the
 // scale it first read, so this runs as soon as the server answers, before
 // any application starts. SpringBoard runs by then and has read 1, which is
-// why its adapter still answers 3 for the inner display.
+// why its adapter still answers 3 for the inner display. The same publish
+// carries the inner display's built-in type.
 static void vpSetInnerDisplayPointScale(unsigned int attempt) {
     Method set = class_getInstanceMethod(objc_getClass("CADisplay"), sel_registerName("setDisplayProperties:"));
     Method scale = class_getInstanceMethod(objc_getClass("CADisplayProperties"), sel_registerName("setPointScale:"));
@@ -87,6 +146,7 @@ static void vpSetInnerDisplayPointScale(unsigned int attempt) {
             vpFoldDisplayLog(@"inner display: not among the render server's displays, staying at 1x");
         return;
     }
+    vpMarkInnerDisplayBuiltIn(vpInnerRenderDisplay);
     id properties = [objc_getClass("CADisplayProperties") new];
     ((void (*)(id, SEL, unsigned long long))objc_msgSend)(properties, sel_registerName("setPointScale:"), 3);
     BOOL accepted = ((BOOL (*)(id, SEL, id))objc_msgSend)(inner, sel_registerName("setDisplayProperties:"), properties);
