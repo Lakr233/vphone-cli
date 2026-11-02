@@ -415,7 +415,7 @@ public enum FirmwarePatchSetCatalog {
         selection: .allow(
             minimalDeviceTreePatches
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )
@@ -448,7 +448,7 @@ public enum FirmwarePatchSetCatalog {
         selection: .allow(
             watchOSDeviceTreePatches
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )

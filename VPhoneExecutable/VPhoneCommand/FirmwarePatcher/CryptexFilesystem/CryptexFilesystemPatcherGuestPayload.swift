@@ -251,6 +251,36 @@ extension CryptexFilesystemPatcher {
                                  at: "System/DriverKit/System/Library/dyld")
     }
 
+    /// Re-sign the guest's debugserver so it can attach in the guest: the same
+    /// entitlement change `cfw install` makes (``CustomFirmwareDebugserver``), but
+    /// in the pre-reseal merge, so debugserver's new hash lands in the image's
+    /// regenerated trust cache and the stock kernel admits it. A logged no-op when
+    /// the merged system ships no debugserver (a stock userland carries it only in
+    /// the Developer disk image). Running and attaching also need kernel and TXM
+    /// patches; ``FirmwarePatchSetCatalog/userspaceDebugging`` groups them.
+    func patchDebugserver(targetMount: String) throws {
+        let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        let relative = CustomFirmwareDebugserver.guestPath
+        guard try target.isRegularFile(relative) else {
+            print("  [!] debugserver absent in the merged image; re-sign skipped")
+            return
+        }
+        try editGuestFile(relative, targetMount: targetMount, mode: 0o755) { file in
+            guard let source = try VPhoneSigner.entitlements(ofFileAt: file).first(where: { !$0.isEmpty }) else {
+                throw VPhonePatchKit.PatcherError.patchVerificationFailed(
+                    "debugserver has no readable entitlements; cannot grant task_for_pid",
+                )
+            }
+            let entitlements = try CustomFirmwareDebugserver.attachEntitlements(from: source)
+            // Replacement, not merge — see CustomFirmwareDebugserver.attachEntitlements.
+            try VPhoneSigner.sign(
+                fileAt: file,
+                options: VPhoneSignOptions(entitlements: entitlements, style: .appleAdHoc),
+            )
+        }
+        print("  [+] Re-signed debugserver with task_for_pid-allow")
+    }
+
     /// Path-based patchers only see this private copy. Guest symlinks cannot
     /// redirect their reads or writes into the host filesystem.
     func editGuestFile(_ relative: String, targetMount: String, mode: mode_t, edit: (URL) throws -> Void) throws {

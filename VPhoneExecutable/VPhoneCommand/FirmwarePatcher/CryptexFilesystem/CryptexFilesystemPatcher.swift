@@ -107,6 +107,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         (FirmwareRestoreImagePatchSet.launchdCacheLoader, "Patch launchd_cache_loader"),
         (FirmwareRestoreImagePatchSet.virtualBluetooth, "Enable LE connections over the virtual Bluetooth controller"),
         (FirmwareRestoreImagePatchSet.watchAudio, "Install the virtio sound HAL plugin for a watch"),
+        (FirmwareRestoreImagePatchSet.debugserver, "Re-sign debugserver so it can attach in the guest"),
     ]
 
     @discardableResult
@@ -222,6 +223,10 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                 print("- Adding the watch speaker…")
                 try addWatchAudio(targetMount: targetMount)
                 try patchWatchAudioBudget(targetMount: targetMount)
+            }
+            if gate.isEnabled(FirmwareRestoreImagePatchSet.debugserver) {
+                print("- Re-signing debugserver for in-guest attach…")
+                try patchDebugserver(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }

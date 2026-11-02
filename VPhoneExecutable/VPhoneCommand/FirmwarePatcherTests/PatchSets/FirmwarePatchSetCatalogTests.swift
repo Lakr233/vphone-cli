@@ -231,7 +231,9 @@ struct FirmwarePatchSetCatalogTests {
             iOSBase: VPhoneVersion("26.4"),
             cloudOS: VPhoneVersion("26.4"),
         )
-        let restoreImage = Set(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+        // The opt-in patches, like the debugserver re-sign, stay off.
+        let restoreImage = FirmwareRestoreImagePatchSet.presetPatches
+        #expect(!restoreImage.contains(FirmwareRestoreImagePatchSet.debugserver))
         let researchBoard = Set(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
         // The unsecure-cache gate stays out: the launchd.plist minimal edits is
         // signed and in the trust cache, so the stock launchd_cache_loader takes it.

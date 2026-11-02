@@ -4079,24 +4079,16 @@ struct VPhoneCustomFirmwareInstaller {
     /// entitlements are absent, so the caller does not record it live).
     @discardableResult
     private func patchDebugserver(system: VPhoneConfinedDirectory, work: WorkDirectory, backupSafe: Bool) throws -> Bool {
-        let target = "usr/libexec/debugserver"
+        let target = CustomFirmwareDebugserver.guestPath
         guard let staged = try stageOptional(target, from: system, work: work, label: "debugserver") else { return false }
         guard
             let source = try VPhoneSigner.entitlements(ofFileAt: staged)
-            .first(where: { !$0.isEmpty }),
-            var plist = try PropertyListSerialization.propertyList(
-                from: source, format: nil,
-            ) as? [String: Any]
+            .first(where: { !$0.isEmpty })
         else {
             print("[!] debugserver has no readable entitlements; patch skipped")
             return false
         }
-        plist.removeValue(forKey: "seatbelt-profiles")
-        plist["task_for_pid-allow"] = true
-        let data = try PropertyListSerialization.data(
-            fromPropertyList: plist,
-            format: .xml, options: 0,
-        )
+        let data = try CustomFirmwareDebugserver.attachEntitlements(from: source)
         try backupEntitlementTarget(target, in: system, backupSafe: backupSafe)
         // Replacement, not merge: `plist` is already the complete set we want,
         // and merging it back over the file's own entitlements would re-add the
