@@ -1,14 +1,18 @@
 # Local iOS 16.6.1 bring-up experiment
 
-Status: original IPSW restored and guest custom firmware installed. Launchd,
-libxpc, backboardd and vphoned run. SpringBoard now reaches its main run loop;
-its unavailable media controllers, widget fetch, flashlight and three media
-Control Center modules have been bypassed. The latest main-thread sample is
-idle in CFRunLoopRunSpecific/UIApplicationMain. Desktop display has not been
-verified successfully: after the user unlocked the host, the VZ window remains
-black at 0 fps, and guest screenshot capture fails. The actual Preboot kernel contains the measured
-syscall-filter relaxation. The original media executable is restored, and both
-temporary dyld close patches are undone and removed from the final source.
+Status: native SpringBoard desktop and mouse interaction are verified on the
+fresh iOS 16.6.1 lab. IOSurface and framebuffer protocol adapters restore real
+scanout; a missing HID touchscreen and the old backlight publication path were
+separate input blockers. Settings now renders General after its battery helper
+stopped strongly importing a newer IOKit API. About now works on the same guest
+without an additional patch, after its native network initialization wait.
+The wallpaper experiment was stopped at the user's request before deployment;
+the running lab retains its working 2.15.0-local.7097296f environment.
+
+This remains an experimental, ephemeral UI bring-up. Its fresh keybag-less UI
+mode does not unlock encrypted storage or provide working passcodes. Native
+MKB/AKS are unchanged. Other applications and persistent protected data are not
+claimed to work.
 
 - Guest: iPhone 14 Pro, iPhone15,2/d73ap, 1179x2556 at 3x.
 - Userland: iOS 16.6.1, 20G81.
@@ -96,48 +100,108 @@ the faulting thread's errno through THREAD_IDENTIFIER_INFO and the measured
 ## Current checkpoint
 
 The active lab is `/Users/Shared/VPhoneLab16/iPhone-14-Pro-iOS16-Lab`.
-The untouched external restore copy was moved out of the machine list to
+Use that library root explicitly. The external restored original is retained at
 `/Volumes/ZHITAI/Data/VPhone/Library/lab-backups/iPhone-14-Pro-iOS16-Lab-restored-original`.
-Use the internal library root explicitly. After the unsuccessful visual tests,
-the lab is stopped and bound to the cleaned 2.15.0-local.cb7e2dff bundle, with
-the speculative sentinel-completion change reverted. Its six selected startup
-patches and firmware inputs are retained for further diagnosis.
+Before enabling the native ephemeral-storage flags, the mutable disk, SEP
+storage, NVRAM, configuration and patch receipts were APFS-cloned under the
+internal lab's `BeforeEphemeral` directory. They have not been restored or deleted.
 
-The standard preset has six explicit allows: registered Mach-port bridge,
-early cache lookup, existing syscall-filter relaxation, ephemeral keybag init,
-backboard migration wait, and SpringBoard desktop startup. The unmatched
-launchd jetsam pattern remains blocked. All new declarations are off in every
-bundled preset. Audio, widget content, flashlight and media Control Center
-modules are unavailable. This is experimental startup, not supported iOS 16.
+Native probes now report `hw.ephemeral_storage=1` and
+`os_variant_uses_ephemeral_storage=1`. PreBoard no longer runs. Backboard's local
+shell sentinel reports migration complete, unblocked, and no alternate system
+app. SpringBoard's main thread reaches its ordinary run loop. The fresh Data
+volume has only session/persona keybags; no system keybag is provisioned.
 
-The cleaned native bundle build and admission pass. The 47 catalogue/plan/parser
-tests pass after removing discarded experiments; the native Mach-port test
-passes register/lookup round-trip, empty slots and count bounds. Earlier
-full-cache apply/idempotence/undo reproduced the pristine affected chunk.
-The iOS 17 PR branch remains unchanged and clean. No iOS 16 work was pushed.
+The measured protocol adaptations are:
 
-## Result after host unlock
+- The early Mach-port bridges described above, including an inline-three-port
+  cache client for old libxpc.
+- IOSurfaceRoot selector 13's capability reply: modern 0x28 to old 0x18, with
+  widened integer fields narrowed only when representable.
+- IOSurface allocation/lookup reply: modern 0xC68 to old 0xA68, including the
+  0x88/0x98 plane header/stride to 0x68/0x80 layout, up to 20 planes.
+- IOMFB method-5 input: old 0x46C (or its earlier size-only 0x560 patch) to the
+  new 0x560 layout. The nine widened event-value and event-port slots are zero;
+  frame token, surface/rectangle fields and measured flags retain their meaning.
 
-The iOS 16.6.1 desktop has NOT been brought up. The main SpringBoard thread is
-idle in its normal event loop and finishedstartup reports its PID, but the VZ
-view stays black/0 fps, including after Home and Power events. A native screen
-wake call initially leaves hasBlankedScreen=1. Ending the hung PreBoard process
-once lets that state become 0, still without a visible frame; PreBoard respawns.
+Display adaptation patches only an attested framework-private IOKit transport
+stub in process-private memory. Generated metadata validates the framework UUID,
+original stub and displacement; the shared cache file is not modified by this
+runtime adapter. Host metadata is prepared in a child so cache mappings are
+released before the installer unmounts its staged volume. Native surface
+create/lock/write/read/unlock, ID lookup and Mach-port lookup pass. A manual RGB
+frame visibly reaches VZ, followed by native Lock Screen and desktop frames.
+Animation samples around 100–120 fps do not establish sustained application
+performance; a static screen can correctly report zero new frames.
 
-The main IOMFB connection opens successfully, reports 1179x2556, has a real kernel
-port and selects _kern_SwapEnd. CoreAnimation reports a 120 Hz main display,
-which proves mode enumeration only. The driver logs IOMFB_SWAP_SUBMIT_LOST with
-zero swap IDs. The actual cause of missing presentation is not established.
-The temporary IOConnect return trace observed no calls and was removed; shared
-cache binding behavior makes that negative observation inconclusive.
+## Input and fresh-lab UI
 
-A further local sentinel-completion/unblock experiment did not produce a frame
-and has been reverted. No permanent keybag, passcode or migration-complete
-changes were applied. The final source retains the earlier measured startup
-work, with no temporary diagnostics or speculative media/dyld patches.
+A HID monitor proves normalized digitizer events reach backboardd. Its first
+rejection was "AX event, but main screen digitizer is missing". The new manual
+`system-vphoned-exp-ios16_touchscreen` registers a display-integrated built-in
+HID touchscreen only if none exists. Backboard then acquires its main digitizer.
+The next rejection was "backlight dim/off": SpringBoard's newer brightness path
+never published the legacy HID factor. The desktop library now forwards the
+native requested backlight state and publishes its native factor through the
+system-app API with the correct BOOL publication flag. Actual Home events now
+change the protected factor from 0 to 1, and real mouse swipes/clicks respond.
 
-Next research should measure the render-server display activation state and
-actual method-5 submission/16-to-26.1 payload semantics before proposing another
-patch. iOS 17.7 remains the lowest version verified to display a desktop in this
-session; iOS 15 was not tested. This result does not establish that iOS 16 can
-never work.
+The empty lab's native keybag query still returns lock state 1; a single native
+nil-passcode check returns -8. No passcode was supplied or created. The manual
+`system-springboard-exp-ios16_keybagless_ui` is a UI-only experiment: vphoned,
+as root, checks explicit markers, native ephemeral storage and a root-owned
+keybag directory containing only the measured session/persona files. Any unknown
+entry, system bag, symlink or read error refuses the mode. A root-owned atomic
+lease expires after three seconds. Only while it is valid, the selected
+SpringBoard library uses the unprotected UI model through three signature-checked
+Objective-C getters. It does not replace MKB/AKS, alter a credential or decrypt
+protected data. Keep this separate from genuine keybag compatibility.
+
+The selected lab uses standard with explicit manual allows for:
+`system-launchd-exp-ios16_mach_ports`, `dyld-exp-ios16_mach_ports_lookup`,
+`kernel-exp-frida_syscall_filter_off`, `system-keybag-exp-ios16_ephemeral`,
+`system-backboard-exp-ios16_migration`, `system-springboard-exp-ios16_desktop`,
+`system-systemhook-exp-ios16_surface`, `system-systemhook-exp-ios16_framebuffer`,
+`preboot-exp-ios16_ephemeral_storage`, `system-vphoned-exp-ios16_touchscreen`,
+and `system-springboard-exp-ios16_keybagless_ui`.
+The unvalidated `system-posterboard-exp-ios16_cpu_preview` remains disabled.
+The unmatched `system-launchd-boot-jetsam_panic_guard_bypass` remains blocked.
+All new declarations remain off in every bundled preset and with no explicit
+plan. Newer guests do not select these iOS 16 paths.
+
+## Settings and validation
+
+Settings initially exits in dyld before main because libbatteryhealthfix
+strongly imports IOPSCopyPowerSourcesByTypePrecise, absent from 20G81's IOKit.
+The import is now weak; older bases can use the existing ByType path, while
+newer bases retain Precise. A host dyld compatibility probe passes, and the
+actual guest now renders Settings > General.
+
+Opening About then blocks in PSGAboutDataSource._macAddress ->
+_SCNetworkInterfaceCopyAllWithPreferences, waiting on a background Ethernet
+watcher's once token and IOKit quiescence. The real FrontBoard watchdog report
+is Preferences-2026-11-01-205100.ips. Before a proposed fallback was deployed,
+the user confirmed that the native page works on 2.15.0-local.7097296f and
+provided a screenshot showing 16.6.1, iPhone 14 Pro and 64 GB. The fallback was
+withdrawn from the final source and never selected or installed. Initial
+quiescence can still delay this page.
+
+Wallpaper settings opens. Add New Wallpaper instead crashes PosterBoard in
+PBFHomeScreenPreviewImageBuilder._imageForView:, whose Metal renderer inserts
+a nil command queue into an options dictionary. A native probe confirms that
+MTLCreateSystemDefaultDevice returns nil. The new manual-only software-preview
+patch replaces only that signature-checked helper when Metal is unavailable,
+using a bounded UIKit bitmap renderer. Its actual gallery and static wallpaper
+application validation was stopped at the user's request. The build was
+interrupted and no wallpaper prototype was installed. Dynamic wallpaper
+rendering is not claimed.
+
+The selected catalogue/plan/parser/encoder/device-tree run passes 50 tests in
+five suites before the wallpaper addition. Native ASan/UBSan surface conversion and
+lab-lease policy tests pass. Full bundle builds and admission pass at each
+reported deployed checkpoint. The wallpaper addition still needs its final build,
+selection validation and real UI test.
+
+Audio/media routing, widget contents and flashlight remain unavailable. Network
+is intentionally none. The iOS 17 PR source branch is unchanged and clean; no
+iOS 16 work has been pushed.
