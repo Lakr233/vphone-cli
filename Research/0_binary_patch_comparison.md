@@ -6364,6 +6364,11 @@ bytes of its code read):
 | iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75) | `minimal` | 22 kernelcache (2 base + 20 cfw) and 9 TXM records | developer mode `enabled`; attach to configd in 6.8 s; DDI mounted by `devicectl`, no panic |
 | Watch7,18 26.4 (23T240) / cloudOS 26.4 (23E244) | `watchos` | 22 kernelcache (2 base + 20 cfw) and 9 TXM records on the watch mix | developer mode `enabled`; attach to configd in 10.3 s; the watch is not paired with the Mac, so no host DDI mount |
 | AudioAccessory5,1 27.0 (24J361) / cloudOS 26.4 (23E5207q) | `homepod-mini` | preset's own | attach to configd in 4.3 s; Xcode has no DDI for its board |
+| iPhone11,6 18.6 (22G86) / cloudOS 18.6 (22G86) | `minimal` | 22 kernelcache (2 base + 20 cfw) and 9 TXM records, with the iOS 18 finders | developer mode `enabled`; attach to configd in 1.1 s; after pairing, `devicectl` mounted the DDI, no panic, attach still works |
 
-On an iOS 18 guest several of these patches are found only by the iOS 18 kernel
-and TXM finders (`feature/ios18-standard`); not run here.
+On iOS 18 the feature needs the iOS 18 kernel and TXM finders of
+`feature/ios18-standard` ("Find the standard kernel patches in the iOS 18
+research board kernels", "Find the LLB rootfs and TXM CFW patches on cloudOS
+18"). Without them `fw patch` stops at TXM: on cloudOS 18.6 the developer-mode,
+debugger and get-task-allow sites are not found. The iOS 18 row ran with those
+two commits on top of this branch.
