@@ -5274,5 +5274,46 @@ and landscape is 2006×2852 portrait with the UI turned and filling it,
 (`display.rotation` 0) 2006×2852 upright, `imageOrientation` 0: both as the
 real Duo. Taps open apps on the inner panel and on the cover after a close,
 and SpringBoard and backboardd kept their boot pids with no new crash
-report. Not checked: WebDriverAgent itself (the capture is the same
-testmanagerd request WDA makes) and #784's `hingeAngle` POST.
+report.
+
+WebDriverAgent 16.17.7 (appium-ios, the same native code as 16.17.6) on the
+same guest: `/wda/screens` lists display 7 (2007×2853 @3) and display 1
+(1398×2034 @3), both `traits` 1 (the inner display was 0 before), and
+`isMain` is the lit panel; `/wda/screen` for display 7 is 951×669 @3. Its
+screenshot with `currentDisplayId` 7, open and landscape, is 2852×2006 with
+the whole UI; forcing `screenshotOrientation` keeps that canvas (WDA sizes
+the canvas from the image's own orientation and only redraws). Closed,
+display 1 is 1398×2034 (the cover's Home Screen is portrait-only).
+
+With two integrated displays, testmanagerd now follows the active one, as
+on the real Duo: when `hasMultipleIntegratedDisplays`, it watches the
+default main display's `FBSDisplayLayoutMonitor` and takes the layout's
+display `hardwareIdentifier` as active, and a capture of the other display
+fails with "Cannot screenshot inactive display" (XCTDaemon
+ScreenshotProvider error 9). The real Duo refuses the dark cover the same
+way. Before, with one integrated display, the guest captured both panels
+in either posture.
+
+A process running across a backboardd restart keeps the displays it read,
+and the restarted backboardd creates the inner display under a new unique
+id: vphoned, dtdeviceinfod and a running testmanagerd still named the old
+id, so testmanagerd held the cover active while open and refused the inner
+display. Restarting testmanagerd (and dtdeviceinfod) cleared it; after the
+backboardd restart itself, backboardd logged `type 0` again and a fresh
+vphoned read type 0. A SpringBoard restart changes nothing here.
+
+Also measured: DeviceHub streams the inner display; `devicectl device info
+displays` lists both as `integrated`, the inner one `active` while open,
+and `devicectl device capture screenshot` of it gives the 2007×2853 native
+buffer (dtscreencaptured rotates by current and native orientation, not by
+type); backboardd idles at 1.5% of a core on a still Settings screen;
+Settings' inner `UIScreen` is 951×669 @3, 120 fps, mode `669x951@3x
+(2007x2853/3)`, as before.
+
+Not changed: WDA's `POST /wda/device/hingeAngle` still returns null with
+the angle unchanged. WDA builds DeviceHub's hinge-slider payload (vendor
+page 0xFF61, usage 0x5B, provider `com.apple.Virtualization.VirtualMachines`)
+and dispatches it from its runner with `IOHIDEventSystemClientDispatchEvent`;
+the guest's hinge relay follows the events DeviceHub's controls arrive in,
+from dtuhidd's HID service, and nothing takes a client-dispatched one. Its
+GET reads CMAngleManager and reports the guest's hinge (180 open).
