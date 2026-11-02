@@ -778,8 +778,8 @@ with the same override as `services.disable`; launchd honors it from the next
 boot, so the guest has to restart. `apply {profile, groups?, allow?}`:
 
 - `profile: "trimmed"` disables the default groups of the list for the
-  guest's iOS major version (`base`, the 137 labels measured on iOS 27.0, or
-  on iOS 26 the 131 of them 26.6.2 loads;
+  guest's iOS major version (`base`, the 133 labels measured on iOS 27.0, or
+  on iOS 26 the 127 of them 26.6.2 loads;
   `app_store`, appstored and itunesstored; `signin_followup`, followupd and
   appleidsetupd), plus the optional groups named in `groups` (`accounts`:
   akd, amsaccountsd, appleaccountd, after which the guest cannot sign in to an
@@ -790,7 +790,8 @@ boot, so the guest has to restart. `apply {profile, groups?, allow?}`:
 - A label already disabled by somebody else (the OTA block, a user in the
   Services panel) is skipped and never recorded, so `none` leaves it disabled.
   A recorded label the profile no longer selects is turned back on. The jobs
-  in `GuestServiceProfile.neverDisable` (sleepd, CommCenter and its helpers,
+  in `GuestServiceProfile.neverDisable` (sleepd, generativeexperiencesd,
+  CommCenter and its helpers,
   cloudd, NanoRegistry, mobileassetd, storekitd, vphoned, and what vphone's
   features use) are refused whatever names them.
 - The labels the profile owns go to `/var/db/vphoned/service-profile.plist`
