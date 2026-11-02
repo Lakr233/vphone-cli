@@ -42,10 +42,53 @@ static unsigned int vpStateControlDisplayId(id control) {
 // When the panel last came on (system uptime), for vpFollowContentModeTransition.
 static NSTimeInterval vpPanelOnAt;
 
+// SpringBoard reports the screen blanked (hasBlankedScreen) both when it turns
+// the panel off and when it dims it to the always-on Lock Screen, which keeps
+// the panel on and drawing. The VM window covers the panel while the screen
+// is off (display.orientation's screen_off) so that, coming on, it does not
+// show the frame from before it went off; vphoned reads this state so that it
+// does not cover the always-on Lock Screen too. The panel counts as dark from
+// going off until SpringBoard lights the screen again, so a wake from off is
+// covered as before.
+static int vpBlankedToken = -1, vpPanelDarkToken = -1;
+static BOOL vpPanelWentDark;
+
+static void vpPublishPanelDark(void) {
+    if (vpPanelDarkToken >= 0) notify_set_state(vpPanelDarkToken, vpPanelWentDark ? 2 : 1);
+}
+
+static BOOL vpScreenBlanked(void) {
+    uint64_t blanked = 0;
+    if (vpBlankedToken >= 0) notify_get_state(vpBlankedToken, &blanked);
+    return blanked != 0;
+}
+
+static void vpFollowPanelPower(long long state) {
+    if (!state) vpPanelWentDark = YES;
+    else if (!vpScreenBlanked()) vpPanelWentDark = NO;
+    vpPublishPanelDark();
+}
+
+static void vpInstallPanelDark(void) {
+    if (notify_register_check(vpPanelDarkNotification, &vpPanelDarkToken) != NOTIFY_STATUS_OK) {
+        vpPanelDarkToken = -1;
+        return;
+    }
+    notify_register_dispatch("com.apple.springboard.hasBlankedScreen", &vpBlankedToken, dispatch_get_main_queue(), ^(int token) {
+        (void)token;
+        if (vpScreenBlanked() || !vpPrimaryAppliedState) return;
+        vpPanelWentDark = NO;
+        vpPublishPanelDark();
+    });
+    vpPanelWentDark = !vpPrimaryAppliedState;
+    vpPublishPanelDark();
+}
+
 static void vpApplyPanelState(id control, long long state, long long *applied, id completion) {
     if (!control || (state == *applied && !completion)) return;
     if (control == vpPrimaryStateControl && state && !*applied) vpPanelOnAt = NSProcessInfo.processInfo.systemUptime;
     *applied = state;
+    if (control == vpPrimaryStateControl) vpFollowPanelPower(state);
     ((void (*)(id, SEL, long long, id))vpOriginalTransitionDisplayState)(control,
         sel_registerName("transitionToDisplayState:withCompletion:"), state, completion);
 }
@@ -181,6 +224,7 @@ void vpInstallSharedPanel(void) {
         return;
     }
     vpOriginalTransitionDisplayState = method_setImplementation(transition, (IMP)vpSharedScanoutTransition);
+    vpInstallPanelDark();
     vpInstallContentModeOwnership();
     vpFollowInnerPages();
     vpSetFoldFadeToBlack(NO);

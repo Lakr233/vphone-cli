@@ -180,7 +180,8 @@ extension GuestAPI {
             reply["fold_angle"] = angle
             // The window covers the panel while it is off: coming on, it
             // shows its last frame from before until the guest draws again.
-            reply["screen_off"] = GuestScreenUnlock.screenIsOff
+            // The always-on Lock Screen keeps the panel on, so it stays shown.
+            reply["screen_off"] = GuestScreenUnlock.panelIsDark
         }
         return reply
     }
