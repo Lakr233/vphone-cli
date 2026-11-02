@@ -96,9 +96,14 @@ turns them into the hinge-angle and device-state services CoreMotion reads
 0xFF0C/0x22), and SpringBoard and CoreDevice's hingeAngle stream read
 CoreMotion. The relay only runs when the device tree carries the foldable
 board's own product-id (`preboot-cfw-devicetree_foldable_product_id`), so on
-any other guest the service sits unread. Foldable guests only; `make
-test-hinge` checks the configuration transport and, on a Mac, the
-dictionaries' serialization round trip, size and vendor-defined event.
+any other guest the service sits unread. On an iPhone Duo it also detours
+backboardd's HID server (`_io_hideventsystem_dispatch_event`) to take the
+DeviceHub hinge-slider event a client without the event-dispatch
+entitlement sends (WebDriverAgent's `POST /wda/device/hingeAngle`) and
+dispatches it on that service. Foldable guests only; `make test-hinge`
+checks the configuration transport and, on a Mac, the dictionaries'
+serialization round trip, size and vendor-defined event, and which
+client-dispatched events the hinge takes.
 
 `system-apps-cfw-attitude` installs `libvphoneattitude.dylib`, loaded by
 SystemHook into apps. It supplies a stationary Core Motion pose through

@@ -129,6 +129,18 @@ static unsigned vpRelocate(uint32_t insn, uint64_t pc, uint32_t *out) {
         return 0;
     }
 
+    // An X1 prologue signs LR with its own address, and the function's
+    // `retaasppc`/`retabsppc <label>` checks it against the original's: moved,
+    // it signs for the trampoline and the return faults. The X1-lowered cache
+    // a guest without PAuth_LR runs has the SP-only forms here instead.
+    if (insn == 0xDAC1A3FEu     // PACIASPPC
+        || insn == 0xDAC183FEu  // PACNBIASPPC
+        || insn == 0xDAC1A7FEu  // PACIBSPPC
+        || insn == 0xDAC187FEu) // PACNBIBSPPC
+    {
+        return 0;
+    }
+
     out[0] = insn;
     return 1;
 }

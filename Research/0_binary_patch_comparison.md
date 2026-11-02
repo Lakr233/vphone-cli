@@ -772,6 +772,29 @@
 > No patch was added or changed; see `Research/Guest/iphone_duo_bringup.md`,
 > "the inner display's type, and XCTest's screenshot of it".
 
+> **Client-dispatched hinge values (2026-11-02, issue #784):**
+> `system-backboardd-cfw-hinge`'s `libvphonehinge.dylib` now, on iPhone19,4
+> only, detours IOKit's exported `_io_hideventsystem_dispatch_event` in
+> backboardd from its constructor, with libmisfix's detour
+> (`MISFix/MISFixDetour.c`, built into the hinge). An event that is
+> DeviceHub's hinge slider (host-control vendor event `0xFF61/0x5B`, its
+> IOKit dictionary naming provider `com.apple.Virtualization.VirtualMachines`,
+> `hinge-slider-control`, `range`, value 0–180) never reaches the server,
+> which would refuse a client without
+> `com.apple.private.hid.client.event-dispatch`: the detour frees its buffer,
+> answers success, and the hinge dispatches the event unchanged on
+> the hinge's own host-control service, where locationd's relay and vphoned
+> follow it as they follow DeviceHub's. This is what WebDriverAgent's
+> `POST /wda/device/hingeAngle` sends, from a runner without the
+> entitlement. `MISFixDetour` also now refuses to relocate the PAuth_LR
+> prologues (`PACIASPPC`, `PACIBSPPC`, `PACNBIASPPC`, `PACNBIBSPPC`), which
+> sign with their own address; the X1-lowered cache a guest runs on a host
+> without PAuth_LR has the SP-only forms there. Checked in
+> `make test-hinge`; measured on sbdisplay-duo (27.1): WDA POST 120, 0 and
+> 180 move `fold_angle` and WDA's CoreMotion reading to each, and DeviceHub's
+> own buttons still fold the guest. No firmware patch was added or changed;
+> see `Research/Guest/iphone_duo_bringup.md`, "WebDriverAgent's hinge POST".
+
 > **SpringBoard fold-guard (2026-10-25):** `system-springboard-cfw-fold_guard`
 > (guest system set, on in `standard`, blocked in `tvos`, `tvos-4k` and
 > `homepod-mini`, foldable guests only, iOS 27+; installs
