@@ -18,7 +18,7 @@ import VPhonePatchKit
 @Suite("Bundled patch set catalogue")
 struct FirmwarePatchSetCatalogTests {
     @Test func `Legacy startup compatibility is opt in and scoped to iOS 16`() throws {
-        for id in [FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration] {
+        for id in [FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration] {
             for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
                 for selected in [false, true] {
                     var preset = FirmwarePatchSetCatalog.standardPreset
