@@ -261,7 +261,11 @@ struct FirmwarePatchSetCatalogTests {
         )
         let restoreImage = Set(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
         let researchBoard = Set(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-        #expect(plan.enabled == restoreImage.union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(researchBoard))
+        // The unsecure-cache gate stays out: the launchd.plist minimal edits is
+        // signed and in the trust cache, so the stock launchd_cache_loader takes it.
+        #expect(!plan.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
+        #expect(plan.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
+            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(researchBoard))
         #expect(plan.enabled.isDisjoint(with: FirmwareBootChainPatchSet.manifest.patches.map(\.identifier)))
         // The set stays named, so `--allow` can turn a boot chain patch back on.
         let verbose = try VPhonePatchPlan.resolve(
@@ -279,9 +283,9 @@ struct FirmwarePatchSetCatalogTests {
             iOSBase: VPhoneVersion("26.4"),
             cloudOS: VPhoneVersion("26.4"),
         )
-        #expect(watch.enabled == restoreImage
-            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches)
-            .union(researchBoard))
+        #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
+        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
+            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(researchBoard))
         #expect(watch.enabled.isDisjoint(with: FirmwareBootChainPatchSet.manifest.patches.map(\.identifier)))
     }
 

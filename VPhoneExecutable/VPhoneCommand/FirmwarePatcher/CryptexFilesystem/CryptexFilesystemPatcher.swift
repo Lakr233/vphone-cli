@@ -39,6 +39,9 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
     lazy var guestFamily = VPhoneGuestDevice.Family(rawValue: FirmwarePipeline.guestFamily(restoreDir: restoreDir)) ?? .iPhone
     var tmpDirectories: [URL] = []
     var attachedDevices: Set<String> = []
+    /// The CDHashes of each binary the merge signed again, mapped to the ones
+    /// it had in the IPSW, so it keeps Apple's constraint category.
+    var resignedCDHashes: [Data: [Data]] = [:]
 
     // MARK: - Init
 

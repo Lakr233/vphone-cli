@@ -53,10 +53,45 @@ extension CryptexFilesystemPatcher {
         let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
         let source = resources.guestResources.appendingPathComponent("vphoned.plist")
         try target.replaceFile("System/Library/LaunchDaemons/vphoned.plist", fromFileAt: source, mode: 0o644, owner: (0, 0))
-        try editGuestFile("System/Library/xpc/launchd.plist", targetMount: targetMount, mode: 0o644) { file in
+        try editGuestFile(CustomFirmwareDetachedSignature.launchdCachePath, targetMount: targetMount, mode: 0o644) { file in
             try CustomFirmwareDaemons.injectDaemon(into: file, name: "vphoned", from: source)
         }
         print("  [+] Injected vphoned")
+        try resignLaunchdCache(targetMount: targetMount)
+    }
+
+    /// Sign the edited `launchd.plist` as Apple signs it, so the stock
+    /// `launchd_cache_loader` takes it as the secure cache. `createTrustcache`
+    /// adds the new cdhashes to the static trust cache, which is what the loader
+    /// asks AMFI about. See `CustomFirmwareDetachedSignature`.
+    ///
+    /// The new cdhashes take the launch-constraint category of Apple's
+    /// signature, as a re-signed binary does (`resignedCDHashes`): Apple's
+    /// static trust cache gives both cdhashes of its `launchd.plist.sig`
+    /// category 2 (iOS 18.6 22G86).
+    func resignLaunchdCache(targetMount: String) throws {
+        let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        let original = try target.exists(CustomFirmwareDetachedSignature.launchdCacheSignaturePath)
+            ? CustomFirmwareDetachedSignature.codeDirectoryHashes(
+                in: target.readData(CustomFirmwareDetachedSignature.launchdCacheSignaturePath),
+            ).map(\.cdhash)
+            : []
+        let cache = try target.readData(CustomFirmwareDetachedSignature.launchdCachePath)
+        let signature = CustomFirmwareDetachedSignature.sign(cache, identifierStem: "launchd")
+        let file = try createTmpDir().appending(path: "launchd.plist.sig")
+        try signature.write(to: file)
+        // root:admin 0644, as Apple installs it.
+        try target.replaceFile(CustomFirmwareDetachedSignature.launchdCacheSignaturePath,
+                               fromFileAt: file, mode: 0o644, owner: (0, 80))
+        for cdHash in original {
+            print("  [+] Apple's launchd.plist.sig: cdhash \(cdHash.map { String(format: "%02x", $0) }.joined())")
+        }
+        for hash in try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature) {
+            if !original.isEmpty, !original.contains(hash.cdhash) {
+                resignedCDHashes[hash.cdhash] = original
+            }
+            print("  [+] Signed launchd.plist: cdhash \(hash.cdhash.map { String(format: "%02x", $0) }.joined()) (hash type \(hash.hashType))")
+        }
     }
 
     func addVphoned(targetMount: String) throws {
@@ -224,6 +259,10 @@ extension CryptexFilesystemPatcher {
         let file = try createTmpDir().appending(path: "payload")
         try data.write(to: file)
         try edit(file)
+        let original = TrustCache.cdHashes(ofMachO: data)
+        for cdHash in try TrustCache.cdHashes(ofMachO: Data(contentsOf: file)) where !original.contains(cdHash) {
+            resignedCDHashes[cdHash] = original
+        }
         try target.replaceFile(relative, fromFileAt: file, mode: mode, owner: (0, 0))
     }
 

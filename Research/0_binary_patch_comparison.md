@@ -3424,6 +3424,84 @@ override after `udid.set` and after a reboot, and the guest's own after
 `udid.clear`. Details and the measurements are in
 `Research/Guest/xcode_install_signature_gate.md`, "The host sees it too".
 
+## vphoned paravirtual user-client entitlements (2026-11-01)
+
+No binary change. `VPhoneDaemon.entitlements` adds four classes to
+`com.apple.security.iokit-user-client-class`, each the research board's
+counterpart of a hardware class vphoned already lists:
+
+| Added | Counterpart already listed | An 18.6 binary that lists both |
+| --- | --- | --- |
+| `AppleParavirtDeviceUserClient` (GPU) | `AGXDeviceUserClient`, `IOGPUDeviceUserClient` | `Setup.app/Setup` |
+| `AppleVirtIONeuralEngineDeviceUserClient` | `H11ANEInDirectPathClient` | `Spotlight.app/Spotlight` and ten others |
+| `IOSurfaceAcceleratorParavirtClient` (scaler) | `IOSurfaceAcceleratorClient` | none; `backboardd` holds it as an exception |
+| `AppleVideoToolboxParavirtualizationUserClient` (image codec) | `AppleJPEGDriverUserClient` | `photosfaced`, `audiomxd`, MediaConversionService's `ImageConversionService` and `VideoConversionService` |
+
+The platform sandbox profile lets an unsandboxed process open an IOKit user
+client only when its `iokit-user-client-class` or
+`exception.iokit-user-client-class` entitlement names the class. vphoned named
+only the hardware classes, so the `minimal` preset, which has none of
+`kernel-boot-iouc_macf_gate`, `kernel-boot-iouc_sandbox_gate` and
+`kernel-cfw-paravirt_user_clients`, refused it each paravirtual class. On an
+iPhone17,3 26.5 23F77 Minimal guest created with the 2.12.2 bundle, each
+first call after a boot logged, per call:
+
+| Call | Refused (`IOUC … failed MACF in process pid …, vphoned`) |
+| --- | --- |
+| `screen.screenshot`, raw `screenshot` | `IOSurfaceAcceleratorParavirtClient` |
+| `ui.ocr`, `ui.describe` | `AppleVideoToolboxParavirtualizationUserClient`, then `AppleVirtIONeuralEngineDeviceUserClient` |
+
+The OCR calls read back the JPEG icli writes and run Vision on it. The codec
+class is refused before Vision loads its models, while the image is decoded;
+the decode falls back to software (Vision logs the 738×1600 image either way),
+so the refusal costs no output. With the first three classes a guest created
+the same way logged nothing for screenshots and only the codec class for OCR;
+with all four it logged no `IOUC` line for vphoned through screenshots,
+`ui.ocr` and `ui.describe`. The `minimal` merge copies vphoned with the
+signature the bundle build gives it and rebuilds the static trust cache over
+the result, so the new cdhash is trusted.
+The `standard` preset opens these classes in the kernel and gains nothing
+from the entries; on a real device the classes do not exist.
+
+The entries do not make OCR work on that guest. Its text detector,
+`TextRecognition.framework/cr_td_model_v3_e5.mlmodelc.bundle`, ships only as
+an H17 (Neural Engine) build; Espresso cannot plan it ("Failed to build the
+model execution plan … error code: -2", "Could not initialize V3 detector
+model"), and icli answers "System text recognition is unavailable on this
+device." It does so with and without the Neural Engine class: with it, the
+ANE client also logs "Unknown aneSubType" for the paravirtual device.
+A test build of icli that retried with `usesCPUOnly` failed the same way;
+the framework's other detector build, `cr_td_model_v3_eir`, has a
+`model.espresso.net` but no `model.espresso.weights`. An iOS 18.6 22G86
+Minimal guest with vphoned's earlier entitlements logs the same detector
+error, so OCR did not work on Minimal guests before these entries either.
+
+Not handled: Apple's own binaries. The same 26.5 boot logged `IOUC
+AppleVideoToolboxParavirtualizationUserClient failed MACF … Preferences`.
+Preferences in 18.6, like 73 of the 74 18.6 binaries that list
+`AGXDeviceUserClient`, lists no paravirtual class. Signing those again with
+the counterparts added would change Apple binaries, so the guest would no
+longer match a device's signatures. `VPhoneSigner` also leaves the
+resource-seal slot of an app's main executable empty, and the list of binaries
+would differ from one iOS version to the next. `callservicesd` and `nearbyd`,
+which are refused `AppleVirtIONeuralEngineDeviceUserClient`, run under sandbox
+profiles of their own, which an entitlement does not change.
+
+Checked again on 2026-11-02 with two `minimal` guests that also carried the
+other Minimal changes of that week (launch-constraint categories in the static
+trust cache, a signed `launchd.plist`, a stock LLB). int-265 (iPhone17,3 26.5
+23F77 on cloudOS 23F75, with `--allow llb-boot-boot_args --allow
+ibec-boot-boot_args` for a serial log): raw `screenshot`,
+`screen.screenshot`, `ui.ocr` and `ui.describe` from vphoned logged no `IOUC`
+or `failed sandbox` line for vphoned, where `iphone-265.log`, a 26.5 Minimal
+boot with the earlier entitlements, had `IOUC
+IOSurfaceAcceleratorParavirtClient failed MACF … vphoned`. Its one `IOUC` line
+is `AppleVirtIONeuralEngineDeviceUserClient failed MACF … callservicesd`, an
+Apple binary (above). `ui.ocr` still answered "System text recognition is
+unavailable on this device." int-186 (iPhone11,6 18.6 22G86) logged no `IOUC`
+or `failed sandbox` line for vphoned through the same calls; the 18.6 guests
+logged none before the change either.
+
 ## vphoned launchd service entitlements (2026-10-20)
 
 `VPhoneDaemon.entitlements` adds `com.apple.private.xpc.service-configure`
@@ -4346,7 +4424,7 @@ gone. The preset names three sets:
 | `filesystem-boot-gpu_driver` | Installs the PCC paravirtual GPU driver `fw prepare` staged |
 | `filesystem-boot-mobileactivationd_should_hactivate` | The `should_hactivate` patch, in the image |
 | `filesystem-boot-vphoned` | vphoned and its launch daemon, in the image |
-| `filesystem-boot-launchd_cache_loader_unsecure_cache_gate` | Lets launchd read the launch daemons from the volume |
+| `filesystem-exp-launchd_cache_loader_unsecure_cache_gate` (was `filesystem-boot-…`) | NOPs launchd_cache_loader's `launchd_unsecure_cache=` gate. `minimal` and `watchos` no longer select it: `filesystem-boot-vphoned` signs the edited `launchd.plist` instead; see "The stock launchd_cache_loader takes a re-signed launchd.plist" below |
 | `filesystem-exp-watch_audio` | Watch images only, via `watchos`: the watchOS-marked virtio sound HAL plugin, a generic-DSP speaker chain, the three VirtualAudio playback routing-gate bypasses, and on watchOS 26.4 the MediaExperience device-class NOP for the virtual-device audio budget. Cannot be toggled without another restore |
 | `manifest-boot-digest_rehash` | Rewrites every BuildManifest digest to the files the restore now sends; for an AEA archive, the digest of its decrypted image, which is what Apple's manifests hold and what an 18.x restore checks the written image against |
 
@@ -4743,7 +4821,7 @@ copies and dyld symlinks and only reseals the image with the guest payload.
 `filesystem-boot-gpu_driver` marks the iOS driver and its compiler plugin
 watchOS (`MachOBuildPlatform.watchOS`, re-signed, bundle resealed), as the
 tvOS installer does; all its imports are in the watchOS 26.4 arm64e cache.
-`filesystem-boot-launchd_cache_loader_unsecure_cache_gate` thins the universal
+`filesystem-exp-launchd_cache_loader_unsecure_cache_gate` thins the universal
 binary to its arm64e slice first (`MachOFatSlice`). vphoned is the arm64 daemon
 marked watchOS (`vphoned-watchos`); its HID presses reach the crown as Home
 (consumer 0x40). The side button is consumer Help (0x0C/0x95), not Power:
@@ -6105,6 +6183,165 @@ vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
+
+## The stock launchd_cache_loader takes a re-signed launchd.plist (2026-11-01)
+
+`minimal` used to keep one userland security patch,
+`filesystem-boot-launchd_cache_loader_unsecure_cache_gate`, because vphoned's
+entry in `/System/Library/xpc/launchd.plist` made the stock loader refuse the
+file. It no longer needs it: `filesystem-boot-vphoned` signs the edited file
+the way Apple signs it, and the static trust cache the restore image already
+rebuilds (and TSS signs) carries the new cdhashes. The patch is now
+`filesystem-exp-launchd_cache_loader_unsecure_cache_gate`, not boot-essential,
+left out of `minimal` and `watchos`; `renamedPatches` migrates a VM's old
+record. A Watch7,18 watchOS 26.4 (23T240) guest on cloudOS 26.4 (23E244),
+restored with the gate blocked, booted to the pairing screen with vphoned up:
+its stock loader logged "cdhash: … 0xeacd92f9… is trusted" for the re-signed
+`launchd.plist.sig` and "Cache sent to launchd successfully" (2026-11-02).
+
+What the loader checks (`/usr/libexec/launchd_cache_loader`, libxpc-2894.140.12,
+iOS 18.6 22G86, read from the disassembly):
+
+1. `0x100000a44`: the default paths, `/System/Library/xpc/launchd.plist` and
+   `/System/Library/xpc/launchd.plist.sig` ("Code: %s Sig: %s").
+2. `0x100000b2c`: `kern.bootargs`; with `launchd_unsecure_cache=` the
+   `cbz x0` at `0x100000b58` falls into "Using unsecure cache" and skips 3-6.
+   That `cbz` is what the old patch NOPs.
+3. `SecStaticCodeCreateWithPath(plist)`, `SecCodeSetDetachedSignature(sig)`,
+   `SecStaticCodeCheckValidity(code, 6)` (no executable or resource
+   validation; errSecCSSignatureNotVerifiable, -67060, is let through).
+4. `SecCodeCopySigningInformation` → `kSecCodeInfoUnique` (the cdhash) →
+   `IOConnectCallMethod` selector 6 on `AppleMobileFileIntegrity`
+   (`AppleMobileFileIntegrityUserClient::isCdhashInTrustCache` in the kernel
+   log). Not found (`0xe00002f0`) logs "cdhash: %s is not in trust cache" and
+   aborts (`abort_with_reason`).
+5. `SecCodeMapMemory` attaches the signature to the vnode ("Failed to push
+   signature to kernel" otherwise), so the pages read next are checked against
+   the code directory.
+6. `open`/`mmap` the plist, copy it into memory mapped into launchd ("Sending
+   validated cache to launchd").
+
+`launchd.plist.sig` is a detached ad hoc signature: a SuperBlob with a SHA-1
+code directory, empty requirements, a SHA-256 alternate code directory, an
+empty CMS wrapper and an identification wrapper (slot 0x10001) holding the
+file's SHA-1. Both directories are version 0x20500, flags 0x10002 (ad hoc,
+runtime), runtime version 11.0.0, 4 KiB pages, identifier
+`launchd-<sha1 of the file>`. The stock static trust cache
+(`043-19071-100.dmg.aea.trustcache`) lists both cdhashes of Apple's file
+(`72c3cf9a…` SHA-256, `2e45eca3…` SHA-1), as it does those of
+`extensions.plist.sig`. `cryptexctl generate-trust-cache` hashes Mach-O code
+directories only, so the edited plist's new signature has to be added by hand.
+
+`CustomFirmwareDetachedSignature` writes that signature: for 22G86's
+`extensions.plist` it reproduces Apple's `extensions.plist.sig` byte for byte
+(`codesign -s - -o runtime --pagesize 4096 --detached` differs only in its
+0x20100 header). `resignLaunchdCache` replaces `launchd.plist.sig` (root:admin
+0644) after vphoned's entry is merged; `createTrustcache` reads it back from the
+image and hands `cryptexctl` a second `--base-trust-cache`, a raw version 1
+trust cache with its two cdhashes. Apple's stale entries stay; nothing has
+their bytes any more.
+
+Checked on 2026-11-01: `vm create lcl-186 --preset minimal --device iPhone11,6`
+(18.6 22G86 on cloudOS 22G86, bundle 2.12.2-local.442efa84) signed the plist
+(`c6a34260…` SHA-1, `b4ace6ca…` SHA-256), the rebuilt `new.trustcache` held
+both, the patch log listed the gate under "Turned off", and the boot log shows
+the secure path:
+
+```
+Code: /System/Library/xpc/launchd.plist Sig: /System/Library/xpc/launchd.plist.sig
+…isCdhashInTrustCache…: Returning IOReturn 0x0 to process 28
+cdhash: {length = 20, bytes = 0xb4ace6cacd1e77cf9b8546e7c9bed89a0914462e} is trusted
+Attached signature to file, checking ...
+Sending validated cache to launchd
+Cache sent to launchd successfully
+```
+
+with no "Using unsecure cache". SpringBoard came up and `guest rpc
+processes.list` answered from `/usr/bin/vphoned`.
+
+## Launch-constraint categories in the rebuilt static trust cache (2026-11-02)
+
+`filesystem-boot-cryptex_merge` rebuilds the static trust cache with
+`cryptexctl generate-trust-cache`, which writes a version 1 cache: entries of
+cdhash, hash type and flags, no launch-constraint category. Apple's iOS trust
+caches (the OS's `StaticTrustCache`, `Cryptex1,SystemTrustCache` and
+`Cryptex1,AppTrustCache`) are version 2 and give each cdhash a category, so on
+a `minimal` guest every system service ran with category 0 and the kernel
+logged `Launch Constraint Violation (not enforcing) … launched as a system
+service unexpectedly but met System Service constraints` for each: 212 lines
+(355 distinct programs) in lcl-186's serial log of one 18.6 Minimal boot,
+303 lines (898 occurrences) in `iphone-265.log`, a 26.5 Minimal boot.
+
+`createTrustcache` now rewrites cryptexctl's output as version 2
+(`TrustCache.withConstraintCategories`): each entry gets the category its
+cdhash has in Apple's three caches; a file the merge signs again gets the
+category its IPSW cdhashes had (`resignedCDHashes`: `launchd_cache_loader`
+where it is still patched, mobileactivationd, and the detached
+`launchd.plist.sig` of "The stock launchd_cache_loader takes a re-signed
+launchd.plist"); what Apple's caches do not list (vphoned, its Swift library,
+the GPU driver bundle, kexts Apple left out) keeps 0. Entries, order, flags,
+UUID and the IM4P's type and description stay as cryptexctl wrote them.
+
+The detached signature's cdhashes reach cryptexctl through the second base
+trust cache and are in none of Apple's caches. Apple's 22G86 static trust
+cache (`043-19071-100.dmg.aea.trustcache`) gives both cdhashes of its own
+`launchd.plist.sig` (`72c3cf9a…` SHA-256, `2e45eca3…` SHA-1) category 2, and
+`resignLaunchdCache` maps the new cdhashes to those. Apple's 26.5 static
+trust cache (`094-54920-099.dmg.aea.trustcache`) does the same for its
+`launchd.plist.sig` (`b2f662df…` SHA-1, `cb7da9ce…` SHA-256).
+
+Checked on 2026-11-02 with two `minimal` guests that also carried the other
+Minimal changes of that week (a stock LLB with only iBEC's image-4 callback
+patched, vphoned's paravirtual user-client entitlements, the restore tree
+published as clones). int-186 (iPhone11,6 18.6 22G86 on cloudOS 22G86, bundle
+2.12.2-local.c632b261), patch log:
+
+```
+[+] Apple's launchd.plist.sig: cdhash 2e45eca3ba25f02a7166775802481dfadaa2757c
+[+] Apple's launchd.plist.sig: cdhash 72c3cf9a1de7d4eb05fe0da99889cbb47ab41afc
+[+] Signed launchd.plist: cdhash c6a34260… (hash type 1)
+[+] Signed launchd.plist: cdhash b4ace6ca… (hash type 2)
+[+] Constraint categories for 6228 of 6693 trust cache entries
+[+] Re-signed cdhash 5c5eb26e… (hash type 2): category 3      (mobileactivationd)
+[+] Re-signed cdhash b4ace6ca… (hash type 2): category 2
+[+] Re-signed cdhash c6a34260… (hash type 1): category 2
+```
+
+The installed `new.trustcache` is version 2, 3428 CDHashes, with both new
+cdhashes at category 2. A reboot's unified log (Persist tracev3 pulled with
+`guest pull` and read with `log show` over a hand-built archive, since the
+stock LLB passes no serial boot-args) shows:
+
+- `isCdhashInTrustCache … Process 28 is checking if a cdhash is in the trust
+  cache` / `Returning IOReturn 0x0 to process 28`, the same pid and pair
+  lcl-186's serial log shows just before `cdhash: … b4ace6ca… is trusted`.
+  The loader's own lines are not in the persisted log (it runs before logd).
+- Two `Launch Constraint Violation (not enforcing) … met System Service
+  constraints` lines, for `/usr/libexec/init_exclavekit` and
+  `/usr/bin/vphoned`, both at category 0 because Apple's caches do not list
+  them.
+- No `Launch Constraint Violation (enforcing)`, no CODESIGNING exit, no crash
+  report (`idevicecrashreport -k`: only `restore_perform.txt`);
+  launchd_cache_loader, mobileactivationd and vphoned ran.
+
+int-265 (iPhone17,3 26.5 23F77 on cloudOS 23F75) was built with `minimal`
+plus `--allow llb-boot-boot_args --allow ibec-boot-boot_args`, so that the
+host serial log has the boot. Its patch log gives 6729 of 7277 entries a
+category, the new `launchd.plist.sig` cdhashes (`4230469c…`, `20f70244…`)
+category 2 and mobileactivationd's category 3, and the serial log shows the
+secure path:
+
+```
+Code: /System/Library/xpc/launchd.plist Sig: /System/Library/xpc/launchd.plist.sig
+cdhash: {length = 20, bytes = 0x20f702440c87a4d86aa49deca652100424c19381} is trusted
+Attached signature to file, checking ...
+Sending validated cache to launchd
+Cache sent to launchd successfully
+```
+
+with three `Launch Constraint Violation (not enforcing)` lines
+(`MobileAssetEarlyBootTask`, `init_exclavekit`, `vphoned`), no enforcing
+violation and no crash report.
 
 ## Always On display (2026-11-02)
 

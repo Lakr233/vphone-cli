@@ -203,13 +203,27 @@ extension CryptexFilesystemPatcher {
         let newTrustcachePath = restoreDir.appending(path: "Firmware/new.trustcache")
         let tmpDir = try createTmpDir()
 
+        // cryptexctl hashes Mach-O code directories only. launchd.plist's
+        // detached signature is not one, so its cdhashes go in through a second
+        // base trust cache. Unedited, they are Apple's and already in the first.
+        var baseTrustcaches = [oldTrustcachePath]
+        let volume = try VPhoneConfinedDirectory.pin(absolutePath: mount)
+        if try volume.exists(CustomFirmwareDetachedSignature.launchdCacheSignaturePath) {
+            let signature = try volume.readData(CustomFirmwareDetachedSignature.launchdCacheSignaturePath)
+            let hashes = try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature)
+            let detached = tmpDir.appending(path: "detached.trustcache")
+            try CustomFirmwareDetachedSignature.trustCache(hashes).write(to: detached)
+            baseTrustcaches.append(detached)
+        }
+
         let tcContainer = tmpDir.appending(path: "new.trustcache")
         _ = try runProcess("/System/Library/SecurityResearch/usr/bin/cryptexctl", [
             "generate-trust-cache", "--type", "static",
-            "--base-trust-cache", oldTrustcachePath.path,
+        ] + baseTrustcaches.flatMap { ["--base-trust-cache", $0.path] } + [
             "--output-file", tcContainer.path,
             mount,
         ])
+        try addConstraintCategories(to: tcContainer)
 
         if FileManager.default.fileExists(atPath: newTrustcachePath.path) {
             try FileManager.default.removeItem(at: newTrustcachePath)
@@ -217,5 +231,36 @@ extension CryptexFilesystemPatcher {
         try FileManager.default.moveItem(at: tcContainer, to: newTrustcachePath)
 
         return newTrustcachePath
+    }
+
+    /// Apple's trust caches for what the merged volume holds: the OS's, and
+    /// each cryptex's merged into it. A watch has no cryptexes.
+    static let originalTrustCacheComponents = ["StaticTrustCache", "Cryptex1,SystemTrustCache", "Cryptex1,AppTrustCache"]
+
+    /// Give cryptexctl's cache the launch-constraint categories of Apple's.
+    ///
+    /// cryptexctl writes a version 1 cache, which has no category, so every
+    /// system service launched with category 0 and the kernel logged
+    /// "launched as a system service unexpectedly but met System Service
+    /// constraints" for each. Apple's caches are version 2 and carry a
+    /// category for each CDHash. See `TrustCache.withConstraintCategories`
+    /// for which entries get one.
+    func addConstraintCategories(to trustCache: URL) throws {
+        let manifest = try getBuildIdentityManifest(path: restoreDir.appending(path: "iPhone-BuildManifest.plist"))
+        let originals = try Self.originalTrustCacheComponents.filter { manifest[$0] != nil }.map { component in
+            let path = try getComponentPath(component: component, buildManifest: manifest)
+            return try TrustCache(payload: IM4P(contentsOf: restoreDir.appending(path: path)).payload())
+        }
+        let container = try IM4P(contentsOf: trustCache)
+        let generated = try TrustCache(payload: container.payload())
+        let cache = generated.withConstraintCategories(from: originals, inherited: resignedCDHashes)
+        try IM4P(fourcc: container.fourcc, description: container.description, payload: cache.payload)
+            .data.write(to: trustCache)
+        let categorized = cache.entries.filter { $0.constraintCategory != 0 }.count
+        print("  [+] Constraint categories for \(categorized) of \(cache.entries.count) trust cache entries")
+        for entry in cache.entries where resignedCDHashes[entry.cdHash] != nil {
+            let hex = entry.cdHash.map { String(format: "%02x", $0) }.joined()
+            print("  [+] Re-signed cdhash \(hex) (hash type \(entry.hashType)): category \(entry.constraintCategory)")
+        }
     }
 }
