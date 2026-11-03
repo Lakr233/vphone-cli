@@ -1,4 +1,4 @@
-// CustomFirmwareWatchDogSymbolTargets.swift — Resolve watchdogd branch targets.
+// MachOSymbolTargets.swift — Resolve Mach-O branch targets.
 
 import Foundation
 import VPhonePatchKit
@@ -15,12 +15,10 @@ import VPhonePatchKit
 ///     `bl _sysctlbyname` takes;
 ///   * directly to a defined symbol, for a statically linked build.
 ///
-/// This is deliberately not in `MachOParser`: it needs each section's `flags`,
-/// `reserved1` and `reserved2` and the `LC_DYSYMTAB` indirect table, none of
-/// which that shared parser exposes. It carries this patcher's name because
-/// this patcher is its only caller — the first time a second one needs the same
-/// lookup, move it to `Binary/` under a neutral name rather than growing a copy.
-struct CustomFirmwareWatchDogSymbolTargets {
+/// This needs each section's `reserved1` and `reserved2` and the
+/// `LC_DYSYMTAB` indirect table, which `MachOParser` does not expose. Shared by
+/// the watchdog and paravirtual GPU compiler-cache patchers.
+struct MachOSymbolTargets {
     /// A section of branch-island stubs, one per imported symbol.
     struct StubSection {
         let address: UInt64
@@ -61,27 +59,35 @@ struct CustomFirmwareWatchDogSymbolTargets {
         var stubs: [StubSection] = []
 
         let commandCount = data.loadLE(UInt32.self, at: 16)
+        let commandBytes = Int(data.loadLE(UInt32.self, at: 20))
+        guard commandBytes <= data.count - 32 else { return nil }
+        let commandsEnd = 32 + commandBytes
         var offset = 32
         for _ in 0 ..< commandCount {
-            guard offset + 8 <= data.count else { return nil }
+            guard offset + 8 <= commandsEnd else { return nil }
             let command = data.loadLE(UInt32.self, at: offset)
             let commandSize = Int(data.loadLE(UInt32.self, at: offset + 4))
-            guard commandSize > 0 else { return nil }
+            guard commandSize >= 8, commandSize % 8 == 0, commandSize <= commandsEnd - offset else { return nil }
 
-            if command == Self.lcDysymtab, offset + 64 <= data.count {
+            if command == Self.lcDysymtab {
+                guard commandSize >= 80 else { return nil }
                 indirectOffset = Int(data.loadLE(UInt32.self, at: offset + 56))
                 indirectCount = Int(data.loadLE(UInt32.self, at: offset + 60))
-            } else if command == Self.lcSegment64, offset + 72 <= data.count {
-                let sectionCount = data.loadLE(UInt32.self, at: offset + 64)
+            } else if command == Self.lcSegment64 {
+                guard commandSize >= 72 else { return nil }
+                let sectionCount = Int(data.loadLE(UInt32.self, at: offset + 64))
+                guard sectionCount <= (commandSize - 72) / 80 else { return nil }
                 var section = offset + 72
                 for _ in 0 ..< sectionCount {
-                    guard section + 80 <= data.count else { break }
                     let flags = data.loadLE(UInt32.self, at: section + 64)
                     let entrySize = UInt64(data.loadLE(UInt32.self, at: section + 72)) // reserved2
-                    if flags & 0xFF == Self.sectionTypeSymbolStubs, entrySize > 0 {
+                    if flags & 0xFF == Self.sectionTypeSymbolStubs {
+                        let address = data.loadLE(UInt64.self, at: section + 32)
+                        let size = data.loadLE(UInt64.self, at: section + 40)
+                        guard entrySize > 0, size % entrySize == 0, address <= UInt64.max - size else { return nil }
                         stubs.append(StubSection(
-                            address: data.loadLE(UInt64.self, at: section + 32),
-                            size: data.loadLE(UInt64.self, at: section + 40),
+                            address: address,
+                            size: size,
                             entrySize: entrySize,
                             firstIndirectIndex: Int(data.loadLE(UInt32.self, at: section + 68)), // reserved1
                         ))
@@ -91,6 +97,12 @@ struct CustomFirmwareWatchDogSymbolTargets {
             }
             offset += commandSize
         }
+        guard offset == commandsEnd,
+              symtab.symoff <= data.count, symtab.nsyms <= (data.count - symtab.symoff) / 16,
+              symtab.stroff <= data.count, symtab.strsize <= data.count - symtab.stroff,
+              indirectOffset <= data.count, indirectCount <= (data.count - indirectOffset) / 4,
+              stubs.allSatisfy({ $0.firstIndirectIndex <= indirectCount && $0.size / $0.entrySize <= UInt64(indirectCount - $0.firstIndirectIndex) })
+        else { return nil }
 
         self.data = data
         symbolOffset = symtab.symoff
@@ -111,7 +123,8 @@ struct CustomFirmwareWatchDogSymbolTargets {
     func importName(atStub address: UInt64) -> String? {
         guard indirectCount > 0 else { return nil }
         for section in stubSections {
-            guard address >= section.address, address < section.address &+ section.size else { continue }
+            guard address >= section.address, address < section.address + section.size else { continue }
+            guard (address - section.address) % section.entrySize == 0 else { return nil }
             let index = section.firstIndirectIndex + Int((address - section.address) / section.entrySize)
             guard index >= 0, index < indirectCount else { return nil }
             let entryOffset = indirectOffset + index * 4
@@ -130,6 +143,8 @@ struct CustomFirmwareWatchDogSymbolTargets {
             let entry = symbolOffset + index * 16
             guard entry + 16 <= data.count else { return nil }
             guard data[entry + 4] & Self.symbolIsDebug == 0 else { continue }
+            let type = data[entry + 4] & 0x0E // N_TYPE: N_SECT or N_ABS, never an undefined import.
+            guard type == 0x0E || type == 0x02 else { continue }
             guard data.loadLE(UInt64.self, at: entry + 8) == address else { continue }
             return symbolName(at: index)
         }
@@ -149,6 +164,7 @@ struct CustomFirmwareWatchDogSymbolTargets {
         while end < limit, data[end] != 0 {
             end += 1
         }
+        guard end < limit else { return nil }
         return String(data: data.subdata(in: start ..< end), encoding: .utf8)
     }
 }

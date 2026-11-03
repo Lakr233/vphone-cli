@@ -27,6 +27,12 @@ public enum FirmwareGuestSystemPatchSet {
     public static let ios17Desktop = "system-springboard-exp-ios17_desktop"
     public static let metalCacheReuse = "system-systemhook-cfw-metal_cache_reuse"
     public static let metalCacheReuseMarker = "/usr/lib/vphone-metal-cache-reuse"
+    public static let glesUpperLeft = "system-systemhook-cfw-gles_upper_left"
+    public static let glesUpperLeftMarker = "/usr/lib/vphone-gles-upper-left"
+    public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
+    public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
+    public static let glesPointDraw = "dyld-cfw-gles_point_draw"
+    public static let metalCacheReuseKey = "dyld-cfw-metal_cache_reuse_key"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
     public static let accelerometer = "system-backboardd-cfw-accelerometer"
     public static let hinge = "system-backboardd-cfw-hinge"
@@ -47,6 +53,7 @@ public enum FirmwareGuestSystemPatchSet {
 
     public static let paravirtGPUIndexOffset = "system-paravirt_gpu-cfw-heap_index_offset"
     public static let paravirtGPUPrimitiveRestart = "system-paravirt_gpu-cfw-primitive_restart"
+    public static let paravirtGPUCompilerCache = "system-paravirt_gpu-cfw-compiler_cache"
     public static let paravirtGPUDriverPath =
         "System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle/AppleParavirtGPUMetalIOGPUFamily"
 
@@ -246,6 +253,66 @@ public enum FirmwareGuestSystemPatchSet {
             // MARK: Shared Cache Policy
 
             VPhonePatchDeclaration(
+                identifier: metalCacheReuseKey,
+                title: "Metal cache version validation",
+                summary: """
+                Keeps the cache-key check when FS_CACHE_REUSE_ON_REBOOT permits reuse across \
+                boots. A compiler identity change still invalidates old shader output; \
+                cache reuse with the same identity and the opt-out path remain intact.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
+            VPhonePatchDeclaration(
+                identifier: glesPointDraw,
+                title: "GLES point draw submission",
+                summary: """
+                Keeps valid point draws from being discarded because the paravirtual device \
+                reports no pipeline usage flags. The vertex shader's point-size output \
+                continues to determine rasterization. Changes only the four reflected \
+                point-size checks in AppleMetalGLRenderer; other draw guards remain active.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
+            VPhonePatchDeclaration(
+                identifier: glesPrimitiveRestart,
+                title: "GLES primitive restart semantics",
+                summary: """
+                Expands indexed line and triangle strips through GLEngine when primitive \
+                restart is disabled, so a valid maximum index is not discarded by Metal. \
+                Restart-enabled and other draws retain their normal renderer path. Requires \
+                the paravirtual GPU restart-command suppression and GLES vertex ID format \
+                correction. The fallback copies vertex data on the CPU.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
+            VPhonePatchDeclaration(
+                identifier: metalVertexIDFormat,
+                title: "GLES vertex ID format",
+                summary: """
+                Serializes Metal's legacy vertex and instance ID attribute formats as UInt \
+                for the paravirtual GPU. The original private formats make the host compiler \
+                fail while cloning the vertex descriptor. Other attribute formats, the \
+                original descriptor and shader code are unchanged.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
+            VPhonePatchDeclaration(
                 identifier: "dyld-boot-maxslide",
                 title: "Shared cache max slide",
                 summary: """
@@ -436,6 +503,21 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .guestFile(path: metalCacheReuseMarker),
             ),
+            VPhonePatchDeclaration(
+                identifier: glesUpperLeft,
+                title: "GLES drawable orientation",
+                summary: """
+                Selects AppleMetalGLRenderer's UPPER_LEFT viewport and scissor path at \
+                process startup because the paravirtual GPU does not preserve IOSurface \
+                attachment yInvert, which reverses GLES screen output. An explicit \
+                environment setting takes precedence. Validated on iOS 26.6 with cloudOS 26.4.
+                """,
+                target: .guestFile(path: glesUpperLeftMarker),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
 
             // MARK: Guest Payload
 
@@ -475,6 +557,21 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .guestExecutable(path: "/\(paravirtGPUDriverPath)"),
                 applicability: VPhonePatchApplicability(cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: paravirtGPUCompilerCache,
+                title: "GPU compiler cache identity",
+                summary: """
+                Derives the paravirtual GPU shader-cache namespace from the installed compiler \
+                plugin, so a plugin update compiles fresh shaders while unchanged plugins keep \
+                their warm cache. Replaces only the compiler identity seed used by setupCompiler; \
+                existing caches are retained.
+                """,
+                target: .guestExecutable(path: "/\(paravirtGPUDriverPath)"),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: "system-vphoned-boot-install",

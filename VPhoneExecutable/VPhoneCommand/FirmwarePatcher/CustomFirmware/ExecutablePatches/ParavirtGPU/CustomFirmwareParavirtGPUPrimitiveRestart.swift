@@ -20,9 +20,12 @@
 //
 // The patch. The serialiser method returns at its first instruction, so the
 // command is never sent and the host encoder keeps Metal's own behaviour:
-// primitive restart on, at the index type's largest value, which is what
-// OpenGL ES 3 asks for with its fixed restart index. An OpenGL ES 2 strip that
-// really draws vertex 65535 would be cut there; nothing else changes.
+// primitive restart on, at the index type's largest value. This matches GLES3
+// only while GL_PRIMITIVE_RESTART_FIXED_INDEX is enabled; GLES3 starts with
+// it disabled, and GLES2 has no such enable. Disabled indexed strips using
+// the maximum index therefore also need DyldSharedCacheGLESPrimitiveRestartPatcher,
+// which selects GLEngine's nonindexed primitive-buffer path. That fallback
+// still sets renderer state, so this command suppression remains required.
 //
 // Finding the site. The `mov w2, #0x8 ; mov w3, #0x91` pair is unique in
 // `__TEXT,__text`: it names the command. The method's `pacibsp` is the nearest

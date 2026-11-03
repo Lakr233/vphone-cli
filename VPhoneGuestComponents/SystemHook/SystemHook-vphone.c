@@ -228,6 +228,12 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     if (access("/usr/lib/vphone-metal-cache-reuse", F_OK) == 0) {
         setenv("FS_CACHE_REUSE_ON_REBOOT", "1", 0);
     }
+    // The paravirtual GPU does not preserve IOSurface attachment yInvert.
+    // Select AppleMetalGLRenderer's native viewport/scissor alternative before
+    // an EAGLContext exists, preserving an explicit application setting.
+    if (access("/usr/lib/vphone-gles-upper-left", F_OK) == 0) {
+        setenv("AGX_GL_VIEWPORT_INVERT_CONFIG", "UPPER_LEFT", 0);
+    }
 
     char path[PATH_MAX];
     uint32_t length = sizeof(path);

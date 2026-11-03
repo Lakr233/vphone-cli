@@ -462,6 +462,55 @@ struct FirmwarePatchSetCatalogTests {
         }
     }
 
+    @Test(arguments: [FirmwareGuestSystemPatchSet.glesUpperLeft, FirmwareGuestSystemPatchSet.metalVertexIDFormat,
+                     FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw,
+                     FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache, FirmwareGuestSystemPatchSet.metalCacheReuseKey])
+    func `Native GLES corrections follow the measured OS pair and can be reverted`(patch: String) throws {
+        for base in ["26.4", "26.5", "26.6", "26.6.2", "26.7", "27.0.1", "unknown"] {
+            for cloud in ["26.1", "26.4", "26.5", "unknown"] {
+                let plan = try VPhonePatchPlan.resolve(
+                    preset: FirmwarePatchSetCatalog.standardPreset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                )
+                let supported = (base == "26.6" || base == "26.6.2") && cloud == "26.4"
+                #expect(plan.isEnabled(patch) == supported, "\(base)/\(cloud)")
+                let updated = FirmwareGuestPatchResolution.effectiveEnabled(
+                    planEnabled: [], selectionEnabled: plan.enabled,
+                )
+                #expect(updated.contains(patch) == supported, "A guest update must include new patches absent from the boot plan")
+            }
+        }
+        let blocked = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("26.6.2"), cloudOS: VPhoneVersion("26.4"),
+            blocked: [patch],
+        )
+        #expect(!blocked.isEnabled(patch))
+        #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: blocked.enabled).contains(patch))
+        #expect(!FirmwareGuestPatchResolution.effectiveEnabled(
+            planEnabled: [patch], selectionEnabled: blocked.enabled,
+        ).contains(patch))
+        let unsupported = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("27.0.1"), cloudOS: VPhoneVersion("26.4"),
+            allowed: [patch],
+        )
+        #expect(!unsupported.isEnabled(patch), "An explicit selection must not widen the version gate")
+        // Test the preset exclusions on the applicable pair so the version
+        // gate cannot hide an accidentally missing block-list entry.
+        for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset,
+                       FirmwarePatchSetCatalog.homePodMiniPreset, FirmwarePatchSetCatalog.homeViewPreset] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.6.2"), cloudOS: VPhoneVersion("26.4"),
+            )
+            #expect(!plan.isEnabled(patch), "\(preset.identifier)")
+        }
+    }
+
     @Test
     func `Standard names the GLES renderer on every base while tvOS stays off`() throws {
         let patch = FirmwarePatchSetCatalog.paravirtGLESPatch

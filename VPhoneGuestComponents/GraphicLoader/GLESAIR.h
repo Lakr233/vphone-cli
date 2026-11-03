@@ -4,10 +4,13 @@
 typedef struct LLVMOpaqueModule *LLVMModuleRef;
 typedef struct LLVMOpaqueValue *LLVMValueRef;
 
-// True for a module whose air.language_version is "OpenGL ES GLSL".
+// True for GLES shaders ("OpenGL ES GLSL") and ES1 generated fixed-function
+// programs ("OpenGL ES Program").
 bool isGLESModule(LLVMModuleRef module);
 
 // A copy of the module, in its context, with the argument metadata fields
-// GPUCompiler needs added. Null when nothing was missing, or on failure with
-// *error set.
+// GPUCompiler needs added, and GLES fragment point-coordinate Y converted for
+// the PV render-pass path. A metadata marker prevents repeated conversion.
+// Non-GLES modules are unchanged. Null when no adaptation is needed, or on
+// failure with *error set. The input module is never modified.
 LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error);

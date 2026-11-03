@@ -105,7 +105,7 @@ enum WatchdogdFixture {
     /// calls" is measured against an independent count.
     static func sysctlCallSites(in data: Data) throws -> [UInt64] {
         let text = try text(in: data)
-        guard let symbols = CustomFirmwareWatchDogSymbolTargets(data: data) else {
+        guard let symbols = MachOSymbolTargets(data: data) else {
             throw PatcherError.invalidFormat("fixture has no symbol table")
         }
         let start = Int(text.fileOffset)
@@ -229,7 +229,7 @@ struct CustomFirmwareWatchDogAnchorTests {
     @Test(.enabled(if: WatchdogdFixture.hasWatchdogd))
     func `resolves the import through the indirect symbol table`() throws {
         let data = try Data(contentsOf: WatchdogdFixture.watchdogd)
-        let symbols = try #require(CustomFirmwareWatchDogSymbolTargets(data: data))
+        let symbols = try #require(MachOSymbolTargets(data: data))
         let sites = try CustomFirmwareWatchDog.locateSites(in: data)
         let call = try #require(sites.first)
 
