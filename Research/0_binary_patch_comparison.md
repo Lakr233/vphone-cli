@@ -4332,6 +4332,7 @@ gone. The preset names three sets:
   does not get the restored guest to its kernel: on 26.6 with cloudOS
   23E5207q it restarts right after its banner, with Apple's ROMs as with
   OpenAVB and OpenSEP (2026-10-19). Which of LLB's patches it needs is open.
+  Superseded 2026-11-01/02: none; see "`minimal` boots a stock boot chain" below.
 - `com.vphone.patchset.devicetree`, allowing only the board presentation
   (`devicetree-cfw-serial_number`, `-home_button_type`,
   `-artwork_device_subtype`, `-island_notch_location`) and the haptics and
@@ -4445,6 +4446,86 @@ ldid's signature (no ad-hoc flag, empty CMS blob), and launchd panicked at its
 first boot task ("launchd_cache_loader - posix_spawn: 85: Bad executable").
 vphoned, its launch daemon plist and the rewritten `launchd.plist` belong to
 root:wheel, as the system's own; they kept the host user's owner and group.
+
+
+## `minimal` boots a stock boot chain (2026-11-01, iBEC 2026-11-02)
+
+`minimal` allows no boot chain patch. It still names
+`com.vphone.patchset.bootchain`, so `--allow` (`fw set-patches`) can turn one
+back on, but with none on the pipeline builds no AVPBooter, iBSS, iBEC or LLB
+patcher, and the restore writes Apple's LLB byte for byte (SHA-1 of the
+restore tree's `LLB.vresearch101.RELEASE.im4p` equal to the IPSW's). The ten
+it named before (`ibec-boot-boot_args`, `ibec-boot-bootx_precondition`,
+`ibec-boot-image4_callback`, `ibec-cfw-serial_label`,
+`llb-boot-image4_callback`, `llb-boot-boot_args`, `llb-boot-rootfs`,
+`llb-boot-panic_bypass`, `llb-cfw-serial_label`, `llb-cfw-display_scale`) are
+off. `watchos` allows none either: a Watch7,18 watchOS 26.4 (23T240) guest on
+cloudOS 26.4 (23E244), created with `--preset watchos` and the ten blocked,
+logged "iBEC: no patches" and "LLB: no patches", was sent the stock iBEC
+(380,676 bytes; 746,427 patched), had iBEC and LLB SHA-256-equal to the
+cloudOS IPSW's during the restore, and booted to the pairing screen with
+vphoned answering `device.info` and `processes.list` (2026-11-02).
+
+LLB is the only iBoot stage of a normal boot: its banner ("Local boot") is
+followed directly by the kernel; the `iBoot` image the restore writes to NOR
+is not used. With every BuildManifest digest rehashed
+(`manifest-boot-digest_rehash`) the TSS ticket covers the images the restore
+installs, so the stock LLB's Image4 checks, its APFS sealed-volume checks
+(the `0x3B7`/`0x3C2`/`0x110` sites `llb-boot-rootfs` skips; the values are
+source line numbers in the APFS mount path that looks up the
+`com.apple.os.update-<root hash>` snapshot) and the check `llb-boot-panic_bypass`
+skips (`bl; cbnz w0` to a panic at source line 699 on 26.5) all pass.
+
+Checked with Launchpad (`vm create --preset minimal --no-template --block …`),
+one VM per row:
+
+| Date | Guest | iBEC | LLB | Result |
+| --- | --- | --- | --- | --- |
+| 11-01 | iPhone17,3 26.5 23F77, cloudOS 26.5 23F75 | stock | stock | restore finished; boot to SpringBoard (Hello screen) and vphoned |
+| 11-01 | iPhone11,6 18.6 22G86, cloudOS 18.6 22G86 | stock | stock | restore failed: the host lost iBEC after it loaded the restore ramdisk, as RestoreDeviceTree was sent ("Unable to find device") |
+| 11-01 | iPhone11,6 18.6 22G86, cloudOS 18.6 22G86 | `ibec-boot-image4_callback` only | stock | restore finished; boot to SpringBoard and vphoned |
+| 11-02 | iPhone11,6 18.6 22G86, cloudOS 18.6 22G86 | stock | stock | restore finished; boot to SpringBoard and vphoned (bundle 2.12.2-local.4cc10e87) |
+| 11-02 | iPhone11,6 18.6 22G86, cloudOS 18.6 22G86 | stock | stock | restore finished; boot to SpringBoard and vphoned |
+
+The failed 18.6 restore was the host's USB connection, not an Image4 check.
+iBEC runs only in the DFU restore (it loads the restore SPTM, TXM, trust
+cache, ramdisk, device tree, SEP and kernel), and `ibec-boot-image4_callback`
+does not relax one property: on 18.6 (iBoot-11881.140.96, the same binary as
+iBSS and LLB) its `b.ne` is the stack-canary check in the epilogue of the
+property callback (0x91BC) and its `mov x0, x22` the return value, so every
+property (AMNM, BNCH, BORD, CEPO, CHIP, CPRO, CSEC, SDOM, ECID, `osev`,
+`slvn`, `anrd`, `dpoc`, `hclo`, `nrde`, `pndp`; DGST, EKEY, EPRO, ESEC, DPRO)
+passes. In the failed run the stock callback had accepted the ramdisk ("loaded
+ramdisk" is printed only after the `rdsk` load returns 0, 0x4ae20), and the
+device tree never reached iBEC: no `ea0f64a4253252:981` (a USB request, 0x25050)
+follows. The three `337a834f05a86eb:373` after it are iBoot's USB
+SET_CONFIGURATION handler (0x23f9c), so iBEC was still running and answered
+three re-enumerations by the host, which invalidated idevicerestore's handle.
+The stock-iBEC repeats show the same serial log as the patched run: "loaded
+device tree" after the ramdisk, then restore mode.
+
+Without `ibec-boot-boot_args`/`llb-boot-boot_args` the kernel gets no
+`serial=3 -v`, so the serial log ends at "End of iBoot serial output";
+turn the patches back on with `--allow` (`fw set-patches`) for a verbose
+kernel log. The serial labels only renamed the iBoot banner, and the display
+scale patch is emitted only for a guest that is not 3x, which `minimal` does
+not configure (it has no iPad device tree patches).
+
+Why a stock LLB "restarted right after its banner" on 2026-10-19 (26.6 on
+cloudOS 23E5207q) was not reproduced: those IPSWs are no longer on this host,
+and that day's pipeline still computed a wrong root hash for
+the resealed system (both fixed since, see above). Those are the inputs of
+the sealed-volume checks `llb-boot-rootfs` skipped, but this is not proven.
+
+Checked again on 2026-11-02 together with the other Minimal changes of that
+week (launch-constraint categories in the static trust cache, a signed
+`launchd.plist` instead of the `launchd_cache_loader` patch, vphoned's
+paravirtual user-client entitlements): int-186 (iPhone11,6 18.6 22G86 on
+cloudOS 22G86, `--preset minimal` with no `--allow`/`--block`) applied the
+two iBEC image-4 callback instructions (the preset still kept them then),
+logged "LLB: no patches" and restored;
+its serial log shows the stock LLB's "Local boot" banner on the first boot and
+again after a reboot, and SpringBoard and vphoned came up both times.
 
 ## The research board stands in for vphone600 (2026-10-19)
 
