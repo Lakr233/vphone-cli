@@ -4,7 +4,7 @@
 `AVPSEPBooter.vresearch1.bin`. It is
 [OpenSEP](https://github.com/owngoal-dev/OpenSEP), an open-source SEP boot ROM
 compatible with AVPSEPBooter, built from source for the `vresearch1` platform.
-`StageBundle.sh` copies the image and its licence to
+`StageBundle.sh` copies the image and its license to
 `VPhone.bundle/Contents/Resources/OpenSEP/`, and `vm new` copies the image into
 each new machine folder.
 
@@ -41,9 +41,9 @@ If vphone needs a change upstream has not taken yet, put it in
 order and refuses one that no longer applies. Delete a patch once the pin
 moves past it.
 
-## Licence
+## License
 
-`LICENSE` is OpenSEP's licence as published at that commit: MIT. The image
+`LICENSE` is OpenSEP's license as published at that commit: MIT. The image
 also carries two pieces of public Apple data, as OpenSEP's README describes:
 the Apple DDI Secure Boot Root CA - G1 certificate, and a table of published
 per-build SEP firmware keys for iPhone14,4 that a `vresearch1` machine does not

@@ -1,9 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
+    "" : {},
     "%@ (Default)" : {
       "localizations" : {
         "en" : {
@@ -67,7 +65,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@（创建中）"
+            "value" : "%@（正在创建）"
           }
         }
       }
@@ -305,7 +303,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 的客户机系统"
+            "value" : "%@ 客户机系统"
           }
         }
       }
@@ -407,7 +405,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 的快照"
+            "value" : "%@ 快照"
           }
         }
       }
@@ -850,7 +848,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 不在固件目录中，新建虚拟机无法从 IPSW 缓存使用它。请在新建虚拟机中将它选为自定 IPSW。"
+            "value" : "%@ 不在固件目录中，“新建虚拟机”无法从 IPSW 缓存使用它。请在“新建虚拟机”中将它选为自定义 IPSW。"
           }
         }
       }
@@ -1475,7 +1473,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已关闭 %1$lld 项，重新开启 %2$lld 项。"
+            "value" : "已关闭 %1$lld 项，重新打开 %2$lld 项。"
           }
         }
       }
@@ -1543,7 +1541,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这台机器上已有 CFW 安装或客户机环境更新正在进行。请等它完成后再试。"
+            "value" : "这台虚拟机上已有 CFW 安装或客户机环境更新正在进行。请等待完成后重试。"
           }
         }
       }
@@ -1680,13 +1678,20 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果没有模板，会在 %@ 中构建模板，无界面完成一次设置，然后保存到“模板”中。"
+            "value" : "如果没有模板，会在 %@ 中构建模板，无界面完成一次设置，然后存储到“模板”中。"
           }
         }
       }
     },
     "A phone with these services off cannot pair an Apple Watch." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭这些服务后，iPhone 将无法与 Apple Watch 配对。"
+          }
+        }
+      }
     },
     "A snapshot with this name already exists." : {
       "localizations" : {
@@ -1791,7 +1796,14 @@
       }
     },
     "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch 启动的是用其自身 kext 重新构建的 cloudOS 内核：内核以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 才需要 ipsw（带 `kernel extract --kdk`）。"
+          }
+        }
+      }
     },
     "About 140 launch daemons a research machine rarely needs, Apple Account's among them." : {
       "localizations" : {
@@ -2128,7 +2140,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "磁盘上已分配的空间；删除约可释放 %@，即没有虚拟机共享的数据块；若 Time Machine 本地快照仍保留这些块，要等快照过期后才释放。"
+            "value" : "磁盘上已分配的空间；删除约可释放 %@，即没有虚拟机共享的数据块；若 时间机器 本地快照仍保留这些数据块，需等快照过期后才会释放。"
           }
         }
       }
@@ -2196,7 +2208,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在“隐私与安全性”→“开发者工具”中允许 vphone-launchpad。"
+            "value" : "在“隐私与安全性”>“开发者工具”中允许 vphone-launchpad。"
           }
         }
       }
@@ -2298,7 +2310,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在释放 DHCP 租约。"
+            "value" : "DHCP 租约已在释放中。"
           }
         }
       }
@@ -2332,7 +2344,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "还会删除 AirPods 配对资源、表盘以及未保留语言的语言数据，约 1.2 GB。此操作无法撤销：裁剪是模板的一部分。"
+            "value" : "还会删除 AirPods 配对资源、表盘以及未保留语言的语言数据，约 1.2 GB。此操作无法撤销：裁剪结果已写入模板。"
           }
         }
       }
@@ -2436,7 +2448,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一个过时的模板占用了这台虚拟机所需的键。"
+            "value" : "已有一个过时的模板占用了这台虚拟机所需的模板标识。"
           }
         }
       }
@@ -2612,7 +2624,14 @@
       }
     },
     "Apple Watch" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        }
+      }
     },
     "Apple silicon" : {
       "localizations" : {
@@ -2949,7 +2968,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "机器创建完成后可用。"
+            "value" : "虚拟机创建完成后可用。"
           }
         }
       }
@@ -3188,7 +3207,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "构建自 %1$@ 和 cloudOS %2$@ (%3$@)。"
+            "value" : "构建自 %1$@ 和 cloudOS %2$@（%3$@）。"
           }
         }
       }
@@ -3222,7 +3241,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用 Core Bundle %@ 构建；从它创建的每台虚拟机都共享其 SEP 根密钥和 Data 卷密钥。"
+            "value" : "使用核心 Bundle %@ 构建；从它创建的每台虚拟机都共享其 SEP 根密钥和 Data 宗卷密钥。"
           }
         }
       }
@@ -3507,7 +3526,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改 %lld 台机器的核心 Bundle"
+            "value" : "更改 %lld 台虚拟机的核心 Bundle"
           }
         }
       }
@@ -3677,7 +3696,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "勾选的 App 会被移除。"
+            "value" : "勾选的 App 将被移除。"
           }
         }
       }
@@ -3950,7 +3969,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择 VPhone.bundle 文件夹或包含它的 .zip。"
+            "value" : "选择 VPhone.bundle 文件夹或包含该文件夹的 .zip 文件。"
           }
         }
       }
@@ -3984,13 +4003,20 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在高级选项中选择客户机 IPSW 和 cloudOS IPSW。"
+            "value" : "在“高级选项”中选择客户机 IPSW 和 cloudOS IPSW。"
           }
         }
       }
     },
     "Choose a patch preset plist." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择补丁预设 plist 文件。"
+          }
+        }
+      }
     },
     "Choose an exported machine archive (.vpea)." : {
       "localizations" : {
@@ -5179,7 +5205,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从此模板较早的一次构建创建，该构建已被删除。它只与从那次构建创建的虚拟机共享 SEP 根密钥和 Data 卷密钥，不与现在使用此标识符的模板及从其创建的虚拟机共享。"
+            "value" : "从此模板较早的一次构建创建，该构建已被删除。它只与从那次构建创建的虚拟机共享 SEP 根密钥和 Data 宗卷密钥，不与现在使用此标识符的模板及从其创建的虚拟机共享。"
           }
         }
       }
@@ -5213,7 +5239,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从此模板创建，该模板已被删除。它与从该模板创建的每台虚拟机共享模板的 SEP 根密钥和 Data 卷密钥。"
+            "value" : "从此模板创建，该模板已被删除。它与从该模板创建的每台虚拟机共享模板的 SEP 根密钥和 Data 宗卷密钥。"
           }
         }
       }
@@ -5247,7 +5273,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从此模板创建。它与从该模板创建的每台虚拟机共享模板的 SEP 根密钥和 Data 卷密钥。"
+            "value" : "从此模板创建。它与从该模板创建的每台虚拟机共享模板的 SEP 根密钥和 Data 宗卷密钥。"
           }
         }
       }
@@ -5385,7 +5411,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "创建 %@ 完成之前需要读取这个 IPSW。"
+            "value" : "创建 %@ 完成前需要一直读取此 IPSW。"
           }
         }
       }
@@ -5419,7 +5445,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "之后用这个版本新建虚拟机时会重新下载。"
+            "value" : "使用此版本创建虚拟机时将重新下载。"
           }
         }
       }
@@ -5624,7 +5650,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这台虚拟机的自定义固件没有安装完成，无法启动。请在虚拟机菜单中选择“安装自定义固件”，然后再启动。"
+            "value" : "这台虚拟机的自定义固件未安装完成，因此无法启动。请在虚拟机菜单中选择“安装自定义固件”，然后再次启动。"
           }
         }
       }
@@ -5862,7 +5888,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除 %@？"
+            "value" : "要删除 %@ 吗？"
           }
         }
       }
@@ -5896,7 +5922,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除 %lld 个 IPSW？"
+            "value" : "要删除 %lld 个 IPSW 吗？"
           }
         }
       }
@@ -5930,7 +5956,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除 %lld 台虚拟机？"
+            "value" : "要删除 %lld 台虚拟机吗？"
           }
         }
       }
@@ -5964,7 +5990,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除 %lld 个快照？"
+            "value" : "要删除 %lld 个快照吗？"
           }
         }
       }
@@ -5998,7 +6024,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除 %lld 个模板？"
+            "value" : "要删除 %lld 个模板吗？"
           }
         }
       }
@@ -6066,7 +6092,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除快照“%@”？"
+            "value" : "要删除快照“%@”吗？"
           }
         }
       }
@@ -6100,7 +6126,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请在“模板”中删除模板 %@，然后重试。从它创建的虚拟机仍可正常使用。"
+            "value" : "请在“模板”中删除模板 %@，然后重试。从该模板创建的虚拟机仍可正常使用。"
           }
         }
       }
@@ -6134,7 +6160,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除模板 %@？"
+            "value" : "要删除模板 %@ 吗？"
           }
         }
       }
@@ -6168,7 +6194,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除构建此模板所用的 IPSW？"
+            "value" : "要删除构建此模板所用的 IPSW 吗？"
           }
         }
       }
@@ -6236,7 +6262,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除所选模板。从它们创建的虚拟机仍可正常使用。"
+            "value" : "删除所选模板。基于这些模板创建的虚拟机仍可正常使用。"
           }
         }
       }
@@ -6270,7 +6296,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除未完成的模板构建？"
+            "value" : "要删除未完成的模板构建吗？"
           }
         }
       }
@@ -6304,7 +6330,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除软件更新内存盘和基带固件，约 0.4 GB。此操作无法撤销：裁剪是模板的一部分。"
+            "value" : "删除软件更新内存盘和基带固件，约 0.4 GB。此操作无法撤销：裁剪结果已写入模板。"
           }
         }
       }
@@ -6372,7 +6398,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除约可释放 %@，若 Time Machine 本地快照仍保留这些块，要等快照过期后才释放；与虚拟机共享的数据块会在这些虚拟机改写或被删除后释放。"
+            "value" : "删除约可释放 %@，若 时间机器 本地快照仍保留这些数据块，需等快照过期后才会释放；与虚拟机共享的数据块会在这些虚拟机改写或被删除后释放。"
           }
         }
       }
@@ -6916,7 +6942,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每台虚拟机都可以在“客户机系统”中重新开启服务、恢复 App。"
+            "value" : "每台虚拟机都可以在“客户机系统”中重新打开服务、恢复 App。"
           }
         }
       }
@@ -7400,10 +7426,24 @@
       }
     },
     "Export Preset" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出预设"
+          }
+        }
+      }
     },
     "Export Preset…" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出预设…"
+          }
+        }
+      }
     },
     "Exporting…" : {
       "localizations" : {
@@ -7978,7 +8018,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把这段话交给你的编程 Agent，例如 Claude Code、Codex 或 Grok。它会读取这台 Mac 上的 vphone skill，并装到该 Agent 存放 skill 的位置。"
+            "value" : "将这段提示词交给你的编程 Agent，例如 Claude Code、Codex 或 Grok。它会读取这台 Mac 上的 vphone skill，并安装到该 Agent 存放 skill 的位置。"
           }
         }
       }
@@ -8012,7 +8052,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把 vphone skill 交给你的编程 Agent"
+            "value" : "为你的编程 Agent 安装 vphone skill"
           }
         }
       }
@@ -8217,7 +8257,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "客户机补丁的更改会在克隆后应用到此虚拟机。模板保持预设的补丁，因此不更改它们的虚拟机可以共用该模板。"
+            "value" : "客户机补丁更改将在克隆后应用到此虚拟机。模板保留预设的补丁配置，以便未修改补丁的虚拟机共享该模板。"
           }
         }
       }
@@ -8626,7 +8666,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主机程序在下次启动时切换。已停止的机器会立即更新客户机环境；正在运行的机器保留原有环境，直到之后再更新。客户机补丁在更新客户机环境时按各机器的补丁选择应用。启动链保持构建时的状态。"
+            "value" : "主机程序在下次启动时切换。已停止的虚拟机会立即更新客户机环境；正在运行的虚拟机保留原有环境，直到之后再更新。客户机补丁在更新客户机环境时按各虚拟机的补丁选择应用。启动链保持构建时的状态。"
           }
         }
       }
@@ -9171,7 +9211,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请先安装 Core Bundle。"
+            "value" : "请先安装核心 Bundle。"
           }
         }
       }
@@ -9205,7 +9245,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安装在此 Mac 上构建的 VPhone.bundle 文件夹或 .zip。"
+            "value" : "安装在此 Mac 上构建的 VPhone.bundle 文件夹或 .zip 压缩包。"
           }
         }
       }
@@ -9307,7 +9347,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请在“核心 Bundle”中安装，或为这台机器选择其他版本。"
+            "value" : "请在“核心 Bundle”中安装，或为这台虚拟机选择其他版本。"
           }
         }
       }
@@ -9716,7 +9756,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "它不是 IPSW，或无法读取其 BuildManifest。"
+            "value" : "此文件不是 IPSW，或无法读取其 BuildManifest。"
           }
         }
       }
@@ -9750,7 +9790,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "它的核心 Bundle 未安装。选择“更改核心 Bundle…”以使用其他版本运行。"
+            "value" : "它的核心 Bundle 未安装。请选择“更改核心 Bundle…”，改用其他版本运行。"
           }
         }
       }
@@ -9818,7 +9858,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将删除已恢复的磁盘。需要此模板的虚拟机会重新构建它。"
+            "value" : "将删除已恢复的磁盘。需要此模板的虚拟机会重新构建该模板。"
           }
         }
       }
@@ -9988,7 +10028,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Launchpad 在安装完成前退出。请重试以继续。"
+            "value" : "Launchpad 在安装完成前已退出。请重试以继续安装。"
           }
         }
       }
@@ -10260,7 +10300,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "本地构建 %1$@ · 安装于 %2$@ · SHA-256 %3$@"
+            "value" : "本地构建版本 %1$@ · 安装于 %2$@ · SHA-256 %3$@"
           }
         }
       }
@@ -10566,7 +10606,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从它创建的虚拟机仍可正常使用：它们共享其数据块，但并不依赖它。"
+            "value" : "从该模板创建的虚拟机仍可正常使用：它们共享该模板的数据块，但并不依赖它。"
           }
         }
       }
@@ -10600,7 +10640,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从同一模板创建的虚拟机共享 SEP 根密钥和 Data 卷密钥。需要独立密钥的虚拟机请关闭此项。"
+            "value" : "从同一模板创建的虚拟机共享 SEP 根密钥和 Data 宗卷密钥。需要独立密钥的虚拟机请关闭此项。"
           }
         }
       }
@@ -10702,7 +10742,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 中的虚拟机从模板创建、克隆和快照都会更慢，因为每次复制都会写入整个磁盘而不是共享，占用的空间也会多得多。"
+            "value" : "%@ 中的虚拟机从模板创建、克隆和创建快照都会更慢，因为每次复制都会写入整个磁盘而不是共享，占用的空间也会多得多。"
           }
         }
       }
@@ -10980,10 +11020,24 @@
       }
     },
     "Name a Mac or macOS VM running macOS 15 or 26.0 to 26.3, with Remote Login on, as the macOS builder in Advanced Options: this Mac's kmutil cannot link iOS 18 kernels." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“高级选项”中将一台运行 macOS 15 或 26.0 至 26.3 且已打开“远程登录”的 Mac 或 macOS 虚拟机指定为 macOS 构建机：这台 Mac 的 kmutil 无法链接 iOS 18 内核。"
+          }
+        }
+      }
     },
     "Name the macOS builder as user@host." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请以 user@host 格式填写 macOS 构建机。"
+          }
+        }
+      }
     },
     "Needs a Core Bundle" : {
       "localizations" : {
@@ -11014,7 +11068,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要 Core Bundle"
+            "value" : "需要核心 Bundle"
           }
         }
       }
@@ -11184,7 +11238,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新建虚拟机将直接从 IPSW 缓存使用它，无需下载。"
+            "value" : "“新建虚拟机”会直接使用 IPSW 缓存中的文件，无需下载。"
           }
         }
       }
@@ -11218,7 +11272,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新建虚拟机会使用 IPSW 缓存中的副本。"
+            "value" : "“新建虚拟机”会使用 IPSW 缓存中的副本。"
           }
         }
       }
@@ -11320,7 +11374,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新虚拟机将创建在 %1$@。Launchpad 不会移动虚拟机：如需继续使用 %2$@ 中的虚拟机，请退出 Launchpad，自行将它们的文件夹移到新资料库中。Launchpad 将重新启动以使用新资料库。"
+            "value" : "新虚拟机将创建在 %1$@。Launchpad 不会移动虚拟机：如需继续使用 %2$@ 中的虚拟机，请退出 Launchpad，自行将它们的文件夹移到新资料库中。Launchpad 将重新打开以使用新资料库。"
           }
         }
       }
@@ -11388,7 +11442,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新机器使用默认版本。每台机器保留自己的核心 Bundle，可在机器列表中更改。"
+            "value" : "新虚拟机使用默认版本。每台虚拟机有各自的核心 Bundle，可在虚拟机列表中更改。"
           }
         }
       }
@@ -11728,7 +11782,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无补丁列表"
+            "value" : "没有补丁列表"
           }
         }
       }
@@ -12001,7 +12055,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有机器"
+            "value" : "没有虚拟机"
           }
         }
       }
@@ -12035,7 +12089,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有可用于比对的机器。"
+            "value" : "没有可用于比对的虚拟机。"
           }
         }
       }
@@ -12171,7 +12225,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此固件没有可用的模板。打开此项会将虚拟机的样本存入模板库。"
+            "value" : "此固件没有可用的模板。打开此项会将此虚拟机的样本存储为模板。"
           }
         }
       }
@@ -12273,7 +12327,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无可用版本。"
+            "value" : "没有可用的版本。"
           }
         }
       }
@@ -12313,7 +12367,14 @@
       }
     },
     "None with ssh keys" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 ssh 密钥时无需填写"
+          }
+        }
+      }
     },
     "Not Applied" : {
       "localizations" : {
@@ -12718,7 +12779,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有机器使用"
+            "value" : "没有虚拟机使用"
           }
         }
       }
@@ -12786,7 +12847,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不从 System 卷删除任何内容。"
+            "value" : "不从 System 宗卷删除任何内容。"
           }
         }
       }
@@ -12883,7 +12944,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关闭：%@"
+            "value" : "停用：%@"
           }
         }
       }
@@ -12923,10 +12984,24 @@
       }
     },
     "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用该版本自身的 cloudOS 时，会启动它自己的内核，并用 vphone600 虚拟化 kext 重新构建：以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 需要 ipsw（配合 `kernel extract --kdk`）。"
+          }
+        }
+      }
     },
     "On its own cloudOS, %@: the kernelcache is rebuilt, which asks for administrator access once." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用其自身的 cloudOS（%@）时：会重新构建 kernelcache，需要请求一次管理员权限。"
+          }
+        }
+      }
     },
     "On: %@" : {
       "localizations" : {
@@ -13235,7 +13310,14 @@
       }
     },
     "Other…" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他…"
+          }
+        }
+      }
     },
     "Outdated" : {
       "localizations" : {
@@ -13408,7 +13490,14 @@
       }
     },
     "Password" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码"
+          }
+        }
+      }
     },
     "Patch" : {
       "localizations" : {
@@ -13575,7 +13664,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每台虚拟机启动所需的补丁，并确保显示和摄像头可用。"
+            "value" : "每台虚拟机正常启动、显示画面和使用摄像头所需的补丁。"
           }
         }
       }
@@ -13881,7 +13970,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "准备 bundle"
+            "value" : "准备 Bundle"
           }
         }
       }
@@ -13921,7 +14010,14 @@
       }
     },
     "Preset File" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预设文件"
+          }
+        }
+      }
     },
     "Privileged helper" : {
       "localizations" : {
@@ -14054,7 +14150,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果在设置中授予的权限没有在这里显示，退出并重新打开 Launchpad"
+            "value" : "如果在“系统设置”中授予的权限未在此处显示，请退出并重新打开 Launchpad"
           }
         }
       }
@@ -14128,7 +14224,14 @@
       }
     },
     "Reach other NAT machines" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问其他 NAT 虚拟机"
+          }
+        }
+      }
     },
     "Reachable as %@.local" : {
       "localizations" : {
@@ -14295,7 +14398,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ 的推荐固件组合，搭配 %2$@。"
+            "value" : "适用于 %1$@ 的推荐固件组合（搭配 %2$@）。"
           }
         }
       }
@@ -14363,7 +14466,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "重新启动"
+            "value" : "重新打开"
           }
         }
       }
@@ -14465,7 +14568,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除 VPhone.bundle %@？"
+            "value" : "要移除 VPhone.bundle %@ 吗？"
           }
         }
       }
@@ -14873,7 +14976,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在客户机内解析这台 Mac 的名称"
+            "value" : "在客户机中解析这台 Mac 的名称"
           }
         }
       }
@@ -14907,7 +15010,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "重启客户机"
+            "value" : "重新启动客户机"
           }
         }
       }
@@ -15179,7 +15282,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢复"
+            "value" : "还原"
           }
         }
       }
@@ -15213,7 +15316,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将 %1$@ 恢复到“%2$@”？"
+            "value" : "要将 %1$@ 还原到“%2$@”吗？"
           }
         }
       }
@@ -15247,7 +15350,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在恢复到快照…"
+            "value" : "正在还原到快照…"
           }
         }
       }
@@ -15281,7 +15384,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢复…"
+            "value" : "还原…"
           }
         }
       }
@@ -15519,7 +15622,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存模板"
+            "value" : "存储模板"
           }
         }
       }
@@ -15553,13 +15656,20 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按当前状态保存虚拟机的磁盘、SEP 存储和 NVRAM。"
+            "value" : "按当前状态存储虚拟机的磁盘、SEP 存储和 NVRAM。"
           }
         }
       }
     },
     "Save the preset with these changes, to choose later with Other…" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将这些更改存储为预设，以后可通过“其他…”选择。"
+          }
+        }
+      }
     },
     "Saved as template %@. The next machine with these options is cloned from it in seconds." : {
       "localizations" : {
@@ -15590,7 +15700,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已保存为模板 %@。下一台使用相同选项的虚拟机会在几秒内从它克隆。"
+            "value" : "已存储为模板 %@。下一台使用相同选项的虚拟机会在几秒内从它克隆。"
           }
         }
       }
@@ -15624,7 +15734,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在保存补丁…"
+            "value" : "正在存储补丁…"
           }
         }
       }
@@ -15828,7 +15938,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅 iOS 26 和 iOS 27 支持服务裁剪。不支持系统服务精简的版本将会跳过此项。"
+            "value" : "仅 iOS 26 和 iOS 27 支持服务精简，不支持的版本将跳过此步骤。"
           }
         }
       }
@@ -15930,7 +16040,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已精简服务、已关闭账户"
+            "value" : "已关闭服务和账户"
           }
         }
       }
@@ -17190,7 +17300,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止 %lld 个导入"
+            "value" : "停止 %lld 项导入"
           }
         }
       }
@@ -17394,7 +17504,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止虚拟机后才能把补丁选择应用到客户机。"
+            "value" : "停止虚拟机后才能将补丁选择应用到客户机。"
           }
         }
       }
@@ -17428,7 +17538,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止虚拟机后才能创建、恢复或删除快照。"
+            "value" : "停止虚拟机后才能创建、还原或删除快照。"
           }
         }
       }
@@ -17667,7 +17777,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把 Preboot 的内核缓存换成与此虚拟机补丁选择匹配的版本，保留数据（无需恢复）。"
+            "value" : "把 Preboot 中的 kernelcache 换成与此虚拟机补丁选择匹配的版本，保留数据（无需恢复）。"
           }
         }
       }
@@ -17939,7 +18049,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在更改客户机之前创建快照，以后就能恢复回来。快照包含磁盘、SEP 存储和 NVRAM，不包含设置和核心 Bundle。"
+            "value" : "更改客户机前请先创建快照，以便日后还原。快照包含磁盘、SEP 存储和 NVRAM，不包含设置和核心 Bundle。"
           }
         }
       }
@@ -18285,10 +18395,24 @@
       }
     },
     "The Minimal preset keeps the restored system exactly as sealed." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal 预设会完全按密封状态保留恢复后的系统。"
+          }
+        }
+      }
     },
     "The Minimal preset restores the machine on its own, with keys of its own: building a template writes the system it seals." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal 预设会使用独立密钥单独恢复虚拟机：构建模板会改写它所密封的系统。"
+          }
+        }
+      }
     },
     "The blocks no other machine or template holds: what deleting it frees, once no local Time Machine snapshot keeps them. The rest is shared with its template or clones." : {
       "localizations" : {
@@ -18319,7 +18443,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有其他虚拟机或模板占用的数据块，即删除后可释放的空间；若 Time Machine 本地快照仍保留这些块，要等快照过期后才释放。其余部分与模板或克隆共享。"
+            "value" : "没有其他虚拟机或模板占用的数据块，即删除后可释放的空间；若 时间机器 本地快照仍保留这些块，要等快照过期后才释放。其余部分与模板或克隆共享。"
           }
         }
       }
@@ -18353,7 +18477,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动链在创建机器时构建。主机程序、客户机环境和客户机补丁之后仍可更改。"
+            "value" : "启动链在创建虚拟机时构建。主机程序、客户机环境和客户机补丁之后仍可更改。"
           }
         }
       }
@@ -18421,7 +18545,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "克隆与原虚拟机是同一台设备。两者同一时间只能运行一个。"
+            "value" : "克隆与原虚拟机是同一台设备，同一时间只能运行其中一台。"
           }
         }
       }
@@ -18489,7 +18613,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ 的磁盘正被进程 %2$@ 打开，该进程并未运行这台机器。请等该进程关闭磁盘后再试。"
+            "value" : "%1$@ 的磁盘正被进程 %2$@ 打开，该进程并未运行此虚拟机。请等待该进程关闭磁盘后重试。"
           }
         }
       }
@@ -18557,7 +18681,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取固件目录。请先在“Core Bundle”中安装 Core Bundle，然后重试。"
+            "value" : "无法读取固件目录。请先在“核心 Bundle”中安装核心 Bundle，然后重试。"
           }
         }
       }
@@ -18897,7 +19021,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安装会继续进行，可在核心 Bundle 中再次查看。"
+            "value" : "安装会继续进行，可在“核心 Bundle”中再次查看。"
           }
         }
       }
@@ -18931,7 +19055,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已安装的 Helper 与此应用中的副本不一致。请重试。"
+            "value" : "已安装的 Helper 与此 App 中的副本不一致。请重试。"
           }
         }
       }
@@ -18965,7 +19089,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文件解包并检查完成后，机器会出现在列表中。停止会移除已解包的内容。"
+            "value" : "文件解包并检查完成后，虚拟机会出现在列表中。停止会移除已解包的内容。"
           }
         }
       }
@@ -19135,7 +19259,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "虚拟机单独恢复，使用自己的密钥。"
+            "value" : "使用独立密钥单独恢复虚拟机。"
           }
         }
       }
@@ -19169,7 +19293,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "虚拟机单独恢复，使用自己的密钥，并从设置助理开始。"
+            "value" : "使用独立密钥单独恢复虚拟机，启动后进入设置助理。"
           }
         }
       }
@@ -19407,7 +19531,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下一台使用相同选项的虚拟机需要构建新模板，这需要一次恢复。"
+            "value" : "下一台使用相同选项的虚拟机将构建新模板，这需要执行一次恢复。"
           }
         }
       }
@@ -19509,7 +19633,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "路径太长。请使用更短的名称，或选择路径更短的位置。"
+            "value" : "路径过长。请使用更短的名称，或选择路径更短的位置。"
           }
         }
       }
@@ -19543,7 +19667,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "快照会按当前状态保存虚拟机的磁盘、SEP 存储和 NVRAM，不包含其设置和核心 Bundle。"
+            "value" : "快照会保留虚拟机磁盘、SEP 存储和 NVRAM 的当前状态，不包含其设置和核心 Bundle。"
           }
         }
       }
@@ -19747,7 +19871,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "以下机器正在使用此版本运行：%@。请先停止它们。"
+            "value" : "以下虚拟机正在使用此版本运行：%@。请先停止它们。"
           }
         }
       }
@@ -19918,7 +20042,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此构建没有签名团队。请使用你的团队重新构建并为此应用签名，然后重试。"
+            "value" : "此构建版本没有签名团队。请使用你的团队重新构建此 App 并签名，然后重试。"
           }
         }
       }
@@ -19952,7 +20076,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这份 Launchpad 不包含 skill。"
+            "value" : "此 Launchpad 副本不包含该 skill。"
           }
         }
       }
@@ -20020,7 +20144,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此模式不能转发端口，保存后会移除端口转发。"
+            "value" : "此模式不支持端口转发，存储后将移除现有的端口转发。"
           }
         }
       }
@@ -20224,7 +20348,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“精简”会关闭研究用虚拟机很少用到的约 140 个 launch 守护进程；“无”只重新开启由它关闭的那些。两者都在客户机重启后生效。"
+            "value" : "“精简”会关闭研究用虚拟机很少用到的约 140 个 launch 守护进程；“无”只重新打开由它关闭的那些。两者都在客户机重启后生效。"
           }
         }
       }
@@ -20672,7 +20796,14 @@
       }
     },
     "Unable to Export the Preset" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导出预设"
+          }
+        }
+      }
     },
     "Unable to Force Stop %@" : {
       "localizations" : {
@@ -20703,7 +20834,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法强制停止“%@”"
+            "value" : "无法强制停止 %@"
           }
         }
       }
@@ -20941,7 +21072,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法重启客户机"
+            "value" : "无法重新启动客户机"
           }
         }
       }
@@ -21083,7 +21214,14 @@
       }
     },
     "Unable to Use This Preset File" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用此预设文件"
+          }
+        }
+      }
     },
     "Unable to apply the guest patches. Check the log for details." : {
       "localizations" : {
@@ -21148,7 +21286,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法连接 Helper。请退出并重新打开应用，然后重试。"
+            "value" : "无法连接 Helper。请退出并重新打开 App，然后重试。"
           }
         }
       }
@@ -21256,7 +21394,14 @@
       }
     },
     "Unable to link the kernelcache. Check the log for details." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法链接 kernelcache。请查看日志了解详情。"
+          }
+        }
+      }
     },
     "Unable to list the bundle's patches." : {
       "localizations" : {
@@ -21327,7 +21472,14 @@
       }
     },
     "Unable to patch the firmware. Check the log for details." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法修补固件。请查看日志了解详情。"
+          }
+        }
+      }
     },
     "Unable to read the device ECID. Try again." : {
       "localizations" : {
@@ -21426,7 +21578,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取已保存的模板。"
+            "value" : "无法读取已存储的模板。"
           }
         }
       }
@@ -22446,7 +22598,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 台机器正在使用"
+            "value" : "%lld 台虚拟机正在使用"
           }
         }
       }
@@ -22480,7 +22632,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用于新机器。"
+            "value" : "用于新虚拟机。"
           }
         }
       }
@@ -22686,7 +22838,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "VPhone.bundle %@ 未安装。请选择“更改核心 Bundle…”，用其他版本运行这台机器。"
+            "value" : "VPhone.bundle %@ 未安装。请选择“更改核心 Bundle…”，用其他版本运行这台虚拟机。"
           }
         }
       }
@@ -23094,7 +23246,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "机器运行期间，客户机会以模拟位置的形式收到这台 Mac 的位置。第一次会由 macOS 请求权限。客户机里的 App 还需要在客户机的“设置”中打开定位服务。"
+            "value" : "虚拟机运行期间，客户机会以模拟位置的形式收到这台 Mac 的位置。首次使用时 macOS 会请求权限。客户机中的 App 还需要在客户机的“设置”中打开定位服务。"
           }
         }
       }
@@ -23106,11 +23258,24 @@
             "state" : "new",
             "value" : "With %1$@: the kernelcache is rebuilt and linked %2$@, and the restore image asks for administrator access once."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 %1$@ 时：会重新构建 kernelcache 并链接（%2$@），恢复镜像会请求一次管理员权限。"
+          }
         }
       }
     },
     "With %@: the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 %@ 时：会用 Apple Watch 的 kext 重新构建 kernelcache，需要请求一次管理员权限。"
+          }
+        }
+      }
     },
     "With no machine listed, every guest's lease would look orphaned." : {
       "localizations" : {
@@ -23141,7 +23306,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有列出任何机器时，所有客户机的租约都会被当作孤儿。"
+            "value" : "未列出任何虚拟机时，所有客户机的租约都会被视为孤立租约。"
           }
         }
       }
@@ -23175,7 +23340,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不使用模板时，虚拟机会通过自己的一次设置启动单独精简，并跳过设置助理。"
+            "value" : "不使用模板时，虚拟机会单独进行一次设置启动来完成精简，并跳过设置助理。"
           }
         }
       }
@@ -23583,7 +23748,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已选择 %lld 个补丁。按住 Control 点按可一起打开或关闭。"
+            "value" : "已选择 %lld 个补丁。按住 Control 键点按可一起打开或关闭。"
           }
         }
       }
@@ -23617,7 +23782,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已更改 %lld 项"
+            "value" : "已更改 %lld 项设置"
           }
         }
       }
@@ -23651,7 +23816,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除 %lld 个系统 App；相机和电话不会被移除。"
+            "value" : "将移除 %lld 个系统 App；相机和电话始终保留。"
           }
         }
       }
@@ -23793,7 +23958,14 @@
       }
     },
     "iOS 18 boots its own release's kernel, rebuilt with the vphone600 kexts of cloudOS 26.1: it is staged as you (a 2.12.0 Core Bundle needs the ipsw with `kernel extract --kdk` for that). Only the kmutil of macOS 15 or 26.0 to 26.3 links it: from macOS 26.4 on, the macOS builder, a Mac or macOS VM with Remote Login on, links it over ssh as root there. The password is for ssh and sudo on it and is not saved; leave it empty with ssh keys and passwordless sudo." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 18 会启动其自身版本的内核，并用 cloudOS 26.1 的 vphone600 kext 重新构建：以你的身份暂存（2.12.0 版核心 Bundle 为此需要带 `kernel extract --kdk` 的 ipsw）。只有 macOS 15 或 26.0 至 26.3 的 kmutil 能链接它：从 macOS 26.4 起，由 macOS 构建机（一台已打开“远程登录”的 Mac 或 macOS 虚拟机）通过 ssh 在其上以 root 身份链接。密码用于在构建机上执行 ssh 和 sudo，不会存储；如已配置 ssh 密钥和免密码 sudo，请留空。"
+          }
+        }
+      }
     },
     "iPad" : {
       "localizations" : {
@@ -23968,7 +24140,14 @@
       }
     },
     "ipsw" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ipsw"
+          }
+        }
+      }
     },
     "mDNS Name" : {
       "localizations" : {
@@ -24073,10 +24252,24 @@
       }
     },
     "macOS builder" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 构建机"
+          }
+        }
+      }
     },
     "user@host" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "user@host"
+          }
+        }
+      }
     },
     "vm leases failed" : {
       "localizations" : {

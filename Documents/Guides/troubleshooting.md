@@ -16,7 +16,7 @@ That is expected. Creation starts a temporary GUI boot, sends a real ping, and s
 
 ## Stuck at “Press home to continue”
 
-Use the VM window's **Keys → Home** action. The current JB workflow does not install a VNC server.
+Click the Home button in the VM window's title bar. The current JB workflow does not install a VNC server.
 
 ## App exits with `EXC_GUARD` / `GUARD_TYPE_MACH_PORT`
 

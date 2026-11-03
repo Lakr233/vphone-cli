@@ -1,6 +1,6 @@
 # Documentation
 
-Start with the [Launchpad quick start](../README.md#get-started). For terminal use, see [Create and Run](Guides/create-and-run.md). Version 2.x applies the complete firmware patch set; there are no selectable patch variants.
+Start with the [Launchpad quick start](../README.md#get-started). For terminal use, see [Create and Run](Guides/create-and-run.md). There is one public firmware mode; a patch preset (Standard, Minimal and others) selects the patches, and `--block` or `--allow` adjusts single patches.
 
 | Guide | Use it for |
 | --- | --- |
@@ -13,6 +13,7 @@ Start with the [Launchpad quick start](../README.md#get-started). For terminal u
 | [Other iPhone Models](Guides/iphone-models.md) | Running iOS from an iPhone 16 Pro, 17, 17 Pro, Air or other model's IPSW |
 | [Package Environment](Guides/package-environment.md) | Installing and removing a package manager in the VM |
 | [Troubleshooting](Guides/troubleshooting.md) | Launch refusals, restore failures, Home key and app problems |
+| [Networking](Guides/networking.md) | Network modes, fixed addresses, port forwarding, and `tunnel` for a Mac behind a VPN or proxy |
 | [Launchpad Command Line](Guides/launchpad-cli.md) | Installing and testing a local build with `vphone-launchpad-cli` |
 
 ## Translations

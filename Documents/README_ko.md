@@ -17,8 +17,6 @@ vphone-cli는 Apple의 Virtualization.framework와 PCC 연구용 가상 머신�
 - **자동화 API**: 선택적으로 사용할 수 있는 로컬 HTTP 및 WebSocket 인터페이스입니다.
 - **추가 의존성 없음**: 실행에 Xcode, Python, Homebrew가 필요하지 않습니다.
 
-> 1.x 버전은 [1.0.14 릴리스](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14)를 참고하세요. 2.x는 1.x에서 만든 가상 머신을 시작할 수 없으므로 다시 만들어야 합니다.
-
 ## 준비 사항
 
 - macOS 15 이상을 실행하는 물리 Apple Silicon Mac. macOS 가상 머신에서는 사용할 수 없습니다.

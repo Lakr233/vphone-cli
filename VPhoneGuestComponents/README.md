@@ -1,8 +1,8 @@
-# Sibling guest components
+# Guest components
 
 `make -C VPhoneGuestComponents package` cross-compiles guest components with
-Xcode's iPhoneOS SDK (the HomePod adapter uses the tvOS SDK). The archive contains signed arm64e binaries, two camera
-tweak filter plists, and the GPU provenance note:
+Xcode's iPhoneOS SDK (the HomePod adapter uses the tvOS SDK). The archive contains signed arm64e binaries, the camera
+hook and MISFix filter plists, and the GPU provenance note:
 
 | Component | Archive contents |
 | --- | --- |
@@ -20,7 +20,6 @@ tweak filter plists, and the GPU provenance note:
 | HomePod setup maintenance | `homepodsetup/vphone-homepod-setup`, `homepodsetup/com.vphone.homepod-setup.plist` |
 | Launchd hook | `launchhook/launchdhook-vphone.dylib` |
 | Process injection bridge | `systemhook/SystemHook-vphone.dylib` |
-| iOS 27 app registrar | `vpregister/vpregister` |
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
 | Virtio sound HAL plugin | `virtiosound/VPhoneVirtIOSound.driver` |
 
@@ -59,7 +58,7 @@ attributes afterwards (`Shared/JetsamLimits.h`).
 Irisin installs ElleKit's own `TweakLoader.dylib` in the selected bootstrap.
 The required GPU bundle is extracted from the selected PCC firmware by
 `vphone-cli fw prepare` and copied into the VM during JB installation. No
-Apple GPU binary is stored in this directory, the archive, or the shipped app.
+Apple GPU binary is stored in this directory, the archive, or the shipped bundle.
 
 See `Research/Guest/virtual_camera_transport.md` for the camera transport
 validation and the hook installation prerequisites.

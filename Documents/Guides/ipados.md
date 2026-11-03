@@ -75,7 +75,7 @@ Only `fw prepare` and `fw patch` differ for an iPad; DFU, `restore` and
 
 ## What changes for an iPad
 
-- **`fw prepare`** recognises the IPSW from its `SupportedProductTypes`, takes
+- **`fw prepare`** recognizes the IPSW from its `SupportedProductTypes`, takes
   the erase identity and `DeviceMap` entry for the guest's board (an iPad IPSW
   covers several), and records the product type and the iPad's display in the
   VM's `config.plist` (`guestProductType`, `screenConfig`). The restore tree

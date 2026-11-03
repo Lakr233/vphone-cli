@@ -17,8 +17,6 @@ vphone-cli は Apple の Virtualization.framework と PCC 研究用仮想マシ�
 - **自動化 API**：任意で有効にできる、ローカルの HTTP と WebSocket のインターフェースです。
 - **追加の依存なし**：実行時に Xcode、Python、Homebrew は不要です。
 
-> 1.x については [1.0.14 Release](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14) をご覧ください。2.x では 1.x で作成した仮想マシンを起動できないため、作り直す必要があります。
-
 ## 準備
 
 - macOS 15 以降を搭載した物理 Apple Silicon Mac。macOS の仮想マシン上では使用できません。
@@ -46,7 +44,7 @@ Launchpad がファームウェアのダウンロード、パッチの適用、�
 
 ### エージェントに任せる
 
-この Mac でコーディングエージェント（Claude Code、Codex など）を使っている場合は、手順を手作業で進める代わりに、次のプロンプトを貼り付けてください。エージェントは vphone スキルを読み、設定済みの部分を確認して Launchpad と `VPhone.bundle` をインストールします。管理者パスワードや macOS リカバリでの変更など、あなたの操作が必要な手順では止まって確認します。
+この Mac でコーディングエージェント（Claude Code、Codex など）を使っている場合は、手順を手作業で進める代わりに、次のプロンプトを貼り付けてください。エージェントは vphone スキルを読み、設定済みの部分を確認して Launchpad と `VPhone.bundle` をインストールします。管理者パスワードや macOS 復旧モードでの変更など、あなたの操作が必要な手順では止まって確認します。
 
 ```text
 この Mac に vphone をセットアップしてください。まず次のスキルを読んでください：

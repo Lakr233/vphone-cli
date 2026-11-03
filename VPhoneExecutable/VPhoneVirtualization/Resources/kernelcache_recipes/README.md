@@ -2,7 +2,7 @@
 
 Only the 26.1–26.4 beta cloudOS releases ship vphone600 components. On any
 other cloudOS, `fw patch` takes the research board's (vresearch101) and rebuilds
-its `kernelcache.release.vresearch101` with the iPhone virtualisation kexts of a
+its `kernelcache.release.vresearch101` with the iPhone virtualization kexts of a
 donor kernelcache (`kernel-boot-vresearch101_kext_mix`, `KernelCacheMixer`).
 These recipes say how, one per supported kernelcache. Details are in
 `Research/0_binary_patch_comparison.md` ("The research board's kernelcache").
@@ -25,7 +25,7 @@ Base `manifest.json`:
 |---|---|
 | `kernel.sha256`, `kernel.decompressedSHA256` | identify the research board kernelcache (IM4P or decompressed) |
 | `kernel.kdk` | the KDK its extraction makes; a kernelcache whose kexts carry no `DTPlatformBuild` (26.6, 26.7) takes the build from here |
-| `donor` | `donors/<id>`, which supplies the virtualisation kexts |
+| `donor` | `donors/<id>`, which supplies the virtualization kexts |
 | `builderLayout` | `kernel-last` (iOS 26.4+, kmutil of macOS 26.4+) or `kernel-first` |
 | `guest`, `sources` | the guest family of a recipe of its own (`watch`, `homePod`), and its kext sources in order: each kext from the first that has it |
 | `kextOverrides` | bundle identifier to the source it is taken from although an earlier one has it (`homepod_26.5_23L471`: AMFI, corecrypto, AppleImage4 and IOTimeSyncFamily from the base, IOgPTPPlugin from `vphone600_26.4_23E5207q`) |
@@ -68,8 +68,8 @@ root copies the volume into a directory of its own, refusing any link out of
 it, and runs kmutil on the copy. `fw patch` then takes the mix from the cache;
 stage first as the invoking user, then run the link or `fw patch` under sudo.
 
-`fw kernelcache --ipsw <path>` remains accepted as an ignored compatibility
-argument in 2.12.x. The native extractor revision participates in both donor
+`fw kernelcache --ipsw <path>` is still accepted as an ignored compatibility
+argument. The native extractor revision participates in both donor
 and mix cache keys, so older external-tool extractions are rebuilt.
 
 Mixed kernelcaches are cached in `~/.vphone/kernelcache/mix`, keyed by the recipe,

@@ -101,7 +101,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将您的位置共享给虚拟 iPhone，使其中运行的应用能获取相同的位置。"
+            "value" : "将你的位置共享给虚拟 iPhone，使其中运行的 App 能获取相同的位置。"
           }
         }
       }
@@ -136,7 +136,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将您的位置共享给虚拟 iPhone，使其中运行的应用能获取相同的位置。"
+            "value" : "将你的位置共享给虚拟 iPhone，使其中运行的 App 能获取相同的位置。"
           }
         }
       }
@@ -171,7 +171,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将您的位置共享给虚拟 iPhone，使其中运行的应用能获取相同的位置。"
+            "value" : "将你的位置共享给虚拟 iPhone，使其中运行的 App 能获取相同的位置。"
           }
         }
       }
@@ -206,18 +206,43 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将这台 Mac 的麦克风共享给虚拟 iPhone，使其中运行的应用能够录音。"
+            "value" : "将这台 Mac 的麦克风共享给虚拟 iPhone，使其中运行的 App 能够录音。"
           }
         }
       }
     },
     "VPhone Exported Archive" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "VPhone Exported Archive" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 書き出しアーカイブ" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 내보낸 아카이브" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bản lưu trữ xuất VPhone" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "VPhone 导出归档" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone Exported Archive"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone 書き出しアーカイブ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone 내보낸 아카이브"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bản lưu trữ xuất VPhone"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPhone 导出归档"
+          }
+        }
       }
     }
   },

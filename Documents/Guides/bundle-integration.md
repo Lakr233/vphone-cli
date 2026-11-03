@@ -2,7 +2,7 @@
 
 The `VPhone` Xcode scheme produces `VPhone.bundle`. It is a container for
 executables and resources, not a macOS app or a dynamically loaded plug-in.
-`vphone-workstation` should keep the bundle intact and launch
+An integrating application such as `vphone-launchpad` should keep the bundle intact and launch
 `Contents/MacOS/vphone-cli` as a process. The CLI locates its companion
 `vphone-vm` by resolving its own executable path.
 
@@ -20,9 +20,11 @@ executables and resources, not a macOS app or a dynamically loaded plug-in.
 `Contents/MacOS` holds only programs that run on the Mac.
 `guest-resources` holds only files installed into the guest; every Mach-O in
 it is built for iOS. `ValidateBundle.sh` enforces both rules.
-Launchpad 2.1.0 and later require a bundle version of at least 2.1.0, which
-adds patch presets (`fw patches`, `fw set-patches`, `fw patch --preset`), and
-the `vphone-escalator` executable. It does not load older bundle layouts.
+Launchpad refuses a bundle older than `minimumBundleComponents` (set in
+`VPhoneLaunchpad/VPhoneLaunchpadShared/VPhoneLaunchpadBundleStore.swift`) and
+does not load older bundle layouts. Bundle 2.1.0 added patch presets
+(`fw patches`, `fw set-patches`, `fw patch --preset`) and the
+`vphone-escalator` executable.
 
 All executable payloads use ad hoc code signatures. Only the required child
 processes carry private entitlements. The bundle has no `CFBundleExecutable`,

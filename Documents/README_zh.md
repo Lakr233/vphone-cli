@@ -9,36 +9,34 @@
 
 ![在 macOS 上运行的虚拟 iPhone](demo.jpeg)
 
-vphone-cli 使用 Apple 的 Virtualization.framework 和 PCC 研究虚拟机运行 iOS，适合安全研究、逆向和调试。
+vphone-cli 使用 Apple 的 Virtualization.framework 和 PCC 研究虚拟机运行 iOS，适合安全研究、逆向工程和调试。
 
-- **图形窗口**：在 Mac 上操作虚拟 iPhone 的屏幕，浏览 App 和文件，截图、录屏。
+- **图形窗口**：在 Mac 上操作虚拟 iPhone 的屏幕，浏览 App 和文件，截屏和录屏。
 - **自定义固件（Custom Firmware）**：系统已预先打好补丁，可以安装软件包环境。
 - **备份与克隆**：虚拟机可以导出、导入和克隆。
 - **自动化 API**：可选的本机 HTTP 和 WebSocket 接口。
 - **无需额外依赖**：运行时不需要 Xcode、Python 或 Homebrew。
-
-> 1.x 版本请前往 [1.0.14 Release](https://github.com/Lakr233/vphone-cli/releases/tag/1.0.14)。2.x 无法启动 1.x 创建的虚拟机，需要重新创建。
 
 ## 准备工作
 
 - 一台实体 Apple Silicon Mac，运行 macOS 15 或更新版本。macOS 虚拟机中无法使用。
 - 足够的磁盘空间。每台虚拟机默认使用 64 GB 虚拟磁盘，固件和临时文件另外占用空间。
 - 网络连接。恢复系统时需要在线获取签名票据。
-- 修改安全设置。进入 macOS 恢复模式，在终端中执行以下命令，然后重新启动：
+- 修改安全设置。启动进入 macOS 恢复，在终端中执行以下命令，然后重新启动：
 
   ```sh
   csrutil enable --without debug
   csrutil allow-research-guests enable
   ```
 
-  SIP 仍保持开启，只放宽调试限制。原因和其他设置方式见[宿主机设置](Guides/host-setup.md)。
+  SIP 仍保持启用，只放宽调试限制。原因和其他设置方式见[宿主机设置](Guides/host-setup.md)。
 
 ## 快速开始
 
-1. 从[最新 release](https://github.com/Lakr233/vphone-cli/releases/latest)下载 `vphone-launchpad-<版本>-notarized.zip`，解压并打开。并非每个 release 都经过公证。如果最新版本没有 `-notarized` 文件，请在[下载说明](Downloads/README.md)中选择一个已公证的版本。
+1. 从[最新版本](https://github.com/Lakr233/vphone-cli/releases/latest)下载 `vphone-launchpad-<版本>-notarized.zip`，解压并打开。并非每个版本都经过公证。如果最新版本没有 `-notarized` 文件，请在[下载说明](Downloads/README.md)中选择一个已公证的版本。
 2. 在 **Host Setup** 中授予开发者工具权限，并安装辅助程序。
 3. 在 **Core Bundle** 中点击 **Download and Install**。Launchpad 会下载并校验 `VPhone.bundle`，然后允许其中的虚拟机程序在本机运行。
-4. 在 **Machines** 中点击 **New Machine**，选择一组固件，点击 **Create**。
+4. 在 **Machines** 中点击 **New Machine**，选择固件组合，点击 **Create**。
 
 Launchpad 会下载固件、打补丁、恢复系统并首次启动。完成后虚拟机会继续运行。
 
@@ -46,7 +44,7 @@ Launchpad 会下载固件、打补丁、恢复系统并首次启动。完成后�
 
 ### 让 Agent 代劳
 
-如果这台 Mac 上有编程 Agent（Claude Code、Codex 等），可以直接粘贴下面的提示词，不必手动操作。Agent 会读取 vphone skill，检查已完成的部分，安装 Launchpad 和 `VPhone.bundle`；遇到需要你处理的步骤（例如管理员密码，或在 macOS 恢复模式中的改动）时会停下来询问。
+如果这台 Mac 上有编程 Agent（Claude Code、Codex 等），可以直接粘贴下面的提示词，不必手动操作。Agent 会读取 vphone skill，检查已完成的部分，安装 Launchpad 和 `VPhone.bundle`；遇到需要你处理的步骤（例如管理员密码，或在 macOS 恢复中进行的更改）时会停下来询问。
 
 ```text
 在这台 Mac 上安装 vphone。先阅读这个 skill：
@@ -69,7 +67,7 @@ https://raw.githubusercontent.com/Lakr233/vphone-cli/main/Skills/vphone-guest-co
    这一个软件包会一次装好虚拟机需要的全部内容：`apt` 和 `dpkg`、`bash`、`zsh` 和 `dash`、`sudo`、常用命令行工具、`openssh-server`、`curl`、`wget`、`vim`、`git`、`uikittools`、`launchctl`，以及 OwnGoal 的几个应用。不要逐个安装这些软件包：其中部分软件包相互依赖，`openssh-server` 的依赖声明也存在循环，逐个安装可能在中途失败。
 3. 首次安装完成后，其余软件包使用普通安装即可。
 
-如果首次安装失败，或安装后环境状态异常，不建议在原环境上修复。请通过 **Apps > Uninstall Bootstrap…** 删除环境，再从第 1 步重新安装。
+如果首次安装失败，或安装后环境状态异常，不要在原环境上修复。请通过 **Apps > Uninstall Bootstrap…** 删除环境，再从第 1 步重新安装。
 
 要删除环境，选择 **Apps > Uninstall Bootstrap…**，删除后虚拟机会重启。
 
@@ -113,7 +111,7 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/v1/health
 - [OpenAVB](https://github.com/owngoal-dev/OpenAVB) 替代启动 ROM AVPBooter。它不需要打补丁，`fw patch` 不会改动它。
 - [OpenSEP](https://github.com/owngoal-dev/OpenSEP) 替代 SEP 启动 ROM AVPSEPBooter。
 
-两个一起用时，iBoot 和 SEPOS 之前运行的代码都不再出自 Apple。两个 ROM 都以预编译形式随 `VPhone.bundle` 发布，构建自固定的上游 commit。各自的说明（[OpenAVB](../VPhoneExecutable/VPhoneVirtualization/Resources/OpenAVB/README.md)、[OpenSEP](../VPhoneExecutable/VPhoneVirtualization/Resources/OpenSEP/README.md)）写了如何从源码重新构建并逐字节核对。
+两者同时使用时，iBoot 和 SEPOS 之前不会运行任何由 Apple 编写的代码。两个 ROM 都以预编译形式随 `VPhone.bundle` 发布，由固定的上游提交构建。各自的说明（[OpenAVB](../VPhoneExecutable/VPhoneVirtualization/Resources/OpenAVB/README.md)、[OpenSEP](../VPhoneExecutable/VPhoneVirtualization/Resources/OpenSEP/README.md)）写了如何从源码重新构建并逐字节核对。
 
 旧版本创建的虚拟机仍使用 Apple 的 ROM。两种 ROM 可以随时切换，不需要重新恢复系统，下次启动时生效：
 
@@ -136,6 +134,10 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple 的 ROM
 | [宿主机设置](Guides/host-setup.md) | SIP 与 AMFI 设置、源码构建、环境检查 |
 | [创建与运行](Guides/create-and-run.md) | 固件来源、创建流程、存储与备份 |
 | [兼容性说明](Guides/compatibility.md) | 已验证的固件组合 |
+| [快照](Guides/snapshots.md) | 保存已停止虚拟机的磁盘状态，并可恢复到该状态 |
+| [iPadOS 客户机](Guides/ipados.md) | 运行 iPadOS 而非 iOS |
+| [其他 iPhone 机型](Guides/iphone-models.md) | 使用其他 iPhone 机型的 IPSW 运行 iOS |
+| [软件包环境](Guides/package-environment.md) | 安装和删除虚拟机中的软件包管理器 |
 | [故障排查](Guides/troubleshooting.md) | 常见错误及解决方法 |
 | [网络](Guides/networking.md) | 网络模式，以及在 Mac 使用 VPN 或代理时用的 `tunnel` |
 | [Launchpad 命令行](Guides/launchpad-cli.md) | 用 `vphone-launchpad-cli` 安装和测试本地构建 |

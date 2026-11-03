@@ -4,7 +4,7 @@
 `AVPBooter.vresearch1.bin`. It is
 [OpenAVB](https://github.com/owngoal-dev/OpenAVB), an open-source AArch64
 boot ROM compatible with AVPBooter, built from source. `StageBundle.sh` copies
-the image and its licences to `VPhone.bundle/Contents/Resources/OpenAVB/`, and `vm new` copies
+the image and its licenses to `VPhone.bundle/Contents/Resources/OpenAVB/`, and `vm new` copies
 the image into each new machine folder.
 
 | | |
@@ -48,9 +48,9 @@ If vphone needs a change upstream has not taken yet, put it in `patches/` as a
 `git format-patch` file. `UpdateOpenAVB.sh` applies patches in order and
 refuses one that no longer applies. Delete a patch once the pin moves past it.
 
-## Licence
+## License
 
-`LICENSE` is OpenAVB's licence as published at that commit: MIT for OpenAVB's
+`LICENSE` is OpenAVB's license as published at that commit: MIT for OpenAVB's
 own code, with the third-party notices it lists. A few files built into the
 image are APSL-2.0 (`APSL-2.0.txt`); their modified source is the public
 repository above.

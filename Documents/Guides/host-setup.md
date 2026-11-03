@@ -6,7 +6,7 @@ The VM needs an Apple Silicon Mac running macOS 15 or newer. PV=3 research guest
 
 ## Build and preflight
 
-A distributed `.bundle` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
+A distributed `VPhone.bundle` needs no Homebrew, Python or Xcode **at runtime**. A source build needs Xcode and its iPhoneOS SDK to compile vphoned. From a source checkout:
 
 ```sh
 xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
@@ -58,7 +58,7 @@ sudo "$bundle/Contents/MacOS/vphone-escalator" allow "$bundle/Contents/MacOS/vph
 
 The helper creates the AMFI code-requirements preference if absent. If it exists, it appends the current `vphone-vm` cdhash to its `Entitlements` requirement, preserving other cdhashes and preference keys. It leaves any existing `AllowUnsafeDynamicLinking` value untouched and writes `false` only when that key is absent. It avoids duplicate hashes and enables amfid to consult the requirement by changing one byte in its heap. **Repeat the `allow` command after every build**, including a rebuild that only changes the signature. You may pass additional signed host binaries to the same `allow` command when they need restricted entitlements; the unentitled `vphone-cli` does not need this. `sudo "$bundle/Contents/MacOS/vphone-escalator" off` removes only hashes added by this helper and restarts amfid. It preserves the preference and its other values.
 
-For a distributed bundle without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses the guest, its error gives the full `sudo .../vphone-escalator allow .../vphone-vm` command for that bundle.
+For a distributed bundle without a source checkout, run `vphone-cli host preflight` first. If AMFI refuses `vphone-vm`, the preflight error gives the full `sudo .../vphone-escalator allow .../vphone-vm` command for that bundle.
 
 In `vphone-launchpad`, bundle preflight checks that SIP debugging restrictions are disabled (or SIP is fully disabled) and Research Guests is enabled. When a newer app includes a newer SMJobBless helper, Launchpad asks for administrator authorization to update the helper at startup. If the installed `vphone-vm` is blocked by AMFI, the helper checks those host settings again, verifies the root-owned bundle and its recorded cdhash, runs that bundle's `vphone-escalator allow` as root, and Launchpad repeats preflight. Each new bundle signature is checked and allowed separately. The standalone CLI still reports the manual command.
 

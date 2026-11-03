@@ -26,9 +26,9 @@ These are the two iPhone17,3 combinations exercised with the native JB pipeline 
 
 The cloudOS 26.4 beta image (`26.4-23E5207q`) is the newest one that contains `vphone600ap`, the identity the guest's kernel, SEP and device tree come from, and it stays the recommended cloudOS: it needs nothing beyond vphone-cli. Every cloudOS release after it was checked on 2026-10-03 and lists only the PCC boards and `vresearch101ap`: `iPhone99,11` is gone from `SupportedProductTypes`, and there is no `kernelcache.*.vphone600`, `sep-firmware.vphone600` or `DeviceTree.vphone600ap`.
 
-On such a cloudOS the research board stands in (the Research Board patch set): `fw patch` turns its device tree and SEP into vphone600's and rebuilds its kernelcache with the vphone600 virtualisation kexts, from a recipe for that kernelcache. KDK extraction is native; the link still needs root (`vphone-cli fw kernelcache`; see [the recipes](../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)). `fw prepare` refuses a cloudOS no recipe covers. `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under Firmware.
+On such a cloudOS the research board stands in (the Research Board patch set): `fw patch` turns its device tree and SEP into vphone600's and rebuilds its kernelcache with the vphone600 virtualization kexts, from a recipe for that kernelcache. KDK extraction is native; the link still needs root (`vphone-cli fw kernelcache`; see [the recipes](../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)). `fw prepare` refuses a cloudOS no recipe covers. `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under Firmware.
 
-iOS 18.1 to 18.7.2 run the same way on their own release's cloudOS, with the userland of the iPhone XS family's IPSWs (`vm create --device iPhone11,6`, the Minimal preset by default, `--preset standard` checked on 18.6; `fw catalog --device iPhone11,6` lists them). Their kernels are kernel-first: from macOS 26.4 on, another Mac or a macOS VM running macOS 15 or 26.0 to 26.3 links the mix over ssh (`VPHONE_KMUTIL_SSH`, see [Creating and running](create-and-run.md)); Launchpad offers them as the iPhone XS Max, with that Mac as the macOS builder. 18.1, 18.5 and 18.7.2 are checked on VMs; the other four recipes have not been booted yet.
+iOS 18.1 to 18.7.2 run the same way on their own release's cloudOS, with the userland of the iPhone XS family's IPSWs (`vm create --device iPhone11,6`, the Minimal preset by default, `--preset standard` checked on 18.6; `fw catalog --device iPhone11,6` lists them). Their kernels are kernel-first: from macOS 26.4 on, another Mac or a macOS VM running macOS 15 or 26.0 to 26.3 links the mix over ssh (`VPHONE_KMUTIL_SSH`, see [Create and Run](create-and-run.md)); Launchpad offers them as the iPhone XS Max, with that Mac as the macOS builder. 18.1, 18.5 and 18.7.2 are checked on VMs; the other four recipes have not been booted yet.
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache recipe |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ iOS 18.1 to 18.7.2 run the same way on their own release's cloudOS, with the use
 | `26.6.1-23G82` | yes | no | no |
 | `26.7-23H20` | yes | no | yes |
 
-Use `vphone-cli fw catalog` to inspect the current catalogue. Other iPhone and iPad versions may work with `26.4-23E5207q`, but they have not passed this same end-to-end check.
+Use `vphone-cli fw catalog` to inspect the current catalog. Other iPhone and iPad versions may work with `26.4-23E5207q`, but they have not passed this same end-to-end check.
 
 **iPhone17,3 27.0.1 (24A446)** fails first boot on bundle 2.5.0 and earlier
 (reproduced 2026-10-04, including with the pristine Apple launchd): TXM's

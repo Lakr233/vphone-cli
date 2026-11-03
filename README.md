@@ -99,7 +99,8 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple's ROMs
 | [Create and Run](Documents/Guides/create-and-run.md) | Firmware sources, the creation process, storage and backups |
 | [Snapshots](Documents/Guides/snapshots.md) | Save a stopped VM's disk state and revert to it |
 | [Compatibility](Documents/Guides/compatibility.md) | Verified firmware pairings |
-| [iPadOS Guests](Documents/Guides/ipados.md) | Run iPadOS (iPad mini A17 Pro) instead of iOS |
+| [iPadOS Guests](Documents/Guides/ipados.md) | Run iPadOS instead of iOS |
+| [Other iPhone Models](Documents/Guides/iphone-models.md) | Run iOS from another iPhone model's IPSW |
 | [Package Environment](Documents/Guides/package-environment.md) | Installing and removing a package manager in the VM |
 | [Troubleshooting](Documents/Guides/troubleshooting.md) | Common errors and how to fix them |
 | [Networking](Documents/Guides/networking.md) | Network modes, and `tunnel` for a Mac behind a VPN or proxy |
