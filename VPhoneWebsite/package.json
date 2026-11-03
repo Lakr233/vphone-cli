@@ -1,0 +1,17 @@
+{
+  "name": "vphone-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "npm run sync && rspress dev",
+    "build": "npm run sync && rspress build",
+    "preview": "rspress preview"
+  },
+  "devDependencies": {
+    "@rspress/core": "2.0.23"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
