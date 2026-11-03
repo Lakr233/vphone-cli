@@ -745,6 +745,7 @@ public enum FirmwareGuestSystemPatchSet {
                 publishes is what makes the walk reach that throw, so the two patches go together.
                 """,
                 target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+                applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 26, minor: 0)),
             ),
             VPhonePatchDeclaration(
                 identifier: virtualAudioMuteSetThrow,
@@ -757,6 +758,7 @@ public enum FirmwareGuestSystemPatchSet {
                 is silent. With the throw quieted, the route survives on the virtio device.
                 """,
                 target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+                applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 26, minor: 0)),
             ),
             VPhonePatchDeclaration(
                 identifier: virtualAudioSpeakerProtectionGate,
@@ -770,6 +772,7 @@ public enum FirmwareGuestSystemPatchSet {
                 has the same gate, and declines every recording app's route; it is opened too.
                 """,
                 target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+                applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 26, minor: 0)),
             ),
             VPhonePatchDeclaration(
                 identifier: virtualAudioVolumeModePrecondition,
@@ -784,6 +787,7 @@ public enum FirmwareGuestSystemPatchSet {
                 it already built.
                 """,
                 target: .guestExecutable(path: "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin/VirtualAudio"),
+                applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 26, minor: 0)),
             ),
             VPhonePatchDeclaration(
                 identifier: virtualAudioDeviceStateNullGate,

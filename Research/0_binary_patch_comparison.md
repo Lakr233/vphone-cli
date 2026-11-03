@@ -4948,8 +4948,8 @@ iOS 18.1 to 18.7.2 run on their own release's research board kernel, rebuilt
 with the vphone600 kexts of the public cloudOS 26.1 (23B78), which still ships
 vphone600 components. The userland comes from the iPhone XS family's IPSWs
 (iPhone11,2/4/6), the only ones carrying every 18.x release, 18.7.x included.
-Only `minimal` boots these kernels: `standard`'s kernel patches panic them early
-in `kmem_init` (not investigated).
+`minimal` boots them as restored; `standard` boots them since 2026-10-24 (see
+"`standard` on the iOS 18 research board kernels" below).
 
 ### The kernelcache
 
@@ -5039,6 +5039,63 @@ Settings it returns to the home screen. 18.1 (22B83) on cloudOS 18.1, the
 oldest base and one of the three with 15 donor kexts, and 18.5 (22F76) on
 cloudOS 18.5 passed the same checks. The other four recipes resolve every
 donor import but have not been booted yet.
+
+### 2026-10-24 — `standard` on the iOS 18 research board kernels
+
+Checked on iOS 18.6 (22G86) on cloudOS 18.6 (22G86), VM restored with
+`--preset standard --no-template`: boot, Hello screen with a working display,
+vphoned, Setup skipped, and Frida 17.24.3 (`frida-server` as a launch daemon)
+attaching to SpringBoard, trustd and backboardd, spawning Settings with an
+Interceptor hook and following a foreign SpringBoard thread with Stalker. Every
+change below is a second shape, tried only when the 26.x shape is absent: the
+cloudOS 26.4 beta vphone600 kernel (as 26.x and as 27.x), the 26.4/26.5/26.6
+mixes and the 26.4b/26.4/26.5/26.6 LLB, iBSS, iBEC and TXM patch byte for byte as
+before. The 18.6 offsets are of the mix kernelcache and the decompressed images.
+
+**The `kmem_init` panic** was `kernel-boot-thread_guard_violation`, the one
+kernel patch pinned to iOS 18 bases and so never before applied to an 18.x
+*kernel*. Its anchor chain takes the first BL near the
+`com.apple.security.only-one-exception-port` reference whose target has a
+TBZ and then a BL; on 18.x that is a zone helper (`tbnz w2, #6` on the alloc
+flags), whose callee is a per-CPU zone allocator. `RET` there made every
+allocation return garbage, so `kmem_init`'s first `vm_map_enter` failed with
+`KERN_INVALID_ARGUMENT`. 18.x `set_exception_behavior_violation` tests
+`thid_should_crash` with `ldrb ; cmp #1 ; b.ne` and calls
+`thread_guard_violation(current_thread(), …)`; the patch now takes the callee of
+the BL after `mrs x0, tpidr_el1` in the window's callees when exactly one exists
+(18.6 `0xA21D34`, which compares `get_threadtask()` with `kernel_task` first).
+The 26.x kernels match neither shape, as before.
+
+| Patch | 26.x shape | iOS 18 shape (18.6) |
+| --- | --- | --- |
+| `llb-boot-rootfs` | `mov w8, #0x3b7/#0x3c2/#0x110` (iBoot `__LINE__` codes) | lines moved to `0x3ab`, `0x3b6`, `0x10d`: the last two `cbz w0 ; mov w8, #line` gates of the function holding the unique `cmp x8, #0x400 ; b.hs` (`0x27890`, `0x278E4`), and in the caller of the function laid out after it that tests `ldr xN, [xM, #0x78]` for null, that null check (`0x2B594`) and its last `cbz w0 ; mov w8 ; b` gate (`0x2B790`). Without them LLB falls into recovery once CFW changed the System volume |
+| TXM string refs | `adrp ; add` | lone `adr` (+ `nop`): get-task-allow `0x1B5B8`, debugger entitlement `0x1B404`, selector 42/29 stub `0x22EC8` |
+| `txm-boot-sel42_29` | `strb w0, [x20, #0x30]` | the flag the gate tests is at `+0x20` (`+0x30` is a pointer): the store is chosen from the gate's `add xT, xObj, #flag ; ldarb` (`ARM64.strbW0X20_20`, keystone-checked) |
+| `txm-boot-developer_mode_bypass` | NOP `tbnz w9, #0` before the "system policy" string | `cbz w9, <enable block>` earlier in the function becomes `b` (`0x1B9C4`) |
+| `kernel-boot-post_validation` (NOP) | `tbnz` after the TXM CodeSignature log | `cmp w8, #1 ; b.eq`: the `b.eq` is NOPed (`0xEA4C3C`) |
+| `kernel-boot-cred_label_update_execve` | separate deny and success caves | `findCodeCave` reserves nothing; when both lookups return the same run, the two share one 40-byte run (`0x984D1C`) |
+| `kernel-boot-vm_fault_enter_prepare` | `tbz wFlags, #3 ; mov wT, #0 ; b` | up to four frame reloads between `mov` and `b` (`0xA7A6EC`) |
+| `kernel-boot-proc_security_policy` | unique `mov w1, #0x3ea ; bl` | AppleSEPKeyStore makes the same call; ambiguity is resolved to `com.apple.kernel`'s `__TEXT_EXEC` (`0xF08CC8`) |
+| `kernel-cfw-proc_pidinfo` | guard pair then `movz w0, #0x16 ; sub` | one frame store between (`0xF0664C`, `0xF06654`) |
+| `dyld-boot-iomfb_swapend` | — | now also requires cloudOS ≥ 26.0: an 18.x userland on its own kernel needs no resize, and the resized structure fails (`swap_end returned error e00002c2`, black screen) |
+| `kernel-exp-frida_thread_set_state_entitlement_flag`, `kernel-exp-frida_syscall_filter_off` | cloudOS ≥ 26.4 | also cloudOS 18.x (same shapes, 18.6 `0xA606E0`/`0xA608E8`; `0xA0FB18`, `0xA0FBA8`, `0x113FB54`). TPRO and the immutable-code patch have no 18.x shape and stay ≥ 26.4 |
+
+`kernel-boot-vm_map_protect` finds no gate on 18.x, as on 26.5 and later.
+`txm-boot-precheck_admission` (the 27.0.1 fix) and `ibec-boot-bootx_precondition`
+have no 18.x site and are not needed there.
+The four VirtualAudio throw patches (`speaker_route_throws`, `mute_set_throw`,
+`speaker_protection_gate`, `volume_mode_precondition`) look for code iOS 18.6's
+VirtualAudio does not have, and are gated on iOS 26. Audio on an 18.x guest is
+not checked.
+
+The surface-compression keys `filesystem-boot-ios18_surface_compression` writes
+into a `minimal` image live on the Data volume, which `cfw install` cannot reach.
+On any other preset vphoned sets them at startup on an iOS 18 guest
+(`GuestCoreAnimationCompression`) and restarts backboardd once.
+
+`cfw update-kernel` now also serves a research-board VM: it installs the
+kernelcache `fw patch` (run as the user) re-mixed and re-patched into the
+restore tree, instead of refusing. The restore tree has to still be there.
 
 ### 2026-10-23 — Integrating the minimal, research-board, watch and iOS 18 presets
 

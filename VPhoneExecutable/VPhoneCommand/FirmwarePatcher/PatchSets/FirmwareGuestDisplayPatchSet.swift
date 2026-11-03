@@ -3,7 +3,10 @@
 // IOMFB talks to a framebuffer that does not exist on a research board. Which
 // patch is needed depends on the userland: a 27 base routes the swap through the
 // kernel, while 26.0 and 18.x only need the swap-end structure resized. The two
-// are mutually exclusive by version, so one set covers both.
+// are mutually exclusive by version, so one set covers both. The resize is for a
+// 26.x kernel: an 18.x userland on its own release's research board kernel
+// submits the structure that kernel expects, and the resized one fails
+// (`swap_end returned error e00002c2`, a black screen).
 
 import Foundation
 import VPhonePatchKit
@@ -27,10 +30,11 @@ public enum FirmwareGuestDisplayPatchSet {
             VPhonePatchDeclaration(
                 identifier: "dyld-boot-iomfb_swapend",
                 title: "IOMFB swap-end size",
-                summary: "Resizes the swap-end structure a 26.0, 18.x or experimental 17.7 userland submits.",
+                summary: "Resizes the swap-end structure a 26.0, 18.x or experimental 17.7 userland submits to a 26.x kernel.",
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
                     iOSBase: .oneOf([.release(major: 26, minor: 0), .major(18), .major(17), .major(16)]),
+                    cloudOS: .atLeast(major: 26, minor: 0),
                 ),
                 bootEssential: true,
             ),

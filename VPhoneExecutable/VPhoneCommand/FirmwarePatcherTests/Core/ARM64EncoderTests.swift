@@ -684,6 +684,7 @@ struct ARM64EncoderKeystoneParityTests {
             ("cmp w0, w0", ARM64.cmpW0W0, 0x6B00_001F),
             ("cmp x0, x0", ARM64.cmpX0X0, 0xEB00_001F),
             ("strb w0, [x20, #0x30]", ARM64.strbW0X20_30, 0x3900_C280),
+            ("strb w0, [x20, #0x20]", ARM64.strbW0X20_20, 0x3900_8280),
             ("cbz x2, #8", ARM64.cbzX2_8, 0xB400_0042),
             ("str x0, [x2]", ARM64.strX0X2, 0xF900_0040),
             ("cmp xzr, xzr", ARM64.cmpXzrXzr, 0xEB1F_03FF),

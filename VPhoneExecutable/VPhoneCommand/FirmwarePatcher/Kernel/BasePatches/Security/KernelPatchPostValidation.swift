@@ -57,6 +57,33 @@ extension KernelPatcher {
             }
         }
 
+        // iOS 18 tests the same byte flag with `cmp wN, #1 ; b.eq` instead of
+        // `tbnz wN, #0`. Tried only when no TBNZ follows, so a kernel with the
+        // TBNZ keeps its site.
+        for (_, addOff) in refs {
+            let scanEnd = min(addOff + 0x40, buffer.count - 8)
+            for scan in stride(from: addOff, through: scanEnd, by: 4) {
+                let insns = disasm.disassemble(in: buffer.data, at: scan, count: 2)
+                guard insns.count == 2 else { continue }
+                let cmp = insns[0], branch = insns[1]
+                guard cmp.mnemonic == "cmp",
+                      let ops = cmp.detail?.operands, ops.count == 2,
+                      ops[0].type == .register, ops[1].type == .immediate, ops[1].imm == 1,
+                      branch.mnemonic == "b.eq"
+                else { continue }
+
+                let site = scan + 4
+                emit(
+                    site,
+                    ARM64.nop,
+                    patchID: "kernel-boot-post_validation.nop_tbnz",
+                    virtualAddress: fileOffsetToVA(site),
+                    description: "NOP \(branch.mnemonic) \(branch.operandString) [txm post-validation]",
+                )
+                return true
+            }
+        }
+
         log("  [-] TBNZ not found after TXM error string ref")
         return false
     }
