@@ -211,10 +211,11 @@ struct FirmwarePatchSetCatalogTests {
                     // patch: these are the combinations we claim boot. The tvOS
                     // presets drop exactly the iOS ones an Apple TV has no port of.
                     let tvPresets = [VPhonePatchPreset.homeViewIdentifier, VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homePodMiniIdentifier]
-                    // `minimal` and `watchos` drop every boot chain patch, and
-                    // every kernel patch of the two sets they name only so a
-                    // machine can turn some on: their system is customised
-                    // before the restore instead, onto a stock kernel.
+                    // `minimal` and `watchos` drop every boot chain patch but
+                    // iBEC's and LLB's, and every kernel patch of the two sets
+                    // they name only so a machine can turn some on: their system
+                    // is customised before the restore instead, onto a stock
+                    // kernel.
                     let restoreImagePresets = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
                     let droppable = Set(
                         [FirmwareBootChainPatchSet.manifest, FirmwareKernelBasePatchSet.manifest, FirmwareKernelCustomFirmwarePatchSet.manifest]
@@ -224,6 +225,7 @@ struct FirmwarePatchSetCatalogTests {
                         Set(plan.droppedBootEssentials).isSubset(of: FirmwarePatchSetCatalog.tvOSBlockedPatches)
                     } else if restoreImagePresets.contains(preset.identifier) {
                         Set(plan.droppedBootEssentials).isSubset(of: droppable)
+                            && Set(plan.droppedBootEssentials).isDisjoint(with: FirmwarePatchSetCatalog.minimalBootChainPatches)
                     } else {
                         plan.droppedBootEssentials.isEmpty
                     }
@@ -251,7 +253,7 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `Only minimal and its watch form name the restore image, and patch only the device tree and the research board besides`() throws {
+    func `Only minimal and its watch form name the restore image, and patch only iBEC, LLB, the device tree and the research board besides`() throws {
         for preset in FirmwarePatchSetCatalog.builtInPresets {
             let namesRestoreImage = preset.patchSets.map(\.identifier).contains(FirmwareRestoreImagePatchSet.identifier)
             let restoreImagePresets = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
@@ -270,18 +272,15 @@ struct FirmwarePatchSetCatalogTests {
         // The unsecure-cache gate stays out: the launchd.plist minimal edits is
         // signed and in the trust cache, so the stock launchd_cache_loader takes it.
         #expect(!plan.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
+        let bootChain = FirmwarePatchSetCatalog.minimalBootChainPatches
+        let allBootChain = Set(FirmwareBootChainPatchSet.manifest.patches.map(\.identifier))
+        #expect(bootChain.isSubset(of: allBootChain))
         #expect(plan.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
-            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(researchBoard))
-        #expect(plan.enabled.isDisjoint(with: FirmwareBootChainPatchSet.manifest.patches.map(\.identifier)))
-        // The set stays named, so `--allow` can turn a boot chain patch back on.
-        let verbose = try VPhonePatchPlan.resolve(
-            preset: FirmwarePatchSetCatalog.minimalPreset,
-            patchSets: FirmwarePatchSetCatalog.bundled,
-            iOSBase: VPhoneVersion("26.4"),
-            cloudOS: VPhoneVersion("26.4"),
-            allowed: ["llb-boot-boot_args"],
-        )
-        #expect(verbose.enabled.contains("llb-boot-boot_args"))
+            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(researchBoard))
+        // A stock LLB does not reach the kernel on an OpenAVB machine: iBEC and
+        // LLB stay patched, AVPBooter and iBSS stay stock.
+        #expect(plan.enabled.intersection(allBootChain) == bootChain)
+        #expect(plan.droppedBootEssentials.allSatisfy { !$0.hasPrefix("ibec-") && !$0.hasPrefix("llb-") })
 
         let watch = try VPhonePatchPlan.resolve(
             preset: FirmwarePatchSetCatalog.watchOSPreset,
@@ -291,8 +290,8 @@ struct FirmwarePatchSetCatalogTests {
         )
         #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
         #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
-            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(researchBoard))
-        #expect(watch.enabled.isDisjoint(with: FirmwareBootChainPatchSet.manifest.patches.map(\.identifier)))
+            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(researchBoard))
+        #expect(watch.enabled.intersection(allBootChain) == bootChain)
     }
 
     @Test

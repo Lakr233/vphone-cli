@@ -46,9 +46,9 @@ extension FirmwarePipeline {
         let includeBootChain = includesSet(FirmwareBootChainPatchSet.identifier)
 
         // Whether the plan turns on any patch for a boot chain component. A
-        // preset that names the set but turns on patches for some components only
-        // (`minimal` and `watchos`: none) leaves the others stock, and a patcher
-        // built to write nothing would only log that it found nothing.
+        // preset that keeps the set for some components only (`minimal` and
+        // `watchos`: iBEC and LLB) leaves the others stock, and a patcher built
+        // to write nothing would only log that it found nothing.
         func patchesBootChain(_ component: VPhoneFirmwareComponent) -> Bool {
             guard includeBootChain else { return false }
             guard let plan else { return true }
