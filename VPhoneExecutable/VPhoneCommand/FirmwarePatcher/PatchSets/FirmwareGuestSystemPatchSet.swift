@@ -25,6 +25,22 @@ public enum FirmwareGuestSystemPatchSet {
     public static let homePodAdHocInstall = "system-installd-exp-homepod_adhoc"
     public static let homePodMISFixLibrary = "/usr/lib/libvphonehomepodmisfix.dylib"
     public static let ios17Desktop = "system-springboard-exp-ios17_desktop"
+    public static let ios16MachPorts = "system-launchd-exp-ios16_mach_ports"
+    public static let ios16PortsLookup = "dyld-exp-ios16_mach_ports_lookup"
+    public static let ios16Migration = "system-backboard-exp-ios16_migration"
+    public static let ios16Desktop = "system-springboard-exp-ios16_desktop"
+    public static let ios16Keybag = "system-keybag-exp-ios16_ephemeral"
+    public static let ios16Surface = "system-systemhook-exp-ios16_surface"
+    public static let ios16SurfaceMarker = "/usr/lib/vphone-ios16-surface"
+    public static let ios16Framebuffer = "system-systemhook-exp-ios16_framebuffer"
+    public static let ios16FramebufferMarker = "/usr/lib/vphone-ios16-framebuffer"
+    public static let ios16EphemeralStorage = "preboot-exp-ios16_ephemeral_storage"
+    public static let ios16Touchscreen = "system-vphoned-exp-ios16_touchscreen"
+    public static let ios16TouchscreenMarker = "/usr/lib/vphone-ios16-touchscreen"
+    public static let ios16KeybaglessUI = "system-springboard-exp-ios16_keybagless_ui"
+    public static let ios16KeybaglessUIMarker = "/usr/lib/vphone-ios16-keybagless-ui"
+    public static let ios16KeybagMarker = "/usr/lib/vphone-ios16-keybag-ephemeral"
+    public static let ios16MachPortsMarker = "/usr/lib/vphone-ios16-mach-ports"
     public static let metalCacheReuse = "system-systemhook-cfw-metal_cache_reuse"
     public static let metalCacheReuseMarker = "/usr/lib/vphone-metal-cache-reuse"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
@@ -98,6 +114,76 @@ public enum FirmwareGuestSystemPatchSet {
         name: "Guest System",
         summary: "Shared-cache policy gates, patched system daemons and the vphone guest payload",
         patches: [
+            VPhonePatchDeclaration(
+                identifier: ios16EphemeralStorage,
+                title: "iOS 16 fresh-lab ephemeral storage",
+                summary: "Declares temporary storage through the existing chosen and product device-tree flags. Tests the native keybag-less platform path; user preferences may not persist. Fresh labs only, experimental and off by default.",
+                target: .prebootDeviceTree,
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Framebuffer,
+                title: "iOS 16 lab framebuffer transport",
+                summary: "Translates iOS 16's frame token, surfaces, rectangles and verified flags into cloudOS 26.1's swap layout. New event fields stay zero. Experimental, off by default; restart after changing.",
+                target: .guestFile(path: ios16FramebufferMarker),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Surface,
+                title: "iOS 16 lab IOSurface transport",
+                summary: "Adapts the widened IOSurfaceRoot capability and allocation replies to iOS 16's layout through a UUID-checked, private runtime stub. Experimental, off by default; restart after changing.",
+                target: .guestFile(path: ios16SurfaceMarker),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16KeybaglessUI,
+                title: "iOS 16 fresh keybag-less lab UI",
+                summary: "Enables UI-only desktop testing while root verifies ephemeral storage and no persistent keybag. Does not unlock encrypted storage or provide passcode support. Requires desktop startup; experimental, off by default.",
+                target: .guestFile(path: ios16KeybaglessUIMarker),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Touchscreen,
+                title: "iOS 16 lab touchscreen service",
+                summary: "Registers a built-in HID touchscreen when the lab has none and, with desktop startup, mirrors native backlight states to legacy HID. Experimental, off by default.",
+                target: .guestFile(path: ios16TouchscreenMarker),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Desktop,
+                title: "iOS 16 lab desktop startup",
+                summary: "Skips unavailable media/widget/flashlight waits and keeps Setup mode off in the fresh lab's local shell state. Audio and widgets remain unavailable; no setup preference is persisted. Experimental, off by default.",
+                target: .guestExecutable(path: "/System/Library/CoreServices/SpringBoard.app/SpringBoard"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Keybag,
+                title: "iOS 16 lab keybag init",
+                summary: "Uses keybagd --init's native ephemeral-storage exit on the keybag-less cloudOS platform. Does not provision a keybag or enable passcodes. Experimental, off by default.",
+                target: .guestExecutable(path: "/usr/libexec/keybagd"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16Migration,
+                title: "iOS 16 lab startup migration wait",
+                summary: "Skips the fresh lab's migration wait, clears the local shell sentinel and omits its measured PreBoard-only re-block. Does not migrate user data, persist migration completion or unlock the keybag. Experimental, off by default.",
+                target: .guestExecutable(path: "/usr/libexec/backboardd"),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 16, minor: 6), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16PortsLookup,
+                title: "iOS 16 early Mach ports lookup",
+                summary: "Adapts libsystem_kernel's registered-port lookup to cloudOS 26.1's three-descriptor reply before libxpc initializes. Pairs with the launchd registered-port bridge. Experimental, off by default.",
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(iOSBase: .major(16), cloudOS: .release(major: 26, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios16MachPorts,
+                title: "iOS 16 registered Mach ports",
+                summary: "Translates legacy registered-port array RPCs to the fixed three-port protocol used by cloudOS 26.1. Experimental, off by default; restart after changing.",
+                target: .guestExecutable(path: "/sbin/launchd"),
+                applicability: VPhonePatchApplicability(iOSBase: .major(16)),
+            ),
             VPhonePatchDeclaration(
                 identifier: ios17Desktop,
                 title: "iOS 17 desktop bring-up",

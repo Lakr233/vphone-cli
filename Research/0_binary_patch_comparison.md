@@ -6165,3 +6165,56 @@ N227b's tree has `always-on-time` too, but on a Watch7,18 26.4 guest the same tw
 answers left the screen fully dark after the timeout (Carousel decides; not
 investigated), so the repair stays iPhone-only. No iPad board has the property.
 The VM keeps rendering while dimmed: there is no low-power display.
+
+## Experimental iOS 16.6.1 desktop bring-up
+
+Measured pairing: iPhone15,2 (iPhone 14 Pro), iOS 16.6.1/20G81 userland,
+cloudOS 26.1/23B85 vphone600 boot chain. All additions below are manual opt-ins;
+shipped presets and the no-plan path leave them disabled. See
+`Research/Guest/ios16_bringup.md` for procedure, evidence and limitations.
+
+- `system-launchd-exp-ios16_mach_ports` bridges the old out-of-line self-task
+  Mach-port API to the newer fixed-three-port RPCs in the native launch hooks.
+  `dyld-exp-ios16_mach_ports_lookup` updates the old libxpc client's pre-constructor
+  lookup through a symbol-derived, bounded cache patch with undo capture.
+- `system-backboard-exp-ios16_migration` skips the fresh lab's measured migration
+  wait and releases its local shell sentinel/PreBoard re-block. It does not
+  migrate existing user data or persist completion. `system-springboard-exp-ios16_desktop`
+  avoids unavailable startup media, widget and flashlight services and uses the
+  native local setup-state setter. These services remain unavailable.
+- `system-systemhook-exp-ios16_surface` converts capability replies 0x28 ->
+  0x18 and allocation/lookup replies 0xC68 -> 0xA68, including narrowed fields
+  and the changed plane stride. Offline metadata derives the framework-private
+  transport stub, verifies its instruction pattern and records its Mach-O UUID.
+  The runtime detour checks UUID/expected bytes, suspends peer threads, uses
+  private COW memory without writable executable pages, and restores protection.
+- `system-systemhook-exp-ios16_framebuffer` translates the measured old 0x46C
+  SwapEnd payload into the modern 0x560 layout. It inserts the new event/port
+  slots, retaining frame token, surfaces, rectangles and measured flags. Native
+  create/lock/write/read/unlock and surface lookup probes pass; submitted color
+  bars and the real SpringBoard desktop are visible.
+- `preboot-exp-ios16_ephemeral_storage` changes only the existing chosen/product
+  ephemeral-storage fields, preserving their widths and tree size. Native
+  `hw.ephemeral_storage` and `os_variant_uses_ephemeral_storage` then report 1;
+  PreBoard no longer owns the shell. Restore pre-ephemeral snapshots to undo
+  guest data effects; restoring device-tree bits alone is insufficient.
+- `system-vphoned-exp-ios16_touchscreen` registers a built-in HID touchscreen
+  only when none exists. With desktop startup selected, native backlight-state
+  changes also publish the legacy HID factor. Real mouse swipes and clicks now
+  reach the guest rather than being dropped as missing-digitizer/display-off.
+- `system-springboard-exp-ios16_keybagless_ui` is restricted to a fresh ephemeral
+  lab. The root daemon requires explicit markers and a strict session/persona
+  keybag-directory allowlist before publishing a single-link, root-owned,
+  magic-checked lease. Three signature-checked UI getters honor that lease for
+  at most three seconds and otherwise forward to native. MKB/AKS and encrypted
+  data remain unchanged; this is not working credentials or protected storage.
+- The existing battery helper weak-imports the unavailable newer precise-power
+  API and falls back to its existing ByType API. This resolves the measured
+  Preferences pre-main dyld crash without synthesizing an IOKit export.
+
+The real guest displays Home Screen, accepts mouse input and opens Settings >
+General > About (16.6.1, iPhone 14 Pro, 64 GB). Initial About lookup can wait for
+IOKit/SystemConfiguration quiescence; a proposed fallback was never deployed and
+is excluded. Wallpaper preview fails without Metal; its cancelled, unvalidated
+prototype is excluded as well. No general iOS 16/15, Metal, full audio, camera,
+networking or persistent protected-data compatibility is claimed.

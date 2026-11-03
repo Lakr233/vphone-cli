@@ -8,6 +8,8 @@ CLANG := xcrun --sdk iphoneos clang
 MACOS_SDK := $(shell xcrun --sdk macosx --show-sdk-path)
 MACH_EXC_DEFS := $(MACOS_SDK)/usr/include/mach/mach_exc.defs
 LAUNCHHOOK_GENERATED := $(OUT)/generated/launchhook
+MACHPORTS_GENERATED := $(OUT)/generated/machports
+MACHPORTS_STAMP := $(MACHPORTS_GENERATED)/.stamp
 GUEST_C_FLAGS := -arch arm64e -miphoneos-version-min=26.0 -Os
 COMMON_FLAGS := $(GUEST_C_FLAGS) -fobjc-arc
 
@@ -38,10 +40,10 @@ VCAMCAPTURED_INPUTS := $(call find_headers,$(VCAM_HEADER_DIRS)) \
 	$(call find_folders,$(VCAM_HEADER_DIRS))
 VCAMCAPTURED_INCLUDE_FLAGS := $(addprefix -I,$(call find_folders,VCamCaptured) $(VCAM_SHARED_DIRS))
 LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
-LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c
+LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c
 LAUNCHHOOK_INCLUDES := $(wildcard LaunchHook/*.h LaunchHook/*.inc Shared/*.h)
 SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
-SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c
+SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c LaunchHook/VPhoneMachMessage.c
 SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc FlutterRemapFix/*.h Shared/*.h)
 # libmis is not a framework and has no header; the iPhoneOS SDK does ship
 # libmis.tbd, so the interposed symbols bind two-level like any other import
@@ -86,6 +88,8 @@ PREFSFIX_SOURCES := $(wildcard PrefsFix/*.m PrefsFix/*.c)
 PREFSFIX_INCLUDES := $(wildcard PrefsFix/*.h)
 # Foundation + ObjC runtime for the sign-in presentation swizzles; AppleAccountUI
 # etc. are reached through the runtime at runtime, so nothing is needed at link.
+IOS16DESKTOP := $(STAGE)/ios16desktop/libvphoneios16desktop.dylib
+IOS16MIGRATION := $(STAGE)/ios16migration/libvphoneios16migration.dylib
 IOS17DESKTOP := $(STAGE)/ios17desktop/libvphoneios17desktop.dylib
 SIGNINFIX := $(STAGE)/signinfix/libsigninfix.dylib
 SIGNINFIX_SOURCES := $(wildcard SignInFix/*.m SignInFix/*.c)
@@ -189,7 +193,7 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 VIRTIOSOUND := $(STAGE)/virtiosound/VPhoneVirtIOSound.driver
 VIRTIOSOUND_SOURCES := $(wildcard VirtIOSound/*.m VirtIOSound/*.c)
 VIRTIOSOUND_INCLUDES := $(wildcard VirtIOSound/*.h) VirtIOSound/Info.plist VirtIOSound/AudioServerDriver.tbd
-ARTIFACTS := $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND)
+ARTIFACTS := $(IOS16DESKTOP) $(IOS16MIGRATION) $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist \
 	$(STAGE)/misfix/libmisfix.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
@@ -235,7 +239,7 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
 	@echo "Packaged $(ARCHIVE)"
 
 test-loader-links:
@@ -333,7 +337,18 @@ $(VCAMCAPTURED): $(VCAMCAPTURED_SOURCES) $(VCAMCAPTURED_INPUTS) | $(STAGE)/vcamc
 		-framework CoreGraphics
 	@codesign --force --sign - $@
 
-$(LAUNCHHOOK): $(LAUNCHHOOK_SOURCES) $(LAUNCHHOOK_INCLUDES) LaunchHook Shared $(MACH_EXC_DEFS) | $(STAGE)/launchhook
+$(MACHPORTS_STAMP): Shared/VPhoneMachPorts.defs $(MACOS_SDK)/usr/include/mach/task.defs
+	@mkdir -p $(MACHPORTS_GENERATED)
+	xcrun --sdk macosx mig -arch arm64 -isysroot $(MACOS_SDK) \
+		-server /dev/null -sheader /dev/null \
+		-user $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c \
+		-header $(MACHPORTS_GENERATED)/VPhoneMachPortsRPC.h Shared/VPhoneMachPorts.defs
+	/usr/bin/sed -i '' 's/msg_result = mach_msg(/msg_result = vp_mach_msg_kobject(/g' $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c
+	@/usr/bin/grep -q 'msg_result = vp_mach_msg_kobject(' $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c
+	@! /usr/bin/grep -q 'msg_result = mach_msg(' $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c
+	@touch $@
+
+$(LAUNCHHOOK): $(LAUNCHHOOK_SOURCES) $(LAUNCHHOOK_INCLUDES) LaunchHook Shared $(MACH_EXC_DEFS) $(MACHPORTS_STAMP) | $(STAGE)/launchhook
 	@mkdir -p $(LAUNCHHOOK_GENERATED)
 	xcrun --sdk macosx mig -arch arm64 -isysroot $(MACOS_SDK) \
 		-server $(LAUNCHHOOK_GENERATED)/mach_excServer.c \
@@ -345,16 +360,17 @@ $(LAUNCHHOOK): $(LAUNCHHOOK_SOURCES) $(LAUNCHHOOK_INCLUDES) LaunchHook Shared $(
 	@/usr/bin/grep -q 'msg_result = vp_mach_msg_kobject(' $(LAUNCHHOOK_GENERATED)/mach_excUser.c
 	@! /usr/bin/grep -q 'msg_result = mach_msg(' $(LAUNCHHOOK_GENERATED)/mach_excUser.c
 	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \
-		-I$(LAUNCHHOOK_GENERATED) -ILaunchHook -include VPhoneMachMessage.h \
+		-I$(LAUNCHHOOK_GENERATED) -I$(MACHPORTS_GENERATED) -ILaunchHook -include VPhoneMachMessage.h \
 		-install_name /usr/lib/launchdhook-vphone.dylib \
 		-o $@ $(LAUNCHHOOK_SOURCES) $(LAUNCHHOOK_GENERATED)/mach_excServer.c \
-		$(LAUNCHHOOK_GENERATED)/mach_excUser.c -Wl,-not_for_dyld_shared_cache
+		$(LAUNCHHOOK_GENERATED)/mach_excUser.c $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
 
-$(SYSTEMHOOK): $(SYSTEMHOOK_SOURCES) $(SYSTEMHOOK_INCLUDES) SystemHook Shared | $(STAGE)/systemhook
+$(SYSTEMHOOK): $(SYSTEMHOOK_SOURCES) $(SYSTEMHOOK_INCLUDES) SystemHook Shared $(MACHPORTS_STAMP) | $(STAGE)/systemhook
 	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \
+		-I$(MACHPORTS_GENERATED) -ILaunchHook -include VPhoneMachMessage.h \
 		-install_name /usr/lib/SystemHook-vphone.dylib \
-		-o $@ $(SYSTEMHOOK_SOURCES) -Wl,-not_for_dyld_shared_cache
+		-o $@ $(SYSTEMHOOK_SOURCES) $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c -framework IOKit -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
 
 $(MISFIX): $(MISFIX_SOURCES) $(MISFIX_INCLUDES) MISFix | $(STAGE)/misfix
@@ -678,3 +694,35 @@ test-ios17-desktop:
 	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 17 SpringBoard
 	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 18 SpringBoard
 	../.build/ios17-desktop-tests/test ../.build/ios17-desktop-tests/hook.dylib 17 OtherProcess
+
+.PHONY: test-ios16-surface
+test-ios16-surface:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined -ISystemHook \
+		-o $(OUT)/IOS16SurfaceReplyTest Tests/IOS16SurfaceReplyTest.c SystemHook/VPhoneIOS16SurfaceReply.c
+	@$(OUT)/IOS16SurfaceReplyTest
+
+.PHONY: test-mach-ports-compat
+test-mach-ports-compat: $(MACHPORTS_STAMP)
+	@mkdir -p ../.build/machports-test
+	xcrun --sdk macosx clang -DVP_MACH_PORTS_COMPAT_TEST -IShared -ILaunchHook -I$(MACHPORTS_GENERATED) -include VPhoneMachMessage.h \
+		Shared/VPhoneMachPortsCompat.c $(MACHPORTS_GENERATED)/VPhoneMachPortsUser.c LaunchHook/VPhoneMachMessage.c \
+		Tests/MachPortsCompatTests.c -o ../.build/machports-test/test
+	../.build/machports-test/test
+
+$(IOS16MIGRATION): IOS16Migration/libvphoneios16migration.m
+	@mkdir -p $(STAGE)/ios16migration
+	$(CLANG) $(COMMON_FLAGS) -dynamiclib -install_name /usr/lib/libvphoneios16migration.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
+	@codesign --force --sign - $@
+
+$(IOS16DESKTOP): IOS16Desktop/libvphoneios16desktop.m ../VPhoneDaemon/Native/Include/VPhoneIOS16LabPolicy.h
+	@mkdir -p $(STAGE)/ios16desktop
+	$(CLANG) $(COMMON_FLAGS) -I../VPhoneDaemon/Native/Include -dynamiclib -install_name /usr/lib/libvphoneios16desktop.dylib -o $@ $< -framework Foundation -lobjc -Wl,-not_for_dyld_shared_cache
+	@codesign --force --sign - $@
+
+.PHONY: test-ios16-lab-policy
+test-ios16-lab-policy:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined \
+		-I../VPhoneDaemon/Native/Include -o $(OUT)/IOS16LabPolicyTest Tests/IOS16LabPolicyTest.c
+	@$(OUT)/IOS16LabPolicyTest

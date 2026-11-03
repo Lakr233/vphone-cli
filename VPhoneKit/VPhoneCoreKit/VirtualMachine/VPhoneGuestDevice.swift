@@ -120,6 +120,9 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
     /// Experimental iPhone 15 / iOS 17.7 desktop bring-up on cloudOS 26.1.
     public static let iPhone15_4 = iPhone("iPhone15,4", "d37ap", "iPhone 15", width: 1179, height: 2556)
 
+    /// Local iOS 16.6.1 bring-up experiment on cloudOS 26.1.
+    public static let iPhone15_2 = iPhone("iPhone15,2", "d73ap", "iPhone 14 Pro", width: 1179, height: 2556)
+
     /// iPhone 16 Pro: 1206x2622, 402x874 points.
     public static let iPhone17_1 = iPhone("iPhone17,1", "d93ap", "iPhone 16 Pro", width: 1206, height: 2622)
     /// iPhone 16 Pro Max: 1320x2868, 440x956 points.
@@ -291,7 +294,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         iPhone17_4, iPhone17_1, iPhone17_2, iPhone17_5,
         iPhone18_3, iPhone18_4, iPhone18_1, iPhone18_2, iPhone18_5,
         iPhone19_2, iPhone19_4,
-        iPhone11_6, iPhone15_4,
+        iPhone11_6, iPhone15_4, iPhone15_2,
         iPad16_1,
         iPad15_7,
         iPad15_3, iPad15_5,

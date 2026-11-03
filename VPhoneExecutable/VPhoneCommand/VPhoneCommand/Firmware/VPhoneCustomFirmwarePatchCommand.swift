@@ -710,6 +710,16 @@ struct VPhoneCustomFirmwarePatchFoldableDisplaysCommand: ParsableCommand {
     }
 }
 
+struct VPhoneCustomFirmwarePatchIOS16EphemeralCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-ios16-ephemeral",
+        abstract: "Declare ephemeral storage for an explicitly selected fresh iOS 16 lab"
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var deviceTree: URL
+    @Flag(name: .customLong("dry-run")) var dryRun = false
+    func run() throws { try CustomFirmwarePostRestoreDeviceTree.presentIOS16EphemeralStorage(at: deviceTree, dryRun: dryRun) }
+}
+
 // MARK: - patch-dt-haptics
 
 struct VPhoneCustomFirmwarePatchHapticsCommand: ParsableCommand {

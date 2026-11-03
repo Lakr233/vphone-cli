@@ -50,7 +50,9 @@ public enum FirmwareKernelFridaPatchSet {
                 title: "Syscall filters off",
                 summary: "Ignores per-process syscall filters, so Frida's agent survives inside filtered daemons such as trustd or backboardd.",
                 target: .firmware(.kernelcache),
-                applicability: fridaCapable,
+                applicability: VPhonePatchApplicability(cloudOS: .oneOf([
+                    .release(major: 26, minor: 1), .atLeast(major: 26, minor: 4),
+                ])),
             ),
         ],
         requires: ["vphone.kernel.cfw"],

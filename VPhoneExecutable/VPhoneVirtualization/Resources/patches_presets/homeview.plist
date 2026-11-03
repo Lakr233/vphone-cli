@@ -164,6 +164,16 @@
 			<string>system-virtualaudio-cfw-volume_mode_precondition</string>
 			<string>system-watchdogd-exp-hv_vmm_cache</string>
 			<string>system-springboard-exp-ios17_desktop</string>
+			<string>system-launchd-exp-ios16_mach_ports</string>
+			<string>dyld-exp-ios16_mach_ports_lookup</string>
+			<string>system-backboard-exp-ios16_migration</string>
+			<string>system-keybag-exp-ios16_ephemeral</string>
+			<string>system-springboard-exp-ios16_desktop</string>
+			<string>system-systemhook-exp-ios16_surface</string>
+			<string>system-systemhook-exp-ios16_framebuffer</string>
+			<string>preboot-exp-ios16_ephemeral_storage</string>
+			<string>system-vphoned-exp-ios16_touchscreen</string>
+			<string>system-springboard-exp-ios16_keybagless_ui</string>
 		</array>
 	</dict>
 	<key>Summary</key>

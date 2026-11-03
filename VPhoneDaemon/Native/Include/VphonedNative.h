@@ -105,6 +105,10 @@ char * _Null_unspecified vp_homeview_distance_copy_json(const char * _Null_unspe
 /// safe to call more than once; returns false (injection then stays a no-op)
 /// on bases that do not expose the private symbols.
 bool vp_hid_load(void);
+/// Register the opt-in iOS 16 lab's missing main touchscreen service.
+void vp_ios16_touchscreen_start(void);
+/// Maintain the explicitly selected fresh ephemeral lab's UI-only lease.
+void vp_ios16_keybagless_ui_start(void);
 /// A keyboard/consumer hold transition, including KeyboardLongPress on release.
 bool vp_hid_keyboard_hold(uint16_t page, uint16_t usage, bool down);
 

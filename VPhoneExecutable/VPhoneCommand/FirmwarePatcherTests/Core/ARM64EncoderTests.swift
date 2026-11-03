@@ -30,6 +30,26 @@ import Foundation
 import Testing
 import VPhonePatchKit
 
+// LDR literal and BR cases below were checked using the same native Keystone
+// 0.9.2 C driver, outside the repository, for the iOS 16 IOSurface transport stub.
+
+@Suite("Literal transport stub encoders")
+struct ARM64LiteralStubTests {
+    @Test func `Keystone checked literal load and branch operands`() {
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 16, from: 0, to: 8) == ARM64.encodeU32(0x5800_0050))
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 0, from: 0, to: -1048576) == ARM64.encodeU32(0x5880_0000))
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 30, from: 0, to: 1048572) == ARM64.encodeU32(0x587F_FFFE))
+        #expect(ARM64Encoder.encodeBR(rn: 16) == ARM64.encodeU32(0xD61F_0200))
+        #expect(ARM64Encoder.encodeBR(rn: 0) == ARM64.encodeU32(0xD61F_0000))
+        #expect(ARM64Encoder.encodeBR(rn: 30) == ARM64.encodeU32(0xD61F_03C0))
+        #expect(ARM64Encoder.encodeBR(rn: 31) == nil)
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 32, from: 0, to: 8) == nil)
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 16, from: 0, to: 7) == nil)
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 16, from: 0, to: 1048576) == nil)
+        #expect(ARM64Encoder.encodeLdrXLiteral(rt: 16, from: 0, to: -1048580) == nil)
+    }
+}
+
 // MARK: - Case Model
 
 /// One encoder output paired with the keystone encoding of the same instruction.

@@ -17,9 +17,25 @@ import VPhonePatchKit
 
 @Suite("Bundled patch set catalogue")
 struct FirmwarePatchSetCatalogTests {
+    @Test func `Legacy startup compatibility is opt in and scoped to iOS 16`() throws {
+        for id in [FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration] {
+            for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
+                for selected in [false, true] {
+                    var preset = FirmwarePatchSetCatalog.standardPreset
+                    if selected { preset.selection = preset.selection.allowing([id]) }
+                    let plan = try VPhonePatchPlan.resolve(
+                        preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                        iOSBase: VPhoneVersion(version), cloudOS: VPhoneVersion("26.1")
+                    )
+                    #expect(plan.isEnabled(id) == (selected && version == "16.6.1"))
+                }
+            }
+        }
+    }
+
     @Test func `iOS 17 desktop workaround is opt in and unavailable on other bases`() throws {
         let id = FirmwareGuestSystemPatchSet.ios17Desktop
-        for version in ["17.7", "18.6.2", "26.1", "27.1"] {
+        for version in ["16.6.1", "17.7", "18.6.2", "26.1", "27.1"] {
             for enabled in [false, true] {
                 var preset = FirmwarePatchSetCatalog.standardPreset
                 if enabled { preset.selection = preset.selection.allowing([id]) }
@@ -30,6 +46,18 @@ struct FirmwarePatchSetCatalogTests {
                 #expect(plan.isEnabled(id) == (enabled && version == "17.7"))
             }
         }
+    }
+
+    @Test func `Local iOS 16 experiment selects older userland boot compatibility without the iOS 17 hook`() throws {
+        let plan = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("16.6.1"), cloudOS: VPhoneVersion("26.1")
+        )
+        #expect(plan.isEnabled("dyld-boot-iomfb_swapend"))
+        #expect(plan.isEnabled("kernel-boot-thread_guard_violation"))
+        #expect(plan.isEnabled(FirmwarePatchSetCatalog.paravirtUserClientsPatch))
+        #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.ios17Desktop))
     }
 
     @Test func `Experimental iOS 17 selects the older userland boot compatibility patches`() throws {
@@ -515,7 +543,7 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `The Frida relaxations need cloudOS 26.4`() throws {
+    func `Frida gates retain the measured cloudOS 26.1 syscall filter exception`() throws {
         for cloud in ["26.1", "26.4"] {
             let plan = try VPhonePatchPlan.resolve(
                 preset: FirmwarePatchSetCatalog.experimentalPreset,
@@ -527,6 +555,12 @@ struct FirmwarePatchSetCatalogTests {
                 plan.isEnabled($0.identifier)
             }
             #expect(on == (cloud == "26.4"))
+            #expect(plan.isEnabled("kernel-exp-frida_syscall_filter_off"))
+            let standard = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("16.6.1"), cloudOS: VPhoneVersion(cloud)
+            )
+            #expect(!standard.isEnabled("kernel-exp-frida_syscall_filter_off"))
         }
     }
 

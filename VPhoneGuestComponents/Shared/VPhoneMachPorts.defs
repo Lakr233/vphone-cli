@@ -1,0 +1,17 @@
+/* The fixed three-port task RPCs in XNU 12377.41.6 task.defs, slots 3403/3404. */
+subsystem VPhoneMachPorts 3403;
+import <mach/mach_types.h>;
+#include <mach/std_types.defs>
+#include <mach/mach_types.defs>
+
+routine vp_mach_ports_register3(
+    target_task : task_t;
+    port1 : mach_port_t;
+    port2 : mach_port_t;
+    port3 : mach_port_t);
+
+routine vp_mach_ports_lookup3(
+    target_task : task_t;
+    out port1 : mach_port_t;
+    out port2 : mach_port_t;
+    out port3 : mach_port_t);

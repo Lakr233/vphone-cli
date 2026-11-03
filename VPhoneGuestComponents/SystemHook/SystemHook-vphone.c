@@ -18,6 +18,7 @@
 
 static int vpInXPCProxy;
 static int vpInBootstrap;
+extern void vpInstallSurfaceAdapter(void);
 
 static int vpIsBootstrapPath(const char *path, const char *root) {
     if (path && strncmp(path, "/var/jb/", 8) == 0)
@@ -222,6 +223,7 @@ static void vpLoadLibrary(const char *kind, const char *library) {
 
 // xpcproxy needs this bridge because launchd only spawns the proxy, not its target.
 __attribute__((constructor)) static void vpLogProcess(void) {
+    vpInstallSurfaceAdapter();
     // Request cross-boot reuse at constructor entry: libCoreFSCache normally
     // invalidates Metal caches when the boot session changes. Preserve an
     // explicit environment setting. See Research/Guest/gpu_acceleration.md.

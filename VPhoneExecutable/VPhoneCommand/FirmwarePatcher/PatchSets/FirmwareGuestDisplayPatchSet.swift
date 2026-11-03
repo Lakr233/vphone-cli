@@ -30,7 +30,7 @@ public enum FirmwareGuestDisplayPatchSet {
                 summary: "Resizes the swap-end structure a 26.0, 18.x or experimental 17.7 userland submits.",
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .oneOf([.release(major: 26, minor: 0), .major(18), .major(17)]),
+                    iOSBase: .oneOf([.release(major: 26, minor: 0), .major(18), .major(17), .major(16)]),
                 ),
                 bootEssential: true,
             ),

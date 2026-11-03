@@ -90,6 +90,20 @@ public enum ARM64Encoder {
 
     // MARK: - Branch Encoding
 
+    /// BR Xn; XZR is not a branch target.
+    public static func encodeBR(rn: UInt32) -> Data? {
+        guard rn < 31 else { return nil }
+        return ARM64.encodeU32(0xD61F_0000 | (rn << 5))
+    }
+
+    /// LDR Xt, label: signed, word-aligned PC-relative literal within ±1 MiB.
+    public static func encodeLdrXLiteral(rt: UInt32, from pc: Int, to target: Int) -> Data? {
+        guard rt < 32 else { return nil }
+        let delta = target - pc
+        guard delta & 3 == 0, delta >= -(1 << 20), delta < (1 << 20) else { return nil }
+        return ARM64.encodeU32(0x5800_0000 | ((UInt32(truncatingIfNeeded: delta >> 2) & 0x7FFFF) << 5) | rt)
+    }
+
     /// Encode unconditional B (branch) instruction.
     ///
     /// Format: `[31:26] = 0b000101`, `[25:0] = signed offset / 4`
