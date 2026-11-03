@@ -2365,7 +2365,22 @@ struct VPhoneCustomFirmwareInstaller {
         }
         let undoAbsolute = (dsc as NSString).appendingPathComponent(Self.dscUndoLogLeaf)
         let undoRelative = "\(cacheRelative)/\(Self.dscUndoLogLeaf)"
-        let undoLog = (try? system.readData(undoRelative)).flatMap { try? DyldSharedCacheUndoLog.decode($0) }
+        // A log from 2.15.0 or earlier keeps the X1 lowering as gigabytes of
+        // page runs; convert it once, before anything here decodes it.
+        if dyld.contains(where: { DyldSharedCacheArm64eX1BootstrapPatcher.wordUndoPatchIDs.contains($0.id) }),
+           (try? system.exists(undoRelative)) == true
+        {
+            do {
+                try patch("patch-dsc-undo-words", [dsc, "--undo-log", undoAbsolute])
+            } catch {
+                print("  [!] dyld undo log: keeping the X1 page runs as they are: \(error)")
+            }
+        }
+        let undoWords = DyldSharedCacheUndoLog.wordsPath(forLog: undoRelative)
+        let undoLog = (try? system.readData(undoRelative)).flatMap { json in
+            let words = (try? system.exists(undoWords)) == true ? try? system.readData(undoWords) : nil
+            return try? DyldSharedCacheUndoLog.decode(json, words: words)
+        }
         let recorded = undoLog?.patchIDs ?? []
 
         var revertable: [String] = []

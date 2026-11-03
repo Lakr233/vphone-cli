@@ -639,6 +639,17 @@
 > `system-virtualaudio-cfw-device_state_null_gate` above.
 > See [Duo bring-up](Guest/iphone_duo_bringup.md).
 
+> **ARM64E_X1 undo as words (2026-11-03, issue #789):** the two X1 cache
+> patches (`dyld-boot-arm64e_x1_bootstrap`, `dyld-cfw-arm64e_x1_cache`) no
+> longer keep their undo as page runs in `.vphone-dsc-undo.json`. They record
+> each changed instruction's address and original word in
+> `.vphone-dsc-undo.words` beside it; the cache bytes they write are
+> unchanged. On 24A94425 the whole-cache step went from a 24.5 GB to a 3.2 GB
+> peak, the undo data from 4.4 GB to 298 MB, and each later cache verb from
+> about 20 GB to 10 MB. A log written by 2.15.0 or earlier is converted once
+> by the hidden `cfw patch-dsc-undo-words` verb before the cache patches run.
+> See [Undo words](Guest/iphone_duo_bringup.md#undo-words-instead-of-page-runs-issue-789-2026-11-03).
+
 > **Foldable VM sub-type (2026-10-23):** `preboot-cfw-devicetree_foldable_vm_subtype`
 > (guest system set, Preboot device-tree repair, on in `standard`, blocked in
 > `tvos` and `tvos-4k`, not applicable to boards without an entry; verb
