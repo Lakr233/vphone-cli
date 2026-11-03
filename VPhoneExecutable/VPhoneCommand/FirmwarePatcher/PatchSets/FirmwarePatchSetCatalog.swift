@@ -394,26 +394,37 @@ public enum FirmwarePatchSetCatalog {
         "devicetree-cfw-watch_companion",
     ]
 
-    /// A guest on a stock boot chain, kernel and TXM: the system is customised
-    /// before the restore instead (``FirmwareRestoreImagePatchSet``), and
-    /// nothing after it. It names the two kernel sets but selects nothing from
-    /// them, so the kernel stays stock and no kernel patcher is built; naming
-    /// them is what lets a machine turn on ``userspaceDebugging``. No guest set
-    /// is named.
-    ///
-    /// With every BuildManifest digest rehashed (`manifest-boot-digest_rehash`)
-    /// the ticket covers the images as they are: a stock iBEC restores the
-    /// guest and a stock LLB boots it to SpringBoard and vphoned (iOS 26.5
-    /// 23F77 on cloudOS 23F75, 2026-11-01, and iOS 18.6 22G86 on cloudOS 22G86,
-    /// 2026-11-02).
-    /// The boot chain set is named with none of its patches on, so `--allow`
-    /// can still turn one back on (the boot-args for a verbose kernel log), and
-    /// no iBEC or LLB patcher is built.
+    /// The boot chain patches ``minimalPreset`` and ``watchOSPreset`` keep: iBEC's
+    /// and LLB's. A stock LLB boots a guest with 8192 MB, but with 4096 MB
+    /// OpenAVB accepts and decompresses it and the virtual machine stops at
+    /// once (iOS 26.6.2 23G90 on cloudOS 26.4 23E5207q and watchOS 26.4 23T240
+    /// on cloudOS 26.4 23E244, 2026-11-03), even with every BuildManifest
+    /// digest rehashed; with these patches both boot at 4096 MB. AVPBooter,
+    /// iBSS, TXM and the restore ramdisk stay stock.
+    public static let minimalBootChainPatches: Set<String> = [
+        "ibec-cfw-serial_label",
+        "ibec-boot-image4_callback",
+        "ibec-boot-boot_args",
+        "ibec-boot-bootx_precondition",
+        "llb-cfw-serial_label",
+        "llb-boot-image4_callback",
+        "llb-boot-boot_args",
+        "llb-boot-rootfs",
+        "llb-boot-panic_bypass",
+        "llb-cfw-display_scale",
+    ]
+
+    /// A guest on a stock kernel and TXM, with only iBEC and LLB patched
+    /// (``minimalBootChainPatches``): the system is customised before the
+    /// restore instead (``FirmwareRestoreImagePatchSet``), and nothing after
+    /// it. It names the two kernel sets but selects nothing from them, so the
+    /// kernel stays stock and no kernel patcher is built; naming them is what
+    /// lets a machine turn on ``userspaceDebugging``. No guest set is named.
     /// The shipped `minimal.plist` must match this.
     public static let minimalPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.minimalIdentifier,
         title: "Minimal",
-        summary: "A stock boot chain, kernel and TXM: the restore installs a resealed system with vphoned, the GPU driver and activation, and nothing writes it afterwards.",
+        summary: "No kernel or TXM patches and only iBEC and LLB in the boot chain: the restore installs a resealed system with vphoned, the GPU driver and activation, and nothing writes it afterwards.",
         patchSets: [
             .bundled(FirmwareBootChainPatchSet.identifier),
             .bundled(FirmwareKernelBasePatchSet.identifier),
@@ -423,7 +434,8 @@ public enum FirmwarePatchSetCatalog {
             .bundled(FirmwareRestoreImagePatchSet.identifier),
         ],
         selection: .allow(
-            minimalDeviceTreePatches
+            minimalBootChainPatches
+                .union(minimalDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
                 .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
@@ -446,17 +458,16 @@ public enum FirmwarePatchSetCatalog {
     ]
 
     /// ``minimalPreset`` for an Apple Watch: its device tree presents the watch
-    /// board. Its boot chain is stock too: a stock iBEC restores the guest and a
-    /// stock LLB boots it to the pairing screen and vphoned (watchOS 26.4 23T240
-    /// on cloudOS 26.4 23E244, 2026-11-02). The shipped `watchos.plist` must
-    /// match this.
+    /// board, and it keeps the same iBEC and LLB patches. The shipped
+    /// `watchos.plist` must match this.
     public static let watchOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.watchOSIdentifier,
         title: "Apple Watch",
         summary: "Minimal for an Apple Watch guest: the watch board's device tree, and a resealed system with vphoned, the GPU driver, speaker audio and activation restored onto a stock kernel and TXM.",
         patchSets: minimalPreset.patchSets,
         selection: .allow(
-            watchOSDeviceTreePatches
+            minimalBootChainPatches
+                .union(watchOSDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
                 .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
