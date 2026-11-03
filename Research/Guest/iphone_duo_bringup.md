@@ -227,6 +227,55 @@ first screen within seconds of launch. Standalone X1 binaries outside the
 cache (app executables, plug-ins such as `VirtualAudio.plugin`, daemons)
 still use the on-demand handler.
 
+### Undo words instead of page runs (issue #789, 2026-11-03)
+
+`cfw install` on a 16 GB M4 Mac mini stopped after `X1 bootstrap cache:
+228314 instruction rewrites in 2875 page run(s)` for over an hour and the
+host slowly froze. The lowering was not the problem; its undo log was. The
+chunk set captured the original bytes of every page run it wrote, and the
+verb merged them into `.vphone-dsc-undo.json` as base64. Measured on a stock
+24A94425 cache with the 2.15.0 CLI (M5 Pro, 64 GB):
+
+| Step | 2.15.0 | Words |
+| --- | --- | --- |
+| `patch-arm64e-x1-bootstrap-cache` | 3.6 s, 0.45 GB peak | 1.6–5.2 s, 0.20 GB |
+| `patch-arm64e-x1-cache` | 99 s, **24.5 GB** peak | 48–68 s, **3.2 GB** |
+| `patch-iomfb-force-kern` (the next verb, 10 sites) | 33 s, 19.6 GB | 0.03 s, 0.01 GB |
+| Undo data on the guest | 4.4 GB JSON | 1.8 KB JSON + 298 MB words |
+| `patch-dsc-revert` of all three | — | 12.5 s, 0.42 GB |
+
+Every cache verb that recorded anything after the X1 step decoded and
+re-encoded the whole 4.4 GB file, about 20 GB each.
+
+The X1 lowering now records one (address, original word) pair per
+instruction it changed, 12 bytes apiece, in `.vphone-dsc-undo.words` beside
+the JSON log (`DyldSharedCacheUndoLog.words`), and writes its page runs with
+`capturingOriginal: false`. The JSON format is unchanged, so an older CLI
+reads every other patch's records and treats the X1 patches as having none.
+Verbs that captured no words never open the words file. Two FileHandle reads
+(`DyldSharedCacheChunkSet.read`, the re-attest page loop) now drain their
+autoreleased buffers per read: without that, the remaining 9.3 GB peak was
+3.3 GB of write-phase reads plus 3.4 GB of re-attest reads, all kept alive
+until the process exited.
+
+A guest installed by 2.15.0 or earlier still holds the page runs. `cfw
+install` and `update-environment` run `cfw patch-dsc-undo-words` first,
+which keeps from each X1 run only the words that differ from the cache now.
+On the 2.15.0 log above that took 331 s with an 8.05 GB peak once (it still
+has to decode the 4.4 GB JSON), and a second run is a 0.13 s no-op. It keeps
+24,834,435 words: the 24,834,397 lowered instructions, the corecrypto HMAC
+record (8 words), and 30 words of `iomfb_force_kern` that fall inside X1 page
+runs. Reverting only the X1 patches while that one stays puts those 30 words
+back to stock, exactly as reverting the page runs did.
+
+Checks on the 24A94425 cache: the new CLI's bootstrap + whole-cache +
+force-kern output is byte-identical to 2.15.0's in all 80 chunks; reverting
+those three from words gives back the stock cryptex's 80 chunks
+byte for byte, signatures included, and so does reverting them from the
+converted 2.15.0 log. `DyldSharedCacheUndoWordsTests` covers the merge
+rule, the file format and its damage checks, page-grouped restore over a
+synthetic cache, refusal of an unmapped word, and the conversion.
+
 ### VirtualAudio on 27.1
 
 The four VirtualAudio CFW patches failed on 24A94425 because every function

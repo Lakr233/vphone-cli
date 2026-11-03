@@ -355,7 +355,9 @@ public enum DyldSharedCacheCodeSignature {
                 let slotOffset = directory.slotOffset(forPage: pageIndex)
 
                 try handle.seek(toOffset: UInt64(pageOffset))
-                let pageData = try handle.read(upToCount: directory.pageSize) ?? Data()
+                // FileHandle hands back autoreleased buffers, and a command-line
+                // run has no pool to drain them: 200,000 pages kept 3.4 GB alive.
+                let pageData = try autoreleasepool { try handle.read(upToCount: directory.pageSize) } ?? Data()
                 guard pageData.count == directory.pageSize else {
                     skip(.shortPageRead(
                         chunk: chunkURL.lastPathComponent,
@@ -368,7 +370,7 @@ public enum DyldSharedCacheCodeSignature {
                 let newHash = Data(SHA256.hash(data: pageData))
 
                 try handle.seek(toOffset: UInt64(slotOffset))
-                let oldHash = try handle.read(upToCount: directory.hashSize) ?? Data()
+                let oldHash = try autoreleasepool { try handle.read(upToCount: directory.hashSize) } ?? Data()
 
                 guard oldHash != newHash else {
                     alreadyAttested.append(

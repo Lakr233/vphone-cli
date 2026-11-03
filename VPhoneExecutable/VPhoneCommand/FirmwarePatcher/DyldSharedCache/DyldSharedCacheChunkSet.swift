@@ -326,15 +326,19 @@ public final class DyldSharedCacheChunkSet {
     ///   then calls `reattestRecordedWrites(in:)` cannot under-attest. Empty
     ///   `data` writes nothing and records nothing; the span it hands back is
     ///   the single byte at `vma`, and re-attesting it is a no-op.
+    ///
+    /// `capturingOriginal: false` leaves the bytes out of the undo log even
+    /// while capture is on: a caller that records its own originals, word by
+    /// word, would otherwise keep a second copy of every page run it writes.
     @discardableResult
-    public func write(at vma: UInt64, _ data: Data) throws -> DyldSharedCacheWriteSpan {
+    public func write(at vma: UInt64, _ data: Data, capturingOriginal: Bool = true) throws -> DyldSharedCacheWriteSpan {
         guard !data.isEmpty else { return DyldSharedCacheWriteSpan.byte(at: vma) }
         let span = DyldSharedCacheWriteSpan(vma: vma, length: data.count)
         let (chunkURL, range) = try fileRange(of: span)
         // Capture the bytes about to be overwritten before writing, so a later
         // run can put them back. Read once here rather than re-reading the
         // whole span later, and only when capture is on.
-        let captured: Data? = stateLock.withLock { undoCaptureLog != nil }
+        let captured: Data? = capturingOriginal && stateLock.withLock { undoCaptureLog != nil }
             ? try Self.read(url: chunkURL, offset: UInt64(range.lowerBound), length: data.count)
             : nil
         let handle = try FileHandle(forUpdating: chunkURL)
@@ -616,12 +620,18 @@ public final class DyldSharedCacheChunkSet {
     ///
     /// Right for the small reads — a load command, a page, a run of a few
     /// kilobytes. Wrong for a whole mapping; use `window(over:)` for those.
+    ///
+    /// The pool returns the buffer FileHandle autoreleases to the caller's
+    /// ownership. A command-line run never drains one otherwise, and the X1
+    /// lowering's 212,573 page runs kept 3.3 GB of buffers alive that way.
     static func read(url: URL, offset: UInt64, length: Int) throws -> Data {
         guard length > 0 else { return Data() }
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        try handle.seek(toOffset: offset)
-        return try handle.read(upToCount: length) ?? Data()
+        return try autoreleasepool {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: offset)
+            return try handle.read(upToCount: length) ?? Data()
+        }
     }
 
     /// A whole mapping, as a slice of the MAPPED chunk file.
