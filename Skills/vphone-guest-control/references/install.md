@@ -118,7 +118,7 @@ paths are resolved by the CLI. Installing does not move existing machines: bind
 one with `vm set-bundle <name> <version> --update-environment`, or create one
 with `vm create <name> --bundle <version>`. Each rebuild installs as a new
 version; remove old ones no machine uses. To compare two builds, see
-`Documents/Guides/launchpad-cli.md` (Comparing two builds).
+`Documents/Guides/core-bundles.md` (Comparing two builds).
 
 ## When an install step fails
 

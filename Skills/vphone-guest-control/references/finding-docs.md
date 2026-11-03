@@ -26,7 +26,7 @@ note's command lines.
 | --- | --- |
 | `vphone-vm` killed before a window opens; AMFI; "Research Guests" | `Documents/Guides/host-setup.md`, `Documents/Guides/troubleshooting.md`, `Research/Host/macos27_m6_amfi.md` |
 | Launchpad/bundle version mismatch, which Launchpad is notarized | `Documents/Downloads/README.md`, `Documents/Guides/bundle-integration.md` |
-| `vm create` failed at a step; restore or DFU trouble | `Documents/Guides/create-and-run.md`, `Documents/Guides/compatibility.md`, `Research/Restore/native_restore_architecture.md`, `Research/Restore/virtual_dfu_probe.md` |
+| `vm create` failed at a step; restore or DFU trouble | `Documents/Guides/create-and-run.md`, `Documents/Guides/firmware-preparation.md`, `Documents/Guides/compatibility.md`, `Research/Restore/native_restore_architecture.md`, `Research/Restore/virtual_dfu_probe.md` |
 | Which iPhone IPSW pairs with which cloudOS | `Documents/Guides/compatibility.md`; `vphone-cli fw catalog` (via `exec`) for what exists now |
 | Guest boots to a black screen or loops | `Documents/Guides/troubleshooting.md`, `Research/Patches/hv_vmm_present_usermode_xrefs.md`, `Research/Kernel/kernel_jb_patch_notes.md` |
 | `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` in an app | `Documents/Guides/troubleshooting.md`, `Research/KernelCustomFirmwarePatches/README.md` |
@@ -45,13 +45,16 @@ note's command lines.
 | Machine identity, clone behaving like the same device | `Research/Guest/machine_identifier_storage_analysis.md` |
 | What a patch does, whether it is on, why a preset differs | `Research/0_binary_patch_comparison.md`, `Research/KernelCustomFirmwarePatches/README.md` |
 | Which binary does what in the bundle | `Research/Host/host_binary_split.md`, `Documents/Guides/bundle-integration.md` |
-| Launchpad command line | `Documents/Guides/launchpad-cli.md` |
+| Launchpad command line; Core Bundles and local builds | `Documents/Guides/launchpad-cli.md`, `Documents/Guides/core-bundles.md` |
 
 ## By subject
 
 - **User guides** (`Documents/Guides/`): `host-setup`, `create-and-run`,
-  `compatibility`, `troubleshooting`, `package-environment`,
-  `bundle-integration`, `launchpad-cli`. `Documents/README.md` indexes them.
+  `firmware-preparation`, `templates`, `template-building`, `many-machines`,
+  `library-and-backups`, `sharing-disk-space`, `snapshots`, `networking` and
+  its `network-*` pages, `compatibility`, `troubleshooting`,
+  `package-environment`, `bundle-integration`, `launchpad-cli`,
+  `core-bundles`. `Documents/README.md` indexes them.
 - **Research index:** `Research/README.md` lists every note by subject
   (firmware, kernel, restore, host, guest, history).
 - **Patch inventory:** `Research/0_binary_patch_comparison.md` is canonical for

@@ -96,15 +96,18 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple's ROMs
 | --- | --- |
 | [Downloads](Documents/Downloads/README.md) | Notarized Launchpad versions and matching `VPhone.bundle` versions |
 | [Host Setup](Documents/Guides/host-setup.md) | SIP and AMFI settings, building from source, environment checks |
-| [Create and Run](Documents/Guides/create-and-run.md) | Firmware sources, the creation process, storage and backups |
+| [Create and Run](Documents/Guides/create-and-run.md) | The creation process, starting and stopping a VM |
+| [Templates](Documents/Guides/templates.md) | Reusing one restore for many VMs, slimming the guest |
+| [Library and Backups](Documents/Guides/library-and-backups.md) | Where VMs live, clones and exports |
 | [Snapshots](Documents/Guides/snapshots.md) | Save a stopped VM's disk state and revert to it |
 | [Compatibility](Documents/Guides/compatibility.md) | Verified firmware pairings |
 | [iPadOS Guests](Documents/Guides/ipados.md) | Run iPadOS instead of iOS |
 | [Other iPhone Models](Documents/Guides/iphone-models.md) | Run iOS from another iPhone model's IPSW |
 | [Package Environment](Documents/Guides/package-environment.md) | Installing and removing a package manager in the VM |
 | [Troubleshooting](Documents/Guides/troubleshooting.md) | Common errors and how to fix them |
-| [Networking](Documents/Guides/networking.md) | Network modes, and `tunnel` for a Mac behind a VPN or proxy |
+| [Networking](Documents/Guides/networking.md) | Network modes, addresses, port forwarding, and `tunnel` for a Mac behind a VPN or proxy |
 | [Launchpad Command Line](Documents/Guides/launchpad-cli.md) | Install and test a local build with `vphone-launchpad-cli` |
+| [All Guides](Documents/README.md) | Every guide, grouped by subject |
 | [Contributing](Documents/README.md#for-contributors) | Project structure, building from source, research notes |
 
 If these do not solve your problem, [open an issue](https://github.com/Lakr233/vphone-cli/issues).

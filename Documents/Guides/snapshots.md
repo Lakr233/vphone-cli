@@ -74,7 +74,7 @@ what it really uses. Free space on the volume is the honest measure.
 A snapshot keeps the disk blocks it was taken with. `vm rebase`, which makes a
 VM share identical blocks with another VM's, frees nothing while a snapshot of
 that VM still holds the old ones; see
-[Sharing disk space between VMs](create-and-run.md#sharing-disk-space-between-vms).
+[Sharing disk space between VMs](sharing-disk-space.md).
 
 The VM must be on an APFS volume. Elsewhere `create` refuses rather than copying
 a disk image that can be tens of gigabytes.

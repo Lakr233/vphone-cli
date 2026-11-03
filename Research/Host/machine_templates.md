@@ -6,7 +6,7 @@ from it with `clonefile(2)` and a new identity (see
 [machine identity and clone](machine_identity_and_clone.md)), so a second
 machine for the same firmware costs a clone and a few hundred MB of first-boot
 writes instead of a 20 GB restore. User-facing behavior is in
-[Create and run](../../Documents/Guides/create-and-run.md#templates). What
+[Create and run](../../Documents/Guides/templates.md). What
 templates save against the alternatives that were measured, and the build and
 clone timings, are in [disk space](disk_space.md).
 

@@ -1,5 +1,7 @@
 # Launchpad command line
 
+[Documentation](../README.md) · [Core Bundles and local builds](core-bundles.md)
+
 `vphone-launchpad-cli` ships in `vphone-launchpad.app/Contents/MacOS`. It
 drives the running Launchpad over a Unix socket at
 `~/Library/Application Support/vphone-launchpad/control.sock` (mode 0600,
@@ -26,82 +28,7 @@ ln -s /Applications/vphone-launchpad.app/Contents/MacOS/vphone-launchpad-cli /us
 vphone-launchpad-cli help
 ```
 
-## Core Bundle per machine
-
-Every machine is bound to one installed `VPhone.bundle` version, chosen when
-it is created and kept in `launchpad.json` in the machine folder. Installing a
-bundle never changes a machine's binding. A machine is made of three layers,
-each from a bundle at a different time:
-
-| Layer | What | Comes from |
-| --- | --- | --- |
-| Host Programs | `vphone-cli`, `vphone-vm` | The bound bundle, on every command. A new binding applies at the next start. |
-| Guest Environment | vphoned and the hook dylibs | `cfw install` at creation, and `cfw update-environment` (stopped machine) later. |
-| Boot Chain | Patched firmware, restore, CFW patches | `fw patch`, `restore` and `cfw install` at creation. After that, `vphone-cli fw set-patches` changes the choice and `vphone-cli fw patches <vm>` lists what has not reached the guest: guest patches apply at the next `cfw update-environment`, AVPBooter at the next `fw patch`, a kernel patch with `cfw update-kernel` (data-preserving, no restore tree needed), and the rest of the boot chain (TXM, DeviceTree, LLB) only with a restore, which erases the guest. Launchpad shows the count in the inspector. |
-
-The **default** bundle (formerly "active") decides only the version
-`vm create` binds when `--bundle` is not given, and what `exec` and
-library-wide commands run with. A new install becomes the default unless
-`--keep-default` is passed. The first start of a machine in a Launchpad
-session checks its bundle (execution policy exception, AMFI, host preflight)
-once.
-
-Local builds install as `<version>-local.<hash>`, the hash taken from the
-bundle's code-signature seal, so two builds of one version sit side by side.
-Older stores may still hold `<version>-local` or `<version>-ci.<commit>`.
-
-## Testing a VPhone.bundle build
-
-For the one-time kernel and guest update that enables persistent shader caches
-on an existing VM, see [Persistent shader caches](shader-cache.md).
-
-```sh
-xcodebuild -workspace VPhone.xcworkspace -scheme VPhone \
-  -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath .build/XcodeBundle build
-
-# Installs as <version>-local.<hash>, makes it the default, adds the execution
-# policy exception, allows the new vphone-vm cdhash and runs host preflight.
-vphone-launchpad-cli bundle install-local .build/XcodeBundle/Build/Products/Debug/VPhone.bundle
-
-# Move an existing machine to it; --update-environment also redeploys the
-# new vphoned and hook dylibs (the machine must be stopped).
-vphone-launchpad-cli vm set-bundle research-01 2.4.0-local.1a2b3c4d --update-environment
-
-vphone-launchpad-cli vm start research-01 --wait
-vphone-launchpad-cli guest rpc research-01 device.info
-vphone-launchpad-cli guest rpc research-01 apps.list '{}'
-vphone-launchpad-cli vm log research-01 --lines 100
-vphone-launchpad-cli vm stop research-01
-```
-
-The exact version is in the install result and in `bundle list`. The first
-step that needs the helper after its five-minute authorization expires asks
-for an administrator password on the Mac, as the window does.
-
-## Comparing two builds
-
-Install both without moving the default, then give each its own machine:
-
-```sh
-vphone-launchpad-cli bundle install-local /path/to/A/VPhone.bundle --keep-default
-vphone-launchpad-cli bundle install-local /path/to/B/VPhone.bundle --keep-default
-vphone-launchpad-cli bundle list        # note both versions
-
-vphone-launchpad-cli vm create cmp-a --bundle 2.4.0-local.aaaaaaaa
-vphone-launchpad-cli vm create cmp-b --bundle 2.4.0-local.bbbbbbbb
-```
-
-Machines created this way differ in all three layers. To compare only host
-programs and guest environment on one boot chain, clone a machine in the
-window and rebind the copy:
-
-```sh
-vphone-launchpad-cli vm set-bundle cmp-b 2.4.0-local.bbbbbbbb --update-environment
-```
-
-`vm list` shows which bundle each layer came from. `bundle remove` refuses a
-version while a machine is bound to it; rebind or delete those machines first.
+Each machine runs through the `vphone-cli` of the bundle it is bound to. To install a local `VPhone.bundle` build, move a machine to it, or compare two builds, see [Core Bundles and local builds](core-bundles.md).
 
 ## Commands
 
@@ -118,7 +45,7 @@ version while a machine is bound to it; rebind or delete those machines first.
 | `vm wait <name>` / `vm log <name> [--kind create\|dfu\|patch]` | Wait for vphoned; read a console log |
 | `vm create <name> [--bundle <version>] [...] [--device <product-type>] [--preset <preset>] [--ipsw <path>] [--kmutil-ssh <user@host>] [--block <patch>]... [--allow <patch>]... [--no-template \| --slim on\|off --trim … --keep-languages … --service-profile … --remove-apps … --keep-apps … --accounts-off] [--from <step>]` | The New Machine pipeline, bound to `--bundle` or the default: cloned from a template, built first when missing (2.9), or restored on its own with `--no-template`; the slimming switches are `vphone-cli vm create`'s, except that Apple Account goes with the trimmed service profile as in New Machine (`--accounts-off` is accepted and changes nothing). `--preset` takes a preset name or the path of a preset plist (2.14), which the machine keeps a copy of. `--block`/`--allow` (repeatable) turn one patch of the preset off or on, as New Machine's patch list and `vphone-cli fw set-patches` do (see below). `--device` makes an iPad guest, or with `AppleTV5,3` an Apple TV HD guest, which is always restored on its own without slimming and takes the `tvos` preset unless `--preset` names another, and with `AppleTV14,1` an Apple TV 4K guest, the same with the `tvos-4k` preset and its userland from the catalog's OTA; `--preset minimal` (Minimal: a stock boot chain, kernel and TXM, with the system customized before the restore) is also restored on its own without slimming, and its `fw patch` runs as root through the helper (its Userspace debugging box, `userspace-debugging` under Features in `vphone-cli fw patches`, is an `--allow` for each patch it lists); the kernelcache mix of a machine whose cloudOS has no vphone600 components (its release's own cloudOS, a watch, an iOS 18 guest) is staged with `fw kernelcache` and linked by the helper as root; `--ipsw` is optional and only passed on to a 2.12.0 bundle, which stages with it, as New Machine's ipsw field (a 2.12.1 bundle extracts natively); `--kmutil-ssh` names the Mac that links an iOS 18 guest's (`--device iPhone11,6`) kernel-first mix over ssh, as New Machine's macOS builder field, and takes the password for ssh and sudo there from the client's `VPHONE_KMUTIL_SSH_PASSWORD`, never from an argument; `--from` retries from a step (`findTemplate` … `firstBoot`) with the options the creation started with; the result names the template, whether this creation built it, and the patches it used |
 | `vm set-bundle <name> <version> [--update-environment]` | Bind a machine to another installed version. `--update-environment` also redeploys that version's guest environment and needs a stopped machine; a disk another process has open refuses it, naming that process, before the binding changes. If the update itself fails, the machine stays bound to the new version and `vm list` still shows the old `guestEnvironmentBundle`: run `cfw update-environment` to finish |
-| `vm leases [--release]` | DHCP leases on the shared NAT network and the machine that owns each. `--release` frees the ones no machine in any library uses, through the helper (see [Networking](networking.md#addresses-held-by-old-macs)) |
+| `vm leases [--release]` | DHCP leases on the shared NAT network and the machine that owns each. `--release` frees the ones no machine in any library uses, through the helper (see [Networking](network-addresses.md#addresses-held-by-old-macs)) |
 | `cfw install <name>` | Install CFW into a stopped machine with its own bundle, through the helper. The helper puts temporary work files on the VM library's external volume when applicable. It and the two updates below refuse a disk another process has open, naming it (`12925 tail`). |
 | `cfw update-environment <name>` | Redeploy the machine's own bundle's guest resources (vphoned, hook dylibs) into it while stopped, through the helper; nothing else changes |
 | `cfw update-kernel <name>` | Re-patch the kernelcache from the machine's current selection and swap it into Preboot, keeping the data (VM off); the data-preserving way to change a kernel patch on an installed VM, no restore tree needed |

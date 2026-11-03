@@ -55,7 +55,7 @@ kexts whose imports have no counterpart there (15 donor kexts instead of 18).
 - A kmutil of the base's `builderLayout`: macOS 26.4 or later for the iOS 26 bases,
   macOS 15 or 26.0 to 26.3 for the iOS 18 ones. A Mac with the other layout
   links over ssh on one that has it (`VPHONE_KMUTIL_SSH`, see
-  `Documents/Guides/create-and-run.md`).
+  `Documents/Guides/firmware-preparation.md`).
 - The kmutil of macOS 27 links `kernel-last` too, but keeps every kext's
   `__auth_stubs`. After the link, `KernelCollectionStubCalls` makes the calls
   through them direct again and seals corecrypto's FIPS HMAC again, so the
