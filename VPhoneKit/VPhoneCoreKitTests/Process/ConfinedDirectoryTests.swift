@@ -121,6 +121,20 @@ struct ConfinedDirectoryTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: tree.root.path).sorted() == ["leaf", "link"])
     }
 
+    @Test func `a replaced file is its own copy even when it is a clone`() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let root = try VPhoneConfinedDirectory(root: tree.root.path)
+        let source = try tree.source("first")
+        try root.replaceFile("leaf", fromFileAt: source, mode: 0o640)
+        try Data("second".utf8).write(to: source)
+
+        let leaf = tree.root.appendingPathComponent("leaf")
+        #expect(try Data(contentsOf: leaf) == Data("first".utf8))
+        #expect(mode(leaf) & 0o7777 == 0o640)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: tree.root.path).sorted() == ["leaf", "link"])
+    }
+
     @Test func `reading a leaf symlink is refused`() throws {
         let tree = try Tree()
         defer { tree.remove() }
