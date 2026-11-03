@@ -676,6 +676,24 @@ extension DeviceTreePatcher {
         "ringer-button-location", "camera-button-location", "supports-camera-button",
     ]
 
+    /// The `/product` property that tells vphoned the board has an Always On
+    /// display. MobileGestalt reads nothing by this name.
+    ///
+    /// MobileGestalt answers the Always On display from the board's
+    /// `/arm-io/disp0` `always-on-time`, and that one property answers three
+    /// questions yes: DeviceSupportsAlwaysOnDisplay, DeviceSupportsAlwaysOnTime
+    /// and DeviceSupportsAlwaysOnDisplayFlipbook. The flipbook is the panel
+    /// controller (DCP) replaying prerendered frames; CoreBrightness asks the
+    /// DCP for it in backboardd, which this VM's paravirtual panel cannot
+    /// answer, so a guest whose tree carries `always-on-time` loses backboardd
+    /// at every boot and launchd restarts it into the device recovery
+    /// environment (iPhone18,1 27.0.1). Without the flipbook, BacklightServices
+    /// renders the always-on Lock Screen itself (BLSHPseudoFlipbook), which
+    /// works here; so the tree only marks the board, and vphoned answers the
+    /// first two questions yes in the MobileGestalt cache
+    /// (`GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup`).
+    static let alwaysOnDisplayMarker = "vphone-always-on-display"
+
     /// `/buttons` properties taken from the board when they are placeholders.
     /// `function-button_ringeren` is what MobileGestalt reads for the Action
     /// Button. vphone600's `/buttons` has no `compatible`, so no button driver
@@ -692,7 +710,8 @@ extension DeviceTreePatcher {
 
     /// Give an iPhone guest's `/product` and `/buttons` the board's values for
     /// `iPhoneProductProperties`, `iPhoneAddedProductProperties` and
-    /// `iPhoneButtonProperties`.
+    /// `iPhoneButtonProperties`, and `alwaysOnDisplayMarker` when the board has
+    /// an Always On display.
     ///
     /// A listed property is copied only when the guest's is a placeholder (or,
     /// for the added ones, missing) and the board's is a real value, so a tree
@@ -723,6 +742,15 @@ extension DeviceTreePatcher {
         fill(iPhoneProductProperties, node: "product", add: false)
         fill(iPhoneAddedProductProperties, node: "product", add: true)
         fill(iPhoneButtonProperties, node: "buttons", add: false)
+        if let display = optionalChild(of: source, named: "arm-io").flatMap({ optionalChild(of: $0, named: "disp0") }),
+           display.properties.contains(where: { $0.name == "always-on-time" && $0.flags & placeholderFlag == 0 }),
+           let product = optionalChild(of: root, named: "product"),
+           !product.properties.contains(where: { $0.name == alwaysOnDisplayMarker })
+        {
+            let value = Data([1, 0, 0, 0])
+            product.properties.append(DTProperty(name: alwaysOnDisplayMarker, flags: 0, value: value, valueOffset: 0))
+            changes.append(PhoneProductChange(path: "product/\(alwaysOnDisplayMarker)", before: nil, after: value))
+        }
         return changes
     }
 

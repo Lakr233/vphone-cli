@@ -6,7 +6,8 @@ import MachO
 /// Checks the guest-independent parts of vphoned on the Mac: the service
 /// profile lists and bookkeeping, the first-boot settle verdict (data
 /// migration included), the device name rule, the pointer scroll
-/// parameters and the Irisin package a guest takes. `run-logic-tests.sh`
+/// parameters, the Irisin package a guest takes and the MobileGestalt
+/// answers vphoned adds. `run-logic-tests.sh`
 /// builds this file with those sources.
 nonisolated(unsafe) var failures = 0
 nonisolated(unsafe) var checks = 0
@@ -41,8 +42,35 @@ enum LogicTests {
         bootstrapPlatform()
         setupAssistantState()
         homeViewDistancePolicy()
+        mobileGestaltAnswers()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func mobileGestaltAnswers() {
+        let answers = GuestMobileGestaltAnswers.alwaysOnDisplay
+        func cache(_ extra: [String: Any]) -> Data {
+            try! PropertyListSerialization.data(fromPropertyList: [
+                "CacheData": Data([1, 2, 3]), "CacheExtra": extra, "CacheUUID": "u", "CacheVersion": "24A446",
+            ], format: .binary, options: 0)
+        }
+        let original = cache(["ybGkijAwLTwevankfVzsDQ": Data(count: 16), "aoJSd/MXk7M40NgXTM6x+g": false])
+        guard case let .updated(data) = GuestMobileGestaltAnswers.answeringYes(answers, in: original) else {
+            expect(false, "a cache without the answers is updated")
+            return
+        }
+        let plist = try! PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
+        let extra = plist["CacheExtra"] as! [String: Any]
+        expectEqual(extra["2OOJf1VhaM7NxfRok3HbWQ"] as? Bool, true, "DeviceSupportsAlwaysOnDisplay")
+        expectEqual(extra["j8/Omm6s1lsmTDFsXjsBfA"] as? Bool, true, "DeviceSupportsAlwaysOnTime")
+        expectEqual(extra["aoJSd/MXk7M40NgXTM6x+g"] as? Bool, false, "the flipbook answer is left as it was")
+        expectEqual(extra["ybGkijAwLTwevankfVzsDQ"] as? Data, Data(count: 16), "other answers are kept")
+        expectEqual(plist["CacheData"] as? Data, Data([1, 2, 3]), "the computed answers are kept")
+        expectEqual(plist["CacheVersion"] as? String, "24A446")
+        expectEqual(GuestMobileGestaltAnswers.answeringYes(answers, in: data), .present, "a second pass changes nothing")
+        expectEqual(GuestMobileGestaltAnswers.answeringYes(answers, in: Data("half a fi".utf8)), .unreadable)
+        let noExtra = try! PropertyListSerialization.data(fromPropertyList: ["CacheVersion": "24A446"], format: .binary, options: 0)
+        expectEqual(GuestMobileGestaltAnswers.answeringYes(answers, in: noExtra), .unreadable, "a cache needs CacheExtra")
     }
 
     static func homeViewDistancePolicy() {

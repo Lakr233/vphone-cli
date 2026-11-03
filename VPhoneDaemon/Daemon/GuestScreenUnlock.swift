@@ -176,6 +176,21 @@ enum GuestScreenUnlock {
     /// Whether SpringBoard has the screen off.
     static var screenIsOff: Bool { state().screenOff }
 
+    /// Whether a foldable guest's panel is dark. SpringBoard reports the screen
+    /// off both when it turns the panel off and when it dims it to the
+    /// always-on Lock Screen, which keeps the panel on and drawing.
+    /// FoldDisplay's state tells them apart: 1 while the panel has stayed on
+    /// since SpringBoard last lit the screen, 2 once it has gone off, 0 when
+    /// FoldDisplay has not said (then the screen state alone decides).
+    static var panelIsDark: Bool {
+        guard screenIsOff else { return false }
+        var token: Int32 = 0
+        guard notify_register_check("com.vphone.folddisplay.panel-dark", &token) == 0 else { return true }
+        defer { notify_cancel(token) }
+        var value: UInt64 = 0
+        return notify_get_state(token, &value) != 0 || value != 1
+    }
+
     private struct State {
         let locked: Bool
         let screenOff: Bool

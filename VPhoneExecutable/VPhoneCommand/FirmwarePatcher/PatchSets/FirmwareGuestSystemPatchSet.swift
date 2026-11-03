@@ -779,7 +779,8 @@ public enum FirmwareGuestSystemPatchSet {
                 iPhone's own tree: model name, Siri and dictation, button and display geometry, \
                 Camera Control and the Action Button. vphone600 leaves them as syscfg placeholders, \
                 which MobileGestalt reads as absent, so Settings has no Siri, Camera Control or Action \
-                Button and About no Model Name. Hardware the VM does not have is left out. Takes the \
+                Button and About no Model Name. Hardware the VM does not have is left out. An iPhone \
+                with an Always On display is marked, so vphoned offers Always On Display. Takes the \
                 iPhone's device tree from the VM's FirmwareOriginals, and recovers it there from the \
                 VM's IPSW in ~/.vphone/ipsws when it is missing.
                 """,

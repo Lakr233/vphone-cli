@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import VphonedNative
 
 /// Drops libMobileGestalt's cache when it is older than the device tree the
 /// guest booted.
@@ -57,14 +58,76 @@ enum GuestMobileGestaltCache {
             NSLog("vphoned: MobileGestalt cache: cannot remove %@: %@", cachePath, String(cString: strerror(errno)))
             return
         }
-        if let session = bootSession() {
-            try? Data(session.utf8).write(to: URL(fileURLWithPath: dropMarker), options: .atomic)
-        }
+        markRestartPending()
         NSLog("vphoned: MobileGestalt cache predates the device tree, removed it; a restart makes the new answers take effect")
     }
 
-    /// True when vphoned dropped the cache during this boot: the guest has
-    /// not restarted since, and still answers some questions from the old tree.
+    // MARK: - Always On display
+
+    /// The `/product` property `cfw install` and `cfw update-environment` add
+    /// for a board with an Always On display (`DeviceTreePatcher.alwaysOnDisplayMarker`).
+    private static let alwaysOnDisplayMarker = "vphone-always-on-display"
+
+    /// On a board with an Always On display, answer DeviceSupportsAlwaysOnDisplay
+    /// and DeviceSupportsAlwaysOnTime yes in the cache; see
+    /// `GuestMobileGestaltAnswers` for why the tree cannot.
+    ///
+    /// libMobileGestalt writes the cache when a process first asks after it is
+    /// gone: on a guest's first boot, and after a drop above. So this waits
+    /// for it, in the background, then adds the answers once. Processes that
+    /// read the cache before keep their answers until they exit, so the
+    /// answers reach Settings and SpringBoard at the next boot, as a drop's do,
+    /// and `/v1/health` reports the restart pending. The cache keeps them
+    /// across boots; only a rebuild loses them, and the next start adds them
+    /// again. Run after `dropIfStaleOnStartup`.
+    static func presentAlwaysOnDisplayOnStartup() {
+        guard vp_device_tree_has_property("IODeviceTree:/product", alwaysOnDisplayMarker) else { return }
+        DispatchQueue.global(qos: .utility).async {
+            for _ in 0 ..< 120 {
+                if presentAlwaysOnDisplay() { return }
+                sleep(5)
+            }
+            NSLog("vphoned: MobileGestalt cache: none written in 10 minutes, Always On Display not offered")
+        }
+    }
+
+    /// True when the cache answers yes, now or already; false to try again.
+    private static func presentAlwaysOnDisplay() -> Bool {
+        guard let cache = FileManager.default.contents(atPath: cachePath) else { return false }
+        let data: Data
+        switch GuestMobileGestaltAnswers.answeringYes(GuestMobileGestaltAnswers.alwaysOnDisplay, in: cache) {
+        case .unreadable: return false
+        case .present: return true
+        case let .updated(updated): data = updated
+        }
+        // Replace it whole, as its owner with its mode, so a reader never
+        // sees half a file.
+        var status = stat()
+        guard lstat(cachePath, &status) == 0 else { return false }
+        let temporary = cachePath + ".vphoned"
+        guard (try? data.write(to: URL(fileURLWithPath: temporary))) != nil,
+              chown(temporary, status.st_uid, status.st_gid) == 0,
+              chmod(temporary, status.st_mode & 0o7777) == 0,
+              rename(temporary, cachePath) == 0
+        else {
+            NSLog("vphoned: MobileGestalt cache: cannot add the Always On display answers: %@", String(cString: strerror(errno)))
+            unlink(temporary)
+            return true
+        }
+        markRestartPending()
+        NSLog("vphoned: MobileGestalt cache: answered the Always On display yes; a restart offers it in Settings")
+        return true
+    }
+
+    private static func markRestartPending() {
+        if let session = bootSession() {
+            try? Data(session.utf8).write(to: URL(fileURLWithPath: dropMarker), options: .atomic)
+        }
+    }
+
+    /// True when vphoned dropped the cache, or added answers to it, during
+    /// this boot: the guest has not restarted since, and some processes still
+    /// answer from the old cache.
     static func restartPending() -> Bool {
         guard let session = bootSession(),
               let marker = FileManager.default.contents(atPath: dropMarker)

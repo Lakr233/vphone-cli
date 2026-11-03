@@ -6004,3 +6004,83 @@ vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
+
+## Always On display (2026-11-02)
+
+No new patch identifier and no new bytes in an Apple binary.
+`preboot-cfw-devicetree_iphone_product` (the iPhone product repair, which `cfw
+install` and `cfw update-environment` run) also adds
+`/product/vphone-always-on-display = 1` when the board's own tree has
+`/arm-io/disp0` `always-on-time`. MobileGestalt reads nothing by that name.
+vphoned reads it at startup and answers DeviceSupportsAlwaysOnDisplay
+(`2OOJf1VhaM7NxfRok3HbWQ`) and DeviceSupportsAlwaysOnTime
+(`j8/Omm6s1lsmTDFsXjsBfA`) yes in the MobileGestalt cache's `CacheExtra`
+(`GuestMobileGestaltAnswers`, `GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup`).
+Settings then offers Always On Display and SpringBoard dims the Lock Screen
+instead of turning it off. Issue #650.
+
+**Why not the tree.** libMobileGestalt (24A446) answers the three questions from
+one node:
+
+| Answer | Source |
+| --- | --- |
+| DeviceSupportsAlwaysOnTime | `IODeviceTree:/arm-io/disp0` `always-on-time` |
+| DeviceSupportsAlwaysOnDisplay | AlwaysOnTime, else `disp0` `always-on-device` |
+| DeviceSupportsAlwaysOnDisplayFlipbook | AlwaysOnTime, else `disp0` `always-on-device-flipbook` |
+
+Settings shows the row only with AlwaysOnTime (DisplayAndBrightnessSettings
+asks for it; with AlwaysOnDisplay alone there is no row, measured). The board's
+`always-on-time` therefore answers the flipbook yes too. CoreBrightness reads it
+in backboardd (`-[CBAODState initializeAODSupportConfiguration]`) and drives the
+flipbook through the panel controller (DCP), which the paravirtual panel does
+not have. An iPhone18,1 27.0.1 guest with an `/arm-io/disp0` stub carrying the
+board's `always-on-time` lost backboardd at every boot (`rebooting due to
+critical process crashes: backboardd`) and launchd restarted it into the device
+recovery environment. A second guest made without the stub booted, and
+answering all three yes in its `CacheExtra` crashed it the same way. Without
+the flipbook, `-[BLSHBacklightOSInterfaceProvider initWithPlatformProvider:]`
+gives SpringBoard BacklightServices' own renderer (`BLSHPseudoFlipbook`), which
+works on a guest. Answering the first two in the cache leaves the flipbook
+unanswered there and so no. Keeping `always-on-time` in the tree and answering
+the flipbook no in the cache would not do: the tree decides whenever the cache
+is missing, at a guest's first boot and after every drop, and one boot with the
+flipbook is enough to lose backboardd.
+
+A guest that went through that crash loop kept losing backboardd after the
+answers and the whole cache were removed; the cause was not found. Do not
+test the flipbook answer on a VM you want to keep.
+
+**When the answers land.** libMobileGestalt writes the cache when a process
+first asks after it is gone: at a guest's first boot, and after vphoned drops a
+cache older than the tree. vphoned waits for it (up to 10 minutes), adds the
+answers once, and sets `mobilegestalt_restart_pending`; the cache keeps them
+across boots, and a rebuilt cache gets them again at the next start. A new
+machine's creation boots more than once, so it is offered from its first use.
+
+**The window.** On a foldable guest the VM window covers the panel while
+`display.orientation` says `screen_off`, so a waking panel does not show its
+frame from before (`bde6440c`). SpringBoard posts `hasBlankedScreen` for the
+always-on Lock Screen too, so the window covered it. FoldDisplay now publishes
+whether the panel went off since SpringBoard last lit the screen
+(`com.vphone.folddisplay.panel-dark`: 1 stayed on, 2 went off), and
+`screen_off` is SpringBoard's blank and that.
+
+**Verified.**
+- New machine: iPhone18,1 27.0.1, cloudOS 26.4, bundle from this branch on
+  2.14.2. `cfw install` logged `product/vphone-always-on-display: 'absent' ->
+  '01000000'`; with nothing done by hand, the cache had both answers yes and the
+  flipbook unanswered, Settings showed Always On Display On, and the locked
+  screen stayed dimmed with the clock moving (9:34 to 9:36). No backboardd crash.
+- Existing machine: iPhone19,4 27.1 (24A94425), `vm set-bundle
+  --update-environment`. The repair added the marker; the next boot dropped the
+  cache, the rebuilt one got the answers and the restart was reported pending;
+  after the restart the Lock Screen went always-on, the panel state stayed 1,
+  `screen_off` false, and the VM window showed it. With Always On Display
+  switched off in Settings the panel went off (state 2), `screen_off` was true
+  and the window covered it, then uncovered it on wake.
+
+**Not covered.** Other iPhones with the display were not run. Apple Watch:
+N227b's tree has `always-on-time` too, but on a Watch7,18 26.4 guest the same two
+answers left the screen fully dark after the timeout (Carousel decides; not
+investigated), so the repair stays iPhone-only. No iPad board has the property.
+The VM keeps rendering while dimmed: there is no low-power display.

@@ -25,6 +25,9 @@
 extern NSString *const vpInnerDisplayName;
 /// Its state is the context id backboardd shows the inner display's pages in, 0 for none.
 extern const char *const vpInnerPagesNotification;
+/// Its state is 1 while the panel has stayed on since SpringBoard last lit the
+/// screen (the always-on Lock Screen), 2 once it has gone off, 0 unknown.
+extern const char *const vpPanelDarkNotification;
 void vpFoldDisplayLog(NSString *line);
 id vpReadObject(id object, const char *name);
 id vpReadObjectIvar(id object, const char *name);

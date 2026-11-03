@@ -234,6 +234,10 @@ bool vp_devicehub_controls_start(void (^_Nonnull handler)(NSDictionary * _Nonnul
 /// hinge stand-ins in dtdeviceinfod read the virtual hinge's newest sample,
 /// without moving the hinge.
 void vp_hinge_reading_publish(double angleDegrees, int hingeState);
+/// Whether the device tree node at `path` (an `IODeviceTree:` path) has the
+/// property `name`, whatever its value.
+bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnull name);
+
 /// Every display-ish IOService object the guest published, with its small
 /// properties: what the display stack bound, for the foldable display work.
 NSArray * _Nonnull vp_display_probe(void);

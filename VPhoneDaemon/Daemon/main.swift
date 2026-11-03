@@ -23,6 +23,7 @@ guard vp_native_watch_proxy() == 0 else { exit(1) }
 GuestLockScreenIdle.startOnStartup()
 // Before the server, so `/v1/health` reports a drop from its first answer.
 GuestMobileGestaltCache.dropIfStaleOnStartup()
+GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup()
 // Before audiomxd is asked for sound again; see the type for what it cannot cover.
 GuestVirtualAudioProduct.storeOnStartup()
 // After SpringBoard has had time to come up, so the inner panel's layout
