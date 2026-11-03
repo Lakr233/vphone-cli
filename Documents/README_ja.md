@@ -134,11 +134,18 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple の ROM
 | --- | --- |
 | [ダウンロードガイド](Downloads/README.md) | 公証済みの Launchpad バージョンと対応する `VPhone.bundle` バージョン |
 | [ホストの設定](Guides/host-setup.md) | SIP と AMFI の設定、ソースからのビルド、環境の確認 |
-| [作成と実行](Guides/create-and-run.md) | ファームウェアの入手元、作成の流れ、ストレージとバックアップ |
+| [作成と実行](Guides/create-and-run.md) | 作成の流れ、仮想マシンの起動と停止 |
+| [テンプレート](Guides/templates.md) | 1 回の復元から複数の仮想マシンを作成し、ゲストを軽量化する |
+| [ライブラリとバックアップ](Guides/library-and-backups.md) | 仮想マシンの保存場所、複製と書き出し |
 | [互換性ガイド](Guides/compatibility.md) | 検証済みのファームウェアの組み合わせ |
+| [スナップショット](Guides/snapshots.md) | 停止中の仮想マシンのディスク状態を保存し、その状態に戻す |
+| [iPadOS ゲスト](Guides/ipados.md) | iOS の代わりに iPadOS を実行する |
+| [その他の iPhone モデル](Guides/iphone-models.md) | 別の iPhone モデルの IPSW で iOS を実行する |
+| [パッケージ環境](Guides/package-environment.md) | 仮想マシンのパッケージマネージャのインストールと削除 |
 | [トラブルシューティング](Guides/troubleshooting.md) | よくあるエラーと対処方法 |
-| [ネットワーク](Guides/networking.md) | ネットワークモードと、Mac が VPN やプロキシを使うときの `tunnel` |
+| [ネットワーク](Guides/networking.md) | ネットワークモード、アドレス、ポート転送と、Mac が VPN やプロキシを使うときの `tunnel` |
 | [Launchpad コマンドライン](Guides/launchpad-cli.md) | `vphone-launchpad-cli` でローカルビルドをインストールしてテストする |
+| [すべてのガイド](README.md) | 主題別にまとめたすべてのガイド |
 | [研究記録](../Research/README.md) | パッチと実装の詳細 |
 
 ## プロジェクト構成

@@ -45,7 +45,7 @@ LocalHostName`, plus `.local`) at once, to the address it reaches the Mac at:
 
 | Mode | `<Mac>.local` in the guest |
 | --- | --- |
-| `nat` | The Mac on the shared network, usually `192.168.64.1` |
+| `nat` | The Mac on the shared network, usually `192.168.65.1` (`192.168.64.1` with `--nat-peers off`) |
 | `tunnel` | The gateway, `192.168.127.1` by default. Connections to it reach the Mac's loopback (`127.0.0.1`), the way `10.0.2.2` does in QEMU and VirtualBox |
 | `bridged` | The Mac's address on the bridged interface |
 

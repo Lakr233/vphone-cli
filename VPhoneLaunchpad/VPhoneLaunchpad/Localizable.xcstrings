@@ -1690,6 +1690,24 @@
             "state" : "translated",
             "value" : "关闭这些服务后，iPhone 将无法与 Apple Watch 配对。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらのサービスがオフの iPhone は Apple Watch とペアリングできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 서비스를 끈 iPhone은 Apple Watch와 페어링할 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khi tắt các dịch vụ này, iPhone không thể ghép đôi với Apple Watch."
+          }
         }
       }
     },
@@ -1801,6 +1819,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple Watch 启动的是用其自身 kext 重新构建的 cloudOS 内核：内核以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 才需要 ipsw（带 `kernel extract --kdk`）。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch は、独自の kext で再構築した cloudOS カーネルで起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。ipsw（`kernel extract --kdk` 付き）が必要なのは、2.12.0 のコアバンドルだけです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch는 자체 kext로 다시 빌드한 cloudOS 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다. ipsw(`kernel extract --kdk` 포함)는 2.12.0 코어 번들에서만 필요합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch khởi động kernel cloudOS được dựng lại với các kext của chính nó: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root. Chỉ Bundle lõi 2.12.0 mới cần ipsw (với `kernel extract --kdk`)."
           }
         }
       }
@@ -2626,6 +2662,24 @@
     "Apple Watch" : {
       "localizations" : {
         "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        },
+        "vi" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple Watch"
@@ -4014,6 +4068,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择补丁预设 plist 文件。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パッチのプリセット plist を選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패치 프리셋 plist를 선택하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn tệp plist cấu hình sẵn cho bản vá."
           }
         }
       }
@@ -7432,6 +7504,24 @@
             "state" : "translated",
             "value" : "导出预设"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プリセットを書き出す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프리셋 내보내기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xuất cấu hình sẵn"
+          }
         }
       }
     },
@@ -7441,6 +7531,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出预设…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プリセットを書き出す…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프리셋 내보내기…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xuất cấu hình sẵn…"
           }
         }
       }
@@ -11026,6 +11134,24 @@
             "state" : "translated",
             "value" : "请在“高级选项”中将一台运行 macOS 15 或 26.0 至 26.3 且已打开“远程登录”的 Mac 或 macOS 虚拟机指定为 macOS 构建机：这台 Mac 的 kmutil 无法链接 iOS 18 内核。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「詳細オプション」で、macOS 15 または 26.0〜26.3 を実行していて「リモートログイン」がオンの Mac または macOS 仮想マシンを、macOS ビルダーとして指定してください。この Mac の kmutil では iOS 18 のカーネルをリンクできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 kmutil은 iOS 18 커널을 링크할 수 없습니다. 고급 옵션에서 macOS 15 또는 26.0~26.3을 실행하고 원격 로그인이 켜져 있는 Mac 또는 macOS 가상 머신을 macOS 빌드 머신으로 지정하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trong Tùy chọn nâng cao, hãy chỉ định một máy Mac hoặc máy ảo macOS chạy macOS 15 hoặc 26.0 đến 26.3, đã bật Đăng nhập từ xa, làm máy dựng macOS: kmutil của máy Mac này không thể liên kết kernel iOS 18."
+          }
         }
       }
     },
@@ -11035,6 +11161,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请以 user@host 格式填写 macOS 构建机。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS ビルダーを user@host の形式で入力してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 빌드 머신을 user@host 형식으로 입력하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập máy dựng macOS theo dạng user@host."
           }
         }
       }
@@ -12373,6 +12517,24 @@
             "state" : "translated",
             "value" : "使用 ssh 密钥时无需填写"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ssh 鍵を使う場合は不要"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ssh 키 사용 시 비워 두기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Để trống nếu dùng khóa ssh"
+          }
         }
       }
     },
@@ -12990,6 +13152,24 @@
             "state" : "translated",
             "value" : "使用该版本自身的 cloudOS 时，会启动它自己的内核，并用 vphone600 虚拟化 kext 重新构建：以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 需要 ipsw（配合 `kernel extract --kdk`）。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応する cloudOS 上では、リリース自身のカーネルを vphone600 の仮想化 kext で再構築して起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。ipsw（`kernel extract --kdk` 付き）が必要なのは、2.12.0 のコアバンドルだけです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자체 cloudOS에서는 이 릴리스가 vphone600 가상화 kext로 다시 빌드한 자체 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다. ipsw(`kernel extract --kdk` 포함)는 2.12.0 코어 번들에서만 필요합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trên cloudOS của chính nó, bản phát hành khởi động kernel riêng, được dựng lại với các kext ảo hóa vphone600: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root. Chỉ Bundle lõi 2.12.0 mới cần ipsw (với `kernel extract --kdk`)."
+          }
         }
       }
     },
@@ -12999,6 +13179,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用其自身的 cloudOS（%@）时：会重新构建 kernelcache，需要请求一次管理员权限。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応する cloudOS（%@）の場合：kernelcache を再構築するため、管理者権限が一度求められます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자체 cloudOS(%@)에서는 kernelcache를 다시 빌드하며, 이때 관리자 권한을 한 번 요청합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trên cloudOS của chính nó, %@: kernelcache được dựng lại, việc này yêu cầu quyền quản trị viên một lần."
           }
         }
       }
@@ -13316,6 +13514,24 @@
             "state" : "translated",
             "value" : "其他…"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기타…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khác…"
+          }
         }
       }
     },
@@ -13495,6 +13711,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密码"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "암호"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mật khẩu"
           }
         }
       }
@@ -14016,6 +14250,24 @@
             "state" : "translated",
             "value" : "预设文件"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プリセットファイル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프리셋 파일"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp cấu hình sẵn"
+          }
         }
       }
     },
@@ -14229,6 +14481,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "访问其他 NAT 虚拟机"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかの NAT マシンにアクセス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 NAT 머신에 접근"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Truy cập các máy NAT khác"
           }
         }
       }
@@ -15667,6 +15937,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "将这些更改存储为预设，以后可通过“其他…”选择。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらの変更を加えたプリセットを保存し、あとで「その他…」から選択できるようにします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 변경 사항으로 프리셋을 저장하여 나중에 '기타…'에서 선택할 수 있게 합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu cấu hình sẵn với các thay đổi này để chọn sau qua Khác…"
           }
         }
       }
@@ -18401,6 +18689,24 @@
             "state" : "translated",
             "value" : "Minimal 预设会完全按密封状态保留恢复后的系统。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal プリセットは、復元したシステムを封印された状態のまま保持します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal 프리셋은 복원된 시스템을 봉인된 상태 그대로 유지합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cấu hình sẵn Minimal giữ nguyên hệ thống đã khôi phục đúng như khi được niêm phong."
+          }
         }
       }
     },
@@ -18410,6 +18716,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Minimal 预设会使用独立密钥单独恢复虚拟机：构建模板会改写它所密封的系统。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal プリセットは、独自のキーでマシンを個別に復元します。テンプレートを作成すると、封印するシステムに書き込みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal 프리셋은 자체 키로 머신을 개별 복원합니다. 템플릿을 빌드하면 이 프리셋이 봉인하는 시스템에 쓰기가 발생하기 때문입니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cấu hình sẵn Minimal khôi phục máy ảo riêng biệt, với khóa riêng: việc dựng mẫu sẽ ghi vào hệ thống mà nó niêm phong."
           }
         }
       }
@@ -20802,6 +21126,24 @@
             "state" : "translated",
             "value" : "无法导出预设"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プリセットを書き出せません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프리셋을 내보낼 수 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể xuất cấu hình sẵn"
+          }
         }
       }
     },
@@ -21220,6 +21562,24 @@
             "state" : "translated",
             "value" : "无法使用此预设文件"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプリセットファイルは使用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프리셋 파일을 사용할 수 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể dùng tệp cấu hình sẵn này"
+          }
         }
       }
     },
@@ -21400,6 +21760,24 @@
             "state" : "translated",
             "value" : "无法链接 kernelcache。请查看日志了解详情。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kernelcache をリンクできません。詳細はログを確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kernelcache를 링크할 수 없습니다. 자세한 내용은 로그를 확인하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể liên kết kernelcache. Hãy xem nhật ký để biết chi tiết."
+          }
         }
       }
     },
@@ -21477,6 +21855,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法修补固件。请查看日志了解详情。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファームウェアにパッチを適用できません。詳細はログを確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "펌웨어를 패치할 수 없습니다. 자세한 내용은 로그를 확인하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể vá firmware. Hãy xem nhật ký để biết chi tiết."
           }
         }
       }
@@ -23251,18 +23647,64 @@
         }
       }
     },
-    "With %@: the kernelcache is rebuilt and linked %@, and the restore image asks for administrator access once." : {
+    "With %@: the kernelcache is rebuilt and linked on %@, and the restore image asks for administrator access once." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "With %1$@: the kernelcache is rebuilt and linked %2$@, and the restore image asks for administrator access once."
+            "state" : "translated",
+            "value" : "With %1$@: the kernelcache is rebuilt and linked on %2$@, and the restore image asks for administrator access once."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の場合：kernelcache を再構築して %2$@ でリンクし、復元イメージで管理者権限が一度求められます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 사용 시: kernelcache를 다시 빌드하고 %2$@에서 링크하며, 복원 이미지에서 관리자 권한을 한 번 요청합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với %1$@: kernelcache được dựng lại và liên kết trên %2$@, và ảnh khôi phục yêu cầu quyền quản trị viên một lần."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用 %1$@ 时：会重新构建 kernelcache 并链接（%2$@），恢复镜像会请求一次管理员权限。"
+            "value" : "使用 %1$@ 时：会重新构建 kernelcache 并在 %2$@ 上链接，恢复镜像会请求一次管理员权限。"
+          }
+        }
+      }
+    },
+    "With %@: the kernelcache is rebuilt and linked on this Mac, and the restore image asks for administrator access once." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の場合：kernelcache を再構築してこの Mac でリンクし、復元イメージで管理者権限が一度求められます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 사용 시: kernelcache를 다시 빌드하고 이 Mac에서 링크하며, 복원 이미지에서 관리자 권한을 한 번 요청합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với %@: kernelcache được dựng lại và liên kết trên máy Mac này, và ảnh khôi phục yêu cầu quyền quản trị viên một lần."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 %@ 时：会重新构建 kernelcache 并在这台 Mac 上链接，恢复镜像会请求一次管理员权限。"
           }
         }
       }
@@ -23273,6 +23715,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 %@ 时：会用 Apple Watch 的 kext 重新构建 kernelcache，需要请求一次管理员权限。"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の場合：Apple Watch の kext で kernelcache を再構築するため、管理者権限が一度求められます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 사용 시: Apple Watch의 kext로 kernelcache를 다시 빌드하며, 이때 관리자 권한을 한 번 요청합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với %@: kernelcache được dựng lại với các kext của Apple Watch, việc này yêu cầu quyền quản trị viên một lần."
           }
         }
       }
@@ -23964,6 +24424,24 @@
             "state" : "translated",
             "value" : "iOS 18 会启动其自身版本的内核，并用 cloudOS 26.1 的 vphone600 kext 重新构建：以你的身份暂存（2.12.0 版核心 Bundle 为此需要带 `kernel extract --kdk` 的 ipsw）。只有 macOS 15 或 26.0 至 26.3 的 kmutil 能链接它：从 macOS 26.4 起，由 macOS 构建机（一台已打开“远程登录”的 Mac 或 macOS 虚拟机）通过 ssh 在其上以 root 身份链接。密码用于在构建机上执行 ssh 和 sudo，不会存储；如已配置 ssh 密钥和免密码 sudo，请留空。"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 18 は、そのリリース自身のカーネルを cloudOS 26.1 の vphone600 kext で再構築して起動します。カーネルは現在のユーザとしてステージングされます（2.12.0 のコアバンドルでは、そのために `kernel extract --kdk` 付きの ipsw が必要です）。これをリンクできるのは macOS 15 または 26.0〜26.3 の kmutil だけです。macOS 26.4 以降では、macOS ビルダー（「リモートログイン」がオンの Mac または macOS 仮想マシン）が ssh 経由でそのマシン上で root としてリンクします。パスワードはそのマシンでの ssh と sudo に使われ、保存されません。ssh 鍵とパスワードなしの sudo を使う場合は空欄のままにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 18은 cloudOS 26.1의 vphone600 kext로 다시 빌드한 해당 릴리스 자체의 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비됩니다(2.12.0 코어 번들에서는 이를 위해 `kernel extract --kdk`를 포함한 ipsw가 필요합니다). 이 커널은 macOS 15 또는 26.0~26.3의 kmutil만 링크할 수 있습니다. macOS 26.4부터는 원격 로그인이 켜져 있는 Mac 또는 macOS 가상 머신인 macOS 빌드 머신이 ssh를 통해 해당 머신에서 root로 링크합니다. 암호는 해당 머신의 ssh 및 sudo에 사용되며 저장되지 않습니다. ssh 키와 암호 없는 sudo를 사용하는 경우 비워 두십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 18 khởi động kernel của chính bản phát hành đó, được dựng lại với các kext vphone600 của cloudOS 26.1: kernel được chuẩn bị dưới tài khoản của bạn (Bundle lõi 2.12.0 cần ipsw với `kernel extract --kdk` cho việc này). Chỉ kmutil của macOS 15 hoặc 26.0 đến 26.3 mới liên kết được: từ macOS 26.4 trở đi, máy dựng macOS (một máy Mac hoặc máy ảo macOS đã bật Đăng nhập từ xa) liên kết kernel qua ssh với quyền root trên máy đó. Mật khẩu dùng cho ssh và sudo trên máy đó và không được lưu; để trống nếu dùng khóa ssh và sudo không cần mật khẩu."
+          }
         }
       }
     },
@@ -24146,6 +24624,24 @@
             "state" : "translated",
             "value" : "ipsw"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ipsw"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ipsw"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ipsw"
+          }
         }
       }
     },
@@ -24258,12 +24754,48 @@
             "state" : "translated",
             "value" : "macOS 构建机"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS ビルダー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 빌드 머신"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy dựng macOS"
+          }
         }
       }
     },
     "user@host" : {
       "localizations" : {
         "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "user@host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "user@host"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "user@host"
+          }
+        },
+        "vi" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "user@host"

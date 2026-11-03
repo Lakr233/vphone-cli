@@ -132,15 +132,18 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple 的 ROM
 | --- | --- |
 | [下载说明](Downloads/README.md) | 已公证的 Launchpad 版本及匹配的 `VPhone.bundle` 版本 |
 | [宿主机设置](Guides/host-setup.md) | SIP 与 AMFI 设置、源码构建、环境检查 |
-| [创建与运行](Guides/create-and-run.md) | 固件来源、创建流程、存储与备份 |
+| [创建与运行](Guides/create-and-run.md) | 创建流程、启动与停止虚拟机 |
+| [模板](Guides/templates.md) | 用一次恢复创建多台虚拟机，精简客户机系统 |
+| [资料库与备份](Guides/library-and-backups.md) | 虚拟机的存放位置、克隆与导出 |
 | [兼容性说明](Guides/compatibility.md) | 已验证的固件组合 |
 | [快照](Guides/snapshots.md) | 保存已停止虚拟机的磁盘状态，并可恢复到该状态 |
 | [iPadOS 客户机](Guides/ipados.md) | 运行 iPadOS 而非 iOS |
 | [其他 iPhone 机型](Guides/iphone-models.md) | 使用其他 iPhone 机型的 IPSW 运行 iOS |
 | [软件包环境](Guides/package-environment.md) | 安装和删除虚拟机中的软件包管理器 |
 | [故障排查](Guides/troubleshooting.md) | 常见错误及解决方法 |
-| [网络](Guides/networking.md) | 网络模式，以及在 Mac 使用 VPN 或代理时用的 `tunnel` |
+| [网络](Guides/networking.md) | 网络模式、地址、端口转发，以及在 Mac 使用 VPN 或代理时用的 `tunnel` |
 | [Launchpad 命令行](Guides/launchpad-cli.md) | 用 `vphone-launchpad-cli` 安装和测试本地构建 |
+| [全部指南](README.md) | 按主题分组的全部指南 |
 | [研究记录](../Research/README.md) | 补丁与实现细节 |
 
 ## 项目结构

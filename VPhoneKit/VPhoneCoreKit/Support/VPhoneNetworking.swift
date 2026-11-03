@@ -77,7 +77,7 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
         case let .tooManyDNSServers(count):
             "\(count) DNS servers is more than the guest takes. Give at most 4."
         case let .settingWithoutAddress(option):
-            "\(option) needs a fixed address. Set one with --ip, for example --ip 192.168.64.50/24."
+            "\(option) needs a fixed address. Set one with --ip, for example --ip 192.168.65.50/24."
         case let .invalidMACAddress(value):
             "'\(value)' is not a usable MAC address. Use aa:bb:cc:dd:ee:ff with the multicast bit clear, or 'random'."
         case let .invalidPortForward(value):

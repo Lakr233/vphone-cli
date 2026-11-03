@@ -69,7 +69,7 @@ assumed. `--gateway` and `--dns` are optional; `auto` returns them to the
 default, and `--ip dhcp` removes the fixed address.
 
 ```sh
-vphone-cli vm config <name> --ip 192.168.64.50
+vphone-cli vm config <name> --ip 192.168.65.50
 vphone-cli vm config <name> --network tunnel --ip 10.20.0.5/16 --dns 1.1.1.1
 vphone-cli vm config <name> --ip dhcp
 ```
@@ -78,13 +78,14 @@ How the address reaches the guest depends on the mode:
 
 | Mode | Address | How it is applied |
 | --- | --- | --- |
-| `nat` | On the Mac's shared NAT network, normally `192.168.64.0/24` | vphoned writes it into the guest's network settings. The gateway and DNS are the Mac, `192.168.64.1`. |
+| `nat` | On the Mac's shared NAT network: normally `192.168.65.0/24`, or `192.168.64.0/24` for a machine with `--nat-peers off` ([Machines reaching each other](network-peers.md)) | vphoned writes it into the guest's network settings. The gateway and DNS are the Mac, `192.168.65.1` or `192.168.64.1`. |
 | `tunnel` | Any private subnet | The tunnel's own DHCP hands it out. The gateway, which is also the DNS resolver, is the subnet's first address unless `--gateway` names another. |
 | `bridged` | An address on the physical network | vphoned writes it into the guest. Set `--gateway` and `--dns` to the network's own. |
 
-In `nat` mode the address has to be on the shared network, the one every `nat`
-VM uses (vmnet's `Shared_Net_Address`, if it has been moved). For any other
-subnet, use `tunnel`. macOS 26 can give a VM a NAT network of its own, but the
+In `nat` mode the address has to be on the shared network the machine joins:
+the second one for machines that reach each other, the default, or the first
+with `--nat-peers off`. Both follow vmnet's `Shared_Net_Address` if it has been
+moved. For any other subnet, use `tunnel`. macOS 26 can give a VM a NAT network of its own, but the
 subnet then stays reserved after the VM stops (still so 40 minutes later in
 testing), and every launch on it fails meanwhile, so vphone does not use it.
 

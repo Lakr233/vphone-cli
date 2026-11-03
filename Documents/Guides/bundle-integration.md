@@ -13,8 +13,8 @@ An integrating application such as `vphone-launchpad` should keep the bundle int
 | `Contents/MacOS/vphone-escalator` | AMFI allowlist tool for the current VM cdhash |
 | `Contents/MacOS/libswiftCompatibilitySpan.vphone.dylib` | Swift back-deployment library for `vphone-vm` on macOS 15 |
 | `Contents/Resources/guest-resources/vphoned` | Pre-signed guest daemon with its own entitlements; the bundle contains no unsigned copy |
-| `Contents/Resources/guest-resources/*.dylib` | Guest libraries: launchd hook, SystemHook, camera hooks and the GPU compiler plugin |
-| `Contents/Resources/guest-resources/*.plist` | Guest launch daemon configuration and camera hook filters |
+| `Contents/Resources/guest-resources/*.dylib` | Guest libraries: launchd hook, SystemHook, camera hooks, the GPU compiler plugin, and the fixes and device adapters listed in [`VPhoneGuestComponents`](../../VPhoneGuestComponents/README.md) |
+| `Contents/Resources/guest-resources/*.plist` | Guest launch daemon configuration, camera hook and MISFix filters |
 | `Contents/Resources` | Localized strings; no signing script or entitlement file is shipped |
 
 `Contents/MacOS` holds only programs that run on the Mac.

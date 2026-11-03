@@ -8,18 +8,30 @@ hook and MISFix filter plists, and the GPU provenance note:
 | --- | --- |
 | Camera app hook | `camfix/libcamfix.dylib`, `camfix/libcamfix.plist` |
 | Camera daemon hook | `vcamcaptured/libvcamcaptured.dylib`, `vcamcaptured/libvcamcaptured.plist` |
+| Install-gate filter (MISFix) | `misfix/libmisfix.dylib`, `misfix/libmisfix.plist` |
 | Haptics fix | `hapticsfix/libhapticsfix.dylib` |
 | Battery health fix | `batteryhealthfix/libbatteryhealthfix.dylib` |
 | DeviceHub fix | `devicehubfix/libdevicehubfix.dylib` |
 | Device name pin | `devicename/libdevicename.dylib` |
+| Settings suggestions filter | `prefsfix/libprefsfix.dylib` |
+| Sign-in sheet filter | `signinfix/libsigninfix.dylib` |
+| iOS 16 desktop bring-up | `ios16desktop/libvphoneios16desktop.dylib`, `ios16migration/libvphoneios16migration.dylib` |
+| iOS 17 desktop bring-up | `ios17desktop/libvphoneios17desktop.dylib` |
 | Virtual gyroscope | `gyroscope/libvphonegyro.dylib` |
 | Gravity accelerometer | `accelerometer/libvphoneaccelerometer.dylib` |
 | Virtual hinge angle | `hinge/libvphonehinge.dylib` |
+| Foldable SpringBoard guard | `foldguard/libvphonefoldguard.dylib` |
+| Foldable inner display | `folddisplay/libvphonefolddisplay.dylib` |
 | Device attitude | `attitude/libvphoneattitude.dylib` |
 | HomePod display identity | `homepoddisplay/libvphonehomepoddisplay.dylib` |
+| HomePod cryptex staging | `cryptexstaging/libvphonecryptexstaging.dylib` |
+| HomePod install persona | `homepodpersona/libvphoneinstallpersona.dylib` |
+| HomePod install-gate filter | `homepodmisfix/libvphonehomepodmisfix.dylib` |
 | HomePod setup maintenance | `homepodsetup/vphone-homepod-setup`, `homepodsetup/com.vphone.homepod-setup.plist` |
+| Apple TV setup focus | `tvsetupfocus/libvphonetvsetupfocus.dylib` |
 | Launchd hook | `launchhook/launchdhook-vphone.dylib` |
 | Process injection bridge | `systemhook/SystemHook-vphone.dylib` |
+| GPU compiler plugin | `gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib` |
 | PCC GPU driver | `gpu/README.md` (source and extraction flow; no Apple binary) |
 | Virtio sound HAL plugin | `virtiosound/VPhoneVirtIOSound.driver` |
 

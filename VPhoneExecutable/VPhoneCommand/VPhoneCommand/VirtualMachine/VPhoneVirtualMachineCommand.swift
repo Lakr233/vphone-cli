@@ -226,7 +226,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         Network settings are read when the VM starts, so a change applies from the next launch.
 
         --ip fixes the guest's address. In nat mode it must be on the Mac's shared NAT network \
-        (usually 192.168.64.0/24), and vphoned writes it into the guest. In tunnel mode, any \
+        (usually 192.168.65.0/24; 192.168.64.0/24 with --nat-peers off), and vphoned writes it into the guest. In tunnel mode, any \
         private subnet, handed out by the VM's own DHCP. In bridged mode vphoned writes it into \
         the guest, so give --gateway and --dns for the LAN.
 
@@ -239,7 +239,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
 
         --mac-name (on by default) has the guest resolve this Mac's <LocalHostName>.local \
         at once, to the address the guest reaches the Mac at (nat: the shared network's host \
-        address, usually 192.168.64.1; tunnel: the gateway, which leads to the Mac's loopback; \
+        address, usually 192.168.65.1; tunnel: the gateway, which leads to the Mac's loopback; \
         bridged: the Mac's address on that interface), instead of racing mDNS answers. \
         --mac-name off withdraws it. Applied each time vphone-vm connects to the guest.
 

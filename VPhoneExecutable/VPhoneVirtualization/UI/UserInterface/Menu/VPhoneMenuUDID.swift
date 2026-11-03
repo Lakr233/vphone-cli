@@ -69,7 +69,7 @@ extension VPhoneMenuController {
             "App installs check provisioning profiles against this UDID. Enter the UDID of a device already registered with your team. Xcode and devicectl still show the guest's own UDID.",
         )
         alert.accessoryView = field
-        alert.addButton(withTitle: VPhoneLocalization.text("Set"))
+        alert.addButton(withTitle: String(localized: "udid.alert.set", defaultValue: "Set", bundle: VPhoneLocalization.bundle))
         alert.addButton(withTitle: VPhoneLocalization.text("Cancel"))
         alert.window.initialFirstResponder = field
 

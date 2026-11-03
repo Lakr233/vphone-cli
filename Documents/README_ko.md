@@ -133,11 +133,18 @@ vphone-cli vm config myphone --rom apple --seprom apple       # Apple의 ROM
 | --- | --- |
 | [다운로드 안내](Downloads/README.md) | 공증된 Launchpad 버전과 맞는 `VPhone.bundle` 버전 |
 | [호스트 설정](Guides/host-setup.md) | SIP 및 AMFI 설정, 소스 빌드, 환경 점검 |
-| [생성 및 실행](Guides/create-and-run.md) | 펌웨어 출처, 생성 절차, 저장과 백업 |
+| [생성 및 실행](Guides/create-and-run.md) | 생성 절차, 가상 머신 시작과 중지 |
+| [템플릿](Guides/templates.md) | 한 번의 복원으로 여러 가상 머신 만들기, 게스트 경량화 |
+| [보관함과 백업](Guides/library-and-backups.md) | 가상 머신 저장 위치, 복제와 내보내기 |
 | [호환성 안내](Guides/compatibility.md) | 검증된 펌웨어 조합 |
+| [스냅샷](Guides/snapshots.md) | 중지된 가상 머신의 디스크 상태를 저장하고 되돌리기 |
+| [iPadOS 게스트](Guides/ipados.md) | iOS 대신 iPadOS 실행 |
+| [다른 iPhone 모델](Guides/iphone-models.md) | 다른 iPhone 모델의 IPSW로 iOS 실행 |
+| [패키지 환경](Guides/package-environment.md) | 가상 머신의 패키지 관리자 설치 및 제거 |
 | [문제 해결](Guides/troubleshooting.md) | 자주 발생하는 오류와 해결 방법 |
-| [네트워크](Guides/networking.md) | 네트워크 모드, 그리고 Mac이 VPN이나 프록시를 쓸 때의 `tunnel` |
+| [네트워크](Guides/networking.md) | 네트워크 모드, 주소, 포트 포워딩, 그리고 Mac이 VPN이나 프록시를 쓸 때의 `tunnel` |
 | [Launchpad 명령줄](Guides/launchpad-cli.md) | `vphone-launchpad-cli`로 로컬 빌드 설치 및 테스트 |
+| [전체 가이드](README.md) | 주제별로 정리한 전체 가이드 |
 | [연구 기록](../Research/README.md) | 패치와 구현 세부 사항 |
 
 ## 프로젝트 구조
