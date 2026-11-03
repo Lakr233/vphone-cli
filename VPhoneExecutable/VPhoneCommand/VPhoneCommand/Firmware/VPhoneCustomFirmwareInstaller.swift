@@ -262,6 +262,14 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.homePodOTAUserland), device.family != .homePod {
             throw ValidationError("The HomePod OTA userland patch is supported only for a HomePod guest.")
         }
+        let missingGLESDependencies = FirmwareGuestPatchResolution.missingGLESPrimitiveRestartDependencies(enabled: effectiveEnabled)
+        guard missingGLESDependencies.isEmpty else {
+            throw ValidationError("The GLES primitive-restart correction requires these selected guest patches: \(missingGLESDependencies.joined(separator: ", ")).")
+        }
+        let missingCacheDependencies = FirmwareGuestPatchResolution.missingCompilerCacheDependencies(enabled: effectiveEnabled)
+        guard missingCacheDependencies.isEmpty else {
+            throw ValidationError("GPU compiler cache versioning with cross-boot reuse requires these selected guest patches: \(missingCacheDependencies.joined(separator: ", ")).")
+        }
         let missingGlowDependencies = FirmwareGuestPatchResolution.missingHomePodSoundGlowDependencies(enabled: effectiveEnabled)
         guard missingGlowDependencies.isEmpty else {
             throw ValidationError("The HomePod Sound Glow patch requires these selected guest patches: \(missingGlowDependencies.joined(separator: ", ")).")
@@ -362,6 +370,9 @@ struct VPhoneCustomFirmwareInstaller {
         let cloned = try work.directory.clone(disk, to: "Disk.img")
         if isOTAUpdate, !cloned {
             throw ValidationError("The OTA update needs a private APFS disk clone; the original disk was left untouched.")
+        }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache), !cloned {
+            throw ValidationError("GPU compiler cache versioning needs a private APFS disk clone so the compiler and its cache identity update together; the original disk was left untouched.")
         }
         if device.usesTVOS {
             // A paired dyld edit must never fall back to mutating the live disk.
@@ -1332,7 +1343,8 @@ struct VPhoneCustomFirmwareInstaller {
         // Whether the VM's plan (its guest half re-resolved from the current
         // selection) turned this guest patch on. A VM with no plan gets every
         // legacy patch, which is what it was restored with. New Settings-row
-        // preferences and motion sensors still require an explicit plan.
+        // preferences, motion sensors and version-gated GLES compatibility still
+        // require an explicit plan.
         func on(_ identifier: String) -> Bool {
             guard let plan else {
                 return !FirmwareGuestSystemPatchSet.settingsRowPatches.contains(identifier)
@@ -1350,6 +1362,8 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.ios16Framebuffer
                     && identifier != FirmwareGuestSystemPatchSet.ios16Touchscreen
                     && identifier != FirmwareGuestSystemPatchSet.ios16KeybaglessUI
+                    && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
+                    && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
             }
             guard plan.isEnabled(identifier) else {
                 print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
@@ -1807,6 +1821,10 @@ struct VPhoneCustomFirmwareInstaller {
         }
         dyld += [
             (FirmwareGuestSystemPatchSet.ios16PortsLookup, "patch-ios16-mach-ports", [dsc]),
+            (FirmwareGuestSystemPatchSet.metalCacheReuseKey, "patch-metal-cache-reuse-key", [dsc]),
+            (FirmwareGuestSystemPatchSet.metalVertexIDFormat, "patch-metal-vertex-id-format", [dsc]),
+            (FirmwareGuestSystemPatchSet.glesPrimitiveRestart, "patch-gles-primitive-restart", [dsc]),
+            (FirmwareGuestSystemPatchSet.glesPointDraw, "patch-gles-point-draw", [dsc]),
             (FirmwareGuestSystemPatchSet.homeViewEnvironmentService, "patch-homeview-environment", [dsc]),
             (FirmwareGuestSystemPatchSet.settingsSoftwareUpdate, "patch-settings-software-update", [dsc]),
             (FirmwarePatchSetCatalog.misTrustAuthPatch, "patch-mis-trust-auth", [dsc]),
@@ -1818,6 +1836,16 @@ struct VPhoneCustomFirmwareInstaller {
             live: &live, failures: &failures,
         )
         try requireX1Bootstrap()
+
+        // Selected is not necessarily applied: optional DSC failures are
+        // isolated above. Stop before refreshing the compiler if cache reuse
+        // would still bypass its new identity. The private clone is discarded.
+        let cacheDependencies = FirmwareGuestPatchResolution.missingCompilerCacheDependencies(
+            enabled: Set(plan?.enabledPatches ?? []), applied: live,
+        )
+        guard cacheDependencies.isEmpty else {
+            throw ValidationError("Required GPU compiler cache patches failed; the compiler was not updated: \(cacheDependencies.joined(separator: ", ")).")
+        }
 
         // The feature plist exists from iOS 26. Turning the patch off restores
         // the original.
@@ -2003,35 +2031,60 @@ struct VPhoneCustomFirmwareInstaller {
         // one the host refuses. After the bundle step on purpose:
         // `installGPUBundle` replaces the whole bundle, `.bak` included, so the
         // backup taken here is always the staged driver — and a bundle it just
-        // reinstalled is already pristine, which is what "off" means. Both ride
+        // reinstalled is already pristine, which is what "off" means. The
+        // compiler identity also changes with the installed plugin so its old
+        // shader output is never reused after an update. All selected fixes ride
         // one staged copy: `patchMachO` stages from the pristine backup, so two
         // calls would not compose.
         let gpuDriverPatches: [(id: String, verb: String)] = [
             (FirmwareGuestSystemPatchSet.paravirtGPUIndexOffset, "patch-paravirt-gpu-index-offset"),
             (FirmwareGuestSystemPatchSet.paravirtGPUPrimitiveRestart, "patch-paravirt-gpu-primitive-restart"),
+            (FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache, "patch-paravirt-gpu-compiler-cache"),
         ]
         let gpuDriver = FirmwareGuestSystemPatchSet.paravirtGPUDriverPath
         let gpuBundle = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
         let gpuDriverOn = gpuDriverPatches.filter { on($0.id) }
         isolate(gpuDriverPatches.map(\.id)) {
             if !gpuDriverOn.isEmpty {
+                let compilerCache = gpuDriverOn.first { $0.id == FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache }
+                let pluginName = "gpu-compiler-cache-plugin.dylib"
+                if compilerCache != nil {
+                    // Read the confined installed file, not bundle resources:
+                    // refreshing the plugin can fail independently, and the
+                    // cache identity must describe what the guest will load.
+                    try work.directory.removeItem(pluginName)
+                    try system.copyFile(
+                        from: "\(gpuBundle)/libAppleParavirtCompilerPluginIOGPUFamily.dylib",
+                        to: pluginName, in: work.directory,
+                    )
+                }
                 try patchMachO(
                     system: system, work: work, path: gpuDriver,
-                    verbs: gpuDriverOn.map(\.verb),
+                    verbs: gpuDriverOn.filter { $0.id != compilerCache?.id }.map(\.verb),
                     identifier: "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily",
+                    beforeSigning: { staged in
+                        if let compilerCache {
+                            try patch(compilerCache.verb, [staged.path, "--compiler-plugin", work.file(pluginName).path])
+                        }
+                    },
                 )
                 try sealGuestBundle(system: system, bundle: gpuBundle)
                 for patch in gpuDriverOn {
                     live.insert(patch.id)
                 }
             } else if try revertMachO(system: system, work: work, path: gpuDriver, bundle: gpuBundle) {
-                print("  [+] \(gpuDriver) restored from backup (heap index and primitive restart patches off)")
+                print("  [+] \(gpuDriver) restored from backup (GPU driver patches off)")
             } else if !gpuBundleReinstalled {
                 for patch in gpuDriverPatches where priorGuest.contains(patch.id) {
                     print("  [!] \(patch.id): off now but no backup to revert; leaving the patched driver (not revertible)")
                     live.insert(patch.id)
                 }
             }
+        }
+
+        if on(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache),
+           failures.contains(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache) {
+            throw ValidationError("GPU compiler cache identity update failed; the private disk clone was discarded to keep the compiler and driver consistent.")
         }
 
         machO("system-launchd_cache_loader-boot-unsecure_cache_gate", path: "usr/libexec/launchd_cache_loader", verbs: ["patch-launchd-cache-loader"], codeIdentifier: "com.apple.launchd_cache_loader")
@@ -2430,6 +2483,19 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
+        // Select the renderer's viewport/scissor path instead of IOSurface
+        // attachment yInvert. The declaration gates the measured OS pair.
+        let glesOrientationPatch = FirmwareGuestSystemPatchSet.glesUpperLeft
+        let glesOrientationMarker = String(FirmwareGuestSystemPatchSet.glesUpperLeftMarker.dropFirst())
+        isolate([glesOrientationPatch]) {
+            if on(glesOrientationPatch) {
+                try system.writeFile(glesOrientationMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                live.insert(glesOrientationPatch)
+            } else {
+                try system.removeItem(glesOrientationMarker)
+            }
+        }
+
         if !failures.isEmpty {
             print("[!] \(failures.count) guest patch(es) failed and were left in their prior state: \(Set(failures).sorted().joined(separator: ", "))")
             if strict {
@@ -2470,7 +2536,13 @@ struct VPhoneCustomFirmwareInstaller {
     ) throws {
         func enabled(_ id: String) -> Bool {
             if id == FirmwareGuestSystemPatchSet.ios16PortsLookup { return plan?.isEnabled(id) == true }
-            if id == FirmwareGuestSystemPatchSet.homeViewEnvironmentService { return plan?.isEnabled(id) == true }
+            if id == FirmwareGuestSystemPatchSet.homeViewEnvironmentService
+                || id == FirmwareGuestSystemPatchSet.metalCacheReuseKey
+                || id == FirmwareGuestSystemPatchSet.metalVertexIDFormat
+                || id == FirmwareGuestSystemPatchSet.glesPointDraw
+                || id == FirmwareGuestSystemPatchSet.glesPrimitiveRestart {
+                return plan?.isEnabled(id) == true
+            }
             return plan?.isEnabled(id) ?? !FirmwareGuestSystemPatchSet.settingsRowPatches.contains(id)
         }
         func requireBootstrap(_ id: String, error: any Error) throws {
@@ -2542,7 +2614,7 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(entry.id)
                 } catch {
                     failures.append(entry.id)
-                    print("  [!] \(entry.id): dyld patch failed, left in its prior state: \(error)")
+                    print("  [!] \(entry.id): dyld patch failed; inspect the error for recovery details: \(error)")
                     try requireBootstrap(entry.id, error: error)
                 }
             case (false, true):
@@ -4043,7 +4115,8 @@ struct VPhoneCustomFirmwareInstaller {
     /// `verbs` runs in order against the one staged copy — the staging starts
     /// from the pristine backup, so two calls would not compose. Empty: a
     /// binary that only needs a library injected — as installd does for
-    /// libmisfix — has no bytes of its own to change.
+    /// libmisfix — has no bytes of its own to change. `beforeSigning` can apply
+    /// a patch requiring additional staged inputs to that same copy.
     private func patchMachO(
         system: VPhoneConfinedDirectory,
         work: WorkDirectory,
@@ -4052,6 +4125,7 @@ struct VPhoneCustomFirmwareInstaller {
         identifier: String? = nil,
         preserveEntitlements: Bool = false,
         injectedDylibPath: String? = nil,
+        beforeSigning: ((URL) throws -> Void)? = nil,
     ) throws {
         let backup = "\(path).bak"
         if try !system.exists(backup) {
@@ -4078,6 +4152,7 @@ struct VPhoneCustomFirmwareInstaller {
         if let injectedDylibPath {
             try patch("inject-dylib", [staged.path, injectedDylibPath])
         }
+        try beforeSigning?(staged)
         // The ad-hoc shape, not ldid's: TXM 187.100.3 routes a CodeDirectory
         // without the CS_ADHOC flag into a selector-24 branch that demands a
         // CMS wrapper no ad-hoc re-sign carries, and iOS 27.0.1's launchd is

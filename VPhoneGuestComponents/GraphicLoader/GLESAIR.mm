@@ -16,6 +16,12 @@
 // The LLVM C API in the guest's libLLVM can read metadata but not replace a
 // node's operand, so the module is printed, its argument lines extended, and
 // the text parsed back into a new module in the same context.
+//
+// AppleMetalGLRenderer also requests pointCoordYFlipEnabled on every render
+// pass. The supported PV path does not honor that private flag, so implement
+// its effect at metadata-identified GLES fragment point-coordinate inputs. This
+// is independent of AGX_GL_VIEWPORT_INVERT_CONFIG. Native Metal modules are
+// untouched; a module marker prevents applying the conversion twice.
 
 #include <cstdio>
 #include <cstdlib>
@@ -32,6 +38,9 @@ extern "C" {
     typedef struct LLVMOpaqueType *LLVMTypeRef;
     typedef struct LLVMOpaqueTargetData *LLVMTargetDataRef;
     typedef struct LLVMOpaqueMemoryBuffer *LLVMMemoryBufferRef;
+    typedef struct LLVMOpaqueBasicBlock *LLVMBasicBlockRef;
+    typedef struct LLVMOpaqueBuilder *LLVMBuilderRef;
+    typedef struct LLVMOpaqueUse *LLVMUseRef;
 
     LLVMContextRef LLVMGetModuleContext(LLVMModuleRef M);
     unsigned LLVMGetNamedMetadataNumOperands(LLVMModuleRef M, const char *Name);
@@ -61,6 +70,31 @@ extern "C" {
     LLVMTargetDataRef LLVMGetModuleDataLayout(LLVMModuleRef M);
     unsigned long long LLVMABISizeOfType(LLVMTargetDataRef TD, LLVMTypeRef Ty);
     unsigned LLVMABIAlignmentOfType(LLVMTargetDataRef TD, LLVMTypeRef Ty);
+    LLVMValueRef LLVMIsAFunction(LLVMValueRef Val);
+    LLVMValueRef LLVMIsAConstantInt(LLVMValueRef Val);
+    LLVMTypeRef LLVMTypeOf(LLVMValueRef Val);
+    unsigned long long LLVMConstIntGetZExtValue(LLVMValueRef ConstantVal);
+    LLVMValueRef LLVMGetParam(LLVMValueRef Fn, unsigned Index);
+    LLVMUseRef LLVMGetFirstUse(LLVMValueRef Val);
+    LLVMBasicBlockRef LLVMGetFirstBasicBlock(LLVMValueRef Fn);
+    LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef BB);
+    LLVMValueRef LLVMGetNextInstruction(LLVMValueRef Inst);
+    LLVMValueRef LLVMIsAPHINode(LLVMValueRef Val);
+    LLVMBuilderRef LLVMCreateBuilderInContext(LLVMContextRef C);
+    void LLVMPositionBuilderBefore(LLVMBuilderRef Builder, LLVMValueRef Instr);
+    void LLVMDisposeBuilder(LLVMBuilderRef Builder);
+    LLVMTypeRef LLVMInt32TypeInContext(LLVMContextRef C);
+    LLVMValueRef LLVMConstInt(LLVMTypeRef IntTy, unsigned long long N, int SignExtend);
+    LLVMValueRef LLVMConstReal(LLVMTypeRef RealTy, double N);
+    LLVMValueRef LLVMBuildExtractElement(LLVMBuilderRef, LLVMValueRef VecVal, LLVMValueRef Index, const char *Name);
+    LLVMValueRef LLVMBuildFSub(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);
+    LLVMValueRef LLVMBuildInsertElement(LLVMBuilderRef, LLVMValueRef VecVal, LLVMValueRef EltVal, LLVMValueRef Index, const char *Name);
+    void LLVMReplaceAllUsesWith(LLVMValueRef OldVal, LLVMValueRef NewVal);
+    void LLVMSetOperand(LLVMValueRef User, unsigned Index, LLVMValueRef Val);
+    LLVMValueRef LLVMMDNodeInContext(LLVMContextRef C, LLVMValueRef *Vals, unsigned Count);
+    void LLVMAddNamedMetadataOperand(LLVMModuleRef M, const char *Name, LLVMValueRef Val);
+    int LLVMVerifyModule(LLVMModuleRef M, int Action, char **OutMessage);
+    void LLVMDisposeModule(LLVMModuleRef M);
 }
 
 namespace {
@@ -269,14 +303,23 @@ private:
         auto string = [&](const std::string &s) { extra += ", !\"" + s + "\""; };
         auto integer = [&](unsigned long long n) { extra += ", i32 " + std::to_string(n); };
         bool buffer = !output && ops.size() > 1 && ops[1] == "!\"air.buffer\"";
-        if (buffer && type && LLVMGetTypeKind(type) == kindPointer && !hasKey(ops, "air.address_space")) {
+        if (buffer && type && LLVMGetTypeKind(type) == kindPointer) {
             LLVMTypeRef pointee = LLVMGetElementType(type);
-            string("air.address_space");
-            integer(LLVMGetPointerAddressSpace(type));
-            string("air.arg_type_size");
-            integer(LLVMABISizeOfType(layout, pointee));
-            string("air.arg_type_align_size");
-            integer(LLVMABIAlignmentOfType(layout, pointee));
+            // Some producers already supply only part of the buffer layout.
+            // Complete each field independently without duplicating or
+            // replacing the producer's existing values.
+            if (!hasKey(ops, "air.address_space")) {
+                string("air.address_space");
+                integer(LLVMGetPointerAddressSpace(type));
+            }
+            if (!hasKey(ops, "air.arg_type_size")) {
+                string("air.arg_type_size");
+                integer(LLVMABISizeOfType(layout, pointee));
+            }
+            if (!hasKey(ops, "air.arg_type_align_size")) {
+                string("air.arg_type_align_size");
+                integer(LLVMABIAlignmentOfType(layout, pointee));
+            }
         }
         if (!hasKey(ops, "air.arg_type_name")) {
             string("air.arg_type_name");
@@ -292,6 +335,88 @@ private:
     }
 };
 
+constexpr const char *pointCoordinateMarker = "vphone.gles.point_coord_y_flipped";
+struct PointCoordinate {
+    LLVMValueRef parameter;
+    LLVMTypeRef scalar;
+    LLVMValueRef insertion;
+};
+
+bool pointCoordinates(LLVMModuleRef module, std::vector<PointCoordinate> &result, const char **error) {
+    if (LLVMGetNamedMetadataNumOperands(module, pointCoordinateMarker))
+        return true;
+    unsigned count = LLVMGetNamedMetadataNumOperands(module, "air.fragment");
+    std::vector<LLVMValueRef> entries(count);
+    if (count)
+        LLVMGetNamedMetadataOperands(module, "air.fragment", entries.data());
+    std::set<LLVMValueRef> seen;
+    for (LLVMValueRef entry : entries) {
+        auto fields = operands(entry);
+        if (fields.size() < 3 || !fields[0] || !LLVMIsAFunction(fields[0]))
+            continue;
+        LLVMValueRef function = fields[0];
+        LLVMTypeRef signature = LLVMGlobalGetValueType(function);
+        std::vector<LLVMTypeRef> parameters(LLVMCountParamTypes(signature));
+        if (!parameters.empty())
+            LLVMGetParamTypes(signature, parameters.data());
+        for (LLVMValueRef node : operands(fields[2])) {
+            auto argument = operands(node);
+            if (argument.size() < 2 || stringOf(argument[1]) != "air.point_coord")
+                continue;
+            if (!argument[0] || !LLVMIsAConstantInt(argument[0]) ||
+                LLVMGetIntTypeWidth(LLVMTypeOf(argument[0])) > 64) {
+                *error = "OpenGL ES point-coordinate input has no supported integer parameter index";
+                return false;
+            }
+            unsigned long long index = LLVMConstIntGetZExtValue(argument[0]);
+            if (index >= parameters.size() || LLVMGetTypeKind(parameters[index]) != kindVector ||
+                LLVMGetVectorSize(parameters[index]) != 2) {
+                *error = "OpenGL ES point-coordinate input must be a two-component vector";
+                return false;
+            }
+            LLVMTypeRef scalar = LLVMGetElementType(parameters[index]);
+            if (LLVMGetTypeKind(scalar) != kindHalf && LLVMGetTypeKind(scalar) != kindFloat) {
+                *error = "OpenGL ES point-coordinate input must contain half or float values";
+                return false;
+            }
+            LLVMValueRef parameter = LLVMGetParam(function, (unsigned)index);
+            if (!LLVMGetFirstUse(parameter) || !seen.insert(parameter).second)
+                continue;
+            LLVMBasicBlockRef block = LLVMGetFirstBasicBlock(function);
+            LLVMValueRef insertion = block ? LLVMGetFirstInstruction(block) : nullptr;
+            while (insertion && LLVMIsAPHINode(insertion))
+                insertion = LLVMGetNextInstruction(insertion);
+            if (!insertion) {
+                *error = "OpenGL ES point-coordinate input has no function body";
+                return false;
+            }
+            result.push_back({parameter, scalar, insertion});
+        }
+    }
+    return true;
+}
+
+void flipPointCoordinates(LLVMModuleRef module, const std::vector<PointCoordinate> &inputs) {
+    LLVMContextRef context = LLVMGetModuleContext(module);
+    LLVMBuilderRef builder = LLVMCreateBuilderInContext(context);
+    LLVMValueRef oneIndex = LLVMConstInt(LLVMInt32TypeInContext(context), 1, 0);
+    for (const PointCoordinate &input : inputs) {
+        LLVMPositionBuilderBefore(builder, input.insertion);
+        LLVMValueRef y = LLVMBuildExtractElement(builder, input.parameter, oneIndex, "vphone.point.y");
+        LLVMValueRef flipped = LLVMBuildFSub(builder, LLVMConstReal(input.scalar, 1.0), y, "vphone.point.flipped_y");
+        LLVMValueRef coordinate = LLVMBuildInsertElement(builder, input.parameter, flipped, oneIndex, "vphone.point.coord");
+        LLVMReplaceAllUsesWith(input.parameter, coordinate);
+        // RAUW includes the two instructions just created. Restore their
+        // source operands to the original parameter; otherwise they form a
+        // self-reference. All original uses now see the converted vector.
+        LLVMSetOperand(y, 0, input.parameter);
+        LLVMSetOperand(coordinate, 0, input.parameter);
+    }
+    LLVMDisposeBuilder(builder);
+    LLVMValueRef version = LLVMConstInt(LLVMInt32TypeInContext(context), 1, 0);
+    LLVMAddNamedMetadataOperand(module, pointCoordinateMarker, LLVMMDNodeInContext(context, &version, 1));
+}
+
 } // namespace
 
 bool isGLESModule(LLVMModuleRef module) {
@@ -301,10 +426,21 @@ bool isGLESModule(LLVMModuleRef module) {
     std::vector<LLVMValueRef> versions(count);
     LLVMGetNamedMetadataOperands(module, "air.language_version", versions.data());
     std::vector<LLVMValueRef> ops = operands(versions[0]);
-    return !ops.empty() && stringOf(ops[0]) == "OpenGL ES GLSL";
+    if (ops.empty())
+        return false;
+    const std::string language = stringOf(ops[0]);
+    // ES1's generated fixed-function programs use the same legacy argument
+    // layout as GLSL, but identify themselves as "OpenGL ES Program".
+    return language == "OpenGL ES GLSL" || language == "OpenGL ES Program";
 }
 
 LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
+    *error = nullptr;
+    if (!module || !isGLESModule(module))
+        return nullptr;
+    std::vector<PointCoordinate> inputs;
+    if (!pointCoordinates(module, inputs, error))
+        return nullptr;
     char *printed = LLVMPrintModuleToString(module);
     if (!printed) {
         *error = "cannot print the OpenGL ES module";
@@ -314,7 +450,7 @@ LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
     LLVMDisposeMessage(printed);
     for (const char *stage : {"air.vertex", "air.fragment", "air.kernel"})
         rewriter.completeStage(stage);
-    if (!rewriter.changed)
+    if (!rewriter.changed && inputs.empty())
         return nullptr;
     std::string text = rewriter.text();
     LLVMMemoryBufferRef buffer = LLVMCreateMemoryBufferWithMemoryRangeCopy(text.data(), text.size(), "OpenGL ES shader");
@@ -327,6 +463,27 @@ LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
             LLVMDisposeMessage(message);
         *error = reason.c_str();
         return nullptr;
+    }
+    if (!inputs.empty()) {
+        // Resolve parameters in the parsed copy, never mutate the caller's
+        // module or retain references to its original function values.
+        inputs.clear();
+        if (!pointCoordinates(completed, inputs, error)) {
+            LLVMDisposeModule(completed);
+            return nullptr;
+        }
+        flipPointCoordinates(completed, inputs);
+        if (LLVMVerifyModule(completed, 2 /* LLVMReturnStatusAction */, &message)) {
+            static thread_local std::string reason;
+            reason = std::string("invalid OpenGL ES point-coordinate conversion: ") + (message ? message : "");
+            if (message)
+                LLVMDisposeMessage(message);
+            LLVMDisposeModule(completed);
+            *error = reason.c_str();
+            return nullptr;
+        }
+        if (message)
+            LLVMDisposeMessage(message);
     }
     return completed;
 }

@@ -180,6 +180,27 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 	-Wl,-U,_LLVMParseIRInContext \
 	-Wl,-U,_LLVMPrintModuleToString \
 	-Wl,-U,_LLVMStructGetTypeAtIndex \
+	-Wl,-U,_LLVMIsAFunction \
+	-Wl,-U,_LLVMIsAConstantInt \
+	-Wl,-U,_LLVMTypeOf \
+	-Wl,-U,_LLVMConstIntGetZExtValue \
+	-Wl,-U,_LLVMGetParam \
+	-Wl,-U,_LLVMGetFirstUse \
+	-Wl,-U,_LLVMGetFirstBasicBlock \
+	-Wl,-U,_LLVMGetFirstInstruction \
+	-Wl,-U,_LLVMGetNextInstruction \
+	-Wl,-U,_LLVMIsAPHINode \
+	-Wl,-U,_LLVMCreateBuilderInContext \
+	-Wl,-U,_LLVMPositionBuilderBefore \
+	-Wl,-U,_LLVMDisposeBuilder \
+	-Wl,-U,_LLVMConstReal \
+	-Wl,-U,_LLVMBuildExtractElement \
+	-Wl,-U,_LLVMBuildFSub \
+	-Wl,-U,_LLVMBuildInsertElement \
+	-Wl,-U,_LLVMReplaceAllUsesWith \
+	-Wl,-U,_LLVMSetOperand \
+	-Wl,-U,_LLVMVerifyModule \
+	-Wl,-U,_LLVMDisposeModule \
 	-Wl,-U,_MTLGPUCompilerCreate \
 	-Wl,-U,_MTLGPUCompilerDestroy \
 	-Wl,-U,_MTLDowngradeAIRModule \

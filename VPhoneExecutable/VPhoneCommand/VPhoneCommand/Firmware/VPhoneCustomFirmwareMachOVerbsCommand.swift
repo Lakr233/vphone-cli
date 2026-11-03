@@ -670,6 +670,38 @@ struct VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand: ParsableComm
     }
 }
 
+// MARK: - patch-paravirt-gpu-compiler-cache
+
+struct VPhoneCustomFirmwarePatchParavirtGPUCompilerCacheCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-paravirt-gpu-compiler-cache",
+        abstract: "Version the paravirtual GPU shader cache with its compiler plugin",
+        discussion: """
+        The cloudOS 26.4 driver hashes a fixed compiler identity into its shader-cache
+        namespace. Replace its two eight-byte identity inputs with a SHA-256-derived
+        identity of the compiler plugin that will be loaded in the guest. A plugin
+        update then recompiles shaders without deleting existing caches.
+
+        The setupCompiler SHA256_Update call flow locates both inputs. Instructions
+        are unchanged. Reapplying the same plugin identity leaves the file unchanged.
+        The caller must re-sign the driver after patching.
+        """,
+    )
+
+    @Argument(help: "Path to the AppleParavirtGPUMetalIOGPUFamily Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Option(name: .customLong("compiler-plugin"), help: "Path to the compiler plugin installed alongside the driver", transform: URL.init(fileURLWithPath:))
+    var compilerPlugin: URL
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        try CustomFirmwareParavirtGPUCompilerCache.patch(
+            fileAt: binary, compilerPluginAt: compilerPlugin, log: machOVerbLog,
+        )
+    }
+}
+
 enum VPhoneCustomFirmwareMachOVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
     ///
@@ -692,6 +724,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchVirtualAudioDeviceStateNullGateCommand.self,
             VPhoneCustomFirmwarePatchParavirtGPUIndexOffsetCommand.self,
             VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand.self,
+            VPhoneCustomFirmwarePatchParavirtGPUCompilerCacheCommand.self,
         ]
     }
 }

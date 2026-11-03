@@ -22,6 +22,30 @@ import Foundation
 import VPhonePatchKit
 
 public enum FirmwareGuestPatchResolution {
+    /// CoreFSCache's original reuse flag also bypasses the compiler key.
+    /// Versioning the driver cannot invalidate stale output unless that key
+    /// check is retained, or cross-boot reuse is turned off altogether.
+    public static func missingCompilerCacheDependencies(enabled: Set<String>, applied: Set<String>? = nil) -> [String] {
+        guard enabled.contains(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache),
+              enabled.contains(FirmwareGuestSystemPatchSet.metalCacheReuse),
+              !(applied ?? enabled).contains(FirmwareGuestSystemPatchSet.metalCacheReuseKey)
+        else { return [] }
+        return [FirmwareGuestSystemPatchSet.metalCacheReuseKey]
+    }
+
+    public static let glesPrimitiveRestartDependencies: Set<String> = [
+        FirmwareGuestSystemPatchSet.paravirtGPUPrimitiveRestart,
+        FirmwareGuestSystemPatchSet.metalVertexIDFormat,
+    ]
+
+    /// The primitive-buffer fallback still uses the driver's render-state
+    /// setup and private builtin vertex formats. Reject an incomplete choice
+    /// before mounting or writing the guest; opting out remains unrestricted.
+    public static func missingGLESPrimitiveRestartDependencies(enabled: Set<String>) -> [String] {
+        guard enabled.contains(FirmwareGuestSystemPatchSet.glesPrimitiveRestart) else { return [] }
+        return glesPrimitiveRestartDependencies.subtracting(enabled).sorted()
+    }
+
     /// TV admits the gigalocker repair, opt-in dyld TPRO compatibility, virtual
     /// Bluetooth, and vphoned with the launchd cache gate its launchd.plist entry needs.
     /// Other payloads, cache patches and shell integration need a TV port and

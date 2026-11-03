@@ -24,7 +24,7 @@ extension CustomFirmwareWatchDog {
         log?("  [.] cstring at va:0x\(hex(literal.address)) "
             + "(foff:0x\(hex(UInt64(literal.fileOffset))), sect=\(literal.section))")
 
-        guard let symbols = CustomFirmwareWatchDogSymbolTargets(data: data) else {
+        guard let symbols = MachOSymbolTargets(data: data) else {
             throw PatcherError.invalidFormat(
                 "no LC_SYMTAB/LC_DYSYMTAB — \(sysctlFunction) cannot be resolved",
             )
@@ -105,7 +105,7 @@ extension CustomFirmwareWatchDog {
         literalVMA: UInt64,
         text: MachOSectionInfo,
         segments: [MachOSegmentInfo],
-        symbols: CustomFirmwareWatchDogSymbolTargets,
+        symbols: MachOSymbolTargets,
     ) -> Site? {
         // Layer 3: the call, and the import it resolves to.
         guard let callIndex = firstIndex(

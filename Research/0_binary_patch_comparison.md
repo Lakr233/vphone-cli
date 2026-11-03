@@ -1793,8 +1793,13 @@ do NOT execute these).
 | 27  | No binary change: both spawn hooks insert `libdevicename.dylib` into `configd` and `lockdownd` (after `libmisfix.dylib`, the first process to take two inserted libraries). In `configd` it interposes `SCDynamicStoreSetMultiple` and `SCDynamicStoreSetValue` and pins `Setup:/System`'s `ComputerName`; in `lockdownd` it interposes `SCPreferencesSetComputerName`, `SCPreferencesSetHostName` and `SCPreferencesSetLocalHostName` and refuses every rename with `kSCStatusAccessError`. Inert unless `/var/db/vphone/devicename.plist` holds a valid `DeviceName` — **all bases** | none (new guest dylib `VPhoneGuestComponents/DeviceName/libdevicename.c`, installed at `/usr/lib/libdevicename.dylib`; vphoned `device.name.get`/`device.name.set`) | **Pin the guest's device name to the VM's name.** The name is `System/System/ComputerName` in `preferences.plist`; configd's PreferencesMonitor (`updateConfiguration`, 24A435 `0x100062098`) flattens it into `Setup:/System` with one `SCDynamicStoreSetMultiple`, and every reader (`SCDynamicStoreCopyComputerName` in lockdownd's `copy_device_name`, MobileGestalt `UserAssignedDeviceName`, `UIDevice.name`) reads the store. The hook rewrites that publication, not the preferences read: the monitor's model-change path (`sub_10006155c`) writes the `kSCPrefSystem` value it reads back to disk, and the publication route leaves `preferences.plist` with the guest's own name. A publication that leaves `Setup:/System` out as unchanged gets the store's value pinned; one that removes it gets the pinned name instead. `vphone-vm` sends the VM's name to vphoned's `device.name.set` after every connect; vphoned writes the file (one rename, 0644) and applies the preferences unchanged, so configd publishes again and the new pin, or the guest's own name when the file is removed, is live within a second. The file outlives a reboot, so configd's first publication at boot carries it. The library re-reads the file when its inode, size or mtime change. lockdownd's `set_device_name` (`0x1000073b0`) is the only caller of the three setters; it logs their failure and still commits, and the `SetValue DeviceName` handler ignores the result, so a host rename reports success and the name stays. The pinned name itself is refused too: lockdownd runs `set_device_name(copy_device_name())` whenever it starts, and a lockdownd restarted after configd published would otherwise write the pinned name and derived host names into `preferences.plist` (seen once). An NVRAM variable was the first channel and never reached the guest: iBoot keeps only the variables it knows (even `vphone-vm`'s `boot-args` write is replaced). Interposing works because both daemons are standalone images. Ships with `system-launchdaemons-boot-environment` and the environment update; takes effect at the next boot. Verified on iOS 27.0 (24A435) on 2026-10-07: pin at boot and live, host rename refused, `vm rename` followed, preferences untouched. CoreDevice (`devicectl`, DeviceHub) reads the name when the device appears and can lag one boot after a rename. Details: `Research/Guest/device_name_pinning.md`. |    Y    |  Y  |  Y  |
 | 28  | `cbz`/`cbnz` -> `b` at the four compact-command choices in `-[PGSerializerRenderCommandEncoder drawIndexedPrimitives:…]` (`0x140b0`, `0x1421c`, `0x143b4`, `0x143c4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **Heap index buffer fix.** The compact command stores `parentResourceOffset + indexBufferOffset` in 16 bits but is chosen by testing `indexBufferOffset` alone, so an index buffer 64 KiB or more into an `MTLHeap` is read from the wrong address and meshes (Unity games) draw with another mesh's indices. Every indexed draw takes the 64-bit command instead. `system-paravirt_gpu-cfw-heap_index_offset`; see "Heap index buffers reach the host whole (2026-10-14)" and `Research/Guest/gpu_acceleration.md` |    Y    |  Y  |  Y  |
 | 29  | No binary change: SystemHook calls `setenv("FS_CACHE_REUSE_ON_REBOOT", "1", 0)` first thing in its constructor, in every process it is inserted into, while `/usr/lib/vphone-metal-cache-reuse` exists — **all bases** | none (`VPhoneGuestComponents/SystemHook/SystemHook-vphone.c`; marker written by `cfw install` / `cfw update-environment`) | **Keep the guest's Metal shader caches across a reboot.** `libCoreFSCache` stamps each cache with `kern.bootsessionuuid` and resets it at the next boot unless the variable is set; on the paravirtual GPU CoreAnimation's precompiled pipelines are disabled, so backboardd rebuilt every pipeline after every boot. `system-systemhook-cfw-metal_cache_reuse`; see "Guest Metal caches survive a reboot (2026-10-19)" |    Y    |  Y  |  Y  |
-| 30  | `pacibsp` -> `ret` at the entry of `-[PGSerializerRenderCommandEncoder setPrimitiveRestartEnabled:index:]` (`0x174b4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **OpenGL ES draws reach the host.** AppleMetalGLRenderer sets `NO, 0xffffffff` before its draws; the driver sends it as command 0x91 and the host's GPU task checks the index against `maxViewportCount`, throws "Invalid viewport index" and fails the command buffer (guest: `kIOGPUCommandBufferCallbackErrorHang`, GPU restart). The command is no longer sent, so Metal's own restart (on, at the index type's maximum) applies. Found by command 0x91's unique `mov w2, #0x8 ; mov w3, #0x91` and the nearest `pacibsp` before it. `system-paravirt_gpu-cfw-primitive_restart`, verb `patch-paravirt-gpu-primitive-restart`, staged with the heap index patch on one copy; see "OpenGL ES in guests (2026-11-02)" |    Y    |  Y  |  Y  |
-
+| 30  | `pacibsp` -> `ret` at the entry of `-[PGSerializerRenderCommandEncoder setPrimitiveRestartEnabled:index:]` (`0x174b4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **OpenGL ES draws reach the host.** The observed restart-disabled renderer call passes `NO, 0xffffffff`; the driver sends it as command 0x91 and the host's GPU task checks the index against `maxViewportCount`, throws "Invalid viewport index" and fails the command buffer (guest: `kIOGPUCommandBufferCallbackErrorHang`, GPU restart). The command is no longer sent, so Metal's own restart (on, at the index type's maximum) applies. Found by command 0x91's unique `mov w2, #0x8 ; mov w3, #0x91` and the nearest `pacibsp` before it. `system-paravirt_gpu-cfw-primitive_restart`, verb `patch-paravirt-gpu-primitive-restart`, staged with the heap index patch on one copy; see "OpenGL ES in guests (2026-11-02)" |    Y    |  Y  |  Y  |
+| 31  | SystemHook selects `AGX_GL_VIEWPORT_INVERT_CONFIG=UPPER_LEFT` while `/usr/lib/vphone-gles-upper-left` exists — **iOS 26.6 / cloudOS 26.4** | No Apple binary change; project's SystemHook and installer marker | **Correct native GLES drawable orientation.** The renderer's existing viewport/scissor path avoids IOSurface attachment `yInvert`, whose effect the measured paravirtual path does not preserve. `system-systemhook-cfw-gles_upper_left`; selectable and revertible. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 32  | Convert legacy vertex/instance ID attribute formats 43/44 to public UInt (36) at the descriptor wire write — **iOS 26.6 / cloudOS 26.4** | Metal framework's `PipelineLibrarySerializer::serializeVertexDescriptor`, guest dyld shared cache | **Let the host compile GLES builtin-ID pipelines.** Preserve guest descriptors and AIR; normalize only the serialized format through a 32-byte in-image trampoline. `dyld-cfw-metal_vertex_id_format`; symbol/operand discovery, page re-attestation and undo-log revert. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 33  | Select GLEngine primitive expansion for indexed line/triangle strips with restart disabled — **iOS 26.6 / cloudOS 26.4** | AppleMetalGLRenderer's `gldRenderVertexArray`, guest dyld shared cache | **Preserve a valid maximum index while restart is disabled.** A checked 68-byte entry trampoline reads state fields derived from `updateRenderPrimitiveRestart`; other draws keep their normal path. `dyld-cfw-gles_primitive_restart` requires rows 30/32, adds CPU vertex copying and supports undo-log revert. Guest validation passes the seven restart cases, seven builtin controls and 36 matrix cases. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 34  | Remove four point-size reflection guards that suppress valid `GL_POINTS` submissions — **iOS 26.6 / cloudOS 26.4** | AppleMetalGLRenderer's direct and primitive-buffer draw paths, guest dyld shared cache | **Submit points despite missing PV pipeline usage flags.** `dyld-cfw-gles_point_draw` replaces only the four bit-7 `TBZ` guards with NOPs, preserving other gates and the native shader/rasterizer. Semantic discovery and transactional DSC undo; cloned-cache apply/repeat/revert restores all 85 files exactly. Process-local diagnostics restore point footprints but expose a separate coordinate Y-flip transport gap. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; see "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 35  | Derive the paravirtual driver compiler cache identity from the installed plugin — **iOS 26.6 / cloudOS 26.4** | AppleParavirtGPUMetalIOGPUFamily | **Invalidate shader output after plugin updates.** `system-paravirt_gpu-cfw-compiler_cache` replaces only two eight-byte SHA-256 seed inputs with a 96-bit plugin content identity. Changes compose with the other driver patches on its pristine backup. Requires row 36 when cross-boot reuse is enabled; installer verifies it actually applied before refreshing the plugin. Private APFS clone and fatal identity-failure handling prevent inconsistent publication. Development-build guest validation rejects stale default-cache shaders and passes all 21 point cases. |    Y    |  Y  |  Y  |
+| 36  | Retain cache-key validation when cross-boot reuse is enabled — **iOS 26.6 / cloudOS 26.4** | libCoreFSCache in the guest dyld shared cache | **Reject stale compiler output while retaining warm caches across boots.** The original `FS_CACHE_REUSE_ON_REBOOT=1` skips both the key and boot checks. `dyld-cfw-metal_cache_reuse_key` routes only that path through the key comparison; the no-reuse path remains intact. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; actual-cache apply/repeat/undo restores all 85 files. |    Y    |  Y  |  Y  |
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
 
@@ -6238,6 +6243,101 @@ completion covers the argument kinds the probes produced (buffers, the vertex
 fetch buffer, vertex id, textures, samplers, fragment inputs, position and
 vertex outputs, render targets); an argument kind the reflection reads in a
 layout the completion does not produce could still crash the compiler
+service. With primitive restart no longer sent, a strip that draws vertex
+65535 while restart is disabled is cut there. This includes ES2 and ES3's
+initial or explicitly disabled state; row 33 addresses that gap.
+
+## Native GLES follow-up (2026-11-02)
+
+Rows 31–36 are selected by `standard` only for iOS 26.6/cloudOS 26.4,
+including patch releases; TV, HomePod and HomeView presets exclude them.
+A missing plan enables none, opt-in cannot widen the version gate, and current
+guest selections can enable declarations absent from an older boot plan.
+
+**Orientation, `system-systemhook-cfw-gles_upper_left` (row 31).** Reveal
+AppleMetalGLRenderer's `AGX_GL_VIEWPORT_INVERT_CONFIG` / `UPPER_LEFT` strings
+and `populateConfigData`, then follow `drawableInvert`, `drawablePBEInvert`,
+`updateRenderViewport` and `updateRenderScissor`. SystemHook selects this
+existing viewport/scissor path at constructor entry only while the installer
+marker exists, preserving explicit environment values. It avoids the private
+IOSurface attachment `yInvert` flag that had no effect in PV controls.
+No Apple binary changes; opt-out removes the marker.
+
+**Descriptor, `dyld-cfw-metal_vertex_id_format` (row 32).** Resolve Metal's
+image-local `PipelineLibrarySerializer::serializeVertexDescriptor` and format
+getter; prove the unique wire-property-1 write from decoded operands/control
+flow. A 32-byte trampoline converts only private ID formats 43/44 to UInt
+(36) at that write, after guest shader variant generation. Original descriptors,
+AIR and other formats remain intact. Private format 43 reproduced the host
+`CloneAttributeDescriptor` crash; the same AIR with UInt compiled successfully.
+
+**Restart, `dyld-cfw-gles_primitive_restart` (row 33).** Resolve
+`gldRenderVertexArray` and `updateRenderPrimitiveRestart`; derive state fields
+from the decoded updater. A 68-byte entry trampoline returns zero only for
+disabled indexed line/triangle strips, selecting GLEngine's existing primitive
+expansion, which retains vertex/instance IDs in a nonindexed draw. Other draws
+keep their normal path. All affected strips pay CPU copying cost. Dependencies
+are command suppression (row 30) and ID-format repair (row 32); removing only
+the unsupported command leaves Metal's maximum-index restart active.
+
+**Points, `dyld-cfw-gles_point_draw` (row 34).** Recover full next-symbol
+function bounds and context fields from `setRenderPipeline`. Replace three
+point-size bit-7 `TBZ` guards in `gldRenderVertexArray` and one in
+`gldEndPrimitiveBuffer` with NOPs; preserve point-mode, pipeline, buffer and
+other gates. The indexed path must prove the exact NUL-terminated draw selector
+in `beginRenderPass`, encoder/selector arguments to `methodForSelector:`,
+returned IMP store and use of the recovered encoder/IMP slots. Validate all
+four sites before writing. PV's inherited pipeline-flags method returns zero;
+no global reflection flags are fabricated to compensate.
+
+**Identity, `system-paravirt_gpu-cfw-compiler_cache` (row 35).** Reveal
+`setupCompiler` through relative Objective-C metadata, then verify imported
+SHA-256 Init/Update/Update/Final dataflow, both eight-byte date/time inputs and
+use of the digest as `cacheUUID`. Decoded code references to both literals
+must be exclusive to these inputs. Replace only their 16 bytes with base64 of
+the installed plugin's first 12 SHA-256 bytes (96 identity bits), preserving
+terminators; validate and read back both writes. The installer hashes the
+actual plugin after refresh, composes selected driver patches from one pristine
+backup and signs the result. Opt-out restores the original seed while retaining
+other selected driver changes.
+
+**Reuse, `dyld-cfw-metal_cache_reuse_key` (row 36).** Row 29's original
+interpretation was incomplete: `FS_CACHE_REUSE_ON_REBOOT=1` skips the 32-byte
+key check as well as the 64-byte boot/system-stamp check. In `libCoreFSCache`,
+follow the environment branch and both comparisons; prove the recovered
+skip-boot flag's complete lifetime, semantic uses and callee-save restoration.
+Redirect only the reuse-enabled branch through an eight-byte trampoline that
+sets the flag to one and resumes at the existing key comparison after its
+normal assignment. A mismatched key rejects the cache; a matching key skips
+only the boot comparison. The no-reuse path is unchanged. This and row 35
+invalidate stale compiler output without deleting application caches.
+
+All four DSC patches snapshot code/hash bytes, re-attest changed pages and
+capture undo before publication. Trampolines require verified unused executable
+header padding. Unsupported shapes and occupied space are refused. Failed
+writes are restored and read back; failed restoration retains recovery records
+and reports possible partial modification. Actual 23G90 point and cache-reuse
+apply/repeat/undo checks each restore all 85 files exactly; repeats change
+neither bytes nor undo records. Points change four instructions and one page
+hash; reuse changes one branch, an eight-byte cave and two page hashes.
+
+Selection preflight rejects compiler identity plus cross-boot reuse without
+key validation, exiting 64 before disk attachment or mutation. Installation
+also verifies that key validation actually applied before any plugin refresh,
+requires a private APFS clone of `Disk.img`, and discards it if identity patching
+fails. Host tests cover the applied-key dependency and failure handling;
+clone-discard paths were not exercised through injected VM failures.
+
+Retained tests cover malformed discovery, exact identity writes, same/different
+plugin replay, rollback and selection/dependency guards. Generated ARM64 executes
+192 restart draw/state combinations; cache tests validate the production
+trampoline and semantic discovery in a `verify_list_file` fixture. AIR tests
+cover ES1 metadata and GLES-only point-coordinate adaptation, preserving unrelated
+inputs and rejecting malformed ones. Development builds were tested on iOS
+26.6.2 (23G90)/cloudOS 26.4 (23E5207q), macOS 26.6.2 (25G83, Apple M5 Max).
+See [GPU research](Guest/gpu_acceleration.md#native-gles-semantics) for the
+failure controls, historical installed-VM results, replay procedure and limits.
+
 service. With primitive restart no longer sent, an OpenGL ES 2 strip that draws
 vertex 65535 is cut there.
 

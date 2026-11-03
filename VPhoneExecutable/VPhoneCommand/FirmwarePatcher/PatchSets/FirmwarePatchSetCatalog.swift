@@ -243,6 +243,10 @@ public enum FirmwarePatchSetCatalog {
     /// plain-arm64 HD cannot load it), debugserver, the environment hooks, and
     /// the iPhone 19 ARM64E_X1 boot path.
     public static let tvOSBlockedPatches: Set<String> = [
+        FirmwareGuestSystemPatchSet.metalCacheReuseKey,
+        FirmwareGuestSystemPatchSet.glesPointDraw,
+        FirmwareGuestSystemPatchSet.glesPrimitiveRestart,
+        FirmwareGuestSystemPatchSet.metalVertexIDFormat,
         paravirtTask3Patch,
         paravirtGLESPatch,
         FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,
@@ -289,6 +293,8 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.arm64eX1MountBootstrap,
         "system-paravirt_gpu-cfw-heap_index_offset",
         "system-paravirt_gpu-cfw-primitive_restart",
+        FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
+        FirmwareGuestSystemPatchSet.glesUpperLeft,
         "system-systemhook-cfw-metal_cache_reuse",
         "system-systemversion-cfw-build_version",
         "system-virtiosound-cfw-hal_plugin",

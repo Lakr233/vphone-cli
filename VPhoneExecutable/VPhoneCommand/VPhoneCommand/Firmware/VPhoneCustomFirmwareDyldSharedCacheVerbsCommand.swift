@@ -85,6 +85,10 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
     /// Registered into `vphone-cli cfw` by `VPhoneCustomFirmwareCommand`.
     static var all: [ParsableCommand.Type] {
         [
+            VPhoneCustomFirmwarePatchMetalVertexIDFormatCommand.self,
+            VPhoneCustomFirmwarePatchGLESPrimitiveRestartCommand.self,
+            VPhoneCustomFirmwarePatchMetalCacheReuseKeyCommand.self,
+            VPhoneCustomFirmwarePatchGLESPointDrawCommand.self,
             VPhoneCustomFirmwarePatchHomeViewEnvironmentCommand.self,
             VPhoneCustomFirmwarePatchSettingsSoftwareUpdateCommand.self,
             VPhoneCustomFirmwarePatchArm64eX1BootstrapCacheCommand.self,
@@ -229,6 +233,182 @@ struct VPhoneCustomFirmwarePatchHypervisorVirtualMachineDyldSharedCacheCommand: 
             onUndo: { captured.merge($0) },
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
         )
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-metal-vertex-id-format
+
+struct VPhoneCustomFirmwarePatchMetalVertexIDFormatCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-metal-vertex-id-format",
+        abstract: "Serialize legacy GLES vertex ID formats as UInt for the paravirtual GPU",
+    )
+
+    @Argument(
+        help: "The guest's /System/Library/Caches/com.apple.dyld directory",
+        transform: URL.init(fileURLWithPath:),
+    )
+    var chunksDirectory: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the patch sites without writing")
+    var dryRun = false
+
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheMetalVertexFormatPatcher.patch(
+                chunksDirectory: chunksDirectory,
+                dryRun: dryRun,
+                captureUndo: undo.captures,
+                onUndo: { captured.merge($0) },
+                log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+            )
+        } catch {
+            // A rollback failure returns all pre-write originals, including
+            // partially written ranges. Preserve them before reporting failure.
+            // A verified rollback returns no records and changes no undo log.
+            do {
+                try undo.persist(captured, dryRun: dryRun)
+            } catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-gles-primitive-restart
+
+struct VPhoneCustomFirmwarePatchGLESPrimitiveRestartCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-gles-primitive-restart",
+        abstract: "Preserve disabled GLES primitive restart through native primitive expansion",
+    )
+
+    @Argument(
+        help: "The guest's /System/Library/Caches/com.apple.dyld directory",
+        transform: URL.init(fileURLWithPath:),
+    )
+    var chunksDirectory: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the patch sites without writing")
+    var dryRun = false
+
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheGLESPrimitiveRestartPatcher.patch(
+                chunksDirectory: chunksDirectory,
+                dryRun: dryRun,
+                captureUndo: undo.captures,
+                onUndo: { captured.merge($0) },
+                log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+            )
+        } catch {
+            // A rollback failure returns all pre-write originals, including
+            // partially written ranges. Preserve them before reporting failure.
+            // A verified rollback returns no records and changes no undo log.
+            do {
+                try undo.persist(captured, dryRun: dryRun)
+            } catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-metal-cache-reuse-key
+
+struct VPhoneCustomFirmwarePatchMetalCacheReuseKeyCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-metal-cache-reuse-key",
+        abstract: "Validate compiler cache identities while permitting reuse across boots",
+    )
+
+    @Argument(
+        help: "The guest's /System/Library/Caches/com.apple.dyld directory",
+        transform: URL.init(fileURLWithPath:),
+    )
+    var chunksDirectory: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the patch sites without writing")
+    var dryRun = false
+
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheMetalCacheReusePatcher.patch(
+                chunksDirectory: chunksDirectory,
+                dryRun: dryRun,
+                captureUndo: undo.captures,
+                onUndo: { captured.merge($0) },
+                log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+            )
+        } catch {
+            // A rollback failure returns all pre-write originals, including
+            // partially written ranges. Preserve them before reporting failure.
+            // A verified rollback returns no records and changes no undo log.
+            do {
+                try undo.persist(captured, dryRun: dryRun)
+            } catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-gles-point-draw
+
+struct VPhoneCustomFirmwarePatchGLESPointDrawCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-gles-point-draw",
+        abstract: "Submit valid GLES points despite missing paravirtual pipeline usage flags",
+    )
+
+    @Argument(
+        help: "The guest's /System/Library/Caches/com.apple.dyld directory",
+        transform: URL.init(fileURLWithPath:),
+    )
+    var chunksDirectory: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the patch sites without writing")
+    var dryRun = false
+
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheGLESPointDrawPatcher.patch(
+                chunksDirectory: chunksDirectory,
+                dryRun: dryRun,
+                captureUndo: undo.captures,
+                onUndo: { captured.merge($0) },
+                log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+            )
+        } catch {
+            // A rollback failure returns all pre-write originals, including
+            // partially written ranges. Preserve them before reporting failure.
+            // A verified rollback returns no records and changes no undo log.
+            do {
+                try undo.persist(captured, dryRun: dryRun)
+            } catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
         try undo.persist(captured, dryRun: dryRun)
     }
 }
