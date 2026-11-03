@@ -1,5 +1,64 @@
 # Virtual camera transport and capture hooks
 
+## Live host camera source (local extension, 2026-10-29)
+
+Camera → Source: System Camera… selects a host video camera (see picker below).
+The menu requests video permission explicitly; it does not request microphone
+access. Start Streaming opens an AVCaptureSession on its own serial queue;
+Stop Streaming, Source: Off, source replacement and VM shutdown stop capture.
+Selecting the source without streaming does not start the session. Reconnecting
+the guest transport resumes an active stream but never restarts a stopped one.
+
+The capture delegate retains only its latest pixel buffer under a lock. The
+existing sender samples that buffer at its existing 30 Hz transport cadence,
+aspect-fits it onto a black 1280x720 BGRA frame, and uses the unchanged VSOCK
+1338 protocol. This forwards camera imagery through the synthetic camera;
+it does not pass through the physical camera's USB device, depth data or controls.
+
+Launchpad is the responsible app for the VM process tree. Its source now
+declares NSCameraUsageDescription and the hardened-runtime camera entitlement;
+the signing script verifies that entitlement. The core bundle also carries
+the usage description for standalone launches. An updated, appropriately
+signed Launchpad is required before exercising this source through Launchpad.
+The existing notarized installation has not been replaced with an ad hoc app.
+The Release VPhone build and separate Release Launchpad build both passed.
+The separate Launchpad was development-signed with the standard signing script;
+signature, camera entitlement and helper requirement verification passed.
+It remains under `.vphone-setup/camera-launchpad-build/Build/Products/Release/`
+in the workspace.
+
+Live acceptance: the user approved running the development copy. Installed the
+core as `2.14.0-local.ca790397`, retaining unchanged guest environment
+`2.14.0-local.b0297e92`. The separate development Launchpad started Duo without
+replacing the notarized app or installed privileged helper. Camera permission
+completed, System Camera selection enabled Start Streaming, and the guest's
+Camera.app visibly showed the default host capture device's Elgato NO SIGNAL
+image. Thus the live capture-device feed reaches the native guest preview;
+an active HDMI picture was not available to test. Two stopped observations of
+the 64-byte shared frame header were identical (frame index 1147). Restarting
+streaming advanced the frame index to 1325, and the menu returned to Stop
+Streaming. Capture was stopped again at the end of the test. No camera images
+were saved as test artifacts. The initial implementation followed AVFoundation's
+default video device.
+
+## Camera picker (local extension, 2026-10-29)
+
+Features → Camera → Source: System Camera… presents an accessible native camera
+picker with System Default and discovered devices by localized name. Built-in,
+external, Continuity and Desk View device types are enumerated afresh each time
+the picker opens. Both Launchpad and the core bundle declare the Continuity
+Camera device-type opt-in. Device selection uses unique IDs, never names, so
+duplicate camera names cannot select the wrong device.
+
+Cancel preserves the current source. An explicitly selected disconnected camera
+reports an error instead of falling back to another camera. Failed setup
+preserves the current source; successful switching preserves streaming state.
+The old and new capture sessions share a serial queue so the old session stops
+before the new one starts. The picker remembers selection for the current VM
+window only; it does not change the Mac's preferred camera or persist across
+VM launches. Release builds and development Launchpad signing passed; deployed
+core `2.14.0-local.44b76c2a` retains the unchanged guest environment.
+
 ## Runtime boundary
 
 The host camera server sends BGRA frames over VSOCK port 1338. `vphoned`

@@ -247,6 +247,10 @@ bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnu
 NSArray * _Nonnull vp_display_probe(void);
 /// Read-only CoreAnimation display modes and capability surface.
 NSDictionary<NSString *, id> * _Nonnull vp_display_modes(void);
+NSDictionary<NSString *, id> * _Nonnull vp_external_display_status(void);
+NSDictionary<NSString *, id> * _Nonnull vp_external_display_diagnostics(void);
+NSDictionary<NSString *, id> * _Nonnull vp_external_display_configure(BOOL enabled, NSInteger width, NSInteger height);
+NSData * _Nullable vp_external_display_frame(NSString * _Nullable * _Nullable error);
 NSDictionary<NSString *, id> * _Nonnull vp_device_pose_get(void);
 /// Set the hinge to `angleDegrees` at once. `orientation` is CoreMotion's
 /// device orientation for the host controls (1 portrait … 6 face down), or 0

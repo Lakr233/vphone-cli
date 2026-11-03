@@ -3,6 +3,12 @@
 
 #import "FoldDisplayPrivate.h"
 
+static id vpInnerIdentity;
+
+BOOL vpIsInnerDisplayIdentity(id identity) {
+    return identity && vpInnerIdentity && [identity isEqual:vpInnerIdentity];
+}
+
 // MARK: - the inner display and its scenes
 
 BOOL vpIsInnerDisplay(id display) {
@@ -19,7 +25,7 @@ BOOL vpIsInnerDisplay(id display) {
 BOOL vpSceneIsOnInnerDisplay(id scene) {
     id configuration = vpReadObject(vpReadObject(vpReadObject(scene, "_FBSScene"), "settings"), "displayConfiguration");
     id identity = vpReadObject(configuration, "identity");
-    return identity && ![[identity description] isEqual:@"Main"];
+    return vpIsInnerDisplayIdentity(identity);
 }
 
 id vpSpringBoardWindowScene(BOOL inner) {
@@ -41,7 +47,6 @@ id vpSpringBoardWindowScene(BOOL inner) {
 // source already exists" assertion).
 static IMP vpOriginalDisplayType, vpOriginalPointScale, vpOriginalExternal, vpOriginalConfigurationInit;
 static _Thread_local BOOL vpClassifyingConfiguration;
-static id vpInnerIdentity;
 
 static long long vpInnerDisplayType(id self, SEL selector) {
     if (!vpIsInnerDisplay(self)) return ((long long (*)(id, SEL))vpOriginalDisplayType)(self, selector);
@@ -109,7 +114,7 @@ static IMP vpOriginalUpdateScreenIdiom;
 static void vpInnerUpdateScreenIdiom(id self, SEL selector) {
     ((void (*)(id, SEL))vpOriginalUpdateScreenIdiom)(self, selector);
     id identity = vpReadObject(vpReadObject(self, "displayConfiguration"), "identity");
-    if (!identity || [[identity description] isEqual:@"Main"]) return;
+    if (!vpIsInnerDisplayIdentity(identity)) return;
     if (((long long (*)(id, SEL))objc_msgSend)(self, sel_registerName("_userInterfaceIdiom")) != -1) return;
     long long idiom = ((long long (*)(id, SEL))objc_msgSend)(vpReadObject(objc_getClass("UIDevice"), "currentDevice"),
         sel_registerName("userInterfaceIdiom"));
@@ -127,6 +132,45 @@ static void vpInstallInnerScreenIdiom(void) {
         return;
     }
     vpOriginalUpdateScreenIdiom = method_setImplementation(update, (IMP)vpInnerUpdateScreenIdiom);
+}
+
+// MARK: - inner screen corners
+
+// The synthetic inner display has no native corner metadata. UIKit therefore
+// supplies zero for its screen, which leaves the expanded Now Playing aperture
+// rectangular. Reuse the device's native main-screen metric only for this
+// display and only when UIKit has no radius of its own. Do not change external
+// screens or replace a future native inner-panel value.
+static IMP vpOriginalScreenCornerRadius, vpOriginalScreenCornerRadiusIgnoringZoom;
+static unsigned int vpCornerRadiusLogCount;
+
+static double vpInnerScreenCornerRadius(id self, SEL selector) {
+    IMP original = selector == sel_registerName("_displayCornerRadiusIgnoringZoom") ?
+        vpOriginalScreenCornerRadiusIgnoringZoom : vpOriginalScreenCornerRadius;
+    double radius = ((double (*)(id, SEL))original)(self, selector);
+    id configuration = vpReadObject(self, "displayConfiguration");
+    id identity = vpReadObject(configuration, "identity");
+    if (!identity || !vpInnerIdentity || ![identity isEqual:vpInnerIdentity]) return radius;
+    id main = vpReadObject(objc_getClass("UIScreen"), "mainScreen");
+    double fallback = main && main != self ? ((double (*)(id, SEL))original)(main, selector) : 0;
+    double result = radius > 0 ? radius : fallback;
+    if (vpCornerRadiusLogCount++ < 4)
+        vpFoldDisplayLog([NSString stringWithFormat:@"inner screen corners: %s native=%.2f main=%.2f effective=%.2f",
+            sel_getName(selector), radius, fallback, result]);
+    return result;
+}
+
+static void vpInstallInnerScreenCorners(void) {
+    Class screen = objc_getClass("UIScreen");
+    Method radius = class_getInstanceMethod(screen, sel_registerName("_displayCornerRadius"));
+    Method unzoomed = class_getInstanceMethod(screen, sel_registerName("_displayCornerRadiusIgnoringZoom"));
+    if (!radius || !unzoomed || strcmp(method_getTypeEncoding(radius), "d16@0:8") != 0 ||
+        strcmp(method_getTypeEncoding(unzoomed), "d16@0:8") != 0) {
+        vpFoldDisplayLog(@"inner screen corners: getter ABI unavailable");
+        return;
+    }
+    vpOriginalScreenCornerRadius = method_setImplementation(radius, (IMP)vpInnerScreenCornerRadius);
+    vpOriginalScreenCornerRadiusIgnoringZoom = method_setImplementation(unzoomed, (IMP)vpInnerScreenCornerRadius);
 }
 
 // MARK: - content mode resolution
@@ -232,6 +276,7 @@ static void vpInstallPanelOrientation(void) {
 // the type.
 void vpInstallInnerDisplayAdapter(void) {
     vpInstallInnerScreenIdiom();
+    vpInstallInnerScreenCorners();
     vpInstallInnerIdentityEncode();
     vpInstallPanelOrientation();
     // Type 0 without the FrontBoard scope is a second UIKit-main-like

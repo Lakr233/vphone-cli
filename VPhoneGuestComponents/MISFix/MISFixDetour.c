@@ -37,7 +37,7 @@
 #define kDetourBytes (kDetourWords * 4u)
 
 /// Room for one trampoline: four displaced instructions, each of which may
-/// expand to five words when it has to be rewritten, plus the four-word jump
+/// expand to eight words when it has to be rewritten, plus the four-word jump
 /// back.
 #define kTrampolineBytes 128u
 
@@ -95,6 +95,19 @@ static int vpIsTerminator(uint32_t insn) {
 /// PC-relative in a way this does not handle — in which case the whole detour
 /// is abandoned, because half a relocation is a corrupted function.
 static unsigned vpRelocate(uint32_t insn, uint64_t pc, uint32_t *out) {
+    // PACIBSPPC binds LR to both SP and this instruction's original PC.
+    // Executing it verbatim in the trampoline would sign with the wrong PC.
+    // x15-x17 are caller-saved scratch at function entry; the installer below
+    // accepts this expansion only as the first displaced instruction.
+    if (insn == 0xDAC1A7FEu) {
+        out[0] = 0xAA1E03F1u; // mov x17, x30
+        out[1] = 0x910003F0u; // mov x16, sp
+        vpEmitAbsolute(out + 2, 15, pc);
+        out[6] = 0xDAC18FFEu; // pacib171615: sign x17 with SP=x16, PC=x15
+        out[7] = 0xAA1103FEu; // mov x30, x17
+        return 8;
+    }
+
     // ADR / ADRP. Both put a PC-relative address in a register, and both
     // become "materialise that same absolute address".
     if ((insn & 0x1F000000u) == 0x10000000u) {
@@ -131,11 +144,12 @@ static unsigned vpRelocate(uint32_t insn, uint64_t pc, uint32_t *out) {
 
     // An X1 prologue signs LR with its own address, and the function's
     // `retaasppc`/`retabsppc <label>` checks it against the original's: moved,
-    // it signs for the trampoline and the return faults. The X1-lowered cache
-    // a guest without PAuth_LR runs has the SP-only forms here instead.
+    // it signs for the trampoline and the return faults. The SP-only PACIBSPPC
+    // form is re-signed correctly by the expansion above instead; the X1-lowered
+    // cache a guest without PAuth_LR runs has that form, and installd's
+    // prologue needs it hooked. These PC-only forms have no expansion yet.
     if (insn == 0xDAC1A3FEu     // PACIASPPC
         || insn == 0xDAC183FEu  // PACNBIASPPC
-        || insn == 0xDAC1A7FEu  // PACIBSPPC
         || insn == 0xDAC187FEu) // PACNBIBSPPC
     {
         return 0;
@@ -209,6 +223,9 @@ MISFixDetourResult MISFixDetour(
     for (unsigned index = 0; index < kDetourWords; index += 1) {
         if (index + 1 < kDetourWords && vpIsTerminator(displaced[index]))
             return MISFixDetourTooShort;
+        // Do not clobber scratch values established by an earlier prologue.
+        if (displaced[index] == 0xDAC1A7FEu && index != 0)
+            return MISFixDetourUnrelocatable;
         uint64_t start = (uint64_t)(uintptr_t)target;
         uint64_t pc = start + index * 4u;
         unsigned written = (displaced[index] & 0xFF000010u) == 0x54000000u

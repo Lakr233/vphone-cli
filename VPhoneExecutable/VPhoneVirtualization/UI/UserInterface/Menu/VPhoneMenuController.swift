@@ -88,6 +88,8 @@ class VPhoneMenuController {
 
     var touchIDMenuItem: NSMenuItem?
     var trackpadGesturesItem: NSMenuItem?
+    var mouseCaptureItem: NSMenuItem?
+    lazy var externalDisplayWindow = VPhoneExternalDisplayWindowController(control: control)
     var locationProvider: VPhoneLocationProvider?
     var locationMenuItem: NSMenuItem?
     var locationPresetMenuItem: NSMenuItem?
@@ -100,8 +102,15 @@ class VPhoneMenuController {
     var cameraSourceOffItem: NSMenuItem?
     var cameraSourceTestPatternItem: NSMenuItem?
     var cameraSourceVideoFileItem: NSMenuItem?
+    var cameraSourceSystemCameraItem: NSMenuItem?
     var cameraStartStopItem: NSMenuItem?
-    weak var captureView: VPhoneVirtualMachineView?
+    weak var captureView: VPhoneVirtualMachineView? {
+        didSet {
+            captureView?.onMouseCaptureChange = { [weak self] captured in
+                self?.mouseCaptureItem?.state = captured ? .on : .off
+            }
+        }
+    }
     var batterySyncEnabled = false
     var batterySyncStatusItem: NSMenuItem?
     var batteryLevelMenuItems: [NSMenuItem] = []

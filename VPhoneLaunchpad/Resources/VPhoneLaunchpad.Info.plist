@@ -49,6 +49,10 @@
 	     guest records. Same arrangement as the location descriptions above. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Shares this Mac's microphone with the virtual iPhone so apps running inside it can record.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Shares this Mac's camera with the virtual iPhone while System Camera streaming is enabled.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
 	<!-- A machine exported by Launchpad: a gnutar of the machine folder,
 	     zstd compressed, the same archive `vphone-cli vm export` writes.
 	     Launchpad owns the type, so opening one in Finder imports it. -->

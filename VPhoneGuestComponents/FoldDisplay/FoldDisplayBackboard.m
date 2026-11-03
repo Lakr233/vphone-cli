@@ -15,7 +15,7 @@ static id vpInnerRenderDisplay;
 // Tags a render display with the BKS bit the guest itself describes as
 // `unknown`. FrontBoard drops an untagged source unless it is always
 // connected; this tag is what makes it publish one.
-static void vpTagUnknownDisplay(id display) {
+void vpTagRenderDisplay(id display, NSString *tagName) {
     NSString *(*describe)(NSUInteger) = dlsym(RTLD_DEFAULT, "NSStringFromBKSDisplayTags");
     SEL setter = sel_registerName("setTag:");
     Method method = class_getInstanceMethod(object_getClass(display), setter);
@@ -27,7 +27,7 @@ static void vpTagUnknownDisplay(id display) {
     for (unsigned int bit = 0; bit < 24; bit++) {
         NSUInteger candidate = (NSUInteger)1 << bit;
         NSString *label = describe(candidate);
-        if (!label || [label rangeOfString:@"unknown" options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
+        if (!label || [label rangeOfString:tagName options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
         if (unknown) { vpFoldDisplayLog(@"inner display: ambiguous unknown tag bit"); return; }
         unknown = candidate;
     }
@@ -182,12 +182,13 @@ static BOOL vpAddInnerRenderDisplayToServer(id server) {
         Method enable = class_getInstanceMethod(object_getClass(display), setEnabled);
         if (enable && strcmp(method_getTypeEncoding(enable), "v20@0:8B16") == 0)
             ((void (*)(id, SEL, BOOL))objc_msgSend)(display, setEnabled, YES);
-        vpTagUnknownDisplay(display);
+        vpTagRenderDisplay(display, @"unknown");
         vpInnerRenderDisplay = display;
         dispatch_async(dispatch_get_main_queue(), ^{
             vpSetInnerDisplayPointScale(0);
             vpShareInnerDisplayPages(display);
         });
+        vpPrepareExternalRenderDisplays(server);
         vpFoldDisplayLog([NSString stringWithFormat:@"inner display: render display added %@ uniqueId=%@", display,
             [display respondsToSelector:sel_registerName("uniqueId")] ? [display valueForKey:@"uniqueId"] : @"-"]);
         return YES;
