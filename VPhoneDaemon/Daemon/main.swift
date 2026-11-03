@@ -46,6 +46,7 @@ GuestAPI.restoreUSBSerialOnStartup()
 GuestStaticNames.shared.restoreOnStartup()
 // locationd can deadlock as it starts; this restarts it.
 GuestLocationdWatchdog.shared.startOnStartup()
+GuestDeveloperModeSnapshot.shared.startOnStartup()
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 let filePool = NIOThreadPool(numberOfThreads: 2)

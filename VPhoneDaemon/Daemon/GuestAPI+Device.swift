@@ -3,6 +3,57 @@ import IcliKit
 import IcliSystem
 import VphonedNative
 
+// MARK: - Developer Mode Snapshot
+
+/// The Developer Mode status `device.info` reports, read off the request path.
+/// amfid answers the status request at once on an iPhone, but not on the tvOS
+/// 26.6 and HomePod 27.0 guests checked (2026-11-03), where each query waits
+/// its full 10 s (`icli_amfi_developer_mode_json`); `device.info` paid that on
+/// every call, 10.03 s instead of 0.03 s.
+/// The status is read once at startup and again in the background when it is
+/// older than ``maximumAge``, one query at a time; `device.info` returns the
+/// last answer, empty until there is one or when amfid never answers.
+/// `developer_mode.status` still asks amfid directly.
+final class GuestDeveloperModeSnapshot: @unchecked Sendable {
+    static let shared = GuestDeveloperModeSnapshot()
+    static let maximumAge: TimeInterval = 30
+
+    private let lock = NSLock()
+    private var status: [String: Any] = [:]
+    private var readAt: Date?
+    private var reading = false
+
+    func startOnStartup() {
+        refreshIfStale()
+    }
+
+    func current() -> [String: Any] {
+        refreshIfStale()
+        lock.lock()
+        defer { lock.unlock() }
+        return status
+    }
+
+    private func refreshIfStale() {
+        lock.lock()
+        let stale = readAt.map { Date().timeIntervalSince($0) > Self.maximumAge } ?? true
+        guard stale, !reading else {
+            lock.unlock()
+            return
+        }
+        reading = true
+        lock.unlock()
+        DispatchQueue.global(qos: .utility).async {
+            let answer = (try? developerModeStatus()) ?? [:]
+            self.lock.lock()
+            self.status = answer
+            self.readAt = Date()
+            self.reading = false
+            self.lock.unlock()
+        }
+    }
+}
+
 // MARK: - Device, Display, Audio, Network
 
 extension GuestAPI {
@@ -19,7 +70,7 @@ extension GuestAPI {
             info["brightness"] = brightnessState()
             info["volume"] = volume()
             info["low_power_mode"] = (try? lowPowerMode()) ?? [:]
-            info["developer_mode"] = (try? developerModeStatus()) ?? [:]
+            info["developer_mode"] = GuestDeveloperModeSnapshot.shared.current()
             info["agent"] = ["binary_hash": binaryHash, "pid": getpid()]
             info["device_name"] = deviceNameInfo()
             return info
