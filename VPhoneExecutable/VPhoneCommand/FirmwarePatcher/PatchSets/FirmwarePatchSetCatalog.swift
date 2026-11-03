@@ -390,8 +390,10 @@ public enum FirmwarePatchSetCatalog {
 
     /// A guest on a stock boot chain, kernel and TXM: the system is customised
     /// before the restore instead (``FirmwareRestoreImagePatchSet``), and
-    /// nothing after it. Names no kernel or guest set, so no kernel or guest
-    /// patcher is built.
+    /// nothing after it. It names the two kernel sets but selects nothing from
+    /// them, so the kernel stays stock and no kernel patcher is built; naming
+    /// them is what lets a machine turn on ``userspaceDebugging``. No guest set
+    /// is named.
     ///
     /// With every BuildManifest digest rehashed (`manifest-boot-digest_rehash`)
     /// the ticket covers the images as they are: a stock iBEC restores the
@@ -408,6 +410,8 @@ public enum FirmwarePatchSetCatalog {
         summary: "A stock boot chain, kernel and TXM: the restore installs a resealed system with vphoned, the GPU driver and activation, and nothing writes it afterwards.",
         patchSets: [
             .bundled(FirmwareBootChainPatchSet.identifier),
+            .bundled(FirmwareKernelBasePatchSet.identifier),
+            .bundled(FirmwareKernelCustomFirmwarePatchSet.identifier),
             .bundled(FirmwareResearchBoardPatchSet.identifier),
             .bundled(FirmwareDeviceTreePatchSet.identifier),
             .bundled(FirmwareRestoreImagePatchSet.identifier),
@@ -415,7 +419,7 @@ public enum FirmwarePatchSetCatalog {
         selection: .allow(
             minimalDeviceTreePatches
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )
@@ -448,7 +452,7 @@ public enum FirmwarePatchSetCatalog {
         selection: .allow(
             watchOSDeviceTreePatches
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
-                .union(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+                .union(FirmwareRestoreImagePatchSet.presetPatches)
                 .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
         ),
     )

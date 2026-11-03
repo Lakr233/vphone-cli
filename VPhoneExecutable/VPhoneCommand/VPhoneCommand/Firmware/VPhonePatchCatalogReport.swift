@@ -100,6 +100,7 @@ public struct VPhonePatchCatalogReport: Sendable {
                 applied: receipt.map { $0.parts.mapValues { Set($0.patches) } },
                 notApplicable: Set(receipt?.parts.values.flatMap(\.notApplicable) ?? []),
                 standIns: FirmwareGuestSystemPatchSet.prebootRepairs,
+                restoredCustomisedSystem: VPhoneCustomFirmwareInstaller.restoredCustomisedSystem(plan),
                 part: VPhoneVirtualMachinePatchReceipt.part(for:),
             )
         }
@@ -162,6 +163,20 @@ public struct VPhonePatchCatalogReport: Sendable {
         let patchSets: [String]
     }
 
+    /// A group of patches the editor turns on or off with one box
+    /// (``FirmwarePatchFeature``).
+    struct FeatureEntry: Encodable, Sendable {
+        let identifier: String
+        let title: String
+        let summary: String
+        /// The patches the active preset turns on for it; empty when it is not
+        /// available.
+        let patches: [String]
+        /// Whether the active preset names a set for every part of the
+        /// feature, so allowing its patches resolves.
+        let available: Bool
+    }
+
     struct Payload: Encodable, Sendable {
         let vmName: String?
         let activePreset: String
@@ -169,11 +184,12 @@ public struct VPhonePatchCatalogReport: Sendable {
         let allowedPatches: [String]
         let presets: [PresetEntry]
         let patches: [PatchEntry]
+        let features: [FeatureEntry]
         /// Set only when a VM is named.
         let machine: MachineRecords?
 
         private enum CodingKeys: String, CodingKey {
-            case vmName, activePreset, blockedPatches, allowedPatches, presets, patches
+            case vmName, activePreset, blockedPatches, allowedPatches, presets, patches, features
             case planRecorded, receiptRecorded, receiptParts, installed, pendingPatches
         }
 
@@ -185,6 +201,7 @@ public struct VPhonePatchCatalogReport: Sendable {
             try container.encode(allowedPatches, forKey: .allowedPatches)
             try container.encode(presets, forKey: .presets)
             try container.encode(patches, forKey: .patches)
+            try container.encode(features, forKey: .features)
             guard let machine else { return }
             try container.encode(machine.plan != nil, forKey: .planRecorded)
             try container.encode(machine.receipt != nil, forKey: .receiptRecorded)
@@ -284,6 +301,15 @@ public struct VPhonePatchCatalogReport: Sendable {
                 )
             },
             patches: entries(),
+            features: FirmwarePatchSetCatalog.features.map {
+                FeatureEntry(
+                    identifier: $0.identifier,
+                    title: $0.title,
+                    summary: $0.summary,
+                    patches: ($0.patches(in: activePreset) ?? []).sorted(),
+                    available: $0.isAvailable(in: activePreset),
+                )
+            },
             machine: machine,
         )
         let encoder = JSONEncoder()
@@ -355,6 +381,21 @@ public struct VPhonePatchCatalogReport: Sendable {
             }
             let suffix = notes.isEmpty ? "" : "  (\(notes.joined(separator: ", ")))"
             lines.append("    \(box) \(entry.identifier)\(suffix)")
+        }
+
+        let selected = selectedPatches()
+        let features = FirmwarePatchSetCatalog.features.compactMap { feature in
+            feature.patches(in: activePreset).map { (feature, $0) }
+        }
+        if !features.isEmpty {
+            lines.append("")
+            lines.append("Features (turn one on by allowing each of its patches with `fw set-patches`):")
+            for (feature, patches) in features {
+                let on = patches.intersection(selected).count
+                let state = on == patches.count ? "on" : on == 0 ? "off" : "\(on) of \(patches.count) on"
+                lines.append("  \(feature.identifier) — \(feature.title) (\(state))")
+                lines.append("    " + patches.sorted().map { "--allow \($0)" }.joined(separator: " "))
+            }
         }
 
         if let vmName, let machine, let states = states() {

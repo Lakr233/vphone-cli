@@ -330,8 +330,10 @@ struct FirmwareGuestPatchResolutionTests {
         // The X1 launchd bootstrap shares the load command but stays out.
         let x1 = FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap
         #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [x1], arm64eUserland: true) == [x1])
-        // HomePod keeps its own launchd library and no environment.
-        #expect(FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: hooks) == hooks.sorted())
+        // HomePod keeps its own launchd library and no environment. Its
+        // launchd takes the jetsam guard (userspace debugging) into the same
+        // copy as the persona adapter, so that patch alone is admitted.
+        #expect(FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: hooks) == ["system-launchdaemons-boot-environment"])
     }
 
     @Test(arguments: ["27.0", "27.2"])

@@ -211,15 +211,19 @@ struct FirmwarePatchSetCatalogTests {
                     // patch: these are the combinations we claim boot. The tvOS
                     // presets drop exactly the iOS ones an Apple TV has no port of.
                     let tvPresets = [VPhonePatchPreset.homeViewIdentifier, VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homePodMiniIdentifier]
-                    // `minimal` and `watchos` drop every boot chain patch: their
-                    // system is customised before the restore instead.
+                    // `minimal` and `watchos` drop every boot chain patch, and
+                    // every kernel patch of the two sets they name only so a
+                    // machine can turn some on: their system is customised
+                    // before the restore instead, onto a stock kernel.
                     let restoreImagePresets = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
+                    let droppable = Set(
+                        [FirmwareBootChainPatchSet.manifest, FirmwareKernelBasePatchSet.manifest, FirmwareKernelCustomFirmwarePatchSet.manifest]
+                            .flatMap { $0.patches.map(\.identifier) },
+                    )
                     let expected = if tvPresets.contains(preset.identifier) {
                         Set(plan.droppedBootEssentials).isSubset(of: FirmwarePatchSetCatalog.tvOSBlockedPatches)
                     } else if restoreImagePresets.contains(preset.identifier) {
-                        plan.droppedBootEssentials.allSatisfy {
-                                FirmwareBootChainPatchSet.manifest.patches.map(\.identifier).contains($0)
-                            }
+                        Set(plan.droppedBootEssentials).isSubset(of: droppable)
                     } else {
                         plan.droppedBootEssentials.isEmpty
                     }
@@ -259,7 +263,9 @@ struct FirmwarePatchSetCatalogTests {
             iOSBase: VPhoneVersion("26.4"),
             cloudOS: VPhoneVersion("26.4"),
         )
-        let restoreImage = Set(FirmwareRestoreImagePatchSet.manifest.patches.map(\.identifier))
+        // The opt-in patches, like the debugserver re-sign, stay off.
+        let restoreImage = FirmwareRestoreImagePatchSet.presetPatches
+        #expect(!restoreImage.contains(FirmwareRestoreImagePatchSet.debugserver))
         let researchBoard = Set(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
         // The unsecure-cache gate stays out: the launchd.plist minimal edits is
         // signed and in the trust cache, so the stock launchd_cache_loader takes it.
@@ -325,6 +331,71 @@ struct FirmwarePatchSetCatalogTests {
             )
             #expect(plan.enabled.contains(FirmwareRestoreImagePatchSet.watchAudio))
         }
+    }
+
+    @Test
+    func `Userspace debugging resolves on every preset but Apple TV, taking the debugserver its sets deliver`() throws {
+        let feature = FirmwarePatchSetCatalog.userspaceDebugging
+        let declared = Set(FirmwarePatchSetCatalog.allDeclarations.map(\.identifier))
+        #expect(feature.allPatches.isSubset(of: declared))
+        let restoreImage = [VPhonePatchPreset.minimalIdentifier, VPhonePatchPreset.watchOSIdentifier]
+        // cfw install refuses the debugserver and launchd patches on an Apple TV
+        // and on HomeView.
+        let appleTV = [VPhonePatchPreset.tvOSIdentifier, VPhonePatchPreset.tvOS4KIdentifier, VPhonePatchPreset.homeViewIdentifier]
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            if appleTV.contains(preset.identifier) {
+                #expect(feature.patches(in: preset) == nil, "\(preset.identifier)")
+                continue
+            }
+            let patches = try #require(feature.patches(in: preset), "\(preset.identifier)")
+            let debugserver = restoreImage.contains(preset.identifier)
+                ? FirmwareRestoreImagePatchSet.debugserver : "system-debugserver-cfw-install"
+            #expect(patches.contains(debugserver), "\(preset.identifier)")
+            #expect(patches.count == feature.parts.count, "\(preset.identifier)")
+            // Allowing them resolves.
+            _ = try VPhonePatchPlan.resolve(
+                preset: preset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.4"),
+                cloudOS: VPhoneVersion("26.4"),
+                allowed: patches,
+            )
+        }
+
+        for preset in [FirmwarePatchSetCatalog.minimalPreset, FirmwarePatchSetCatalog.watchOSPreset] {
+            let patches = try #require(feature.patches(in: preset))
+            for base in ["18.6.2", "26.4"] {
+                let plain = try VPhonePatchPlan.resolve(
+                    preset: preset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base),
+                    cloudOS: VPhoneVersion("26.4"),
+                )
+                let debugging = try VPhonePatchPlan.resolve(
+                    preset: preset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base),
+                    cloudOS: VPhoneVersion("26.4"),
+                    allowed: patches,
+                )
+                // The plain preset keeps a stock kernel; the feature adds only its own.
+                let kernelSets = [FirmwareKernelBasePatchSet.manifest, FirmwareKernelCustomFirmwarePatchSet.manifest]
+                    .flatMap { $0.patches.map(\.identifier) }
+                #expect(plain.enabled.isDisjoint(with: kernelSets), "\(preset.identifier) \(base)")
+                #expect(debugging.enabled.subtracting(plain.enabled).isSubset(of: patches), "\(preset.identifier) \(base)")
+                #expect(debugging.enabled.union(debugging.skippedByVersion).isSuperset(of: patches), "\(preset.identifier) \(base)")
+            }
+        }
+    }
+
+    @Test
+    func `Standard turns userspace debugging on whole, so no box is offered there`() throws {
+        let preset = FirmwarePatchSetCatalog.standardPreset
+        let named = Set(preset.patchSets.map(\.identifier))
+        let standard = Set(FirmwarePatchSetCatalog.bundled.filter { named.contains($0.identifier) }
+            .flatMap(\.patches).map(\.identifier).filter { preset.selection.includes($0) })
+        let patches = try #require(FirmwarePatchSetCatalog.userspaceDebugging.patches(in: preset))
+        #expect(patches.isSubset(of: standard), "\(patches.subtracting(standard).sorted())")
     }
 
     @Test
