@@ -65,7 +65,9 @@ iOS 18.1〜18.7.2 は、それぞれのリリースに対応する cloudOS 上�
 
 ### iOS 27.0.1 の iPhone17,3
 
-iOS 27.0.1（24A446）は、バンドル 2.5.0 以前では初回起動に失敗します（2026-10-04 に再現、Apple の未変更の launchd でも同様）。TXM の selector-24 の事前チェックが init の時点ですべてのバイナリを拒否し、`unexpected SIGKILL of init` でパニックします。`txm-boot-precheck_admission` パッチでこれが修正されます（[研究記録](../../../Research/Firmware/txm_selector24_cms_gate.md)をご覧ください）。このパッチを使うと、`26.4-23E5207q` 上の iPhone17,3 27.0.1 はゲストまで起動し、vphoned の `device.info` に応答します（同日に検証）。このパッチを含む最初のリリースはバンドル 2.6.0 です。
+iOS 27.0.1（24A446）は、バンドル 2.5.0 以前では初回起動に失敗します（2026-10-04 に再現、Apple の未変更の launchd でも同様）。TXM の selector-24 の事前チェックが init の時点ですべてのバイナリを拒否し、`unexpected SIGKILL of init` でパニックします。従来の `txm-boot-precheck_admission` パッチでこの問題が修正されました（[研究記録](../../../Research/Firmware/txm_selector24_cms_gate.md)をご覧ください）。このパッチを使うと、`26.4-23E5207q` 上の iPhone17,3 27.0.1 はゲストまで起動し、vphoned の `device.info` に応答します（同日に検証）。このパッチを含む最初のリリースはバンドル 2.6.0 です。
+
+今回の変更では、type 10 として強制的に許可する従来の処理を `txm-cfw-executable_remap` に置き換えます。`standard` プリセットで選択され、OS バージョンによる制限はありません。ホスト側のテストは、元の署名拒否経路をカバーしています。iOS 27.1（24A94425）では、テスト担当者から正常な起動と App の読み込みが報告されています。実行時プローブでは、メイン実行ファイルと framework の元のコードを remap する全 28 件の実行テストが成功し、実際のマッピング権限は RX でした。以前問題が発生した iOS 27.0.1 と同一の組み合わせは、まだ再検証していません。[置き換えの評価](../../../Research/Firmware/txm_executable_remap.md)をご覧ください。
 
 ## macOS 26.6.2 のホスト
 

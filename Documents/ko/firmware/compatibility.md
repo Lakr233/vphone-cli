@@ -65,7 +65,9 @@ iOS 18.1~18.7.2는 해당 릴리스 자체의 cloudOS에서, iPhone XS 계열 IP
 
 ### iOS 27.0.1의 iPhone17,3
 
-iOS 27.0.1(24A446)은 번들 2.5.0 이하에서 첫 부팅에 실패합니다(2026-10-04 재현, 수정하지 않은 Apple launchd로도 동일). TXM의 selector-24 사전 검사가 init 시점에 모든 바이너리를 거부하고, 부팅이 `unexpected SIGKILL of init`으로 패닉합니다. `txm-boot-precheck_admission` 패치가 이를 해결합니다([연구 기록](../../../Research/Firmware/txm_selector24_cms_gate.md) 참고). 이 패치를 적용하면 `26.4-23E5207q`의 iPhone17,3 27.0.1이 게스트까지 부팅되고 vphoned `device.info`에 응답합니다(같은 날 확인). 이 패치가 포함된 첫 릴리스는 번들 2.6.0입니다.
+iOS 27.0.1(24A446)은 번들 2.5.0 이하에서 첫 부팅에 실패합니다(2026-10-04 재현, 수정하지 않은 Apple launchd로도 동일). TXM의 selector-24 사전 검사가 init 시점에 모든 바이너리를 거부하고, 부팅이 `unexpected SIGKILL of init`으로 패닉합니다. 기존 `txm-boot-precheck_admission` 패치가 이 문제를 해결했습니다([연구 기록](../../../Research/Firmware/txm_selector24_cms_gate.md) 참고). 이 패치를 적용하면 `26.4-23E5207q`의 iPhone17,3 27.0.1이 게스트까지 부팅되고 vphoned `device.info`에 응답합니다(같은 날 확인). 이 패치가 포함된 첫 릴리스는 번들 2.6.0입니다.
+
+이번 변경은 type 10으로 강제 허용하던 처리를 `txm-cfw-executable_remap`으로 대체합니다. 이 패치는 OS 버전 제한 없이 `standard` 프리셋에서 선택됩니다. 호스트 테스트는 기존의 서명 거부 경로를 검증합니다. iOS 27.1(24A94425)에서는 테스트 담당자가 정상 부팅과 App 로딩을 보고했으며, 런타임 프로브에서 메인 실행 파일과 framework의 원본 코드를 remap하는 실행 테스트 28개가 모두 성공했습니다. 실제 매핑 권한은 RX였습니다. 이전에 문제가 발생한 iOS 27.0.1과 정확히 같은 조합은 아직 다시 테스트하지 않았습니다. [대체 방식 평가](../../../Research/Firmware/txm_executable_remap.md)를 참고하세요.
 
 ## macOS 26.6.2 호스트
 

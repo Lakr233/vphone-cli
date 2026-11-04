@@ -65,7 +65,9 @@ iOS 18.1 到 18.7.2 运行在各自版本的 cloudOS 上，用户空间来自 iP
 
 ### iOS 27.0.1 上的 iPhone17,3
 
-iOS 27.0.1（24A446）在 bundle 2.5.0 及更早版本上首次启动失败（2026-10-04 复现，使用未修改的 Apple launchd 也一样）：TXM 的 selector-24 预检查在 init 阶段拒绝所有二进制文件，启动时以 `unexpected SIGKILL of init` panic。`txm-boot-precheck_admission` 补丁修复了这个问题（见[研究记录](../../../Research/Firmware/txm_selector24_cms_gate.md)）。打上补丁后，`26.4-23E5207q` 上的 iPhone17,3 27.0.1 可以启动到客户机，并响应 vphoned 的 `device.info`（当天验证）。bundle 2.6.0 是第一个包含该补丁的版本。
+iOS 27.0.1（24A446）在 bundle 2.5.0 及更早版本上首次启动失败（2026-10-04 复现，使用未修改的 Apple launchd 也一样）：TXM 的 selector-24 预检查在 init 阶段拒绝所有二进制文件，启动时以 `unexpected SIGKILL of init` panic。旧的 `txm-boot-precheck_admission` 补丁修复了这个问题（见[研究记录](../../../Research/Firmware/txm_selector24_cms_gate.md)）。打上补丁后，`26.4-23E5207q` 上的 iPhone17,3 27.0.1 可以启动到客户机，并响应 vphoned 的 `device.info`（当天验证）。bundle 2.6.0 是第一个包含该补丁的版本。
+
+本次改动用 `txm-cfw-executable_remap` 替代原来强制归为 type 10 的准入方式，`standard` 预设默认选中该补丁，不受操作系统版本限制。宿主机测试覆盖了原先的签名拒绝路径。在 iOS 27.1（24A94425）上，测试者反馈启动和 App 加载正常；运行时探针的主程序和 framework 原始代码 remap 执行测试共 28 项，全部通过，实际映射权限均为 RX。此前出现问题的 iOS 27.0.1 完整组合尚未复测。见[替换方案评估](../../../Research/Firmware/txm_executable_remap.md)。
 
 ## macOS 26.6.2 宿主机
 

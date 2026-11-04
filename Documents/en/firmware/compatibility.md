@@ -65,7 +65,9 @@ iOS 18.1 to 18.7.2 run on their own release's cloudOS, with the userland of the 
 
 ### iPhone17,3 on iOS 27.0.1
 
-iOS 27.0.1 (24A446) fails first boot on bundle 2.5.0 and earlier (reproduced 2026-10-04, also with the pristine Apple launchd): TXM's selector-24 pre-check rejects every binary at init, and the boot panics with `unexpected SIGKILL of init`. The `txm-boot-precheck_admission` patch fixes it (see [the research note](../../../Research/Firmware/txm_selector24_cms_gate.md)). With the patch, iPhone17,3 27.0.1 on `26.4-23E5207q` boots to the guest and answers a vphoned `device.info` (verified the same day). Bundle 2.6.0 is the first release that carries it.
+iOS 27.0.1 (24A446) fails first boot on bundle 2.5.0 and earlier (reproduced 2026-10-04, also with the pristine Apple launchd): TXM's selector-24 pre-check rejects every binary at init, and the boot panics with `unexpected SIGKILL of init`. The former `txm-boot-precheck_admission` patch fixed it (see [the research note](../../../Research/Firmware/txm_selector24_cms_gate.md)). With the patch, iPhone17,3 27.0.1 on `26.4-23E5207q` boots to the guest and answers a vphoned `device.info` (verified the same day). Bundle 2.6.0 is the first release that carries it.
+
+This revision replaces that forced type-10 admission with `txm-cfw-executable_remap`, selected by `standard` without an OS-version gate. Host tests cover the original signature rejection paths. On iOS 27.1 (24A94425), the tester reports normal startup and App loading, and the runtime probe executes all 28 main/framework original-code remaps with actual RX mappings. The exact historical iOS 27.0.1 pairing has not been retested. See [the replacement assessment](../../../Research/Firmware/txm_executable_remap.md).
 
 ## macOS 26.6.2 hosts
 
