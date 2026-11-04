@@ -7,16 +7,22 @@ import VPhonePatchKit
 
 /// Dev-variant patcher for TXM images.
 ///
-/// Adds 5 patch methods (11 patch records) beyond base trustcache bypass:
+/// Adds admission and runtime policies beyond the base trustcache bypass:
 ///   1. selector24 force PASS (mov w0, #0xa1 + b epilogue)
 ///   2. get-task-allow entitlement BL → mov x0, #1
 ///   3. selector42|29 shellcode hook + manifest flag force
 ///   4. debugger entitlement BL → mov w0, #1
 ///   5. developer-mode guard → nop
+///   6. selector24 pre-check admission (iOS 27)
+///   7. native signature classification for remapping (cloudOS 26.4)
 public final class TXMDevPatcher: TXMPatcher {
     override public func findAll() throws -> [PatchRecord] {
         patches = []
-        try patchTrustcacheBypass() // base patch
+        if gate.isEnabled(Self.executableRemapID) {
+            try patchExecutableRemap() // includes the base bypass with real cache queries
+        } else {
+            try patchTrustcacheBypass()
+        }
         patchSelector24ForcePass()
         patchPrecheckForcePass()
         patchGetTaskAllowForceTrue()

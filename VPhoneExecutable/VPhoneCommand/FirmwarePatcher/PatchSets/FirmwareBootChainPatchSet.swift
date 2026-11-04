@@ -118,6 +118,13 @@ public enum FirmwareBootChainPatchSet {
             // MARK: TXM
 
             VPhonePatchDeclaration(
+                identifier: "txm-cfw-executable_remap",
+                title: "TXM native signature classification",
+                summary: "Preserves real classification and native mapping bounds. Admits CMS-less installer signatures and temporarily tolerates absent or mismatched Team IDs for ordinary libraries, including hot reload; category and remap restrictions remain.",
+                target: .firmware(.txm),
+                applicability: VPhonePatchApplicability(iOSBase: .major(26), cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: "txm-boot-trustcache_bypass",
                 title: "TXM trust cache bypass",
                 summary: "Lets TXM admit the guest's own trust cache entries.",

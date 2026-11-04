@@ -1644,7 +1644,7 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 
 | #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
 | --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
-| 1   | Trustcache binary-search bypass                   | `bl hash_cmp` -> `mov x0, #0`             |    Y    |  Y  |  Y  |
+| 1   | Trustcache bypass                                 | Legacy `bl hash_cmp` -> `mov x0, #0`; native-classification revision uses the hash-flags site instead | Y | Y | Y |
 | 2   | Selector24 bypass: `mov w0, #0xa1`                | Return PASS (byte 1 = 0) after prologue   |    -    |  Y  |  Y  |
 | 3   | Selector24 bypass: `b <epilogue>`                 | Skip validation, jump to register restore |    -    |  Y  |  Y  |
 | 4   | get-task-allow (selector 41\|29)                  | `bl` -> `mov x0, #1`                      |    -    |  Y  |  Y  |
@@ -1660,6 +1660,19 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | 14  | Pre-check admission: `strb w8, [x19]`             | Write the type byte to the out param      |    -    |  Y  |  Y  |
 | 15  | Pre-check admission: `mov w0, #0x90`              | The policy walk's PASS status             |    -    |  Y  |  Y  |
 | 16  | Pre-check admission: `b <epilogue>`               | Skip the policy callback walk             |    -    |  Y  |  Y  |
+| 17  | Native CMS research tolerance                     | NOP tolerance flag only after CMS certificate-policy miss; retain parsing, digest checks and the second policy restriction | - | Y | Y |
+| 18  | Native ad-hoc research tolerance                  | NOP tolerance flag after native classification miss; retain Apple's type-10 fallback and mapping restrictions | - | Y | Y |
+| 19  | CMS-less installer research tolerance             | Redirect only the absent CMS wrapper branch to the existing path-dependent fallback; retain SuperBlob validation, present-CMS failures and the second policy restriction | - | Y | Y |
+| 20  | Temporary ordinary-library Team-ID tolerance      | Skip only absent/mismatched Team-ID comparison for framework/dylib types 3–5; retain signature admission, category ordering, context/role and mapping checks | - | Y | Y |
+
+> **Executable remapping:** rows 17–20 form `txm-cfw-executable_remap`, selected
+> by standard for iOS 26 + cloudOS 26.4. Row 1 then uses the hash-flags alternative
+> so cache misses remain real. Native association and final-validation code is
+> unchanged; ordinary-library Team ID matching is deliberately relaxed. The
+> runtime validation executes 28/28 original-code remaps, but also executes
+> modified framework code that stock iOS rejects. This is research compatibility,
+> not full stock-policy alignment. See [TXM executable remap](Firmware/txm_executable_remap.md)
+> for discovery, exact changes, regression tests, evidence and remaining limits.
 
 > **Pre-check admission (2026-10-04):** rows 13–16 (`txm-boot-precheck_admission`,
 > iOS 27+ only) force the selector-24 pre-check policy walk in TXM 187.100.3
