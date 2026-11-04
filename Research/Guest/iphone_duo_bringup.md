@@ -5505,3 +5505,130 @@ DeviceHub's Closed and Open were repeated with the same results. Checked
 off-guest in `make test-hinge`: WDA's payload in the internal form inside a
 binary plist is taken, and another usage page, no provider, the orientation
 picker and values of -1, 181, a Boolean or a string are not.
+
+## 2026-11-05: iOS 27.2, and WebDriverAgent's hinge GET after boot
+
+Issue #821: on an iPhone Duo guest running iOS 27.2 (24B91020), WDA's
+`GET /wda/device/hingeAngle` timed out (HTTP 500, 5 s each) for minutes
+after boot, and again after a WDA restart, while `VPhoneHingeStatus` kept
+dispatching. The first success returned 0° with the guest at 90°. On 27.1
+the first GET answered in 1.4 s.
+
+**What the GET does** (appium-webdriveragent 16.17.7,
+`XCUIDevice+FBHinge.m`): a new `CMAngleManager`,
+`startAngleUpdatesToQueue:handler:`, and a 5 s wait for the first callback
+with `isAngleValid`. A new manager is handed the current angle when
+CoreMotion has one; otherwise it waits for the next change. The probe used
+here (`HingeProbe`, an ldid-signed app installed with `apps.install`)
+repeats exactly that every 3 s and logs each read.
+
+**Reproduced** on a new test VM (`duo272-hinge`, iPhone19,4 27.2, cloudOS
+26.4 23E5207q, bundle 2.15.2 from upstream main), six cold boots with the
+hinge stationary at 0° and at 100°, alternating:
+
+| boot | hinge | fresh read ~60 s after boot | after a 1° move |
+| --- | --- | --- | --- |
+| 1–6 | 0, 100, 0, 100, 0, 100 | timeout (callbacks 0), every boot | valid at once (0.001 s) |
+
+Restarting locationd (`processes.kill … "signal":"KILL"`, launchd starts
+another) also made fresh reads valid within the next read, at 0° and at
+100°, and they stayed valid for minutes with the hinge still. What fails
+is the locationd that starts with the guest.
+
+**The 27.2 relay change.** locationd's `CMDeviceStateRelayManager` (the
+relay that turns the host controls, page `0xFF61` usage `0x5B`, into
+CoreMotion's hinge-angle service "Crane", `0xFF0C/0x21`) gained an angle
+interpolator in 27.2 (`CMAngleInterpolator`,
+`DeviceStateRelayInterpolationDuration`, `_snapToAngleUpdate:`,
+`startUpdatesForPhysicalDevice:aopAngle:`). Its `_feedAngleUpdate:` now
+returns early when the value equals `effectiveAngle` ("Already at angle;
+skipping interpolation"); 27.1's sets the angle and dispatches every time.
+libvphonehinge resends the stationary angle every 5 s because the relay
+never asks for one; on 27.2 that resend is a no-op, so whatever state the
+boot left the relay's service in stays until the angle changes.
+
+The Crane service does hold an event on a failing boot
+(`IOHIDServiceClientCopyEvent(…, kIOHIDEventTypeHingeAngle)` from root:
+phase Ended, timestamp a few seconds after boot, SenderID equal to the
+service's registry ID), with the same shape as the event it holds once
+reads work (where it is the move's last sample). A new client's copy is
+rejected anyway; why it is not used was not established. After a move or
+a locationd restart the copied event is used.
+
+**Startup deadlock, the reporter's 90° case.** On one boot the hinge did
+not recover from a move either. A spindump of that locationd showed its
+`AriHost` queue blocked since 6 s after launch inside a location silo →
+libICEClient → libARI `dispatch_sync`, and two `root.default-qos` threads
+waiting on its turnstile: the iOS 27 startup deadlock
+(`Research/Guest/locationd_startup_deadlock.md`) in the baseband client,
+where `locationServicesEnabled` still answers, so vphoned's watchdog did
+not see it. A restart recovered that one too. Its first reading after the
+restart is the relay's reseeded 0°, the value the reporter saw.
+
+**A health check from vphoned does not work.** The first fix had vphoned
+make the GET's own read (a new `CMAngleManager`, 5 s) and restart locationd
+when it got nothing. A daemon's manager is not handed the current angle
+even when an app's is: from root it timed out twice and then caught a live
+event, with the app's reads valid at the same time. vphoned kept restarting
+healthy locationds (12 in 13 minutes). A `copyEvent` of the Crane service
+cannot tell the states apart either (above).
+
+**Fix.** vphoned's locationd watchdog (`GuestLocationdWatchdog.swift`)
+restarts the locationd that started with the guest once, on iOS 27.2 or
+later with CoreMotion's foldable hinge (`vp_core_motion_hinge`): at its
+first check after that locationd has run 20 s, which is its second check,
+about 30 s after boot. "Started with the guest" is a start within 30 s of
+boot on the uptime clock (`ri_proc_start_abstime` from `proc_pid_rusage`,
+now `VPProcessUsage.start_uptime`), because vphoned moves the guest's wall
+clock to the Mac's after boot and `p_starttime` is wall time. A later
+locationd (one the watchdog replaced, or a jetsam or crash restart) is left
+alone, and the restart counts toward the watchdog's 20. It logs
+`vphoned: locationd watchdog: locationd N started with the guest and gives
+no hinge angle, killed it (restart 1)`. No firmware patch was added.
+
+**Measured with the fix**, duo272-hinge, six more cold boots alternating
+0° and 100°, the probe started at about +20 s and kept in front:
+
+| boot | hinge | first valid fresh read | timeouts before it | valid reads to +120 s | launchd `runs` |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | +35 s (0°) | 2 | 30 | 2 |
+| 2 | 100 | +35 s (0°, then 94.87°) | 2 | 31 | 2 |
+| 3 | 0 | +35 s (0°) | 2 | 30 | 2 |
+| 4 | 100 | +37 s (0°, then 96.89°) | 2 | 30 | 2 |
+| 5 | 0 | +35 s (0°) | 2 | 30 | 2 |
+| 6 | 100 | +36 s (0°, then 94.87°) | 2 | 30 | 2 |
+
+One restart per boot and no other; every read after the restart was
+valid. The first read after it is the relay's reseeded 0°, and the next
+resend of the virtual hinge moves it to the stationary angle. A GET in the
+first ~35 s after boot still times out.
+
+Not covered: a locationd that started with the guest and is replaced can
+deadlock in the baseband client too; the watchdog does not see that one.
+None of the restarts here did.
+
+Not addressed: a read after the hinge moved can return an intermediate
+angle (100° read as 94.87–96.89°, 101° as 97.88°). The reporter sees the
+same on the Xcode 27.2 Duo simulator, so it is CoreMotion's.
+
+**The rest of the Duo on 27.2**, same VM: restore (with the iBEC wait
+below), CFW and first boot; `display.posture` closed / book / open five
+times, with `fold_angle` 0 / 100 / 180 and the panel switching between the
+cover's portrait and the inner display's landscape split view (Settings);
+WDA's hinge POST from an unentitled app (`FeatProbe`, the same vendor event)
+moving `fold_angle` to 120, 0 and 180; touch (`input.tap` dismissing the
+pairing alert and opening Settings › General › About, which reads iOS 27.2,
+iPhone Duo); Safari drawing on the open inner display; `audio.state`; and
+the CIBarcode filters (QR generate, render and detect, Code128, Aztec,
+PDF417) without `system-cibarcode-cfw-arm64e_x1`, which stays scoped to
+27.1. DeviceHub was not tried.
+
+Restoring this VM from Launchpad failed four times in a row at "Device did
+not reconnect in recovery mode" (idevicerestore's 10 s wait after iBEC),
+iBEC reaching recovery only after the wait had ended. Under a host load
+average of 100–290 from other work, iBoot's serial lines came 0.3–0.6 s
+apart; the fourth attempt, at a load of about 5, failed the same way, so
+load is not the whole cause, and it was not found. A restore run by hand
+(`vphone-cli vm launch --dfu`, 25 s, then `vphone-cli restore`) at that load
+went through, iBEC in recovery within 2 s, and Launchpad's `vm create --from
+installCFW` finished from there.

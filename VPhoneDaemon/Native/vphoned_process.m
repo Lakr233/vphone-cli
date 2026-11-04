@@ -28,6 +28,7 @@ bool vp_process_usage(int pid, VPProcessUsage *usage) {
         usage->cpu_seconds = (double)ticks * timebase.numer / timebase.denom / 1e9;
         usage->footprint_bytes = rusage.ri_phys_footprint;
         usage->resident_bytes = rusage.ri_resident_size;
+        usage->start_uptime = (double)rusage.ri_proc_start_abstime * timebase.numer / timebase.denom / 1e9;
         usage->has_task_info = true;
     }
     return true;
