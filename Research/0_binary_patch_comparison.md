@@ -1644,7 +1644,7 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 
 | #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
 | --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
-| 1   | Trustcache binary-search bypass                   | `bl hash_cmp` -> `mov x0, #0`             |    Y    |  Y  |  Y  |
+| 1   | Trustcache bypass                                 | Legacy `bl hash_cmp` -> `mov x0, #0`; native-classification revision uses the hash-flags site instead | Y | Y | Y |
 | 2   | Selector24 bypass: `mov w0, #0xa1`                | Return PASS (byte 1 = 0) after prologue   |    -    |  Y  |  Y  |
 | 3   | Selector24 bypass: `b <epilogue>`                 | Skip validation, jump to register restore |    -    |  Y  |  Y  |
 | 4   | get-task-allow (selector 41\|29)                  | `bl` -> `mov x0, #1`                      |    -    |  Y  |  Y  |
@@ -1656,22 +1656,35 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | 10  | Selector42\|29 shellcode: branch back             | Return from shellcode to stub+4           |    -    |  Y  |  Y  |
 | 11  | Debugger entitlement (selector 42\|37)            | `bl` -> `mov w0, #1`                      |    -    |  Y  |  Y  |
 | 12  | Developer mode bypass                             | NOP conditional guard before deny path    |    -    |  Y  |  Y  |
-| 13  | Pre-check admission: `mov w8, #0xa`               | Tolerated validation-type byte (iOS 27+)  |    -    |  Y  |  Y  |
-| 14  | Pre-check admission: `strb w8, [x19]`             | Write the type byte to the out param      |    -    |  Y  |  Y  |
-| 15  | Pre-check admission: `mov w0, #0x90`              | The policy walk's PASS status             |    -    |  Y  |  Y  |
-| 16  | Pre-check admission: `b <epilogue>`               | Skip the policy callback walk             |    -    |  Y  |  Y  |
+| 13  | Native CMS research tolerance                     | NOP tolerance flag only after CMS certificate-policy miss; retain parsing, digest checks and the second policy restriction | - | Y | Y |
+| 14  | Native ad-hoc research tolerance                  | NOP tolerance flag after native classification miss; retain Apple's type-10 fallback and mapping restrictions | - | Y | Y |
+| 15  | CMS-less installer research tolerance             | Redirect only the absent CMS wrapper branch to the existing path-dependent fallback; retain SuperBlob validation, present-CMS failures and the second policy restriction | - | Y | Y |
+| 16  | Temporary ordinary-library Team-ID tolerance      | Skip only absent/mismatched Team-ID comparison for framework/dylib types 3–5; retain signature admission, category ordering, context/role and mapping checks | - | Y | Y |
 
-> **Pre-check admission (2026-10-04):** rows 13–16 (`txm-boot-precheck_admission`,
-> iOS 27+ only) force the selector-24 pre-check policy walk in TXM 187.100.3
-> (cloudOS 26.4) to its PASS exit. On an iOS 27.0.1 iPhone guest that walk
-> rejects every manifest — Apple's own launchd included, re-signed or pristine —
-> because the trust state it consults never loads from a 27.0.1 restore; the
-> selector-24 caller then exhausts its ad-hoc / CMS / third fallback ladder and
-> kills init (`0x32202`, previously misread as `0x12491`). The anchor is the
-> walk's unique `mov x17, #0x7e51 ; blraa x8, x17` policy-callback invocation
-> combined with its post-indexed `ldr x22, [x20], #0x40` table walk; on
-> 187.100.3 that pair resolves to exactly one function. Full analysis and the
-> experiment trail: `Research/Firmware/txm_selector24_cms_gate.md`.
+> **Executable remapping:** rows 13–16 form `txm-cfw-executable_remap`, selected
+> by standard without an iOS/cloudOS version gate. Unique semantic matches in
+> pristine TXM are still required; missing or ambiguous shapes stop patching.
+> Row 1 then uses the hash-flags alternative so cache misses remain real.
+> Runtime reports on iOS 26.6.2 and iOS 27.1 each execute 28/28 main/framework
+> original-code remaps with actual RX mappings; the tester also reports normal
+> startup and App loading with the replacement. The iOS 27 forced type-10 pre-check
+> patch is removed; native pre-check code is unchanged, and iOS 26/27 produce
+> identical output from the pinned TXM. Host tests reproduce and resolve the historical
+> `0x12491`/`0x32202` admission failures using this patch; the retained CMS
+> restriction can still reject. Other OS pairs and policy contexts remain unverified.
+> Native association and final-validation code is
+> unchanged; ordinary-library Team ID matching is deliberately relaxed. The
+> runtime validation executes 28/28 original-code remaps, but also executes
+> modified framework code that stock iOS rejects. This is research compatibility,
+> not full stock-policy alignment. See [TXM executable remap](Firmware/txm_executable_remap.md)
+> for discovery, exact changes, regression tests, evidence and remaining limits.
+
+> **Former pre-check admission:** `txm-boot-precheck_admission` bypassed the
+> selector-24 policy walk and fixed an iOS 27.0.1 first-boot init SIGKILL, but
+> forced all admitted signatures to type 10. It is replaced by native
+> classification above. The replacement has iOS 27.1 remap results and
+> tester-reported startup success; the historical 27.0.1 pairing has not been
+> retested. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
 
 ## Kernelcache
 
@@ -5127,7 +5140,7 @@ The 26.x kernels match neither shape, as before.
 | `kernel-exp-frida_thread_set_state_entitlement_flag`, `kernel-exp-frida_syscall_filter_off` | cloudOS ≥ 26.4 | also cloudOS 18.x (same shapes, 18.6 `0xA606E0`/`0xA608E8`; `0xA0FB18`, `0xA0FBA8`, `0x113FB54`). TPRO and the immutable-code patch have no 18.x shape and stay ≥ 26.4 |
 
 `kernel-boot-vm_map_protect` finds no gate on 18.x, as on 26.5 and later.
-`txm-boot-precheck_admission` (the 27.0.1 fix) and `ibec-boot-bootx_precondition`
+The former `txm-boot-precheck_admission` (the 27.0.1 fix) and `ibec-boot-bootx_precondition`
 have no 18.x site and are not needed there.
 The four VirtualAudio throw patches (`speaker_route_throws`, `mute_set_throw`,
 `speaker_protection_gate`, `volume_mode_precondition`) look for code iOS 18.6's

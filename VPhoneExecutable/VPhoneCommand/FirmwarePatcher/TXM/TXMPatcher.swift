@@ -109,8 +109,17 @@ extension TXMPatcher {
     //  remains present later in the function.
     // ═══════════════════════════════════════════════════════════
 
-    func patchTrustcacheBypass() throws {
-        if let legacyBL = findLegacyTrustcacheBypassCall() {
+    func patchTrustcacheBypass(preservingCacheQueries: Bool = false) throws {
+        // Native classification needs real cache membership, including misses.
+        // Its research-tolerance paths replace the fabricated binary-search hit.
+        // Do not fall back to that hit if the hash-flags shape is missing.
+        let legacyBL = findLegacyTrustcacheBypassCall()
+        if preservingCacheQueries {
+            guard let legacyBL, disasm.disassembleOne(in: buffer.original, at: legacyBL)?.mnemonic == "bl" else {
+                throw PatcherError.patchSiteNotFound("TXM native classification requires the original cdhash comparison; use pristine firmware")
+            }
+        }
+        if !preservingCacheQueries, let legacyBL {
             emit(
                 legacyBL,
                 ARM64.movX0_0,
