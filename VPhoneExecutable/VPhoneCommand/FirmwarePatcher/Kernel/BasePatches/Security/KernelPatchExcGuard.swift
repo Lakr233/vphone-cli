@@ -61,7 +61,18 @@ extension KernelPatcher {
         // `ldrb ; cmp #1 ; b.ne`, not a TBZ, and the shape below then settles on
         // a zone allocator called from the same window; turning that into RET
         // made vm_map_enter fail in kmem_init.
+        //
+        // An iOS 18 base can also run on a cloudOS 26.x kernel (18.6.2 on
+        // 26.1). There set_exception_behavior_violation keeps both calls apart:
+        // the guard call, whose code is built between the MRS and the BL
+        // (seven instructions), and send_set_exception_telemetry's
+        // get_threadtask(current_thread()), whose BL directly follows its own
+        // MRS. Only the second fits the six-instruction window, and turning
+        // get_threadtask into RET makes the first page fault of boot recurse in
+        // vm_fault until the kernel stack overflows. The guard call is the one
+        // whose arguments carry the EXC_GUARD type, so that call wins.
         var currentThreadCallees = Set<Int>()
+        var guardCodeCallees = Set<Int>()
         for off in stride(from: scanStart, to: scanEnd, by: 4) {
             guard let target = decodeBL(at: off), target > 0, target + 0x80 <= buffer.count,
                   buffer.readU32(at: target) == ARM64.pacibspU32
@@ -70,16 +81,23 @@ extension KernelPatcher {
             for (index, insn) in insns.enumerated() where insn.mnemonic == "mrs" {
                 // A system register has no register-operand identity to compare.
                 guard insn.operandString.lowercased() == "x0, tpidr_el1" else { continue }
-                if let call = insns.dropFirst(index + 1).prefix(6).first(where: { $0.mnemonic == "bl" }),
-                   let callee = decodeBL(at: Int(call.address)),
-                   callee > 0, callee + 4 <= buffer.count,
-                   buffer.readU32(at: callee) == ARM64.pacibspU32
-                {
+                let following = insns.dropFirst(index + 1).prefix(10)
+                guard let call = following.first(where: { $0.mnemonic == "bl" }),
+                      let callee = decodeBL(at: Int(call.address)),
+                      callee > 0, callee + 4 <= buffer.count,
+                      buffer.readU32(at: callee) == ARM64.pacibspU32
+                else { continue }
+                let argumentSetup = following.prefix(while: { $0.address < call.address })
+                if argumentSetup.contains(where: Self.setsMachPortGuardType) {
+                    guardCodeCallees.insert(callee)
+                }
+                if argumentSetup.count < 6 {
                     currentThreadCallees.insert(callee)
                 }
             }
         }
-        if currentThreadCallees.count == 1, let inner = currentThreadCallees.first {
+        let guardCallees = guardCodeCallees.isEmpty ? currentThreadCallees : guardCodeCallees
+        if guardCallees.count == 1, let inner = guardCallees.first {
             log("  [*] thread_guard_violation at foff 0x\(String(format: "%X", inner)) (called on the current thread)")
             emit(
                 inner,
@@ -139,5 +157,19 @@ extension KernelPatcher {
 
         log("  [-] thread_guard_violation not found via anchor chain")
         return false
+    }
+
+    /// `movk xN, #imm, lsl #48` whose top bits are GUARD_TYPE_MACH_PORT.
+    ///
+    /// EXC_GUARD_ENCODE_TYPE puts the guard type in bits 61-63 of the code,
+    /// bits 13-15 of the top halfword. Matching the type exactly keeps the
+    /// pointer-authentication discriminators blended in with the same
+    /// `movk ..., lsl #48` (0xd507 and the like) out.
+    static func setsMachPortGuardType(_ insn: ARM64Instruction) -> Bool {
+        guard insn.mnemonic == "movk", let ops = insn.detail?.operands, ops.count == 2,
+              ops[0].type == .register, ops[1].type == .immediate,
+              ops[1].shift.type == .lsl, ops[1].shift.amount == 48
+        else { return false }
+        return ops[1].imm >> 13 == 0x1 // GUARD_TYPE_MACH_PORT
     }
 }
