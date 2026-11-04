@@ -1,0 +1,83 @@
+/* Minimal theme: neutral grays, system type, one accent, flat surfaces. */
+
+:root {
+  --rp-c-brand: #2f7d4f;
+  --rp-c-brand-light: #3b9461;
+  --rp-c-brand-lighter: #4aa972;
+  --rp-c-brand-dark: #276a43;
+  --rp-c-brand-darker: #1f5536;
+  --rp-c-brand-rgb: 47, 125, 79;
+  --rp-c-brand-tint: rgba(47, 125, 79, 0.1);
+
+  --rp-font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans', 'Apple SD Gothic Neo', sans-serif;
+  --rp-font-family-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+}
+
+.dark {
+  --rp-c-brand: #5fbf86;
+  --rp-c-brand-light: #74cc97;
+  --rp-c-brand-lighter: #8ad6a8;
+  --rp-c-brand-dark: #4fa874;
+  --rp-c-brand-darker: #418d61;
+  --rp-c-brand-rgb: 95, 191, 134;
+  --rp-c-brand-tint: rgba(95, 191, 134, 0.12);
+
+  --rp-c-bg: #161616;
+  --rp-c-bg-soft: #1c1c1c;
+  --rp-c-bg-mute: #222222;
+}
+
+/* Flat: no shadows, hairline borders. */
+* {
+  box-shadow: none !important;
+}
+
+/* Home: type only, no gradients or decoration. */
+.rp-home-background {
+  display: none !important;
+}
+
+.rp-home-hero__title-brand {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--rp-c-text-2) !important;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.rp-home-hero__title,
+.rp-home-hero__subtitle {
+  letter-spacing: -0.03em;
+}
+
+.rp-home-hero__tagline {
+  max-width: 34em;
+  margin-inline: auto;
+  color: var(--rp-c-text-2);
+}
+
+.rp-button--brand {
+  background: var(--rp-c-brand) !important;
+  background-image: none !important;
+  border-color: var(--rp-c-brand) !important;
+  color: #fff !important;
+}
+
+.dark .rp-button--brand {
+  color: #0f0f0f !important;
+}
+
+/* Documentation text: comfortable measure, quiet tables. */
+.rspress-doc {
+  line-height: 1.7;
+}
+
+.rspress-doc table {
+  font-size: 0.92em;
+}
+
+.rspress-doc img {
+  border-radius: 8px;
+  border: 1px solid var(--rp-c-divider-light);
+}

@@ -81,4 +81,5 @@ These pages give a translated overview and quick start. The guides above hold th
 
 - `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone build` produces and validates `VPhone.bundle`. Run each project's test scheme separately.
 - The [research index](../Research/README.md) groups patch and implementation records by subject.
+- [`VPhoneWebsite/`](../VPhoneWebsite/) builds the documentation site from these pages with Rspress: `npm ci && npm run dev` there. Every guide must be listed in a section above; the site's sidebar is built from them.
 - The [patch inventory](../Research/0_binary_patch_comparison.md) compares patches per component.
