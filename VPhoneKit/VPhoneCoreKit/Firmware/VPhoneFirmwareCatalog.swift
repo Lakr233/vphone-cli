@@ -398,6 +398,7 @@ public enum VPhoneFirmwareCatalog {
         // Initial single-display bring-up; see Research/Guest/iphone_duo_bringup.md.
         (devices: ["iPhone19,4"], releases: [
             ("27.1", "https://updates.cdn-apple.com/2026FallFCS/3f41a447-d8a6-48ae-83ae-056a64f57fd4/iPhone19,4_27.1_24A94425_Restore.ipsw"),
+            ("27.2", "https://updates.cdn-apple.com/2026FallFCS/8d0335dc-f553-4d16-b07b-28951fde8f9e/iPhone19,4_27.2_24B91020_Restore.ipsw"),
         ]),
     ]
 
