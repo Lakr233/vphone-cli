@@ -13,4 +13,4 @@ These notes explain the source anchors, binary matches and validation evidence f
 | Process and syscall paths | [proc PID info](patch_proc_pidinfo.md), [syscall mask](patch_syscallmask_apply_to_proc.md), [kcall10](patch_kcall10.md) |
 | Follow-up evidence | [26.5 hook fixes](26.5_jb_hook_fixes.md), [post-validation additions](patch_post_validation_additional.md), [runtime verification archive](RuntimeVerification/README.md) |
 
-For the supported firmware flow, use `vphone-cli fw patch` or `vphone-cli vm create`; see the [user guide](../../Documents/Guides/create-and-run.md).
+For the supported firmware flow, use `vphone-cli fw patch` or `vphone-cli vm create`; see the [user guide](../../Documents/en/machines/create-and-run.md).

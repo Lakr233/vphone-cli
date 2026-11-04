@@ -31,7 +31,7 @@ public enum VPhoneGuestLaunchError: Error, CustomStringConvertible {
               sudo '\(helper.path)' allow '\(guest.path)'
 
             The allowlist is specific to this signature, so repeat after a
-            rebuild. See https://github.com/Lakr233/vphone-cli/blob/main/Documents/Guides/host-setup.md
+            rebuild. See https://github.com/Lakr233/vphone-cli/blob/main/Documents/en/get-started/host-setup.md
             for host settings.
             """
 

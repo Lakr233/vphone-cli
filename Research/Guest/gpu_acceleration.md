@@ -828,7 +828,7 @@ patch is part of the template's boot-chain digest, so a template lacking Task3
 does not satisfy the new Standard key. Existing machines need their new Core
 Bundle bound, `cfw update-environment`, then `cfw update-kernel` while stopped.
 Launchpad exposes both updates through its helper. No restore or data erasure
-is involved. See `Documents/Guides/shader-cache.md` for the user workflow.
+is involved. See `Documents/en/storage/shader-cache.md` for the user workflow.
 
 This changes preset selection and record naming only; the four kernel writes
 and runtime coverage above are unchanged. The direct kernel patcher default

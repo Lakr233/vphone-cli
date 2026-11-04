@@ -4,7 +4,8 @@ The repository holds the evidence behind almost every behavior. Reading the
 right note is faster and safer than experimenting on the user's machine, and
 many notes record the exact symptom, the cause and the fix. Paths are relative
 to the vphone-cli repository root. If you have no checkout, read the same files
-at <https://github.com/Lakr233/vphone-cli> (`Documents/`, `Research/`).
+at <https://github.com/Lakr233/vphone-cli> (`Documents/`, `Research/`), or on the documentation site
+<https://lakr233.github.io/vphone-cli/>.
 
 Order of preference: **the user guides** (current instructions) first, then
 **`Research/`** (evidence and history, may mention retired commands), then the
@@ -24,13 +25,13 @@ note's command lines.
 
 | Symptom | Start with |
 | --- | --- |
-| `vphone-vm` killed before a window opens; AMFI; "Research Guests" | `Documents/Guides/host-setup.md`, `Documents/Guides/troubleshooting.md`, `Research/Host/macos27_m6_amfi.md` |
-| Launchpad/bundle version mismatch, which Launchpad is notarized | `Documents/Downloads/README.md`, `Documents/Guides/bundle-integration.md` |
-| `vm create` failed at a step; restore or DFU trouble | `Documents/Guides/create-and-run.md`, `Documents/Guides/firmware-preparation.md`, `Documents/Guides/compatibility.md`, `Research/Restore/native_restore_architecture.md`, `Research/Restore/virtual_dfu_probe.md` |
-| Which iPhone IPSW pairs with which cloudOS | `Documents/Guides/compatibility.md`; `vphone-cli fw catalog` (via `exec`) for what exists now |
-| Guest boots to a black screen or loops | `Documents/Guides/troubleshooting.md`, `Research/Patches/hv_vmm_present_usermode_xrefs.md`, `Research/Kernel/kernel_jb_patch_notes.md` |
-| `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` in an app | `Documents/Guides/troubleshooting.md`, `Research/KernelCustomFirmwarePatches/README.md` |
-| No package manager, no ssh, bootstrap install | `Documents/Guides/package-environment.md`, [guest-layout](guest-layout.md), `Research/Guest/roothide_bootstrap_base.md` |
+| `vphone-vm` killed before a window opens; AMFI; "Research Guests" | `Documents/en/get-started/host-setup.md`, `Documents/en/help/troubleshooting.md`, `Research/Host/macos27_m6_amfi.md` |
+| Launchpad/bundle version mismatch, which Launchpad is notarized | `Documents/en/get-started/downloads.md`, `Documents/en/launchpad/bundle-integration.md` |
+| `vm create` failed at a step; restore or DFU trouble | `Documents/en/machines/create-and-run.md`, `Documents/en/firmware/firmware-preparation.md`, `Documents/en/firmware/compatibility.md`, `Research/Restore/native_restore_architecture.md`, `Research/Restore/virtual_dfu_probe.md` |
+| Which iPhone IPSW pairs with which cloudOS | `Documents/en/firmware/compatibility.md`; `vphone-cli fw catalog` (via `exec`) for what exists now |
+| Guest boots to a black screen or loops | `Documents/en/help/troubleshooting.md`, `Research/Patches/hv_vmm_present_usermode_xrefs.md`, `Research/Kernel/kernel_jb_patch_notes.md` |
+| `EXC_GUARD` / `GUARD_TYPE_MACH_PORT` in an app | `Documents/en/help/troubleshooting.md`, `Research/KernelCustomFirmwarePatches/README.md` |
+| No package manager, no ssh, bootstrap install | `Documents/en/machines/package-environment.md`, [guest-layout](guest-layout.md), `Research/Guest/roothide_bootstrap_base.md` |
 | `dyld ... @loader_path/.jbroot/...` crash, `sudo` fails to load a library | `Research/roothide_loader_links.md` |
 | ssh closes at once or `PAM: initialisation failed`, "no such user" | `Research/Guest/roothide_bootstrap_base.md` (open issues section) |
 | An RPC method's parameters, errors, or capability flags | `Research/vphoned_http_api.md` ("Method catalog", "HTTP and WebSocket contract") |
@@ -44,17 +45,20 @@ note's command lines.
 | Camera / virtual camera | `Research/Guest/virtual_camera_transport.md` |
 | Machine identity, clone behaving like the same device | `Research/Guest/machine_identifier_storage_analysis.md` |
 | What a patch does, whether it is on, why a preset differs | `Research/0_binary_patch_comparison.md`, `Research/KernelCustomFirmwarePatches/README.md` |
-| Which binary does what in the bundle | `Research/Host/host_binary_split.md`, `Documents/Guides/bundle-integration.md` |
-| Launchpad command line; Core Bundles and local builds | `Documents/Guides/launchpad-cli.md`, `Documents/Guides/core-bundles.md` |
+| Which binary does what in the bundle | `Research/Host/host_binary_split.md`, `Documents/en/launchpad/bundle-integration.md` |
+| Launchpad command line; Core Bundles and local builds | `Documents/en/launchpad/launchpad-cli.md`, `Documents/en/launchpad/core-bundles.md` |
 
 ## By subject
 
-- **User guides** (`Documents/Guides/`): `host-setup`, `create-and-run`,
-  `firmware-preparation`, `templates`, `template-building`, `many-machines`,
-  `library-and-backups`, `sharing-disk-space`, `snapshots`, `networking` and
-  its `network-*` pages, `compatibility`, `troubleshooting`,
-  `package-environment`, `bundle-integration`, `launchpad-cli`,
-  `core-bundles`. `Documents/README.md` indexes them.
+- **User manual** (`Documents/en/`, also at <https://lakr233.github.io/vphone-cli/>):
+  `get-started/` (overview, quick-start, host-setup, downloads), `machines/`
+  (create-and-run, boot-roms, automation-api, device-name-and-clock,
+  package-environment), `firmware/` (compatibility, firmware-preparation,
+  iphone-models, ipados), `storage/` (library-and-backups, snapshots,
+  templates, template-building, sharing-disk-space, many-machines,
+  shader-cache), `networking/`, `launchpad/` (launchpad-cli, core-bundles,
+  bundle-integration) and `help/troubleshooting`. `Documents/en/README.md`
+  indexes them; `zh/`, `ja/` and `ko/` are translations of the same tree.
 - **Research index:** `Research/README.md` lists every note by subject
   (firmware, kernel, restore, host, guest, history).
 - **Patch inventory:** `Research/0_binary_patch_comparison.md` is canonical for

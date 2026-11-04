@@ -30,7 +30,7 @@ enum VPhoneFirmwareSourceSelection {
 
     /// The compatibility guide whose Tested Environments table rates each build.
     static func compatibilityGuide(_ resources: VPhoneResources) -> String {
-        let source = resources.base.appendingPathComponent("Documents/Guides/compatibility.md")
+        let source = resources.base.appendingPathComponent("Documents/en/firmware/compatibility.md")
         let bundle = resources.base.appendingPathComponent("docs/guides/compatibility.md")
         return FileManager.default.fileExists(atPath: source.path) ? source.path : bundle.path
     }

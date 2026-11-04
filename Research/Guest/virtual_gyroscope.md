@@ -98,7 +98,7 @@ not restart backboardd, which would interrupt the guest UI.
 
 To test a local build, install it with `vphone-launchpad-cli bundle install-local`
 and bind the stopped test machine using `vm set-bundle <name> <version>
---update-environment`, as described in `Documents/Guides/launchpad-cli.md`.
+--update-environment`, as described in `Documents/en/launchpad/launchpad-cli.md`.
 The mounted update adds this newly selected patch to an older machine too.
 Reboot before testing. To turn it off, use the patch editor to block
 `system-backboardd-cfw-gyroscope`, update the stopped machine's environment,

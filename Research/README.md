@@ -1,8 +1,28 @@
 # Research library
 
-[Project overview](../README.md) · [User documentation](../Documents/README.md)
+[Project overview](../README.md) · [User documentation](../Documents/en/README.md)
 
-This directory keeps the evidence behind firmware patches, restore and the self-contained host runtime. **The current public workflow is JB only.** Many notes record earlier experiments and command names; use the [user guides](../Documents/README.md) and `vphone-cli --help` for current instructions.
+This directory keeps the evidence behind firmware patches, restore and the self-contained host runtime. **The current public workflow is JB only.** Many notes record earlier experiments and command names; use the [user guides](../Documents/en/README.md) and `vphone-cli --help` for current instructions.
+
+## Working on vphone
+
+- `vphone-launchpad`: a Mac app that downloads and installs `VPhone.bundle` and sets up the host. Released separately.
+- `vphone-cli`: prepares firmware, patches it, restores the system, and manages VMs.
+- `vphone-vm`: runs the VM and shows its window.
+- `vphoned`: the control service inside the VM. The window's features and the API work through it.
+
+| Path | Contents |
+| --- | --- |
+| [`VPhoneExecutable/`](../VPhoneExecutable/) | `vphone-cli`, `vphone-vm`, firmware patching and restore |
+| [`VPhoneKit/`](../VPhoneKit/) | Shared host libraries and API client |
+| [`VPhoneDaemon/`](../VPhoneDaemon/) | `vphoned` |
+| [`VPhoneGuestComponents/`](../VPhoneGuestComponents/) | Hooks and helper programs inside the VM |
+| [`VPhoneLaunchpad/`](../VPhoneLaunchpad/) | The Launchpad app and its helper |
+| [`VPhoneWebsite/`](../VPhoneWebsite/) | This documentation site, built with Rspress from `Documents/` and `Research/` |
+
+- `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone build` produces and validates `VPhone.bundle`. Run each project's test scheme separately.
+- The user manual is `Documents/<lang>/`, one identical tree per language (`en` is the source). Every manual page is listed in its language's `README.md`; the site's sidebar is built from those tables. Research notes stay in English.
+- Preview the site with `npm ci && npm run dev` in `VPhoneWebsite/`.
 
 ## Start here
 

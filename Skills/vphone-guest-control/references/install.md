@@ -21,7 +21,7 @@ already shows as done. Steps 1 and 2 happen once per Mac, by the Mac's owner.
   two host configurations in macOS Recovery (SIP off with
   `amfi_get_out_of_my_way=1`, or SIP on `--without debug` plus an allowlist),
   and both need `csrutil allow-research-guests enable`. The details are in
-  `Documents/Guides/host-setup.md` of the repository.
+  `Documents/en/get-started/host-setup.md` of the repository.
 - Launchpad's Host Setup page checks these, the network (`updates.cdn-apple.com`,
   `api.github.com`), Developer Tools access and the root helper. When the
   allowlist is the only thing missing, Launchpad applies it for you through its
@@ -45,7 +45,7 @@ Recovery and are the owner's call. Say which check failed and stop.
    Launchpad checks it again when it comes to the front, without a relaunch.
    `canInstallBundles` in `status` turns `true` when both are done.
 
-Which versions are notarized is listed in `Documents/Downloads/README.md`.
+Which versions are notarized is listed in `Documents/en/get-started/downloads.md`.
 
 ## The CLI on PATH
 
@@ -118,7 +118,7 @@ paths are resolved by the CLI. Installing does not move existing machines: bind
 one with `vm set-bundle <name> <version> --update-environment`, or create one
 with `vm create <name> --bundle <version>`. Each rebuild installs as a new
 version; remove old ones no machine uses. To compare two builds, see
-`Documents/Guides/core-bundles.md` (Comparing two builds).
+`Documents/en/launchpad/core-bundles.md` (Comparing two builds).
 
 ## When an install step fails
 

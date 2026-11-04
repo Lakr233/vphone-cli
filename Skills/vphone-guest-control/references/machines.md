@@ -48,12 +48,12 @@ vphone-launchpad-cli vm create myphone [--bundle <version>] \
 - **Sources are optional.** If either is omitted, the newest pairing from
   `vphone-cli fw catalog` is used (the CLI prints `firmware: <iphone> + <cloudos>`).
   Pass both explicitly to pin a pairing; verified pairings are listed in
-  `Documents/Guides/compatibility.md`. Local paths are read in place; URLs are
+  `Documents/en/firmware/compatibility.md`. Local paths are read in place; URLs are
   cached in `~/.vphone/ipsws/`.
 - **`--device`** makes an iPad guest: `iPad16,1`, `iPad15,7`, `iPad15,3`,
   `iPad15,5`, `iPad16,3`, `iPad16,5`, `iPad17,1` or `iPad17,3`. Without sources
   it takes that iPad's newest catalog pairing; with an iPad IPSW that covers
-  two sizes it picks the size. See `Documents/Guides/ipados.md`.
+  two sizes it picks the size. See `Documents/en/firmware/ipados.md`.
   `AppleTV5,3` makes an Apple TV HD guest on tvOS 26.6: always without a
   template or slimming, with the `tvos` preset unless `--preset` names
   another. `AppleTV14,1` makes an Apple TV 4K guest the same way, with the

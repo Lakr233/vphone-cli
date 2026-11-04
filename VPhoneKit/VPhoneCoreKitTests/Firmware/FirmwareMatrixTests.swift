@@ -324,7 +324,7 @@ private enum RealData {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Documents/Guides/compatibility.md")
+            .appendingPathComponent("Documents/en/firmware/compatibility.md")
         return try String(contentsOf: url, encoding: .utf8)
     }
 

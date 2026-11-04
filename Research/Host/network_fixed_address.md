@@ -3,7 +3,7 @@
 What was tried on a real guest before settling the design in
 `VPhoneKit/VPhoneCoreKit/Support/VPhoneNetworking.swift`, and why some of it
 was taken out again. User-facing behaviour is in
-`Documents/Guides/networking.md`.
+`Documents/en/networking/overview.md`.
 
 Tested on 2026-10-02: macOS 27.0.1 (26A434) host, `pcc-research-01` guest
 (iOS 27.0, 24A435, cloudOS 26.4), launched headless from a local bundle.

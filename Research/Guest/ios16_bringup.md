@@ -44,7 +44,7 @@ absent on 20G81 and otherwise aborts the grouped launchd patch before hook load.
 Pass these selections to `vm create` or `fw set-patches`; the latter replaces
 its entire override record, so retain every required allow when changing it.
 Use Launchpad's CLI and a complete locally built `VPhone.bundle`, not a detached
-copy of the host executable. See `Documents/Guides/launchpad-cli.md` for installing
+copy of the host executable. See `Documents/en/launchpad/launchpad-cli.md` for installing
 that bundle and binding a machine without changing other machines' versions.
 
 Boot-chain changes require firmware preparation/patching and restore. The

@@ -348,7 +348,7 @@ through vphoned.
 ## Reproducing the validated configuration
 
 Use the built bundle's `vphone-cli` on a host configured according to
-[host setup](../../Documents/Guides/host-setup.md). Both IPSWs must be supplied
+[host setup](../../Documents/en/get-started/host-setup.md). Both IPSWs must be supplied
 locally: a donor above and cloudOS 23E5207q. Other pairings are unvalidated.
 The VM and the installer's temporary directory must share an APFS volume;
 TV guest updates refuse an in-place fallback when cloning is unavailable.

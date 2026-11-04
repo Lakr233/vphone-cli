@@ -47,7 +47,7 @@
 //
 // The command numbers come from the cloudOS 26.4 (23E5207q) driver, the only
 // cloudOS release that carries the `vphone600ap` identity a guest boots from
-// (`Documents/Guides/compatibility.md`). A driver laid out differently fails to
+// (`Documents/en/firmware/compatibility.md`). A driver laid out differently fails to
 // resolve and is refused unchanged.
 
 import Foundation

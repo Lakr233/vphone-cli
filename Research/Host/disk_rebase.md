@@ -4,7 +4,7 @@ Why two machines restored from one IPSW share nothing on disk, how
 `vm rebase` makes them share what is identical, and what was measured. The
 implementation is `VPhoneDiskRebase` in
 `VPhoneKit/VPhoneCoreKit/Bundle/VPhoneDiskRebase.swift`; user-facing
-behaviour is in `Documents/Guides/create-and-run.md` ("Sharing disk space
+behaviour is in `Documents/en/machines/create-and-run.md` ("Sharing disk space
 between VMs").
 
 ## The problem

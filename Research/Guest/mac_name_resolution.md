@@ -2,7 +2,7 @@
 
 A guest process doing a plain BSD `connect("<mac>.local")` hung. What the
 guest's resolver returned, and what vphoned now does about it. User-facing
-behaviour is in `Documents/Guides/networking.md`.
+behaviour is in `Documents/en/networking/overview.md`.
 
 Measured 2026-10-03 with vphoned's `network.resolve` and a temporary in-guest
 probe (register a record, then `getaddrinfo(AF_INET)` every 20 ms) on a macOS

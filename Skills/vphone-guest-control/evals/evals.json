@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "myphone boots to a black screen but I can hear it is running. Plan how you would diagnose it. Do not create any new machines.",
-      "expected_output": "processes.list for SpringBoard, logs.crashes, reads the datamigrator stackshot, follows turnstileInfo, points at Research/Patches/hv_vmm_present_usermode_xrefs.md and Documents/Guides/troubleshooting.md; does not vm create to reproduce; stops and reports rather than changing host settings.",
+      "expected_output": "processes.list for SpringBoard, logs.crashes, reads the datamigrator stackshot, follows turnstileInfo, points at Research/Patches/hv_vmm_present_usermode_xrefs.md and Documents/en/help/troubleshooting.md; does not vm create to reproduce; stops and reports rather than changing host settings.",
       "files": []
     },
     {
