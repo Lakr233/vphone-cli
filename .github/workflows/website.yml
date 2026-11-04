@@ -1,6 +1,6 @@
 name: website
 
-# Builds the documentation site from Documents/ and README.md with Rspress
+# Builds the documentation site from Documents/ and Research/ with Rspress
 # (VPhoneWebsite/) and publishes it to GitHub Pages from main.
 
 on:
@@ -8,13 +8,13 @@ on:
     branches: [main]
     paths:
       - Documents/**
-      - README.md
+      - Research/**
       - VPhoneWebsite/**
       - .github/workflows/website.yml
   pull_request:
     paths:
       - Documents/**
-      - README.md
+      - Research/**
       - VPhoneWebsite/**
       - .github/workflows/website.yml
   workflow_dispatch:

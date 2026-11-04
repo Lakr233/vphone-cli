@@ -19,7 +19,7 @@ symptom, apply the fix, and say which issue it was. Issue numbers are for
 
 **"vphone-launchpad is damaged and can't be opened"** (#527). The user
 downloaded a Launchpad zip that is not notarized. Releases 2.1.3 to 2.1.7 and
-2.2.1 are not notarized; the current list is in `Documents/Downloads/README.md`.
+2.2.1 are not notarized; the current list is in `Documents/en/get-started/downloads.md`.
 Fix: download `vphone-launchpad-<version>-notarized.zip` for a notarized version
 of the **same series** as the bundle they want, and update the bundle to match
 (2.1.2 with bundle 2.1.5 was the answer in #527). A non-notarized zip can still
@@ -52,7 +52,7 @@ user on an ad hoc build must reset after every switch. `status` →
 | --- | --- |
 | `csrutil: invalid command` for `allow-research-guests` (#226, also "does it work on Intel / hackintosh", #227, #253) | Check the spelling first (the #226 reporter typed `allow-research-agents`). If it is right, the Mac is not Apple silicon: there is no workaround, vphone needs an M-series Mac on macOS 15 or newer |
 | Host preflight says "This computer has several macOS installations … Pick a macOS installation" (#503, #511) | Dual-boot or an extra macOS volume. Fixed by PR #512; update Launchpad and the bundle within the series. Until then, the preflight cannot be satisfied from the app |
-| `vphone-vm` is killed before a window opens (#435 was a 1.x-era report of `zsh: killed`, closed as outdated; in 2.x `vphone-cli` is unentitled) | AMFI refused the entitled `vphone-vm`. `vphone-launchpad-cli bundle verify <version>` re-runs the allowlist. If SIP is on, the user needs the relaxation from `Documents/Guides/host-setup.md` (option B keeps SIP enabled with only debugging restrictions off). Do not suggest `csrutil disable` as a first step |
+| `vphone-vm` is killed before a window opens (#435 was a 1.x-era report of `zsh: killed`, closed as outdated; in 2.x `vphone-cli` is unentitled) | AMFI refused the entitled `vphone-vm`. `vphone-launchpad-cli bundle verify <version>` re-runs the allowlist. If SIP is on, the user needs the relaxation from `Documents/en/get-started/host-setup.md` (option B keeps SIP enabled with only debugging restrictions off). Do not suggest `csrutil disable` as a first step |
 | "Can I keep SIP on?" (#445) | Yes: `csrutil enable --without debug` plus `csrutil allow-research-guests enable` in Recovery; the allowlist tool ships in the bundle, no third-party tool needed |
 | `vphone-escalator` fails with `invalid address` reading the amfid singleton on macOS 27 (#506) | Seen on 2.0.8 with macOS 27.0 on a new chip; fixed by PR #518 in 2.1.0. Move to a newer series, then read `Research/Host/macos27_m6_amfi.md` |
 | `VZErrorDomain Code=6 … maximum supported number of active virtual machines has been reached` (#432) | macOS caps concurrent VMs (8 were running). Stop one. The limit is Apple's and is not something to bypass |
@@ -68,7 +68,7 @@ user on an ad hoc build must reset after every switch. `status` →
 ## Bundle and Launchpad versions
 
 - Launchpad refuses a bundle that is too old; it may list bundles from a newer
-  series. Stay in the same series (`Documents/Downloads/README.md`).
+  series. Stay in the same series (`Documents/en/get-started/downloads.md`).
 - Launchpad never updates itself; the user replaces the app.
 - A rebuilt local bundle needs `install-local` again (new signature). It
   installs as a new `<version>-local.<hash>` beside the old build; machines stay
@@ -94,11 +94,11 @@ user on an ad hoc build must reset after every switch. `status` →
 | Irisin cannot install `openssh` (#528) | `launchctl` (and the other base packages) were missing. Install `owngoal-bootstrap-vphone` from OwnGoal Packages with Bootstrap Install ([guest-layout](guest-layout.md)) |
 | ssh fails on roothide, `sudo` does not work (#502, #519, #520) | Missing bootstrap base items or loader links, fixed in later bundles. [guest-layout](guest-layout.md), `Research/Guest/roothide_bootstrap_base.md` |
 | A commercial app (WeChat, TikTok, games) crashes with `CODESIGNING Invalid Page` or is blocked by FairPlay (#212, #220, #356) | The project does not support specific third-party apps; those issues were closed as not planned. Say so, and do not try to patch around it. Apple's own and open-source apps are in scope |
-| An app is killed by `EXC_GUARD` (#291) | `Documents/Guides/troubleshooting.md` |
+| An app is killed by `EXC_GUARD` (#291) | `Documents/en/help/troubleshooting.md` |
 
 ## Not an install problem
 
 "Does Apple ID / App Store / iMessage work", "can I use the Mac's camera",
 "iPhone Duo", "passkeys" (#282, #326, #456, #481, #439): these are product
-questions. Read `Documents/Guides/compatibility.md` and the open issue, and
+questions. Read `Documents/en/firmware/compatibility.md` and the open issue, and
 say plainly that it is unsupported or unresolved rather than guessing.

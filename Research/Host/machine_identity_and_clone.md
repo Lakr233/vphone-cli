@@ -4,7 +4,7 @@ Where a machine's device identity lives, what `vm clone --new-identity`
 changes, and why it changes nothing else. The implementation is
 `VPhoneBundleOperations.clone` and `resetIdentity` in
 `VPhoneKit/VPhoneCoreKit/Bundle/VPhoneBundleOperations.swift`; user-facing
-behaviour is in `Documents/Guides/create-and-run.md`.
+behaviour is in `Documents/en/machines/create-and-run.md`.
 
 Tested on 2026-10-06 from one stopped source machine (iPhone17,3 guest, iOS
 27.0 24A435 with cloudOS 26.4 23E5207q, bundle 2.6.0, standard preset), cloned

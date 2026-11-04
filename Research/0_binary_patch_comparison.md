@@ -1161,7 +1161,7 @@
 > struct (`oBbtJ8x+s1q0OkaiocPuog`, `{1488, 2266, 326, 3.0f}`) does not change
 > the live scale. Emitted only for an iPad guest.
 >
-> See `Documents/Guides/ipados.md`.
+> See `Documents/en/firmware/ipados.md`.
 >
 > **Other iPhone models (2026-10-05, issue #576):** the four
 > `devicetree-cfw-ipad_*` presentation patches and `devicetree-cfw-ipad_audio`
@@ -1179,7 +1179,7 @@
 > (23G90) with cloudOS 26.4 (23E5207q): installed tree `model` iPhone18,1,
 > artwork subtype 2622 at 3x, `/product/audio` acoustic ID 8021 from the board;
 > the guest booted to the home screen at 402x874 points. See
-> `Documents/Guides/iphone-models.md`.
+> `Documents/en/firmware/iphone-models.md`.
 >
 > **Only the camera remains of EXP by default (2026-09-28).** `standard` is now the
 > JB baseline plus the virtual camera. Off by default, besides the concealment
@@ -4361,7 +4361,7 @@ in VM selections, plans and receipts, including explicit opt-outs. New template
 keys include the enabled kernel patch, so a pre-Task3 template cannot satisfy
 the new Standard plan. Existing VMs bind the new bundle and run
 `cfw update-environment` and `cfw update-kernel` while stopped, keeping data.
-See `Documents/Guides/shader-cache.md` and the Standard promotion section in
+See `Documents/en/storage/shader-cache.md` and the Standard promotion section in
 `Guest/gpu_acceleration.md`. The previous opt-in notes describe development
 validation; older host compatibility remains untested.
 Promotion validation: 62 focused tests passed, as did the full `VPhone` bundle
