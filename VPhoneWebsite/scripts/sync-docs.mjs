@@ -317,6 +317,68 @@ for (const image of images) {
   fs.copyFileSync(path.join(repoRoot, image), destination);
 }
 
+// MARK: - Redirects
+
+/**
+ * The first version of the site served the guides under /guide/. Those URLs
+ * stay alive as static pages that forward to the new route, hash included.
+ */
+const legacyGuides = {
+  introduction: '/get-started/overview',
+  downloads: '/get-started/downloads',
+  contributing: '/research/',
+  'host-setup': '/get-started/host-setup',
+  'create-and-run': '/machines/create-and-run',
+  'device-name-and-clock': '/machines/device-name-and-clock',
+  'package-environment': '/machines/package-environment',
+  compatibility: '/firmware/compatibility',
+  'firmware-preparation': '/firmware/firmware-preparation',
+  'iphone-models': '/firmware/iphone-models',
+  ipados: '/firmware/ipados',
+  'library-and-backups': '/storage/library-and-backups',
+  snapshots: '/storage/snapshots',
+  templates: '/storage/templates',
+  'template-building': '/storage/template-building',
+  'sharing-disk-space': '/storage/sharing-disk-space',
+  'many-machines': '/storage/many-machines',
+  'shader-cache': '/storage/shader-cache',
+  networking: '/networking/overview',
+  'network-tunnel': '/networking/tunnel',
+  'network-addresses': '/networking/addresses',
+  'network-port-forwarding': '/networking/port-forwarding',
+  'network-names': '/networking/names',
+  'network-peers': '/networking/peers',
+  'launchpad-cli': '/launchpad/launchpad-cli',
+  'core-bundles': '/launchpad/core-bundles',
+  'bundle-integration': '/launchpad/bundle-integration',
+  troubleshooting: '/help/troubleshooting',
+};
+
+function redirectPage(route) {
+  const target = siteURL + route.slice(1);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moved</title>
+<link rel="canonical" href="${target}">
+<meta http-equiv="refresh" content="0; url=${target}">
+<script>location.replace(${JSON.stringify(target)} + location.hash);</script>
+</head>
+<body><p>This page moved to <a href="${target}">${target}</a>.</p></body>
+</html>
+`;
+}
+
+const englishRoutes = new Set([...pages.values()].filter((page) => page.language === defaultLanguage).map((page) => page.route));
+for (const [name, route] of Object.entries(legacyGuides)) {
+  if (!englishRoutes.has(route)) {
+    throw new Error(`/guide/${name} redirects to ${route}, which is not a page`);
+  }
+  writeFile(path.join(outRoot, 'public/guide', `${name}.html`), redirectPage(route));
+}
+writeFile(path.join(outRoot, 'public/guide/index.html'), redirectPage('/get-started/overview'));
+
 const sidebars = { research: researchSidebar(titles) };
 for (const language of languages) {
   const index = `Documents/${language}/README.md`;
