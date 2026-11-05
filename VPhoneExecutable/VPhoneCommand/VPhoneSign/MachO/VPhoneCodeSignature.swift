@@ -327,6 +327,37 @@ struct VPhoneCodeSignature {
         return identifier
     }
 
+    /// What each CodeDirectory in a signature records for the bundle's
+    /// resource seal (`_CodeSignature/CodeResources`, special slot 3), with
+    /// that CodeDirectory's hash type (1 SHA-1, 2 SHA-256, 3 SHA-256
+    /// truncated, 4 SHA-384). A CodeDirectory with fewer than three special
+    /// slots, or zeros in the third, seals no resources and gives nothing.
+    static func resourceDirectoryHashes(in blob: Data) -> [(hashType: UInt8, hash: Data)] {
+        guard blob.holds(0, 12), blob.bigEndianValue(at: 0) as UInt32 == 0xFADE_0CC0 else { return [] }
+        let count = Int(blob.bigEndianValue(at: 8) as UInt32)
+        guard blob.holds(12, count * 8) else { return [] }
+        var hashes: [(hashType: UInt8, hash: Data)] = []
+        for index in 0 ..< count {
+            // Slot 0 is the primary CodeDirectory, 0x1000 ... 0x1004 the alternates.
+            let type = blob.bigEndianValue(at: 12 + index * 8) as UInt32
+            guard type == 0 || (0x1000 ..< 0x1005).contains(type) else { continue }
+            let offset = Int(blob.bigEndianValue(at: 16 + index * 8) as UInt32)
+            guard blob.holds(offset, 40), blob.bigEndianValue(at: offset) as UInt32 == 0xFADE_0C02 else { continue }
+            let length = Int(blob.bigEndianValue(at: offset + 4) as UInt32)
+            guard length >= 40, blob.holds(offset, length) else { continue }
+            let hashOffset = Int(blob.bigEndianValue(at: offset + 16) as UInt32)
+            let specialSlots = Int(blob.bigEndianValue(at: offset + 24) as UInt32)
+            let hashSize = Int(blob.bigEndianValue(at: offset + 36) as UInt8)
+            let hashType = blob.bigEndianValue(at: offset + 37) as UInt8
+            guard specialSlots >= 3, hashSize > 0, hashOffset >= 3 * hashSize, hashOffset <= length else { continue }
+            let start = offset + hashOffset - 3 * hashSize
+            let hash = blob.subdata(in: start ..< start + hashSize)
+            guard hash.contains(where: { $0 != 0 }) else { continue }
+            hashes.append((hashType, hash))
+        }
+        return hashes
+    }
+
     /// The entitlements XML a signature carries, as ldid reads it: the last
     /// blob in slot 5, and nothing where there is none.
     static func entitlementsXML(in blob: Data) -> Data? {

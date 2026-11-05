@@ -4248,11 +4248,81 @@ struct VPhoneCustomFirmwareInstaller {
     /// other guest binary this pipeline writes; the identifier is kept so the
     /// plugin still answers to the name it always had.
     private func sealGuestBundle(system: VPhoneConfinedDirectory, bundle: String, preserveEntitlements: Bool = false) throws {
+        try detachSharedSeal(system: system, bundle: bundle)
         // No --identifier: codesign keeps the one the bundle already carries.
         var arguments = ["-f", "-s", "-", "--timestamp=none"]
         if preserveEntitlements { arguments.append("--preserve-metadata=entitlements") }
         arguments.append(try system.directory(bundle).path)
         _ = try tool("/usr/bin/codesign", arguments)
+    }
+
+    // MARK: - Shared seals
+
+    /// Give a bundle its own `_CodeSignature/CodeResources` before codesign
+    /// re-seals it.
+    ///
+    /// The system image hard-links one seal across every bundle that seals no
+    /// resources (5,503 links on 23G90, VirtualAudio.plugin's among them), and
+    /// `codesign -f` rewrites that file in place. Re-sealing such a bundle
+    /// therefore rewrote the seal of all the others: their signatures still
+    /// expect the shared one, so `codesign --verify` and libmis call them an
+    /// invalid resource directory (-67023), and xpcroleaccountd refuses to
+    /// launch the role-account services among them. One is Instruments'
+    /// `com.apple.dt.instruments.dtsecurity`, which DTServiceHub needs for
+    /// every symbolicator, so no trace from the guest symbolicated.
+    ///
+    /// Removing this bundle's link first makes codesign write a new file for
+    /// it alone. When an earlier run already wrote through the link (the
+    /// shared seal then lists this bundle's files), the shared seal is put
+    /// back for every link, but only when the rebuilt one hashes to what the
+    /// bundle's original signature recorded for it.
+    private func detachSharedSeal(system: VPhoneConfinedDirectory, bundle: String) throws {
+        let seal = "\(bundle)/_CodeSignature/CodeResources"
+        guard
+            let metadata = try system.status(seal),
+            metadata.st_mode & S_IFMT == S_IFREG,
+            metadata.st_nlink > 1
+        else { return }
+        let others = Int(metadata.st_nlink) - 1
+        if VPhoneSharedSeal.listsFiles(try system.readData(seal)) {
+            try restoreSharedSeal(system: system, bundle: bundle, seal: seal, others: others)
+        }
+        _ = try system.removeItem(seal)
+        print("  [·] \(bundle): gave its CodeResources its own file (it was shared with \(others) other bundles)")
+    }
+
+    /// Write the shared empty seal back into the file all its links share,
+    /// after checking it against the hash the bundle's untouched executable
+    /// records: `<executable>.bak` when the binary is patched, the executable
+    /// itself when it is not (a revert has already put the original back).
+    private func restoreSharedSeal(system: VPhoneConfinedDirectory, bundle: String, seal: String, others: Int) throws {
+        guard let executable = try bundleExecutable(system: system, bundle: bundle) else {
+            print("  [!] \(bundle): the shared CodeResources was overwritten earlier, but the bundle names no executable to check a repair against; left as it is")
+            return
+        }
+        let original = try system.isRegularFile("\(executable).bak") ? "\(executable).bak" : executable
+        let recorded = try VPhoneSigner.resourceDirectoryHashes(in: system.readData(original))
+        let rebuilt = try VPhoneSharedSeal.empty()
+        guard VPhoneSharedSeal.matches(rebuilt, recorded: recorded) else {
+            print("  [!] \(bundle): the shared CodeResources was overwritten earlier, and the rebuilt seal does not match what \((original as NSString).lastPathComponent) records; left as it is")
+            return
+        }
+        try system.overwriteContents(seal, with: rebuilt)
+        print("  [+] \(bundle): restored the CodeResources \(others) other bundles share, overwritten by an earlier re-seal")
+    }
+
+    /// The bundle's `CFBundleExecutable`, as a path in the guest system.
+    private func bundleExecutable(system: VPhoneConfinedDirectory, bundle: String) throws -> String? {
+        guard
+            try system.isRegularFile("\(bundle)/Info.plist"),
+            let info = try PropertyListSerialization.propertyList(
+                from: system.readData("\(bundle)/Info.plist"), format: nil,
+            ) as? [String: Any],
+            let name = info["CFBundleExecutable"] as? String,
+            !name.isEmpty, !name.contains("/")
+        else { return nil }
+        let path = "\(bundle)/\(name)"
+        return try system.isRegularFile(path) ? path : nil
     }
 
     /// Copy an optional guest binary into the work folder, or nil (with a

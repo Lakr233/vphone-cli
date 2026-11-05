@@ -135,6 +135,42 @@ struct ConfinedDirectoryTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: tree.root.path).sorted() == ["leaf", "link"])
     }
 
+    /// A guest image hard-links one file into thousands of bundles; repairing
+    /// it has to reach every link, which renaming a new file over one path
+    /// does not.
+    @Test func `overwriteContents reaches every hard link, and writeFile only its own path`() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let root = try VPhoneConfinedDirectory(root: tree.root.path)
+        let first = tree.root.appendingPathComponent("first")
+        let second = tree.root.appendingPathComponent("second")
+        try Data("shared".utf8).write(to: first)
+        #expect(link(first.path, second.path) == 0)
+        let inode = try #require(try root.status("first")).st_ino
+
+        try root.overwriteContents("first", with: Data("repaired".utf8))
+        #expect(try Data(contentsOf: second) == Data("repaired".utf8))
+        #expect(try root.status("second")?.st_ino == inode)
+        #expect(try root.status("second")?.st_nlink == 2)
+
+        try root.writeFile("first", contents: Data("own".utf8), mode: 0o644)
+        #expect(try Data(contentsOf: second) == Data("repaired".utf8))
+        #expect(try root.status("second")?.st_nlink == 1)
+    }
+
+    @Test func `overwriteContents refuses a leaf symlink`() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let root = try VPhoneConfinedDirectory(root: tree.root.path)
+        try FileManager.default.createSymbolicLink(
+            at: tree.root.appendingPathComponent("leaf"),
+            withDestinationURL: tree.kept,
+        )
+        #expect(throws: (any Error).self) { try root.overwriteContents("leaf", with: Data("x".utf8)) }
+        #expect(throws: (any Error).self) { try root.overwriteContents("link", with: Data("x".utf8)) }
+        #expect(try Data(contentsOf: tree.kept) == Data("keep".utf8))
+    }
+
     @Test func `reading a leaf symlink is refused`() throws {
         let tree = try Tree()
         defer { tree.remove() }

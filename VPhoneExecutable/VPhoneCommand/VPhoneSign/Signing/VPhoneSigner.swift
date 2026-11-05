@@ -224,4 +224,11 @@ public enum VPhoneSigner {
     public static func entitlements(in data: Data) throws -> [Data] {
         try VPhoneMachOFile(data: data).slices.compactMap(\.embeddedEntitlements)
     }
+
+    /// The hashes every slice's signature records for its bundle's
+    /// `_CodeSignature/CodeResources` (special slot 3), each with its
+    /// CodeDirectory's hash type. Empty when nothing seals resources.
+    public static func resourceDirectoryHashes(in data: Data) throws -> [(hashType: UInt8, hash: Data)] {
+        try VPhoneMachOFile(data: data).slices.flatMap(\.embeddedResourceDirectoryHashes)
+    }
 }

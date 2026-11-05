@@ -378,6 +378,46 @@ public final class VPhoneConfinedDirectory: Sendable {
         }
     }
 
+    /// Rewrite an existing regular file's bytes in place, so every hard link
+    /// to it sees them. `writeFile` and `replaceFile` rename a new file over
+    /// the path instead, which gives that path a new inode and leaves its
+    /// other links untouched; this is for repairing a file that all its
+    /// links must get back. The leaf must not be a symbolic link.
+    public func overwriteContents(_ relative: String, with data: Data) throws {
+        let (directory, leaf) = try parent(of: relative)
+        let file = openat(directory.descriptor, leaf, O_WRONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard file >= 0 else {
+            throw VPhoneConfinedDirectoryError.from(errno, relative)
+        }
+        defer { close(file) }
+        var metadata = stat()
+        guard fstat(file, &metadata) == 0 else {
+            throw VPhoneConfinedDirectoryError.system(relative, errno)
+        }
+        guard metadata.st_mode & S_IFMT == S_IFREG else {
+            throw VPhoneConfinedDirectoryError.notRegularFile(relative)
+        }
+        guard ftruncate(file, 0) == 0 else {
+            throw VPhoneConfinedDirectoryError.system(relative, errno)
+        }
+        try data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count {
+                let count = pwrite(file, bytes.baseAddress! + offset, bytes.count - offset, off_t(offset))
+                if count < 0 {
+                    if errno == EINTR {
+                        continue
+                    }
+                    throw VPhoneConfinedDirectoryError.system(relative, errno)
+                }
+                offset += count
+            }
+        }
+        guard fsync(file) == 0 else {
+            throw VPhoneConfinedDirectoryError.system(relative, errno)
+        }
+    }
+
     /// Atomically install a copy of the regular file at `source`. The source
     /// is a trusted host file (the private work folder or the running
     /// bundle's resources); its last component still must not be a link.

@@ -286,6 +286,14 @@ struct VPhoneMachOImage {
         return VPhoneCodeSignature.entitlementsXML(in: blob)
     }
 
+    /// The resource-seal hashes this slice's signature records; empty when
+    /// it has no signature or seals no resources.
+    var embeddedResourceDirectoryHashes: [(hashType: UInt8, hash: Data)] {
+        guard let signature, signature.dataSize >= 12 else { return [] }
+        let blob = image.subdata(in: signature.dataOffset ..< signature.dataOffset + signature.dataSize)
+        return VPhoneCodeSignature.resourceDirectoryHashes(in: blob)
+    }
+
     func embeddedIdentifier() throws -> String? {
         guard let signature else { return nil }
         let blob = image.subdata(in: signature.dataOffset ..< signature.dataOffset + signature.dataSize)
