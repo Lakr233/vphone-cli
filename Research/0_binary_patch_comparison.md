@@ -6877,3 +6877,26 @@ graphic icons it rendered before the transport, so Settings' rows stayed blank.
 removes the store at startup when it was created before the marker, then stops
 iconservicesagent; the Data volume is out of the host's reach. No Apple binary
 change.
+
+## Re-sealing through the shared CodeResources (2026-11-05)
+
+No new patch identifier and no new bytes in an Apple binary. Every installer
+step that re-seals a guest bundle (`sealGuestBundle`, first reached by the
+VirtualAudio patches) ran `codesign -f` on a CodeResources that iOS stores as
+one file for every bundle sealing no resources: 6111 hard links on iOS 27.2
+24B91020. codesign rewrote it in place, so the plugin's seal landed in all of
+them. xpcroleaccountd then refused Instruments' dtsecurity XPC service
+(`errSecCSBadResource`, `setup_role_account failed, error 0x4f`), and
+DTServiceHub could build no symbolicator: Time Profiler stacks were bare
+addresses (issue Lakr233/vphone-cli#824).
+
+**Change.** `sealGuestBundle` gives a hard-linked CodeResources or executable a
+file of its own before codesign runs. When the shared CodeResources is no longer
+Apple's seal and the bundle's original executable (`.bak`) was signed over that
+seal (CodeDirectory special slot 3), the installer writes Apple's seal back
+through every link. The seal is rebuilt by `CustomFirmwareBundleSeal`, byte for
+byte the shipped file (18.6.2 and 27.2 checked). A damaged guest is repaired by
+the next install or Update Guest Environment that reaches the VirtualAudio
+step.
+
+**Reveal and validation.** `Research/Guest/instruments_symbolication.md`.

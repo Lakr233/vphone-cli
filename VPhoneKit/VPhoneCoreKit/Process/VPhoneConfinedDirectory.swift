@@ -362,18 +362,45 @@ public final class VPhoneConfinedDirectory: Sendable {
         owner: (uid: uid_t, gid: gid_t)? = nil,
     ) throws {
         try install(relative, mode: mode, owner: owner) { file in
-            try data.withUnsafeBytes { bytes in
-                var offset = 0
-                while offset < bytes.count {
-                    let count = write(file, bytes.baseAddress! + offset, bytes.count - offset)
-                    if count < 0 {
-                        if errno == EINTR {
-                            continue
-                        }
-                        throw VPhoneConfinedDirectoryError.system(relative, errno)
+            try Self.writeAll(data, to: file, path: relative)
+        }
+    }
+
+    /// Replace the contents of the regular file at `relative` in place. The
+    /// inode, its mode and owner stay, so every hard link to it gets `data`
+    /// too: for a file shared on purpose. `writeFile` gives a name its own file.
+    public func overwriteFile(_ relative: String, contents data: Data) throws {
+        let (directory, leaf) = try parent(of: relative)
+        let file = openat(directory.descriptor, leaf, O_WRONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard file >= 0 else {
+            throw VPhoneConfinedDirectoryError.from(errno, relative)
+        }
+        defer { close(file) }
+        var metadata = stat()
+        guard fstat(file, &metadata) == 0 else {
+            throw VPhoneConfinedDirectoryError.from(errno, relative)
+        }
+        guard metadata.st_mode & S_IFMT == S_IFREG else {
+            throw VPhoneConfinedDirectoryError.notRegularFile(relative)
+        }
+        guard ftruncate(file, 0) == 0 else {
+            throw VPhoneConfinedDirectoryError.system(relative, errno)
+        }
+        try Self.writeAll(data, to: file, path: relative)
+    }
+
+    private static func writeAll(_ data: Data, to file: Int32, path: String) throws {
+        try data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count {
+                let count = write(file, bytes.baseAddress! + offset, bytes.count - offset)
+                if count < 0 {
+                    if errno == EINTR {
+                        continue
                     }
-                    offset += count
+                    throw VPhoneConfinedDirectoryError.system(path, errno)
                 }
+                offset += count
             }
         }
     }
