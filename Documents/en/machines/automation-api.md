@@ -64,7 +64,7 @@ Rules that trip up hand-written clients:
 - A request with an `Origin` header, or with a `Host` other than `vphoned`, `localhost`, `127.0.0.1` or `::1`, gets `403`. This blocks browser pages from reaching the API.
 - `GET` routes only read. To change a setting, use `PUT` or `POST`, for example `PUT /v1/low-power-mode` with `{"enabled": true}`.
 
-Swift apps can use the `VPhoneAPIClient` in the `VPhoneAPIKit` package, which sends the token for you; see the reference for an example.
+Swift apps can use the `VPhoneAPIClient` in the `VPhoneExternalAccessKit` library, which sends the token for you; see the reference for an example.
 
 ## Without a network listener
 

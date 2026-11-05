@@ -73,9 +73,10 @@ to. Neither sends `Origin`. GET routes only read. vphoned ignores a GET
 request body, so `GET /v1/low-power-mode` cannot turn low power mode on or
 off; use `PUT` with `{"enabled": true}`.
 
-The SwiftPM `VPhoneAPIKit` product is an unentitled HTTP/WebSocket client for
-`vphone-ui` and other macOS apps. The separate public `VPhoneVirtualMachineKit` product
-exposes `VPhoneAPIProxy` to an app that owns a `VZVirtioSocketDevice`. The
+The `VPhoneExternalAccessKit` static library (`VPhoneKit/VPhoneKit.xcodeproj`) is an
+unentitled HTTP/WebSocket client for `vphone-ui` and other macOS apps. The separate
+`VPhoneVirtualMachineKit` static library exposes `VPhoneAPIProxy` to an app that owns
+a `VZVirtioSocketDevice`. The
 command-line executable remains unentitled and still launches `vphone-vm`.
 
 The guest links IcliKit directly. App registration refresh is available through
@@ -1202,7 +1203,8 @@ websocat --binary "ws://127.0.0.1:8765/v1/shell?program=bash&token=$TOKEN"
 ```
 
 ```swift
-import VPhoneAPIKit
+import Foundation
+import VPhoneExternalAccessKit
 
 let client = VPhoneAPIClient(
     baseURL: URL(string: "http://127.0.0.1:8765")!,

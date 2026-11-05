@@ -64,7 +64,7 @@ websocat --binary "ws://127.0.0.1:8765/v1/shell?token=$TOKEN&cols=120&rows=40"
 - `Origin` 헤더가 있는 요청, 또는 `Host`가 `vphoned`, `localhost`, `127.0.0.1`, `::1`이 아닌 요청에는 `403`이 반환됩니다. 이렇게 웹 페이지가 API에 접근하지 못하도록 막습니다.
 - `GET` 경로는 읽기만 합니다. 설정을 변경하려면 `PUT`이나 `POST`를 사용하세요. 예를 들어 `PUT /v1/low-power-mode`에 `{"enabled": true}`를 보냅니다.
 
-Swift 앱에서는 `VPhoneAPIKit` 패키지의 `VPhoneAPIClient`를 사용할 수 있으며, token은 이 클라이언트가 알아서 보냅니다. 예시는 레퍼런스를 참고하세요.
+Swift 앱에서는 `VPhoneExternalAccessKit` 라이브러리의 `VPhoneAPIClient`를 사용할 수 있으며, token은 이 클라이언트가 알아서 보냅니다. 예시는 레퍼런스를 참고하세요.
 
 ## 네트워크 리스너 없이 사용하기
 
