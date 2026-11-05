@@ -5087,6 +5087,56 @@ oldest base and one of the three with 15 donor kexts, and 18.5 (22F76) on
 cloudOS 18.5 passed the same checks. The other four recipes resolve every
 donor import but have not been booted yet.
 
+### 2026-11-04 — `kernel-boot-thread_guard_violation` on iOS 18.6.2 / cloudOS 26.1
+
+iPhone17,3 iOS 18.6.2 (22G100) pairs with cloudOS 26.1 (23B85), so the guest
+boots the 26.1 `kernelcache.research.vphone600` while its iOS 18 base turns
+`kernel-boot-thread_guard_violation` on. The 2026-10-24 shape then picked the
+wrong function: in 26.1 `set_exception_behavior_violation` (foff `0xB04178`)
+the guard call, `thread_guard_violation(current_thread(), code, subcode, true)`,
+is the seventh instruction after its `mrs x0, tpidr_el1` (the code is built in
+between), and the only BL within six instructions of an `mrs x0, tpidr_el1` is
+`send_set_exception_telemetry`'s `get_threadtask(current_thread())` (foff
+`0xB76068`, 588 callers). `RET` there returns the thread as its own task. The
+first page fault of boot (a `memmove` into an unmapped buffer while OSKext saves
+kext mutable segments, ESR `0x96000046`) calls `counter_inc(&task->faults)`
+through it, faults on the garbage counter, and recurses in `vm_fault` until
+`sleh_invalid_stack` raises `Invalid kernel stack pointer (probable overflow).`
+That panic is taken on SP1, so its debugger trap (`0xe7ffdeff` in
+`DebuggerTrapWithState`) panics again: the serial console only ever shows
+"Nested panic … Unexpected debugger trap while SP1 selected", with entry 1
+never printed (upstream #715). CPU1–3 are never started.
+
+Reveal procedure: the frame-pointer chain of CPU0 in the post-panic spin, read
+over the kernel GDB stub (`vm launch --kernel-debug-port`, lldb `gdb-remote`),
+walked to its oldest frame; exception frames are the records whose return
+address is not preceded by a call, and their `arm_saved_state` sits 0x10 above
+the record (pc `+0x108`, far `+0x118`).
+
+The fix keeps both existing rules and adds one in front: of the BLs within ten
+instructions after `mrs x0, tpidr_el1`, the one whose argument setup contains
+`movk xN, #imm, lsl #48` with `imm >> 13 == GUARD_TYPE_MACH_PORT`
+(`EXC_GUARD_ENCODE_TYPE`, bits 61–63 of the code) wins. When no call carries the
+type, the six-instruction rule applies exactly as before; the 18.6 kernel
+should keep `0xA21D34` either way, but that kernel was not re-run here (the
+18.6 test case is the synthetic shape described above, not its words). On 26.1
+the patch now lands on `thread_guard_violation` at
+foff `0xB4FFCC` (`0xfffffe0007b53fcc`: `get_threadtask()` against `kernel_task`,
+`code`/`subcode` into `thread+0x390/0x398`, fatal bit in `thread+0x4d2`, then
+`ldset #0x1000` = `AST_GUARD` on `thread+0x404`).
+
+The patch is still needed there. With it blocked, the 26.1 kernel boots and
+vphoned connects, but SpringBoard and runningboardd crash-loop on
+`EXC_GUARD`/`GUARD_TYPE_MACH_PORT` "Unknown flavor 67" and "flavor 10" from
+`mach_msg` (77 reports within minutes, Apple logo only). With the corrected
+target the guest reaches the Hello screen and
+`[control] connected to vphoned HTTP API (iOS 18.6.2)`.
+
+Validation: `KernelExcGuardTests` carries 26.1's
+`set_exception_behavior_violation` word for word and the 18.6 shape; with
+`VPHONE_VP600_KERNEL` set, the real-kernel test checks that the patched
+function raises `AST_GUARD`. Booted on 18.6.2 / cloudOS 26.1 (standard preset).
+
 ### 2026-10-24 — `standard` on the iOS 18 research board kernels
 
 Checked on iOS 18.6 (22G86) on cloudOS 18.6 (22G86), VM restored with
@@ -5111,7 +5161,9 @@ allocation return garbage, so `kmem_init`'s first `vm_map_enter` failed with
 `thread_guard_violation(current_thread(), …)`; the patch now takes the callee of
 the BL after `mrs x0, tpidr_el1` in the window's callees when exactly one exists
 (18.6 `0xA21D34`, which compares `get_threadtask()` with `kernel_task` first).
-The 26.x kernels match neither shape, as before.
+The 26.x kernels match neither shape, as before — except that an iOS 18 base on
+a 26.x kernel (18.6.2 on cloudOS 26.1) does match the second one, wrongly; see
+2026-11-04 below.
 
 | Patch | 26.x shape | iOS 18 shape (18.6) |
 | --- | --- | --- |
