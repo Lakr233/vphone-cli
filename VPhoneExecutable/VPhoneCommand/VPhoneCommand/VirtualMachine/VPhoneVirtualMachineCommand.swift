@@ -164,6 +164,7 @@ struct VPhoneVirtualMachineInfoCommand: ParsableCommand {
             print("net:   \(describeNetwork(report.network))")
             print("unlock: \(report.unlocksAtStartup ? "on" : "off")")
             print("location: \(report.syncsHostLocation ? "on" : "off")")
+            print("developer tunnel: \(report.holdsDeveloperTunnel ? "on" : "off")")
             print("rom:   \(VPhoneBootROMOption.describe(bundle))")
             print("seprom: \(VPhoneSEPROMOption.describe(bundle))")
             if let snapshots = try? VPhoneMachineSnapshots.list(of: bundle), !snapshots.isEmpty {
@@ -256,6 +257,11 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         Services switch is left alone: with it off, apps in the guest get no location. Applies \
         from the next start; in a VM window, Location > Sync Host Location changes it at once.
 
+        --developer-tunnel on has vphone-vm hold the guest's CoreDevice tunnel open while it runs, \
+        by running /usr/bin/devicectl against it, so Xcode and Instruments list the guest as \
+        online instead of offline. Applies from the next start; in a VM window, Diagnostics > \
+        Keep Developer Tunnel Open changes it at once.
+
         --rom openavb makes the bundle's OpenAVB the boot ROM, --rom apple Virtualization.framework's \
         AVPBooter (the machine's own patched copy when it has one), --rom <file> any other ROM. \
         Applies from the next start, without a restore: both ROMs load the same patched LLB. \
@@ -298,6 +304,8 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
     var unlockAtStartup: String?
     @Option(name: .long, help: "Forward this Mac's location to the guest: on | off (default)")
     var syncHostLocation: String?
+    @Option(name: .long, help: "Hold the guest's CoreDevice tunnel open for Xcode and Instruments: on | off (default)")
+    var developerTunnel: String?
     @Option(name: .long, help: VPhoneBootROMOption.help)
     var rom: String?
     @Option(name: .long, help: VPhoneSEPROMOption.help)
@@ -308,6 +316,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         let edit = try networkEdit(vmName: name)
         let unlocks = try unlockAtStartup.map { try Self.parseSwitch($0, option: "--unlock-at-startup") }
         let syncsLocation = try syncHostLocation.map { try Self.parseSwitch($0, option: "--sync-host-location") }
+        let holdsTunnel = try developerTunnel.map { try Self.parseSwitch($0, option: "--developer-tunnel") }
         let updated = try VPhoneBundleOperations.updateConfig(
             bundleNamed: name,
             in: lib.library,
@@ -316,6 +325,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
             networkEdit: edit,
             unlocksAtStartup: unlocks,
             syncsHostLocation: syncsLocation,
+            holdsDeveloperTunnel: holdsTunnel,
         )
         var current = updated
         if let rom {

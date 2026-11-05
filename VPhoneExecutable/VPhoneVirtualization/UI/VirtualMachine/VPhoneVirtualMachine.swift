@@ -13,8 +13,12 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     let unlocksAtStartup: Bool
     /// The manifest's Sync Host Location setting as the VM started with it.
     let syncsHostLocation: Bool
+    /// The manifest's developer tunnel setting as the VM started with it.
+    let holdsDeveloperTunnel: Bool
     /// ECID hex string resolved from machineIdentifier (e.g. "0x0012345678ABCDEF").
     let ecidHex: String?
+    /// The guest's UDID as CoreDevice lists it, from the ECID; nil when that is unknown.
+    let udid: String?
     private nonisolated let shaderCache: VPhoneShaderCache.Session?
     /// Read handle for VM serial output.
     private var serialOutputReadHandle: FileHandle?
@@ -113,6 +117,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
         if let identity = Self.resolveDeviceIdentity(machineIdentifier: machineIdentifier) {
             ecidHex = identity.ecidHex
+            udid = identity.udid
             print("[vphone] ECID: \(identity.ecidHex)")
             print("[vphone] Predicted UDID: \(identity.udid)")
             // The cache only saves recompiling; a VM that cannot keep one boots without it.
@@ -138,6 +143,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
             }
         } else {
             ecidHex = nil
+            udid = nil
             shaderCache = nil
             print("[vphone] Warning: failed to resolve ECID from machineIdentifier")
         }
@@ -269,6 +275,7 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
         unlocksAtStartup = manifest.unlocksScreenAtStartup
         syncsHostLocation = manifest.sharesHostLocation
+        holdsDeveloperTunnel = manifest.keepsDeveloperTunnelOpen
         usesHardwareKeyboard = manifest.usesHardwareKeyboard
         config.keyboards = usesHardwareKeyboard ? [VZUSBKeyboardConfiguration()] : []
         print("[vphone] Hardware keyboard: \(usesHardwareKeyboard ? "enabled" : "disabled")")

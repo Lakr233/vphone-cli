@@ -26,6 +26,9 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
     /// Whether vphone-vm forwards the Mac's location to the guest. Always
     /// present, like `unlocksAtStartup`.
     public let syncsHostLocation: Bool
+    /// Whether vphone-vm holds the guest's CoreDevice tunnel open. Always
+    /// present, like `unlocksAtStartup`.
+    public let holdsDeveloperTunnel: Bool
     /// The boot ROM the machine starts from: `openavb` or `apple`. Nil when the
     /// manifest names none (the framework's built-in ROM) or it cannot be
     /// read. Added with OpenAVB.
@@ -55,6 +58,7 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
         let library = VPhoneLibrary(root: bundle.url.deletingLastPathComponent())
         templateMatch = source.map { VPhoneMachineTemplates.match(of: $0, in: library) }
         syncsHostLocation = bundle.manifest.sharesHostLocation
+        holdsDeveloperTunnel = bundle.manifest.keepsDeveloperTunnelOpen
         bootROM = VPhoneBootROM.kind(ofMachineAt: bundle.url)?.rawValue
         sepROM = VPhoneSEPROM.kind(ofMachineAt: bundle.url)?.rawValue
     }

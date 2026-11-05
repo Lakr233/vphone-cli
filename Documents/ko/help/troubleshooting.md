@@ -45,6 +45,34 @@ vphone-cli vm launch <name>
 
 첫 부팅 확인은 300초 후 시간 초과됩니다. 새로 복원한 게스트는 첫 헤드리스 부팅에서 vphoned를 띄우지 못할 수 있으므로, 생성 과정에서는 GUI 부팅을 사용합니다. 성공 표시가 무엇을 확인하는지는 [생성 및 실행](../machines/create-and-run.md)을 참고하세요.
 
+## Xcode나 Instruments에서 게스트가 오프라인으로 표시됨
+
+CoreDevice는 게스트를 유선 기기로 페어링하지만, 어떤 프로그램이 터널을 붙잡고 있는 동안에만 터널을 유지합니다. 터널이 없으면 `xcrun xctrace list devices`는 게스트를 "Devices Offline" 아래에 표시하고, `xctrace record --device <UDID>`는 기기가 부팅되기를 기다리다가 약 30초 후 포기합니다. Instruments는 네트워크 기기에만 연결을 제안하며 유선 기기에는 제안하지 않습니다.
+
+게스트가 실행되는 동안 `vphone-vm`이 터널을 열어 두게 하세요.
+
+- 가상 머신 창에서 **Diagnostics > Keep Developer Tunnel Open**을 선택합니다. 바로 적용되며 머신에 저장됩니다.
+- 또는 터미널에서 다음을 실행합니다.
+
+  ```sh
+  vphone-cli vm config <name> --developer-tunnel on
+  ```
+
+  다음 시작부터 적용됩니다. `vm info`는 이 설정을 `developer tunnel`로 표시합니다.
+
+vphoned가 응답하면 `vphone-vm`이 게스트를 대상으로 `/usr/bin/devicectl`을 실행하고, 종료될 때마다 다시 시작합니다. `/usr/bin/devicectl`이 없는 Mac에서는 가상 머신 로그에 `[developer-tunnel]` 줄이 한 번 표시되고 터널은 유지되지 않습니다.
+
+이 설정이 없는 bundle에서는 대신 터미널에서 터널을 유지할 수 있습니다. `vphone-cli vm info <name>`에서 게스트의 UDID를 확인한 뒤 다음 명령을 계속 실행해 두세요.
+
+```sh
+/usr/bin/devicectl device notification observe --device <UDID> \
+  --name com.vphone.keepalive --session-timeout 3500 --timeout 3600
+```
+
+`--session-timeout`은 `--timeout`보다 작아야 합니다. 명령은 한 시간 후 종료되므로 그때 다시 실행하세요.
+
+터널이 연결된 뒤 1분 정도는 `xctrace record --attach`가 `Cannot find process matching name` 또는 `Cannot find process for provided pid`로 실패할 수 있습니다. 잠시 기다린 뒤 다시 시도하세요.
+
 ## 함께 보기
 
 - [호스트 설정](../get-started/host-setup.md)

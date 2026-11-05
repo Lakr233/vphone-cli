@@ -3919,6 +3919,111 @@
         }
       }
     },
+    "Keep Developer Tunnel Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Developer Tunnel Open"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デベロッパトンネルを開いたままにする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개발자 터널 열어 두기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giữ đường hầm nhà phát triển luôn mở"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保持开发者隧道开启"
+          }
+        }
+      }
+    },
+    "Hold the guest's CoreDevice tunnel open, so Xcode and Instruments list it as online." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold the guest's CoreDevice tunnel open, so Xcode and Instruments list it as online."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストの CoreDevice トンネルを開いたままにし、Xcode と Instruments でオンラインとして表示されるようにします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트의 CoreDevice 터널을 열어 두어 Xcode와 Instruments에서 온라인으로 표시되게 합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giữ đường hầm CoreDevice của máy khách luôn mở để Xcode và Instruments hiển thị máy là trực tuyến."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保持客户机的 CoreDevice 隧道开启，使 Xcode 和 Instruments 将其显示为在线。"
+          }
+        }
+      }
+    },
+    "Unable to Change Developer Tunnel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to Change Developer Tunnel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デベロッパトンネルを変更できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개발자 터널을 변경할 수 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể thay đổi đường hầm nhà phát triển"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更改开发者隧道"
+          }
+        }
+      }
+    },
     "Unable to Change Sync Host Location" : {
       "extractionState" : "manual",
       "localizations" : {

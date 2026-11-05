@@ -100,6 +100,27 @@ struct ManifestTests {
         #expect(edited.updating(syncsHostLocation: !enabled).sharesHostLocation == !enabled)
     }
 
+    @Test func `old manifests do not hold the developer tunnel`() throws {
+        let data = try PropertyListEncoder().encode(sampleManifest())
+        let plist = try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        #expect(plist["holdsDeveloperTunnel"] == nil)
+        let loaded = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: data)
+        #expect(!loaded.keepsDeveloperTunnelOpen)
+    }
+
+    @Test(arguments: [true, false])
+    func `developer tunnel setting survives plist and unrelated edits`(enabled: Bool) throws {
+        let original = sampleManifest().updating(holdsDeveloperTunnel: enabled)
+        let data = try PropertyListEncoder().encode(original)
+        let loaded = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: data)
+        #expect(loaded.holdsDeveloperTunnel == enabled)
+        let edited = loaded.updating(cpuCount: 4, syncsHostLocation: !enabled)
+        #expect(edited.keepsDeveloperTunnelOpen == enabled)
+        #expect(edited.updating(guestDevice: .default).keepsDeveloperTunnelOpen == enabled)
+        #expect(edited.updating(romImages: .default).keepsDeveloperTunnelOpen == enabled)
+        #expect(edited.updating(holdsDeveloperTunnel: !enabled).keepsDeveloperTunnelOpen == !enabled)
+    }
+
     @Test func `network config round trips through plist`() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

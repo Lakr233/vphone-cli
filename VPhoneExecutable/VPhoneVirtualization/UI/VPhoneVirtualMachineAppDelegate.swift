@@ -18,6 +18,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
     private var timeZoneSync: VPhoneTimeZoneSync?
     private var clockSync: VPhoneClockSync?
     private var hostAudioLatencySync: VPhoneHostAudioLatencySync?
+    private var developerTunnel: VPhoneDeveloperTunnel?
     private var hostAutomationServer: VPhoneHostAutomationServer?
     private var cameraServer: VPhoneCameraServer?
     private var apiProxy: VPhoneAPIProxy?
@@ -128,6 +129,11 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             timeZoneSync = VPhoneTimeZoneSync(control: control)
             clockSync = VPhoneClockSync(control: control)
             hostAudioLatencySync = VPhoneHostAudioLatencySync(control: control)
+            if let udid = vm.udid {
+                developerTunnel = VPhoneDeveloperTunnel(udid: udid, isEnabled: vm.holdsDeveloperTunnel)
+            } else if vm.holdsDeveloperTunnel {
+                print("[developer-tunnel] the guest's UDID is unknown; the CoreDevice tunnel is not held")
+            }
 
             let camServer = VPhoneCameraServer()
             cameraServer = camServer
@@ -253,6 +259,12 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 try manifest.updating(syncsHostLocation: enabled).write(to: config)
                 try VPhoneHostFilePermissions.makeAccessible(at: config)
             }
+            mc.developerTunnel = developerTunnel
+            mc.onDeveloperTunnelChange = { [config = command.config] enabled in
+                let manifest = try VPhoneVirtualMachineManifest.load(from: config)
+                try manifest.updating(holdsDeveloperTunnel: enabled).write(to: config)
+                try VPhoneHostFilePermissions.makeAccessible(at: config)
+            }
             mc.captureView = wc.captureView
             mc.showsTVControls = options.isTVGuest
             mc.showsWatchControls = options.isWatchGuest
@@ -315,7 +327,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             menuController = mc
 
             // Wire location toggle through onConnect/onDisconnect
-            control.onConnect = { [weak self, weak mc, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync] caps in
+            control.onConnect = { [weak self, weak mc, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync, weak developerTunnel] caps in
                 mc?.updateConnectAvailability(available: true)
                 mc?.updateInstallAvailability(available: caps.contains("ipa_install"))
                 mc?.updateBootstrapAvailability(available: caps.contains("bootstrap_install"))
@@ -349,6 +361,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 if caps.contains("audio_host_latency") {
                     hostAudioLatencySync?.start()
                 }
+                developerTunnel?.guestDidConnect()
                 Task { @MainActor [weak self] in
                     await self?.installPackageIfRequested(caps: caps)
                 }
@@ -376,7 +389,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             }
         } else if !command.dfu {
             // Headless mode: no menu, so the machine's setting alone decides.
-            control.onConnect = { [weak self, weak control, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync] caps in
+            control.onConnect = { [weak self, weak control, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync, weak developerTunnel] caps in
                 if !caps.contains("location") {
                     print("[location] guest does not support location simulation")
                 } else if control?.syncsHostLocation == true {
@@ -391,6 +404,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 if caps.contains("audio_host_latency") {
                     hostAudioLatencySync?.start()
                 }
+                developerTunnel?.guestDidConnect()
                 Task { @MainActor [weak self] in
                     await self?.installPackageIfRequested(caps: caps)
                 }
@@ -521,6 +535,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         portForwarder?.stop()
         apiProxy?.stop()
         control?.stop()
+        developerTunnel?.stop()
     }
 
     /// Virtualization copies the keyboard configuration when creating the VM.
@@ -560,6 +575,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         timeZoneSync = nil
         clockSync = nil
         hostAudioLatencySync = nil
+        developerTunnel = nil
         cameraServer = nil
         hostAutomationServer = nil
         apiProxy = nil

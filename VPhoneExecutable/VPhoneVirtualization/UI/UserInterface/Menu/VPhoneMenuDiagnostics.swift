@@ -42,6 +42,16 @@ extension VPhoneMenuController {
         connectDevModeStatusItem = devModeStatus
         menu.addItem(devModeStatus)
 
+        // Saved to this machine and applied at once: Xcode and Instruments see
+        // the guest online while vphone-vm holds its CoreDevice tunnel.
+        let tunnel = makeItem("Keep Developer Tunnel Open", action: #selector(toggleDeveloperTunnel))
+        tunnel.toolTip = VPhoneLocalization.text(
+            "Hold the guest's CoreDevice tunnel open, so Xcode and Instruments list it as online.",
+        )
+        tunnel.isEnabled = false
+        developerTunnelItem = tunnel
+        menu.addItem(tunnel)
+
         let agentItem = NSMenuItem(title: "Guest Agent", action: nil, keyEquivalent: "")
         agentItem.image = menuSymbol("antenna.radiowaves.left.and.right")
         let agentMenu = NSMenu(title: "Guest Agent")
@@ -100,6 +110,25 @@ extension VPhoneMenuController {
     @objc func openPanel(_ sender: NSMenuItem) {
         guard let panel = sender.representedObject as? VPhoneGuestPanel else { return }
         guestPanelsWindowController.show(panel)
+    }
+
+    /// Saved to this machine's config.plist, so the next start holds the
+    /// tunnel, or does not, the same way.
+    @objc func toggleDeveloperTunnel() {
+        guard let developerTunnel else { return }
+        let enabled = !developerTunnel.isEnabled
+        do {
+            try onDeveloperTunnelChange?(enabled)
+        } catch {
+            VPhoneAlert.present(
+                title: "Unable to Change Developer Tunnel",
+                message: error.localizedDescription,
+                style: .warning,
+            )
+            return
+        }
+        developerTunnel.isEnabled = enabled
+        developerTunnelItem?.state = enabled ? .on : .off
     }
 
     @objc func devModeStatus() {
