@@ -1,0 +1,105 @@
+# TXM executable remap — review notes and deployment caveats
+
+Follow-up review of `txm-cfw-executable_remap` (merged in #831, which replaced
+the forced type-10 `txm-boot-precheck_admission`). The Release bundle carrying
+the patch was built and exercised on freshly restored guests. This note records
+what was verified, one regression surface the change opens, and the precautions
+for deploying it. It is a companion to [the patch assessment](txm_executable_remap.md);
+read that first for the mechanism and the host-side evidence.
+
+## Summary
+
+The change is sound and fails closed: every site requires a unique semantic
+match and the patcher throws rather than emitting a partial rewrite. Boot on
+iOS 27.0.1 — the case the removed patch originally fixed, and which the patch's
+own notes did not retest — is confirmed working. Instruction matching is
+Capstone-derived and replacement bytes come from the project encoders, so it
+follows the kernel/TXM patcher guardrails.
+
+One behavior change is **not covered by the host tests or the runtime probe**:
+a **CS_ADHOC** standalone executable (`codesign -s -`, CodeDirectory flags
+`0x2`) that has an injected dylib mapped executable in its address space is now
+killed at launch. The removed forced-admission patch masked this. Because the
+patch is merged, this regression is now in `main`.
+
+## Verified
+
+Release bundle carrying the patch, installed without moving the default, used to
+create standalone guests.
+
+| Check | Result |
+| --- | --- |
+| iPhone17,3 iOS 27.0.1 (24A446) create → first boot | Boots to a ready vphoned; no `unexpected SIGKILL of init` |
+| iPad16,1 iOS 27.0.1 (24A446) create (via template) → boot | Same |
+| Patch log | 16 TXM patches, including the four `txm-cfw-executable_remap` sites; no `precheck_admission` |
+| ldid- and `codesign -s -`-signed dylibs `dlopen`'d into a **signed app**, inline-hooking the app's main binary, an embedded framework, and a shared-cache function | All reach RX and return correctly |
+| A **standalone `codesign -s -` executable** (flags `0x2`) with an injector dylib mapped into it | `EXC_BAD_ACCESS / KERN_PROTECTION_FAILURE` in the injector's own `__TEXT` (an `R--` COW page that never becomes RX); SIGKILL, `CODESIGNING / Invalid Page` |
+| The same executable re-signed with `ldid -S` (flags `0`) | Runs |
+
+The iOS 27.0.1 boot result closes the gap the assessment left open ("the exact
+historical iOS 27.0.1 pairing has not been retested").
+
+## The regression surface
+
+Same device, same OS, same injector; only the bundle's TXM differs:
+
+| | bundle before the patch (still has `precheck_admission`) | bundle with the patch |
+| --- | --- | --- |
+| A given `codesign -s -` standalone executable | runs | SIGKILL at launch |
+| `dash` (a CS_ADHOC bootstrap shell) crash reports | 0 | 28 |
+
+The `dash` crashes show this is not one binary but the general shape:
+**a CS_ADHOC standalone executable that gets code mapped executable by an
+injector**. Native classification keeps CS_ADHOC on the ad-hoc fallback at
+type 10 and preserves type 10's executable-range and alias restrictions, so the
+injected page never reaches RX. The former forced-admission patch returned
+success before classification, which is why these processes ran before. A
+plain-ad-hoc CodeDirectory (`ldid -S`, flags `0`) classifies natively and is
+unaffected — this matches the injector libraries' own signing (flags `0`).
+
+Dylibs injected into an already-signed host application are **not** affected;
+only standalone CS_ADHOC executables that map injected code are.
+
+## Deployment caveats
+
+- **TXM is fixed into the VM at flash time.** Changing the bundle or running an
+  environment update does not replace it. Only a fresh restore / new template
+  picks up this change, so existing machines keep the old behavior and
+  "upgrade the bundle" does not validate the patch. Good for staged rollout;
+  bad as a verification shortcut.
+- **Disabling the patch does not restore the old behavior.** Turning
+  `txm-cfw-executable_remap` off selects the historical base trust-cache bypass
+  only; it cannot bring back the removed iOS 27 pre-check override and may stop
+  iOS 27 from booting. The only rollback is restoring with a previous build.
+- **Template key change.** The boot-chain patch set changed, so templates built
+  by older series are marked stale and an identical create resolves to a
+  different boot-chain plan; templates must be rebuilt, which re-restores.
+- **CS_ADHOC tooling in the guest.** Any standalone process signed with
+  `codesign -s -` that relies on an injector mapping executable code must be
+  re-signed with `ldid -S` (bare CodeDirectory, flags `0`) once the guest runs
+  firmware carrying this patch. Injected dylibs should already be ldid-signed.
+- **Team ID relaxation.** The patch deliberately skips ordinary-library (types
+  3–5) Team ID matching, permitting cross-team library loading. Acceptable for a
+  research VM, but it is a real relaxation; track the follow-up to preserve the
+  CodeDirectory Team ID during re-signing and then narrow it.
+- **More permissive than stock.** Per the assessment's own boundary note, a
+  modified framework private alias can reach RX here where stock iOS returns 2.
+  This is research compatibility, not stock-policy fidelity; passing probes do
+  not prove stock behavior.
+- **Strongest test is opt-in.** The full-image test is skipped unless
+  `VPHONE_REMAP_TXM` points at the pristine uncompressed TXM; ensure CI provides
+  it or the deepest check silently does nothing.
+
+## Recommendations
+
+1. Add a guest probe for the uncovered case: a `codesign -s -` standalone
+   executable that `dlopen`s a flags-0 dylib, maps its code page RX, and calls
+   it; assert it is not killed with `CODESIGNING / Invalid Page`. This covers the
+   surface the host unit tests and the dylib-into-app probe cannot.
+2. State the CS_ADHOC behavior change — "re-sign standalone ad-hoc executables
+   with `ldid -S`" — in the release notes, next to the "disabling cannot roll
+   back" note and its "roll back by restoring a previous build" instruction.
+3. Update the assessment from "iOS 27.0.1 not retested" to "27.0.1 boot
+   re-confirmed" (see above).
+4. Open an issue to track narrowing the Team ID exception (preserve the
+   CodeDirectory Team ID during re-signing).
