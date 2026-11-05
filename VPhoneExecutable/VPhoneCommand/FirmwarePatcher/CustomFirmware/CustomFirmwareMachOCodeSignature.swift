@@ -239,6 +239,20 @@ public enum CustomFirmwareMachOCodeSignature {
         )
     }
 
+    /// The hash in special slot `index` (counting down from code slot 0) of
+    /// `directory`, or nil when the CodeDirectory has fewer special slots.
+    /// `data` is the binary `directory` was parsed from.
+    public static func specialSlotHash(_ index: Int, of directory: CustomFirmwareCodeDirectory, in data: Data) -> Data? {
+        let data = rebased(data)
+        guard index > 0, data.fits(directory.offset + 24, 4) else { return nil }
+        let specialSlots = Int(data.loadBE(UInt32.self, at: directory.offset + 24))
+        let start = directory.offset + directory.hashOffset - index * directory.hashSize
+        guard index <= specialSlots, start >= directory.offset + codeDirectoryHeaderSize,
+              data.fits(start, directory.hashSize)
+        else { return nil }
+        return data[start ..< start + directory.hashSize]
+    }
+
     /// `(pageIndex, start, end)` of the slot covering `fileOffset`, or nil when
     /// the offset is past `codeLimit` and therefore covered by no slot.
     public static func pageBounds(

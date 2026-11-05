@@ -2136,6 +2136,9 @@ struct VPhoneCustomFirmwareInstaller {
         let virtualAudioBinary = "\(virtualAudioBundle)/VirtualAudio"
         let virtualAudioOn = virtualAudio.filter { on($0.id) }
         isolate(virtualAudio.map(\.id)) {
+            // Before any patch, which may fail: an earlier install re-sealed
+            // the plugin through the CodeResources thousands of bundles share.
+            try detachSharedFiles(system: system, bundle: virtualAudioBundle)
             if !virtualAudioOn.isEmpty {
                 guard try system.isRegularFile(virtualAudioBinary) else {
                     print("  [·] VirtualAudio: not on this VM, left out")
@@ -4279,11 +4282,70 @@ struct VPhoneCustomFirmwareInstaller {
     /// other guest binary this pipeline writes; the identifier is kept so the
     /// plugin still answers to the name it always had.
     private func sealGuestBundle(system: VPhoneConfinedDirectory, bundle: String, preserveEntitlements: Bool = false) throws {
+        try detachSharedFiles(system: system, bundle: bundle)
         // No --identifier: codesign keeps the one the bundle already carries.
         var arguments = ["-f", "-s", "-", "--timestamp=none"]
         if preserveEntitlements { arguments.append("--preserve-metadata=entitlements") }
         arguments.append(try system.directory(bundle).path)
         _ = try tool("/usr/bin/codesign", arguments)
+    }
+
+    /// Give the files codesign rewrites in place, the bundle's seal and its
+    /// executable, a file of their own. The system volume hard-links identical
+    /// files together, and one `CodeResources` stands for thousands of
+    /// bundles (`CustomFirmwareBundleSeal`), so re-sealing through the link
+    /// would re-seal all of them.
+    private func detachSharedFiles(system: VPhoneConfinedDirectory, bundle: String) throws {
+        let seal = "\(bundle)/_CodeSignature/CodeResources"
+        let executable = try bundleExecutable(system: system, bundle: bundle)
+        for path in [seal, executable].compactMap(\.self) {
+            guard let status = try system.status(path), status.st_mode & S_IFMT == S_IFREG, status.st_nlink > 1 else {
+                continue
+            }
+            var contents = try system.readData(path)
+            if path == seal, let executable {
+                try restoreSharedSeal(system: system, seal: seal, current: contents, executable: executable, links: status.st_nlink)
+                // The bundle keeps the seal its executable is signed over:
+                // its own from an earlier re-seal, or Apple's.
+                let pristine = CustomFirmwareBundleSeal.empty
+                if try CustomFirmwareBundleSeal.executable(system.readData(executable), isSealedWith: pristine) {
+                    contents = pristine
+                }
+            }
+            try system.writeFile(path, contents: contents, mode: status.st_mode & 0o7777, owner: (status.st_uid, status.st_gid))
+        }
+    }
+
+    /// Put Apple's seal back into a shared `CodeResources` that an earlier run
+    /// re-sealed through the link, when the bundle's original executable was
+    /// signed over it. The `.bak` is the executable as shipped; without one
+    /// the executable has not been patched, or was patched before backups and
+    /// can tell nothing.
+    private func restoreSharedSeal(
+        system: VPhoneConfinedDirectory,
+        seal: String,
+        current: Data,
+        executable: String,
+        links: nlink_t,
+    ) throws {
+        let pristine = CustomFirmwareBundleSeal.empty
+        guard current != pristine else { return }
+        let original = try system.isRegularFile("\(executable).bak") ? "\(executable).bak" : executable
+        guard try CustomFirmwareBundleSeal.executable(system.readData(original), isSealedWith: pristine) else { return }
+        try system.overwriteFile(seal, contents: pristine)
+        print("  [+] \(seal): restored the seal \(links - 1) other bundles share")
+    }
+
+    /// The bundle's main executable, from its Info.plist, or nil.
+    private func bundleExecutable(system: VPhoneConfinedDirectory, bundle: String) throws -> String? {
+        let info = "\(bundle)/Info.plist"
+        guard try system.isRegularFile(info),
+              let plist = try PropertyListSerialization.propertyList(from: system.readData(info), format: nil)
+              as? [String: Any],
+              let name = plist["CFBundleExecutable"] as? String, !name.isEmpty, !name.contains("/")
+        else { return nil }
+        let path = "\(bundle)/\(name)"
+        return try system.isRegularFile(path) ? path : nil
     }
 
     /// Copy an optional guest binary into the work folder, or nil (with a

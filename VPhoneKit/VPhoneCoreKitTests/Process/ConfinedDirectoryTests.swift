@@ -135,6 +135,37 @@ struct ConfinedDirectoryTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: tree.root.path).sorted() == ["leaf", "link"])
     }
 
+    @Test func `an overwrite reaches every hard link and a write gives one name its own file`() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let root = try VPhoneConfinedDirectory(root: tree.root.path)
+        let first = tree.root.appendingPathComponent("first")
+        let second = tree.root.appendingPathComponent("second")
+        try Data("shared seal".utf8).write(to: first)
+        try FileManager.default.linkItem(at: first, to: second)
+
+        try root.overwriteFile("first", contents: Data("apple".utf8))
+        #expect(try Data(contentsOf: second) == Data("apple".utf8))
+        #expect(try root.status("first")?.st_nlink == 2)
+
+        try root.writeFile("first", contents: Data("own".utf8), mode: 0o644)
+        #expect(try Data(contentsOf: first) == Data("own".utf8))
+        #expect(try Data(contentsOf: second) == Data("apple".utf8))
+        #expect(try root.status("second")?.st_nlink == 1)
+    }
+
+    @Test func `an overwrite refuses a leaf symlink`() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let root = try VPhoneConfinedDirectory(root: tree.root.path)
+        try FileManager.default.createSymbolicLink(
+            at: tree.root.appendingPathComponent("leaf"),
+            withDestinationURL: tree.kept,
+        )
+        #expect(throws: (any Error).self) { try root.overwriteFile("leaf", contents: Data("x".utf8)) }
+        #expect(try Data(contentsOf: tree.kept) == Data("keep".utf8))
+    }
+
     @Test func `reading a leaf symlink is refused`() throws {
         let tree = try Tree()
         defer { tree.remove() }
