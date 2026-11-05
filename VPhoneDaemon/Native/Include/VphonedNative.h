@@ -180,9 +180,6 @@ typedef struct {
     double cpu_seconds;
     uint64_t footprint_bytes;
     uint64_t resident_bytes;
-    /// When the process started on the uptime clock (`ProcessInfo.systemUptime`),
-    /// which, unlike `start_time`, a change of the wall clock does not move.
-    double start_uptime;
     bool has_task_info;
 } VPProcessUsage;
 

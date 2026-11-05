@@ -323,6 +323,24 @@ wrapper 0x111168–0x111b8c), dry-run writes nothing, second apply is
 byte-identical (`cmp`), and both verbs compose on one copy (`patch-virtualaudio`
 then `patch-virtualaudio-mute`, re-run idempotent).
 
+**iOS 27.2 (2026-11-05, iPhone19,4 24B91020).** The site was not found
+("expected exactly 1 mute-set throw in the wrapper at 0x103ce0, found 0"),
+and because the five VirtualAudio patches share one staged copy, all five
+were left off. 27.2's set wrapper throws a `std::system_error` instead:
+`mov w0, #0x20`, `___cxa_allocate_exception`, `mov x20, x0`, `mov x1, x21`,
+a constructor call on the object (`bl 0x1ee9c4`, x0 still the object), the
+typeinfo and `std::system_error`'s destructor, `mov x0, x20`,
+`___cxa_throw`, `brk`. Nothing is stored into the object, so the CAException
+shape refused it. The deactivated-device throw has the same new shape and is
+still told apart by the log window. The block check now also takes an
+object built by a call made while x0 still holds it (a constructor); a call
+after x0 was overwritten does not count. On 27.2 it finds exactly one site,
+throw 0x10462c → epilogue 0x104314 (wrapper 0x103ce0–0x104738); a second
+apply reports the branch already there and leaves the file identical. The
+other four sites matched 27.2 unchanged. With all five applied, Safari
+played a stream through the virtio sound plugin (29 s, 1 280 064 frames in,
+0 bytes dropped).
+
 The mute-set wrapper is a different function from the walker: the two
 patches are siblings over the same binary, not one site list — the walker's
 six sites (table above) all live in the speaker-protection walk, the

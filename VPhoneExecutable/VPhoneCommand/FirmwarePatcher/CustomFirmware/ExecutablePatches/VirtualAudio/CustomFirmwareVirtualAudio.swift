@@ -2061,19 +2061,21 @@ public enum CustomFirmwareVirtualAudio {
         }
     }
 
-    /// Whether the window after an allocation call holds the CAException
-    /// throw machinery: the vtable or status stored into the allocated object
-    /// (`str xN, [x0, #imm]`), the throw call after it, and the block's
-    /// terminator. A CAException carries no message string, so the
-    /// `runtime_error` shape (`isThrowBlock`) does not fit it.
-    private static func isCAExceptionThrowBlock(
+    /// Whether the window from an allocation call holds the throw machinery:
+    /// the allocated object built — its vtable or status stored into it
+    /// (`str xN, [x0, #imm]`, a CAException), or a constructor called on it
+    /// while x0 still holds it (iOS 27.2's `std::system_error`) — the throw
+    /// call after that, and the block's terminator. Neither carries a message
+    /// string, so the `runtime_error` shape (`isThrowBlock`) does not fit.
+    static func isCAExceptionThrowBlock(
         in data: Data,
         disasm: ARM64Disassembler,
         from offset: Int,
         to end: Int,
     ) -> Bool {
         var cursor = offset
-        var sawObjectStore = false
+        var objectInX0 = false
+        var built = false
         var sawThrowCall = false
         var scanned = 0
         // A CAException block runs longer than a runtime_error one — the
@@ -2086,16 +2088,31 @@ public enum CustomFirmwareVirtualAudio {
                 scanned += 1
             }
             guard let insn = disasm.disassembleOne(in: data, at: cursor) else { return false }
+            // The allocation call, which returns the object in x0.
+            if cursor == offset {
+                objectInX0 = true
+                continue
+            }
             if insn.mnemonic == "str",
                let operands = insn.detail?.operands, operands.count >= 2,
                operands[0].type == .register,
                operands[1].type == .memory, operands[1].mem.base == ARM64Register.x(0)
             {
-                sawObjectStore = true
+                built = true
             }
-            if insn.isCall, sawObjectStore {
-                sawThrowCall = true
+            if insn.isCall {
+                if built {
+                    sawThrowCall = true
+                } else if objectInX0 {
+                    built = true
+                }
+                objectInX0 = false
                 continue
+            }
+            if insn.detail?.operands.contains(where: {
+                $0.type == .register && $0.writesRegister && ($0.reg == .x(0) || $0.reg == .w(0))
+            }) == true {
+                objectInX0 = false
             }
             // The block ends at an unconditional branch (the iOS 27 twin jumps
             // to its `brk`) or at the `brk` the compiler plants after a call
@@ -2103,7 +2120,7 @@ public enum CustomFirmwareVirtualAudio {
             if insn.mnemonic == "brk"
                 || (insn.isJump && !insn.isCall && insn.detail?.conditionCode == nil)
             {
-                return sawObjectStore && sawThrowCall
+                return built && sawThrowCall
             }
         }
         return false

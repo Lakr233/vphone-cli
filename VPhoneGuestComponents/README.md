@@ -97,7 +97,7 @@ sensor. See `Research/Guest/springboard_orientation_stuck.md` for evidence and
 the language-change regression boundary.
 
 `system-backboardd-cfw-hinge` installs `libvphonehinge.dylib`, also selected
-independently and loaded only in backboardd. It publishes Apple's VM host
+independently and loaded in backboardd and locationd. It publishes Apple's VM host
 controls (primary usage page 0xFF61, usage 0x5B) and sends the angle and
 device orientation configured by `display.posture` and `display.rotation` as
 vendor-defined events carrying `IOCFSerialize`d `hinge-slider-control` and
@@ -111,10 +111,15 @@ any other guest the service sits unread. On an iPhone Duo it also detours
 backboardd's HID server (`_io_hideventsystem_dispatch_event`) to take the
 DeviceHub hinge-slider event a client without the event-dispatch
 entitlement sends (WebDriverAgent's `POST /wda/device/hingeAngle`) and
-dispatches it on that service. Foldable guests only; `make test-hinge`
-checks the configuration transport and, on a Mac, the dictionaries'
-serialization round trip, size and vendor-defined event, and which
-client-dispatched events the hinge takes.
+dispatches it on that service. The hinge resends a resting angle every few
+seconds, which is how a CoreMotion client started since gets one: CoreMotion
+on a VM has no hinge device to read an angle from. iOS 27.2's relay skips an
+angle equal to the one it holds, so in locationd the hinge has the relay pass
+that angle on in one step (`Hinge/VPhoneHingeRelayResend.h`). Foldable guests
+only; `make test-hinge` checks the configuration transport, the relay resend
+against stand-in classes and, on a Mac, the dictionaries' serialization round
+trip, size and vendor-defined event, and which client-dispatched events the
+hinge takes.
 
 `system-apps-cfw-attitude` installs `libvphoneattitude.dylib`, loaded by
 SystemHook into apps. It supplies a stationary Core Motion pose through

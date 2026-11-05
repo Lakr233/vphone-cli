@@ -789,7 +789,9 @@ public enum FirmwareGuestSystemPatchSet {
                 the hinge angle chosen by display.posture, so CoreMotion's angle manager — and \
                 through it CoreDevice's hingeAngle stream — reads the fold state instead of \
                 finding no sensor. With the foldable product identity patch, which is what makes \
-                CoreMotion look for the service. Foldable guests only.
+                CoreMotion look for the service. On iOS 27.2 it also loads into locationd, where \
+                the device-state relay then passes on an unchanged angle, so a CoreMotion client \
+                started while the hinge rests gets it. Foldable guests only.
                 """,
                 target: .guestFile(path: "/usr/lib/libvphonehinge.dylib"),
                 applicability: VPhonePatchApplicability(iOSBase: .atLeast(major: 18, minor: 0)),
