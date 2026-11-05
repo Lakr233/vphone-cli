@@ -22,3 +22,16 @@ void vpIOS18GPUDeviceInfoReply(uint8_t legacy[VP_IOS18_GPU_DEVICE_INFO_LEGACY],
     memcpy(legacy, modern, 0xd8);
     memcpy(legacy + 0xd8, modern + 0xdc, 0x34);
 }
+
+bool vpIOS18GPUSubmitEntries(uint8_t *modern, const uint8_t *legacy, size_t legacySize,
+    const uint64_t scalars[VP_IOS18_GPU_SUBMIT_SCALARS_IN]) {
+    uint64_t count = scalars[2];
+    if (scalars[3] != VP_IOS18_GPU_SUBMIT_ENTRY || count == 0 || count > VP_IOS18_GPU_SUBMIT_MAX_ENTRIES ||
+        legacySize != count * VP_IOS18_GPU_SUBMIT_ENTRY)
+        return false;
+    memset(modern, 0, count * VP_IOS18_GPU_SUBMIT_ENTRY_MODERN);
+    for (uint64_t index = 0; index < count; index++)
+        memcpy(modern + index * VP_IOS18_GPU_SUBMIT_ENTRY_MODERN, legacy + index * VP_IOS18_GPU_SUBMIT_ENTRY,
+            VP_IOS18_GPU_SUBMIT_ENTRY);
+    return true;
+}

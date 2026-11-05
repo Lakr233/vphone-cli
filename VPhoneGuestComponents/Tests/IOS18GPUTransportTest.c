@@ -13,6 +13,7 @@ int main(void) {
     // Command queue create, resource create and the last base method measured.
     assert(vpIOS18GPUSelector(7, &modern) == VPIOS18GPURenumbered && modern == 6);
     assert(vpIOS18GPUSelector(9, &modern) == VPIOS18GPURenumbered && modern == 8);
+    assert(vpIOS18GPUSelector(VP_IOS18_GPU_SUBMIT, &modern) == VPIOS18GPURenumbered && modern == 25);
     assert(vpIOS18GPUSelector(0x37, &modern) == VPIOS18GPURenumbered && modern == 0x36);
     assert(vpIOS18GPUSelector(255, &modern) == VPIOS18GPURenumbered && modern == 254);
     for (uint32_t selector = 256; selector < 270; selector++) {
@@ -34,6 +35,27 @@ int main(void) {
     vpIOS18GPUDeviceInfoReply(legacy, info);
     for (size_t index = 0; index < 0xd8; index++) assert(legacy[index] == info[index]);
     for (size_t index = 0; index < 0x34; index++) assert(legacy[0xd8 + index] == info[0xdc + index]);
+
+    // Two command buffers: each 0x28-byte entry moves to a 0x30 slot, tail zero.
+    uint8_t entries[2 * VP_IOS18_GPU_SUBMIT_ENTRY], widened[2 * VP_IOS18_GPU_SUBMIT_ENTRY_MODERN];
+    for (size_t index = 0; index < sizeof(entries); index++) entries[index] = (uint8_t)(index + 1);
+    memset(widened, 0xEE, sizeof(widened));
+    uint64_t scalars[VP_IOS18_GPU_SUBMIT_SCALARS_IN] = {0x1234, 0, 2, VP_IOS18_GPU_SUBMIT_ENTRY};
+    assert(vpIOS18GPUSubmitEntries(widened, entries, sizeof(entries), scalars));
+    for (size_t entry = 0; entry < 2; entry++) {
+        for (size_t byte = 0; byte < VP_IOS18_GPU_SUBMIT_ENTRY; byte++)
+            assert(widened[entry * 0x30 + byte] == entries[entry * 0x28 + byte]);
+        for (size_t byte = VP_IOS18_GPU_SUBMIT_ENTRY; byte < VP_IOS18_GPU_SUBMIT_ENTRY_MODERN; byte++)
+            assert(widened[entry * 0x30 + byte] == 0);
+    }
+    // Anything that is not count iOS 18 entries is refused, not guessed at.
+    assert(!vpIOS18GPUSubmitEntries(widened, entries, sizeof(entries) - 1, scalars));
+    scalars[3] = VP_IOS18_GPU_SUBMIT_ENTRY_MODERN;
+    assert(!vpIOS18GPUSubmitEntries(widened, entries, sizeof(entries), scalars));
+    scalars[3] = VP_IOS18_GPU_SUBMIT_ENTRY; scalars[2] = 0;
+    assert(!vpIOS18GPUSubmitEntries(widened, entries, 0, scalars));
+    scalars[2] = VP_IOS18_GPU_SUBMIT_MAX_ENTRIES + 1;
+    assert(!vpIOS18GPUSubmitEntries(widened, entries, sizeof(entries), scalars));
 
     puts("IOS18GPUTransportTest: ok");
     return 0;

@@ -119,6 +119,23 @@ static kern_return_t vpCallMethodHook(mach_port_t connection, uint32_t selector,
         if (result == KERN_SUCCESS) *outputStructSize = legacySize;
         return result;
     }
+    if (selector == VP_IOS18_GPU_SUBMIT && input && inputCount == VP_IOS18_GPU_SUBMIT_SCALARS_IN && inputStruct &&
+        (!outputCount || *outputCount == 0)) {
+        uint64_t scalars[VP_IOS18_GPU_SUBMIT_SCALARS_IN], stamp[VP_IOS18_GPU_SUBMIT_SCALARS_OUT] = {0};
+        memcpy(scalars, input, sizeof(scalars));
+        size_t size = (size_t)scalars[2] * VP_IOS18_GPU_SUBMIT_ENTRY_MODERN;
+        uint8_t *entries = scalars[2] <= VP_IOS18_GPU_SUBMIT_MAX_ENTRIES ? malloc(size ? size : 1) : NULL;
+        if (!entries) return kIOReturnBadArgument;
+        kern_return_t result = kIOReturnBadArgument;
+        if (vpIOS18GPUSubmitEntries(entries, inputStruct, inputStructSize, scalars)) {
+            scalars[3] = VP_IOS18_GPU_SUBMIT_ENTRY_MODERN;
+            uint32_t count = VP_IOS18_GPU_SUBMIT_SCALARS_OUT;
+            result = vpCallMethod(connection, modern, scalars, inputCount, entries, size,
+                stamp, &count, outputStruct, outputStructSize);
+        }
+        free(entries);
+        return result;
+    }
     if (selector == VP_IOS18_GPU_DEVICE_INFO && outputStruct && outputStructSize &&
         *outputStructSize == VP_IOS18_GPU_DEVICE_INFO_LEGACY) {
         uint8_t reply[VP_IOS18_GPU_DEVICE_INFO_MODERN] = {0};

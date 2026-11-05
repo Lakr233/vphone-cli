@@ -33,6 +33,7 @@ Found by tracing each IOKit user-client call in a test process, then diffing all
 | IOGPU device method 6 (`IOGPUDeviceCreateWithAPIProperty`: a 16-byte API name, result ignored) | removed | answered locally with success |
 | IOGPU device methods 7–255 (7 = command queue create, 9 = resource create, … 0x37) | one lower (6, 8, … 0x36) | selector − 1 |
 | Resource create reply: 0x50-byte header + driver tail | 8 bytes inserted at 0x18 | ask for 8 more, drop `[0x18, 0x20)` |
+| Command-buffer submit, method 26 (25 on 26.1), taken when several command buffers go at once: 0x28-byte entries (`cmdBufArgsSize`), entry size in input scalar 3, no scalar output | 0x30-byte entries (same fields, last 8 bytes zero), one scalar output; refused with 0xe00002c2 otherwise | widen each entry with zeros, pass 0x30, supply a one-scalar output and drop it |
 | AppleParavirtGPU method 265 (`-[AppleParavirtDevice setupDeviceInfo]`), 0x10c-byte reply | 0x118 bytes, refused with 0xe00002c2 when asked for 0x10c | ask for 0x118, keep `[0, 0xd8)` and `[0xdc, 0x110)` |
 
 Request layouts did not change: the command queue create struct is 0x408 bytes on
@@ -83,7 +84,10 @@ Do not widen the gate without repeating the measurement:
 
 1. Extract IOGPU.framework from both shared caches
    (`ipsw dyld extract … IOGPU`), disassemble with symbols, and list each
-   `bl _IOConnectCall*` with the selector in `w1` and the size arguments.
+   `bl _IOConnectCall*` with the selector in `w1`, the size arguments and the
+   scalar counts (`w3` in, `x6`/`x7` out). The submit method's new output
+   scalar was missed by a first pass that compared only selectors and sizes; it
+   fails only submissions too big for the one-buffer trap.
 2. Pair the sites by caller symbol. Any change other than the shift above needs
    a new rule.
 3. For the driver, probe each paravirt method's accepted struct sizes against the
@@ -121,10 +125,23 @@ Open:
   (`compilerTargetInfo.shaderVersionMajor >= 2`). That field comes from the
   device-info reply, so that call was not translated there. It did not recur in
   the next two boots and could not be started on demand. The cause is unknown.
-- cameracaptured aborts in `MPSLibrary::MPSKey_Compile` (`MTLReportFailure`)
-  while prewarming its matting inference, three to five times in some boots and
-  not at all in others. That is an MPS kernel compile failure under a working
-  device. Not yet explained.
+- `com.apple.MapKit.SnapshotService` has not aborted again in the six boots since.
+
+cameracaptured (2026-11-05): it aborted in `MPSLibrary::MPSKey_Compile` three to
+five times in some boots while prewarming its matting inference. A temporary
+`MTLReportFailure` detour in a debug SystemHook recorded the messages: two
+command buffers "aborted due to an error during execution. Internal Error
+(00000001)", then "unable to load function mps_stgf_applyCoefficients3_2d.
+Compilation failed: (null)". The same functions load, specialize and build
+pipelines from a probe, so the compile failure followed the GPU errors. Logging
+failing device calls showed iOS 18 method 26 refused with 0xe00002c2, an 0x50-byte
+submission of two command buffers. Re-diffing every call site with its scalar
+counts, and then `cmdBufArgsSize` (0x28 on iOS 18, 0x30 on 26.1) and
+`fillCommandBufferArgs:commandQueue:` (the same stores in both), gave the submit
+row above. With the scalar output alone the kernel still refused the call; with
+the entries widened it accepts it. On the bundle built from this branch plus PR
+#822 without the debug code, cameracaptured kept its pid through a boot and a
+Camera launch, with no report.
 
 Settings icons (2026-11-05): an icon probe got a non-placeholder, fully
 transparent 87×87 image for `com.apple.graphic-icon.gear` at

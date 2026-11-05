@@ -31,6 +31,26 @@ enum {
 };
 bool vpIOS18GPUResourceReply(uint8_t *legacy, size_t legacySize, const uint8_t *modern, size_t modernSize);
 
+// iOS 18's command-buffer submit method (26, 25 on 26.1), used when the
+// submission does not fit the one-buffer trap: several command buffers at
+// once. Its scalars are the queue, flags, the entry count and the entry size,
+// and its struct the entries. 26.1 describes a command buffer in 0x30 bytes,
+// iOS 18 in 0x28 (`cmdBufArgsSize`); both fill the same fields and 26.1
+// leaves its last eight bytes zero. 26.1 also returns one scalar and refuses
+// a call that asks for none; iOS 18 asks for none.
+enum {
+    VP_IOS18_GPU_SUBMIT = 26,
+    VP_IOS18_GPU_SUBMIT_SCALARS_IN = 4,
+    VP_IOS18_GPU_SUBMIT_SCALARS_OUT = 1,
+    VP_IOS18_GPU_SUBMIT_ENTRY = 0x28,
+    VP_IOS18_GPU_SUBMIT_ENTRY_MODERN = 0x30,
+    VP_IOS18_GPU_SUBMIT_MAX_ENTRIES = 256,
+};
+// Widens `count` entries into `modern`, which holds count * 0x30 bytes.
+// False when the scalars and the struct do not describe iOS 18 entries.
+bool vpIOS18GPUSubmitEntries(uint8_t *modern, const uint8_t *legacy, size_t legacySize,
+    const uint64_t scalars[VP_IOS18_GPU_SUBMIT_SCALARS_IN]);
+
 // AppleParavirtGPU's device-info method. Each of its two blocks gained fields
 // at its end: 0xd8 -> 0xdc and 0x34 -> 0x3c.
 enum {
