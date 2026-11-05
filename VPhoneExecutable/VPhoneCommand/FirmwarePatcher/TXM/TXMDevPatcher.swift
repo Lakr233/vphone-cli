@@ -7,18 +7,22 @@ import VPhonePatchKit
 
 /// Dev-variant patcher for TXM images.
 ///
-/// Adds 5 patch methods (11 patch records) beyond base trustcache bypass:
+/// Adds admission and runtime policies beyond the base trustcache bypass:
 ///   1. selector24 force PASS (mov w0, #0xa1 + b epilogue)
 ///   2. get-task-allow entitlement BL → mov x0, #1
 ///   3. selector42|29 shellcode hook + manifest flag force
 ///   4. debugger entitlement BL → mov w0, #1
 ///   5. developer-mode guard → nop
+///   6. native signature classification for remapping
 public final class TXMDevPatcher: TXMPatcher {
     override public func findAll() throws -> [PatchRecord] {
         patches = []
-        try patchTrustcacheBypass() // base patch
+        if gate.isEnabled(Self.executableRemapID) {
+            try patchExecutableRemap() // includes the base bypass with real cache queries
+        } else {
+            try patchTrustcacheBypass()
+        }
         patchSelector24ForcePass()
-        patchPrecheckForcePass()
         patchGetTaskAllowForceTrue()
         patchSelector42_29Shellcode()
         patchDebuggerEntitlementForceTrue()
@@ -251,138 +255,6 @@ public final class TXMDevPatcher: TXMPatcher {
     }
 
     // MARK: - Dev Patches
-
-    /// Force the selector-24 pre-check policy walk to admit every manifest.
-    ///
-    /// On an iOS 27.0.1 iPhone guest the walk (`sub_30BAC` in cloudOS 26.4's
-    /// TXM 187.100.3) rejects everything — Apple's own launchd included —
-    /// because the trust state it consults never loads from a 27.0.1 restore;
-    /// the selector-24 caller then falls through its ad-hoc, CMS and third
-    /// fallback branches and kills init (0x32202 / 0x12491). Forcing the
-    /// walk's PASS exit admits at the top of the ladder, before any of those
-    /// branches run. See Research/Firmware/txm_selector24_cms_gate.md.
-    ///
-    /// Anchor: the walk is the only function that invokes its policy
-    /// callbacks with PAC selector `0x7e51` (`mov x17, #0x7e51` immediately
-    /// followed by `blraa x8, x17`) after walking a policy table with a
-    /// post-indexed `ldr x22, [x20], #0x40`. The patch replaces the first
-    /// four body instructions with:
-    ///
-    ///     mov  w8, #0xa          ; tolerated validation-type byte
-    ///     strb w8, [x19]         ; *out = 0xa, as the tolerated path writes
-    ///     mov  w0, #0x90         ; the walk's PASS status
-    ///     b    <epilogue>
-    func patchPrecheckForcePass() {
-        let size = buffer.count
-        var off = 0
-        while off + 8 <= size {
-            defer { off += 4 }
-
-            guard let selector = disasm.disassembleOne(in: buffer.data, at: off),
-                  selector.mnemonic == "mov",
-                  let selOps = selector.detail?.operands, selOps.count == 2,
-                  selOps[0].type == .register, selOps[0].reg == .x(17),
-                  selOps[1].type == .immediate, selOps[1].imm == 0x7E51,
-                  let call = disasm.disassembleOne(in: buffer.data, at: off + 4),
-                  call.mnemonic == "blraa"
-            else {
-                if verbose, let ins = disasm.disassembleOne(in: buffer.data, at: off),
-                   ins.mnemonic == "mov",
-                   let ops = ins.detail?.operands,
-                   ops.count == 2, ops[1].type == .immediate, ops[1].imm == 0x7E51
-                {
-                    let next = disasm.disassembleOne(in: buffer.data, at: off + 4)
-                    print("  [·] TXM: selector 0x7e51 at \(String(format: "%06X", off)); next: \(next.map { "\($0.mnemonic) \($0.operandString)" } ?? "decode-fail")")
-                }
-                continue
-            }
-
-            guard let funcStart = findFuncStart(off) else { continue }
-
-            // The walk dereferences the policy table through a writeback
-            // load (`ldr x22, [x20], #0x40`, the only three-operand ldr in
-            // the function); confirm it is here before trusting the site.
-            // The operand string is matched whole — as `patchSelector24ForcePass`
-            // matches its own anchors — because capstone reports post-index
-            // loads with an operand-shape that varies by version.
-            var sawTableWalk = false
-            var scan = funcStart
-            while scan + 4 <= off {
-                if let i = disasm.disassembleOne(in: buffer.data, at: scan),
-                   i.mnemonic == "ldr",
-                   i.operandString == "x22, [x20], #0x40"
-                {
-                    sawTableWalk = true
-                    break
-                }
-                scan += 4
-            }
-            guard sawTableWalk else { continue }
-
-            // Body starts after the two argument-register moves that open it.
-            var body: Int? = nil
-            var p = funcStart
-            while p + 8 <= off {
-                guard
-                    let a = disasm.disassembleOne(in: buffer.data, at: p),
-                    let b = disasm.disassembleOne(in: buffer.data, at: p + 4)
-                else { p += 4; continue }
-                if a.mnemonic == "mov", let aops = a.detail?.operands, aops.count == 2,
-                   aops[0].reg == .x(19), aops[1].reg == .x(1),
-                   b.mnemonic == "mov", let bops = b.detail?.operands, bops.count == 2,
-                   bops[0].reg == .x(20), bops[1].reg == .x(0)
-                {
-                    body = p + 8
-                    break
-                }
-                p += 4
-            }
-            guard let bodyStart = body else {
-                log("  [-] TXM: pre-check walk body start not found")
-                return
-            }
-
-            // Epilogue: the walk's retab, back to its frame restore.
-            var epilogue: Int? = nil
-            var r = off
-            while r < min(off + 0x200, size) {
-                if let ri = disasm.disassembleOne(in: buffer.data, at: r), ri.mnemonic == "retab" {
-                    var e = r - 4
-                    while e > max(r - 0x40, funcStart) {
-                        if let ei = disasm.disassembleOne(in: buffer.data, at: e),
-                           ei.mnemonic == "ldp", ei.operandString.contains("x29, x30")
-                        {
-                            epilogue = e
-                            break
-                        }
-                        e -= 4
-                    }
-                    break
-                }
-                r += 4
-            }
-            guard let epilogueOff = epilogue else {
-                log("  [-] TXM: pre-check walk epilogue not found")
-                return
-            }
-
-            emit(bodyStart, ARM64.movW8_0xA, patchID: "txm-boot-precheck_admission.mark_type",
-                 description: "pre-check admission: mov w8, #0xa (tolerated type)")
-            emit(bodyStart + 4, ARM64.strbW8X19, patchID: "txm-boot-precheck_admission.store_type",
-                 description: "pre-check admission: strb w8, [x19]")
-            emit(bodyStart + 8, ARM64.movW0_0x90, patchID: "txm-boot-precheck_admission.pass",
-                 description: "pre-check admission: mov w0, #0x90 (PASS)")
-            guard let bInsn = ARM64Encoder.encodeB(from: bodyStart + 12, to: epilogueOff) else {
-                log("  [-] TXM: pre-check admission branch encoding failed")
-                return
-            }
-            emit(bodyStart + 12, bInsn, patchID: "txm-boot-precheck_admission.branch",
-                 description: "pre-check admission: b epilogue")
-            return
-        }
-
-        log("  [-] TXM: pre-check walk (selector 0x7e51 policy callbacks) not found")
-    }
 
     /// Patch selector24 handler to return 0xA1 (PASS) immediately.
     ///

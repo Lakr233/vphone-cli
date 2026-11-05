@@ -1,5 +1,11 @@
 # TXM selector 24 CMS gate — the iPhone 17,3 / 27.0.1 (24A446) first-boot panic
 
+> Historical investigation. The forced type-10 pre-check patch described below
+> has been removed in favor of [native signature classification](txm_executable_remap.md).
+> Host tests cover the original rejection paths; the replacement has iOS 27.1
+> remap results and tester-reported startup success. The boot results below
+> apply to the former implementation, not a retest of the same 27.0.1 pairing.
+
 Investigated 2026-10-04, after a `vm create` that defaulted to
 `iPhone17,3 27.0.1 (24A446)` restored and CFW-installed cleanly, then panicked
 on first boot:

@@ -118,6 +118,12 @@ public enum FirmwareBootChainPatchSet {
             // MARK: TXM
 
             VPhonePatchDeclaration(
+                identifier: "txm-cfw-executable_remap",
+                title: "TXM native signature classification",
+                summary: "Preserves real classification and native mapping bounds. Admits CMS-less installer signatures and temporarily tolerates absent or mismatched Team IDs for ordinary libraries, including hot reload; category and remap restrictions remain.",
+                target: .firmware(.txm),
+            ),
+            VPhonePatchDeclaration(
                 identifier: "txm-boot-trustcache_bypass",
                 title: "TXM trust cache bypass",
                 summary: "Lets TXM admit the guest's own trust cache entries.",
@@ -148,14 +154,6 @@ public enum FirmwareBootChainPatchSet {
                 title: "TXM selector 24 bypass",
                 summary: "Lets the selector-24 code-signing query succeed.",
                 target: .firmware(.txm),
-                bootEssential: true,
-            ),
-            VPhonePatchDeclaration(
-                identifier: "txm-boot-precheck_admission",
-                title: "TXM pre-check admission",
-                summary: "Forces the selector-24 pre-check policy walk to admit. Without it an iOS 27.0.1 iPhone guest is rejected at first boot — every binary, Apple's own launchd included, because the trust state the walk consults never loads from a 27.0.1 restore.",
-                target: .firmware(.txm),
-                applicability: VPhonePatchApplicability(iOSBase: .major(27)),
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
