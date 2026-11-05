@@ -72,6 +72,7 @@ jobs:
         run: |
           make -C VPhoneGuestComponents test-mach-ports-compat
           make -C VPhoneGuestComponents test-ios16-surface
+          make -C VPhoneGuestComponents test-ios18-gpu
           make -C VPhoneGuestComponents test-ios16-lab-policy
           make -C VPhoneGuestComponents test-loader-links
           make -C VPhoneGuestComponents test-vcam-dataplane

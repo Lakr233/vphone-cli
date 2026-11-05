@@ -1801,6 +1801,7 @@ do NOT execute these).
 | 34  | Remove four point-size reflection guards that suppress valid `GL_POINTS` submissions — **iOS 26.6 / cloudOS 26.4** | AppleMetalGLRenderer's direct and primitive-buffer draw paths, guest dyld shared cache | **Submit points despite missing PV pipeline usage flags.** `dyld-cfw-gles_point_draw` replaces only the four bit-7 `TBZ` guards with NOPs, preserving other gates and the native shader/rasterizer. Semantic discovery and transactional DSC undo; cloned-cache apply/repeat/revert restores all 85 files exactly. Process-local diagnostics restore point footprints but expose a separate coordinate Y-flip transport gap. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; see "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
 | 35  | Derive the paravirtual driver compiler cache identity from the installed plugin — **iOS 26.6 / cloudOS 26.4** | AppleParavirtGPUMetalIOGPUFamily | **Invalidate shader output after plugin updates.** `system-paravirt_gpu-cfw-compiler_cache` replaces only two eight-byte SHA-256 seed inputs with a 96-bit plugin content identity. Changes compose with the other driver patches on its pristine backup. Requires row 36 when cross-boot reuse is enabled; installer verifies it actually applied before refreshing the plugin. Private APFS clone and fatal identity-failure handling prevent inconsistent publication. Development-build guest validation rejects stale default-cache shaders and passes all 21 point cases. |    Y    |  Y  |  Y  |
 | 36  | Retain cache-key validation when cross-boot reuse is enabled — **iOS 26.6 / cloudOS 26.4** | libCoreFSCache in the guest dyld shared cache | **Reject stale compiler output while retaining warm caches across boots.** The original `FS_CACHE_REUSE_ON_REBOOT=1` skips both the key and boot checks. `dyld-cfw-metal_cache_reuse_key` routes only that path through the key comparison; the no-reuse path remains intact. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; actual-cache apply/repeat/undo restores all 85 files. |    Y    |  Y  |  Y  |
+| 37  | No Apple binary change: SystemHook detours IOKit's `IOServiceOpen`/`IOServiceClose`/`IOConnectCallMethod`/`IOConnectCallAsyncMethod` while `/usr/lib/vphone-ios18-gpu` exists, and `fw prepare` stages the iOS release's own cloudOS GPU driver — **iOS 18.6 / cloudOS 26.1** | none (`VPhoneGuestComponents/SystemHook/VPhoneIOS18GPU.c`; driver from cloudOS 18.6; marker written by `cfw install` only over that driver) | **An iOS 18 guest gets a Metal device.** The 26.1 driver does not load on iOS 18, and the 18.6 one is refused by the 26.1 kernel: IOGPU device method 6 is gone and 7–255 moved down by one, the resource-create reply gained 8 bytes at 0x18, and AppleParavirtGPU method 265 grew from 0x10c to 0x118. The transport renumbers and repacks for IOGPU device connections only. `system-systemhook-cfw-ios18_gpu_transport`; see "iOS 18 GPU transport (2026-11-05)" and `Research/Guest/ios18_gpu_transport.md` |    Y    |  Y  |  Y  |
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
 
@@ -6820,3 +6821,28 @@ developer mode `enabled`, and LLDB attached to configd through the re-signed
 debugserver, evaluated `(int)getpid()` and read 16 bytes at its pc. The watch
 guest needed more than 2048 MB: at 2048 MB a stock LLB, with or without the
 feature, stops the VM after `iLLB decompressed`; at 8192 MB both boot.
+
+## iOS 18 GPU transport (2026-11-05)
+
+Row 37. An iPhone17,3 iOS 18.6.2 guest on the cloudOS 26.1 kernel had no Metal
+device, because `fw prepare` staged the cloudOS's paravirtual driver and iOS 18
+cannot load a 26.x one. `system-systemhook-cfw-ios18_gpu_transport` is selected by
+`standard` for iOS 18.6 on cloudOS 26.1 only. TV, HomePod and HomeView presets
+exclude it, a VM with no plan does not get it, and opt-in cannot widen the gate.
+
+**Reveal.** Trace each user-client call from a guest test process with the
+prototype detours; diff every `bl _IOConnectCall*` site of IOGPU.framework in the
+22G100 and 23B85 caches by caller symbol (`w1` selector, scalar and struct
+counts); sweep accepted struct sizes of each AppleParavirtGPU method against the
+26.1 kernel from a guest test binary. The full table and the steps for another
+pairing are in `Research/Guest/ios18_gpu_transport.md`.
+
+**Change.** No Apple binary is modified. `fw prepare` stages the driver from the
+iOS release's own cloudOS (18.6, 22G86), cached in `~/.vphone/gpu-drivers` and
+otherwise recovered by the usual temporary restore. SystemHook detours four IOKit
+entry points with MISFixDetour, only while the marker exists, and translates IOGPU
+device-client calls only. `cfw install` writes the marker only when the installed
+driver's `DTPlatformVersion` is the iOS release; switching the patch off removes
+it. Rules are unit-tested by `make test-ios18-gpu`.
+
+**Validation.** See `Research/Guest/ios18_gpu_transport.md`, "Verified".

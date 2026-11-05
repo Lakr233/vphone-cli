@@ -194,12 +194,23 @@ enum VPhoneFirmwarePreparer {
            plan.isEnabled("system-extensions-boot-gpu_bundle") || plan.isEnabled(FirmwareRestoreImagePatchSet.gpuDriver)
         {
             let cachedDriver = cachedGPUDriver(for: cloud)
+            // iOS 18 cannot load a 26.x cloudOS driver. With its transport
+            // selected it takes the driver of its own release's cloudOS.
+            let ownReleaseDriver = plan.isEnabled(FirmwareGuestSystemPatchSet.ios18GPUTransport)
             if let gpuDriverBundle {
                 print("[*] Staging GPU driver from local bundle...")
                 try VPhonePCCGPUDriver.stage(
                     from: gpuDriverBundle,
                     into: phoneTree,
-                    expectedPlatformVersion: cloud.version,
+                    expectedPlatformVersion: ownReleaseDriver ? VPhonePCCGPUDriver.release(phone.version) : cloud.version,
+                )
+            } else if ownReleaseDriver {
+                try stageIOS18GPUDriver(
+                    forVersion: phone.version,
+                    into: phoneTree,
+                    staging: staging,
+                    ipswCacheDirectory: ipswCacheDirectory,
+                    downloadConnections: downloadConnections,
                 )
             } else if (try? VPhonePCCGPUDriver.stage(
                 from: cachedDriver,
@@ -438,6 +449,52 @@ enum VPhoneFirmwarePreparer {
         cacheDirectory
             .appendingPathComponent("\(cloud.version)_\(cloud.build)", isDirectory: true)
             .appendingPathComponent(VPhonePCCGPUDriver.name, isDirectory: true)
+    }
+
+    /// The driver of an iOS 18 release's own cloudOS, for its GPU transport:
+    /// cached by an earlier machine, or recovered from that cloudOS the same
+    /// way as a paired cloudOS's driver and cached for the next one.
+    static func stageIOS18GPUDriver(
+        forVersion version: String,
+        into phoneTree: URL,
+        staging: URL,
+        ipswCacheDirectory: URL,
+        downloadConnections: Int,
+        cacheDirectory: URL = VPhoneResources.gpuDriverCacheDirectory(),
+    ) throws {
+        let fm = FileManager.default
+        let release = VPhonePCCGPUDriver.release(version)
+        // Cached per cloudOS build, as `<version>_<build>`.
+        let builds = ((try? fm.contentsOfDirectory(atPath: cacheDirectory.path)) ?? [])
+            .filter { VPhonePCCGPUDriver.release(String($0.prefix { $0 != "_" })) == release }
+            .sorted()
+        for build in builds.reversed() {
+            let driver = cacheDirectory
+                .appendingPathComponent(build, isDirectory: true)
+                .appendingPathComponent(VPhonePCCGPUDriver.name, isDirectory: true)
+            if (try? VPhonePCCGPUDriver.stage(from: driver, into: phoneTree, expectedPlatformVersion: release)) != nil {
+                print("[+] iOS \(release) GPU driver reused from cloudOS \(build) cache")
+                return
+            }
+        }
+        guard let option = VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: version) else {
+            throw ValidationError("No known cloudOS \(release) supplies a GPU driver iOS \(version) can load. Pass one with --gpu-driver-bundle, or block \(FirmwareGuestSystemPatchSet.ios18GPUTransport).")
+        }
+        print("[*] Resolving \(option.name) for the iOS \(release) GPU driver...")
+        let archive = try resolve(
+            option.url, in: ipswCacheDirectory, connections: downloadConnections, label: "downloading \(option.name)",
+        )
+        let tree = staging.appendingPathComponent("cloudOS-\(release)", isDirectory: true)
+        try fm.createDirectory(at: tree, withIntermediateDirectories: false)
+        try VPhoneArchiveExtractor.extract(archive.file, into: tree, options: .intoHostDirectory)
+        print("[*] Restoring \(option.name) in a temporary vphone VM to extract its GPU driver...")
+        try VPhonePCCGPURecovery.stage(cloudOSDirectory: tree, into: phoneTree, expectedPlatformVersion: archive.version)
+        let cached = cachedGPUDriver(for: archive, in: cacheDirectory)
+        do {
+            try storeGPUDriver(VPhonePCCGPUDriver.stagedBundle(in: phoneTree), at: cached)
+        } catch {
+            fputs("warning: could not cache the GPU driver at \(cached.path): \(error.localizedDescription)\n", stderr)
+        }
     }
 
     /// Copies into a private directory, then renames it into place, so a

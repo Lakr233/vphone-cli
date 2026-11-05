@@ -42,6 +42,12 @@ public enum VPhonePCCGPUDriver {
         print("[+] GPU driver staged: \(destination.path)")
     }
 
+    /// A point release's driver names the SDK it was built with: cloudOS
+    /// 18.7.2 ships one that says 18.7. Compare major and minor only.
+    public static func release(_ version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
+    }
+
     static func validateBundle(at source: URL, expectedPlatformVersion: String) throws {
         let fm = FileManager.default
         var isDirectory: ObjCBool = false
@@ -64,11 +70,6 @@ public enum VPhonePCCGPUDriver {
               "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily"
         else { throw Error.invalidBundle(source) }
         let actual = properties["DTPlatformVersion"] as? String ?? "unknown"
-        // A point release's driver names the SDK it was built with: cloudOS
-        // 18.7.2 ships one that says 18.7.
-        func release(_ version: String) -> String {
-            version.split(separator: ".").prefix(2).joined(separator: ".")
-        }
         guard release(actual) == release(expectedPlatformVersion) else {
             throw Error.wrongPlatformVersion(
                 source,

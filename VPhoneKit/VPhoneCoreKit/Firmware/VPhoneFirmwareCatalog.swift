@@ -559,6 +559,15 @@ public enum VPhoneFirmwareCatalog {
          .init(name: "cloudOS 18.7.2 (22H43)", url: "https://updates.cdn-apple.com/private-cloud-compute/d425a03c76f1ddb92a65a27d56e80beffe399605018d4d268f5ef8889d0ec9e7")),
     ]
 
+    /// The cloudOS of an iOS 18 release's own major and minor version. Its
+    /// paravirtual GPU driver is the one that release's userland can load.
+    public static func iOS18CloudOS(forVersion version: String) -> VPhoneCloudOSOption? {
+        let release = version.split(separator: ".").prefix(2).joined(separator: ".")
+        return iOS18ResearchBoardReleases.first {
+            $0.version.split(separator: ".").prefix(2).joined(separator: ".") == release
+        }?.cloudOS
+    }
+
     /// Full OTAs of devices without an IPSW, oldest first. Each has a
     /// `tvReleases` entry of its `baseVersion` for its `restoreBase`. The keys
     /// are from AppleDB or the device's Pallas response.

@@ -43,8 +43,8 @@ LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
 LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c
 LAUNCHHOOK_INCLUDES := $(wildcard LaunchHook/*.h LaunchHook/*.inc Shared/*.h)
 SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
-SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c LaunchHook/VPhoneMachMessage.c
-SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc FlutterRemapFix/*.h Shared/*.h)
+SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c LaunchHook/VPhoneMachMessage.c MISFix/MISFixDetour.c
+SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc FlutterRemapFix/*.h Shared/*.h) MISFix/MISFixDetour.h MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
 # libmis is not a framework and has no header; the iPhoneOS SDK does ship
 # libmis.tbd, so the interposed symbols bind two-level like any other import
 # rather than through flat dynamic lookup.
@@ -722,6 +722,13 @@ test-ios16-surface:
 	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined -ISystemHook \
 		-o $(OUT)/IOS16SurfaceReplyTest Tests/IOS16SurfaceReplyTest.c SystemHook/VPhoneIOS16SurfaceReply.c
 	@$(OUT)/IOS16SurfaceReplyTest
+
+.PHONY: test-ios18-gpu
+test-ios18-gpu:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined -ISystemHook \
+		-o $(OUT)/IOS18GPUTransportTest Tests/IOS18GPUTransportTest.c SystemHook/VPhoneIOS18GPUTransport.c
+	@$(OUT)/IOS18GPUTransportTest
 
 .PHONY: test-mach-ports-compat
 test-mach-ports-compat: $(MACHPORTS_STAMP)
