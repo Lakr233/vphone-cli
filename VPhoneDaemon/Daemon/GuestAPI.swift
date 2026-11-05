@@ -7,35 +7,165 @@ import IcliSystem
 import UIKit
 import VphonedNative
 
-enum GuestAPIError: Error, CustomStringConvertible {
-    case invalidRequest(String)
-    case unsupportedMethod(String)
-    case operationFailed(String)
-    /// The request would repeat work the guest has already done. The code is
-    /// sent as the error code so a client can tell it apart from a failure.
-    case alreadyDone(code: String, message: String)
-    /// The guest's Location Services switch is off, so locationd gives no
-    /// client a location. vphoned leaves the switch to the guest's Settings.
-    case locationServicesOff
+enum CoreMethod: String, GuestMethod {
+    case deviceSnapshot = "device.snapshot"
+    case deviceScreen = "device.screen"
+    case screenScreenshot = "screen.screenshot"
+    case appsList = "apps.list"
+    case appsSearch = "apps.search"
+    case appsRefresh = "apps.refresh"
+    case appsLaunch = "apps.launch"
+    case appsTerminate = "apps.terminate"
+    case appsUninstall = "apps.uninstall"
+    case appsForeground = "apps.foreground"
+    case appsOpenUrl = "apps.open_url"
+    case appsInstall = "apps.install"
+    case bootstrapInstall = "bootstrap.install"
+    case bootstrapPackages = "bootstrap.packages"
+    case bootstrapStatus = "bootstrap.status"
+    case bootstrapInspect = "bootstrap.inspect"
+    case bootstrapUninstall = "bootstrap.uninstall"
+    case bootstrapFirmware = "bootstrap.firmware"
+    case inputTouch = "input.touch"
+    case inputTouch2 = "input.touch2"
+    case inputPointer = "input.pointer"
+    case inputScroll = "input.scroll"
+    case inputHid = "input.hid"
+    case locationSet = "location.set"
+    case locationClear = "location.clear"
+    case locationCurrent = "location.current"
+    case developerModeStatus = "developer_mode.status"
+    case developerModeEnable = "developer_mode.enable"
+    case powerLowPowerMode = "power.low_power_mode"
+    case clipboardGet = "clipboard.get"
+    case clipboardSet = "clipboard.set"
+    case clipboardClear = "clipboard.clear"
+    case filesList = "files.list"
+    case filesMkdir = "files.mkdir"
+    case filesRemove = "files.remove"
+    case filesRename = "files.rename"
+    case settingsGet = "settings.get"
+    case settingsSet = "settings.set"
+    case settingsDelete = "settings.delete"
+    case keychainList = "keychain.list"
+    case keychainAdd = "keychain.add"
+    case keychainGet = "keychain.get"
+    case keychainUpdate = "keychain.update"
+    case keychainDelete = "keychain.delete"
+    case agentApplyUpdate = "agent.apply_update"
+    case methodsList = "methods.list"
 
-    var description: String {
+    var spec: MethodSpec {
         switch self {
-        case let .invalidRequest(message), let .operationFailed(message): message
-        case let .unsupportedMethod(method): "Unknown method: \(method)"
-        case let .alreadyDone(_, message): message
-        case .locationServicesOff:
-            "Location Services are turned off in the guest. Turn them on in Settings > Privacy & Security > Location Services."
+        case .deviceSnapshot: MethodSpec()
+        case .deviceScreen: MethodSpec()
+        case .screenScreenshot: MethodSpec()
+        case .appsList: MethodSpec(.optional("filter", .string))
+        case .appsSearch: MethodSpec(.required("query", .string))
+        case .appsRefresh: MethodSpec(.optional("directory", .string))
+        case .appsLaunch: MethodSpec(.required("bundle_id", .string), .optional("url", .string))
+        case .appsTerminate: MethodSpec(.required("bundle_id", .string))
+        case .appsUninstall:
+            MethodSpec(.required("bundle_id", .string),
+                       force: .always { p in try "uninstall \(GuestAPI.string(p, "bundle_id"))" })
+        case .appsForeground: MethodSpec()
+        case .appsOpenUrl: MethodSpec(.required("url", .string), .optional("bundle_id", .string))
+        case .appsInstall:
+            MethodSpec(.required("path", .string), .optional("cert_path", .string), .optional("registration", .string))
+        case .bootstrapInstall: MethodSpec(.required("layout", .string), .optional("package_path", .string))
+        case .bootstrapPackages: MethodSpec()
+        case .bootstrapStatus: MethodSpec()
+        case .bootstrapInspect: MethodSpec()
+        case .bootstrapUninstall:
+            MethodSpec(.optional("roots", .array),
+                       .optional("jbroot", .string),
+                       .optional("reboot", .boolean),
+                       force: .always { _ in "uninstall the bootstrap" })
+        case .bootstrapFirmware: MethodSpec()
+        case .inputTouch:
+            MethodSpec(.required("phase", .string),
+                       .optional("x", .number),
+                       .optional("y", .number),
+                       .optional("edge", .integer),
+                       .optional("normalized", .boolean))
+        case .inputTouch2:
+            MethodSpec(.required("phase", .string),
+                       .optional("x1", .number),
+                       .optional("y1", .number),
+                       .optional("x2", .number),
+                       .optional("y2", .number),
+                       .optional("normalized", .boolean))
+        case .inputPointer:
+            MethodSpec(.required("x", .number),
+                       .required("y", .number),
+                       .optional("seq", .integer),
+                       .optional("buttons", .integer))
+        case .inputScroll:
+            MethodSpec(.required("phase", .string),
+                       .optional("dx", .number),
+                       .optional("dy", .number),
+                       .optional("x", .number),
+                       .optional("y", .number))
+        case .inputHid:
+            MethodSpec(.required("page", .integer),
+                       .required("usage", .integer),
+                       .optional("long_press", .boolean),
+                       .optional("down", .boolean))
+        case .locationSet:
+            MethodSpec(.required("latitude", .number),
+                       .required("longitude", .number),
+                       .optional("altitude", .number),
+                       .optional("horizontal_accuracy", .number),
+                       .optional("vertical_accuracy", .number),
+                       .optional("speed", .number),
+                       .optional("course", .number))
+        case .locationClear: MethodSpec()
+        case .locationCurrent: MethodSpec(.optional("timeout", .number))
+        case .developerModeStatus: MethodSpec()
+        case .developerModeEnable: MethodSpec()
+        case .powerLowPowerMode: MethodSpec(.optional("enabled", .boolean))
+        case .clipboardGet: MethodSpec()
+        case .clipboardSet: MethodSpec(.required("text", .string))
+        case .clipboardClear: MethodSpec()
+        case .filesList: MethodSpec(.required("path", .string))
+        case .filesMkdir: MethodSpec(.required("path", .string))
+        case .filesRemove: MethodSpec(.required("path", .string), .optional("recursive", .boolean))
+        case .filesRename: MethodSpec(.required("from", .string), .required("to", .string))
+        case .settingsGet: MethodSpec(.required("domain", .string), .optional("key", .string))
+        case .settingsSet:
+            MethodSpec(.required("domain", .string),
+                       .required("key", .string),
+                       .optional("value", .any),
+                       .optional("type", .string))
+        case .settingsDelete: MethodSpec(.required("domain", .string), .required("key", .string))
+        case .keychainList: MethodSpec(.optional("class", .string))
+        case .keychainAdd:
+            MethodSpec(.required("account", .string), .required("service", .string), .required("password", .string))
+        case .keychainGet:
+            MethodSpec(.optional("class", .string),
+                       .optional("account", .string),
+                       .optional("service", .string),
+                       .optional("server", .string),
+                       .optional("group", .string),
+                       .optional("accessGroup", .string))
+        case .keychainUpdate:
+            MethodSpec(.optional("class", .string),
+                       .required("account", .string),
+                       .optional("service", .string),
+                       .optional("server", .string),
+                       .optional("group", .string),
+                       .optional("accessGroup", .string),
+                       .required("value", .string))
+        case .keychainDelete:
+            MethodSpec(.optional("class", .string),
+                       .optional("account", .string),
+                       .optional("service", .string),
+                       .optional("server", .string),
+                       .optional("group", .string),
+                       .optional("accessGroup", .string))
+        case .agentApplyUpdate: MethodSpec(.required("sha256", .string))
+        case .methodsList: MethodSpec()
         }
-    }
-
-    var code: String {
-        if case let .alreadyDone(code, _) = self {
-            return code
-        }
-        if case .locationServicesOff = self {
-            return "location_services_off"
-        }
-        return "invalid_operation"
     }
 }
 
@@ -153,6 +283,7 @@ enum GuestAPI {
                 "motion_gyroscope",
                 "motion_gyroscope_toggle",
                 "motion_attitude",
+                "methods",
             ] + pointerCapabilities() + scriptCapabilities() + GuestHomePodDisplay.capabilities
                 + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities,
         ]
@@ -173,16 +304,20 @@ enum GuestAPI {
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
-        switch method {
-        case "device.snapshot":
+        try GuestMethodArea.dispatch(areas, method: method, params: params)
+    }
+
+    static func executeCore(_ m: CoreMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .deviceSnapshot:
             var snapshot = try collectDeviceSnapshot()
             snapshot["jailbreak"] = jailbreakInfo()
             return snapshot
-        case "device.screen":
+        case .deviceScreen:
             return screenInfo()
-        case "screen.screenshot":
+        case .screenScreenshot:
             return try takeScreenshot(base64: true, nativeResolution: true)
-        case "apps.list":
+        case .appsList:
             let filter = params["filter"] as? String ?? "all"
             let apps = try listedApps()
             let running = try runningApps()["apps"] as? [[String: Any]] ?? []
@@ -222,11 +357,11 @@ enum GuestAPI {
                     return info
                 },
             ]
-        case "apps.search":
+        case .appsSearch:
             return try searchApps(string(params, "query"))
-        case "apps.refresh":
+        case .appsRefresh:
             return try refreshAppRegistrations(directory: params["directory"] as? String)
-        case "apps.launch":
+        case .appsLaunch:
             let id = try string(params, "bundle_id")
             if let url = params["url"] as? String {
                 _ = try openAppURL(url, bundleID: id)
@@ -261,13 +396,12 @@ enum GuestAPI {
                     && front["verified"] as? Bool == true
                     && front["bundle_id"] as? String == id,
             ]
-        case "apps.terminate":
+        case .appsTerminate:
             return try killApp(string(params, "bundle_id"), force: true)
-        case "apps.uninstall":
+        case .appsUninstall:
             let id = try string(params, "bundle_id")
-            try requireForce(params, "uninstall \(id)")
             return try uninstallApp(id, force: true)
-        case "apps.foreground":
+        case .appsForeground:
             let front = frontmostApp()
             let id = front["bundle_id"] as? String ?? ""
             let apps = try searchApps(id)["apps"] as? [[String: Any]] ?? []
@@ -283,9 +417,9 @@ enum GuestAPI {
                 "verified": front["verified"] ?? false,
                 "source": front["source"] ?? "",
             ]
-        case "apps.open_url":
+        case .appsOpenUrl:
             return try openAppURL(string(params, "url"), bundleID: params["bundle_id"] as? String)
-        case "apps.install":
+        case .appsInstall:
             let path = try string(params, "path")
             let certificate = params["cert_path"] as? String ?? ""
             let registration: AppRegistrationType = params["registration"] as? String == "System" ? .system : .user
@@ -301,29 +435,28 @@ enum GuestAPI {
             let id = result["bundle_id"] as? String ?? "app"
             result["msg"] = "Installed \(id) as a \(registration.rawValue) app."
             return result
-        case "bootstrap.install":
+        case .bootstrapInstall:
             let layout = try string(params, "layout")
             return try GuestIrisinInstaller.install(
                 jailbreak: jailbreakInfo(),
                 layout: layout,
                 packagePath: params["package_path"] as? String,
             )
-        case "bootstrap.packages":
+        case .bootstrapPackages:
             return try GuestIrisinInstaller.installPackages(GuestIrisinInstaller.initialPackages)
-        case "bootstrap.status":
+        case .bootstrapStatus:
             return GuestIrisinInstaller.status()
-        case "bootstrap.inspect":
+        case .bootstrapInspect:
             return try GuestIrisinInstaller.installedBootstrap()
-        case "bootstrap.uninstall":
-            try requireForce(params, "uninstall the bootstrap")
+        case .bootstrapUninstall:
             let roots = try (params["roots"] as? [String]) ?? [string(params, "jbroot")]
             return try GuestIrisinInstaller.uninstall(
                 expectedRoots: roots,
                 reboot: params["reboot"] as? Bool ?? true,
             )
-        case "bootstrap.firmware":
+        case .bootstrapFirmware:
             return try GuestIrisinInstaller.repairFirmwareRecord()
-        case "input.touch":
+        case .inputTouch:
             guard let phase = (params["phase"] as? String).flatMap(TouchPhase.init(rawValue:)) else {
                 throw GuestAPIError.invalidRequest("phase must be down, move or up")
             }
@@ -340,7 +473,7 @@ enum GuestAPI {
                 phase, x: number(params, "x"), y: number(params, "y"),
                 normalized: params["normalized"] as? Bool ?? true,
             )
-        case "input.touch2":
+        case .inputTouch2:
             // Two fingers in one hand event. icli's `input.touch` carries a
             // single digitizer point, so a pinch has to go through vphoned's own
             // injection path (`vp_hid_touch2`) instead.
@@ -359,7 +492,7 @@ enum GuestAPI {
                 number(params, "x2"), number(params, "y2"),
             )
             return ["phase": phase.rawValue, "fingers": 2]
-        case "input.pointer":
+        case .inputPointer:
             let point: GuestPointerScroll.Point
             let sequence: UInt64
             let buttons: Int32
@@ -372,7 +505,7 @@ enum GuestAPI {
             }
             try movePointer(point, sequence: sequence, buttons: buttons)
             return ["x": point.x, "y": point.y, "buttons": Int(buttons)]
-        case "input.scroll":
+        case .inputScroll:
             let scroll: GuestPointerScroll.Scroll
             do {
                 scroll = try GuestPointerScroll.scroll(params)
@@ -381,7 +514,7 @@ enum GuestAPI {
             }
             try scrollPointer(scroll)
             return ["phase": scroll.phase.rawValue]
-        case "input.hid":
+        case .inputHid:
             let page = try integer(params, "page")
             let usage = try integer(params, "usage")
             if let value = params["long_press"] {
@@ -402,7 +535,7 @@ enum GuestAPI {
                 return try hidEvent(page: page, usage: usage, down: down)
             }
             return try hidPress(page: page, usage: usage)
-        case "location.set":
+        case .locationSet:
             guard CLLocationManager.locationServicesEnabled() else { throw GuestAPIError.locationServicesOff }
             return try simulateLocation(
                 latitude: number(params, "latitude"),
@@ -413,25 +546,25 @@ enum GuestAPI {
                 speed: (params["speed"] as? NSNumber)?.doubleValue,
                 course: (params["course"] as? NSNumber)?.doubleValue,
             )
-        case "location.clear":
+        case .locationClear:
             return try clearSimulatedLocation()
-        case "location.current":
+        case .locationCurrent:
             guard CLLocationManager.locationServicesEnabled() else { throw GuestAPIError.locationServicesOff }
             return try currentLocation(timeout: number(params, "timeout", default: 10))
-        case "developer_mode.status":
+        case .developerModeStatus:
             return try developerModeStatus()
-        case "developer_mode.enable":
+        case .developerModeEnable:
             return try enableDeveloperMode()
-        case "power.low_power_mode":
+        case .powerLowPowerMode:
             if let enabled = params["enabled"] as? Bool {
                 return try setLowPowerMode(enabled)
             }
             return try lowPowerMode()
-        case "clipboard.get":
+        case .clipboardGet:
             return try clipboardInfo()
-        case "clipboard.set":
+        case .clipboardSet:
             return try setClipboard(string(params, "text"))
-        case "clipboard.clear":
+        case .clipboardClear:
             #if os(tvOS)
             throw GuestAPIError.operationFailed("tvOS has no system clipboard")
             #else
@@ -441,20 +574,20 @@ enum GuestAPI {
             pasteboard.items = []
             return try clipboardInfo()
             #endif
-        case "files.list":
+        case .filesList:
             return try fileList(string(params, "path"))
-        case "files.mkdir":
+        case .filesMkdir:
             return try makeDirectory(string(params, "path"), mode: nil)
-        case "files.remove":
+        case .filesRemove:
             return try removePath(
                 string(params, "path"), recursive: params["recursive"] as? Bool ?? false,
                 force: true,
             )
-        case "files.rename":
+        case .filesRename:
             return try movePath(string(params, "from"), to: string(params, "to"))
-        case "settings.get":
+        case .settingsGet:
             return try readPreference(domain: string(params, "domain"), key: params["key"] as? String)
-        case "settings.set":
+        case .settingsSet:
             let rawValue = params["value"] ?? NSNull()
             let type =
                 params["type"] as? String
@@ -474,23 +607,23 @@ enum GuestAPI {
                 key: string(params, "key"),
                 value: PreferenceValue(text: text, type: type),
             )
-        case "settings.delete":
+        case .settingsDelete:
             return try deletePreference(domain: string(params, "domain"), key: string(params, "key"))
-        case "keychain.list":
+        case .keychainList:
             return try GuestKeychain.list(className: params["class"] as? String)
-        case "keychain.add":
+        case .keychainAdd:
             return try GuestKeychain.add(
                 account: string(params, "account"),
                 service: string(params, "service"),
                 password: string(params, "password"),
             )
-        case "keychain.get":
+        case .keychainGet:
             return try GuestKeychain.get(GuestKeychain.Identity(params))
-        case "keychain.update":
+        case .keychainUpdate:
             return try GuestKeychain.update(GuestKeychain.Identity(params), value: string(params, "value"))
-        case "keychain.delete":
+        case .keychainDelete:
             return try GuestKeychain.delete(GuestKeychain.Identity(params))
-        case "agent.apply_update":
+        case .agentApplyUpdate:
             let expected = try string(params, "sha256")
             let cache = "/var/root/Library/Caches/vphoned"
             let next = cache + ".next"
@@ -507,11 +640,8 @@ enum GuestAPI {
             )
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]
-        default:
-            if let result = try executeExtended(method: method, params: params) {
-                return result
-            }
-            throw GuestAPIError.unsupportedMethod(method)
+        case .methodsList:
+            return GuestMethodArea.catalog(areas)
         }
     }
 
@@ -642,21 +772,13 @@ enum GuestAPI {
     }
 
     static func bool(_ params: [String: Any], _ key: String, default fallback: Bool = false) -> Bool {
-        (params[key] as? NSNumber)?.boolValue ?? fallback
+        GuestMethodArea.flag(params, key, default: fallback)
     }
 
     static func requiredNumber(_ params: [String: Any], _ key: String) throws -> Double {
         let value = number(params, key)
         guard value.isFinite else { throw GuestAPIError.invalidRequest("\(key) must be a number") }
         return value
-    }
-
-    /// Operations that end a process, stop a service, remove an app or restart
-    /// the guest run only when the caller says so, so a stray request cannot.
-    static func requireForce(_ params: [String: Any], _ action: String) throws {
-        guard bool(params, "force") else {
-            throw GuestAPIError.invalidRequest("Pass force: true to \(action)")
-        }
     }
 
     /// Digitizer phase codes for vphoned's own multi-finger injection path.

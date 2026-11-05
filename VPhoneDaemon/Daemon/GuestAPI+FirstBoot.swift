@@ -5,17 +5,28 @@ import VphonedNative
 
 // MARK: - First-Boot Settle
 
+enum FirstBootMethod: String, GuestMethod {
+    case setupSettle = "setup.settle"
+
+    var spec: MethodSpec {
+        switch self {
+        case .setupSettle:
+            MethodSpec(.optional("timeout_s", .number),
+                       .optional("poll_s", .number),
+                       .optional("stable_polls", .number))
+        }
+    }
+}
+
 /// `setup.settle`: waits, read-only, until the guest's first-boot work has
 /// settled (`GuestFirstBootSettle` has the conditions), or until the timeout.
 /// A timeout is an answer, not an error: `settled: false` with the last
 /// signals and the conditions still unmet.
 extension GuestAPI {
-    static func executeFirstBoot(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        switch method {
-        case "setup.settle":
+    static func executeFirstBoot(_ m: FirstBootMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .setupSettle:
             try waitForFirstBootSettle(params)
-        default:
-            nil
         }
     }
 

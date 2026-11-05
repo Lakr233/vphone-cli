@@ -497,6 +497,7 @@ request carries `"force": true`.
 
 | Area | Methods |
 | --- | --- |
+| Discovery | `methods.list` (capability `methods`, see "Method discovery") |
 | Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode (the last answer amfid gave, refreshed in the background every 30 s; `{}` until it answers, and always on the tvOS 26.6 and HomePod 27.0 guests checked, whose amfid does not; `developer_mode.status` asks amfid directly and waits up to 10 s), agent, `device_name` `{name, own_name}`: the pinned name and the guest's own ComputerName), `device.screen`, `device.network`, `device.displays` (a flat IOService probe of every display-ish object with its small properties — what the display stack bound; built for the foldable display work: `AppleParavirtGPU` `DisplayPortCount`, and each `AppleParavirtDisplay` width/height/`primary`), `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
 | Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (`{degrees, source, fold_angle?, screen_off?}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether the panel is dark, so a host can keep the panel's frame from before off its window as it comes on (SpringBoard has the screen off and FoldDisplay saw the panel go off since it was last lit; the always-on Lock Screen keeps the panel on and is not dark); capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
@@ -882,13 +883,43 @@ use a separately reviewed diagnostic binary.
 footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),
 the jetsam priority band and limit, and the RunningBoard bundle identifier.
 Account passwords, boot logo rendering and package installation, removal and
-repository changes are deliberately not exposed. `/v1/health` lists the new
-areas in `capabilities` (`device_info`, `display`, `audio`, `input_gestures`,
+repository changes are deliberately not exposed. `/v1/health`
+lists the new areas in `capabilities` (`device_info`, `display`, `audio`, `input_gestures`,
 `ui_inspection`, `processes`, `services`, `logs`, `network_capture`,
-`app_details`, `system_control`, `system_shutdown`, `file_tools`, `packages`, `environment_update`, `udid_override`, `setup_skip`, `setup_settle`, `service_profile`, `service_kickstart`, `network_ipv4`, `network_hostname`, `device_name`, `network_static_names`, `network_resolve`, `display_auto_lock`, `screen_unlock`) so a host can hide
+`app_details`, `system_control`, `system_shutdown`, `file_tools`, `packages`, `environment_update`, `udid_override`, `setup_skip`, `setup_settle`, `service_profile`, `service_kickstart`, `network_ipv4`, `network_hostname`, `device_name`, `network_static_names`, `network_resolve`, `display_auto_lock`, `screen_unlock`, `methods`) so a host can hide
 panels an older agent cannot serve. icli failures reach the caller with
 icli's own error `code` (`failed`, `unavailable`, `device_locked`, …) and
 message.
+
+## Method discovery
+
+`methods.list` takes no params and answers `{"methods": [...]}`: one object per
+method, areas in dispatch order and methods within an area in the order the
+catalog above lists them. Each object is `{name, params, force}`, where
+`params` is a list of `{name, type, required}` in declaration order (`[]` for
+none).
+
+`type` is the JSON type the method accepts: `string`, `integer` (a whole JSON
+number), `number`, `boolean`, `array` or `object`; `any` when the method takes
+more than one JSON type or reads the raw value. `required` is `true` only when
+the key's absence alone makes the method fail; a key needed only in some
+combinations is `false`. The dispatcher checks neither: `type` and `required`
+are advisory (its admission step only filters keys by name), and each handler
+keeps its own validation and error messages.
+
+`force` is `"never"`, `"always"`, or `"when:<key>"` (`"when:kill"`), meaning
+the method needs `"force": true` only when that param is true. `force` itself
+is never listed as a param. The dispatcher enforces it before the method runs
+and refuses with the same `Pass force: true to ...` message as before.
+
+From this version vphoned drops every `params` key a method does not list
+before the method runs. A client that relied on an extra key must send only
+listed keys.
+
+To add a method, add a case to its area's `<Area>Method` enum
+(`GuestAPI+<Area>.swift`) with its `spec`, handle it in that area's switch, and
+add its row to `VPhoneDaemon/Tests/methods-catalog.tsv`;
+`zsh VPhoneDaemon/Tests/run-methods-tests.sh` fails until all three agree.
 
 ## Removable system apps and APFS snapshots
 

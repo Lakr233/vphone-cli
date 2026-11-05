@@ -77,11 +77,10 @@ These exist because each one has cost the user real time or disk before.
   Guests) and never run `bundle accept`, `bundle remove`, `cfw install` or a
   second `vm create` over existing work unless the user asked. Report what is
   needed; the Mac's owner decides.
-- **`force` methods need the user's intent.** `processes.kill`, `services.stop`,
-  `services.kickstart` with `kill`, `apps.uninstall`, `system.respring`,
-  `system.reboot`, `system.shutdown` and similar refuse to run without
-  `"force":true`. Passing it is the confirmation, so pass it only for an
-  action the user asked for.
+- **`force` methods need the user's intent.** A method whose `force` in
+  `methods.list` is not `never` (for example `processes.kill`, `system.reboot`)
+  refuses to run without `"force":true`. Passing it is the confirmation, so
+  pass it only for an action the user asked for.
 - **Do not edit a machine's folder (`~/.vphone/machines/<name>/`) while it runs.**
   Use RPC for guest files instead.
 - **Keep the host API listener on loopback.** `--api-listen` sends its token in
