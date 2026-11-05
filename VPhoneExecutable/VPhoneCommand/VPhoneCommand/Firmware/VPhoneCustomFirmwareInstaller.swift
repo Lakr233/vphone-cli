@@ -1363,6 +1363,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.ios16Touchscreen
                     && identifier != FirmwareGuestSystemPatchSet.ios16KeybaglessUI
                     && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
+                    && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
             }
             guard plan.isEnabled(identifier) else {
@@ -2493,6 +2494,36 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(glesOrientationPatch)
             } else {
                 try system.removeItem(glesOrientationMarker)
+            }
+        }
+
+        // The transport only makes sense over the iOS release's own driver,
+        // which `fw prepare` stages when this patch is selected. A machine
+        // prepared before that still has the cloudOS one, which iOS 18 cannot
+        // load at all, so translating for it would change nothing.
+        let gpuTransportPatch = FirmwareGuestSystemPatchSet.ios18GPUTransport
+        let gpuTransportMarker = String(FirmwareGuestSystemPatchSet.ios18GPUTransportMarker.dropFirst())
+        isolate([gpuTransportPatch]) {
+            if on(gpuTransportPatch) {
+                let info = try PropertyListSerialization.propertyList(
+                    from: system.readData("\(gpuBundle)/Info.plist"), format: nil,
+                ) as? [String: Any]
+                let driver = info?["DTPlatformVersion"] as? String ?? "unknown"
+                guard VPhonePCCGPUDriver.release(driver) == VPhonePCCGPUDriver.release(version) else {
+                    try system.removeItem(gpuTransportMarker)
+                    print("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver), not \(version); run fw prepare again to stage the iOS \(VPhonePCCGPUDriver.release(version)) driver")
+                    return
+                }
+                // Written once: vphoned drops the icons IconServices stored
+                // before this time, when the guest had no GPU.
+                let marker = Data("1\n".utf8)
+                if (try? system.readData(gpuTransportMarker)) != marker {
+                    try system.writeFile(gpuTransportMarker, contents: marker, mode: 0o644, owner: Self.guestOwner)
+                    print("  [+] \(gpuTransportPatch): on over the iOS \(driver) GPU driver")
+                }
+                live.insert(gpuTransportPatch)
+            } else {
+                try system.removeItem(gpuTransportMarker)
             }
         }
 

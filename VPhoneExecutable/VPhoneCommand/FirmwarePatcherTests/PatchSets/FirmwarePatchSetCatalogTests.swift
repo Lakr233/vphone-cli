@@ -623,6 +623,30 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
+    func `The iOS 18 GPU transport follows the measured OS pair`() throws {
+        let patch = FirmwareGuestSystemPatchSet.ios18GPUTransport
+        for base in ["18.1", "18.5", "18.6", "18.6.2", "18.7.2", "26.1", "unknown"] {
+            for cloud in ["18.6", "26.1", "26.4", "unknown"] {
+                let plan = try VPhonePatchPlan.resolve(
+                    preset: FirmwarePatchSetCatalog.standardPreset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                )
+                let supported = (base == "18.6" || base == "18.6.2") && cloud == "26.1"
+                #expect(plan.isEnabled(patch) == supported, "\(base)/\(cloud)")
+            }
+        }
+        for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset,
+                       FirmwarePatchSetCatalog.homePodMiniPreset, FirmwarePatchSetCatalog.homeViewPreset] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+            )
+            #expect(!plan.isEnabled(patch), "\(preset.identifier)")
+        }
+    }
+
+    @Test
     func `Standard names the GLES renderer on every base while tvOS stays off`() throws {
         let patch = FirmwarePatchSetCatalog.paravirtGLESPatch
         #expect(!FirmwarePatchSetCatalog.manualOnlyPatches.contains(patch))

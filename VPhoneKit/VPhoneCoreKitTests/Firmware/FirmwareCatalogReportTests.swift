@@ -308,6 +308,14 @@ struct FirmwareCatalogReportTests {
         #expect(VPhoneFirmwareCatalog.recommendedCloudOS(forDevice: "AppleTV5,3", version: "26.1", url: "").url == VPhoneFirmwareCatalog.cloud264)
     }
 
+    @Test func `an iOS 18 release takes the GPU driver of its own release's cloudOS`() {
+        #expect(VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: "18.6.2")?.name == "cloudOS 18.6 (22G86)")
+        #expect(VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: "18.6")?.name == "cloudOS 18.6 (22G86)")
+        #expect(VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: "18.7.2")?.name.hasPrefix("cloudOS 18.7") == true)
+        #expect(VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: "18.4") == nil)
+        #expect(VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: "26.1") == nil)
+    }
+
     @Test func `round trips JSON`() throws {
         let report = VPhoneFirmwareCatalog.report
         let back = try JSONDecoder().decode(VPhoneFirmwareCatalogReport.self, from: JSONEncoder().encode(report))

@@ -133,6 +133,15 @@ which iOS ships no driver for. audiomxd loads it when the kernel publishes
 frames are served, on the host. See `Research/Guest/virtio_sound.md` and
 `Research/Guest/virtio_sound_microphone.md`.
 
+`system-systemhook-cfw-ios18_gpu_transport` links the iOS 18 GPU transport into
+SystemHook. While `/usr/lib/vphone-ios18-gpu` exists it detours IOKit's service
+open and close and its two call entry points with MISFixDetour, and translates the
+calls of IOGPU device clients only: method 6 is answered locally, 7 to 255 move
+down by one, and the resource-create and paravirtual device-info replies are
+repacked to iOS 18's layout. `cfw install` writes the marker only for iOS 18.6
+on cloudOS 26.1, over the iOS release's own driver. `make test-ios18-gpu` checks
+the rules. See `Research/Guest/ios18_gpu_transport.md`.
+
 `FlutterRemapFix` is linked into SystemHook for early handling of a specific
 Flutter AOT callback remap permission mismatch. It checks canonical same-bundle
 images, native parameters and actual permissions before making a private copy
