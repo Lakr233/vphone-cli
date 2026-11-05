@@ -48,6 +48,17 @@ class VPhoneMenuController {
     var unlockAtStartupItem: NSMenuItem?
     /// Saves the Sync Host Location setting to this machine's config.plist.
     var onHostLocationSyncChange: ((Bool) throws -> Void)?
+    /// Saves the developer tunnel setting to this machine's config.plist.
+    var onDeveloperTunnelChange: ((Bool) throws -> Void)?
+    var developerTunnelItem: NSMenuItem?
+    /// Nil in DFU and when the guest's UDID is unknown, which leaves the
+    /// item disabled.
+    var developerTunnel: VPhoneDeveloperTunnel? {
+        didSet {
+            developerTunnelItem?.state = developerTunnel?.isEnabled == true ? .on : .off
+            developerTunnelItem?.isEnabled = developerTunnel != nil
+        }
+    }
 
     var onSessionPressed: (() -> Void)?
     var onFilesPressed: (() -> Void)?

@@ -45,6 +45,34 @@ vphone-cli vm launch <name>
 
 首次启动检查会在 300 秒后超时。创建流程使用图形界面启动，因为新恢复的客户机在首次无界面启动时可能不会启动 vphoned。成功标记能证明什么，请参阅[创建与运行](../machines/create-and-run.md)。
 
+## Xcode 或 Instruments 把客户机列为离线
+
+CoreDevice 把客户机配对为有线设备，但只在有程序占用隧道时才让它保持连接。没有隧道时，`xcrun xctrace list devices` 会把客户机列在“Devices Offline”下，`xctrace record --device <UDID>` 会等待设备启动，约 30 秒后放弃。Instruments 只会提出连接网络设备，不会连接有线设备。
+
+让 `vphone-vm` 在客户机运行期间保持隧道开启：
+
+- 在虚拟机窗口中选择 **Diagnostics > Keep Developer Tunnel Open**。设置立即生效，并保存到这台虚拟机。
+- 或者在终端中运行：
+
+  ```sh
+  vphone-cli vm config <name> --developer-tunnel on
+  ```
+
+  这会从下次启动起生效。`vm info` 会以 `developer tunnel` 显示这项设置。
+
+vphoned 响应后，`vphone-vm` 会针对客户机运行 `/usr/bin/devicectl`，它每次退出都会重新启动。如果 Mac 上没有 `/usr/bin/devicectl`，虚拟机日志会显示一行 `[developer-tunnel]`，隧道不会被保持。
+
+不支持这项设置的 bundle 可以改在终端中保持隧道。从 `vphone-cli vm info <name>` 取得客户机的 UDID，然后让下面的命令一直运行：
+
+```sh
+/usr/bin/devicectl device notification observe --device <UDID> \
+  --name com.vphone.keepalive --session-timeout 3500 --timeout 3600
+```
+
+`--session-timeout` 必须小于 `--timeout`。命令会在一小时后退出，届时再运行一次。
+
+隧道建立后的一分钟左右，`xctrace record --attach` 可能因 `Cannot find process matching name` 或 `Cannot find process for provided pid` 失败。稍等片刻再试。
+
 ## 另请参阅
 
 - [宿主机设置](../get-started/host-setup.md)

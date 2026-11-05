@@ -209,6 +209,7 @@ public enum VPhoneBundleOperations {
         networkEdit: VPhoneNetworkEdit = VPhoneNetworkEdit(),
         unlocksAtStartup: Bool? = nil,
         syncsHostLocation: Bool? = nil,
+        holdsDeveloperTunnel: Bool? = nil,
     ) throws -> VPhoneBundle {
         let bundle = try library.bundle(named: name)
         var edit = networkEdit
@@ -223,6 +224,7 @@ public enum VPhoneBundleOperations {
             networkConfig: network,
             unlocksAtStartup: unlocksAtStartup,
             syncsHostLocation: syncsHostLocation,
+            holdsDeveloperTunnel: holdsDeveloperTunnel,
         )
         try updated.write(to: bundle.configURL)
         try VPhoneHostFilePermissions.makeAccessible(at: bundle.configURL)

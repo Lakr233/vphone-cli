@@ -119,6 +119,17 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         syncsHostLocation ?? false
     }
 
+    // MARK: - Developer
+
+    /// Whether vphone-vm holds the guest's CoreDevice tunnel open while it
+    /// runs, so Xcode and Instruments see the guest online. Missing in older
+    /// manifests, which leave the tunnel to whoever asks for it.
+    public let holdsDeveloperTunnel: Bool?
+
+    public var keepsDeveloperTunnelOpen: Bool {
+        holdsDeveloperTunnel ?? false
+    }
+
     // MARK: - Display
 
     /// Screen configuration
@@ -371,6 +382,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         hardwareKeyboardEnabled: Bool? = nil,
         unlocksAtStartup: Bool? = nil,
         syncsHostLocation: Bool? = nil,
+        holdsDeveloperTunnel: Bool? = nil,
     ) {
         schemaVersion = Self.currentSchemaVersion
         self.platformType = platformType
@@ -388,6 +400,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         self.hardwareKeyboardEnabled = hardwareKeyboardEnabled
         self.unlocksAtStartup = unlocksAtStartup
         self.syncsHostLocation = syncsHostLocation
+        self.holdsDeveloperTunnel = holdsDeveloperTunnel
     }
 
     // MARK: - Creation
@@ -557,6 +570,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         hardwareKeyboardEnabled: Bool? = nil,
         unlocksAtStartup: Bool? = nil,
         syncsHostLocation: Bool? = nil,
+        holdsDeveloperTunnel: Bool? = nil,
     ) -> VPhoneVirtualMachineManifest {
         VPhoneVirtualMachineManifest(
             platformType: platformType,
@@ -574,6 +588,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             hardwareKeyboardEnabled: hardwareKeyboardEnabled ?? self.hardwareKeyboardEnabled,
             unlocksAtStartup: unlocksAtStartup ?? self.unlocksAtStartup,
             syncsHostLocation: syncsHostLocation ?? self.syncsHostLocation,
+            holdsDeveloperTunnel: holdsDeveloperTunnel ?? self.holdsDeveloperTunnel,
         )
     }
 
@@ -595,6 +610,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             hardwareKeyboardEnabled: hardwareKeyboardEnabled,
             unlocksAtStartup: unlocksAtStartup,
             syncsHostLocation: syncsHostLocation,
+            holdsDeveloperTunnel: holdsDeveloperTunnel,
         )
     }
 
@@ -618,6 +634,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             hardwareKeyboardEnabled: hardwareKeyboardEnabled,
             unlocksAtStartup: unlocksAtStartup,
             syncsHostLocation: syncsHostLocation,
+            holdsDeveloperTunnel: holdsDeveloperTunnel,
         )
     }
 }

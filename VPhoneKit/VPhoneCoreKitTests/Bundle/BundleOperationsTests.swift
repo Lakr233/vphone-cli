@@ -226,6 +226,34 @@ struct BundleOperationsTests {
         #expect(try !lib.bundle(named: "location").manifest.sharesHostLocation)
     }
 
+    @Test func `update config persists the developer tunnel`() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rom = try fakeROM(); let seprom = try fakeROM()
+        defer { try? FileManager.default.removeItem(at: rom); try? FileManager.default.removeItem(at: seprom) }
+        let lib = VPhoneLibrary(root: root)
+        _ = try VPhoneBundleOperations.create(
+            .init(name: "tunnel", cpuCount: 8, memoryMB: 8192, diskSizeGB: 1, romSource: rom, sepromSource: seprom),
+            in: lib,
+        )
+        #expect(try VPhoneBundleReport(bundle: lib.bundle(named: "tunnel")).holdsDeveloperTunnel == false)
+
+        _ = try VPhoneBundleOperations.updateConfig(
+            bundleNamed: "tunnel", in: lib, cpuCount: nil, memoryMB: nil, holdsDeveloperTunnel: true,
+        )
+        #expect(try VPhoneBundleReport(bundle: lib.bundle(named: "tunnel")).holdsDeveloperTunnel)
+
+        // Another edit leaves it alone; off turns it off.
+        _ = try VPhoneBundleOperations.updateConfig(
+            bundleNamed: "tunnel", in: lib, cpuCount: nil, memoryMB: nil, syncsHostLocation: true,
+        )
+        #expect(try lib.bundle(named: "tunnel").manifest.keepsDeveloperTunnelOpen)
+        _ = try VPhoneBundleOperations.updateConfig(
+            bundleNamed: "tunnel", in: lib, cpuCount: nil, memoryMB: nil, holdsDeveloperTunnel: false,
+        )
+        #expect(try !lib.bundle(named: "tunnel").manifest.keepsDeveloperTunnelOpen)
+    }
+
     @Test func `update config persists network`() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -500,6 +528,7 @@ struct BundleOperationsTests {
             networkConfig: network,
             unlocksAtStartup: true,
             syncsHostLocation: true,
+            holdsDeveloperTunnel: true,
         )
         try manifest.write(to: created.configURL)
         return VPhoneBundle(url: url, manifest: manifest)
@@ -528,6 +557,7 @@ struct BundleOperationsTests {
         #expect(manifest.memorySize == 4096 * 1024 * 1024)
         #expect(manifest.unlocksAtStartup == true)
         #expect(manifest.syncsHostLocation == true)
+        #expect(manifest.holdsDeveloperTunnel == true)
         #expect(manifest.romImages?.avpBooter == src.manifest.romImages?.avpBooter)
         #expect(manifest.screenConfig == src.manifest.screenConfig)
 

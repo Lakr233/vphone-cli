@@ -45,6 +45,34 @@ vphone-cli vm launch <name>
 
 初回起動のチェックは 300 秒でタイムアウトします。復元したばかりのゲストは、最初のヘッドレス起動で vphoned を立ち上げないことがあるため、作成処理では GUI で起動します。成功の表示が何を示すかについては、[作成と実行](../machines/create-and-run.md)をご覧ください。
 
+## Xcode や Instruments でゲストがオフラインと表示される
+
+CoreDevice はゲストを有線デバイスとしてペアリングしますが、そのトンネルを維持するのは、いずれかのプログラムがトンネルを使っている間だけです。トンネルがないと、`xcrun xctrace list devices` ではゲストが「Devices Offline」に表示され、`xctrace record --device <UDID>` はデバイスの起動を待ち、約 30 秒であきらめます。Instruments が接続を提案するのはネットワークデバイスだけで、有線デバイスには提案しません。
+
+ゲストの実行中は `vphone-vm` にトンネルを開いたままにさせます。
+
+- 仮想マシンのウィンドウで **Diagnostics > Keep Developer Tunnel Open** を選びます。すぐに適用され、マシンに保存されます。
+- または、ターミナルで次を実行します。
+
+  ```sh
+  vphone-cli vm config <name> --developer-tunnel on
+  ```
+
+  次回の起動から適用されます。`vm info` ではこの設定が `developer tunnel` として表示されます。
+
+vphoned が応答すると、`vphone-vm` はゲストに対して `/usr/bin/devicectl` を実行し、終了するたびに起動し直します。`/usr/bin/devicectl` のない Mac では、仮想マシンのログに `[developer-tunnel]` の行が 1 行表示され、トンネルは維持されません。
+
+この設定のない bundle では、代わりにターミナルからトンネルを維持できます。`vphone-cli vm info <name>` でゲストの UDID を確認し、次のコマンドを実行したままにします。
+
+```sh
+/usr/bin/devicectl device notification observe --device <UDID> \
+  --name com.vphone.keepalive --session-timeout 3500 --timeout 3600
+```
+
+`--session-timeout` は `--timeout` より小さくする必要があります。コマンドは 1 時間で終了するので、そのときにもう一度実行します。
+
+トンネルがつながってから 1 分ほどの間は、`xctrace record --attach` が `Cannot find process matching name` や `Cannot find process for provided pid` で失敗することがあります。少し待ってからやり直してください。
+
 ## 関連項目
 
 - [ホストの設定](../get-started/host-setup.md)
