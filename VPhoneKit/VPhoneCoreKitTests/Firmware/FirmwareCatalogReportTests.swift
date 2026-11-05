@@ -3,6 +3,10 @@ import Testing
 @testable import VPhoneCoreKit
 
 struct FirmwareCatalogReportTests {
+    /// Experimental bring-ups created from IPSW URLs given by hand; the catalog
+    /// offers no pairing for them, so the report leaves them out.
+    private static let offCatalog: [VPhoneGuestDevice] = [.iPhone15_4, .iPhone15_2]
+
     @Test(arguments: ["HomeAccessory17,1", "HomeAccessory17,2"])
     func `HomeView 27_2 uses its full Pallas OTA and the HD restore base`(type: String) throws {
         let release = try #require(VPhoneFirmwareCatalog.otaRelease(for: type, build: "24V514"))
@@ -65,8 +69,9 @@ struct FirmwareCatalogReportTests {
 
     @Test func `lists every curated guest`() {
         let report = VPhoneFirmwareCatalog.report(hostMacOS: 27)
-        #expect(report.devices.map(\.productType) == VPhoneGuestDevice.known.map(\.productType))
+        #expect(report.devices.map(\.productType) == VPhoneGuestDevice.known.filter { !Self.offCatalog.contains($0) }.map(\.productType))
         #expect(report.devices.first?.pairings == report.pairings)
+        #expect(Self.offCatalog.allSatisfy { VPhoneFirmwareCatalog.pairings(for: $0.productType, hostMacOS: 27).isEmpty })
         for device in report.devices.dropFirst() {
             #expect(device.family == VPhoneGuestDevice.named(device.productType)?.family.rawValue)
             #expect(!device.pairings.isEmpty)
@@ -236,7 +241,7 @@ struct FirmwareCatalogReportTests {
     }
 
     @Test func `other i phones have pairings of their own`() {
-        for guest in VPhoneGuestDevice.known where guest.family == .iPhone && guest.presentsBoard && guest != .iPhone17_3 {
+        for guest in VPhoneGuestDevice.known where guest.family == .iPhone && guest.presentsBoard && guest != .iPhone17_3 && !Self.offCatalog.contains(guest) {
             let pairings = VPhoneFirmwareCatalog.pairings(for: guest.productType)
             let firstRelease = switch guest.productType {
             case "iPhone18,5": "iOS 26.3.1"
@@ -245,7 +250,7 @@ struct FirmwareCatalogReportTests {
             default: "iOS 26.0"
             }
             #expect(pairings.map(\.iosName).first == firstRelease)
-            #expect(pairings.map(\.iosName).last == (guest.productType == "iPhone19,4" ? "iOS 27.1" : "iOS 27.0.1"))
+            #expect(pairings.map(\.iosName).last == (guest.productType == "iPhone19,4" ? "iOS 27.2" : "iOS 27.0.1"))
             for p in pairings {
                 #expect(p.device == guest.productType)
                 #expect(p.iosURL.hasPrefix("https://updates.cdn-apple.com/"))
