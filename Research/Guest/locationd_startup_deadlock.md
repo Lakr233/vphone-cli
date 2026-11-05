@@ -122,15 +122,14 @@ difference from a real iPhone most likely to matter.
   request to return, and asks again after one second, which has launchd start
   a new locationd;
 - stops after 20 restarts in one vphoned lifetime and logs every action as
-  `vphoned: locationd watchdog: …`;
-- on an iPhone Duo on iOS 27.2 or later (CoreMotion's foldable hinge), also
-  restarts the locationd that started with the guest once, about 30 s after
-  boot: that one never hands a new `CMAngleManager` the hinge angle, and its
-  startup can deadlock in the baseband client while the request above still
-  answers. See `iphone_duo_bringup.md`, "iOS 27.2, and WebDriverAgent's
-  hinge GET after boot".
+  `vphoned: locationd watchdog: …`.
 
 Requests that were waiting on the dead locationd fail instead of blocking.
+
+A locationd stuck in its baseband client instead (seen once on an iOS 27.2
+iPhone Duo) still answers that request, so the watchdog does not see it; see
+`iphone_duo_bringup.md`, "iOS 27.2, and WebDriverAgent's hinge GET after
+boot".
 
 ### Verification
 

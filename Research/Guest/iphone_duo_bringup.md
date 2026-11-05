@@ -5573,20 +5573,16 @@ event, with the app's reads valid at the same time. vphoned kept restarting
 healthy locationds (12 in 13 minutes). A `copyEvent` of the Crane service
 cannot tell the states apart either (above).
 
-**Fix.** vphoned's locationd watchdog (`GuestLocationdWatchdog.swift`)
-restarts the locationd that started with the guest once, on iOS 27.2 or
-later with CoreMotion's foldable hinge (`vp_core_motion_hinge`): at its
-first check after that locationd has run 20 s, which is its second check,
-about 30 s after boot. "Started with the guest" is a start within 30 s of
-boot on the uptime clock (`ri_proc_start_abstime` from `proc_pid_rusage`,
-now `VPProcessUsage.start_uptime`), because vphoned moves the guest's wall
-clock to the Mac's after boot and `p_starttime` is wall time. A later
-locationd (one the watchdog replaced, or a jetsam or crash restart) is left
-alone, and the restart counts toward the watchdog's 20. It logs
-`vphoned: locationd watchdog: locationd N started with the guest and gives
-no hinge angle, killed it (restart 1)`. No firmware patch was added.
+**First fix, since replaced** (see the next section: it served only a
+client already reading when the restart came). vphoned's locationd watchdog
+(`GuestLocationdWatchdog.swift`) restarted the locationd that started with
+the guest once, on iOS 27.2 or later with CoreMotion's foldable hinge
+(`vp_core_motion_hinge`), about 30 s after boot. "Started with the guest"
+was a start within 30 s of boot on the uptime clock
+(`ri_proc_start_abstime` from `proc_pid_rusage`), because vphoned moves the
+guest's wall clock to the Mac's after boot and `p_starttime` is wall time.
 
-**Measured with the fix**, duo272-hinge, six more cold boots alternating
+**Measured with that fix**, duo272-hinge, six more cold boots alternating
 0° and 100°, the probe started at about +20 s and kept in front:
 
 | boot | hinge | first valid fresh read | timeouts before it | valid reads to +120 s | launchd `runs` |
@@ -5600,12 +5596,9 @@ no hinge angle, killed it (restart 1)`. No firmware patch was added.
 
 One restart per boot and no other; every read after the restart was
 valid. The first read after it is the relay's reseeded 0°, and the next
-resend of the virtual hinge moves it to the stationary angle. A GET in the
-first ~35 s after boot still times out.
-
-Not covered: a locationd that started with the guest and is replaced can
-deadlock in the baseband client too; the watchdog does not see that one.
-None of the restarts here did.
+resend of the virtual hinge moves it to the stationary angle. That probe
+was already running when the restart came, which is why it was served; a
+client started later was not (next section).
 
 Not addressed: a read after the hinge moved can return an intermediate
 angle (100° read as 94.87–96.89°, 101° as 97.88°). The reporter sees the
@@ -5632,3 +5625,74 @@ load is not the whole cause, and it was not found. A restore run by hand
 (`vphone-cli vm launch --dfu`, 25 s, then `vphone-cli restore`) at that load
 went through, iBEC in recovery within 2 s, and Launchpad's `vm create --from
 installCFW` finished from there.
+
+## 2026-11-05: a hinge client started later, and VirtualAudio on 27.2
+
+The reporter of #821 tested the fix above and found it served only a client
+already reading when the restart came. With the guest stable for 130 s and
+WDA started at +167 s, every GET timed out, while `display.orientation` read
+`fold_angle` 180; a WDA restart on a warm guest failed the same way. The
+probe above had been started at +20 s and kept running.
+
+**Reproduced** on a recreated `duo272-hinge` (same IPSWs, bundle from upstream
+main with the restart): one cold boot at 0°, nothing reading until +170 s,
+then five new probe processes 12 s apart. All five timed out with no
+callback; launchd `runs` was 2, so the restart had happened at about +30 s.
+
+**Why.** On a VM, CoreMotion's angle notifier skips the physical hinge
+device ("Skipping open for physical HID device on VM/Simulator") and has
+nothing to copy an angle from, so a new `CMAngleManager` gets the angle only
+from the next hinge-angle event the relay dispatches. 27.1's relay
+dispatched one for every value, so libvphonehinge's stationary resend served
+a new client within the resend period. 27.2's
+`-[CMDeviceStateRelayManager _feedAngleUpdate:]` compares the value
+(`isEqual:`, an NSNumber) with `effectiveAngle` (`numberWithFloat:` of the
+interpolator's last output) and skips an equal one. The slider value
+arrives through `IOCFUnserializeWithSize`, which has no reals, so a value
+can only be a whole degree and a resend is always equal. The relay snaps
+(`_snapToAngleUpdate:`, `interpolateToAngle:duration:0`) only once, at its
+start. A restart therefore helps exactly one client: the one that is
+subscribed when the reseeded 0° moves back to the real angle.
+
+**Fix.** libvphonehinge also loads in locationd (SystemHook,
+`/usr/libexec/locationd`), where on iPhone19,4 it replaces `_feedAngleUpdate:`
+when the relay has 27.2's `effectiveAngle` and `interpolator`
+(`Hinge/VPhoneHingeRelayResend.h`): a value equal to `effectiveAngle` goes to
+the interpolator with no duration, which produces one event at that angle,
+on the interpolator's own queue (`_snapToAngleUpdate:` itself asserts the
+relay's other queue and cannot be called from the feed). Any other value
+takes the relay's path. The stationary resend drops from 5 s to 2 s: at 5 s
+the first read of a new client took 0.26–4.97 s, against WDA's 5 s limit.
+vphoned's one-time restart is removed; the watchdog is as before #826.
+
+**Measured**, cold boots, nothing reading until +170 s, then five new probe
+processes per boot:
+
+| build | boots (hinge) | valid first reads | first read took |
+| --- | --- | --- | --- |
+| upstream main (restart) | 1 (0°) | 0 of 5 | timeout |
+| hook, 5 s resend | 3 (0°, 100°, 180°) | 15 of 15 | 0.26–4.97 s |
+| hook, 5 s resend, probe from +18 s | 1 (0°) | 5 of 5, and the early probe from its first read at +22 s | 1.07–4.46 s |
+| hook, 2 s resend | 2 (0°, 100°) | 10 of 10 | 0.001–1.63 s |
+
+The first boot of the 5 s round also hit the iOS 27 startup deadlock twice
+(`locationd … did not answer, killed it`); the watchdog restarted it and the
+hinge was served throughout. Idle, with the panel lit, locationd used 0.09 s
+of CPU a minute.
+
+**VirtualAudio was off on 27.2.** The "rest of the Duo" check above missed it:
+both creates of this VM logged `Patch site not found: virtualaudio: expected
+exactly 1 mute-set throw in the wrapper at 0x103ce0, found 0`, and the five
+VirtualAudio patches, which share one staged copy, were all left off.
+`audio.state` answers either way. 27.2's set wrapper throws a
+`std::system_error` built by a constructor call where 27.1 stored a
+CAException's fields; the mute-set patch now takes both
+(`Research/Guest/virtualaudio_speaker_route_throws.md`). With the five
+applied, Safari played an MP3 stream for 29 s through the virtio sound
+plugin (1 280 064 frames in, 0 bytes dropped, 7 starved writes on a loaded
+host). "Campo absent; entitlement patch skipped" in the same log is
+expected: 27.2 has no `Campo.app`, and PosterBoard and its extensions draw
+the wallpaper.
+
+This time Launchpad's `vm create` restored the VM without the iBEC
+failure, at a host load average of about 20.

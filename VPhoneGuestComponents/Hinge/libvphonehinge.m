@@ -1,5 +1,6 @@
 #import "VPhoneHingeClientDispatch.h"
 #import "VPhoneHingeHID.h"
+#import "VPhoneHingeRelayResend.h"
 #import "VPhoneHingeState.h"
 #include "../MISFix/MISFixDetour.h"
 #include <dlfcn.h>
@@ -153,7 +154,9 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
 - (void)updateTimer {
     // locationd's relay keeps the last value it was sent and never asks for
     // one; when locationd restarts it reseeds 0° and portrait. Stationary
-    // values are therefore sent again every few seconds.
+    // values are therefore sent again every few seconds, which also hands the
+    // angle to a CoreMotion client started since (on 27.2 with the relay's
+    // resend; see VPhoneHingeRelayResend.h).
     uint64_t period = self.enumerated ? VP_HINGE_REPUSH_SECONDS * NSEC_PER_SEC : DISPATCH_TIME_FOREVER;
     dispatch_source_set_timer(self.timer, period == DISPATCH_TIME_FOREVER ? DISPATCH_TIME_FOREVER : DISPATCH_TIME_NOW,
                               period, NSEC_PER_MSEC);
@@ -469,6 +472,19 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
 @end
 
 __attribute__((constructor)) static void VPhoneHingeStart(void) {
+    // Only a foldable has a hinge to set; vphoned follows DeviceHub's controls
+    // on the same product.
+    char product[64] = {0};
+    size_t size = sizeof(product);
+    BOOL foldable = sysctlbyname("hw.machine", product, &size, NULL, 0) == 0 && strcmp(product, "iPhone19,4") == 0;
+    if (strcmp(getprogname(), "locationd") == 0) {
+        if (foldable) {
+            BOOL installed = VPhoneHingeInstallRelayResend(NSClassFromString(@"CMDeviceStateRelayManager"),
+                                                           NSClassFromString(@"CMAngleInterpolator"));
+            NSLog(@"[vphone-hinge] relay resends an unchanged angle: %@", installed ? @"yes" : @"no, not 27.2's relay");
+        }
+        return;
+    }
     // Only backboardd creates the HID service. Starting asynchronously avoids
     // calling the HID server while its daemon is still running image
     // constructors.
@@ -477,11 +493,7 @@ __attribute__((constructor)) static void VPhoneHingeStart(void) {
     static VPhoneHingeProvider *provider;
     provider = [VPhoneHingeProvider new];
     provider.queue = dispatch_queue_create("com.vphone.motion.hinge", DISPATCH_QUEUE_SERIAL);
-    // Only a foldable has a hinge to set; vphoned follows DeviceHub's controls
-    // on the same product.
-    char product[64] = {0};
-    size_t size = sizeof(product);
-    if (sysctlbyname("hw.machine", product, &size, NULL, 0) == 0 && strcmp(product, "iPhone19,4") == 0) {
+    if (foldable) {
         VPhoneHingeClientProvider = provider;
         provider.clientDispatch = VPhoneHingeAcceptClientDispatches();
         NSLog(@"[vphone-hinge] client hinge values: %@", provider.clientDispatch);

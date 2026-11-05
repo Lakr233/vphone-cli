@@ -23,7 +23,9 @@
 #define VP_HINGE_SWEEP_MS 10.03
 #define VP_HINGE_OPEN_DEFAULT_MS 600.0
 #define VP_HINGE_CLOSE_DEFAULT_MS 800.0
-#define VP_HINGE_REPUSH_SECONDS 5
+// How long a CoreMotion client started while the hinge rests waits for its
+// first angle, at most: WebDriverAgent's hinge GET gives up after 5 s.
+#define VP_HINGE_REPUSH_SECONDS 2
 
 typedef struct {
     BOOL enabled;

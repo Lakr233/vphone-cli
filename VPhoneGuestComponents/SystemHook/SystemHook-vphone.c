@@ -47,6 +47,12 @@ static int vpIsMotionDaemon(const char *path) {
     return vpPathHasSuffix(path, "/usr/libexec/backboardd");
 }
 
+// The device-state relay the hinge feeds, which takes the hinge too; see
+// Hinge/VPhoneHingeRelayResend.h.
+static int vpIsLocationd(const char *path) {
+    return vpPathHasSuffix(path, "/usr/libexec/locationd");
+}
+
 static int vpIsInjectionTarget(const char *path) {
     if (!path)
         return 0;
@@ -274,6 +280,10 @@ __attribute__((constructor)) static void vpLogProcess(void) {
         vpLoadLibrary("accelerometer-hook", VP_ACCELEROMETER_HOOK);
         vpLoadLibrary("hinge-hook", VP_HINGE_HOOK);
         vpLoadLibrary("fold-display", VP_FOLD_DISPLAY);
+        return;
+    }
+    if (vpIsLocationd(path)) {
+        vpLoadLibrary("hinge-hook", VP_HINGE_HOOK);
         return;
     }
     // SpringBoard needs the haptics swizzle before UIKit first asks for an

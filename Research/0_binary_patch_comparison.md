@@ -806,6 +806,30 @@
 > own buttons still fold the guest. No firmware patch was added or changed;
 > see `Research/Guest/iphone_duo_bringup.md`, "WebDriverAgent's hinge POST".
 
+> **The hinge in locationd, and VirtualAudio on 27.2 (2026-11-05, issue
+> #821):** `system-backboardd-cfw-hinge`'s `libvphonehinge.dylib` is now
+> also loaded by SystemHook into locationd, where, on iPhone19,4 and only
+> when the relay has 27.2's interpolator (`CMDeviceStateRelayManager`
+> answering `effectiveAngle` and `interpolator`, `CMAngleInterpolator`
+> answering `interpolateToAngle:duration:`), it replaces
+> `-[CMDeviceStateRelayManager _feedAngleUpdate:]`: a value equal to
+> `effectiveAngle`, which 27.2 skips ("Already at angle; skipping
+> interpolation"), goes to `interpolateToAngle:duration:0`, one event at
+> that angle; any other value takes the original. backboardd's stationary
+> resend drops from 5 s to 2 s. Together they hand a CoreMotion client
+> started while the hinge rests (WebDriverAgent's hinge GET) the angle within
+> 2 s, as 27.1's relay did within 5 s. 27.1's relay has neither selector and
+> is left alone. vphoned's one-time restart of the boot-time locationd (PR
+> Lakr233/vphone-cli#826) is removed. In
+> `system-virtualaudio-cfw-mute_set_throw`, the throw block may now be an
+> exception built by a constructor call on the allocated object (27.2's
+> `std::system_error`) as well as a CAException stored into in place; on
+> 24B91020 the site is 0x10462c → epilogue 0x104314, and the five
+> VirtualAudio patches, which share one staged copy and had all been left
+> off, apply again. See `Research/Guest/iphone_duo_bringup.md`, "a hinge
+> client started later", and
+> `Research/Guest/virtualaudio_speaker_route_throws.md`.
+
 > **SpringBoard fold-guard (2026-10-25):** `system-springboard-cfw-fold_guard`
 > (guest system set, on in `standard`, blocked in `tvos`, `tvos-4k` and
 > `homepod-mini`, foldable guests only, iOS 27+; installs

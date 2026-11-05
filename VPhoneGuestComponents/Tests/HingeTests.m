@@ -9,11 +9,52 @@
 // absent the event checks are skipped; the transport checks always run.
 #import "../Hinge/VPhoneHingeClientDispatch.h"
 #import "../Hinge/VPhoneHingeHID.h"
+#import "../Hinge/VPhoneHingeRelayResend.h"
 #import "../Hinge/VPhoneHingeState.h"
 #include <assert.h>
 #include <dlfcn.h>
 #include <mach/mach_time.h>
 #include <stdio.h>
+
+// Stand-ins for iOS 27.2's relay and its interpolator, recording what reaches
+// each, and for 27.1's relay, which has neither an angle nor an interpolator.
+@interface VPhoneTestInterpolator : NSObject
+@property (nonatomic, strong) NSMutableArray<NSArray<NSNumber *> *> *calls;
+@end
+@implementation VPhoneTestInterpolator
+- (instancetype)init {
+    self = [super init];
+    _calls = [NSMutableArray array];
+    return self;
+}
+- (void)interpolateToAngle:(float)angle duration:(double)duration {
+    [self.calls addObject:@[@(angle), @(duration)]];
+}
+@end
+
+@interface VPhoneTestRelay : NSObject
+@property (nonatomic, strong) NSNumber *effectiveAngle;
+@property (nonatomic, strong) VPhoneTestInterpolator *interpolator;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fed;
+@end
+@implementation VPhoneTestRelay
+- (instancetype)init {
+    self = [super init];
+    _interpolator = [VPhoneTestInterpolator new];
+    _fed = [NSMutableArray array];
+    return self;
+}
+- (void)_feedAngleUpdate:(NSNumber *)angle {
+    [self.fed addObject:angle];
+}
+@end
+
+@interface VPhoneTestOlderRelay : NSObject
+@end
+@implementation VPhoneTestOlderRelay
+- (void)_feedAngleUpdate:(NSNumber *)angle {
+}
+@end
 
 int main(void) {
     @autoreleasepool {
@@ -108,6 +149,21 @@ int main(void) {
         assert(VPhoneHingeInterval(@(4000.5)) == 5000);
         assert(VPhoneHingeInterval(@(16000)) == 16000);
         assert(VPhoneHingeInterval(@(2e9)) == 1000000);
+
+        // 27.1's relay has no interpolator and is left as it is.
+        assert(!VPhoneHingeInstallRelayResend(Nil, VPhoneTestInterpolator.class));
+        assert(!VPhoneHingeInstallRelayResend(VPhoneTestOlderRelay.class, VPhoneTestInterpolator.class));
+        assert(VPhoneHingeInstallRelayResend(VPhoneTestRelay.class, VPhoneTestInterpolator.class));
+        assert(!VPhoneHingeInstallRelayResend(VPhoneTestRelay.class, VPhoneTestInterpolator.class));
+        VPhoneTestRelay *relay = [VPhoneTestRelay new];
+        // Before the relay has an angle, and for a different one, its own path.
+        [relay _feedAngleUpdate:@180];
+        relay.effectiveAngle = @(180.0f);
+        [relay _feedAngleUpdate:@100];
+        assert([relay.fed isEqual:(@[@180, @100])] && relay.interpolator.calls.count == 0);
+        // The angle it holds: one step to it, with no duration.
+        [relay _feedAngleUpdate:@180];
+        assert(relay.fed.count == 2 && [relay.interpolator.calls isEqual:(@[@[@180.0f, @0.0]])]);
 
         void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW | RTLD_LOCAL);
         VPhoneHingeSerializer serialize = (VPhoneHingeSerializer)dlsym(iokit, "IOCFSerialize");
