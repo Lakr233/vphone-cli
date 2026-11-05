@@ -2514,7 +2514,13 @@ struct VPhoneCustomFirmwareInstaller {
                     print("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver), not \(version); run fw prepare again to stage the iOS \(VPhonePCCGPUDriver.release(version)) driver")
                     return
                 }
-                try system.writeFile(gpuTransportMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                // Written once: vphoned drops the icons IconServices stored
+                // before this time, when the guest had no GPU.
+                let marker = Data("1\n".utf8)
+                if (try? system.readData(gpuTransportMarker)) != marker {
+                    try system.writeFile(gpuTransportMarker, contents: marker, mode: 0o644, owner: Self.guestOwner)
+                    print("  [+] \(gpuTransportPatch): on over the iOS \(driver) GPU driver")
+                }
                 live.insert(gpuTransportPatch)
             } else {
                 try system.removeItem(gpuTransportMarker)

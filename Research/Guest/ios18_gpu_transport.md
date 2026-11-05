@@ -65,7 +65,17 @@ user client in the process are not.
   measured. `cfw install` writes `/usr/lib/vphone-ios18-gpu` only when the
   installed driver's `DTPlatformVersion` is the iOS release. A machine prepared
   before this change, which still has the 26.1 driver, gets no marker and a note
-  to run `fw prepare` again. Switching the patch off removes the marker.
+  to run `fw prepare` again. Switching the patch off removes the marker. The
+  marker is written once, so its creation time says when the guest got a GPU.
+- **Icon store.** Without a GPU, iconservicesagent rendered every graphic icon
+  (an SF Symbol on a colored square, declared as `com.apple.graphic-icon.*` in
+  `MobileCoreTypes.bundle`) fully transparent, stored the result in
+  `systemgroup.com.apple.lsd.iconscache/Library/Caches/com.apple.IconsCache`,
+  and kept serving it: Settings' rows stayed blank after the GPU worked. At
+  startup vphoned removes that store when it was created before the marker and
+  stops the agent (`GuestIconServicesCache`), because the Data volume is out of
+  the host's reach. A machine created with the transport on renders its icons
+  with the GPU from the first boot, so it never drops.
 
 ## Retargeting to another pairing
 
@@ -111,9 +121,17 @@ Open:
   (`compilerTargetInfo.shaderVersionMajor >= 2`). That field comes from the
   device-info reply, so that call was not translated there. It did not recur in
   the next two boots and could not be started on demand. The cause is unknown.
-- cameracaptured aborted once at boot in `MPSLibrary::MPSKey_Compile`
-  (`MTLReportFailure`) while prewarming inference. That is a shader compile
-  failure under a working device, not seen again.
-- Settings row icons stay blank, as before this change. Not a stale cache:
-  with the icon cache moved aside, Settings wrote no new entries. Not yet
-  explained.
+- cameracaptured aborts in `MPSLibrary::MPSKey_Compile` (`MTLReportFailure`)
+  while prewarming its matting inference, three to five times in some boots and
+  not at all in others. That is an MPS kernel compile failure under a working
+  device. Not yet explained.
+
+Settings icons (2026-11-05): an icon probe got a non-placeholder, fully
+transparent 87×87 image for `com.apple.graphic-icon.gear` at
+`kISImageDescriptorTableUIName`, while a synchronous render at an unused size
+was correct (system-gray enclosure). With the agent stopped first and the store
+moved aside, the same request rendered and Settings showed every row icon.
+Renaming the store while the agent runs does not work: the agent keeps writing
+into the renamed folder and later deletes it. With the bundle's vphoned the store
+created on 2026-11-04 was dropped at the next boot (new store born 00:59:35 UTC,
+after the marker's 00:37:25), the icons rendered, and a further boot kept it.

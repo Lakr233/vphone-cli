@@ -6846,3 +6846,10 @@ driver's `DTPlatformVersion` is the iOS release; switching the patch off removes
 it. Rules are unit-tested by `make test-ios18-gpu`.
 
 **Validation.** See `Research/Guest/ios18_gpu_transport.md`, "Verified".
+
+**Icon store (2026-11-05).** The guest's IconServices store kept the transparent
+graphic icons it rendered before the transport, so Settings' rows stayed blank.
+`cfw install` writes the marker once, and vphoned (`GuestIconServicesCache`)
+removes the store at startup when it was created before the marker, then stops
+iconservicesagent; the Data volume is out of the host's reach. No Apple binary
+change.
