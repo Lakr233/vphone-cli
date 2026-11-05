@@ -81,6 +81,7 @@
 			<string>kernel-exp-frida_thread_set_state_entitlement_flag</string>
 			<string>kernel-exp-frida_tpro_off</string>
 			<string>kernel-exp-frida_syscall_filter_off</string>
+			<string>kernel-exp-frida_fork_inherit_invalid_code</string>
 			<string>kernel-cfw-paravirt_gpu_task3</string>
 			<string>kernel-cfw-paravirt_gles_renderer</string>
 			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
