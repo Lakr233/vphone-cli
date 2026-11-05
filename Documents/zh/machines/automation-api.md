@@ -64,7 +64,7 @@ websocat --binary "ws://127.0.0.1:8765/v1/shell?token=$TOKEN&cols=120&rows=40"
 - 带有 `Origin` 请求头的请求，或者 `Host` 不是 `vphoned`、`localhost`、`127.0.0.1` 或 `::1` 的请求，会返回 `403`。这样可以阻止网页访问 API。
 - `GET` 路由只读取。要更改设置，请使用 `PUT` 或 `POST`，例如对 `PUT /v1/low-power-mode` 发送 `{"enabled": true}`。
 
-Swift App 可以使用 `VPhoneAPIKit` 软件包中的 `VPhoneAPIClient`，它会自动发送 token；示例见 API 参考。
+Swift App 可以使用 `VPhoneExternalAccessKit` 库中的 `VPhoneAPIClient`，它会自动发送 token；示例见 API 参考。
 
 ## 不使用网络监听器
 
