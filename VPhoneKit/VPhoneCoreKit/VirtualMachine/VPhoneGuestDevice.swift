@@ -307,7 +307,6 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
     )
 
     public static let known: [VPhoneGuestDevice] = [
-        realityDevice14_1,
         iPhone17_3,
         iPhone17_4, iPhone17_1, iPhone17_2, iPhone17_5,
         iPhone18_3, iPhone18_4, iPhone18_1, iPhone18_2, iPhone18_5,
@@ -321,6 +320,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         appleTV5_3, appleTV14_1, appleTV18_1,
         audioAccessory5_1, homeAccessory17_1, homeAccessory17_2,
         watch7_18,
+        realityDevice14_1,
     ]
 
     /// Cellular models that ship in the same IPSW as a known Wi-Fi model and map

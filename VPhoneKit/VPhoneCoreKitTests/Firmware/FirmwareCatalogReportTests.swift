@@ -5,7 +5,7 @@ import Testing
 struct FirmwareCatalogReportTests {
     /// Experimental bring-ups created from IPSW URLs given by hand; the catalog
     /// offers no pairing for them, so the report leaves them out.
-    private static let offCatalog: [VPhoneGuestDevice] = [.iPhone15_4, .iPhone15_2]
+    private static let offCatalog: [VPhoneGuestDevice] = [.iPhone15_4, .iPhone15_2, .realityDevice14_1]
 
     @Test(arguments: ["HomeAccessory17,1", "HomeAccessory17,2"])
     func `HomeView 27_2 uses its full Pallas OTA and the HD restore base`(type: String) throws {
