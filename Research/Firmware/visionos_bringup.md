@@ -37,8 +37,8 @@ Device detection recognizes RealityDevice14,1 and its xros erase identity.
 The shared cache resides directly under `/System/Library/Caches/com.apple.dyld`.
 
 The `visionos` preset supplies a headless baseline: donor board identity, PCC
-boot/kernel patches, GPU bundle, launchd cache support and a Foundation-only
-agent. It excludes the iPhone UI, camera, routing and shared-cache injections.
+boot/kernel patches, GPU bundle, launchd cache support and an iPad-compatible
+agent for application management. It excludes iPhone UI, camera, routing and shared-cache injections.
 Every visionOS UI adapter remains an independent, off-by-default selection.
 
 Both PCC Metal driver executables are re-signed after retargeting their
@@ -108,6 +108,43 @@ retained instead of rewritten to certify manual deployment. These sources
 package the adapters and reversals; a fresh end-to-end restore and boot with
 the latest upstream-based bundle remains a separate validation step.
 
+## Apps menu and Irisin
+
+The default `vphoned-visionos` now uses the full iOS agent through the visionOS
+iPad compatibility environment. This supplies the existing app browser,
+URL opening, IPA installation, bootstrap installation/removal and app-registration
+RPCs. The native Foundation-only agent remains available as
+`vphoned-visionos-minimal` for research fallback.
+
+Compatibility mode can report an iOS ProductName, so the runtime detector also
+checks the `RealityDevice` hardware identifier. The agent skips iPhone startup
+policy and state polling on this platform. It advertises app/bootstrap/file/
+process/service operations, HID and available scripting, without enabling the
+unverified iPhone camera, touch, location, unlock or environment-update features.
+The bootstrap selector offers rootless only; the guest independently rejects
+RootHide before making changes.
+
+Fresh installs stage the Span compatibility library on System. Auto-updating
+an older minimal-agent VM seeds the root-owned agent cache before switching
+executables, so the new agent runtime dependency is present at its first launch.
+
+Runtime verification in the existing VM covered:
+
+- App browser: 153 registered apps; 154 while the temporary test app existed.
+- A new iPad-compatible IPA: installed into a User container, launched with a
+  visible verification label, inspected and uninstalled with its own containers.
+- Safari URL opening and bootstrap app-registration rebuild.
+- Irisin 5.1.6 (`iphoneos-arm64`): installed through `bootstrap.install` from the
+  verified official release, registered, launched and connected to a running
+  `wiki.qaq.irisind`; `bootstrap.inspect` reports the completed rootless install.
+- RootHide rejection and the explicit-force guard for bootstrap removal.
+  The installed bootstrap was retained; destructive removal was not run.
+- The VM window Home button still displays native Home, including the Irisin icon.
+
+The full bundle build/admission and runtime classification tests pass. Native
+visionOS IPA installation and arbitrary repository package compatibility are
+not established by the iPad-compatible test package.
+
 ## Validation
 
 Swift coverage checks device detection, platform retargeting, version gates,
@@ -117,7 +154,7 @@ audit-token failures. Objective-C tests cover preference journal publication,
 idempotence, malformed input, persistence failures and parent-directory durability.
 Mock HID tests cover event allocation, timing, metadata and unavailable symbols.
 
-The Foundation-only agent advertises HID only when visionOS APIs resolve.
+The minimal fallback agent advertises HID only when visionOS APIs resolve.
 `input.hid` validates numeric/Boolean types, serializes bounded submissions,
 and reports submission rather than claiming a consumer handled the event.
 The visible interaction checkpoint used the VM window's mouse path.
