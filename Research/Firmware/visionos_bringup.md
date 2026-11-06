@@ -21,6 +21,11 @@ passed 2,638 frames. A preceding boot exceeded 11,101 frames.
 
 ![Settings after cold boot](Assets/visionos-26.4-about.png)
 
+Additional screenshot supplied by the author, showing native Home and the
+Settings panel inside the actual VM window:
+
+![Actual VM window](Assets/visionos-26.4-window.png)
+
 Physical tracking, stereo output, account sign-in and audio playback have not
 been validated. This checkpoint establishes native rendering and mouse input
 in this VM, rather than physical headset compatibility.
