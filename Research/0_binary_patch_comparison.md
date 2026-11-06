@@ -6913,3 +6913,35 @@ the next install or Update Guest Environment that reaches the VirtualAudio
 step.
 
 **Reveal and validation.** `Research/Guest/instruments_symbolication.md`.
+
+## Local pairing connections in remotepairingdeviced
+
+`system-remotepairingdeviced-cfw-local_connections` permits pairing control and
+tunnel connections originating on the device itself, so apps inside the guest
+can connect. It is enabled in `standard` and is not boot-essential.
+
+On 24A446 and 24C5037i, the daemon's local-path predicate calls
+`nw_connection_copy_current_path`, `nw_path_is_local`, and
+`nw_path_uses_interface_type(path, 4)`. Three callers use that result to reject
+connections: one control-channel callback and two tunnel callbacks. The
+control rejection logs `Rejecting control channel connection originating from
+local machine`; both tunnel callbacks log `Rejecting tunnel connection
+originating from local machine`.
+
+The imported symbols identify the predicate; the rejection strings' ADRP/ADD
+references and branches identify its three callers. Replacing those callers'
+`bl <local-path predicate>` with `mov w0, #0` bypasses the local-connection
+rejections.
+
+Offline validation on 24A446 and 24C5037i changes exactly 12 bytes before
+signing, and a second application is a no-op. Other builds have not been
+tested and may need different matching.
+
+Live validation on 24A446 with bundle 2.15.2 confirmed that same-device
+connections were reset during the control handshake before patching.
+After patching, pairing verification, TLS tunnels, Accessibility and screen
+capture passed on bridged and NAT networking and after reboot.
+The installed CLI's `cfw update-environment` also passed application,
+reversion and reapplication on 24A446: the guest receipt followed the
+selection, reversion restored the original binary, and both applications
+produced the same signed binary and working local connections after boot.

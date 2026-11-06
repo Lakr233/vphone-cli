@@ -717,6 +717,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchArm64eX1Command.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
+            VPhoneCustomFirmwarePatchRemotePairingCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioMuteCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioSPGateCommand.self,
@@ -726,5 +727,23 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand.self,
             VPhoneCustomFirmwarePatchParavirtGPUCompilerCacheCommand.self,
         ]
+    }
+}
+
+struct VPhoneCustomFirmwarePatchRemotePairingCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-remotepairingdeviced",
+        abstract: "Allow local pairing control and tunnel connections",
+    )
+
+    @Argument(help: "Path to the remotepairingdeviced Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the sites without changing the file")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        try CustomFirmwareRemotePairing.patch(fileAt: binary, dryRun: dryRun)
     }
 }
