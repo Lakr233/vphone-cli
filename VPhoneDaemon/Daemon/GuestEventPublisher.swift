@@ -41,6 +41,7 @@ final class GuestEventPublisher: @unchecked Sendable {
     }
 
     private func publishIfChanged() {
+        guard !GuestRuntimePlatform.isVisionOS else { return }
         guard hub.hasSubscribers else {
             previous = nil
             return

@@ -19,6 +19,7 @@ if mode != 1 {
 }
 
 guard vp_native_watch_proxy() == 0 else { exit(1) }
+if !GuestRuntimePlatform.isVisionOS {
 // First, so the Lock Screen timeout is in place before SpringBoard reads it.
 GuestLockScreenIdle.startOnStartup()
 // Before the server, so `/v1/health` reports a drop from its first answer.
@@ -43,12 +44,13 @@ vp_ios16_touchscreen_start()
 vp_ios16_keybagless_ui_start()
 // The VM's touchscreen has no wake gesture; a tap on a dark screen lights it.
 GuestScreenUnlock.startTapToWake()
-GuestIrisinInstaller.refreshBootstrapOnStartup()
 GuestAPI.restoreUSBSerialOnStartup()
 GuestStaticNames.shared.restoreOnStartup()
 // locationd can deadlock as it starts; this restarts it.
 GuestLocationdWatchdog.shared.startOnStartup()
 GuestDeveloperModeSnapshot.shared.startOnStartup()
+}
+GuestIrisinInstaller.refreshBootstrapOnStartup()
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 let filePool = NIOThreadPool(numberOfThreads: 2)
