@@ -83,11 +83,11 @@ tvos_daemon_products="$root/.build/XcodeDaemon/Build/Products/$configuration-app
 amfi_products="$root/.build/XcodeAMFIAllow/Build/Products/$configuration"
 guest_products="$root/.build/guest-components/stage"
 
-# The iOS 26 Swift runtime lacks this symbol, and Swift 6.4 can import it
+# The 26.x guest Swift runtimes lack this symbol, and Swift 6.4 can import it
 # strongly even when vphoned targets iOS 15, causing a dyld crash loop.
-for daemon in "$daemon_products/vphoned" "$tvos_daemon_products/vphoned"; do
+for daemon in "$daemon_products/vphoned" "$daemon_products/vphoned-darwinos" "$tvos_daemon_products/vphoned"; do
     if /usr/bin/nm -u "$daemon" | /usr/bin/grep -q '_swift_initBorrow'; then
-        print -u2 -- "${daemon#$root/} requires _swift_initBorrow, which is unavailable on iOS 26 and tvOS 26"
+        print -u2 -- "${daemon#$root/} requires _swift_initBorrow, which is unavailable on 26.x guests"
         exit 1
     fi
 done
