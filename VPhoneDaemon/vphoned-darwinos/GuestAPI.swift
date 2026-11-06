@@ -1,4 +1,5 @@
 import CryptoKit
+import CoreFoundation
 import Darwin
 import Foundation
 import IcliSystem
@@ -39,11 +40,12 @@ enum GuestAPI {
         ["name": "vphoned", "api_version": 1, "status": "ok", "binary_hash": binaryHash,
          "instance": instance, "ios": version()["ProductVersion"] ?? "", "os": osName,
          "ip": networkAddresses().first { !$0.hasPrefix("127.") && !$0.contains(":") } ?? "",
-         "setup_pending": false, "capabilities": ["files", "port_forward", "device_info", "processes", "services", "shell"]]
+         "setup_pending": false, "capabilities": ["files", "port_forward", "device_info", "processes", "services", "shell"] + (osName == "visionOS" && vp_darwin_hid_available() ? ["hid"] : [])]
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
         switch method {
+        case "input.hid": return try submitHID(params)
         case "device.info", "device.snapshot": return try deviceInfo()
         case "device.network": return ["addresses": networkAddresses()]
         case "processes.list": return try listProcesses(filter: params["filter"] as? String)
@@ -94,6 +96,42 @@ enum GuestAPI {
             throw GuestAPIError.invalidRequest("\(key) must be a nonempty string")
         }
         return value
+    }
+
+    private static func submitHID(_ params: [String: Any]) throws -> [String: Any] {
+        guard osName == "visionOS" else { throw GuestAPIError.unsupportedMethod("input.hid") }
+        let page = try hidUsage(params, "page"), usage = try hidUsage(params, "usage")
+        let down = try hidBoolean(params, "down")
+        let longPress = try hidBoolean(params, "long_press") ?? false
+        guard !longPress || down != nil else {
+            throw GuestAPIError.invalidRequest("long_press requires an explicit boolean down")
+        }
+        var error: UnsafeMutablePointer<CChar>?
+        defer { free(error) }
+        guard vp_darwin_hid_submit(page, usage, down.map { $0 ? 1 : 0 } ?? -1, longPress, &error) else {
+            throw GuestAPIError.operationFailed(error.map { String(cString: $0) } ?? "HID submission failed")
+        }
+        return ["page": Int(page), "usage": Int(usage), "action": down.map { $0 ? "down" : "up" } ?? "press",
+                "long_press": longPress, "submitted": true]
+    }
+
+    private static func hidUsage(_ params: [String: Any], _ key: String) throws -> UInt16 {
+        guard let number = params[key] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
+            throw GuestAPIError.invalidRequest("\(key) must be a 16-bit unsigned integer")
+        }
+        let value = number.doubleValue
+        guard value.isFinite, (0...65535).contains(value), value.rounded(.towardZero) == value else {
+            throw GuestAPIError.invalidRequest("\(key) must be a 16-bit unsigned integer")
+        }
+        return UInt16(value)
+    }
+
+    private static func hidBoolean(_ params: [String: Any], _ key: String) throws -> Bool? {
+        guard let value = params[key] else { return nil }
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+            throw GuestAPIError.invalidRequest("\(key) must be a boolean")
+        }
+        return number.boolValue
     }
 
     private static func requireForce(_ params: [String: Any]) throws {
