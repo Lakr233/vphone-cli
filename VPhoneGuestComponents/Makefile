@@ -124,12 +124,18 @@ CRYPTEXSTAGING := $(STAGE)/cryptexstaging/libvphonecryptexstaging.dylib
 CRYPTEXSTAGING_SOURCE := CryptexStagingFix/libvphonecryptexstaging.c
 HOMEPODPERSONA := $(STAGE)/homepodpersona/libvphoneinstallpersona.dylib
 HOMEPODPERSONA_INPUTS := HomePodInstallPersona/libvphoneinstallpersona.c LaunchHook/InstallCoordinationPersona.h
+VISIONOSIPC := $(STAGE)/visionosipc/libvphonevisionosipc.dylib
+VISIONOSIPC_SOURCE := VisionOSIPC/libvphonevisionosipc.c
+VISIONOSIPC_INPUTS := $(VISIONOSIPC_SOURCE) $(wildcard VisionOSIPC/*.h)
 HOMEPODMISFIX := $(STAGE)/homepodmisfix/libvphonehomepodmisfix.dylib
 HOMEPODMISFIX_SOURCES := MISFix/MISFixSignature.c MISFix/MISFixDetour.c MISFix/MISFixConfig.c MISFix/MISFixInstallPolicy.c
 HOMEPODMISFIX_INPUTS := $(HOMEPODMISFIX_SOURCES) MISFix/MISFixDetour.h MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
 HOMEPODSETUP := $(STAGE)/homepodsetup/vphone-homepod-setup
 HOMEPODSETUP_SOURCES := $(call find_sources,HomePodSetup)
 HOMEPODSETUP_INPUTS := $(call find_headers,HomePodSetup) HomePodSetup/com.vphone.homepod-setup.plist
+VISIONOSPREFERENCES := $(STAGE)/visionospreferences/vphone-visionos-preferences
+VISIONOSPREFERENCES_SOURCES := $(call find_sources,VisionOSPreferences)
+VISIONOSPREFERENCES_INPUTS := $(call find_headers,VisionOSPreferences) VisionOSPreferences/com.vphone.visionos-preferences.plist
 TVSETUPFOCUS := $(STAGE)/tvsetupfocus/libvphonetvsetupfocus.dylib
 TVSETUPFOCUS_SOURCES := $(call find_sources,TVSetupFocus)
 TVSETUPFOCUS_INPUTS := $(call find_headers,TVSetupFocus) $(call find_folders,TVSetupFocus)
@@ -214,7 +220,7 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 VIRTIOSOUND := $(STAGE)/virtiosound/VPhoneVirtIOSound.driver
 VIRTIOSOUND_SOURCES := $(wildcard VirtIOSound/*.m VirtIOSound/*.c)
 VIRTIOSOUND_INCLUDES := $(wildcard VirtIOSound/*.h) VirtIOSound/Info.plist VirtIOSound/AudioServerDriver.tbd
-ARTIFACTS := $(IOS16DESKTOP) $(IOS16MIGRATION) $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND)
+ARTIFACTS := $(IOS16DESKTOP) $(IOS16MIGRATION) $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND) $(VISIONOSIPC) $(VISIONOSPREFERENCES)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist \
 	$(STAGE)/misfix/libmisfix.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
@@ -260,7 +266,7 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay visionosipc visionospreferences
 	@echo "Packaged $(ARCHIVE)"
 
 test-loader-links:
@@ -528,6 +534,25 @@ $(HOMEPODPERSONA): $(HOMEPODPERSONA_INPUTS)
 		-o $@ $< -Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
 
+# Pure libSystem imports are shared with visionOS. Build with the installed iOS
+# SDK and retag only LC_BUILD_VERSION before signing the staged library.
+.PHONY: visionos-ipc test-visionos-ipc
+visionos-ipc: $(VISIONOSIPC)
+
+$(VISIONOSIPC): $(VISIONOSIPC_INPUTS)
+	@mkdir -p $(STAGE)/visionosipc
+	$(CLANG) $(GUEST_C_FLAGS) -Wall -Wextra -Werror -Wno-unused-parameter -dynamiclib \
+		-install_name /usr/lib/libvphonevisionosipc.dylib \
+		-o $@ $(VISIONOSIPC_SOURCE) -Wl,-not_for_dyld_shared_cache -Wl,-no_adhoc_codesign
+	xcrun vtool -set-build-version 11 26.4 26.4 -replace -output $@ $@
+	@codesign --force --sign - $@
+
+test-visionos-ipc:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -arch arm64 -O1 -Wall -Wextra -Werror -Wno-unused-parameter \
+		-o $(OUT)/VisionOSIPCTests VisionOSIPC/Tests/VisionOSIPCTests.c
+	@$(OUT)/VisionOSIPCTests
+
 $(CRYPTEXSTAGING): $(CRYPTEXSTAGING_SOURCE)
 	@mkdir -p $(STAGE)/cryptexstaging
 	xcrun --sdk appletvos clang -arch arm64e -mtvos-version-min=27.0 -Os \
@@ -556,6 +581,23 @@ $(HOMEPODSETUP): $(HOMEPODSETUP_SOURCES) $(HOMEPODSETUP_INPUTS)
 		-Wall -Wextra -Werror -o $@ $(HOMEPODSETUP_SOURCES) -framework Foundation
 	@cp HomePodSetup/com.vphone.homepod-setup.plist $(STAGE)/homepodsetup/
 	@codesign --force --sign - $@
+
+.PHONY: visionos-preferences test-visionos-preferences
+visionos-preferences: $(VISIONOSPREFERENCES)
+
+$(VISIONOSPREFERENCES): $(VISIONOSPREFERENCES_SOURCES) $(VISIONOSPREFERENCES_INPUTS)
+	@mkdir -p $(STAGE)/visionospreferences
+	xcrun --sdk xros clang -target arm64e-apple-xros26.4 -Os -fobjc-arc -fblocks \
+		-Wall -Wextra -Werror -o $@ $(VISIONOSPREFERENCES_SOURCES) -framework Foundation
+	@cp VisionOSPreferences/com.vphone.visionos-preferences.plist $(STAGE)/visionospreferences/
+	@codesign --force --sign - $@
+
+test-visionos-preferences:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -fobjc-arc -fblocks -Wall -Wextra -Werror -IVisionOSPreferences \
+		Tests/VisionOSPreferencesTests.m VisionOSPreferences/VisionOSBuddyPreferences.m \
+		-framework Foundation -o $(OUT)/visionos-preferences-tests
+	$(OUT)/visionos-preferences-tests
 
 .PHONY: test-homepod-setup
 test-homepod-setup:

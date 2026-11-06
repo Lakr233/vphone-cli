@@ -216,6 +216,26 @@ struct VPhoneCustomFirmwareInstaller {
             ? try restoreTree(in: bundleDirectory, path: bundlePath, owner: callerUID)
             : nil
         let device = configuredGuestDevice(in: bundleDirectory) ?? guestDevice(of: restore)
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSNonfatalServices), device.family != .vision {
+            throw ValidationError("Headless service panic policies are available only for visionOS research guests.")
+        }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSSkipBuddy), device.family != .vision {
+            throw ValidationError("The headset onboarding preference requires a visionOS guest.")
+        }
+        if !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSUXMIPC] + Array(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)),
+           device.family != .vision {
+            throw ValidationError("The virtual display product, legacy UXM and native IPC experiments require a visionOS research guest.")
+        }
+        let missingHMDIPC = FirmwareGuestPatchResolution.missingVisionOSDisplayIPCDependencies(enabled: effectiveEnabled)
+        guard missingHMDIPC.isEmpty else {
+            throw ValidationError("The visionOS display IPC lookups require the scoped UXM IPC adapter: \(missingHMDIPC.joined(separator: ", ")).")
+        }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSUXMIPC),
+           !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSLegacyUXM,
+                                               FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap,
+                                               "system-launchd-boot-jetsam_panic_guard_bypass"]) {
+            throw ValidationError("The native visionOS UXM IPC adapter requires stock UXM flags and an otherwise unmodified launchd.")
+        }
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.tvLegacySetup), device.family != .appleTV {
             throw ValidationError("The TV setup compatibility patch is supported only for an Apple TV guest.")
         }
@@ -1370,6 +1390,8 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+                    && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
+                    && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains(identifier)
             }
             guard plan.isEnabled(identifier) else {
                 print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
@@ -1529,9 +1551,7 @@ struct VPhoneCustomFirmwareInstaller {
         //    27.x base.
         // The selected TV donor has a native arm64 cache. Keep its directory
         // intact; cryptex symlinks would point into images it does not ship.
-        let cacheRelative = guestDevice.usesTVOS
-            ? "System/Library/Caches/com.apple.dyld"
-            : "System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
+        let cacheRelative = guestDevice.dyldSharedCacheDirectory
         let cacheArchitecture = guestDevice.hasPlainArm64Userland ? "arm64" : "arm64e"
         let dsc = try verifiedDyldCacheDirectory(system: system, relative: cacheRelative)
         let widenedRegion = kernelPatches.map { $0.contains("kernel-boot-shared_region_size") }
@@ -1585,6 +1605,94 @@ struct VPhoneCustomFirmwareInstaller {
             } else if guestDevice.family == .appleTV {
                 // Optional on TV, unlike on iOS: take it out again.
                 try removeTVEnvironment(system: system)
+            }
+        }
+        // The host cannot mount encrypted Data. An independent mobile one-shot
+        // applies this System policy, retaining its key-level inverse on Data.
+        // Keep the runtime after opt-out so it can restore that inverse on boot.
+        let skipBuddy = FirmwareGuestSystemPatchSet.visionOSSkipBuddy
+        if guestDevice.family == .vision {
+            isolate([skipBuddy]) {
+                let enabled = plan?.isEnabled(skipBuddy) == true
+                let marker = String(FirmwareGuestSystemPatchSet.visionOSSkipBuddyMarker.dropFirst())
+                let hasRuntime = try system.exists("usr/local/libexec/vphone-visionos-preferences")
+                let hasMarker = try system.exists(marker)
+                if enabled || hasRuntime || hasMarker || priorGuest.contains(skipBuddy) {
+                    try installVisionOSPreferencesRuntime(system: system, work: work)
+                    if enabled {
+                        _ = try system.directory("usr/share/vphone", create: true, mode: 0o755)
+                        let policy = try PropertyListSerialization.data(fromPropertyList: ["Enabled": true], format: .binary, options: 0)
+                        try system.writeFile(marker, contents: policy, mode: 0o644, owner: Self.guestOwner)
+                        live.insert(skipBuddy)
+                    } else {
+                        try system.removeItem(marker)
+                    }
+                    print("  [+] visionOS ForceNoBuddy policy \(enabled ? "enabled" : "removed; original key will be restored") by UID 501 on boot")
+                }
+            }
+        }
+        let visionPolicy = FirmwareGuestSystemPatchSet.visionOSNonfatalServices
+        if guestDevice.family == .vision {
+            isolate([visionPolicy]) {
+                let enabled = on(visionPolicy)
+                let cachePath = "System/Library/xpc/launchd.plist"
+                let journalPath = "usr/share/vphone/VisionOSPanicPolicy.plist"
+                let hasJournal = try system.exists(journalPath)
+                if enabled || hasJournal {
+                    guard var cache = try PropertyListSerialization.propertyList(
+                        from: system.readData(cachePath), format: nil) as? PlistDict else {
+                        throw ValidationError("Invalid visionOS launchd cache")
+                    }
+                    var journal: PlistDict = [:]
+                    if hasJournal {
+                        guard let saved = try PropertyListSerialization.propertyList(
+                            from: system.readData(journalPath), format: nil) as? PlistDict else {
+                            throw ValidationError("Invalid visionOS panic policy journal")
+                        }
+                        journal = saved
+                    }
+                    let changed = try CustomFirmwareDaemons.visionOSNonfatalServices(
+                        cache: &cache, journal: &journal, enabled: enabled)
+                    _ = try system.directory("usr/share/vphone", create: true)
+                    try system.writeFile(journalPath, contents: PropertyListSerialization.data(
+                        fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    try system.writeFile(cachePath, contents: PropertyListSerialization.data(
+                        fromPropertyList: cache, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    print("  [+] visionOS panic-on-crash policy \(enabled ? "removed" : "restored"): \(changed.joined(separator: ", "))")
+                    if enabled { live.insert(visionPolicy) }
+                }
+            }
+        }
+        let visionUXM = FirmwareGuestSystemPatchSet.visionOSLegacyUXM
+        if guestDevice.family == .vision {
+            isolate([visionUXM]) {
+                let enabled = on(visionUXM)
+                let path = "System/Library/FeatureFlags/Domain/UserExperienceManagerFeatures.plist"
+                let journalPath = "usr/share/vphone/VisionOSLegacyUXM.plist"
+                let hasJournal = try system.exists(journalPath)
+                if enabled || hasJournal {
+                    guard var domain = try PropertyListSerialization.propertyList(
+                        from: system.readData(path), format: nil) as? PlistDict else {
+                        throw ValidationError("Invalid visionOS UXM feature domain")
+                    }
+                    var journal: PlistDict = [:]
+                    if hasJournal {
+                        guard let saved = try PropertyListSerialization.propertyList(
+                            from: system.readData(journalPath), format: nil) as? PlistDict else {
+                            throw ValidationError("Invalid visionOS UXM feature journal")
+                        }
+                        journal = saved
+                    }
+                    let changed = try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+                        domain: &domain, journal: &journal, enabled: enabled)
+                    _ = try system.directory("usr/share/vphone", create: true)
+                    try system.writeFile(journalPath, contents: PropertyListSerialization.data(
+                        fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    try system.writeFile(path, contents: PropertyListSerialization.data(
+                        fromPropertyList: domain, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    print("  [+] visionOS UXM feature fields \(enabled ? "set to legacy" : "restored"): \(changed.joined(separator: ", "))")
+                    if enabled { live.insert(visionUXM) }
+                }
             }
         }
         // HomePod deliberately excludes the iPhone environment. Inject only the
@@ -2019,7 +2127,9 @@ struct VPhoneCustomFirmwareInstaller {
                 if let restore {
                     try installGPUBundle(restore: restore, system: system, owner: owner)
                     if guestDevice.usesTVOS {
-                        try retargetGPUBundleToTVOS(system: system, work: work)
+                        try retargetGPUBundle(system: system, work: work, to: MachOBuildPlatform.tvOS)
+                    } else if guestDevice.family == .vision {
+                        try retargetGPUBundle(system: system, work: work, to: MachOBuildPlatform.visionOS)
                     }
                     gpuBundleReinstalled = true
                 } else {
@@ -2205,7 +2315,41 @@ struct VPhoneCustomFirmwareInstaller {
         let personaPatch = FirmwareGuestSystemPatchSet.installCoordinationPersona
         let personaMarker = String(FirmwareGuestSystemPatchSet.installCoordinationPersonaMarker.dropFirst())
         let isHomePod = guestDevice.family == .homePod
-        isolate([launchdJetsam, launchdX1] + (isHomePod ? [personaPatch] : [launchdPorts])) {
+        let isVision = guestDevice.family == .vision
+        let visionIPC = FirmwareGuestSystemPatchSet.visionOSUXMIPC
+        var visionIPCInstalled = false
+        isolate([launchdJetsam, launchdX1] + (isHomePod ? [personaPatch] : [launchdPorts]) + (isVision ? [visionIPC] : [])) {
+            if isVision {
+                let library = FirmwareGuestSystemPatchSet.visionOSUXMIPCLibrary
+                let path = String(library.dropFirst())
+                let marker = String(FirmwareGuestSystemPatchSet.visionOSUXMIPCMarker.dropFirst())
+                let hadMarker = try system.exists(marker)
+                if on(visionIPC) {
+                    let payload = try VPhoneGuestBinaries.resolve((library as NSString).lastPathComponent)
+                    try system.replaceFile(path, fromFileAt: payload, mode: 0o755, owner: Self.guestOwner)
+                    try installLibraryAlias(system: system, alias: "vx", target: library)
+                    try patchMachO(system: system, work: work, path: "sbin/launchd",
+                                   preserveEntitlements: true, injectedDylibPath: "/vx")
+                    try system.writeFile(marker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                    live.insert(visionIPC)
+                    visionIPCInstalled = true
+                    print("  [+] \(visionIPC): installed scoped native UXM/Polaris IPC adapter")
+                } else if hadMarker {
+                    guard try revertMachO(system: system, work: work, path: "sbin/launchd") else {
+                        if priorGuest.contains(visionIPC) { live.insert(visionIPC) }
+                        throw ValidationError("The visionOS IPC adapter has no launchd backup; leaving its files intact.")
+                    }
+                    if try system.exists("vx") {
+                        guard try system.readLink("vx") == library else {
+                            throw ValidationError("Another file uses /vx; leaving it intact.")
+                        }
+                        try system.removeItem("vx")
+                    }
+                    try system.removeItem(marker)
+                    try system.removeItem(path)
+                }
+                if on(visionIPC) || hadMarker { return }
+            }
             if isHomePod {
                 let library = FirmwareGuestSystemPatchSet.homePodInstallPersonaLibrary
                 let path = String(library.dropFirst())
@@ -2293,6 +2437,41 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(identifier)
                 }
                 if !priorGuest.contains(launchdPorts) { try system.removeItem(portsMarker) }
+            }
+        }
+
+        if isVision {
+            // Each marker owns one optional native display lookup. Removing
+            // one leaves the shared adapter and every other rule untouched.
+            let displayIPCRules = [
+                (id: FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC,
+                 marker: FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPCMarker,
+                 service: "com.apple.wakeboard.hmdproperties"),
+                (id: FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC,
+                 marker: FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPCMarker,
+                 service: "com.apple.wakeboard.hmdpresentable.owner"),
+                (id: FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC,
+                 marker: FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPCMarker,
+                 service: "com.apple.wakeboard.hmdsystemsetter"),
+                (id: FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC,
+                 marker: FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPCMarker,
+                 service: "com.apple.wakeboardd.system"),
+            ]
+            for rule in displayIPCRules {
+                isolate([rule.id]) {
+                    let marker = String(rule.marker.dropFirst())
+                    if on(rule.id) {
+                        guard visionIPCInstalled else {
+                            throw ValidationError("The visionOS display rule requires a successfully installed UXM IPC adapter.")
+                        }
+                        try system.writeFile(marker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                        live.insert(rule.id)
+                        print("  [+] \(rule.id): enabled only backboardd's lookup of \(rule.service)")
+                    } else if try system.exists(marker) {
+                        try system.removeItem(marker)
+                        print("  [+] \(rule.id): removed its independent enable marker")
+                    }
+                }
             }
         }
 
@@ -3189,10 +3368,10 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     /// The paravirtual GPU driver and its compiler plugin are built for iOS.
-    /// An arm64e tvOS process loads them once they say tvOS: dyld refuses a
-    /// library whose platform is not the process's. Each is re-signed after
-    /// the edit, then the bundle is sealed again.
-    private func retargetGPUBundleToTVOS(system: VPhoneConfinedDirectory, work: WorkDirectory) throws {
+    /// tvOS and visionOS processes require libraries marked for their own
+    /// platform. Each binary is re-signed after the edit, then the bundle is
+    /// sealed again.
+    private func retargetGPUBundle(system: VPhoneConfinedDirectory, work: WorkDirectory, to platform: UInt32) throws {
         let gpu = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
         for name in ["AppleParavirtGPUMetalIOGPUFamily", "libAppleParavirtCompilerPluginIOGPUFamily.dylib"] {
             let path = "\(gpu)/\(name)"
@@ -3200,7 +3379,7 @@ struct VPhoneCustomFirmwareInstaller {
             try work.directory.removeItem(name)
             try system.copyFile(from: path, to: name, in: work.directory)
             var data = try Data(contentsOf: staged)
-            try MachOBuildPlatform.set(MachOBuildPlatform.tvOS, in: &data)
+            try MachOBuildPlatform.set(platform, in: &data)
             try data.write(to: staged)
             try VPhoneSigner.sign(
                 fileAt: staged,
@@ -3209,7 +3388,7 @@ struct VPhoneCustomFirmwareInstaller {
             try system.replaceFile(path, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
         }
         try sealGuestBundle(system: system, bundle: gpu)
-        print("  [+] GPU driver retargeted to tvOS")
+        print("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.visionOS ? "visionOS" : "tvOS")")
     }
 
     /// IOHIDUserDevice reserves IOClass. The shim supplies MiniDisplay's class
@@ -3346,6 +3525,24 @@ struct VPhoneCustomFirmwareInstaller {
         try system.copyFile(from: backup, to: "launchd.plist", in: work.directory)
         try CustomFirmwareDaemons.injectDaemon(into: temp, name: "vphoned", from: daemon)
         try system.replaceFile(launchd, fromFileAt: temp, mode: 0o644, owner: Self.guestOwner)
+    }
+
+    /// No dependency on vphoned or the display adapter: this one-shot owns only
+    /// the mobile ForceNoBuddy key, and remains inert without policy or journal.
+    private func installVisionOSPreferencesRuntime(system: VPhoneConfinedDirectory, work: WorkDirectory) throws {
+        let helper = try VPhoneGuestBinaries.resolve("vphone-visionos-preferences")
+        _ = try system.directory("usr/local/libexec", create: true, mode: 0o755)
+        try system.replaceFile("usr/local/libexec/vphone-visionos-preferences", fromFileAt: helper,
+                               mode: 0o755, owner: Self.guestOwner)
+        let name = "com.vphone.visionos-preferences"
+        let daemon = resources.guestResources.appendingPathComponent("\(name).plist")
+        try system.replaceFile("System/Library/LaunchDaemons/\(name).plist", fromFileAt: daemon,
+                               mode: 0o644, owner: Self.guestOwner)
+        let cache = "System/Library/xpc/launchd.plist"
+        let staged = "visionos-preferences-launchd.plist"
+        try system.copyFile(from: cache, to: staged, in: work.directory)
+        try CustomFirmwareDaemons.injectDaemon(into: work.file(staged), name: name, from: daemon)
+        try system.replaceFile(cache, fromFileAt: work.file(staged), mode: 0o644, owner: Self.guestOwner)
     }
 
     /// Keep rollback available even when the owner also deselects vphoned.
@@ -3695,6 +3892,9 @@ struct VPhoneCustomFirmwareInstaller {
                                 boardDeviceTree.map { [$0.path] } ?? []))
             repairGroup.append((FirmwareGuestSystemPatchSet.prebootFoldableDisplays, "patch-dt-foldable-displays",
                                 boardDeviceTree.map { [$0.path] } ?? []))
+        }
+        if guestDevice.family == .vision {
+            repairGroup.append((FirmwareGuestSystemPatchSet.visionOSVirtualProduct, "patch-dt-visionos-virtual-product", []))
         }
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootHaptics, "patch-dt-haptics", []))
         repairGroup.append((FirmwareGuestSystemPatchSet.ios16EphemeralStorage, "patch-dt-ios16-ephemeral", []))

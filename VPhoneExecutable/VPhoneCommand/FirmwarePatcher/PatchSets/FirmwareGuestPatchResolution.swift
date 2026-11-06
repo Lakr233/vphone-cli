@@ -46,6 +46,14 @@ public enum FirmwareGuestPatchResolution {
         return glesPrimitiveRestartDependencies.subtracting(enabled).sorted()
     }
 
+    /// The optional display lookups share the already-selected native launchd
+    /// adapter; their independent markers cannot load that adapter on their own.
+    public static func missingVisionOSDisplayIPCDependencies(enabled: Set<String>) -> [String] {
+        guard !enabled.isDisjoint(with: FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches) else { return [] }
+        return enabled.contains(FirmwareGuestSystemPatchSet.visionOSUXMIPC)
+            ? [] : [FirmwareGuestSystemPatchSet.visionOSUXMIPC]
+    }
+
     /// TV admits the gigalocker repair, opt-in dyld TPRO compatibility, virtual
     /// Bluetooth, and vphoned with the launchd cache gate its launchd.plist entry needs.
     /// Other payloads, cache patches and shell integration need a TV port and

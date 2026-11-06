@@ -90,6 +90,8 @@ public struct VPhonePatchPreset: Sendable, Hashable, Codable, Identifiable {
     public static let homeViewIdentifier = "homeview"
 
     public static let homePodMiniIdentifier = "homepod-mini"
+    /// Experimental visionOS restore without the iPhone UI environment.
+    public static let visionOSIdentifier = "visionos"
     /// The identifier an Apple Watch guest gets: ``minimalIdentifier`` for a
     /// watch, which presents its own board.
     public static let watchOSIdentifier = "watchos"

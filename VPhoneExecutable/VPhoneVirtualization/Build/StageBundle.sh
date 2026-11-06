@@ -40,6 +40,12 @@ build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
     -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO \
     SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=-iphoneos build
 
+# Foundation-only research transport; visionOS omits the regular daemon's UI frameworks.
+build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
+    -scheme vphoned-darwinos -configuration "$configuration" \
+    -sdk iphoneos -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO \
+    SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=-iphoneos build
+
 # Apple TV and HomePod guests run vphoned built against the AppleTVOS SDK, so
 # its `#if os(tvOS)` branches and IcliKit's are the tvOS ones. That SDK has no
 # IOKit.framework though tvOS ships one with the same exports, so the build
@@ -102,6 +108,9 @@ done
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$amfi_products/vphone-escalator" "$macos/vphone-escalator"
 /bin/cp "$daemon_products/vphoned" "$guest/vphoned"
+# Experimental headless visionOS agent. As with watchOS below, retain the
+# Foundation-only implementation and set the executable platform explicitly.
+/usr/bin/xcrun vtool -set-build-version 11 26.4 26.4 -replace -output "$guest/vphoned-visionos" "$daemon_products/vphoned-darwinos"
 /bin/cp "$tvos_daemon_products/vphoned" "$guest/vphoned-tvos"
 # Watch guests still run the iOS daemon marked watchOS: watchOS 8 is iOS 15's
 # release.
@@ -142,11 +151,14 @@ guest_compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /bin/cp "$guest_products/attitude/libvphoneattitude.dylib" "$guest/libvphoneattitude.dylib"
 /bin/cp "$guest_products/cryptexstaging/libvphonecryptexstaging.dylib" "$guest/libvphonecryptexstaging.dylib"
 /bin/cp "$guest_products/homepodpersona/libvphoneinstallpersona.dylib" "$guest/libvphoneinstallpersona.dylib"
+/bin/cp "$guest_products/visionosipc/libvphonevisionosipc.dylib" "$guest/libvphonevisionosipc.dylib"
 /bin/cp "$guest_products/homepodmisfix/libvphonehomepodmisfix.dylib" "$guest/libvphonehomepodmisfix.dylib"
 /bin/cp "$guest_products/homepoddisplay/libvphonehomepoddisplay.dylib" "$guest/libvphonehomepoddisplay.dylib"
 /bin/cp "$guest_products/tvsetupfocus/libvphonetvsetupfocus.dylib" "$guest/libvphonetvsetupfocus.dylib"
 /bin/cp "$guest_products/homepodsetup/vphone-homepod-setup" "$guest/vphone-homepod-setup"
 /bin/cp "$guest_products/homepodsetup/com.vphone.homepod-setup.plist" "$guest/com.vphone.homepod-setup.plist"
+/bin/cp "$guest_products/visionospreferences/vphone-visionos-preferences" "$guest/vphone-visionos-preferences"
+/bin/cp "$guest_products/visionospreferences/com.vphone.visionos-preferences.plist" "$guest/com.vphone.visionos-preferences.plist"
 /bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" \
     "$guest/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
 # The HAL plugin is a bundle, signed whole by the Makefile; copied as a tree so
@@ -231,6 +243,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-tvos"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
