@@ -44,6 +44,25 @@ static mach_port_t vpInheritedX1Port(void) {
     return vpX1Port;
 }
 
+kern_return_t vpSetTaskExceptionPortsPreservingX1(
+    task_t task,
+    exception_mask_t mask,
+    mach_port_t port,
+    exception_behavior_t behavior,
+    thread_state_flavor_t flavor
+) {
+    // Discover the inherited action before replacing any part of it. A crash
+    // reporter's first registration may otherwise steal X1 faults from launchd.
+    if (task == mach_task_self() && (mask & EXC_MASK_BAD_INSTRUCTION) != 0 &&
+        vpInheritedX1Port() != MACH_PORT_NULL) {
+        mask &= ~EXC_MASK_BAD_INSTRUCTION;
+        if (mask == 0) {
+            return KERN_SUCCESS;
+        }
+    }
+    return task_set_exception_ports(task, mask, port, behavior, flavor);
+}
+
 int vpSetSpawnExceptionPortsPreservingX1(
     posix_spawnattr_t *attributes,
     exception_mask_t mask,
