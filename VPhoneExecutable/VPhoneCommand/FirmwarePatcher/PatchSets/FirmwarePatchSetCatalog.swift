@@ -496,7 +496,7 @@ public enum FirmwarePatchSetCatalog {
     public static let visionOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.visionOSIdentifier,
         title: "visionOS (research)",
-        summary: "Experimental visionOS restore with its donor board identity, the PCC boot chain, paravirtual GPU and a Foundation-only agent. Native UI adapters are independent opt-in experiments; physical headset hardware is not emulated.",
+        summary: "Experimental visionOS restore with its donor board identity, the PCC boot chain, paravirtual GPU and application management. Native UI adapters are independent opt-in experiments; physical headset hardware is not emulated.",
         patchSets: bundledReferences,
         selection: .block(
             manualOnlyPatches

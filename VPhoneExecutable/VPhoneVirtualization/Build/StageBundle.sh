@@ -108,9 +108,9 @@ done
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$amfi_products/vphone-escalator" "$macos/vphone-escalator"
 /bin/cp "$daemon_products/vphoned" "$guest/vphoned"
-# Experimental headless visionOS agent. As with watchOS below, retain the
-# Foundation-only implementation and set the executable platform explicitly.
-/usr/bin/xcrun vtool -set-build-version 11 26.4 26.4 -replace -output "$guest/vphoned-visionos" "$daemon_products/vphoned-darwinos"
+# Preserve the minimal native transport as a research fallback. App management
+# uses the iOS daemon below through visionOS's iPad compatibility environment.
+/usr/bin/xcrun vtool -set-build-version 11 26.4 26.4 -replace -output "$guest/vphoned-visionos-minimal" "$daemon_products/vphoned-darwinos"
 /bin/cp "$tvos_daemon_products/vphoned" "$guest/vphoned-tvos"
 # Watch guests still run the iOS daemon marked watchOS: watchOS 8 is iOS 15's
 # release.
@@ -124,6 +124,7 @@ guest_compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
     /usr/bin/grep '/libswiftCompatibilitySpan.dylib$')"
 /bin/cp "$guest_compatibility_library" "$guest/libswiftCompatibilitySpan.dylib"
 /usr/bin/install_name_tool -add_rpath /usr/lib/vphone "$guest/vphoned"
+/bin/cp "$guest/vphoned" "$guest/vphoned-visionos"
 /usr/bin/codesign --force --sign - "$guest/libswiftCompatibilitySpan.dylib"
 /bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$guest/vphoned.plist"
 /bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$guest/launchdhook-vphone.dylib"
@@ -244,6 +245,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-tvos"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos-minimal"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"

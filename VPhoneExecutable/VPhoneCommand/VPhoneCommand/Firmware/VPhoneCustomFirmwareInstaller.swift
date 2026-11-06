@@ -3500,7 +3500,7 @@ struct VPhoneCustomFirmwareInstaller {
         let vphoned = try VPhoneGuestBinaries.resolve(VPhoneResources.vphonedName(for: guestDevice.family))
         let staged = work.file("vphoned")
         try fm.copyItem(at: vphoned, to: staged)
-        if guestDevice.family == .iPhone || guestDevice.family == .iPad {
+        if guestDevice.family == .iPhone || guestDevice.family == .iPad || guestDevice.family == .vision {
             // Install on both full and environment-only updates, before the
             // daemon that needs it. The payload is already signed in the bundle.
             _ = try system.directory("usr/lib/vphone", create: true)
