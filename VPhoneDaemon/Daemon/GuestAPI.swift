@@ -455,24 +455,15 @@ enum GuestAPI {
         case "settings.get":
             return try readPreference(domain: string(params, "domain"), key: params["key"] as? String)
         case "settings.set":
-            let rawValue = params["value"] ?? NSNull()
-            let type =
-                params["type"] as? String
-                    ?? (rawValue is Bool
-                        ? "bool"
-                        : rawValue is NSNumber
-                        ? "float"
-                        : rawValue is String ? "string" : "json")
-            let text: String =
-                if type == "json" {
-                    try String(data: JSONSerialization.data(withJSONObject: rawValue), encoding: .utf8) ?? ""
-                } else {
-                    String(describing: rawValue)
-                }
+            let domain = try string(params, "domain")
+            let key = try string(params, "key")
+            guard let value = GuestSettingsValue.typedText(params["value"], type: params["type"] as? String) else {
+                throw GuestAPIError.invalidRequest("value is required, and type json takes an array or object")
+            }
             return try writePreference(
-                domain: string(params, "domain"),
-                key: string(params, "key"),
-                value: PreferenceValue(text: text, type: type),
+                domain: domain,
+                key: key,
+                value: PreferenceValue(text: value.text, type: value.type),
             )
         case "settings.delete":
             return try deletePreference(domain: string(params, "domain"), key: string(params, "key"))

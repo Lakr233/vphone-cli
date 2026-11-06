@@ -43,8 +43,44 @@ enum LogicTests {
         setupAssistantState()
         homeViewDistancePolicy()
         mobileGestaltAnswers()
+        settingsValue()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func settingsValue() {
+        // Decoded the way the daemon gets its params; nil is no `value` at all.
+        func typedText(_ json: String?, _ type: String?) -> String? {
+            let body = json.map { "{\"value\":\($0)}" } ?? "{}"
+            guard let params = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
+                  let result = GuestSettingsValue.typedText(params["value"], type: type)
+            else { return nil }
+            return "\(result.text)|\(result.type)"
+        }
+        expectEqual(typedText(nil, nil), nil, "no value")
+        expectEqual(typedText("null", nil), nil, "null")
+        expectEqual(typedText(nil, "string"), nil, "no value, type string")
+        expectEqual(typedText("null", "string"), nil, "null, type string")
+        expectEqual(typedText("5", "json"), nil, "number, type json")
+        expectEqual(typedText("\"x\"", "json"), nil, "string, type json")
+        expectEqual(typedText("true", nil), "1|bool")
+        expectEqual(typedText("5", nil), "5|float")
+        expectEqual(typedText("\"x\"", nil), "x|string")
+        expectEqual(typedText("[1]", nil), "[1]|json")
+        expectEqual(typedText("{\"a\":1}", nil), "{\"a\":1}|json")
+        expectEqual(typedText("true", "string"), "1|string")
+        expectEqual(typedText("5", "string"), "5|string")
+        expectEqual(typedText("\"x\"", "string"), "x|string")
+        expectEqual(typedText("[1]", "json"), "[1]|json")
+        expectEqual(typedText("{\"a\":1}", "json"), "{\"a\":1}|json")
+        expectEqual(typedText("\"\"", nil), "|string")
+        expectEqual(typedText("false", nil), "0|bool")
+        expectEqual(typedText("0", "float"), "0|float")
+        expectEqual(typedText("[]", nil), "[]|json")
+        expectEqual(typedText("{}", nil), "{}|json")
+        // A decoded 1 or 0 is also a Bool, as it always was here.
+        expectEqual(typedText("1", nil), "1|bool")
+        expectEqual(typedText("0", nil), "0|bool")
     }
 
     static func mobileGestaltAnswers() {
