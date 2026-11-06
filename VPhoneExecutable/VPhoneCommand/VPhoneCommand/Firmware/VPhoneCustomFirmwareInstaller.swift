@@ -1494,6 +1494,21 @@ struct VPhoneCustomFirmwareInstaller {
             try requireX1Bootstrap()
         }
 
+        // UIKit loads this standalone accessibility bundle into app processes. Like
+        // CIBarcode, it must be lowered on disk; the inherited trap handler is not
+        // a reliable fallback. machO preserves the backup and re-seals the bundle.
+        if version.hasPrefix("27.1.") || version == "27.1"
+            || priorGuest.contains(FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility)
+        {
+            machO(
+                FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility,
+                path: FirmwareGuestSystemPatchSet.homePopAccessibilityExecutablePath,
+                verbs: ["patch-arm64e-x1"],
+                preserveEntitlements: true,
+                bundle: FirmwareGuestSystemPatchSet.homePopAccessibilityBundlePath,
+            )
+        }
+
         // CIBarcode is a standalone Core Image plug-in, outside the shared cache.
         // Lower it ahead of time rather than relying on an application's inherited
         // exception handler to translate these instructions at runtime.

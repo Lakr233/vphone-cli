@@ -6964,3 +6964,26 @@ The installed CLI's `cfw update-environment` also passed application,
 reversion and reapplication on 24A446: the guest receipt followed the
 selection, reversion restored the original binary, and both applications
 produced the same signed binary and working local connections after boot.
+
+## 2026-11-06: standalone HomePop accessibility X1 lowering
+
+On iPhone19,4 / iOS 27.1 (24A94425), an app's accessibility initialization
+loaded SpringBoardHomePopAccessibility.axbundle outside the shared cache.
+Its arm64e.x1 image faulted at +[AXSpringBoardHomePopGlue initialize] + 0:
+image offset 0xc58, PACIBSPPC, SIGILL 0xdac1a7fe. The original image UUID is
+BA1A37E2-D388-3876-A68E-89FDB4145618. Existing static X1 lowering converts
+66 instructions, re-attests three code slots and leaves zero candidates.
+
+The new system-homepopaccessibility-cfw-arm64e_x1 declaration is gated to
+the measured iOS 27.1 base and follows the existing reversible Mach-O and
+bundle-seal installer path. TV, HomePod and HomeView presets block it like
+CIBarcode. No shared-cache bytes or application code are intentionally changed.
+
+Validation completed on the same guest with a local build of this change:
+50 focused X1 and bundled-catalogue tests passed. The installed image reads
+PACIBSP at 0xc58; repeating lowering leaves its SHA-256 unchanged and reports
+zero unvisited candidates. A separate vphoned script process loaded the real
+bundle and invoked +[AXSpringBoardHomePopGlue initialize] successfully without
+crashing. The bank app loaded its homepage and answered accessibility UI queries.
+Open/closed pose requests and a second app launch were exercised; these checks
+are local VM evidence, not broad accessibility or real-device acceptance.

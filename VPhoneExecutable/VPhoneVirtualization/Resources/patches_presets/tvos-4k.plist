@@ -121,6 +121,7 @@
 			<string>dyld-cfw-gles_point_draw</string>
 			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>system-cibarcode-cfw-arm64e_x1</string>
+		<string>system-homepopaccessibility-cfw-arm64e_x1</string>
 			<string>kernel-boot-arm64e_x1</string>
 			<string>kernel-boot-cssc_emulation</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
