@@ -71,11 +71,12 @@ public enum CustomFirmwareDaemons {
             return .cryptex(try cryptexPaths(buildManifest: url))
         }
         guard let products = manifest["SupportedProductTypes"] as? [String], !products.isEmpty,
-              products.allSatisfy({ VPhoneGuestDevice.named($0)?.usesTVOS == true }),
+              (products.allSatisfy { VPhoneGuestDevice.named($0)?.usesTVOS == true }
+                  || products.allSatisfy { VPhoneGuestDevice.named($0)?.family == .vision }),
               let erase = identities.first(where: {
                   ($0["Info"] as? PlistDict)?["RestoreBehavior"] as? String == "Erase"
               }),
-              erase["Ap,SDKPlatform"] as? String == "appletvos",
+              erase["Ap,SDKPlatform"] as? String == (products.allSatisfy { VPhoneGuestDevice.named($0)?.family == .vision } ? "xros" : "appletvos"),
               let entries = erase["Manifest"] as? PlistDict
         else { throw DaemonError.cryptexPathsNotFound(url.path) }
         for component in ["OS", "SystemVolume", "StaticTrustCache", "Ap,SystemVolumeCanonicalMetadata"] {
