@@ -3,51 +3,85 @@ import IcliKit
 import IcliSystem
 import VphonedNative
 
+enum AppDetailMethod: String, GuestMethod {
+    case appsInfo = "apps.info"
+    case appsBinary = "apps.binary"
+    case appsDataDir = "apps.data_dir"
+    case appsUrlSchemes = "apps.url_schemes"
+    case appsHandlers = "apps.handlers"
+    case appsRegistration = "apps.registration"
+    case appsRegister = "apps.register"
+    case appsUnregister = "apps.unregister"
+    case appsUnregisterDir = "apps.unregister_dir"
+    case appsNetworkPolicy = "apps.network_policy"
+    case systemUicache = "system.uicache"
+    case systemSystemApps = "system.system_apps"
+    case systemRespring = "system.respring"
+    case systemReboot = "system.reboot"
+    case systemShutdown = "system.shutdown"
+
+    var spec: MethodSpec {
+        switch self {
+        case .appsInfo: MethodSpec(.required("bundle_id", .string))
+        case .appsBinary: MethodSpec(.required("bundle_id", .string))
+        case .appsDataDir: MethodSpec(.required("bundle_id", .string))
+        case .appsUrlSchemes: MethodSpec()
+        case .appsHandlers: MethodSpec(.required("url", .string))
+        case .appsRegistration: MethodSpec(.required("path", .string))
+        case .appsRegister: MethodSpec(.required("path", .string))
+        case .appsUnregister:
+            MethodSpec(.required("path", .string), force: .always { p in try "unregister \(GuestAPI.string(p, "path"))" })
+        case .appsUnregisterDir:
+            MethodSpec(.required("directory", .string),
+                       force: .always { p in try "unregister every app in \(GuestAPI.string(p, "directory"))" })
+        case .appsNetworkPolicy: MethodSpec(.required("bundle_id", .string), .optional("repair", .boolean))
+        case .systemUicache: MethodSpec(.optional("directory", .string))
+        case .systemSystemApps: MethodSpec(.optional("visible", .boolean))
+        case .systemRespring: MethodSpec(force: .always { _ in "restart SpringBoard" })
+        case .systemReboot:
+            MethodSpec(.optional("userspace", .boolean),
+                       force: .always { p in GuestMethodArea.flag(p, "userspace") ? "restart userspace" : "reboot the guest" })
+        case .systemShutdown: MethodSpec(force: .always { _ in "shut down the guest" })
+        }
+    }
+}
+
 // MARK: - App Detail and System Control
 
 extension GuestAPI {
-    static func executeAppDetail(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        switch method {
-        case "apps.info":
+    static func executeAppDetail(_ m: AppDetailMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .appsInfo:
             return try appInfo(string(params, "bundle_id"))
-        case "apps.binary":
+        case .appsBinary:
             return try appBinaryInfo(string(params, "bundle_id"))
-        case "apps.data_dir":
+        case .appsDataDir:
             return try appDataDir(string(params, "bundle_id"))
-        case "apps.url_schemes":
+        case .appsUrlSchemes:
             return try appURLSchemes()
-        case "apps.handlers":
+        case .appsHandlers:
             return try appHandlers(string(params, "url"))
-        case "apps.registration":
+        case .appsRegistration:
             return try appRegistration(string(params, "path"))
-        case "apps.register":
+        case .appsRegister:
             return try registerApp(string(params, "path"))
-        case "apps.unregister":
-            let path = try string(params, "path")
-            try requireForce(params, "unregister \(path)")
-            return try unregisterApp(path, force: true)
-        case "apps.unregister_dir":
-            let directory = try string(params, "directory")
-            try requireForce(params, "unregister every app in \(directory)")
-            return try unregisterAppsInDirectory(directory, force: true)
-        case "apps.network_policy":
+        case .appsUnregister:
+            return try unregisterApp(string(params, "path"), force: true)
+        case .appsUnregisterDir:
+            return try unregisterAppsInDirectory(string(params, "directory"), force: true)
+        case .appsNetworkPolicy:
             return try appNetworkPolicy(string(params, "bundle_id"), repair: bool(params, "repair"))
-        case "system.uicache":
+        case .systemUicache:
             return try refreshAppRegistrations(directory: optionalString(params, "directory"))
-        case "system.system_apps":
+        case .systemSystemApps:
             return try systemAppsVisibility(set: params["visible"] as? Bool)
-        case "system.respring":
-            try requireForce(params, "restart SpringBoard")
+        case .systemRespring:
             return try respring()
-        case "system.reboot":
+        case .systemReboot:
             let userspace = bool(params, "userspace")
-            try requireForce(params, userspace ? "restart userspace" : "reboot the guest")
             return try requestReboot(userspace: userspace, force: true)
-        case "system.shutdown":
-            try requireForce(params, "shut down the guest")
+        case .systemShutdown:
             return try requestShutdown()
-        default:
-            return nil
         }
     }
 }

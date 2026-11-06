@@ -4,17 +4,30 @@ import VphonedNative
 
 // MARK: - Device Attitude
 
+enum AttitudeMethod: String, GuestMethod {
+    case motionAttitudeGet = "motion.attitude.get"
+    case motionAttitudeSet = "motion.attitude.set"
+    case motionAttitudeClear = "motion.attitude.clear"
+
+    var spec: MethodSpec {
+        switch self {
+        case .motionAttitudeGet: MethodSpec()
+        case .motionAttitudeSet: MethodSpec(.required("roll", .number), .required("pitch", .number), .required("yaw", .number), .optional("enabled", .boolean))
+        case .motionAttitudeClear: MethodSpec()
+        }
+    }
+}
+
 extension GuestAPI {
     private static let attitudeLock = NSLock()
 
-    static func executeAttitude(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        guard ["motion.attitude.get", "motion.attitude.set", "motion.attitude.clear"].contains(method) else { return nil }
+    static func executeAttitude(_ m: AttitudeMethod, _ params: [String: Any]) throws -> [String: Any] {
         attitudeLock.lock()
         defer { attitudeLock.unlock() }
-        if method != "motion.attitude.get" {
+        if m != .motionAttitudeGet {
             var angles = [Double](repeating: 0, count: 3)
-            var enabled = method == "motion.attitude.set"
-            if method == "motion.attitude.set" {
+            var enabled = m == .motionAttitudeSet
+            if m == .motionAttitudeSet {
                 if let flag = params["enabled"] {
                     guard let number = flag as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
                         throw GuestAPIError.invalidRequest("enabled must be a boolean")

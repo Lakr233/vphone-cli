@@ -47,7 +47,8 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
         commandName: "patch-arm64e-x1",
         abstract: "Lower X1 instructions in a supported standalone executable",
         discussion: """
-        Supports dyld, launchd, fsck, mount and CIBarcode. Other standalone userland \
+        Supports dyld, launchd, fsck, mount, CIBarcode and SpringBoardHomePopAccessibility. \
+        Other standalone userland \
         instructions are handled on demand. Re-attests modified code pages.
         """,
     )
@@ -60,9 +61,14 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
         case "launchd": identifier = FirmwareGuestSystemPatchSet.arm64eX1LaunchdBootstrap
         case "fsck": identifier = FirmwareGuestSystemPatchSet.arm64eX1FsckBootstrap
         case "mount": identifier = FirmwareGuestSystemPatchSet.arm64eX1MountBootstrap
+        case "SpringBoardHomePopAccessibility":
+            identifier = FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility
         case "CIBarcode": identifier = FirmwareGuestSystemPatchSet.arm64eX1CIBarcode
         default:
-            throw ValidationError("X1 static lowering supports only dyld, launchd, fsck, mount and CIBarcode")
+            throw ValidationError(
+                "X1 static lowering supports only dyld, launchd, fsck, mount, CIBarcode "
+                    + "and SpringBoardHomePopAccessibility",
+            )
         }
         try CustomFirmwareArm64eX1.patch(
             fileAt: binary,
@@ -717,6 +723,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchArm64eX1Command.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
+            VPhoneCustomFirmwarePatchRemotePairingCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioMuteCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioSPGateCommand.self,
@@ -726,5 +733,23 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchParavirtGPUPrimitiveRestartCommand.self,
             VPhoneCustomFirmwarePatchParavirtGPUCompilerCacheCommand.self,
         ]
+    }
+}
+
+struct VPhoneCustomFirmwarePatchRemotePairingCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-remotepairingdeviced",
+        abstract: "Allow local pairing control and tunnel connections",
+    )
+
+    @Argument(help: "Path to the remotepairingdeviced Mach-O, patched in place", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the sites without changing the file")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        try CustomFirmwareRemotePairing.patch(fileAt: binary, dryRun: dryRun)
     }
 }

@@ -5,6 +5,22 @@ import VphonedNative
 
 // MARK: - APFS Snapshots
 
+enum StorageMethod: String, GuestMethod {
+    case apfsSnapshots = "apfs.snapshots"
+    case apfsSnapshotDelete = "apfs.snapshot.delete"
+
+    var spec: MethodSpec {
+        switch self {
+        case .apfsSnapshots: MethodSpec(.optional("mount", .string))
+        case .apfsSnapshotDelete:
+            MethodSpec(.optional("mount", .string),
+                       .optional("name", .string),
+                       .optional("prefix", .string),
+                       force: .always { p in try "delete APFS snapshots on \(GuestAPI.snapshotDeletion(p).mount)" })
+        }
+    }
+}
+
 /// `apfs.snapshots` lists a volume's snapshots; `apfs.snapshot.delete`
 /// removes the `orig-fs.disabled.rn-*` snapshot CFW install leaves on the
 /// system volume, and nothing else (`GuestSnapshotPolicy`). Until it is gone,
@@ -14,30 +30,18 @@ import VphonedNative
 /// itself: its SIP refuses to delete snapshots of a System-role volume.
 /// `Research/Guest/template_snapshot_deletion.md` has the measurements.
 extension GuestAPI {
-    static func executeStorage(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        switch method {
-        case "apfs.snapshots":
+    static func executeStorage(_ m: StorageMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .apfsSnapshots:
             let mount = try snapshotMount(params)
             return try ["mount": mount, "snapshots": snapshotNames(mount)]
-        case "apfs.snapshot.delete":
-            let mount = try snapshotMount(params)
-            let selection: GuestSnapshotPolicy.Selection
-            do {
-                selection = try GuestSnapshotPolicy.Selection.make(
-                    name: optionalString(params, "name"),
-                    prefix: optionalString(params, "prefix"),
-                )
-            } catch {
-                throw GuestAPIError.invalidRequest(String(describing: error))
-            }
-            try requireForce(params, "delete APFS snapshots on \(mount)")
+        case .apfsSnapshotDelete:
+            let (mount, selection) = try snapshotDeletion(params)
             return try deleteSnapshots(mount: mount, selection: selection)
-        default:
-            return nil
         }
     }
 
-    private static func snapshotMount(_ params: [String: Any]) throws -> String {
+    fileprivate static func snapshotMount(_ params: [String: Any]) throws -> String {
         let mount = optionalString(params, "mount") ?? GuestSnapshotPolicy.defaultMount
         do {
             try GuestSnapshotPolicy.validateMount(mount)
@@ -45,6 +49,20 @@ extension GuestAPI {
             throw GuestAPIError.invalidRequest(String(describing: error))
         }
         return mount
+    }
+
+    fileprivate static func snapshotDeletion(_ params: [String: Any]) throws
+        -> (mount: String, selection: GuestSnapshotPolicy.Selection) {
+        let mount = try snapshotMount(params)
+        do {
+            let selection = try GuestSnapshotPolicy.Selection.make(
+                name: optionalString(params, "name"),
+                prefix: optionalString(params, "prefix"),
+            )
+            return (mount, selection)
+        } catch {
+            throw GuestAPIError.invalidRequest(String(describing: error))
+        }
     }
 
     static func snapshotNames(_ mount: String) throws -> [String] {

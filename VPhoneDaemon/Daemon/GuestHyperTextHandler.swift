@@ -3,6 +3,7 @@ import IcliKit
 import NIOCore
 import NIOHTTP1
 import NIOPosix
+import NIOWebSocket
 
 final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = HTTPServerRequestPart
@@ -297,7 +298,9 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         context.fireChannelInactive()
     }
 
-    func errorCaught(context: ChannelHandlerContext, error _: Error) {
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        // A refused or malformed WebSocket handshake: the request follows and gets its reply.
+        if error is NIOWebSocketUpgradeError { return }
         context.close(promise: nil)
     }
 }

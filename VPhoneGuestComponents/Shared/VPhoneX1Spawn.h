@@ -31,4 +31,16 @@ int vpSetSpawnExceptionPortsPreservingX1(
     thread_state_flavor_t flavor
 );
 
+// Keep the inherited X1 lowering action when a process installs its own crash
+// reporter. Only the current task's BAD_INSTRUCTION bit is retained; all other
+// mask bits and arguments are forwarded unchanged. Without an inherited X1
+// action this is exactly task_set_exception_ports.
+kern_return_t vpSetTaskExceptionPortsPreservingX1(
+    task_t task,
+    exception_mask_t mask,
+    mach_port_t port,
+    exception_behavior_t behavior,
+    thread_state_flavor_t flavor
+);
+
 #endif

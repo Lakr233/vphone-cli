@@ -54,14 +54,120 @@ final class GuestDeveloperModeSnapshot: @unchecked Sendable {
     }
 }
 
+enum DeviceMethod: String, GuestMethod {
+    case deviceInfo = "device.info"
+    case deviceNetwork = "device.network"
+    case networkIpv4Get = "network.ipv4.get"
+    case networkIpv4Set = "network.ipv4.set"
+    case networkResolve = "network.resolve"
+    case networkStaticNamesGet = "network.static_names.get"
+    case networkStaticNamesSet = "network.static_names.set"
+    case networkHostnameGet = "network.hostname.get"
+    case networkHostnameSet = "network.hostname.set"
+    case deviceNameGet = "device.name.get"
+    case deviceNameSet = "device.name.set"
+    case deviceIoreg = "device.ioreg"
+    case deviceInputDevices = "device.input_devices"
+    case deviceDisplays = "device.displays"
+    case displayModes = "display.modes"
+    case displayExternalStatus = "display.external.status"
+    case displayExternalDiagnostics = "display.external.diagnostics"
+    case displayExternalConfigure = "display.external.configure"
+    case displayExternalFrame = "display.external.frame"
+    case deviceEnvironment = "device.environment"
+    case deviceBasebin = "device.basebin"
+    case displayBrightness = "display.brightness"
+    case displayRotation = "display.rotation"
+    case displayOrientation = "display.orientation"
+    case displayPosture = "display.posture"
+    case displayPose = "display.pose"
+    case displayRotationLock = "display.rotation_lock"
+    case displayAutoLock = "display.auto_lock"
+    case displayAutoLockSet = "display.auto_lock.set"
+    case screenUnlock = "screen.unlock"
+    case audioVolume = "audio.volume"
+    case audioState = "audio.state"
+    case networkCapture = "network.capture"
+    case securitySslKillswitch = "security.ssl_killswitch"
+    case diagnosticsSelfTest = "diagnostics.self_test"
+    case notifyPost = "notify.post"
+    case notifyState = "notify.state"
+
+    var spec: MethodSpec {
+        switch self {
+        case .deviceInfo: MethodSpec()
+        case .deviceNetwork: MethodSpec()
+        case .networkIpv4Get: MethodSpec(.optional("interface", .string))
+        case .networkIpv4Set:
+            MethodSpec(.optional("interface", .string),
+                       .required("method", .string),
+                       .optional("address", .string),
+                       .optional("subnet_mask", .string),
+                       .optional("router", .string),
+                       .optional("dns", .array))
+        case .networkResolve:
+            MethodSpec(.required("host", .string),
+                       .optional("port", .integer),
+                       .optional("family", .string),
+                       .optional("first_only", .boolean),
+                       .optional("timeout_ms", .number))
+        case .networkStaticNamesGet: MethodSpec()
+        case .networkStaticNamesSet: MethodSpec(.optional("entries", .array))
+        case .networkHostnameGet: MethodSpec()
+        case .networkHostnameSet: MethodSpec(.optional("local_host_name", .string))
+        case .deviceNameGet: MethodSpec()
+        case .deviceNameSet: MethodSpec(.optional("name", .any))
+        case .deviceIoreg: MethodSpec(.optional("plane", .string))
+        case .deviceInputDevices: MethodSpec()
+        case .deviceDisplays: MethodSpec()
+        case .displayModes: MethodSpec()
+        case .displayExternalStatus: MethodSpec()
+        case .displayExternalDiagnostics: MethodSpec()
+        case .displayExternalConfigure:
+            MethodSpec(.required("enabled", .boolean),
+                       .optional("width", .integer),
+                       .optional("height", .integer))
+        case .displayExternalFrame: MethodSpec()
+        case .deviceEnvironment: MethodSpec()
+        case .deviceBasebin: MethodSpec(.optional("archive", .string))
+        case .displayBrightness: MethodSpec(.optional("value", .number))
+        case .displayRotation: MethodSpec(.optional("orientation", .string))
+        case .displayOrientation: MethodSpec()
+        case .displayPosture:
+            MethodSpec(.optional("position", .any),
+                       .optional("duration", .number),
+                       .optional("profile", .string),
+                       .optional("hinge", .any),
+                       .optional("orientation", .any),
+                       .optional("tabletop", .integer),
+                       .optional("angle", .number))
+        case .displayPose: MethodSpec()
+        case .displayRotationLock: MethodSpec(.required("locked", .boolean))
+        case .displayAutoLock: MethodSpec()
+        case .displayAutoLockSet: MethodSpec(.required("seconds", .integer))
+        case .screenUnlock: MethodSpec(.optional("passcode", .string), .optional("timeout", .number))
+        case .audioVolume: MethodSpec(.optional("value", .number), .optional("category", .string))
+        case .audioState: MethodSpec()
+        case .networkCapture:
+            MethodSpec(.optional("seconds", .number),
+                       .optional("interface", .string),
+                       .optional("filter", .string))
+        case .securitySslKillswitch: MethodSpec()
+        case .diagnosticsSelfTest: MethodSpec()
+        case .notifyPost: MethodSpec(.required("name", .string), .optional("state", .any))
+        case .notifyState: MethodSpec(.required("name", .string))
+        }
+    }
+}
+
 // MARK: - Device, Display, Audio, Network
 
 extension GuestAPI {
     private static let rotationLock = NSLock()
 
-    static func executeDevice(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        switch method {
-        case "device.info":
+    static func executeDevice(_ m: DeviceMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .deviceInfo:
             var info = try collectDeviceSnapshot()
             info["jailbreak"] = jailbreakInfo()
             info["network"] = networkInfo()
@@ -74,13 +180,13 @@ extension GuestAPI {
             info["agent"] = ["binary_hash": binaryHash, "pid": getpid()]
             info["device_name"] = deviceNameInfo()
             return info
-        case "device.network":
+        case .deviceNetwork:
             return networkInfo()
-        case "network.ipv4.get":
+        case .networkIpv4Get:
             return try networkIPv4(interface: optionalString(params, "interface") ?? "en0", set: nil)
-        case "network.ipv4.set":
+        case .networkIpv4Set:
             return try networkIPv4(interface: optionalString(params, "interface") ?? "en0", set: params)
-        case "network.resolve":
+        case .networkResolve:
             let port = (params["port"] as? NSNumber).map(\.intValue)
             let family: Int32 = switch optionalString(params, "family") {
             case "ipv4": AF_INET
@@ -92,37 +198,37 @@ extension GuestAPI {
                 firstOnly: params["first_only"] as? Bool ?? false,
                 timeout: number(params, "timeout_ms", default: 5000) / 1000,
             )
-        case "network.static_names.get":
+        case .networkStaticNamesGet:
             return GuestStaticNames.shared.describe()
-        case "network.static_names.set":
+        case .networkStaticNamesSet:
             return try GuestStaticNames.shared.set(params["entries"] as? [[String: Any]] ?? [])
-        case "network.hostname.get":
+        case .networkHostnameGet:
             return try networkHostName(set: nil)
-        case "network.hostname.set":
+        case .networkHostnameSet:
             // An absent or null name puts back the one vphoned replaced.
             return try networkHostName(set: .some(params["local_host_name"] as? String))
-        case "device.name.get":
+        case .deviceNameGet:
             return deviceNameState()
-        case "device.name.set":
+        case .deviceNameSet:
             // An absent or null name gives the guest its own back.
             let name = params["name"].flatMap { $0 is NSNull ? nil : $0 }
             guard name == nil || name is String else {
                 throw GuestAPIError.invalidRequest("name must be a string or null")
             }
             return try setDeviceName(name as? String)
-        case "device.ioreg":
+        case .deviceIoreg:
             return try ioregistry(plane: optionalString(params, "plane") ?? "IOService")
-        case "device.input_devices":
+        case .deviceInputDevices:
             return vp_hid_input_devices()
-        case "device.displays":
+        case .deviceDisplays:
             return ["displays": vp_display_probe()]
-        case "display.modes":
+        case .displayModes:
             return vp_display_modes()
-        case "display.external.status":
+        case .displayExternalStatus:
             return vp_external_display_status()
-        case "display.external.diagnostics":
+        case .displayExternalDiagnostics:
             return vp_external_display_diagnostics()
-        case "display.external.configure":
+        case .displayExternalConfigure:
             guard let enabled = params["enabled"] as? Bool else {
                 throw GuestAPIError.invalidRequest("enabled must be a boolean")
             }
@@ -133,22 +239,22 @@ extension GuestAPI {
                 throw GuestAPIError.operationFailed(result["error"] as? String ?? "External display configuration failed")
             }
             return result
-        case "display.external.frame":
+        case .displayExternalFrame:
             var error: NSString?
             guard let data = vp_external_display_frame(&error) else {
                 throw GuestAPIError.operationFailed(error as String? ?? "External display capture failed")
             }
             return ["mime_type": "image/jpeg", "data": data.base64EncodedString()]
-        case "device.environment":
+        case .deviceEnvironment:
             return try environmentReport()
-        case "device.basebin":
+        case .deviceBasebin:
             return try compareBaseBin(bundled: optionalString(params, "archive"))
-        case "display.brightness":
+        case .displayBrightness:
             if params["value"] != nil {
                 try setBrightness(requiredNumber(params, "value"))
             }
             return brightnessState()
-        case "display.rotation":
+        case .displayRotation:
             rotationLock.lock()
             defer { rotationLock.unlock() }
             if let orientation = optionalString(params, "orientation"), vp_hinge_get()["enabled"] as? Bool == true {
@@ -187,55 +293,53 @@ extension GuestAPI {
             var rotation = rotationInfo()
             rotation["accelerometer"] = vp_accelerometer_get()
             return rotation
-        case "display.orientation":
+        case .displayOrientation:
             return interfaceOrientation()
-        case "display.posture":
+        case .displayPosture:
             return try setDevicePose(params)
-        case "display.pose":
+        case .displayPose:
             return vp_device_pose_get()
-        case "display.rotation_lock":
+        case .displayRotationLock:
             guard let locked = params["locked"] as? Bool else {
                 throw GuestAPIError.invalidRequest("locked must be true or false")
             }
             return try setRotationLock(locked)
-        case "display.auto_lock":
+        case .displayAutoLock:
             return GuestLockScreenIdle.describe()
-        case "display.auto_lock.set":
+        case .displayAutoLockSet:
             guard let seconds = (params["seconds"] as? NSNumber)?.intValue else {
                 throw GuestAPIError.invalidRequest("seconds must be an integer")
             }
             return try GuestLockScreenIdle.setAutoLockSeconds(seconds)
-        case "screen.unlock":
+        case .screenUnlock:
             return try GuestScreenUnlock.unlock(
                 passcode: optionalString(params, "passcode"),
                 timeout: number(params, "timeout", default: 10),
             )
-        case "audio.volume":
+        case .audioVolume:
             let category = optionalString(params, "category") ?? "Audio/Video"
             if params["value"] != nil {
                 return try setVolume(requiredNumber(params, "value"), category: category)
             }
             return ["volume": volume(category), "category": category]
-        case "audio.state":
+        case .audioState:
             return try audioState()
-        case "network.capture":
+        case .networkCapture:
             let seconds = number(params, "seconds", default: 5)
             return try capturePackets(
                 seconds: seconds,
                 interface: optionalString(params, "interface") ?? "en0",
                 filter: optionalString(params, "filter"),
             )
-        case "security.ssl_killswitch":
+        case .securitySslKillswitch:
             return sslKillswitchStatus()
-        case "diagnostics.self_test":
+        case .diagnosticsSelfTest:
             return try runSelfTests()
-        case "notify.post":
+        case .notifyPost:
             let state = try params["state"].map(notificationState)
             return try postDarwinNotification(string(params, "name"), state: state)
-        case "notify.state":
+        case .notifyState:
             return try darwinNotificationState(string(params, "name"))
-        default:
-            return nil
         }
     }
 

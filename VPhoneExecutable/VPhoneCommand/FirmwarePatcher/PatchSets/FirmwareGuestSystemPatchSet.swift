@@ -66,6 +66,12 @@ public enum FirmwareGuestSystemPatchSet {
     public static let arm64eX1FsckBootstrap = "system-fsck-boot-arm64e_x1_bootstrap"
     public static let arm64eX1MountBootstrap = "system-mount-boot-arm64e_x1_bootstrap"
     public static let arm64eX1CIBarcode = "system-cibarcode-cfw-arm64e_x1"
+    /// Standalone iOS 27.1 accessibility bundle, not covered by shared-cache lowering.
+    public static let arm64eX1HomePopAccessibility = "system-homepopaccessibility-cfw-arm64e_x1"
+    public static let homePopAccessibilityBundlePath =
+        "System/Library/AccessibilityBundles/SpringBoardHomePopAccessibility.axbundle"
+    public static let homePopAccessibilityExecutablePath =
+        homePopAccessibilityBundlePath + "/SpringBoardHomePopAccessibility"
     public static let ciBarcodeBundlePath = "System/Library/CoreImage/CIBarcode.cifilter"
     public static let ciBarcodeExecutablePath = ciBarcodeBundlePath + "/CIBarcode"
 
@@ -597,6 +603,16 @@ public enum FirmwareGuestSystemPatchSet {
                 bootEssential: true,
             ),
             VPhonePatchDeclaration(
+                identifier: arm64eX1HomePopAccessibility,
+                title: "ARM64E_X1 HomePop accessibility",
+                summary: """
+                Lowers the standalone HomePop accessibility plug-in before UIKit loads it. \
+                Its X1 instructions are outside the shared cache and can fault in app processes.
+                """,
+                target: .guestExecutable(path: "/" + homePopAccessibilityExecutablePath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 1)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: arm64eX1CIBarcode,
                 title: "ARM64E_X1 barcode filters",
                 summary: """
@@ -620,6 +636,13 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "diskimagesiod mount completion",
                 summary: "Reports the personalised developer image as mounted on a 27 userland.",
                 target: .guestExecutable(path: "/usr/libexec/diskimagesiod"),
+                applicability: ios27,
+            ),
+            VPhonePatchDeclaration(
+                identifier: CustomFirmwareRemotePairing.patchID,
+                title: "Pairing from guest apps",
+                summary: "Allows apps inside the guest to connect to its pairing control channel and tunnels.",
+                target: .guestExecutable(path: "/usr/libexec/remotepairingdeviced"),
                 applicability: ios27,
             ),
             VPhonePatchDeclaration(

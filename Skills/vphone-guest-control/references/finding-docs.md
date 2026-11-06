@@ -91,7 +91,7 @@ reads one.
 | --- | --- |
 | What does a Launchpad CLI command do | `VPhoneLaunchpad/VPhoneLaunchpad/Control/VPhoneLaunchpadControlCommands.swift`; command table in `VPhoneLaunchpad/VPhoneLaunchpadShared/VPhoneLaunchpadControl.swift` |
 | What does `vphone.sock` accept | `VPhoneExecutable/VPhoneVirtualization/UI/VPhoneHostAutomationServer.swift` (header comment lists the verbs) |
-| An RPC method's parameters | `VPhoneDaemon/Daemon/GuestAPI.swift` and `GuestAPI+<Area>.swift` |
+| An RPC method's parameters | `guest rpc <machine> methods.list`; source: the `<Area>Method` enums in `VPhoneDaemon/Daemon/GuestAPI.swift` and `GuestAPI+<Area>.swift` |
 | Bootstrap install | `VPhoneDaemon/Daemon/Bootstrap/GuestIrisinInstaller.swift` |
 | Creation steps | `VPhoneLaunchpad/VPhoneLaunchpad/Machines/VPhoneLaunchpadCreationPipeline.swift` |
 | Firmware patches | `VPhoneExecutable/VPhoneCommand/FirmwarePatcher/` |

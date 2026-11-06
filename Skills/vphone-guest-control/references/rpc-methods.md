@@ -34,16 +34,16 @@ invalid-request error, read the source named there instead of guessing keys.
 
 - Coordinates for `input.*` and `ui.element_at` are **screen points** as
   `device.screen` reports, not the pixels used by the socket's `tap`.
-- **force methods** refuse to run unless the params carry `"force":true`:
-  `processes.kill`, `services.stop|disable|remove|signal|unload`,
-  `services.kickstart` with `kill`,
-  `apps.uninstall|unregister|unregister_dir`, `system.respring`,
-  `system.reboot`, `system.shutdown`, `setup.skip`. The flag is the
-  confirmation: use it only for what the user asked.
+- **force methods** refuse to run unless the params carry `"force":true`.
+  `methods.list` (no params) lists every method with its params and its
+  `force` value (`always`, `never` or `when:<key>`, as for `services.kickstart`
+  with `kill`); this list is the authority. The flag is the confirmation: use it
+  only for what the user asked.
 - Results can be large. Methods that read data take `limit`, `max_lines`,
   `max_elements` or a `filter`; use them. A reply in the 8–16 KiB band can be
   lost on close (see [troubleshooting](troubleshooting.md)).
-- Capability flags in `/v1/health` tell which areas this vphoned supports. An
+- Capability flags in `/v1/health` tell which areas this vphoned supports (`methods`
+  means it answers `methods.list`). An
   `unknown method` error against an older guest means update its environment
   ([machines](machines.md)).
 

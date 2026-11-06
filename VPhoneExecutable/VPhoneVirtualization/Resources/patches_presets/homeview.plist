@@ -121,6 +121,7 @@
 			<string>system-backboardd-cfw-hinge</string>
 			<string>system-campo-cfw-entitlements</string>
 			<string>system-cibarcode-cfw-arm64e_x1</string>
+		<string>system-homepopaccessibility-cfw-arm64e_x1</string>
 			<string>system-cryptexd-exp-homepod_staging</string>
 			<string>system-debugserver-cfw-install</string>
 			<string>system-diskimagesiod-cfw-is_mount_complete</string>

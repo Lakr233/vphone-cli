@@ -25,5 +25,15 @@ int main(void) {
     assert(!vpFlutterRemapCandidate(app, src, caller, 16384, 32768, 1, 1, true));
     assert(!vpFlutterRemapCandidate(app, src, caller, 16384, 32768, 0x4000, 0, true));
     assert(!vpFlutterRemapCandidate(app, src, caller, 16384, 32768, 0x4000, 1, false));
+    // Shorebird Flutter 3.41.9 uses the same 32 KiB callback template at 0x8000.
+    assert(vpFlutterRemapCandidate(app, src, caller, 32768, 32768, 0x4000, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 24576, 32768, 0x4000, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 49152, 32768, 0x4000, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 32768, 16384, 0x4000, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 32768, 32768, 1, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 32768, 32768, 0x4000, 0, true));
+    assert(!vpFlutterRemapCandidate(app, src, caller, 32768, 32768, 0x4000, 1, false));
+    assert(!vpFlutterRemapCandidate(app, "/Applications/Other.app/Frameworks/App.framework/App", caller, 32768, 32768, 0x4000, 1, true));
+    assert(!vpFlutterRemapCandidate(app, src, "/Applications/Other.app/Frameworks/Flutter.framework/Flutter", 32768, 32768, 0x4000, 1, true));
     puts("FlutterRemapPolicyTests: bundle isolation and remap boundaries passed");
 }

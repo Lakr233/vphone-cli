@@ -76,7 +76,9 @@ struct CustomFirmwareArm64eX1Tests {
         }
     }
 
-    @Test func `standalone bundle lowering attests code and is idempotent`() throws {
+    @Test(arguments: [FirmwareGuestSystemPatchSet.arm64eX1CIBarcode,
+                      FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility])
+    func `standalone bundle lowering attests code and is idempotent`(identifier: String) throws {
         var (image, hashOffset) = Self.signedFixture()
         // Core Image filters use MH_BUNDLE rather than the boot executables'
         // MH_EXECUTE. Recompute the fixture signature after changing its header.
@@ -85,7 +87,6 @@ struct CustomFirmwareArm64eX1Tests {
             hashOffset ..< hashOffset + 32,
             with: Data(SHA256.hash(data: image.prefix(0x400))),
         )
-        let identifier = FirmwareGuestSystemPatchSet.arm64eX1CIBarcode
         let first = try CustomFirmwareArm64eX1.lowerAndReattest(&image, identifier: identifier)
         #expect(first.result.records.count == 2)
         #expect(first.slots.count == 1)

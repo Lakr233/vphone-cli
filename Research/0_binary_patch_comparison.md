@@ -1,5 +1,24 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Application exception actions and X1 lowering (2026-11-06).** SystemHook
+> preserves the inherited X1 `EXC_BAD_INSTRUCTION` action when an application
+> installs its own task exception ports. Other exception bits, non-X1 and
+> remote-task requests are forwarded unchanged. This extends the existing
+> spawn policy; no firmware patch, preset or system-library instruction is
+> added. An app-scoped equivalent survived two cold starts, fold/unfold and
+> background resume on an iOS 27.1 legacy-TXM guest after independent remap
+> and Intents workarounds. Full SystemHook runtime deployment remains separate.
+> See [failure, policy and validation boundaries](Guest/x1_exception_actions.md).
+
+> **Legacy Duo TXM remap evidence (2026-11-06).** A guest with Core Bundle and
+> environment 2.15.2 still had the flashed 2.13.8 TXM receipt containing
+> `precheck_admission` and `trustcache_bypass`. A same-task fixed private 16 KiB
+> main-executable remap returned success and RX/RX, while `vm_region_64` found
+> R/R and the subsequent call faulted. A bounded app-local RW-copy-then-RX
+> workaround advanced execution. This does not test or contradict #831 on
+> freshly restored guests. No patch or preset changes; see the
+> [deployment evidence and limits](Firmware/txm_executable_remap_caveats.md#existing-duo-guest-reported-rx-but-actual-r-only-alias-2026-11-06).
+
 > **Watch audio budget runtime check (2026-10-31).** A fresh Watch7,18 VM on
 > 26.4 (23T240): native Resonate text-message
 > alert completed with `BudgetNotAvailable = 0`; explicit Playback-category
@@ -6913,6 +6932,61 @@ the next install or Update Guest Environment that reaches the VirtualAudio
 step.
 
 **Reveal and validation.** `Research/Guest/instruments_symbolication.md`.
+
+## Local pairing connections in remotepairingdeviced
+
+`system-remotepairingdeviced-cfw-local_connections` permits pairing control and
+tunnel connections originating on the device itself, so apps inside the guest
+can connect. It is enabled in `standard` and is not boot-essential.
+
+On 24A446 and 24C5037i, the daemon's local-path predicate calls
+`nw_connection_copy_current_path`, `nw_path_is_local`, and
+`nw_path_uses_interface_type(path, 4)`. Three callers use that result to reject
+connections: one control-channel callback and two tunnel callbacks. The
+control rejection logs `Rejecting control channel connection originating from
+local machine`; both tunnel callbacks log `Rejecting tunnel connection
+originating from local machine`.
+
+The imported symbols identify the predicate; the rejection strings' ADRP/ADD
+references and branches identify its three callers. Replacing those callers'
+`bl <local-path predicate>` with `mov w0, #0` bypasses the local-connection
+rejections.
+
+Offline validation on 24A446 and 24C5037i changes exactly 12 bytes before
+signing, and a second application is a no-op. Other builds have not been
+tested and may need different matching.
+
+Live validation on 24A446 with bundle 2.15.2 confirmed that same-device
+connections were reset during the control handshake before patching.
+After patching, pairing verification, TLS tunnels, Accessibility and screen
+capture passed on bridged and NAT networking and after reboot.
+The installed CLI's `cfw update-environment` also passed application,
+reversion and reapplication on 24A446: the guest receipt followed the
+selection, reversion restored the original binary, and both applications
+produced the same signed binary and working local connections after boot.
+
+## 2026-11-06: standalone HomePop accessibility X1 lowering
+
+On iPhone19,4 / iOS 27.1 (24A94425), an app's accessibility initialization
+loaded SpringBoardHomePopAccessibility.axbundle outside the shared cache.
+Its arm64e.x1 image faulted at +[AXSpringBoardHomePopGlue initialize] + 0:
+image offset 0xc58, PACIBSPPC, SIGILL 0xdac1a7fe. The original image UUID is
+BA1A37E2-D388-3876-A68E-89FDB4145618. Existing static X1 lowering converts
+66 instructions, re-attests three code slots and leaves zero candidates.
+
+The new system-homepopaccessibility-cfw-arm64e_x1 declaration is gated to
+the measured iOS 27.1 base and follows the existing reversible Mach-O and
+bundle-seal installer path. TV, HomePod and HomeView presets block it like
+CIBarcode. No shared-cache bytes or application code are intentionally changed.
+
+Validation completed on the same guest with a local build of this change:
+50 focused X1 and bundled-catalogue tests passed. The installed image reads
+PACIBSP at 0xc58; repeating lowering leaves its SHA-256 unchanged and reports
+zero unvisited candidates. A separate vphoned script process loaded the real
+bundle and invoked +[AXSpringBoardHomePopGlue initialize] successfully without
+crashing. The bank app loaded its homepage and answered accessibility UI queries.
+Open/closed pose requests and a second app launch were exercised; these checks
+are local VM evidence, not broad accessibility or real-device acceptance.
 
 ## Experimental visionOS 26.4 native UI
 
