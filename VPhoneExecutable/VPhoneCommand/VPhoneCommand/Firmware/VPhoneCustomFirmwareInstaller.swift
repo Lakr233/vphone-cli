@@ -160,6 +160,11 @@ struct VPhoneCustomFirmwareInstaller {
 
         let bundleDirectory = try pinBundle(owner: callerUID)
         let bundlePath = try bundleDirectory.path
+        // An in-place update clears this marker before touching the disk.
+        // Preserve it now so a successful environment update can restore it;
+        // failures must continue to read as an unfinished installation.
+        let previousVariant = (try? bundleDirectory.readData("restore-info.json"))
+            .flatMap { try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: $0) }?.variant
         // Which guest patches to apply. The boot chain follows the plan `fw
         // patch` resolved; the guest half follows the VM's current selection,
         // both ways. Read through the pinned descriptor so root never follows a
@@ -671,11 +676,11 @@ struct VPhoneCustomFirmwareInstaller {
             in: bundleDirectory,
             owner: invokingUser.map { ($0.uid, $0.gid) },
         )
-        if let installedOTAUserland {
+        if installedOTAUserland != nil || (mode == .environmentOnly && previousVariant != nil) {
             let installedBundle = URL(fileURLWithPath: bundlePath, isDirectory: true)
             let record: () throws -> Void = {
                 let vm = try VPhoneBundle.load(at: installedBundle)
-                let variant = VPhoneRestoreInfo.load(fromBundle: vm)?.variant ?? "jb"
+                let variant = previousVariant ?? VPhoneRestoreInfo.load(fromBundle: vm)?.variant ?? "jb"
                 _ = try VPhoneRestoreInfo.recordVariant(variant, toBundle: vm,
                                                         installedUserland: installedOTAUserland)
             }
@@ -683,7 +688,7 @@ struct VPhoneCustomFirmwareInstaller {
                 if let invokingUser { try invokingUser.withUserCredentials(record) }
                 else { try record() }
             } catch {
-                fputs("warning: could not record installed OTA userland: \(error)\n", stderr)
+                fputs("warning: could not record completed guest installation: \(error)\n", stderr)
             }
         }
         switch mode {
