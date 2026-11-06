@@ -6,6 +6,36 @@ import VphonedNative
 
 // MARK: - Removable System Apps
 
+enum SystemAppsMethod: String, GuestMethod {
+    case otaAppsStatus = "ota.apps.status"
+    case otaAppsApply = "ota.apps.apply"
+    case appsRemoveSystem = "apps.remove_system"
+    case appsRestoreSystem = "apps.restore_system"
+    case appsRemovedSystem = "apps.removed_system"
+
+    var spec: MethodSpec {
+        switch self {
+        case .otaAppsStatus: MethodSpec(.optional("removed_bundle_ids", .array))
+        case .otaAppsApply:
+            MethodSpec(.optional("removed_bundle_ids", .array),
+                       force: .always { _ in "update retained Apple app programs from the installed OTA" })
+        case .appsRemoveSystem:
+            MethodSpec(.required("bundle_ids", .array),
+                       .optional("backup", .boolean),
+                       .optional("respring", .boolean),
+                       force: .always { p in try "remove \(GuestAPI.systemAppsToRemove(p).joined(separator: ", "))" })
+        case .appsRestoreSystem:
+            MethodSpec(.optional("bundle_ids", .array),
+                       .optional("respring", .boolean),
+                       force: .always { p in
+                           _ = try GuestAPI.systemAppIDs(p)
+                           return "restore removed system apps"
+                       })
+        case .appsRemovedSystem: MethodSpec()
+        }
+    }
+}
+
 /// `apps.remove_system` removes Apple's removable apps durably;
 /// `apps.restore_system` puts them back from the backup it kept, and
 /// `apps.removed_system` lists those backups.
@@ -20,31 +50,23 @@ import VphonedNative
 /// `GuestSystemAppPolicy` decides which apps qualify;
 /// `Research/Guest/post_setup_signin_and_appstore.md` has the measurements.
 extension GuestAPI {
-    static func executeSystemApps(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        switch method {
-        case "ota.apps.status":
+    static func executeSystemApps(_ m: SystemAppsMethod, _ params: [String: Any]) throws -> [String: Any] {
+        switch m {
+        case .otaAppsStatus:
             return try updateOTASystemApps(apply: false, removedIDs: systemAppIDs(params, key: "removed_bundle_ids"))
-        case "ota.apps.apply":
-            try requireForce(params, "update retained Apple app programs from the installed OTA")
+        case .otaAppsApply:
             return try updateOTASystemApps(apply: true, removedIDs: systemAppIDs(params, key: "removed_bundle_ids"))
-        case "apps.remove_system":
-            guard let ids = try systemAppIDs(params) else {
-                throw GuestAPIError.invalidRequest("bundle_ids must list the apps to remove")
-            }
-            try requireForce(params, "remove \(ids.joined(separator: ", "))")
+        case .appsRemoveSystem:
             return try removeSystemApps(
-                ids,
+                systemAppsToRemove(params),
                 backup: bool(params, "backup", default: true),
                 respring: bool(params, "respring", default: true),
             )
-        case "apps.restore_system":
+        case .appsRestoreSystem:
             let ids = try systemAppIDs(params) ?? backedUpSystemAppIDs()
-            try requireForce(params, "restore removed system apps")
             return try restoreSystemApps(ids, respring: bool(params, "respring", default: true))
-        case "apps.removed_system":
+        case .appsRemovedSystem:
             return try removedSystemApps()
-        default:
-            return nil
         }
     }
 
@@ -191,7 +213,14 @@ extension GuestAPI {
     }
 
     /// `bundle_ids` in request order without repeats, or nil when absent.
-    private static func systemAppIDs(_ params: [String: Any], key: String = "bundle_ids") throws -> [String]? {
+    fileprivate static func systemAppsToRemove(_ params: [String: Any]) throws -> [String] {
+        guard let ids = try systemAppIDs(params) else {
+            throw GuestAPIError.invalidRequest("bundle_ids must list the apps to remove")
+        }
+        return ids
+    }
+
+    fileprivate static func systemAppIDs(_ params: [String: Any], key: String = "bundle_ids") throws -> [String]? {
         guard let value = params[key] else { return nil }
         guard let ids = value as? [String], (key == "removed_bundle_ids" || !ids.isEmpty), ids.allSatisfy({ !$0.isEmpty }) else {
             throw GuestAPIError.invalidRequest("\(key) must list bundle identifiers")

@@ -4,21 +4,32 @@ import VphonedNative
 
 // MARK: - Virtual Gyroscope
 
+enum GyroscopeMethod: String, GuestMethod {
+    case motionGyroscopeGet = "motion.gyroscope.get"
+    case motionGyroscopeSet = "motion.gyroscope.set"
+    case motionGyroscopeClear = "motion.gyroscope.clear"
+
+    var spec: MethodSpec {
+        switch self {
+        case .motionGyroscopeGet: MethodSpec()
+        case .motionGyroscopeSet: MethodSpec(.required("x", .number), .required("y", .number), .required("z", .number), .optional("enabled", .boolean))
+        case .motionGyroscopeClear: MethodSpec()
+        }
+    }
+}
+
 extension GuestAPI {
     private static let gyroscopeLock = NSLock()
 
-    static func executeGyroscope(_ method: String, _ params: [String: Any]) throws -> [String: Any]? {
-        guard ["motion.gyroscope.get", "motion.gyroscope.set", "motion.gyroscope.clear"].contains(method) else {
-            return nil
-        }
+    static func executeGyroscope(_ m: GyroscopeMethod, _ params: [String: Any]) throws -> [String: Any] {
         // The API queue is concurrent. Serialize publication and readback so
         // the response contains the dictionary this request actually wrote.
         gyroscopeLock.lock()
         defer { gyroscopeLock.unlock() }
-        if method != "motion.gyroscope.get" {
+        if m != .motionGyroscopeGet {
             var axes = [Double](repeating: 0, count: 3)
-            var enabled = method == "motion.gyroscope.set"
-            if method == "motion.gyroscope.set" {
+            var enabled = m == .motionGyroscopeSet
+            if m == .motionGyroscopeSet {
                 if let flag = params["enabled"] {
                     guard let value = flag as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else {
                         throw GuestAPIError.invalidRequest("enabled must be a boolean")
