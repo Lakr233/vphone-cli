@@ -22,12 +22,15 @@ static inline bool vpFlutterBundleImages(const char *process, const char *source
         strcmp(source + root, aot) == 0 && strcmp(caller + root, engine) == 0;
 }
 
-// Limited to the observed 16 KiB-page AOT callback layout. Unknown layouts,
-// writable sources, cross-task remaps and shared mappings remain unsupported.
+// Limited to the observed upstream and Shorebird 16 KiB-page callback layouts.
+// Both copy 32 KiB; their source image offsets are 16 KiB and 32 KiB respectively.
+// Unknown layouts, writable sources, cross-task remaps and shared mappings
+// remain unsupported.
 static inline bool vpFlutterRemapCandidate(const char *process, const char *source,
     const char *caller, uintptr_t offset, uint64_t size, int flags, int copy,
     bool sameTask) {
-    return sameTask && copy == 1 && flags == 0x4000 && size == 32768 && offset == 16384 &&
+    return sameTask && copy == 1 && flags == 0x4000 && size == 32768 &&
+        (offset == 16384 || offset == 32768) &&
         vpFlutterBundleImages(process, source, caller);
 }
 #endif
