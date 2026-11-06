@@ -1987,6 +1987,7 @@ struct VPhoneCustomFirmwareInstaller {
 
         if version.hasPrefix("27.") {
             machO("system-diskimagesiod-cfw-is_mount_complete", path: "usr/libexec/diskimagesiod", verbs: ["patch-diskimagesiod"], preserveEntitlements: true)
+            machO(CustomFirmwareRemotePairing.patchID, path: "usr/libexec/remotepairingdeviced", verbs: ["patch-remotepairingdeviced"], preserveEntitlements: true)
         }
 
         // The gigalocker rename pairs with seputil, a boot-essential first-install
