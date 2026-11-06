@@ -90,6 +90,52 @@ only standalone CS_ADHOC executables that map injected code are.
   `VPHONE_REMAP_TXM` points at the pristine uncompressed TXM; ensure CI provides
   it or the deepest check silently does nothing.
 
+## Existing Duo guest: reported RX but actual R-only alias (2026-11-06)
+
+A retained Duo guest demonstrates why the flashed TXM identity must accompany
+an executable-remap report. Its running Core Bundle and guest environment were
+`2.15.2-local.a7e398c8`, but its boot-chain bundle was `2.13.8`. The restore
+receipt's TXM section, dated 2026-10-28, still listed both
+`txm-boot-precheck_admission` and `txm-boot-trustcache_bypass`, with no
+`txm-cfw-executable_remap`. These are deployment records, not a byte-level
+attestation of the running TXM.
+
+On iOS 27.1 (24A94425) / cloudOS 26.4 (23E5207q), Taobao 10.69.0 (59622514)
+privately remapped a 16 KiB page of its main executable's RX trampoline code
+into an aligned slot in its own reserve using `vm_remap`:
+
+| Input or observation | Value |
+| --- | --- |
+| Target and source tasks | Both `mach_task_self()` |
+| Size / mask | 16384 / 0 |
+| Flags / copy / inheritance | `VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE` / true / `VM_INHERIT_SHARE` |
+| Source actual current / maximum | RX / RX |
+| Return | `KERN_SUCCESS` |
+| Returned current / maximum | RX / RX |
+| Target actual current / maximum (`vm_region_64`) | R / R |
+| Subsequent call | Instruction abort at target + 16; `KERN_PROTECTION_FAILURE` |
+
+An application-scoped diagnostic fallback rebuilt only these unpublished
+target pages with fixed anonymous allocation, copied identical source bytes,
+and changed RW to RX. Each repaired page passed a readback permission and byte
+comparison before returning to the caller. Execution then progressed beyond
+the trampoline path. No TXM, kernel or other guest system file was changed.
+
+This is additional evidence of the **legacy** classification failure, not a
+failure report against #831 on newly restored guests. That pairing was not
+restored with the replacement TXM, and the local workaround is not proposed as
+a new global remap policy. The existing Flutter fallback is also deliberately
+narrower than this main-executable, single-page shape. An app reaching its
+homepage additionally required independent X1 exception-action compatibility
+and an Intents metadata workaround; it is not an isolated TXM validation result.
+
+For future reports, record the boot-chain bundle, TXM receipt, source and target
+actual protections **as well as** the `vm_remap` return and protection outputs.
+Do not use a Core Bundle/environment upgrade or a successful API return as
+proof that the guest has the replacement TXM or that its alias is executable.
+No application binary, raw account-bearing capture or private authorization
+material accompanies this report.
+
 ## Recommendations
 
 1. Add a guest probe for the uncovered case: a `codesign -s -` standalone
