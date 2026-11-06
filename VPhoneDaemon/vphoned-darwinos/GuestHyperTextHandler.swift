@@ -1,0 +1,271 @@
+import Foundation
+import NIOCore
+import NIOHTTP1
+import NIOPosix
+
+final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
+    typealias InboundIn = HTTPServerRequestPart
+    typealias OutboundOut = HTTPServerResponsePart
+
+    private let hub: APIEventHub
+    private let fileIO: NonBlockingFileIO
+    private var head: HTTPRequestHead?
+    private var body = Data()
+    private var exceededLimit = false
+    private var upload: GuestFileUpload?
+    private var uploadError: (any Error)?
+    private let maximumJSONBody = 1 << 20
+
+    init(hub: APIEventHub, fileIO: NonBlockingFileIO) {
+        self.hub = hub
+        self.fileIO = fileIO
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        switch unwrapInboundIn(data) {
+        case let .head(request):
+            head = request
+            body.removeAll(keepingCapacity: true)
+            exceededLimit = false
+            upload = nil
+            uploadError = nil
+            // Refuse before an upload stages any file in the guest.
+            if let refusal = Self.refusal(for: request) {
+                head = nil
+                Self.send(refusal, on: context.channel)
+                return
+            }
+            let requestPath = request.uri.split(separator: "?", maxSplits: 1).first
+            if request.method == .PUT, requestPath == "/v1/files/content" {
+                do {
+                    upload = try GuestFileUpload(
+                        destination: GuestFileTransfer.path(from: request.uri),
+                        fileIO: fileIO,
+                        channel: context.channel,
+                        mode: Self.uploadMode(from: request.uri)
+                    )
+                } catch { uploadError = error }
+            }
+        case var .body(buffer):
+            guard head != nil else { return }
+            let requestPath = head?.uri.split(separator: "?", maxSplits: 1).first
+            if head?.method == .PUT, requestPath == "/v1/files/content" {
+                upload?.append(buffer, channel: context.channel)
+                return
+            }
+            if body.count + buffer.readableBytes > maximumJSONBody {
+                exceededLimit = true
+                return
+            }
+            if let bytes = buffer.readBytes(length: buffer.readableBytes) {
+                body.append(contentsOf: bytes)
+            }
+        case .end:
+            guard let head else { return }
+            self.head = nil
+            let path = head.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? head.uri
+            if path == "/v1/files/content" {
+                if head.method == .PUT {
+                    if let uploadError {
+                        Self.send(APIWire.error(String(describing: uploadError)), on: context.channel)
+                    } else {
+                        upload?.finish(channel: context.channel)
+                    }
+                    upload = nil
+                } else if head.method == .GET {
+                    do {
+                        try GuestFileTransfer.download(
+                            path: GuestFileTransfer.path(from: head.uri),
+                            fileIO: fileIO,
+                            channel: context.channel,
+                        )
+                    } catch {
+                        Self.send(APIWire.error(String(describing: error)), on: context.channel)
+                    }
+                } else {
+                    Self.send(APIWire.error("Method not allowed", status: 405), on: context.channel)
+                }
+                return
+            }
+            if exceededLimit {
+                Self.send(APIWire.error("JSON body exceeds 1 MiB", status: 413), on: context.channel)
+                return
+            }
+            handle(head, body: body, channel: context.channel)
+        }
+    }
+
+    private func handle(_ head: HTTPRequestHead, body: Data, channel: Channel) {
+        let path = head.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? head.uri
+        if head.method == .GET, path == "/v1/health" {
+            Self.send(.json(GuestAPI.health()), on: channel)
+            return
+        }
+        if path.hasPrefix("/v1/ports/"), GuestPortForwardHandler.port(from: head.uri) == nil {
+            Self.send(APIWire.error("Port must be a decimal number from 1 to 65535"), on: channel)
+            return
+        }
+        if path == "/v1/events" || path == "/v1/shell" || path.hasPrefix("/v1/ports/") {
+            Self.send(APIWire.error("WebSocket upgrade required", status: 426), on: channel)
+            return
+        }
+
+        do {
+            let request: APIRequest
+            if head.method == .POST, path == "/v1/rpc" {
+                request = try APIWire.decode(body)
+            } else {
+                let method = try Self.route(head.method, path: path)
+                // GET routes only read: a body cannot turn one into a setter
+                // such as power.low_power_mode.
+                var params: [String: Any] = try head.method == .GET ? [:] : Self.parameters(body)
+                let components = URLComponents(string: "http://vphoned\(head.uri)")
+                for item in components?.queryItems ?? [] {
+                    if let value = item.value {
+                        params[item.name] = value
+                    }
+                }
+                request = APIRequest(method: method, params: params, id: nil)
+            }
+            let job = HTTPJob(channel: channel, request: request, hub: hub)
+            GuestAPI.queue.async { job.run() }
+        } catch {
+            Self.send(APIWire.error(String(describing: error)), on: channel)
+        }
+    }
+
+    // MARK: - Request Admission
+
+    /// Names a first-party client may use in `Host`. The VM's own client sends
+    /// `vphoned`; VPhoneAPIClient and curl send the loopback address the host
+    /// proxy listens on. vphoned cannot see that port, so it is ignored.
+    private static let localHostnames: Set<String> = ["vphoned", "localhost", "127.0.0.1", "::1"]
+
+    /// First-party clients never send `Origin`. A browser sends it on every
+    /// WebSocket handshake and cross-origin POST, and a DNS-rebound page sends
+    /// its own name as `Host`, so either marks a request from a web page.
+    static func isLocalClient(_ headers: HTTPHeaders) -> Bool {
+        guard !headers.contains(name: "Origin") else { return false }
+        let hosts = headers["Host"]
+        guard let host = hosts.first else { return true }
+        return hosts.count == 1 && localHostnames.contains(hostname(host).lowercased())
+    }
+
+    private static func hostname(_ host: String) -> String {
+        let value = host.trimmingCharacters(in: .whitespaces)
+        if value.hasPrefix("[") {
+            guard let end = value.firstIndex(of: "]") else { return value }
+            return String(value[value.index(after: value.startIndex) ..< end])
+        }
+        // A bare IPv6 literal has no port and more than one colon.
+        if value.filter({ $0 == ":" }).count > 1 {
+            return value
+        }
+        return value.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? value
+    }
+
+    /// POST is the only method a web page can send cross-origin without a
+    /// preflight, and only with a form or text content type, so JSON is
+    /// required. Binary uploads use PUT.
+    private static func refusal(for request: HTTPRequestHead) -> APIReply? {
+        guard isLocalClient(request.headers) else {
+            return APIWire.error("Requests from web pages are not accepted", status: 403)
+        }
+        if request.method == .POST {
+            let type = request.headers.first(name: "Content-Type")?
+                .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+            guard type.hasPrefix("application/json") else {
+                return APIWire.error("POST requires Content-Type: application/json", status: 415)
+            }
+        }
+        return nil
+    }
+
+    private static func parameters(_ body: Data) throws -> [String: Any] {
+        if body.isEmpty {
+            return [:]
+        }
+        guard let object = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            throw GuestAPIError.invalidRequest("Request body must be a JSON object")
+        }
+        return object
+    }
+
+    private static func uploadMode(from uri: String) throws -> mode_t {
+        let components = URLComponents(string: "http://vphoned\(uri)")
+        guard let value = components?.queryItems?.first(where: { $0.name == "mode" })?.value else {
+            return 0o644
+        }
+        guard !value.isEmpty, value.count <= 4,
+              value.utf8.allSatisfy({ (48 ... 55).contains($0) }),
+              let mode = UInt16(value, radix: 8), mode <= 0o777
+        else { throw GuestAPIError.invalidRequest("mode must be an octal permission, up to 0777") }
+        return mode_t(mode)
+    }
+
+    private static func route(_ verb: HTTPMethod, path: String) throws -> String {
+        switch (verb, path) {
+        case (.GET, "/v1/device"): "device.snapshot"
+        case (.GET, "/v1/files"): "files.list"
+        case (.POST, "/v1/files/mkdir"): "files.mkdir"
+        case (.POST, "/v1/files/remove"): "files.remove"
+        case (.POST, "/v1/files/rename"): "files.rename"
+        default: throw GuestAPIError.invalidRequest("No route for \(verb) \(path)")
+        }
+    }
+
+    static func send(_ reply: APIReply, on channel: Channel, contentType: String = "application/json; charset=utf-8") {
+        let write: @Sendable () -> Void = {
+            guard channel.isActive else { return }
+            var headers = HTTPHeaders()
+            headers.add(name: "Content-Type", value: contentType)
+            headers.add(name: "Content-Length", value: String(reply.data.count))
+            headers.add(name: "Connection", value: "close")
+            let status = HTTPResponseStatus(statusCode: reply.status)
+            channel.write(
+                HTTPServerResponsePart.head(.init(version: .http1_1, status: status, headers: headers)),
+                promise: nil,
+            )
+            var buffer = channel.allocator.buffer(capacity: reply.data.count)
+            buffer.writeBytes(reply.data)
+            channel.write(HTTPServerResponsePart.body(.byteBuffer(buffer)), promise: nil)
+            channel.writeAndFlush(HTTPServerResponsePart.end(nil)).whenComplete { _ in
+                channel.closeAfterPeer()
+            }
+        }
+        if channel.eventLoop.inEventLoop {
+            write()
+        } else {
+            channel.eventLoop.execute(write)
+        }
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        upload = nil
+        context.fireChannelInactive()
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error _: Error) {
+        context.close(promise: nil)
+    }
+}
+
+private final class HTTPJob: @unchecked Sendable {
+    let channel: Channel
+    let request: APIRequest
+    let hub: APIEventHub
+
+    init(channel: Channel, request: APIRequest, hub: APIEventHub) {
+        self.channel = channel
+        self.request = request
+        self.hub = hub
+    }
+
+    func run() {
+        let reply = APIWire.execute(request)
+        if reply.status == 200 {
+            hub.broadcast(name: "operation.completed", data: ["method": request.method])
+        }
+        GuestHyperTextHandler.send(reply, on: channel)
+    }
+}

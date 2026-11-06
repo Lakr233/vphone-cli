@@ -1,9 +1,11 @@
 import Darwin
 import Foundation
+#if !VPHONE_DARWINOS
 import IcliKit
+import VphonedNative
+#endif
 import NIOCore
 import NIOWebSocket
-import VphonedNative
 
 /// How many sessions a guest runs at once. Each one is a process, and an
 /// interactive one is also a thread waiting on its terminal, so a client that
@@ -163,11 +165,13 @@ final class GuestShellSessionHandler: ChannelInboundHandler, @unchecked Sendable
             refuse(String(describing: error), on: channel)
             return
         }
+        #if !VPHONE_DARWINOS
         if program == nil, !probeAvailable() {
             GuestSessionLimit.interactive.release()
             refuse("This guest has no JavaScriptCore, so there is no session to open.", on: channel)
             return
         }
+        #endif
 
         var started: pid_t = -1
         let descriptor: Int32 = if let program {

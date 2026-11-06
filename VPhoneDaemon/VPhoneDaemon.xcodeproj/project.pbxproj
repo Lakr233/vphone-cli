@@ -14,6 +14,20 @@
 		C10000000000000000000015 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000064 /* NIOPosix */; };
 		C10000000000000000000016 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000065 /* NIOWebSocket */; };
 		C10000000000000000000018 /* IcliSystem in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000068 /* IcliSystem */; };
+		D42700000000000000000064 /* Daemon/APIWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000C8 /* Daemon/APIWire.swift */; };
+		D42700000000000000000065 /* Daemon/GuestFileTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000C9 /* Daemon/GuestFileTransfer.swift */; };
+		D42700000000000000000066 /* Daemon/GuestWebSocketHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CA /* Daemon/GuestWebSocketHandler.swift */; };
+		D42700000000000000000067 /* Daemon/GuestPortForwardHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CB /* Daemon/GuestPortForwardHandler.swift */; };
+		D42700000000000000000068 /* Daemon/GuestShellSessionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CC /* Daemon/GuestShellSessionHandler.swift */; };
+		D42700000000000000000069 /* Native/vphoned_native.m in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CD /* Native/vphoned_native.m */; };
+		D4270000000000000000006A /* Native/vphoned_proxy.c in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CE /* Native/vphoned_proxy.c */; };
+		D4270000000000000000006B /* Native/vphoned_session.m in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000CF /* Native/vphoned_session.m */; };
+		D4270000000000000000006C /* Native/vphoned_pty.c in Sources */ = {isa = PBXBuildFile; fileRef = D427000000000000000000D0 /* Native/vphoned_pty.c */; };
+		D4270000000000000000012C /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000062 /* NIOCore */; };
+		D4270000000000000000012D /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000063 /* NIOHTTP1 */; };
+		D4270000000000000000012E /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000064 /* NIOPosix */; };
+		D4270000000000000000012F /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000065 /* NIOWebSocket */; };
+		D42700000000000000000130 /* IcliSystem in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000068 /* IcliSystem */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,12 +43,23 @@
 /* Begin PBXFileReference section */
 		C10000000000000000000001 /* libVphonedNative.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libVphonedNative.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		C10000000000000000000002 /* vphoned */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = vphoned; sourceTree = BUILT_PRODUCTS_DIR; };
+		D42700000000000000000001 /* vphoned-darwinos */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "vphoned-darwinos"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D427000000000000000000C8 /* Daemon/APIWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon/APIWire.swift; sourceTree = "<group>"; };
+		D427000000000000000000C9 /* Daemon/GuestFileTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon/GuestFileTransfer.swift; sourceTree = "<group>"; };
+		D427000000000000000000CA /* Daemon/GuestWebSocketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon/GuestWebSocketHandler.swift; sourceTree = "<group>"; };
+		D427000000000000000000CB /* Daemon/GuestPortForwardHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon/GuestPortForwardHandler.swift; sourceTree = "<group>"; };
+		D427000000000000000000CC /* Daemon/GuestShellSessionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon/GuestShellSessionHandler.swift; sourceTree = "<group>"; };
+		D427000000000000000000CD /* Native/vphoned_native.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Native/vphoned_native.m; sourceTree = "<group>"; };
+		D427000000000000000000CE /* Native/vphoned_proxy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Native/vphoned_proxy.c; sourceTree = "<group>"; };
+		D427000000000000000000CF /* Native/vphoned_session.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Native/vphoned_session.m; sourceTree = "<group>"; };
+		D427000000000000000000D0 /* Native/vphoned_pty.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Native/vphoned_pty.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C10000000000000000000031 /* Native */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Native; sourceTree = "<group>"; };
 		C10000000000000000000032 /* Daemon */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Daemon; sourceTree = "<group>"; };
 		C10000000000000000000033 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
+		D42700000000000000000002 /* vphoned-darwinos */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "vphoned-darwinos"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +84,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D42700000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D4270000000000000000012C /* NIOCore in Frameworks */,
+				D4270000000000000000012D /* NIOHTTP1 in Frameworks */,
+				D4270000000000000000012E /* NIOPosix in Frameworks */,
+				D4270000000000000000012F /* NIOWebSocket in Frameworks */,
+				D42700000000000000000130 /* IcliSystem in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -68,6 +105,8 @@
 				C10000000000000000000031 /* Native */,
 				C10000000000000000000032 /* Daemon */,
 				C10000000000000000000033 /* Configuration */,
+				D42700000000000000000002 /* vphoned-darwinos */,
+				D42700000000000000000005 /* Darwin Shared Sources */,
 				C10000000000000000000052 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -77,8 +116,25 @@
 			children = (
 				C10000000000000000000001 /* libVphonedNative.a */,
 				C10000000000000000000002 /* vphoned */,
+				D42700000000000000000001 /* vphoned-darwinos */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D42700000000000000000005 /* Darwin Shared Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D427000000000000000000C8 /* Daemon/APIWire.swift */,
+				D427000000000000000000C9 /* Daemon/GuestFileTransfer.swift */,
+				D427000000000000000000CA /* Daemon/GuestWebSocketHandler.swift */,
+				D427000000000000000000CB /* Daemon/GuestPortForwardHandler.swift */,
+				D427000000000000000000CC /* Daemon/GuestShellSessionHandler.swift */,
+				D427000000000000000000CD /* Native/vphoned_native.m */,
+				D427000000000000000000CE /* Native/vphoned_proxy.c */,
+				D427000000000000000000CF /* Native/vphoned_session.m */,
+				D427000000000000000000D0 /* Native/vphoned_pty.c */,
+			);
+			name = "Darwin Shared Sources";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -132,6 +188,32 @@
 			productReference = C10000000000000000000002 /* vphoned */;
 			productType = "com.apple.product-type.tool";
 		};
+		D42700000000000000000006 /* vphoned-darwinos */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D42700000000000000000007 /* Build configuration list for PBXNativeTarget "vphoned-darwinos" */;
+			buildPhases = (
+				D42700000000000000000004 /* Sources */,
+				D42700000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D42700000000000000000002 /* vphoned-darwinos */,
+			);
+			name = "vphoned-darwinos";
+			packageProductDependencies = (
+				C10000000000000000000062 /* NIOCore */,
+				C10000000000000000000063 /* NIOHTTP1 */,
+				C10000000000000000000064 /* NIOPosix */,
+				C10000000000000000000065 /* NIOWebSocket */,
+				C10000000000000000000068 /* IcliSystem */,
+			);
+			productName = "vphoned-darwinos";
+			productReference = D42700000000000000000001 /* vphoned-darwinos */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -159,6 +241,7 @@
 			targets = (
 				C10000000000000000000081 /* VphonedNative */,
 				C10000000000000000000082 /* vphoned */,
+				D42700000000000000000006 /* vphoned-darwinos */,
 			);
 		};
 /* End PBXProject section */
@@ -196,6 +279,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D42700000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D42700000000000000000064 /* Daemon/APIWire.swift in Sources */,
+				D42700000000000000000065 /* Daemon/GuestFileTransfer.swift in Sources */,
+				D42700000000000000000066 /* Daemon/GuestWebSocketHandler.swift in Sources */,
+				D42700000000000000000067 /* Daemon/GuestPortForwardHandler.swift in Sources */,
+				D42700000000000000000068 /* Daemon/GuestShellSessionHandler.swift in Sources */,
+				D42700000000000000000069 /* Native/vphoned_native.m in Sources */,
+				D4270000000000000000006A /* Native/vphoned_proxy.c in Sources */,
+				D4270000000000000000006B /* Native/vphoned_session.m in Sources */,
+				D4270000000000000000006C /* Native/vphoned_pty.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -222,12 +321,12 @@
 					"$(PROJECT_DIR)/Native/Include",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos appletvos";
 				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos appletvos";
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -246,12 +345,12 @@
 					"$(PROJECT_DIR)/Native/Include",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos appletvos";
 				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos appletvos";
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -262,7 +361,6 @@
 				DEFINES_MODULE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
 				OTHER_LDFLAGS = (
 					"-lVPhoneSign",
@@ -275,6 +373,7 @@
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -285,7 +384,6 @@
 				DEFINES_MODULE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native/Include";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
 				OTHER_LDFLAGS = (
 					"-lVPhoneSign",
@@ -298,6 +396,7 @@
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/../.build/XcodeSignGuest-$(CONFIGURATION)/Build/Products/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -307,10 +406,10 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGNING_ALLOWED = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos appletvos";
 				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -320,9 +419,45 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGNING_ALLOWED = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				TVOS_DEPLOYMENT_TARGET = 15.0;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos appletvos";
+				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
+			};
+			name = Release;
+		};
+		D42700000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) VPHONE_DARWINOS";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/vphoned-darwinos/vphoned-darwinos-Bridging-Header.h";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D42700000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Native";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) VPHONE_DARWINOS";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/vphoned-darwinos/vphoned-darwinos-Bridging-Header.h";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -353,6 +488,15 @@
 			buildConfigurations = (
 				C100000000000000000000B5 /* Debug */,
 				C100000000000000000000B6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D42700000000000000000007 /* Build configuration list for PBXNativeTarget "vphoned-darwinos" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D42700000000000000000008 /* Debug */,
+				D42700000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
