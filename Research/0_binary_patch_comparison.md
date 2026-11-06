@@ -1,5 +1,14 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Legacy Duo TXM remap evidence (2026-11-06).** A guest with Core Bundle and
+> environment 2.15.2 still had the flashed 2.13.8 TXM receipt containing
+> `precheck_admission` and `trustcache_bypass`. A same-task fixed private 16 KiB
+> main-executable remap returned success and RX/RX, while `vm_region_64` found
+> R/R and the subsequent call faulted. A bounded app-local RW-copy-then-RX
+> workaround advanced execution. This does not test or contradict #831 on
+> freshly restored guests. No patch or preset changes; see the
+> [deployment evidence and limits](Firmware/txm_executable_remap_caveats.md#existing-duo-guest-reported-rx-but-actual-r-only-alias-2026-11-06).
+
 > **Watch audio budget runtime check (2026-10-31).** A fresh Watch7,18 VM on
 > 26.4 (23T240): native Resonate text-message
 > alert completed with `BudgetNotAvailable = 0`; explicit Playback-category
