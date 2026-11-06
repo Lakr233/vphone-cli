@@ -333,5 +333,6 @@ __attribute__((used, section("__DATA,__interpose"))) static const struct {
     {(const void *)vpSpawnP, (const void *)posix_spawnp},
     {(const void *)vpSpawn, (const void *)posix_spawn},
     {(const void *)vpSetSpawnExceptionPortsPreservingX1, (const void *)posix_spawnattr_setexceptionports_np},
+    {(const void *)vpSetTaskExceptionPortsPreservingX1, (const void *)task_set_exception_ports},
     {(const void *)vpExecve, (const void *)execve},
 };

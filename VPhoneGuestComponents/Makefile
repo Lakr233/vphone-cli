@@ -685,6 +685,13 @@ test-installcoordination-persona:
 		-o $(OUT)/InstallCoordinationPersonaTests Tests/InstallCoordinationPersonaTests.c
 	@$(OUT)/InstallCoordinationPersonaTests
 
+.PHONY: test-x1-task-exceptions
+test-x1-task-exceptions:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Wall -Wextra -Werror -fsanitize=address,undefined \
+		-o $(OUT)/X1TaskExceptionTests Tests/X1TaskExceptionTests.c
+	@$(OUT)/X1TaskExceptionTests
+
 .PHONY: test-flutter-remap test-flutter-remap-repair
 test-flutter-remap:
 	@mkdir -p $(OUT)

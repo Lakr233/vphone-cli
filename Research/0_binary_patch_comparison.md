@@ -1,5 +1,15 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Application exception actions and X1 lowering (2026-11-06).** SystemHook
+> preserves the inherited X1 `EXC_BAD_INSTRUCTION` action when an application
+> installs its own task exception ports. Other exception bits, non-X1 and
+> remote-task requests are forwarded unchanged. This extends the existing
+> spawn policy; no firmware patch, preset or system-library instruction is
+> added. An app-scoped equivalent survived two cold starts, fold/unfold and
+> background resume on an iOS 27.1 legacy-TXM guest after independent remap
+> and Intents workarounds. Full SystemHook runtime deployment remains separate.
+> See [failure, policy and validation boundaries](Guest/x1_exception_actions.md).
+
 > **Watch audio budget runtime check (2026-10-31).** A fresh Watch7,18 VM on
 > 26.4 (23T240): native Resonate text-message
 > alert completed with `BudgetNotAvailable = 0`; explicit Playback-category
