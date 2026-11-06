@@ -11,6 +11,26 @@ import VPhoneCoreKit
 import VPhonePatchKit
 
 extension FirmwarePipeline {
+    /// Extra arguments carried by the existing iBEC/LLB boot-args patches.
+    /// Preserve the iOS 16–18 Skywalk workaround. For the tested visionOS 26.4
+    /// userland/PCC 26.4 pairing, match XNU's native XR default for OOL port
+    /// arrays; its communications services send descriptors the PCC default
+    /// otherwise rejects. Other guest/version combinations keep their policy.
+    static func extraBootArguments(
+        for guest: VPhoneGuestDevice,
+        iOSBase: VPhoneVersion?,
+        cloudOS: VPhoneVersion?
+    ) -> String {
+        if let major = iOSBase?.major, [16, 17, 18].contains(major) {
+            return "if_attach_nx=0x3"
+        }
+        let testedVersion = VPhoneVersion(major: 26, minor: 4)
+        if guest.family == .vision, iOSBase == testedVersion, cloudOS == testedVersion {
+            return "ool_port_array_enforced=0"
+        }
+        return ""
+    }
+
     // MARK: - Component List Builder
 
     /// Build the ordered component list based on the variant.
@@ -20,8 +40,8 @@ extension FirmwarePipeline {
     ///     into the patcher factory closures below.
     ///   - iOSBase: The iPhone base `ProductVersion` read from `iPhone-BuildManifest.plist`,
     ///     or nil when it could not be read. Two patchers still branch on the release
-    ///     itself rather than on a patch being selected: the skywalk-netagent boot-arg is
-    ///     18.x-only, and `KernelCustomFirmwarePatcher.applyIOS27` changes the shapes a patch
+    ///     itself rather than on a patch being selected: the compatibility boot-args
+    ///     depend on the guest and firmware pairing, and `KernelCustomFirmwarePatcher.applyIOS27` changes the shapes a patch
     ///     method looks for rather than whether it runs.
     ///   - plan: The resolved preset, or nil when there is none. A patcher whose whole
     ///     patch set the preset left out is not built at all: its records would be
@@ -128,11 +148,9 @@ extension FirmwarePipeline {
             fallback: baseIs18 || iOSBase?.major == 26,
         )
 
-        // iOS 18 bases: disable the skywalk flowswitch netagents via boot-arg so
-        // Network.framework uses the BSD path (the 26.1-kernel skywalk
-        // channel-create traps in the 18.x Network.framework and crash-loops
-        // mDNSResponder → no DNS). Empty on 26.x bases (stock boot-args).
-        let extraBootArgs = (baseIs18 || iOSBase?.major == 17 || iOSBase?.major == 16) ? "if_attach_nx=0x3" : ""
+        let extraBootArgs = Self.extraBootArguments(
+            for: guestDevice, iOSBase: iOSBase, cloudOS: cloudOSProductVersion
+        )
 
         // 1. AVPBooter — Apple's ROM, in the VM root. Patched when the plan keeps
         //    the boot chain set. A machine booting OpenAVB has nothing
