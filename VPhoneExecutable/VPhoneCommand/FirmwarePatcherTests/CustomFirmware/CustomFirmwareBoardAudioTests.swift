@@ -292,6 +292,38 @@ struct HomePodAudioProductTests {
     }
 }
 
+@Suite("visionOS virtual display product")
+struct VisionOSVirtualProductTests {
+    private typealias Node = FlatDeviceTreeNode
+    private let generic = Data(base64Encoded: "UT13EFwE1E/xcpFIvIZC6UYOjpc=")!
+
+    private func tree(model: String = "RealityDevice14,1", token: Data? = nil, flags: UInt16 = 0) -> Data {
+        Node("device-tree", [("model", Data((model + "\0").utf8)), ("compatible", Data("N301AP\0VPHONE600AP\0".utf8))], children: [
+            Node("product", [("product-id", token ?? generic), ("unrelated", Node.uint32(42))], flags: ["product-id": flags]),
+            Node("arm-io", [("virtual-hardware", Node.uint32(1))]),
+        ]).serialized
+    }
+
+    @Test func changesOnlyTheKnownVirtualTokenAndIsIdempotent() throws {
+        let before = tree()
+        let (after, changes) = try CustomFirmwarePostRestoreDeviceTree.withVisionOSVirtualProduct(before)
+        #expect(after == tree(token: CustomFirmwarePostRestoreDeviceTree.visionOSVirtualProductID))
+        #expect(after.count == before.count)
+        #expect(changes.map(\.property) == ["product/product-id"])
+        let (again, noChanges) = try CustomFirmwarePostRestoreDeviceTree.withVisionOSVirtualProduct(after)
+        #expect(again == after && noChanges.isEmpty)
+    }
+
+    @Test func rejectsOtherFamiliesPhysicalTokensAndMalformedProperties() {
+        for bad in [tree(model: "iPhone17,3"), tree(model: "RealityDevice17,1"),
+                    tree(token: Data(repeating: 0xa5, count: 20)), tree(token: Data([1])), tree(flags: 0x8000)] {
+            #expect(throws: (any Error).self) {
+                try CustomFirmwarePostRestoreDeviceTree.withVisionOSVirtualProduct(bad)
+            }
+        }
+    }
+}
+
 @Suite("HomePod Cryptex product class")
 struct HomePodCryptexClassTests {
     private typealias Node = FlatDeviceTreeNode
