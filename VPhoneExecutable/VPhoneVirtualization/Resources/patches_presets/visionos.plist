@@ -166,6 +166,7 @@
 			<string>system-homepod-exp-sound_glow</string>
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-welcome</string>
+			<string>system-homepopaccessibility-cfw-arm64e_x1</string>
 			<string>system-homeview-exp-setup_bypass</string>
 			<string>system-installcoordination_proxy-cfw-persona_lookup</string>
 			<string>system-installd-exp-homepod_adhoc</string>
@@ -191,6 +192,7 @@
 			<string>system-preferences-cfw-followup_groups</string>
 			<string>system-preferences-exp-root_rows</string>
 			<string>system-preferences-exp-visionos_skip_buddy</string>
+			<string>system-remotepairingdeviced-cfw-local_connections</string>
 			<string>system-setup-exp-deferred_focus</string>
 			<string>system-setupbackground-exp-pineboard_lookup</string>
 			<string>system-springboard-cfw-fold_display</string>
