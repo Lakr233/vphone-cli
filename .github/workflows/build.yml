@@ -56,6 +56,11 @@ jobs:
           zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh \
             .build/XcodeBundle/Build/Products/Debug/VPhone.bundle
 
+      - name: Check RPC result schemas
+        run: |
+          zsh VPhoneDaemon/Tests/run-result-schema-check.sh \
+            --icli .build/XcodeBundle/SourcePackages/checkouts/icli
+
       # Xcode before 27 drops arm64e.x1 without a warning, and M6 hosts need
       # that slice of the AMFI allowlist tool.
       - name: Verify vphone-escalator slices

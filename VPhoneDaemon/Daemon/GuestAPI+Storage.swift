@@ -11,12 +11,18 @@ enum StorageMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .apfsSnapshots: MethodSpec(.optional("mount", .string))
+        case .apfsSnapshots: MethodSpec(.optional("mount", .string), result: [.required("mount", .string), .required("snapshots", .array)])
         case .apfsSnapshotDelete:
             MethodSpec(.optional("mount", .string),
                        .optional("name", .string),
                        .optional("prefix", .string),
-                       force: .always { p in try "delete APFS snapshots on \(GuestAPI.snapshotDeletion(p).mount)" })
+                       force: .always { p in try "delete APFS snapshots on \(GuestAPI.snapshotDeletion(p).mount)" }, result: [
+                           .required("after", .array),
+                           .required("already_deleted", .array),
+                           .required("before", .array),
+                           .required("deleted", .array),
+                           .required("mount", .string),
+                           .required("remaining", .any)])
         }
     }
 }

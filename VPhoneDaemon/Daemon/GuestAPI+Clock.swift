@@ -8,7 +8,10 @@ enum ClockMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .timeClock: MethodSpec(.optional("time", .number), .optional("automatic", .boolean))
+        case .timeClock: MethodSpec(.optional("time", .number), .optional("automatic", .boolean), result: [.required("automatic", .any),
+                                             .optional("changed", .boolean),
+                                             .optional("offset", .number),
+                                             .required("time", .number)])
         }
     }
 }

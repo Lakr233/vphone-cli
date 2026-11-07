@@ -42,6 +42,21 @@ struct MethodParam {
     static func optional(_ name: String, _ type: ParamType) -> MethodParam { .init(name: name, type: type, required: false) }
 }
 
+/// One top-level key of a method's result. `hidden` keys are produced by the source but never
+/// reach callers, so `methods.list` omits them. `open` marks content that is data: nested keys
+/// are not checked.
+struct ResultKey {
+    enum Presence { case required, optional, hidden }
+    let name: String
+    let type: ParamType
+    let presence: Presence
+    let isOpen: Bool
+    static func required(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .required, isOpen: false) }
+    static func optional(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .optional, isOpen: false) }
+    static func hidden(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .hidden, isOpen: false) }
+    func `open`() -> ResultKey { .init(name: name, type: type, presence: presence, isOpen: true) }
+}
+
 /// The action text completes "Pass force: true to <action>". It is computed from the admitted
 /// params and may throw: it runs exactly the validation today's handler ran before
 /// `requireForce`, so an invalid unforced request fails with the same error as today.
@@ -56,9 +71,12 @@ enum MethodForce {
 struct MethodSpec {
     let params: [MethodParam]
     let force: MethodForce
-    init(_ params: MethodParam..., force: MethodForce = .never) {
+    /// nil = result undeclared; [] = declared to return no keys.
+    let result: [ResultKey]?
+    init(_ params: MethodParam..., force: MethodForce = .never, result: [ResultKey]? = nil) {
         self.params = params
         self.force = force
+        self.result = result
     }
 }
 
@@ -114,7 +132,13 @@ struct GuestMethodArea {
             case let .when(key, _): "when:" + key
             }
             let params = spec.params.map { ["name": $0.name, "type": $0.type.rawValue, "required": $0.required] as [String: Any] }
-            return ["name": name, "params": params, "force": force]
+            var entry: [String: Any] = ["name": name, "params": params, "force": force]
+            if let result = spec.result {
+                entry["result"] = result.filter { $0.presence != .hidden }.sorted { $0.name < $1.name }.map {
+                    ["name": $0.name, "type": $0.type.rawValue, "required": $0.presence == .required, "open": $0.isOpen] as [String: Any]
+                }
+            }
+            return entry
         }
         return ["methods": methods]
     }

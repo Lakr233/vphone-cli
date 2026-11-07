@@ -57,60 +57,161 @@ enum CoreMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .deviceSnapshot: MethodSpec()
-        case .deviceScreen: MethodSpec()
-        case .screenScreenshot: MethodSpec()
-        case .appsList: MethodSpec(.optional("filter", .string))
-        case .appsSearch: MethodSpec(.required("query", .string))
-        case .appsRefresh: MethodSpec(.optional("directory", .string))
-        case .appsLaunch: MethodSpec(.required("bundle_id", .string), .optional("url", .string))
-        case .appsTerminate: MethodSpec(.required("bundle_id", .string))
+        case .deviceSnapshot: MethodSpec(result: [.required("battery", .object),
+                                                  .required("boot_session_uuid", .any),
+                                                  .required("boot_time", .any),
+                                                  .required("host", .string),
+                                                  .required("ios_version", .string),
+                                                  .required("jailbreak", .object),
+                                                  .required("kernel", .string),
+                                                  .required("lock", .object),
+                                                  .required("memory_bytes", .integer),
+                                                  .required("model", .string),
+                                                  .required("processor_count", .integer),
+                                                  .required("storage", .object),
+                                                  .required("sysname", .string),
+                                                  .required("uptime_seconds", .any)])
+        case .deviceScreen: MethodSpec(result: [.required("height", .number),
+                                                .required("locked", .boolean),
+                                                .required("orientation", .integer),
+                                                .required("scale", .number),
+                                                .required("screen_off", .boolean),
+                                                .required("width", .number)])
+        case .screenScreenshot: MethodSpec(result: [.required("bytes", .integer),
+                                                    .required("coordinate_scale", .number),
+                                                    .optional("data", .string),
+                                                    .required("height", .any),
+                                                    .required("mime_type", .string),
+                                                    .hidden("path", .string),
+                                                    .required("width", .any)])
+        case .appsList: MethodSpec(.optional("filter", .string), result: [.required("apps", .array)])
+        case .appsSearch: MethodSpec(.required("query", .string), result: [.required("apps", .any), .required("query", .string)])
+        case .appsRefresh: MethodSpec(.optional("directory", .string), result: [
+                                          .required("directory", .string),
+                                          .required("failed", .array),
+                                          .required("registered", .array),
+                                          .required("skipped", .array),
+                                          .required("unchanged", .array),
+                                          .required("unregistered", .array),
+                                          .required("unverified", .array)])
+        case .appsLaunch: MethodSpec(.required("bundle_id", .string), .optional("url", .string), result: [
+                                         .required("frontmost_verified", .boolean),
+                                         .required("pid", .any),
+                                         .optional("warning", .string)])
+        case .appsTerminate: MethodSpec(.required("bundle_id", .string), result: [
+                                            .required("already_stopped", .boolean),
+                                            .required("killed", .string),
+                                            .required("pids", .array)])
         case .appsUninstall:
             MethodSpec(.required("bundle_id", .string),
-                       force: .always { p in try "uninstall \(GuestAPI.string(p, "bundle_id"))" })
-        case .appsForeground: MethodSpec()
-        case .appsOpenUrl: MethodSpec(.required("url", .string), .optional("bundle_id", .string))
+                       force: .always { p in try "uninstall \(GuestAPI.string(p, "bundle_id"))" }, result: [
+                           .optional("method", .string),
+                           .optional("removed_containers", .array),
+                           .required("uninstalled", .string)])
+        case .appsForeground: MethodSpec(result: [
+                .required("bundle_id", .string),
+                .required("name", .string),
+                .required("pid", .any),
+                .required("source", .any),
+                .required("verified", .any)])
+        case .appsOpenUrl: MethodSpec(.required("url", .string), .optional("bundle_id", .string), result: [.optional("bundle_id", .string), .required("url", .string)])
         case .appsInstall:
-            MethodSpec(.required("path", .string), .optional("cert_path", .string), .optional("registration", .string))
-        case .bootstrapInstall: MethodSpec(.required("layout", .string), .optional("package_path", .string))
-        case .bootstrapPackages: MethodSpec()
-        case .bootstrapStatus: MethodSpec()
-        case .bootstrapInspect: MethodSpec()
+            MethodSpec(.required("path", .string), .optional("cert_path", .string), .optional("registration", .string), result: [
+                           .required("bundle_container", .string),
+                           .required("bundle_id", .string),
+                           .required("bundle_path", .string),
+                           .required("containerized", .any),
+                           .required("data_container", .any),
+                           .required("method", .string),
+                           .required("msg", .string),
+                           .required("plugins", .any),
+                           .required("registration", .string),
+                           .required("unregistered_plugins", .any),
+                           .required("upgraded", .boolean)])
+        case .bootstrapInstall: MethodSpec(.required("layout", .string), .optional("package_path", .string), result: [
+                                               .required("app_path", .any),
+                                               .required("architecture", .string),
+                                               .required("dpkg_database_updated", .boolean),
+                                               .required("firmware_version", .string),
+                                               .required("jbroot", .string),
+                                               .required("layout", .string),
+                                               .required("maintainer_scripts_executed", .boolean),
+                                               .required("registration", .any),
+                                               .optional("roothide_base", .object),
+                                               .required("service_load", .object),
+                                               .optional("service_start", .object),
+                                               .optional("service_start_warning", .string),
+                                               .required("service_status", .object),
+                                               .required("tag", .string),
+                                               .required("version", .any)])
+        case .bootstrapPackages: MethodSpec(result: [
+                .optional("jbroot", .string),
+                .required("packages", .array),
+                .optional("repositories", .array),
+                .optional("skipped", .string)])
+        case .bootstrapStatus: MethodSpec(result: [
+                .optional("downloaded_bytes", .integer),
+                .optional("error", .string),
+                .optional("jbroot", .any),
+                .optional("layout", .any),
+                .optional("packages", .array),
+                .required("phase", .string),
+                .optional("tag", .any),
+                .optional("total_bytes", .integer),
+                .optional("version", .any)])
+        case .bootstrapInspect: MethodSpec(result: [
+                .required("installed", .boolean),
+                .optional("jbroot", .string),
+                .optional("layout", .string),
+                .required("roots", .any)])
         case .bootstrapUninstall:
             MethodSpec(.optional("roots", .array),
                        .optional("jbroot", .string),
                        .optional("reboot", .boolean),
-                       force: .always { _ in "uninstall the bootstrap" })
-        case .bootstrapFirmware: MethodSpec()
+                       force: .always { _ in "uninstall the bootstrap" }, result: [
+                           .required("deleted", .boolean),
+                           .required("reboot_scheduled", .boolean),
+                           .required("roots", .array)])
+        case .bootstrapFirmware: MethodSpec(result: [
+                .required("dpkg_database_updated", .boolean),
+                .required("firmware_version", .string),
+                .required("jbroot", .string),
+                .required("layout", .string)])
         case .inputTouch:
             MethodSpec(.required("phase", .string),
                        .optional("x", .number),
                        .optional("y", .number),
                        .optional("edge", .integer),
-                       .optional("normalized", .boolean))
+                       .optional("normalized", .boolean), result: [.optional("digitizer_x", .number),
+                                .optional("digitizer_y", .number),
+                                .optional("edge", .integer),
+                                .optional("normalized", .boolean),
+                                .required("phase", .any),
+                                .optional("x", .number),
+                                .optional("y", .number)])
         case .inputTouch2:
             MethodSpec(.required("phase", .string),
                        .optional("x1", .number),
                        .optional("y1", .number),
                        .optional("x2", .number),
                        .optional("y2", .number),
-                       .optional("normalized", .boolean))
+                       .optional("normalized", .boolean), result: [.required("fingers", .integer), .required("phase", .any)])
         case .inputPointer:
             MethodSpec(.required("x", .number),
                        .required("y", .number),
                        .optional("seq", .integer),
-                       .optional("buttons", .integer))
+                       .optional("buttons", .integer), result: [.required("buttons", .integer), .required("x", .number), .required("y", .number)])
         case .inputScroll:
             MethodSpec(.required("phase", .string),
                        .optional("dx", .number),
                        .optional("dy", .number),
                        .optional("x", .number),
-                       .optional("y", .number))
+                       .optional("y", .number), result: [.required("phase", .string)])
         case .inputHid:
             MethodSpec(.required("page", .integer),
                        .required("usage", .integer),
                        .optional("long_press", .boolean),
-                       .optional("down", .boolean))
+                       .optional("down", .boolean), result: [.required("action", .string), .optional("long_press", .boolean), .required("page", .integer), .required("usage", .integer)])
         case .locationSet:
             MethodSpec(.required("latitude", .number),
                        .required("longitude", .number),
@@ -118,36 +219,103 @@ enum CoreMethod: String, GuestMethod {
                        .optional("horizontal_accuracy", .number),
                        .optional("vertical_accuracy", .number),
                        .optional("speed", .number),
-                       .optional("course", .number))
-        case .locationClear: MethodSpec()
-        case .locationCurrent: MethodSpec(.optional("timeout", .number))
-        case .developerModeStatus: MethodSpec()
-        case .developerModeEnable: MethodSpec()
-        case .powerLowPowerMode: MethodSpec(.optional("enabled", .boolean))
-        case .clipboardGet: MethodSpec()
-        case .clipboardSet: MethodSpec(.required("text", .string))
-        case .clipboardClear: MethodSpec()
-        case .filesList: MethodSpec(.required("path", .string))
-        case .filesMkdir: MethodSpec(.required("path", .string))
-        case .filesRemove: MethodSpec(.required("path", .string), .optional("recursive", .boolean))
-        case .filesRename: MethodSpec(.required("from", .string), .required("to", .string))
-        case .settingsGet: MethodSpec(.required("domain", .string), .optional("key", .string))
+                       .optional("course", .number), result: [.required("location", .object), .required("simulating", .boolean)])
+        case .locationClear: MethodSpec(result: [.optional("location", .object), .required("simulating", .boolean)])
+        case .locationCurrent: MethodSpec(.optional("timeout", .number), result: [.optional("age_seconds", .any),
+                                                   .optional("altitude", .any),
+                                                   .optional("client", .string),
+                                                   .optional("course", .any),
+                                                   .optional("error", .string),
+                                                   .optional("fresh", .any),
+                                                   .optional("horizontal_accuracy", .any),
+                                                   .optional("latitude", .any),
+                                                   .optional("longitude", .any),
+                                                   .optional("simulated", .any),
+                                                   .optional("speed", .any),
+                                                   .optional("timestamp", .any),
+                                                   .optional("vertical_accuracy", .any)])
+        case .developerModeStatus: MethodSpec(result: [.required("armed", .boolean), .required("enabled", .boolean), .required("writable", .boolean)])
+        case .developerModeEnable: MethodSpec(result: [.optional("already_enabled", .any),
+                                                       .required("armed", .boolean),
+                                                       .required("enabled", .boolean),
+                                                       .optional("restart_required", .boolean),
+                                                       .required("writable", .boolean)])
+        case .powerLowPowerMode: MethodSpec(.optional("enabled", .boolean), result: [.optional("changed", .boolean), .required("enabled", .boolean), .required("method", .string)])
+        case .clipboardGet: MethodSpec(result: [
+                .required("change_count", .integer),
+                .required("has_image", .boolean),
+                .required("has_text", .boolean),
+                .optional("image", .object),
+                .required("items", .integer),
+                .required("method", .string),
+                .required("text", .any),
+                .required("types", .any)])
+        case .clipboardSet: MethodSpec(.required("text", .string), result: [
+                                           .required("change_count", .integer),
+                                           .required("has_image", .boolean),
+                                           .required("has_text", .boolean),
+                                           .optional("image", .object),
+                                           .required("items", .integer),
+                                           .required("method", .string),
+                                           .required("text", .any),
+                                           .required("types", .any)])
+        case .clipboardClear: MethodSpec(result: [
+                .required("change_count", .integer),
+                .required("has_image", .boolean),
+                .required("has_text", .boolean),
+                .optional("image", .object),
+                .required("items", .integer),
+                .required("method", .string),
+                .required("text", .any),
+                .required("types", .any)])
+        case .filesList: MethodSpec(.required("path", .string), result: [.required("entries", .array), .required("path", .string)])
+        case .filesMkdir: MethodSpec(.required("path", .string), result: [.required("created", .boolean), .required("path", .string)])
+        case .filesRemove: MethodSpec(.required("path", .string), .optional("recursive", .boolean), result: [
+                                          .optional("message", .string),
+                                          .required("path", .string),
+                                          .required("removed", .boolean),
+                                          .optional("type", .string)])
+        case .filesRename: MethodSpec(.required("from", .string), .required("to", .string), result: [.required("destination", .string), .required("source", .string)])
+        case .settingsGet: MethodSpec(.required("domain", .string), .optional("key", .string), result: [
+                                          .optional("count", .integer),
+                                          .required("domain", .string),
+                                          .optional("exists", .boolean),
+                                          .optional("key", .string),
+                                          .optional("type", .string),
+                                          .required("user", .string),
+                                          .optional("value", .any).open(),
+                                          .optional("values", .object).open()])
         case .settingsSet:
             MethodSpec(.required("domain", .string),
                        .required("key", .string),
                        .required("value", .any),
-                       .optional("type", .string))
-        case .settingsDelete: MethodSpec(.required("domain", .string), .required("key", .string))
-        case .keychainList: MethodSpec(.optional("class", .string))
+                       .optional("type", .string), result: [
+                           .optional("count", .integer),
+                           .required("domain", .string),
+                           .optional("exists", .boolean),
+                           .optional("key", .string),
+                           .optional("notified", .string),
+                           .optional("type", .string),
+                           .required("user", .string),
+                           .optional("value", .any).open(),
+                           .optional("values", .object).open()])
+        case .settingsDelete: MethodSpec(.required("domain", .string), .required("key", .string), result: [
+                                             .required("domain", .string),
+                                             .required("exists", .boolean),
+                                             .required("key", .string),
+                                             .optional("notified", .string),
+                                             .required("removed", .boolean),
+                                             .required("user", .string)])
+        case .keychainList: MethodSpec(.optional("class", .string), result: [.required("count", .integer), .required("diag", .array), .required("items", .array)])
         case .keychainAdd:
-            MethodSpec(.required("account", .string), .required("service", .string), .required("password", .string))
+            MethodSpec(.required("account", .string), .required("service", .string), .required("password", .string), result: [.required("ok", .boolean), .required("status", .integer)])
         case .keychainGet:
             MethodSpec(.optional("class", .string),
                        .optional("account", .string),
                        .optional("service", .string),
                        .optional("server", .string),
                        .optional("group", .string),
-                       .optional("accessGroup", .string))
+                       .optional("accessGroup", .string), result: [.required("ok", .boolean), .required("value", .string).open()])
         case .keychainUpdate:
             MethodSpec(.optional("class", .string),
                        .required("account", .string),
@@ -155,16 +323,16 @@ enum CoreMethod: String, GuestMethod {
                        .optional("server", .string),
                        .optional("group", .string),
                        .optional("accessGroup", .string),
-                       .required("value", .string))
+                       .required("value", .string), result: [.required("ok", .boolean)])
         case .keychainDelete:
             MethodSpec(.optional("class", .string),
                        .optional("account", .string),
                        .optional("service", .string),
                        .optional("server", .string),
                        .optional("group", .string),
-                       .optional("accessGroup", .string))
-        case .agentApplyUpdate: MethodSpec(.required("sha256", .string))
-        case .methodsList: MethodSpec()
+                       .optional("accessGroup", .string), result: [.required("ok", .boolean), .required("removed", .boolean)])
+        case .agentApplyUpdate: MethodSpec(.required("sha256", .string), result: [.required("restarting", .boolean)])
+        case .methodsList: MethodSpec(result: [.required("methods", .array)])
         }
     }
 }

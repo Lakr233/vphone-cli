@@ -8,7 +8,7 @@ enum AudioLatencyMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .audioHostLatency: MethodSpec(.optional("seconds", .number))
+        case .audioHostLatency: MethodSpec(.optional("seconds", .number), result: [.optional("changed", .boolean), .required("seconds", .number)])
         }
     }
 }

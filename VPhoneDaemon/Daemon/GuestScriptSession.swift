@@ -37,13 +37,20 @@ enum GuestScriptSession {
         let source = readSource()
         _ = installProcess()
         let probe = evaluateProbe(source, api: answer)
-        var reply: [String: Any] = ["ok": probe.ok, "output": probe.output]
-        reply["result"] = probe.result
-        reply["error"] = probe.error
-        let encoded = (try? JSONSerialization.data(withJSONObject: reply))
+        let line = reply(ok: probe.ok, output: probe.output, result: probe.result, error: probe.error)
+        let encoded = (try? JSONSerialization.data(withJSONObject: line))
             ?? Data(#"{"ok":false,"error":"The reply could not be encoded","output":""}"#.utf8)
         FileHandle.standardOutput.write(encoded + Data("\n".utf8))
         return probe.ok ? 0 : 65
+    }
+
+    /// The answer line: `result` or `error` is present only when the probe produced it. A session that
+    /// answers did not crash; the worker reports `crashed: true` itself when none does.
+    private static func reply(ok: Bool, output: String, result: String?, error: String?) -> [String: Any] {
+        var reply: [String: Any] = ["ok": ok, "output": output, "crashed": false]
+        if let result { reply["result"] = result }
+        if let error { reply["error"] = error }
+        return reply
     }
 
     /// Everything on stdin, which the worker closes once it has sent the source.

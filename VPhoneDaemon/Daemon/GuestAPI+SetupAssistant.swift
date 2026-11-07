@@ -11,8 +11,21 @@ enum SetupAssistantMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .setupStatus: MethodSpec()
-        case .setupSkip: MethodSpec(force: .always { _ in "skip Setup Assistant" })
+        case .setupStatus: MethodSpec(result: [.required("current_version", .any),
+                                               .required("data_migration_done", .any),
+                                               .required("pending", .boolean),
+                                               .required("pid", .any),
+                                               .required("running", .boolean),
+                                               .required("setup_done", .boolean),
+                                               .required("setup_version", .any)])
+        case .setupSkip: MethodSpec(force: .always { _ in "skip Setup Assistant" }, result: [.required("current_version", .any),
+                                             .required("data_migration_done", .any),
+                                             .required("pending", .boolean),
+                                             .required("pid", .any),
+                                             .required("respring", .object),
+                                             .required("running", .boolean),
+                                             .required("setup_done", .boolean),
+                                             .required("setup_version", .any)])
         }
     }
 }

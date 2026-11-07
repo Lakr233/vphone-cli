@@ -25,24 +25,71 @@ enum FileToolMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .filesRead: MethodSpec(.required("path", .string), .optional("binary", .boolean), .optional("limit", .integer))
-        case .filesWrite: MethodSpec(.required("path", .string), .required("content", .string), .optional("encoding", .string))
-        case .filesFind: MethodSpec(.required("root", .string), .required("pattern", .string))
-        case .filesCopy: MethodSpec(.required("from", .string), .required("to", .string))
-        case .filesSymlink: MethodSpec(.required("target", .string), .required("link", .string), .optional("replace", .boolean))
-        case .filesChmod: MethodSpec(.required("path", .string), .required("mode", .string))
-        case .filesChown: MethodSpec(.required("path", .string), .required("owner", .string))
-        case .filesSaveToFilesApp: MethodSpec(.required("path", .string), .required("name", .string))
-        case .filesPlist: MethodSpec(.required("path", .string))
+        case .filesRead: MethodSpec(.required("path", .string), .optional("binary", .boolean), .optional("limit", .integer), result: [
+                                        .required("content", .string),
+                                        .required("encoding", .string),
+                                        .required("path", .string),
+                                        .required("size", .any),
+                                        .required("truncated", .boolean)])
+        case .filesWrite: MethodSpec(.required("path", .string), .required("content", .string), .optional("encoding", .string), result: [.required("bytes", .integer), .required("path", .string)])
+        case .filesFind: MethodSpec(.required("root", .string), .required("pattern", .string), result: [
+                                        .required("matches", .array),
+                                        .required("pattern", .string),
+                                        .required("root", .string)])
+        case .filesCopy: MethodSpec(.required("from", .string), .required("to", .string), result: [.required("destination", .string), .required("source", .string)])
+        case .filesSymlink: MethodSpec(.required("target", .string), .required("link", .string), .optional("replace", .boolean), result: [
+                                           .required("link", .string),
+                                           .required("resolved", .any),
+                                           .required("target", .string)])
+        case .filesChmod: MethodSpec(.required("path", .string), .required("mode", .string), result: [.required("mode", .string), .required("path", .string)])
+        case .filesChown: MethodSpec(.required("path", .string), .required("owner", .string), result: [.required("gid", .integer), .required("path", .string), .required("uid", .integer)])
+        case .filesSaveToFilesApp: MethodSpec(.required("path", .string), .required("name", .string), result: [
+                                                  .required("folder", .string),
+                                                  .required("name", .string),
+                                                  .required("path", .string)])
+        case .filesPlist: MethodSpec(.required("path", .string), result: [.required("path", .string), .required("plist", .any).open()])
         case .filesPlistSet: MethodSpec(.required("path", .string), .required("key", .string), .optional("value", .any),
-                       .optional("remove", .boolean))
-        case .keychainDatabase: MethodSpec(.optional("class", .string))
-        case .packagesList: MethodSpec(.optional("filter", .string))
-        case .packagesStatus: MethodSpec(.required("name", .string))
-        case .packagesInfo: MethodSpec(.required("path", .string))
-        case .packagesCompare: MethodSpec(.required("left", .string), .required("right", .string))
-        case .packagesTweaks: MethodSpec()
-        case .packagesRepos: MethodSpec()
+                       .optional("remove", .boolean), result: [
+                                            .required("format", .string),
+                                            .required("key", .string),
+                                            .required("path", .string),
+                                            .required("previous", .any).open(),
+                                            .required("value", .any).open()])
+        case .keychainDatabase: MethodSpec(.optional("class", .string), result: [
+                                               .required("count", .integer),
+                                               .required("counts", .object),
+                                               .required("items", .array),
+                                               .required("source", .string)])
+        case .packagesList: MethodSpec(.optional("filter", .string), result: [.required("count", .integer), .required("packages", .array)])
+        case .packagesStatus: MethodSpec(.required("name", .string), result: [
+                                             .optional("architecture", .any),
+                                             .optional("fields", .object),
+                                             .optional("files", .array),
+                                             .required("installed", .boolean),
+                                             .required("known", .boolean),
+                                             .required("package", .string),
+                                             .optional("status", .any),
+                                             .optional("version", .any)])
+        case .packagesInfo: MethodSpec(.required("path", .string), result: [
+                                           .optional("control", .object).open(),
+                                           .optional("control_files", .array),
+                                           .optional("control_member", .string),
+                                           .optional("control_order", .array),
+                                           .hidden("control_texts", .object),
+                                           .optional("data_member", .string),
+                                           .optional("destination", .string),
+                                           .optional("error", .string),
+                                           .optional("extracted", .boolean),
+                                           .optional("files", .array),
+                                           .optional("format", .string),
+                                           .optional("scripts", .any)])
+        case .packagesCompare: MethodSpec(.required("left", .string), .required("right", .string), result: [
+                                              .required("comparison", .integer),
+                                              .required("left", .string),
+                                              .required("relation", .string),
+                                              .required("right", .string)])
+        case .packagesTweaks: MethodSpec(result: [.required("tweaks", .array)])
+        case .packagesRepos: MethodSpec(result: [.required("repos", .array)])
         }
     }
 }

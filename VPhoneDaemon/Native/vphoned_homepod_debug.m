@@ -346,6 +346,21 @@ static NSDictionary *executeOperation(NSDictionary *spec, NSDictionary *argument
     return @{@"operation": spec[@"id"], @"value": reply.value ?: NSNull.null};
 }
 
+static NSDictionary *catalogResult(Class cls) {
+    NSMutableArray *catalog = NSMutableArray.array;
+    for (NSDictionary *spec in operations()) {
+        NSMutableDictionary *entry = [spec mutableCopy];
+        entry[@"available"] = @(matchesSignature([cls instanceMethodSignatureForSelector:NSSelectorFromString(spec[@"id"])], spec));
+        [catalog addObject:entry];
+    }
+    // HomePodBuddyTypes.Feature / FeaturePhase raw-value switch
+    // tables from SoundBoardFramework 24J361. The framework accepts
+    // animation names as spaced words, then forms lowerCamelCase.
+    return @{@"available": @YES, @"interface": @"SBSDebugInterface", @"operations": catalog,
+        @"animations": @[@"none", @"lux thresholds", @"true tone", @"alarms", @"apple care", @"dropin", @"doorbell", @"factory reset", @"identify", @"intercom", @"now playing", @"proximity handoff", @"setup", @"siri", @"sae", @"siri sparkle", @"telephony", @"thermal overload", @"timers", @"bad boot args", @"crash blip", @"home kit sync", @"boot up", @"factory reset f w", @"low power"],
+        @"phases": @[@"On", @"Off", @"AirDrop", @"Sysdiagnose", @"Reset Tone", @"Plus Tap", @"Minus Tap", @"Center Tap", @"Approach", @"Cancel", @"Complete", @"Audio Passcode", @"Manual Passcode", @"Post Passcode", @"Timed Out", @"Listening", @"Thinking", @"Presenting", @"Mute", @"Unmute"]};
+}
+
 char *vp_homepod_debug_copy_json(const char *operationName, const char *argumentsJSON) {
     @autoreleasepool {
         NSDictionary *result = nil;
@@ -354,18 +369,7 @@ char *vp_homepod_debug_copy_json(const char *operationName, const char *argument
             Class cls = debugClass();
             if (!cls) error = @"SoundBoard debugging is available only on a HomePod guest";
             else if (!operationName || strcmp(operationName, "catalog") == 0) {
-                NSMutableArray *catalog = NSMutableArray.array;
-                for (NSDictionary *spec in operations()) {
-                    NSMutableDictionary *entry = [spec mutableCopy];
-                    entry[@"available"] = @(matchesSignature([cls instanceMethodSignatureForSelector:NSSelectorFromString(spec[@"id"])], spec));
-                    [catalog addObject:entry];
-                }
-                // HomePodBuddyTypes.Feature / FeaturePhase raw-value switch
-                // tables from SoundBoardFramework 24J361. The framework accepts
-                // animation names as spaced words, then forms lowerCamelCase.
-                result = @{@"available": @YES, @"interface": @"SBSDebugInterface", @"operations": catalog,
-                    @"animations": @[@"none", @"lux thresholds", @"true tone", @"alarms", @"apple care", @"dropin", @"doorbell", @"factory reset", @"identify", @"intercom", @"now playing", @"proximity handoff", @"setup", @"siri", @"sae", @"siri sparkle", @"telephony", @"thermal overload", @"timers", @"bad boot args", @"crash blip", @"home kit sync", @"boot up", @"factory reset f w", @"low power"],
-                    @"phases": @[@"On", @"Off", @"AirDrop", @"Sysdiagnose", @"Reset Tone", @"Plus Tap", @"Minus Tap", @"Center Tap", @"Approach", @"Cancel", @"Complete", @"Audio Passcode", @"Manual Passcode", @"Post Passcode", @"Timed Out", @"Listening", @"Thinking", @"Presenting", @"Mute", @"Unmute"]};
+                result = catalogResult(cls);
             } else {
                 NSString *name = @(operationName);
                 NSDictionary *spec = nil;

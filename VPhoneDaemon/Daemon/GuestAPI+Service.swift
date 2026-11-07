@@ -25,27 +25,28 @@ enum ServiceMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .servicesList: MethodSpec()
-        case .servicesStatus: MethodSpec(.required("label", .string))
-        case .servicesPrint: MethodSpec(.required("label", .string))
-        case .servicesDump: MethodSpec()
-        case .servicesDisabled: MethodSpec()
-        case .servicesProfile: MethodSpec()
+        case .servicesList: MethodSpec(result: [.required("count", .integer), .required("services", .any)])
+        case .servicesStatus: MethodSpec(.required("label", .string), result: [.required("domains", .array), .required("enabled", .boolean), .required("label", .string), .required("loaded", .boolean), .required("override", .boolean), .required("running", .boolean),
+                                                  .optional("last_exit_status", .any), .optional("pid", .integer), .optional("program", .any)])
+        case .servicesPrint: MethodSpec(.required("label", .string), result: [.required("description", .string), .required("domain", .string), .required("label", .string)])
+        case .servicesDump: MethodSpec(result: [.required("count", .integer), .required("described", .integer), .required("errors", .object).open(), .required("services", .array)])
+        case .servicesDisabled: MethodSpec(result: [.required("count", .integer), .required("disabled", .object).open()])
+        case .servicesProfile: MethodSpec(result: [.required("disabled", .any), .required("enabled_since", .any), .required("groups", .any), .required("ios_major", .integer), .required("list_version", .integer), .required("never_disable", .array), .required("profile", .string), .required("reboot_required", .boolean), .required("record", .any), .required("running", .any), .required("supported", .boolean), .required("supported_ios", .array)])
         case .servicesProfileApply:
             MethodSpec(.required("profile", .string), .optional("groups", .array), .optional("allow", .array),
-                       force: .always { _ in "apply a service profile" })
-        case .servicesStart: MethodSpec(.required("label", .string))
+                       force: .always { _ in "apply a service profile" }, result: [.required("allowed", .array), .required("disabled", .array), .required("enabled", .array), .required("failed", .array), .required("groups", .array), .required("ios_major", .integer), .required("kept", .array), .required("list_version", .integer), .required("owned", .integer), .required("profile", .string), .required("reboot_required", .boolean), .required("skipped", .any)])
+        case .servicesStart: MethodSpec(.required("label", .string), result: [.required("accepted", .boolean), .required("action", .string), .optional("domain", .string), .required("label", .string), .required("launchd_status", .integer), .required("message", .string), .optional("pid", .integer), .required("unchanged", .boolean)])
         case .servicesKickstart:
             MethodSpec(.required("label", .string),
                        .optional("kill", .boolean),
-                       force: .when("kill") { p in try "kill and restart \(GuestAPI.string(p, "label"))" })
-        case .servicesEnable: MethodSpec(.required("label", .string))
+                       force: .when("kill") { p in try "kill and restart \(GuestAPI.string(p, "label"))" }, result: [.required("accepted", .boolean), .required("action", .string), .optional("domain", .string), .required("kill", .boolean), .required("label", .string), .required("launchd_status", .integer), .required("message", .string), .optional("pid", .integer), .required("unchanged", .boolean)])
+        case .servicesEnable: MethodSpec(.required("label", .string), result: [.required("changed", .boolean), .required("enabled", .boolean), .required("label", .string)])
         case .servicesStop:
-            MethodSpec(.required("label", .string), force: .always { p in try "stop \(GuestAPI.string(p, "label"))" })
+            MethodSpec(.required("label", .string), force: .always { p in try "stop \(GuestAPI.string(p, "label"))" }, result: [.required("accepted", .boolean), .required("action", .string), .optional("domain", .string), .required("label", .string), .required("launchd_status", .integer), .required("message", .string), .optional("pid", .integer), .required("unchanged", .boolean)])
         case .servicesDisable:
-            MethodSpec(.required("label", .string), force: .always { p in try "disable \(GuestAPI.string(p, "label"))" })
+            MethodSpec(.required("label", .string), force: .always { p in try "disable \(GuestAPI.string(p, "label"))" }, result: [.required("changed", .boolean), .required("enabled", .boolean), .required("label", .string)])
         case .servicesRemove:
-            MethodSpec(.required("label", .string), force: .always { p in try "remove \(GuestAPI.string(p, "label"))" })
+            MethodSpec(.required("label", .string), force: .always { p in try "remove \(GuestAPI.string(p, "label"))" }, result: [.required("accepted", .boolean), .required("action", .string), .optional("domain", .string), .required("label", .string), .required("launchd_status", .integer), .required("message", .string), .optional("pid", .integer), .required("unchanged", .boolean)])
         case .servicesSignal:
             MethodSpec(.required("label", .string),
                        .required("signal", .string),
@@ -53,18 +54,18 @@ enum ServiceMethod: String, GuestMethod {
                            let label = try GuestAPI.string(p, "label")
                            let signal = try GuestAPI.string(p, "signal")
                            return "send \(signal) to \(label)"
-                       })
-        case .servicesLoad: MethodSpec(.required("paths", .array), .optional("override", .boolean))
+                       }, result: [.required("accepted", .boolean), .required("action", .string), .optional("domain", .string), .required("label", .string), .required("launchd_status", .integer), .required("message", .string), .optional("pid", .integer), .required("signal", .integer), .required("unchanged", .boolean)])
+        case .servicesLoad: MethodSpec(.required("paths", .array), .optional("override", .boolean), result: [.required("errors", .object).open(), .required("loaded", .boolean), .optional("patched", .array), .required("paths", .array), .required("services", .array), .optional("unchanged", .boolean), .required("verified", .boolean)])
         case .servicesUnload:
             MethodSpec(.required("paths", .array),
                        .optional("override", .boolean),
                        force: .always { p in
                            _ = try GuestAPI.servicePaths(p)
                            return "unload services"
-                       })
-        case .launchdGetenv: MethodSpec(.required("key", .string))
-        case .launchdSetenv: MethodSpec(.required("key", .string), .required("value", .string))
-        case .launchdUnsetenv: MethodSpec(.required("key", .string))
+                       }, result: [.required("errors", .object).open(), .required("loaded", .boolean), .optional("patched", .array), .required("paths", .array), .required("services", .array), .optional("unchanged", .boolean), .required("verified", .boolean)])
+        case .launchdGetenv: MethodSpec(.required("key", .string), result: [.required("exists", .boolean), .required("key", .string), .optional("value", .string)])
+        case .launchdSetenv: MethodSpec(.required("key", .string), .required("value", .string), result: [.required("exists", .boolean), .required("key", .string), .required("value", .any), .required("verified", .boolean)])
+        case .launchdUnsetenv: MethodSpec(.required("key", .string), result: [.required("exists", .boolean), .required("key", .string), .required("value", .any), .required("verified", .boolean)])
         }
     }
 }

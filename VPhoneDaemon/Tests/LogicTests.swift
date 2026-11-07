@@ -575,6 +575,8 @@ enum LogicTests {
         case always = "fixture.always"
         case when = "fixture.when"
         case varies = "fixture.varies"
+        case declared = "fixture.declared"
+        case empty = "fixture.empty"
 
         var spec: MethodSpec {
             switch self {
@@ -589,6 +591,11 @@ enum LogicTests {
                 MethodSpec(.optional("userspace", .boolean), force: .always { p in
                     GuestMethodArea.flag(p, "userspace") ? "restart fixture userspace" : "reboot fixture"
                 })
+            case .declared:
+                MethodSpec(.required("a", .string), result: [
+                    .optional("z", .boolean), .required("x", .integer), .hidden("y", .string), .required("e", .object).open(),
+                ])
+            case .empty: MethodSpec(result: [])
             }
         }
     }
@@ -641,6 +648,10 @@ enum LogicTests {
         expectEqual(run("fixture.when", ["kill": true]).error ?? "", "Pass force: true to kill fixture")
         expectEqual(json(run("fixture.when", ["kill": true, "force": true]).result), json(["kill": true]), "forced kill admits")
 
+        // ResultKey storage: undeclared is nil, declared empty is []
+        expect(FixtureMethod.echo.spec.result == nil, "no result: reads back nil")
+        expectEqual(FixtureMethod.empty.spec.result?.count ?? -1, 0, "result: [] reads back empty")
+
         let catalog = GuestMethodArea.catalog([area])
         let expected: [String: Any] = ["methods": [
             ["name": "fixture.echo", "params": [
@@ -650,6 +661,12 @@ enum LogicTests {
             ["name": "fixture.always", "params": [["name": "a", "type": "string", "required": true]], "force": "always"],
             ["name": "fixture.when", "params": [["name": "kill", "type": "boolean", "required": false]], "force": "when:kill"],
             ["name": "fixture.varies", "params": [["name": "userspace", "type": "boolean", "required": false]], "force": "always"],
+            ["name": "fixture.declared", "params": [["name": "a", "type": "string", "required": true]], "force": "never", "result": [
+                ["name": "e", "type": "object", "required": true, "open": true],
+                ["name": "x", "type": "integer", "required": true, "open": false],
+                ["name": "z", "type": "boolean", "required": false, "open": false],
+            ]],
+            ["name": "fixture.empty", "params": [] as [[String: Any]], "force": "never", "result": [] as [[String: Any]]],
         ]]
         expectEqual(json(catalog), json(expected), "catalog")
 

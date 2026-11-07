@@ -13,7 +13,14 @@ enum FirstBootMethod: String, GuestMethod {
         case .setupSettle:
             MethodSpec(.optional("timeout_s", .number),
                        .optional("poll_s", .number),
-                       .optional("stable_polls", .number))
+                       .optional("stable_polls", .number), result: [.required("elapsed_s", .number),
+                                .required("poll_s", .number),
+                                .required("polls", .integer),
+                                .required("reasons", .array),
+                                .required("settled", .boolean),
+                                .required("signals", .object),
+                                .required("stable_polls", .integer),
+                                .required("timeout_s", .number)])
         }
     }
 }

@@ -9,7 +9,11 @@ vphoned itself refused, the last stderr line is its whole error object as JSON
 (`code`, `message` and fields such as `results`, `reason`, `errno`,
 `retryable`); `vphone.sock` carries the same object as `guest_error`. Add `--screen` to also get the small screen image.
 
-The complete catalog, with REST routes and result details, is
+Result shapes are not listed here: `methods.list` is the authority. Each method's
+`result` array gives its keys as `name`, `type`, `required` and `open`
+(an open result may carry keys beyond those listed). Call it instead of guessing.
+
+The complete catalog, with REST routes and behaviour, is
 `Research/vphoned_http_api.md` ("Method catalog"). This file is the working
 subset with parameter names checked against the daemon source
 (`VPhoneDaemon/Daemon/GuestAPI*.swift`). When a call fails with an
@@ -53,7 +57,7 @@ invalid-request error, read the source named there instead of guessing keys.
 | --- | --- | --- |
 | `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode. Start here |
 | `device.snapshot`, `device.screen`, `device.network` | none | Smaller views of the same |
-| `screen.screenshot` | none | Base64 JPEG with `mime_type`, `width`, `height` (1290×2796) |
+| `screen.screenshot` | none | Base64 JPEG, 1290×2796 |
 | `display.brightness`, `audio.volume` | `value?` | Omit `value` to read |
 | `audio.host_latency` | `seconds?` (0-1) | The Mac output latency the guest speaker adds; omit to read. The VM sends it on every connect and output change |
 | `display.rotation`, `display.orientation` | `orientation?` | |
@@ -101,7 +105,7 @@ Selector keys: `text`, `identifier`, `role`, `match` (`contains` by default),
 | --- | --- |
 | `apps.list` | `filter?` (`all` default) |
 | `apps.search` | `query` |
-| `apps.launch` | `bundle_id`, `url?`. Returns `pid` and `frontmost_verified` |
+| `apps.launch` | `bundle_id`, `url?` |
 | `apps.foreground` | none; reports the verified front app |
 | `apps.terminate` | `bundle_id` |
 | `apps.open_url` | `url`, `bundle_id?` |
@@ -127,9 +131,7 @@ different meaning:
   bundle itself, bypassing installd and the profile checks, and keeps the app's
   own entitlements (so `get-task-allow` survives, which is the way to get a
   debuggable test app in). Its `PlugIns/*.appex` are registered with the app,
-  so extensions (packet tunnels, share sheets, widgets) launch; the result's
-  `plugins` lists them and `unregistered_plugins` any LaunchServices did not
-  take. It proves nothing about installd. To get the file
+  so extensions (packet tunnels, share sheets, widgets) launch. It proves nothing about installd. To get the file
   into the guest, see [guest-layout](guest-layout.md) ("Handing a file to
   vphoned").
 
@@ -166,16 +168,16 @@ are the usual way to hit the reply size problem.
 
 | Method | Params | Notes |
 | --- | --- | --- |
-| `processes.list` | `filter?` | `cpu_seconds`, `start_time`, footprint, jetsam band; a stuck SpringBoard shows ~0 CPU |
+| `processes.list` | `filter?` | a stuck SpringBoard shows ~0 CPU |
 | `processes.kill` (force) | `pid`, `signal?` | |
 | `memory.jetsam`, `memory.pressure` | none | |
 | `logs.syslog` | `seconds?` (2, max 60), `process?`, `level?` (`all`), `max_lines?` (500) | A bounded capture |
-| `logs.crashes` | `bundle_id?` | Lists reports: `path`, `process`, `size`, `mtime` |
+| `logs.crashes` | `bundle_id?` | Lists reports |
 | `logs.crash` | `path` | Reads one report |
 | `services.list` | none | launchd |
 | `services.status`, `services.print` | `label` | |
 | `services.start`, `services.enable` | `label` | |
-| `services.kickstart` | `label`, `kill?` | `launchctl kickstart`; answers the new `pid`. `kill` (force) replaces a running instance, so a re-deployed daemon runs its new binary; without it a running service is left alone (capability `service_kickstart`) |
+| `services.kickstart` | `label`, `kill?` | `launchctl kickstart`. `kill` (force) replaces a running instance, so a re-deployed daemon runs its new binary; without it a running service is left alone (capability `service_kickstart`) |
 | `services.stop`, `disable`, `remove`, `unload` (force) | `label` | |
 | `launchd.getenv` / `setenv` / `unsetenv` | `key`, `value?` | |
 

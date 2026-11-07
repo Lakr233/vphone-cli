@@ -22,26 +22,109 @@ enum AppDetailMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .appsInfo: MethodSpec(.required("bundle_id", .string))
-        case .appsBinary: MethodSpec(.required("bundle_id", .string))
-        case .appsDataDir: MethodSpec(.required("bundle_id", .string))
-        case .appsUrlSchemes: MethodSpec()
-        case .appsHandlers: MethodSpec(.required("url", .string))
-        case .appsRegistration: MethodSpec(.required("path", .string))
-        case .appsRegister: MethodSpec(.required("path", .string))
+        case .appsInfo: MethodSpec(.required("bundle_id", .string), result: [
+                                       .optional("build", .any),
+                                       .required("bundle_id", .any),
+                                       .required("bundle_path", .any),
+                                       .optional("data_path", .any),
+                                       .optional("encrypted", .any),
+                                       .optional("entitlements", .any).open(),
+                                       .optional("executable", .any),
+                                       .optional("group_containers", .object).open(),
+                                       .optional("minimum_os", .string),
+                                       .required("name", .any),
+                                       .optional("running", .any),
+                                       .optional("schemes", .array),
+                                       .optional("sdk", .string),
+                                       .optional("signer", .any),
+                                       .optional("signing_error", .string),
+                                       .optional("type", .any),
+                                       .optional("version", .any)])
+        case .appsBinary: MethodSpec(.required("bundle_id", .string), result: [
+                                         .required("bundle_id", .string),
+                                         .required("encrypted", .boolean),
+                                         .required("entitlements", .any).open(),
+                                         .required("executable", .string)])
+        case .appsDataDir: MethodSpec(.required("bundle_id", .string), result: [.required("bundle_id", .string), .required("data_path", .any)])
+        case .appsUrlSchemes: MethodSpec(result: [.required("schemes", .object).open()])
+        case .appsHandlers: MethodSpec(.required("url", .string), result: [
+                                           .optional("apps", .array),
+                                           .optional("count", .any),
+                                           .optional("error", .string),
+                                           .optional("scheme", .string),
+                                           .optional("url", .string)])
+        case .appsRegistration: MethodSpec(.required("path", .string), result: [
+                                               .optional("build", .any),
+                                               .optional("bundle_id", .any),
+                                               .optional("bundle_path", .any),
+                                               .optional("data_path", .any),
+                                               .optional("error", .string),
+                                               .optional("group_containers", .object).open(),
+                                               .optional("name", .any),
+                                               .optional("path", .any),
+                                               .optional("plugins", .any),
+                                               .optional("registered", .boolean),
+                                               .optional("running", .any),
+                                               .optional("schemes", .array),
+                                               .optional("signer", .any),
+                                               .optional("type", .any),
+                                               .optional("version", .any)])
+        case .appsRegister: MethodSpec(.required("path", .string), result: [
+                                           .optional("build", .any),
+                                           .optional("bundle_id", .any),
+                                           .optional("bundle_path", .any),
+                                           .optional("data_path", .any),
+                                           .optional("error", .string),
+                                           .optional("group_containers", .object).open(),
+                                           .optional("name", .any),
+                                           .required("path", .any),
+                                           .optional("plugins", .any),
+                                           .optional("registered", .boolean),
+                                           .optional("running", .any),
+                                           .optional("schemes", .array),
+                                           .optional("signer", .any),
+                                           .optional("type", .any),
+                                           .optional("version", .any)])
         case .appsUnregister:
-            MethodSpec(.required("path", .string), force: .always { p in try "unregister \(GuestAPI.string(p, "path"))" })
+            MethodSpec(.required("path", .string), force: .always { p in try "unregister \(GuestAPI.string(p, "path"))" }, result: [
+                           .optional("bundle_id", .any),
+                           .optional("message", .string),
+                           .required("path", .string),
+                           .required("unregistered", .boolean)])
         case .appsUnregisterDir:
             MethodSpec(.required("directory", .string),
-                       force: .always { p in try "unregister every app in \(GuestAPI.string(p, "directory"))" })
-        case .appsNetworkPolicy: MethodSpec(.required("bundle_id", .string), .optional("repair", .boolean))
-        case .systemUicache: MethodSpec(.optional("directory", .string))
-        case .systemSystemApps: MethodSpec(.optional("visible", .boolean))
-        case .systemRespring: MethodSpec(force: .always { _ in "restart SpringBoard" })
+                       force: .always { p in try "unregister every app in \(GuestAPI.string(p, "directory"))" }, result: [
+                           .optional("directory", .string),
+                           .optional("error", .string),
+                           .optional("failed", .any),
+                           .optional("unregistered", .array),
+                           .optional("unverified", .array)])
+        case .appsNetworkPolicy: MethodSpec(.required("bundle_id", .string), .optional("repair", .boolean), result: [
+                                                .optional("allowed", .any),
+                                                .optional("bundle_id", .string),
+                                                .optional("changed", .boolean),
+                                                .optional("error", .string),
+                                                .optional("policy", .object).open()])
+        case .systemUicache: MethodSpec(.optional("directory", .string), result: [.required("directory", .string),
+                                                 .required("failed", .array),
+                                                 .required("registered", .array),
+                                                 .required("skipped", .array),
+                                                 .required("unchanged", .array),
+                                                 .required("unregistered", .array),
+                                                 .required("unverified", .array)])
+        case .systemSystemApps: MethodSpec(.optional("visible", .boolean), result: [.optional("changed", .boolean),
+                                                    .optional("configured", .boolean),
+                                                    .optional("error", .string),
+                                                    .optional("requires_respring", .boolean),
+                                                    .required("visible", .any)])
+        case .systemRespring: MethodSpec(force: .always { _ in "restart SpringBoard" }, result: [.required("method", .string),
+                                                  .required("pid", .any),
+                                                  .required("previous_pid", .integer),
+                                                  .required("restarted", .boolean)])
         case .systemReboot:
             MethodSpec(.optional("userspace", .boolean),
-                       force: .always { p in GuestMethodArea.flag(p, "userspace") ? "restart userspace" : "reboot the guest" })
-        case .systemShutdown: MethodSpec(force: .always { _ in "shut down the guest" })
+                       force: .always { p in GuestMethodArea.flag(p, "userspace") ? "restart userspace" : "reboot the guest" }, result: [.required("accepted", .boolean), .required("completion", .string), .required("kind", .string)])
+        case .systemShutdown: MethodSpec(force: .always { _ in "shut down the guest" }, result: [.required("accepted", .boolean), .required("completion", .string)])
         }
     }
 }

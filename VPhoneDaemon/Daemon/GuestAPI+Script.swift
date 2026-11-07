@@ -11,8 +11,8 @@ enum ScriptMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .scriptEval: MethodSpec(.required("source", .string), .optional("timeout", .number))
-        case .scriptInfo: MethodSpec()
+        case .scriptEval: MethodSpec(.required("source", .string), .optional("timeout", .number), result: [.required("crashed", .boolean), .optional("error", .string), .optional("ok", .boolean), .optional("output", .string), .optional("result", .string)])
+        case .scriptInfo: MethodSpec(result: [.required("available", .boolean), .required("engine", .string), .required("globals", .array), .required("programs", .object)])
         }
     }
 }

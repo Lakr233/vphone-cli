@@ -17,18 +17,18 @@ enum ProcessMethod: String, GuestMethod {
         case .processSpawn:
             MethodSpec(.required("executable", .string),
                        .optional("arguments", .array),
-                       .optional("timeout_seconds", .number))
-        case .posterInspect: MethodSpec(.required("pid", .integer))
-        case .processesList: MethodSpec(.optional("filter", .string))
+                       .optional("timeout_seconds", .number), result: [.required("arguments", .array), .required("executable", .any), .required("exit_code", .any), .required("pid", .integer), .required("signal", .any), .required("stderr", .string), .required("stdout", .string), .required("timed_out", .boolean)])
+        case .posterInspect: MethodSpec(.required("pid", .integer), result: [.required("available", .boolean), .required("pid", .integer), .required("reason", .string)])
+        case .processesList: MethodSpec(.optional("filter", .string), result: [.required("count", .integer), .required("processes", .array)])
         case .processesKill:
             MethodSpec(.required("pid", .integer),
                        .optional("signal", .string),
                        force: .always { p in
                            let r = try GuestAPI.killRequest(p)
                            return "send SIG\(r.name) to \(r.pid)"
-                       })
-        case .memoryJetsam: MethodSpec()
-        case .memoryPressure: MethodSpec()
+                       }, result: [.required("pid", .integer), .required("signal", .string)])
+        case .memoryJetsam: MethodSpec(result: [.required("memory", .object), .optional("priorities", .array), .optional("priorities_error", .string), .required("properties", .object).open()])
+        case .memoryPressure: MethodSpec(result: [.required("memory", .object)])
         }
     }
 }
