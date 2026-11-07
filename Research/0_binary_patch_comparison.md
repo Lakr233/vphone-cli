@@ -1858,6 +1858,7 @@ do NOT execute these).
 | 35  | Derive the paravirtual driver compiler cache identity from the installed plugin — **iOS 26.6 / cloudOS 26.4** | AppleParavirtGPUMetalIOGPUFamily | **Invalidate shader output after plugin updates.** `system-paravirt_gpu-cfw-compiler_cache` replaces only two eight-byte SHA-256 seed inputs with a 96-bit plugin content identity. Changes compose with the other driver patches on its pristine backup. Requires row 36 when cross-boot reuse is enabled; installer verifies it actually applied before refreshing the plugin. Private APFS clone and fatal identity-failure handling prevent inconsistent publication. Development-build guest validation rejects stale default-cache shaders and passes all 21 point cases. |    Y    |  Y  |  Y  |
 | 36  | Retain cache-key validation when cross-boot reuse is enabled — **iOS 26.6 / cloudOS 26.4** | libCoreFSCache in the guest dyld shared cache | **Reject stale compiler output while retaining warm caches across boots.** The original `FS_CACHE_REUSE_ON_REBOOT=1` skips both the key and boot checks. `dyld-cfw-metal_cache_reuse_key` routes only that path through the key comparison; the no-reuse path remains intact. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; actual-cache apply/repeat/undo restores all 85 files. |    Y    |  Y  |  Y  |
 | 37  | No Apple binary change: SystemHook detours IOKit's `IOServiceOpen`/`IOServiceClose`/`IOConnectCallMethod`/`IOConnectCallAsyncMethod` while `/usr/lib/vphone-ios18-gpu` exists, and `fw prepare` stages the iOS release's own cloudOS GPU driver — **iOS 18.6 / cloudOS 26.1** | none (`VPhoneGuestComponents/SystemHook/VPhoneIOS18GPU.c`; driver from cloudOS 18.6; marker written by `cfw install` only over that driver) | **An iOS 18 guest gets a Metal device.** The 26.1 driver does not load on iOS 18, and the 18.6 one is refused by the 26.1 kernel: IOGPU device method 6 is gone and 7–255 moved down by one, the resource-create reply gained 8 bytes at 0x18, the multi-buffer submit takes 0x30-byte entries instead of 0x28 and returns a scalar iOS 18 does not ask for, and AppleParavirtGPU method 265 grew from 0x10c to 0x118. The transport renumbers and repacks for IOGPU device connections only. `system-systemhook-cfw-ios18_gpu_transport`; see "iOS 18 GPU transport (2026-11-05)" and `Research/Guest/ios18_gpu_transport.md` |    Y    |  Y  |  Y  |
+| 38  | `tbz` -> `nop` on the cached Neural Engine existence answer in `___deviceHasModernNeuralEngine_block_invoke`, plus the host's MIL sources for the five E5 models — **iOS 27** | TextRecognition, guest dyld shared cache; `/System/Library/PrivateFrameworks/TextRecognition.framework/cr_*_e5.mlmodelc.bundle` | **Accurate text recognition.** A VM is never given a modern Neural Engine, so TextRecognition picks CPU models whose weights the iPhone firmware does not ship. `dyld-cfw-text_recognition_ane` selects the E5 models instead and adds the `model.mil` and weights E5RT compiles them from on the paravirtual Neural Engine; local-symbol and call-target discovery, page re-attestation, undo-log revert and a journal of the added files. See "Accurate text recognition on the paravirtual Neural Engine". |    Y    |  Y  |  Y  |
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
 
@@ -7043,3 +7044,93 @@ rootless only. The existing vphoned installation step also installs its Span
 runtime dependency. No new firmware patch identifier or kernel
 instruction change is introduced. Runtime app installation/launch/removal,
 Irisin installation and registration rebuild are recorded in the bring-up doc.
+
+## Accurate text recognition on the paravirtual Neural Engine
+
+`dyld-cfw-text_recognition_ane` makes accurate text recognition work in iOS 27
+guests. It is enabled in `standard`, is not boot-essential, and is blocked in
+the Apple TV, HomeView, HomePod and visionOS presets.
+
+**Symptom.** `VNRecognizeTextRequest` at the accurate level, and vphoned's
+`ui.ocr`, fail with `CRImageReaderError` 9; the fast level works. The log shows
+Espresso loading `cr_td_model_v3_eir.mlmodelc.bundle` and failing with
+`Missing weights path model.espresso.weights_nonane status=-2`.
+
+**Cause.** TextRecognition chooses its detector, its Latin, Arabic and
+Devanagari recognizers and its orientation model by
+`deviceHasModernNeuralEngine`: E5 models when true, Espresso CPU models
+otherwise. The predicate requires `deviceHasAppleNeuralEngine`, which answers
+false as soon as `MobileGestalt_get_isVirtualDevice` is true, before it asks
+Espresso for a Neural Engine context. The iPhone firmware ships the CPU
+detector's network without its weights: the 24A446 restore image has no
+weights file in that bundle and no MobileAsset carries one, and a physical
+iPhone (24C5037i) loads the E5 detector, with the CPU detector failing the same
+way there when loaded directly. vphone removes nothing here.
+
+The guest's Neural Engine itself is usable: `espresso_create_context(10007, -1)`
+succeeds and `AppleNeuralEngineSubtype` is 128. Two simpler changes fail:
+
+- Selecting E5 alone: each firmware E5 bundle holds only `H18.bundle`. E5RT
+  looks for the host's family (`H14G`, `H14` and their variants for an M2),
+  then compiles `<bundle>/model.mil`, which the firmware does not ship.
+- Dropping the VM check from `deviceHasAppleNeuralEngine`: the Espresso
+  Chinese/Japanese and Korean recognizers then ask for the Neural Engine
+  (`cp=65552`), whose H18-only binaries fail on the paravirtual device
+  (`submit with arguments requires context_metal`,
+  `CRImageReaderErrorDomain -8`).
+
+**Change.** Two parts under one identifier, because neither works alone:
+
+1. In the shared cache, the `tbz` that makes the modern answer depend on the
+   cached existence answer becomes a `nop`. The block then caches
+   `MGGetSInt64Answer("AppleNeuralEngineSubtype", 1) > 31` alone; the existence
+   predicate keeps its VM answer. The block is found by its local symbol; its
+   call must reach `_MGGetSInt64Answer` in libMobileGestalt, directly or
+   through a branch stub, and the compare with 31, the `cset gt`, the store and
+   the `tbz` target must all match. `___deviceHasH16OrLaterNeuralEngine_block_invoke`,
+   the same block with 207, is rejected. One page is re-attested, and the
+   original word goes to the undo log.
+2. `cfw install` and `cfw update-environment` add the host's `model.mil` and
+   the weight files it reads (`@model_path/...`, only `weights/weight.bin`
+   today) beside `H18.bundle` in each `cr_*_e5.mlmodelc.bundle`. macOS ships
+   the same five models as MIL in
+   `/System/Library/PrivateFrameworks/TextRecognition.framework/Resources`, and
+   compiles them per process itself. On macOS 27.0.1 (26A434) they are
+   byte-identical to the iOS 27.0 Simulator's, and the guest's `H18.e5` records
+   `espressoc_host -i .../cr_td_model_v3_e5.mlmodelc.bundle/model.mil`. A model
+   is accepted only when every file both sides carry (`codemap.bin`,
+   `constant_input_pe_pe_to_fp16.bin`) is byte-identical and each guest
+   `H*.e5` names every input and output in the host's `metadata.json`. All
+   models are checked before anything is written. A bundle whose `model.mil`
+   the firmware already ships is left alone. The added files are journaled in
+   `/usr/share/vphone/TextRecognitionModels.plist`; turning the patch off
+   removes exactly those, the folders it created and the journal. A file whose
+   contents are already current is left in place, because E5RT keys each app's
+   compiled models by the source file and would otherwise recompile them after
+   every environment update. The cache patch is not applied when the models
+   could not be added.
+
+**Cost.** Each app compiles the models on its first accurate request, about
+50 s on an M2 host, then keeps them in its own
+`Library/Caches/<app>/com.apple.e5rt.e5bundlecache`; later requests take
+0.1–0.8 s, across reboots too. macOS does the same for these models (44–47 s
+for a fresh process on the same host). The paravirtual Neural Engine refuses
+precompiled binaries outside internal builds
+(`validateEnvironmentForPrecompiledBinarySupport`), and the firmware's only
+precompiled variant is H18 anyway.
+
+**Validation.** The cache patch was dry-run on the 24A446 caches of iPhone18,2
+and iPad17,1, which place the site at the same address. Live validation used
+an iPhone18,2 guest on 24A446 with an M2 host on macOS 27.0.1, through the
+built CLI's `cfw update-environment`. Before, accurate recognition failed as
+above. After, with no hook in the test process, accurate recognition
+succeeded by default, for English, for Chinese, Japanese and Korean with
+their languages, with the CPU, GPU and Neural Engine devices requested
+explicitly, and at revisions 1–3; the E5 models were compiled from the
+system path and loaded on the Neural Engine, and the CPU detector was not
+loaded. `ui.ocr` returned the home screen's text. Both kept working after a
+reboot and after another `update-environment`, without recompiling. Turning
+the patch off restored all 82 cache files and the undo log byte for byte,
+removed the added files, folders and journal, and brought back the original
+failure; turning it on again reproduced the same cache bytes. Other builds
+have not been tested and may need different matching.

@@ -87,6 +87,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
         [
             VPhoneCustomFirmwarePatchMetalVertexIDFormatCommand.self,
             VPhoneCustomFirmwarePatchGLESPrimitiveRestartCommand.self,
+            VPhoneCustomFirmwarePatchTextRecognitionANECommand.self,
             VPhoneCustomFirmwarePatchMetalCacheReuseKeyCommand.self,
             VPhoneCustomFirmwarePatchGLESPointDrawCommand.self,
             VPhoneCustomFirmwarePatchHomeViewEnvironmentCommand.self,
@@ -270,6 +271,47 @@ struct VPhoneCustomFirmwarePatchMetalVertexIDFormatCommand: ParsableCommand {
             // A rollback failure returns all pre-write originals, including
             // partially written ranges. Preserve them before reporting failure.
             // A verified rollback returns no records and changes no undo log.
+            do {
+                try undo.persist(captured, dryRun: dryRun)
+            } catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-text-recognition-ane
+
+struct VPhoneCustomFirmwarePatchTextRecognitionANECommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-text-recognition-ane",
+        abstract: "Let TextRecognition choose its E5 models on the paravirtual Neural Engine",
+    )
+
+    @Argument(
+        help: "The guest's /System/Library/Caches/com.apple.dyld directory",
+        transform: URL.init(fileURLWithPath:),
+    )
+    var chunksDirectory: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report the patch site without writing")
+    var dryRun = false
+
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheTextRecognitionANEPatcher.patch(
+                chunksDirectory: chunksDirectory,
+                dryRun: dryRun,
+                captureUndo: undo.captures,
+                onUndo: { captured.merge($0) },
+                log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
+            )
+        } catch {
             do {
                 try undo.persist(captured, dryRun: dryRun)
             } catch let persistenceError {

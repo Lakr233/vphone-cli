@@ -1960,6 +1960,22 @@ struct VPhoneCustomFirmwareInstaller {
             ("dyld-exp-hv_vmm", "patch-hv-vmm-dsc", [dsc]),
             ("dyld-cfw-camera", "patch-camera-dsc", [dsc, DyldSharedCacheChunkSet.mainCacheURL(in: URL(fileURLWithPath: dsc)).path]),
         ]
+        // TextRecognition's E5 sources from the host, then the cache patch that
+        // selects them. E5 selected without the sources fails every accurate
+        // request, so the patch is not applied over a set that failed to install.
+        let textRecognition = FirmwareGuestSystemPatchSet.textRecognitionANE
+        var textRecognitionModels = false
+        isolate([textRecognition]) {
+            if plan?.isEnabled(textRecognition) == true {
+                try installTextRecognitionModels(system: system)
+                textRecognitionModels = true
+            } else if try CustomFirmwareTextRecognitionModels.uninstall(system: system) {
+                print("  [+] \(textRecognition): removed the TextRecognition model sources it added")
+            }
+        }
+        if textRecognitionModels || plan?.isEnabled(textRecognition) != true {
+            dyld.append((textRecognition, "patch-text-recognition-ane", [dsc]))
+        }
         try applyDyldPatches(
             dyld, dsc: dsc, cacheRelative: cacheRelative, system: system, plan: plan, priorGuest: priorGuest,
             live: &live, failures: &failures,
@@ -2777,7 +2793,8 @@ struct VPhoneCustomFirmwareInstaller {
                 || id == FirmwareGuestSystemPatchSet.metalCacheReuseKey
                 || id == FirmwareGuestSystemPatchSet.metalVertexIDFormat
                 || id == FirmwareGuestSystemPatchSet.glesPointDraw
-                || id == FirmwareGuestSystemPatchSet.glesPrimitiveRestart {
+                || id == FirmwareGuestSystemPatchSet.glesPrimitiveRestart
+                || id == FirmwareGuestSystemPatchSet.textRecognitionANE {
                 return plan?.isEnabled(id) == true
             }
             return plan?.isEnabled(id) ?? !FirmwareGuestSystemPatchSet.settingsRowPatches.contains(id)
@@ -2876,6 +2893,18 @@ struct VPhoneCustomFirmwareInstaller {
                 }
             }
         }
+    }
+
+    /// Add the host's MIL sources for TextRecognition's E5 models, replacing
+    /// what an earlier run added. Every model is checked before any write.
+    private func installTextRecognitionModels(system: VPhoneConfinedDirectory) throws {
+        let resources = URL(fileURLWithPath: CustomFirmwareTextRecognitionModels.hostResources)
+            .resolvingSymlinksInPath().path
+        let host = try VPhoneConfinedDirectory.pin(absolutePath: resources)
+        let journal = try CustomFirmwareTextRecognitionModels.readJournal(system: system)
+        let models = try CustomFirmwareTextRecognitionModels.plan(system: system, host: host, journal: journal)
+        try CustomFirmwareTextRecognitionModels.install(models, system: system, journal: journal, owner: Self.guestOwner)
+        print("  [+] TextRecognition E5 sources from the host: \(models.models.joined(separator: ", "))")
     }
 
     /// Restore a guest Mach-O from its `.bak`, re-sealing the bundle it lives in
