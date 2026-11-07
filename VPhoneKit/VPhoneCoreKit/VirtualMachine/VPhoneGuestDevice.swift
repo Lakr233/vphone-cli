@@ -102,13 +102,13 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
 
     // MARK: - Known Devices
 
-    /// iPhone 16 (D47AP), the device every catalog IPSW targets.
+    /// iPhone 16 (D47AP): 1179x2556, 393x852 points.
     public static let iPhone17_3 = VPhoneGuestDevice(
         family: .iPhone,
         productType: "iPhone17,3",
         deviceClass: "d47ap",
         productName: "iPhone 16",
-        screen: .default,
+        screen: .init(width: 1179, height: 2556, pixelsPerInch: 460, scale: 3.0),
     )
 
     private static func iPhone(
