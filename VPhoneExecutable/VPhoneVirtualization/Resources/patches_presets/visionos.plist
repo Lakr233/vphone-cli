@@ -115,6 +115,7 @@
 			<string>dyld-cfw-gles_primitive_restart</string>
 			<string>dyld-cfw-metal_cache_reuse_key</string>
 			<string>dyld-cfw-metal_vertex_id_format</string>
+			<string>dyld-cfw-text_recognition_ane</string>
 			<string>dyld-exp-homeview_environment_service</string>
 			<string>dyld-exp-hv_vmm</string>
 			<string>dyld-exp-ios16_mach_ports_lookup</string>

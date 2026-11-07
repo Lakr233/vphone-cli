@@ -251,6 +251,7 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.glesPointDraw,
         FirmwareGuestSystemPatchSet.glesPrimitiveRestart,
         FirmwareGuestSystemPatchSet.metalVertexIDFormat,
+        FirmwareGuestSystemPatchSet.textRecognitionANE,
         paravirtTask3Patch,
         paravirtGLESPatch,
         FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap,

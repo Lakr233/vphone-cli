@@ -51,6 +51,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
     public static let glesPointDraw = "dyld-cfw-gles_point_draw"
     public static let metalCacheReuseKey = "dyld-cfw-metal_cache_reuse_key"
+    public static let textRecognitionANE = "dyld-cfw-text_recognition_ane"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
     public static let accelerometer = "system-backboardd-cfw-accelerometer"
     public static let hinge = "system-backboardd-cfw-hinge"
@@ -523,6 +524,19 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .dyldSharedCache,
                 applicability: ios27,
                 bootEssential: true,
+            ),
+            VPhonePatchDeclaration(
+                identifier: textRecognitionANE,
+                title: "Accurate text recognition",
+                summary: """
+                Runs TextRecognition's E5 text detection and recognition models on the paravirtual \
+                Neural Engine, compiled from the host's copies of the same models, which are added \
+                beside the firmware's. Otherwise the guest picks CPU models the iPhone firmware has \
+                no weights for, and accurate recognition fails. Each app compiles the models once, \
+                on its first accurate request.
+                """,
+                target: .dyldSharedCache,
+                applicability: ios27,
             ),
             VPhonePatchDeclaration(
                 identifier: "dyld-exp-mis_trust_auth",
