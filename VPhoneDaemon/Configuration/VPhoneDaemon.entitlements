@@ -17,6 +17,8 @@
 	<true/>
 	<key>com.apple.locationd.simulation</key>
 	<true/>
+	<key>com.apple.locationd.authorizeapplications</key>
+	<true/>
 	<key>com.apple.lsapplicationworkspace.rebuildappdatabases</key>
 	<true/>
 	<key>com.apple.powerd.lowpowermode.allow</key>

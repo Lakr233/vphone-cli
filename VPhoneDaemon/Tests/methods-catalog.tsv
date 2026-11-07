@@ -110,6 +110,7 @@ launchd.setenv	never	key:string!,value:string!	-
 launchd.unsetenv	never	key:string!	-
 location.clear	never	-	-
 location.current	never	timeout:number	-
+location.services	never	enabled:boolean	-
 location.set	never	latitude:number!,longitude:number!,altitude:number,horizontal_accuracy:number,vertical_accuracy:number,speed:number,course:number	-
 logs.crash	never	path:string!	-
 logs.crashes	never	bundle_id:string	-

@@ -37,6 +37,7 @@ enum CoreMethod: String, GuestMethod {
     case developerModeStatus = "developer_mode.status"
     case developerModeEnable = "developer_mode.enable"
     case powerLowPowerMode = "power.low_power_mode"
+    case locationServices = "location.services"
     case clipboardGet = "clipboard.get"
     case clipboardSet = "clipboard.set"
     case clipboardClear = "clipboard.clear"
@@ -124,6 +125,7 @@ enum CoreMethod: String, GuestMethod {
         case .developerModeStatus: MethodSpec()
         case .developerModeEnable: MethodSpec()
         case .powerLowPowerMode: MethodSpec(.optional("enabled", .boolean))
+        case .locationServices: MethodSpec(.optional("enabled", .boolean))
         case .clipboardGet: MethodSpec()
         case .clipboardSet: MethodSpec(.required("text", .string))
         case .clipboardClear: MethodSpec()
@@ -564,6 +566,11 @@ enum GuestAPI {
                 return try setLowPowerMode(enabled)
             }
             return try lowPowerMode()
+        case .locationServices:
+            if let enabled = params["enabled"] as? Bool {
+                return try setLocationServices(enabled)
+            }
+            return ["enabled": CLLocationManager.locationServicesEnabled()]
         case .clipboardGet:
             return try clipboardInfo()
         case .clipboardSet:
