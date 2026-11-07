@@ -301,6 +301,7 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
         FirmwareGuestSystemPatchSet.glesUpperLeft,
         FirmwareGuestSystemPatchSet.ios18GPUTransport,
+        CustomFirmwareRemotePairing.patchID,
         "system-systemhook-cfw-metal_cache_reuse",
         "system-systemversion-cfw-build_version",
         "system-virtiosound-cfw-hal_plugin",

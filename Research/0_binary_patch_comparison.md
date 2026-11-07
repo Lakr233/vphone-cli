@@ -6956,6 +6956,16 @@ Offline validation on 24A446 and 24C5037i changes exactly 12 bytes before
 signing, and a second application is a no-op. Other builds have not been
 tested and may need different matching.
 
+The iPhone19,4 builds of 27.1 (24A94425) and 27.2 (24B91020) are `arm64e.x1`:
+their functions open with `pacibsppc`, so function bounds also accept the
+PC-salted prologues. On those two builds and 24A446 the patch again changes
+exactly 12 bytes at the three gates and a second application is a no-op. This
+is offline validation only; the 27.1 and 27.2 Duo guests have not run it.
+
+Apple TV, HomeView and HomePod presets block the patch, as they block the
+other iOS 27 guest-executable patches, because no tvOS 27 `remotepairingdeviced`
+has been checked, and a site miss there would abort a strict OTA update.
+
 Live validation on 24A446 with bundle 2.15.2 confirmed that same-device
 connections were reset during the control handshake before patching.
 After patching, pairing verification, TLS tunnels, Accessibility and screen

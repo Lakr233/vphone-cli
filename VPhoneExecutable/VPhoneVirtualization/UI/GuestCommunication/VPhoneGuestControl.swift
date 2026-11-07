@@ -257,14 +257,6 @@ final class VPhoneGuestControl {
             {
                 print("[control] updating vphoned over HTTP...")
                 try await createDirectory(path: "/var/root/Library/Caches")
-                if info["os"] as? String == "visionOS" {
-                    // A VM installed with the earlier minimal agent has no
-                    // compatibility library on System yet. Seed the root-owned
-                    // cache before starting the iPad-compatible agent.
-                    let library = VPhoneResources.resolve().guestResources.appendingPathComponent("libswiftCompatibilitySpan.dylib")
-                    try await uploadFile(path: "/var/root/Library/Caches/libswiftCompatibilitySpan.dylib",
-                                         data: Data(contentsOf: library))
-                }
                 try await uploadFile(path: "/var/root/Library/Caches/vphoned.next", data: data)
                 _ = try await call("agent.apply_update", params: ["sha256": hash])
                 setDisconnected()

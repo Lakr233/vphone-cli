@@ -133,6 +133,7 @@
 			<string>system-debugserver-cfw-install</string>
 			<string>system-dyld-boot-arm64e_x1_bootstrap</string>
 			<string>system-diskimagesiod-cfw-is_mount_complete</string>
+			<string>system-remotepairingdeviced-cfw-local_connections</string>
 			<string>system-extensions-boot-gpu_bundle</string>
 			<string>system-tv-exp-ota_userland</string>
 			<string>system-setupbackground-exp-pineboard_lookup</string>
