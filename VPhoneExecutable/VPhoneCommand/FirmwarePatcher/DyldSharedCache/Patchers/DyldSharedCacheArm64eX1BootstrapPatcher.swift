@@ -147,7 +147,14 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
 
         // Planning only reads; each worker gets its own chunk set and Capstone
         // handle, and results keep image order so the writes are deterministic.
-        let workers = max(1, min(ProcessInfo.processInfo.activeProcessorCount, selected.count))
+        #if os(Linux)
+        // The Linux installer reads through SSHFS; each worker's mappings hold
+        // remote SFTP handles as well as host address space.
+        let workerLimit = min(ProcessInfo.processInfo.activeProcessorCount, 4)
+        #else
+        let workerLimit = ProcessInfo.processInfo.activeProcessorCount
+        #endif
+        let workers = max(1, min(workerLimit, selected.count))
         // Largest first, sized by the gap to the next image, so the last few
         // workers are not left with UIKitCore while the rest sit idle.
         let starts = images.map(\.address).sorted()
@@ -180,17 +187,19 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                 guard next < order.count else { return }
                 let index = order[next]
                 let plan = Result {
-                    let result = try planImage(at: selected[index].address, in: readers[worker], identifier: patchID,
-                                               decoder: decoders[worker])
-                    return ImagePlan(
-                        writes: result.records.map {
-                            Write(
-                                address: UInt64($0.fileOffset),
-                                word: $0.patchedBytes.loadLE(UInt32.self, at: 0),
-                            )
-                        },
-                        unvisitedCandidates: result.unvisitedCandidates,
-                    )
+                    try readers[worker].withScopedMappedReads {
+                        let result = try planImage(at: selected[index].address, in: readers[worker], identifier: patchID,
+                                                   decoder: decoders[worker])
+                        return ImagePlan(
+                            writes: result.records.map {
+                                Write(
+                                    address: UInt64($0.fileOffset),
+                                    word: $0.patchedBytes.loadLE(UInt32.self, at: 0),
+                                )
+                            },
+                            unvisitedCandidates: result.unvisitedCandidates,
+                        )
+                    }
                 }
                 queue.withLock { $0.plans[index] = plan }
             }
