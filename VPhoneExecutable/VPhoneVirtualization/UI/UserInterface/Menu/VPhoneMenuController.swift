@@ -104,6 +104,8 @@ class VPhoneMenuController {
     var locationProvider: VPhoneLocationProvider?
     var locationMenuItem: NSMenuItem?
     var locationPresetMenuItem: NSMenuItem?
+    var locationCustomMenuItem: NSMenuItem?
+    var locationWindowController: VPhoneLocationWindowController?
     var locationReplayStartItem: NSMenuItem?
     var locationReplayStopItem: NSMenuItem?
     var screenRecorder: VPhoneScreenRecorder?
